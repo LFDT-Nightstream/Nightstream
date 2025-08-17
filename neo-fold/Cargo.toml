@@ -1,0 +1,34 @@
+[package]
+name = "neo-fold"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+neo-fields = { path = "../neo-fields" }
+neo-commit = { path = "../neo-commit" }
+neo-sumcheck = { path = "../neo-sumcheck" }
+neo-ccs = { path = "../neo-ccs" }
+neo-modint = { path = "../neo-modint" }
+neo-poly = { path = "../neo-poly" }
+neo-decomp = { path = "../neo-decomp" }
+neo-ring = { path = "../neo-ring" }
+p3-matrix = { workspace = true }
+p3-field = { version = "0.3" }
+p3-commit = "0.3"
+p3-poseidon2 = "0.3.0"
+p3-symmetric = "0.3.0"
+p3-goldilocks = "0.3.0"
+byteorder = "1.5.0"
+rand = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+rand = { workspace = true }
+quickcheck = "1"
+quickcheck_macros = "1"
+
+
+
+[features]
+prop-tests = []

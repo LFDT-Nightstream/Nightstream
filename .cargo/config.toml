@@ -1,0 +1,22 @@
+[build]
+rustflags = ["-Dwarnings"]
+
+[target.'cfg(all())']
+rustflags = ["-Dwarnings"]
+
+[alias]
+check-clippy = "clippy --all-targets --all-features -- -D warnings"
+
+[profile.dev]
+opt-level = 2
+debug = 1
+lto = "thin"
+codegen-units = 8
+
+[profile.test]
+inherits = "dev"
+
+[env]
+RUSTFLAGS = "-C target-cpu=native"
+QUICKCHECK_TESTS = "25"
+

@@ -1,0 +1,17 @@
+[package]
+name = "neo-decomp"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+neo-fields = { path = "../neo-fields" }
+p3-matrix = { workspace = true }
+p3-field = { version = "0.3" }
+neo-modint = { path = "../neo-modint" }
+
+[dev-dependencies]
+quickcheck = "1"
+quickcheck_macros = "1"
+neo-modint = { path = "../neo-modint", features = ["quickcheck"] }
+rand = { workspace = true }

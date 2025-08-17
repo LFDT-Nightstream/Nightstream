@@ -1,0 +1,19 @@
+[package]
+name = "neo-poly"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+neo-fields = { path = "../neo-fields" }
+p3-goldilocks = { workspace = true }
+rand = { workspace = true }
+p3-field = { version = "0.3" }
+neo-modint = { path = "../neo-modint" }
+quickcheck = { version = "1", optional = true }
+
+[features]
+quickcheck = ["dep:quickcheck", "neo-modint/quickcheck"]
+[dev-dependencies]
+quickcheck_macros = "1"
+quickcheck = "1"

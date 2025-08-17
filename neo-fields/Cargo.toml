@@ -1,0 +1,11 @@
+[package]
+name = "neo-fields"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+p3-goldilocks = { workspace = true }
+p3-field = { version = "0.3" }
+rand = { workspace = true }
+subtle = "2.5"

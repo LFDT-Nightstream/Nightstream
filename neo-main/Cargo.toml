@@ -1,0 +1,18 @@
+[package]
+name = "neo-main"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+neo-ring = { path = "../neo-ring" }
+neo-fields = { path = "../neo-fields" }
+neo-poly = { path = "../neo-poly" }
+neo-decomp = { path = "../neo-decomp" }
+neo-commit = { path = "../neo-commit" }
+neo-ccs = { path = "../neo-ccs" }
+neo-fold = { path = "../neo-fold" }
+neo-modint = { path = "../neo-modint" }
+rand = { workspace = true }
+p3-field = "0.3"
+p3-matrix = { workspace = true }

@@ -1,0 +1,22 @@
+[package]
+name = "neo-ccs"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+neo-fields = { path = "../neo-fields" }
+neo-poly = { path = "../neo-poly" }
+neo-commit = { path = "../neo-commit" }
+neo-ring = { path = "../neo-ring" }
+neo-modint = { path = "../neo-modint" }
+p3-matrix = { workspace = true }
+p3-field = { version = "0.3" }
+neo-sumcheck = { path = "../neo-sumcheck" }
+rand = { workspace = true }
+rand_distr = { workspace = true }
+rand_chacha = { workspace = true }
+thiserror = "1.0"
+rayon = { workspace = true }
+
+[dev-dependencies]

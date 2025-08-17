@@ -1,0 +1,13 @@
+/target
+**/*.rs.bk
+output.txt
+output-neo-ring.txt
+output-sum-check.txt
+output-ring.txt
+output-neo-fold.txt
+flamegraph.svg
+rust_bench.txt
+sim_bench.txt
+output-small.txt
+output-fri.txt
+output-fields.txt

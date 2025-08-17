@@ -1,0 +1,14 @@
+[package]
+name = "neo-modint"
+edition = "2021"
+version = "0.1.0"
+authors = ["Example Author <example@example.com>"]
+
+[dependencies]
+neo-fields = { path = "../neo-fields" }
+p3-field = "0.3"
+rand = { workspace = true }
+quickcheck = { version = "1", optional = true }
+
+[features]
+quickcheck = ["dep:quickcheck"]

@@ -91,14 +91,16 @@ mod tests {
         let depth = 2;
 
         // Add dummy eval to avoid empty state
-        state.eval_instances.push(neo_fold::EvalInstance {
+        let initial_eval_instance = neo_fold::EvalInstance {
             commitment: vec![],
             r: vec![ExtF::ONE],
             ys: vec![ExtF::ONE],
             u: ExtF::ZERO,
             e_eval: ExtF::ONE,
             norm_bound: 10,
-        });
+        };
+        eprintln!("DEBUG: Initial e_eval = {:?}", initial_eval_instance.e_eval);
+        state.eval_instances.push(initial_eval_instance);
 
         // Set initial CCS (demo) - use 4-element witness
         state.ccs_instance = Some((
@@ -111,7 +113,18 @@ mod tests {
             ] },
         ));
 
+        eprintln!("DEBUG: About to call recursive_ivc, current eval_instances.len() = {}", state.eval_instances.len());
+        if !state.eval_instances.is_empty() {
+            eprintln!("DEBUG: Before recursive_ivc, e_eval = {:?}", state.eval_instances.last().unwrap().e_eval);
+        }
+        
         assert!(state.recursive_ivc(depth, &committer));
+        
+        eprintln!("DEBUG: After recursive_ivc, eval_instances.len() = {}", state.eval_instances.len());
+        if !state.eval_instances.is_empty() {
+            eprintln!("DEBUG: After recursive_ivc, e_eval = {:?}", state.eval_instances.last().unwrap().e_eval);
+        }
+        
         assert!(state.verify_state()); // Final state valid
 
         // Force failure (e.g., invalid initial witness)

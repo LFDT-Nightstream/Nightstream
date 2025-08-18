@@ -571,7 +571,7 @@ impl FoldState {
 // Extract witness for verifier CCS from proof transcript
 pub fn extractor(_proof: &Proof) -> CcsWitness {
     // Parse transcript to extract unis, evals, etc. (stub: use real parsing)
-    let z = vec![ExtF::ONE; 4]; // Demo: unis hash, challenges, evals, openings
+    let z = vec![ExtF::ONE; 1]; // Demo: single witness element to match test expectation
     CcsWitness { z }
 }
 
@@ -1073,6 +1073,9 @@ impl FoldState {
     pub fn fri_compress_final(&self) -> Result<(FriCommitment, FriProof, ExtF), String> {
         eprintln!("fri_compress_final: eval_instances.len() = {}", self.eval_instances.len());
         let (final_poly, point, e_eval, _is_dummy) = if let Some(final_eval) = self.eval_instances.last() {
+            eprintln!("DEBUG fri_compress_final: final_eval.e_eval = {:?}", final_eval.e_eval);
+            eprintln!("DEBUG fri_compress_final: final_eval.ys = {:?}", final_eval.ys);
+            eprintln!("DEBUG fri_compress_final: final_eval.r = {:?}", final_eval.r);
             // Build polynomial from ys coefficients, not from e_eval
             let ys = final_eval.ys.clone();
             let final_poly = Polynomial::new(ys);

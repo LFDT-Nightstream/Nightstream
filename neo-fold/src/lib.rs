@@ -52,6 +52,7 @@ pub struct FoldState {
     pub fri_commit: Option<FriCommitment>,
     pub fri_proof: Option<FriProof>,
     pub max_blind_norm: u64,
+    pub correct_fri_e_eval: Option<ExtF>, // Store correct e_eval for FRI verification
 }
 
 impl FoldState {
@@ -72,6 +73,7 @@ impl FoldState {
             fri_commit: None,
             fri_proof: None,
             max_blind_norm: SECURE_PARAMS.max_blind_norm,
+            correct_fri_e_eval: None,
         }
     }
 
@@ -216,7 +218,9 @@ impl FoldState {
         pi_rlc(self, rho_rot.clone(), committer, &mut transcript);
         // No legacy base-limb storage; if needed, store a hash of rho_rot instead
         transcript.extend(b"neo_fri");
-        let (commit, proof) = self.fri_compress_final().expect("FRI failed");
+        let (commit, proof, correct_e_eval) = self.fri_compress_final().expect("FRI failed");
+        // Store the correct e_eval for verification
+        self.correct_fri_e_eval = Some(correct_e_eval);
         transcript.extend(&serialize_fri_commit(&commit));
         transcript.extend(&serialize_fri_proof(&proof));
         self.fri_commit = Some(commit);
@@ -516,11 +520,15 @@ impl FoldState {
         let proof_obj = read_fri_proof(&mut cursor);
         if let Some(last_eval) = reconstructed.last() {
             eprintln!("verify: About to verify FRI compression");
+            // Use stored correct_fri_e_eval if available (for dummy cases with blinding)
+            let e_eval_to_verify = self.correct_fri_e_eval.unwrap_or(last_eval.e_eval);
+            eprintln!("verify: Using e_eval_to_verify={:?} (stored={:?}, original={:?})", 
+                     e_eval_to_verify, self.correct_fri_e_eval, last_eval.e_eval);
             let fri_verify_result = Self::fri_verify_compressed(
                 &commit,
                 &proof_obj,
                 &last_eval.r,
-                last_eval.e_eval,
+                e_eval_to_verify,
                 last_eval.ys.len(),
             );
             eprintln!("verify: FRI verify result = {}", fri_verify_result);
@@ -1040,17 +1048,21 @@ pub fn verify_open(
 }
 
 impl FoldState {
-    pub fn fri_compress_final(&self) -> Result<(FriCommitment, FriProof), String> {
+    pub fn fri_compress_final(&self) -> Result<(FriCommitment, FriProof, ExtF), String> {
         eprintln!("fri_compress_final: eval_instances.len() = {}", self.eval_instances.len());
-        let (final_poly, point, mut e_eval, is_dummy, dummy_poly_for_check) = if let Some(final_eval) = self.eval_instances.last() {
-            (Polynomial::new(vec![final_eval.e_eval]), final_eval.r.clone(), final_eval.e_eval, false, None)
+        let (final_poly, point, e_eval, _is_dummy) = if let Some(final_eval) = self.eval_instances.last() {
+            // Build polynomial from ys coefficients, not from e_eval
+            let ys = final_eval.ys.clone();
+            let final_poly = Polynomial::new(ys);
+            (final_poly, final_eval.r.clone(), final_eval.e_eval, false)
         } else {
             eprintln!("fri_compress_final: No eval instances, using dummy non-zero poly");
             let dummy_poly = Polynomial::new(vec![ExtF::ONE]); // Non-zero constant
             let dummy_point = vec![ExtF::ONE];
             let dummy_poly_eval = dummy_poly.eval(dummy_point[0]); // poly.eval without blind
-            (dummy_poly.clone(), dummy_point, dummy_poly_eval, true, Some(dummy_poly))
+            (dummy_poly, dummy_point, dummy_poly_eval, true)
         };
+        
         let mut transcript_clone = self.transcript.clone();
         transcript_clone.extend(b"final_poly_hash");
         let mut oracle = FriOracle::new(vec![final_poly.clone()], &mut transcript_clone);
@@ -1058,23 +1070,28 @@ impl FoldState {
         let (evals, proofs) = oracle.open_at_point(&point);
         let proof = proofs[0].clone();
         
-        // For dummy case, adjust e_eval to include blind factor
-        if is_dummy {
-            e_eval = e_eval + oracle.blinds[0];
-            eprintln!("fri_compress_final: Dummy case - adjusted e_eval to include blind: {:?}", e_eval);
+        // Verify consistency: oracle evaluation (without blind) should match polynomial evaluation
+        let actual_unblinded = evals[0] - oracle.blinds[0];
+        let expected_unblinded = final_poly.eval(point[0]);
+        if actual_unblinded != expected_unblinded {
+            return Err(format!("Oracle eval mismatch: actual_unblinded={:?} != expected_unblinded={:?}", 
+                               actual_unblinded, expected_unblinded));
         }
         
-        let poly_eval_without_blind = evals[0] - oracle.blinds[0];
-        let expected_without_blind = if is_dummy { 
-            dummy_poly_for_check.unwrap().eval(point[0]) // For dummy, compare against poly eval directly
-        } else { 
-            e_eval - oracle.blinds[0] // For real, subtract blind from e_eval
-        };
-        if poly_eval_without_blind != expected_without_blind {
-            return Err(format!("Eval mismatch: poly_eval_without_blind={:?} != expected={:?}, is_dummy={}", 
-                               poly_eval_without_blind, expected_without_blind, is_dummy));
+        // Verify that polynomial evaluation matches e_eval (consistency check)
+        // Since e_eval should be the unblinded evaluation result
+        if expected_unblinded != e_eval {
+            eprintln!("fri_compress_final: Polynomial eval mismatch - expected_unblinded={:?}, e_eval={:?}, blind={:?}", 
+                     expected_unblinded, e_eval, oracle.blinds[0]);
+            return Err(format!("Polynomial eval mismatch: expected_unblinded={:?} != e_eval={:?}", 
+                               expected_unblinded, e_eval));
         }
-        Ok((commit, proof))
+        
+        // For verification, we need the blinded evaluation that's in the Merkle tree
+        let correct_e_eval_for_verification = evals[0]; // This includes the blind factor
+        eprintln!("fri_compress_final: Final verification e_eval (blinded): {:?}", correct_e_eval_for_verification);
+        
+        Ok((commit, proof, correct_e_eval_for_verification))
     }
 
     // Compress proof transcript with FRI

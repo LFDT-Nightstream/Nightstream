@@ -343,11 +343,11 @@ impl FriOracle {
         for poly in &polys {
             let blind = Self::sample_blind_factor(&mut rng);
             blinds.push(blind);
-            let mut evals = domain
+            let evals = domain
                 .iter()
                 .map(|&w| poly.eval(w) + blind)
                 .collect::<Vec<_>>();
-            reverse_slice_index_bits(&mut evals); // Add bit-reversal for FRI compatibility
+            // No bit-reversal needed - domain is already bit-reversed from generate_coset
             let tree = MerkleTree::new(&evals);
             trees.push(tree);
             codewords.push(evals);
@@ -455,24 +455,39 @@ impl PolyOracle for FriOracle {
         proofs: &[OpeningProof],
     ) -> bool {
         let z = point[0];
-        
+        eprintln!("verify_openings: Called with comms.len()={}, point.len()={}, evals.len()={}, proofs.len()={}", 
+                 comms.len(), point.len(), evals.len(), proofs.len());
+        eprintln!("verify_openings: z={:?}, evals={:?}", z, evals);
+        eprintln!("verify_openings: self.domain.len()={}", self.domain.len());
 
         
         if comms.len() != evals.len() || proofs.len() != evals.len() {
+            eprintln!("verify_openings: Length mismatch - comms={}, evals={}, proofs={}", 
+                     comms.len(), evals.len(), proofs.len());
             return false;
         }
         
-        for (_i, ((root, &claimed_eval), proof_bytes)) in comms.iter().zip(evals).zip(proofs).enumerate() {
+        for (i, ((root, &claimed_eval), proof_bytes)) in comms.iter().zip(evals).zip(proofs).enumerate() {
+            eprintln!("verify_openings: Processing proof {} - root.len()={}, claimed_eval={:?}, proof_bytes.len()={}", 
+                     i, root.len(), claimed_eval, proof_bytes.len());
             
             let proof = match deserialize_fri_proof(proof_bytes) {
-                Ok(p) => p,
-                Err(_) => {
+                Ok(p) => {
+                    eprintln!("verify_openings: Successfully deserialized proof {} - queries.len()={}, layer_roots.len()={}", 
+                             i, p.queries.len(), p.layer_roots.len());
+                    p
+                },
+                Err(e) => {
+                    eprintln!("verify_openings: Failed to deserialize proof {}: {:?}", i, e);
                     return false;
                 }
             };
             
+            eprintln!("verify_openings: About to call verify_fri_proof for proof {}", i);
             let fri_result = self.verify_fri_proof(root, z, claimed_eval, &proof);
+            eprintln!("verify_openings: verify_fri_proof result for proof {}: {}", i, fri_result);
             if !fri_result {
+                eprintln!("verify_openings: FAIL - verify_fri_proof returned false for proof {}", i);
                 return false;
             }
             
@@ -590,13 +605,17 @@ impl FriOracle {
             }
         }
         let mut queries = Vec::new();
-        for _ in 0..NUM_QUERIES {
-            let idx_hash = fiat_shamir_challenge(&local_transcript).to_array()[0].as_canonical_u64()
-                as usize
-                % (self.domain.len() / 2);
+        for query_idx in 0..NUM_QUERIES {
+            let idx_hash = fiat_shamir_challenge(&local_transcript)
+                .to_array()[0]
+                .as_canonical_u64() as usize % self.domain.len();
             let mut current_idx = idx_hash;
             let f_val = evals[current_idx];
             let f_path = f_tree.open(current_idx);
+            eprintln!("generate_fri_proof: Query {} - idx_hash={}, current_idx={}, f_val={:?}", 
+                     query_idx, idx_hash, current_idx, f_val);
+            eprintln!("generate_fri_proof: Query {} - f_path.len()={}, domain.len()={}", 
+                     query_idx, f_path.len(), self.domain.len());
             let mut layers = Vec::new();
             for l in 0..layer_roots.len() {
                 let tree = &trees[l];
@@ -724,6 +743,11 @@ impl FriOracle {
                 arr.copy_from_slice(root);
                 arr
             };
+            eprintln!("verify_fri_proof: About to verify Merkle opening for query {}", q_idx);
+            eprintln!("verify_fri_proof: root.len()={}, query.idx={}, domain_size={}", root.len(), query.idx, domain_size);
+            eprintln!("verify_fri_proof: query.f_val={:?}", query.f_val);
+            eprintln!("verify_fri_proof: query.f_path.len()={}", query.f_path.len());
+            
             let merkle_result = verify_merkle_opening(
                 &root_arr,
                 query.f_val,
@@ -734,6 +758,10 @@ impl FriOracle {
 
             eprintln!("verify_fri_proof: Merkle result for query {}: {}", q_idx, merkle_result);
             if !merkle_result {
+                eprintln!("verify_fri_proof: FAIL - Merkle verification failed for query {}", q_idx);
+                eprintln!("verify_fri_proof: root_arr={:?}", root_arr);
+                eprintln!("verify_fri_proof: Expected verification of value {:?} at index {} with path len {}", 
+                         query.f_val, query.idx, query.f_path.len());
                 return false;
             }
             let w = self.domain[query.idx];

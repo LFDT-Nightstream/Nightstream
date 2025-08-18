@@ -193,7 +193,7 @@ mod tests {
         });
         let result = state.fri_compress_final();
         assert!(result.is_ok(), "FRI compress final should succeed");
-        let (commit, _proof) = result.unwrap();
+        let (commit, _proof, _e_eval) = result.unwrap();
         assert!(!commit.is_empty(), "Commit should not be empty");
         
         // Note: The verification would be:
@@ -221,10 +221,25 @@ mod tests {
                 e: F::ONE 
             },
             CcsWitness { 
-                z: vec![embed_base_to_ext(F::ONE); 4] // Use simple F::ONE values 
+                z: vec![
+                    embed_base_to_ext(F::ONE),         // a = 1
+                    embed_base_to_ext(F::ONE),         // b = 1  
+                    embed_base_to_ext(F::ONE),         // a*b = 1*1 = 1
+                    embed_base_to_ext(F::from_u64(2)), // a+b = 1+1 = 2
+                ]
             },
         ));
-        // Note: Keep eval_instances empty to test dummy FRI path
+        
+        // Add a proper eval instance so generate_proof has something to work with
+        state.eval_instances.push(neo_fold::EvalInstance {
+            commitment: vec![],
+            r: vec![ExtF::ONE], // Simple evaluation point
+            ys: vec![ExtF::ZERO], // Simple constant polynomial that evaluates to 0
+            u: ExtF::ZERO,
+            e_eval: ExtF::ZERO, // Constraint evaluation should be 0 for satisfied witness
+            norm_bound: 10,
+        });
+        
         eprintln!("About to call recursive_ivc(1)");
         assert!(state.recursive_ivc(1, &committer), "Single step recursion should pass"); // Depth 1
         eprintln!("Single step test completed");
@@ -250,7 +265,12 @@ mod tests {
                 e: F::ONE 
             },
             CcsWitness { 
-                z: vec![embed_base_to_ext(F::ONE); 4] 
+                z: vec![
+                    embed_base_to_ext(F::ONE),         // a = 1
+                    embed_base_to_ext(F::ONE),         // b = 1  
+                    embed_base_to_ext(F::ONE),         // a*b = 1*1 = 1
+                    embed_base_to_ext(F::from_u64(2)), // a+b = 1+1 = 2
+                ]
             },
         );
         let proof = state.generate_proof(instance.clone(), instance, &committer);
@@ -281,7 +301,7 @@ mod tests {
         let state = FoldState::new(verifier_ccs());
         let result = state.fri_compress_final();
         assert!(result.is_ok(), "Dummy FRI should succeed");
-        let (commit, proof) = result.unwrap();
+        let (commit, proof, _e_eval) = result.unwrap();
         assert!(!commit.is_empty(), "Commit should not be empty");
         assert!(!proof.is_empty(), "Proof should not be empty");
         

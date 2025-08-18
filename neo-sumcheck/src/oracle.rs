@@ -139,7 +139,7 @@ fn reverse_slice_index_bits<T: Clone>(slice: &mut [T]) {
     }
 }
 
-/// Reverse the lower `bits` bits of a number
+/// Reverse the lower `bits` bits of a number  
 fn reverse_bits(mut x: usize, bits: usize) -> usize {
     let mut result = 0;
     for _ in 0..bits {
@@ -149,21 +149,25 @@ fn reverse_bits(mut x: usize, bits: usize) -> usize {
     result
 }
 
+
+
 pub fn generate_coset(size: usize) -> Vec<ExtF> {
     assert!(size.is_power_of_two(), "Size must be power of 2");
     let omega = from_base(F::from_u64(PRIMITIVE_ROOT_2_32));
     let gen = extf_pow(omega, (1u64 << 32) / size as u64);
     let offset = ExtF::ONE;
-    let coset: Vec<ExtF> = (0..size)
+    let mut coset: Vec<ExtF> = (0..size)
         .map(|i| offset * extf_pow(gen, i as u64))
         .collect();
-    // Don't apply bit-reversal to domain - it breaks FRI folding structure
-    // Bit-reversal is only applied to codewords during evaluation
-    // Verify pairing properties for FRI
-    for i in 0..size/2 {
+    
+    // Apply bit-reversal to domain for standard FRI (consecutive pairing)
+    reverse_slice_index_bits(&mut coset);
+    
+    // Verify pairing properties for consecutive FRI folding
+    for i in (0..size).step_by(2) {
         let a = coset[i];
-        let b = coset[i + size/2];
-        assert_eq!(b, -a, "Domain pairing broken: coset[{}] != -coset[{}]", i+size/2, i);
+        let b = coset[i + 1];
+        assert_eq!(b, -a, "Domain pairing broken: coset[{}] != -coset[{}]", i+1, i);
     }
     coset
 }
@@ -540,8 +544,15 @@ impl FriOracle {
             // Use base field challenges only to match p3-fri behavior
             let challenge_base = fiat_shamir_challenge_base(&local_transcript);
             let challenge = from_base(challenge_base);
+            eprintln!("generate_fri_proof: Folding with challenge={:?}, evals.len()={}", challenge, current_evals.len());
+            if current_evals.len() <= 8 {
+                eprintln!("generate_fri_proof: Input evals: {:?}", current_evals);
+            }
             let (new_evals, new_domain) =
-                self.old_fold_evals(&current_evals, &current_domain, challenge);
+                self.fold_evals(&current_evals, &current_domain, challenge);
+            if new_evals.len() <= 4 {
+                eprintln!("generate_fri_proof: Output evals: {:?}", new_evals);
+            }
             current_domain = new_domain;
             current_evals = new_evals;
             if current_evals.len() > 1 {
@@ -583,28 +594,32 @@ impl FriOracle {
             let idx_hash = fiat_shamir_challenge(&local_transcript).to_array()[0].as_canonical_u64()
                 as usize
                 % (self.domain.len() / 2);
-            let mut idx = idx_hash;
-            let f_val = evals[idx];
-            let f_path = f_tree.open(idx);
+            let mut current_idx = idx_hash;
+            let f_val = evals[current_idx];
+            let f_path = f_tree.open(current_idx);
             let mut layers = Vec::new();
             for l in 0..layer_roots.len() {
                 let tree = &trees[l];
-                let size = eval_layers[l].len();
-                let half = size / 2;
-                let pair_idx = idx + half;
-                let val = eval_layers[l][idx];
+                let _size = eval_layers[l].len();
+                
+                // For consecutive pairing: sibling is bit flip (consecutive in bit-rev order)
+                let pair_idx = current_idx ^ 1;
+                
+                let val = eval_layers[l][current_idx];
                 let sib_val = eval_layers[l][pair_idx];
-                let path = tree.open(idx);
+                let path = tree.open(current_idx);
                 let sib_path = tree.open(pair_idx);
                 layers.push(FriLayerQuery {
-                    idx,
+                    idx: current_idx,
                     sib_idx: pair_idx,
                     val,
                     sib_val,
                     path,
                     sib_path,
                 });
-                idx /= 2;
+                
+                // Update index for next layer (binary tree structure)
+                current_idx /= 2;
             }
             queries.push(FriQuery {
                 idx: idx_hash,
@@ -629,16 +644,17 @@ impl FriOracle {
     ) -> (Vec<ExtF>, Vec<ExtF>) {
         let n = evals.len();
         let half = n / 2;
-        let two_inv = ExtF::ONE / ExtF::from_u64(2);
+        let two_inv = ExtF::ONE / from_base(F::from_u64(2));
         let mut new_evals = Vec::with_capacity(half);
         let mut new_domain = Vec::with_capacity(half);
         
-        for i in 0..half {
-            let e0 = evals[2 * i];
-            let e1 = evals[2 * i + 1];
-            let g = domain[2 * i]; // Bit-reversed domain ensures proper pairing
-            new_domain.push(g * g);
-            // Two-adic compatible folding formula
+        // Use consecutive pairing for standard FRI (bit-reversed order)
+        for i in (0..n).step_by(2) {
+            let e0 = evals[i];     // Even index
+            let e1 = evals[i + 1]; // Odd index (consecutive pair)
+            let g = domain[i];     // Domain element for even index
+            new_domain.push(g * g); // Square the domain element
+            // Standard FRI folding formula: (e0 + e1) / 2 + challenge * (e0 - e1) / (2 * g)
             new_evals.push((e0 + e1) * two_inv + challenge * (e0 - e1) * two_inv / g);
         }
         (new_evals, new_domain)
@@ -686,7 +702,7 @@ impl FriOracle {
         transcript.extend(&proof.layer_roots[0]);
         let mut challenges = Vec::new();
         for root_bytes in proof.layer_roots.iter().skip(1) {
-            // Use base field challenges only to match p3-fri behavior
+            // Generate challenge BEFORE adding root to transcript (to match prover)
             let chal_base = fiat_shamir_challenge_base(&transcript);
             let chal = from_base(chal_base);
             challenges.push(chal);
@@ -756,8 +772,8 @@ impl FriOracle {
                     return false;
                 }
                 let root_bytes = &proof.layer_roots[layer_idx];
-                let half = size / 2;
-                if layer_query.idx >= size || layer_query.sib_idx != layer_query.idx + half {
+                if layer_query.idx >= size || layer_query.sib_idx != (layer_query.idx ^ 1) {
+                    eprintln!("verify_fri_proof: FAIL - Invalid sibling pairing for consecutive folding at layer {}", layer_idx);
                     return false;
                 }
                 let root_arr = {
@@ -787,14 +803,14 @@ impl FriOracle {
                 let d1 = domain_layer[layer_query.sib_idx];
                 eprintln!("verify_fri_proof: Layer {} - d0={:?}, d1={:?}", layer_idx, d0, d1);
                 eprintln!("verify_fri_proof: -d0 = {:?}, d1 == -d0: {}", -d0, d1 == -d0);
-                // For debugging: check if domain has proper structure
+                // For debugging: check if domain has proper consecutive pairing structure
                 if layer_idx == 0 {
                     eprintln!("verify_fri_proof: Full domain: {:?}", domain_layer);
-                    for i in 0..domain_layer.len()/2 {
+                    for i in (0..domain_layer.len()).step_by(2) {
                         let a = domain_layer[i];
-                        let b = domain_layer[i + domain_layer.len()/2];
+                        let b = domain_layer[i + 1];
                         eprintln!("verify_fri_proof: domain[{}]={:?}, domain[{}]={:?}, b == -a: {}", 
-                                 i, a, i + domain_layer.len()/2, b, b == -a);
+                                 i, a, i + 1, b, b == -a);
                     }
                 }
                 if d1 != -d0 {
@@ -802,19 +818,28 @@ impl FriOracle {
                     return false;
                 }
                 let chal = challenges[layer_idx];
+                eprintln!("verify_fri_proof: Layer {} challenge: {:?} (challenges.len()={})", layer_idx, chal, challenges.len());
                 let evals_pair = [layer_query.val, layer_query.sib_val];
                 let domain_pair = [d0, d1];
-                let (folded_vec, _) = self.old_fold_evals(&evals_pair, &domain_pair, chal);
+                eprintln!("verify_fri_proof: Layer {} folding: e0={:?}, e1={:?}, g={:?}", 
+                         layer_idx, evals_pair[0], evals_pair[1], domain_pair[0]);
+                let (folded_vec, _new_domain_vec) = self.fold_evals(&evals_pair, &domain_pair, chal);
                 current_q = folded_vec[0];
-                if layer_idx + 1 < query.layers.len()
-                    && current_q != query.layers[layer_idx + 1].val
-                {
-                    return false;
+                eprintln!("verify_fri_proof: Layer {} folded: current_q={:?}", layer_idx, current_q);
+                if layer_idx + 1 < query.layers.len() {
+                    eprintln!("verify_fri_proof: Layer {} checking next layer: current_q={:?} vs next_val={:?}", 
+                             layer_idx, current_q, query.layers[layer_idx + 1].val);
+                    if current_q != query.layers[layer_idx + 1].val {
+                        eprintln!("verify_fri_proof: FAIL - Next layer val mismatch at layer {}", layer_idx);
+                        return false;
+                    }
                 }
                 size >>= 1;
-                domain_layer = domain_layer.iter().take(size).map(|d| *d * *d).collect();
+                // Use the proper domain transformation from fold_evals for consecutive pairing
+                domain_layer = domain_layer.chunks(2).map(|chunk| chunk[0] * chunk[0]).collect();
             }
             if current_q != proof.final_eval {
+                eprintln!("verify_fri_proof: FAIL - Final eval mismatch: current_q={:?}, proof.final_eval={:?}", current_q, proof.final_eval);
                 return false;
             }
         }

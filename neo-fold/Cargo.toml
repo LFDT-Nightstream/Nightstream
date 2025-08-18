@@ -21,6 +21,8 @@ p3-symmetric = "0.3.0"
 p3-goldilocks = "0.3.0"
 byteorder = "1.5.0"
 rand = { workspace = true }
+rand_chacha = { workspace = true }
+rand_distr = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

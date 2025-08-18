@@ -7,7 +7,7 @@ use neo_modint::ModInt;
 use neo_poly::Polynomial;
 use neo_ring::RingElement;
 use neo_sumcheck::{
-    batched_sumcheck_prover, challenger::NeoChallenger,
+    batched_sumcheck_prover, batched_sumcheck_verifier, challenger::NeoChallenger,
     fiat_shamir_challenge, Commitment, FriOracle, OpeningProof, PolyOracle, UnivPoly,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -1131,8 +1131,8 @@ pub fn pi_ccs(
                      uni.eval(ExtF::ZERO) + uni.eval(ExtF::ONE));
         }
         
-        // Create a debugging version of batched_sumcheck_verifier
-        let debug_result = debug_batched_sumcheck_verifier(
+        // TESTING: Use standard batched_sumcheck_verifier instead of debug version
+        let debug_result = batched_sumcheck_verifier(
             &claims,
             &sumcheck_msgs,
             &comms,
@@ -1735,6 +1735,7 @@ fn read_commit(cursor: &mut Cursor<&[u8]>, n: usize) -> Vec<RingElement<ModInt>>
 }
 
 /// Debug version of batched_sumcheck_verifier with structured logging
+#[allow(dead_code)]
 fn debug_batched_sumcheck_verifier(
     claims: &[ExtF],
     msgs: &[(Polynomial<ExtF>, ExtF)],
@@ -1745,6 +1746,7 @@ fn debug_batched_sumcheck_verifier(
     use neo_sumcheck::challenger::NeoChallenger;
     use neo_sumcheck::oracle::serialize_comms;
     use neo_fields::MAX_BLIND_NORM;
+    use rand_distr::{Distribution, StandardNormal};
     
     // Local serialize functions
     fn serialize_ext(e: ExtF) -> Vec<u8> {
@@ -1764,6 +1766,12 @@ fn debug_batched_sumcheck_verifier(
             bytes.extend_from_slice(&arr[1].as_canonical_u64().to_be_bytes());
         }
         bytes
+    }
+    
+    fn sample_discrete_gaussian(rng: &mut impl rand::Rng, sigma: f64) -> ExtF {
+        let sample: f64 = StandardNormal.sample(rng);
+        let scaled_sample = sample * sigma;
+        from_base(F::from_i64(scaled_sample.round() as i64))
     }
     
     eprintln!("VERIFIER_DEBUG: START - claims={:?}, msgs.len()={}, comms.len()={}, transcript.len()={}", claims, msgs.len(), comms.len(), transcript.len());
@@ -1796,7 +1804,6 @@ fn debug_batched_sumcheck_verifier(
     for (round, (uni, blind_eval)) in msgs.iter().enumerate() {
         eprintln!("VERIFIER_DEBUG: ROUND {} START - current={:?}, uni.degree()={:?}, blind_eval={:?}", round, current, uni.degree(), blind_eval);
 
-        challenger.observe_bytes("round_label", format!("neo_sumcheck_round_{}", round).as_bytes());
         transcript.extend(format!("sumcheck_round_{}", round).as_bytes());
 
         let sum_zero_one = uni.eval(ExtF::ZERO) + uni.eval(ExtF::ONE);
@@ -1819,6 +1826,20 @@ fn debug_batched_sumcheck_verifier(
 
         current = uni.eval(challenge) - *blind_eval;
         eprintln!("VERIFIER_DEBUG: ROUND {} - Updated current={:?} (uni.eval(chal)={:?} - blind={:?})", round, current, uni.eval(challenge), *blind_eval);
+        
+        // CRITICAL DEBUG: Compare with prover values
+        eprintln!("VERIFIER_DEBUG: ROUND {} - uni coeffs: {:?}", round, uni.coeffs());
+        eprintln!("VERIFIER_DEBUG: ROUND {} - uni.eval(0)={:?}, uni.eval(1)={:?}", round, uni.eval(ExtF::ZERO), uni.eval(ExtF::ONE));
+        eprintln!("VERIFIER_DEBUG: ROUND {} - challenge={:?}", round, challenge);
+        eprintln!("VERIFIER_DEBUG: ROUND {} - DETAILED: uni.eval(challenge)={:?}, blind_eval={:?}, difference={:?}", 
+                 round, uni.eval(challenge), *blind_eval, uni.eval(challenge) - *blind_eval);
+        
+        // Compare against expected prover behavior
+        if round == 0 && current != ExtF::ZERO {
+            eprintln!("VERIFIER_DEBUG: ⚠️  PROVER/VERIFIER MISMATCH!");
+            eprintln!("VERIFIER_DEBUG: Expected current=0 (from prover), got current={:?}", current);
+            eprintln!("VERIFIER_DEBUG: This indicates blinding desynchronization between prover and verifier");
+        }
 
         let blind_bytes: Vec<u8> = serialize_ext(*blind_eval);
         transcript.extend(&blind_bytes);
@@ -1841,9 +1862,38 @@ fn debug_batched_sumcheck_verifier(
 
     // CRITICAL FIX: Subtract FRI blinds to get unblinded evaluations for zero polynomials
     eprintln!("VERIFIER_DEBUG: Applying blind subtraction fix - transcript.len()={}", transcript.len());
-    // TODO: Need to reconstruct exact transcript state from FRI oracle creation (len=27)
-    // For now, skip blind subtraction to confirm this is the issue
-    eprintln!("VERIFIER_DEBUG: Skipping blind subtraction - evals before: {:?}", evals);
+    eprintln!("VERIFIER_DEBUG: Raw FRI evals: {:?}", evals);
+    
+    // Recompute blinds using synced transcript state to match prover's FRI oracle creation
+    let mut blind_trans = transcript.clone();
+    blind_trans.extend(b"fri_blind_seed");
+    let hash_result = {
+        use neo_sumcheck::challenger::NeoChallenger;
+        let mut challenger = NeoChallenger::new("neo_fiat_shamir");
+        challenger.observe_bytes("transcript", &blind_trans);
+        challenger.challenge_ext("base_challenge")
+    };
+    let mut seed = [0u8; 32];
+    seed[0..8].copy_from_slice(&hash_result.to_array()[0].as_canonical_u64().to_le_bytes());
+    for i in 8..32 {
+        seed[i] = ((hash_result.to_array()[0].as_canonical_u64() >> (i % 8)) ^ (i as u64)) as u8;
+    }
+
+    use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
+    let mut rng = ChaCha20Rng::from_seed(seed);
+    let mut blinds = vec![ExtF::ZERO; evals.len()];
+    for blind in &mut blinds {
+        // Use same discrete Gaussian sampling as FRI Oracle
+        *blind = sample_discrete_gaussian(&mut rng, 3.2); // ZK_SIGMA
+    }
+    eprintln!("VERIFIER_DEBUG: Computed blinds: {:?}", blinds);
+
+    // Subtract FRI blinds to get unblinded evaluations
+    let mut evals = evals; // Re-bind to make mutable
+    for (i, e) in evals.iter_mut().enumerate() {
+        *e -= blinds[i];
+    }
+    eprintln!("VERIFIER_DEBUG: Unblinded evals: {:?}", evals);
 
     if evals.iter().any(|e| e.abs_norm() > MAX_BLIND_NORM) {
         eprintln!("VERIFIER_DEBUG: FAIL - High norm in evals: {:?}", evals.iter().map(|e| e.abs_norm()).collect::<Vec<_>>());

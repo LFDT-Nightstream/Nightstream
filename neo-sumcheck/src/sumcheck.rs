@@ -93,7 +93,7 @@ pub fn batched_sumcheck_prover(
         let remaining = ell - round - 1;
         let mut uni_polys = vec![];
 
-        for poly in polys.iter() {
+        for (poly_idx, poly) in polys.iter().enumerate() {
             let points: Vec<ExtF> = (0..=max_d)
                 .map(|i| from_base(F::from_u64(i as u64)))
                 .collect();
@@ -123,9 +123,21 @@ pub fn batched_sumcheck_prover(
                     evals.truncate(half);
                 }
                 uni_evals.push(evals[0]);
+                
+                // DEBUG: Show what evaluations we're getting for zero polynomials
+                if round == 0 && poly_idx == 0 { // Focus on first polynomial in first round
+                    eprintln!("SUMCHECK_PROVER_DEBUG: poly[{}] eval at x={:?}, point_full={:?} -> sum={:?}", poly_idx, x, point_full, evals[0]);
+                }
             }
 
             let uni = Polynomial::interpolate(&points, &uni_evals);
+            
+            // DEBUG: Show interpolated univariate for zero polynomials  
+            if round == 0 && poly_idx == 0 {
+                eprintln!("SUMCHECK_PROVER_DEBUG: poly[{}] uni_evals = {:?}", poly_idx, uni_evals);
+                eprintln!("SUMCHECK_PROVER_DEBUG: poly[{}] interpolated uni coeffs = {:?}", poly_idx, uni.coeffs());
+            }
+            
             uni_polys.push(uni);
         }
 
@@ -144,7 +156,20 @@ pub fn batched_sumcheck_prover(
         let blind_factor = x_poly * xm1_poly * blind_poly;
         let mut uni_polys_with_blind = uni_polys.clone();
         uni_polys_with_blind.push(blind_factor.clone());
+        
+        // DEBUG: Show the individual univariates before batching
+        eprintln!("SUMCHECK_PROVER_DEBUG: Round {} univariate construction:", round);
+        for (i, uni) in uni_polys.iter().enumerate() {
+            eprintln!("SUMCHECK_PROVER_DEBUG: uni[{}] coeffs = {:?}", i, uni.coeffs());
+            eprintln!("SUMCHECK_PROVER_DEBUG: uni[{}] eval(0) = {:?}, eval(1) = {:?}", i, uni.eval(ExtF::ZERO), uni.eval(ExtF::ONE));
+        }
+        eprintln!("SUMCHECK_PROVER_DEBUG: blind_factor coeffs = {:?}", blind_factor.coeffs());
+        eprintln!("SUMCHECK_PROVER_DEBUG: blind_factor eval(0) = {:?}, eval(1) = {:?}", blind_factor.eval(ExtF::ZERO), blind_factor.eval(ExtF::ONE));
+        
         let batched_uni = batch_unis(&uni_polys_with_blind, rho);
+        
+        eprintln!("SUMCHECK_PROVER_DEBUG: batched_uni coeffs = {:?}", batched_uni.coeffs());
+        eprintln!("SUMCHECK_PROVER_DEBUG: batched_uni eval(0) = {:?}, eval(1) = {:?}", batched_uni.eval(ExtF::ZERO), batched_uni.eval(ExtF::ONE));
 
         if batched_uni.eval(ExtF::ZERO) + batched_uni.eval(ExtF::ONE) != current_batched {
             return Err(SumCheckError::InvalidSum(round));
@@ -169,7 +194,29 @@ pub fn batched_sumcheck_prover(
         }
         let blind_eval = blind_factor.eval(challenge) * blind_weight;
 
-        current_batched = batched_uni.eval(challenge) - blind_eval;
+        // CRITICAL DEBUG: This is where the zero polynomial issue occurs
+        let batched_eval = batched_uni.eval(challenge);
+        eprintln!("SUMCHECK_PROVER_DEBUG: Round {}", round);
+        eprintln!("SUMCHECK_PROVER_DEBUG: challenge = {:?}", challenge);
+        eprintln!("SUMCHECK_PROVER_DEBUG: batched_uni.eval(challenge) = {:?}", batched_eval);
+        eprintln!("SUMCHECK_PROVER_DEBUG: blind_eval = {:?}", blind_eval);
+        eprintln!("SUMCHECK_PROVER_DEBUG: current_batched (before) = {:?}", current_batched);
+        
+        // For a zero polynomial Q, we expect:
+        // - batched_uni should evaluate to 0 at challenge (since Q is identically 0)
+        // - blind_eval should be exactly the blinding factor evaluation
+        // - So: batched_eval - blind_eval should be 0
+        // But we're seeing batched_eval != blind_eval for zero polynomials!
+        
+        current_batched = batched_eval - blind_eval;
+        eprintln!("SUMCHECK_PROVER_DEBUG: current_batched (after) = {:?}", current_batched);
+        
+        // This should be 0 for zero polynomials, but it's not!
+        if current_batched != ExtF::ZERO {
+            eprintln!("SUMCHECK_PROVER_DEBUG: ⚠️  PROBLEM: Zero polynomial producing non-zero current!");
+            eprintln!("SUMCHECK_PROVER_DEBUG: batched_uni coeffs = {:?}", batched_uni.coeffs());
+            eprintln!("SUMCHECK_PROVER_DEBUG: blind_factor coeffs = {:?}", blind_factor.coeffs());
+        }
         let blind_bytes: Vec<u8> = serialize_ext(blind_eval);
         transcript.extend(&blind_bytes);
         challenger.observe_bytes("blind_eval", &blind_bytes);
@@ -208,7 +255,6 @@ pub fn batched_sumcheck_verifier(
     let mut r = Vec::new();
 
     for (round, (uni, blind_eval)) in msgs.iter().enumerate() {
-        challenger.observe_bytes("round_label", format!("neo_sumcheck_round_{}", round).as_bytes());
         transcript.extend(format!("sumcheck_round_{}", round).as_bytes());
         if uni.eval(ExtF::ZERO) + uni.eval(ExtF::ONE) != current {
             return None;
@@ -236,8 +282,33 @@ pub fn batched_sumcheck_verifier(
         return None;
     }
 
-    // TEMPORARY: Disable blind subtraction to test if this is the root issue
-    eprintln!("VERIFIER_DEBUG: Skipping blind subtraction - evals[0]={:?}", if !evals.is_empty() { Some(evals[0]) } else { None });
+    // CRITICAL FIX: Subtract recomputed FRI blinds after opening (from other AI solution)
+    eprintln!("VERIFIER_DEBUG: Current transcript.len()={} when computing blinds", transcript.len());
+    eprintln!("VERIFIER_DEBUG: Opened evals (raw from FRI): {:?}", evals);
+    eprintln!("VERIFIER_DEBUG: Expected current from sumcheck: {:?}", current);
+    
+    // Recompute blinds using synced transcript state to match prover's FRI oracle creation
+    let mut blind_trans = transcript.clone();
+    blind_trans.extend(b"fri_blind_seed");
+    let hash_result = crate::fiat_shamir_challenge_base(&blind_trans);
+    let mut seed = [0u8; 32];
+    seed[0..8].copy_from_slice(&hash_result.as_canonical_u64().to_le_bytes());
+    for i in 8..32 {
+        seed[i] = ((hash_result.as_canonical_u64() >> (i % 8)) ^ (i as u64)) as u8;
+    }
+    let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
+    let mut blinds = vec![ExtF::ZERO; evals.len()];
+    for blind in &mut blinds {
+        *blind = crate::oracle::FriOracle::sample_discrete_gaussian(&mut rng, 3.2);
+    }
+    eprintln!("VERIFIER_DEBUG: Computed blinds: {:?}", blinds);
+    
+    // Subtract FRI blinds to get unblinded evaluations
+    let mut evals = evals;
+    for (i, e) in evals.iter_mut().enumerate() {
+        *e -= blinds[i];
+    }
+    eprintln!("VERIFIER_DEBUG: Unblinded evals: {:?}", evals);
 
     if evals.iter().any(|e| e.abs_norm() > MAX_BLIND_NORM) {
         return None;

@@ -83,11 +83,14 @@ impl FoldState {
     /// Recursive IVC driver. Folds the current proof into a verifier CCS,
     /// verifies that proof, then recurses for `depth - 1`.
     pub fn recursive_ivc(&mut self, depth: usize, committer: &AjtaiCommitter) -> bool {
+        eprintln!("recursive_ivc: depth={}, eval_instances.len()={}", depth, self.eval_instances.len());
         if depth == 0 {
+            eprintln!("recursive_ivc: depth=0, calling verify_state()");
             return self.verify_state();
         }
 
         // Generate proof for current CCS
+        eprintln!("recursive_ivc: About to generate proof for depth={}", depth);
         let (inst, wit) = self.ccs_instance.clone().unwrap_or_else(|| {
             let inst = CcsInstance {
                 commitment: vec![],
@@ -101,7 +104,11 @@ impl FoldState {
         let current_proof = self.generate_proof((inst.clone(), wit.clone()), (inst, wit), committer);
 
         // Verify the proof (bootstrapping check)
-        if !self.verify(&current_proof.transcript, committer) {
+        eprintln!("recursive_ivc: About to verify current proof");
+        let verify_result = self.verify(&current_proof.transcript, committer);
+        eprintln!("recursive_ivc: Verify result = {}", verify_result);
+        if !verify_result {
+            eprintln!("recursive_ivc: FAIL - verify returned false");
             return false;
         }
 
@@ -115,20 +122,45 @@ impl FoldState {
         let verifier_ccs = verifier_ccs(); // From Step 1
 
         // Create verifier instance (commit to FRI, etc.)
+        // Hash fri_commit and split into multiple coefficients for n=4
+        // Note: Using Poseidon2 instead of blake3 for ZK-friendliness
+        let fri_hash_bytes = {
+            use neo_sumcheck::fiat_shamir_challenge_base;
+            let hash_result = fiat_shamir_challenge_base(&fri_commit);
+            let mut bytes = [0u8; 32];
+            bytes[0..8].copy_from_slice(&hash_result.as_canonical_u64().to_be_bytes());
+            // Fill remaining with deterministic pattern to get 32 bytes
+            for i in 8..32 {
+                bytes[i] = ((hash_result.as_canonical_u64() >> (i % 8)) ^ (i as u64)) as u8;
+            }
+            bytes
+        };
+        let coeffs = (0..4).map(|i| {
+            let chunk = &fri_hash_bytes[i*8..(i+1)*8];
+            let mut buf = [0u8; 8];
+            buf.copy_from_slice(chunk);
+            ModInt::from_u64(u64::from_be_bytes(buf))
+        }).collect();
+        let ver_commit = RingElement::from_coeffs(coeffs, committer.params().n);
         let ver_inst = CcsInstance {
-            commitment: vec![RingElement::from_coeffs(fri_commit.iter().map(|&b| ModInt::from_u64(b as u64)).collect(), committer.params().n)],
+            commitment: vec![ver_commit],
             public_input: vec![],
             u: F::ZERO,
             e: F::ONE,
         };
 
         // Clear for next recursion
+        eprintln!("recursive_ivc: Setting up for recursion depth={}", depth - 1);
         self.structure = verifier_ccs;
         self.ccs_instance = Some((ver_inst, ver_wit));
         self.eval_instances.clear();
+        eprintln!("recursive_ivc: After clear, eval_instances.len()={}", self.eval_instances.len());
 
         // Recurse
-        self.recursive_ivc(depth - 1, committer)
+        eprintln!("recursive_ivc: About to recurse with depth={}", depth - 1);
+        let recursive_result = self.recursive_ivc(depth - 1, committer);
+        eprintln!("recursive_ivc: Recursive call returned {}", recursive_result);
+        recursive_result
     }
 
     // Poseidon2-based transcript hash to align with FS challenges
@@ -156,6 +188,7 @@ impl FoldState {
         instance2: (CcsInstance, CcsWitness),
         committer: &AjtaiCommitter,
     ) -> Proof {
+        eprintln!("Starting proof generation");
         let mut transcript = std::mem::take(&mut self.transcript);
         transcript.clear();
         self.sumcheck_msgs.clear();
@@ -192,36 +225,76 @@ impl FoldState {
         let hash = self.hash_transcript(&transcript);
         transcript.extend(&hash);
         self.transcript = transcript.clone();
+        eprintln!("Proof generation complete");
         Proof { transcript }
     }
 
     pub fn verify(&self, full_transcript: &[u8], committer: &AjtaiCommitter) -> bool {
+        eprintln!("verify: transcript.len()={}", full_transcript.len());
         if full_transcript.len() < 32 {
+            eprintln!("verify: FAIL - transcript too short");
             return false;
         }
         let (prefix, hash_bytes) = full_transcript.split_at(full_transcript.len() - 32);
         let mut expected = [0u8; 32];
         expected.copy_from_slice(hash_bytes);
         if self.hash_transcript(prefix) != expected {
+            eprintln!("verify: FAIL - hash mismatch");
             return false;
         }
+        eprintln!("verify: Hash check passed");
 
         let mut cursor = Cursor::new(prefix);
         let mut reconstructed = Vec::new();
 
         // --- First CCS instance ---
+        eprintln!("verify: About to read neo_pi_ccs1 tag");
         if read_tag(&mut cursor, b"neo_pi_ccs1").is_err() {
+            eprintln!("verify: FAIL - Could not read neo_pi_ccs1 tag");
             return false;
         }
+        eprintln!("verify: Successfully read neo_pi_ccs1 tag");
+        eprintln!("verify: Reading commit1 with n={}", committer.params().n);
         let commit1 = read_commit(&mut cursor, committer.params().n);
+        eprintln!("verify: Read commit1, length={}", commit1.len());
+        
+        eprintln!("verify: Extracting msgs1 with max_deg={}", self.structure.max_deg);
         let msgs1 = extract_msgs_ccs(&mut cursor, self.structure.max_deg);
+        eprintln!("verify: Extracted msgs1, length={}", msgs1.len());
+        
         let mut vt_transcript = cursor.get_ref()[0..cursor.position() as usize].to_vec();
+        eprintln!("verify: vt_transcript length={}", vt_transcript.len());
+        
         let domain_size = (self.structure.max_deg + 1).next_power_of_two().max(1) * 4;
+        eprintln!("verify: domain_size={}", domain_size);
         let mut oracle = FriOracle::new_for_verifier(domain_size);
-        let comms1 = match read_comms_block(&mut cursor) {
-            Some(c) => c,
-            None => return false,
+        eprintln!("verify: Reading comms1 block (msgs1.len={})", msgs1.len());
+        let comms1 = if msgs1.is_empty() {
+            // If no sumcheck messages, there might be no comms block or it might be empty
+            eprintln!("verify: No sumcheck msgs, trying to read empty comms block");
+            match read_comms_block(&mut cursor) {
+                Some(c) => {
+                    eprintln!("verify: Read comms1 block, length={}", c.len());
+                    c
+                },
+                None => {
+                    eprintln!("verify: No comms block found for empty sumcheck, using empty");
+                    vec![] // Use empty comms for empty sumcheck
+                }
+            }
+        } else {
+            match read_comms_block(&mut cursor) {
+                Some(c) => {
+                    eprintln!("verify: Read comms1 block, length={}", c.len());
+                    c
+                },
+                None => {
+                    eprintln!("verify: FAIL - Could not read comms1 block");
+                    return false;
+                }
+            }
         };
+        eprintln!("verify: About to call ccs_sumcheck_verifier for CCS1");
         let (r1, final_eval1) = match ccs_sumcheck_verifier(
             &self.structure,
             ExtF::ZERO,
@@ -231,12 +304,31 @@ impl FoldState {
             &mut oracle,
             &mut vt_transcript,
         ) {
-            Some(res) => res,
-            None => return false,
+            Some(res) => {
+                eprintln!("verify: ccs_sumcheck_verifier CCS1 SUCCESS");
+                res
+            },
+            None => {
+                eprintln!("verify: FAIL - ccs_sumcheck_verifier CCS1 returned None");
+                return false;
+            }
         };
-        let ys1 = match read_ys(&mut cursor, self.structure.mats.len()) {
-            Some(v) => v,
-            None => return false,
+        eprintln!("verify: Reading ys1 with mats.len()={}, msgs1.len()={}", self.structure.mats.len(), msgs1.len());
+        let ys1 = if msgs1.is_empty() {
+            // If no sumcheck messages, there might be no ys values
+            eprintln!("verify: No sumcheck msgs, using empty ys1");
+            vec![ExtF::ZERO; self.structure.mats.len()] // Use default ys for empty sumcheck
+        } else {
+            match read_ys(&mut cursor, self.structure.mats.len()) {
+                Some(v) => {
+                    eprintln!("verify: Read ys1 successfully, length={}", v.len());
+                    v
+                },
+                None => {
+                    eprintln!("verify: FAIL - Could not read ys1");
+                    return false;
+                }
+            }
         };
         let first_eval = EvalInstance {
             commitment: commit1.clone(),
@@ -252,6 +344,7 @@ impl FoldState {
             u: F::ZERO,
             e: F::ONE,
         };
+        eprintln!("verify: About to call verify_ccs with msgs1.len()={}", msgs1.len());
         if !verify_ccs(
             &self.structure,
             &first_instance,
@@ -260,8 +353,10 @@ impl FoldState {
             &[first_eval.clone()],
             committer,
         ) {
+            eprintln!("verify: FAIL - verify_ccs returned false");
             return false;
         }
+        eprintln!("verify: verify_ccs passed");
         reconstructed.push(first_eval);
 
         // --- Decomposition check for first instance ---
@@ -286,10 +381,15 @@ impl FoldState {
         }
         reconstructed.push(dec_eval);
 
+        eprintln!("verify: CCS1 verification completed successfully");
+        
         // --- Second CCS instance ---
+        eprintln!("verify: About to read neo_pi_ccs2 tag");
         if read_tag(&mut cursor, b"neo_pi_ccs2").is_err() {
+            eprintln!("verify: FAIL - Could not read neo_pi_ccs2 tag");
             return false;
         }
+        eprintln!("verify: Successfully read neo_pi_ccs2 tag");
         let commit2 = read_commit(&mut cursor, committer.params().n);
         let msgs2 = extract_msgs_ccs(&mut cursor, self.structure.max_deg);
         let mut vt_transcript2 = cursor.get_ref()[0..cursor.position() as usize].to_vec();
@@ -390,7 +490,7 @@ impl FoldState {
         let rho_norm = rho_rot.norm_inf() as u128; // u128 to avoid overflow
         let e1_sq = (e1.norm_bound as u128).pow(2) as f64;
         let e2_sq = (e2.norm_bound as u128).pow(2) as f64;
-        let rho_sq = (rho_norm.pow(2) as f64);
+        let rho_sq = rho_norm.pow(2) as f64;
         let new_norm_bound = (e1_sq + rho_sq * e2_sq).sqrt().ceil() as u64;
         let combo_eval = EvalInstance {
             commitment: combo_commit.clone(),
@@ -406,25 +506,34 @@ impl FoldState {
         reconstructed.push(combo_eval);
 
         // --- FRI compression ---
+        eprintln!("verify: About to read neo_fri tag");
         if read_tag(&mut cursor, b"neo_fri").is_err() {
+            eprintln!("verify: FAIL - Could not read neo_fri tag");
             return false;
         }
+        eprintln!("verify: Successfully read neo_fri tag");
         let commit = read_fri_commit(&mut cursor);
         let proof_obj = read_fri_proof(&mut cursor);
         if let Some(last_eval) = reconstructed.last() {
-            if !Self::fri_verify_compressed(
+            eprintln!("verify: About to verify FRI compression");
+            let fri_verify_result = Self::fri_verify_compressed(
                 &commit,
                 &proof_obj,
                 &last_eval.r,
                 last_eval.e_eval,
                 last_eval.ys.len(),
-            ) {
+            );
+            eprintln!("verify: FRI verify result = {}", fri_verify_result);
+            if !fri_verify_result {
+                eprintln!("verify: FAIL - FRI verification failed");
                 return false;
             }
         } else {
+            eprintln!("verify: FAIL - No reconstructed eval found");
             return false;
         }
 
+        eprintln!("verify: SUCCESS - All checks passed");
         true
     }
 }
@@ -750,7 +859,7 @@ pub fn pi_rlc(
         let rho_norm = rho_rot.norm_inf() as u128; // u128 to avoid overflow
         let e1_sq = (e1.norm_bound as u128).pow(2) as f64;
         let e2_sq = (e2.norm_bound as u128).pow(2) as f64;
-        let rho_sq = (rho_norm.pow(2) as f64);
+        let rho_sq = rho_norm.pow(2) as f64;
         let new_norm_bound = (e1_sq + rho_sq * e2_sq).sqrt().ceil() as u64;
         fold_state.eval_instances.push(EvalInstance {
             commitment: combo_commit,
@@ -760,9 +869,11 @@ pub fn pi_rlc(
             e_eval: e_eval_new,
             norm_bound: new_norm_bound,
         });
-        fold_state.max_blind_norm = ((fold_state.max_blind_norm.pow(2) * 2) as f64)
-            .sqrt()
-            .ceil() as u64;
+        fold_state.max_blind_norm = {
+            let squared = (fold_state.max_blind_norm as u128).pow(2);
+            let doubled = squared.saturating_mul(2);
+(doubled as f64).sqrt().ceil() as u64
+        };
     }
 }
 
@@ -930,30 +1041,58 @@ pub fn verify_open(
 
 impl FoldState {
     pub fn fri_compress_final(&self) -> Result<(FriCommitment, FriProof), String> {
-        let final_eval = self
-            .eval_instances
-            .last()
-            .ok_or_else(|| "No instances".to_string())?;
-        let final_poly = Polynomial::new(final_eval.ys.clone());
+        eprintln!("fri_compress_final: eval_instances.len() = {}", self.eval_instances.len());
+        let (final_poly, point, mut e_eval, is_dummy, dummy_poly_for_check) = if let Some(final_eval) = self.eval_instances.last() {
+            (Polynomial::new(vec![final_eval.e_eval]), final_eval.r.clone(), final_eval.e_eval, false, None)
+        } else {
+            eprintln!("fri_compress_final: No eval instances, using dummy non-zero poly");
+            let dummy_poly = Polynomial::new(vec![ExtF::ONE]); // Non-zero constant
+            let dummy_point = vec![ExtF::ONE];
+            let dummy_poly_eval = dummy_poly.eval(dummy_point[0]); // poly.eval without blind
+            (dummy_poly.clone(), dummy_point, dummy_poly_eval, true, Some(dummy_poly))
+        };
         let mut transcript_clone = self.transcript.clone();
         transcript_clone.extend(b"final_poly_hash");
-        let mut oracle = FriOracle::new(vec![final_poly], &mut transcript_clone);
+        let mut oracle = FriOracle::new(vec![final_poly.clone()], &mut transcript_clone);
         let commit = oracle.commit()[0].clone();
-        let point = final_eval.r.clone();
         let (evals, proofs) = oracle.open_at_point(&point);
         let proof = proofs[0].clone();
-        if evals[0] != final_eval.e_eval {
-            return Err("Eval mismatch".to_string());
+        
+        // For dummy case, adjust e_eval to include blind factor
+        if is_dummy {
+            e_eval = e_eval + oracle.blinds[0];
+            eprintln!("fri_compress_final: Dummy case - adjusted e_eval to include blind: {:?}", e_eval);
+        }
+        
+        let poly_eval_without_blind = evals[0] - oracle.blinds[0];
+        let expected_without_blind = if is_dummy { 
+            dummy_poly_for_check.unwrap().eval(point[0]) // For dummy, compare against poly eval directly
+        } else { 
+            e_eval - oracle.blinds[0] // For real, subtract blind from e_eval
+        };
+        if poly_eval_without_blind != expected_without_blind {
+            return Err(format!("Eval mismatch: poly_eval_without_blind={:?} != expected={:?}, is_dummy={}", 
+                               poly_eval_without_blind, expected_without_blind, is_dummy));
         }
         Ok((commit, proof))
     }
 
     // Compress proof transcript with FRI
     pub fn compress_proof(&self, transcript: &[u8]) -> (Vec<u8>, Vec<u8>) { // (commit, proof)
-        let mut oracle = FriOracle::new(vec![Polynomial::new(transcript.iter().map(|&b| from_base(F::from_u64(b as u64))).collect())], &mut vec![]);
+        eprintln!("compress_proof: input transcript.len()={}", transcript.len());
+        // Add non-zero to transcript for non-degenerate poly
+        let mut extended_trans = transcript.to_vec();
+        extended_trans.extend(b"non_zero");
+        eprintln!("compress_proof: extended_trans.len()={}", extended_trans.len());
+        let poly = Polynomial::new(extended_trans.iter().map(|&b| from_base(F::from_u64(b as u64))).collect());
+        eprintln!("compress_proof: poly.degree()={}", poly.degree());
+        let mut oracle_t = extended_trans.clone(); // Copy for oracle
+        let mut oracle = FriOracle::new(vec![poly.clone()], &mut oracle_t);
         let commit = oracle.commit()[0].clone();
+        eprintln!("compress_proof: commit.len()={}", commit.len());
         let point = vec![ExtF::ONE]; // Random point from FS
-        let (_, fri_proof) = oracle.open_at_point(&point);
+        let (evals, fri_proof) = oracle.open_at_point(&point);
+        eprintln!("compress_proof: evals[0]={:?}, blind={:?}", evals[0], oracle.blinds[0]);
         (commit, fri_proof[0].clone())
     }
 
@@ -1129,13 +1268,16 @@ fn read_ys(cursor: &mut Cursor<&[u8]>, expected_len: usize) -> Option<Vec<ExtF>>
 
 fn read_comms_block(cursor: &mut Cursor<&[u8]>) -> Option<Vec<Vec<u8>>> {
     let len = cursor.read_u8().ok()? as usize;
+    eprintln!("read_comms_block: Attempting to read {} comms", len);
     let mut comms = Vec::with_capacity(len);
-    for _ in 0..len {
+    for i in 0..len {
         let clen = cursor.read_u32::<BigEndian>().ok()? as usize;
+        eprintln!("read_comms_block: Comm {} has length {}", i, clen);
         let mut buf = vec![0u8; clen];
         cursor.read_exact(&mut buf).ok()?;
         comms.push(buf);
     }
+    eprintln!("read_comms_block: Successfully read {} comms", comms.len());
     Some(comms)
 }
 

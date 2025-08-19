@@ -78,6 +78,12 @@ pub struct AjtaiCommitter {
     params: NeoParams,
 }
 
+impl Default for AjtaiCommitter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AjtaiCommitter {
     /// Construct a committer with the default secure parameters.
     pub fn new() -> Self {

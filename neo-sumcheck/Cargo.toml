@@ -4,6 +4,9 @@ edition = "2021"
 version = "0.1.0"
 authors = ["Example Author <example@example.com>"]
 
+[lints]
+workspace = true
+
 [dependencies]
 neo-fields = { path = "../neo-fields" }
 neo-poly = { path = "../neo-poly" }

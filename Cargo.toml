@@ -35,6 +35,9 @@ p3-matrix = "0.3.0"
 criterion = { version = "0.5.1", features = ["html_reports"] }
 rayon = "1.10"
 
+[workspace.lints.clippy]
+uninlined_format_args = "allow"
+
 [workspace.metadata.clippy]
 all-targets = true
 all-features = true

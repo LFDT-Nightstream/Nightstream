@@ -13,11 +13,9 @@ fn dummy_structure() -> CcsStructure {
 
 #[test]
 fn test_full_folding() {
-    if std::env::var("RUN_LONG_TESTS").is_err() {
-        return;
-    }
     let structure = dummy_structure();
     let mut state = FoldState::new(structure);
+    
     let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
     let instance1 = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
     let witness1 = CcsWitness { z: vec![from_base(F::from_u64(2))] };
@@ -29,11 +27,9 @@ fn test_full_folding() {
 
 #[test]
 fn test_full_folding_with_fri() {
-    if std::env::var("RUN_LONG_TESTS").is_err() {
-        return;
-    }
     let structure = dummy_structure();
     let mut state = FoldState::new(structure);
+    
     let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
     let instance1 = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
     let witness1 = CcsWitness { z: vec![from_base(F::from_u64(2))] };
@@ -53,10 +49,8 @@ fn test_extractor_rewinds() {
 
 #[test]
 fn test_ivc_chain() {
-    if std::env::var("RUN_LONG_TESTS").is_err() {
-        return;
-    }
     let mut state = FoldState::new(dummy_structure());
+    
     let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
     let instance = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
     let witness = CcsWitness { z: vec![from_base(F::from_u64(5))] };

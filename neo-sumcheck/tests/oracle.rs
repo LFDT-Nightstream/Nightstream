@@ -4,8 +4,9 @@ use std::collections::HashSet;
 use neo_sumcheck::oracle::{
     deserialize_fri_proof, extf_pow, generate_coset, hash_extf, serialize_fri_proof,
     verify_merkle_opening, FriLayerQuery, FriOracle, FriProof, FriQuery, MerkleTree, NUM_QUERIES,
+    create_fri_backend, create_fri_verifier, FriImpl, AdaptiveFriOracle, PROOF_OF_WORK_BITS,
 };
-use neo_sumcheck::{from_base, ExtF, PolyOracle, Polynomial, F};
+use neo_sumcheck::{from_base, ExtF, PolyOracle, Polynomial, F, fiat_shamir_challenge_base};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -576,4 +577,197 @@ fn test_fri_proof_serde_roundtrip_complex() {
     assert_eq!(proof, de);
 }
 
+// ==========================================
+// Additional Tests from oracle.rs source
+// ==========================================
 
+#[test]
+fn test_pow_loop_regression() {
+    // Test to prevent regression of PoW hanging issues
+    // This test simulates the PoW loop with small bits to ensure it completes quickly
+    
+    let final_eval = ExtF::ONE; // Problematic case that caused hanging
+    let mask = (1u32 << 2) - 1; // Use 2 bits for fast test (avg 4 iterations)
+    let max_iters = 1000; // Safety limit for test
+    let mut final_pow = 0u64;
+    let mut iterations = 0;
+    
+    // Simulate the PoW loop from generate_fri_proof with proper safeguards
+    loop {
+        let mut pow_trans = final_eval.to_array()[0]
+            .as_canonical_u64()
+            .to_be_bytes()
+            .to_vec();
+        pow_trans.extend(final_pow.to_be_bytes());
+        let pow_hash_result = fiat_shamir_challenge_base(&pow_trans);
+        let pow_hash_u64 = pow_hash_result.as_canonical_u64();
+        let pow_val = pow_hash_u64 as u32;
+        if pow_val & mask == 0 {
+            break;
+        }
+        final_pow += 1;
+        iterations += 1;
+        assert!(iterations < max_iters, "PoW took too long: {} iterations", iterations);
+    }
+    
+    assert!(iterations > 0, "PoW found solution immediately - test may be invalid");
+    assert!(iterations < 100, "PoW should be fast with 2 bits"); // Ensure reasonable performance
+    eprintln!("PoW test completed in {} iterations with final_pow={}", iterations, final_pow);
+}
+
+#[test]
+fn test_pow_loop_with_production_bits() {
+    // Test that production PoW bits work but with safety limits
+    // This tests the actual production path but with smaller eval for speed
+    
+    if PROOF_OF_WORK_BITS == 0 {
+        eprintln!("Skipping production PoW test (PROOF_OF_WORK_BITS=0 in test mode)");
+        return;
+    }
+    
+    let final_eval = from_base(F::from_u64(123)); // Different from ONE to avoid worst case
+    let mask = (1u32 << PROOF_OF_WORK_BITS) - 1;
+    let max_iters = 1_000_000; // Same as production
+    let mut final_pow = 0u64;
+    let mut iterations = 0;
+    
+    loop {
+        let mut pow_trans = final_eval.to_array()[0]
+            .as_canonical_u64()
+            .to_be_bytes()
+            .to_vec();
+        pow_trans.extend(final_pow.to_be_bytes());
+        let pow_hash_result = fiat_shamir_challenge_base(&pow_trans);
+        let pow_hash_u64 = pow_hash_result.as_canonical_u64();
+        let pow_val = pow_hash_u64 as u32;
+        if pow_val & mask == 0 {
+            break;
+        }
+        final_pow += 1;
+        iterations += 1;
+        assert!(iterations < max_iters, "PoW failed after {} iterations", iterations);
+    }
+    
+    eprintln!("Production PoW test: {} bits, {} iterations, final_pow={}", 
+              PROOF_OF_WORK_BITS, iterations, final_pow);
+}
+
+#[test]
+fn test_fri_oracle_with_dummy_poly() {
+    // Test that FRI oracle works with dummy polynomial (the hanging case)
+    let dummy_poly = Polynomial::new(vec![ExtF::ONE]);
+    let mut transcript = vec![0u8; 10];
+    
+    let mut oracle = FriOracle::new(vec![dummy_poly], &mut transcript);
+    let commits = oracle.commit();
+    assert!(!commits.is_empty());
+    assert!(!commits[0].is_empty());
+    
+    let point = vec![ExtF::ONE];
+    let (evals, proofs) = oracle.open_at_point(&point);
+    assert_eq!(evals.len(), 1);
+    assert_eq!(proofs.len(), 1);
+    
+    // Verification should work (no hanging with PoW=0 in tests)
+    let verified = oracle.verify_openings(&commits, &point, &evals, &proofs);
+    assert!(verified, "Dummy polynomial FRI verification should pass");
+    
+    eprintln!("Dummy FRI oracle test passed - no hanging detected");
+}
+
+#[test]
+fn test_configurable_fri_backends() {
+    // Test that both backends can be created and used
+    let poly = Polynomial::new(vec![ExtF::from_u64(1), ExtF::from_u64(2), ExtF::from_u64(3)]);
+    let polys = vec![poly.clone()];
+    let mut transcript = vec![];
+
+    // Test custom backend
+    let mut custom_backend = create_fri_backend(FriImpl::Custom, polys.clone(), &mut transcript);
+    let custom_commits = custom_backend.commit(polys.clone()).unwrap();
+    assert!(!custom_commits.is_empty());
+    assert!(!custom_commits[0].is_empty());
+
+    let point = vec![ExtF::from_u64(42)];
+    let (custom_evals, custom_proofs) = custom_backend.open_at_point(&point).unwrap();
+    assert_eq!(custom_evals.len(), 1);
+    assert_eq!(custom_proofs.len(), 1);
+
+    // Verify custom backend
+    let verified = custom_backend.verify_openings(&custom_commits, &point, &custom_evals, &custom_proofs);
+    assert!(verified, "Custom backend verification should pass");
+
+    // Test p3-fri backend (if enabled)
+    #[cfg(feature = "p3-fri")]
+    {
+        let mut p3_transcript = vec![];
+        let mut p3_backend = create_fri_backend(FriImpl::Plonky3, polys.clone(), &mut p3_transcript);
+        let p3_commits = p3_backend.commit(polys.clone()).unwrap();
+        assert!(!p3_commits.is_empty());
+
+        let (p3_evals, p3_proofs) = p3_backend.open_at_point(&point).unwrap();
+        assert_eq!(p3_evals.len(), 1);
+        assert_eq!(p3_proofs.len(), 1);
+
+        // Note: Since p3-fri currently delegates to custom, evaluations should be similar
+        // In a full implementation, they might differ due to different blinding
+        eprintln!("Custom eval: {:?}, P3 eval: {:?}", custom_evals[0], p3_evals[0]);
+
+        let p3_verified = p3_backend.verify_openings(&p3_commits, &point, &p3_evals, &p3_proofs);
+        assert!(p3_verified, "P3 backend verification should pass");
+    }
+
+    eprintln!("✅ Configurable FRI backends test passed");
+}
+
+#[test]
+fn test_adaptive_fri_oracle() {
+    // Test the adaptive oracle that maintains PolyOracle compatibility
+    let poly = Polynomial::new(vec![ExtF::from_u64(5), ExtF::from_u64(10)]);
+    let mut transcript = vec![];
+    
+    let mut adaptive_oracle = AdaptiveFriOracle::new(FriImpl::Custom, vec![poly.clone()], &mut transcript);
+    
+    // Test that it implements PolyOracle interface
+    let commits = adaptive_oracle.commit();
+    assert!(!commits.is_empty());
+    
+    let point = vec![ExtF::from_u64(7)];
+    let (evals, proofs) = adaptive_oracle.open_at_point(&point);
+    assert_eq!(evals.len(), 1);
+    assert_eq!(proofs.len(), 1);
+    
+    let verified = adaptive_oracle.verify_openings(&commits, &point, &evals, &proofs);
+    assert!(verified, "Adaptive oracle verification should pass");
+    
+    // Test implementation type access
+    assert_eq!(adaptive_oracle.impl_type(), FriImpl::Custom);
+    assert!(adaptive_oracle.domain_size() > 0);
+    
+    eprintln!("✅ Adaptive FRI oracle test passed");
+}
+
+#[test]
+fn test_fri_impl_default() {
+    // Test that the default implementation is Custom
+    let default_impl = FriImpl::default();
+    assert_eq!(default_impl, FriImpl::Custom);
+    eprintln!("✅ Default FRI implementation is Custom");
+}
+
+#[test]
+fn test_backend_factory_functions() {
+    // Test the factory functions work correctly
+    let poly = Polynomial::new(vec![ExtF::ONE, ExtF::from_u64(2)]);
+    let mut transcript = vec![];
+    
+    // Test backend creation
+    let backend = create_fri_backend(FriImpl::Custom, vec![poly], &mut transcript);
+    assert!(backend.domain_size() > 0);
+    
+    // Test verifier creation
+    let verifier = create_fri_verifier(FriImpl::Custom, 16);
+    assert_eq!(verifier.domain_size(), 16);
+    
+    eprintln!("✅ Backend factory functions test passed");
+}

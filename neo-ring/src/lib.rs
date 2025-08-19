@@ -96,7 +96,7 @@ impl<C: Coeff> RingElement<C> {
         C: From<i128>,
     {
         let dist = Uniform::new_inclusive(-(bound as i128), bound as i128).unwrap();
-        let coeffs = (0..n).map(|_| C::from(rng.sample(&dist))).collect();
+        let coeffs = (0..n).map(|_| C::from(rng.sample(dist))).collect();
         Self::from_coeffs(coeffs, n)
     }
 
@@ -221,7 +221,7 @@ fn div_rem_polys<C: Coeff + Copy>(
         if q_coeffs.len() <= deg_diff {
             q_coeffs.resize(deg_diff + 1, C::zero());
         }
-        q_coeffs[deg_diff] = q_coeffs[deg_diff] + factor;
+        q_coeffs[deg_diff] += factor;
         let mut sub = vec![C::zero(); deg_diff];
         sub.extend(b.coeffs().iter().map(|&c| c * factor));
         let sub_poly = Polynomial::new(sub);
@@ -330,11 +330,6 @@ mod tests {
         let coeffs = vec![ModInt::from_u64(1), ModInt::from_u64(ModInt::modulus() - 1)];
         let re = RingElement::from_coeffs(coeffs, n);
         assert_eq!(re.norm_inf(), 1);
-    }
-
-    #[test]
-    fn test_norm_inf_constant_time() {
-        assert!(true);
     }
 
     #[test]

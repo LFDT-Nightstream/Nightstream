@@ -60,7 +60,7 @@ fn test_full_fold_verification() {
         u: F::ZERO,
         e: F::ONE,
     };
-    let proof = fold_state.generate_proof((instance1, witness1), (instance2, witness2), &committer);
+    let proof = fold_state.generate_proof((instance1, witness1), (instance2, witness2), &committer).unwrap();
     assert!(fold_state.verify(&proof.transcript, &committer));
     fold_state.eval_instances[0].ys[0] += ExtF::ONE;
     assert!(!fold_state.verify(&proof.transcript, &committer));
@@ -99,7 +99,7 @@ fn test_verify_fails_on_transcript_mutation() {
         (instance.clone(), witness),
         (instance2, witness2),
         &committer,
-    );
+    ).unwrap();
     let mut bad = proof.clone();
     bad.transcript[10] ^= 1;
     assert!(!state.verify(&bad.transcript, &committer));
@@ -140,7 +140,7 @@ fn test_zk_folding_different_proofs() {
         e: F::ONE,
     };
     let mut state = FoldState::new(structure);
-    let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer);
+    let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer).unwrap();
     assert!(state.verify(&proof.transcript, &committer));
 }
 
@@ -197,7 +197,7 @@ fn prop_rejects_mutated_transcript(mutated_index: usize, mutated_bit: u8) -> boo
         e: F::ONE,
     };
     let witness2 = CcsWitness { z: z_base.iter().copied().map(from_base).collect() };
-    let proof = state.generate_proof((instance, witness), (instance2, witness2), &committer);
+    let proof = state.generate_proof((instance, witness), (instance2, witness2), &committer).unwrap();
     let mut bad_transcript = proof.transcript.clone();
     if mutated_index < bad_transcript.len() && mutated_bit != 0 {
         bad_transcript[mutated_index] ^= mutated_bit;

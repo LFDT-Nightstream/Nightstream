@@ -21,7 +21,7 @@ pub enum SumCheckError {
     InvalidSum(usize),
 }
 
-fn serialize_uni(uni: &Polynomial<ExtF>) -> Vec<u8> {
+pub fn serialize_uni(uni: &Polynomial<ExtF>) -> Vec<u8> {
     // CRITICAL FIX: Prefix degree as u8 to match verifier expectation
     let mut bytes = vec![uni.degree() as u8];
     
@@ -44,7 +44,7 @@ fn serialize_uni(uni: &Polynomial<ExtF>) -> Vec<u8> {
     bytes
 }
 
-fn serialize_ext(e: ExtF) -> Vec<u8> {
+pub fn serialize_ext(e: ExtF) -> Vec<u8> {
     let arr = e.to_array();
     let mut bytes = Vec::with_capacity(16);
     bytes.extend_from_slice(&arr[0].as_canonical_u64().to_be_bytes());

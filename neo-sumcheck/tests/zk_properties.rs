@@ -14,11 +14,11 @@ fn test_blinding_hides_poly() {
     
     // Same polynomial, different transcript seeds should give different commitments
     let mut transcript1 = b"seed_alpha".to_vec();
-    let oracle1 = FriOracle::new(vec![poly.clone()], &mut transcript1);
+    let mut oracle1 = FriOracle::new(vec![poly.clone()], &mut transcript1);
     let commit1 = oracle1.commit();
     
     let mut transcript2 = b"seed_beta".to_vec();
-    let oracle2 = FriOracle::new(vec![poly.clone()], &mut transcript2);
+    let mut oracle2 = FriOracle::new(vec![poly.clone()], &mut transcript2);
     let commit2 = oracle2.commit();
     
     assert_ne!(commit1, commit2, "Different transcripts should produce different commitments");
@@ -32,11 +32,11 @@ fn test_blinding_deterministic_same_seed() {
     let poly = Polynomial::new(vec![ExtF::ZERO, ExtF::ONE]);
     
     let mut transcript1 = b"fixed_seed".to_vec();
-    let oracle1 = FriOracle::new(vec![poly.clone()], &mut transcript1);
+    let mut oracle1 = FriOracle::new(vec![poly.clone()], &mut transcript1);
     let commit1 = oracle1.commit();
     
     let mut transcript2 = b"fixed_seed".to_vec();
-    let oracle2 = FriOracle::new(vec![poly.clone()], &mut transcript2);
+    let mut oracle2 = FriOracle::new(vec![poly.clone()], &mut transcript2);
     let commit2 = oracle2.commit();
     
     assert_eq!(commit1, commit2, "Same transcript should produce same commitment");
@@ -78,11 +78,11 @@ fn prop_batch_blinding_independence(coeff: u64) -> bool {
     let poly2 = Polynomial::new(vec![ExtF::from_u64(coeff), ExtF::ONE]); // Same coefficients
     
     let mut transcript1 = b"batch_seed_1".to_vec();
-    let oracle1 = FriOracle::new(vec![poly1, poly2.clone()], &mut transcript1);
+    let mut oracle1 = FriOracle::new(vec![poly1, poly2.clone()], &mut transcript1);
     let commit1 = oracle1.commit();
     
     let mut transcript2 = b"batch_seed_2".to_vec();
-    let oracle2 = FriOracle::new(vec![poly2], &mut transcript2);
+    let mut oracle2 = FriOracle::new(vec![poly2], &mut transcript2);
     let commit2 = oracle2.commit();
     
     // Even with same polynomials, different batching/seeds should give different commits
@@ -96,11 +96,11 @@ fn test_zero_poly_zk() {
     let zero_poly = Polynomial::new(vec![ExtF::ZERO]);
     
     let mut transcript1 = b"zero_test_1".to_vec();
-    let oracle1 = FriOracle::new(vec![zero_poly.clone()], &mut transcript1);
+    let mut oracle1 = FriOracle::new(vec![zero_poly.clone()], &mut transcript1);
     let commit1 = oracle1.commit();
     
     let mut transcript2 = b"zero_test_2".to_vec();
-    let oracle2 = FriOracle::new(vec![zero_poly], &mut transcript2);
+    let mut oracle2 = FriOracle::new(vec![zero_poly], &mut transcript2);
     let commit2 = oracle2.commit();
     
     assert_ne!(commit1, commit2, "Zero polynomial should still have ZK hiding");
@@ -120,7 +120,7 @@ fn test_computational_hiding() {
     // Generate many commitments to the same polynomial
     for i in 0..20 {
         let mut transcript = format!("hiding_test_{}", i).into_bytes();
-        let oracle = FriOracle::new(vec![secret_poly.clone()], &mut transcript);
+        let mut oracle = FriOracle::new(vec![secret_poly.clone()], &mut transcript);
         commitments.push(oracle.commit());
     }
     

@@ -1,125 +1,73 @@
-use neo_ccs::{check_relaxed_satisfiability, mv_poly, CcsInstance, CcsStructure, CcsWitness};
-use neo_commit::{AjtaiCommitter, SECURE_PARAMS};
-use neo_fields::{embed_base_to_ext, from_base, ExtF, F};
 use neo_fold::FoldState;
-use p3_field::PrimeCharacteristicRing;
+use neo_ccs::{mv_poly, CcsInstance, CcsStructure, CcsWitness};
+use neo_commit::{AjtaiCommitter, TOY_PARAMS};
+use neo_fields::{from_base, ExtF, F};
+use neo_decomp::decomp_b;
 use p3_matrix::dense::RowMajorMatrix;
-use std::error::Error;
+use p3_field::PrimeCharacteristicRing;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let _rng = rand::rng();
-
-    // Simple R1CS-like CCS structure for X0 * X1 = X2
-    let m = 3;
-    let a_data = vec![F::ONE, F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ZERO];
-    let b_data = vec![F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ONE, F::ZERO];
-    let c_data = vec![F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ONE];
-    let mats = vec![
-        RowMajorMatrix::new(a_data, m),
-        RowMajorMatrix::new(b_data, m),
-        RowMajorMatrix::new(c_data, m),
-    ];
+fn setup_test_structure() -> CcsStructure {
+    let a = RowMajorMatrix::new(vec![F::ONE, F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ZERO], 3);
+    let b = RowMajorMatrix::new(vec![F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ONE, F::ZERO], 3);
+    let c = RowMajorMatrix::new(vec![F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ONE], 3);
+    let mats = vec![a, b, c];
     let f = mv_poly(
         |inputs: &[ExtF]| {
-            if inputs.len() == 3 {
-                inputs[0] * inputs[1] - inputs[2]
-            } else {
+            if inputs.len() != 3 {
                 ExtF::ZERO
+            } else {
+                inputs[0] * inputs[1] - inputs[2]
             }
         },
         2,
     );
-    let structure = CcsStructure::new(mats, f);
+    CcsStructure::new(mats, f)
+}
 
-    // Committer with parameters close to the Neo paper
-    let committer = AjtaiCommitter::setup(SECURE_PARAMS);
+fn main() {
+    println!("Generating and verifying a proof...");
 
-    // Build 10 identical satisfying instances
-    let mut instances = Vec::new();
-    let mut witnesses = Vec::new();
-    for i in 0..10 {
-        let val = F::from_u64(i as u64 + 2);
-        let z_base = vec![F::ONE, val, val];
-        let z = z_base.iter().copied().map(from_base).collect();
-        let witness = CcsWitness { z };
-        let z_mat = neo_decomp::decomp_b(&z_base, SECURE_PARAMS.b, SECURE_PARAMS.d);
-        let w = AjtaiCommitter::pack_decomp(&z_mat, &SECURE_PARAMS);
-        let mut t = Vec::new();
-        let (commit, _, _, _) = committer
-            .commit(&w, &mut t)
-            .map_err(|e| e.to_string())?;
-        let instance = CcsInstance {
-            commitment: commit,
-            public_input: vec![],
-            u: F::ZERO,
-            e: F::ONE,
-        };
-        instances.push(instance);
-        witnesses.push(witness);
-    }
+    let structure = setup_test_structure();
+    let params = TOY_PARAMS;
+    let committer = AjtaiCommitter::setup_unchecked(params);
 
-    // Start with the first instance/witness pair
-    let mut accumulated_instance = instances[0].clone();
-    let mut accumulated_witness = witnesses[0].clone();
+    let z1_base = vec![F::ONE, F::from_u64(3), F::from_u64(3)];
+    let z1 = z1_base.iter().copied().map(from_base).collect();
+    let witness1 = CcsWitness { z: z1 };
+    let z1_mat = decomp_b(&z1_base, params.b, params.d);
+    let w1 = AjtaiCommitter::pack_decomp(&z1_mat, &params);
+    let mut t1 = Vec::new();
+    let (commit1, _, _, _) = committer.commit(&w1, &mut t1).expect("commit");
+    let instance1 = CcsInstance {
+        commitment: commit1,
+        public_input: vec![],
+        u: F::ZERO,
+        e: F::ONE,
+    };
 
-    // Fold remaining nine pairs into the accumulator
-    for i in 1..10 {
-        let next_instance = instances[i].clone();
-        let next_witness = witnesses[i].clone();
+    let z2_base = vec![F::from_u64(2), F::from_u64(2), F::from_u64(4)];
+    let z2 = z2_base.iter().copied().map(from_base).collect();
+    let witness2 = CcsWitness { z: z2 };
+    let z2_mat = decomp_b(&z2_base, params.b, params.d);
+    let w2 = AjtaiCommitter::pack_decomp(&z2_mat, &params);
+    let mut t2 = Vec::new();
+    let (commit2, _, _, _) = committer.commit(&w2, &mut t2).expect("commit");
+    let instance2 = CcsInstance {
+        commitment: commit2,
+        public_input: vec![],
+        u: F::ZERO,
+        e: F::ONE,
+    };
 
-        let mut fold_state = FoldState::new(structure.clone());
-        let proof = fold_state.generate_proof(
-            (accumulated_instance.clone(), accumulated_witness.clone()),
-            (next_instance.clone(), next_witness.clone()),
-            &committer,
-        );
+    let mut state = FoldState::new(structure.clone());
+    let proof = state.generate_proof((instance1.clone(), witness1.clone()), (instance2.clone(), witness2.clone()), &committer).unwrap();
 
-        // Extract rho from the fold state
-        let rho = fold_state
-            .rhos
-            .last()
-            .copied()
-            .unwrap_or(F::ONE);
-        let rho_ext = embed_base_to_ext(rho);
+    let verifier_state = FoldState::new(structure);
+    let verify_result = verifier_state.verify(&proof.transcript, &committer);
 
-        // Combine witnesses directly (no blinding in demo)
-        let new_z: Vec<ExtF> = accumulated_witness
-            .z
-            .iter()
-            .zip(&next_witness.z)
-            .map(|(&z1, &z2)| z1 + rho_ext * z2)
-            .collect();
-        accumulated_witness = CcsWitness { z: new_z };
-
-        // Update relaxation scalars
-        let new_u = accumulated_instance.u + rho * next_instance.u;
-        let new_e = accumulated_instance.e + rho * next_instance.e;
-
-        // Use folded commitment from last eval instance
-        accumulated_instance = CcsInstance {
-            commitment: fold_state.eval_instances.last().unwrap().commitment.clone(),
-            public_input: vec![],
-            u: new_u,
-            e: new_e,
-        };
-
-        // Verify proof for this fold
-        if !fold_state.verify(&proof.transcript, &committer) {
-            return Err(format!("verification failed at fold {}", i).into());
-        }
-    }
-
-    // Final relaxed satisfiability check
-    if check_relaxed_satisfiability(
-        &structure,
-        &accumulated_instance,
-        &accumulated_witness,
-        accumulated_instance.u,
-        accumulated_instance.e,
-    ) {
-        println!("IVC chaining successful: Final instance (after 10 folds) satisfies relaxed CCS.");
-        Ok(())
+    if verify_result {
+        println!("Proof verification succeeded!");
     } else {
-        Err("IVC chaining failed".into())
+        println!("Proof verification failed!");
     }
 }

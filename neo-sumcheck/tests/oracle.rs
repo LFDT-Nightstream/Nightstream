@@ -1,5 +1,5 @@
 use byteorder::{BigEndian, WriteBytesExt};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use neo_sumcheck::oracle::{
     deserialize_fri_proof, extf_pow, generate_coset, hash_extf, serialize_fri_proof,
@@ -9,7 +9,7 @@ use neo_sumcheck::{from_base, ExtF, PolyOracle, Polynomial, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
-use rand_distr::StandardNormal;
+
 
 #[test]
 fn test_domain_generation_roots_of_unity() {

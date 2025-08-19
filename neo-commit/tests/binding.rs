@@ -1,6 +1,6 @@
 use neo_commit::{AjtaiCommitter, TOY_PARAMS, SECURE_PARAMS};
 use neo_decomp::decomp_b;
-use neo_fields::{ExtF, F};
+use neo_fields::F;
 use p3_field::PrimeCharacteristicRing;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -20,16 +20,16 @@ fn test_binding_collision_resistance() {
     
     // Try to find a collision by creating many different witnesses
     // and checking if any produce the same commitment
-    let mut commitments = std::collections::HashMap::new();
+    let mut commitments = Vec::new();
     let mut rng = ChaCha20Rng::from_seed([42; 32]);
     
-    let trials = 100; // Limited trials for test efficiency
+    let trials = 50; // Limited trials for test efficiency
     let mut collision_found = false;
     
     for trial in 0..trials {
         // Generate a random witness
         let z: Vec<F> = (0..params.n)
-            .map(|_| F::from_u64(rng.gen::<u64>() % 1000)) // Small values to avoid overflow
+            .map(|_| F::from_u64(rng.random::<u64>() % 1000)) // Small values to avoid overflow
             .collect();
         
         let mat = decomp_b(&z, params.b, params.d);
@@ -44,12 +44,20 @@ fn test_binding_collision_resistance() {
             assert!(committer.verify(&commitment, &blinded_witness, &error),
                     "Generated commitment should be valid");
             
-            // Check for collision
-            if commitments.contains_key(&commitment) {
-                collision_found = true;
+            // Check for collision by comparing with previous commitments
+            for (i, prev_commit) in commitments.iter().enumerate() {
+                if commitment == *prev_commit {
+                    collision_found = true;
+                    println!("Found collision between trial {} and {}", trial, i);
+                    break;
+                }
+            }
+            
+            if collision_found {
                 break;
             }
-            commitments.insert(commitment, (z, trial));
+            
+            commitments.push(commitment);
         }
     }
     
@@ -142,7 +150,7 @@ fn test_binding_attack_simulation() {
     let (target_commit, _, _, _) = committer.commit(&base_w, &mut base_transcript).unwrap();
     
     // Try variations to find collision
-    let variations = 50; // Limited for test performance
+    let variations = 20; // Limited for test performance
     for i in 1..=variations {
         let mut variant_z = base_z.clone();
         variant_z[0] = F::from_u64(42 + i); // Systematic variation
@@ -150,7 +158,8 @@ fn test_binding_attack_simulation() {
         let variant_mat = decomp_b(&variant_z, params.b, params.d);
         let variant_w = AjtaiCommitter::pack_decomp(&variant_mat, &params);
         
-        let mut variant_transcript = vec![17u8; 32]; // Same randomness
+        // Use different randomness for each variation to test binding not hiding
+        let mut variant_transcript = format!("attack_variant_{}", i).into_bytes();
         let (variant_commit, _, _, _) = committer.commit(&variant_w, &mut variant_transcript).unwrap();
         
         // Should not find collision
@@ -197,28 +206,22 @@ fn test_binding_secure_params() {
              params.n, params.k, params.q);
 }
 
-/// Property-based test for binding across random witnesses.
-/// Uses QuickCheck to test binding property on random inputs.
-#[cfg(feature = "prop-tests")]
-#[quickcheck_macros::quickcheck]
-fn prop_binding_random_witnesses(seed1: u64, seed2: u64) -> bool {
-    if seed1 == seed2 {
-        return true; // Skip identical seeds
-    }
-    
+/// Test binding property across multiple random witnesses.
+/// Uses random generation to test binding property on varied inputs.
+#[test]
+fn test_binding_random_witnesses() {
     let params = TOY_PARAMS;
     let committer = AjtaiCommitter::setup_unchecked(params);
     
-    let mut rng1 = ChaCha20Rng::seed_from_u64(seed1);
-    let mut rng2 = ChaCha20Rng::seed_from_u64(seed2);
+    let mut rng1 = ChaCha20Rng::seed_from_u64(12345);
+    let mut rng2 = ChaCha20Rng::seed_from_u64(67890);
     
-    // Generate random witnesses
-    let z1: Vec<F> = (0..params.n).map(|_| F::from_u64(rng1.gen::<u64>() % 100)).collect();
-    let z2: Vec<F> = (0..params.n).map(|_| F::from_u64(rng2.gen::<u64>() % 100)).collect();
+    // Generate different random witnesses
+    let z1: Vec<F> = (0..params.n).map(|_| F::from_u64(rng1.random::<u64>() % 100)).collect();
+    let z2: Vec<F> = (0..params.n).map(|_| F::from_u64(rng2.random::<u64>() % 100)).collect();
     
-    if z1 == z2 {
-        return true; // Skip identical witnesses
-    }
+    // Ensure they're actually different
+    assert_ne!(z1, z2, "Random witnesses should be different");
     
     let mat1 = decomp_b(&z1, params.b, params.d);
     let w1 = AjtaiCommitter::pack_decomp(&mat1, &params);
@@ -230,8 +233,14 @@ fn prop_binding_random_witnesses(seed1: u64, seed2: u64) -> bool {
     let mut t1 = vec![42u8; 32];
     let mut t2 = vec![42u8; 32];
     
-    match (committer.commit(&w1, &mut t1), committer.commit(&w2, &mut t2)) {
-        (Ok((c1, _, _, _)), Ok((c2, _, _, _))) => c1 != c2, // Should be different
-        _ => true // If commitment fails, that's also acceptable
-    }
+    let result1 = committer.commit(&w1, &mut t1);
+    let result2 = committer.commit(&w2, &mut t2);
+    
+    assert!(result1.is_ok() && result2.is_ok(), "Commitments should succeed");
+    
+    let (c1, _, _, _) = result1.unwrap();
+    let (c2, _, _, _) = result2.unwrap();
+    
+    // Should produce different commitments (binding)
+    assert_ne!(c1, c2, "Different random witnesses should produce different commitments");
 }

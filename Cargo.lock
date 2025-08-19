@@ -400,7 +400,10 @@ dependencies = [
  "neo-ring",
  "p3-field",
  "p3-matrix",
+ "quickcheck",
+ "quickcheck_macros",
  "rand 0.9.2",
+ "rand_chacha",
  "rand_distr",
  "subtle",
 ]

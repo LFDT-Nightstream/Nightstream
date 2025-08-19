@@ -22,6 +22,9 @@ prop-tests = []
 
 [dev-dependencies]
 criterion = { workspace = true }
+quickcheck = "1"
+quickcheck_macros = "1"
+rand_chacha = { workspace = true }
 
 [[bench]]
 name = "commit"

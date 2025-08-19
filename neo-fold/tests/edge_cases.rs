@@ -1,8 +1,8 @@
 use neo_ccs::{mv_poly, CcsInstance, CcsStructure, CcsWitness};
 use neo_commit::{AjtaiCommitter, TOY_PARAMS};
 use neo_fields::{ExtF, F};
-use neo_fold::{FoldState, Proof};
-use neo_poly::Polynomial;
+use neo_fold::FoldState;
+use neo_sumcheck::PolyOracle;
 use p3_field::PrimeCharacteristicRing;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -41,7 +41,7 @@ fn test_zero_poly_folding() {
     
     // Folding should handle zero cases gracefully
     let result = state.generate_proof((instance1, witness1), (instance2, witness2), &committer);
-    assert!(state.verify(&result.transcript, &committer),
+    assert!(state.verify(&result.unwrap().transcript, &committer),
             "Zero polynomial folding should verify correctly");
 }
 
@@ -85,7 +85,7 @@ fn test_minimal_instances() {
         commitment: vec![],
         public_input: vec![],
         u: F::ONE, // Non-zero u
-        e: F::ZERO,
+        e: F::ONE, // Set e=1 so that u*e = 1*1 = 1 = f(M*z)
     };
     let witness1 = CcsWitness {
         z: vec![ExtF::ONE], // Minimal non-zero witness
@@ -95,14 +95,14 @@ fn test_minimal_instances() {
         commitment: vec![],
         public_input: vec![],
         u: F::ONE,
-        e: F::ZERO,
+        e: F::ONE, // Set e=1 so that u*e = 1*1 = 1 = f(M*z)
     };
     let witness2 = CcsWitness {
         z: vec![ExtF::ONE],
     };
     
     let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer);
-    assert!(state.verify(&proof.transcript, &committer),
+    assert!(state.verify(&proof.unwrap().transcript, &committer),
             "Minimal instances should fold and verify correctly");
 }
 
@@ -141,15 +141,22 @@ fn test_mismatched_dimensions() {
     
     // This should either panic or produce an invalid proof
     // We test that if a proof is generated, it doesn't verify
-    let result = std::panic::catch_unwind(|| {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         state.generate_proof((instance1, bad_witness1), (instance2, witness2), &committer)
-    });
+    }));
     
     match result {
-        Ok(proof) => {
-            // If proof generation succeeded, verification should fail
-            assert!(!state.verify(&proof.transcript, &committer),
-                    "Mismatched dimensions should not verify");
+        Ok(proof_result) => {
+            match proof_result {
+                Ok(proof) => {
+                    // If proof generation succeeded, verification should fail
+                    assert!(!state.verify(&proof.transcript, &committer),
+                            "Mismatched dimensions should not verify");
+                }
+                Err(_) => {
+                    // Error in proof generation is also acceptable for dimension mismatch
+                }
+            }
         }
         Err(_) => {
             // Panic is also acceptable for dimension mismatch

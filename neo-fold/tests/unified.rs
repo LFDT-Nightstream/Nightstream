@@ -22,7 +22,7 @@ fn test_pi_ccs_unified_no_mismatch() {
     };
     state.ccs_instance = Some((instance, witness));
     let mut transcript = vec![];
-    let (msgs, _pre_transcript) = pi_ccs(&mut state, &committer, &mut transcript);
+    let (msgs, _pre_transcript) = pi_ccs(&mut state, &committer, &mut transcript).unwrap();
     assert!(!msgs.is_empty());
     let eval = state.eval_instances.last().unwrap();
     for &y in &eval.ys {
@@ -46,7 +46,7 @@ fn test_full_fold_unified() {
     let witness2 = CcsWitness {
         z: vec![embed_base_to_ext(F::from_u64(3)), embed_base_to_ext(F::from_u64(3))],
     };
-    let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer);
+    let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer).unwrap();
     assert!(state.verify(&proof.transcript, &committer));
     let final_eval = state.eval_instances.last().unwrap();
     assert!(project_ext_to_base(final_eval.e_eval).is_some());

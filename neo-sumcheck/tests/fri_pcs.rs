@@ -1,6 +1,5 @@
 use neo_sumcheck::{from_base, ExtF, F, FriOracle, PolyOracle, Polynomial};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use p3_field::PrimeCharacteristicRing;
 
 #[test]
 fn test_fri_roundtrip() {

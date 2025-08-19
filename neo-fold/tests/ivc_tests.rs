@@ -170,14 +170,15 @@ mod tests {
 
     #[test]
     fn test_recursive_ivc_base_case() {
-        let mut state = FoldState::new(verifier_ccs());
         let committer = AjtaiCommitter::setup(TOY_PARAMS);
         
-        // Test depth 0 (base case)
-        assert!(state.recursive_ivc(0, &committer));
+        // Test empty state (should add dummy and return true)
+        let mut state_empty = FoldState::new(verifier_ccs());
+        assert!(state_empty.recursive_ivc(0, &committer));
         
-        // With eval instances, should return true
-        state.eval_instances.push(neo_fold::EvalInstance {
+        // Test with one eval instance (should return true without adding dummy)
+        let mut state_with_eval = FoldState::new(verifier_ccs());
+        state_with_eval.eval_instances.push(neo_fold::EvalInstance {
             commitment: vec![],
             r: vec![ExtF::ONE],
             ys: vec![ExtF::ZERO],
@@ -185,7 +186,7 @@ mod tests {
             e_eval: ExtF::ONE,
             norm_bound: 100,
         });
-        assert!(state.recursive_ivc(0, &committer));
+        assert!(state_with_eval.recursive_ivc(0, &committer));
     }
 
     #[test]
@@ -330,7 +331,7 @@ mod tests {
             },
         );
         let proof = state.generate_proof(instance.clone(), instance, &committer);
-        assert!(!proof.transcript.is_empty(), "Proof transcript should not be empty");
+        assert!(!proof.unwrap().transcript.is_empty(), "Proof transcript should not be empty");
     }
 
     #[test]

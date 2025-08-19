@@ -23,7 +23,7 @@ fn test_full_folding() {
     let witness1 = CcsWitness { z: vec![from_base(F::from_u64(2))] };
     let instance2 = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
     let witness2 = CcsWitness { z: vec![from_base(F::from_u64(3))] };
-    let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer);
+    let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer).unwrap();
     assert!(state.verify(&proof.transcript, &committer));
 }
 
@@ -39,7 +39,7 @@ fn test_full_folding_with_fri() {
     let witness1 = CcsWitness { z: vec![from_base(F::from_u64(2))] };
     let instance2 = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
     let witness2 = CcsWitness { z: vec![from_base(F::from_u64(3))] };
-    let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer);
+    let proof = state.generate_proof((instance1, witness1), (instance2, witness2), &committer).unwrap();
     assert!(state.verify(&proof.transcript, &committer));
 }
 
@@ -47,8 +47,8 @@ fn test_full_folding_with_fri() {
 fn test_extractor_rewinds() {
     let proof = Proof { transcript: vec![0; 100] };
     let witness = extractor(&proof);
-    assert_eq!(witness.z.len(), 1);
-    assert_ne!(witness.z[0], ExtF::ZERO);
+    assert_eq!(witness.z.len(), 4); // Extractor always returns 4-element witness for verifier CCS
+    assert!(witness.z.iter().all(|&e| e != ExtF::ZERO)); // All elements should be non-zero
 }
 
 #[test]

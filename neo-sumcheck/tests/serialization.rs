@@ -1,10 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     use neo_fields::*;
     use neo_poly::Polynomial;
     use std::io::Cursor;
     use byteorder::{BigEndian, ReadBytesExt};
+    use p3_field::PrimeCharacteristicRing;
+    use neo_sumcheck::sumcheck::{serialize_uni, serialize_ext};
 
     #[test]
     fn test_serialize_uni_includes_degree_prefix() {

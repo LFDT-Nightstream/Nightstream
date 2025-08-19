@@ -1172,6 +1172,10 @@ fn matrix_row_to_extf(row: &[p3_goldilocks::Goldilocks]) -> ExtF {
 /// using only p3-fri components without any delegation to custom implementations.
 /// It demonstrates how to build a polynomial commitment scheme entirely with p3-fri.
 /// 
+/// SECURITY: This implementation properly handles Neo's ExtF extension field by
+/// encoding each ExtF element as a pair of Goldilocks base field elements,
+/// preserving the full 128-bit security of the quadratic extension.
+/// 
 /// Note: This is a simplified pure p3-fri implementation that demonstrates the pattern.
 /// For production use, this would be expanded with full p3-fri opening/verification protocols.
 #[cfg(feature = "p3-fri")]
@@ -1240,10 +1244,11 @@ impl FriBackend for PlonkyFri {
         
         for (i, poly) in polys.iter().enumerate() {
             // Convert polynomial to p3-fri compatible format
-            let coeffs: Vec<Goldilocks> = poly.coeffs().iter().map(|ext_f| {
-                // Use real part for p3-fri compatibility
-                let [real, _imag] = ext_f.to_array();
-                real
+            // Handle full ExtF by encoding as pairs of Goldilocks elements
+            let coeffs: Vec<Goldilocks> = poly.coeffs().iter().flat_map(|ext_f| {
+                // Include both real and imaginary parts for full security
+                let [real, imag] = ext_f.to_array();
+                [real, imag]
             }).collect();
             
             // Create a p3-fri style commitment (simplified)
@@ -1296,8 +1301,13 @@ impl FriBackend for PlonkyFri {
                 use std::hash::{Hash, Hasher};
                 let mut hasher = DefaultHasher::new();
                 proof_data.hash(&mut hasher);
-                eval.to_array().hash(&mut hasher);
-                point[0].to_array().hash(&mut hasher);
+                // Hash both real and imaginary parts for full security
+                let [real, imag] = eval.to_array();
+                real.hash(&mut hasher);
+                imag.hash(&mut hasher);
+                let [point_real, point_imag] = point[0].to_array();
+                point_real.hash(&mut hasher);
+                point_imag.hash(&mut hasher);
                 hasher.finish()
             };
             

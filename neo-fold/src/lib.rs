@@ -1702,21 +1702,10 @@ impl FoldState {
         claimed_eval: ExtF,
         coeff_len: usize,
     ) -> bool {
-        // For proper verification, we need to reconstruct the polynomial from coefficients
-        // and verify against it, rather than using a fresh oracle with different transcript state
+        // The key insight: we don't need to reconstruct the exact polynomial
+        // We just need to verify that the FRI proof is valid for the given commitment
+        // and that the claimed evaluation is consistent with the proof
         
-        // Reconstruct the polynomial that should have been committed
-        // This should match what fri_compress_final did: build poly from ys coefficients
-        let reconstructed_ys = vec![ExtF::ZERO; coeff_len]; // We don't know the actual ys here
-        let reconstructed_poly = Polynomial::new(reconstructed_ys);
-        
-        // Create oracle with same setup as prover
-        let mut transcript_clone = Vec::new(); 
-        transcript_clone.extend(b"final_poly_hash");
-        let _oracle = FriOracle::new(vec![reconstructed_poly], &mut transcript_clone);
-        
-        // Since we don't have the actual polynomial coefficients, we'll use a direct verification
-        // that just checks the FRI proof structure without reconstructing the polynomial
         let domain_size = coeff_len.next_power_of_two() * 4;
         let verifier = FriOracle::new_for_verifier(domain_size);
         let commitments = [commit.clone()];

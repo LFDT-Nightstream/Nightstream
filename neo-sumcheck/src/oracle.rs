@@ -555,9 +555,9 @@ impl FriOracle {
         for (&x, &p_x) in self.domain.iter().zip(evals) {
             let denom = x - z;
             let q_x = if denom == ExtF::ZERO {
-                r * p_prime_z
+                p_prime_z  // No r scaling for derivative case
             } else {
-                r * (p_x - p_z) / denom
+                (p_x - p_z) / denom  // Remove r scaling
             };
             composed_evals.push(q_x);
         }

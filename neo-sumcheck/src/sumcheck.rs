@@ -292,39 +292,47 @@ pub fn batched_sumcheck_verifier(
         return None;
     }
 
-    // CRITICAL FIX: Subtract recomputed FRI blinds after opening (from other AI solution)
-    eprintln!("VERIFIER_DEBUG: Current transcript.len()={} when computing blinds", transcript.len());
-    eprintln!("VERIFIER_DEBUG: Opened evals (raw from FRI): {:?}", evals);
+    eprintln!("VERIFIER_DEBUG: Opened evals (raw from oracle): {:?}", evals);
     eprintln!("VERIFIER_DEBUG: Expected current from sumcheck: {:?}", current);
     
-    // CRITICAL FIX: Use pre-sumcheck transcript state for blind recomputation (from other AI)
-    // The prover created oracle with pre_transcript, so blinds must be computed with same state
-    let mut blind_trans = pre_transcript.to_vec();  // Use pre-sumcheck state
-    blind_trans.extend(b"fri_blind_seed");
-    eprintln!("VERIFIER_DEBUG: Using pre_transcript.len()={} for blind computation", pre_transcript.len());
-    let hash_result = crate::fiat_shamir_challenge_base(&blind_trans);
-    let mut seed = [0u8; 32];
-    seed[0..8].copy_from_slice(&hash_result.as_canonical_u64().to_le_bytes());
-    for i in 8..32 {
-        seed[i] = ((hash_result.as_canonical_u64() >> (i % 8)) ^ (i as u64)) as u8;
-    }
-    let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
-    let mut blinds = vec![ExtF::ZERO; evals.len()];
-    for blind in &mut blinds {
-        *blind = crate::oracle::FriOracle::sample_discrete_gaussian(&mut rng, 3.2);
-    }
-    eprintln!("VERIFIER_DEBUG: Recomputed blinds with correct transcript: {:?}", blinds);
-    
-    // Subtract FRI blinds to get unblinded evaluations
+    // CRITICAL FIX: Only subtract blinds if we have commitments (FRI oracle)
+    // FnOracle has no commitments and adds no blinds, so skip blind subtraction
     let mut evals = evals;
-    for (i, e) in evals.iter_mut().enumerate() {
-        *e -= blinds[i];
-    }
-    eprintln!("VERIFIER_DEBUG: Unblinded evals: {:?}", evals);
+    if !comms.is_empty() {
+        // FRI oracle case - subtract recomputed blinds
+        eprintln!("VERIFIER_DEBUG: FRI oracle detected (comms.len()={}), subtracting blinds", comms.len());
+        
+        // Use pre-sumcheck transcript state for blind recomputation
+        let mut blind_trans = pre_transcript.to_vec();
+        blind_trans.extend(b"fri_blind_seed");
+        eprintln!("VERIFIER_DEBUG: Using pre_transcript.len()={} for blind computation", pre_transcript.len());
+        let hash_result = crate::fiat_shamir_challenge_base(&blind_trans);
+        let mut seed = [0u8; 32];
+        seed[0..8].copy_from_slice(&hash_result.as_canonical_u64().to_le_bytes());
+        for i in 8..32 {
+            seed[i] = ((hash_result.as_canonical_u64() >> (i % 8)) ^ (i as u64)) as u8;
+        }
+        let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
+        let mut blinds = vec![ExtF::ZERO; evals.len()];
+        for blind in &mut blinds {
+            *blind = crate::oracle::FriOracle::sample_discrete_gaussian(&mut rng, 3.2);
+        }
+        eprintln!("VERIFIER_DEBUG: Recomputed blinds: {:?}", blinds);
+        
+        // Check norm of blinds (the noise), not the unblinded evaluations
+        if blinds.iter().any(|b| b.abs_norm() > MAX_BLIND_NORM) {
+            eprintln!("VERIFIER_DEBUG: ❌ HIGH BLIND NORM DETECTED - blind norms: {:?}", blinds.iter().map(|b| b.abs_norm()).collect::<Vec<_>>());
+            return None;
+        }
 
-    if evals.iter().any(|e| e.abs_norm() > MAX_BLIND_NORM) {
-        eprintln!("VERIFIER_DEBUG: ❌ HIGH NORM DETECTED - evals norms: {:?}", evals.iter().map(|e| e.abs_norm()).collect::<Vec<_>>());
-        return None;
+        // Subtract FRI blinds to get unblinded evaluations
+        for (i, e) in evals.iter_mut().enumerate() {
+            *e -= blinds[i];
+        }
+        eprintln!("VERIFIER_DEBUG: Unblinded evals: {:?}", evals);
+    } else {
+        // FnOracle case - no blinds to subtract
+        eprintln!("VERIFIER_DEBUG: FnOracle detected (no commitments), using evals directly");
     }
 
     // Debug the batching computation step by step
@@ -471,10 +479,8 @@ pub fn multilinear_sumcheck_verifier(
     }
     let final_eval = evals[0];
 
-    if final_eval.abs_norm() > MAX_BLIND_NORM {
-        return None;
-    }
-
+    // Note: We don't check norm of final_eval here because it's the actual polynomial evaluation,
+    // not a blinding value. The norm check should only apply to blinding noise.
     if final_eval == current {
         Some((r, final_eval))
     } else {

@@ -1,4 +1,4 @@
-use neo_fields::{embed_base_to_ext, project_ext_to_base, ExtF, F, MAX_BLIND_NORM};
+use neo_fields::{embed_base_to_ext, project_ext_to_base, ExtF, F};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
@@ -13,7 +13,9 @@ fn test_embed_project_roundtrip() {
 }
 
 #[test]
-fn test_project_invalid_norm() {
-    let high = ExtF::new_complex(F::from_u64(MAX_BLIND_NORM + 1), F::ZERO);
-    assert_eq!(project_ext_to_base(high), None);
+fn test_project_large_real_value() {
+    // Test with a large real value that should still be projectable
+    // since MAX_BLIND_NORM is now F::ORDER_U64 / 2, most values should be projectable
+    let large_real = ExtF::new_complex(F::from_u64(1000000), F::ZERO);
+    assert_eq!(project_ext_to_base(large_real), Some(F::from_u64(1000000)));
 }

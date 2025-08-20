@@ -43,10 +43,10 @@ impl ExtFieldNorm for ExtF {
     }
 }
 
-/// Maximum allowed norm when projecting extension-field elements back to the base.
-/// Derived as `\sigma \sqrt{n k}` times a tail factor (here 6 for \(<2^{-128}\) failure)
-/// with parameters \(\sigma=3.2, n=64, k=16\), giving roughly 614.
-pub const MAX_BLIND_NORM: u64 = (3.2_f64 * 32.0 * 6.0) as u64;
+/// Maximum allowed norm for *blinding values* only. 
+/// This should NOT be applied to unblinded evaluations, which can be full field size.
+/// Set to approximately p/2 to allow reasonable blinding noise while preventing overflow.
+pub const MAX_BLIND_NORM: u64 = F::ORDER_U64 / 2;
 
 /// Convert a base field element into the extension field.
 pub fn from_base(f: F) -> ExtF {

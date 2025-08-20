@@ -62,8 +62,8 @@ where
 /// Multivariate polynomial handle.
 pub type Multivariate = Arc<dyn MvPolynomial>;
 
-pub mod sumcheck;
-pub use sumcheck::{ccs_sumcheck_prover, ccs_sumcheck_verifier};
+pub mod ccs_sumcheck;
+pub use ccs_sumcheck::{ccs_sumcheck_prover, ccs_sumcheck_verifier};
 
 #[derive(Clone)]
 pub struct CcsStructure {

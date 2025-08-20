@@ -1,4 +1,4 @@
-use neo_ccs::sumcheck::ProverError;
+use neo_ccs::ccs_sumcheck::ProverError;
 use neo_ccs::{
     ccs_sumcheck_prover, check_satisfiability, mv_poly, CcsInstance, CcsStructure, CcsWitness,
 };

@@ -5,6 +5,7 @@ use neo_sumcheck::oracle::{
     deserialize_fri_proof, extf_pow, generate_coset, hash_extf, serialize_fri_proof,
     verify_merkle_opening, FriLayerQuery, FriOracle, FriProof, FriQuery, MerkleTree, NUM_QUERIES,
     create_fri_backend, create_fri_verifier, FriImpl, AdaptiveFriOracle, PROOF_OF_WORK_BITS,
+    bit_reversed_sibling,
 };
 use neo_sumcheck::{from_base, ExtF, PolyOracle, Polynomial, F, fiat_shamir_challenge_base};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -1011,11 +1012,14 @@ fn test_fri_domain_properties_comprehensive() {
         let domain = generate_coset(domain_size);
         assert_eq!(domain.len(), domain_size);
         
-        // Check half-split pairing property: domain[i] == -domain[i + n/2] for i < n/2
-        let half = domain_size / 2;
-        for i in 0..half {
-            assert_eq!(domain[i + half], -domain[i],
-                      "Domain pairing broken at size {} index {}", domain_size, i);
+        // Check bit-reversed pairing property: domain[sib] == -domain[i] for all i
+        let log_n = domain_size.trailing_zeros() as usize;
+        for i in 0..domain_size {
+            let sib = bit_reversed_sibling(i, log_n);
+            if sib != i {  // Skip self-pairs (though none exist)
+                assert_eq!(domain[sib], -domain[i],
+                          "Domain pairing broken at size {} index {} (sib={})", domain_size, i, sib);
+            }
         }
         
         // Check that domain elements are distinct

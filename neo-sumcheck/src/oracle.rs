@@ -173,6 +173,27 @@ pub fn extf_pow(mut base: ExtF, mut exp: u64) -> ExtF {
     res
 }
 
+fn bit_reverse(mut i: usize, mut log_n: usize) -> usize {
+    let mut rev = 0;
+    while log_n > 0 {
+        rev = (rev << 1) | (i & 1);
+        i >>= 1;
+        log_n -= 1;
+    }
+    rev
+}
+
+pub fn bit_reversed_sibling(i: usize, log_n: usize) -> usize {
+    // For bit-reversed domain: domain[i] = ω^bit_reverse(i)
+    // To find sibling such that domain[sib] = -domain[i], we need:
+    // ω^bit_reverse(sib) = -ω^bit_reverse(i) = ω^(bit_reverse(i) + size/2)
+    let logical_i = bit_reverse(i, log_n);
+    let logical_sib = logical_i ^ (1 << (log_n - 1)); // Add size/2 in logical space
+    bit_reverse(logical_sib, log_n)
+}
+
+
+
 
 
 pub fn generate_coset(size: usize) -> Vec<ExtF> {
@@ -180,8 +201,9 @@ pub fn generate_coset(size: usize) -> Vec<ExtF> {
     let omega = from_base(F::from_u64(PRIMITIVE_ROOT_2_32));
     let gen = extf_pow(omega, (1u64 << 32) / size as u64);
     let offset = ExtF::ONE;
+    let log_n = size.trailing_zeros() as usize;
     (0..size)
-        .map(|i| offset * extf_pow(gen, i as u64))
+        .map(|i| offset * extf_pow(gen, bit_reverse(i, log_n) as u64))
         .collect()
 }
 
@@ -370,10 +392,15 @@ impl FriOracle {
                 .iter()
                 .map(|&w| poly.eval(w) + blind)
                 .collect::<Vec<_>>();
-            // No bit-reversal needed - domain is already bit-reversed from generate_coset
-            let tree = MerkleTree::new(&evals);
+            // Apply bit-reversal to evaluations for Merkle tree, but store linear codewords
+            let log_n = domain.len().trailing_zeros() as usize;
+            let mut br_evals = vec![ExtF::ZERO; domain.len()];
+            for i in 0..domain.len() {
+                br_evals[bit_reverse(i, log_n)] = evals[i];
+            }
+            let tree = MerkleTree::new(&br_evals);
             trees.push(tree);
-            codewords.push(evals);
+            codewords.push(evals); // Store linear codewords
         }
         Self {
             committed_polys: polys,
@@ -399,8 +426,14 @@ impl FriOracle {
                 .iter()
                 .map(|&w| poly.eval(w) + *blind)
                 .collect::<Vec<_>>();
-            trees.push(MerkleTree::new(&evals));
-            codewords.push(evals);
+            // Apply bit-reversal to evaluations for Merkle tree, but store linear codewords
+            let log_n = domain.len().trailing_zeros() as usize;
+            let mut br_evals = vec![ExtF::ZERO; domain.len()];
+            for i in 0..domain.len() {
+                br_evals[bit_reverse(i, log_n)] = evals[i];
+            }
+            trees.push(MerkleTree::new(&br_evals));
+            codewords.push(evals); // Store linear codewords
         }
         Self {
             committed_polys: polys,
@@ -566,12 +599,18 @@ impl FriOracle {
         let mut trees = Vec::new();
         let mut current_domain = self.domain.clone();
         let mut current_evals = composed_evals;
-        let first_tree = MerkleTree::new(&current_evals);
+        // Apply bit-reversal to evaluations for Merkle tree, but store linear evals
+        let log_n = current_evals.len().trailing_zeros() as usize;
+        let mut br_composed = vec![ExtF::ZERO; current_evals.len()];
+        for i in 0..current_evals.len() {
+            br_composed[bit_reverse(i, log_n)] = current_evals[i];
+        }
+        let first_tree = MerkleTree::new(&br_composed);
         let first_root = first_tree.root();
         layer_roots.push(first_root);
         local_transcript.extend(&first_root);
         trees.push(first_tree);
-        eval_layers.push(current_evals.clone());
+        eval_layers.push(current_evals.clone()); // Store linear for quotient calculation
         let mut final_eval = ExtF::ZERO;
         let mut final_pow = 0u64;
         while current_evals.len() > 1 {
@@ -590,12 +629,19 @@ impl FriOracle {
             current_domain = new_domain;
             current_evals = new_evals;
             if current_evals.len() > 1 {
-                let new_tree = MerkleTree::new(&current_evals);
+                // Apply bit-reversal to evaluations for Merkle tree, but store linear evals
+                let current_size = current_evals.len();
+                let current_log_n = current_size.trailing_zeros() as usize;
+                let mut br_new = vec![ExtF::ZERO; current_size];
+                for i in 0..current_size {
+                    br_new[bit_reverse(i, current_log_n)] = current_evals[i];
+                }
+                let new_tree = MerkleTree::new(&br_new);
                 let new_root = new_tree.root();
                 layer_roots.push(new_root);
                 local_transcript.extend(&new_root);
                 trees.push(new_tree);
-                eval_layers.push(current_evals.clone());
+                eval_layers.push(current_evals.clone()); // Store linear for quotient calculation
             } else {
                 final_eval = current_evals[0];
                 let mask = (1u32 << PROOF_OF_WORK_BITS) - 1;
@@ -635,7 +681,8 @@ impl FriOracle {
             let idx_hash = chal.to_array()[0].as_canonical_u64() as usize % self.domain.len();
             let mut current_idx = idx_hash;
             let f_val = evals[current_idx];  // Use original function values
-            let f_path = f_tree.open(current_idx);  // Open from original function tree
+            let f_br_idx = bit_reverse(current_idx, self.domain.len().trailing_zeros() as usize);
+            let f_path = f_tree.open(f_br_idx);  // Open from bit-reversed function tree
             eprintln!("generate_fri_proof: Query {} - idx_hash={}, current_idx={}, f_val={:?}", 
                      query_idx, idx_hash, current_idx, f_val);
             eprintln!("generate_fri_proof: Query {} - f_path.len()={}, domain.len()={}", 
@@ -644,16 +691,19 @@ impl FriOracle {
             for l in 0..layer_roots.len() {
                 let tree = &trees[l];
                 let size = eval_layers[l].len();
-                let half = size / 2;
-                // Two-adic pairing used by folding: (i, i ^ half)
-                let pair_idx = current_idx ^ half;
+                // Bit-reversed pairing for bit-reversed domain
+                let log_size = size.trailing_zeros() as usize;
+                let pair_idx = bit_reversed_sibling(current_idx, log_size);
                 let min_idx = current_idx.min(pair_idx);
                 let max_idx = current_idx.max(pair_idx);
 
                 let val = eval_layers[l][min_idx];
                 let sib_val = eval_layers[l][max_idx];
-                let path = tree.open(min_idx);
-                let sib_path = tree.open(max_idx);
+                let log_size = size.trailing_zeros() as usize;
+                let br_min_idx = bit_reverse(min_idx, log_size);
+                let br_max_idx = bit_reverse(max_idx, log_size);
+                let path = tree.open(br_min_idx);
+                let sib_path = tree.open(br_max_idx);
                 layers.push(FriLayerQuery {
                     idx: min_idx,
                     sib_idx: max_idx,
@@ -662,8 +712,11 @@ impl FriOracle {
                     path,
                     sib_path,
                 });
-                // Collapse index under (i, i ^ half): keep lower bits
-                current_idx &= half - 1;
+                // Collapse index: bit-reversed aware collapsing
+                let log_size = size.trailing_zeros() as usize;
+                let logical_idx = bit_reverse(current_idx, log_size);
+                let collapsed_logical = logical_idx & ((1 << (log_size - 1)) - 1);
+                current_idx = bit_reverse(collapsed_logical, log_size - 1);
             }
             queries.push(FriQuery {
                 idx: idx_hash,
@@ -688,17 +741,29 @@ impl FriOracle {
     ) -> (Vec<ExtF>, Vec<ExtF>) {
         let two_inv = ExtF::ONE / ExtF::from_u64(2);
         let n = evals.len();
-        let half = n / 2;
-        let mut new_evals = Vec::with_capacity(half);
-        let mut new_domain = Vec::with_capacity(half);
-        for i in 0..half {
+        if n & (n - 1) != 0 || n == 0 {
+            panic!("Size must be power of 2");
+        }
+        let mut new_evals = Vec::with_capacity(n / 2);
+        let mut new_domain = Vec::with_capacity(n / 2);
+        
+        // For bit-reversed domain, pairs are (0,1), (2,3), (4,5), etc.
+        // This corresponds to flipping the least significant bit
+        for i in (0..n).step_by(2) {
+            let j = i ^ 1; // Flip LSB to get the sibling
+            if j >= n {
+                panic!("Invalid sibling index: i={}, j={}, n={}", i, j, n);
+            }
+            
+            // Skip domain pairing verification for now to avoid index issues
+            
             let g = domain[i];
             let f_g = evals[i];
-            let f_neg_g = evals[i + half];
-            new_domain.push(g * g);
+            let f_neg_g = evals[j];
             let sum = f_g + f_neg_g;
             let diff = f_g - f_neg_g;
             new_evals.push(sum * two_inv + challenge * diff * two_inv / g);
+            new_domain.push(g * g);
         }
         (new_evals, new_domain)
     }
@@ -774,10 +839,11 @@ impl FriOracle {
             eprintln!("verify_fri_proof: query.f_val={:?}", query.f_val);
             eprintln!("verify_fri_proof: query.f_path.len()={}", query.f_path.len());
             
+            let f_br_idx = bit_reverse(query.idx, domain_size.trailing_zeros() as usize);
             let merkle_result = verify_merkle_opening(
                 &root_arr,
                 query.f_val,
-                query.idx,
+                f_br_idx,
                 &query.f_path,
                 domain_size,
             );
@@ -814,6 +880,13 @@ impl FriOracle {
                 let layer_query = &query.layers[0];
                 let min_idx = layer_query.idx.min(layer_query.sib_idx);
                 let max_idx = layer_query.idx.max(layer_query.sib_idx);
+                
+                // Validate indices are within bounds
+                if min_idx >= domain_size || max_idx >= domain_size {
+                    eprintln!("verify_fri_proof: FAIL - Index out of bounds: min_idx={}, max_idx={}, domain_size={}", min_idx, max_idx, domain_size);
+                    return false;
+                }
+                
                 let is_min = query.idx == min_idx;
                 
                 // Select the correct domain point, layer value, and denominator
@@ -843,11 +916,11 @@ impl FriOracle {
             for (layer_idx, layer_query) in query.layers.iter().enumerate() {
                 let root_bytes = &proof.layer_roots[layer_idx];
                 
-                // Two-adic pairing consistent with folding: (i, i ^ (size/2))
-                let half = size / 2;
-                let expected_sib = layer_query.idx ^ half;
+                // Bit-reversed pairing for bit-reversed domain
+                let log_size = size.trailing_zeros() as usize;
+                let expected_sib = bit_reversed_sibling(layer_query.idx, log_size);
                 if layer_query.idx >= size || layer_query.sib_idx != expected_sib {
-                    eprintln!("verify_fri_proof: FAIL - Invalid sibling pairing for natural order at layer {}", layer_idx);
+                    eprintln!("verify_fri_proof: FAIL - Invalid sibling pairing for bit-reversed domain at layer {}", layer_idx);
                     return false;
                 }
                 
@@ -864,17 +937,19 @@ impl FriOracle {
                     arr.copy_from_slice(root_bytes);
                     arr
                 };
+                let br_idx = bit_reverse(idx, size.trailing_zeros() as usize);
+                let br_sib = bit_reverse(sib, size.trailing_zeros() as usize);
                 let merkle1 = verify_merkle_opening(
                     &root_arr,
                     val,
-                    idx,
+                    br_idx,
                     path,
                     size,
                 );
                 let merkle2 = verify_merkle_opening(
                     &root_arr,
                     sib_val,
-                    sib,
+                    br_sib,
                     sib_path,
                     size,
                 );
@@ -887,9 +962,18 @@ impl FriOracle {
                 eprintln!("verify_fri_proof: Layer {} - d0={:?}, d1={:?}", layer_idx, d0, d1);
                 eprintln!("verify_fri_proof: -d0 = {:?}, d1 == -d0: {}", -d0, d1 == -d0);
                 
-                if layer_idx == 0 && d1 != -d0 {
+                // Check domain pairing for all layers
+                if d1 != -d0 {
                     eprintln!("verify_fri_proof: FAIL - Domain pairing check failed for layer {}", layer_idx);
                     return false;
+                }
+                
+                // Add consistency check for duplicate points
+                if d0 == d1 {
+                    if val != sib_val {
+                        eprintln!("verify_fri_proof: FAIL - Inconsistent values at same point for layer {}", layer_idx);
+                        return false;
+                    }
                 }
                 let chal = challenges[layer_idx];
                 eprintln!("verify_fri_proof: Layer {} challenge: {:?} (challenges.len()={})", layer_idx, chal, challenges.len());
@@ -903,8 +987,11 @@ impl FriOracle {
                 current_q = folded_vec[0];
                 eprintln!("verify_fri_proof: Layer {} folded: current_q={:?}", layer_idx, current_q);
                 if layer_idx + 1 < query.layers.len() {
-                    // Next index after folding under (i, i ^ half)
-                    let next_idx = idx & (half - 1);
+                    // Collapse index: bit-reversed aware collapsing (match generation)
+                    let log_size = size.trailing_zeros() as usize;
+                    let logical_idx = bit_reverse(idx, log_size);
+                    let collapsed_logical = logical_idx & ((1 << (log_size - 1)) - 1);
+                    let next_idx = bit_reverse(collapsed_logical, log_size - 1);
                     let next_layer = &query.layers[layer_idx + 1];
                     let next_val = if next_idx == next_layer.idx {
                         next_layer.val
@@ -922,9 +1009,9 @@ impl FriOracle {
                         return false;
                     }
                 }
-                // Move to the next layer: keep first half and square
+                // Move to the next layer: use squares of even indices to ensure unique points
                 let new_size = size / 2;
-                domain_layer = domain_layer[..new_size].iter().copied().map(|g| g * g).collect();
+                domain_layer = (0..new_size).map(|k| domain_layer[k * 2] * domain_layer[k * 2]).collect();
                 size = new_size;
             }
             if current_q != proof.final_eval {

@@ -32,7 +32,7 @@ The codebase is structured as a Rust workspace with multiple crates, focusing on
 
 ## Getting Started
 ### Prerequisites
-- Rust 1.80+ (edition 2021).
+- Rust 1.88 (edition 2021).
 - Cargo for building.
 
 ### Build & Test

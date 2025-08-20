@@ -54,7 +54,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_fri_compression_roundtrip() {
         let state = FoldState::new(verifier_ccs()); // Use verifier CCS for demo
         let transcript = (0..8u8).collect::<Vec<u8>>(); // Even smaller for degree 8

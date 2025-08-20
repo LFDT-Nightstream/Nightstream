@@ -641,17 +641,15 @@ impl FriOracle {
             eprintln!("generate_fri_proof: Query {} - f_path.len()={}, domain.len()={}", 
                      query_idx, f_path.len(), self.domain.len());
             let mut layers = Vec::new();
-            let log_n = self.domain.len().trailing_zeros() as usize;
-            for (level, l) in (0..layer_roots.len()).enumerate() {
+            for l in 0..layer_roots.len() {
                 let tree = &trees[l];
-                let _size = eval_layers[l].len();
-                
-                // For natural order domains: use highest bit flip for proper w, -w pairing
-                let bit = 1 << (log_n - 1 - level);
-                let pair_idx = current_idx ^ bit;
+                let size = eval_layers[l].len();
+                let half = size / 2;
+                // Two-adic pairing used by folding: (i, i ^ half)
+                let pair_idx = current_idx ^ half;
                 let min_idx = current_idx.min(pair_idx);
                 let max_idx = current_idx.max(pair_idx);
-                
+
                 let val = eval_layers[l][min_idx];
                 let sib_val = eval_layers[l][max_idx];
                 let path = tree.open(min_idx);
@@ -664,9 +662,8 @@ impl FriOracle {
                     path,
                     sib_path,
                 });
-                
-                // Update index for next layer (natural order MSB pairing)
-                current_idx = min_idx;
+                // Collapse index under (i, i ^ half): keep lower bits
+                current_idx &= half - 1;
             }
             queries.push(FriQuery {
                 idx: idx_hash,
@@ -843,14 +840,12 @@ impl FriOracle {
             let mut size = domain_size;
             let mut domain_layer = self.domain.clone();
 
-            let log_n = self.domain.len().trailing_zeros() as usize;
-
             for (layer_idx, layer_query) in query.layers.iter().enumerate() {
                 let root_bytes = &proof.layer_roots[layer_idx];
                 
-                // Use highest bit flip for natural order domains
-                let bit = 1 << (log_n - 1 - layer_idx);
-                let expected_sib = layer_query.idx ^ bit;
+                // Two-adic pairing consistent with folding: (i, i ^ (size/2))
+                let half = size / 2;
+                let expected_sib = layer_query.idx ^ half;
                 if layer_query.idx >= size || layer_query.sib_idx != expected_sib {
                     eprintln!("verify_fri_proof: FAIL - Invalid sibling pairing for natural order at layer {}", layer_idx);
                     return false;
@@ -899,27 +894,17 @@ impl FriOracle {
                 let chal = challenges[layer_idx];
                 eprintln!("verify_fri_proof: Layer {} challenge: {:?} (challenges.len()={})", layer_idx, chal, challenges.len());
                 
-                // CRITICAL FIX: fold_evals expects first-half/second-half order, not min/max order
-                // Since d1 == -d0, we know d0 is first-half and d1 is second-half
-                // So we need to pass the values in the order that matches this domain structure
-                let (first_half_val, second_half_val, first_half_domain) = if d1 == -d0 {
-                    // Standard case: d0 is first-half, d1 is second-half
-                    (val, sib_val, d0)
-                } else {
-                    // Edge case: might need to swap (though this should not happen for layer 0)
-                    (sib_val, val, d1)
-                };
-                
-                let evals_pair = [first_half_val, second_half_val];
-                let domain_pair = [first_half_domain];  // fold_evals only needs the first-half domain
+                // fold_evals pairs (i, i ^ half) with domain[i] (the lower index)
+                let evals_pair = [val, sib_val];
+                let domain_pair = [d0];
                 eprintln!("verify_fri_proof: Layer {} folding: e0={:?}, e1={:?}, g={:?}", 
                          layer_idx, evals_pair[0], evals_pair[1], domain_pair[0]);
                 let (folded_vec, _new_domain_vec) = self.fold_evals(&evals_pair, &domain_pair, chal);
                 current_q = folded_vec[0];
                 eprintln!("verify_fri_proof: Layer {} folded: current_q={:?}", layer_idx, current_q);
                 if layer_idx + 1 < query.layers.len() {
-                                         // CRITICAL FIX: Use min_idx directly for natural order MSB pairing
-                     let next_idx = idx;  // Use min_idx directly, no >> 1 shift
+                    // Next index after folding under (i, i ^ half)
+                    let next_idx = idx & (half - 1);
                     let next_layer = &query.layers[layer_idx + 1];
                     let next_val = if next_idx == next_layer.idx {
                         next_layer.val
@@ -937,9 +922,10 @@ impl FriOracle {
                         return false;
                     }
                 }
-                size >>= 1;
-                // Use proper domain transformation for natural order
-                domain_layer = domain_layer.into_iter().step_by(2).map(|g| g * g).collect();
+                // Move to the next layer: keep first half and square
+                let new_size = size / 2;
+                domain_layer = domain_layer[..new_size].iter().copied().map(|g| g * g).collect();
+                size = new_size;
             }
             if current_q != proof.final_eval {
                 eprintln!("verify_fri_proof: FAIL - Final eval mismatch: current_q={:?}, proof.final_eval={:?}", current_q, proof.final_eval);

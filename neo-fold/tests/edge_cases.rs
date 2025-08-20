@@ -189,7 +189,6 @@ fn test_ivc_depth_one() {
 /// Test that compression handles very small transcripts.
 /// Edge case for FRI compression with minimal data.
 #[test]
-#[ignore]
 fn test_compression_minimal_transcript() {
     let state = FoldState::new(CcsStructure::new(
         vec![RowMajorMatrix::<F>::new(vec![F::ONE], 1)],

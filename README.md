@@ -120,7 +120,7 @@ We plan to integrate **Spartan2** for full SNARK functionality once compatibilit
 > **📝 Note**: This implementation currently runs in **NARK mode** (non-succinct proofs). See the [NARK Mode section](#current-implementation-nark-mode) above for details and the [Spartan Integration Roadmap](#future-spartan-integration-roadmap) for future SNARK plans.
 
 ### Prerequisites
-- Rust 1.80+ (edition 2021).
+- Rust 1.88 (edition 2021).
 - Cargo for building.
 
 ### ARM64 Compatibility (Apple Silicon, ARM Linux)

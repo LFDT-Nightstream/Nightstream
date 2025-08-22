@@ -7,6 +7,13 @@ use p3_field::PrimeCharacteristicRing;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+#[test]
+fn test_params_prime() {
+    // Both presets must match the ModInt ring modulus (2^61 - 1)
+    assert_eq!(SECURE_PARAMS.q, ModInt::Q, "SECURE_PARAMS.q must equal ModInt::Q");
+    assert_eq!(TOY_PARAMS.q, ModInt::Q, "TOY_PARAMS.q must equal ModInt::Q");
+}
+
 fn test_params() -> NeoParams {
     if std::env::var("NEO_TEST_SECURE").ok().is_some() {
         SECURE_PARAMS
@@ -44,7 +51,6 @@ fn test_roundtrip() {
 /// the ability to open commitments at specific points, which is crucial for 
 /// the scheme's use in proofs. It ensures blinded witnesses differ from originals 
 /// and that openings produce valid proofs.
-#[cfg_attr(not(feature = "prop-tests"), ignore)]
 #[test]
 fn test_blinded_commit_hiding_and_opening() {
     let params = test_params();
@@ -90,7 +96,6 @@ fn test_zk_commit_randomized() {
 /// This is required to ensure the multilinear evaluation opening works, 
 /// which is core to the commitment's use in proof systems. It validates 
 /// the GPV trapdoor sampling indirectly through successful proof generation.
-#[cfg_attr(not(feature = "prop-tests"), ignore)]
 #[test]
 fn test_open_at_point() {
     use rand::Rng;
@@ -118,7 +123,6 @@ fn test_open_at_point() {
 /// This ensures the trapdoor and matrix rank properties hold during verification, 
 /// which is crucial for the scheme's soundness. It's good for catching issues in 
 /// setup or sampling that could compromise full rank.
-#[cfg_attr(not(feature = "prop-tests"), ignore)]
 #[test]
 fn test_open_verify_rank() {
     let params = test_params();
@@ -143,7 +147,6 @@ fn test_open_verify_rank() {
 ///
 /// Critical for security, as norm bounds relate to MSIS hardness. This test 
 /// ensures malformed proofs with high norms are rejected, preventing attacks.
-#[cfg_attr(not(feature = "prop-tests"), ignore)]
 #[test]
 fn test_open_verify_with_norm() {
     let params = test_params();
@@ -167,7 +170,6 @@ fn test_open_verify_with_norm() {
 ///
 /// Ensures soundness by confirming tampered proofs are rejected. Good for 
 /// validating the verification logic catches invalid openings.
-#[cfg_attr(not(feature = "prop-tests"), ignore)]
 #[test]
 fn test_open_verify_mismatch() {
     let params = test_params();
@@ -190,7 +192,6 @@ fn test_open_verify_mismatch() {
 ///
 /// Important for ensuring sampled errors don't exceed security parameters, 
 /// which could compromise hiding or binding properties.
-#[cfg_attr(not(feature = "prop-tests"), ignore)]
 #[test]
 fn test_sample_gaussian_ring_norm() {
     let params = test_params();
@@ -205,7 +206,6 @@ fn test_sample_gaussian_ring_norm() {
 ///
 /// Core to the opening mechanism; this test ensures trapdoor allows 
 /// efficient sampling of preimages, vital for proof generation.
-#[cfg_attr(not(feature = "prop-tests"), ignore)]
 #[test]
 fn test_gpv_trapdoor_sampling() {
     let params = test_params();
@@ -235,7 +235,6 @@ fn test_gpv_trapdoor_sampling() {
 /// Ensures the trapdoor sampling is statistically close to the ideal 
 /// distribution, which is required for zero-knowledge proofs.
 /// Note: This test may skip with toy parameters due to restrictive bounds.
-#[cfg_attr(not(feature = "prop-tests"), ignore)]
 #[test]
 fn test_gpv_statistical_closeness() {
     let params = test_params();

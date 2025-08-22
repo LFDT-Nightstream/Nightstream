@@ -175,7 +175,11 @@ fn test_transcript_edge_cases() {
     assert!(!state.verify(&corrupted, &committer), "Should reject wrong hash");
     
     // 3. Truncated transcript
-    let truncated = &proof.transcript[..proof.transcript.len() - 100];
+    let truncated = if proof.transcript.len() > 100 {
+        &proof.transcript[..proof.transcript.len() - 100]
+    } else {
+        &proof.transcript[..proof.transcript.len().saturating_sub(32).max(1)]
+    };
     assert!(!state.verify(truncated, &committer), "Should reject truncated transcript");
     
     println!("Edge case handling works correctly");

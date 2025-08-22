@@ -82,13 +82,11 @@ fn test_high_deg_f() {
         z: vec![from_base(F::from_u64(2))],
     };
     let mut transcript = vec![];
-    let mut oracle = FnOracle::new(|_: &[ExtF]| vec![]);
-    let (msgs, _) = ccs_sumcheck_prover(
+    let msgs = ccs_sumcheck_prover(
         &structure,
         &instance,
         &witness,
         1,
-        &mut oracle,
         &mut transcript,
     )
     .expect("sumcheck");
@@ -114,13 +112,11 @@ fn test_public_inputs() {
     };
     let witness = CcsWitness { z: vec![] };
     let mut transcript = vec![];
-    let mut oracle = FnOracle::new(|_: &[ExtF]| vec![]);
-    let (msgs, _) = ccs_sumcheck_prover(
+    let msgs = ccs_sumcheck_prover(
         &structure,
         &instance,
         &witness,
         1,
-        &mut oracle,
         &mut transcript,
     )
     .expect("sumcheck");
@@ -203,19 +199,17 @@ fn test_r1cs_sumcheck_valid() {
     let witness = CcsWitness { z };
 
     let mut transcript = vec![];
-    let mut oracle = FnOracle::new(|_: &[ExtF]| vec![]);
     let instance = CcsInstance {
         commitment: vec![],
         public_input: vec![],
         u: F::ZERO,
         e: F::ONE,
     };
-    let (_msgs, _comms) = ccs_sumcheck_prover(
+    let _msgs = ccs_sumcheck_prover(
         &structure,
         &instance,
         &witness,
         16,
-        &mut oracle,
         &mut transcript,
     )
     .expect("sumcheck");
@@ -311,7 +305,6 @@ fn test_r1cs_sumcheck_invalid_norm() {
     let witness = CcsWitness { z };
 
     let mut transcript = vec![];
-    let mut oracle = FnOracle::new(|_: &[ExtF]| vec![]);
     let instance = CcsInstance {
         commitment: vec![],
         public_input: vec![],
@@ -323,7 +316,6 @@ fn test_r1cs_sumcheck_invalid_norm() {
         &instance,
         &witness,
         16,
-        &mut oracle,
         &mut transcript,
     );
     assert!(res.is_err());
@@ -401,7 +393,6 @@ fn test_r1cs_sumcheck_invalid() {
     let witness_bad = CcsWitness { z: z_bad };
 
     let mut transcript = vec![];
-    let mut oracle = FnOracle::new(|_: &[ExtF]| vec![]);
     let instance = CcsInstance {
         commitment: vec![],
         public_input: vec![],
@@ -413,7 +404,6 @@ fn test_r1cs_sumcheck_invalid() {
         &instance,
         &witness_bad,
         0,
-        &mut oracle,
         &mut transcript,
     );
     assert!(res.is_err());

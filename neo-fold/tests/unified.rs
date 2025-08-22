@@ -22,7 +22,7 @@ fn test_pi_ccs_unified_no_mismatch() {
     };
     state.ccs_instance = Some((instance, witness));
     let mut transcript = vec![];
-    let (msgs, _pre_transcript) = pi_ccs(&mut state, &committer, &mut transcript);
+    let msgs = pi_ccs(&mut state, &committer, &mut transcript);
     assert!(!msgs.is_empty());
     let eval = state.eval_instances.last().unwrap();
     for &y in &eval.ys {

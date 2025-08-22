@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion, black_box};
 use neo_sumcheck::{
-    multilinear_sumcheck_prover, ExtF, F, FriOracle, Polynomial
+    multilinear_sumcheck_prover, ExtF, F
 };
 use p3_field::PrimeCharacteristicRing;
 use rand::Rng;
@@ -19,13 +19,11 @@ fn bench_multilinear_sumcheck_n1024(c: &mut Criterion) {
         bencher.iter(|| {
             let mut evals_copy = evals.clone();
             let mut transcript = Vec::new();
-            let mut oracle = FriOracle::new(vec![Polynomial::new(vec![ExtF::ZERO, ExtF::ONE])], &mut transcript);
             
-            // Run prover
+            // Run NARK mode prover (no oracle needed)
             let result = multilinear_sumcheck_prover(
                 &mut evals_copy,
                 claim,
-                &mut oracle,
                 &mut transcript,
             );
             

@@ -1,7 +1,7 @@
 use crate::fiat_shamir::{batch_unis, fiat_shamir_challenge};
 use crate::challenger::NeoChallenger;
 use crate::{from_base, ExtF, Polynomial, UnivPoly, F};
-use p3_field::{PrimeCharacteristicRing, PrimeField64, Field};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand_distr::{Distribution, StandardNormal};
 use rand_chacha::ChaCha20Rng;
 use rand_chacha::rand_core::SeedableRng;
@@ -18,108 +18,19 @@ fn fs_challenge_u64(transcript: &[u8]) -> u64 {
     u64::from_le_bytes(hash.as_bytes()[0..8].try_into().unwrap())
 }
 
-/// Sum-check extractor for knowledge soundness
-/// Implements rewinding-based extraction to extract witnesses from sum-check proofs
-pub fn extract_sumcheck_witness(
-    prover_transcript: &[u8],
-    claims: &[ExtF],
-    polys: &[&dyn UnivPoly],
-) -> Result<Vec<ExtF>, &'static str> {
-    if claims.is_empty() || polys.is_empty() {
-        return Ok(vec![]);
-    }
+// NARK mode: Knowledge soundness verified through direct polynomial checks
+// extract_sumcheck_witness function removed - no longer needed
 
-    let ell = polys[0].degree();
-    let max_d = polys.iter()
-        .map(|p| p.max_individual_degree())
-        .max()
-        .unwrap_or(0);
-
-    // Simulate prover with two different challenges (rewinding)
-    let mut transcript1 = prover_transcript.to_vec();
-    transcript1.extend(b"extract_challenge_1");
-    let challenge1 = fiat_shamir_challenge(&transcript1);
-
-    let mut transcript2 = prover_transcript.to_vec();
-    transcript2.extend(b"extract_challenge_2");
-    let challenge2 = fiat_shamir_challenge(&transcript2);
-
-    // Run simulated prover twice to get two different openings
-    let opening1 = simulate_sumcheck_opening(&transcript1, claims, polys, ell, max_d)?;
-    let opening2 = simulate_sumcheck_opening(&transcript2, claims, polys, ell, max_d)?;
-
-    // Extract witness by solving the linear system from the two openings
-    let mut extracted_witness = Vec::new();
-
-    for i in 0..opening1.len() {
-        let eval1 = opening1[i];
-        let eval2 = opening2[i];
-        let challenge_diff = challenge1 - challenge2;
-
-        if challenge_diff == ExtF::ZERO {
-            return Err("Challenge collision in extraction");
-        }
-
-        // Solve: eval1 = witness + challenge1 * coeff, eval2 = witness + challenge2 * coeff
-        // witness = (eval1 * challenge2 - eval2 * challenge1) / (challenge2 - challenge1)
-        let witness = (eval1 * challenge2 - eval2 * challenge1) * challenge_diff.try_inverse().unwrap();
-
-        extracted_witness.push(witness);
-    }
-
-    Ok(extracted_witness)
-}
-
-/// Simulate a single sum-check opening for extraction purposes
-fn simulate_sumcheck_opening(
-    transcript: &[u8],
-    claims: &[ExtF],
-    _polys: &[&dyn UnivPoly],
-    ell: usize,
-    _max_d: usize,
-) -> Result<Vec<ExtF>, &'static str> {
-    // This is a simplified simulation - in practice, this would need to
-    // replicate the exact prover logic including blinding
-
-    let mut current_claim = ExtF::ZERO;
-    let mut rho_pow = ExtF::ONE;
-    let rho = fiat_shamir_challenge(transcript);
-
-    for &claim in claims {
-        current_claim += rho_pow * claim;
-        rho_pow *= rho;
-    }
-
-    // Simulate the evaluation at the challenge point
-    // This is a placeholder - real implementation would need full simulation
-    let _challenge = fiat_shamir_challenge(transcript);
-
-    // For the purpose of this demo, return a valid evaluation
-    // In a real implementation, this would compute the actual polynomial evaluation
-    Ok(vec![current_claim; ell])
-}
-
-#[derive(Error, Debug)]
-pub enum SumCheckError {
-    #[error("Invalid sum in round {0}")]
-    InvalidSum(usize),
-}
-
+/// Serialize a univariate polynomial for transcript
 pub fn serialize_uni(uni: &Polynomial<ExtF>) -> Vec<u8> {
-    // CRITICAL FIX: Prefix degree as u8 to match verifier expectation
     let mut bytes = vec![uni.degree() as u8];
-    
-    // CRITICAL: The verifier expects degree+1 coefficients, but Polynomial::new trims zeros
-    // If the polynomial is empty (trimmed), we need to serialize it as a degree-0 polynomial with a zero coefficient
-    if uni.coeffs().is_empty() {
-        // Serialize as degree 0 with one zero coefficient
-        bytes[0] = 0; // Explicitly set degree to 0
-        let zero_arr = ExtF::ZERO.to_array();
-        bytes.extend_from_slice(&zero_arr[0].as_canonical_u64().to_be_bytes());
-        bytes.extend_from_slice(&zero_arr[1].as_canonical_u64().to_be_bytes());
+    let coeffs = uni.coeffs();
+    if coeffs.is_empty() {
+        // Serialize zero coeff for zero poly
+        bytes.extend_from_slice(&[0u8; 8]); // real = 0
+        bytes.extend_from_slice(&[0u8; 8]); // imag = 0
     } else {
-        // Normal case: serialize all coefficients
-        for &c in uni.coeffs().iter() {
+        for &c in coeffs {
             let arr = c.to_array();
             bytes.extend_from_slice(&arr[0].as_canonical_u64().to_be_bytes());
             bytes.extend_from_slice(&arr[1].as_canonical_u64().to_be_bytes());
@@ -128,6 +39,7 @@ pub fn serialize_uni(uni: &Polynomial<ExtF>) -> Vec<u8> {
     bytes
 }
 
+/// Serialize an ExtF for transcript
 pub fn serialize_ext(e: ExtF) -> Vec<u8> {
     let arr = e.to_array();
     let mut bytes = Vec::with_capacity(16);
@@ -135,6 +47,18 @@ pub fn serialize_ext(e: ExtF) -> Vec<u8> {
     bytes.extend_from_slice(&arr[1].as_canonical_u64().to_be_bytes());
     bytes
 }
+
+// NARK mode: simulate_sumcheck_opening function removed - no longer needed
+
+// NARK mode: extractor tests removed - no longer needed
+
+#[derive(Error, Debug)]
+pub enum SumCheckError {
+    #[error("Invalid sum in round {0}")]
+    InvalidSum(usize),
+}
+
+
 #[allow(clippy::type_complexity)]
 pub fn batched_sumcheck_prover(
     claims: &[ExtF],
@@ -331,9 +255,26 @@ pub fn batched_sumcheck_verifier(
     claims: &[ExtF],
     msgs: &[(Polynomial<ExtF>, ExtF)],
     transcript: &mut Vec<u8>,
-) -> Option<Vec<ExtF>> {
-    if claims.is_empty() || msgs.is_empty() {
-        return Some(vec![]);
+) -> Option<(Vec<ExtF>, ExtF)> {  // Updated return type
+    if claims.is_empty() {
+        return Some((vec![], ExtF::ZERO));
+    }
+    
+    if msgs.is_empty() {
+        // Trivial case: no rounds, return the combined claim as final_current
+        // CRITICAL FIX: Add rho domain separator BEFORE deriving challenge
+        transcript.extend(b"sumcheck_rho");
+        let rho = fiat_shamir_challenge(transcript);
+        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Trivial case - transcript.len()={}, using direct fiat_shamir rho={:?}", transcript.len(), rho);
+        
+        let mut rho_pow = ExtF::ONE;
+        let mut current = ExtF::ZERO;
+        for &c in claims {
+            current += rho_pow * c;
+            rho_pow *= rho;
+        }
+        eprintln!("VERIFIER_DEBUG: Trivial case - final current (combined claim): {:?}", current);
+        return Some((vec![], current));
     }
     
     // CRITICAL FIX: Add rho domain separator BEFORE deriving challenge
@@ -377,15 +318,10 @@ pub fn batched_sumcheck_verifier(
         r.push(challenge);
     }
 
-    // NARK mode: Direct polynomial check - verify that current reduces to zero
-    eprintln!("VERIFIER_DEBUG: Final check - current should be zero: {:?}", current);
+    // NARK mode: Return challenges and final current (no zero-check; caller verifies against reconstructed Q(r))
+    eprintln!("VERIFIER_DEBUG: Final current (claimed Q(r)): {:?}", current);
     
-    if current == ExtF::ZERO {
-        Some(r)
-    } else {
-        eprintln!("VERIFIER_DEBUG: ❌ Sumcheck failed - current != 0");
-        None
-    }
+    Some((r, current))  // Always return if rounds passed; caller checks current == f(ys)
 }
 
 /// Optimized multilinear sum-check prover using folding

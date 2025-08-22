@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
     use neo_ccs::{check_satisfiability, verifier_ccs, CcsInstance, CcsWitness};
-    use neo_commit::{AjtaiCommitter, TOY_PARAMS};
-    use neo_fields::{embed_base_to_ext, from_base, ExtF, F};
+    use neo_commit::{AjtaiCommitter, SECURE_PARAMS};
+    use neo_fields::{embed_base_to_ext, ExtF, F};
     use neo_fold::{extractor, FoldState, Proof};
-    use neo_sumcheck::PolyOracle;
+    // Oracle removed in NARK mode
     use p3_field::PrimeCharacteristicRing;
 
     #[test]
@@ -53,41 +53,12 @@ mod tests {
         assert_eq!(bad_wit.z.len(), 4); // Still produces 4 elements
     }
 
-    #[test]
-    fn test_fri_compression_roundtrip() {
-        let state = FoldState::new(verifier_ccs()); // Use verifier CCS for demo
-        let transcript = (0..8u8).collect::<Vec<u8>>(); // Even smaller for degree 8
-        let (commit, proof) = state.compress_proof(&transcript);
 
-        // Recreate exactly as in compress_proof
-        use neo_poly::Polynomial;
-        use neo_sumcheck::FriOracle;
-        let mut extended_trans = transcript.clone();
-        extended_trans.extend(b"non_zero");
-        let poly_coeffs = extended_trans.iter().map(|&b| from_base(F::from_u64(b as u64))).collect::<Vec<_>>();
-        let poly = Polynomial::new(poly_coeffs);
-        let mut temp_t = extended_trans.clone(); // Same as oracle_t in compress_proof
-        let oracle = FriOracle::new(vec![poly.clone()], &mut temp_t);
-        let point = vec![ExtF::ONE];
-        let expected_eval = poly.eval(point[0]) + oracle.blinds[0];  // Include blind!
-
-        let comm_vec = vec![commit];
-        let proof_vec = vec![proof];
-        let eval_vec = vec![expected_eval];
-        let verifier = FriOracle::new_for_verifier(extended_trans.len().next_power_of_two() * 4);
-        assert!(verifier.verify_openings(&comm_vec, &point, &eval_vec, &proof_vec));
-
-        // Tamper proof and reject
-        let mut bad_proof = proof_vec[0].clone();
-        if !bad_proof.is_empty() { bad_proof[0] ^= 1; }
-        let bad_proof_vec = vec![bad_proof];
-        assert!(!verifier.verify_openings(&comm_vec, &point, &eval_vec, &bad_proof_vec));
-    }
 
     #[test]
     fn test_recursive_ivc_chaining() {
         let mut state = FoldState::new(verifier_ccs());
-        let committer = AjtaiCommitter::setup(TOY_PARAMS); // Use toy for speed
+        let committer = AjtaiCommitter::setup(SECURE_PARAMS); // Use secure params for integration tests
         let depth = 2;
 
         // Add dummy eval to avoid empty state
@@ -150,27 +121,11 @@ mod tests {
         assert_eq!(structure.max_deg, 2); // Degree 2 polynomial
     }
 
-    #[test]
-    fn test_compress_proof_deterministic() {
-        let state = FoldState::new(verifier_ccs());
-        let transcript = vec![42u8; 50];
-        
-        // Same transcript should produce same compression
-        let (commit1, proof1) = state.compress_proof(&transcript);
-        let (commit2, proof2) = state.compress_proof(&transcript);
-        
-        assert_eq!(commit1, commit2);
-        assert_eq!(proof1, proof2);
-        
-        // Different transcripts should produce different compressions
-        let different_transcript = vec![43u8; 50];
-        let (commit3, _proof3) = state.compress_proof(&different_transcript);
-        assert_ne!(commit1, commit3);
-    }
+
 
     #[test]
     fn test_recursive_ivc_base_case() {
-        let committer = AjtaiCommitter::setup(TOY_PARAMS);
+        let committer = AjtaiCommitter::setup(SECURE_PARAMS);
         
         // Test empty state (should add dummy and return true)
         let mut state_empty = FoldState::new(verifier_ccs());
@@ -189,75 +144,7 @@ mod tests {
         assert!(state_with_eval.recursive_ivc(0, &committer));
     }
 
-    #[test]
-    fn test_fri_compress_final_isolated() {
-        use neo_fold::FoldState;
-        use neo_ccs::verifier_ccs;
-        use neo_fields::ExtF;
-        use neo_poly::Polynomial;
-        
-        let mut state = FoldState::new(verifier_ccs());
-        let ys = vec![ExtF::ONE, ExtF::from_u64(2)]; // Coefficients: [1, 2]
-        let point = vec![ExtF::from_u64(5)]; // Evaluation point: x = 5
-        let expected_eval = {
-            // Calculate expected polynomial evaluation: p(x) = 1 + 2*x = 1 + 2*5 = 11
-            let poly = Polynomial::new(ys.clone());
-            poly.eval(point[0])
-        };
-        
-        state.eval_instances.push(neo_fold::EvalInstance {
-            commitment: vec![],
-            r: point.clone(),
-            ys: ys.clone(),
-            u: ExtF::ZERO,
-            e_eval: expected_eval,
-            norm_bound: 10,
-        });
-        
-        // Test the compression
-        let result = state.fri_compress_final();
-        assert!(result.is_ok(), "FRI compress final should succeed");
-        let (commit, proof, e_eval_result) = result.unwrap();
-        
-        // Verify the basic properties
-        assert!(!commit.is_empty(), "Commit should not be empty");
-        assert!(!proof.is_empty(), "Proof should not be empty");
-        
-        // Test that the polynomial evaluation is calculated correctly
-        let test_poly = Polynomial::new(ys.clone());
-        let actual_eval = test_poly.eval(point[0]);
-        assert_eq!(actual_eval, expected_eval, "Polynomial evaluation should be correct");
-        
-        // Verify the compression produces reasonable outputs
-        assert!(commit.len() > 0, "Commitment should have data");
-        assert!(proof.len() > 0, "Proof should have data");
-        
-        println!("✅ FRI compression test completed successfully:");
-        println!("  - Polynomial coefficients: {:?}", ys);
-        println!("  - Evaluation point: {:?}", point);
-        println!("  - Expected evaluation: {:?}", expected_eval);
-        println!("  - Returned blinded e_eval: {:?}", e_eval_result);
-        println!("  - Commit length: {} bytes", commit.len());
-        println!("  - Proof length: {} bytes", proof.len());
-        
-        // Note: Full verification is complex due to transcript state management.
-        // The function successfully generates a commitment and proof, which demonstrates
-        // the core FRI compression functionality is working correctly.
-        
-        // Test polynomial arithmetic separately to ensure correctness
-        let poly_test_cases = vec![
-            (ExtF::ZERO, ExtF::ONE), // p(0) = 1 + 2*0 = 1
-            (ExtF::ONE, ExtF::from_u64(3)), // p(1) = 1 + 2*1 = 3
-            (ExtF::from_u64(2), ExtF::from_u64(5)), // p(2) = 1 + 2*2 = 5
-        ];
-        
-        for (test_point, expected) in poly_test_cases {
-            let result = test_poly.eval(test_point);
-            assert_eq!(result, expected, "Polynomial evaluation p({:?}) should equal {:?}", test_point, expected);
-        }
-        
-        println!("✅ Polynomial evaluation tests passed");
-    }
+
 
     #[test]
     fn test_recursive_ivc_single_step() {
@@ -265,11 +152,11 @@ mod tests {
         use neo_ccs::{verifier_ccs, CcsInstance, CcsWitness};
         use neo_commit::AjtaiCommitter;
         use neo_fields::{embed_base_to_ext, F};
-        use neo_commit::TOY_PARAMS;
+        use neo_commit::SECURE_PARAMS;
         
         eprintln!("Starting single step test");
         let mut state = FoldState::new(verifier_ccs());
-        let committer = AjtaiCommitter::setup(TOY_PARAMS);
+        let committer = AjtaiCommitter::setup(SECURE_PARAMS);
         state.ccs_instance = Some((
             CcsInstance { 
                 commitment: vec![], 
@@ -310,10 +197,10 @@ mod tests {
         use neo_ccs::{verifier_ccs, CcsInstance, CcsWitness};
         use neo_commit::AjtaiCommitter;
         use neo_fields::{embed_base_to_ext, F};
-        use neo_commit::TOY_PARAMS;
+        use neo_commit::SECURE_PARAMS;
         
         let mut state = FoldState::new(verifier_ccs());
-        let committer = AjtaiCommitter::setup(TOY_PARAMS);
+        let committer = AjtaiCommitter::setup(SECURE_PARAMS);
         let instance = (
             CcsInstance { 
                 commitment: vec![], 
@@ -334,39 +221,9 @@ mod tests {
         assert!(!proof.transcript.is_empty(), "Proof transcript should not be empty");
     }
 
-    #[test]
-    fn test_fri_known_blind() {
-        use neo_poly::Polynomial;
-        use neo_sumcheck::FriOracle;
-        use neo_fields::ExtF;
-        
-        let poly = Polynomial::new(vec![ExtF::ONE]);
-        let mut t = vec![];
-        let mut oracle = FriOracle::new(vec![poly], &mut t);
-        let point = vec![ExtF::ONE];
-        let (evals, _) = oracle.open_at_point(&point);
-        let expected = ExtF::ONE + oracle.blinds[0];
-        assert_eq!(evals[0], expected, "Evaluation should equal polynomial value plus blind");
-    }
 
-    #[test]
-    fn test_dummy_fri() {
-        use neo_fold::FoldState;
-        use neo_ccs::verifier_ccs;
-        use neo_fields::ExtF;
-        
-        let state = FoldState::new(verifier_ccs());
-        let result = state.fri_compress_final();
-        assert!(result.is_ok(), "Dummy FRI should succeed");
-        let (commit, proof, _e_eval) = result.unwrap();
-        assert!(!commit.is_empty(), "Commit should not be empty");
-        assert!(!proof.is_empty(), "Proof should not be empty");
-        
-        // Test that fri_verify_compressed works with dummy values
-        let verify_result = FoldState::fri_verify_compressed(&commit, &proof, &[ExtF::ONE], ExtF::ONE, 1);
-        // Note: This might not pass due to implementation details, but at least it shouldn't panic
-        eprintln!("Dummy FRI verify result: {}", verify_result);
-    }
+
+
 
     #[test]
     fn test_ivc_rejects_invalid_witness() {
@@ -380,7 +237,7 @@ mod tests {
                 embed_base_to_ext(F::from_u64(5)),
             ] },
         ));
-        let committer = AjtaiCommitter::setup(TOY_PARAMS);
+        let committer = AjtaiCommitter::setup(SECURE_PARAMS);
         assert!(!bad_state.recursive_ivc(1, &committer), "Should reject invalid witness");
     }
 

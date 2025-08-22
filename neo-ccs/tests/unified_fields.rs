@@ -31,17 +31,15 @@ fn test_ccs_sumcheck_no_conversion_needed() {
         z: vec![embed_base_to_ext(F::ONE)],
     };
     let mut transcript = vec![];
-    let mut oracle = FnOracle::new(|_: &[ExtF]| vec![]);
-    let (_msgs, comms) = ccs_sumcheck_prover(
+    let _msgs = ccs_sumcheck_prover(
         &structure,
         &instance,
         &witness,
         1,
-        &mut oracle,
         &mut transcript,
     )
     .expect("sumcheck");
-    assert!(comms.is_empty());
+    // No commitments in NARK mode
 }
 
 #[test]
@@ -70,13 +68,11 @@ fn test_sumcheck_prover_lifted_evals() {
         z: vec![embed_base_to_ext(F::from_u64(42))],
     };
     let mut transcript = vec![];
-    let mut oracle = FnOracle::new(|_: &[ExtF]| vec![]);
-    let (msgs, _) = ccs_sumcheck_prover(
+    let msgs = ccs_sumcheck_prover(
         &structure,
         &instance,
         &witness,
         1,
-        &mut oracle,
         &mut transcript,
     )
     .expect("sumcheck");

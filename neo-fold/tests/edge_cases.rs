@@ -2,7 +2,7 @@ use neo_ccs::{mv_poly, CcsInstance, CcsStructure, CcsWitness};
 use neo_commit::{AjtaiCommitter, TOY_PARAMS};
 use neo_fields::{ExtF, F};
 use neo_fold::FoldState;
-use neo_sumcheck::PolyOracle;
+// Oracle removed in NARK mode
 use p3_field::PrimeCharacteristicRing;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -186,39 +186,4 @@ fn test_ivc_depth_one() {
             "IVC with depth 1 should succeed");
 }
 
-/// Test that compression handles very small transcripts.
-/// Edge case for FRI compression with minimal data.
-#[test]
-fn test_compression_minimal_transcript() {
-    let state = FoldState::new(CcsStructure::new(
-        vec![RowMajorMatrix::<F>::new(vec![F::ONE], 1)],
-        mv_poly(|vars: &[ExtF]| vars[0], 1)
-    ));
-   
-    // Very small transcript (single byte)
-    let minimal_transcript = vec![42u8];
-    let (commit, proof) = state.compress_proof(&minimal_transcript);
-   
-    assert!(!commit.is_empty(), "Commit should not be empty even for minimal transcript");
-    assert!(!proof.is_empty(), "Proof should not be empty even for minimal transcript");
-   
-    // Verify the compression roundtrip works
-    use neo_fields::from_base;
-    use neo_poly::Polynomial;
-    use neo_sumcheck::FriOracle;
-   
-    let mut extended_trans = minimal_transcript.clone();
-    extended_trans.extend(b"non_zero");
-    let poly_coeffs = extended_trans.iter()
-        .map(|&b| from_base(F::from_u64(b as u64)))
-        .collect::<Vec<_>>();
-    let poly = Polynomial::new(poly_coeffs);
-    let mut temp_t = extended_trans.clone();
-    let oracle = FriOracle::new(vec![poly.clone()], &mut temp_t);
-    let point = vec![ExtF::ONE];
-    let expected_eval = poly.eval(point[0]) + oracle.blinds[0];
-   
-    let verifier = FriOracle::new_for_verifier(extended_trans.len().next_power_of_two() * 4);
-    assert!(verifier.verify_openings(&vec![commit], &point, &vec![expected_eval], &vec![proof]),
-            "Minimal transcript compression should verify");
-}
+

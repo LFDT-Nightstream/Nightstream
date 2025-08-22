@@ -22,6 +22,8 @@ use p3_matrix::dense::RowMajorMatrix;
 ///
 /// # Example
 /// ```
+/// use neo_arithmetize::fibonacci_ccs;
+///
 /// let ccs = fibonacci_ccs(8); // Creates CCS for first 8 Fibonacci numbers
 /// ```
 pub fn fibonacci_ccs(length: usize) -> CcsStructure {

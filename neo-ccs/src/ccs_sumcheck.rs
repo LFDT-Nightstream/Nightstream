@@ -32,7 +32,13 @@ pub fn ccs_sumcheck_verifier(
 
     for (round, (uni, blind_eval)) in msgs.iter().enumerate() {
         transcript.extend(format!("neo_ccs_round_{}", round).as_bytes());
-        if uni.eval(ExtF::ZERO) + uni.eval(ExtF::ONE) != current {
+        let eval_0 = uni.eval(ExtF::ZERO);
+        let eval_1 = uni.eval(ExtF::ONE);
+        let sum = eval_0 + eval_1;
+        eprintln!("ccs_sumcheck_verifier: Round {}: eval(0)={:?}, eval(1)={:?}, sum={:?}, current={:?}", 
+                 round, eval_0, eval_1, sum, current);
+        if sum != current {
+            eprintln!("ccs_sumcheck_verifier: FAIL - sum check failed in round {}", round);
             return None;
         }
         for &c in uni.coeffs() {

@@ -29,6 +29,7 @@ criterion = { workspace = true }
 rand = { workspace = true }
 quickcheck = "1"
 quickcheck_macros = "1"
+neo-arithmetize = { path = "../neo-arithmetize" }
 
 
 

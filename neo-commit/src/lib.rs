@@ -60,13 +60,13 @@ pub const SECURE_PARAMS: NeoParams = NeoParams {
 };
 
 pub const TOY_PARAMS: NeoParams = NeoParams {
-    q: ModInt::Q,           // Must match the ModInt ring modulus
-    n: 4,                   // Already power of 2 (2^2)
+    q: ModInt::Q, // Must match the ModInt ring modulus
+    n: 4, // Already power of 2 (2^2)
     k: 2,
-    d: 4,
+    d: 64, // Increased to handle full field decomposition
     b: 2,
-    e_bound: 64,  // Match secure params for stability
-    norm_bound: 10000000000000000000,  // Large bound for GPV sampling stability
+    e_bound: 64,
+    norm_bound: 1 << 63, // Reduced to prevent overflow while still large
     sigma: 3.2,
     beta: 3,
     max_blind_norm: 64,
@@ -509,19 +509,25 @@ impl AjtaiCommitter {
         c2: &[RingElement<ModInt>],
         rho: F,
     ) -> Vec<RingElement<ModInt>> {
-        // Optional: reject if rho ≥ q to avoid accidental wrap
+        // Reject if rho ≥ q to avoid accidental wrap
         let q = <ModInt as Coeff>::modulus();
         if rho.as_canonical_u64() >= q {
             panic!("random_linear_combo: rho outside Z_q representative range");
         }
-        (0..self.params.k)
+        // Length-agnostic, broadcast zeros for missing entries.
+        // This handles trivial/degenerate cases that arise in NARK-mode folding.
+        let n = self.params.n;
+        let len = c1.len().max(c2.len());
+        if len == 0 {
+            return Vec::new();
+        }
+        let zero = RingElement::from_scalar(ModInt::zero(), n);
+        let rho_scalar = RingElement::from_scalar(ModInt::from_u64(rho.as_canonical_u64()), n);
+        (0..len)
             .map(|i| {
-                c1[i].clone()
-                    + c2[i].clone()
-                        * RingElement::from_scalar(
-                            ModInt::from_u64(rho.as_canonical_u64()),
-                            self.params.n,
-                        )
+                let a = c1.get(i).unwrap_or(&zero).clone();
+                let b = c2.get(i).unwrap_or(&zero).clone();
+                a + b * rho_scalar.clone()
             })
             .collect()
     }
@@ -533,8 +539,19 @@ impl AjtaiCommitter {
         c2: &[RingElement<ModInt>],
         rho_rot: &RingElement<ModInt>,
     ) -> Vec<RingElement<ModInt>> {
-        (0..self.params.k)
-            .map(|i| c1[i].clone() + rho_rot.clone() * c2[i].clone())
+        // Length-agnostic with zero-broadcast semantics.
+        let n = self.params.n;
+        let len = c1.len().max(c2.len());
+        if len == 0 {
+            return Vec::new();
+        }
+        let zero = RingElement::from_scalar(ModInt::zero(), n);
+        (0..len)
+            .map(|i| {
+                let a = c1.get(i).unwrap_or(&zero).clone();
+                let b = c2.get(i).unwrap_or(&zero).clone();
+                a + rho_rot.clone() * b
+            })
             .collect()
     }
 

@@ -170,7 +170,7 @@ pub fn batched_sumcheck_prover(
         let zk_sigma_seed = fs_challenge_u64(&zk_sigma_transcript);
         let zk_sigma = ZK_SIGMA + (zk_sigma_seed as f64 / u64::MAX as f64) * 2.0; // Range [3.2, 5.2]
 
-        let blind_coeffs: Vec<ExtF> = (0..=blind_deg)
+        let mut blind_coeffs: Vec<ExtF> = (0..=blind_deg)
             .map(|_| {
                 let sample: f64 =
                     <StandardNormal as Distribution<f64>>::sample(&StandardNormal, &mut rng)
@@ -178,10 +178,29 @@ pub fn batched_sumcheck_prover(
                 from_base(F::from_i64(sample.round() as i64))
             })
             .collect();
-        let blind_poly = Polynomial::new(blind_coeffs);
+        let mut blind_poly = Polynomial::new(blind_coeffs.clone());
         let x_poly = Polynomial::new(vec![ExtF::ZERO, ExtF::ONE]);
         let xm1_poly = Polynomial::new(vec![-ExtF::ONE, ExtF::ONE]);
-        let blind_factor = x_poly * xm1_poly * blind_poly;
+        let mut blind_factor = x_poly.clone() * xm1_poly.clone() * blind_poly.clone();
+        
+        // TRANSCRIPT FIX: Ensure blind_factor maintains full degree to prevent cursor position mismatches
+        let mut attempts = 0;
+        while blind_factor.coeffs().is_empty() || blind_factor.coeffs().last() == Some(&ExtF::ZERO) {
+            if attempts >= 100 {
+                return Err(SumCheckError::InvalidSum(round));
+            }
+            blind_coeffs = (0..=blind_deg)
+                .map(|_| {
+                    let sample: f64 =
+                        <StandardNormal as Distribution<f64>>::sample(&StandardNormal, &mut rng)
+                            * zk_sigma;
+                    from_base(F::from_i64(sample.round() as i64))
+                })
+                .collect();
+            blind_poly = Polynomial::new(blind_coeffs.clone());
+            blind_factor = x_poly.clone() * xm1_poly.clone() * blind_poly.clone();
+            attempts += 1;
+        }
         let mut uni_polys_with_blind = uni_polys.clone();
         uni_polys_with_blind.push(blind_factor.clone());
         

@@ -36,6 +36,7 @@ fn test_norm_scaling() {
         norm_bound: 3,
     };
     state.eval_instances = vec![
+        eval1.clone(),  // index 0: norm_bound=2
         EvalInstance {
             commitment: vec![],
             r: vec![],
@@ -43,8 +44,8 @@ fn test_norm_scaling() {
             u: ExtF::ZERO,
             e_eval: ExtF::ZERO,
             norm_bound: 0,
-        },
-        eval1.clone(),
+        },  // index 1: dummy norm=0
+        eval2.clone(),  // index 2: norm_bound=3
         EvalInstance {
             commitment: vec![],
             r: vec![],
@@ -52,8 +53,7 @@ fn test_norm_scaling() {
             u: ExtF::ZERO,
             e_eval: ExtF::ZERO,
             norm_bound: 0,
-        },
-        eval2.clone(),
+        },  // index 3: dummy norm=0
     ];
     let rho_rot = RingElement::zero(params.n);
     let mut transcript = vec![];

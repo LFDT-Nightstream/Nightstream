@@ -31,7 +31,7 @@ pub fn ccs_sumcheck_verifier(
     let mut r = Vec::new();
 
     for (round, (uni, blind_eval)) in msgs.iter().enumerate() {
-        transcript.extend(format!("neo_ccs_round_{}", round).as_bytes());
+        transcript.extend(format!("sumcheck_round_{}", round).as_bytes());
         let eval_0 = uni.eval(ExtF::ZERO);
         let eval_1 = uni.eval(ExtF::ONE);
         let sum = eval_0 + eval_1;
@@ -241,7 +241,7 @@ pub fn ccs_sumcheck_prover(
         current = claim_ccs + claim_norm;
 
         for round in 0..l {
-            transcript.extend(format!("neo_ccs_round_{}", round).as_bytes());
+            transcript.extend(format!("sumcheck_round_{}", round).as_bytes());
             let half = witness_table.len() / 2;
 
             // Fold CCS tables directly
@@ -337,7 +337,7 @@ pub fn ccs_sumcheck_prover(
     }
 
     for round in 0..l {
-        transcript.extend(format!("neo_ccs_round_{}", round).as_bytes());
+        transcript.extend(format!("sumcheck_round_{}", round).as_bytes());
         let half = witness_table.len() / 2;
 
         // No copying: use tables directly via indices

@@ -256,7 +256,8 @@ fn test_gpv_statistical_closeness() {
         // GPV sampling can fail with restrictive parameters
         match comm.gpv_trapdoor_sample(&target, params.sigma, &mut rng) {
             Ok(y) => {
-                let avg_norm = y.iter().map(|yi| yi.norm_inf()).sum::<u64>() / (params.d as u64);
+                let sum_norms: u128 = y.iter().map(|yi| yi.norm_inf() as u128).sum();
+                let avg_norm = (sum_norms / params.d as u128) as u64;
                 norms.push(avg_norm);
                 successful_samples += 1;
             }
@@ -276,7 +277,8 @@ fn test_gpv_statistical_closeness() {
     }
     
     if successful_samples >= 3 {
-        let mean_norm = norms.iter().sum::<u64>() as f64 / (successful_samples as f64);
+        let sum_avgs: u128 = norms.iter().map(|&n| n as u128).sum();
+        let mean_norm = (sum_avgs as f64) / (successful_samples as f64);
         // Reasonable bounds for production parameters
         assert!(
             mean_norm >= 0.0 && mean_norm <= params.norm_bound as f64,

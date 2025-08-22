@@ -3,7 +3,7 @@ use neo_ccs::{CcsInstance, CcsWitness, check_satisfiability};
 use neo_commit::{AjtaiCommitter, SECURE_PARAMS};
 use neo_decomp::decomp_b;
 use neo_fields::{embed_base_to_ext, ExtF, F};
-use neo_fold::FoldState;
+use neo_orchestrator::{prove, verify};
 use neo_ring::RingElement;
 use neo_modint::ModInt;
 use p3_field::PrimeCharacteristicRing;
@@ -72,27 +72,19 @@ fn main() {
     }
     println!("DEBUG: Satisfiability check passed!");
 
-    // Setup folding state
-    println!("DEBUG: Setting up folding state...");
-    let mut fold_state = FoldState::new(ccs);
-    println!("DEBUG: Folding state setup completed!");
-
-    // Generate proof for the Fibonacci instance (fold with itself for demo)
+    // Generate proof using the orchestrator
     println!("\n=== PROOF GENERATION ===");
     println!("DEBUG: Starting proof generation...");
-    let proof_start = Instant::now();
-    let proof = fold_state.generate_proof((instance.clone(), witness.clone()), (instance, witness), &committer);
+    let (proof, metrics) = prove(&ccs, &instance, &witness).expect("proof generation");
     println!("DEBUG: Proof generation completed!");
-    let proof_generation_time = proof_start.elapsed();
-    let proof_size_bytes = proof.transcript.len();
-    println!("Proof generation completed in {:.2} ms", proof_generation_time.as_secs_f64() * 1000.0);
-    println!("Proof size: {} bytes", proof_size_bytes);
+    println!("Proof generation completed in {:.2} ms", metrics.prove_ms);
+    println!("Proof size: {} bytes", metrics.proof_bytes);
 
-    // Verify the proof
+    // Verify the proof using the orchestrator
     println!("\n=== PROOF VERIFICATION ===");
     println!("DEBUG: Starting proof verification...");
     let verify_start = Instant::now();
-    let verified = fold_state.verify(&proof.transcript, &committer);
+    let verified = verify(&ccs, &proof);
     println!("DEBUG: Proof verification completed!");
     let verification_time = verify_start.elapsed();
     println!("Proof verification: {}", if verified { "SUCCESS" } else { "FAILURE" });
@@ -102,10 +94,10 @@ fn main() {
     println!("\n==========================================");
     println!("🏁 FINAL PERFORMANCE SUMMARY");
     println!("==========================================");
-    println!("Proof Generation Time:    {:>8.2} ms", proof_generation_time.as_secs_f64() * 1000.0);
-    println!("Proof Size:               {:>8} bytes", proof_size_bytes);
+    println!("Proof Generation Time:    {:>8.2} ms", metrics.prove_ms);
+    println!("Proof Size:               {:>8} bytes", metrics.proof_bytes);
     println!("Proof Verification Time:  {:>8.2} ms", verification_time.as_secs_f64() * 1000.0);
-    println!("Total Time:               {:>8.2} ms", (proof_generation_time + verification_time).as_secs_f64() * 1000.0);
+    println!("Total Time:               {:>8.2} ms", metrics.prove_ms + verification_time.as_secs_f64() * 1000.0);
     println!("Verification Result:      {}", if verified { "✅ PASSED" } else { "❌ FAILED" });
     println!("Fibonacci Length:         {:>8}", fib_length);
     println!("==========================================");

@@ -472,6 +472,7 @@ dependencies = [
  "neo-fields",
  "neo-fold",
  "neo-modint",
+ "neo-orchestrator",
  "neo-poly",
  "neo-ring",
  "neo-sumcheck",
@@ -489,6 +490,18 @@ dependencies = [
  "quickcheck",
  "rand 0.9.2",
  "subtle",
+]
+
+[[package]]
+name = "neo-orchestrator"
+version = "0.1.0"
+dependencies = [
+ "neo-ccs",
+ "neo-commit",
+ "neo-fields",
+ "neo-fold",
+ "p3-field",
+ "thiserror",
 ]
 
 [[package]]

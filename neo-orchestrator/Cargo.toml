@@ -1,0 +1,12 @@
+[package]
+name = "neo-orchestrator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror       = "1"
+neo-ccs         = { path = "../neo-ccs" }
+neo-commit      = { path = "../neo-commit" }
+neo-fields      = { path = "../neo-fields" }
+neo-fold        = { path = "../neo-fold" }
+p3-field        = "0.3"

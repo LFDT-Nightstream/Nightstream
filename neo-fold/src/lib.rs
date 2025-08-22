@@ -1200,7 +1200,7 @@ pub fn pi_ccs(
         // CRITICAL FIX: Capture prover transcript state before sumcheck for verifier
         let pre_sumcheck_transcript = transcript.clone();
         eprintln!("pi_ccs: PROVER - Captured pre-sumcheck transcript.len()={}", pre_sumcheck_transcript.len());
-        eprintln!("pi_ccs: PROVER - Pre-sumcheck transcript hex: {:02x?}", pre_sumcheck_transcript);
+        // eprintln!("pi_ccs: PROVER - Pre-sumcheck transcript hex: {:02x?}", pre_sumcheck_transcript);
         
         let sumcheck_msgs = match batched_sumcheck_prover(
             &claims,
@@ -1296,7 +1296,7 @@ pub fn pi_ccs(
         // Use the pre-sumcheck transcript that was captured before sumcheck was called
         vt_transcript = pre_sumcheck_transcript.clone();
         eprintln!("pi_ccs: VERIFIER - PERFECT SYNC: Using pre-sumcheck transcript len()={}", vt_transcript.len());
-        eprintln!("pi_ccs: VERIFIER - Pre-sumcheck transcript hex: {:02x?}", vt_transcript);
+        // eprintln!("pi_ccs: VERIFIER - Pre-sumcheck transcript hex: {:02x?}", vt_transcript);
         
         // NARK mode: Use updated batched_sumcheck_verifier without oracle
         let verifier_result = batched_sumcheck_verifier(

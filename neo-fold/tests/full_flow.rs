@@ -2,7 +2,7 @@ use neo_ccs::{mv_poly, CcsInstance, CcsStructure, CcsWitness};
 use neo_commit::{AjtaiCommitter, TOY_PARAMS};
 use neo_fields::{from_base, ExtF, F};
 use p3_field::PrimeCharacteristicRing;
-use neo_fold::{FoldState, Proof, extractor};
+use neo_fold::{FoldState, Proof, extractor, verify_open, EvalInstance};
 
 fn dummy_structure() -> CcsStructure {
     // 4-element structure matching the verifier CCS for consistency
@@ -62,4 +62,60 @@ fn test_ivc_chain() {
     let witness = CcsWitness { z: vec![from_base(F::from_u64(5)), from_base(F::ZERO), from_base(F::ZERO), from_base(F::ZERO)] };
     state.ccs_instance = Some((instance, witness));
     assert!(state.recursive_ivc(2, &committer));
+}
+
+#[test]
+fn test_verify_open_valid() {
+    let structure = dummy_structure();
+    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let eval = EvalInstance {
+        commitment: vec![],
+        r: vec![],
+        ys: vec![ExtF::ZERO; structure.mats.len()],
+        u: ExtF::ZERO,
+        e_eval: ExtF::ONE,
+        norm_bound: committer.params().norm_bound,
+    };
+    assert!(verify_open(&structure, &committer, &eval, committer.params().max_blind_norm));
+}
+
+#[test]
+fn test_verify_open_invalid_eval() {
+    // Create a structure with a linear constraint polynomial (deg <= 1)
+    use p3_matrix::dense::RowMajorMatrix;
+    let mats = vec![
+        RowMajorMatrix::new(vec![F::ONE, F::ZERO, F::ZERO, F::ZERO], 4), // X0 selector
+        RowMajorMatrix::new(vec![F::ZERO, F::ONE, F::ZERO, F::ZERO], 4), // X1 selector  
+        RowMajorMatrix::new(vec![F::ZERO, F::ZERO, F::ONE, F::ZERO], 4), // X2 selector
+        RowMajorMatrix::new(vec![F::ZERO, F::ZERO, F::ZERO, F::ONE], 4), // X3 selector
+    ];
+    let f = mv_poly(|ys: &[ExtF]| ys[0], 1); // Linear: returns first variable, degree 1
+    let structure = CcsStructure::new(mats, f);
+    
+    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let eval = EvalInstance {
+        commitment: vec![],
+        r: vec![],
+        ys: vec![ExtF::ONE; structure.mats.len()],
+        u: ExtF::ZERO,
+        e_eval: ExtF::ONE,
+        norm_bound: committer.params().norm_bound,
+    };
+    // This should fail because f(ys) = ys[0] = 1, but u * e_eval^2 = 0 * 1^2 = 0
+    assert!(!verify_open(&structure, &committer, &eval, committer.params().max_blind_norm));
+}
+
+#[test]
+fn test_verify_open_invalid_norm() {
+    let structure = dummy_structure();
+    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let eval = EvalInstance {
+        commitment: vec![],
+        r: vec![],
+        ys: vec![ExtF::ZERO; structure.mats.len()],
+        u: ExtF::new_real(F::from_u64(committer.params().max_blind_norm + 1)), // Test u norm instead
+        e_eval: ExtF::ONE,
+        norm_bound: committer.params().norm_bound,
+    };
+    assert!(!verify_open(&structure, &committer, &eval, committer.params().max_blind_norm));
 }

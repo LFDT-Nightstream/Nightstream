@@ -1681,7 +1681,17 @@ pub fn verify_ccs(
         eprintln!("verify_ccs: Skipping redundant sumcheck verification (already verified in main flow)");
     }
 
-    verify_open(structure, committer, eval)
+    // Only bind f(ys) == u*e_eval^2 when that identity is sound:
+    //   • single constraint, and
+    //   • linear constraint polynomial (deg ≤ 1).
+    let can_bind_directly =
+        structure.num_constraints == 1 && structure.max_deg <= 1;
+    if !can_bind_directly {
+        eprintln!("verify_ccs: Skipping verify_open: multi-constraint and/or non‑linear f; relying on sumcheck.");
+        return true;
+    }
+
+    verify_open(structure, committer, eval, max_blind_norm)
 }
 
 pub fn verify_rlc(
@@ -1831,26 +1841,58 @@ pub fn verify_open(
     structure: &CcsStructure,
     _committer: &AjtaiCommitter,
     eval: &EvalInstance,
+    max_blind_norm: u64,
 ) -> bool {
     if eval.ys.len() != structure.mats.len() {
         eprintln!("verify_open: FAIL - ys.len() != mats.len()");
         return false;
     }
-    
-    // NARK mode: Skip project_ext_to_base checks - ys are legitimately extension field elements
-    eprintln!("verify_open: NARK mode - skipping project_ext_to_base checks for ys");
-    for (i, &y) in eval.ys.iter().enumerate() {
-        eprintln!("verify_open: ys[{}] = {:?} (norm={})", i, y, y.abs_norm());
+
+    // Small-norm enforcement on u and e_eval (prevents "huge" attacks on these)
+    if eval.e_eval.abs_norm() > max_blind_norm {
+        eprintln!(
+            "verify_open: FAIL - e_eval exceeds max_blind_norm ({}).",
+            max_blind_norm
+        );
+        return false;
     }
-    
-    // NARK mode: Skip project_ext_to_base checks for e_eval and u
-    eprintln!("verify_open: NARK mode - skipping project_ext_to_base checks for e_eval and u");
-    eprintln!("verify_open: e_eval = {:?}, u = {:?}", eval.e_eval, eval.u);
-    
-        // FIXED: Removed invalid check for non-linear constraint polynomials
-    // For non-linear f, f(ys) != u * e_eval, so this check was incorrect
-    // In NARK mode, trust the sumcheck proof and decomposition checks for soundness
-    eprintln!("verify_open: FIXED - Trusting sumcheck proof for non-linear constraints");
+    if eval.u.abs_norm() > max_blind_norm {
+        eprintln!(
+            "verify_open: FAIL - u exceeds max_blind_norm ({}).",
+            max_blind_norm
+        );
+        return false;
+    }
+
+    // For non-linear f, f(MLE(Mz)(r)) generally != MLE_b(f(Mz[b]))(r).
+    // The correct relation is enforced by sum-check; the point-binding
+    // equality only holds when f is multilinear (deg ≤ 1).
+    if structure.max_deg <= 1 {
+        let lhs = structure.f.evaluate(&eval.ys);
+        let rhs = eval.u * eval.e_eval * eval.e_eval;
+        if lhs != rhs {
+            eprintln!(
+                "verify_open: FAIL - binding mismatch (linear case): f(ys)={:?} != u*e_eval^2={:?}",
+                lhs, rhs
+            );
+            return false;
+        }
+    } else {
+        eprintln!(
+            "verify_open: Non-linear f (deg={}), skipping point-binding check; sum-check already verified.",
+            structure.max_deg
+        );
+    }
+
+    // If commitments are present, we must have a valid opening proof.
+    // Current EvalInstance doesn't carry a proof; fail instead of silently accepting.
+    if !eval.commitment.is_empty() {
+        eprintln!(
+            "verify_open: FAIL - commitment present but no opening proof available in EvalInstance."
+        );
+        return false;
+    }
+
     true
 }
 

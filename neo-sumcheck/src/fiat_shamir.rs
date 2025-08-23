@@ -1,5 +1,5 @@
 use crate::{ExtF, F, Polynomial};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Poseidon2Goldilocks;
 use p3_symmetric::{CryptographicHasher, PaddingFreeSponge};
 use rand::rngs::StdRng;
@@ -91,5 +91,93 @@ pub fn batch_unis(unis: &[Polynomial<ExtF>], rho: ExtF) -> Polynomial<ExtF> {
         current_rho *= rho;
     }
     batched
+}
+
+// --- NEW: Structured, domain-separated FS absorption helpers ---
+
+#[inline]
+fn fs_write_u32_be(buf: &mut Vec<u8>, v: u32) { buf.extend_from_slice(&v.to_be_bytes()); }
+
+#[inline]
+fn fs_begin_domain(buf: &mut Vec<u8>, label: &[u8]) {
+    // Frame: "FS" | len(label) | label
+    buf.extend_from_slice(b"FS");
+    fs_write_u32_be(buf, label.len() as u32);
+    buf.extend_from_slice(label);
+}
+
+pub fn fs_absorb_bytes(transcript: &mut Vec<u8>, label: &[u8], bytes: &[u8]) {
+    fs_begin_domain(transcript, label);
+    fs_write_u32_be(transcript, bytes.len() as u32);
+    transcript.extend_from_slice(bytes);
+}
+
+pub fn fs_absorb_u64(transcript: &mut Vec<u8>, label: &[u8], x: u64) {
+    fs_begin_domain(transcript, label);
+    fs_write_u32_be(transcript, 8);
+    transcript.extend_from_slice(&x.to_be_bytes());
+}
+
+pub fn fs_absorb_extf(transcript: &mut Vec<u8>, label: &[u8], x: ExtF) {
+    fs_begin_domain(transcript, label);
+    // two limbs (real, imag) as u64 be
+    fs_write_u32_be(transcript, 16);
+    let a = x.to_array();
+    transcript.extend_from_slice(&a[0].as_canonical_u64().to_be_bytes());
+    transcript.extend_from_slice(&a[1].as_canonical_u64().to_be_bytes());
+}
+
+pub fn fs_absorb_poly(transcript: &mut Vec<u8>, label: &[u8], p: &Polynomial<ExtF>) {
+    fs_begin_domain(transcript, label);
+    // encode degree & coeff count for unambiguous framing
+    let deg = p.degree() as u32;
+    let coeffs = p.coeffs();
+    let count = coeffs.len() as u32;
+    // header: deg | count
+    fs_write_u32_be(transcript, 8); // 8 bytes follow in "payload header"
+    fs_write_u32_be(transcript, deg);
+    fs_write_u32_be(transcript, count);
+    // then each coefficient (two limbs)
+    fs_write_u32_be(transcript, count * 16);
+    for &c in coeffs {
+        let a = c.to_array();
+        transcript.extend_from_slice(&a[0].as_canonical_u64().to_be_bytes());
+        transcript.extend_from_slice(&a[1].as_canonical_u64().to_be_bytes());
+    }
+}
+
+pub fn fs_challenge_ext(transcript: &mut Vec<u8>, label: &[u8]) -> ExtF {
+    fs_begin_domain(transcript, b"challenge");
+    fs_absorb_bytes(transcript, b"dst", label);
+    // Hash **all** accumulated bytes (including the structured frame we just wrote)
+    fiat_shamir_challenge(transcript)
+}
+
+pub fn fs_challenge_base(transcript: &mut Vec<u8>, label: &[u8]) -> F {
+    let e = fs_challenge_ext(transcript, label);
+    e.to_array()[0]
+}
+
+// --- Tests for structured FS ---
+
+#[cfg(test)]
+mod fs_tests {
+    use super::*;
+
+    #[test]
+    fn fs_structured_prevents_concat_ambiguity() {
+        // "ab"||"c" vs "a"||"bc" collide in raw concatenation; structured framing must differ.
+        let mut t1 = Vec::new();
+        fs_absorb_bytes(&mut t1, b"msg", b"ab");
+        fs_absorb_bytes(&mut t1, b"msg", b"c");
+        let c1 = fs_challenge_ext(&mut t1, b"final");
+
+        let mut t2 = Vec::new();
+        fs_absorb_bytes(&mut t2, b"msg", b"a");
+        fs_absorb_bytes(&mut t2, b"msg", b"bc");
+        let c2 = fs_challenge_ext(&mut t2, b"final");
+
+        assert_ne!(c1, c2, "structured FS must not collide on chunking differences");
+    }
 }
 

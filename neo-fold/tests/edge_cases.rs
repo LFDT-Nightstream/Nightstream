@@ -1,5 +1,5 @@
 use neo_ccs::{mv_poly, CcsInstance, CcsStructure, CcsWitness};
-use neo_commit::{AjtaiCommitter, TOY_PARAMS};
+use neo_commit::{AjtaiCommitter, SECURE_PARAMS};
 use neo_fields::{ExtF, F};
 use neo_fold::FoldState;
 // Oracle removed in NARK mode
@@ -16,7 +16,7 @@ fn test_zero_poly_folding() {
     );
    
     let mut state = FoldState::new(structure);
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
    
     // Create instances with zero witnesses
     let instance1 = CcsInstance {
@@ -61,7 +61,7 @@ fn test_empty_instances() {
    
     // Verification with empty transcript should handle gracefully
     let empty_transcript = vec![];
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
     let result = state.verify(&empty_transcript, &committer);
    
     // Empty verification should either pass (trivial case) or fail gracefully
@@ -79,7 +79,7 @@ fn test_minimal_instances() {
     );
    
     let mut state = FoldState::new(structure);
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
    
     let instance1 = CcsInstance {
         commitment: vec![],
@@ -112,11 +112,11 @@ fn test_minimal_instances() {
 fn test_mismatched_dimensions() {
     let structure = CcsStructure::new(
         vec![RowMajorMatrix::<F>::new(vec![F::ONE, F::ZERO], 2)], // 2-element matrix
-        mv_poly(|vars: &[ExtF]| vars[0] + vars[1], 2) // 2-variable polynomial
+        mv_poly(|vars: &[ExtF]| vars[0] + vars[1], 1) // 2-variable polynomial, degree 1 (multilinear)
     );
    
     let mut state = FoldState::new(structure);
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
    
     let instance1 = CcsInstance {
         commitment: vec![],
@@ -167,7 +167,7 @@ fn test_ivc_depth_one() {
     );
    
     let mut state = FoldState::new(structure);
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
    
     // Set initial instance
     let instance = CcsInstance {

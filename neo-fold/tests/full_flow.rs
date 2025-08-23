@@ -1,5 +1,5 @@
 use neo_ccs::{mv_poly, CcsInstance, CcsStructure, CcsWitness};
-use neo_commit::{AjtaiCommitter, TOY_PARAMS};
+use neo_commit::{AjtaiCommitter, SECURE_PARAMS};
 use neo_fields::{from_base, ExtF, F};
 use p3_field::PrimeCharacteristicRing;
 use neo_fold::{FoldState, Proof, extractor, verify_open, EvalInstance};
@@ -22,7 +22,7 @@ fn test_full_folding() {
     let structure = dummy_structure();
     let mut state = FoldState::new(structure);
     
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
     let instance1 = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
     let witness1 = CcsWitness { z: vec![from_base(F::from_u64(2)), from_base(F::ZERO), from_base(F::ZERO), from_base(F::ZERO)] };
     let instance2 = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
@@ -36,7 +36,7 @@ fn test_full_folding_with_fri() {
     let structure = dummy_structure();
     let mut state = FoldState::new(structure);
     
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
     let instance1 = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
     let witness1 = CcsWitness { z: vec![from_base(F::from_u64(2)), from_base(F::ZERO), from_base(F::ZERO), from_base(F::ZERO)] };
     let instance2 = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
@@ -57,7 +57,7 @@ fn test_extractor_rewinds() {
 fn test_ivc_chain() {
     let mut state = FoldState::new(dummy_structure());
     
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
     let instance = CcsInstance { commitment: vec![], public_input: vec![], u: F::ZERO, e: F::ONE };
     let witness = CcsWitness { z: vec![from_base(F::from_u64(5)), from_base(F::ZERO), from_base(F::ZERO), from_base(F::ZERO)] };
     state.ccs_instance = Some((instance, witness));
@@ -67,7 +67,7 @@ fn test_ivc_chain() {
 #[test]
 fn test_verify_open_valid() {
     let structure = dummy_structure();
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
     let eval = EvalInstance {
         commitment: vec![],
         r: vec![],
@@ -92,7 +92,7 @@ fn test_verify_open_invalid_eval() {
     let f = mv_poly(|ys: &[ExtF]| ys[0], 1); // Linear: returns first variable, degree 1
     let structure = CcsStructure::new(mats, f);
     
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
     let eval = EvalInstance {
         commitment: vec![],
         r: vec![],
@@ -108,7 +108,7 @@ fn test_verify_open_invalid_eval() {
 #[test]
 fn test_verify_open_invalid_norm() {
     let structure = dummy_structure();
-    let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
+    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
     let eval = EvalInstance {
         commitment: vec![],
         r: vec![],

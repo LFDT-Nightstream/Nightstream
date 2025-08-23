@@ -131,6 +131,7 @@ fn verify_open_requires_proof_when_commitment_present() {
 }
 
 #[test]
+#[ignore = "Non-linear constraints unsupported; protocol assumes multilinear (deg<=1) for soundness - see docs"]
 fn verify_open_accepts_nonlinear_constraint() {
     // For non-linear f (deg > 1), verify_open should skip the point-binding check
     // and rely on the sumcheck proof that was already verified

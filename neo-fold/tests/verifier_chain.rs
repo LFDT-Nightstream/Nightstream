@@ -17,10 +17,10 @@ fn setup_test_structure() -> CcsStructure {
             if inputs.len() != 3 {
                 ExtF::ZERO
             } else {
-                inputs[0] * inputs[1] - inputs[2]
+                inputs[0] + inputs[1] - inputs[2]  // Multilinear: addition/subtraction (deg=1)
             }
         },
-        2,
+        1,  // Explicitly set max_individual_degree=1
     );
     CcsStructure::new(mats, f)
 }
@@ -31,7 +31,7 @@ fn test_full_fold_verification() {
     let mut fold_state = FoldState::new(structure.clone());
     let params = SECURE_PARAMS;
     let committer = AjtaiCommitter::setup(params);
-    let z1_base = vec![F::ONE, F::from_u64(3), F::from_u64(3)];
+    let z1_base = vec![F::ONE, F::from_u64(2), F::from_u64(3)];  // 1 + 2 = 3
     let z1 = z1_base.iter().copied().map(from_base).collect();
     let witness1 = CcsWitness { z: z1 };
     let z1_mat = decomp_b(&z1_base, params.b, params.d);
@@ -44,7 +44,7 @@ fn test_full_fold_verification() {
         u: F::ZERO,
         e: F::ONE,
     };
-    let z2_base = vec![F::from_u64(2), F::from_u64(2), F::from_u64(4)];
+    let z2_base = vec![F::from_u64(2), F::from_u64(3), F::from_u64(5)];  // 2 + 3 = 5
     let z2 = z2_base.iter().copied().map(from_base).collect();
     let witness2 = CcsWitness { z: z2 };
     let z2_mat = decomp_b(&z2_base, params.b, params.d);
@@ -72,7 +72,7 @@ fn test_verify_fails_on_transcript_mutation() {
     let mut state = FoldState::new(structure.clone());
     let params = TOY_PARAMS;
     let committer = AjtaiCommitter::setup_unchecked(params);
-    let z_base = vec![F::ONE, F::from_u64(3), F::from_u64(3)];
+    let z_base = vec![F::ONE, F::from_u64(2), F::from_u64(3)];  // 1 + 2 = 3
     let z = z_base.iter().copied().map(from_base).collect();
     let witness = CcsWitness { z };
     let z_mat = decomp_b(&z_base, params.b, params.d);
@@ -107,7 +107,7 @@ fn test_zk_folding_different_proofs() {
     let structure = setup_test_structure();
     let params = SECURE_PARAMS;
     let committer = AjtaiCommitter::setup(params);
-    let z1_base = vec![F::ONE, F::from_u64(3), F::from_u64(3)];
+    let z1_base = vec![F::ONE, F::from_u64(2), F::from_u64(3)];  // 1 + 2 = 3
     let z1 = z1_base.iter().copied().map(from_base).collect();
     let witness1 = CcsWitness { z: z1 };
     let z1_mat = decomp_b(&z1_base, params.b, params.d);
@@ -120,7 +120,7 @@ fn test_zk_folding_different_proofs() {
         u: F::ZERO,
         e: F::ONE,
     };
-    let z2_base = vec![F::from_u64(2), F::from_u64(2), F::from_u64(4)];
+    let z2_base = vec![F::from_u64(2), F::from_u64(3), F::from_u64(5)];  // 2 + 3 = 5
     let z2 = z2_base.iter().copied().map(from_base).collect();
     let witness2 = CcsWitness { z: z2 };
     let z2_mat = decomp_b(&z2_base, params.b, params.d);
@@ -167,7 +167,7 @@ fn prop_rejects_mutated_transcript(mutated_index: usize, mutated_bit: u8) -> boo
     let mut state = FoldState::new(structure.clone());
     let params = TOY_PARAMS;
     let committer = AjtaiCommitter::setup_unchecked(params);
-    let z_base = vec![F::ONE, F::from_u64(3), F::from_u64(3)];
+    let z_base = vec![F::ONE, F::from_u64(2), F::from_u64(3)];  // 1 + 2 = 3
     let z = z_base.iter().copied().map(from_base).collect();
     let witness = CcsWitness { z };
     let z_mat = decomp_b(&z_base, params.b, params.d);

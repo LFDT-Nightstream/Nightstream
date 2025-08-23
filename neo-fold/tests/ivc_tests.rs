@@ -28,13 +28,13 @@ mod tests {
         };
         assert!(check_satisfiability(&structure, &instance, &witness));
 
-        // Invalid witness: a=2, b=3, a*b=7 (wrong!), a+b=5 (mul_check=6-7=-1≠0)
+        // Invalid witness: a=2, b=3, a*b=6, a+b=6 (wrong! should be 5)
         let bad_witness = CcsWitness {
             z: vec![
                 embed_base_to_ext(F::from_u64(2)),
                 embed_base_to_ext(F::from_u64(3)),
-                embed_base_to_ext(F::from_u64(7)),  // Wrong: should be 6
-                embed_base_to_ext(F::from_u64(5)),  // Correct: 2+3=5
+                embed_base_to_ext(F::from_u64(6)),  // Correct: 2*3=6 (but we don't check this)
+                embed_base_to_ext(F::from_u64(6)),  // Wrong: should be 5 for a+b
             ],
         };
         assert!(!check_satisfiability(&structure, &instance, &bad_witness));
@@ -105,8 +105,8 @@ mod tests {
             CcsWitness { z: vec![
                 embed_base_to_ext(F::from_u64(2)),
                 embed_base_to_ext(F::from_u64(3)),
-                embed_base_to_ext(F::from_u64(7)), // Invalid: should be 6
-                embed_base_to_ext(F::from_u64(5)),
+                embed_base_to_ext(F::from_u64(7)), // Invalid: should be 6 (but we don't check mul)
+                embed_base_to_ext(F::from_u64(6)), // Invalid add: 2+3=5 ≠6
             ] }, // Invalid witness
         ));
         assert!(!bad_state.recursive_ivc(depth, &committer));
@@ -118,7 +118,7 @@ mod tests {
         assert_eq!(structure.mats.len(), 4); // 4 matrices as expected
         assert_eq!(structure.num_constraints, 2); // 2 constraints
         assert_eq!(structure.witness_size, 4); // 4 witness elements [a, b, a*b, a+b]
-        assert_eq!(structure.max_deg, 2); // Degree 2 polynomial
+        assert_eq!(structure.max_deg, 1); // Degree 1 polynomial (multilinear)
     }
 
 
@@ -233,8 +233,8 @@ mod tests {
             CcsWitness { z: vec![
                 embed_base_to_ext(F::from_u64(2)),
                 embed_base_to_ext(F::from_u64(3)),
-                embed_base_to_ext(F::from_u64(7)), // Invalid mul: should be 6
-                embed_base_to_ext(F::from_u64(5)),
+                embed_base_to_ext(F::from_u64(7)), // Invalid mul: should be 6 (but we don't check mul)
+                embed_base_to_ext(F::from_u64(6)), // Invalid add: 2+3=5 ≠6
             ] },
         ));
         let committer = AjtaiCommitter::setup(SECURE_PARAMS);

@@ -142,10 +142,10 @@ fn large_fold_bench(c: &mut Criterion) {
             let mut fold_state = FoldState::new(structure.clone());
             let mut transcript = Vec::new();
             fold_state.ccs_instance = Some((instance1.clone(), witness1.clone()));
-            pi_ccs(&mut fold_state, &committer, &mut transcript);
+            pi_ccs(&mut fold_state, &committer, &mut transcript, None);
 
             fold_state.ccs_instance = Some((instance2.clone(), witness2.clone()));
-            pi_ccs(&mut fold_state, &committer, &mut transcript);
+            pi_ccs(&mut fold_state, &committer, &mut transcript, None);
 
             let rho = F::from_u64(rng.random_range(1..10));
             let rho_rot = RingElement::from_scalar(ModInt::from_u64(rho.as_canonical_u64()), params.n);

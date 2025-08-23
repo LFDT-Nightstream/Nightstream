@@ -9,13 +9,13 @@ neo-fields = { path = "../neo-fields" }
 neo-poly = { path = "../neo-poly" }
 neo-ring = { path = "../neo-ring" }
 neo-decomp = { path = "../neo-decomp" }
+neo-sumcheck = { path = "../neo-sumcheck" }   # for canonical FS helpers
 p3-matrix = "0.3.0"
 p3-field = "0.3"
 rand = { workspace = true }
 neo-modint = { path = "../neo-modint" }
 rand_distr = { workspace = true }
 subtle = "2.5"
-blake3 = "1.3"
 
 [features]
 prop-tests = []

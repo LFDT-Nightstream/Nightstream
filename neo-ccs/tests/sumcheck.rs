@@ -6,7 +6,7 @@ use rand::Rng;
 
 #[test]
 fn test_ccs_prover_no_copy_panic() {
-    let structure = CcsStructure::new(vec![], mv_poly(|_| ExtF::ZERO, 2));
+    let structure = CcsStructure::new(vec![], mv_poly(|_| ExtF::ZERO, 0)); // Changed to degree 0 for zero polynomial
     let instance = CcsInstance {
         commitment: vec![],
         public_input: vec![],

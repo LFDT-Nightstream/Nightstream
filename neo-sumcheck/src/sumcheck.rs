@@ -1,4 +1,6 @@
 use crate::fiat_shamir::{batch_unis, fiat_shamir_challenge};
+use crate::fiat_shamir::{fs_absorb_poly, fs_absorb_extf, fs_absorb_u64, fs_challenge_ext};
+use crate::fiat_shamir::{fs_challenge_base_labeled, NEO_FS_DOMAIN};
 use crate::challenger::NeoChallenger;
 use crate::{from_base, ExtF, Polynomial, UnivPoly, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -12,11 +14,7 @@ use thiserror::Error;
 /// Enhanced with full ZK blinding using Fiat-Shamir derived parameters
 const ZK_SIGMA: f64 = 3.2;
 
-/// Derive a deterministic seed from the transcript using Blake3.
-fn fs_challenge_u64(transcript: &[u8]) -> u64 {
-    let hash = blake3::hash(transcript);
-    u64::from_le_bytes(hash.as_bytes()[0..8].try_into().unwrap())
-}
+// No BLAKE3 here; use canonical helpers via fiat_shamir.rs when we need seeds.
 
 // NARK mode: Knowledge soundness verified through direct polynomial checks
 // extract_sumcheck_witness function removed - no longer needed
@@ -90,9 +88,8 @@ pub fn batched_sumcheck_prover(
     }
     let mut rng = ChaCha20Rng::from_seed(seed);
 
-    // CRITICAL FIX: Add rho domain separator BEFORE deriving challenge (match verifier)
-    transcript.extend(b"sumcheck_rho");
-    let rho = fiat_shamir_challenge(transcript);
+    // Structured, domain-separated challenge for the rho used to batch claims
+    let rho = fs_challenge_ext(transcript, b"sumcheck.rho");
 
     let mut rho_pow = ExtF::ONE;
     let mut current_batched = ExtF::ZERO;
@@ -105,8 +102,8 @@ pub fn batched_sumcheck_prover(
     eprintln!("SUMCHECK_PROVER_DEBUG: transcript.len()={} before rounds", transcript.len());
 
     for round in 0..ell {
-        // Frame round in transcript and challenger for domain separation
-        transcript.extend(format!("sumcheck_round_{}", round).as_bytes());
+        // Bind the round number into the transcript with length-delimited framing
+        fs_absorb_u64(transcript, b"sumcheck.round", round as u64);
         eprintln!("SUMCHECK_PROVER_DEBUG: transcript.len()={} after round {} info", transcript.len(), round);
         challenger.observe_bytes("round_label", format!("neo_sumcheck_round_{}", round).as_bytes());
         let remaining = ell - round - 1;
@@ -163,14 +160,14 @@ pub fn batched_sumcheck_prover(
         // Enhanced ZK blinding with Fiat-Shamir derived parameters
         let blind_deg = max_d.saturating_sub(2);
 
-        // Derive ZK sigma from transcript for enhanced security
         let mut zk_sigma_transcript = transcript.clone();
-        zk_sigma_transcript.extend(b"zk_sigma_derivation");
-        zk_sigma_transcript.extend(&round.to_le_bytes());
-        let zk_sigma_seed = fs_challenge_u64(&zk_sigma_transcript);
+        zk_sigma_transcript.extend_from_slice(NEO_FS_DOMAIN);
+        zk_sigma_transcript.extend_from_slice(b"|neo.sumcheck.zk_sigma");
+        zk_sigma_transcript.extend_from_slice(&round.to_le_bytes());
+        let zk_sigma_seed = fs_challenge_base_labeled(&zk_sigma_transcript, "neo.sumcheck.zk_sigma.seed").as_canonical_u64();
         let zk_sigma = ZK_SIGMA + (zk_sigma_seed as f64 / u64::MAX as f64) * 2.0; // Range [3.2, 5.2]
 
-        let blind_coeffs: Vec<ExtF> = (0..=blind_deg)
+        let mut blind_coeffs: Vec<ExtF> = (0..=blind_deg)
             .map(|_| {
                 let sample: f64 =
                     <StandardNormal as Distribution<f64>>::sample(&StandardNormal, &mut rng)
@@ -178,10 +175,29 @@ pub fn batched_sumcheck_prover(
                 from_base(F::from_i64(sample.round() as i64))
             })
             .collect();
-        let blind_poly = Polynomial::new(blind_coeffs);
+        let mut blind_poly = Polynomial::new(blind_coeffs.clone());
         let x_poly = Polynomial::new(vec![ExtF::ZERO, ExtF::ONE]);
         let xm1_poly = Polynomial::new(vec![-ExtF::ONE, ExtF::ONE]);
-        let blind_factor = x_poly * xm1_poly * blind_poly;
+        let mut blind_factor = x_poly.clone() * xm1_poly.clone() * blind_poly.clone();
+        
+        // TRANSCRIPT FIX: Ensure blind_factor maintains full degree to prevent cursor position mismatches
+        let mut attempts = 0;
+        while blind_factor.coeffs().is_empty() || blind_factor.coeffs().last() == Some(&ExtF::ZERO) {
+            if attempts >= 100 {
+                return Err(SumCheckError::InvalidSum(round));
+            }
+            blind_coeffs = (0..=blind_deg)
+                .map(|_| {
+                    let sample: f64 =
+                        <StandardNormal as Distribution<f64>>::sample(&StandardNormal, &mut rng)
+                            * zk_sigma;
+                    from_base(F::from_i64(sample.round() as i64))
+                })
+                .collect();
+            blind_poly = Polynomial::new(blind_coeffs.clone());
+            blind_factor = x_poly.clone() * xm1_poly.clone() * blind_poly.clone();
+            attempts += 1;
+        }
         let mut uni_polys_with_blind = uni_polys.clone();
         uni_polys_with_blind.push(blind_factor.clone());
         
@@ -203,12 +219,13 @@ pub fn batched_sumcheck_prover(
             return Err(SumCheckError::InvalidSum(round));
         }
 
-        // CRITICAL FIX: Use serialize_uni to include degree prefix (matches verifier expectation)
-        transcript.extend(serialize_uni(&batched_uni));
-        eprintln!("SUMCHECK_PROVER_DEBUG: Round {} - transcript.len()={} after serialize_uni", round, transcript.len());
+        // Absorb the univariate with structured framing
+        fs_absorb_poly(transcript, b"sumcheck.uni", &batched_uni);
+        eprintln!("SUMCHECK_PROVER_DEBUG: Round {} - transcript.len()={} after fs_absorb_poly", round, transcript.len());
         challenger.observe_bytes("blinded_uni", &serialize_uni(&batched_uni));
 
-        let challenge = fiat_shamir_challenge(transcript); // Direct FS to match verifier
+        // Round challenge with domain separation
+        let challenge = fs_challenge_ext(transcript, b"sumcheck.challenge");
         challenges.push(challenge);
 
         let num_polys = polys.len();
@@ -241,8 +258,9 @@ pub fn batched_sumcheck_prover(
             eprintln!("SUMCHECK_PROVER_DEBUG: batched_uni coeffs = {:?}", batched_uni.coeffs());
             eprintln!("SUMCHECK_PROVER_DEBUG: blind_factor coeffs = {:?}", blind_factor.coeffs());
         }
+        // Absorb blind evaluation in structured form
+        fs_absorb_extf(transcript, b"sumcheck.blind_eval", blind_eval);
         let blind_bytes: Vec<u8> = serialize_ext(blind_eval);
-        transcript.extend(&blind_bytes);
         challenger.observe_bytes("blind_eval", &blind_bytes);
 
         msgs.push((batched_uni.clone(), blind_eval));
@@ -262,10 +280,8 @@ pub fn batched_sumcheck_verifier(
     
     if msgs.is_empty() {
         // Trivial case: no rounds, return the combined claim as final_current
-        // CRITICAL FIX: Add rho domain separator BEFORE deriving challenge
-        transcript.extend(b"sumcheck_rho");
-        let rho = fiat_shamir_challenge(transcript);
-        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Trivial case - transcript.len()={}, using direct fiat_shamir rho={:?}", transcript.len(), rho);
+        let rho = fs_challenge_ext(transcript, b"sumcheck.rho");
+        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Trivial case - transcript.len()={}, using structured FS rho={:?}", transcript.len(), rho);
         
         let mut rho_pow = ExtF::ONE;
         let mut current = ExtF::ZERO;
@@ -277,10 +293,8 @@ pub fn batched_sumcheck_verifier(
         return Some((vec![], current));
     }
     
-    // CRITICAL FIX: Add rho domain separator BEFORE deriving challenge
-    transcript.extend(b"sumcheck_rho");
-    let rho = fiat_shamir_challenge(transcript);
-    eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Initial transcript.len()={}, using direct fiat_shamir rho={:?}", transcript.len(), rho);
+    let rho = fs_challenge_ext(transcript, b"sumcheck.rho");
+    eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Initial transcript.len()={}, using structured FS rho={:?}", transcript.len(), rho);
     
     let mut rho_pow = ExtF::ONE;
     let mut current = ExtF::ZERO;
@@ -295,26 +309,25 @@ pub fn batched_sumcheck_verifier(
     let mut r = Vec::new();
     
     for (round, (uni, blind_eval)) in msgs.iter().enumerate() {
-        transcript.extend(format!("sumcheck_round_{}", round).as_bytes());
-        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - extended transcript with round info", round);
+        fs_absorb_u64(transcript, b"sumcheck.round", round as u64);
+        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - absorbed round with structured FS", round);
         if uni.eval(ExtF::ZERO) + uni.eval(ExtF::ONE) != current {
             eprintln!("VERIFIER_DEBUG: ❌ Round {} FAILED sum check: {} != {}", round, uni.eval(ExtF::ZERO) + uni.eval(ExtF::ONE), current);
             return None;
         }
         eprintln!("VERIFIER_DEBUG: ✅ Round {} passed sum check", round);
         
-        // CRITICAL FIX: Extend transcript with received uni to match prover
-        transcript.extend(serialize_uni(uni)); // Now matches prover's extension
-        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - extended transcript with serialize_uni", round);
-        let challenge = fiat_shamir_challenge(transcript); // Direct FS to match prover
-        eprintln!("VERIFIER_DEBUG: Round {} - using direct fiat_shamir challenge={:?}", round, challenge);
+        // Absorb the received uni exactly as the prover absorbed it
+        fs_absorb_poly(transcript, b"sumcheck.uni", uni);
+        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - absorbed uni with structured FS", round);
+        let challenge = fs_challenge_ext(transcript, b"sumcheck.challenge");
+        eprintln!("VERIFIER_DEBUG: Round {} - using structured FS challenge={:?}", round, challenge);
         eprintln!("VERIFIER_DEBUG: Round {} - challenge={:?}", round, challenge);
         eprintln!("VERIFIER_DEBUG: Round {} - uni.eval(challenge)={:?}, blind_eval={:?}", round, uni.eval(challenge), *blind_eval);
         current = uni.eval(challenge) - *blind_eval;
         eprintln!("VERIFIER_DEBUG: Round {} - updated current={:?}", round, current);
-        let blind_bytes: Vec<u8> = serialize_ext(*blind_eval);
-        transcript.extend(&blind_bytes); // Now matches prover
-        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - extended transcript with blind_bytes", round);
+        fs_absorb_extf(transcript, b"sumcheck.blind_eval", *blind_eval);
+        eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - absorbed blind_eval with structured FS", round);
         r.push(challenge);
     }
 
@@ -587,3 +600,5 @@ pub fn batched_multilinear_sumcheck_verifier(
         None
     }
 }
+
+

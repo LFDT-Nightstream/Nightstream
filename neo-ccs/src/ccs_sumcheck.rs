@@ -2,7 +2,7 @@ use crate::{CcsInstance, CcsStructure, CcsWitness};
 use neo_fields::{embed_base_to_ext, from_base};
 use neo_sumcheck::{
     challenger::NeoChallenger,
-    fiat_shamir::{batch_unis, fiat_shamir_challenge},
+    fiat_shamir::{batch_unis, fs_absorb_poly, fs_absorb_extf, fs_absorb_u64, fs_challenge_ext},
     ExtF, Polynomial, F,
 };
 use rand_chacha::rand_core::SeedableRng;
@@ -22,38 +22,26 @@ pub fn ccs_sumcheck_verifier(
     _norm_bound: u64,
     transcript: &mut Vec<u8>,
 ) -> Option<(Vec<ExtF>, ExtF)> {
-    transcript.extend(b"norm_alpha");
-    let _alpha = fiat_shamir_challenge(transcript);
-    transcript.extend(b"ccs_norm_rho");
-    let _rho = fiat_shamir_challenge(transcript);
+    let _alpha = fs_challenge_ext(transcript, b"ccs.norm_alpha");
+    let _rho = fs_challenge_ext(transcript, b"ccs.norm_rho");
 
     let mut current = claim;
     let mut r = Vec::new();
 
     for (round, (uni, blind_eval)) in msgs.iter().enumerate() {
-        transcript.extend(format!("neo_ccs_round_{}", round).as_bytes());
+        fs_absorb_u64(transcript, b"ccs.round", round as u64);
         let eval_0 = uni.eval(ExtF::ZERO);
         let eval_1 = uni.eval(ExtF::ONE);
         let sum = eval_0 + eval_1;
-        eprintln!("ccs_sumcheck_verifier: Round {}: eval(0)={:?}, eval(1)={:?}, sum={:?}, current={:?}", 
-                 round, eval_0, eval_1, sum, current);
+        eprintln!("ccs_sumcheck_verifier: Round {round}: eval(0)={eval_0:?}, eval(1)={eval_1:?}, sum={sum:?}, current={current:?}");
         if sum != current {
-            eprintln!("ccs_sumcheck_verifier: FAIL - sum check failed in round {}", round);
+            eprintln!("ccs_sumcheck_verifier: FAIL - sum check failed in round {round}");
             return None;
         }
-        for &c in uni.coeffs() {
-            let arr = c.to_array();
-            transcript.extend(&arr[0].as_canonical_u64().to_be_bytes());
-            transcript.extend(&arr[1].as_canonical_u64().to_be_bytes());
-        }
-        let challenge = fiat_shamir_challenge(transcript);
+        fs_absorb_poly(transcript, b"ccs.uni", uni);
+        let challenge = fs_challenge_ext(transcript, b"ccs.challenge");
         current = uni.eval(challenge) - *blind_eval;
-        transcript.extend(
-            blind_eval
-                .to_array()
-                .iter()
-                .flat_map(|f| f.as_canonical_u64().to_be_bytes()),
-        );
+        fs_absorb_extf(transcript, b"ccs.blind_eval", *blind_eval);
         r.push(challenge);
     }
 
@@ -121,15 +109,13 @@ pub fn ccs_sumcheck_prover(
         *dest = src;
     }
 
-    transcript.extend(b"norm_alpha");
-    let alpha = fiat_shamir_challenge(transcript);
+    let alpha = fs_challenge_ext(transcript, b"ccs.norm_alpha");
     let mut alpha_table = vec![ExtF::ONE; padded];
     for i in 1..padded {
         alpha_table[i] = alpha_table[i - 1] * alpha;
     }
 
-    transcript.extend(b"ccs_norm_rho");
-    let rho = fiat_shamir_challenge(transcript);
+    let rho = fs_challenge_ext(transcript, b"ccs.norm_rho");
 
     let mut current = ExtF::ZERO;
     let mut msgs = Vec::with_capacity(l);
@@ -139,7 +125,7 @@ pub fn ccs_sumcheck_prover(
     let mut seed = [0u8; 32];
     for i in 0..4 {
         let limb = ch
-            .challenge_base(&format!("blind_seed_{}", i))
+            .challenge_base(&format!("blind_seed_{i}"))
             .as_canonical_u64();
         seed[i * 8..(i + 1) * 8].copy_from_slice(&limb.to_be_bytes());
     }
@@ -241,7 +227,7 @@ pub fn ccs_sumcheck_prover(
         current = claim_ccs + claim_norm;
 
         for round in 0..l {
-            transcript.extend(format!("neo_ccs_round_{}", round).as_bytes());
+            fs_absorb_u64(transcript, b"ccs.round", round as u64);
             let half = witness_table.len() / 2;
 
             // Fold CCS tables directly
@@ -296,21 +282,12 @@ pub fn ccs_sumcheck_prover(
                 return Err(ProverError::SumMismatch(round));
             }
 
-            for &c in blinded.coeffs() {
-                let arr = c.to_array();
-                transcript.extend(&arr[0].as_canonical_u64().to_be_bytes());
-                transcript.extend(&arr[1].as_canonical_u64().to_be_bytes());
-            }
-            let r = fiat_shamir_challenge(transcript);
+            fs_absorb_poly(transcript, b"ccs.uni", &blinded);
+            let r = fs_challenge_ext(transcript, b"ccs.challenge");
             let blind_weight = rho * rho;
             let blind_eval = blind_factor.eval(r) * blind_weight;
             current = blinded.eval(r) - blind_eval;
-            transcript.extend(
-                blind_eval
-                    .to_array()
-                    .iter()
-                    .flat_map(|f| f.as_canonical_u64().to_be_bytes()),
-            );
+            fs_absorb_extf(transcript, b"ccs.blind_eval", blind_eval);
             msgs.push((blinded.clone(), blind_eval));
 
             // Fold tables in place
@@ -337,7 +314,7 @@ pub fn ccs_sumcheck_prover(
     }
 
     for round in 0..l {
-        transcript.extend(format!("neo_ccs_round_{}", round).as_bytes());
+        fs_absorb_u64(transcript, b"ccs.round", round as u64);
         let half = witness_table.len() / 2;
 
         // No copying: use tables directly via indices
@@ -406,21 +383,12 @@ pub fn ccs_sumcheck_prover(
             return Err(ProverError::SumMismatch(round));
         }
 
-        for &c in blinded.coeffs() {
-            let arr = c.to_array();
-            transcript.extend(&arr[0].as_canonical_u64().to_be_bytes());
-            transcript.extend(&arr[1].as_canonical_u64().to_be_bytes());
-        }
-        let r = fiat_shamir_challenge(transcript);
+        fs_absorb_poly(transcript, b"ccs.uni", &blinded);
+        let r = fs_challenge_ext(transcript, b"ccs.challenge");
         let blind_weight = rho * rho;
         let blind_eval = blind_factor.eval(r) * blind_weight;
         current = blinded.eval(r) - blind_eval;
-        transcript.extend(
-            blind_eval
-                .to_array()
-                .iter()
-                .flat_map(|f| f.as_canonical_u64().to_be_bytes()),
-        );
+        fs_absorb_extf(transcript, b"ccs.blind_eval", blind_eval);
         msgs.push((blinded.clone(), blind_eval));
 
         for j in 0..s {

@@ -4,8 +4,6 @@ use crate::fiat_shamir::{fiat_shamir_challenge, fiat_shamir_challenge_base};
 use crate::{ExtF, F};
 use p3_field::PrimeField64;
 
-const SMALL_COEFF_BOUND: i64 = 2; // [-2..2]
-
 pub struct NeoChallenger {
     transcript: Vec<u8>,
 }
@@ -58,28 +56,30 @@ impl NeoChallenger {
         (0..len).map(|_| self.challenge_ext("vec_elem")).collect()
     }
 
-    /// Squeeze a rotation element in the cyclotomic ring with small coefficients.
+    /// Deterministically derive an invertible "rotation" element ρ ∈ R = Z_q[X]/(X^n+1)
+    /// from the transcript. We return ±X^j, which is always invertible in R.
     pub fn challenge_rotation(&mut self, label: &str, n: usize) -> RingElement<ModInt> {
+        // Domain-separate and derive one base-field limb
         self.observe_bytes("rotation_label", label.as_bytes());
-        let squeezed_bytes = (0..n)
-            .map(|_| self.challenge_base("rotation_byte").as_canonical_u64() as u8)
-            .collect::<Vec<_>>();
+        let limb = self.challenge_base(&format!("{label}|rot_j")).as_canonical_u64() as usize;
 
+        // Map into {0, …, 2n-1}. Indices in [n, 2n) correspond to a negative sign due to X^n ≡ -1.
+        let m = 2 * n;
+        let j = if m > 0 { limb % m } else { 0 };
+
+        // Build ±X^j as a ring element
         let mut coeffs = vec![ModInt::from_u64(0); n];
-        for (i, &byte) in squeezed_bytes.iter().enumerate() {
-            let signed = (byte as i64 % (2 * SMALL_COEFF_BOUND + 1)) - SMALL_COEFF_BOUND;
-            coeffs[i] = ModInt::from(signed as i128);
+        if j < n {
+            coeffs[j] = ModInt::from_u64(1);                 //  +X^j
+        } else {
+            coeffs[j - n] = ModInt::from_u64(ModInt::Q - 1); //  -X^{j-n}
         }
+        let rot = RingElement::from_coeffs(coeffs, n);
 
-        let a = RingElement::from_coeffs(coeffs, n);
-        for _ in 0..10 {
-            if a.is_invertible() {
-                return a.rotate(1);
-            }
-            let _ = self.challenge_ext("retry_invert");
-        }
-        panic!("Failed to sample invertible rotation");
+        debug_assert!(rot.is_invertible(), "constructed rotation should be invertible");
+        rot
     }
 }
+
 
 

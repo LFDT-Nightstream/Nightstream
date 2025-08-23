@@ -20,7 +20,6 @@ p3-poseidon2 = "0.3.0"
 p3-symmetric = "0.3.0"
 p3-goldilocks = { workspace = true }
 thiserror = "1.0"
-blake3 = "1.5"
 byteorder = "1.5"
 subtle = "2.5"
 

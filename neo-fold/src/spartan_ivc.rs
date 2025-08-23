@@ -65,17 +65,3 @@ pub fn add_zk_blinding(evals: &mut [ExtF], _rng: &mut StdRng) {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_spartan_integration() {
-        println!("=== Testing NARK Mode Integration ===");
-        
-        // For now, just test that the functions exist and can be called
-        // Full integration test would require proper CCS setup
-        
-        println!("✅ NARK mode functions are available");
-        println!("✅ NARK mode integration is ready for use (no compression)");
-    }
-}

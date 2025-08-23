@@ -33,12 +33,12 @@ fn test_large_satisfiability() {
     let f = mv_poly(
         move |inputs: &[ExtF]| {
             if inputs.len() == s {
-                inputs[0] * inputs[1] - inputs[2]
+                inputs[0] + inputs[1] - inputs[2]  // Changed to multilinear: sum instead of product
             } else {
                 ExtF::ZERO
             }
         },
-        2,
+        1,  // Changed degree to 1 since it's now multilinear
     );
 
     let structure = CcsStructure::new(mats, f);

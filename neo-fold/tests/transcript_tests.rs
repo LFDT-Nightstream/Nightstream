@@ -45,11 +45,62 @@ fn test_transcript_layout_roundtrip() {
     assert!(proof.transcript.len() > 100, "Transcript should be substantial");
     assert!(proof.transcript.len() < 10000, "Transcript should not be excessive");
     
-    // Check that it starts with expected tag
+    // Check that it starts with expected tag (now starts with preview for joint FS)
     let (prefix, _hash) = proof.transcript.split_at(proof.transcript.len() - 32);
-    assert!(prefix.starts_with(b"neo_pi_ccs1"), "Should start with neo_pi_ccs1 tag");
+    assert!(
+        prefix.starts_with(b"neo_pi_ccs2_preview"),
+        "Transcript didn't start with 'neo_pi_ccs2_preview'. First 24 bytes: {:?}",
+        &prefix[..prefix.len().min(24)]
+    );
+    
+    // Stronger layout check: verify the preview matches the real CCS2 commit
+    let n = committer.params().n;
+    let mut i = 0;
+
+    // 1) neo_pi_ccs2_preview
+    let t0 = b"neo_pi_ccs2_preview";
+    assert_eq!(&prefix[i..i + t0.len()], t0);
+    i += t0.len();
+
+    //   serialized commit2 preview (len byte + len * n * 8 bytes)
+    let len_prev = prefix[i] as usize;
+    let prev_block_start = i;
+    i += 1 + len_prev * n * 8;
+    let prev_block = &prefix[prev_block_start..i];
+
+    // 2) neo_pi_ccs1 then its commit (skip over it)
+    let t1 = b"neo_pi_ccs1";
+    assert_eq!(&prefix[i..i + t1.len()], t1);
+    i += t1.len();
+    let len_c1 = prefix[i] as usize;
+    i += 1 + len_c1 * n * 8;
+
+    // 3) find the exact "neo_pi_ccs2" tag (not the earlier "..._preview")
+    let tag2 = b"neo_pi_ccs2";
+    let pos2 = prefix[i..]
+        .windows(tag2.len())
+        .enumerate()
+        .find(|(off, w)| {
+            *w == tag2 && prefix[i + off + tag2.len()] != b'_' // exclude "..._preview"
+        })
+        .map(|(off, _)| i + off)
+        .expect("neo_pi_ccs2 tag not found");
+    i = pos2 + tag2.len();
+
+    //   serialized real commit2
+    let len_c2 = prefix[i] as usize;
+    let c2_block_start = i;
+    i += 1 + len_c2 * n * 8;
+    let c2_block = &prefix[c2_block_start..i];
+
+    // 4) the preview must equal the real commit2 (byte-for-byte)
+    assert_eq!(
+        prev_block, c2_block,
+        "commit2 preview did not match the real commit2"
+    );
     
     println!("Transcript layout validation passed! Length: {}", proof.transcript.len());
+    println!("✅ Preview commit matches real commit2 - joint FS integrity verified");
 }
 
 /// Test zero polynomial full flow - ensures zero polynomial cases

@@ -42,6 +42,7 @@ fn test_rlc_different_r_rejected() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let e2 = EvalInstance {
@@ -51,6 +52,7 @@ fn test_rlc_different_r_rejected() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let new_eval = EvalInstance {
@@ -60,6 +62,7 @@ fn test_rlc_different_r_rejected() {
         u: from_base(F::from_u64(2)), // e1.u + e2.u
         e_eval: from_base(F::from_u64(2)), // e1.e_eval + e2.e_eval
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let rho_rot = RingElement::from_scalar(ModInt::one(), TOY_PARAMS.n);
@@ -83,6 +86,7 @@ fn test_rlc_identical_r_passes() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let e2 = EvalInstance {
@@ -92,6 +96,7 @@ fn test_rlc_identical_r_passes() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let new_eval = EvalInstance {
@@ -101,6 +106,7 @@ fn test_rlc_identical_r_passes() {
         u: from_base(F::from_u64(2)), // e1.u + e2.u
         e_eval: from_base(F::from_u64(2)), // e1.e_eval + e2.e_eval
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let rho_rot = RingElement::from_scalar(ModInt::one(), TOY_PARAMS.n);
@@ -127,6 +133,7 @@ fn test_verify_dec_rejects_empty_commitment() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let new_eval = EvalInstance {
@@ -136,6 +143,7 @@ fn test_verify_dec_rejects_empty_commitment() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     assert!(!verify_dec(&committer, &e, &new_eval));
@@ -155,6 +163,7 @@ fn test_verify_dec_rejects_wrong_commitment_length() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let new_eval = EvalInstance {
@@ -167,6 +176,7 @@ fn test_verify_dec_rejects_wrong_commitment_length() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     assert!(!verify_dec(&committer, &e, &new_eval));
@@ -186,6 +196,7 @@ fn test_verify_dec_rejects_excessive_norm_bound() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     
     let new_eval = EvalInstance {
@@ -195,6 +206,7 @@ fn test_verify_dec_rejects_excessive_norm_bound() {
         u: from_base(F::ONE),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound + 1, // Excessive norm bound
+        opening_proof: None,
     };
     
     assert!(!verify_dec(&committer, &e, &new_eval));

@@ -30,6 +30,7 @@ fn verify_open_accepts_valid_zero_constraint() {
         u: from_base(F::ZERO),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
 
     assert!(
@@ -51,6 +52,7 @@ fn verify_open_rejects_mismatch_between_f_ys_and_rhs() {
         u: from_base(F::ZERO),
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
 
     assert!(
@@ -74,6 +76,7 @@ fn verify_open_rejects_large_norm_e_eval() {
         u: from_base(F::ZERO),
         e_eval: big,
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
 
     assert!(
@@ -97,6 +100,7 @@ fn verify_open_rejects_large_norm_u() {
         u: big,
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
 
     assert!(
@@ -119,6 +123,7 @@ fn verify_open_requires_proof_when_commitment_present() {
         u: from_base(F::ZERO),
         e_eval: from_base(F::ZERO),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     // Make commitment non-empty
     let zero_ring = RingElement::from_scalar(ModInt::zero(), committer.params().n);
@@ -145,6 +150,7 @@ fn verify_open_accepts_nonlinear_constraint() {
         u: from_base(F::ZERO),               // u * e_eval^2 = 0 * 1^2 = 0
         e_eval: from_base(F::ONE),
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
 
     // This should PASS because for non-linear f, we skip the point-binding check

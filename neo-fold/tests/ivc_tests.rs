@@ -69,6 +69,7 @@ mod tests {
             u: ExtF::ZERO,
             e_eval: ExtF::ONE,
             norm_bound: 10,
+            opening_proof: None,
         };
         eprintln!("DEBUG: Initial e_eval = {:?}", initial_eval_instance.e_eval);
         state.eval_instances.push(initial_eval_instance);
@@ -140,6 +141,7 @@ mod tests {
             u: ExtF::ZERO,
             e_eval: ExtF::ONE,
             norm_bound: 100,
+            opening_proof: None,
         });
         assert!(state_with_eval.recursive_ivc(0, &committer));
     }
@@ -182,6 +184,7 @@ mod tests {
             u: ExtF::ZERO,
             e_eval: ExtF::ZERO, // Constraint evaluation should be 0 for satisfied witness
             norm_bound: 10,
+            opening_proof: None,
         });
         
         eprintln!("About to call recursive_ivc(1)");

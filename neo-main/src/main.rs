@@ -9,6 +9,11 @@ use neo_modint::ModInt;
 use p3_field::PrimeCharacteristicRing;
 use std::time::Instant;
 
+// Current status:
+// Current proof: “I can produce a transcript that is algebraically self‑consistent.”
+// Later on with Spartan, we will have openings: “I can produce a transcript that is algebraically self‑consistent and all the values used in it are the evaluations of the same committed witness at the verifier’s random point.”
+// We are avoiding opening for the time being until we integrate Spartan.
+
 fn main() {
     println!("Neo Lattice Demo: Proving Fibonacci Series");
 

@@ -75,6 +75,7 @@ fn test_verify_open_valid() {
         u: ExtF::ZERO,
         e_eval: ExtF::ONE,
         norm_bound: committer.params().norm_bound,
+        opening_proof: None,
     };
     assert!(verify_open(&structure, &committer, &eval, committer.params().max_blind_norm));
 }
@@ -100,6 +101,7 @@ fn test_verify_open_invalid_eval() {
         u: ExtF::ZERO,
         e_eval: ExtF::ONE,
         norm_bound: committer.params().norm_bound,
+        opening_proof: None,
     };
     // This should fail because f(ys) = ys[0] = 1, but u * e_eval^2 = 0 * 1^2 = 0
     assert!(!verify_open(&structure, &committer, &eval, committer.params().max_blind_norm));
@@ -116,6 +118,7 @@ fn test_verify_open_invalid_norm() {
         u: ExtF::new_real(F::from_u64(committer.params().max_blind_norm + 1)), // Test u norm instead
         e_eval: ExtF::ONE,
         norm_bound: committer.params().norm_bound,
+        opening_proof: None,
     };
     assert!(!verify_open(&structure, &committer, &eval, committer.params().max_blind_norm));
 }

@@ -63,6 +63,7 @@ fn test_verify_ccs_trusts_sumcheck_in_nark_mode() {
         u: ExtF::ZERO,
         e_eval: ExtF::ZERO,
         norm_bound: 1,
+        opening_proof: None,
     };
     // Both valid and "invalid" instances should pass in NARK mode because we trust sumcheck
     assert!(verify_ccs(&structure, &instance, 1, &[], &[eval.clone()], &committer));

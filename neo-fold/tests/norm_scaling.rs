@@ -26,6 +26,7 @@ fn test_norm_scaling() {
         u: ExtF::ZERO,
         e_eval: ExtF::ZERO,
         norm_bound: 2,
+        opening_proof: None,
     };
     let eval2 = EvalInstance {
         commitment: zero_commit,
@@ -34,6 +35,7 @@ fn test_norm_scaling() {
         u: ExtF::ZERO,
         e_eval: ExtF::ZERO,
         norm_bound: 3,
+        opening_proof: None,
     };
     state.eval_instances = vec![
         eval1.clone(),  // index 0: norm_bound=2
@@ -44,6 +46,7 @@ fn test_norm_scaling() {
             u: ExtF::ZERO,
             e_eval: ExtF::ZERO,
             norm_bound: 0,
+            opening_proof: None,
         },  // index 1: dummy norm=0
         eval2.clone(),  // index 2: norm_bound=3
         EvalInstance {
@@ -53,6 +56,7 @@ fn test_norm_scaling() {
             u: ExtF::ZERO,
             e_eval: ExtF::ZERO,
             norm_bound: 0,
+            opening_proof: None,
         },  // index 3: dummy norm=0
     ];
     let rho_rot = RingElement::zero(params.n);

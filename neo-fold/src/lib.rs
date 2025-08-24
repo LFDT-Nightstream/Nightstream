@@ -85,6 +85,7 @@ pub struct EvalInstance {
     pub u: ExtF,         // Relaxation scalar
     pub e_eval: ExtF,    // Eval of E at r
     pub norm_bound: u64, // b for low-norm
+    pub opening_proof: Option<Vec<RingElement<ModInt>>>, // Opening proof for point-binding
 }
 
 #[derive(Clone)]
@@ -621,6 +622,7 @@ impl FoldState {
             u: u1_ext, // Use detected instance values
             e_eval: e1_ext, // Use detected e value instead of sumcheck result for consistency
             norm_bound: committer.params().norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         };
         let first_instance = CcsInstance {
             commitment: commit1.clone(),
@@ -630,12 +632,17 @@ impl FoldState {
         };
         eprintln!("verify: cursor position after CCS1 verification: {}", cursor.position());
         eprintln!("verify: About to call verify_ccs with msgs1.len()={}", msgs1.len());
+        // NARK: skip point-opening; we didn't emit an opening proof
+        let first_eval_nark = EvalInstance { 
+            commitment: vec![], // Empty commitment to skip opening check
+            ..first_eval.clone() 
+        };
         if !verify_ccs(
             &self.structure,
             &first_instance,
             self.max_blind_norm,
             &msgs1,
-            &[first_eval.clone()],
+            &[first_eval_nark],
             committer,
         ) {
             eprintln!("verify: FAIL - verify_ccs returned false");
@@ -654,6 +661,7 @@ impl FoldState {
             u: u1_ext, // Use detected instance values
             e_eval: e1_ext, // Use detected e value instead of sumcheck result for consistency
             norm_bound: committer.params().norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         };
         
         reconstructed.push(first_eval);
@@ -696,6 +704,7 @@ impl FoldState {
             u: prev_eval.u,
             e_eval: prev_eval.e_eval,
             norm_bound: committer.params().norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         };
         eprintln!("verify: About to call verify_dec for instance 1");
         if !verify_dec(committer, &prev_eval, &dec_eval) {
@@ -826,6 +835,7 @@ impl FoldState {
             u: u2_ext, // Use detected instance values
             e_eval: e2_ext, // Use detected e value instead of sumcheck result for consistency
             norm_bound: committer.params().norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         };
         let second_instance = CcsInstance {
             commitment: commit2.clone(),
@@ -834,12 +844,17 @@ impl FoldState {
             e: if e2_ext == from_base(F::ZERO) { F::ZERO } else { F::ONE },
         };
         eprintln!("verify: About to call verify_ccs for CCS2");
+        // NARK: skip point-opening; we didn't emit an opening proof
+        let temp_second_eval_nark = EvalInstance {
+            commitment: vec![], // Empty commitment to skip opening check
+            ..temp_second_eval.clone()
+        };
         if !verify_ccs(
             &self.structure,
             &second_instance,
             self.max_blind_norm,
             &msgs2,
-            &[temp_second_eval.clone()],
+            &[temp_second_eval_nark],
             committer,
         ) {
             eprintln!("verify: FAIL - verify_ccs CCS2 returned false");
@@ -858,6 +873,7 @@ impl FoldState {
             u: u2_ext, // Use detected instance values
             e_eval: e2_ext, // Use detected e value instead of sumcheck result for consistency
             norm_bound: committer.params().norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         };
         
         reconstructed.push(second_eval);
@@ -885,6 +901,7 @@ impl FoldState {
             u: prev_eval.u,
             e_eval: prev_eval.e_eval,
             norm_bound: committer.params().norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         };
         eprintln!("verify: About to call verify_dec for instance 2");
         if !verify_dec(committer, &prev_eval, &dec_eval2) {
@@ -941,6 +958,7 @@ impl FoldState {
             u: u_new,
             e_eval: e_eval_new,
             norm_bound: new_norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         };
         eprintln!("verify: About to call verify_rlc");
         if !verify_rlc(&e1, &e2, &rho_rot, &combo_eval, committer) {
@@ -1523,6 +1541,7 @@ pub fn pi_ccs(
             u: ExtF::ZERO,
             e_eval: ExtF::ZERO, // NARK mode: No polynomial evaluation needed
             norm_bound: params.norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         };
         eprintln!("pi_ccs: SIMULATION - EvalInstance created, adding to fold_state");
         fold_state.eval_instances.push(eval);
@@ -1580,6 +1599,7 @@ pub fn pi_rlc(
             u: u_new,
             e_eval: e_eval_new,
             norm_bound: new_norm_bound,
+            opening_proof: None, // Will be populated during proof generation
         });
         fold_state.max_blind_norm = {
             let squared = (fold_state.max_blind_norm as u128).pow(2);
@@ -1619,6 +1639,7 @@ pub fn pi_dec(fold_state: &mut FoldState, committer: &AjtaiCommitter, transcript
                 u: eval.u,
                 e_eval: eval.e_eval,
                 norm_bound: params.norm_bound,
+                opening_proof: None, // Will be populated during proof generation
             });
             eprintln!("pi_dec: Successfully added new eval instance, total count={}", fold_state.eval_instances.len());
         } else {

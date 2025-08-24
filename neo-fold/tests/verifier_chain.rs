@@ -149,6 +149,7 @@ fn test_fs_binding_in_dec() {
         u: ExtF::ZERO,
         e_eval: ExtF::ZERO,
         norm_bound: TOY_PARAMS.norm_bound,
+        opening_proof: None,
     };
     let mut state1 = FoldState::new(structure.clone());
     state1.eval_instances.push(base_eval.clone());

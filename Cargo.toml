@@ -12,6 +12,7 @@ members = [
     "neo-fold",
     "neo-arithmetize",
     "neo-orchestrator",
+    "neo-bench",
 ]
 resolver = "2"
 

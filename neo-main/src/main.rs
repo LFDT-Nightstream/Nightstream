@@ -24,7 +24,7 @@ fn main() {
     println!("DEBUG: Committer setup completed!");
 
     // High-level input: Length of Fibonacci series to prove
-    let fib_length = 3;
+    let fib_length = 5;
 
     // Convert high-level input to CCS (using new module)
     println!("DEBUG: Creating CCS for fibonacci length {}...", fib_length);

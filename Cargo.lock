@@ -756,6 +756,7 @@ dependencies = [
  "p3-challenger",
  "p3-field",
  "p3-fri",
+ "p3-goldilocks",
  "p3-matrix",
  "p3-poseidon2",
  "p3-symmetric",

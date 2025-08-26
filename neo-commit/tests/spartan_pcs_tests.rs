@@ -307,26 +307,7 @@ mod spartan2_pcs_tests {
     fn test_field_conversion_safety() {
         println!("🧪 Testing field conversion safety");
 
-        #[cfg(feature = "snark_mode")]
         use neo_fields::spartan2_compat::field_conversion::*;
-        #[cfg(not(feature = "snark_mode"))]
-        #[allow(unused_imports)]
-        use neo_fields::spartan2_engine::GoldilocksEngine;
-        
-        #[cfg(not(feature = "snark_mode"))]
-        #[allow(dead_code)]
-        fn goldilocks_to_pallas_scalar(_f: &F) -> spartan2::provider::pasta::pallas::Scalar { 
-            spartan2::provider::pasta::pallas::Scalar::from_raw([0, 0, 0, 0]) 
-        }
-        #[cfg(not(feature = "snark_mode"))]
-        fn pallas_scalar_to_goldilocks(_s: &spartan2::provider::pasta::pallas::Scalar) -> Result<F, String> { 
-            Ok(F::ZERO) 
-        }
-        #[cfg(not(feature = "snark_mode"))]
-        #[allow(dead_code)]
-        fn pallas_scalar_vec_to_goldilocks(_v: &[spartan2::provider::pasta::pallas::Scalar]) -> Result<Vec<F>, String> { 
-            Ok(vec![]) 
-        }
         
         // Test safe conversions with small values
         let small_goldilocks = F::from_u64(42);
@@ -349,26 +330,7 @@ mod spartan2_pcs_tests {
     fn test_field_conversion_truncation_detection() {
         println!("🧪 Testing field conversion truncation detection");
 
-        #[cfg(feature = "snark_mode")]
         use neo_fields::spartan2_compat::field_conversion::*;
-        #[cfg(not(feature = "snark_mode"))]
-        #[allow(unused_imports)]
-        use neo_fields::spartan2_engine::GoldilocksEngine;
-        
-        #[cfg(not(feature = "snark_mode"))]
-        #[allow(dead_code)]
-        fn goldilocks_to_pallas_scalar(_f: &F) -> spartan2::provider::pasta::pallas::Scalar { 
-            spartan2::provider::pasta::pallas::Scalar::from_raw([0, 0, 0, 0]) 
-        }
-        #[cfg(not(feature = "snark_mode"))]
-        fn pallas_scalar_to_goldilocks(_s: &spartan2::provider::pasta::pallas::Scalar) -> Result<F, String> { 
-            Ok(F::ZERO) 
-        }
-        #[cfg(not(feature = "snark_mode"))]
-        #[allow(dead_code)]
-        fn pallas_scalar_vec_to_goldilocks(_v: &[spartan2::provider::pasta::pallas::Scalar]) -> Result<Vec<F>, String> { 
-            Ok(vec![]) 
-        }
         use spartan2::provider::pasta::pallas;
         
         // Create a large Pallas scalar that would require truncation

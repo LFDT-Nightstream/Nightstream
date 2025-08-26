@@ -58,3 +58,72 @@ impl ExtFieldNormTrait for ExtF {
 
 // Display implementation removed due to orphan rule - ExtF already has Debug
 
+// Spartan2 Engine implementation
+pub mod spartan2_engine {
+    // Re-export Spartan2's PallasHyraxEngine for Neo integration
+    pub use spartan2::provider::PallasHyraxEngine as GoldilocksEngine;
+    
+    /// Conversion utilities between Neo's Goldilocks field and Spartan2's Pallas field
+    pub mod field_conversion {
+        use super::super::*;
+        use spartan2::provider::pasta::pallas;
+        use ff::PrimeField;
+        
+        /// Convert Goldilocks field element to Pallas base field element
+        pub fn goldilocks_to_pallas_base(f: &F) -> pallas::Base {
+            // Convert via canonical representation
+            let val = f.as_canonical_u64();
+            pallas::Base::from(val)
+        }
+        
+        /// Convert Goldilocks field element to Pallas scalar field element
+        pub fn goldilocks_to_pallas_scalar(f: &F) -> pallas::Scalar {
+            // Convert via canonical representation
+            let val = f.as_canonical_u64();
+            pallas::Scalar::from(val)
+        }
+        
+        /// Convert Pallas base field element to Goldilocks field element
+        pub fn pallas_base_to_goldilocks(f: &pallas::Base) -> F {
+            // Extract lower 64 bits and convert to Goldilocks
+            let bytes = f.to_repr();
+            let mut val = 0u64;
+            for (i, &byte) in bytes.as_ref().iter().take(8).enumerate() {
+                val |= (byte as u64) << (8 * i);
+            }
+            F::from_u64(val)
+        }
+        
+        /// Convert Pallas scalar field element to Goldilocks field element
+        pub fn pallas_scalar_to_goldilocks(f: &pallas::Scalar) -> F {
+            // Extract lower 64 bits and convert to Goldilocks
+            let bytes = f.to_repr();
+            let mut val = 0u64;
+            for (i, &byte) in bytes.as_ref().iter().take(8).enumerate() {
+                val |= (byte as u64) << (8 * i);
+            }
+            F::from_u64(val)
+        }
+        
+        /// Convert vector of Goldilocks elements to Pallas base field
+        pub fn goldilocks_vec_to_pallas_base(vec: &[F]) -> Vec<pallas::Base> {
+            vec.iter().map(goldilocks_to_pallas_base).collect()
+        }
+        
+        /// Convert vector of Goldilocks elements to Pallas scalar field
+        pub fn goldilocks_vec_to_pallas_scalar(vec: &[F]) -> Vec<pallas::Scalar> {
+            vec.iter().map(goldilocks_to_pallas_scalar).collect()
+        }
+        
+        /// Convert vector of Pallas base elements to Goldilocks
+        pub fn pallas_base_vec_to_goldilocks(vec: &[pallas::Base]) -> Vec<F> {
+            vec.iter().map(pallas_base_to_goldilocks).collect()
+        }
+        
+        /// Convert vector of Pallas scalar elements to Goldilocks
+        pub fn pallas_scalar_vec_to_goldilocks(vec: &[pallas::Scalar]) -> Vec<F> {
+            vec.iter().map(pallas_scalar_to_goldilocks).collect()
+        }
+    }
+}
+

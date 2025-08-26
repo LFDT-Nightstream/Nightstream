@@ -67,6 +67,12 @@ pub type Multivariate = Arc<dyn MvPolynomial>;
 pub mod ccs_sumcheck;
 pub use ccs_sumcheck::{ccs_sumcheck_prover, ccs_sumcheck_verifier};
 
+pub mod converters;
+pub use converters::{
+    ccs_to_r1cs_format, ccs_instance_to_r1cs_format, ccs_witness_to_r1cs_format,
+    field_conversion, integration
+};
+
 #[derive(Clone)]
 pub struct CcsStructure {
     pub mats: Vec<RowMajorMatrix<ExtF>>, // List of constraint matrices M_j (s matrices)

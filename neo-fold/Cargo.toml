@@ -23,6 +23,7 @@ byteorder = "1.5.0"
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 rand_distr = { workspace = true }
+spartan2 = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

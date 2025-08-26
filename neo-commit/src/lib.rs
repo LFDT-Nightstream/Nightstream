@@ -837,4 +837,56 @@ fn compute_lambda(params: &NeoParams) -> f64 {
     msis.min(rlwe)
 }
 
+// Spartan2 PCS integration
+pub mod spartan2_pcs {
+    use super::*;
+    #[allow(unused_imports)]
+    use neo_fields::spartan2_engine::GoldilocksEngine;
+    
+    /// Simplified wrapper for Spartan2 PCS integration
+    /// This is a placeholder that demonstrates the integration structure
+    /// Full implementation would require bridging between Neo's Ajtai commitments
+    /// and Spartan2's PCS interface
+    pub struct AjtaiPCS {
+        #[allow(dead_code)]
+        committer: AjtaiCommitter,
+    }
+    
+    impl AjtaiPCS {
+        pub fn new(committer: AjtaiCommitter) -> Self {
+            Self { committer }
+        }
+        
+        /// Convert Neo commitment to Spartan2-compatible format
+        pub fn commit_neo_to_spartan2(&self, _values: &[F]) -> Result<Vec<u8>, String> {
+            // This would convert Neo's lattice-based commitment to a format
+            // that Spartan2 can work with, likely through field conversion
+            todo!("Implement Neo to Spartan2 commitment conversion")
+        }
+        
+        /// Verify a commitment using Neo's verification but in Spartan2 context
+        pub fn verify_spartan2_format(&self, _commitment: &[u8], _values: &[F]) -> Result<bool, String> {
+            // This would verify using Neo's Ajtai verification but handle
+            // the field conversions needed for Spartan2 integration
+            todo!("Implement Spartan2-compatible verification")
+        }
+    }
+    
+    /// Field conversion utilities for PCS integration
+    pub mod pcs_conversion {
+        use super::*;
+        use neo_fields::spartan2_engine::field_conversion::*;
+        
+        /// Convert Neo polynomial to Spartan2 format
+        pub fn neo_poly_to_spartan2(poly: &[F]) -> Vec<spartan2::provider::pasta::pallas::Scalar> {
+            goldilocks_vec_to_pallas_scalar(poly)
+        }
+        
+        /// Convert Spartan2 polynomial to Neo format
+        pub fn spartan2_poly_to_neo(poly: &[spartan2::provider::pasta::pallas::Scalar]) -> Vec<F> {
+            pallas_scalar_vec_to_goldilocks(poly)
+        }
+    }
+}
+
 

@@ -22,6 +22,7 @@ p3-goldilocks = { workspace = true }
 thiserror = "1.0"
 byteorder = "1.5"
 subtle = "2.5"
+spartan2 = { workspace = true }
 
 # FRI dependencies removed - using direct polynomial checks in NARK mode
 

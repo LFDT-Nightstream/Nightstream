@@ -19,5 +19,21 @@ p3-field        = "0.3.0"
 nova-snark = { version = "0.39", optional = true, default-features = false }
 ff = { version = "0.13", optional = true }
 
+# Spartan2 for SNARK mode benchmarking
+spartan2 = { workspace = true }
+
+# Additional dependencies for comprehensive testing
+neo-arithmetize = { path = "../neo-arithmetize" }
+neo-decomp = { path = "../neo-decomp" }
+neo-modint = { path = "../neo-modint" }
+neo-ring = { path = "../neo-ring" }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
 [features]
 with-nova = ["dep:nova-snark", "dep:ff"]
+
+[[bench]]
+name = "spartan_performance"
+harness = false

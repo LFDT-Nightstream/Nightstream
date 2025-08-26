@@ -76,6 +76,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let mut run_nova_fibo = false;
     let mut run_neo_fibo  = false;
+    let mut run_spartan2_fibo = false;
 
     let mut min_pow: u32 = 3;  // 2^3 = 8 steps (fast for development)
     let mut max_pow: u32 = 6;  // 2^6 = 64 steps
@@ -89,16 +90,18 @@ fn main() {
         match args[i].as_str() {
             "--nova-fibo" => run_nova_fibo = true,
             "--neo-fibo"  => run_neo_fibo  = true,
+            "--spartan2-fibo" => run_spartan2_fibo = true,
             "--min" if i + 1 < args.len() => { min_pow = args[i+1].parse().unwrap_or(min_pow); i += 1; }
             "--max" if i + 1 < args.len() => { max_pow = args[i+1].parse().unwrap_or(max_pow); i += 1; }
             "--a0" if i + 1 < args.len() => { a0_u64 = args[i+1].parse().unwrap_or(a0_u64); i += 1; }
             "--a1" if i + 1 < args.len() => { a1_u64 = args[i+1].parse().unwrap_or(a1_u64); i += 1; }
             "--help" | "-h" => {
-                eprintln!("Usage: cargo run -p neo-bench -- [--nova-fibo] [--neo-fibo]");
+                eprintln!("Usage: cargo run -p neo-bench -- [--nova-fibo] [--neo-fibo] [--spartan2-fibo]");
                 eprintln!("       [--min K] [--max K] [--a0 X] [--a1 Y]");
                 eprintln!();
                 eprintln!("  --nova-fibo       Nova recursive Fibonacci (T=2^K steps).");
                 eprintln!("  --neo-fibo        Neo CCS Fibonacci (same T steps in one CCS).");
+                eprintln!("  --spartan2-fibo   Neo + Spartan2 SNARK Fibonacci (succinct proofs).");
                 eprintln!("  --a0, --a1        Fibonacci seeds (default 0, 1).");
                 eprintln!("  --min/--max       K range (T = 2^K).");
                 return;
@@ -126,11 +129,16 @@ fn main() {
         rows.extend(neo_fibo_ccs::manual_bench(min_pow, max_pow, a0_u64, a1_u64));
     }
 
-    if !run_nova_fibo && !run_neo_fibo {
+    if run_spartan2_fibo {
+        rows.extend(spartan2_bench::spartan2_bench(min_pow, max_pow, a0_u64, a1_u64));
+    }
+
+    if !run_nova_fibo && !run_neo_fibo && !run_spartan2_fibo {
         eprintln!("Nothing to run. Try one of:");
-        eprintln!("  cargo run -p neo-bench -- --nova-fibo --neo-fibo");
+        eprintln!("  cargo run -p neo-bench -- --nova-fibo --neo-fibo --spartan2-fibo");
         eprintln!("  cargo run -p neo-bench -- --nova-fibo");
         eprintln!("  cargo run -p neo-bench -- --neo-fibo");
+        eprintln!("  cargo run -p neo-bench -- --spartan2-fibo");
         return;
     }
 
@@ -288,7 +296,7 @@ mod neo_fibo_ccs {
     use p3_field::PrimeCharacteristicRing;
     use neo_orchestrator;
 
-    fn build_fibo_ccs(steps: usize, a0: F, a1: F) -> (CcsStructure, CcsInstance, CcsWitness) {
+    pub fn build_fibo_ccs(steps: usize, a0: F, a1: F) -> (CcsStructure, CcsInstance, CcsWitness) {
         let n_constraints = steps;
         let n_vars = steps + 3; // 1 constant + (steps+2) Fibonacci numbers
         
@@ -390,6 +398,65 @@ mod neo_fibo_ccs {
 
             out.push(crate::BenchRow {
                 impl_name: "neo",
+                k, steps,
+                build_ms: crate::ms(build_time),
+                prove_ms: crate::ms(prove_time),
+                verify_ms: crate::ms(verify_time),
+                total_ms: crate::ms(build_time + prove_time + verify_time),
+                ok,
+            });
+        }
+        
+        out
+    }
+}
+
+// Spartan2 benchmarking module
+mod spartan2_bench {
+    #[allow(unused_imports)]
+    use super::*;
+    #[allow(unused_imports)]
+    use neo_ccs::{CcsStructure, CcsInstance, CcsWitness};
+    #[allow(unused_imports)]
+    use neo_fields::{embed_base_to_ext, F};
+    use neo_orchestrator;
+    use p3_field::PrimeCharacteristicRing;
+    
+    pub fn spartan2_bench(min_pow: u32, max_pow: u32, a0_u64: u64, a1_u64: u64) -> Vec<crate::BenchRow> {
+        use std::time::Instant;
+        let mut out = Vec::new();
+
+        println!("=== Spartan2 Neo Fibonacci Benchmark (SNARK Mode) ===");
+        for k in min_pow..=max_pow {
+            let steps = 1usize << k;
+            println!("Spartan2 Neo Fibonacci: {} steps (2^{})", steps, k);
+
+            let a0 = F::from_u64(a0_u64);
+            let a1 = F::from_u64(a1_u64);
+
+            let build_start = Instant::now();
+            let (structure, instance, witness) = crate::neo_fibo_ccs::build_fibo_ccs(steps, a0, a1);
+            let build_time = build_start.elapsed();
+
+            let prove_start = Instant::now();
+            let proof_result = neo_orchestrator::prove(&structure, &instance, &witness);
+            let prove_time = prove_start.elapsed();
+
+            let verify_start = Instant::now();
+            let ok = match &proof_result {
+                Ok((proof, _metrics)) => neo_orchestrator::verify(&structure, proof),
+                Err(_) => false,
+            };
+            let verify_time = verify_start.elapsed();
+
+            println!("  Build:  {:?}", build_time);
+            println!("  Prove:  {:?} (SNARK mode)", prove_time);
+            println!("  Verify: {:?} (result: {})", verify_time, ok);
+            println!("  Total:  {:?}", build_time + prove_time + verify_time);
+            println!();
+
+            out.push(crate::BenchRow {
+                impl_name: "spartan2",
                 k, steps,
                 build_ms: crate::ms(build_time),
                 prove_ms: crate::ms(prove_time),

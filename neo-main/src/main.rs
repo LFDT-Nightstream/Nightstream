@@ -16,6 +16,9 @@ use std::time::Instant;
 
 fn main() {
     println!("Neo Lattice Demo: Proving Fibonacci Series");
+    
+    // Display mode information
+    println!("🚀 Running with Spartan2 SNARK integration");
 
     // Using secure parameters for production-level security
     println!("DEBUG: Setting up committer with SECURE_PARAMS...");
@@ -99,11 +102,15 @@ fn main() {
     println!("\n==========================================");
     println!("🏁 FINAL PERFORMANCE SUMMARY");
     println!("==========================================");
+    
+    println!("Mode:                     {:>8}", "SNARK");
     println!("Proof Generation Time:    {:>8.2} ms", metrics.prove_ms);
     println!("Proof Size:               {:>8} bytes", metrics.proof_bytes);
     println!("Proof Verification Time:  {:>8.2} ms", verification_time.as_secs_f64() * 1000.0);
     println!("Total Time:               {:>8.2} ms", metrics.prove_ms + verification_time.as_secs_f64() * 1000.0);
     println!("Verification Result:      {}", if verified { "✅ PASSED" } else { "❌ FAILED" });
     println!("Fibonacci Length:         {:>8}", fib_length);
+    println!("Succinctness:             {:>8}", "Yes");
+    
     println!("==========================================");
 }

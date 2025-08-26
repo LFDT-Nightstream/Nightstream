@@ -2206,6 +2206,123 @@ pub fn verify_with_knowledge_soundness(
     }
 }
 
+// NeutronNova integration
+pub mod neutronnova_integration {
+    use super::*;
+    use neo_fields::spartan2_engine::GoldilocksEngine;
+    use neo_ccs::{integration, CcsStructure, CcsInstance, CcsWitness};
+    use spartan2::traits::transcript::TranscriptEngineTrait;
+    #[allow(unused_imports)]
+    use spartan2::neutronnova::{NeutronNovaNIFS, NeutronNovaSNARK};
+    use spartan2::traits::Engine;
+    
+    /// Enhanced FoldState with NeutronNova integration
+    pub struct NeutronNovaFoldState {
+        pub nark_state: FoldState,
+        // Placeholder for future R1CS integration data
+        pub conversion_cache: Option<(Vec<Vec<F>>, Vec<Vec<F>>, Vec<Vec<F>>)>,
+    }
+    
+    impl NeutronNovaFoldState {
+        pub fn new(structure: CcsStructure) -> Self {
+            Self {
+                nark_state: FoldState::new(structure),
+                conversion_cache: None,
+            }
+        }
+        
+        /// Generate proof using NeutronNova folding in SNARK mode
+        pub fn generate_proof_snark(
+            &mut self,
+            pair1: (CcsInstance, CcsWitness),
+            pair2: (CcsInstance, CcsWitness),
+            committer: &AjtaiCommitter,
+        ) -> Proof {
+            // Convert CCS to R1CS for Spartan2
+            match integration::convert_ccs_for_spartan2(&self.nark_state.structure, &pair1.0, &pair1.1) {
+                Ok((matrices, public_inputs1, witness1)) => {
+                    // Store conversion results for future use
+                    self.conversion_cache = Some(matrices.clone());
+                    let _ = (public_inputs1, witness1);
+                    
+                    // Convert second pair
+                    if let Ok((_, public_inputs2, witness2)) = 
+                        integration::convert_ccs_for_spartan2(&self.nark_state.structure, &pair2.0, &pair2.1) {
+                        let _ = (public_inputs2, witness2);
+                        
+                        // Use NeutronNova for batch folding
+                        let _transcript = <GoldilocksEngine as Engine>::TE::new(b"neutronnova");
+                        
+                        // For now, fall back to NARK mode if NeutronNova fails
+                        // In a full implementation, this would use proper NeutronNova folding
+                        eprintln!("SNARK mode: Using NeutronNova folding (placeholder)");
+                        
+                        // Generate NARK proof as fallback
+                        self.nark_state.generate_proof(pair1, pair2, committer)
+                    } else {
+                        eprintln!("Failed to convert second CCS pair to R1CS, falling back to NARK");
+                        self.nark_state.generate_proof(pair1, pair2, committer)
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Failed to convert CCS to R1CS: {}, falling back to NARK", e);
+                    self.nark_state.generate_proof(pair1, pair2, committer)
+                }
+            }
+        }
+        
+        /// Verify proof using NeutronNova in SNARK mode
+        pub fn verify_snark(&self, transcript: &[u8], committer: &AjtaiCommitter) -> bool {
+            // For now, delegate to NARK verification
+            // In a full implementation, this would use NeutronNova verification
+            eprintln!("SNARK mode: Using NeutronNova verification (placeholder)");
+            self.nark_state.verify(transcript, committer)
+        }
+        
+        /// Recursive IVC using NeutronNova
+        pub fn recursive_ivc_snark(
+            &mut self,
+            instances: Vec<(CcsInstance, CcsWitness)>,
+            committer: &AjtaiCommitter,
+        ) -> Result<Proof, String> {
+            if instances.len() < 2 {
+                return Err("Need at least 2 instances for IVC".to_string());
+            }
+            
+            eprintln!("SNARK mode: Starting recursive IVC with {} instances", instances.len());
+            
+            // For now, use pairwise folding as in NARK mode
+            // In a full implementation, this would use NeutronNova's batch folding
+            let mut current_proof = self.generate_proof_snark(
+                instances[0].clone(),
+                instances[1].clone(),
+                committer,
+            );
+            
+            // Fold remaining instances
+            for (i, instance) in instances.iter().skip(2).enumerate() {
+                eprintln!("SNARK mode: Folding instance {} of {}", i + 3, instances.len());
+                
+                // Create dummy instance for pairing
+                let dummy_instance = instances[0].clone();
+                
+                current_proof = self.generate_proof_snark(
+                    instance.clone(),
+                    dummy_instance,
+                    committer,
+                );
+            }
+            
+            Ok(current_proof)
+        }
+    }
+    
+    /// Create a NeutronNova-enabled fold state
+    pub fn create_neutronnova_fold_state(structure: CcsStructure) -> NeutronNovaFoldState {
+        NeutronNovaFoldState::new(structure)
+    }
+}
+
 
 
 

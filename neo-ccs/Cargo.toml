@@ -18,5 +18,9 @@ rand_distr = { workspace = true }
 rand_chacha = { workspace = true }
 thiserror = "1.0"
 rayon = { workspace = true }
+spartan2 = { workspace = true }
+
+[features]
+default = []
 
 [dev-dependencies]

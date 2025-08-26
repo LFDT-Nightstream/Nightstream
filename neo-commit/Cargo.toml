@@ -16,6 +16,7 @@ rand = { workspace = true }
 neo-modint = { path = "../neo-modint" }
 rand_distr = { workspace = true }
 subtle = "2.5"
+spartan2 = { workspace = true }
 
 [features]
 prop-tests = []

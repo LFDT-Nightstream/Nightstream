@@ -19,6 +19,7 @@ neo-orchestrator = { path = "../neo-orchestrator" }
 rand = { workspace = true }
 p3-field = "0.3"
 p3-matrix = { workspace = true }
+spartan2 = { workspace = true }
 
 [features]
 default = []

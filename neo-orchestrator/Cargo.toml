@@ -10,3 +10,7 @@ neo-commit      = { path = "../neo-commit" }
 neo-fields      = { path = "../neo-fields" }
 neo-fold        = { path = "../neo-fold" }
 p3-field        = "0.3"
+spartan2        = { workspace = true }
+
+[features]
+default = []

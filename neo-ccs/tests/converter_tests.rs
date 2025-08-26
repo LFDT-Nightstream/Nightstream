@@ -73,7 +73,7 @@ mod ccs_to_r1cs_tests {
         assert_eq!(b_matrix.len(), ccs.num_constraints, "Constraint count should match");
         assert_eq!(c_matrix.len(), ccs.num_constraints, "Constraint count should match");
         if !a_matrix.is_empty() {
-            assert_eq!(a_matrix[0].len(), ccs.witness_size, "Variable count should match");
+            assert_eq!(a_matrix[0].len(), ccs.witness_size + 1, "Variable count should match (witness_size + 1 for constant)");
         }
         
         println!("✅ R1CS matrices conversion successful");
@@ -162,7 +162,7 @@ mod ccs_to_r1cs_tests {
         assert_eq!(b_matrix.len(), 2, "Verifier CCS should have 2 constraints");
         assert_eq!(c_matrix.len(), 2, "Verifier CCS should have 2 constraints");
         if !a_matrix.is_empty() {
-            assert_eq!(a_matrix[0].len(), 4, "Verifier CCS should have 4 variables");
+            assert_eq!(a_matrix[0].len(), 5, "Verifier CCS should have 5 variables (4 + 1 for constant)");
         }
         
         println!("✅ Verifier CCS conversion successful");

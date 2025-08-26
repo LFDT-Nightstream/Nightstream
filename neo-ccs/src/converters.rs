@@ -29,10 +29,18 @@ pub fn ccs_to_r1cs_format(ccs: &CcsStructure) -> Result<(Vec<Vec<F>>, Vec<Vec<F>
     let mut c_matrix = Vec::new();
 
     // Convert each matrix from extension field to base field
+    // R1CS requires witness_size + 1 columns (for the constant term)
+    let _r1cs_width = ccs.witness_size + 1;
+    
     for row in 0..ccs.num_constraints {
         let mut a_row = Vec::new();
         let mut b_row = Vec::new();
         let mut c_row = Vec::new();
+
+        // First column is for the constant term (initially zero)
+        a_row.push(F::ZERO);
+        b_row.push(F::ZERO);
+        c_row.push(F::ZERO);
 
         for col in 0..ccs.witness_size {
             // Extract values from CCS matrices, handling extension field

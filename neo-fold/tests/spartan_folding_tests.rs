@@ -206,29 +206,28 @@ mod neutronnova_folding_tests {
     }
 
     #[test]
-    fn test_fallback_to_nark_on_conversion_failure() {
-        println!("🧪 Testing fallback to NARK mode on conversion failure");
+    fn test_snark_proof_robustness() {
+        println!("🧪 Testing SNARK proof robustness");
 
         let (ccs, instance, witness) = create_test_fold_case();
         let mut fold_state = create_neutronnova_fold_state(ccs);
         let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
         
-        // The current implementation should fall back to NARK mode
-        // if CCS to R1CS conversion fails
+        // The system now always uses SNARK mode with Spartan2
         let proof = fold_state.generate_proof_snark(
             (instance.clone(), witness.clone()),
             (instance.clone(), witness.clone()),
             &committer,
         );
         
-        // Proof should still be generated (via NARK fallback)
-        assert!(!proof.transcript.is_empty(), "Proof should be generated via fallback");
+        // Proof should be generated successfully
+        assert!(!proof.transcript.is_empty(), "SNARK proof should be generated");
         
-        // Verification should still work
+        // Verification should work
         let verification_result = fold_state.verify_snark(&proof.transcript, &committer);
-        assert!(verification_result, "Fallback proof should verify");
+        assert!(verification_result, "SNARK proof should verify");
         
-        println!("✅ Fallback to NARK mode test passed");
+        println!("✅ SNARK proof robustness test passed");
     }
 
     #[test]

@@ -84,25 +84,61 @@ pub mod spartan2_engine {
         }
         
         /// Convert Pallas base field element to Goldilocks field element
-        pub fn pallas_base_to_goldilocks(f: &pallas::Base) -> F {
-            // Extract lower 64 bits and convert to Goldilocks
-            let bytes = f.to_repr();
+        /// Returns Err if truncation would occur (high bits non-zero)
+        pub fn pallas_base_to_goldilocks(f: &pallas::Base) -> Result<F, String> {
+            let repr = f.to_repr();
+            let bytes = repr.as_ref();
+            
+            // Check if high bits are zero
+            if bytes[8..].iter().any(|&b| b != 0) {
+                return Err("Field truncation: value exceeds 64 bits".to_string());
+            }
+            
+            // Safe to extract lower 64 bits
             let mut val = 0u64;
-            for (i, &byte) in bytes.as_ref().iter().take(8).enumerate() {
+            for (i, &byte) in bytes.iter().take(8).enumerate() {
                 val |= (byte as u64) << (8 * i);
             }
-            F::from_u64(val)
+            
+            Ok(F::from_u64(val))
         }
         
         /// Convert Pallas scalar field element to Goldilocks field element
-        pub fn pallas_scalar_to_goldilocks(f: &pallas::Scalar) -> F {
-            // Extract lower 64 bits and convert to Goldilocks
-            let bytes = f.to_repr();
+        /// Returns Err if truncation would occur
+        pub fn pallas_scalar_to_goldilocks(f: &pallas::Scalar) -> Result<F, String> {
+            let repr = f.to_repr();
+            let bytes = repr.as_ref();
+            
+            // Check if high bits are zero
+            if bytes[8..].iter().any(|&b| b != 0) {
+                return Err("Field truncation: value exceeds 64 bits".to_string());
+            }
+            
+            // Safe to extract lower 64 bits
             let mut val = 0u64;
-            for (i, &byte) in bytes.as_ref().iter().take(8).enumerate() {
+            for (i, &byte) in bytes.iter().take(8).enumerate() {
                 val |= (byte as u64) << (8 * i);
             }
-            F::from_u64(val)
+            
+            Ok(F::from_u64(val))
+        }
+        
+        /// Legacy unsafe conversion - use pallas_base_to_goldilocks instead
+        #[deprecated(note = "Use pallas_base_to_goldilocks for safe conversion")]
+        pub fn pallas_base_to_goldilocks_unsafe(f: &pallas::Base) -> F {
+            match pallas_base_to_goldilocks(f) {
+                Ok(val) => val,
+                Err(e) => panic!("Unsafe conversion failed: {}", e),
+            }
+        }
+        
+        /// Legacy unsafe conversion - use pallas_scalar_to_goldilocks instead  
+        #[deprecated(note = "Use pallas_scalar_to_goldilocks for safe conversion")]
+        pub fn pallas_scalar_to_goldilocks_unsafe(f: &pallas::Scalar) -> F {
+            match pallas_scalar_to_goldilocks(f) {
+                Ok(val) => val,
+                Err(e) => panic!("Unsafe conversion failed: {}", e),
+            }
         }
         
         /// Convert vector of Goldilocks elements to Pallas base field
@@ -115,14 +151,32 @@ pub mod spartan2_engine {
             vec.iter().map(goldilocks_to_pallas_scalar).collect()
         }
         
-        /// Convert vector of Pallas base elements to Goldilocks
-        pub fn pallas_base_vec_to_goldilocks(vec: &[pallas::Base]) -> Vec<F> {
+        /// Convert vector of Pallas base elements to Goldilocks with error handling
+        pub fn pallas_base_vec_to_goldilocks(vec: &[pallas::Base]) -> Result<Vec<F>, String> {
             vec.iter().map(pallas_base_to_goldilocks).collect()
         }
         
-        /// Convert vector of Pallas scalar elements to Goldilocks
-        pub fn pallas_scalar_vec_to_goldilocks(vec: &[pallas::Scalar]) -> Vec<F> {
+        /// Convert vector of Pallas scalar elements to Goldilocks with error handling
+        pub fn pallas_scalar_vec_to_goldilocks(vec: &[pallas::Scalar]) -> Result<Vec<F>, String> {
             vec.iter().map(pallas_scalar_to_goldilocks).collect()
+        }
+        
+        /// Legacy unsafe vector conversion - use pallas_base_vec_to_goldilocks instead
+        #[deprecated(note = "Use pallas_base_vec_to_goldilocks for safe conversion")]
+        pub fn pallas_base_vec_to_goldilocks_unsafe(vec: &[pallas::Base]) -> Vec<F> {
+            match pallas_base_vec_to_goldilocks(vec) {
+                Ok(vals) => vals,
+                Err(e) => panic!("Unsafe vector conversion failed: {}", e),
+            }
+        }
+        
+        /// Legacy unsafe vector conversion - use pallas_scalar_vec_to_goldilocks instead
+        #[deprecated(note = "Use pallas_scalar_vec_to_goldilocks for safe conversion")]
+        pub fn pallas_scalar_vec_to_goldilocks_unsafe(vec: &[pallas::Scalar]) -> Vec<F> {
+            match pallas_scalar_vec_to_goldilocks(vec) {
+                Ok(vals) => vals,
+                Err(e) => panic!("Unsafe vector conversion failed: {}", e),
+            }
         }
     }
 }

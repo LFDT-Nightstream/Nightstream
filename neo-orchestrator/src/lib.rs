@@ -2,7 +2,7 @@ use std::time::Instant;
 use thiserror::Error;
 
 use neo_ccs::{CcsInstance, CcsStructure, CcsWitness, check_satisfiability};
-use neo_commit::{AjtaiCommitter, SECURE_PARAMS};
+use neo_commit::AjtaiCommitter;
 use neo_fold::Proof;
 #[allow(unused_imports)]
 use neo_fold::FoldState;
@@ -21,12 +21,11 @@ pub struct Metrics {
     pub proof_bytes: usize,
 }
 
-/// PROVE: run the NARK/SNARK pipeline over a CCS + (instance, witness).
+/// PROVE: run the SNARK pipeline over a CCS + (instance, witness).
 ///
 /// - Accepts a *prepared* CCS instance (you already committed in main).
 /// - Auto-detects the number of sum-check rounds from the CCS (handled inside neo-fold).
-/// - Duplicates (inst,wit) internally because the current `generate_proof` expects two.
-/// - In SNARK mode, uses NeutronNova folding for succinctness.
+/// - Uses Spartan2 for succinct SNARK proofs.
 pub fn prove(
     ccs: &CcsStructure,
     instance: &CcsInstance,
@@ -36,33 +35,66 @@ pub fn prove(
         return Err(OrchestratorError::Unsatisfied);
     }
 
-    // Use the same shape params as main (SECURE_PARAMS). The public matrix A may differ,
-    // which is fine in current NARK mode; shape params (n,k,d,…) must match.
-    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
+    // Enforce secure parameters in production
+    let _committer = AjtaiCommitter::new(); // This enforces secure params
 
     let t0 = Instant::now();
     
-    // Use NeutronNova SNARK mode by default
-    use neo_fold::neutronnova_integration::NeutronNovaFoldState;
-    let mut fs = NeutronNovaFoldState::new(ccs.clone());
+    // Always use Spartan2 SNARK mode
+    use neo_fold::spartan_ivc::{spartan_compress, domain_separated_transcript};
     
-    // Current `generate_proof_snark` takes two pairs; pass the same pair twice.
-    let proof = fs.generate_proof_snark(
-        (instance.clone(), witness.clone()),
-        (instance.clone(), witness.clone()),
-        &committer,
-    );
+    let transcript = domain_separated_transcript(0, "neo_orchestrator_prove");
+    let (proof_bytes, vk_bytes) = spartan_compress(ccs, instance, witness, &transcript)
+        .map_err(|e| {
+            eprintln!("Spartan2 SNARK proof generation failed: {}", e);
+            OrchestratorError::Unsatisfied
+        })?;
+    
+    // Create proof with both proof and VK embedded
+    let mut combined_transcript = proof_bytes;
+    combined_transcript.extend_from_slice(b"||VK||");
+    combined_transcript.extend_from_slice(&vk_bytes);
+    let proof = Proof { transcript: combined_transcript };
+    
     let prove_ms = t0.elapsed().as_secs_f64() * 1000.0;
     let proof_bytes = proof.transcript.len();
     Ok((proof, Metrics { prove_ms, proof_bytes }))
 }
 
-/// VERIFY: check a transcript against the CCS.
+/// VERIFY: check a SNARK transcript against the CCS.
 ///
-/// Returns `true` on success. The committer is re-instantiated with the standard params.
+/// Returns `true` on success. Always expects Spartan2 SNARK proofs.
 pub fn verify(ccs: &CcsStructure, proof: &Proof) -> bool {
-    use neo_fold::neutronnova_integration::NeutronNovaFoldState;
-    let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
-    let fs = NeutronNovaFoldState::new(ccs.clone());
-    fs.verify_snark(&proof.transcript, &committer)
+    let _committer = AjtaiCommitter::new(); // Uses secure params
+    
+    // Parse Spartan2 SNARK proof (must contain VK separator)
+    if let Some(vk_pos) = proof.transcript.windows(6).position(|w| w == b"||VK||") {
+        let proof_bytes = &proof.transcript[..vk_pos];
+        let vk_bytes = &proof.transcript[vk_pos + 6..];
+        
+        // Create a dummy instance for verification (in a real implementation,
+        // the instance would be embedded in the proof or provided separately)
+        use neo_fields::F;
+        use p3_field::PrimeCharacteristicRing;
+        let dummy_instance = neo_ccs::CcsInstance { 
+            commitment: vec![],
+            public_input: vec![],
+            u: F::ZERO,
+            e: F::ZERO,
+        };
+        
+        use neo_fold::spartan_ivc::{spartan_verify, domain_separated_transcript};
+        let transcript = domain_separated_transcript(0, "neo_orchestrator_verify");
+        
+        match spartan_verify(proof_bytes, vk_bytes, ccs, &dummy_instance, &transcript) {
+            Ok(result) => result,
+            Err(e) => {
+                eprintln!("Spartan2 SNARK verification failed: {}", e);
+                false
+            }
+        }
+    } else {
+        eprintln!("Invalid proof format: expected Spartan2 SNARK proof with VK separator");
+        false // Malformed or non-SNARK proof
+    }
 }

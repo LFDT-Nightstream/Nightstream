@@ -68,6 +68,9 @@ uninlined_format_args = "allow"
 all-targets = true
 all-features = true
 
+[features]
+default = []
+
 [dev-dependencies]
 criterion = { workspace = true }
 neo-commit = { path = "neo-commit" }

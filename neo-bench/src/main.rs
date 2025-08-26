@@ -26,7 +26,7 @@ fn print_summary_table(mut rows: Vec<BenchRow>) {
 
     println!("\n=== Summary: Fibonacci (manual) ===");
     println!(
-        "{:<6} {:>8} {:>12} {:>12} {:>12} {:>12} {:>6}",
+        "{:<10} {:>8} {:>12} {:>12} {:>12} {:>12} {:>6}",
         "impl", "steps", "build(ms)", "prove(ms)", "verify(ms)", "total(ms)", "ok"
     );
     
@@ -35,12 +35,12 @@ fn print_summary_table(mut rows: Vec<BenchRow>) {
         // Add separator when steps change
         if let Some(last_steps) = prev_steps {
             if r.steps != last_steps {
-                println!("{:-<70}", ""); // Print separator line
+                println!("{:-<74}", ""); // Print separator line
             }
         }
         
         println!(
-            "{:<6} {:>8} {:>12.3} {:>12.3} {:>12.3} {:>12.3} {:>6}",
+            "{:<10} {:>8} {:>12.3} {:>12.3} {:>12.3} {:>12.3} {:>6}",
             r.impl_name, r.steps, r.build_ms, r.prove_ms, r.verify_ms, r.total_ms,
             if r.ok { "yes" } else { "no" }
         );

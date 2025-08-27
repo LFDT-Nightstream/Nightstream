@@ -1122,7 +1122,8 @@ pub mod spartan2_pcs {
     }
     
     /// Field conversion utilities for PCS integration
-    #[cfg(feature = "snark_spartan2")]
+    /// (Restricted to Hyrax only - these functions use pallas types internally)
+    #[cfg(all(feature = "snark_spartan2", feature = "spartan_hyrax"))]
     pub mod pcs_conversion {
         use super::*;
         use neo_fields::spartan2_compat::field_conversion::*;

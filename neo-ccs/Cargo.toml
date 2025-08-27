@@ -22,6 +22,8 @@ spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0
 
 [features]
 default = []
-snark_spartan2 = ["dep:spartan2", "neo-fields/snark_spartan2"]
+snark_spartan2 = ["dep:spartan2"]
+spartan_fri = ["snark_spartan2"]
+spartan_hyrax = ["snark_spartan2"]
 
 [dev-dependencies]

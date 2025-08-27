@@ -24,7 +24,9 @@ fn last_index_of(haystack: &[u8], needle: &[u8]) -> isize {
     }
 }
 
-pub mod spartan_ivc; // NARK mode - no compression
+pub mod spartan_ivc;
+#[cfg(feature = "snark_spartan2")]
+pub mod fri_engine; // NARK mode - no compression
 pub use spartan_ivc::*;
 
 // NARK mode: Dummy CCS for recursive structure (no actual verification)
@@ -2211,16 +2213,12 @@ pub mod neutronnova_integration {
     use super::*;
     #[allow(unused_imports)]
     use neo_ccs::{CcsStructure, CcsInstance, CcsWitness};
-    #[cfg(feature = "snark_spartan2")]
     #[allow(unused_imports)]
     use neo_fields::spartan2_engine::GoldilocksEngine;
-    #[cfg(feature = "snark_spartan2")]
     #[allow(unused_imports)]
     use spartan2::traits::transcript::TranscriptEngineTrait;
-    #[cfg(feature = "snark_spartan2")]
     #[allow(unused_imports)]
     use spartan2::neutronnova::{NeutronNovaNIFS, NeutronNovaSNARK};
-    #[cfg(feature = "snark_spartan2")]
     #[allow(unused_imports)]
     use spartan2::traits::Engine;
     

@@ -2,7 +2,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[cfg(feature = "snark_spartan2")]
 use memchr::memmem;
 use thiserror::Error;
 

@@ -30,7 +30,9 @@ p3-dft = { workspace = true }
 default = []
 prop-tests = []
 real_fri = []  # Enable real p3-fri PCS implementation
-snark_spartan2 = ["dep:spartan2", "neo-fields/snark_spartan2"]
+snark_spartan2 = ["dep:spartan2"]
+spartan_fri = ["snark_spartan2"]
+spartan_hyrax = ["snark_spartan2"]
 
 [dev-dependencies]
 criterion = { workspace = true }

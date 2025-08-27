@@ -5,7 +5,7 @@ use neo_ccs::{CcsStructure, CcsInstance, CcsWitness};
 use neo_fields::{ExtF, random_extf, MAX_BLIND_NORM, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-// Spartan2 imports (non-PQ, dev only)
+// Spartan2 imports (feature-gated)
 #[cfg(feature = "snark_spartan2")]
 use bincode;
 #[cfg(feature = "snark_spartan2")]
@@ -14,8 +14,18 @@ use spartan2::neutronnova::NeutronNovaSNARK;
 use spartan2::traits::{Engine, circuit::SpartanCircuit};
 #[cfg(feature = "snark_spartan2")]
 use spartan2::errors::SpartanError;
+
+// Import our custom FRI engine from the crate root
 #[cfg(feature = "snark_spartan2")]
+use crate::fri_engine;
+
+// Engine selection: FRI (PQ-friendly) vs Hyrax (legacy)
+#[cfg(all(feature = "snark_spartan2", feature = "spartan_fri"))]
+use fri_engine::NeoFriEngine as E;
+
+#[cfg(all(feature = "snark_spartan2", feature = "spartan_hyrax"))]
 use spartan2::provider::T256HyraxEngine as E;
+
 #[cfg(feature = "snark_spartan2")]
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 #[cfg(feature = "snark_spartan2")]
@@ -271,172 +281,7 @@ pub fn spartan_verify(
     Ok(true)
 }
 
-/// FRI-based compression with p3-fri (post-quantum friendly)
-/// This is the default SNARK compression using hash-based commitments
-#[cfg(not(feature = "snark_spartan2"))]
-pub fn spartan_compress(
-    ccs_structure: &CcsStructure,
-    ccs_instance: &CcsInstance,
-    ccs_witness: &CcsWitness,
-    fs_transcript: &[u8],
-) -> Result<(Vec<u8>, Vec<u8>), String> {
-    use neo_commit::fri_pcs::FriPCSWrapper;
-    use neo_sumcheck::fiat_shamir::Transcript;
-    use std::io::Write;
-    
-    // Convert CCS to polynomial representation for FRI commitment
-    let ((a_matrix, b_matrix, c_matrix), public_inputs, witness) = 
-        neo_ccs::integration::convert_ccs_for_spartan2(ccs_structure, ccs_instance, ccs_witness)?;
-    
-    // Create a univariate polynomial from the constraint system
-    // For now, use a simple approach: commit to the witness vector as polynomial evaluations
-    let domain_log = (witness.len().next_power_of_two().trailing_zeros() as usize).max(3);
-    let domain_size = 1 << domain_log;
-    
-    // Pad witness to domain size and convert to ExtF
-    let mut witness_evals = Vec::with_capacity(domain_size);
-    for i in 0..domain_size {
-        if i < witness.len() {
-            witness_evals.push(ExtF::new_real(witness[i]));
-        } else {
-            witness_evals.push(ExtF::ZERO);
-        }
-    }
-    
-    // Commit using FRI
-    let fri = FriPCSWrapper::new();
-    let (commitment, prover_data) = fri.commit(&witness_evals, domain_log, None)
-        .map_err(|e| format!("FRI commit failed: {e}"))?;
-    
-    // Create challenge point from transcript
-    let mut transcript = Transcript::new("neo_fri_challenge");
-    transcript.absorb_bytes("fs", fs_transcript);
-    transcript.absorb_bytes("commitment", &commitment.root);
-    let challenge_bytes = transcript.challenge_wide("open_point");
-    let challenge_f = F::from_u64(u64::from_le_bytes(challenge_bytes[0..8].try_into().unwrap()));
-    let challenge = ExtF::new_real(challenge_f);
-    
-    // Open at challenge point
-    let proof = fri.open(&commitment, &prover_data, challenge)
-        .map_err(|e| format!("FRI open failed: {e}"))?;
-    
-    // Serialize proof and commitment
-    let mut proof_bytes = Vec::new();
-    proof_bytes.write_all(b"NEO_FRI_PROOF_V1").unwrap();
-    proof_bytes.write_all(&(domain_log as u32).to_le_bytes()).unwrap();
-    proof_bytes.write_all(&commitment.root).unwrap();
-    proof_bytes.write_all(&challenge_f.as_canonical_u64().to_le_bytes()).unwrap();
-    proof_bytes.write_all(&proof.evaluation.to_array()[0].as_canonical_u64().to_le_bytes()).unwrap();
-    proof_bytes.write_all(&proof.evaluation.to_array()[1].as_canonical_u64().to_le_bytes()).unwrap();
-    proof_bytes.write_all(&(proof.proof_bytes.len() as u32).to_le_bytes()).unwrap();
-    proof_bytes.write_all(&proof.proof_bytes).unwrap();
-    
-    // Create verification key (just the commitment info)
-    let mut vk_bytes = Vec::new();
-    vk_bytes.write_all(b"NEO_FRI_VK_V1").unwrap();
-    vk_bytes.write_all(&(domain_log as u32).to_le_bytes()).unwrap();
-    vk_bytes.write_all(&(witness.len() as u32).to_le_bytes()).unwrap();
-    
-    Ok((proof_bytes, vk_bytes))
-}
 
-/// FRI-based verification with p3-fri (post-quantum friendly)
-/// This is the default SNARK verification using hash-based commitments
-#[cfg(not(feature = "snark_spartan2"))]
-pub fn spartan_verify(
-    proof_bytes: &[u8],
-    vk_bytes: &[u8],
-    ccs_structure: &CcsStructure,
-    ccs_instance: &CcsInstance,
-    fs_transcript: &[u8],
-) -> Result<bool, String> {
-    use neo_commit::fri_pcs::FriPCSWrapper;
-    use neo_sumcheck::fiat_shamir::Transcript;
-    use std::io::{Cursor, Read};
-    
-    // Parse verification key
-    let mut vk_cursor = Cursor::new(vk_bytes);
-    let mut magic = [0u8; 13];
-    vk_cursor.read_exact(&mut magic).map_err(|_| "Invalid VK format")?;
-    if &magic != b"NEO_FRI_VK_V1" {
-        return Err("Invalid VK magic".to_string());
-    }
-    
-    let mut domain_log_bytes = [0u8; 4];
-    vk_cursor.read_exact(&mut domain_log_bytes).map_err(|_| "Invalid VK format")?;
-    let domain_log = u32::from_le_bytes(domain_log_bytes) as usize;
-    
-    let mut witness_len_bytes = [0u8; 4];
-    vk_cursor.read_exact(&mut witness_len_bytes).map_err(|_| "Invalid VK format")?;
-    let witness_len = u32::from_le_bytes(witness_len_bytes) as usize;
-    
-    // Parse proof
-    let mut proof_cursor = Cursor::new(proof_bytes);
-    let mut magic = [0u8; 16];
-    proof_cursor.read_exact(&mut magic).map_err(|_| "Invalid proof format")?;
-    if &magic != b"NEO_FRI_PROOF_V1" {
-        return Err("Invalid proof magic".to_string());
-    }
-    
-    let mut domain_log_bytes = [0u8; 4];
-    proof_cursor.read_exact(&mut domain_log_bytes).map_err(|_| "Invalid proof format")?;
-    let proof_domain_log = u32::from_le_bytes(domain_log_bytes) as usize;
-    
-    if proof_domain_log != domain_log {
-        return Err("Domain log mismatch".to_string());
-    }
-    
-    let mut root = [0u8; 32];
-    proof_cursor.read_exact(&mut root).map_err(|_| "Invalid proof format")?;
-    
-    let mut challenge_bytes = [0u8; 8];
-    proof_cursor.read_exact(&mut challenge_bytes).map_err(|_| "Invalid proof format")?;
-    let challenge_f = F::from_u64(u64::from_le_bytes(challenge_bytes));
-    let challenge = ExtF::new_real(challenge_f);
-    
-    let mut eval_re_bytes = [0u8; 8];
-    proof_cursor.read_exact(&mut eval_re_bytes).map_err(|_| "Invalid proof format")?;
-    let eval_re = F::from_u64(u64::from_le_bytes(eval_re_bytes));
-    
-    let mut eval_im_bytes = [0u8; 8];
-    proof_cursor.read_exact(&mut eval_im_bytes).map_err(|_| "Invalid proof format")?;
-    let eval_im = F::from_u64(u64::from_le_bytes(eval_im_bytes));
-    let evaluation = ExtF::new_complex(eval_re, eval_im);
-    
-    let mut proof_len_bytes = [0u8; 4];
-    proof_cursor.read_exact(&mut proof_len_bytes).map_err(|_| "Invalid proof format")?;
-    let proof_len = u32::from_le_bytes(proof_len_bytes) as usize;
-    
-    let mut fri_proof_bytes = vec![0u8; proof_len];
-    proof_cursor.read_exact(&mut fri_proof_bytes).map_err(|_| "Invalid proof format")?;
-    
-    // Recreate commitment
-    let commitment = neo_commit::fri_pcs::FriCommitment {
-        root,
-        domain_size: 1 << domain_log,
-    };
-    
-    // Recreate challenge (should match what prover used)
-    let mut transcript = Transcript::new("neo_fri_challenge");
-    transcript.absorb_bytes("fs", fs_transcript);
-    transcript.absorb_bytes("commitment", &root);
-    let expected_challenge_bytes = transcript.challenge_wide("open_point");
-    let expected_challenge_f = F::from_u64(u64::from_le_bytes(expected_challenge_bytes[0..8].try_into().unwrap()));
-    
-    if challenge_f != expected_challenge_f {
-        return Ok(false); // Challenge mismatch
-    }
-    
-    // Verify FRI proof
-    let fri = FriPCSWrapper::new();
-    let fri_proof = neo_commit::fri_pcs::FriProof {
-        proof_bytes: fri_proof_bytes,
-        evaluation,
-    };
-    
-    fri.verify(&commitment, challenge, evaluation, &fri_proof)
-        .map_err(|e| format!("FRI verify failed: {e}"))
-}
 
 /// Domain-separated transcript generation for Fiat-Shamir
 /// This maintains compatibility with existing Neo transcript format
@@ -468,7 +313,7 @@ pub fn knowledge_extractor(_transcript: &[u8]) -> Result<Vec<ExtF>, String> {
 }
 
 #[cfg(all(test, feature = "snark_spartan2"))]
-mod spartan2_tests {
+mod tests {
     use super::*;
     use neo_ccs::{CcsStructure, CcsInstance, CcsWitness};
     use neo_fields::F;
@@ -568,48 +413,3 @@ mod spartan2_tests {
     }
 }
 
-#[cfg(all(test, not(feature = "snark_spartan2")))]
-mod fri_tests {
-    use super::*;
-    use neo_ccs::{CcsStructure, CcsInstance, CcsWitness};
-    use neo_fields::F;
-    use p3_matrix::dense::RowMajorMatrix;
-
-    #[test]
-    fn test_fri_roundtrip() {
-        // Create a simple CCS for testing: constraint a + b = c
-        let mats = vec![
-            RowMajorMatrix::new(vec![F::ONE, F::ZERO, F::ZERO], 3),   // Matrix A: selects a
-            RowMajorMatrix::new(vec![F::ZERO, F::ONE, F::ZERO], 3),   // Matrix B: selects b  
-            RowMajorMatrix::new(vec![F::ZERO, F::ZERO, F::ONE], 3),   // Matrix C: selects c
-        ];
-        let f = neo_ccs::mv_poly(|inputs: &[ExtF]| {
-            if inputs.len() != 3 {
-                ExtF::ZERO
-            } else {
-                inputs[0] + inputs[1] - inputs[2] // a + b - c = 0
-            }
-        }, 1);
-        let ccs = CcsStructure::new(mats, f);
-        
-        let inst = CcsInstance { 
-            commitment: vec![], 
-            public_input: vec![], 
-            u: F::ZERO, 
-            e: F::ONE 
-        };
-        
-        let wit = CcsWitness { 
-            z: vec![
-                ExtF::new_real(F::from_u64(2)), // a = 2
-                ExtF::new_real(F::from_u64(3)), // b = 3
-                ExtF::new_real(F::from_u64(5)), // c = 5 (2 + 3 = 5)
-            ]
-        };
-        let fs = domain_separated_transcript(0, "neo_bind");
-
-        // Test the FRI roundtrip
-        let (proof, vk) = spartan_compress(&ccs, &inst, &wit, &fs).expect("prove");
-        assert!(spartan_verify(&proof, &vk, &ccs, &inst, &fs).expect("verify"));
-    }
-}

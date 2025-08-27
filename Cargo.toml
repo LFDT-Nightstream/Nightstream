@@ -25,8 +25,22 @@ version = { workspace = true }
 authors = { workspace = true }
 
 [features]
-real_fri = []            # Enable real p3-fri PCS instead of simulated
-default = ["real_fri"]   # Use PQ-friendly FRI by default
+# Use real p3-fri PCS in our native path
+real_fri = []
+# Turn on Spartan2-based SNARK
+snark_spartan2 = [
+  "dep:spartan2",
+  "dep:bincode", 
+  "dep:bellpepper-core",
+  "dep:bellpepper",
+  "dep:ff",
+]
+# Choose which Spartan2 PCS to use:
+spartan_fri = ["snark_spartan2"]     # PQ: Spartan2 + FRI
+spartan_hyrax = ["snark_spartan2"]   # Legacy: Spartan2 + Hyrax (non-PQ)
+
+# Keep PQ/native FRI as the default mode unless user opts into Spartan
+default = ["real_fri"]
 
 [dependencies]
 neo-fields = { path = "neo-fields" }
@@ -35,6 +49,13 @@ neo-commit = { path = "neo-commit" }
 p3-field = "0.3"
 p3-matrix = { workspace = true }
 rand = { workspace = true }
+
+# Optional deps used only when snark_spartan2 is enabled
+spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false, optional = true }
+bincode = { version = "1", optional = true }
+bellpepper-core = { version = "0.4", optional = true }
+bellpepper = { version = "0.4", optional = true }
+ff = { version = "0.13", optional = true }
 
 [workspace.package]
 edition = "2021"
@@ -66,6 +87,9 @@ p3-poseidon2 = "0.3.0"   # Hash function for FRI
 p3-commit = "0.3.0"      # Commitment schemes for p3-fri
 p3-merkle-tree = "0.3.0" # Merkle tree MMCS for p3-fri
 p3-dft = "0.3.0"         # DFT operations for p3-fri
+
+# memchr is used by snark/mod.rs when snark_spartan2 is on
+memchr = "2.7"
 
 # SNARK mode: Spartan2 dependencies for succinctness (moved to individual crates)
 # spartan2, bincode, bellpepper-core, bellpepper, ff are now optional per-crate dependencies

@@ -1,48 +1,68 @@
 [workspace]
 members = [
-    "neo-main",
-    "neo-fields",
-    "neo-poly",
-    "neo-modint",
-    "neo-ring",
-    "neo-decomp",
-    "neo-commit",
-    "neo-sumcheck",
-    "neo-ccs",
-    "neo-fold",
-    "neo-arithmetize",
-    "neo-orchestrator",
-    "neo-bench",
+  "crates/neo-params", 
+  "crates/neo-math", 
+  # Core supporting crates
+  "neo-poly",
+  "neo-modint", 
+  "neo-decomp",
+  # Implementation crates
+  "crates/neo-ajtai",
+  "crates/neo-ccs",
+  # Temporarily disabled while fixing dependencies
+  # "crates/neo-challenge", 
+  # "crates/neo-fold",
+  # "crates/neo-spartan-bridge", 
+  # "crates/neo-tests",
+  # Legacy crates (for reference during migration)
+  # "crates/neo-sumcheck-legacy",
+  # "crates/neo-ring-legacy", 
+  # "crates/neo-commit-legacy",
+  # Other existing crates (temporarily disabled)
+  # "neo-main",
+  # "neo-arithmetize",
+  # "neo-orchestrator",
+  # "neo-bench",
 ]
 resolver = "2"
 
-
-
-[package]
-name = "learn-neo-lattice"
-edition = { workspace = true }
-version = { workspace = true }
-authors = { workspace = true }
-
-[features]
-# Default: Spartan2 + FRI (post-quantum SNARK system) - always enabled
-default = []
-
-[dependencies]
-neo-fields = { path = "neo-fields" }
-neo-ccs = { path = "neo-ccs" }
-neo-commit = { path = "neo-commit" }
-p3-field = "0.3"
-p3-matrix = { workspace = true }
-rand = { workspace = true }
-
-# Spartan2 dependencies (always enabled)
-spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false }
-bincode = { version = "1" }
-bellpepper-core = { version = "0.4" }
-bellpepper = { version = "0.4" }
-ff = { version = "0.13" }
+[workspace.dependencies]
+# Core dependencies
+rand = "0.8"
+rand_chacha = "0.9"
+rand_distr = "0.5"
 serde = { version = "1", features = ["derive"] }
+thiserror = "1.0"
+subtle = "2.5"
+rayon = "1.8"
+
+# Plonky3 field and matrix operations
+p3-field = "0.3.0"
+p3-goldilocks = { version = "0.3.0", default-features = false }
+p3-matrix = "0.3.0"
+p3-symmetric = "0.3.0"   # Poseidon2 hashing for Fiat-Shamir
+p3-poseidon2 = "0.3.0"
+p3-challenger = "0.3.0"
+p3-commit = "0.3.0"
+byteorder = "1.5"
+
+# Benchmarking and testing
+criterion = { version = "0.5.1", features = ["html_reports"] }
+proptest = "1.0"
+
+# Spartan2 integration (optional)
+spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false }
+bellpepper-core = { version = "0.4" }
+ff = { version = "0.13" }
+
+[profile.dev]
+opt-level = 1
+incremental = true
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
 
 [workspace.package]
 edition = "2021"
@@ -50,60 +70,15 @@ version = "0.1.0"
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
 rust-version = "1.88"
 
-[workspace.dependencies]
-# Core dependencies
-rand = "0.9"
-rand_chacha = "0.9"
-rand_distr = "0.5"
-hex = "0.4"
+# Legacy package (will be removed)
+[package]
+name = "learn-neo-lattice"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
 
-# Plonky3 field and matrix operations (core functionality)
-p3-goldilocks = { version = "0.3.0", default-features = false }
-p3-matrix = "0.3.0"
-p3-field = "0.3.0"
-p3-symmetric = "0.3.0"   # Poseidon2 hashing for Fiat-Shamir
+[features]
+default = []
 
-# Benchmarking and testing dependencies
-criterion = { version = "0.5.1", features = ["html_reports"] }
-rayon = "1.10"
-
-# Additional p3 crates for benchmarks and PCS
-p3-challenger = "0.3.0"  # Used in benchmarks
-p3-fri = "0.3.0"         # FRI PCS for interim succinctness
-p3-poseidon2 = "0.3.0"   # Hash function for FRI
-p3-commit = "0.3.0"      # Commitment schemes for p3-fri
-p3-merkle-tree = "0.3.0" # Merkle tree MMCS for p3-fri
-p3-dft = "0.3.0"         # DFT operations for p3-fri
-
-# memchr is used by snark/mod.rs for Spartan2 integration
-memchr = "2.7"
-thiserror = "1"
-byteorder = "1"
-subtle = "2"
-
-# Spartan2 dependencies for SNARK succinctness (moved to individual crates)
-# spartan2, bincode, bellpepper-core, bellpepper, ff are now optional per-crate dependencies
-
-[workspace.lints.clippy]
-uninlined_format_args = "allow"
-
-[workspace.metadata.clippy]
-all-targets = true
-all-features = true
-
-[dev-dependencies]
-criterion = { workspace = true }
-neo-commit = { path = "neo-commit" }
-neo-ccs = { path = "neo-ccs" }
-neo-fold = { path = "neo-fold" }
-neo-fields = { path = "neo-fields" }
-neo-decomp = { path = "neo-decomp" }
-neo-ring = { path = "neo-ring" }
-neo-modint = { path = "neo-modint" }
-p3-matrix = { workspace = true }
-rand = { workspace = true }
-p3-field = "0.3"
-
-[[bench]]
-name = "folding"
-harness = false
+[dependencies]
+# Will be replaced with new crate structure

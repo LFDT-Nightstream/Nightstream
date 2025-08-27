@@ -250,7 +250,7 @@ impl Coeff for ModInt {
     }
 
     fn random(rng: &mut impl Rng) -> Self {
-        let val = rng.random::<u64>() % Self::Q;
+        let val = rng.gen::<u64>() % Self::Q;
         Self::from_u64(val)
     }
 
@@ -259,7 +259,7 @@ impl Coeff for ModInt {
     }
 }
 
-use neo_fields::F;
+use neo_math::F;
 use p3_field::{integers::QuotientMap, Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(feature = "quickcheck")]
 use quickcheck::{Arbitrary, Gen};
@@ -277,7 +277,7 @@ impl Coeff for F {
     }
 
     fn random(rng: &mut impl Rng) -> Self {
-        let val = rng.random::<u64>() % <F as PrimeField64>::ORDER_U64;
+        let val = rng.gen::<u64>() % <F as PrimeField64>::ORDER_U64;
         <F as QuotientMap<u64>>::from_int(val)
     }
 
@@ -286,7 +286,7 @@ impl Coeff for F {
     }
 }
 
-use neo_fields::ExtF;
+use neo_math::ExtF;
 
 impl Coeff for ExtF {
     fn zero() -> Self {
@@ -301,7 +301,7 @@ impl Coeff for ExtF {
     }
 
     fn random(_rng: &mut impl Rng) -> Self {
-        neo_fields::random_extf()
+        neo_math::random_extf()
     }
 
     fn inverse(&self) -> Self {

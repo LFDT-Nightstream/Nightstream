@@ -1,0 +1,45 @@
+[package]
+name = "neo-sumcheck"
+edition = "2021"
+version = "0.1.0"
+authors = ["Example Author <example@example.com>"]
+
+
+
+[dependencies]
+neo-math = { path = "../neo-math" }
+neo-poly = { path = "../../neo-poly" }
+neo-modint = { path = "../../neo-modint" }
+neo-ring = { path = "../neo-ring-legacy" }
+rand = { workspace = true }
+rand_distr = { workspace = true }
+rand_chacha = { workspace = true }
+p3-field = "0.3"
+p3-poseidon2 = "0.3.0"
+p3-symmetric = "0.3.0"
+p3-goldilocks = { workspace = true }
+p3-challenger = { workspace = true }
+thiserror = "1.0"
+byteorder = "1.5"
+subtle = "2.5"
+spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false, optional = true }
+
+# FRI dependencies removed - using direct polynomial checks in NARK mode
+
+[dev-dependencies]
+quickcheck = "1"
+quickcheck_macros = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+p3-field = "0.3.0"
+p3-goldilocks = "0.3.0"
+p3-poseidon2 = "0.3.0"
+p3-symmetric = "0.3.0"
+rand = { workspace = true }
+
+[features]
+default = []
+# FRI features removed - using direct polynomial checks in NARK mode
+
+[[bench]]
+name = "sumcheck"
+harness = false

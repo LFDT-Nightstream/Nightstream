@@ -1,0 +1,19 @@
+[package]
+name = "neo-spartan-bridge"
+version = "0.1.0"
+edition = "2021"
+authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
+description = "Bridge from Neo folding to Spartan2+FRI compression (last-mile only)"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+neo-math = { path = "../neo-math" }
+neo-ccs = { path = "../neo-ccs" }
+spartan2 = { workspace = true, optional = true }
+bellpepper-core = { workspace = true, optional = true }
+ff = { workspace = true, optional = true }
+thiserror = { workspace = true }
+
+[features]
+default = ["spartan2"]
+spartan2 = ["dep:spartan2", "bellpepper-core", "ff"]

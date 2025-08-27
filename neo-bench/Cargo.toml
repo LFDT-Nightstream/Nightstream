@@ -9,7 +9,7 @@ rand      = { workspace = true }
 # Your local crates (used by the Neo side)
 neo-ccs         = { path = "../neo-ccs" }
 neo-commit      = { path = "../neo-commit" }
-neo-fields      = { path = "../neo-fields" }
+neo-math      = { path = "../crates/neo-math" }
 neo-orchestrator= { path = "../neo-orchestrator" }
 p3-matrix       = { workspace = true }
 p3-field        = "0.3.0"

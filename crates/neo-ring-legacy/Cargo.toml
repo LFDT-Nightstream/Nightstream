@@ -1,0 +1,31 @@
+[package]
+name = "neo-ring"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+neo-poly = { path = "../../neo-poly" }
+neo-math = { path = "../neo-math" }
+rand = { workspace = true }
+rand_distr = { workspace = true }
+p3-field = "0.3"
+neo-modint = { path = "../../neo-modint" }
+neo-decomp = { path = "../../neo-decomp" }
+p3-matrix = { workspace = true }
+subtle = "2.5"
+quickcheck = { version = "1", optional = true }
+
+[dev-dependencies]
+quickcheck = "1"
+quickcheck_macros = "1"
+neo-modint = { path = "../../neo-modint", features = ["quickcheck"] }
+neo-poly = { path = "../../neo-poly", features = ["quickcheck"] }
+criterion = { workspace = true }
+
+[features]
+quickcheck = ["dep:quickcheck", "neo-modint/quickcheck", "neo-poly/quickcheck"]
+
+[[bench]]
+name = "ring_ops"
+harness = false

@@ -1,0 +1,24 @@
+[package]
+name = "neo-ccs"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+neo-math = { path = "../neo-math" }
+neo-modint = { path = "../../neo-modint" }
+neo-ring = { path = "../neo-ring-legacy" }
+neo-sumcheck = { path = "../neo-sumcheck-legacy" }
+p3-field = { workspace = true }
+p3-matrix = { workspace = true }
+rayon = { workspace = true }
+thiserror = { workspace = true }
+spartan2 = { workspace = true, optional = true }
+
+[features]
+default = []
+spartan2-compat = ["spartan2", "neo-math/spartan2-compat"]
+
+[dev-dependencies]
+criterion = { workspace = true }
+rand = { workspace = true }

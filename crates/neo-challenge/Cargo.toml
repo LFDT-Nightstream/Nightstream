@@ -1,0 +1,11 @@
+[package]
+name = "neo-challenge"
+version = "0.1.0"
+edition = "2021"
+authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
+description = "Strong sampling set C with invertibility bounds and expansion factor T"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+neo-math = { path = "../neo-math" }
+rand = { workspace = true }

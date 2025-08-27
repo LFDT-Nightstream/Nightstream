@@ -5,7 +5,7 @@ version = "0.1.0"
 authors = ["Example Author <example@example.com>"]
 
 [dependencies]
-neo-fields = { path = "../neo-fields" }
+neo-math = { path = "../crates/neo-math" }
 p3-field = "0.3"
 rand = { workspace = true }
 quickcheck = { version = "1", optional = true }

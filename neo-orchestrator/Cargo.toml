@@ -7,7 +7,7 @@ edition = "2021"
 thiserror       = "1"
 neo-ccs         = { path = "../neo-ccs" }
 neo-commit      = { path = "../neo-commit" }
-neo-fields      = { path = "../neo-fields" }
+neo-math      = { path = "../crates/neo-math" }
 neo-fold        = { path = "../neo-fold" }
 neo-sumcheck    = { path = "../neo-sumcheck" }
 neo-arithmetize = { path = "../neo-arithmetize" }

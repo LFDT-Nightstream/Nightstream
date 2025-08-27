@@ -1,0 +1,21 @@
+[package]
+name = "neo-math"
+version = "0.1.0"
+edition = "2021"
+authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
+description = "Small prime fields and cyclotomic rings for Neo"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true, optional = true }
+rand = { workspace = true }
+spartan2 = { workspace = true, optional = true }
+ff = { workspace = true, optional = true }
+
+[features]
+default = ["goldilocks"]
+goldilocks = ["p3-goldilocks"]
+spartan2-compat = ["spartan2", "ff"]
+m61 = []
+agl = []

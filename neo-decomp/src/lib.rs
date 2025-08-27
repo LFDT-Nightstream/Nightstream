@@ -1,6 +1,6 @@
 //! Vector-to-matrix decomposition as described in the Neo paper.
 
-use neo_fields::F;
+use neo_math::F;
 use neo_modint::Coeff;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};

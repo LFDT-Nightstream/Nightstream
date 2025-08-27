@@ -1,0 +1,24 @@
+[package]
+name = "neo-tests"
+version = "0.1.0"
+edition = "2021"
+authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
+description = "Property tests and integration tests for Neo protocol"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "neo-demo"
+path = "src/main.rs"
+
+[dependencies]
+neo-params = { path = "../neo-params" }
+neo-math = { path = "../neo-math" }
+neo-ajtai = { path = "../neo-ajtai" }
+neo-challenge = { path = "../neo-challenge" }
+neo-ccs = { path = "../neo-ccs" }
+neo-fold = { path = "../neo-fold" }
+neo-spartan-bridge = { path = "../neo-spartan-bridge" }
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }

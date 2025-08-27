@@ -1,100 +1,172 @@
 # Neo Implementation Requirements (Derived from Nguyen & Setty 2025)
+
 > **Legend**
-> • **MUST** = mandatory for cryptographic correctness / soundness
-> • **SHOULD** = strongly recommended for performance or UX
-> • **NICE** = optional polish / quality-of-life
-This document distills normative requirements from the paper "Neo: Lattice-based folding scheme for CCS over small fields and pay-per-bit commitments" by Wilson Nguyen and Srinath Setty (ePrint 2025/294). Requirements are organized by crate, with cross-references to paper sections/definitions. I've double-checked against the paper's abstract and available details, expanded where needed for clarity (e.g., adding explicit algorithms from key sections), and filtered out inaccuracies (e.g., removed speculative items not directly supported; ensured alignment with codebase gaps like trapdoor openings). Updated 2025-08-16 to reflect current impl state (e.g., partial ZK/FS, toy params).
+> **MUST** = mandatory for cryptographic correctness / soundness
+> **SHOULD** = strongly recommended for performance or UX
+> **NICE** = optional polish / quality-of-life
+
+This document specifies **normative requirements per crate** for implementing *Neo: Lattice-based folding scheme for CCS over small fields with pay-per-bit commitments*. It reflects our workspace layout and the paper's design: **Ajtai is always on**, there is **one FS transcript** and **one sum-check over** $K=\mathbb F_{q^2}$, and **simulated FRI is removed** (Spartan2 is the only succinct backend).&#x20;
+
 ---
-## neo-fields (§1.2, §1.3, §6)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | §1.3, Def. 1 | Support small prime fields like Goldilocks (q = 2^64 - 2^32 + 1) with efficient arithmetic; document that -1 is a non-square (Goldilocks property) for quadratic extensions. |
-| MUST | §1.3, Footnote 4 | Implement quadratic extension F_p^2 (e.g., via x^2 + 1 = 0) for 128-bit security in sum-check; include conjugation and inverse. |
-| SHOULD | §6, Table 2 | Pre-compute roots-of-unity up to degrees 2^20; support Mersenne-61 as alternative field. |
-| NICE | §8 | Add serialization (to/from bytes) for transcript hashing; feature-gate high-precision extensions. |
+
+## Global project choices & invariants
+
+* **Ajtai-only commitment** (no feature flags or alternate backends).
+* **One sum-check over $K=\mathbb F_{q^2}$** (soundness $\le \ell d/|K|$ at 64-bit $q$ ⇒ \~128-bit).
+* **Mandatory decomposition & range** inside the folding pipeline.
+* **Strong-sampler challenges** with tracked expansion $T$ and enforced $(k+1)T(b-1)<B$.
+* **Spartan2 bridge only** for last-mile compression; **no simulated FRI**.
+* **Testing policy:** unit/property tests **live in each crate** next to the code they verify; **only integration/black-box tests** go in the top-level `neo-tests` crate.
+
 ---
-## neo-modint (§2.3, §3.2)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | §2.3, Eq. (3) | Implement constant-time add/sub/mul/inv mod q (e.g., 2^61 - 1); use extended Euclid for inverse. |
-| MUST | §3.2 | Support signed representations (-q/2 < val <= q/2) for norms; ensure constant-time modular ops (masking optional). (Partial: Basic ops done, but not fully constant-time audited.) |
-| SHOULD | §3.2, Alg. 1 | Add Montgomery/Barrett reduction for efficient ring multiplication. |
-| NICE | §8 | Batch operations/SIMD for performance; support larger q via external crates if needed. |
+
+## Crate map (what each crate owns)
+
+| Crate                | What it owns (public surface)                                                                                                                                          | Why its boundary matters                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `neo-params`         | Typed parameter sets; validates $(k+1)T(b-1)<B$; fixes extension $K=\mathbb F_{q^2}$.                                                                                  | Centralizes reduction params & sum-check soundness target.                                |
+| `neo-math`           | **field/** $\mathbb F_q$ (Goldilocks/M61/AGL) and $K=\mathbb F_{q^2}$; **ring/** $R_q=\mathbb F_q[X]/(\Phi_\eta)$, `cf/cf^{-1}`, `rot(a)`, $S\subseteq F^{d\times d}$. | Keeps arithmetic small-field-native; provides the $S$-action used by commitments and RLC. |
+| `neo-ajtai`          | Ajtai **matrix commitment** $L:\mathbb F_q^{d\times m}\to\mathcal C$ (S-homomorphic); `decomp_b`, `split_b`; pay-per-bit multiply.                                     | Enforces "Ajtai always-on" + verified decomposition/range.                                |
+| `neo-challenge`      | Strong sampling set $C=\{\mathrm{rot}(a)\}$; invertibility bound; expansion $T$.                                                                                       | RLC needs invertible deltas and bounded expansion.                                        |
+| `neo-ccs`            | CCS loader; linearized helpers; **MCS/ME** relation types.                                                                                                             | Shapes the exact claims reductions manipulate.                                            |
+| `neo-fold`           | **One** FS transcript; **one** sum-check over $K$; reductions $\Pi_{\text{CCS}},\Pi_{\text{RLC}},\Pi_{\text{DEC}}$ + composition.                                      | Single sum-check + three-reduction pipeline as in §4–§5.                                  |
+| `neo-spartan-bridge` | Translate final $ME(b,L)$ to Spartan2 (real FRI backend only).                                                                                                         | Confines succinct compression to last mile.                                               |
+| `neo-tests`          | **Integration** tests & cross-crate benches only.                                                                                                                      | Ensures end-to-end correctness across crate boundaries.                                   |
+
 ---
-## neo-ring (§3.2, Def. 5-6; §6)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | Def. 5 | Represent elements in R_q = Z_q[X]/(X^n +1) with n power-of-2; implement reduction mod X^n +1. |
-| MUST | §3.2, Alg. 1 | Support rotation (mul by X^j) and automorphism σ_k (X -> X^k for odd k). |
-| MUST | §3.2 | Compute infinity norm (signed) and gadget decomposition into k layers with base b; norms <= ⌊b/2⌋ (if b odd, (b-1)/2). |
-| SHOULD | §6 | Implement fast negacyclic polynomial multiplication (O(n log n)); optimize for n >= 2^12. (Partial: Karatsuba in place, but not O(n log n) without FFT.) |
-| NICE | §8 | Constant-time norm calc; random small/uniform sampling with bound checks. |
+
+## `neo-params`
+
+| Req        | Description                                                                                               |   |                                                 |
+| ---------- | --------------------------------------------------------------------------------------------------------- | - | ----------------------------------------------- |
+| **MUST**   | Provide typed presets (AGL/Goldilocks/M61) and **enforce** $(k+1)T(b-1)<B$; reject unsafe params at load. |   |                                                 |
+| **MUST**   | Fix $K=\mathbb F_{q^2}$ for the sum-check; expose (                                                       | K | ) for soundness accounting.                     |
+| **MUST**   | Export (q,\eta,d,\kappa,m,b,k,B,T,                                                                        | C | ) with docstrings tying each to the reductions. |
+| **SHOULD** | Ship profile docs showing why $B=b^k$ and typical $T$ from chosen $C_R$.                                  |   |                                                 |
+| **NICE**   | `serde` load/save; human-readable profile IDs.                                                            |   |                                                 |
+
+*Tests:* in-crate unit/property tests validating the inequality and preset integrity.
+
 ---
-## neo-poly (utility)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| NICE | — | Polynomial helpers (evaluation/interpolation); no additional normative requirements. |
+
+## `neo-math` (field/ & ring/)
+
+### field/
+
+| Req        | Description                                                                                                           |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- |
+| **MUST**   | Implement $\mathbb F_q$ (GL/M61/AGL) with canonical and signed views; add $K=\mathbb F_{q^2}$ (conjugation, inverse). |
+| **MUST**   | Constant-time basic ops; no secret-dependent branching.                                                               |
+| **SHOULD** | Roots-of-unity/NTT hooks sized for ring ops.                                                                          |
+
+### ring/
+
+| Req        | Description                                                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **MUST**   | Define $R_q=\mathbb F_q[X]/(\Phi_\eta)$ and coefficient maps `cf`/`cf^{-1}`; define $\|a\|_\infty=\|\mathrm{cf}(a)\|_\infty$. |
+| **MUST**   | Implement `rot(a)` and model $S=\{\mathrm{rot}(a)\}\subseteq F^{d\times d}$; expose left-action on vectors/matrices.          |
+| **SHOULD** | Efficient (negacyclic/NTT) multiplication for common $d$; pay-per-bit column-add path.                                        |
+| **NICE**   | Small-norm samplers for tests/benches.                                                                                        |
+
+*Tests:* in-crate (field correctness, ring isomorphism $R_q\cong S$, rotation identities).
+
 ---
-## neo-decomp (Def. 11; §3.2, §4.2)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | Def. 11 | Implement signed base-b decomposition of vector z in F^m to matrix Z in F^{d x m} with digits in [-b/2, b/2]. |
-| MUST | §4.2, Π_DEC | Support gadget vector g = (1, b, b^2, ..., b^{d-1}) for MSIS binding. |
-| SHOULD | §1.3 | Provide variants: bit-decomp (b=2) and general power-of-two; enforce \|\|Z\|\|_inf <= b/2. |
-| NICE | App. B | Assertion helpers for norm bounds; integration with ring packing. |
+
+## `neo-ajtai`
+
+| Req        | Description                                                                                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MUST**   | Implement **Ajtai matrix commitment**: `Setup` $M\!\leftarrow\!R_q^{\kappa\times m}$; `Commit(pp,Z)` computes $c=\mathrm{cf}(M\cdot\mathrm{cf}^{-1}(Z))$. |
+| **MUST**   | **S-homomorphism:** $ \rho_1 L(Z_1)+\rho_2 L(Z_2)=L(\rho_1 Z_1+\rho_2 Z_2)$, $\rho_i\in S$.                                                               |
+| **MUST**   | **(d,m,B)-binding** and **(d,m,B,C)-relaxed binding** under MSIS; surface helper checks.                                                                  |
+| **MUST**   | **Pay-per-bit embedding** + `decomp_b` and `split_b` with range assertions ($\|Z\|_\infty<b$).                                                            |
+| **MUST**   | Ajtai **always enabled**; no alternate backends or feature flags.                                                                                         |
+| **SHOULD** | Parameter notes (AGL/GL/M61) and links to estimator scripts (paper App. B).                                                                               |
+| **NICE**   | API to link selected CCS witness coordinates to Ajtai digits (for applications).                                                                          |
+
+*Tests:* in-crate (S-linearity; binding/relaxed-binding harnesses; decomp/split identities & negative cases).
+
 ---
-## neo-commit (§3.2, Alg. 1; Def. 10, 13-15)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | Alg. 1, Def. 10 | Implement Setup (sample M in R_q^{k x d}), Commit (Mz + e with short e), Verify (check norms). |
-| MUST | Def. 13 | Ensure S-homomorphic (add/mul by scalars in S) and (d,m,B)-binding based on MSIS. |
-| MUST | Def. 15 | Support (d,m,B,C, norm)-relaxed binding (challenge set C and norm parameter). |
-| SHOULD | §1.3, §3.1 | Implement pay-per-bit cost calc; ZK blinding with Gaussian errors (σ=3.2). (Partial: Blinding done, but not constant-time.) |
-| NICE | App. B.10 | Parameter validation via Sage for MSIS/RLWE bounds; random linear combo for folding. |
+
+## `neo-challenge`
+
+| Req        | Description                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **MUST**   | Define/sample **strong set** $C=\{\mathrm{rot}(a)\}$ from small-coeff $C_R\subset R_q$; ensure pairwise differences invertible. |
+| **MUST**   | Compute/record **expansion $T$**; export to `neo-params` and `neo-fold`.                                                        |
+| **MUST**   | Domain-separated sampling API (transcript-seeded).                                                                              |
+| **SHOULD** | Metrics for observed expansion; failure-rate tests for invertibility.                                                           |
+
+*Tests:* in-crate (invertibility property; empirical $T$ bounds).
+
 ---
-## neo-sumcheck (§4.1, Alg. 2-3; §A.1)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | Alg. 2–3 | Interactive batched prover/verifier for multivariate polys over extension K; send unis per round. |
-| MUST | §4.1, Eq. (6) | Norm-check poly Φ(w) = w ∏_{k=1}^b (w^2 - k^2) (signed); batch with random α across elements. |
-| MUST | §4.1 | Single Poseidon2 transcript with per-round domain separation; derive ρ for batching, α for norms; oracle-based verifier. |
-| SHOULD | §4.1 | Optimized multilinear variant with table folding (O(N log N)); high-degree support via interpolation. |
-| NICE | §8, Lemma 9 | Soundness error <= d/\|K\| via Schwartz-Zippel; reject invalid with negl probability. |
+
+## `neo-ccs`
+
+| Req        | Description                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| **MUST**   | CCS satisfiability: verify $f(Mz)=0$ row-wise; handle public inputs $x\subset z$.                                 |
+| **MUST**   | Support relaxed CCS with slack $u$ and factor $e$ (defaults $u{=}0,e{=}1$).                                       |
+| **MUST**   | Define **MCS/ME** instance/witness types and consistency checks $c=L(Z), X=L_x(Z), y_j=Z M_j^\top r^{\mathrm b}$. |
+| **SHOULD** | Import/export helpers to/from common arithmetizations.                                                            |
+
+*Tests:* in-crate (shape checks; satisfiability on toy instances).
+
 ---
-## neo-ccs (Def. 16-19; §1, §4)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | Def. 17 | check_satisfiability: Verify f(M z) = 0 for all rows; handle public inputs x in z. |
-| MUST | Def. 19 | Support relaxed CCS with slack vector u and multiplicative factor e; initialize u=0 and e=1. |
-| SHOULD | §1.4 | Extend to lookups/memory via Shout/Twist tables. |
-| NICE | Remark 2 | Converters from R1CS/Plonkish/AIR to CCS. |
+
+## `neo-fold`
+
+| Req        | Description                                                                                                                  |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **MUST**   | Own the **only FS transcript**; public-coin with label-scoped domains.                                                       |
+| **MUST**   | Implement **one sum-check over $K=\mathbb F_{q^2}$** on the composed $Q$ (constraints $F$, range $NC_i$, eval $Eval_{i,j}$). |
+| **MUST**   | Implement $\Pi_{\text{CCS}}$, $\Pi_{\text{RLC}}$ (using `neo-challenge`), and $\Pi_{\text{DEC}}$; enforce $(k+1)T(b-1)<B$.   |
+| **MUST**   | **Compose** the three reductions into the folding step $k\!+\!1\to k$ with restricted/relaxed KS hooks (per paper §5).       |
+| **MUST**   | **No simulated FRI**; no other transcripts here.                                                                             |
+| **SHOULD** | Serde `ProofArtifact` + timing/size metrics; Schwartz–Zippel property tests.                                                 |
+| **NICE**   | Prover trace toggles for profiling.                                                                                          |
+
+*Tests:* in-crate (unit/property for each reduction; composition sanity).
+
 ---
-## neo-fold (§4-5, Thm. 1)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | §4.4, Π_CCS | Construct multivariate Q encoding f(Mz)=0; batch with norms via ρ; reduce to eval claims. |
-| MUST | §4.2, Π_RLC | Random linear combine instances with ρ sampled from extension field K; preserve homomorphism. |
-| MUST | §4.2, Π_DEC | Decompose evals to low-norm matrix; repack and recommit. |
-| MUST | §5, Thm. 1 | Ensure composability, restricted properties, knowledge soundness (extractors). (Partial: Stubs for extractors; needs full rewinding.) |
-| SHOULD | §5.2 | Recursion loop for IVC/PCD; fold verifier circuit. (Partial: Stubbed loop.) |
-| NICE | §6, Table 3 | Benchmarks matching paper (e.g., 1s fold for 1024 constraints). |
+
+## `neo-spartan-bridge`
+
+| Req        | Description                                                                                                                |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **MUST**   | Translate final $ME(b,L)$ into a **Spartan2** proof (setup/prove/verify) over small fields; maintain binding to public IO. |
+| **MUST**   | Keep transcript/IO linkage compatible with `neo-fold`.                                                                     |
+| **MUST**   | Use **real** FRI only (as required by Spartan2 PCS); no simulated paths.                                                   |
+| **SHOULD** | Report proof size/time.                                                                                                    |
+
+*Tests:* in-crate (round-trip on tiny ME instances; IO binding).
+
 ---
-## neo-oracle (utility)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| NICE | — | Transcript/oracle abstractions; no specific normative requirements beyond constant-time hashing. |
+
+## `neo-tests` (integration **only**)
+
+| Req        | Description                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **MUST**   | End-to-end: $\Pi_{\text{DEC}}\circ\Pi_{\text{RLC}}\circ\Pi_{\text{CCS}}$ reduces $k\!+\!1\to k$ with expected norm profile under a preset. |
+| **MUST**   | Global parameter gate: presets pass $(k+1)T(b-1)<B$; fail on tampering.                                                                    |
+| **MUST**   | Bridge: fold → Spartan2 verify succeeds; tampering (any of $c,X,r,\{y_j\}$) fails.                                                         |
+| **SHOULD** | Cross-crate benches and CSV/JSON metrics.                                                                                                  |
+
+> **Note:** All **crate-specific** unit/property tests live **inside their crate** (as described above). `neo-tests` is reserved for integration and black-box validation across crates.
+
 ---
-## neo-main (§1.5, §6)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| NICE | §1.5 | End-to-end demo: Fold CCS chain recursively; CLI with params. |
-| NICE | Table 3 | Output benchmark reports (commit/fold times) in CSV/HTML. |
+
+## Security & parameter requirements (global)
+
+| Req        | Description                                                                                             |   |                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------- | - | ------------------------------------ |
+| **MUST**   | Enforce safe params at load: $(k+1)T(b-1)<B$; strong-sampler size/invertibility; (                      | K | ) large enough for target soundness. |
+| **MUST**   | Respect restricted/relaxed KS notions and the composition theorem when wiring extractors & transcripts. |   |                                      |
+| **MUST**   | Constant-time arithmetic and hashing; avoid secret-dependent control flow.                              |   |                                      |
+| **SHOULD** | Provide the paper's estimator/Sage scripts or equivalents to justify MSIS hardness for presets.         |   |                                      |
+
 ---
-## Global (All Crates) (§6, §8, App. B)
-| Req | Paper source | Description |
-| --- | --- | --- |
-| MUST | §6, App. B.10 | Presets (toy/128-bit/256-bit); Sage script for MSIS/RLWE bounds validation. (Partial: Toy params; secure presets defined but not fully validated in code.) |
-| MUST | §8 | Constant-time ops; no secret-dependent branches; negl soundness error. (Partial: Some ops constant-time, but not audited globally.) |
-| SHOULD | §8 | Re-entrant transcripts with labels; ZK features. (Partial: Poseidon2 transcripts, but not fully re-entrant.) |
-| NICE | §1.3 | Pay-per-bit metrics; sparse support for lookups. |
----
+
+### Reference
+
+All terminology and reductions follow *Neo: Lattice-based folding scheme for CCS over small fields and pay-per-bit commitments* (Nguyen & Setty, ePrint 2025/294).&#x20;

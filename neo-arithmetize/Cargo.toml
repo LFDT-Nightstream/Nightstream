@@ -6,7 +6,7 @@ authors = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-neo-fields = { path = "../neo-fields" }
+neo-math = { path = "../crates/neo-math" }
 neo-ccs = { path = "../neo-ccs" }
 p3-matrix = { workspace = true }
 p3-field = "0.3"

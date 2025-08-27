@@ -1,0 +1,10 @@
+[package]
+name = "neo-params"
+version = "0.1.0"
+edition = "2021"
+authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
+description = "Neo parameter sets with validation and security estimates"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# No dependencies - pure parameter definitions

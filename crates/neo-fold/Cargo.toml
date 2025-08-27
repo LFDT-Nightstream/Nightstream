@@ -1,0 +1,28 @@
+[package]
+name = "neo-fold"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+neo-math = { path = "../neo-math" }
+neo-ccs = { path = "../neo-ccs" }
+neo-commit = { path = "../neo-commit-legacy" }
+neo-decomp = { path = "../../neo-decomp" }
+neo-modint = { path = "../../neo-modint" }
+neo-poly = { path = "../../neo-poly" }
+neo-ring = { path = "../neo-ring-legacy" }
+neo-sumcheck = { path = "../neo-sumcheck-legacy" }
+p3-field = { workspace = true }
+p3-matrix = { workspace = true }
+byteorder = { workspace = true }
+rand = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+rand = { workspace = true }
+
+[[bench]]
+name = "folding"
+harness = false

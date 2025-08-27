@@ -15,13 +15,11 @@ use spartan2::traits::{Engine, circuit::SpartanCircuit};
 #[cfg(feature = "snark_spartan2")]
 use spartan2::errors::SpartanError;
 
-// Import our custom FRI engine from the crate root
-#[cfg(feature = "snark_spartan2")]
-use crate::fri_engine;
+// No longer need the old fri_engine module
 
 // Engine selection: FRI (PQ-friendly) vs Hyrax (legacy)
 #[cfg(all(feature = "snark_spartan2", feature = "spartan_fri"))]
-use fri_engine::NeoFriEngine as E;
+use neo_commit::spartan2_fri_engine::PallasEngineWithFri as E;
 
 #[cfg(all(feature = "snark_spartan2", feature = "spartan_hyrax"))]
 use spartan2::provider::T256HyraxEngine as E;

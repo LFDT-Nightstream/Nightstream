@@ -1147,4 +1147,7 @@ pub mod spartan2_pcs {
     }
 }
 
+#[cfg(all(feature = "snark_spartan2", feature = "spartan_fri"))]
+pub mod spartan2_fri_engine;
+
 

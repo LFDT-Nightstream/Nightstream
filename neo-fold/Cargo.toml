@@ -49,5 +49,5 @@ harness = false
 default = []
 prop-tests = []
 snark_spartan2 = ["dep:spartan2", "dep:bincode", "dep:bellpepper-core", "dep:bellpepper", "dep:ff", "dep:serde"]
-spartan_fri = ["snark_spartan2"]
+spartan_fri = ["snark_spartan2", "neo-commit/spartan_fri"]
 spartan_hyrax = ["snark_spartan2"]

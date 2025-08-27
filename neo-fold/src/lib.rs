@@ -25,8 +25,7 @@ fn last_index_of(haystack: &[u8], needle: &[u8]) -> isize {
 }
 
 pub mod spartan_ivc;
-#[cfg(feature = "snark_spartan2")]
-pub mod fri_engine; // NARK mode - no compression
+// Old fri_engine module removed - using proper implementation in neo-fields
 pub use spartan_ivc::*;
 
 // NARK mode: Dummy CCS for recursive structure (no actual verification)

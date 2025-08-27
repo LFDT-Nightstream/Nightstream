@@ -752,6 +752,7 @@ name = "neo-commit"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "ff",
  "neo-decomp",
  "neo-fields",
  "neo-modint",
@@ -773,6 +774,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_chacha 0.9.0",
  "rand_distr",
+ "serde",
  "spartan2",
  "subtle",
 ]
@@ -795,11 +797,13 @@ name = "neo-fields"
 version = "0.1.0"
 dependencies = [
  "ff",
+ "group",
  "p3-field",
  "p3-goldilocks",
  "quickcheck",
  "quickcheck_macros",
  "rand 0.9.2",
+ "sha2",
  "spartan2",
  "subtle",
 ]

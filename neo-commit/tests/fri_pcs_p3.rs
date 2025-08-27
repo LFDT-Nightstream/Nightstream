@@ -1,4 +1,4 @@
-#![cfg(feature = "real_fri")]
+
 use neo_commit::fri_pcs::{RealFriPCSWrapper, RealFriParams};
 use neo_fields::{F, ExtF};
 use p3_field::PrimeCharacteristicRing;
@@ -42,27 +42,4 @@ fn fri_commit_open_verify_goldilocks() {
     assert!(ok, "FRI opening should verify");
 }
 
-#[test]
-fn fri_simulated_fallback() {
-    // Test that simulated version works when real_fri feature is disabled
-    // This test will only run when real_fri is enabled, but tests the interface
-    let pcs = RealFriPCSWrapper::new();
-    
-    // Simple evaluation vector for domain size 4 (log_domain=2)
-    let log_domain = 2usize;
-    let evals = vec![F::from_u64(1), F::from_u64(2), F::from_u64(3), F::from_u64(4)];
-    
-    let (com, pd) = pcs.commit(&[evals], log_domain, None).expect("commit should work");
-    
-    // Test opening at a point
-    let x = ExtF::new_real(F::from_u64(1));
-    let pr = pcs.open(&com, &pd, 0, x).expect("open should work");
-    
-    // Verify the opening
-    let ok = pcs.verify(&com, 0, x, pr.evaluation, &pr).expect("verify should work");
-    assert!(ok, "Opening should verify");
-    
-    // Test size estimates
-    assert!(pcs.proof_size_estimate(log_domain) > 0);
-    assert!(pcs.commitment_size() > 0);
-}
+

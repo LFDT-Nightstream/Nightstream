@@ -134,19 +134,7 @@ fn bench_end_to_end(c: &mut Criterion) {
             },
         );
         
-        #[allow(dead_code)]
-        group.bench_with_input(
-            BenchmarkId::new("nark_end_to_end", length),
-            &length,
-            |b, _| {
-                b.iter(|| {
-                    let (proof, _) = prove(&ccs, &instance, &witness).unwrap();
-                    let verified = verify(&ccs, &proof);
-                    assert!(verified, "End-to-end NARK should succeed");
-                    verified
-                });
-            },
-        );
+
     }
     
     group.finish();
@@ -252,33 +240,7 @@ fn bench_proof_size_analysis(c: &mut Criterion) {
             },
         );
         
-        #[allow(dead_code)]
-        group.bench_with_input(
-            BenchmarkId::new("nark_proof_size", length),
-            &length,
-            |b, _| {
-                b.iter_custom(|iters| {
-                    let start = std::time::Instant::now();
-                    let mut total_size = 0;
-                    
-                    for _ in 0..iters {
-                        let (proof, metrics) = prove(&ccs, &instance, &witness).unwrap();
-                        total_size += metrics.proof_bytes;
-                        
-                        // Verify to ensure proof is valid
-                        assert!(verify(&ccs, &proof), "Proof should verify");
-                    }
-                    
-                    // Print size information
-                    if iters > 0 {
-                        let avg_size = total_size / iters as usize;
-                        println!("NARK proof average size for length {}: {} bytes", length, avg_size);
-                    }
-                    
-                    start.elapsed()
-                });
-            },
-        );
+
     }
     
     group.finish();

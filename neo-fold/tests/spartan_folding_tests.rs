@@ -59,9 +59,9 @@ mod neutronnova_folding_tests {
         let fold_state = create_neutronnova_fold_state(ccs.clone());
         
         // Verify the fold state is properly initialized
-        assert_eq!(fold_state.nark_state.structure.num_constraints, ccs.num_constraints);
-        assert_eq!(fold_state.nark_state.structure.witness_size, ccs.witness_size);
-        assert!(fold_state.conversion_cache.is_none(), "R1CS shape should be None initially");
+        assert_eq!(fold_state.structure.num_constraints, ccs.num_constraints);
+        assert_eq!(fold_state.structure.witness_size, ccs.witness_size);
+        assert!(fold_state.conversion_cache.is_none(), "R1CS conversion cache should be None initially");
         
         println!("✅ NeutronNova fold state creation successful");
         println!("   CCS constraints: {}", ccs.num_constraints);
@@ -231,21 +231,11 @@ mod neutronnova_folding_tests {
     }
 
     #[test]
-    fn test_performance_comparison_nark_vs_snark() {
-        println!("🧪 Testing performance comparison between NARK and SNARK modes");
+    fn test_snark_performance() {
+        println!("🧪 Testing SNARK performance");
 
         let (ccs, instance, witness) = create_test_fold_case();
         let committer = AjtaiCommitter::setup_unchecked(SECURE_PARAMS);
-        
-        // Test NARK mode
-        let mut nark_fold_state = FoldState::new(ccs.clone());
-        let nark_start = Instant::now();
-        let nark_proof = nark_fold_state.generate_proof(
-            (instance.clone(), witness.clone()),
-            (instance.clone(), witness.clone()),
-            &committer,
-        );
-        let nark_time = nark_start.elapsed();
         
         // Test SNARK mode
         let mut snark_fold_state = create_neutronnova_fold_state(ccs);
@@ -257,39 +247,16 @@ mod neutronnova_folding_tests {
         );
         let snark_time = snark_start.elapsed();
         
-        println!("📊 Performance Comparison:");
-        println!("   NARK proof time: {:.2}ms", nark_time.as_secs_f64() * 1000.0);
+        println!("📊 SNARK Performance:");
         println!("   SNARK proof time: {:.2}ms", snark_time.as_secs_f64() * 1000.0);
-        println!("   NARK proof size: {} bytes", nark_proof.transcript.len());
         println!("   SNARK proof size: {} bytes", snark_proof.transcript.len());
         
-        // Both proofs should verify
-        let nark_verify = nark_fold_state.verify(&nark_proof.transcript, &committer);
+        // Proof should verify
         let snark_verify = snark_fold_state.verify_snark(&snark_proof.transcript, &committer);
-        
-        assert!(nark_verify, "NARK proof should verify");
         assert!(snark_verify, "SNARK proof should verify");
         
-        println!("✅ Performance comparison test completed");
+        println!("✅ SNARK performance test completed");
     }
 }
 
-#[allow(dead_code)]
-mod nark_mode_folding_tests {
-    use neo_fold::FoldState;
-    use neo_ccs::verifier_ccs;
 
-    #[test]
-    fn test_nark_mode_folding_still_works() {
-        println!("🧪 Testing that NARK mode folding still works");
-
-        let ccs = verifier_ccs();
-        let fold_state = FoldState::new(ccs.clone());
-        
-        // Verify basic fold state properties
-        assert_eq!(fold_state.structure.num_constraints, ccs.num_constraints);
-        assert_eq!(fold_state.structure.witness_size, ccs.witness_size);
-        
-        println!("✅ NARK mode folding backward compatibility confirmed");
-    }
-}

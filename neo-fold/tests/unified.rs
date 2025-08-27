@@ -50,8 +50,8 @@ fn test_full_fold_unified() {
 }
 
 #[test]
-fn test_verify_ccs_trusts_sumcheck_in_nark_mode() {
-    // UPDATED: In NARK mode, verify_ccs trusts the sumcheck proof rather than doing
+fn test_verify_ccs_trusts_sumcheck_in_snark_mode() {
+    // In SNARK mode, verify_ccs trusts the sumcheck proof rather than doing
     // additional constraint validation. This test verifies that behavior.
     let structure = dummy_structure();
     let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);

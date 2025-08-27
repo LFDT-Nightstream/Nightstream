@@ -2,7 +2,7 @@
 
 use p3_field::{extension::BinomialExtensionField, PrimeField64, PrimeCharacteristicRing};
 
-pub mod spartan2_engine; // always present (stub in NARK, real impl under snark_mode later)
+pub mod spartan2_engine; // Spartan2 engine integration for SNARK mode
 
 pub use p3_goldilocks::Goldilocks as F;
 

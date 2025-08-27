@@ -259,31 +259,4 @@ mod spartan2_sumcheck_tests {
     }
 }
 
-#[allow(dead_code)]
-mod nark_mode_sumcheck_tests {
-    #[allow(unused_imports)]
-    use neo_sumcheck::{
-        batched_sumcheck_prover, batched_sumcheck_verifier,
-        challenger::NeoChallenger
-    };
-    use neo_fields::{ExtF, F, embed_base_to_ext};
-    use p3_field::PrimeCharacteristicRing;
-    use std::sync::Arc;
 
-    #[test]
-    fn test_nark_mode_sumcheck_still_works() {
-        println!("🧪 Testing that NARK mode sum-check still works");
-
-        // Test that the original sum-check functionality is preserved
-        let poly = Arc::new(|vars: &[ExtF]| {
-            if vars.is_empty() { ExtF::ZERO } else { vars[0] }
-        });
-        
-        let test_point = vec![embed_base_to_ext(F::from_u64(42))];
-        let eval = poly(&test_point);
-        
-        assert_eq!(eval, embed_base_to_ext(F::from_u64(42)));
-        
-        println!("✅ NARK mode sum-check backward compatibility confirmed");
-    }
-}

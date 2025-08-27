@@ -366,32 +366,4 @@ mod spartan2_pcs_tests {
     }
 }
 
-#[allow(dead_code)]
-mod nark_mode_commit_tests {
-    use neo_commit::{AjtaiCommitter, TOY_PARAMS};
-    use neo_modint::ModInt;
-    use neo_ring::RingElement;
-    use rand::Rng;
 
-    #[test]
-    fn test_nark_mode_commitment_still_works() {
-        println!("🧪 Testing that NARK mode commitment still works");
-
-        let committer = AjtaiCommitter::setup_unchecked(TOY_PARAMS);
-        
-        // Create test data
-        let mut rng = rand::rng();
-        let test_data: Vec<RingElement<ModInt>> = (0..4)
-            .map(|_| RingElement::from_scalar(
-                ModInt::from_u64(rng.random::<u64>() % 100),
-                TOY_PARAMS.n
-            ))
-            .collect();
-        
-        // Test commitment
-        let commit_result = committer.commit(&test_data, &mut vec![]);
-        assert!(commit_result.is_ok(), "NARK mode commitment should work");
-        
-        println!("✅ NARK mode commitment backward compatibility confirmed");
-    }
-}

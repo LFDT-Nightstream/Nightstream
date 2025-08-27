@@ -23,7 +23,7 @@ pub use neo_modint::{Coeff, ModInt};
 
 // Spartan2 integration
 // Spartan2 integration (shim). This compiles now and keeps public API stable.
-// When snark_mode is OFF we still export the same functions/types and run NARK under the hood.
+// Provides SNARK-compatible sumcheck protocols with Spartan2 integration.
 
 pub mod spartan2_sumcheck {
     use super::*;

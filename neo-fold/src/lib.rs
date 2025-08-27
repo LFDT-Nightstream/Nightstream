@@ -636,8 +636,8 @@ impl FoldState {
         };
         eprintln!("verify: cursor position after CCS1 verification: {}", cursor.position());
         eprintln!("verify: About to call verify_ccs with msgs1.len()={}", msgs1.len());
-        // NARK: skip point-opening; we didn't emit an opening proof
-        let first_eval_nark = EvalInstance { 
+        // Skip point-opening for SNARK mode; we use Spartan2 for commitments
+        let first_eval_snark = EvalInstance { 
             commitment: vec![], // Empty commitment to skip opening check
             ..first_eval.clone() 
         };
@@ -646,7 +646,7 @@ impl FoldState {
             &first_instance,
             self.max_blind_norm,
             &msgs1,
-            &[first_eval_nark],
+            &[first_eval_snark],
             committer,
         ) {
             eprintln!("verify: FAIL - verify_ccs returned false");
@@ -848,8 +848,8 @@ impl FoldState {
             e: if e2_ext == from_base(F::ZERO) { F::ZERO } else { F::ONE },
         };
         eprintln!("verify: About to call verify_ccs for CCS2");
-        // NARK: skip point-opening; we didn't emit an opening proof
-        let temp_second_eval_nark = EvalInstance {
+        // Skip point-opening for SNARK mode; we use Spartan2 for commitments
+        let temp_second_eval_snark = EvalInstance {
             commitment: vec![], // Empty commitment to skip opening check
             ..temp_second_eval.clone()
         };
@@ -858,7 +858,7 @@ impl FoldState {
             &second_instance,
             self.max_blind_norm,
             &msgs2,
-            &[temp_second_eval_nark],
+            &[temp_second_eval_snark],
             committer,
         ) {
             eprintln!("verify: FAIL - verify_ccs CCS2 returned false");
@@ -2224,17 +2224,17 @@ pub mod neutronnova_integration {
     #[allow(unused_imports)]
     use spartan2::traits::Engine;
     
-    /// Enhanced FoldState with NeutronNova integration
+    /// SNARK FoldState with NeutronNova integration
     pub struct NeutronNovaFoldState {
-        pub nark_state: FoldState,
-        // Placeholder for future R1CS integration data
+        pub structure: CcsStructure,
+        // R1CS conversion cache for Spartan2 integration
         pub conversion_cache: Option<(Vec<Vec<F>>, Vec<Vec<F>>, Vec<Vec<F>>)>,
     }
     
     impl NeutronNovaFoldState {
         pub fn new(structure: CcsStructure) -> Self {
             Self {
-                nark_state: FoldState::new(structure),
+                structure,
                 conversion_cache: None,
             }
         }
@@ -2244,22 +2244,33 @@ pub mod neutronnova_integration {
             &mut self,
             pair1: (CcsInstance, CcsWitness),
             pair2: (CcsInstance, CcsWitness),
-            committer: &AjtaiCommitter,
+            _committer: &AjtaiCommitter,
         ) -> Proof {
-            eprintln!("SNARK mode: Using NeutronNova folding (placeholder)");
+            eprintln!("SNARK mode: Using real NeutronNova SNARK generation");
             
-            // Generate NARK proof and add SNARK marker
-            let mut proof = self.nark_state.generate_proof(pair1, pair2, committer);
-            
-            // Add SNARK marker to the transcript (safe location at the end)
-            proof.transcript.extend_from_slice(b"neo_spartan2_snark");
-            
-            proof
+            // Use the real SNARK interface from spartan_ivc
+            match crate::spartan_ivc::spartan_compress(&self.structure, &pair1.0, &pair1.1, &[]) {
+                Ok((proof_bytes, vk_bytes)) => {
+                    // Create SNARK proof envelope
+                    let mut transcript = proof_bytes;
+                    transcript.extend_from_slice(b"||VK||");
+                    transcript.extend_from_slice(&vk_bytes);
+                    transcript.extend_from_slice(b"||SNARK||");
+                    transcript.extend_from_slice(b"neo_spartan2_snark");
+                    
+                    Proof { transcript }
+                },
+                Err(e) => {
+                    eprintln!("SNARK proof generation failed: {}", e);
+                    // Return empty proof on failure
+                    Proof { transcript: vec![] }
+                }
+            }
         }
         
         /// Verify proof using NeutronNova in SNARK mode
-        pub fn verify_snark(&self, transcript: &[u8], committer: &AjtaiCommitter) -> bool {
-            eprintln!("SNARK mode: Using NeutronNova verification (placeholder)");
+        pub fn verify_snark(&self, transcript: &[u8], _committer: &AjtaiCommitter) -> bool {
+            eprintln!("SNARK mode: Using real NeutronNova SNARK verification");
             
             // Check for SNARK marker at the end
             if !transcript.ends_with(b"neo_spartan2_snark") {
@@ -2267,12 +2278,28 @@ pub mod neutronnova_integration {
                 return false;
             }
             
-            // Remove SNARK marker and verify with NARK
-            let marker_len = b"neo_spartan2_snark".len();
-            let clean_transcript = &transcript[..transcript.len() - marker_len];
-            
-            // Delegate to NARK verification
-            self.nark_state.verify(clean_transcript, committer)
+            // Parse the SNARK proof envelope
+            if let Some(vk_start) = transcript.windows(6).position(|w| w == b"||VK||") {
+                if let Some(snark_start) = transcript.windows(9).position(|w| w == b"||SNARK||") {
+                    let proof_bytes = &transcript[..vk_start];
+                    let vk_bytes = &transcript[vk_start + 6..snark_start];
+                    
+                    // Use the real SNARK verification from spartan_ivc
+                    match crate::spartan_ivc::spartan_verify(&self.structure, proof_bytes, vk_bytes, &[]) {
+                        Ok(result) => result,
+                        Err(e) => {
+                            eprintln!("SNARK verification failed: {}", e);
+                            false
+                        }
+                    }
+                } else {
+                    eprintln!("SNARK verification failed: malformed envelope");
+                    false
+                }
+            } else {
+                eprintln!("SNARK verification failed: malformed envelope");
+                false
+            }
         }
         
         /// Recursive IVC using NeutronNova

@@ -57,7 +57,7 @@ rand_chacha = "0.9"
 rand_distr = "0.5"
 hex = "0.4"
 
-# Plonky3 field and matrix operations (NARK mode - core functionality only)
+# Plonky3 field and matrix operations (core functionality)
 p3-goldilocks = { version = "0.3.0", default-features = false }
 p3-matrix = "0.3.0"
 p3-field = "0.3.0"
@@ -75,13 +75,13 @@ p3-commit = "0.3.0"      # Commitment schemes for p3-fri
 p3-merkle-tree = "0.3.0" # Merkle tree MMCS for p3-fri
 p3-dft = "0.3.0"         # DFT operations for p3-fri
 
-# memchr is used by snark/mod.rs when snark_spartan2 is on
+# memchr is used by snark/mod.rs for Spartan2 integration
 memchr = "2.7"
 thiserror = "1"
 byteorder = "1"
 subtle = "2"
 
-# SNARK mode: Spartan2 dependencies for succinctness (moved to individual crates)
+# Spartan2 dependencies for SNARK succinctness (moved to individual crates)
 # spartan2, bincode, bellpepper-core, bellpepper, ff are now optional per-crate dependencies
 
 [workspace.lints.clippy]

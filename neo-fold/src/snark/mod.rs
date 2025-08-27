@@ -14,7 +14,6 @@ use neo_ring::RingElement;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::{Proof};
-#[cfg(feature = "snark_spartan2")]
 use crate::spartan_ivc::{spartan_compress, spartan_verify, domain_separated_transcript};
 
 #[derive(Debug, Error)]

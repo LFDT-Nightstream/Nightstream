@@ -4,8 +4,8 @@
 //! with S-module homomorphism for folding-friendly operations.
 
 use neo_math::F;
-use neo_modint::{Coeff, ModInt};
-use neo_ring::RingElement;
+use neo_math::{Coeff, ModInt};
+use neo_math::RingElement;
 use p3_field::PrimeField64;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
@@ -233,7 +233,7 @@ impl AjtaiCommitter {
         Vec<RingElement<ModInt>>, // blinding vector r
     ), &'static str> {
         // Domain-separated seed for blinding randomness
-        use neo_sumcheck::fiat_shamir::Transcript;
+        use neo_math::transcript::Transcript;
         let mut fs_transcript = Transcript::new("ajtai_commit");
         fs_transcript.absorb_bytes("transcript_state", transcript);
         fs_transcript.absorb_tag("NEO/V1/ajtai/commit/blinding");

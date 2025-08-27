@@ -6,8 +6,8 @@
 //! - Bit-sparse ring multiplication for cost scaling with number of 1-bits
 
 use neo_math::F;
-use neo_modint::{Coeff, ModInt};
-use neo_ring::RingElement;
+use neo_math::{Coeff, ModInt};
+use neo_math::RingElement;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 

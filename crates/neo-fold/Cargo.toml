@@ -6,17 +6,16 @@ authors = { workspace = true }
 
 [dependencies]
 neo-math = { path = "../neo-math" }
+neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
-neo-commit = { path = "../neo-commit-legacy" }
-neo-decomp = { path = "../../neo-decomp" }
-neo-modint = { path = "../../neo-modint" }
-neo-poly = { path = "../../neo-poly" }
-neo-ring = { path = "../neo-ring-legacy" }
-neo-sumcheck = { path = "../neo-sumcheck-legacy" }
+# Sumcheck functionality now integrated into this crate
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }
-byteorder = { workspace = true }
+p3-challenger = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-goldilocks = { workspace = true }
 rand = { workspace = true }
+rand_chacha = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

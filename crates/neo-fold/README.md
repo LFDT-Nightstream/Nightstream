@@ -1,22 +1,21 @@
 # neo-fold
-## What it is
-Folding reductions for CCS instances: Π_CCS, Π_RLC, Π_DEC.
 
-## How it is used in the paper
-Core folding protocol (Section 4: Reductions). Π_CCS to eval claims (Section 4.1), Π_RLC for batching (Section 4.2), Π_DEC for decomposition (Section 4.2). Composes to full scheme (Theorem 1, Section 5).
+Owns the **only** transcript and the **single sum‑check over K = F_{q^s}**.
+Implements Π_CCS, Π_RLC, Π_DEC, and their composition.
 
-## What we have
-- `FoldState` to track instances, generate proofs, and verify.
-- `pi_ccs`, `pi_rlc`, `pi_dec` functions with integration to sum-check.
-- Verifier protocols (`verify_ccs`, `verify_rlc`, `verify_dec`).
-- Multilinear extension and Q poly as closures.
-- FRI stubs for compression.
-- IVC recursion stub (simple loop).
-- Tests for individual reductions, full flow, invalid cases, and transcript mutations.
+## Surface
+- **Transcript**: public‑coin, domain‑separated labels for Σ‑check and each reduction.
+- **Π_CCS**: build a batched Q that combines CCS constraints (F), base‑b **range** constraints (vanishing over digit alphabet), and **evaluation ties**; run a single sum‑check verifying `Σ_{x∈{0,1}^ℓ} Q(x)=0`, then open at one random point α ∈ K^ℓ to re‑randomize.
+- **Π_RLC**: sample ρ_i ∈ C (from `neo-challenge`), combine k+1 ME(b,L) → one ME(B,L); track `||(Σ ρ_i Z_i)||_∞ ≤ (k+1)·T·(b−1) < B`.
+- **Π_DEC**: split base‑B back to base‑b: verify `c = Σ b^{i-1} c_i` and `y_j = Σ b^{i-1} y_{i,j}`; return k ME(b,L).
+- **Param guard**: assert `(k+1)·T·(b−1) < B` at fold start.
 
-## What we are missing
-- Full composition and recursion (Section 5 properties: restricted, composable); IVC needs Spartan+FRI.
-- Extractors for knowledge soundness (Section 5, Definition 19).
-- Lookup/memory extensions (Section 1.4).
-- Committed oracle access in verifiers (currently direct; needs full ZK).
-- Benchmarks for large chains (e.g., 10 folds).
+## Correctness & soundness
+- SZ error ≤ **deg(Q)/|K|** (compute from actual construction).
+- **Verified openings**: Ajtai openings and recomposition checks enforced here.
+
+## Tests
+- Sum‑check property tests vs. |K|.
+- Π_DEC recomposition + negative tests.
+- Π_RLC norm‑bound checks for the GL‑128 preset.
+- Transcript determinism (same inputs → same challenges).

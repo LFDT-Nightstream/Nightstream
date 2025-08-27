@@ -3,8 +3,8 @@
 //! Implements Neo's rotation-matrix ring S = {rot(a)} for S-module homomorphism
 //! and the challenge set C with small-norm elements for secure random linear combinations.
 
-use neo_modint::{Coeff, ModInt};
-use neo_ring::RingElement;
+use neo_math::{Coeff, ModInt};
+use neo_math::RingElement;
 // Removed unused imports
 use rand::Rng;
 use std::collections::HashSet;

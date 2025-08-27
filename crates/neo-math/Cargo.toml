@@ -9,13 +9,21 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true, optional = true }
+p3-matrix = { workspace = true }
+p3-challenger = { workspace = true }
+p3-poseidon2 = { workspace = true }
 rand = { workspace = true }
+rand_distr = { workspace = true }
+rand_chacha = { workspace = true }
+subtle = { workspace = true }
 spartan2 = { workspace = true, optional = true }
 ff = { workspace = true, optional = true }
+quickcheck = { version = "1", optional = true }
 
 [features]
 default = ["goldilocks"]
 goldilocks = ["p3-goldilocks"]
 spartan2-compat = ["spartan2", "ff"]
+quickcheck = ["dep:quickcheck"]
 m61 = []
 agl = []

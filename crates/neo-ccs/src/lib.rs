@@ -1,6 +1,6 @@
 use neo_math::{embed_base_to_ext, ExtF, F};
-use neo_modint::ModInt;
-use neo_ring::RingElement;
+use neo_math::ModInt;
+use neo_math::RingElement;
 use p3_field::PrimeCharacteristicRing;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;

@@ -2,17 +2,13 @@
 members = [
   "crates/neo-params", 
   "crates/neo-math", 
-  # Core supporting crates
-  "neo-poly",
-  "neo-modint", 
-  "neo-decomp",
   # Implementation crates
   "crates/neo-ajtai",
   "crates/neo-ccs",
-  # Temporarily disabled while fixing dependencies
-  # "crates/neo-challenge", 
-  # "crates/neo-fold",
-  # "crates/neo-spartan-bridge", 
+  "crates/neo-fold",
+  "crates/neo-challenge",
+  "crates/neo-spartan-bridge",
+  # Temporarily disabled while fixing dependencies 
   # "crates/neo-tests",
   # Legacy crates (for reference during migration)
   # "crates/neo-sumcheck-legacy",
@@ -44,16 +40,22 @@ p3-symmetric = "0.3.0"   # Poseidon2 hashing for Fiat-Shamir
 p3-poseidon2 = "0.3.0"
 p3-challenger = "0.3.0"
 p3-commit = "0.3.0"
+p3-dft = "0.3.0"
+p3-mds = "0.3.0"
+p3-fri = "0.3.0"
+p3-merkle-tree = "0.3.0"
 byteorder = "1.5"
+
+# Spartan2 and circuit dependencies
+spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false }
+bellpepper-core = { version = "0.4" }
+ff = { version = "0.13" }
 
 # Benchmarking and testing
 criterion = { version = "0.5.1", features = ["html_reports"] }
 proptest = "1.0"
 
-# Spartan2 integration (optional)
-spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false }
-bellpepper-core = { version = "0.4" }
-ff = { version = "0.13" }
+
 
 [profile.dev]
 opt-level = 1

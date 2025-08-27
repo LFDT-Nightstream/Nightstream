@@ -655,11 +655,7 @@ name = "neo-ajtai"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "neo-decomp",
  "neo-math",
- "neo-modint",
- "neo-ring",
- "neo-sumcheck",
  "p3-field",
  "p3-matrix",
  "proptest",
@@ -676,9 +672,6 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "neo-math",
- "neo-modint",
- "neo-ring",
- "neo-sumcheck",
  "p3-field",
  "p3-matrix",
  "rand 0.8.5",
@@ -688,16 +681,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "neo-decomp"
+name = "neo-challenge"
 version = "0.1.0"
 dependencies = [
  "neo-math",
- "neo-modint",
- "p3-field",
- "p3-matrix",
- "quickcheck",
- "quickcheck_macros",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "neo-fold"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "neo-ajtai",
+ "neo-ccs",
+ "neo-math",
+ "p3-challenger",
+ "p3-field",
+ "p3-goldilocks",
+ "p3-matrix",
+ "p3-poseidon2",
+ "rand 0.8.5",
+ "rand_chacha 0.9.0",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -705,20 +711,16 @@ name = "neo-math"
 version = "0.1.0"
 dependencies = [
  "ff",
+ "p3-challenger",
  "p3-field",
  "p3-goldilocks",
- "rand 0.8.5",
- "spartan2",
-]
-
-[[package]]
-name = "neo-modint"
-version = "0.1.0"
-dependencies = [
- "neo-math",
- "p3-field",
+ "p3-matrix",
+ "p3-poseidon2",
  "quickcheck",
  "rand 0.8.5",
+ "rand_chacha 0.9.0",
+ "rand_distr",
+ "spartan2",
  "subtle",
 ]
 
@@ -727,58 +729,14 @@ name = "neo-params"
 version = "0.1.0"
 
 [[package]]
-name = "neo-poly"
+name = "neo-spartan-bridge"
 version = "0.1.0"
 dependencies = [
+ "bellpepper-core",
+ "ff",
+ "neo-ccs",
  "neo-math",
- "neo-modint",
- "p3-field",
- "p3-goldilocks",
- "quickcheck",
- "quickcheck_macros",
- "rand 0.8.5",
-]
-
-[[package]]
-name = "neo-ring"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "neo-decomp",
- "neo-math",
- "neo-modint",
- "neo-poly",
- "p3-field",
- "p3-matrix",
- "quickcheck",
- "quickcheck_macros",
- "rand 0.8.5",
- "rand_distr",
- "subtle",
-]
-
-[[package]]
-name = "neo-sumcheck"
-version = "0.1.0"
-dependencies = [
- "byteorder",
- "criterion",
- "neo-math",
- "neo-modint",
- "neo-poly",
- "neo-ring",
- "p3-challenger",
- "p3-field",
- "p3-goldilocks",
- "p3-poseidon2",
- "p3-symmetric",
- "quickcheck",
- "quickcheck_macros",
- "rand 0.8.5",
- "rand_chacha 0.9.0",
- "rand_distr",
  "spartan2",
- "subtle",
  "thiserror 1.0.69",
 ]
 
@@ -1104,17 +1062,6 @@ dependencies = [
  "env_logger",
  "log",
  "rand 0.8.5",
-]
-
-[[package]]
-name = "quickcheck_macros"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f71ee38b42f8459a88d3362be6f9b841ad2d5421844f61eb1c59c11bff3ac14a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.106",
 ]
 
 [[package]]

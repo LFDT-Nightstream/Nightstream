@@ -199,23 +199,27 @@ pub mod spartan2_compat {
     }
 }
 
-// Ring operations - integrate from neo-ring
-pub mod ring {
-    //! Cyclotomic ring operations from neo-ring
-    
-    /// Placeholder for ring element - will be replaced with actual implementation
-    #[derive(Clone, Debug, PartialEq, Eq)]
-    pub struct RingElementPlaceholder;
-    
-    impl RingElementPlaceholder {
-        pub fn new() -> Self { Self }
-    }
-    
-    // Re-export as RingElement for now
-    pub use RingElementPlaceholder as RingElement;
-}
+// Modular integer arithmetic (consolidated from neo-modint)
+pub mod modint;
 
-// Temporary placeholder - will be replaced
+// Polynomial arithmetic (consolidated from neo-poly)  
+pub mod poly;
+
+// Vector decomposition (consolidated from neo-decomp)
+pub mod decomp;
+
+// Ring operations (consolidated from neo-ring)
+pub mod ring;
+
+// Transcript operations (for Fiat-Shamir)
+pub mod transcript;
+
+// Re-export consolidated types
+pub use modint::{Coeff, ModInt};
+pub use poly::Polynomial;
+pub use decomp::{decomp_b, signed_decomp_b};
 pub use ring::RingElement;
-pub type RotationRing = RingElement;
-pub type RotationMatrix = Vec<RingElement>;
+
+// Ring type aliases
+pub type RotationRing = RingElement<ModInt>;
+pub type RotationMatrix = Vec<RingElement<ModInt>>;

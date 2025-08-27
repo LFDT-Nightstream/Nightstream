@@ -5,8 +5,15 @@
 //! - **Real FRI only**: No simulated FRI - only the actual Spartan2+FRI implementation
 //! - **One-way bridge**: Translates final ME(b,L) claims to Spartan2 linearized CCS
 
-use neo_math::{F, ExtF};
-use neo_ccs::MatrixEvaluation;
+use neo_math::F;
+
+/// Placeholder for matrix evaluation claims (will be properly defined later)
+#[derive(Clone, Debug)]
+pub struct MatrixEvaluation {
+    pub matrix_id: usize,
+    pub evaluation_point: Vec<F>,
+    pub claimed_value: F,
+}
 
 #[cfg(feature = "spartan2")]
 mod spartan2_bridge;

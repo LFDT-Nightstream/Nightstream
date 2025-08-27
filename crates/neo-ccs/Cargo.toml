@@ -6,9 +6,8 @@ authors = { workspace = true }
 
 [dependencies]
 neo-math = { path = "../neo-math" }
-neo-modint = { path = "../../neo-modint" }
-neo-ring = { path = "../neo-ring-legacy" }
-neo-sumcheck = { path = "../neo-sumcheck-legacy" }
+# neo-ring functionality now in neo-math
+# Sumcheck functionality integrated locally
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }
 rayon = { workspace = true }

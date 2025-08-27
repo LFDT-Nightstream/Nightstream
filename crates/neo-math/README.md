@@ -1,20 +1,21 @@
-# neo-fields
-## What it is
-This module provides field arithmetic wrappers, primarily around the Goldilocks prime field (2^64 - 2^32 + 1) and its quadratic extension for sum-check security.
+# neo-math
 
-## How it is used in the paper
-Neo uses small primes like Goldilocks for efficient arithmetic (Section 1.2, Section 6). The quadratic extension (degree 2) ensures 128-bit security for sum-check (Section 8). Fields are used in CCS constraints (Definition 16-17), multilinear extensions (Appendix A), and sum-check over extensions (Section 4.1).
+Algebraic foundations used everywhere.
 
-## What we have
-- `F` alias for Goldilocks field with basic ops and inverse.
-- `ExtF` quadratic extension (x^2 + 1 = 0) with add/sub/mul/neg/inv.
-- Random sampling for both `F` and `ExtF`.
-- Norm helpers for extension elements (e.g., abs_norm for bounding).
-- Tests for inverse roundtrips and extension ops.
+## Scope
+- Base field **Fq = Goldilocks** (q = 2^64 − 2^32 + 1).
+- Extension field **K = F_{q^s}** with **s supplied by `neo-params`** (GL‑128 preset: s=2).
+- Cyclotomic ring **R_q = F_q[X]/(Φ_η)** with **η provided by `neo-params`**; let **d = φ(η)**.
+- Coefficient maps `cf: R_q → F_q^d` and `cf^{-1}`.
+- Rotation matrices `rot(a)` realizing **S = { rot(a) : a ∈ R_q } ⊂ F_q^{d×d}** and the isomorphism **R_q ≅ S**.
+- Fixed‑size vectors/matrices over Fq; left action by S.
 
-## What we are missing
-- Full field trait implementations (e.g., `p3-field::ExtensionField` integration for better composability).
-- Support for other small fields (e.g., M31 as mentioned in Section 1.2).
-- Faster polynomial ops (needed for large multilinear extensions in Appendix A).
-- Security proofs for non-square in extension (assumes -1 is non-square in Goldilocks).
-- QuickCheck property tests for field laws.
+## Requirements
+- Constant‑time field ops; batch inversion helper.
+- Prove `rot(a)·cf(b) == cf(a·b)` on random samples.
+- (Optional) NTT hooks for common `d` (kept behind internal config, not features).
+
+## Tests
+- Field laws on Fq and K (for any `s`).
+- Ring isomorphism checks R_q↔S via `cf`, `rot`.
+- Rotation identities; scalar matrices ⊂ S.

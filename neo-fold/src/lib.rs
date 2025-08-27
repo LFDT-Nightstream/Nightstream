@@ -2229,6 +2229,8 @@ pub mod neutronnova_integration {
         pub structure: CcsStructure,
         // R1CS conversion cache for Spartan2 integration
         pub conversion_cache: Option<(Vec<Vec<F>>, Vec<Vec<F>>, Vec<Vec<F>>)>,
+        // Store the last used instance for verification
+        pub last_instance: Option<CcsInstance>,
     }
     
     impl NeutronNovaFoldState {
@@ -2236,6 +2238,7 @@ pub mod neutronnova_integration {
             Self {
                 structure,
                 conversion_cache: None,
+                last_instance: None,
             }
         }
         
@@ -2243,10 +2246,13 @@ pub mod neutronnova_integration {
         pub fn generate_proof_snark(
             &mut self,
             pair1: (CcsInstance, CcsWitness),
-            pair2: (CcsInstance, CcsWitness),
+            _pair2: (CcsInstance, CcsWitness),
             _committer: &AjtaiCommitter,
         ) -> Proof {
             eprintln!("SNARK mode: Using real NeutronNova SNARK generation");
+            
+            // Store the instance for later verification
+            self.last_instance = Some(pair1.0.clone());
             
             // Use the real SNARK interface from spartan_ivc
             match crate::spartan_ivc::spartan_compress(&self.structure, &pair1.0, &pair1.1, &[]) {
@@ -2272,6 +2278,15 @@ pub mod neutronnova_integration {
         pub fn verify_snark(&self, transcript: &[u8], _committer: &AjtaiCommitter) -> bool {
             eprintln!("SNARK mode: Using real NeutronNova SNARK verification");
             
+            // Check that we have a stored instance from proof generation
+            let instance = match &self.last_instance {
+                Some(inst) => inst,
+                None => {
+                    eprintln!("SNARK verification failed: no instance available (generate proof first)");
+                    return false;
+                }
+            };
+            
             // Check for SNARK marker at the end
             if !transcript.ends_with(b"neo_spartan2_snark") {
                 eprintln!("SNARK verification failed: missing SNARK marker");
@@ -2285,7 +2300,7 @@ pub mod neutronnova_integration {
                     let vk_bytes = &transcript[vk_start + 6..snark_start];
                     
                     // Use the real SNARK verification from spartan_ivc
-                    match crate::spartan_ivc::spartan_verify(&self.structure, proof_bytes, vk_bytes, &[]) {
+                    match crate::spartan_ivc::spartan_verify(proof_bytes, vk_bytes, &self.structure, instance, &[]) {
                         Ok(result) => result,
                         Err(e) => {
                             eprintln!("SNARK verification failed: {}", e);

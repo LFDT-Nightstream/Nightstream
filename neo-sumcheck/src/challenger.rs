@@ -1,59 +1,100 @@
 use neo_modint::ModInt;
 use neo_ring::RingElement;
-use crate::fiat_shamir::{fiat_shamir_challenge, fiat_shamir_challenge_base};
 use crate::{ExtF, F};
-use p3_field::PrimeField64;
+use p3_field::{PrimeField64, PrimeCharacteristicRing};
+use p3_challenger::{DuplexChallenger, CanObserve, CanSample, FieldChallenger};
+use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+
+// Type alias for our specific Poseidon2 configuration
+type NeoDuplexChallenger = DuplexChallenger<Goldilocks, Poseidon2Goldilocks<16>, 16, 15>;
 
 pub struct NeoChallenger {
-    transcript: Vec<u8>,
+    challenger: NeoDuplexChallenger,
 }
 
 impl NeoChallenger {
     pub fn new(protocol_id: &str) -> Self {
-        let mut this = Self { transcript: Vec::new() };
-        this.observe_bytes("neo_version", b"v1.0");
-        this.observe_bytes("protocol_id", protocol_id.as_bytes());
-        this.observe_bytes("field_id", b"Goldilocks");
-        this
+        // Use deterministic seed for reproducible Poseidon2 parameters
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha20Rng::from_seed([0u8; 32]);
+        let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
+        let mut challenger = DuplexChallenger::new(poseidon2);
+        
+        // Domain separation: absorb protocol metadata as field elements
+        let protocol_fields = Self::bytes_to_fields(protocol_id.as_bytes());
+        challenger.observe_slice(&protocol_fields);
+        
+        let version_fields = Self::bytes_to_fields(b"neo_v1.0");
+        challenger.observe_slice(&version_fields);
+        
+        let field_id_fields = Self::bytes_to_fields(b"Goldilocks");
+        challenger.observe_slice(&field_id_fields);
+        
+        Self { challenger }
+    }
+    
+    /// Helper: Convert bytes to field elements (8 bytes per element)
+    fn bytes_to_fields(bytes: &[u8]) -> Vec<F> {
+        bytes.chunks(8).map(|chunk| {
+            let mut buf = [0u8; 8];
+            buf[..chunk.len()].copy_from_slice(chunk);
+            F::from_u64(u64::from_le_bytes(buf))
+        }).collect()
     }
 
     pub fn observe_field(&mut self, label: &str, x: &F) {
-        self.observe_bytes(label, &x.as_canonical_u64().to_be_bytes());
+        // Absorb label first for domain separation
+        let label_fields = Self::bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        // Then absorb the field element
+        self.challenger.observe(*x);
     }
 
     pub fn observe_ext(&mut self, label: &str, x: &ExtF) {
-        let [r, i] = x.to_array();
-        let mut bytes = r.as_canonical_u64().to_be_bytes().to_vec();
-        bytes.extend(i.as_canonical_u64().to_be_bytes());
-        self.observe_bytes(label, &bytes);
+        // Absorb label first for domain separation
+        let label_fields = Self::bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        // Then absorb the extension field element
+        self.challenger.observe_algebra_element(*x);
     }
 
-    /// Observe arbitrary labeled bytes with length prefixing for unambiguous framing.
+    /// Observe arbitrary labeled bytes with structured framing
     pub fn observe_bytes(&mut self, label: &str, bytes: &[u8]) {
-        let mut framed = label.as_bytes().to_vec();
-        framed.extend((bytes.len() as u64).to_be_bytes());
-        framed.extend_from_slice(bytes);
-        self.transcript.extend_from_slice(&framed);
-        // Hash framed for FS derivation (stateless helper); keeps semantics aligned with diff
-        let _ = fiat_shamir_challenge_base(&framed);
+        // Absorb label first for domain separation
+        let label_fields = Self::bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        // Then absorb the bytes as field elements
+        let byte_fields = Self::bytes_to_fields(bytes);
+        self.challenger.observe_slice(&byte_fields);
     }
 
-    /// Base-field challenge derived by hashing current transcript.
+    /// Base-field challenge derived from current challenger state
     pub fn challenge_base(&mut self, label: &str) -> F {
-        self.observe_bytes("challenge_label", label.as_bytes());
-        fiat_shamir_challenge_base(&self.transcript)
+        // Absorb challenge label for domain separation
+        let label_fields = Self::bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        // Sample base field element
+        self.challenger.sample()
     }
 
-    /// Extension-field challenge derived by hashing current transcript.
+    /// Extension-field challenge derived from current challenger state
     pub fn challenge_ext(&mut self, label: &str) -> ExtF {
-        self.observe_bytes("challenge_label", label.as_bytes());
-        fiat_shamir_challenge(&self.transcript)
+        // Absorb challenge label for domain separation
+        let label_fields = Self::bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        // Sample extension field element
+        self.challenger.sample_algebra_element()
     }
 
     /// Squeeze a vector of extension-field challenges.
     pub fn challenge_vec_in_k(&mut self, label: &str, len: usize) -> Vec<ExtF> {
-        self.observe_bytes("vec_label", label.as_bytes());
-        (0..len).map(|_| self.challenge_ext("vec_elem")).collect()
+        // Absorb label and length for domain separation
+        let label_fields = Self::bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        self.challenger.observe(F::from_u64(len as u64));
+        
+        // Sample the requested number of extension field elements
+        (0..len).map(|_| self.challenger.sample_algebra_element()).collect()
     }
 
     /// Deterministically derive an invertible "rotation" element ρ ∈ R = Z_q[X]/(X^n+1)

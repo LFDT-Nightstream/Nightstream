@@ -1,30 +1,30 @@
 use crate::{ExtF, F, Polynomial};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Poseidon2Goldilocks;
-use p3_symmetric::{CryptographicHasher, PaddingFreeSponge};
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-use rand_chacha::ChaCha20Rng;
+use p3_challenger::{DuplexChallenger, CanObserve, CanSample, FieldChallenger};
+use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
 use neo_modint::{Coeff, ModInt};
 
-/// Poseidon2 parameters: 16-element state, 15-element rate, 2-element output for ExtF
-const WIDTH: usize = 16;
-const RATE: usize = WIDTH - 1;
-const OUT: usize = 2;
+/// Type aliases for p3-challenger with Poseidon2
+type FiatShamirChallenger = DuplexChallenger<Goldilocks, Poseidon2Goldilocks<16>, 16, 15>;
 
-/// Type alias for Poseidon2 permutation over Goldilocks field
-pub(crate) type Perm = Poseidon2Goldilocks<WIDTH>;
-
-/// Get a deterministic Poseidon2 permutation using fixed, recommended parameters.
-fn get_perm() -> Perm {
-    // Use a fixed seed to deterministically construct the permutation parameters.
-    // This yields reproducible, interoperable Poseidon2 parameters.
-    let mut rng = StdRng::seed_from_u64(0);
-    Perm::new_from_rng_128(&mut rng)
+/// Helper: Convert bytes to field elements for p3-challenger
+fn bytes_to_fields(bytes: &[u8]) -> Vec<F> {
+    bytes.chunks(8).map(|chunk| {
+        let mut buf = [0u8; 8];
+        buf[..chunk.len()].copy_from_slice(chunk);
+        F::from_u64(u64::from_le_bytes(buf))
+    }).collect()
 }
 
-/// Type alias for the sponge construction used in Fiat-Shamir
-pub(crate) type SpongeType = PaddingFreeSponge<Perm, WIDTH, RATE, OUT>;
+/// Create a fresh challenger for Fiat-Shamir
+fn create_challenger() -> FiatShamirChallenger {
+    // Use deterministic seed for reproducible Poseidon2 parameters
+    use rand::SeedableRng;
+    let mut rng = rand_chacha::ChaCha20Rng::from_seed([0u8; 32]);
+    let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
+    DuplexChallenger::new(poseidon2)
+}
 
 /// Generate a cryptographic challenge from the current transcript using Fiat-Shamir
 ///
@@ -34,39 +34,26 @@ pub(crate) type SpongeType = PaddingFreeSponge<Perm, WIDTH, RATE, OUT>;
 /// # Returns
 /// A pseudo-random field element derived from the transcript
 pub fn fiat_shamir_challenge(transcript: &[u8]) -> ExtF {
-    let mut field_elems = vec![];
-
-    // Convert transcript bytes to field elements (8 bytes per element),
-    // padding the final chunk to avoid dropping bytes.
-    for chunk in transcript.chunks(8) {
-        let mut buf = [0u8; 8];
-        buf[..chunk.len()].copy_from_slice(chunk);
-        let val = u64::from_be_bytes(buf);
-        field_elems.push(F::from_u64(val));
-    }
-
-    // Hash the field elements using Poseidon2 sponge
-    let perm = get_perm();
-    let sponge = SpongeType::new(perm);
-    let output = sponge.hash_iter(field_elems);
-
-    // Convert two base field outputs to extension field (real + imag parts)
-    ExtF::new_complex(output[0], output[1])
+    let mut challenger = create_challenger();
+    
+    // Absorb transcript as field elements
+    let field_elems = bytes_to_fields(transcript);
+    challenger.observe_slice(&field_elems);
+    
+    // Sample extension field element
+    challenger.sample_algebra_element()
 }
 
 /// Generate a base-field Fiat-Shamir challenge from the transcript.
 pub fn fiat_shamir_challenge_base(transcript: &[u8]) -> F {
-    let mut field_elems = vec![];
-    for chunk in transcript.chunks(8) {
-        let mut buf = [0u8; 8];
-        buf[..chunk.len()].copy_from_slice(chunk);
-        let val = u64::from_be_bytes(buf);
-        field_elems.push(F::from_u64(val));
-    }
-    let perm = get_perm();
-    let sponge = SpongeType::new(perm);
-    let output = sponge.hash_iter(field_elems);
-    output[0]
+    let mut challenger = create_challenger();
+    
+    // Absorb transcript as field elements
+    let field_elems = bytes_to_fields(transcript);
+    challenger.observe_slice(&field_elems);
+    
+    // Sample base field element
+    challenger.sample()
 }
 
 /// Combine multiple univariate polynomials into a single batched polynomial
@@ -201,17 +188,23 @@ pub fn fs_challenge_u64_labeled(transcript: &[u8], label: &str) -> u64 {
 /// All domain separation follows the NEO/V1/<module>/<phase>/<name> scheme.
 #[derive(Clone)]
 pub struct Transcript {
-    /// Internal transcript state as bytes
-    state: Vec<u8>,
+    /// Internal p3-challenger state
+    challenger: FiatShamirChallenger,
 }
 
 impl Transcript {
     /// Create a new transcript with protocol identifier
     pub fn new(protocol: &str) -> Self {
-        let mut state = Vec::new();
-        state.extend_from_slice(b"NEO/V1/");
-        state.extend_from_slice(protocol.as_bytes());
-        Self { state }
+        let mut challenger = create_challenger();
+        
+        // Domain separation with protocol identifier
+        let domain_fields = bytes_to_fields(b"NEO/V1/");
+        challenger.observe_slice(&domain_fields);
+        
+        let protocol_fields = bytes_to_fields(protocol.as_bytes());
+        challenger.observe_slice(&protocol_fields);
+        
+        Self { challenger }
     }
 
     /// Absorb a domain separation tag (zero-copy marker)
@@ -221,12 +214,13 @@ impl Transcript {
 
     /// Absorb bytes with structured framing to prevent concatenation ambiguities
     pub fn absorb_bytes(&mut self, label: &str, bytes: &[u8]) {
-        // Frame: "FS" | len(label) | label | len(bytes) | bytes
-        self.state.extend_from_slice(b"FS");
-        self.state.extend_from_slice(&(label.len() as u32).to_be_bytes());
-        self.state.extend_from_slice(label.as_bytes());
-        self.state.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
-        self.state.extend_from_slice(bytes);
+        // Absorb label for domain separation
+        let label_fields = bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        
+        // Absorb the actual bytes
+        let byte_fields = bytes_to_fields(bytes);
+        self.challenger.observe_slice(&byte_fields);
     }
 
     /// Absorb a u64 value
@@ -236,46 +230,52 @@ impl Transcript {
 
     /// Absorb an extension field element
     pub fn absorb_extf(&mut self, label: &str, value: ExtF) {
-        let arr = value.to_array();
-        let mut bytes = Vec::with_capacity(16);
-        bytes.extend_from_slice(&arr[0].as_canonical_u64().to_be_bytes());
-        bytes.extend_from_slice(&arr[1].as_canonical_u64().to_be_bytes());
-        self.absorb_bytes(label, &bytes);
+        // Absorb label for domain separation
+        let label_fields = bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        
+        // Absorb the extension field element directly
+        self.challenger.observe_algebra_element(value);
     }
 
     /// Absorb a polynomial
     pub fn absorb_poly(&mut self, label: &str, poly: &Polynomial<ExtF>) {
-        let mut bytes = Vec::new();
-        let deg = poly.degree() as u32;
+        // Absorb label for domain separation
+        let label_fields = bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        
+        // Absorb polynomial degree and coefficient count
+        let deg = poly.degree() as u64;
         let coeffs = poly.coeffs();
-        let count = coeffs.len() as u32;
+        let count = coeffs.len() as u64;
         
-        // Header: degree | coefficient count
-        bytes.extend_from_slice(&deg.to_be_bytes());
-        bytes.extend_from_slice(&count.to_be_bytes());
+        self.challenger.observe(F::from_u64(deg));
+        self.challenger.observe(F::from_u64(count));
         
-        // Coefficients
+        // Absorb coefficients directly as extension field elements
         for &coeff in coeffs {
-            let arr = coeff.to_array();
-            bytes.extend_from_slice(&arr[0].as_canonical_u64().to_be_bytes());
-            bytes.extend_from_slice(&arr[1].as_canonical_u64().to_be_bytes());
+            self.challenger.observe_algebra_element(coeff);
         }
-        
-        self.absorb_bytes(label, &bytes);
     }
 
     /// Generate a base field challenge
     pub fn challenge_base(&mut self, label: &str) -> F {
-        self.absorb_tag("challenge");
-        self.absorb_bytes("challenge_label", label.as_bytes());
-        fiat_shamir_challenge_base(&self.state)
+        // Absorb challenge label for domain separation
+        let label_fields = bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        
+        // Sample base field element
+        self.challenger.sample()
     }
 
     /// Generate an extension field challenge
     pub fn challenge_ext(&mut self, label: &str) -> ExtF {
-        self.absorb_tag("challenge");
-        self.absorb_bytes("challenge_label", label.as_bytes());
-        fiat_shamir_challenge(&self.state)
+        // Absorb challenge label for domain separation
+        let label_fields = bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
+        
+        // Sample extension field element
+        self.challenger.sample_algebra_element()
     }
 
     /// Generate a ModInt challenge with bias-free rejection sampling
@@ -309,15 +309,13 @@ impl Transcript {
 
     /// Generate 32 bytes of randomness
     pub fn challenge_wide(&mut self, label: &str) -> [u8; 32] {
-        self.absorb_tag("wide_challenge");
-        self.absorb_bytes("wide_label", label.as_bytes());
+        // Absorb label for domain separation
+        let label_fields = bytes_to_fields(label.as_bytes());
+        self.challenger.observe_slice(&label_fields);
         
         // Generate two extension field elements for 32 bytes total
-        let h0 = fiat_shamir_challenge(&self.state);
-        
-        // Modify state for second challenge
-        self.absorb_bytes("wide_second", &[1u8]);
-        let h1 = fiat_shamir_challenge(&self.state);
+        let h0: ExtF = self.challenger.sample_algebra_element();
+        let h1: ExtF = self.challenger.sample_algebra_element();
         
         let a0 = h0.to_array();
         let a1 = h1.to_array();
@@ -343,15 +341,7 @@ impl Transcript {
         forked
     }
 
-    /// Get the current transcript state (for compatibility with existing code)
-    pub fn state(&self) -> &[u8] {
-        &self.state
-    }
 
-    /// Get a mutable reference to the state (for compatibility, use sparingly)
-    pub fn state_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.state
-    }
 }
 
 // --- Tests for structured FS ---

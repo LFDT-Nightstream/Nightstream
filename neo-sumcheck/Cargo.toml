@@ -19,6 +19,7 @@ p3-field = "0.3"
 p3-poseidon2 = "0.3.0"
 p3-symmetric = "0.3.0"
 p3-goldilocks = { workspace = true }
+p3-challenger = { workspace = true }
 thiserror = "1.0"
 byteorder = "1.5"
 subtle = "2.5"

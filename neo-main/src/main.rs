@@ -92,7 +92,7 @@ fn main() {
     println!("\n=== PROOF VERIFICATION ===");
     println!("DEBUG: Starting proof verification...");
     let verify_start = Instant::now();
-    let verified = verify(&ccs, &proof);
+    let verified = verify(&ccs, &instance, &proof);
     println!("DEBUG: Proof verification completed!");
     let verification_time = verify_start.elapsed();
     println!("Proof verification: {}", if verified { "SUCCESS" } else { "FAILURE" });

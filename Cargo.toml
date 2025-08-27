@@ -77,6 +77,9 @@ p3-dft = "0.3.0"         # DFT operations for p3-fri
 
 # memchr is used by snark/mod.rs when snark_spartan2 is on
 memchr = "2.7"
+thiserror = "1"
+byteorder = "1"
+subtle = "2"
 
 # SNARK mode: Spartan2 dependencies for succinctness (moved to individual crates)
 # spartan2, bincode, bellpepper-core, bellpepper, ff are now optional per-crate dependencies

@@ -16,6 +16,9 @@ use rand::{rngs::StdRng, SeedableRng};
 
 use std::io::{Cursor, Read};
 
+// SNARK orchestration module
+pub mod snark;
+
 fn last_index_of(haystack: &[u8], needle: &[u8]) -> isize {
     if needle.is_empty() { return -1; }
     match haystack.windows(needle.len()).rposition(|w| w == needle) {
@@ -2316,11 +2319,7 @@ pub mod neutronnova_integration {
     }
 }
 
-// Export the SNARK module (spartan_ivc already declared above)
-pub mod snark;
-// neutronnova_integration module is defined inline above
-
-// Re-export the main SNARK interface
+// Re-export the main SNARK interface (module declared above)
 pub use snark::{prove, verify, Metrics, OrchestratorError};
 
 

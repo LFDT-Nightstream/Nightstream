@@ -842,6 +842,7 @@ dependencies = [
  "rand_distr",
  "serde",
  "spartan2",
+ "subtle",
  "thiserror 1.0.69",
 ]
 

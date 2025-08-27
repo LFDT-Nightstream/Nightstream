@@ -385,7 +385,7 @@ mod neo_fibo_ccs {
 
             let verify_start = Instant::now();
             let ok = match &proof_result {
-                Ok((proof, _metrics)) => neo_orchestrator::verify(&structure, proof),
+                Ok((proof, _metrics)) => neo_orchestrator::verify(&structure, &instance, proof),
                 Err(_) => false,
             };
             let verify_time = verify_start.elapsed();
@@ -444,7 +444,7 @@ mod spartan2_bench {
 
             let verify_start = Instant::now();
             let ok = match &proof_result {
-                Ok((proof, _metrics)) => neo_orchestrator::verify(&structure, proof),
+                Ok((proof, _metrics)) => neo_orchestrator::verify(&structure, &instance, proof),
                 Err(_) => false,
             };
             let verify_time = verify_start.elapsed();

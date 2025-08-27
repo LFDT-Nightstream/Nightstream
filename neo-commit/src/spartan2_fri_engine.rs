@@ -6,7 +6,7 @@
 //! - Provides hash-to-group transcript binding for Spartan2 compatibility
 //! - Supports folding via domain-separated hash aggregation
 
-#![cfg(all(feature = "snark_spartan2", feature = "spartan_fri"))]
+// Spartan2 FRI Engine - always enabled
 
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};

@@ -25,21 +25,15 @@ version = { workspace = true }
 authors = { workspace = true }
 
 [features]
-# Use real p3-fri PCS in our native path
-real_fri = []
-# Turn on Spartan2-based SNARK
-snark_spartan2 = [
+# Default: Spartan2 + FRI (post-quantum SNARK system)
+default = [
   "dep:spartan2",
   "dep:bincode", 
   "dep:bellpepper-core",
   "dep:bellpepper",
   "dep:ff",
+  "dep:serde"
 ]
-# Use Spartan2 with FRI PCS (post-quantum)
-spartan_fri = ["snark_spartan2"]
-
-# Keep PQ/native FRI as the default mode unless user opts into Spartan
-default = ["real_fri"]
 
 [dependencies]
 neo-fields = { path = "neo-fields" }
@@ -49,12 +43,13 @@ p3-field = "0.3"
 p3-matrix = { workspace = true }
 rand = { workspace = true }
 
-# Optional deps used only when snark_spartan2 is enabled
-spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false, optional = true }
-bincode = { version = "1", optional = true }
-bellpepper-core = { version = "0.4", optional = true }
-bellpepper = { version = "0.4", optional = true }
-ff = { version = "0.13", optional = true }
+# Spartan2 dependencies (always enabled)
+spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false }
+bincode = { version = "1" }
+bellpepper-core = { version = "0.4" }
+bellpepper = { version = "0.4" }
+ff = { version = "0.13" }
+serde = { version = "1", features = ["derive"] }
 
 [workspace.package]
 edition = "2021"

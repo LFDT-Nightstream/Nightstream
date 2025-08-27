@@ -5,33 +5,25 @@ use neo_ccs::{CcsStructure, CcsInstance, CcsWitness};
 use neo_fields::{ExtF, random_extf, MAX_BLIND_NORM, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-// Spartan2 imports (feature-gated)
-#[cfg(feature = "snark_spartan2")]
+// Spartan2 imports
 use bincode;
-#[cfg(feature = "snark_spartan2")]
 use spartan2::neutronnova::NeutronNovaSNARK;
-#[cfg(feature = "snark_spartan2")]
 use spartan2::traits::{Engine, circuit::SpartanCircuit};
-#[cfg(feature = "snark_spartan2")]
 use spartan2::errors::SpartanError;
 
 // No longer need the old fri_engine module
 
 // Engine selection: Use FRI for post-quantum security
-#[cfg(all(feature = "snark_spartan2", feature = "spartan_fri"))]
 use neo_commit::spartan2_fri_engine::PallasEngineWithFri as E;
 
-#[cfg(feature = "snark_spartan2")]
+// Spartan2 imports
 use bellpepper_core::{ConstraintSystem, SynthesisError};
-#[cfg(feature = "snark_spartan2")]
 use bellpepper::gadgets::num::AllocatedNum;
-#[cfg(feature = "snark_spartan2")]
 #[allow(unused_imports)]
 use ff::Field;
 
 /// Simple test circuit that implements a basic constraint for Spartan2 testing
 /// This circuit implements a + b = c constraint to verify Spartan2 integration
-#[cfg(feature = "snark_spartan2")]
 #[derive(Clone, Debug)]
 struct SimpleTestCircuit<EE: Engine> {
     pub public_values: Vec<EE::Scalar>,
@@ -40,7 +32,7 @@ struct SimpleTestCircuit<EE: Engine> {
     pub c: EE::Scalar,
 }
 
-#[cfg(feature = "snark_spartan2")]
+
 impl<EE: Engine> SimpleTestCircuit<EE> {
     /// Create a new simple test circuit from CCS components
     fn new(
@@ -70,7 +62,7 @@ impl<EE: Engine> SimpleTestCircuit<EE> {
     }
 }
 
-#[cfg(feature = "snark_spartan2")]
+
 impl<EE: Engine> SpartanCircuit<EE> for SimpleTestCircuit<EE> {
     fn public_values(&self) -> Result<Vec<EE::Scalar>, SynthesisError> {
         Ok(self.public_values.clone())
@@ -122,7 +114,7 @@ impl<EE: Engine> SpartanCircuit<EE> for SimpleTestCircuit<EE> {
 
 /// Generate deterministic binding public values from (CCS structure, instance, FS transcript)
 /// This binds the SNARK to the specific CCS instance and prevents replay attacks
-#[cfg(feature = "snark_spartan2")]
+
 fn binding_public_values<EE: Engine>(
     ccs_structure: &CcsStructure,
     ccs_instance: &CcsInstance,
@@ -209,7 +201,7 @@ fn convert_ccs_to_spartan2_format(
 
 /// Real Spartan2-based compression with NeutronNovaSNARK proof generation
 /// This replaces the placeholder implementation with actual Spartan2 calls
-#[cfg(feature = "snark_spartan2")]
+
 pub fn spartan_compress(
     ccs_structure: &CcsStructure,
     ccs_instance: &CcsInstance,
@@ -244,7 +236,7 @@ pub fn spartan_compress(
 
 /// Real Spartan2-based verification with NeutronNovaSNARK verification
 /// This replaces the placeholder implementation with actual Spartan2 calls
-#[cfg(feature = "snark_spartan2")]
+
 pub fn spartan_verify(
     proof_bytes: &[u8],
     vk_bytes: &[u8],

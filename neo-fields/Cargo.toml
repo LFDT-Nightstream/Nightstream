@@ -6,17 +6,16 @@ authors = { workspace = true }
 
 [features]
 default = []
-snark_spartan2 = ["dep:spartan2", "dep:ff", "dep:group", "dep:sha2"]
 
 [dependencies]
 p3-goldilocks = { workspace = true }
 p3-field = { version = "0.3" }
 rand = { workspace = true }
 subtle = "2.5"
-spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false, optional = true }
-ff = { version = "0.13", optional = true }
-group = { version = "0.13", optional = true }
-sha2 = { version = "0.10", optional = true }
+spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false }
+ff = { version = "0.13" }
+group = { version = "0.13" }
+sha2 = { version = "0.10" }
 
 
 [dev-dependencies]

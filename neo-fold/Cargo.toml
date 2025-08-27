@@ -23,14 +23,14 @@ byteorder = "1.5.0"
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 rand_distr = { workspace = true }
-spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false, optional = true }
+spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false }
 memchr = { workspace = true }
 thiserror = "1"
-bincode = { version = "1.3", optional = true }
-bellpepper-core = { version = "0.4", optional = true }
-bellpepper = { version = "0.4", optional = true }
-ff = { version = "0.13", optional = true }
-serde = { version = "1.0", features = ["derive"], optional = true }
+bincode = { version = "1.3" }
+bellpepper-core = { version = "0.4" }
+bellpepper = { version = "0.4" }
+ff = { version = "0.13" }
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 criterion = { workspace = true }
@@ -48,5 +48,3 @@ harness = false
 [features]
 default = []
 prop-tests = []
-snark_spartan2 = ["dep:spartan2", "dep:bincode", "dep:bellpepper-core", "dep:bellpepper", "dep:ff", "dep:serde"]
-spartan_fri = ["snark_spartan2", "neo-commit/spartan_fri"]

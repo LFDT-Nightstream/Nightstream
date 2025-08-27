@@ -60,8 +60,7 @@ impl ExtFieldNormTrait for ExtF {
 
 // Display implementation removed due to orphan rule - ExtF already has Debug
 
-// Legacy Spartan2 field conversion utilities (moved to separate module)
-#[cfg(feature = "snark_spartan2")]
+// Spartan2 field conversion utilities
 pub mod spartan2_compat {
     
     /// Conversion utilities between Neo's Goldilocks field and Spartan2's Pallas field

@@ -18,11 +18,9 @@ rand_distr = { workspace = true }
 rand_chacha = { workspace = true }
 thiserror = "1.0"
 rayon = { workspace = true }
-spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false, optional = true }
+spartan2 = { git = "https://github.com/microsoft/Spartan2.git", rev = "cc21201d0d0293794ccc8ddd24903a9e570afb6e", default-features = false }
 
 [features]
 default = []
-snark_spartan2 = ["dep:spartan2"]
-spartan_fri = ["snark_spartan2"]
 
 [dev-dependencies]

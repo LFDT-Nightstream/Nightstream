@@ -1124,7 +1124,6 @@ pub mod spartan2_pcs {
     // Hyrax-specific pcs_conversion module removed - using FRI only
 }
 
-#[cfg(all(feature = "snark_spartan2", feature = "spartan_fri"))]
 pub mod spartan2_fri_engine;
 
 

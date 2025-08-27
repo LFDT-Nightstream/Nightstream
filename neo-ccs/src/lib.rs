@@ -71,7 +71,6 @@ pub mod converters;
 pub use converters::{
     ccs_to_r1cs_format, ccs_instance_to_r1cs_format, ccs_witness_to_r1cs_format,
 };
-#[cfg(feature = "snark_spartan2")]
 pub use converters::field_conversion;
 
 pub mod to_r1cs;

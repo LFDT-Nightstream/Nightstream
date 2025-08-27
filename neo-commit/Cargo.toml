@@ -34,7 +34,6 @@ prop-tests = []
 real_fri = []  # Enable real p3-fri PCS implementation
 snark_spartan2 = ["dep:spartan2"]
 spartan_fri = ["snark_spartan2", "dep:serde", "dep:ff"]
-spartan_hyrax = ["snark_spartan2"]
 
 [dev-dependencies]
 criterion = { workspace = true }

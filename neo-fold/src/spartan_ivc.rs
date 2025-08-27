@@ -17,12 +17,9 @@ use spartan2::errors::SpartanError;
 
 // No longer need the old fri_engine module
 
-// Engine selection: FRI (PQ-friendly) vs Hyrax (legacy)
+// Engine selection: Use FRI for post-quantum security
 #[cfg(all(feature = "snark_spartan2", feature = "spartan_fri"))]
 use neo_commit::spartan2_fri_engine::PallasEngineWithFri as E;
-
-#[cfg(all(feature = "snark_spartan2", feature = "spartan_hyrax"))]
-use spartan2::provider::T256HyraxEngine as E;
 
 #[cfg(feature = "snark_spartan2")]
 use bellpepper_core::{ConstraintSystem, SynthesisError};

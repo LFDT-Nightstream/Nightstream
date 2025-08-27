@@ -1121,30 +1121,7 @@ pub mod spartan2_pcs {
         }
     }
     
-    /// Field conversion utilities for PCS integration
-    /// (Restricted to Hyrax only - these functions use pallas types internally)
-    #[cfg(all(feature = "snark_spartan2", feature = "spartan_hyrax"))]
-    pub mod pcs_conversion {
-        use super::*;
-        use neo_fields::spartan2_compat::field_conversion::*;
-        
-        /// Convert Neo polynomial to Spartan2 format
-        pub fn neo_poly_to_spartan2(poly: &[F]) -> Vec<spartan2::provider::pasta::pallas::Scalar> {
-            goldilocks_vec_to_pallas_scalar(poly)
-        }
-        
-        /// Convert Spartan2 polynomial to Neo format
-        pub fn spartan2_poly_to_neo(poly: &[spartan2::provider::pasta::pallas::Scalar]) -> Result<Vec<F>, String> {
-            pallas_scalar_vec_to_goldilocks(poly)
-        }
-        
-        /// Legacy unsafe conversion - use spartan2_poly_to_neo instead
-        #[deprecated(note = "Use spartan2_poly_to_neo for safe conversion")]
-        pub fn spartan2_poly_to_neo_unsafe(poly: &[spartan2::provider::pasta::pallas::Scalar]) -> Vec<F> {
-            pallas_scalar_vec_to_goldilocks(poly)
-                .expect("Unsafe conversion failed - use safe version instead")
-        }
-    }
+    // Hyrax-specific pcs_conversion module removed - using FRI only
 }
 
 #[cfg(all(feature = "snark_spartan2", feature = "spartan_fri"))]

@@ -35,9 +35,8 @@ snark_spartan2 = [
   "dep:bellpepper",
   "dep:ff",
 ]
-# Choose which Spartan2 PCS to use:
-spartan_fri = ["snark_spartan2"]     # PQ: Spartan2 + FRI
-spartan_hyrax = ["snark_spartan2"]   # Legacy: Spartan2 + Hyrax (non-PQ)
+# Use Spartan2 with FRI PCS (post-quantum)
+spartan_fri = ["snark_spartan2"]
 
 # Keep PQ/native FRI as the default mode unless user opts into Spartan
 default = ["real_fri"]

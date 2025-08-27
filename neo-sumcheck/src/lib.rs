@@ -90,6 +90,7 @@ mod tests {
             &mut transcript
         ).expect("prover");
 
+        // Verifier starts with fresh transcript (same initial state as prover)
         let mut transcript_v = Vec::new();
         let _chals = super::spartan2_sumcheck::spartan2_batched_sumcheck_verifier(
             &[sum_claim],

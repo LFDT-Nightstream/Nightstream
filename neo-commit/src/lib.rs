@@ -73,7 +73,6 @@ pub const TOY_PARAMS: NeoParams = NeoParams {
 
 pub struct AjtaiCommitter {
     a: Vec<Vec<RingElement<ModInt>>>,        // Public matrix
-    trapdoor: Vec<Vec<RingElement<ModInt>>>, // Trapdoor matrix
     params: NeoParams,
 }
 
@@ -181,25 +180,8 @@ impl AjtaiCommitter {
             }
         }
 
-        // Trapdoor T = [R; I_k]
-        let mut trapdoor =
-            vec![vec![RingElement::from_scalar(ModInt::zero(), params.n); params.d]; params.k];
-        for (i, trapdoor_row) in trapdoor.iter_mut().enumerate().take(params.k) {
-            for (j, r_row) in r.iter().enumerate().take(m_bar) {
-                trapdoor_row[j] = r_row[i].clone();
-            }
-            for j in 0..params.k {
-                trapdoor_row[m_bar + j] = if i == j {
-                    RingElement::from_scalar(ModInt::one(), params.n)
-                } else {
-                    RingElement::from_scalar(ModInt::zero(), params.n)
-                };
-            }
-        }
-
         Self {
             a,
-            trapdoor,
             params,
         }
     }
@@ -291,89 +273,7 @@ impl AjtaiCommitter {
         }
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn gpv_trapdoor_sample(
-        &self,
-        target: &[RingElement<ModInt>],
-        _sigma: f64,  // randomness comes from z
-        rng: &mut impl Rng,
-    ) -> Result<Vec<RingElement<ModInt>>, &'static str> {
-        let n = self.params.n;
-        let k = self.params.k;
-        let m_bar = self.params.d - k;
 
-        // 1) z ~ D_sigma(0) for the left block
-        let zero = RingElement::from_scalar(ModInt::zero(), n);
-        let mut y = vec![RingElement::zero(n); self.params.d];
-        for y_i in y.iter_mut().take(m_bar) {
-            *y_i = self.sample_gaussian_ring(&zero, self.params.sigma, rng)?; // z
-        }
-
-        // 2) c = target - A_bar z
-        let mut c = target.to_vec();
-        for (i, c_i) in c.iter_mut().enumerate().take(k) {
-            for (j, y_j) in y.iter().enumerate().take(m_bar) {
-                *c_i = c_i.clone() - self.a[i][j].clone() * y_j.clone();
-            }
-        }
-
-        // 3) y_k = G^{-1} c (exact; with G = 2I)
-        let g_inv = RingElement::from_scalar(ModInt::from_u64(2).inverse(), n);
-        for i in 0..k {
-            y[m_bar + i] = c[i].clone() * g_inv.clone();
-        }
-
-        // 4) y_bar = z + R y_k   (use trapdoor entries: trapdoor[j][i] = R[i][j])
-        for i in 0..m_bar {
-            let mut ry = RingElement::zero(n);
-            for j in 0..k {
-                let rij = self.trapdoor[j][i].clone(); // R[i][j]
-                ry = ry + rij * y[m_bar + j].clone();
-            }
-            y[i] = y[i].clone() + ry;
-        }
-
-        // optional: retry if ||y||∞ exceeds bound (keeps your test behavior)
-        let mut retries = 0;
-        loop {
-            if y.iter().all(|yi| yi.norm_inf() <= self.params.norm_bound) {
-                return Ok(y);
-            }
-            
-            retries += 1;
-            if retries > 1000 {
-                return Err("GPV sampling failed after 1000 retries");
-            }
-            
-            // Retry with new randomness
-            for y_i in y.iter_mut().take(m_bar) {
-                *y_i = self.sample_gaussian_ring(&zero, self.params.sigma, rng)?; // z
-            }
-
-            // Recompute c = target - A_bar z
-            c = target.to_vec();
-            for (i, c_i) in c.iter_mut().enumerate().take(k) {
-                for (j, y_j) in y.iter().enumerate().take(m_bar) {
-                    *c_i = c_i.clone() - self.a[i][j].clone() * y_j.clone();
-                }
-            }
-
-            // Recompute y_k = G^{-1} c (exact; with G = 2I)
-            for i in 0..k {
-                y[m_bar + i] = c[i].clone() * g_inv.clone();
-            }
-
-            // Recompute y_bar = z + R y_k
-            for i in 0..m_bar {
-                let mut ry = RingElement::zero(n);
-                for j in 0..k {
-                    let rij = self.trapdoor[j][i].clone(); // R[i][j]
-                    ry = ry + rij * y[m_bar + j].clone();
-                }
-                y[i] = y[i].clone() + ry;
-            }
-        }
-    }
 
     pub fn pack_decomp(mat: &RowMajorMatrix<F>, params: &NeoParams) -> Vec<RingElement<ModInt>> {
         assert_eq!(mat.height(), params.d);
@@ -613,20 +513,9 @@ impl AjtaiCommitter {
         let combo1 = self.random_linear_combo(c1, c2, rho1_f);
         let combo2 = self.random_linear_combo(c1, c2, rho2_f);
 
-        // GPV preimages for combos (use transcript-derived seeds for determinism) via canonical FS with 256-bit entropy.
-        use neo_sumcheck::fiat_shamir::Transcript;
-        let mut fs_transcript = Transcript::new("commit");
-        fs_transcript.absorb_bytes("transcript_state", transcript);
-        fs_transcript.absorb_tag("NEO/V1/extract/gpv");
-        let mut rng1 = fs_transcript.rng("NEO/V1/extract/combo_seed/0");
-        let mut rng2 = fs_transcript.rng("NEO/V1/extract/combo_seed/1");
-        
-        if cfg!(test) {
-            eprintln!("EXTRACTOR_DEBUG: GPV sampling with canonical 256-bit seeds");
-        }
-        
-        let y1 = self.gpv_trapdoor_sample(&combo1, self.params.sigma, &mut rng1)?;
-        let y2 = self.gpv_trapdoor_sample(&combo2, self.params.sigma, &mut rng2)?;
+        // Note: GPV trapdoor sampling has been removed. 
+        // This extractor method is no longer functional without the trapdoor.
+        return Err("Extractor not available: GPV trapdoor has been removed");
         
         if cfg!(test) {
             let y1_norms: Vec<_> = y1.iter().map(|y| y.norm_inf()).collect();

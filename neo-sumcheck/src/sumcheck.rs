@@ -90,6 +90,7 @@ pub fn batched_sumcheck_prover(
 
     // Structured, domain-separated challenge for the rho used to batch claims
     let rho = fs_challenge_ext(transcript, b"sumcheck.rho");
+    eprintln!("SUMCHECK_PROVER_DEBUG: TRANSCRIPT_TRACE: Initial transcript.len()={} after rho generation, using structured FS rho={:?}", transcript.len(), rho);
 
     let mut rho_pow = ExtF::ONE;
     let mut current_batched = ExtF::ZERO;
@@ -101,10 +102,9 @@ pub fn batched_sumcheck_prover(
     // NARK mode: No commitments needed - prover sends polynomials directly
     eprintln!("SUMCHECK_PROVER_DEBUG: transcript.len()={} before rounds", transcript.len());
 
+    eprintln!("SUMCHECK_PROVER_DEBUG: transcript.len()={} before entering round loop", transcript.len());
     for round in 0..ell {
-        // Bind the round number into the transcript with length-delimited framing
-        fs_absorb_u64(transcript, b"sumcheck.round", round as u64);
-        eprintln!("SUMCHECK_PROVER_DEBUG: transcript.len()={} after round {} info", transcript.len(), round);
+        eprintln!("SUMCHECK_PROVER_DEBUG: Starting round {}", round);
         challenger.observe_bytes("round_label", format!("neo_sumcheck_round_{}", round).as_bytes());
         let remaining = ell - round - 1;
         let mut uni_polys = vec![];
@@ -198,8 +198,8 @@ pub fn batched_sumcheck_prover(
             blind_factor = x_poly.clone() * xm1_poly.clone() * blind_poly.clone();
             attempts += 1;
         }
-        let mut uni_polys_with_blind = uni_polys.clone();
-        uni_polys_with_blind.push(blind_factor.clone());
+        // Batch only the actual univariates (without blinder)
+        let batched_uni = batch_unis(&uni_polys, rho);
         
         // DEBUG: Show the individual univariates before batching
         eprintln!("SUMCHECK_PROVER_DEBUG: Round {} univariate construction:", round);
@@ -210,8 +210,6 @@ pub fn batched_sumcheck_prover(
         eprintln!("SUMCHECK_PROVER_DEBUG: blind_factor coeffs = {:?}", blind_factor.coeffs());
         eprintln!("SUMCHECK_PROVER_DEBUG: blind_factor eval(0) = {:?}, eval(1) = {:?}", blind_factor.eval(ExtF::ZERO), blind_factor.eval(ExtF::ONE));
         
-        let batched_uni = batch_unis(&uni_polys_with_blind, rho);
-        
         eprintln!("SUMCHECK_PROVER_DEBUG: batched_uni coeffs = {:?}", batched_uni.coeffs());
         eprintln!("SUMCHECK_PROVER_DEBUG: batched_uni eval(0) = {:?}, eval(1) = {:?}", batched_uni.eval(ExtF::ZERO), batched_uni.eval(ExtF::ONE));
 
@@ -219,21 +217,22 @@ pub fn batched_sumcheck_prover(
             return Err(SumCheckError::InvalidSum(round));
         }
 
+        // Absorb round number first (to match verifier)
+        fs_absorb_u64(transcript, b"sumcheck.round", round as u64);
+        eprintln!("SUMCHECK_PROVER_DEBUG: Round {} - transcript.len()={} after fs_absorb_u64", round, transcript.len());
+        
         // Absorb the univariate with structured framing
+        eprintln!("SUMCHECK_PROVER_DEBUG: Round {} - absorbing batched_uni coeffs={:?}", round, batched_uni.coeffs());
         fs_absorb_poly(transcript, b"sumcheck.uni", &batched_uni);
         eprintln!("SUMCHECK_PROVER_DEBUG: Round {} - transcript.len()={} after fs_absorb_poly", round, transcript.len());
-        challenger.observe_bytes("blinded_uni", &serialize_uni(&batched_uni));
 
         // Round challenge with domain separation
+        eprintln!("SUMCHECK_PROVER_DEBUG: Round {} - transcript.len()={} before fs_challenge_ext", round, transcript.len());
         let challenge = fs_challenge_ext(transcript, b"sumcheck.challenge");
         challenges.push(challenge);
 
-        let num_polys = polys.len();
-        let mut blind_weight = ExtF::ONE;
-        for _ in 0..num_polys {
-            blind_weight *= rho;
-        }
-        let blind_eval = blind_factor.eval(challenge) * blind_weight;
+        // Blind evaluation (no extra weighting - blinder is separate from batching)
+        let blind_eval = blind_factor.eval(challenge);
 
         // CRITICAL DEBUG: This is where the zero polynomial issue occurs
         let batched_eval = batched_uni.eval(challenge);
@@ -249,19 +248,13 @@ pub fn batched_sumcheck_prover(
         // - So: batched_eval - blind_eval should be 0
         // But we're seeing batched_eval != blind_eval for zero polynomials!
         
-        current_batched = batched_eval - blind_eval;
+        // IMPORTANT: carry g_i(r_i), not g_i(r_i) - z_i(r_i)
+        current_batched = batched_eval;
         eprintln!("SUMCHECK_PROVER_DEBUG: current_batched (after) = {:?}", current_batched);
         
-        // This should be 0 for zero polynomials, but it's not!
-        if current_batched != ExtF::ZERO {
-            eprintln!("SUMCHECK_PROVER_DEBUG: ⚠️  PROBLEM: Zero polynomial producing non-zero current!");
-            eprintln!("SUMCHECK_PROVER_DEBUG: batched_uni coeffs = {:?}", batched_uni.coeffs());
-            eprintln!("SUMCHECK_PROVER_DEBUG: blind_factor coeffs = {:?}", blind_factor.coeffs());
-        }
+        // Note: blinding is transcript-only here; correctness tracks unblinded current.
         // Absorb blind evaluation in structured form
         fs_absorb_extf(transcript, b"sumcheck.blind_eval", blind_eval);
-        let blind_bytes: Vec<u8> = serialize_ext(blind_eval);
-        challenger.observe_bytes("blind_eval", &blind_bytes);
 
         msgs.push((batched_uni.clone(), blind_eval));
     }
@@ -294,7 +287,7 @@ pub fn batched_sumcheck_verifier(
     }
     
     let rho = fs_challenge_ext(transcript, b"sumcheck.rho");
-    eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Initial transcript.len()={}, using structured FS rho={:?}", transcript.len(), rho);
+    eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Initial transcript.len()={} after rho generation, using structured FS rho={:?}", transcript.len(), rho);
     
     let mut rho_pow = ExtF::ONE;
     let mut current = ExtF::ZERO;
@@ -310,6 +303,7 @@ pub fn batched_sumcheck_verifier(
     
     for (round, (uni, blind_eval)) in msgs.iter().enumerate() {
         fs_absorb_u64(transcript, b"sumcheck.round", round as u64);
+        eprintln!("VERIFIER_DEBUG: Round {} - transcript.len()={} after fs_absorb_u64", round, transcript.len());
         eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - absorbed round with structured FS", round);
         if uni.eval(ExtF::ZERO) + uni.eval(ExtF::ONE) != current {
             eprintln!("VERIFIER_DEBUG: ❌ Round {} FAILED sum check: {} != {}", round, uni.eval(ExtF::ZERO) + uni.eval(ExtF::ONE), current);
@@ -318,14 +312,17 @@ pub fn batched_sumcheck_verifier(
         eprintln!("VERIFIER_DEBUG: ✅ Round {} passed sum check", round);
         
         // Absorb the received uni exactly as the prover absorbed it
+        eprintln!("VERIFIER_DEBUG: Round {} - absorbing uni coeffs={:?}", round, uni.coeffs());
         fs_absorb_poly(transcript, b"sumcheck.uni", uni);
         eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - absorbed uni with structured FS", round);
+        eprintln!("VERIFIER_DEBUG: Round {} - transcript.len()={} before fs_challenge_ext", round, transcript.len());
         let challenge = fs_challenge_ext(transcript, b"sumcheck.challenge");
         eprintln!("VERIFIER_DEBUG: Round {} - using structured FS challenge={:?}", round, challenge);
-        eprintln!("VERIFIER_DEBUG: Round {} - challenge={:?}", round, challenge);
-        eprintln!("VERIFIER_DEBUG: Round {} - uni.eval(challenge)={:?}, blind_eval={:?}", round, uni.eval(challenge), *blind_eval);
-        current = uni.eval(challenge) - *blind_eval;
+        eprintln!("VERIFIER_DEBUG: Round {} - uni.eval(challenge)={:?} (ignoring blind_eval in NARK mode)", round, uni.eval(challenge));
+        // Carry g_i(r_i); blinding is zero at endpoints and only absorbed into transcript.
+        current = uni.eval(challenge);
         eprintln!("VERIFIER_DEBUG: Round {} - updated current={:?}", round, current);
+        eprintln!("VERIFIER_DEBUG: Round {} - blind_eval={:?}", round, *blind_eval);
         fs_absorb_extf(transcript, b"sumcheck.blind_eval", *blind_eval);
         eprintln!("VERIFIER_DEBUG: TRANSCRIPT_TRACE: Round {} - absorbed blind_eval with structured FS", round);
         r.push(challenge);

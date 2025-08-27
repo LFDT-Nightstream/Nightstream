@@ -10,7 +10,7 @@ The codebase is structured as a Rust workspace with multiple crates, focusing on
 - **Fields & Arithmetic**: Goldilocks field (64-bit prime) for CCS, modular ints for lattice Z_q.
 - **Polynomials & Rings**: Generic univariate polys, cyclotomic rings mod X^n +1 with ops.
 - **Decomposition**: Signed base-b digit decomp for pay-per-bit commitments.
-- **Commitments**: Ajtai-based lattice commitments with matrix embedding, GPV trapdoor sampling, ZK blinding, and homomorphism.
+- **Commitments**: Ajtai-based lattice commitments with matrix embedding, ZK blinding, and homomorphism.
 - **Sum-Check**: Interactive batched/multilinear sum-check for multivariate claims over extensions.
 - **CCS Relations**: Constraint systems with matrices/multivariate polys; satisfiability checks and sum-check proving.
 - **Folding**: Reductions (Π_CCS, Π_RLC, Π_DEC) to fold instances; full flow with verifiers.

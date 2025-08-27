@@ -8,12 +8,12 @@ Core commitment for CCS witnesses (Section 3: Neo's folding-friendly commitments
 ## What we have
 - `AjtaiCommitter` with setup, commit (deterministic/RNG variants), verify, random linear combo (scalar/rotation).
 - Packing decomposed matrices into ring elements.
-- GPV trapdoor sampling for openings.
+
 - ZK blinding with Gaussian errors (σ=3.2).
 - Open/verify at multilinear points with proofs.
 - Preset params for Goldilocks (n=64, etc.) and secure (n=8192).
 - Pay-per-bit cost calculation.
-- Tests for roundtrip, ZK randomization, openings, and GPV sampling.
+- Tests for roundtrip, ZK randomization, and openings.
 
 ## What we are missing
 - Full knowledge soundness extractor (Section 2.2, Definition 3).

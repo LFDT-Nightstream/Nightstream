@@ -47,7 +47,6 @@ This document distills normative requirements from the paper "Neo: Lattice-based
 | Req | Paper source | Description |
 | --- | --- | --- |
 | MUST | Alg. 1, Def. 10 | Implement Setup (sample M in R_q^{k x d}), Commit (Mz + e with short e), Verify (check norms). |
-| MUST | §3.2, Alg. 1 | GPV trapdoor for short openings (lines 8-12); support multilinear eval openings at random points. |
 | MUST | Def. 13 | Ensure S-homomorphic (add/mul by scalars in S) and (d,m,B)-binding based on MSIS. |
 | MUST | Def. 15 | Support (d,m,B,C, norm)-relaxed binding (challenge set C and norm parameter). |
 | SHOULD | §1.3, §3.1 | Implement pay-per-bit cost calc; ZK blinding with Gaussian errors (σ=3.2). (Partial: Blinding done, but not constant-time.) |

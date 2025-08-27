@@ -13,7 +13,7 @@ pub trait UnivPoly {
 }
 
 /// Represents a multilinear polynomial through its evaluations on the Boolean hypercube
-/// The evaluations are provided in lexicographic order over {0,1}^ℓ where ℓ = log₂(len)
+/// The evaluations are provided in little-endian bit order over {0,1}^ℓ where ℓ = log₂(len)
 /// Automatically pads to the next power of 2 if the input length is not a power of 2
 #[derive(Clone)]
 pub struct MultilinearEvals {
@@ -28,7 +28,8 @@ impl MultilinearEvals {
     /// * `original_evals` - Evaluations of the polynomial, will be zero-padded to next power of 2
     ///
     /// # Example
-    /// For evaluations [f(0,0), f(0,1), f(1,0), f(1,1)] representing a 2-variable polynomial
+    /// For evaluations [f(0,0), f(1,0), f(0,1), f(1,1)] representing a 2-variable polynomial
+    /// (little-endian bit order: idx=0→(0,0), idx=1→(1,0), idx=2→(0,1), idx=3→(1,1))
     pub fn new(mut original_evals: Vec<ExtF>) -> Self {
         let len = original_evals.len();
         let ell = (len as f64).log2().ceil() as usize;

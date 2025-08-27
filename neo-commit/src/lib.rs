@@ -510,61 +510,12 @@ impl AjtaiCommitter {
         // Build two scalar random linear combinations of c1, c2.
         let rho1_f = neo_fields::F::from_u64(rho1.as_canonical_u64());
         let rho2_f = neo_fields::F::from_u64(rho2.as_canonical_u64());
-        let combo1 = self.random_linear_combo(c1, c2, rho1_f);
-        let combo2 = self.random_linear_combo(c1, c2, rho2_f);
+        let _combo1 = self.random_linear_combo(c1, c2, rho1_f);
+        let _combo2 = self.random_linear_combo(c1, c2, rho2_f);
 
         // Note: GPV trapdoor sampling has been removed. 
         // This extractor method is no longer functional without the trapdoor.
-        return Err("Extractor not available: GPV trapdoor has been removed");
-        
-        if cfg!(test) {
-            let y1_norms: Vec<_> = y1.iter().map(|y| y.norm_inf()).collect();
-            let y2_norms: Vec<_> = y2.iter().map(|y| y.norm_inf()).collect();
-            eprintln!("EXTRACTOR_DEBUG: GPV samples - y1 max_norm={}, y2 max_norm={}", 
-                     y1_norms.iter().max().unwrap_or(&0),
-                     y2_norms.iter().max().unwrap_or(&0));
-        }
-
-        // Compute w2 := (y1 - y2) / (ρ1 - ρ2) and w1 := y1 - ρ1 * w2.
-        let diff = rho1 - rho2;
-        if diff == ModInt::from_u64(0) {
-            return Err("Extractor failed: zero diff");
-        }
-        let diff_inv = diff.inverse();
-
-        let w2: Vec<_> = y1.iter()
-            .zip(&y2)
-            .map(|(a, b)| (a.clone() - b.clone()) * diff_inv)
-            .collect();
-
-        let w1: Vec<_> = y1.iter()
-            .zip(&w2)
-            .map(|(a, w2i)| a.clone() - w2i.clone() * rho1)
-            .collect();
-
-        if cfg!(test) {
-            let w1_norms: Vec<_> = w1.iter().map(|w| w.norm_inf()).collect();
-            let w2_norms: Vec<_> = w2.iter().map(|w| w.norm_inf()).collect();
-            eprintln!("EXTRACTOR_DEBUG: Final witnesses - w1 max_norm={}, w2 max_norm={}", 
-                     w1_norms.iter().max().unwrap_or(&0),
-                     w2_norms.iter().max().unwrap_or(&0));
-        }
-
-        // Optional: sanity check (constant-time checks happen in verify_extracted_witness).
-        // A*w1 must equal c1 exactly modulo q.
-        let zero_noise = vec![RingElement::from_scalar(ModInt::zero(), self.params.n); self.params.k];
-        let verification_result = self.verify(c1, &w1, &zero_noise);
-        
-        if cfg!(test) {
-            eprintln!("EXTRACTOR_DEBUG: Verification result: {}", verification_result);
-        }
-        
-        if !verification_result {
-            // Fallback: still return w1; caller verifies CT-bounds. But signal issue:
-            return Err("Extractor preimage failed verification");
-        }
-
-        Ok(w1)
+        Err("Extractor not available: GPV trapdoor has been removed")
     }
 
 
@@ -606,7 +557,7 @@ impl AjtaiCommitter {
     }
 
     /// Open a commitment at a multilinear evaluation point. This folds the
-    /// commitment vector and produces a short trapdoor-based proof witnessing the
+    /// commitment vector and produces a short proof witnessing the
     /// claimed evaluation.
     pub fn open_at_point(
         &self,
@@ -615,7 +566,7 @@ impl AjtaiCommitter {
         w: &[RingElement<ModInt>],
         _e: &[RingElement<ModInt>],
         r: &[RingElement<ModInt>],
-        rng: &mut impl Rng,
+        _rng: &mut impl Rng,
     ) -> Result<(ExtF, Vec<RingElement<ModInt>>), &'static str> {
         let blinded_eval = self.compute_multilinear_eval(point, w);
         let r_eval = self.compute_multilinear_eval(point, r);
@@ -630,14 +581,14 @@ impl AjtaiCommitter {
         );
         let gadget = RingElement::from_scalar(ModInt::from_u64(2), self.params.n);
 
-        let target: Vec<RingElement<ModInt>> = c
+        let _target: Vec<RingElement<ModInt>> = c
             .iter()
             .map(|ci| ci.clone() - gadget.clone() * eval_ring.clone())
             .collect();
 
-        let proof = self.gpv_trapdoor_sample(&target, self.params.sigma, rng)?;
-
-        Ok((eval, proof))
+        // Note: GPV trapdoor sampling has been removed.
+        // Opening proofs are no longer available without the trapdoor.
+        Err("Opening not available: GPV trapdoor has been removed")
     }
 
     /// Verify an opening at a point by folding the commitment in the same manner
@@ -843,7 +794,7 @@ pub mod spartan2_pcs {
             transcript.absorb_bytes("computed_eval", &computed_eval.as_canonical_u64().to_le_bytes());
             
             // For now, generate a deterministic proof based on the inputs
-            // In a full implementation, this would use the Ajtai trapdoor to generate
+            // In a full implementation, this would use an alternative method to generate
             // a proper opening proof
             let proof_wide = transcript.challenge_wide("opening_proof");
             let mut proof_bytes = Vec::with_capacity(128);

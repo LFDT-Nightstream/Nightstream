@@ -82,22 +82,7 @@ fn test_gaussian_dist() {
     assert!(tail_count < 0.01);
 }
 
-#[test]
-fn test_gpv_retry_limit() {
-    let mut params = TOY_PARAMS;
-    params.norm_bound = 1;
-    params.e_bound = 1000; // avoid internal Gaussian failure
-    let comm = AjtaiCommitter::setup_unchecked(params);
-    let mut rng = StdRng::seed_from_u64(1);
-    let target = vec![RingElement::zero(params.n); params.k];
-    let res = comm.gpv_trapdoor_sample(&target, params.sigma, &mut rng);
-    assert!(res.is_err());
-    let err = res.unwrap_err();
-    assert!(
-        err == "GPV sampling failed after 1000 retries"
-            || err == "Gaussian sampling failed after 100 retries"
-    );
-}
+
 
 #[test]
 fn test_sample_gaussian_returns_err_on_low_sigma() {

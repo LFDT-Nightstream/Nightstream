@@ -2037,7 +2037,7 @@ pub fn verify_knowledge_soundness(
     proof: &Proof,
     committer: &AjtaiCommitter,
 ) -> Result<bool, &'static str> {
-    eprintln!("=== KNOWLEDGE SOUNDNESS (Rewinding & GPV) ===");
+    eprintln!("=== KNOWLEDGE SOUNDNESS (Rewinding) ===");
     // Parse just enough of the transcript to get:
     // - commit1
     // - sumcheck_msgs1 (skip contents)

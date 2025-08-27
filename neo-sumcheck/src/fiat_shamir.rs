@@ -122,8 +122,8 @@ pub fn fs_absorb_poly(transcript: &mut Vec<u8>, label: &[u8], p: &Polynomial<Ext
     let deg = p.degree() as u32;
     let coeffs = p.coeffs();
     let count = coeffs.len() as u32;
-    // header: deg | count
-    fs_write_u32_be(transcript, 8); // 8 bytes follow in "payload header"
+    // header: deg | count | payload_size
+    fs_write_u32_be(transcript, 12); // 12 bytes follow in "payload header"
     fs_write_u32_be(transcript, deg);
     fs_write_u32_be(transcript, count);
     // then each coefficient (two limbs) - use checked_mul to prevent overflow

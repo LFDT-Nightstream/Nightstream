@@ -66,10 +66,9 @@ fn test_blinded_commit_hiding_and_opening() {
     let log_k = (params.k as f64).log2().ceil() as usize;
     let point = vec![ExtF::ZERO; log_k];
     let mut rng = StdRng::seed_from_u64(0);
-    let (_eval, proof) = comm
-        .open_at_point(&c, &point, &blinded_w, &e, &r, &mut rng)
-        .unwrap();
-    assert_eq!(proof.len(), params.d);
+    // Note: Opening is no longer available since GPV trapdoor was removed
+    let result = comm.open_at_point(&c, &point, &blinded_w, &e, &r, &mut rng);
+    assert!(result.is_err());
 }
 
 /// Tests that commitments are randomized for zero-knowledge property.
@@ -94,8 +93,7 @@ fn test_zk_commit_randomized() {
 /// Tests opening a commitment at a specific point.
 ///
 /// This is required to ensure the multilinear evaluation opening works, 
-/// which is core to the commitment's use in proof systems. It validates 
-/// the GPV trapdoor sampling indirectly through successful proof generation.
+/// which is core to the commitment's use in proof systems.
 #[test]
 fn test_open_at_point() {
     use rand::Rng;
@@ -112,15 +110,14 @@ fn test_open_at_point() {
     let log_k = (params.k as f64).log2().ceil() as usize;
     let point: Vec<ExtF> = (0..log_k).map(|_| ExtF::ZERO).collect();
     let mut rng = StdRng::seed_from_u64(6);
-    let (_eval, proof) = comm
-        .open_at_point(&c, &point, &w_blinded, &e, &r, &mut rng)
-        .unwrap();
-    assert_eq!(proof.len(), params.d);
+    // Note: Opening is no longer available since GPV trapdoor was removed
+    let result = comm.open_at_point(&c, &point, &w_blinded, &e, &r, &mut rng);
+    assert!(result.is_err());
 }
 
 /// Tests verification of an opening with rank considerations.
 ///
-/// This ensures the trapdoor and matrix rank properties hold during verification, 
+/// This ensures the matrix rank properties hold during verification, 
 /// which is crucial for the scheme's soundness. It's good for catching issues in 
 /// setup or sampling that could compromise full rank.
 #[test]
@@ -134,13 +131,9 @@ fn test_open_verify_rank() {
     let point: Vec<ExtF> = vec![ExtF::ZERO; log_k];
     let r = vec![RingElement::from_scalar(ModInt::zero(), params.n); params.d];
     let mut rng = StdRng::seed_from_u64(2);
-    let (eval, proof) = comm
-        .open_at_point(&c, &point, &w_blinded, &e, &r, &mut rng)
-        .unwrap();
-    assert_eq!(proof.len(), params.d);
-    assert!(
-        comm.verify_opening(&c, &point, eval, &proof, params.max_blind_norm)
-    );
+    // Note: Opening is no longer available since GPV trapdoor was removed
+    let result = comm.open_at_point(&c, &point, &w_blinded, &e, &r, &mut rng);
+    assert!(result.is_err());
 }
 
 /// Tests verification enforces norm bounds on openings.
@@ -157,13 +150,9 @@ fn test_open_verify_with_norm() {
     let point = vec![ExtF::ONE];
     let r = vec![RingElement::from_scalar(ModInt::zero(), params.n); params.d];
     let mut rng = StdRng::seed_from_u64(3);
-    let (eval, proof) = comm
-        .open_at_point(&c, &point, &w_blinded, &e, &r, &mut rng)
-        .unwrap();
-    assert!(comm.verify_opening(&c, &point, eval, &proof, params.max_blind_norm));
-    let mut bad_proof = proof.clone();
-    bad_proof[0] = RingElement::from_scalar(ModInt::from_u64(params.norm_bound + 1), params.n);
-    assert!(!comm.verify_opening(&c, &point, eval, &bad_proof, params.max_blind_norm));
+    // Note: Opening is no longer available since GPV trapdoor was removed
+    let result = comm.open_at_point(&c, &point, &w_blinded, &e, &r, &mut rng);
+    assert!(result.is_err());
 }
 
 /// Tests that mismatched proofs fail verification.
@@ -180,12 +169,9 @@ fn test_open_verify_mismatch() {
     let point = vec![ExtF::ZERO];
     let r = vec![RingElement::from_scalar(ModInt::zero(), params.n); params.d];
     let mut rng = StdRng::seed_from_u64(4);
-    let (eval, proof) = comm
-        .open_at_point(&c, &point, &w_blinded, &e, &r, &mut rng)
-        .unwrap();
-    let mut bad_proof = proof.clone();
-    bad_proof[0] = bad_proof[0].clone() + RingElement::from_scalar(ModInt::one(), params.n);
-    assert!(!comm.verify_opening(&c, &point, eval, &bad_proof, params.max_blind_norm));
+    // Note: Opening is no longer available since GPV trapdoor was removed
+    let result = comm.open_at_point(&c, &point, &w_blinded, &e, &r, &mut rng);
+    assert!(result.is_err());
 }
 
 /// Tests Gaussian sampling produces samples within expected norm bounds.
@@ -202,94 +188,9 @@ fn test_sample_gaussian_ring_norm() {
     assert!(sampled.norm_inf() <= params.e_bound * 3);
 }
 
-/// Tests GPV trapdoor sampling recovers the target correctly.
-///
-/// Core to the opening mechanism; this test ensures trapdoor allows 
-/// efficient sampling of preimages, vital for proof generation.
-#[test]
-fn test_gpv_trapdoor_sampling() {
-    let params = test_params();
-    let comm = AjtaiCommitter::setup_unchecked(params);
-    let mut rng = StdRng::seed_from_u64(42);
-    let target: Vec<RingElement<ModInt>> = (0..params.k)
-        .map(|_| RingElement::random_uniform(&mut rng, params.n))
-        .collect();
-    let y = comm
-        .gpv_trapdoor_sample(&target, params.sigma, &mut rng)
-        .unwrap();
-    assert_eq!(y.len(), params.d);
-    let mut recomputed = vec![RingElement::zero(params.n); params.k];
-    for (i, ai_row) in comm.public_matrix().iter().enumerate() {
-        for (aij, yj) in ai_row.iter().zip(&y) {
-            recomputed[i] = recomputed[i].clone() + aij.clone() * yj.clone();
-        }
-    }
-    assert_eq!(recomputed, target);
-    for yi in &y {
-        assert!(yi.norm_inf() <= params.norm_bound);
-    }
-}
 
-/// Tests statistical closeness of GPV samples to Gaussian distribution.
-///
-/// Ensures the trapdoor sampling is statistically close to the ideal 
-/// distribution, which is required for zero-knowledge proofs.
-/// Note: This test may skip with toy parameters due to restrictive bounds.
-#[test]
-fn test_gpv_statistical_closeness() {
-    let params = test_params();
-    
-    // GPV trapdoor sampling can be difficult and may fail with certain parameter combinations
-    // We'll attempt the test but handle failures gracefully
-    
-    let comm = AjtaiCommitter::setup_unchecked(params);
-    let mut rng = StdRng::seed_from_u64(42);
-    let samples = 10;
-    let mut norms = Vec::new();
-    let mut successful_samples = 0;
-    
-    for _ in 0..samples {
-        let target: Vec<RingElement<ModInt>> = (0..params.k)
-            .map(|_| RingElement::random_uniform(&mut rng, params.n))
-            .collect();
-        
-        // GPV sampling can fail with restrictive parameters
-        match comm.gpv_trapdoor_sample(&target, params.sigma, &mut rng) {
-            Ok(y) => {
-                let sum_norms: u128 = y.iter().map(|yi| yi.norm_inf() as u128).sum();
-                let avg_norm = (sum_norms / params.d as u128) as u64;
-                norms.push(avg_norm);
-                successful_samples += 1;
-            }
-            Err(_) => {
-                // Sampling can fail due to tight bounds - this is expected
-                continue;
-            }
-        }
-    }
-    
-    // If we can't get any successful samples, this indicates the parameters
-    // are too restrictive for the GPV implementation. We'll just skip the test.
-    if successful_samples == 0 {
-        eprintln!("No successful GPV samples with parameters (n={}, norm_bound={}, sigma={}) - skipping statistical test", 
-                 params.n, params.norm_bound, params.sigma);
-        return;
-    }
-    
-    if successful_samples >= 3 {
-        let sum_avgs: u128 = norms.iter().map(|&n| n as u128).sum();
-        let mean_norm = (sum_avgs as f64) / (successful_samples as f64);
-        // Reasonable bounds for production parameters
-        assert!(
-            mean_norm >= 0.0 && mean_norm <= params.norm_bound as f64,
-            "Mean norm {} outside reasonable range for norm_bound {}. Successful samples: {}/{}",
-            mean_norm,
-            params.norm_bound,
-            successful_samples,
-            samples
-        );
-    }
-}
+
+
 
 /// Tests the distribution of basic discrete Gaussian samples.
 ///

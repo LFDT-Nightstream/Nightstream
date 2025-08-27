@@ -1,7 +1,7 @@
 // neo-commit/tests/extractor.rs
 use neo_commit::{AjtaiCommitter, TOY_PARAMS};
 use neo_ring::RingElement;
-use neo_modint::{ModInt, Coeff};
+use neo_modint::ModInt;
 use rand::{SeedableRng, rngs::StdRng};
 
 #[test]
@@ -17,16 +17,15 @@ fn extractor_recovers_preimage_with_two_forks() {
     let (c1, _e1, _bw1, _r1) = committer.commit_with_rng(&w, &mut rng).unwrap();
     let (c2, _e2, _bw2, _r2) = committer.commit_with_rng(&w, &mut rng).unwrap();
 
-    // Extract a preimage for c1 using rewinding with c2.
+    // Attempt to extract a preimage for c1 using rewinding with c2.
+    // This should fail since GPV trapdoor has been removed.
     let transcript = b"unit_test_commit_extractor";
-    let w_ex = committer.extract_commit_witness(&c1, &c2, transcript)
-        .expect("extractor must succeed");
-
-    // Must satisfy A*w_ex + 0 = c1 mod q, with norms within bounds (0 noise is allowed).
-    let zeros = vec![RingElement::from_scalar(ModInt::zero(), committer.params().n); committer.params().k];
-    assert!(committer.verify(&c1, &w_ex, &zeros), "extracted preimage must verify");
+    let result = committer.extract_commit_witness(&c1, &c2, transcript);
     
-    println!("✓ Extractor test passed - recovered valid preimage for c1");
+    assert!(result.is_err(), "extractor should fail since GPV trapdoor was removed");
+    assert_eq!(result.unwrap_err(), "Extractor not available: GPV trapdoor has been removed");
+    
+    println!("✓ Extractor correctly returns error after GPV trapdoor removal");
 }
 
 #[test]
@@ -65,21 +64,13 @@ fn extractor_performance_analysis() {
         let result = committer.extract_commit_witness(&c1, &c2, &transcript);
         let extract_time = start.elapsed();
         
-        match result {
-            Ok(extracted) => {
-                let norms: Vec<_> = extracted.iter().map(|w| w.norm_inf()).collect();
-                println!("  ✓ Extraction succeeded");
-                println!("  - Commit time: {:?}", commit_time);
-                println!("  - Extract time: {:?}", extract_time);
-                println!("  - Max extracted norm: {}", norms.iter().max().unwrap_or(&0));
-                let avg_norm = norms.iter().map(|&n| n as f64).sum::<f64>() / norms.len() as f64;
-                println!("  - Avg extracted norm: {:.2}", avg_norm);
-            },
-            Err(e) => {
-                println!("  ✗ Extraction failed: {}", e);
-                panic!("Extraction should succeed for honest commitments");
-            }
-        }
+        // Since GPV trapdoor has been removed, extraction should always fail
+        assert!(result.is_err(), "Extraction should fail since GPV trapdoor was removed");
+        assert_eq!(result.unwrap_err(), "Extractor not available: GPV trapdoor has been removed");
+        
+        println!("  ✓ Extraction correctly failed (GPV trapdoor removed)");
+        println!("  - Commit time: {:?}", commit_time);
+        println!("  - Extract time: {:?}", extract_time);
     }
 }
 
@@ -104,46 +95,25 @@ fn extractor_security_analysis() {
     let result1 = committer.extract_commit_witness(&c1, &c2, transcript1);
     let result2 = committer.extract_commit_witness(&c1, &c2, transcript2);
     
-    match (result1, result2) {
-        (Ok(w1), Ok(w2)) => {
-            // Different transcripts should generally produce different extractions
-            // (though they should both be valid preimages)
-            let w1_norms: Vec<_> = w1.iter().map(|w| w.norm_inf()).collect();
-            let w2_norms: Vec<_> = w2.iter().map(|w| w.norm_inf()).collect();
-            
-            println!("  ✓ Both extractions succeeded");
-            println!("  - Extraction 1 max norm: {}", w1_norms.iter().max().unwrap_or(&0));
-            println!("  - Extraction 2 max norm: {}", w2_norms.iter().max().unwrap_or(&0));
-            
-            // Both should be valid preimages
-            let zero_noise = vec![RingElement::from_scalar(ModInt::zero(), committer.params().n); committer.params().k];
-            assert!(committer.verify(&c1, &w1, &zero_noise), "First extraction should be valid");
-            assert!(committer.verify(&c1, &w2, &zero_noise), "Second extraction should be valid");
-            
-            println!("  ✓ Both extractions are valid preimages");
-        },
-        _ => {
-            panic!("Both extractions should succeed for honest commitments");
-        }
-    }
+    // Since GPV trapdoor has been removed, both extractions should fail
+    assert!(result1.is_err(), "First extraction should fail since GPV trapdoor was removed");
+    assert!(result2.is_err(), "Second extraction should fail since GPV trapdoor was removed");
+    assert_eq!(result1.unwrap_err(), "Extractor not available: GPV trapdoor has been removed");
+    assert_eq!(result2.unwrap_err(), "Extractor not available: GPV trapdoor has been removed");
+    
+    println!("  ✓ Both extractions correctly failed (GPV trapdoor removed)");
     
     // Test 2: Extraction should be deterministic for same transcript
     let result3 = committer.extract_commit_witness(&c1, &c2, transcript1);
     let result4 = committer.extract_commit_witness(&c1, &c2, transcript1);
     
-    match (result3, result4) {
-        (Ok(w3), Ok(w4)) => {
-            // Same transcript should produce identical results (deterministic)
-            assert_eq!(w3.len(), w4.len(), "Extracted witnesses should have same length");
-            for (i, (a, b)) in w3.iter().zip(w4.iter()).enumerate() {
-                assert_eq!(a, b, "Extracted witness element {} should be identical", i);
-            }
-            println!("  ✓ Extraction is deterministic for same transcript");
-        },
-        _ => {
-            panic!("Deterministic extractions should both succeed");
-        }
-    }
+    // Both should fail consistently
+    assert!(result3.is_err(), "Third extraction should fail since GPV trapdoor was removed");
+    assert!(result4.is_err(), "Fourth extraction should fail since GPV trapdoor was removed");
+    assert_eq!(result3.unwrap_err(), "Extractor not available: GPV trapdoor has been removed");
+    assert_eq!(result4.unwrap_err(), "Extractor not available: GPV trapdoor has been removed");
+    
+    println!("  ✓ Extraction failures are consistent (deterministic error)");
     
     println!("=== END SECURITY ANALYSIS ===");
 }

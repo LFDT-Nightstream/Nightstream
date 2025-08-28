@@ -17,8 +17,9 @@ pub fn decomp_b(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec<Fq> {
             if a == 0 { break; }
             let (digit, new_a) = match style {
                 DecompStyle::NonNegative => {
-                    let r = ((a % (b as i128)) + (b as i128)) % (b as i128);
-                    (r as i32, (a - r as i128) / b as i128)
+                    let b_i128 = b as i128;
+                    let r = ((a % b_i128) + b_i128) % b_i128;
+                    (r as i32, (a - r) / b_i128)
                 }
                 DecompStyle::Balanced => {
                     // balanced in [-(b-1)..(b-1)]; choose residue with smallest absolute value
@@ -44,12 +45,14 @@ pub fn split_b(Z: &[Fq], b: u32, d: usize, m: usize, k: usize, style: DecompStyl
         for row in 0..d {
             let idx = col*d + row;
             let mut a = to_balanced_i128(Z[idx]);
+            #[allow(clippy::needless_range_loop)]
             for i in 0..k {
                 if a == 0 { break; }
                 let (digit, new_a) = match style {
                     DecompStyle::NonNegative => {
-                        let r = ((a % (b as i128)) + (b as i128)) % (b as i128);
-                        (r as i32, (a - r as i128) / b as i128)
+                        let b_i128 = b as i128;
+                        let r = ((a % b_i128) + b_i128) % b_i128;
+                        (r as i32, (a - r) / b_i128)
                     }
                     DecompStyle::Balanced => {
                         let mut r = a % (b as i128);
@@ -72,6 +75,6 @@ pub fn assert_range_b(Z: &[Fq], b: u32) {
     let b_i = b as i128;
     for &x in Z {
         let v = crate::util::to_balanced_i128(x);
-        assert!(v.abs() < b_i, "range assertion failed: |{}| >= {}", v, b);
+        assert!(v.abs() < b_i, "range assertion failed: |{v}| >= {b}");
     }
 }

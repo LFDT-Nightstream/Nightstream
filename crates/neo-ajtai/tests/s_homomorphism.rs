@@ -51,7 +51,7 @@ fn s_module_homomorphism() {
                 let dst_slice = &mut comb[col*d .. (col+1)*d];
                 let result = s_action.apply_vec(&src);
                 for (d, &r) in dst_slice.iter_mut().zip(&result) {
-                    *d = *d + r;
+                    *d += r;
                 }
             }
         };

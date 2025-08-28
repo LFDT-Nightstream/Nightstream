@@ -42,6 +42,7 @@ pub fn commit(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     // For each Ajtai row i, compute Σ_j S-action(a_ij) · Z_col_j into c_col_i.
     for i in 0..kappa {
         let acc = c.col_mut(i);
+        #[allow(clippy::needless_range_loop)]
         for j in 0..m {
             let a_ij = &pp.m_rows[i][j];           // R_q element
             let s_action = SAction::from_ring(*a_ij);  // Create S-action from ring element
@@ -55,12 +56,12 @@ pub fn commit(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
             if is_binary_vec(cols[j]) {
                 // For binary vectors, we can optimize but use general path for correctness
                 for (a, &r) in acc.iter_mut().zip(&result) {
-                    *a = *a + r;
+                    *a += r;
                 }
                 } else {
                 // General path: add the S-action result directly
                 for (a, &r) in acc.iter_mut().zip(&result) {
-                    *a = *a + r;
+                    *a += r;
                 }
             }
         }
@@ -85,9 +86,10 @@ pub fn verify_split_open(pp: &PP<RqEl>, c: &Commitment, b: u32, c_is: &[Commitme
     let mut acc = Commitment::zeros(c.d, c.kappa);
     let mut pow = Fq::ONE;
     let b_f = Fq::from_u64(b as u64);
+    #[allow(clippy::needless_range_loop)]
     for i in 0..k {
-        for (a, &x) in acc.data.iter_mut().zip(&c_is[i].data) { *a = *a + (x * pow); }
-        pow = pow * b_f;
+        for (a, &x) in acc.data.iter_mut().zip(&c_is[i].data) { *a += x * pow; }
+        pow *= b_f;
     }
     if &acc != c { return false; }
     // Recompose Z and check commit again
@@ -96,8 +98,8 @@ pub fn verify_split_open(pp: &PP<RqEl>, c: &Commitment, b: u32, c_is: &[Commitme
     let mut pow = Fq::ONE;
     for Zi in Z_is {
         if Zi.len() != d*m { return false; }
-        for (a, &x) in Z.iter_mut().zip(Zi) { *a = *a + (x * pow); }
-        pow = pow * b_f;
+        for (a, &x) in Z.iter_mut().zip(Zi) { *a += x * pow; }
+        pow *= b_f;
     }
     &commit(pp, &Z) == c
 }

@@ -12,12 +12,11 @@ pub enum NeoMathError {
 }
 
 /// Behavior for MUST/SHOULD checks at runtime.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Norms {
     /// If true, **SHOULD** violations become errors; otherwise they are no-ops.
     pub strict_should: bool,
 }
-impl Default for Norms { fn default() -> Self { Self { strict_should: false } } }
 
 impl Norms {
     #[inline] pub fn must(self, ok: bool, msg: &'static str) -> Result<(), NeoMathError> {

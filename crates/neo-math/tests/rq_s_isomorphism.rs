@@ -27,11 +27,11 @@ fn test_rotation_matrix_columns() {
     let mut x_power = Rq::one();
     for j in 0..D {
         let expected_col = cf(a.mul(&x_power));
-        for i in 0..D {
+        expected_col.iter().enumerate().for_each(|(i, &expected)| {
             let matrix_val = matrix.get(i, j).expect("Matrix index should be valid");
-            assert_eq!(matrix_val, expected_col[i], 
-                "Column {} row {} mismatch: got {:?}, expected {:?}", j, i, matrix_val, expected_col[i]);
-        }
+            assert_eq!(matrix_val, expected, 
+                "Column {j} row {i} mismatch: got {matrix_val:?}, expected {expected:?}");
+        });
         x_power = x_power.mul_by_monomial(1);
     }
 }
@@ -76,10 +76,10 @@ fn test_pay_per_bit_sparse() {
 fn test_ring_element(seed: u64) -> Rq {
     let mut coeffs = [Fq::ZERO; D];
     let mut x = seed;
-    for i in 0..D {
+    coeffs.iter_mut().for_each(|elem| {
         x = x.wrapping_mul(6364136223846793005).wrapping_add(1);
-        coeffs[i] = Fq::from_u64(x % 1000); // Keep small for readability
-    }
+        *elem = Fq::from_u64(x % 1000); // Keep small for readability
+    });
     Rq(coeffs)
 }
 

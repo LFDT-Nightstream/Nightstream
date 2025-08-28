@@ -59,12 +59,12 @@ fn l_inf(v: &[Fq]) -> f64 {
 
 fn mul_rho_vec(m: &RowMajorMatrix<Fq>, v: &[Fq], d: usize) -> Vec<Fq> {
     let mut out = vec![Fq::ZERO; d];
-    for r in 0..d {
+    out.iter_mut().enumerate().for_each(|(r, out_elem)| {
         let mut acc = Fq::ZERO;
-        for c in 0..d {
-            acc += m.values[r * d + c] * v[c];
-        }
-        out[r] = acc;
-    }
+        v.iter().enumerate().for_each(|(c, &v_c)| {
+            acc += m.values[r * d + c] * v_c;
+        });
+        *out_elem = acc;
+    });
     out
 }

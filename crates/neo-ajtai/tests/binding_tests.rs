@@ -22,7 +22,7 @@ fn binding_harness_no_collision() {
     for _ in 0..64 {
         let Z1 = random_Z(&mut rng, d, m, b);
         let mut Z2 = random_Z(&mut rng, d, m, b);
-        if Z1 == Z2 { Z2[0] = Z2[0] + Fq::ONE; } // ensure Z1≠Z2
+        if Z1 == Z2 { Z2[0] += Fq::ONE; } // ensure Z1≠Z2
         let c1 = commit(&pp, &Z1);
         let c2 = commit(&pp, &Z2);
         assert_ne!(c1, c2, "binding harness found collision (extremely unlikely)");

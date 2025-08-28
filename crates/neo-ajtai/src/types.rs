@@ -40,7 +40,7 @@ impl Commitment {
         debug_assert_eq!(self.d, rhs.d);
         debug_assert_eq!(self.kappa, rhs.kappa);
         for (a,b) in self.data.iter_mut().zip(rhs.data.iter()) { 
-            *a = *a + *b; 
+            *a += *b; 
         }
     }
 }

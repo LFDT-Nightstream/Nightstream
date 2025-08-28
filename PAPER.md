@@ -44,7 +44,7 @@ This document specifies **normative requirements per crate** for implementing *N
 | **MUST**   | Provide typed presets for Goldilocks and **enforce** $(k+1)T(b-1)<B$; reject unsafe params at load.                             |
 | **MUST**   | Compute the minimal **extension degree $s$** for the target soundness and set $K=\mathbb F_{q^s}$. Expose $s$ and $|K|$.    |
 | **MUST**   | Export $(q,\eta,d,\kappa,m,b,k,B,T,C,s)$ with docstrings tying each to the reductions and the sum‑check.                           |
-| **SHOULD** | Ship profile docs noting typical $T$ from the chosen challenge sampler, and why $B=b^k$ is used.                                 |
+| **SHOULD** | Ship profile docs noting typical $T$ from the chosen challenge sampler, and why $B=b^k$ is used (Goldilocks).                  |
 | **NICE**   | `serde` load/save; human‑readable profile IDs; M61 parameter presets.                                                               |
 
 *Tests:* in‑crate unit/property tests validating the inequality and preset integrity; tests that $s$ increases when the target soundness is tightened.

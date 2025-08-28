@@ -14,11 +14,11 @@ pub fn add_scaled_col(acc: &mut [Fq], col: &[Fq], small_digit: i32) {
     debug_assert_eq!(acc.len(), col.len());
     match small_digit {
         0 => {}
-        1 => for (a,c) in acc.iter_mut().zip(col) { *a = *a + *c; }
-        -1 => for (a,c) in acc.iter_mut().zip(col) { *a = *a - *c; }
+        1 => for (a,c) in acc.iter_mut().zip(col) { *a += *c; }
+        -1 => for (a,c) in acc.iter_mut().zip(col) { *a -= *c; }
         k => {
             let kf = Fq::from_u64(k.rem_euclid(u32::MAX as i32) as u64);
-            for (a,c) in acc.iter_mut().zip(col) { *a = *a + (*c * kf); }
+            for (a,c) in acc.iter_mut().zip(col) { *a += *c * kf; }
         }
     }
 }

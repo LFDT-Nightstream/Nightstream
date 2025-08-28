@@ -162,9 +162,9 @@ fn all_pairwise_differences_invertible(rhos: &[Rho], d: usize) -> bool {
         for j in (i + 1)..rhos.len() {
             // diff coeffs
             let mut diff = vec![Fq::ZERO; d];
-            for t in 0..d {
-                diff[t] = rhos[i].coeffs[t] - rhos[j].coeffs[t];
-            }
+            diff.iter_mut().enumerate().for_each(|(t, elem)| {
+                *elem = rhos[i].coeffs[t] - rhos[j].coeffs[t];
+            });
             // rot(a_i - a_j)
             let m = rot_from_coeffs(&diff);
             if !is_invertible_row_major(m, d) {

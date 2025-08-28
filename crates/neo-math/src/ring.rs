@@ -24,14 +24,18 @@ impl Rq {
     /// MUST: constant-time coefficient-wise add.
     #[inline] pub fn add(&self, rhs: &Self) -> Self {
         let mut out = [Fq::ZERO; D];
-        for i in 0..D { out[i] = self.0[i] + rhs.0[i]; }
+        for (out_elem, (&a, &b)) in out.iter_mut().zip(self.0.iter().zip(rhs.0.iter())) {
+            *out_elem = a + b;
+        }
         Self(out)
     }
 
     /// MUST: constant-time coefficient-wise sub.
     #[inline] pub fn sub(&self, rhs: &Self) -> Self {
         let mut out = [Fq::ZERO; D];
-        for i in 0..D { out[i] = self.0[i] - rhs.0[i]; }
+        for (out_elem, (&a, &b)) in out.iter_mut().zip(self.0.iter().zip(rhs.0.iter())) {
+            *out_elem = a - b;
+        }
         Self(out)
     }
 
@@ -119,10 +123,10 @@ impl Rq {
     /// Random small ring element (backward compatibility)
     pub fn random_small(rng: &mut impl rand::Rng, _n: usize, bound: u64) -> Self {
         let mut coeffs = [Fq::ZERO; D];
-        for i in 0..D {
+        coeffs.iter_mut().for_each(|c| {
             let val = rng.random_range(0..=bound);
-            coeffs[i] = Fq::from_u64(val);
-        }
+            *c = Fq::from_u64(val);
+        });
         Self(coeffs)
     }
 
@@ -130,9 +134,9 @@ impl Rq {
     pub fn random_gaussian(rng: &mut impl rand::Rng, _n: usize, _sigma: f64) -> Self {
         // Simple uniform random for now - proper Gaussian sampling would be more complex
         let mut coeffs = [Fq::ZERO; D];
-        for i in 0..D {
-            coeffs[i] = Fq::from_u64(rng.random::<u64>());
-        }
+        coeffs.iter_mut().for_each(|c| {
+            *c = Fq::from_u64(rng.random::<u64>());
+        });
         Self(coeffs)
     }
 
@@ -211,9 +215,13 @@ pub fn rot_apply_matrix(a: &Rq, z: &DenseMatrix<Fq>) -> Result<DenseMatrix<Fq>, 
     let mut out = DenseMatrix::default(z.width, h);
     for col in 0..z.width {
         let mut colv = [Fq::ZERO; D];
-        for r in 0..D { colv[r] = z.values[r * z.width + col]; }
+        colv.iter_mut().enumerate().for_each(|(r, elem)| {
+            *elem = z.values[r * z.width + col];
+        });
         let newc = rot_apply_vec(a, &colv);
-        for r in 0..D { out.values[r * z.width + col] = newc[r]; }
+        newc.iter().enumerate().for_each(|(r, &val)| {
+            out.values[r * z.width + col] = val;
+        });
     }
     Ok(out)
 }

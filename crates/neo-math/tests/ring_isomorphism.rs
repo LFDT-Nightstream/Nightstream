@@ -4,10 +4,10 @@ use p3_field::PrimeCharacteristicRing;
 fn rand_rq(seed: u64) -> Rq {
     let mut c = [Fq::ZERO; D];
     let mut x = seed;
-    for i in 0..D {
+    c.iter_mut().for_each(|elem| {
         x = x.wrapping_mul(6364136223846793005).wrapping_add(1);
-        c[i] = Fq::from_u64(x);
-    }
+        *elem = Fq::from_u64(x);
+    });
     Rq(c)
 }
 

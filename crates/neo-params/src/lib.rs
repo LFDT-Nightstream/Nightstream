@@ -3,9 +3,9 @@
 //! Exposes field/cyclotomic/commitment/folding parameters and enforces:
 //!  1) (k+1)·T·(b−1) < B where B=b^k  [Π_RLC bound]
 //!  2) Extension policy v1 for sum-check soundness:
-//!       s_min = ceil((λ + log2(ℓ·d_sc)) / log2(q))
-//!       support only s=2; if s_min>2, return a configuration error
-//!       and record slack_bits when s_min ≤ 2.
+//!     - s_min = ceil((λ + log2(ℓ·d_sc)) / log2(q))
+//!     - support only s=2; if s_min>2, return a configuration error
+//!     - and record slack_bits when s_min ≤ 2.
 //!
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
 //!
@@ -67,6 +67,7 @@ pub enum ParamsError {
 impl NeoParams {
     /// Construct and validate a parameter set; computes B=b^k and enforces the RLC guard.
     #[allow(non_snake_case)] // Allow mathematical notation from paper
+    #[allow(clippy::too_many_arguments)] // All parameters needed for comprehensive validation
     pub fn new(
         q: u64,
         eta: u32,
@@ -87,7 +88,7 @@ impl NeoParams {
         if b < 2 { return Err(ParamsError::Invalid("b must be >= 2")); }
         if k == 0 { return Err(ParamsError::Invalid("k must be > 0")); }
         if T == 0 { return Err(ParamsError::Invalid("T must be > 0")); }
-        if !(s == 2) { return Err(ParamsError::UnsupportedExtension { required: s }); } // v1 policy
+        if s != 2 { return Err(ParamsError::UnsupportedExtension { required: s }); } // v1 policy
         if lambda == 0 { return Err(ParamsError::Invalid("lambda must be > 0")); }
 
         let B = pow_u64(b as u64, k);

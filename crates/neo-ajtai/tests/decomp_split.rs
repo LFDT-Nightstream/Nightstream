@@ -18,7 +18,7 @@ fn decomp_and_split_inverse() {
         let mut pow = Fq::ONE;
         for i in 0..d {
             let dij = Z[j*d + i];
-            z_back[j] = z_back[j] + dij * pow;
+            z_back[j] += dij * pow;
             pow = pow + pow; // b=2
         }
     }
@@ -31,7 +31,7 @@ fn decomp_and_split_inverse() {
     let mut Z_back = vec![Fq::ZERO; d*m];
     let mut pow = Fq::ONE;
     for Zi in &Zs {
-        for (a,&x) in Z_back.iter_mut().zip(Zi) { *a = *a + x * pow; }
+        for (a,&x) in Z_back.iter_mut().zip(Zi) { *a += x * pow; }
         pow = pow + pow; // b=2
     }
     assert_eq!(Z, Z_back, "split_b recomposition failed");

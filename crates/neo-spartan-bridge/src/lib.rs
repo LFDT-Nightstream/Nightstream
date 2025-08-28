@@ -20,12 +20,14 @@
 
 pub mod pcs;
 mod types;
-// Keep the old p3fri_pcs for backwards compatibility during transition
-mod p3fri_pcs;
 
 pub use types::ProofBundle;
 pub use pcs::{P3FriPCSAdapter, P3FriParams, Val, Challenge};
-pub use p3fri_pcs::{NeoPcs, FriConfig, Commitments, OpeningRequest, Proof};
+
+#[cfg(feature = "mock-fri")]
+mod p3fri_pcs;
+#[cfg(feature = "mock-fri")]
+pub use p3fri_pcs::{NeoPcs, FriConfig, Commitments, OpeningRequest, Proof, SpartanBridge};
 
 use pcs::{PcsMaterials, make_challenger};
 use pcs::mmcs::ChallengeMmcs;
@@ -33,6 +35,8 @@ use p3_fri::FriParameters;
 
 use anyhow::Result;
 use p3_field::PrimeField64;
+
+#[cfg(feature = "mock-fri")]
 use p3_goldilocks::Goldilocks as F;
 
 use neo_ccs::{MEInstance, MEWitness};
@@ -120,12 +124,14 @@ pub fn compress_me_to_spartan(
     ))
 }
 
+#[cfg(feature = "mock-fri")]
 /// High-level bridge for compressing ME(b,L) claims to Spartan2(+FRI) proofs
-/// (Legacy API - kept for backwards compatibility)
+/// (Legacy API - kept for backwards compatibility, MOCK ONLY)
 pub struct SpartanBridge {
     pcs: crate::p3fri_pcs::P3FriPCS,
 }
 
+#[cfg(feature = "mock-fri")]
 impl SpartanBridge {
     pub fn new(fri_cfg: FriConfig) -> Self {
         Self { pcs: crate::p3fri_pcs::P3FriPCS::new(fri_cfg) }
@@ -159,7 +165,8 @@ impl SpartanBridge {
     }
 }
 
-/// Legacy compression artifact for compatibility
+#[cfg(feature = "mock-fri")]
+/// Legacy compression artifact for compatibility (MOCK ONLY)
 #[derive(Clone, Debug)]
 pub struct SpartanCompressionArtifact {
     pub commitment_bytes: Vec<u8>,
@@ -168,6 +175,7 @@ pub struct SpartanCompressionArtifact {
     pub timings: CompressionTimings,
 }
 
+#[cfg(feature = "mock-fri")]
 #[derive(Clone, Debug, Default)]
 pub struct CompressionTimings {
     pub commit_ms: u128,

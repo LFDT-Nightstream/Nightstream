@@ -22,172 +22,197 @@ pub mod utils;
 
 // Legacy compatibility modules (preserved during migration)
 /// CCS sumcheck prover and verifier (legacy).
+#[cfg(feature = "legacy-sumcheck")]
+#[deprecated(note = "Sum-check lives in neo-fold. This stub will be removed.")]
 pub mod ccs_sumcheck;
-/// Format conversion utilities.
+/// Format conversion utilities (legacy).
+#[cfg(feature = "legacy-compat")]
 pub mod converters;
-/// Integration utilities for Spartan2 compatibility.
+/// Integration utilities for Spartan2 compatibility (legacy).
+#[cfg(feature = "legacy-compat")]
 pub mod integration;
 /// Bridge adapter for neo-spartan-bridge integration.
 pub mod bridge_adapter;
+
+// Tests module
+#[cfg(test)]
+mod tests;
+
+// Import field types for bridge adapters
+use neo_math::F;
+use p3_field::PrimeCharacteristicRing;
 
 // Re-export new core types
 pub use error::{CcsError, DimMismatch, RelationError};
 pub use matrix::{Mat, MatRef};
 pub use poly::{SparsePoly, Term};
 pub use r1cs::r1cs_to_ccs;
+// Main CCS types and functions (audit-ready)
 pub use relations::{
-    CcsStructure as NewCcsStructure, McsInstance, McsWitness, MeInstance, MeWitness,
+    CcsStructure, McsInstance, McsWitness, MeInstance, MeWitness,
     check_mcs_opening, check_me_consistency, check_ccs_rowwise_zero,
     check_ccs_rowwise_relaxed,
 };
 pub use traits::SModuleHomomorphism;
 pub use utils::{tensor_point, mat_vec_mul_fk, mat_vec_mul_ff, validate_power_of_two};
 
-// Re-export legacy compatibility types and functions
+// Re-export legacy compatibility types and functions (gated)
+#[cfg(feature = "legacy-sumcheck")]
+#[allow(deprecated)]
 pub use ccs_sumcheck::{ccs_sumcheck_prover, ccs_sumcheck_verifier};
+
+// Legacy compatibility exports (gated)
+#[cfg(feature = "legacy-compat")]
+pub use legacy::{CcsStructure as LegacyCcsStructure, CcsInstance, CcsWitness, mv_poly, Multivariate};
+
+#[cfg(feature = "legacy-compat")]
 pub use converters::{
     ccs_to_r1cs_format, ccs_instance_to_r1cs_format, ccs_witness_to_r1cs_format,
 };
 #[cfg(feature = "spartan2-compat")]
 pub use converters::field_conversion;
 
-// Legacy types for backward compatibility - import from neo-math for field operations
-use neo_math::{embed_base_to_ext, ExtF, F};
-use neo_math::RingElement;
-use p3_field::PrimeCharacteristicRing;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use std::sync::Arc;
+// Legacy compatibility types (gated for migration period)
+#[cfg(feature = "legacy-compat")] 
+pub mod legacy {
+    use neo_math::{embed_base_to_ext, ExtF, F};
+    use neo_math::RingElement;
+    use p3_field::PrimeCharacteristicRing;
+    use p3_matrix::dense::RowMajorMatrix;
+    use p3_matrix::Matrix;
+    use std::sync::Arc;
 
-/// Legacy trait for querying the total degree of a polynomial.
-pub trait Degree {
-    /// Get the total degree.
-    fn degree(&self) -> usize;
-}
-
-/// Legacy trait representing a multivariate polynomial over `ExtF`.
-pub trait MvPolynomial: Send + Sync + Degree {
-    /// Evaluate at inputs.
-    fn evaluate(&self, inputs: &[ExtF]) -> ExtF;
-    /// Maximum degree of any individual variable.
-    fn max_individual_degree(&self) -> usize {
-        self.degree()
-    }
-}
-
-/// Legacy convenience wrapper for closures with an associated degree.
-pub struct ClosureMv<Fn>
-where
-    Fn: std::ops::Fn(&[ExtF]) -> ExtF + Send + Sync,
-{
-    func: Fn,
-    deg: usize,
-}
-
-impl<Fn> Degree for ClosureMv<Fn>
-where
-    Fn: std::ops::Fn(&[ExtF]) -> ExtF + Send + Sync,
-{
-    fn degree(&self) -> usize {
-        self.deg
-    }
-}
-
-impl<Fn> MvPolynomial for ClosureMv<Fn>
-where
-    Fn: std::ops::Fn(&[ExtF]) -> ExtF + Send + Sync,
-{
-    fn evaluate(&self, inputs: &[ExtF]) -> ExtF {
-        (self.func)(inputs)
+    /// Legacy trait for querying the total degree of a polynomial.
+    pub trait Degree {
+        /// Get the total degree.
+        fn degree(&self) -> usize;
     }
 
-    fn max_individual_degree(&self) -> usize {
-        self.deg
-    }
-}
-
-/// Legacy function to construct a multivariate polynomial from a closure and its degree.
-pub fn mv_poly<Fn>(f: Fn, deg: usize) -> Multivariate
-where
-    Fn: std::ops::Fn(&[ExtF]) -> ExtF + Send + Sync + 'static,
-{
-    Arc::new(ClosureMv { func: f, deg })
-}
-
-/// Legacy multivariate polynomial handle.
-pub type Multivariate = Arc<dyn MvPolynomial>;
-
-/// Legacy CCS structure for backward compatibility.
-#[derive(Clone)]
-pub struct CcsStructure {
-    /// List of constraint matrices M_j (s matrices)
-    pub mats: Vec<RowMajorMatrix<ExtF>>, 
-    /// Constraint polynomial f over s vars
-    pub f: Multivariate,                 
-    /// Size of matrices (n rows)
-    pub num_constraints: usize,          
-    /// m columns
-    pub witness_size: usize,             
-    /// Maximum total degree of f
-    pub max_deg: usize,                  
-}
-
-impl CcsStructure {
-    /// Legacy constructor
-    pub fn new(mats: Vec<RowMajorMatrix<F>>, f: Multivariate) -> Self {
-        let lifted_mats: Vec<RowMajorMatrix<ExtF>> = mats
-            .into_iter()
-            .map(|mat| {
-                let data: Vec<ExtF> = mat.values.iter().map(|&v| embed_base_to_ext(v)).collect();
-                RowMajorMatrix::new(data, mat.width())
-            })
-            .collect();
-        let (num_constraints, witness_size) = if lifted_mats.is_empty() {
-            (0, 0)
-        } else {
-            (lifted_mats[0].height(), lifted_mats[0].width())
-        };
-        let max_deg = f.degree();
-        let mid = f.max_individual_degree();
-        assert!(
-            mid <= 1,
-            "CcsStructure: f must be multilinear (max individual degree ≤ 1) for soundness"
-        );
-        Self {
-            mats: lifted_mats,
-            f,
-            num_constraints,
-            witness_size,
-            max_deg,
+    /// Legacy trait representing a multivariate polynomial over `ExtF`.
+    pub trait MvPolynomial: Send + Sync + Degree {
+        /// Evaluate at inputs.
+        fn evaluate(&self, inputs: &[ExtF]) -> ExtF;
+        /// Maximum degree of any individual variable.
+        fn max_individual_degree(&self) -> usize {
+            self.degree()
         }
     }
-}
 
-/// Legacy CCS instance.
-#[derive(Clone)]
-pub struct CcsInstance {
-    /// Commitment to witness z
-    pub commitment: Vec<RingElement>, 
-    /// x (public part of instance)
-    pub public_input: Vec<F>,         
-    /// Relaxation scalar
-    pub u: F,                         
-    /// Relaxation offset
-    pub e: F,                         
-}
+    /// Legacy convenience wrapper for closures with an associated degree.
+    pub struct ClosureMv<Fn>
+    where
+        Fn: std::ops::Fn(&[ExtF]) -> ExtF + Send + Sync,
+    {
+        func: Fn,
+        deg: usize,
+    }
 
-/// Legacy CCS witness.
-#[derive(Clone)]
-pub struct CcsWitness {
-    /// Private witness vector (does not include public inputs)
-    pub z: Vec<ExtF>,
+    impl<Fn> Degree for ClosureMv<Fn>
+    where
+        Fn: std::ops::Fn(&[ExtF]) -> ExtF + Send + Sync,
+    {
+        fn degree(&self) -> usize {
+            self.deg
+        }
+    }
+
+    impl<Fn> MvPolynomial for ClosureMv<Fn>
+    where
+        Fn: std::ops::Fn(&[ExtF]) -> ExtF + Send + Sync,
+    {
+        fn evaluate(&self, inputs: &[ExtF]) -> ExtF {
+            (self.func)(inputs)
+        }
+
+        fn max_individual_degree(&self) -> usize {
+            self.deg
+        }
+    }
+
+    /// Legacy function to construct a multivariate polynomial from a closure and its degree.
+    pub fn mv_poly<Fn>(f: Fn, deg: usize) -> Multivariate
+    where
+        Fn: std::ops::Fn(&[ExtF]) -> ExtF + Send + Sync + 'static,
+    {
+        Arc::new(ClosureMv { func: f, deg })
+    }
+
+    /// Legacy multivariate polynomial handle.
+    pub type Multivariate = Arc<dyn MvPolynomial>;
+
+    /// Legacy CCS structure for backward compatibility.
+    #[derive(Clone)]
+    pub struct CcsStructure {
+        /// List of constraint matrices M_j (s matrices)
+        pub mats: Vec<RowMajorMatrix<ExtF>>, 
+        /// Constraint polynomial f over s vars
+        pub f: Multivariate,                 
+        /// Size of matrices (n rows)
+        pub num_constraints: usize,          
+        /// m columns
+        pub witness_size: usize,             
+        /// Maximum total degree of f
+        pub max_deg: usize,                  
+    }
+
+    impl CcsStructure {
+        /// Legacy constructor
+        pub fn new(mats: Vec<RowMajorMatrix<F>>, f: Multivariate) -> Self {
+            let lifted_mats: Vec<RowMajorMatrix<ExtF>> = mats
+                .into_iter()
+                .map(|mat| {
+                    let data: Vec<ExtF> = mat.values.iter().map(|&v| embed_base_to_ext(v)).collect();
+                    RowMajorMatrix::new(data, mat.width())
+                })
+                .collect();
+            let (num_constraints, witness_size) = if lifted_mats.is_empty() {
+                (0, 0)
+            } else {
+                (lifted_mats[0].height(), lifted_mats[0].width())
+            };
+            let max_deg = f.degree();
+            let mid = f.max_individual_degree();
+            assert!(
+                mid <= 1,
+                "CcsStructure: f must be multilinear (max individual degree ≤ 1) for soundness"
+            );
+            Self {
+                mats: lifted_mats,
+                f,
+                num_constraints,
+                witness_size,
+                max_deg,
+            }
+        }
+    }
+
+    /// Legacy CCS instance.
+    #[derive(Clone)]
+    pub struct CcsInstance {
+        /// Commitment to witness z
+        pub commitment: Vec<RingElement>, 
+        /// x (public part of instance)
+        pub public_input: Vec<F>,         
+        /// Relaxation scalar
+        pub u: F,                         
+        /// Relaxation offset
+        pub e: F,                         
+    }
+
+    /// Legacy CCS witness.
+    #[derive(Clone)]
+    pub struct CcsWitness {
+        /// Private witness vector (does not include public inputs)
+        pub z: Vec<ExtF>,
+    }
 }
 
 /// Legacy relaxed satisfiability check function.
+#[cfg(feature = "legacy-compat")]
 pub fn check_relaxed_satisfiability(
-    structure: &CcsStructure,
-    instance: &CcsInstance,
-    witness: &CcsWitness,
+    structure: &legacy::CcsStructure,
+    instance: &legacy::CcsInstance,
+    witness: &legacy::CcsWitness,
     u: F,
     e: F,
 ) -> bool {
@@ -201,38 +226,11 @@ pub fn check_relaxed_satisfiability(
         return false;
     }
 
-    // Special handling for 4-matrix, 2-row selector layout (preserved for compatibility)
-    if structure.mats.len() == 4
-        && structure.witness_size == 4
-        && structure.num_constraints == 2
-    {
-        let mut selectors_ok = true;
-        'outer: for j in 0..4 {
-            for row in 0..2 {
-                for col in 0..4 {
-                    let got = structure.mats[j].get(row, col).unwrap_or(ExtF::ZERO);
-                    let expect = if col == j { ExtF::ONE } else { ExtF::ZERO };
-                    if got != expect {
-                        selectors_ok = false;
-                        break 'outer;
-                    }
-                }
-            }
-        }
-
-        if selectors_ok {
-            let a = full_z[0];
-            let b = full_z[1];
-            let ab = full_z[2];
-            let a_plus_b = full_z[3];
-
-            if a + b != a_plus_b { return false; }
-            if a * b != ab { return false; }
-        }
-    }
+    // NOTE: Do not add extra invariants here; the CCS relation is enforced by f(Mz) row-wise.
 
     let s = structure.mats.len();
-    let right = embed_base_to_ext(u) * embed_base_to_ext(e) * embed_base_to_ext(e);
+    // Relaxed CCS: f(Mz) = e * u (Def. 19)
+    let right = embed_base_to_ext(u) * embed_base_to_ext(e);
     for row in 0..structure.num_constraints {
         let mut inputs = vec![ExtF::ZERO; s];
         for (input, mat) in inputs.iter_mut().zip(structure.mats.iter()) {
@@ -250,16 +248,21 @@ pub fn check_relaxed_satisfiability(
 }
 
 /// Legacy standard satisfiability check (Def. 17).
+#[cfg(feature = "legacy-compat")]
 pub fn check_satisfiability(
-    structure: &CcsStructure,
-    instance: &CcsInstance,
-    witness: &CcsWitness,
+    structure: &legacy::CcsStructure,
+    instance: &legacy::CcsInstance,
+    witness: &legacy::CcsWitness,
 ) -> bool {
     check_relaxed_satisfiability(structure, instance, witness, instance.u, instance.e)
 }
 
 /// Legacy verifier CCS structure.
-pub fn verifier_ccs() -> CcsStructure {
+#[cfg(feature = "legacy-compat")]
+pub fn verifier_ccs() -> legacy::CcsStructure {
+    use neo_math::{ExtF, F};
+    use p3_field::PrimeCharacteristicRing;
+    use p3_matrix::dense::RowMajorMatrix;
     let mats = vec![
         RowMajorMatrix::new(vec![F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ZERO], 4),
         RowMajorMatrix::new(vec![F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ZERO], 4),
@@ -275,17 +278,21 @@ pub fn verifier_ccs() -> CcsStructure {
         }
     }, 1);
 
-    CcsStructure::new(mats, f)
+    legacy::CcsStructure::new(mats, f)
 }
 
 /// Legacy function to add lookups.
-pub fn add_lookups(structure: &mut CcsStructure, table: Vec<F>) {
+#[cfg(feature = "legacy-compat")]
+pub fn add_lookups(structure: &mut legacy::CcsStructure, table: Vec<F>) {
+    use neo_math::{embed_base_to_ext, ExtF, F};
+    use p3_field::PrimeCharacteristicRing;
+    use p3_matrix::dense::RowMajorMatrix;
     let data: Vec<ExtF> = table.into_iter().map(|v| embed_base_to_ext(v)).collect();
     let lookup_mat = RowMajorMatrix::new(data, 1);
     structure.mats.push(lookup_mat);
     let orig_f = structure.f.clone();
     let orig_deg = orig_f.degree();
-    let f_lookup = mv_poly(
+    let f_lookup = legacy::mv_poly(
         |inputs: &[ExtF]| {
             if let (Some(first), Some(last)) = (inputs.first(), inputs.last()) {
                 if first == last {
@@ -299,7 +306,7 @@ pub fn add_lookups(structure: &mut CcsStructure, table: Vec<F>) {
         },
         1,
     );
-    structure.f = mv_poly(
+    structure.f = legacy::mv_poly(
         move |ins: &[ExtF]| orig_f.evaluate(ins) * f_lookup.evaluate(ins),
         orig_deg.max(1),
     );

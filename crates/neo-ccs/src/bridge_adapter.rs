@@ -25,24 +25,33 @@ pub fn i64_to_field(x: i64) -> F {
 /// Adapter for neo-spartan-bridge BridgePublicIO
 #[derive(Clone, Debug)]
 pub struct BridgePublicIOAdapter {
+    /// Fold header digest
     pub fold_header_digest: [u8; 32],
+    /// Commitment coordinates (small field)
     pub c_coords_small: Vec<u64>,
+    /// Y outputs (small field)
     pub y_small: Vec<u64>,
+    /// Domain tag for verification
     pub domain_tag: Option<[u8; 32]>,
 }
 
 /// Adapter for neo-spartan-bridge LinearMeProgram  
 #[derive(Clone, Debug)]
 pub struct LinearMeProgramAdapter {
+    /// Weight vectors (small field)
     pub weights_small: Vec<Vec<u64>>,
+    /// Linear rows for Ajtai (small field)
     pub l_rows_small: Option<Vec<Vec<u64>>>,
+    /// Whether to check Ajtai commitment
     pub check_ajtai_commitment: bool,
+    /// Optional label for debugging
     pub label: Option<String>,
 }
 
 /// Adapter for neo-spartan-bridge LinearMeWitness
-#[derive(Clone, Debug)] 
+#[derive(Clone, Debug)]
 pub struct LinearMeWitnessAdapter {
+    /// Witness digits
     pub z_digits: Vec<i64>,
 }
 
@@ -88,8 +97,11 @@ impl From<&MEWitness> for LinearMeWitnessAdapter {
 
 /// Complete adapter that combines all conversions
 pub struct MEBridgeAdapter {
+    /// Public IO adapter
     pub public_io: BridgePublicIOAdapter,
+    /// Program adapter
     pub program: LinearMeProgramAdapter,
+    /// Witness adapter
     pub witness: LinearMeWitnessAdapter,
 }
 

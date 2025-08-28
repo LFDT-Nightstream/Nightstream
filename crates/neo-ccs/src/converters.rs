@@ -1,6 +1,6 @@
 //! CCS to R1CS conversion utilities for Spartan2 integration
 
-use crate::{CcsStructure, CcsInstance, CcsWitness};
+use crate::{legacy::CcsStructure, legacy::CcsInstance, legacy::CcsWitness};
 use neo_math::{ExtF, F, project_ext_to_base};
 
 use p3_matrix::Matrix;
@@ -47,10 +47,13 @@ pub fn ccs_to_r1cs_format(ccs: &CcsStructure) -> Result<(Vec<Vec<F>>, Vec<Vec<F>
             let ext_val_b = ccs.mats[1].get(row, col).unwrap_or(ExtF::ZERO);
             let ext_val_c = ccs.mats[2].get(row, col).unwrap_or(ExtF::ZERO);
 
-            // Project to base field (this loses some information but enables R1CS compatibility)
-            let base_val_a = project_ext_to_base(ext_val_a).unwrap_or(F::ZERO);
-            let base_val_b = project_ext_to_base(ext_val_b).unwrap_or(F::ZERO);
-            let base_val_c = project_ext_to_base(ext_val_c).unwrap_or(F::ZERO);
+            // Project to base field - error if non-base elements present
+            let base_val_a = project_ext_to_base(ext_val_a)
+                .ok_or_else(|| "Non-base element in A matrix".to_string())?;
+            let base_val_b = project_ext_to_base(ext_val_b)
+                .ok_or_else(|| "Non-base element in B matrix".to_string())?;
+            let base_val_c = project_ext_to_base(ext_val_c)
+                .ok_or_else(|| "Non-base element in C matrix".to_string())?;
 
             a_row.push(base_val_a);
             b_row.push(base_val_b);

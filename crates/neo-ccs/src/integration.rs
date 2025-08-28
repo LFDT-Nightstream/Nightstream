@@ -1,5 +1,5 @@
 // neo-ccs/src/integration.rs
-use crate::{CcsInstance, CcsStructure, CcsWitness};
+use crate::{legacy::CcsInstance, legacy::CcsStructure, legacy::CcsWitness};
 use neo_math::{from_base, project_ext_to_base, ExtF, F};
 use p3_field::PrimeCharacteristicRing;
 use p3_matrix::Matrix;
@@ -41,6 +41,22 @@ pub fn convert_ccs_for_spartan2(
     // the converter must error out (we'll add full multilinear arithmetization later).
     if structure.f.max_individual_degree() > 1 {
         return Err("CCS→R1CS converter (v1) supports only affine f (max degree per var ≤ 1 AND no cross terms)".to_string());
+    }
+
+    // Reject mixed terms: f must be affine in its inputs (no X_i * X_j).
+    for i in 0..s {
+        for j in (i+1)..s {
+            let mut eij = vec![ExtF::ZERO; s];
+            eij[i] = ExtF::ONE;
+            eij[j] = ExtF::ONE;
+            let lhs = structure.f.evaluate(&eij);
+            let lhs0 = project_ext_to_base(lhs)
+                .ok_or_else(|| "f(e_i + e_j) not in base field".to_string())?;
+            let rhs = alpha[i] + alpha[j] + c;
+            if lhs0 != rhs {
+                return Err("CCS→R1CS (v1) only supports affine f(y)=c+Σα_j y_j".to_string());
+            }
+        }
     }
 
     // 2) Build linear form coefficients L_b over z for each row b:

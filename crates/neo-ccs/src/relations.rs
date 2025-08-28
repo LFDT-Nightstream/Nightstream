@@ -69,11 +69,11 @@ pub struct McsWitness<F> {
 
 /// ME instance: (c, X, r, {y_j}). See Def. 18.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[allow(non_snake_case)]
 pub struct MeInstance<C, F, K> {
     /// Commitment to Z.
     pub c: C,
     /// X = L_x(Z) ∈ F^{d×m_in}
-    #[allow(non_snake_case)]
     pub X: Mat<F>,
     /// r ∈ K^{log n}
     pub r: Vec<K>,
@@ -85,9 +85,9 @@ pub struct MeInstance<C, F, K> {
 
 /// ME witness: Z.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[allow(non_snake_case)]
 pub struct MeWitness<F> {
     /// Z ∈ F^{d×m}
-    #[allow(non_snake_case)]
     pub Z: Mat<F>,
 }
 
@@ -147,7 +147,7 @@ where C: PartialEq
     if !validate_power_of_two(s.n) {
         return Err(CcsError::NNotPowerOfTwo { n: s.n });
     }
-    let ell = (usize::BITS - s.n.leading_zeros()) as usize - 1;
+    let ell = s.n.trailing_zeros() as usize;
     if inst.r.len() != ell {
         return Err(CcsError::Len {
             context: "r (extension point)",

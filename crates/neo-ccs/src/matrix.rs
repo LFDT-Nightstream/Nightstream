@@ -95,9 +95,8 @@ impl<T: Clone + Send + Sync> From<&P3RowMajor<T>> for Mat<T> {
         let cols = m.width();
         let mut data = Vec::with_capacity(rows * cols);
         for r in 0..rows {
-            if let Some(row_iter) = m.row(r) {
-                data.extend(row_iter);
-            }
+            let row = m.row(r).expect("p3 row out-of-bounds");
+            data.extend(row);
         }
         Self { rows, cols, data }
     }

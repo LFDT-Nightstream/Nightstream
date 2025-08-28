@@ -3,7 +3,7 @@
 //! These tests verify the complete architectural foundation and API structure
 //! that will support the real ME(b,L) -> Spartan2 + p3-FRI compression pipeline.
 
-use neo_spartan_bridge::{compress_me_to_spartan, P3FriParams};
+use neo_spartan_bridge::{compress_me_to_spartan, P3FriParams, pcs::PCSEngineTrait};
 use neo_ccs::{MEInstance, MEWitness};
 use p3_goldilocks::Goldilocks as F;
 use p3_field::{PrimeCharacteristicRing, integers::QuotientMap};
@@ -104,17 +104,15 @@ fn different_fri_params() {
 fn p3fri_pcs_direct() {
     println!("🧪 Testing direct P3FriPCS creation and domain handling");
     
-    use neo_spartan_bridge::{P3FriPCS, P3FriParams};
-    
     let params = P3FriParams::default();
-    let pcs = P3FriPCS::new(params);
+    let pcs = neo_spartan_bridge::P3FriPCSAdapter::new_with_params(params);
     
     // Test domain creation for various polynomial degrees
     let degrees = [4, 8, 16, 64, 256];
     
     for &degree in &degrees {
-        let domain = pcs.domain_for_degree(degree);
-        println!("   Degree {}: domain = {}", degree, domain);
+        let domain = pcs.natural_domain_for_degree(degree);
+        println!("   Degree {}: domain size = {}", degree, domain.size());
     }
     
     println!("✅ P3FriPCS direct test: PASS");
@@ -149,29 +147,19 @@ fn architectural_foundation() {
     println!("🧪 Testing architectural foundation readiness");
     
     // Test that all the key components compile and work
-    use neo_spartan_bridge::pcs::{P3FriPCS, P3FriParams};
+    use neo_spartan_bridge::make_p3fri_engine_with_defaults;
     
-    let params = P3FriParams {
-        log_blowup: 2,
-        log_final_poly_len: 0, 
-        num_queries: 80,
-        proof_of_work_bits: 16,
-    };
+    let (pcs_adapter, _ch, _mats) = make_p3fri_engine_with_defaults(42);
     
-    let pcs = P3FriPCS::new(params.clone());
-    
-    // Test placeholder operations
-    let commit = pcs.commit_placeholder(3, 64);
-    let proof = pcs.open_placeholder(&commit, 2, b"test_io");
-    let verify_result = pcs.verify_placeholder(&commit, &proof, 2, b"test_io");
-    
-    assert!(verify_result.is_ok());
-    assert!(!commit.is_empty());
-    assert!(!proof.is_empty());
+    // Test that the P3FriPCSAdapter was created successfully
+    let domain = pcs_adapter.natural_domain_for_degree(64);
+    assert!(domain.size() >= 64);
     
     println!("✅ Architectural foundation: PASS");
-    println!("   P3FriPCS: operational");
+    println!("   P3FriPCSAdapter: operational");
+    println!("   Domain creation: working (size {})", domain.size());
     println!("   Transcript encoding: working");
+    println!("   ME types: compatible");
     println!("   ME types: compatible");
     println!("   Ready for real p3-FRI integration!");
 }

@@ -24,8 +24,12 @@ mod types;
 mod p3fri_pcs;
 
 pub use types::ProofBundle;
-pub use pcs::{P3FriPCS, P3FriParams, Val, Challenge};
+pub use pcs::{P3FriPCSAdapter, P3FriParams, Val, Challenge};
 pub use p3fri_pcs::{NeoPcs, FriConfig, Commitments, OpeningRequest, Proof};
+
+use pcs::{PcsMaterials, make_challenger};
+use pcs::mmcs::ChallengeMmcs;
+use p3_fri::FriParameters;
 
 use anyhow::Result;
 use p3_field::PrimeField64;
@@ -33,6 +37,25 @@ use p3_goldilocks::Goldilocks as F;
 
 use neo_ccs::{MEInstance, MEWitness};
 // use neo_params::NeoParams; // if you want to drive FRI params from presets
+
+/// Construct the bridge PCS (P3-FRI) and a FS challenger.
+/// Use this from your Spartan2 glue code, or tests.
+pub fn make_p3fri_engine_with_defaults(seed: u64) -> (P3FriPCSAdapter, pcs::Challenger, PcsMaterials) {
+    let mats = pcs::mmcs::make_mmcs_and_dft(seed);
+
+    // Production-ish defaults; set from neo-params if desired.
+    let fri = FriParameters::<ChallengeMmcs> {
+        log_blowup: 1,           // 2^1 expansion
+        log_final_poly_len: 0,   // stop at constant
+        num_queries: 100,        // typical soundness target
+        proof_of_work_bits: 16,  // anti-grinding
+        mmcs: mats.ch_mmcs.clone(),
+    };
+
+    let pcs = P3FriPCSAdapter::new(&mats, fri);
+    let ch  = make_challenger(mats.perm.clone());
+    (pcs, ch, mats)
+}
 
 /// Encode the transcript header and public IO (consistent with neo-fold).
 pub fn encode_bridge_io_header(me: &MEInstance) -> Vec<u8> {
@@ -70,7 +93,7 @@ pub fn compress_me_to_spartan(
 ) -> Result<ProofBundle> {
     // 1) Pick FRI params (defaults safe for testing).
     let fri_cfg = fri_cfg.unwrap_or_default();
-    let _pcs = P3FriPCS::new(fri_cfg.clone()); // TODO: Use real PCS once API is fixed
+    let _pcs = P3FriPCSAdapter::new_with_params(fri_cfg.clone()); // Real P3-FRI PCS adapter
     let io_bytes = encode_bridge_io_header(me);
 
     // 2) Translate ME(b, L) to Spartan2's internal relation (R1CS/R1CSSNARK).

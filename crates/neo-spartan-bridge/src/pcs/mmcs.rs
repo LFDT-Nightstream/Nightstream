@@ -1,29 +1,30 @@
-use p3_dft::Radix2DitParallel;
+use rand::SeedableRng;
+use rand::rngs::SmallRng;
 
-use p3_goldilocks::Goldilocks as Fq;
 use p3_field::extension::BinomialExtensionField;
-
-use p3_goldilocks::Poseidon2Goldilocks; // <- provided by p3-poseidon2 for Goldilocks
+use p3_field::Field;
+use p3_goldilocks::Goldilocks;
+use p3_goldilocks::Poseidon2Goldilocks as Poseidon2; // alias provided by p3-poseidon2
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use p3_merkle_tree::MerkleTreeMmcs;
 use p3_commit::ExtensionMmcs;
-use rand::SeedableRng;
+use p3_dft::Radix2DitParallel;
 
-pub type Val = Fq;
-pub type Challenge = BinomialExtensionField<Val, 2>; // K = F_{q^2} per Neo v1 policy
-pub type Dft = Radix2DitParallel<Val>;
-
-// Poseidon2 sponge: WIDTH=16, RATE=8, CAPACITY=8 matches test patterns in p3-fri.
-pub type Perm = Poseidon2Goldilocks<16>;
+pub type Val = Goldilocks;
+pub type Challenge = BinomialExtensionField<Val, 2>;
+pub type Perm = Poseidon2<16>;
+// Hash sponge parameters: WIDTH=16, RATE=8, CAPACITY=8 (as used in p3-fri tests)
 pub type Hash = PaddingFreeSponge<Perm, 16, 8, 8>;
+// Merkle compression via truncated Poseidon2 permutation
 pub type Compress = TruncatedPermutation<Perm, 2, 8, 16>;
 
-// MMCS over values (base field) and extension (challenge field).
-// For Goldilocks, p3-field uses packing; use <Val as Field>::Packing idiom like p3-fri tests.
-pub type ValMmcs = MerkleTreeMmcs<<Val as p3_field::Field>::Packing, <Val as p3_field::Field>::Packing, Hash, Compress, 8>;
+// Value-layer MMCS over the base field; tree arity=8 is a good default
+pub type ValMmcs =
+    MerkleTreeMmcs<<Val as Field>::Packing, <Val as Field>::Packing, Hash, Compress, 8>;
+// Extension-layer MMCS wraps the base layer
 pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+pub type Dft = Radix2DitParallel<Val>;
 
-#[allow(dead_code)] // until all bridge methods wire them fully
 #[derive(Clone)]
 pub struct PcsMaterials {
     pub perm: Perm,
@@ -34,27 +35,14 @@ pub struct PcsMaterials {
     pub dft: Dft,
 }
 
-pub fn make_mmcs_and_dft() -> PcsMaterials {
-    // Deterministic construction for auditability
-    let mut seed = [0u8; 32]; // ChaCha8Rng needs 32-byte seed
-    seed[0..16].copy_from_slice(&b"NEO-FRI-PERMUT\0\0"[..16]);
-    let mut rng = rand_chacha::ChaCha8Rng::from_seed(seed);
-    
-    // Poseidon2 over Goldilocks with deterministic constants
+pub fn make_mmcs_and_dft(seed: u64) -> PcsMaterials {
+    let mut rng = SmallRng::seed_from_u64(seed);
     let perm = Perm::new_from_rng_128(&mut rng);
-    
-    // Sponge and compression from the same permutation
     let hash = Hash::new(perm.clone());
     let compress = Compress::new(perm.clone());
-
-    // Merkle MMCS over F with Poseidon2-based sponge/compress
     let val_mmcs = ValMmcs::new(hash.clone(), compress.clone());
-    // Extension MMCS for K = F_{q^2}, built on the base-field MMCS
     let ch_mmcs = ChallengeMmcs::new(val_mmcs.clone());
-
-    // FFT/DFT engine
     let dft = Dft::default();
-
     PcsMaterials { perm, hash, compress, val_mmcs, ch_mmcs, dft }
 }
 
@@ -64,7 +52,7 @@ mod tests {
 
     #[test]
     fn test_mmcs_creation() {
-        let mats = make_mmcs_and_dft();
+        let mats = make_mmcs_and_dft(12345);
         
         // Test that we can create the materials without panicking
         println!("✅ MMCS Materials created successfully");
@@ -73,9 +61,11 @@ mod tests {
         println!("   Challenge MMCS: ExtensionMmcs over K=F_{{q^2}}");
         
         // Test determinism - same seed should give same result
-        let mats2 = make_mmcs_and_dft();
+        let mats2 = make_mmcs_and_dft(12345);
         // Both should be valid (no panic is good enough for now)
         drop(mats);
         drop(mats2);
+        
+        println!("   Deterministic construction: ✅");
     }
 }

@@ -17,16 +17,21 @@ pub fn make_challenger(perm: Perm) -> Challenger {
 }
 
 /// Convert bytes → Goldilocks elements and observe them.
-/// For now, use a simplified approach until we find the right Goldilocks constructor.
+/// Pack 8 bytes → one Goldilocks element (LE). This provides collision‑resistant, order‑sensitive absorption.
 pub fn observe_bytes(ch: &mut Challenger, bytes: &[u8]) {
-    // Simple byte-driven approach: observe each byte as a distinct field element
-    for &byte in bytes {
-        let val = if byte < 128 { Val::ONE } else { Val::ZERO };
-        ch.observe(val);
+    // Pack 8 bytes → one Goldilocks element (LE). This matches the pattern used
+    // elsewhere and provides collision‑resistant, order‑sensitive absorption.
+    use p3_field::PrimeField64;
+    for chunk in bytes.chunks(8) {
+        let mut buf = [0u8; 8];
+        buf[..chunk.len()].copy_from_slice(chunk);
+        let limb = u64::from_le_bytes(buf);
+        let fe = Val::from_canonical_u64(limb % Val::ORDER_U64);
+        ch.observe(fe);
     }
-    // Also observe the length to distinguish different inputs
-    let len_val = if bytes.len() % 2 == 0 { Val::ZERO } else { Val::ONE };
-    ch.observe(len_val);
+    // Also absorb the length to prevent prefix ambiguities.
+    let len_fe = Val::from_canonical_u64(bytes.len() as u64);
+    ch.observe(len_fe);
 }
 
 /// Observe a commitment digest (as bytes) with a DS label.

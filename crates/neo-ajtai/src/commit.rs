@@ -1,5 +1,5 @@
 use p3_goldilocks::Goldilocks as Fq;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand::{RngCore, CryptoRng};
 use crate::types::{PP, Commitment};
 use crate::util::is_binary_vec;
@@ -8,6 +8,17 @@ use crate::util::is_binary_vec;
 use neo_math::ring::{Rq as RqEl, cf_inv as cf_unmap};
 use neo_math::s_action::SAction;
 
+/// Sample a uniform element from F_q using rejection sampling to avoid bias.
+#[inline]
+fn sample_uniform_fq<R: RngCore + CryptoRng>(rng: &mut R) -> Fq {
+    // Rejection sampling: draw u64; accept if < q; otherwise redraw.
+    const Q: u64 = <Fq as PrimeField64>::ORDER_U64; // 2^64 - 2^32 + 1
+    loop {
+        let x = rng.next_u64();
+        if x < Q { return Fq::from_u64(x); }
+    }
+}
+
 /// MUST: Setup(κ,m) → sample M ← R_q^{κ×m} uniformly (Def. 9).
 pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usize) -> PP<RqEl> {
     let mut rows = Vec::with_capacity(kappa);
@@ -15,11 +26,11 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
         let mut row = Vec::with_capacity(m);
         for _ in 0..m {
             // sample ring element uniformly by sampling d random coefficients in F_q and mapping via cf^{-1}
-            let coeffs: [Fq; neo_math::ring::D] = (0..neo_math::ring::D).map(|_| {
-                // uniformly random field element
-                let r = rng.next_u64();
-                Fq::from_u64(r)
-            }).collect::<Vec<_>>().try_into().unwrap();
+            let coeffs: [Fq; neo_math::ring::D] = (0..neo_math::ring::D)
+                .map(|_| sample_uniform_fq(rng))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
             row.push(cf_unmap(coeffs));
         }
         rows.push(row);
@@ -51,18 +62,9 @@ pub fn commit(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
             // Apply S-action to the coefficient vector
             let result = s_action.apply_vec(&v);
             
-            // Pay-per-bit / small-digit optimization:
-            // If v is binary, we could optimize this further, but for now use the general path
-            if is_binary_vec(cols[j]) {
-                // For binary vectors, we can optimize but use general path for correctness
-                for (a, &r) in acc.iter_mut().zip(&result) {
-                    *a += r;
-                }
-                } else {
-                // General path: add the S-action result directly
-                for (a, &r) in acc.iter_mut().zip(&result) {
-                    *a += r;
-                }
+            // Constant-time accumulation (no secret-dependent branching).
+            for (a, &r) in acc.iter_mut().zip(&result) {
+                *a += r;
             }
         }
     }

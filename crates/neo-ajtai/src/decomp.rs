@@ -29,7 +29,11 @@ pub fn decomp_b(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec<Fq> {
                     (r as i32, (a - r) / b as i128)
                 }
             };
-            Z[j*d + i] = Fq::from_u64(digit.rem_euclid(i32::MAX) as u64);
+            Z[j*d + i] = if digit >= 0 {
+                Fq::from_u64(digit as u64)
+            } else {
+                Fq::ZERO - Fq::from_u64((-digit) as u64)
+            };
             a = new_a;
         }
         // remaining digits already zero
@@ -61,7 +65,11 @@ pub fn split_b(Z: &[Fq], b: u32, d: usize, m: usize, k: usize, style: DecompStyl
                         (r as i32, (a - r) / b as i128)
                     }
                 };
-                out[i][idx] = Fq::from_u64(digit.rem_euclid(i32::MAX) as u64);
+                out[i][idx] = if digit >= 0 {
+                    Fq::from_u64(digit as u64)
+                } else {
+                    Fq::ZERO - Fq::from_u64((-digit) as u64)
+                };
                 a = new_a;
             }
         }

@@ -17,7 +17,7 @@ pub fn add_scaled_col(acc: &mut [Fq], col: &[Fq], small_digit: i32) {
         1 => for (a,c) in acc.iter_mut().zip(col) { *a += *c; }
         -1 => for (a,c) in acc.iter_mut().zip(col) { *a -= *c; }
         k => {
-            let kf = Fq::from_u64(k.rem_euclid(u32::MAX as i32) as u64);
+            let kf = if k >= 0 { Fq::from_u64(k as u64) } else { Fq::ZERO - Fq::from_u64((-k) as u64) };
             for (a,c) in acc.iter_mut().zip(col) { *a += *c * kf; }
         }
     }

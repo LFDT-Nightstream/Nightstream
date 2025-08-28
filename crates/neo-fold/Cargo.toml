@@ -22,6 +22,9 @@ thiserror = { workspace = true }
 [dev-dependencies]
 criterion = { workspace = true }
 rand = { workspace = true }
+# Additional dev dependencies for tests
+p3-goldilocks = { workspace = true }
+p3-field = { workspace = true }
 
 [[bench]]
 name = "folding"

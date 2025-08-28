@@ -55,3 +55,4 @@ mod tests {
         println!("✅ ProofBundle serialization structure works");
     }
 }
+

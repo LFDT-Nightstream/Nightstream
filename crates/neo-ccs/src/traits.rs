@@ -12,3 +12,4 @@ pub trait SModuleHomomorphism<F, C> {
     /// Project the first `min` columns of `Z`.
     fn project_x(&self, z: &Mat<F>, min: usize) -> Mat<F>;
 }
+

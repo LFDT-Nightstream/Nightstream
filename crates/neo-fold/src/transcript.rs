@@ -181,3 +181,4 @@ mod tests {
         println!("Domain separation working: {} != {}", c1.as_canonical_u64(), c2.as_canonical_u64());
     }
 }
+

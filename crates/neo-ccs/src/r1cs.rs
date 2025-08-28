@@ -21,3 +21,4 @@ pub fn r1cs_to_ccs<F: Field>(
     let f = SparsePoly::new(t, terms);
     CcsStructure::new(vec![a, b, c], f).expect("valid R1CS→CCS structure")
 }
+

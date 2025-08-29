@@ -8,6 +8,7 @@ authors = { workspace = true }
 neo-math = { path = "../neo-math" }
 neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
+neo-params = { path = "../neo-params" }
 neo-spartan-bridge = { path = "../neo-spartan-bridge" }
 # Sumcheck functionality now integrated into this crate
 p3-field = { workspace = true }

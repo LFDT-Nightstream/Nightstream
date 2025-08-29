@@ -2,7 +2,7 @@ use p3_goldilocks::Goldilocks as Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand::{RngCore, CryptoRng};
 use crate::types::{PP, Commitment};
-use crate::util::is_binary_vec;
+
 
 /// Bring in ring & S-action APIs from neo-math.
 use neo_math::ring::{Rq as RqEl, cf_inv as cf_unmap};

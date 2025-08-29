@@ -38,5 +38,9 @@ rand_chacha = { workspace = true }
 neo-ccs = { path = "../neo-ccs" }
 neo-math = { version = "0.1.0", path = "../neo-math" }
 
+# Spartan2 fork with Hash-MLE PCS
+spartan2 = { workspace = true }
+ff = { workspace = true }
+
 [dev-dependencies]
 rand = { workspace = true }

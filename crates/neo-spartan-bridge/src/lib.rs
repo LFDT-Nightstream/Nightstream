@@ -22,6 +22,8 @@ pub mod pcs;
 mod types;
 /// NEO CCS adapter for bridge integration
 pub mod neo_ccs_adapter;
+/// Hash-MLE PCS integration with Spartan2 fork
+pub mod hash_mle;
 
 pub use types::ProofBundle;
 pub use pcs::{P3FriPCSAdapter, P3FriParams, Val, Challenge};
@@ -118,4 +120,27 @@ pub fn compress_me_to_spartan(
     ))
 }
 
-// Mock PCS removed - use real P3FriPCSAdapter for all testing
+/// Compress a single MLE claim (v committed, v(r)=y) using Spartan2 Hash‑MLE PCS.
+/// Returns a serializable ProofBundle. FRI params are not used here (set to 0).
+pub fn compress_mle_with_hash_mle(poly: &[hash_mle::F], point: &[hash_mle::F]) -> Result<ProofBundle> {
+    let prf = hash_mle::prove_hash_mle(poly, point)?;
+    let proof_bytes = prf.to_bytes()?;
+    let public_io   = hash_mle::encode_public_io(&prf);
+    Ok(ProofBundle::new(proof_bytes, public_io, /*fri_num_queries*/0, /*fri_log_blowup*/0))
+}
+
+/// Verify a ProofBundle produced by `compress_mle_with_hash_mle`.
+pub fn verify_mle_hash_mle(bundle: &ProofBundle) -> Result<()> {
+    let prf = hash_mle::HashMleProof::from_bytes(&bundle.proof)?;
+    hash_mle::verify_hash_mle(&prf)
+}
+
+/// Helper for when you have computed v, r, and expected eval separately.
+/// Verifies that the computed evaluation matches the expected value.
+pub fn compress_me_eval(poly: &[hash_mle::F], point: &[hash_mle::F], expected_eval: hash_mle::F) -> Result<ProofBundle> {
+    let prf = hash_mle::prove_hash_mle(poly, point)?;
+    anyhow::ensure!(prf.eval == expected_eval, "eval mismatch: expected != computed");
+    let proof_bytes = prf.to_bytes()?;
+    let public_io   = hash_mle::encode_public_io(&prf);
+    Ok(ProofBundle::new(proof_bytes, public_io, 0, 0))
+}

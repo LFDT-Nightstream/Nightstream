@@ -26,11 +26,11 @@ pub fn observe_bytes(ch: &mut Challenger, bytes: &[u8]) {
         let mut buf = [0u8; 8];
         buf[..chunk.len()].copy_from_slice(chunk);
         let limb = u64::from_le_bytes(buf);
-        let fe = Val::from_canonical_u64(limb % Val::ORDER_U64);
+        let fe = Val::from_u64(limb % Val::ORDER_U64);
         ch.observe(fe);
     }
     // Also absorb the length to prevent prefix ambiguities.
-    let len_fe = Val::from_canonical_u64(bytes.len() as u64);
+    let len_fe = Val::from_u64(bytes.len() as u64);
     ch.observe(len_fe);
 }
 

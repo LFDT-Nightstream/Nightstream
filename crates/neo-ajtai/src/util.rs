@@ -2,6 +2,8 @@ use p3_goldilocks::Goldilocks as Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 /// Returns true iff all coordinates are in {0,1}.
+/// Note: Currently unused but kept for potential future optimizations.
+#[allow(dead_code)]
 #[inline]
 pub fn is_binary_vec(v: &[Fq]) -> bool {
     v.iter().all(|&x| x == Fq::ZERO || x == Fq::ONE)

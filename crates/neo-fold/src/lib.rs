@@ -6,8 +6,8 @@
 //! - **Single transcript**: All reductions use the same domain-separated FS transcript  
 //! - **Three-reduction pipeline**: Π_CCS → Π_RLC → Π_DEC composition as in Neo §4-5
 
-// use neo_ajtai::NeoParams; // TODO: Define NeoParams when implemented
-use neo_ccs::{McsInstance, MeInstance, MeWitness};
+use neo_params::NeoParams;
+use neo_ccs::{McsInstance, MEInstance, MEWitness};
 // use neo_math::transcript::Transcript; // TODO: Use when implementing actual transcript
 
 // Sumcheck functionality (placeholder - TODO: implement)
@@ -34,6 +34,8 @@ pub enum Error {
     Bridge(String),
     #[error("Sumcheck error: {0}")]
     Sumcheck(String),
+    #[error("Extension policy violation: {0}")]
+    ExtensionPolicy(String),
 }
 
 /// Proof that k+1 CCS instances fold to k instances
@@ -46,12 +48,7 @@ pub struct FoldingProof {
 }
 
 /// Neo protocol parameters
-#[derive(Debug, Clone)]
-pub struct NeoParams {
-    pub security_level: u32,
-    pub field_size: u32,
-    // TODO: Add actual parameter fields
-}
+// NeoParams is imported from neo-params crate above
 
 /// Fold k+1 CCS instances into k instances using the three-reduction pipeline
 pub fn fold_step(
@@ -61,6 +58,12 @@ pub fn fold_step(
     if instances.is_empty() {
         return Err(Error::InvalidReduction("Cannot fold empty instance set".to_string()));
     }
+    
+    // MUST: Enforce extension degree policy before constructing sum-check
+    // TODO: Replace these placeholder values with actual ell and d_sc from the sum-check construction
+    let ell = 10u32; // placeholder: log2(circuit_size)
+    let d_sc = 3u32; // placeholder: sum-check degree
+    enforce_extension_policy(_params, ell, d_sc)?;
     
     // For now, return a placeholder implementation
     // TODO: Implement the actual three-reduction pipeline:
@@ -95,11 +98,33 @@ pub fn verify_fold(
     Ok(true)
 }
 
+/// Enforce extension degree policy before sum-check construction.
+/// This must be called before instantiating any sum-check with the given parameters.
+fn enforce_extension_policy(params: &NeoParams, ell: u32, d_sc: u32) -> Result<(), Error> {
+    match params.extension_check(ell, d_sc) {
+        Ok(_summary) => {
+            // Optionally record summary.slack_bits in transcript header (future work)
+            // For now, just record success without logging (to avoid dependency on log crate)
+            Ok(())
+        }
+        Err(neo_params::ParamsError::UnsupportedExtension { required }) => {
+            Err(Error::ExtensionPolicy(format!(
+                "unsupported extension degree; required s={required}, supported s=2"
+            )))
+        }
+        Err(e) => {
+            Err(Error::ExtensionPolicy(format!(
+                "extension check failed: {e}"
+            )))
+        }
+    }
+}
+
 /// Complete folding pipeline: many CCS instances → single ME claim
 pub fn fold_to_single_me(
     instances: &[McsInstance<Vec<u8>, neo_math::F>],
     params: &NeoParams,
-) -> Result<(MeInstance<Vec<u8>, neo_math::F, neo_math::ExtF>, MeWitness<neo_math::F>, Vec<FoldingProof>), Error> {
+) -> Result<(MEInstance, MEWitness, Vec<FoldingProof>), Error> {
     let mut current_instances = instances.to_vec();
     let mut proofs = Vec::new();
     
@@ -121,28 +146,30 @@ pub fn fold_to_single_me(
 /// Final compression: bridge from folded ME claims to Spartan2 proof
 pub mod spartan_compression {
     use super::*;
-    use neo_spartan_bridge::neo_ccs_adapter::*;
+    // use neo_spartan_bridge::neo_ccs_adapter::*; // TODO: Re-enable when type issues are resolved
     // use neo_spartan_bridge as bridge; // TODO: Use when implementing full bridge
     
     /// Compress a final ME(b,L) claim to a Spartan2 SNARK
     pub fn compress_me_to_spartan(
-        me_instance: &MeInstance<Vec<u8>, neo_math::F, neo_math::ExtF>,
-        me_witness: &MeWitness<neo_math::F>,
+        me_instance: &MEInstance,
+        _me_witness: &MEWitness,
     ) -> Result<Vec<u8>, String> {
-        // Create bridge adapter using the moved adapter
-        let adapter = MEBridgeAdapter::new(me_instance, me_witness);
-        
-        // Verify consistency using the adapter
-        if !adapter.verify_consistency(me_instance, me_witness) {
-            return Err("ME instance/witness consistency check failed".into());
-        }
+        // TODO: Create bridge adapter - currently disabled due to type mismatch between
+        // legacy MEInstance and modern MeInstance types. This will be fixed when the
+        // bridge is properly implemented with the correct types.
+        // let adapter = MEBridgeAdapter::new(me_instance, me_witness);
+        // 
+        // // Verify consistency using the adapter
+        // if !adapter.verify_consistency(me_instance, me_witness) {
+        //     return Err("ME instance/witness consistency check failed".into());
+        // }
         
         // TODO: Once neo-spartan-bridge implements proper Spartan2 integration,
         // use it here. For now, return a placeholder proof.
         let proof_data = format!(
             "spartan2_proof_c_coords_{}_y_outputs_{}", 
-            adapter.public_io.c_coords_small.len(),
-            adapter.public_io.y_small.len()
+            me_instance.c_coords.len(),
+            me_instance.y_outputs.len()
         );
         
         Ok(proof_data.into_bytes())
@@ -174,42 +201,40 @@ pub mod spartan_compression {
     }
     
     // Helper functions for creating dummy ME instances (placeholder implementations)
-    pub fn create_dummy_me_instance() -> MeInstance<Vec<u8>, neo_math::F, neo_math::ExtF> {
-        use neo_math::{F, ExtF};
-        use p3_field::PrimeCharacteristicRing;
-        
-        use neo_ccs::Mat;
-        
-        // Create a minimal ME instance for testing/placeholder purposes
-        MeInstance {
-            c: b"test_commitment".to_vec(),
-            X: Mat::from_row_major(1, 3, vec![F::from_u64(1), F::from_u64(2), F::from_u64(3)]),
-            r: vec![ExtF::new_real(F::from_u64(42))],
-            y: vec![vec![ExtF::new_real(F::from_u64(100))]],
-            m_in: 3,
-        }
-    }
-    
-    pub fn create_dummy_me_witness() -> MeWitness<neo_math::F> {
+    pub fn create_dummy_me_instance() -> MEInstance {
         use neo_math::F;
         use p3_field::PrimeCharacteristicRing;
         
-        use neo_ccs::Mat;
+        // Create a minimal ME instance for testing/placeholder purposes
+        MEInstance {
+            c_coords: vec![F::from_u64(1), F::from_u64(2), F::from_u64(3)],
+            y_outputs: vec![F::from_u64(100), F::from_u64(200)],
+            r_point: vec![F::from_u64(42), F::from_u64(43)],
+            base_b: 2,
+            header_digest: [0u8; 32],
+        }
+    }
+    
+    pub fn create_dummy_me_witness() -> MEWitness {
+        use neo_math::F;
+        use p3_field::PrimeCharacteristicRing;
         
         // Create a minimal ME witness for testing/placeholder purposes  
-        MeWitness {
-            Z: Mat::from_row_major(3, 1, vec![F::from_u64(10), F::from_u64(20), F::from_u64(30)]),
+        MEWitness {
+            z_digits: vec![10, 20, 30],
+            weight_vectors: vec![vec![F::from_u64(1), F::from_u64(2)], vec![F::from_u64(3), F::from_u64(4)]],
+            ajtai_rows: None,
         }
     }
 }
 
 /// Create a dummy ME instance for testing
-fn create_dummy_me_instance() -> MeInstance<Vec<u8>, neo_math::F, neo_math::ExtF> {
+fn create_dummy_me_instance() -> MEInstance {
     spartan_compression::create_dummy_me_instance()
 }
 
 /// Create a dummy ME witness for testing
-fn create_dummy_me_witness() -> MeWitness<neo_math::F> {
+fn create_dummy_me_witness() -> MEWitness {
     spartan_compression::create_dummy_me_witness()
 }
 

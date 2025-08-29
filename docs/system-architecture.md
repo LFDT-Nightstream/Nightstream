@@ -28,10 +28,9 @@ This document provides a high-level overview of the Neo Lattice system architect
 | - Encode Q polynomial       |
 | - Sumcheck over hypercube   |
 | - Output: k ME claims       |
-| + Shout for lookup folding  |
-|   (read-only memory)        |
-| + Twist for read/write      |
-|   memory folding            |
+| + Optional Memory Arguments:|
+|   * Shout (read-only lookup)|
+|   * Twist (read/write mem)  |
 +-----------------------------+
             |
             v
@@ -57,19 +56,23 @@ This document provides a high-level overview of the Neo Lattice system architect
 |   new MCS + running ME      |
 +-----------------------------+ ----+
             |
-            v (After all steps folded)
+            v (After all folding steps)
 +-----------------------------+
-| Stage 5: (Super)Spartan     |
-| Integration                 |
-| - Reduce to multilinear     |
-| - Commit via FRI            |
+| Final SNARK Layer:          |
+| Spartan/SuperSpartan +      |
+| FRI-derived Multilinear PCS |
+| (BaseFold/DeepFold)         |
+| - Proves MLE evaluations    |
+| - Transparent, hash-based   |
+| - Post-quantum secure       |
 +-----------------------------+
             |
             v
 +-----------------------------+
 | Output: Succinct Proof      |
-| - Transcript with commits,  |
-|   evaluations, FRI openings |
+| - Commitments & challenges  |
+| - MLE evaluations           |
+| - PCS openings              |
 +-----------------------------+
 ```
 
@@ -95,9 +98,9 @@ The Neo Lattice system processes high-level computational inputs through a multi
 - Encodes Q polynomial
 - Performs sumcheck over hypercube
 - Outputs k ME (Matrix Extension) claims
-- Handles memory operations:
-  - **Shout**: For lookup folding (read-only memory)
-  - **Twist**: For read/write memory folding
+- Optional memory-checking arguments (compatible with Neo, not unique to it):
+  - **Shout**: Memory-checking argument for read-only/lookup-style memory
+  - **Twist**: Memory-checking argument for read/write memory operations
 
 #### Stage 2: Aggregation
 - Uses `Π_RLC` (Random Linear Combination) protocol
@@ -114,10 +117,12 @@ The Neo Lattice system processes high-level computational inputs through a multi
 - Repeats Stages 1-3 with new MCS and running ME claims
 - Provides feedback loop for recursive proof construction
 
-#### Stage 5: Final Integration
-- **(Super)Spartan Integration**: Final reduction phase
-- **Multilinear Reduction**: Converts to multilinear form
-- **FRI Commitment**: Uses Fast Reed-Solomon Interactive Oracle Proofs
+#### Stage 5: Final SNARK Layer
+- **Spartan/SuperSpartan + FRI-derived Multilinear PCS**: This is NOT just compression, but the final SNARK layer that both:
+  - **Compresses/aggregates** the result of many folding steps to a succinct proof
+  - **Establishes correctness** of the remaining multilinear evaluation claims via a polynomial IOP + PCS
+- **Multilinear PCS Options**: BaseFold or DeepFold (FRI-derived multilinear polynomial commitment schemes)
+- **Properties**: Transparent, hash-based, post-quantum secure, made non-interactive with Fiat-Shamir
 
 ### Output
 - **Succinct Proof**: Final compressed proof containing:

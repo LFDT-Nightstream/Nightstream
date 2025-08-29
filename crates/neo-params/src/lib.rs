@@ -91,7 +91,7 @@ impl NeoParams {
         if s != 2 { return Err(ParamsError::UnsupportedExtension { required: s }); } // v1 policy
         if lambda == 0 { return Err(ParamsError::Invalid("lambda must be > 0")); }
 
-        let B = pow_u64(b as u64, k);
+        let B = pow_u64_checked(b as u64, k)?;
         // Enforce (k+1)·T·(b-1) < B   [Π_RLC bound]
         let lhs = (k as u128 + 1) * (T as u128) * ((b as u128).saturating_sub(1));
         if lhs >= (B as u128) {
@@ -149,14 +149,15 @@ impl NeoParams {
 
 // ---------- small helpers ----------
 
-const fn pow_u64(mut base: u64, mut exp: u32) -> u64 {
-    let mut acc: u64 = 1;
+fn pow_u64_checked(base: u64, mut exp: u32) -> Result<u64, ParamsError> {
+    let mut acc: u128 = 1;
+    let mut b: u128 = base as u128;
     while exp > 0 {
-        if (exp & 1) == 1 { acc = acc.saturating_mul(base); }
+        if (exp & 1) == 1 { acc = acc.checked_mul(b).ok_or(ParamsError::Invalid("B overflow"))?; }
         exp >>= 1;
-        if exp > 0 { base = base.saturating_mul(base); }
+        if exp > 0 { b = b.checked_mul(b).ok_or(ParamsError::Invalid("B overflow"))?; }
     }
-    acc
+    acc.try_into().map_err(|_| ParamsError::Invalid("B overflow"))
 }
 
 fn log2_u128(x: u128) -> f64 {

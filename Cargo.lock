@@ -688,6 +688,7 @@ dependencies = [
  "neo-ajtai",
  "neo-ccs",
  "neo-math",
+ "neo-params",
  "neo-spartan-bridge",
  "p3-challenger",
  "p3-field",
@@ -730,6 +731,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "ff",
  "neo-ccs",
  "neo-math",
  "p3-challenger",
@@ -745,6 +747,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_chacha",
  "serde",
+ "spartan2",
  "thiserror 2.0.16",
 ]
 
@@ -1392,7 +1395,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 [[package]]
 name = "spartan2"
 version = "0.4.0"
-source = "git+https://github.com/microsoft/Spartan2.git?rev=cc21201d0d0293794ccc8ddd24903a9e570afb6e#cc21201d0d0293794ccc8ddd24903a9e570afb6e"
+source = "git+https://github.com/nicarq/Spartan2.git?branch=Add-Hash-MLE-PCS-implementation#81f2dd1499469a0a3539ef085d4a5f4d1635169a"
 dependencies = [
  "bellpepper",
  "bellpepper-core",

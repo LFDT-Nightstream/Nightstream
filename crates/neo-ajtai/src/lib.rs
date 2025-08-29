@@ -7,7 +7,7 @@
 //! SHOULD: Docs for Goldilocks parameters (Sec. 6.2) + estimator pointers (App. B.12).
 
 mod types;
-mod util;
+pub mod util;
 mod decomp;
 mod commit;
 

@@ -695,6 +695,7 @@ dependencies = [
  "p3-goldilocks",
  "p3-matrix",
  "p3-poseidon2",
+ "p3-symmetric",
  "rand 0.9.2",
  "rand_chacha",
  "thiserror 2.0.16",

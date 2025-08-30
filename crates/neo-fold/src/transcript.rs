@@ -11,11 +11,9 @@
 
 #![allow(unused_imports)]
 
-use p3_challenger::{CanSampleBits, FieldChallenger};
-use p3_field::{AbstractField, ExtensionField, PrimeField64};
-use p3_goldilocks::Goldilocks;
-use p3_poseidon2::Poseidon2;
-use p3_symmetric::DuplexChallenger;
+use p3_challenger::{CanSampleBits, FieldChallenger, DuplexChallenger, CanObserve, CanSample};
+use p3_field::{Field, PrimeCharacteristicRing, ExtensionField, PrimeField64};
+use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 
 // ---------- Field aliases ----------
 pub type F = Goldilocks; // q = 2^64 - 2^32 + 1
@@ -44,8 +42,8 @@ pub const POSEIDON2_WIDTH: usize = 16;
 pub const POSEIDON2_RATE: usize = 8;
 
 // Challenger over Poseidon2 perm (width=16, rate=8).
-pub type Perm = Poseidon2<F, POSEIDON2_WIDTH>;
-pub type NeoChallenger = DuplexChallenger<F, Perm, POSEIDON2_RATE>;
+pub type NeoChallenger =
+    DuplexChallenger<F, Poseidon2Goldilocks<POSEIDON2_WIDTH>, POSEIDON2_WIDTH, POSEIDON2_RATE>;
 
 // Domain separation tags (keep them stable; recorded in the transcript header).
 #[derive(Copy, Clone)]
@@ -79,30 +77,45 @@ pub struct FoldTranscript {
 impl FoldTranscript {
     pub fn new() -> Self {
         // Poseidon2 with default parameters for Goldilocks.
-        let perm = Perm::new();
+        let perm = Poseidon2Goldilocks::<POSEIDON2_WIDTH>::new_from_rng_128(&mut rand::rng());
         let mut ch = NeoChallenger::new(perm);
         // Seal the transcript version.
-        ch.observe_bytes(b"neo/transcript/v1");
+        // Convert bytes to field elements and observe them individually
+        for &byte in b"neo/transcript/v1" {
+            ch.observe(F::from_u32(byte as u32));
+        }
         Self { ch }
     }
 
     pub fn domain(&mut self, d: Domain) {
-        self.ch.observe_bytes(d.tag());
+        // Convert bytes to field elements and observe them individually
+        for &byte in d.tag() {
+            self.ch.observe(F::from_u32(byte as u32));
+        }
     }
 
     pub fn absorb_f(&mut self, xs: &[F]) {
-        self.ch.observe_slice(xs);
+        // Observe each field element individually
+        for &x in xs {
+            self.ch.observe(x);
+        }
     }
 
     pub fn absorb_u64(&mut self, xs: &[u64]) {
         // Encode as canonical Goldilocks elements.
         use p3_field::integers::QuotientMap;
-        let tmp: Vec<F> = xs.iter().map(|&u| F::from_canonical_checked(u).unwrap_or(F::ZERO)).collect();
-        self.ch.observe_slice(&tmp);
+        let tmp: Vec<F> = xs.iter().map(|&u| F::from_u32(u as u32)).collect();
+        // Observe each field element individually
+        for &x in tmp.iter() {
+            self.ch.observe(x);
+        }
     }
 
     pub fn absorb_bytes(&mut self, bytes: &[u8]) {
-        self.ch.observe_bytes(bytes);
+        // Convert bytes to field elements and observe them individually
+        for &byte in bytes {
+            self.ch.observe(F::from_u32(byte as u32));
+        }
     }
 
     /// Draw a base-field challenge in F.
@@ -148,7 +161,7 @@ mod tests {
         
         // Test absorbing different types
         tr.absorb_u64(&[1, 2, 3]);
-        tr.absorb_f(&[F::from_canonical_checked(42).unwrap()]);
+        tr.absorb_f(&[F::from_u32(42)]);
         tr.absorb_bytes(b"test_data");
         
         // Test challenge generation

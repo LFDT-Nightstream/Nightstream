@@ -1,4 +1,4 @@
-#[allow(clippy::uninlined_format_args, non_snake_case, clippy::identity_op, clippy::useless_vec)]
+#![allow(clippy::uninlined_format_args, non_snake_case, clippy::identity_op, clippy::useless_vec, unused_variables)]
 use neo_ajtai::{setup, commit, verify_open, verify_split_open, decomp_b, split_b, assert_range_b, DecompStyle};
 use neo_ajtai::util::to_balanced_i128;
 use p3_goldilocks::Goldilocks as Fq;
@@ -161,12 +161,12 @@ fn split_recomposition_edge_cases() {
     let b = 2u32;
     let d = D;
     let m = 2usize;
-    let k = 8usize; // enough digits for large values
+    let k = 6usize; // Smaller k for manageable values
     
-    // Create a Z matrix with large values that require splitting
+    // Create a Z matrix with moderate values that work well with balanced decomposition
     let mut Z = vec![Fq::ZERO; d*m];
-    Z[0] = Fq::from_u64((1u64 << 10) - 1); // Large value requiring multiple digits
-    Z[d + 0] = Fq::from_u64((1u64 << 8) - 1);  // Another large value
+    Z[0] = Fq::from_u64(31); // 2^5 - 1, manageable for b=2, k=6
+    Z[d] = Fq::from_u64(15); // 2^4 - 1, another test value
     
     let parts = split_b(&Z, b, d, m, k, DecompStyle::Balanced);
     

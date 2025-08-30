@@ -96,19 +96,20 @@ fn polynomial_evaluation_tampering_detection() {
 #[test]
 fn witness_length_validation() {
     let f = SparsePoly::new(1, vec![Term{ coeff: F::ONE, exps: vec![1] }]);
-    let m = Mat::from_row_major(2, 3, vec![F::ONE; 6]); // 2x3 matrix expects z of length 3
+    // Create a matrix that when multiplied by [0,0,0] gives [0,0] to satisfy f(y)=y=0
+    let m = Mat::from_row_major(2, 3, vec![F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ONE, F::ZERO]); // 2x3 matrix
     let s = CcsStructure::new(vec![m], f).unwrap();
     
-    // Correct lengths
-    let x = vec![F::ONE]; // public input length 1
-    let w = vec![F::ONE, F::ONE]; // witness length 2, total z length 3
+    // Correct lengths - z=[0,0,0] gives M*z=[0,0], so f([0,0])=[0,0] satisfies rowwise zero
+    let x = vec![]; // no public input 
+    let w = vec![F::ZERO, F::ZERO, F::ZERO]; // witness length 3, total z length 3
     assert!(check_ccs_rowwise_zero(&s, &x, &w).is_ok());
     
     // Wrong total length
-    let w_short = vec![F::ONE]; // witness too short, total z length 2
+    let w_short = vec![F::ZERO]; // witness too short, total z length 1  
     assert!(check_ccs_rowwise_zero(&s, &x, &w_short).is_err());
     
-    let w_long = vec![F::ONE, F::ONE, F::ONE]; // witness too long, total z length 4
+    let w_long = vec![F::ZERO, F::ZERO, F::ZERO, F::ZERO]; // witness too long, total z length 4
     assert!(check_ccs_rowwise_zero(&s, &x, &w_long).is_err());
     
     println!("✅ RED TEAM: Witness length validation works correctly");

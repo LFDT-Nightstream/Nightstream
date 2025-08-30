@@ -251,11 +251,9 @@ mod tests {
     
     #[test]
     fn test_fold_step_placeholder() {
-        // Use a modified params with slightly lower lambda to avoid the boundary issue
-        // With Goldilocks log2(q) ≈ 63.99999999, lambda=128 makes s_min > 2 even for (1,1)
-        // Using lambda=120 gives us some headroom for the test
-        let mut params = NeoParams::goldilocks_128();
-        params.lambda = 120; // Reduce from 128 to give room for s=2
+        // Use the ~127-bit preset which is compatible with s=2
+        // With Goldilocks q² < 2^128, we need λ=127 for s=2 to be viable
+        let params = NeoParams::goldilocks_127();
         
         // Create dummy instances for testing
         let instances = vec![
@@ -268,6 +266,26 @@ mod tests {
         
         let (folded, _proof) = result.unwrap();
         assert_eq!(folded.len(), 1); // Should fold 2 instances to 1
+    }
+
+    #[test]
+    fn test_fold_step_strict_boundary() {
+        // Test that strict 128-bit security is properly rejected
+        let params = NeoParams::goldilocks_128_strict();
+        let instances = vec![
+            create_dummy_mcs_instance(),
+            create_dummy_mcs_instance(),
+        ];
+        
+        let result = fold_step(&instances, &params);
+        assert!(result.is_err(), "λ=128 with s≤2 should be rejected for Goldilocks");
+        
+        // Verify it's the extension policy error we expect
+        if let Err(Error::ExtensionPolicy(msg)) = result {
+            assert!(msg.contains("required s=3"), "Should require s=3 for λ=128");
+        } else {
+            panic!("Expected ExtensionPolicy error");
+        }
     }
     
     fn create_dummy_mcs_instance() -> McsInstance<Vec<u8>, neo_math::F> {

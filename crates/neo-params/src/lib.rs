@@ -101,10 +101,12 @@ impl NeoParams {
         Ok(Self { q, eta, d, kappa, m, b, k, B, T, s, lambda })
     }
 
-    /// Goldilocks (~128-bit), Section 6.2: η=81, d=54, κ=16, m=2^24, b=2, k=12, B=4096, T≈216, s=2.
+    /// Goldilocks (~127-bit), Section 6.2: η=81, d=54, κ=16, m=2^24, b=2, k=12, B=4096, T≈216, s=2.
+    /// With Goldilocks q = 2^64 - 2^32 + 1, log₂(q) ≈ 63.999999999966 < 64, so q² < 2^128.
+    /// For s=2 to be viable, we target λ=127 bits, giving ~127.999 bits of actual security.
     /// Guard: (k+1)T(b−1)=13·216·1=2808 < 4096 ✓
     #[allow(non_snake_case)] // Allow mathematical notation from paper
-    pub fn goldilocks_128() -> Self {
+    pub fn goldilocks_127() -> Self {
         // Values from the paper; see Sec. 6.2.  K = F_{q^2}.
         // q = 2^64 − 2^32 + 1 = 0xFFFFFFFF00000001
         let q: u64 = 0xFFFF_FFFF_0000_0001;
@@ -116,7 +118,28 @@ impl NeoParams {
         let k: u32 = 12;
         let T: u32 = 216;
         let s: u32 = 2;
-        let lambda: u32 = 128;
+        let lambda: u32 = 127; // Adjusted for s=2 compatibility
+
+        // new() computes/validates B and guard; unwrap() is safe for a known-good preset.
+        Self::new(q, eta, d, kappa, m, b, k, T, s, lambda).unwrap()
+    }
+
+    /// Goldilocks strict 128-bit (requires s=3+), Section 6.2: η=81, d=54, κ=16, m=2^24, b=2, k=12, B=4096, T≈216.
+    /// With λ=128 and Goldilocks field, s_min ≥ 3 for any non-trivial (ℓ,d).
+    /// This preset will be rejected by v1 extension policy; kept for completeness.
+    #[allow(non_snake_case)] // Allow mathematical notation from paper
+    pub fn goldilocks_128_strict() -> Self {
+        // Values from the paper; see Sec. 6.2.
+        let q: u64 = 0xFFFF_FFFF_0000_0001;
+        let eta: u32 = 81;
+        let d: u32 = 54;
+        let kappa: u32 = 16;
+        let m: u64 = 1u64 << 24;
+        let b: u32 = 2;
+        let k: u32 = 12;
+        let T: u32 = 216;
+        let s: u32 = 2; // v1 policy: only s=2 supported
+        let lambda: u32 = 128; // strict target
 
         // new() computes/validates B and guard; unwrap() is safe for a known-good preset.
         Self::new(q, eta, d, kappa, m, b, k, T, s, lambda).unwrap()
@@ -187,7 +210,7 @@ mod tests {
 
     #[test]
     fn goldilocks_128_matches_guard_and_b() {
-        let p = NeoParams::goldilocks_128();
+        let p = NeoParams::goldilocks_127();
         assert_eq!(p.B, 4096);
         let lhs = (p.k as u128 + 1) * (p.T as u128) * ((p.b as u128) - 1);
         assert!(lhs < p.B as u128, "guard must hold");
@@ -195,7 +218,7 @@ mod tests {
 
     #[test]
     fn s_min_monotone_in_lambda() {
-        let p = NeoParams::goldilocks_128();
+        let p = NeoParams::goldilocks_127();
         // Pick a modest (ℓ, d_sc) representative for small CCS polynomials
         let (ell, d_sc) = (32u32, 8u32);
         // With λ=128 in this synthetic setting, s_min may be ≥2; check monotonicity only.
@@ -207,7 +230,7 @@ mod tests {
 
     #[test]
     fn extension_policy_enforces_s_eq_2() {
-        let mut p = NeoParams::goldilocks_128();
+        let mut p = NeoParams::goldilocks_127();
         // s!=2 not supported
         p.s = 3;
         assert_eq!(
@@ -218,7 +241,7 @@ mod tests {
 
     #[test]
     fn serde_roundtrip() {
-        let p = NeoParams::goldilocks_128();
+        let p = NeoParams::goldilocks_127();
         let s = serde_json::to_string(&p).unwrap();
         let back: NeoParams = serde_json::from_str(&s).unwrap();
         assert_eq!(p, back);

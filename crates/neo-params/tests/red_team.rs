@@ -23,7 +23,7 @@ fn guard_rejects_tight_or_overflowing_profiles() {
 
 #[test]
 fn extension_policy_rejects_when_s_min_gt_2() {
-    let p = NeoParams::goldilocks_128(); // s=2 supported
+    let p = NeoParams::goldilocks_127(); // s=2 compatible
     // Force s_min > 2 by tightening λ and picking large (ℓ·d_sc)
     let mut p2 = p;
     p2.lambda = 320; // very tight target
@@ -40,7 +40,7 @@ fn extension_policy_rejects_when_s_min_gt_2() {
 
 #[test]
 fn s_min_and_slack_bits_behave() {
-    let p = NeoParams::goldilocks_128(); // s=2
+    let p = NeoParams::goldilocks_127(); // s=2 compatible
     
     // Test that s_min calculation doesn't panic and returns reasonable values
     let s_min1 = p.s_min(1, 1);
@@ -94,7 +94,7 @@ fn parameter_boundary_conditions() {
 
 #[test]
 fn goldilocks_preset_security_invariants() {
-    let p = NeoParams::goldilocks_128();
+    let p = NeoParams::goldilocks_127();
     
     // Verify the guard inequality is satisfied with margin
     let lhs = (p.k as u128 + 1) * (p.T as u128) * ((p.b as u128) - 1);
@@ -109,7 +109,7 @@ fn goldilocks_preset_security_invariants() {
     // Verify field parameters
     assert_eq!(p.q, 0xFFFF_FFFF_0000_0001); // Goldilocks prime
     assert_eq!(p.s, 2); // Extension degree
-    assert_eq!(p.lambda, 128); // Security level
+    assert_eq!(p.lambda, 127); // Security level (~127-bit for s=2 compatibility)
     
     println!("✅ RED TEAM: Goldilocks preset satisfies all security invariants");
     println!("   Guard margin: {:.1}% ({} out of {})", margin_ratio * 100.0, margin, rhs);

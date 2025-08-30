@@ -4,7 +4,7 @@ use ff::PrimeField;
 
 // Hash-MLE backend with Goldilocks engine (p3_backend feature enabled)
 use spartan2::provider::{
-    keccak::Keccak256Transcript,
+    keccak::Keccak256Transcript,     // TODO: Unify to Poseidon2 when available in Spartan2
     GoldilocksP3MerkleMleEngine as E,  // Use Goldilocks engine from p3_backend  
     pcs::merkle_mle_pc::HashMlePCS as PCSImpl,
 };
@@ -58,7 +58,7 @@ pub fn prove_hash_mle(poly: &[F], point: &[F]) -> Result<HashMleProof> {
     let blind     = PCS::blind(&ck, poly.len());
     let commit    = PCS::commit(&ck, poly, &blind, false)?;
 
-    // Prove with a Keccak transcript (same for both backends)
+    // Prove with Keccak transcript (TODO: unify to Poseidon2 when available)
     let mut tp = Keccak256Transcript::<E>::new(b"neo-bridge/hash-mle");
     let (eval, arg) = PCS::prove(&ck, &mut tp, &commit, poly, &blind, point)?;
 

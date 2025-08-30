@@ -8,6 +8,8 @@ use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 // Type alias for our specific Poseidon2 configuration
 type NeoDuplexChallenger = DuplexChallenger<Goldilocks, Poseidon2Goldilocks<16>, 16, 15>;
 
+/// ⚠️ DEPRECATED: Use `crate::transcript::FoldTranscript` instead for unified transcript management.
+#[deprecated(since = "0.1.0", note = "Use crate::transcript::FoldTranscript instead")]
 pub struct NeoChallenger {
     challenger: NeoDuplexChallenger,
 }

@@ -81,8 +81,14 @@ where
     let needed_bits = (usize::BITS - (width - 1).leading_zeros()) as usize;
 
     for _ in 0..cfg.d {
-        // Rejection-free: draw k bits and take modulo width; bias is OK for tiny H, but we can mask using rejection if desired.
-        let x = chal.sample_bits(needed_bits) % width;
+        // Use rejection sampling to avoid modulo bias
+        let x = loop {
+            let candidate = chal.sample_bits(needed_bits);
+            if candidate < width {
+                break candidate;
+            }
+            // Reject and try again - this eliminates modulo bias
+        };
         let z = (x as i32) - cfg.coeff_bound;
         a.push(int_to_fq(z));
     }

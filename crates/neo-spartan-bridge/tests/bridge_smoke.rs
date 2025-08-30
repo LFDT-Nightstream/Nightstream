@@ -1,3 +1,5 @@
+#![allow(deprecated)] // Tests use legacy MEInstance/MEWitness for backward compatibility
+
 //! Production smoke tests for the neo-spartan-bridge with p3-FRI architecture
 //!
 //! These tests verify the complete architectural foundation and API structure

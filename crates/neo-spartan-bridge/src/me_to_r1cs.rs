@@ -1,3 +1,5 @@
+#![allow(deprecated)] // Uses legacy MEInstance/MEWitness for bridge compatibility
+
 //! ME(b,L) SpartanCircuit implementation for direct Spartan2 SNARK integration
 //!
 //! This module implements the **proper Spartan2 integration** using the `SpartanCircuit` trait.

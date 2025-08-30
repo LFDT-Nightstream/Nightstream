@@ -21,6 +21,8 @@ fn sample_uniform_fq<R: RngCore + CryptoRng>(rng: &mut R) -> Fq {
 
 /// MUST: Setup(κ,m) → sample M ← R_q^{κ×m} uniformly (Def. 9).
 pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usize) -> PP<RqEl> {
+    // Ensure d matches the fixed ring dimension from neo-math
+    assert_eq!(d, neo_math::ring::D, "d parameter must match ring dimension D = {}", neo_math::ring::D);
     let mut rows = Vec::with_capacity(kappa);
     for _ in 0..kappa {
         let mut row = Vec::with_capacity(m);

@@ -2,9 +2,16 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use ff::PrimeField;
 
+// ⚠️ SECURITY WARNING: This module uses Keccak256 transcript which is INCONSISTENT
+// with Neo's unified Poseidon2 transcript design. This is a temporary workaround
+// until Spartan2 provides Poseidon2 transcript support.
+//
+// For production use, this should be feature-gated under #[cfg(feature = "dev")]
+// or replaced with a Poseidon2-compatible transcript.
+
 // Hash-MLE backend with Goldilocks engine (p3_backend feature enabled)
 use spartan2::provider::{
-    keccak::Keccak256Transcript,     // TODO: Unify to Poseidon2 when available in Spartan2
+    keccak::Keccak256Transcript,     // ⚠️ INCONSISTENT: Should be Poseidon2 for Neo compliance
     GoldilocksP3MerkleMleEngine as E,  // Use Goldilocks engine from p3_backend  
     pcs::merkle_mle_pc::HashMlePCS as PCSImpl,
 };
@@ -45,6 +52,9 @@ impl HashMleProof {
 }
 
 /// Prove: commit to `poly` (|poly|=2^m), then prove v(r)=eval at `point` (|point|=m).
+/// 
+/// ⚠️ SECURITY WARNING: This function uses Keccak256 transcript, which breaks Neo's
+/// unified Poseidon2 transcript security model. Use only for development/testing.
 pub fn prove_hash_mle(poly: &[F], point: &[F]) -> Result<HashMleProof> {
     if !poly.len().is_power_of_two() {
         anyhow::bail!("Hash-MLE: poly length must be a power of two; got {}", poly.len());
@@ -66,6 +76,9 @@ pub fn prove_hash_mle(poly: &[F], point: &[F]) -> Result<HashMleProof> {
 }
 
 /// Verify a Hash‑MLE proof (public: commitment root, point, eval, arg).
+/// 
+/// ⚠️ SECURITY WARNING: This function uses Keccak256 transcript, which breaks Neo's
+/// unified Poseidon2 transcript security model. Use only for development/testing.
 pub fn verify_hash_mle(prf: &HashMleProof) -> Result<()> {
     // Setup a fresh VK (parameters are fixed by the PCS; no SRS)
     let (_ck, vk) = PCS::setup(b"neo-bridge/hash-mle", 0);

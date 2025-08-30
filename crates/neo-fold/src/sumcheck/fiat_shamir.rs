@@ -181,11 +181,17 @@ pub fn fs_challenge_u64_labeled(transcript: &[u8], label: &str) -> u64 {
     fs_challenge_base_labeled(transcript, label).as_canonical_u64()
 }
 
+// ⚠️ DEPRECATED: This Transcript type is replaced by neo_fold::transcript::FoldTranscript
+// The following code is kept for backward compatibility only.
+// Use crate::transcript::FoldTranscript for all new code.
+
 /// Unified Transcript facade for consistent Fiat-Shamir transcript construction.
 /// 
+/// ⚠️ DEPRECATED: Use `crate::transcript::FoldTranscript` instead.
 /// This provides a single, canonical API for all transcript operations, eliminating
 /// the dual-surface problem of mixing typed absorb/challenge with ad-hoc byte manipulation.
 /// All domain separation follows the NEO/V1/<module>/<phase>/<name> scheme.
+#[deprecated(since = "0.1.0", note = "Use crate::transcript::FoldTranscript instead")]
 #[derive(Clone)]
 pub struct Transcript {
     /// Internal p3-challenger state

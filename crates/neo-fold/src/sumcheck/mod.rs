@@ -1,6 +1,10 @@
 pub mod fiat_shamir;
 pub mod challenger;
 
+// Re-export the unified transcript for backward compatibility
+pub use crate::transcript::FoldTranscript as Transcript;
+
+#[deprecated(since = "0.1.0", note = "Use crate::transcript::FoldTranscript instead")]
 pub use challenger::NeoChallenger;
 pub mod poly;
 pub mod sumcheck;
@@ -8,7 +12,7 @@ pub mod sumcheck;
 pub use fiat_shamir::{
     batch_unis, fiat_shamir_challenge, fiat_shamir_challenge_base,
     fs_absorb_bytes, fs_challenge_ext, fs_challenge_base_labeled, 
-    fs_challenge_ext_labeled, fs_challenge_u64_labeled, Transcript
+    fs_challenge_ext_labeled, fs_challenge_u64_labeled
 };
 pub use poly::{MultilinearEvals, UnivPoly};
 pub use sumcheck::{

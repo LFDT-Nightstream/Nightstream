@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![allow(deprecated)] // Bridge legitimately uses legacy MEInstance/MEWitness types
 //! neo-spartan-bridge  
 //!
 //! **Post-quantum last-mile compression**: Translate a final ME(b, L) claim into a Spartan2 R1CS SNARK

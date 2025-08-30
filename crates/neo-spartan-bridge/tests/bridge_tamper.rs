@@ -1,3 +1,5 @@
+#![allow(deprecated)] // Tests use legacy MEInstance/MEWitness for backward compatibility
+
 //! Security tests for neo-spartan-bridge
 //!
 //! These tests verify that tampering with public inputs, commitments, or proof data

@@ -2,17 +2,25 @@
 //! 
 //! Note: According to STRUCTURE.md, transcript logic should live in neo-fold.
 //! This is a minimal compatibility shim until the proper migration is complete.
+//! 
+//! ⚠️ DEPRECATED: This transcript uses DefaultHasher which is NOT cryptographically secure.
+//! Use neo_fold::transcript::FoldTranscript for all cryptographic applications.
 
 use std::collections::HashMap;
 use p3_field::PrimeCharacteristicRing;
 
 /// Simple transcript for Fiat-Shamir (backward compatibility only)
+/// 
+/// ⚠️ DEPRECATED: This uses DefaultHasher which is NOT cryptographically secure.
+/// Use `neo_fold::transcript::FoldTranscript` for all production code.
+#[deprecated(since = "0.1.0", note = "Use neo_fold::transcript::FoldTranscript instead")]
 #[derive(Clone, Debug)]
 pub struct Transcript {
     state: Vec<u8>,
     challenges: HashMap<String, Vec<u8>>,
 }
 
+#[allow(deprecated)]
 impl Transcript {
     /// Create new transcript with protocol name
     pub fn new(protocol: &str) -> Self {

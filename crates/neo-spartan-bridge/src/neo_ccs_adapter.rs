@@ -1,3 +1,5 @@
+#![allow(deprecated)] // Uses legacy MEInstance/MEWitness for bridge compatibility
+
 //! Bridge adapter for converting ME claims to neo-spartan-bridge format
 //! 
 //! This module provides conversion functions from MeInstance/MeWitness 

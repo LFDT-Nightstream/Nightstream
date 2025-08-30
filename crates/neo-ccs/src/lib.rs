@@ -308,6 +308,10 @@ pub fn add_lookups(structure: &mut legacy::CcsStructure, table: Vec<F>) {
 
 // Legacy ME types for final folding outputs (preserved)
 /// Legacy Matrix Evaluation instance - the final claim after folding
+/// 
+/// ⚠️ DEPRECATED: Use `relations::MeInstance<C, F, K>` instead for the modern generic implementation.
+/// This legacy type is kept for backward compatibility only.
+#[deprecated(since = "0.1.0", note = "Use relations::MeInstance<C, F, K> instead")]
 #[derive(Clone, Debug)]
 pub struct MEInstance {
     /// Ajtai commitment coordinates c ∈ F_q^{d×κ}
@@ -323,6 +327,10 @@ pub struct MEInstance {
 }
 
 /// Legacy Matrix Evaluation witness - the final witness after folding  
+/// 
+/// ⚠️ DEPRECATED: Use `relations::MeWitness<F>` instead for the modern generic implementation.
+/// This legacy type is kept for backward compatibility only.
+#[deprecated(since = "0.1.0", note = "Use relations::MeWitness<F> instead")]
 #[derive(Clone, Debug)]
 pub struct MEWitness {
     /// Witness digits Z in base b: |Z|_∞ < b
@@ -333,6 +341,7 @@ pub struct MEWitness {
     pub ajtai_rows: Option<Vec<Vec<F>>>, 
 }
 
+#[allow(deprecated)]
 impl MEInstance {
     /// Create a new ME instance
     pub fn new(
@@ -362,6 +371,7 @@ impl MEInstance {
     }
 }
 
+#[allow(deprecated)]
 impl MEWitness {
     /// Create a new ME witness
     pub fn new(

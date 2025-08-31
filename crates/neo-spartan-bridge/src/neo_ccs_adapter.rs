@@ -16,10 +16,10 @@ pub fn field_to_u64(f: F) -> u64 {
 
 /// Convert signed i64 to field element (handling negatives correctly) 
 pub fn i64_to_field(x: i64) -> F {
-    if x >= 0 { 
-        F::from_u64(x as u64) 
-    } else { 
-        -F::from_u64((-x) as u64) 
+    if x >= 0 {
+        F::from_u64(x as u64)
+    } else {
+        -F::from_u64((-x) as u64)
     }
 }
 

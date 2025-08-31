@@ -26,6 +26,7 @@
 
 use anyhow::Result;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use ff::Field;
 use p3_field::{PrimeField64, PrimeCharacteristicRing};
 use spartan2::errors::SpartanError;
 use spartan2::provider::GoldilocksP3MerkleMleEngine as E;
@@ -101,6 +102,18 @@ impl SpartanCircuit<E> for MeCircuit {
         // 5) fold digest limbs
         pv.extend(self.digest_to_scalars());
 
+        // Hash-MLE PCS requires public inputs to be power-of-2 length
+        let original_len = pv.len();
+        let next_power_of_2 = pv.len().next_power_of_two();
+        
+        // Pad with zeros to make it power of 2
+        while pv.len() < next_power_of_2 {
+            pv.push(<E as Engine>::Scalar::ZERO);
+        }
+
+        if original_len != next_power_of_2 {
+            eprintln!("🔍 public_values() padded from {} to {} (power of 2)", original_len, pv.len());
+        }
         Ok(pv)
     }
 
@@ -116,8 +129,11 @@ impl SpartanCircuit<E> for MeCircuit {
         cs: &mut CS,
         _shared: &[AllocatedNum<<E as Engine>::Scalar>],
     ) -> Result<Vec<AllocatedNum<<E as Engine>::Scalar>>, SynthesisError> {
+        // Check if witness variables need power-of-2 padding for Hash-MLE PCS
+        let next_power_of_2 = self.wit.z_digits.len().next_power_of_two();
+        
         // Z digits as private witness
-        let mut z_vars = Vec::with_capacity(self.wit.z_digits.len());
+        let mut z_vars = Vec::with_capacity(next_power_of_2);
         for (i, &z) in self.wit.z_digits.iter().enumerate() {
             let val = if z >= 0 {
                 <E as Engine>::Scalar::from(z as u64)
@@ -126,6 +142,15 @@ impl SpartanCircuit<E> for MeCircuit {
             };
             z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("Z[{i}]")), || Ok(val))?);
         }
+        
+        // Pad with zeros to next power of 2 if needed for Hash-MLE PCS
+        while z_vars.len() < next_power_of_2 {
+            let i = z_vars.len();
+            let zero = <E as Engine>::Scalar::ZERO;
+            z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("Z_pad[{i}]")), || Ok(zero))?);
+        }
+        
+        // Witness variables ready (padded to power of 2 if needed)
         Ok(z_vars)
     }
 
@@ -138,6 +163,8 @@ impl SpartanCircuit<E> for MeCircuit {
         z_vars: &[AllocatedNum<<E as Engine>::Scalar>],
         _challenges: Option<&[<E as Engine>::Scalar]>,
     ) -> Result<(), SynthesisError> {
+        eprintln!("🔍 synthesize() called with {} z_vars", z_vars.len());
+        
         let to_s = |x: p3_goldilocks::Goldilocks| <E as Engine>::Scalar::from(x.as_canonical_u64());
 
         // (A) Ajtai binding: <L_i, Z> = c_i  (rows are constants in v1)
@@ -213,36 +240,53 @@ pub fn setup_me_snark(
     R1CSSNARK::<E>::setup(circuit)
 }
 
-/// Public API: prove a real Spartan2 SNARK over Hash‑MLE (Poseidon2)
+/// Public API: prove a real Spartan2 SNARK over Hash‑MLE (Poseidon2) 
 pub fn prove_me_snark(
     me: &MEInstance,
     wit: &MEWitness,
 ) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, SpartanVerifierKey<E>), SpartanError> {
     let circuit = MeCircuit::new(me.clone(), wit.clone(), None, me.header_digest);
     
-    // Circuit ready - proceeding with real SNARK generation
-    
-    // Debug: Check circuit dimensions before SNARK operations
-    let debug_public_values = circuit.public_values()
-        .map_err(|e| SpartanError::InternalError { reason: format!("Public values error: {e}") })?;
-    println!("🔍 Circuit debug info:");
-    println!("  Public values: {}", debug_public_values.len());
-    println!("  Witness digits: {}", circuit.wit.z_digits.len());
-    println!("  Ajtai rows: {:?}", circuit.wit.ajtai_rows.as_ref().map(|r| r.len()));
-    println!("  Weight vectors: {}", circuit.wit.weight_vectors.len());
-    
-    // 1. Setup SNARK keys with circuit
-    println!("🔍 Starting SNARK setup...");
+    // 1. Setup SNARK keys with circuit  
+    eprintln!("🔍 About to call R1CSSNARK::<E>::setup()");
     let (pk, vk) = R1CSSNARK::<E>::setup(circuit.clone())?;
-    println!("✅ SNARK setup complete");
+    eprintln!("✅ R1CSSNARK::<E>::setup() completed");
     
-    // 2. Prepare proving (creates PrepSNARK) 
-    println!("🔍 Starting prep_prove with is_small=false...");
-    let prep_snark = R1CSSNARK::<E>::prep_prove(&pk, circuit.clone(), false)?; // Try false instead of true
-    println!("✅ prep_prove complete");
+    // 2. Prepare proving (creates PrepSNARK) - capacity overflow is now fixed
+    eprintln!("🔍 About to call prep_prove()");
+    let prep_snark = match R1CSSNARK::<E>::prep_prove(&pk, circuit.clone(), false) {
+        Ok(prep) => {
+            eprintln!("✅ prep_prove() completed successfully");
+            prep
+        }
+        Err(e) => {
+            eprintln!("❌ prep_prove() failed with: {:?}", e);
+            return Err(e);
+        }
+    }; 
     
-    // 3. Generate proof using prepared SNARK
-    let snark_proof = R1CSSNARK::<E>::prove(&pk, circuit, &prep_snark, false)?;
+    // 3. Generate proof using prepared SNARK  
+    eprintln!("🔍 About to call R1CSSNARK::<E>::prove()");
+    
+    // Get dimensions before the move for error reporting
+    let public_values_len = circuit.public_values().unwrap().len();
+    let witness_len = circuit.wit.z_digits.len();
+    
+    let snark_proof = match R1CSSNARK::<E>::prove(&pk, circuit, &prep_snark, false) {
+        Ok(proof) => {
+            eprintln!("✅ R1CSSNARK::<E>::prove() completed successfully!");
+            proof
+        }
+        Err(e) => {
+            eprintln!("❌ R1CSSNARK::<E>::prove() failed with: {:?}", e);
+            eprintln!("   This is where the 'vector len must be power of two' error occurs");
+            eprintln!("   Current dimensions:");
+            eprintln!("     - Public values: {} (padded to power of 2)", public_values_len);
+            eprintln!("     - Witness variables: {} (padded to power of 2)", witness_len);
+            eprintln!("   The error might be from an internal Hash-MLE vector during proving");
+            return Err(e);
+        }
+    };
     
     // 4. Verify proof as sanity check and get public outputs
     let public_outputs = snark_proof.verify(&vk)?;

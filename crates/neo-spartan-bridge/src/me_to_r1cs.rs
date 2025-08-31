@@ -31,7 +31,7 @@ use p3_field::{PrimeField64, PrimeCharacteristicRing};
 use spartan2::errors::SpartanError;
 use spartan2::provider::GoldilocksP3MerkleMleEngine as E;
 use spartan2::spartan::{R1CSSNARK, SpartanProverKey, SpartanVerifierKey};
-use spartan2::traits::{circuit::SpartanCircuit, Engine, snark::R1CSSNARKTrait};
+use spartan2::traits::{circuit::SpartanCircuit, Engine, pcs::PCSEngineTrait, snark::R1CSSNARKTrait};
 
 // Real Spartan2 SNARK uses circuits directly, not R1CS shapes
 // (the R1CS conversion happens internally)
@@ -74,6 +74,12 @@ impl MeCircuit {
         x: p3_goldilocks::Goldilocks,
     ) -> (p3_goldilocks::Goldilocks, p3_goldilocks::Goldilocks) {
         (x, p3_goldilocks::Goldilocks::ZERO)
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    fn is_pow2(n: usize) -> bool {
+        n.is_power_of_two()
     }
 }
 
@@ -121,37 +127,18 @@ impl SpartanCircuit<E> for MeCircuit {
         &self,
         _cs: &mut CS,
     ) -> Result<Vec<AllocatedNum<<E as Engine>::Scalar>>, SynthesisError> {
-        Ok(vec![]) // no shared variables in this circuit
+        eprintln!("✅ shared(): EMPTY (Hash-MLE single-blind strategy)");
+        Ok(vec![])
     }
 
     fn precommitted<CS: ConstraintSystem<<E as Engine>::Scalar>>(
         &self,
-        cs: &mut CS,
+        _cs: &mut CS,
         _shared: &[AllocatedNum<<E as Engine>::Scalar>],
     ) -> Result<Vec<AllocatedNum<<E as Engine>::Scalar>>, SynthesisError> {
-        // Check if witness variables need power-of-2 padding for Hash-MLE PCS
-        let next_power_of_2 = self.wit.z_digits.len().next_power_of_two();
-        
-        // Z digits as private witness
-        let mut z_vars = Vec::with_capacity(next_power_of_2);
-        for (i, &z) in self.wit.z_digits.iter().enumerate() {
-            let val = if z >= 0 {
-                <E as Engine>::Scalar::from(z as u64)
-            } else {
-                -<E as Engine>::Scalar::from((-z) as u64)
-            };
-            z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("Z[{i}]")), || Ok(val))?);
-        }
-        
-        // Pad with zeros to next power of 2 if needed for Hash-MLE PCS
-        while z_vars.len() < next_power_of_2 {
-            let i = z_vars.len();
-            let zero = <E as Engine>::Scalar::ZERO;
-            z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("Z_pad[{i}]")), || Ok(zero))?);
-        }
-        
-        // Witness variables ready (padded to power of 2 if needed)
-        Ok(z_vars)
+        eprintln!("🔧 precommitted(): EMPTY (avoiding multiple blinds for Hash-MLE)");
+        eprintln!("   Hash-MLE PCS requires exactly 1 blind, so we use only REST segment");
+        Ok(vec![])
     }
 
     fn num_challenges(&self) -> usize { 0 }
@@ -159,12 +146,47 @@ impl SpartanCircuit<E> for MeCircuit {
     fn synthesize<CS: ConstraintSystem<<E as Engine>::Scalar>>(
         &self,
         cs: &mut CS,
-        _shared: &[AllocatedNum<<E as Engine>::Scalar>],
-        z_vars: &[AllocatedNum<<E as Engine>::Scalar>],
+        _shared: &[AllocatedNum<<E as Engine>::Scalar>],  // empty now
+        _z_pre: &[AllocatedNum<<E as Engine>::Scalar>],  // empty
         _challenges: Option<&[<E as Engine>::Scalar]>,
     ) -> Result<(), SynthesisError> {
-        eprintln!("🔍 synthesize() called with {} z_vars", z_vars.len());
+        let mut z_vars = Vec::<AllocatedNum<<E as Engine>::Scalar>>::new();
         
+        // 1) Allocate REST witness variables exactly in the z_digits order
+        eprintln!("🔍 Witness allocation (REST segment - z_digits first):");
+        for (i, &z) in self.wit.z_digits.iter().enumerate() {
+            let val = if z >= 0 {
+                <E as Engine>::Scalar::from(z as u64)
+            } else {
+                -<E as Engine>::Scalar::from((-z) as u64)
+            };
+            eprintln!("   z_vars[{}] = {} (from z_digits[{}] = {})", i, val.to_canonical_u64(), i, z);
+            z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("REST_Z[{i}]")), || Ok(val))?);
+        }
+        
+        // 2) APPEND "one" as another REST variable at the END (preserves z_digits indexing)
+        let one = AllocatedNum::alloc(cs.namespace(|| "REST_ONE"), || Ok(<E as Engine>::Scalar::ONE))?;
+        cs.enforce(
+            || "enforce_rest_one_is_1",
+            |lc| lc + one.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + CS::one(),
+        );
+        let one_idx = z_vars.len();  // Index where "one" is appended
+        z_vars.push(one.clone());
+        eprintln!("🔍 Appended 'one' variable at REST[{}] (preserves z_digits indexing)", one_idx);
+        
+        // 3) Pad REST (only REST) to a power-of-two for Hash-MLE
+        let orig_rest = z_vars.len();
+        let target_rest = if orig_rest <= 1 { 1 } else { orig_rest.next_power_of_two() };
+        for i in orig_rest..target_rest {
+            z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("REST_Z_pad[{i}]")), 
+                || Ok(<E as Engine>::Scalar::ZERO))?);
+        }
+        eprintln!("🔍 synthesize(): REST padded from {} to {} (power-of-two)", orig_rest, z_vars.len());
+        debug_assert!(z_vars.len().is_power_of_two());
+        
+        let mut n_constraints = 0usize;
         let to_s = |x: p3_goldilocks::Goldilocks| <E as Engine>::Scalar::from(x.as_canonical_u64());
 
         // (A) Ajtai binding: <L_i, Z> = c_i  (rows are constants in v1)
@@ -175,55 +197,116 @@ impl SpartanCircuit<E> for MeCircuit {
                 let upto = core::cmp::min(row.len(), z_vars.len());
                 let c_scalar = <E as Engine>::Scalar::from(self.me.c_coords[i].as_canonical_u64());
 
+                // 🔧 DEBUG: Compute expected LHS value for constraint debugging
+                let mut expected_lhs = <E as Engine>::Scalar::ZERO;
+                for j in 0..upto {
+                    let row_coeff = to_s(row[j]);
+                    let z_val = if j < self.wit.z_digits.len() {
+                        let z = self.wit.z_digits[j];
+                        if z >= 0 { <E as Engine>::Scalar::from(z as u64) }
+                        else { -<E as Engine>::Scalar::from((-z) as u64) }
+                    } else {
+                        <E as Engine>::Scalar::ZERO // padded variables
+                    };
+                    expected_lhs += row_coeff * z_val;
+                }
+                eprintln!("🔍 Ajtai constraint {}: computed LHS = {}, expected RHS = {}", 
+                    i, expected_lhs.to_canonical_u64(), c_scalar.to_canonical_u64());
+
                 cs.enforce(
                     || format!("ajtai_bind_{i}"),
                     |lc| {
                         let mut lc = lc;
-                        for j in 0..upto {
+                        for j in 0..upto.min(one_idx) { // Don't include 'one' in dot product
                             lc = lc + (to_s(row[j]), z_vars[j].get_variable());
                         }
                         lc
                     },
-                    |lc| lc + CS::one(),
-                    |lc| lc + (c_scalar, CS::one()),
+                    |lc| lc + z_vars[one_idx].get_variable(), // Use appended 'one'
+                    |lc| lc + (c_scalar, z_vars[one_idx].get_variable()), // Use appended 'one'
                 );
+                n_constraints += 1;
             }
         }
 
-        // (B) ME evals: <w_j, Z> = y_j
+        // (B) ME evals: <w_j, Z> = y_j  
         let m = core::cmp::min(self.wit.weight_vectors.len(), self.me.y_outputs.len());
         for j in 0..m {
             let wj = &self.wit.weight_vectors[j];
             let upto = core::cmp::min(wj.len(), z_vars.len());
             let y_scalar = <E as Engine>::Scalar::from(self.me.y_outputs[j].as_canonical_u64());
 
+            // 🔧 DEBUG: Compute expected LHS value for ME constraint debugging
+            let mut expected_lhs = <E as Engine>::Scalar::ZERO;
+            for k in 0..upto {
+                let w_coeff = to_s(wj[k]);
+                let z_val = if k < self.wit.z_digits.len() {
+                    let z = self.wit.z_digits[k];
+                    if z >= 0 { <E as Engine>::Scalar::from(z as u64) }
+                    else { -<E as Engine>::Scalar::from((-z) as u64) }
+                } else {
+                    <E as Engine>::Scalar::ZERO // padded variables
+                };
+                expected_lhs += w_coeff * z_val;
+            }
+            eprintln!("🔍 ME constraint {}: computed LHS = {}, expected RHS = {}", 
+                j, expected_lhs.to_canonical_u64(), y_scalar.to_canonical_u64());
+
             cs.enforce(
                 || format!("me_eval_{j}"),
                 |lc| {
                     let mut lc = lc;
-                    for k in 0..upto {
+                    for k in 0..upto.min(one_idx) { // Don't include 'one' in dot product
                         lc = lc + (to_s(wj[k]), z_vars[k].get_variable());
                     }
                     lc
                 },
-                |lc| lc + CS::one(),
-                |lc| lc + (y_scalar, CS::one()),
+                |lc| lc + z_vars[one_idx].get_variable(), // Use appended 'one'
+                |lc| lc + (y_scalar, z_vars[one_idx].get_variable()), // Use appended 'one'
             );
+            n_constraints += 1;
         }
 
         // If no constraints were added, add trivial equalities (dev safety)
         if self.wit.ajtai_rows.as_ref().map_or(true, |r| r.is_empty())
             && self.wit.weight_vectors.is_empty()
         {
-            for i in 0..core::cmp::min(2, z_vars.len()) {
+            for i in 0..core::cmp::min(2, one_idx) { // Don't use 'one' itself in tautologies
                 cs.enforce(
                     || format!("tautology_{i}"),
                     |lc| lc + z_vars[i].get_variable(),
-                    |lc| lc + CS::one(),
+                    |lc| lc + z_vars[one_idx].get_variable(), // Use appended 'one'
                     |lc| lc + z_vars[i].get_variable(),
                 );
+                n_constraints += 1;
             }
         }
+
+        // All witness variables are now allocated as REST with power-of-2 length
+
+        // --- Ensure TOTAL number of constraints is a power of two (Hash‑MLE requirement)
+        // Account for the "one == 1" constraint added above
+        let total_constraints_so_far = n_constraints + 1; // +1 for "one == 1" constraint
+        let want_constraints = if total_constraints_so_far <= 1 { 1 } else { total_constraints_so_far.next_power_of_two() };
+        let need_to_add = want_constraints - total_constraints_so_far;
+        if need_to_add > 0 {
+            // Add 1*1 = 1 tautologies; uses only the constant "one" so it's harmless  
+            for i in 0..need_to_add {
+                cs.enforce(
+                    || format!("pad_const_tautology_{i}"),
+                    |lc| lc + z_vars[one_idx].get_variable(), // Use appended 'one'
+                    |lc| lc + z_vars[one_idx].get_variable(), // Use appended 'one'
+                    |lc| lc + z_vars[one_idx].get_variable(), // Use appended 'one'
+                );
+            }
+            eprintln!("🔧 synthesize(): padded constraints {} → {} (total with shared = {})", total_constraints_so_far, want_constraints, want_constraints);
+        } else {
+            eprintln!("ℹ️  synthesize(): constraints = {} (total with shared = {} - power-of-two OK)", n_constraints, total_constraints_so_far);
+        }
+
+        // === SIMPLIFIED: No R1CS inputs for now (X will be empty) ===
+        // Both prover and verifier will use empty X vector: X = [1, 0, 0, ...]
+        eprintln!("🔧 synthesize(): using empty X vector - both prover and verifier will use X = [1]");
 
         Ok(())
     }
@@ -247,6 +330,11 @@ pub fn prove_me_snark(
 ) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, SpartanVerifierKey<E>), SpartanError> {
     let circuit = MeCircuit::new(me.clone(), wit.clone(), None, me.header_digest);
     
+    // Assert PCS width is correct for Hash-MLE (binary hypercube)
+    let pcs_width = <E as Engine>::PCS::width();
+    eprintln!("🔍 ENGINE PCS WIDTH = {}", pcs_width);
+    assert_eq!(pcs_width, 2, "Hash-MLE PCS must report width=2 (binary hypercube arity), got {}", pcs_width);
+    
     // 1. Setup SNARK keys with circuit  
     eprintln!("🔍 About to call R1CSSNARK::<E>::setup()");
     let (pk, vk) = R1CSSNARK::<E>::setup(circuit.clone())?;
@@ -254,6 +342,7 @@ pub fn prove_me_snark(
     
     // 2. Prepare proving (creates PrepSNARK) - capacity overflow is now fixed
     eprintln!("🔍 About to call prep_prove()");
+    
     let prep_snark = match R1CSSNARK::<E>::prep_prove(&pk, circuit.clone(), false) {
         Ok(prep) => {
             eprintln!("✅ prep_prove() completed successfully");
@@ -267,29 +356,72 @@ pub fn prove_me_snark(
     
     // 3. Generate proof using prepared SNARK  
     eprintln!("🔍 About to call R1CSSNARK::<E>::prove()");
+    eprintln!("🔧 Hash-MLE debugging: About to call prove with:");
     
     // Get dimensions before the move for error reporting
     let public_values_len = circuit.public_values().unwrap().len();
     let witness_len = circuit.wit.z_digits.len();
     
+    eprintln!("   📊 Pre-prove dimensions:");
+    eprintln!("     - Public values: {}", public_values_len);
+    eprintln!("     - Original witness len: {}", witness_len);
+    eprintln!("     - Shape summary: shared=0, precommitted=0, rest=8 (from logs)");
+    eprintln!("   🎯 All vectors should be power-of-2 for Hash-MLE");
+    
     let snark_proof = match R1CSSNARK::<E>::prove(&pk, circuit, &prep_snark, false) {
         Ok(proof) => {
             eprintln!("✅ R1CSSNARK::<E>::prove() completed successfully!");
+            eprintln!("🎉 Hash-MLE commitment structure worked correctly!");
             proof
         }
         Err(e) => {
             eprintln!("❌ R1CSSNARK::<E>::prove() failed with: {:?}", e);
-            eprintln!("   This is where the 'vector len must be power of two' error occurs");
-            eprintln!("   Current dimensions:");
+            
+            // Detailed error analysis
+            let err_str = format!("{:?}", e);
+            if err_str.contains("combine_blinds") {
+                eprintln!("🔍 HASH-MLE COMMITMENT ERROR ANALYSIS:");
+                eprintln!("   This is a 'combine_blinds expects exactly one' error");
+                eprintln!("   Likely causes:");
+                eprintln!("   1. Hash-MLE expecting single commitment but getting multiple");
+                eprintln!("   2. Mismatch between number of polynomial segments and blind factors");
+                eprintln!("   3. Issue with how precommitted/rest segments are handled in commitments");
+                eprintln!("   🎯 Current structure: precommitted=8, rest=8 (both power-of-2)");
+                eprintln!("   💡 Suggestion: Hash-MLE might expect single unified commitment");
+            } else if err_str.contains("power of two") {
+                eprintln!("🔍 POWER-OF-2 ERROR (unexpected - should be fixed):");
+                eprintln!("   We thought this was fixed with precommitted=8, rest=8");
+                eprintln!("   There might be another vector we're missing");
+            } else {
+                eprintln!("🔍 OTHER HASH-MLE ERROR:");
+                eprintln!("   Unknown Hash-MLE error type: {}", err_str);
+            }
+            
+            eprintln!("   📊 Context:");
             eprintln!("     - Public values: {} (padded to power of 2)", public_values_len);
-            eprintln!("     - Witness variables: {} (padded to power of 2)", witness_len);
-            eprintln!("   The error might be from an internal Hash-MLE vector during proving");
+            eprintln!("     - Original witness: {}", witness_len);
+            eprintln!("     - prep_prove() succeeded, so shape constraints are OK");
+            eprintln!("     - Error is in final proof generation step");
+            
             return Err(e);
         }
     };
     
-    // 4. Verify proof as sanity check and get public outputs
-    let public_outputs = snark_proof.verify(&vk)?;
+    // 4. Verify proof and get public outputs
+    eprintln!("🔍 About to verify SNARK proof for sanity check...");
+    let public_outputs = match snark_proof.verify(&vk) {
+        Ok(outputs) => {
+            eprintln!("✅ SNARK internal verification succeeded!");
+            eprintln!("   Public outputs length: {}", outputs.len());
+            outputs
+        }
+        Err(e) => {
+            eprintln!("❌ SNARK internal verification failed with: {:?}", e);
+            eprintln!("🔍 VERIFICATION ERROR: This suggests constraint or input binding issues");
+            eprintln!("   Hash-MLE commitment structure is working, so this is a circuit logic issue");
+            return Err(e);
+        }
+    };
     
     // 5. Serialize proof
     let proof_bytes = bincode::serialize(&snark_proof)

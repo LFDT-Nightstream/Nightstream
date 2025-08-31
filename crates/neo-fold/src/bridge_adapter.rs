@@ -116,7 +116,7 @@ pub fn compress_via_bridge(
         .map_err(|e| format!("Failed to convert witness: {}", e))?;
     
     // Call the actual bridge
-    match neo_spartan_bridge::compress_me_to_spartan(&legacy_instance, &legacy_witness, None) {
+    match neo_spartan_bridge::compress_me_to_spartan(&legacy_instance, &legacy_witness) {
         Ok(proof_bundle) => {
             eprintln!("   ✅ Bridge compression completed successfully");
             eprintln!("   - Proof bundle size: {} bytes", proof_bundle.proof.len());

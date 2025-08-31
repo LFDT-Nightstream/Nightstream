@@ -8,26 +8,52 @@
 use neo_spartan_bridge::compress_me_to_spartan;
 use neo_ccs::{MEInstance, MEWitness};
 use p3_goldilocks::Goldilocks as F;
-use p3_field::{PrimeCharacteristicRing, integers::QuotientMap};
+use p3_field::PrimeCharacteristicRing;
 
-/// Create a minimal ME instance for testing using the actual neo-ccs structure
+/// Helper to compute dot product of field vector and i64 witness
+fn dot_f_z(row: &[F], z: &[i64]) -> F {
+    row.iter().zip(z.iter()).fold(F::ZERO, |acc, (a, &zi)| {
+        let zi_f = if zi >= 0 { F::from_u64(zi as u64) }
+                   else         { -F::from_u64((-zi) as u64) };
+        acc + (*a) * zi_f
+    })
+}
+
+/// Create a mathematically consistent ME instance for testing
 fn tiny_me_instance() -> (MEInstance, MEWitness) {
-    // Create a minimal ME instance using the actual field structure
+    // Witness digits (len = 8 = 2^3, perfect for Hash-MLE)
+    let z = vec![1i64, 2, 3, 0, -1, 1, 0, 2];
+
+    // Ajtai rows: use simple unit vectors so constraints become z0=c0 and z1=c1
+    let ajtai_rows = vec![
+        vec![F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO],
+        vec![F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO],
+    ];
+    let c0 = dot_f_z(&ajtai_rows[0], &z); // = z0 = 1
+    let c1 = dot_f_z(&ajtai_rows[1], &z); // = z1 = 2
+    let c_coords = vec![c0, c1, F::ZERO, F::ZERO]; // keep 4 publics; last two unused
+
+    // ME weights: first sums z0..z3; second sums z5+z7 to get non-zero result  
+    let w0 = vec![F::ONE, F::ONE, F::ONE, F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO];
+    let w1 = vec![F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ONE]; // z5 + z7 = 1 + 2 = 3
+    let y0 = dot_f_z(&w0, &z); // 1+2+3+0 = 6
+    let y1 = dot_f_z(&w1, &z); // z5 + z7 = 1 + 2 = 3
+    let y_outputs = vec![y0, y1, F::ZERO, F::ZERO]; // length 4 for stability
+
     let me = MEInstance {
-        c_coords: vec![F::from_canonical_checked(1).unwrap(); 4], // Ajtai commitment coordinates
-        y_outputs: vec![F::from_canonical_checked(2).unwrap(); 4], // public outputs  
-        r_point: vec![F::from_canonical_checked(3).unwrap(); 2], // challenge point
-        base_b: 4, // Base dimension
-        header_digest: [0u8; 32], // Header hash
+        c_coords,
+        y_outputs,
+        r_point: vec![F::from_u64(3); 2], // unused by constraints here
+        base_b: 4,
+        header_digest: [0u8; 32],
     };
-    
-    // Witness with matching structure
+
     let wit = MEWitness {
-        z_digits: vec![1i64, 2i64, 3i64, 0i64, -1i64, 1i64, 0i64, 2i64], // witness digits (base-b)
-        weight_vectors: vec![vec![F::ONE; 4], vec![F::ZERO; 4]], // weight matrices
-        ajtai_rows: Some(vec![vec![F::from_canonical_checked(7).unwrap(); 4]; 2]), // Ajtai matrix rows
+        z_digits: z,
+        weight_vectors: vec![w0, w1],
+        ajtai_rows: Some(ajtai_rows),
     };
-    
+
     (me, wit)
 }
 

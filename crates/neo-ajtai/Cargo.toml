@@ -8,6 +8,7 @@ license = "Apache-2.0"
 # Workspace deps
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
+neo-ccs = { path = "../neo-ccs" }
 rand = "0.9"
 rand_chacha = "0.9"
 serde = { version = "1.0", features = ["derive"] }

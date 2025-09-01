@@ -74,7 +74,7 @@ fn test_strong_sampling_invertibility() {
     println!("🔍 Testing strong sampling invertibility guarantees...");
     
     let mut transcript = FoldTranscript::new(b"test_strong_sampling");
-    let mut challenger = transcript.as_challenger();
+    let mut challenger = transcript.challenger();
     
     // Test multiple samples to ensure invertibility
     for k in 2..=5 {

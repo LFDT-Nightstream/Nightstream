@@ -119,6 +119,9 @@ fn main() -> Result<()> {
                                z.len())          // m = witness length
                                .expect("Ajtai setup should succeed");
     
+    // Publish PP globally so folding protocols can access it
+    neo_ajtai::set_global_pp(ajtai_pp.clone()).expect("publish Ajtai PP for folding");
+    
     println!("   Ajtai PP: d={}, κ={}, m={}", ajtai_pp.d, ajtai_pp.kappa, ajtai_pp.m);
     
     // Step 5: Decompose and commit to witness

@@ -137,10 +137,10 @@ impl FoldTranscript {
         (0..m).map(|_| self.challenge_k()).collect()
     }
     
-    /// Convert transcript to challenger for use with neo_challenge sampling
-    /// Creates a simple field challenger that can be used with neo-challenge
-    pub fn as_challenger(&mut self) -> SimpleFieldChallenger {
-        SimpleFieldChallenger { transcript: self }
+    /// Use the underlying Poseidon2 challenger directly (supports CanSampleBits)
+    /// Returns a wrapper that adds the missing CanObserve<u8> trait
+    pub fn challenger(&mut self) -> ChallengerWrapper {
+        ChallengerWrapper { tr: self }
     }
     
     /// Absorb extension field element as base field elements
@@ -206,37 +206,37 @@ impl FoldTranscript {
     }
 }
 
-/// Simple field challenger adapter for neo-challenge integration
-pub struct SimpleFieldChallenger<'a> {
-    transcript: &'a mut FoldTranscript,
+/// Minimal wrapper to add CanObserve<u8> to NeoChallenger while preserving uniform sampling
+pub struct ChallengerWrapper<'a> {
+    tr: &'a mut FoldTranscript,
 }
 
-impl<'a> CanSample<F> for SimpleFieldChallenger<'a> {
+impl<'a> CanSample<F> for ChallengerWrapper<'a> {
     fn sample(&mut self) -> F {
-        self.transcript.challenge_f()
+        self.tr.ch.sample()
     }
 }
 
-impl<'a> CanObserve<F> for SimpleFieldChallenger<'a> {
+impl<'a> CanObserve<F> for ChallengerWrapper<'a> {
     fn observe(&mut self, value: F) {
-        self.transcript.ch.observe(value);
+        self.tr.ch.observe(value);
     }
 }
 
-impl<'a> CanObserve<u8> for SimpleFieldChallenger<'a> {
+impl<'a> CanObserve<u8> for ChallengerWrapper<'a> {
     fn observe(&mut self, value: u8) {
-        self.transcript.absorb_bytes(&[value]);
+        self.tr.absorb_bytes(&[value]);
     }
 }
 
-impl<'a> CanSampleBits<usize> for SimpleFieldChallenger<'a> {
+impl<'a> CanSampleBits<usize> for ChallengerWrapper<'a> {
     fn sample_bits(&mut self, bits: usize) -> usize {
-        let field_val = self.transcript.challenge_f().as_canonical_u64();
-        (field_val as usize) & ((1 << bits) - 1)
+        // Use the underlying challenger's uniform sampling
+        self.tr.ch.sample_bits(bits)
     }
 }
 
-impl<'a> FieldChallenger<F> for SimpleFieldChallenger<'a> {}
+impl<'a> FieldChallenger<F> for ChallengerWrapper<'a> {}
 
 impl Default for FoldTranscript {
     fn default() -> Self {

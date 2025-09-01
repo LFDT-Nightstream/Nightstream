@@ -635,6 +635,7 @@ dependencies = [
 name = "neo-ajtai"
 version = "0.1.0"
 dependencies = [
+ "neo-ccs",
  "neo-math",
  "neo-params",
  "p3-field",

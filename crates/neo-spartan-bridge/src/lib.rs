@@ -46,10 +46,9 @@ pub fn encode_bridge_io_header(me: &MEInstance) -> Vec<u8> {
         out.extend_from_slice(&c.as_canonical_u64().to_le_bytes());
     }
     
-    // y_outputs: Split K=F_q^2 into (y, 0) limbs to match circuit's k_to_limbs()
-    for &y in &me.y_outputs {
-        out.extend_from_slice(&y.as_canonical_u64().to_le_bytes());
-        out.extend_from_slice(&0u64.to_le_bytes()); // Second limb is 0 for base field
+    // y_outputs: already flattened limbs (K -> [F;2]) by the adapter; emit as-is
+    for &y_limb in &me.y_outputs {
+        out.extend_from_slice(&y_limb.as_canonical_u64().to_le_bytes());
     }
     
     // r_point - direct encoding

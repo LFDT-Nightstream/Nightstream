@@ -69,6 +69,7 @@ impl MeCircuit {
 
     /// v1: y ∈ Fq; when you move y ∈ K = Fq^2, split here.
     #[inline]
+    #[allow(dead_code)]
     fn k_to_limbs(
         &self,
         x: p3_goldilocks::Goldilocks,
@@ -95,11 +96,9 @@ impl SpartanCircuit<E> for MeCircuit {
         for &c in &self.me.c_coords {
             pv.push(<E as Engine>::Scalar::from(c.as_canonical_u64()));
         }
-        // 2) y outputs — 2 limbs when y ∈ K
-        for &y in &self.me.y_outputs {
-            let (y0, y1) = self.k_to_limbs(y);
-            pv.push(<E as Engine>::Scalar::from(y0.as_canonical_u64()));
-            pv.push(<E as Engine>::Scalar::from(y1.as_canonical_u64()));
+        // 2) y outputs — already flattened (K -> [F;2]) in adapter
+        for &y_limb in &self.me.y_outputs {
+            pv.push(<E as Engine>::Scalar::from(y_limb.as_canonical_u64()));
         }
         // 3) challenge r (Fq^m)
         for &r in &self.me.r_point {
@@ -111,7 +110,7 @@ impl SpartanCircuit<E> for MeCircuit {
         pv.extend(self.digest_to_scalars());
 
         // 6) Pad to power-of-2 EXACTLY like inputize() does - CRITICAL for transcript consistency
-        let current_public_count = self.me.c_coords.len() + (self.me.y_outputs.len() * 2) + 
+        let current_public_count = self.me.c_coords.len() + self.me.y_outputs.len() + 
                                    self.me.r_point.len() + 1 + self.digest_to_scalars().len();
         let target_count = current_public_count.next_power_of_two();
         
@@ -156,6 +155,7 @@ impl SpartanCircuit<E> for MeCircuit {
         let mut z_vars = Vec::<AllocatedNum<<E as Engine>::Scalar>>::new();
         
         // 1) Allocate REST witness variables exactly in the z_digits order
+        #[cfg(feature = "debug-logs")]
         eprintln!("🔍 Witness allocation (REST segment - z_digits first):");
         for (i, &z) in self.wit.z_digits.iter().enumerate() {
             let val = if z >= 0 {
@@ -163,6 +163,7 @@ impl SpartanCircuit<E> for MeCircuit {
             } else {
                 -<E as Engine>::Scalar::from((-z) as u64)
             };
+            #[cfg(feature = "debug-logs")]
             eprintln!("   z_vars[{}] = {} (from z_digits[{}] = {})", i, val.to_canonical_u64(), i, z);
             z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("REST_Z[{i}]")), || Ok(val))?);
         }
@@ -179,6 +180,100 @@ impl SpartanCircuit<E> for MeCircuit {
         
         let mut n_constraints = 0usize;
         let to_s = |x: p3_goldilocks::Goldilocks| <E as Engine>::Scalar::from(x.as_canonical_u64());
+
+        // (RANGE) Enforce |Z_i| < b  (digits ∈ {-(b-1), …, (b-1)})
+        // For small b (e.g., b=2 => {-1,0,1}), constrain with a product polynomial.
+        // For b=2: v*(v-1)*(v+1) == 0.
+        for (i, z) in z_vars.iter().enumerate().take(orig_rest) { // Only apply to original witness, not padding
+            if self.me.base_b == 2 {
+                let one = <E as Engine>::Scalar::ONE;
+
+                // (z)*(z-1)*(z+1) == 0
+                // Implement as three constraints using a temp:
+                let z_minus_one = AllocatedNum::alloc(cs.namespace(|| format!("z_minus_one_{}", i)), || {
+                    Ok(z.get_value().ok_or(SynthesisError::AssignmentMissing)? - one)
+                })?;
+                cs.enforce(
+                    || format!("link_z_minus_one_{}", i),
+                    |lc| lc + z.get_variable(),
+                    |lc| lc + CS::one(),
+                    |lc| lc + z_minus_one.get_variable() + (one, CS::one()),
+                );
+                let z_plus_one = AllocatedNum::alloc(cs.namespace(|| format!("z_plus_one_{}", i)), || {
+                    Ok(z.get_value().ok_or(SynthesisError::AssignmentMissing)? + one)
+                })?;
+                cs.enforce(
+                    || format!("link_z_plus_one_{}", i),
+                    |lc| lc + z.get_variable(),
+                    |lc| lc + CS::one(),
+                    |lc| lc + z_plus_one.get_variable() + (-one, CS::one()),
+                );
+                // w := z * (z-1)
+                let w = AllocatedNum::alloc(cs.namespace(|| format!("w_{}", i)), || {
+                    let zv = z.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                    let zm1 = z_minus_one.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                    Ok(zv * zm1)
+                })?;
+                cs.enforce(
+                    || format!("w=z*(z-1)_{}", i),
+                    |lc| lc + z.get_variable(),
+                    |lc| lc + z_minus_one.get_variable(),
+                    |lc| lc + w.get_variable(),
+                );
+                // w * (z+1) == 0
+                cs.enforce(
+                    || format!("range_b2_{}", i),
+                    |lc| lc + w.get_variable(),
+                    |lc| lc + z_plus_one.get_variable(),
+                    |lc| lc,
+                );
+                n_constraints += 4;
+            } else {
+                // Generic small-b range: ∏_{t=-(b-1)}^{b-1} (z - t) == 0
+                // Keep it simple for now (b is small).
+                let mut acc = AllocatedNum::alloc(cs.namespace(|| format!("range_acc_init_{}", i)), || Ok(<E as Engine>::Scalar::ONE))?;
+                for t in (-(self.me.base_b as i64 - 1))..=(self.me.base_b as i64 - 1) {
+                    let c = if t >= 0 { 
+                        <E as Engine>::Scalar::from(t as u64) 
+                    } else { 
+                        -<E as Engine>::Scalar::from((-t) as u64) 
+                    };
+                    // lin := (z - t)
+                    let lin = AllocatedNum::alloc(cs.namespace(|| format!("range_lin_{}_{}", i, t)), || {
+                        let zv = z.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                        Ok(zv - c)
+                    })?;
+                    // enforce lin == z - t
+                    cs.enforce(
+                        || format!("lin=z-{}_digit_{}", t, i),
+                        |lc| lc + z.get_variable(),
+                        |lc| lc + CS::one(),
+                        |lc| lc + lin.get_variable() + (c, CS::one()),
+                    );
+                    // acc := acc * lin
+                    let new_acc = AllocatedNum::alloc(cs.namespace(|| format!("range_acc_next_{}_{}", i, t)), || {
+                        Ok(acc.get_value().ok_or(SynthesisError::AssignmentMissing)? *
+                           lin.get_value().ok_or(SynthesisError::AssignmentMissing)?)
+                    })?;
+                    cs.enforce(
+                        || format!("acc_mul_{}_{}", i, t),
+                        |lc| lc + acc.get_variable(),
+                        |lc| lc + lin.get_variable(),
+                        |lc| lc + new_acc.get_variable(),
+                    );
+                    acc = new_acc;
+                    n_constraints += 2;
+                }
+                // acc must be 0
+                cs.enforce(
+                    || format!("range_final_zero_{}", i),
+                    |lc| lc + acc.get_variable(),
+                    |lc| lc + CS::one(),
+                    |lc| lc,
+                );
+                n_constraints += 1;
+            }
+        }
 
         // (A) Ajtai binding: <L_i, Z> = c_i  (rows are constants in v1)
         if let Some(rows) = &self.wit.ajtai_rows {
@@ -201,6 +296,7 @@ impl SpartanCircuit<E> for MeCircuit {
                     };
                     expected_lhs += row_coeff * z_val;
                 }
+                #[cfg(feature = "debug-logs")]
                 eprintln!("🔍 Ajtai constraint {}: computed LHS = {}, expected RHS = {}", 
                     i, expected_lhs.to_canonical_u64(), c_scalar.to_canonical_u64());
 
@@ -240,6 +336,7 @@ impl SpartanCircuit<E> for MeCircuit {
                 };
                 expected_lhs += w_coeff * z_val;
             }
+            #[cfg(feature = "debug-logs")]
             eprintln!("🔍 ME constraint {}: computed LHS = {}, expected RHS = {}", 
                 j, expected_lhs.to_canonical_u64(), y_scalar.to_canonical_u64());
 
@@ -305,17 +402,11 @@ impl SpartanCircuit<E> for MeCircuit {
             let _ = c_alloc.inputize(cs.namespace(|| format!("public_c_{}", i)));
         }
         
-        // 2) y outputs — 2 limbs when y ∈ K  
-        for (i, &y) in self.me.y_outputs.iter().enumerate() {
-            let (y0, y1) = self.k_to_limbs(y);
-            let y0_val = <E as Engine>::Scalar::from(y0.as_canonical_u64());
-            let y1_val = <E as Engine>::Scalar::from(y1.as_canonical_u64());
-            
-            let y0_alloc = AllocatedNum::alloc(cs.namespace(|| format!("y_output_{}_{}", i, 0)), || Ok(y0_val))?;
-            let y1_alloc = AllocatedNum::alloc(cs.namespace(|| format!("y_output_{}_{}", i, 1)), || Ok(y1_val))?;
-            
-            let _ = y0_alloc.inputize(cs.namespace(|| format!("public_y_{}_{}", i, 0)));
-            let _ = y1_alloc.inputize(cs.namespace(|| format!("public_y_{}_{}", i, 1)));
+        // 2) y outputs — already flattened (K -> [F;2]) in adapter
+        for (i, &y_limb) in self.me.y_outputs.iter().enumerate() {
+            let v = <E as Engine>::Scalar::from(y_limb.as_canonical_u64());
+            let a = AllocatedNum::alloc(cs.namespace(|| format!("y_output_limb_{}", i)), || Ok(v))?;
+            let _ = a.inputize(cs.namespace(|| format!("public_y_limb_{}", i)));
         }
         
         // 3) challenge r (Fq^m)
@@ -338,7 +429,7 @@ impl SpartanCircuit<E> for MeCircuit {
         }
         
         // 6) Pad to power-of-2 for Hash-MLE compatibility  
-        let current_public_count = self.me.c_coords.len() + (self.me.y_outputs.len() * 2) + 
+        let current_public_count = self.me.c_coords.len() + self.me.y_outputs.len() + 
                                    self.me.r_point.len() + 1 + digest_scalars.len();
         let target_count = current_public_count.next_power_of_two();
         

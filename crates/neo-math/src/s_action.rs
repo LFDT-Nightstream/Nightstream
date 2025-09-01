@@ -55,16 +55,21 @@ impl SAction {
     /// Left action on a K-vector by applying the S-action independently to real and imaginary parts.
     /// This extends the Fq-linear S-action to the extension field K = Fq[u]/(u^2 - 7).
     /// 
-    /// **Semantics**: Only the first min(y.len(), D) elements are transformed via S-action.
-    /// Elements beyond index D-1 are copied unchanged. For full S-action semantics,
-    /// ensure y.len() <= D.
+    /// **Security**: For ME claims (y_j ∈ K^d should be length D), vectors longer than D
+    /// are rejected to prevent dimension mismatches that could break soundness.
     pub fn apply_k_vec(&self, y: &[K]) -> Vec<K> {
+        // Security check: reject vectors longer than D to prevent silent truncation
+        // that could hide dimension mismatches in ME claims
+        if y.len() > D {
+            panic!("SAction::apply_k_vec: input length {} exceeds maximum dimension D={}", y.len(), D);
+        }
+        
         if y.is_empty() {
             return Vec::new();
         }
 
-        // For vectors longer than D, we apply S-action to the first D elements
-        // and leave the rest unchanged (this handles the case where y has more coordinates)
+        // Process up to min(y.len(), D) elements - this handles both short vectors (tests) 
+        // and exactly D-length vectors (production ME claims)
         let process_len = y.len().min(D);
         
         // Split each K element into real/imaginary parts
@@ -86,17 +91,17 @@ impl SAction {
             result.push(K::new_complex(rotated_re[i], rotated_im[i]));
         }
         
-        // Copy any remaining elements unchanged
-        for &yk in y.iter().skip(process_len) {
-            result.push(yk);
-        }
-        
         result
     }
 
     /// Left action on a slice of K elements (fixed-size version for performance)
     pub fn apply_k_slice(&self, y: &[K], result: &mut [K]) {
         assert_eq!(y.len(), result.len(), "Input and output slices must have same length");
+        
+        // Security check: reject vectors longer than D
+        if y.len() > D {
+            panic!("SAction::apply_k_slice: input length {} exceeds maximum dimension D={}", y.len(), D);
+        }
         
         let process_len = y.len().min(D);
         
@@ -122,8 +127,8 @@ impl SAction {
             result[i] = K::new_complex(rotated_re[i], rotated_im[i]);
         }
         
-        // Copy remaining elements unchanged
-        if process_len < y.len() {
+        // Copy any remaining elements unchanged if result is longer than what we processed
+        if process_len < result.len() {
             result[process_len..].copy_from_slice(&y[process_len..]);
         }
     }

@@ -63,7 +63,7 @@ pub fn pi_rlc_prove(
     let (d, m_in) = (first_me.X.rows(), first_me.X.cols());
     
     // === Sample ρ_i ∈ S with strong sampling ===
-    let mut challenger = tr.as_challenger();
+    let mut challenger = tr.challenger();
     let (rhos, T_bound) = sample_kplus1_invertible(&mut challenger, &DEFAULT_STRONGSET, me_list.len())
         .map_err(|e| PiRlcError::SamplingFailed(e.to_string()))?;
     
@@ -167,7 +167,7 @@ pub fn pi_rlc_verify(
     ]);
     
     // === Re-derive ρ rotations deterministically ===
-    let mut challenger = tr.as_challenger();
+    let mut challenger = tr.challenger();
     let (expected_rhos, expected_T) = match sample_kplus1_invertible(&mut challenger, &DEFAULT_STRONGSET, input_me_list.len()) {
         Ok(result) => result,
         Err(_) => return Ok(false),

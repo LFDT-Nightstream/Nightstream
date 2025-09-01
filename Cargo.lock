@@ -1365,7 +1365,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 [[package]]
 name = "spartan2"
 version = "0.4.0"
-source = "git+https://github.com/nicarq/Spartan2.git?rev=e46c9ca6ba417e6c8514498356afa5b15d3a778b#e46c9ca6ba417e6c8514498356afa5b15d3a778b"
+source = "git+https://github.com/nicarq/Spartan2.git?rev=ac3be247bc5fd68232b2c546ca68115b37f427d6#ac3be247bc5fd68232b2c546ca68115b37f427d6"
 dependencies = [
  "bellpepper",
  "bellpepper-core",

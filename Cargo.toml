@@ -39,7 +39,7 @@ anyhow = "1.0"
 bincode = "1.3"
 
 # Spartan2 and circuit dependencies
-spartan2 = { git = "https://github.com/nicarq/Spartan2.git", rev = "e46c9ca6ba417e6c8514498356afa5b15d3a778b", default-features = false, features = ["p3_backend"] }
+spartan2 = { git = "https://github.com/nicarq/Spartan2.git", rev = "ac3be247bc5fd68232b2c546ca68115b37f427d6", default-features = false, features = ["p3_backend"] }
 bellpepper-core = { version = "0.4" }
 ff = { version = "0.13" }
 

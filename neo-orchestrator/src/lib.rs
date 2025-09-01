@@ -48,6 +48,7 @@ pub enum OrchestratorError {
 ///
 /// Returns the proof bytes and performance metrics.
 pub fn prove(
+    params: &neo_params::NeoParams,
     ccs: &CcsStructure<neo_math::F>,
     instances: &[ConcreteMcsInstance],
     witnesses: &[ConcreteMcsWitness],
@@ -55,8 +56,7 @@ pub fn prove(
     let prove_start = Instant::now();
     
     // Step 1: Execute folding pipeline
-    let params = neo_params::NeoParams::goldilocks_127();
-    let (me_instances, _folding_proof) = fold_ccs_instances(&params, ccs, instances, witnesses)
+    let (me_instances, _folding_proof) = fold_ccs_instances(params, ccs, instances, witnesses)
         .map_err(|e| OrchestratorError::FoldingError(format!("{}", e)))?;
     
     // For now, use placeholder ME to legacy bridge conversion
@@ -140,7 +140,11 @@ pub fn prove_single(
     instance: &ConcreteMcsInstance,
     witness: &ConcreteMcsWitness,
 ) -> Result<(Vec<u8>, Metrics), OrchestratorError> {
-    prove(ccs, &[instance.clone()], &[witness.clone()])
+    // Use auto-tuned parameters based on the circuit characteristics  
+    let ell = ccs.n.trailing_zeros() as u32;
+    let d_sc = ccs.max_degree() as u32;
+    let params = neo_params::NeoParams::goldilocks_autotuned_s2(ell, d_sc, 2);
+    prove(&params, ccs, &[instance.clone()], &[witness.clone()])
 }
 
 /// Simplified verify interface for single instance

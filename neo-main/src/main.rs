@@ -110,7 +110,26 @@ fn main() -> Result<()> {
     
     // Step 4: Setup Ajtai commitment scheme
     println!("\n🔐 Step 4: Setting up Ajtai commitment...");
-    let params = NeoParams::goldilocks_127(); // Use 127-bit security for s=2 compatibility
+    
+    // Show lambda options for s=2
+    println!("\n📊 Lambda Analysis for Neo v1 (s=2 only):");
+    println!("============================================");
+    println!("Your current circuit: ell=3, d_sc=2, ell*d_sc=6");
+    let max_lambda_for_this_circuit = NeoParams::max_lambda_for_s2(3, 2);
+    println!("Max lambda for your circuit: {} bits", max_lambda_for_this_circuit);
+    println!("Required lambda for s=2: ≤ {} bits", max_lambda_for_this_circuit);
+    println!("Your previous lambda=127: TOO HIGH (requires s=3)");
+    
+    // Show general table
+    NeoParams::show_s2_lambda_limits();
+    
+    // Use auto-tuned parameters for this specific circuit
+    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2); // ell=3, d_sc=2, 2-bit safety
+    println!("\n🔧 Using auto-tuned parameters:");
+    println!("   Lambda: {} bits (was 127, now works with s=2)", params.lambda);
+    println!("   Security: {} bits sum-check soundness", params.lambda);
+    println!("   Extension: s=2 (compatible with Neo v1)");
+    
     let mut rng = rand::rngs::StdRng::from_seed([42u8; 32]); // Deterministic for demo
     
     let ajtai_pp = ajtai_setup(&mut rng,

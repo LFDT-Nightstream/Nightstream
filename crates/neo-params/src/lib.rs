@@ -145,6 +145,58 @@ impl NeoParams {
         Self::new(q, eta, d, kappa, m, b, k, T, s, lambda).unwrap()
     }
 
+    /// Calculate maximum lambda that works with s=2 for given workload parameters
+    pub fn max_lambda_for_s2(ell: u32, d_sc: u32) -> u32 {
+        let q: u64 = 0xFFFF_FFFF_0000_0001; // Goldilocks
+        let max_bits = 2.0 * (q as f64).log2(); // ≈ 127.99999999994
+        let penalty = log2_u128((ell as u128) * (d_sc as u128));
+        let lambda_max = (max_bits - penalty).floor() as u32;
+        lambda_max.saturating_sub(1) // Leave 1 bit safety margin
+    }
+
+    /// Auto-tuned Goldilocks preset for s=2 with given max workload parameters
+    /// Chooses lambda so that extension_check passes with some safety margin
+    #[allow(non_snake_case)] // Allow mathematical notation from paper
+    pub fn goldilocks_autotuned_s2(max_ell: u32, max_d_sc: u32, safety_margin: u32) -> Self {
+        let q: u64 = 0xFFFF_FFFF_0000_0001;
+        let eta: u32 = 81;
+        let d: u32 = 54;
+        let kappa: u32 = 16;
+        let m: u64 = 1u64 << 24;
+        let b: u32 = 2;
+        let k: u32 = 12;
+        let T: u32 = 216;
+        let s: u32 = 2;
+
+        let lambda = Self::max_lambda_for_s2(max_ell, max_d_sc).saturating_sub(safety_margin);
+        
+        // Ensure lambda is at least somewhat reasonable (>= 80 bits)
+        let lambda = lambda.max(80);
+        
+        Self::new(q, eta, d, kappa, m, b, k, T, s, lambda).unwrap()
+    }
+
+    /// Preset for typical small-to-medium circuits (ell ≤ 4, d_sc ≤ 3)
+    pub fn goldilocks_small_circuits() -> Self {
+        Self::goldilocks_autotuned_s2(4, 3, 2) // max ell*d_sc=12, 2-bit safety
+    }
+
+    /// Show lambda limits table for different workload sizes with s=2
+    pub fn show_s2_lambda_limits() {
+        println!("\n🔍 Lambda Limits for s=2 with Goldilocks Field:");
+        println!("====================================================");
+        println!(" ell*d_sc  | max_lambda | suggested_lambda");
+        println!("-----------|------------|------------------");
+        
+        for &ell_d_product in &[1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 128, 256] {
+            let max_lambda = Self::max_lambda_for_s2(ell_d_product, 1); // Use ell_d_product directly
+            let suggested = max_lambda.saturating_sub(2); // 2-bit safety margin
+            println!(" {:>8} | {:>10} | {:>16}", ell_d_product, max_lambda, suggested);
+        }
+        println!("\n💡 Rule of thumb: Each doubling of ell*d_sc costs ~1 bit of lambda");
+        println!("🔒 Suggested lambda = max_lambda - 2 (safety margin)");
+    }
+
     /// Compute the minimal extension degree for given (ℓ, d_sc) under target λ.
     /// s_min = ceil( (λ + log2(ℓ·d_sc)) / log2(q) )
     pub fn s_min(&self, ell: u32, d_sc: u32) -> u32 {

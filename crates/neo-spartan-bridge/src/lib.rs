@@ -21,7 +21,6 @@
 //! - **Standard R1CS**: Well-audited SNARK patterns
 
 mod types;
-pub mod neo_ccs_adapter;
 pub mod hash_mle;
 pub mod me_to_r1cs;
 

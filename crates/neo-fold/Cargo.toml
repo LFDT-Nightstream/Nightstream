@@ -14,6 +14,7 @@ neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
 neo-params = { path = "../neo-params" }
 neo-spartan-bridge = { path = "../neo-spartan-bridge" }
+neo-challenge = { path = "../neo-challenge" }
 # Sumcheck functionality now integrated into this crate
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }

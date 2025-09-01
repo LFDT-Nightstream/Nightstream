@@ -16,7 +16,7 @@ use p3_field::{Field, PrimeCharacteristicRing, ExtensionField, PrimeField64};
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 
 // ---------- Field aliases ----------
-pub use neo_math::{F, K}; // Use proper neo-math types
+pub use neo_math::{F, K, ExtF}; // Use proper neo-math types
 
 // ---------- Poseidon2 config ----------
 pub const POSEIDON2_WIDTH: usize = 16;
@@ -136,7 +136,61 @@ impl FoldTranscript {
     pub fn challenges_k(&mut self, m: usize) -> Vec<K> {
         (0..m).map(|_| self.challenge_k()).collect()
     }
+    
+    /// Convert transcript to challenger for use with neo_challenge sampling
+    /// Creates a simple field challenger that can be used with neo-challenge
+    pub fn as_challenger(&mut self) -> SimpleFieldChallenger {
+        SimpleFieldChallenger { transcript: self }
+    }
+    
+    /// Absorb extension field element as base field elements
+    pub fn absorb_ext_as_base_fields(&mut self, label: &[u8], _value: ExtF) {
+        self.absorb_bytes(label);
+        // TODO: Extract proper base field coordinates from ExtF
+        // For now, use a placeholder representation
+        let placeholder = F::from_u64(42u64); // ExtF should split into F coords
+        self.ch.observe(placeholder);
+    }
+    
+    /// Get current state digest for transcript binding
+    pub fn state_digest(&self) -> Vec<u8> {
+        // This is a simplified implementation - in practice we'd export the permutation state
+        // For now, return a placeholder digest
+        vec![0u8; 32]
+    }
 }
+
+/// Simple field challenger adapter for neo-challenge integration
+pub struct SimpleFieldChallenger<'a> {
+    transcript: &'a mut FoldTranscript,
+}
+
+impl<'a> CanSample<F> for SimpleFieldChallenger<'a> {
+    fn sample(&mut self) -> F {
+        self.transcript.challenge_f()
+    }
+}
+
+impl<'a> CanObserve<F> for SimpleFieldChallenger<'a> {
+    fn observe(&mut self, value: F) {
+        self.transcript.ch.observe(value);
+    }
+}
+
+impl<'a> CanObserve<u8> for SimpleFieldChallenger<'a> {
+    fn observe(&mut self, value: u8) {
+        self.transcript.absorb_bytes(&[value]);
+    }
+}
+
+impl<'a> CanSampleBits<usize> for SimpleFieldChallenger<'a> {
+    fn sample_bits(&mut self, bits: usize) -> usize {
+        let field_val = self.transcript.challenge_f().as_canonical_u64();
+        (field_val as usize) & ((1 << bits) - 1)
+    }
+}
+
+impl<'a> FieldChallenger<F> for SimpleFieldChallenger<'a> {}
 
 impl Default for FoldTranscript {
     fn default() -> Self {

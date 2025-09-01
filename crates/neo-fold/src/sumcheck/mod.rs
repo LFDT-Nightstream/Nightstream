@@ -21,7 +21,7 @@ pub use sumcheck::{
     multilinear_sumcheck_verifier,
 };
 
-pub use neo_math::{from_base, ExtF, ExtFieldNormTrait, F, Polynomial, Coeff, ModInt, RingElement};
+pub use neo_math::{from_base, ExtF, F, Polynomial, Coeff, ModInt, RingElement};
 
 // Spartan2 integration
 // Spartan2 integration (shim). This compiles now and keeps public API stable.

@@ -131,7 +131,7 @@ pub fn pi_dec<L: SModuleHomomorphism<F, Cmt>>(
     // === Create k ME(b,L) instances ===
     let mut me_instances = Vec::with_capacity(k);
     
-    for (i, (wit, c_i)) in digit_witnesses.iter().zip(digit_commitments.iter()).enumerate() {
+    for (_i, (wit, c_i)) in digit_witnesses.iter().zip(digit_commitments.iter()).enumerate() {
         // Derive X_i = L_x(Z_i) for each digit
         let X_i = l.project_x(&wit.Z, me_B.m_in);
         

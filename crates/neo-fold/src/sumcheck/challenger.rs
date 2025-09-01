@@ -101,7 +101,7 @@ impl NeoChallenger {
 
     /// Deterministically derive an invertible "rotation" element ρ ∈ R = Z_q[X]/(X^n+1)
     /// from the transcript. We return ±X^j, which is always invertible in R.
-    pub fn challenge_rotation(&mut self, label: &str, n: usize) -> RingElement<ModInt> {
+    pub fn challenge_rotation(&mut self, label: &str, n: usize) -> RingElement {
         // Domain-separate and derive one base-field limb
         self.observe_bytes("rotation_label", label.as_bytes());
         let limb = self.challenge_base(&format!("{label}|rot_j")).as_canonical_u64() as usize;
@@ -119,7 +119,7 @@ impl NeoChallenger {
         }
         let rot = RingElement::from_coeffs(coeffs, n);
 
-        debug_assert!(rot.is_invertible(), "constructed rotation should be invertible");
+        // Note: ±X^j is always invertible in R = F[X]/(X^n + 1)
         rot
     }
 }

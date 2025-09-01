@@ -690,6 +690,7 @@ dependencies = [
  "criterion",
  "neo-ajtai",
  "neo-ccs",
+ "neo-challenge",
  "neo-math",
  "neo-params",
  "neo-spartan-bridge",

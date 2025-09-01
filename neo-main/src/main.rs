@@ -19,7 +19,7 @@ use std::time::Instant;
 use neo_ccs::{Mat, r1cs_to_ccs, check_ccs_rowwise_zero};
 
 // Concrete types from orchestrator 
-type ConcreteMcsInstance = neo_ccs::McsInstance<Vec<u8>, neo_math::F>;
+type ConcreteMcsInstance = neo_ccs::McsInstance<neo_ajtai::Commitment, neo_math::F>;
 type ConcreteMcsWitness = neo_ccs::McsWitness<neo_math::F>;
 use neo_math::F;
 use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle, verify_open};
@@ -136,14 +136,9 @@ fn main() -> Result<()> {
     // Step 6: Create MCS instance for folding
     println!("\n📦 Step 6: Creating MCS instance...");
     // Convert commitment to bytes (simple representation for MCS)
-    let mut c_bytes = Vec::new();
-    c_bytes.extend_from_slice(&commitment.d.to_le_bytes());
-    c_bytes.extend_from_slice(&commitment.kappa.to_le_bytes());
-    for &field_elem in &commitment.data {
-        c_bytes.extend_from_slice(&field_elem.as_canonical_u64().to_le_bytes());
-    }
+    // Use the proper Ajtai commitment directly (no more byte conversion)
     let mcs_instance = ConcreteMcsInstance {
-        c: c_bytes,
+        c: commitment,
         x: public_inputs, // Empty for this example
         m_in: 0,
     };
@@ -152,7 +147,7 @@ fn main() -> Result<()> {
         Z: Mat::from_row_major(neo_math::ring::D, decomp_z.len() / neo_math::ring::D, decomp_z),
     };
     
-    println!("   MCS instance created with commitment size {} bytes", mcs_instance.c.len());
+    println!("   MCS instance created with commitment d={} κ={}", mcs_instance.c.d, mcs_instance.c.kappa);
     
     // Step 7: Generate complete Neo SNARK proof using orchestrator
     println!("\n🔀 Step 7: Generating Neo SNARK proof...");

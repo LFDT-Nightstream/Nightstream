@@ -1,4 +1,6 @@
 // crates/neo-ccs/tests/red_team_me.rs
+#![allow(non_snake_case)] // Allow uppercase math variables like Z, X, L
+
 use neo_ccs::{
     traits::SModuleHomomorphism, Mat, CcsStructure, MeInstance, MeWitness,
     poly::SparsePoly, poly::Term, relations::{check_me_consistency}
@@ -7,6 +9,7 @@ use p3_goldilocks::Goldilocks as Fq;
 use p3_field::PrimeCharacteristicRing;
 use neo_ajtai::{PP, setup as ajtai_setup, commit as ajtai_commit};
 use neo_math::ring::D;
+use rand::SeedableRng;
 
 struct AjtaiL { pp: PP<neo_math::ring::Rq> }
 

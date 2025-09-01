@@ -654,8 +654,10 @@ name = "neo-ccs"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "neo-ajtai",
  "neo-math",
  "p3-field",
+ "p3-goldilocks",
  "p3-matrix",
  "rand 0.9.2",
  "rayon",

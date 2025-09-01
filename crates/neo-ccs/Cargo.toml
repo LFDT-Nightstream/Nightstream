@@ -23,3 +23,5 @@ spartan2-compat = ["spartan2", "neo-math/spartan2-compat", "legacy-compat"]
 [dev-dependencies]
 criterion = { workspace = true }
 rand = { workspace = true }
+p3-goldilocks = { workspace = true }
+neo-ajtai = { path = "../neo-ajtai" }

@@ -28,7 +28,7 @@ pub type ExtF = K; // Extension field type alias
 pub mod modint;
 pub mod poly;
 pub mod decomp;
-pub mod transcript;
+// transcript module removed - use neo_fold::transcript::FoldTranscript instead
 
 // ModInt and Coeff re-exports from existing modules
 pub use modint::{ModInt, Coeff};

@@ -40,6 +40,10 @@ pub enum PiCcsError {
     /// Sum-check protocol error
     #[error("Sum-check error: {0}")]
     SumcheckError(String),
+    
+    /// Extension policy validation error
+    #[error("Extension policy failed: {0}")]
+    ExtensionPolicyFailed(String),
 }
 
 /// Π_RLC random linear combination error

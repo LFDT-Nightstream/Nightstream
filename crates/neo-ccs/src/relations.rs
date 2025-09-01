@@ -44,6 +44,9 @@ impl<F: Field> CcsStructure<F> {
 
     /// Number of matrices (arity of `f`).
     pub fn t(&self) -> usize { self.matrices.len() }
+    
+    /// Maximum degree of the CCS polynomial.
+    pub fn max_degree(&self) -> u32 { self.f.max_degree() }
 }
 
 /// MCS instance: (c, x) with public inputs x ⊂ z (see Def. 17).

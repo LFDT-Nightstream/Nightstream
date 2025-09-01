@@ -50,16 +50,31 @@ pub fn pi_ccs_prove(
         return Err(PiCcsError::InvalidInput("Empty instance list".into()));
     }
     
+    // === Extension Policy Validation ===
+    // CRITICAL FIX: ell must be log2(n), not n itself
+    if !s.n.is_power_of_two() {
+        return Err(PiCcsError::InvalidInput(format!("CCS size n={} must be power of 2", s.n)));
+    }
+    let ell = s.n.trailing_zeros() as usize; // ell = log2(n)
+    let d_sc = s.max_degree() as u32; // Max degree of CCS polynomial
+    
+    // Validate that extension policy s=2 can handle this circuit
+    let extension_summary = params.extension_check(ell as u32, d_sc)
+        .map_err(|e| PiCcsError::ExtensionPolicyFailed(format!("Extension policy validation failed: {}", e)))?;
+    
+    if extension_summary.slack_bits < 0 {
+        return Err(PiCcsError::ExtensionPolicyFailed(format!(
+            "Insufficient security slack: {} bits (need ≥ 0)", extension_summary.slack_bits
+        )));
+    }
+    
+    // Record slack_bits in transcript as required by paper
+    tr.absorb_u64(&[extension_summary.slack_bits as u64]);
+    
     // === Sample challenge vectors ===
-    let ell = params.lambda as usize; // Use security parameter as ell for now
     let r: Vec<K> = tr.challenges_k(ell);  
-    let rb: Vec<K> = (0..ell).map(|i| {
-        let mut base_pow = K::ONE;
-        for _ in 0..params.b.pow(i as u32) { 
-            base_pow *= K::from(F::from_u64(params.b as u64)); // Use base b as generator
-        }
-        base_pow * r[i]
-    }).collect();
+    // CRITICAL FIX: Use proper tensor product r^⊗ ∈ K^n
+    let rb: Vec<K> = neo_ccs::utils::tensor_point::<K>(&r);
     
     // === Build sum-check claim ===
     // For each instance i: claim_i = Σ_{u∈{0,1}^ell} f_i(u) * χ_r(u)  
@@ -120,8 +135,22 @@ pub fn pi_ccs_verify(
         params.s as u64,
     ]);
     
+    // === Extension Policy Validation (same as prover) ===
+    // CRITICAL FIX: ell must be log2(n), not n itself
+    if !s.n.is_power_of_two() {
+        return Err(PiCcsError::InvalidInput(format!("CCS size n={} must be power of 2", s.n)));
+    }
+    let ell = s.n.trailing_zeros() as usize; // ell = log2(n)
+    let d_sc = s.max_degree() as u32; // Max degree of CCS polynomial
+    
+    // Validate that extension policy s=2 can handle this circuit
+    let extension_summary = params.extension_check(ell as u32, d_sc)
+        .map_err(|e| PiCcsError::ExtensionPolicyFailed(format!("Extension policy validation failed: {}", e)))?;
+    
+    // Record same slack_bits as prover
+    tr.absorb_u64(&[extension_summary.slack_bits as u64]);
+    
     // Re-derive challenges
-    let ell = params.lambda as usize; // Use security parameter as ell for now
     let _r: Vec<K> = tr.challenges_k(ell);
     
     // Sample same batching coefficients
@@ -136,8 +165,7 @@ pub fn pi_ccs_verify(
         return Ok(false);
     }
     
-    eprintln!("✅ PI_CCS_VERIFY: Sum-check validation completed (simplified)");
-    eprintln!("  Proof rounds: {}", proof.sumcheck_rounds.len());
+    // Sum-check validation completed
     
     Ok(true)
 }

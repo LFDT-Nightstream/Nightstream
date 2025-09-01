@@ -1,11 +1,8 @@
 pub mod fiat_shamir;
-pub mod challenger;
+// challenger module removed - use crate::transcript::FoldTranscript instead
 
 // Re-export the unified transcript for backward compatibility
 pub use crate::transcript::FoldTranscript as Transcript;
-
-#[deprecated(since = "0.1.0", note = "Use crate::transcript::FoldTranscript instead")]
-pub use challenger::NeoChallenger;
 pub mod poly;
 pub mod sumcheck;
 

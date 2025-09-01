@@ -86,12 +86,17 @@ pub fn prove(
         .map_err(|e| OrchestratorError::CompressionError(format!("{}", e)))?;
     
     let prove_time = prove_start.elapsed();
+    
+    // Serialize the entire ProofBundle (includes proof + VK + public_io) 
+    let bundle_bytes = bincode::serialize(&proof_bundle)
+        .map_err(|e| OrchestratorError::CompressionError(format!("Bundle serialization failed: {}", e)))?;
+    
     let metrics = Metrics {
         prove_ms: prove_time.as_secs_f64() * 1000.0,
-        proof_bytes: proof_bundle.proof.len(),
+        proof_bytes: bundle_bytes.len(),
     };
     
-    Ok((proof_bundle.proof, metrics))
+    Ok((bundle_bytes, metrics))
 }
 
 /// Verify a Neo SNARK proof against the given CCS instance
@@ -103,18 +108,29 @@ pub fn verify(
     _instances: &[ConcreteMcsInstance], 
     proof: &[u8]
 ) -> bool {
-    // Create a proof bundle for verification
-    // TODO: This is placeholder - need proper public IO reconstruction
-    let proof_bundle = neo_spartan_bridge::ProofBundle::new_with_vk(
-        proof.to_vec(),
-        vec![], // Empty VK for now
-        vec![], // Empty public IO for now  
-    );
+    // Deserialize the complete ProofBundle (includes proof + VK + public_io)
+    let proof_bundle: neo_spartan_bridge::ProofBundle = match bincode::deserialize(proof) {
+        Ok(bundle) => bundle,
+        Err(e) => {
+            eprintln!("⚠️ Failed to deserialize ProofBundle: {:?}", e);
+            return false;
+        }
+    };
     
-    // Verify the Spartan2 proof
+    // Verify the Spartan2 proof using the original bundle (with correct VK)
     match verify_me_spartan(&proof_bundle) {
-        Ok(result) => result,
-        Err(_) => false,
+        Ok(result) => {
+            if result {
+                eprintln!("✅ Spartan2 verification passed!");
+            } else {
+                eprintln!("❌ Spartan2 verification failed!");
+            }
+            result
+        },
+        Err(e) => {
+            eprintln!("⚠️ Verification error: {:?}", e);
+            false
+        },
     }
 }
 

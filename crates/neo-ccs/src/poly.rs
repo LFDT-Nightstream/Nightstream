@@ -18,6 +18,14 @@ impl<F> SparsePoly<F> {
 
     /// Terms.
     pub fn terms(&self) -> &[Term<F>] { &self.terms }
+    
+    /// Maximum degree of the polynomial (highest sum of exponents in any term).
+    pub fn max_degree(&self) -> u32 {
+        self.terms.iter()
+            .map(|term| term.exps.iter().sum::<u32>())
+            .max()
+            .unwrap_or(0)
+    }
 }
 
 /// A single term: `coeff * ∏_j x_j^{exps[j]}`.

@@ -144,12 +144,13 @@ impl FoldTranscript {
     }
     
     /// Absorb extension field element as base field elements
-    pub fn absorb_ext_as_base_fields(&mut self, label: &[u8], _value: ExtF) {
+    pub fn absorb_ext_as_base_fields(&mut self, label: &[u8], value: ExtF) {
         self.absorb_bytes(label);
-        // TODO: Extract proper base field coordinates from ExtF
-        // For now, use a placeholder representation
-        let placeholder = F::from_u64(42u64); // ExtF should split into F coords
-        self.ch.observe(placeholder);
+        // Split ExtF into base field coordinates and absorb each
+        let a0 = value.real();
+        let a1 = value.imag();
+        self.ch.observe(a0);
+        self.ch.observe(a1);
     }
     
     /// Get current state digest for transcript binding

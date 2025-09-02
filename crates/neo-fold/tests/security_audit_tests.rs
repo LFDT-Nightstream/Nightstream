@@ -204,7 +204,7 @@ fn test_s_action_correctness_on_k_vectors() {
     let s_action = SAction::from_ring(ring_elem);
     
     // Apply the real S-action implementation to K vector
-    let result_vector = s_action.apply_k_vec(&k_vector);
+    let result_vector = s_action.apply_k_vec(&k_vector).expect("S-action should work");
     
     println!("  After S-action: {:?}", result_vector.iter().map(|k| format!("{:?}", k)).collect::<Vec<_>>());
     

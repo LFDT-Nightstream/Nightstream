@@ -70,11 +70,11 @@ proptest! {
         }
         
         // Apply S-action to the combination: S(a*y + b*z)
-        let s_combination = s.apply_k_vec(&ay_plus_bz);
+        let s_combination = s.apply_k_vec(&ay_plus_bz).expect("S-action should work");
         
         // Apply S-action separately: a*S(y) + b*S(z)
-        let s_y = s.apply_k_vec(y);
-        let s_z = s.apply_k_vec(z);
+        let s_y = s.apply_k_vec(y).expect("S-action should work");
+        let s_z = s.apply_k_vec(z).expect("S-action should work");
         
         let mut a_sy_plus_b_sz = Vec::with_capacity(len);
         for i in 0..len {
@@ -94,7 +94,7 @@ proptest! {
         s in arb_s_action(),
         y in arb_k_vec()
     ) {
-        let result = s.apply_k_vec(&y);
+        let result = s.apply_k_vec(&y).expect("S-action should work");
         prop_assert_eq!(y.len(), result.len());
     }
     
@@ -108,7 +108,7 @@ proptest! {
         coeffs[0] = Fq::ONE;
         let identity_s = SAction::from_ring(cf_inv(coeffs));
         
-        let result = identity_s.apply_k_vec(&y);
+        let result = identity_s.apply_k_vec(&y).expect("S-action should work");
         
         prop_assert_eq!(y.len(), result.len());
         for (original, preserved) in y.iter().zip(result.iter()) {
@@ -140,11 +140,11 @@ proptest! {
         }
         
         // S(y + z)
-        let s_sum = s.apply_k_vec(&y_plus_z);
+        let s_sum = s.apply_k_vec(&y_plus_z).expect("S-action should work");
         
         // S(y) + S(z)
-        let s_y = s.apply_k_vec(y);
-        let s_z = s.apply_k_vec(z);
+        let s_y = s.apply_k_vec(y).expect("S-action should work");
+        let s_z = s.apply_k_vec(z).expect("S-action should work");
         let mut sum_s = Vec::with_capacity(len);
         for i in 0..len {
             sum_s.push(s_y[i] + s_z[i]);
@@ -181,11 +181,11 @@ mod unit_tests {
         }
         
         // Apply S-action
-        let s_combination = s.apply_k_vec(&ay_plus_bz);
+        let s_combination = s.apply_k_vec(&ay_plus_bz).expect("S-action should work");
         
         // Apply S-action separately
-        let s_y = s.apply_k_vec(&y);
-        let s_z = s.apply_k_vec(&z);
+        let s_y = s.apply_k_vec(&y).expect("S-action should work");
+        let s_z = s.apply_k_vec(&z).expect("S-action should work");
         let mut a_sy_plus_b_sz = Vec::new();
         for i in 0..y.len() {
             a_sy_plus_b_sz.push(a * s_y[i] + b * s_z[i]);

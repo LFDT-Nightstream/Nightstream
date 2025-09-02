@@ -103,34 +103,72 @@ fn eval_ccs_component(
 /// 
 /// NOTE: For honest instances where Z == Decomp_b(z) and ||Z||_∞ < b, 
 ///       this MUST return zero to make the composed polynomial Q sum to zero.
-fn eval_range_decomp_constraints(
-    _z: &[F],
-    _Z: &neo_ccs::Mat<F>,
-    _u: &[K], 
-    _params: &neo_params::NeoParams,
+pub fn eval_range_decomp_constraints(
+    z: &[F],
+    Z: &neo_ccs::Mat<F>,
+    _u: &[K],                  // not used: constraints are independent of u
+    params: &neo_params::NeoParams,
 ) -> K {
-    // DEMO-FRIENDLY CONSTRAINT EVALUATION
-    // 
-    // For the Fibonacci demo and production use, the range/decomp constraints 
-    // are enforced in TWO ways:
-    //
-    // 1. PROVER-SIDE: pi_ccs_prove verifies Z == Decomp_b(z) and ||Z||_∞ < b
-    //    This catches inconsistent witnesses during proof generation.
-    //
-    // 2. BRIDGE SNARK: The final bridge circuit enforces digit range constraints
-    //    cryptographically via product polynomials like z*(z-1)*(z+1)=0 for b=2.
-    //
-    // The MLE evaluation of these constraints in the sum-check context is complex
-    // and prone to subtle bugs. For a working demo, we trust the prover-side checks
-    // and the bridge SNARK verification.
-    //
-    // In a full production implementation, you would implement the multilinear
-    // extension of the range polynomials here, but it must match exactly how
-    // the polynomials are defined throughout the protocol.
+    // REAL CONSTRAINT EVALUATION (degree 0 in u)
+    // Enforces two facts:
+    // 1. Decomposition correctness: z[c] = Σ_{i=0}^{d-1} b^i * Z[i,c] 
+    // 2. Digit range (balanced): R_b(x) = x * ∏_{t=1}^{b-1} (x-t)(x+t) = 0
     
-    // For honest instances that pass prover-side checks, return zero
-    // This allows the sum-check to succeed for valid Fibonacci computations
-    K::ZERO
+    let d = Z.rows();
+    let m = Z.cols();
+
+    // Sanity: shapes
+    if z.len() != m {
+        // Treat shape mismatch as a hard violation: contribute a non-zero sentinel.
+        return K::from(F::ONE);
+    }
+
+    // Precompute base powers in F for recomposition
+    let b_f = F::from_u64(params.b as u64);
+    let mut pow_b = vec![F::ONE; d];
+    for i in 1..d { 
+        pow_b[i] = pow_b[i - 1] * b_f; 
+    }
+
+    // === (A) Decomposition correctness residual: sum of squares in K ===
+    let mut decomp_residual = K::ZERO;
+    for c in 0..m {
+        // z_rec = Σ_{i=0..d-1} (b^i * Z[i,c])
+        let mut z_rec_f = F::ZERO;
+        for i in 0..d {
+            z_rec_f += Z[(i, c)] * pow_b[i];
+        }
+        // Residual (in K): (z_rec - z[c])^2
+        let diff_k = K::from(z_rec_f) - K::from(z[c]);
+        decomp_residual += diff_k * diff_k;
+    }
+
+    // === (B) Range residual: R_b(x) = x * ∏_{t=1}^{b-1} (x - t)(x + t) for every digit ===
+    // Works for the "Balanced" digit set in your code path; if you ever switch styles,
+    // generalize this polynomial accordingly.
+    let mut range_residual = K::ZERO;
+
+    // Precompute constants in F for 1..(b-1)
+    let mut t_vals = Vec::with_capacity((params.b - 1) as usize);
+    for t in 1..params.b {
+        t_vals.push(F::from_u64(t as u64));
+    }
+
+    for c in 0..m {
+        for i in 0..d {
+            let x = Z[(i, c)];            // digit in F
+            // Build R_b(x) in K
+            let mut rbx = K::from(x);     // starts with the leading x factor
+            // Multiply (x - t)(x + t) over t=1..b-1
+            for &t in &t_vals {
+                rbx *= K::from(x) - K::from(t);   // (x - t)
+                rbx *= K::from(x) + K::from(t);   // (x + t)
+            }
+            range_residual += rbx;
+        }
+    }
+
+    decomp_residual + range_residual
 }
 
 /// Evaluate tie constraint polynomials ⟨M_j^T χ_u, Z⟩ - y_j at point u.
@@ -138,36 +176,58 @@ fn eval_range_decomp_constraints(
 /// 
 /// CRITICAL: This must be implemented correctly for soundness!
 /// The sum-check terminal verification depends on this being accurate.
-fn eval_tie_constraints(
+pub fn eval_tie_constraints(
     s: &CcsStructure<F>,
-    _Z: &neo_ccs::Mat<F>,
-    claimed_y: &[Vec<K>], // y_j values claimed by the prover  
-    _u: &[K],
+    Z: &neo_ccs::Mat<F>,
+    claimed_y: &[Vec<K>], // y_j entries as produced in ME (length t, each length d)
+    u: &[K],
 ) -> K {
-    // For the Fibonacci demo and honest instances, the tie constraints should be zero
-    // since the y_j values are computed correctly from Z in pi_ccs_prove.
-    //
-    // The REAL security comes from:
-    // 1. Cryptographic commitment binding c = L(Z) verified in pi_ccs_prove
-    // 2. ME instance consistency enforced via transcript binding
-    // 3. Ajtai + Π_DEC binding in the subsequent phases
-    //
-    // For a full implementation, you would evaluate:
-    // Σ_j ⟨M_j^T χ_u, Z⟩ − y_j(u) = 0
-    // But this requires careful MLE evaluation that matches exactly how y_j are computed.
+    // REAL MULTILINEAR EXTENSION EVALUATION
+    // Implements: Σ_j Σ_ρ (⟨Z_ρ,*, M_j^T χ_u⟩ - y_{j,ρ})
     
-    // DEMO-FRIENDLY: Assume tie constraints are satisfied for honest instances
-    // This allows the Fibonacci demo to work while still providing the structural
-    // framework for real constraint evaluation.
-    let _rb = neo_ccs::utils::tensor_point::<K>(_u);
+    // χ_u ∈ K^n
+    let chi_u = neo_ccs::utils::tensor_point::<K>(u);
+
+    let d = Z.rows();       // Ajtai dimension
+    let m = Z.cols();       // number of columns in Z (== s.m)
+
+    debug_assert_eq!(m, s.m, "Z.cols() must equal s.m");
     
-    // Quick structural check: ensure dimensions match
-    if claimed_y.len() != s.matrices.len() {
-        return K::ONE; // Signal violation if structure is wrong
+    // If claimed_y is missing or has wrong shape, we conservatively treat it as zero.
+    // (This will force the prover's Q(u) to carry the full ⟨Z, M_j^T χ_u⟩ mass, which
+    // then must cancel at r when the real y_j are used.)
+    let safe_y = |j: usize, rho: usize| -> K {
+        if j < claimed_y.len() && rho < claimed_y[j].len() {
+            claimed_y[j][rho]
+        } else {
+            K::ZERO
+        }
+    };
+
+    let mut total = K::ZERO;
+
+    // For each matrix M_j, build v_j(u) = M_j^T χ_u ∈ K^m, then compute Z * v_j(u) ∈ K^d
+    for (j, mj) in s.matrices.iter().enumerate() {
+        // v_j[c] = Σ_{row=0..n-1} M_j[row,c] * χ_u[row]
+        let mut vj = vec![K::ZERO; s.m];
+        for row in 0..s.n {
+            let coeff = chi_u[row];
+            let mj_row = mj.row(row);
+            for c in 0..s.m {
+                vj[c] += K::from(mj_row[c]) * coeff;
+            }
+        }
+        // lhs = Z * v_j(u) as a length-d K-vector
+        let z_ref = neo_ccs::MatRef::from_mat(Z);
+        let lhs = neo_ccs::utils::mat_vec_mul_fk::<F, K>(z_ref.data, z_ref.rows, z_ref.cols, &vj);
+
+        // Accumulate the residual (lhs - y_j)
+        for rho in 0..d {
+            total += lhs[rho] - safe_y(j, rho);
+        }
     }
-    
-    // For honest instances with correct y_j computation, return zero
-    K::ZERO
+
+    total
 }
 
 /// Evaluate the full composed polynomial Q(u) = α·CCS + β·NC + γ·Ties

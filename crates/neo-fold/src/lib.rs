@@ -16,7 +16,7 @@ pub mod pi_dec;
 // Re-export main types
 pub use error::{FoldingError, PiCcsError, PiRlcError, PiDecError};
 pub use transcript::{FoldTranscript, Domain};
-pub use pi_ccs::{pi_ccs_prove, pi_ccs_verify, PiCcsProof};  
+pub use pi_ccs::{pi_ccs_prove, pi_ccs_verify, PiCcsProof, eval_tie_constraints, eval_range_decomp_constraints};  
 pub use pi_rlc::{pi_rlc_prove, pi_rlc_verify, PiRlcProof};
 pub use pi_dec::{pi_dec, pi_dec_verify, PiDecProof};
 

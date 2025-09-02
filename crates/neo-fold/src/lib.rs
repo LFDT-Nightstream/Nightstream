@@ -24,6 +24,7 @@ use neo_ccs::{MeInstance, MeWitness, CcsStructure};
 use neo_math::{F, K};
 use neo_ajtai::Commitment as Cmt;
 use p3_field::PrimeCharacteristicRing;
+use crate::pi_rlc::GuardParams; // For creating dummy RLC proofs in single-instance case
 
 /// Proof that k+1 CCS instances fold to k instances
 #[derive(Debug, Clone)]
@@ -60,7 +61,38 @@ pub fn fold_ccs_instances(
     let (me_list, pi_ccs_proof) =
         pi_ccs::pi_ccs_prove(&mut tr, params, structure, instances, witnesses, &l)?;
 
-    // 2) Π_RLC: k+1 ME(b,L) → 1 ME(B,L)
+    // === SHORT-CIRCUIT: single-instance case ===
+    // If Π_CCS produced exactly one ME(b,L), there is nothing to combine.
+    // Skip Π_RLC and Π_DEC; return the ME as-is with empty subproofs.
+    if me_list.len() == 1 {
+        eprintln!("✅ SINGLE-INSTANCE: Skipping RLC/DEC (nothing to fold)");
+        
+        let dummy_rlc = PiRlcProof {
+            rho_elems: Vec::new(),
+            guard_params: GuardParams { 
+                k: 0, 
+                T: 0, 
+                b: params.b as u64, 
+                B: params.B as u64 
+            },
+        };
+        
+        let dummy_dec = PiDecProof {
+            digit_commitments: None,
+            recomposition_proof: Vec::new(),
+            range_proofs: Vec::new(),
+        };
+        
+        let proof = FoldingProof {
+            pi_ccs_proof,
+            pi_rlc_proof: dummy_rlc,
+            pi_dec_proof: dummy_dec,
+        };
+        
+        return Ok((me_list, proof));
+    }
+
+    // 2) Π_RLC: k+1 ME(b,L) → 1 ME(B,L) (only for multiple instances)
     let (me_b, pi_rlc_proof) = pi_rlc::pi_rlc_prove(&mut tr, params, &me_list)?;
 
     // 2b) Build the combined witness Z' = Σ rot(ρ_i)·Z_i for the DEC prover

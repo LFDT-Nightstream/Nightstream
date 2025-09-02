@@ -158,6 +158,19 @@ pub fn pi_rlc_verify(
     _output_me: &MeInstance<Cmt, F, K>,
     proof: &PiRlcProof,
 ) -> Result<bool, PiRlcError> {
+    // Trivial pass-through: nothing to combine for single instance
+    if input_me_list.len() == 1 {
+        let a = &input_me_list[0];
+        let b = _output_me;
+        let same = a.c == b.c
+            && a.X.as_slice() == b.X.as_slice()
+            && a.y == b.y
+            && a.r == b.r
+            && a.m_in == b.m_in
+            && proof.rho_elems.is_empty();
+        return Ok(same);
+    }
+    
     // Bind same extension policy parameters as prover
     tr.domain(Domain::Rlc);
     tr.absorb_bytes(b"neo/params/v1");

@@ -63,6 +63,7 @@ fn create_test_me_instances(count: usize) -> Vec<MeInstance<Commitment, F, K>> {
             c: commitment,
             X,
             y,
+            y_scalars: vec![K::from(F::ONE)], // Test y_scalars
             r,
             m_in: 4,
             fold_digest: [0u8; 32], // Dummy digest for test

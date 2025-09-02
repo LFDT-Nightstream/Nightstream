@@ -50,6 +50,7 @@ fn verify_shortcircuit_single_instance() {
         X: Mat::from_row_major(1, 1, vec![F::ZERO]),
         r: vec![],               // ell = 0
         y: vec![vec![K::ZERO]],
+        y_scalars: vec![K::ZERO], // Test placeholder
         m_in: 0,
         fold_digest: [0u8; 32],  // Dummy digest for test
     };
@@ -83,8 +84,8 @@ fn verify_multi_instance_zero_commitments_dec_present() {
     ];
 
     // Π_CCS outputs (two ME(b,L)), all zeros
-    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], m_in: 1, fold_digest: [0u8; 32] };
-    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], m_in: 1, fold_digest: [0u8; 32] };
+    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
 
     // DEC digits: params.k many zero digits
     let k = params.k as usize;
@@ -95,6 +96,7 @@ fn verify_multi_instance_zero_commitments_dec_present() {
             X: Mat::from_row_major(1,1,vec![F::ZERO]),
             r: vec![],
             y: vec![vec![K::ZERO]],
+            y_scalars: vec![K::ZERO],
             m_in: 1,
             fold_digest: [0u8; 32],
         });
@@ -137,8 +139,8 @@ fn verify_rejects_when_rho_mismatch() {
         McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![], m_in: 1 },
         McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![F::ZERO], m_in: 1 },
     ];
-    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], m_in: 1, fold_digest: [0u8; 32] };
-    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], m_in: 1, fold_digest: [0u8; 32] };
+    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
 
     // DEC digits (zeros)
     let k = params.k as usize;
@@ -149,6 +151,7 @@ fn verify_rejects_when_rho_mismatch() {
             X: Mat::from_row_major(1,1,vec![F::ZERO]),
             r: vec![],
             y: vec![vec![K::ZERO]],
+            y_scalars: vec![K::ZERO],
             m_in: 1,
             fold_digest: [0u8; 32],
         });
@@ -191,8 +194,8 @@ fn verify_rejects_when_range_base_mismatches() {
         McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![], m_in: 1 },
         McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![F::ZERO], m_in: 1 },
     ];
-    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], m_in: 1, fold_digest: [0u8; 32] };
-    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], m_in: 1, fold_digest: [0u8; 32] };
+    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
 
     let k = params.k as usize;
     let mut digits = Vec::with_capacity(k);
@@ -202,6 +205,7 @@ fn verify_rejects_when_range_base_mismatches() {
             X: Mat::from_row_major(1,1,vec![F::ZERO]),
             r: vec![],
             y: vec![vec![K::ZERO]],
+            y_scalars: vec![K::ZERO],
             m_in: 1,
             fold_digest: [0u8; 32],
         });

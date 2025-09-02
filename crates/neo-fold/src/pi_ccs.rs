@@ -429,9 +429,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     for inst in insts.iter() {
         // X = L_x(Z)
         let X = l.project_x(inst.Z, inst.m_in);
+        
         // For each M_j: v_j = M_j^T * r^⊗  (K^m), then y_j = Z * v_j (K^d)
         let mut y = Vec::with_capacity(s.t());
-        for mj in &s.matrices {
+        // **SECURITY FIX**: Also compute Y_j(r) = ⟨(M_j z), χ_r⟩ scalars for terminal check
+        let mut y_scalars = Vec::with_capacity(s.t());
+        
+        for (j, mj) in s.matrices.iter().enumerate() {
             // v_j[c] = Σ_r mj[r,c] * rb[r]
             let mut vj = vec![K::ZERO; s.m];
             for row in 0..s.n {
@@ -442,12 +446,23 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             let z_ref = neo_ccs::MatRef::from_mat(inst.Z);
             let yj = neo_ccs::utils::mat_vec_mul_fk::<F,K>(z_ref.data, z_ref.rows, z_ref.cols, &vj);
             y.push(yj);
+            
+            // CRITICAL: Compute Y_j(r) = ⟨(M_j z), χ_r⟩ for CCS terminal check
+            // This is different from y_j = Z * (M_j^T * χ_r)!
+            let mj_z = &inst.mz[j]; // Pre-computed M_j z in F
+            let mut y_scalar = K::ZERO;
+            for i in 0..s.n { 
+                y_scalar += K::from(mj_z[i]) * rb[i]; 
+            }
+            y_scalars.push(y_scalar);
         }
+        
         out_me.push(MeInstance{ 
             c: inst.c.clone(), 
             X, 
             r: r.clone(), 
             y, 
+            y_scalars, // SECURITY: Correct scalars for terminal check
             m_in: inst.m_in,
             fold_digest, // Bind to transcript
         });
@@ -543,17 +558,11 @@ pub fn pi_ccs_verify(
     // - Tie component: Not included in sum-check polynomial Q(u)
     
     for (inst_idx, me_inst) in out_me.iter().enumerate() {
-        // 1) CCS component: α_i · f(Y(r)) using public y_j values from ME
+        // 1) CCS component: α_i · f(Y(r)) using CORRECT Y_j(r) scalars from ME
         let ccs_contribution = if inst_idx < _batch_coeffs.alphas.len() {
-            // Problem: ME y_j values are vectors (length d), but CCS polynomial expects scalars
-            // The correct approach depends on how Y_j(u) maps to the scalar CCS polynomial
-            // For now, use a reasonable interpretation: sum all components
-            let y_scalars: Vec<K> = me_inst.y.iter().map(|y_vec| {
-                y_vec.iter().cloned().sum::<K>()  // Sum vector components to get scalar
-            }).collect();
-            
-            // Evaluate CCS polynomial f at these scalar values in extension field
-            let f_eval = s.f.eval_in_ext::<K>(&y_scalars);
+            // SECURITY FIX: Use the correct Y_j(r) = ⟨(M_j z), χ_r⟩ scalars
+            // NOT the sum of y vector components (which are Z * (M_j^T * χ_r) vectors)
+            let f_eval = s.f.eval_in_ext::<K>(&me_inst.y_scalars);
             _batch_coeffs.alphas[inst_idx] * f_eval
         } else {
             K::ZERO

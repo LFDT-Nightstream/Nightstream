@@ -126,10 +126,22 @@ pub fn pi_rlc_prove(
     }
     
     // === Build combined ME instance ===
+    // SECURITY FIX: Combine y_scalars using same S-action as other components
+    let mut y_scalars_combined = vec![K::ZERO; first_me.y_scalars.len()];
+    for (me, rho_ring) in me_list.iter().zip(&rho_ring_elems) {
+        let s_action = SAction::from_ring(*rho_ring);
+        let rotated_scalars = s_action.apply_k_vec(&me.y_scalars)
+            .map_err(|e| PiRlcError::SActionError(format!("y_scalars rotation failed: {e}")))?;
+        for (combined, &rotated) in y_scalars_combined.iter_mut().zip(&rotated_scalars) {
+            *combined += rotated;
+        }
+    }
+
     let me_combined = MeInstance {
         c: c_prime,
         X: X_prime,
         y: y_prime,
+        y_scalars: y_scalars_combined, // SECURITY: Correct combined Y_j(r) scalars  
         r: first_me.r.clone(), // Same challenge vector
         m_in,
         fold_digest: first_me.fold_digest, // Preserve the fold digest binding

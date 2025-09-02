@@ -252,11 +252,34 @@ fn recombine_me_digits_to_parent(
         pow_k *= base_k;
     }
 
+    // SECURITY FIX: Recompute y_scalars for parent ME instance
+    // y_scalars[j] = Y_j(r) = ⟨(M_j z_parent), χ_r⟩ 
+    // For recombined parent, this should be Σ b^i * Y_j,i(r) from digits
+    let y_scalars_parent = if let Some(first_digit) = digits.first() {
+        let t = first_digit.y_scalars.len();
+        let mut parent_scalars = vec![K::ZERO; t];
+        let mut pow_k = K::from(F::ONE);
+        let base_k = K::from(F::from_u64(params.b as u64));
+        
+        for digit in digits {
+            for j in 0..t {
+                if j < digit.y_scalars.len() {
+                    parent_scalars[j] += digit.y_scalars[j] * pow_k;
+                }
+            }
+            pow_k *= base_k;
+        }
+        parent_scalars
+    } else {
+        vec![]
+    };
+
     Ok(MeInstance {
         c: c_parent,
         X: X_parent,
         r: r_ref.clone(),
         y: y_parent,
+        y_scalars: y_scalars_parent, // SECURITY: Correct recombined Y_j(r) scalars
         m_in,
         fold_digest: digits[0].fold_digest, // All digits should have same fold_digest
     })

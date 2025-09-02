@@ -82,6 +82,9 @@ pub struct MeInstance<C, F, K> {
     pub r: Vec<K>,
     /// y_j ∈ K^{d} for j=0..t-1 (stored as a vector-of-vectors length t, each len d).
     pub y: Vec<Vec<K>>,
+    /// **SECURITY FIX**: Y_j(r) = ⟨(M_j z), χ_r⟩ ∈ K scalars for CCS terminal verification
+    /// These are the CORRECT values needed for sum-check terminal check, not sums of y vector components
+    pub y_scalars: Vec<K>,
     /// m_in
     pub m_in: usize,
     /// **SECURITY**: Transcript-derived digest binding this ME to the folding proof

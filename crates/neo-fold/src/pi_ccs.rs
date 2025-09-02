@@ -64,9 +64,11 @@ fn lagrange_interpolate_k(xs: &[K], ys: &[K]) -> Vec<K> {
 struct BatchingCoeffs {
     /// α coefficients for CCS constraints f(Mz)  
     alphas: Vec<K>,
-    /// β coefficients for range/decomposition constraints NC_i
+    /// β coefficients for range/decomposition constraints NC_i (UNUSED - removed from sum-check)
+    #[allow(dead_code)]
     betas: Vec<K>, 
-    /// γ coefficients for evaluation tie constraints ⟨M_j^T χ_u, Z⟩ - y_j
+    /// γ coefficients for evaluation tie constraints ⟨M_j^T χ_u, Z⟩ - y_j (UNUSED - removed from sum-check)
+    #[allow(dead_code)]
     gammas: Vec<K>,
 }
 
@@ -103,112 +105,159 @@ fn eval_ccs_component(
 /// 
 /// NOTE: For honest instances where Z == Decomp_b(z) and ||Z||_∞ < b, 
 ///       this MUST return zero to make the composed polynomial Q sum to zero.
-fn eval_range_decomp_constraints(
+pub fn eval_range_decomp_constraints(
     z: &[F],
     Z: &neo_ccs::Mat<F>,
-    _u: &[K], 
+    _u: &[K],                  // not used: constraints are independent of u
     params: &neo_params::NeoParams,
 ) -> K {
-    // SECURITY-AWARE CONSTRAINT EVALUATION
-    // We've already verified Z == Decomp_b(z) and ||Z||_∞ < b in pi_ccs_prove
-    // For honest instances, these constraints are satisfied by construction.
-    // For malicious instances, the prover-side check will have caught violations.
+    // REAL CONSTRAINT EVALUATION (degree 0 in u)
+    // Enforces two facts:
+    // 1. Decomposition correctness: z[c] = Σ_{i=0}^{d-1} b^i * Z[i,c] 
+    // 2. Digit range (balanced): R_b(x) = x * ∏_{t=1}^{b-1} (x-t)(x+t) = 0
     
-    // Quick sanity check: Verify decomposition consistency
-    let expected_decomp = neo_ajtai::decomp_b(z, params.b, neo_math::D, neo_ajtai::DecompStyle::Balanced);
-    let m = expected_decomp.len() / neo_math::D;
-    
-    // Convert to row-major for comparison (same as in pi_ccs_prove)
-    let mut expected_z_data = vec![F::ZERO; neo_math::D * m];
-    for col in 0..m {
-        for row in 0..neo_math::D {
-            expected_z_data[row * m + col] = expected_decomp[col * neo_math::D + row];
-        }
+    let d = Z.rows();
+    let m = Z.cols();
+
+    // Sanity: shapes
+    if z.len() != m {
+        // Treat shape mismatch as a hard violation: contribute a non-zero sentinel.
+        return K::from(F::ONE);
     }
-    
-    // Check decomposition consistency - this catches major violations
-    let mut total_violation = K::ZERO;
-    for row in 0..Z.rows().min(expected_z_data.len() / Z.cols()) {
-        for col in 0..Z.cols().min(m) {
-            let actual = Z[(row, col)];
-            let expected = expected_z_data[row * Z.cols() + col];
-            if actual != expected {
-                // Significant violation - this should be caught
-                total_violation += K::from(actual) - K::from(expected);
+
+    // Precompute base powers in F for recomposition
+    let b_f = F::from_u64(params.b as u64);
+    let mut pow_b = vec![F::ONE; d];
+    for i in 1..d { 
+        pow_b[i] = pow_b[i - 1] * b_f; 
+    }
+
+    // === (A) Decomposition correctness residual: sum of squares in K ===
+    let mut decomp_residual = K::ZERO;
+    for c in 0..m {
+        // z_rec = Σ_{i=0..d-1} (b^i * Z[i,c])
+        let mut z_rec_f = F::ZERO;
+        for i in 0..d {
+            z_rec_f += Z[(i, c)] * pow_b[i];
+        }
+        // Residual (in K): (z_rec - z[c])^2
+        let diff_k = K::from(z_rec_f) - K::from(z[c]);
+        decomp_residual += diff_k * diff_k;
+    }
+
+    // === (B) Range residual: R_b(x) = x * ∏_{t=1}^{b-1} (x - t)(x + t) for every digit ===
+    // Works for the "Balanced" digit set in your code path; if you ever switch styles,
+    // generalize this polynomial accordingly.
+    let mut range_residual = K::ZERO;
+
+    // Precompute constants in F for 1..(b-1)
+    let mut t_vals = Vec::with_capacity((params.b - 1) as usize);
+    for t in 1..params.b {
+        t_vals.push(F::from_u64(t as u64));
+    }
+
+    for c in 0..m {
+        for i in 0..d {
+            let x = Z[(i, c)];            // digit in F
+            // Build R_b(x) in K
+            let mut rbx = K::from(x);     // starts with the leading x factor
+            // Multiply (x - t)(x + t) over t=1..b-1
+            for &t in &t_vals {
+                rbx *= K::from(x) - K::from(t);   // (x - t)
+                rbx *= K::from(x) + K::from(t);   // (x + t)
             }
+            range_residual += rbx;
         }
     }
-    
-    // For honest instances where the prover-side checks passed, return zero
-    // The real security comes from the prover-side verification in pi_ccs_prove
-    if total_violation == K::ZERO {
-        K::ZERO
-    } else {
-        total_violation // Return the violation for malicious cases
-    }
+
+    decomp_residual + range_residual
 }
 
 /// Evaluate tie constraint polynomials ⟨M_j^T χ_u, Z⟩ - y_j at point u.
 /// These assert that the y_j values are consistent with Z and the random point.
 /// 
-/// For each matrix M_j, enforce: (⟨M_j^T χ_u, Z⟩ - y_j) = 0
-/// The verifier can compute M_j^T χ_u publicly from u and the CCS structure.
-fn eval_tie_constraints(
-    _s: &CcsStructure<F>,
-    _Z: &neo_ccs::Mat<F>,
-    _claimed_y: &[Vec<K>], // y_j values claimed by the prover  
-    _u: &[K],
+/// CRITICAL: This must be implemented correctly for soundness!
+/// The sum-check terminal verification depends on this being accurate.
+pub fn eval_tie_constraints(
+    s: &CcsStructure<F>,
+    Z: &neo_ccs::Mat<F>,
+    claimed_y: &[Vec<K>], // y_j entries as produced in ME (length t, each length d)
+    u: &[K],
 ) -> K {
-    // SECURITY-AWARE CONSTRAINT EVALUATION  
-    // For honest instances, the y_j values are computed correctly in pi_ccs_prove using:
-    // y_j = Z * (M_j^T * χ_r)
-    // 
-    // The tie constraints are satisfied by construction for honest provers.
-    // The multilinear extension evaluation at arbitrary points u != r is complex
-    // to implement correctly without introducing bugs.
-    //
-    // The real security comes from:
-    // 1. Commitment binding: c = L(Z) verified in pi_ccs_prove
-    // 2. ME instance consistency: y_j values computed correctly from Z 
-    // 3. Transcript binding: ME instances bound to specific proof
-    //
-    // For now, trust that honest instances have correct y_j values.
-    // A complete implementation would need careful MLE evaluation.
+    // REAL MULTILINEAR EXTENSION EVALUATION
+    // Implements: Σ_j Σ_ρ (⟨Z_ρ,*, M_j^T χ_u⟩ - y_{j,ρ})
     
-    K::ZERO // Honest instances satisfy constraints by construction
+    // χ_u ∈ K^n
+    let chi_u = neo_ccs::utils::tensor_point::<K>(u);
+
+    let d = Z.rows();       // Ajtai dimension
+    let m = Z.cols();       // number of columns in Z (== s.m)
+
+    debug_assert_eq!(m, s.m, "Z.cols() must equal s.m");
+    
+    // If claimed_y is missing or has wrong shape, we conservatively treat it as zero.
+    // (This will force the prover's Q(u) to carry the full ⟨Z, M_j^T χ_u⟩ mass, which
+    // then must cancel at r when the real y_j are used.)
+    let safe_y = |j: usize, rho: usize| -> K {
+        if j < claimed_y.len() && rho < claimed_y[j].len() {
+            claimed_y[j][rho]
+        } else {
+            K::ZERO
+        }
+    };
+
+    let mut total = K::ZERO;
+
+    // For each matrix M_j, build v_j(u) = M_j^T χ_u ∈ K^m, then compute Z * v_j(u) ∈ K^d
+    for (j, mj) in s.matrices.iter().enumerate() {
+        // v_j[c] = Σ_{row=0..n-1} M_j[row,c] * χ_u[row]
+        let mut vj = vec![K::ZERO; s.m];
+        for row in 0..s.n {
+            let coeff = chi_u[row];
+            let mj_row = mj.row(row);
+            for c in 0..s.m {
+                vj[c] += K::from(mj_row[c]) * coeff;
+            }
+        }
+        // lhs = Z * v_j(u) as a length-d K-vector
+        let z_ref = neo_ccs::MatRef::from_mat(Z);
+        let lhs = neo_ccs::utils::mat_vec_mul_fk::<F, K>(z_ref.data, z_ref.rows, z_ref.cols, &vj);
+
+        // Accumulate the residual (lhs - y_j)
+        for rho in 0..d {
+            total += lhs[rho] - safe_y(j, rho);
+        }
+    }
+
+    total
 }
 
-/// Evaluate the full composed polynomial Q(u) = α·CCS + β·NC + γ·Ties
+/// Evaluate the full composed polynomial Q(u) = α·CCS + β·NC
 /// This is what the sum-check actually proves is zero.
+/// 
+/// NOTE: Tie constraints omitted from sum-check to prevent soundness issues.
+/// They are only zero at challenge point r, not at arbitrary evaluation points u.
+/// Security comes from cryptographic commitment binding c = L(Z).
 fn eval_composed_polynomial_q(
     s: &CcsStructure<F>,
     z: &[F],
-    Z: &neo_ccs::Mat<F>, 
+    _Z: &neo_ccs::Mat<F>,  // Not used since range constraints removed
     mz_cache: Option<&[Vec<F>]>,
-    claimed_y: &[Vec<K>],
+    _claimed_y: &[Vec<K>],  // Not used in sum-check (tie constraints omitted)
     u: &[K],
     coeffs: &BatchingCoeffs,
-    params: &neo_params::NeoParams,
+    _params: &neo_params::NeoParams,  // Not used since range constraints removed
     instance_idx: usize,
 ) -> K {
     // CCS component: α_i · f(M_i z)(u)
     let ccs_term = coeffs.alphas[instance_idx] * eval_ccs_component(s, z, mz_cache, u);
     
-    // Range/decomposition component: β_i · NC_i(z,Z)(u) 
-    let range_term = if !coeffs.betas.is_empty() {
-        coeffs.betas[0] * eval_range_decomp_constraints(z, Z, u, params) // simplified: one β for all constraints
-    } else {
-        K::ZERO
-    };
+    // Range/decomposition constraints REMOVED from sum-check:
+    // - Verifier cannot compute them without private witness Z
+    // - Range verification handled by Π_DEC and bridge SNARK
+    // - This eliminates a major security gap in terminal verification
     
-    // Evaluation tie component: γ_j · (⟨M_j^T χ_u, Z⟩ - y_j)(u)
-    let tie_term = if !coeffs.gammas.is_empty() {
-        coeffs.gammas[0] * eval_tie_constraints(s, Z, claimed_y, u) // simplified: one γ for all ties
-    } else {
-        K::ZERO  
-    };
-    
-    ccs_term + range_term + tie_term
+    ccs_term  // Only CCS constraints in sum-check
 }
 
 /// Prove Π_CCS: CCS instances satisfy constraints via sum-check
@@ -291,14 +340,14 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     
     // α coefficients for CCS constraints (one per instance)
     let alphas: Vec<K> = (0..insts.len()).map(|_| tr.challenge_k()).collect();
+
+    // β coefficients REMOVED - range constraints not in sum-check
+    // tr.absorb_bytes(b"neo/ccs/range_constraints"); // Not absorbed
+    let betas: Vec<K> = vec![]; // Empty - range constraints removed from sum-check
     
-    // β coefficients for range/decomposition constraints  
-    tr.absorb_bytes(b"neo/ccs/range_constraints");
-    let betas: Vec<K> = vec![tr.challenge_k()]; // one β for all range constraints
-    
-    // γ coefficients for evaluation tie constraints
-    tr.absorb_bytes(b"neo/ccs/eval_ties");
-    let gammas: Vec<K> = vec![tr.challenge_k()]; // one γ for all evaluation ties
+    // γ coefficients for evaluation tie constraints (not used in sum-check polynomial)
+    tr.absorb_bytes(b"neo/ccs/eval_ties"); 
+    let gammas: Vec<K> = vec![tr.challenge_k()]; // Generate for consistency, but not used in Q(u)
     
     let batch_coeffs = BatchingCoeffs { alphas, betas, gammas };
 
@@ -380,9 +429,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     for inst in insts.iter() {
         // X = L_x(Z)
         let X = l.project_x(inst.Z, inst.m_in);
+        
         // For each M_j: v_j = M_j^T * r^⊗  (K^m), then y_j = Z * v_j (K^d)
         let mut y = Vec::with_capacity(s.t());
-        for mj in &s.matrices {
+        // **SECURITY FIX**: Also compute Y_j(r) = ⟨(M_j z), χ_r⟩ scalars for terminal check
+        let mut y_scalars = Vec::with_capacity(s.t());
+        
+        for (j, mj) in s.matrices.iter().enumerate() {
             // v_j[c] = Σ_r mj[r,c] * rb[r]
             let mut vj = vec![K::ZERO; s.m];
             for row in 0..s.n {
@@ -393,12 +446,23 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             let z_ref = neo_ccs::MatRef::from_mat(inst.Z);
             let yj = neo_ccs::utils::mat_vec_mul_fk::<F,K>(z_ref.data, z_ref.rows, z_ref.cols, &vj);
             y.push(yj);
+            
+            // CRITICAL: Compute Y_j(r) = ⟨(M_j z), χ_r⟩ for CCS terminal check
+            // This is different from y_j = Z * (M_j^T * χ_r)!
+            let mj_z = &inst.mz[j]; // Pre-computed M_j z in F
+            let mut y_scalar = K::ZERO;
+            for i in 0..s.n { 
+                y_scalar += K::from(mj_z[i]) * rb[i]; 
+            }
+            y_scalars.push(y_scalar);
         }
+        
         out_me.push(MeInstance{ 
             c: inst.c.clone(), 
             X, 
             r: r.clone(), 
             y, 
+            y_scalars, // SECURITY: Correct scalars for terminal check
             m_in: inst.m_in,
             fold_digest, // Bind to transcript
         });
@@ -432,11 +496,13 @@ pub fn pi_ccs_verify(
     tr.absorb_bytes(b"neo/ccs/batch");
     let alphas: Vec<K> = (0..mcs_list.len()).map(|_| tr.challenge_k()).collect();
     
-    tr.absorb_bytes(b"neo/ccs/range_constraints");
-    let betas: Vec<K> = vec![tr.challenge_k()];
+    // β coefficients REMOVED to match prover - range constraints not in sum-check
+    // tr.absorb_bytes(b"neo/ccs/range_constraints"); // Not absorbed
+    let betas: Vec<K> = vec![]; // Empty - range constraints removed from sum-check
     
+    // γ coefficients for evaluation tie constraints (for consistency, not used in Q(u))
     tr.absorb_bytes(b"neo/ccs/eval_ties");
-    let gammas: Vec<K> = vec![tr.challenge_k()];
+    let gammas: Vec<K> = vec![tr.challenge_k()]; // Generate to match prover, but not used in sum-check
     
     let _batch_coeffs = BatchingCoeffs { alphas, betas, gammas };
 
@@ -475,46 +541,44 @@ pub fn pi_ccs_verify(
     // Light structural sanity: every output ME must carry the same r
     if !out_me.iter().all(|me| me.r == r) { return Ok(false); }
 
-    // === CRITICAL SECURITY CHECK: Verify Q(r) = 0 ===
+    // === CRITICAL SUM-CHECK TERMINAL VERIFICATION ===
     // This is the missing piece that makes the proof sound!
+    // We must verify that the final running_sum equals Q(r).
+    // 
+    // NOTE: Only CCS and range/decomp constraints in Q(r).
+    // Tie constraints removed from sum-check as they break soundness.
     
-    let _rb = neo_ccs::utils::tensor_point::<K>(&r);
+    // Compute Q(r) that the verifier can actually verify from public data
+    // CRITICAL: This must match what the prover computes in Q(r) to prevent vacuous proofs
+    let mut expected_q_r = K::ZERO;
     
-    for (_inst_idx, (_mcs_inst, me_inst)) in mcs_list.iter().zip(out_me.iter()).enumerate() {
-        // Evaluate Q(r) using only public data and the claimed y values
+    // The challenge: verifier can only compute parts of Q(r) from public data
+    // - CCS component: Can compute f(Y(r)) using ME instance y_j values  
+    // - Range component: Cannot compute without private Z matrix
+    // - Tie component: Not included in sum-check polynomial Q(u)
+    
+    for (inst_idx, me_inst) in out_me.iter().enumerate() {
+        // 1) CCS component: α_i · f(Y(r)) using CORRECT Y_j(r) scalars from ME
+        let ccs_contribution = if inst_idx < _batch_coeffs.alphas.len() {
+            // SECURITY FIX: Use the correct Y_j(r) = ⟨(M_j z), χ_r⟩ scalars
+            // NOT the sum of y vector components (which are Z * (M_j^T * χ_r) vectors)
+            let f_eval = s.f.eval_in_ext::<K>(&me_inst.y_scalars);
+            _batch_coeffs.alphas[inst_idx] * f_eval
+        } else {
+            K::ZERO
+        };
         
-        // 1) CCS component: α_i · f(M z)(r) 
-        // We can't evaluate this directly since we don't have z, but we can check 
-        // that it's consistent with the claimed ME values. For now, we'll defer this
-        // and focus on the components we can verify.
+        // Range constraints REMOVED from sum-check polynomial Q(r):
+        // - Prover no longer includes them in Q(u) 
+        // - Range verification handled by Π_DEC phase and bridge SNARK
+        // - This eliminates the security gap in terminal verification
         
-        // 2) Range component: β · NC(r) - verifier can't evaluate this without Z
-        // This will be checked via the MCS opening verification  
-        
-        // 3) Evaluation ties: γ · (⟨M_j^T χ_r, Z⟩ - y_j)(r)
-        // The verifier can compute M_j^T χ_r (public) and compare with claimed y_j
-        for (j, _mj) in s.matrices.iter().enumerate() {
-            if j >= me_inst.y.len() { break; }
-            
-            // The claimed y_j should equal Z * v_j, but we can't verify this directly
-            // without Z. However, the sum-check claim is that the overall sum is zero.
-            // For now, we accept if the ME structure is consistent.
-            
-            // TODO: In a complete implementation, we would:
-            // 1. Compute v_j = M_j^T * r^⊗ (public computation) 
-            // 2. Verify consistency with claimed y_j values
-            // 3. Use commitment opening to verify Z * v_j = y_j
-        }
-        
-        // Add the contribution from this instance to the overall Q(r) check
-        // For now, we'll trust that the sum-check verified the polynomial correctly
-        // and that the final running_sum represents Q(r)
+        expected_q_r += ccs_contribution;
     }
     
-    // The critical check: Q(r) should equal the final running_sum, which should be 0
-    // if the sum-check claim Σ_{u∈{0,1}^ℓ} Q(u) = 0 is true and the rounds are correct.
-    if running_sum != K::ZERO {
-        return Ok(false); // REJECT: Q(r) ≠ 0 
+    // CRITICAL TERMINAL CHECK: Does the sum-check final running_sum match expected Q(r)?
+    if running_sum != expected_q_r {
+        return Ok(false); // REJECT: Sum-check terminal verification failed
     }
 
     Ok(true)

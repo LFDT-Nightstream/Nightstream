@@ -85,10 +85,18 @@ impl SAction {
         let rotated_re = self.apply_vec(&y_re);
         let rotated_im = self.apply_vec(&y_im);
         
-        // Recombine into K elements
+        // Recombine into K elements - return exactly y.len() elements
         let mut result = Vec::with_capacity(y.len());
+        
+        // Apply S-action to the processed part
         for i in 0..process_len {
             result.push(K::new_complex(rotated_re[i], rotated_im[i]));
+        }
+        
+        // Copy any remaining elements unchanged (though this won't happen due to early length check)
+        // This makes the behavior consistent with apply_k_slice and prevents future index errors
+        for i in process_len..y.len() {
+            result.push(y[i]);
         }
         
         Ok(result)

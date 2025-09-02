@@ -58,6 +58,7 @@ fn create_test_me_instance(base: u32) -> (MeInstance<Commitment, F, K>, MeWitnes
         c: commitment,
         X,
         y,
+        y_scalars: vec![K::from(F::ONE)], // Test y_scalars
         r,
         m_in: 3,
         fold_digest: [0u8; 32], // Dummy digest for test
@@ -196,6 +197,7 @@ fn test_pi_dec_range_proof_validation() {
             c: Commitment::zeros(neo_math::D, 4),
             X,
             y,
+            y_scalars: vec![K::from(F::from_u64(i as u64 + 100))], // Test y_scalars
             r: me_instance.r.clone(),
             m_in: me_instance.m_in,
             fold_digest: [0u8; 32], // Dummy digest for test
@@ -272,6 +274,7 @@ fn test_pi_dec_empty_input_rejection() {
         c: Commitment::zeros(1, 1),
         X: Mat::zero(1, 1, F::ZERO),
         y: vec![],
+        y_scalars: vec![], // Empty y_scalars for test
         r: vec![],
         m_in: 0,
         fold_digest: [0u8; 32], // Dummy digest for test
@@ -316,6 +319,7 @@ fn test_pi_dec_me_relation_consistency() {
             c: Commitment::zeros(neo_math::D, 4),
             X,
             y,
+            y_scalars: vec![K::from(F::from_u64(i as u64 + 500))], // Test y_scalars
             r, // This r is different from me_instance.r
             m_in: me_instance.m_in,
             fold_digest: [0u8; 32], // Dummy digest for test

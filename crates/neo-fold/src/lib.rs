@@ -16,7 +16,7 @@ pub mod pi_dec;
 // Re-export main types
 pub use error::{FoldingError, PiCcsError, PiRlcError, PiDecError};
 pub use transcript::{FoldTranscript, Domain};
-pub use pi_ccs::{pi_ccs_prove, pi_ccs_verify, PiCcsProof};  
+pub use pi_ccs::{pi_ccs_prove, pi_ccs_verify, PiCcsProof, eval_tie_constraints, eval_range_decomp_constraints};  
 pub use pi_rlc::{pi_rlc_prove, pi_rlc_verify, PiRlcProof};
 pub use pi_dec::{pi_dec, pi_dec_verify, PiDecProof};
 
@@ -24,7 +24,7 @@ use neo_ccs::{MeInstance, MeWitness, CcsStructure};
 use neo_math::{F, K, Rq, cf_inv};
 use neo_ajtai::{Commitment as Cmt, s_lincomb};
 use p3_field::PrimeCharacteristicRing;
-use crate::pi_rlc::GuardParams; // For creating dummy RLC proofs in single-instance case
+// GuardParams import removed - no longer needed after removing single-instance bypass
 
 /// Proof that k+1 CCS instances fold to k instances
 #[derive(Debug, Clone)]
@@ -63,37 +63,9 @@ pub fn fold_ccs_instances(
     let (me_list, pi_ccs_proof) =
         pi_ccs::pi_ccs_prove(&mut tr, params, structure, instances, witnesses, &l)?;
 
-    // === SHORT-CIRCUIT: single-instance case ===
-    // If Π_CCS produced exactly one ME(b,L), there is nothing to combine.
-    // Skip Π_RLC and Π_DEC; return the ME as-is with empty subproofs.
-    if me_list.len() == 1 {
-        eprintln!("✅ SINGLE-INSTANCE: Skipping RLC/DEC (nothing to fold)");
-        
-        let dummy_rlc = PiRlcProof {
-            rho_elems: Vec::new(),
-            guard_params: GuardParams { 
-                k: 0, 
-                T: 0, 
-                b: params.b as u64, 
-                B: params.B as u64 
-            },
-        };
-        
-        let dummy_dec = PiDecProof {
-            digit_commitments: None,
-            recomposition_proof: Vec::new(),
-            range_proofs: Vec::new(),
-        };
-        
-        let proof = FoldingProof {
-            pi_ccs_proof,
-            pi_ccs_outputs: me_list.clone(),
-            pi_rlc_proof: dummy_rlc,
-            pi_dec_proof: dummy_dec,
-        };
-        
-        return Ok((me_list, proof));
-    }
+    // SECURITY FIX: Removed single-instance fast path that bypassed RLC/DEC
+    // All instances must go through the complete pipeline for security
+    // The demo should provide ≥2 instances to avoid needing this bypass
 
     // 2) Π_RLC: k+1 ME(b,L) → 1 ME(B,L) (only for multiple instances)
     let (me_b, pi_rlc_proof) = pi_rlc::pi_rlc_prove(&mut tr, params, &me_list)?;
@@ -179,16 +151,8 @@ pub fn verify_folding_proof(
     )?;
     if !ok_ccs { return Ok(false); }
 
-    // Single-instance short-circuit
-    if input_instances.len() == 1 {
-        if proof.pi_rlc_proof.rho_elems.is_empty()
-            && proof.pi_dec_proof.digit_commitments.as_ref().map_or(true, |v| v.is_empty())
-            && output_instances.len() == 1
-        {
-            return Ok(true);
-        }
-        return Ok(false);
-    }
+    // SECURITY FIX: Removed single-instance verifier bypass
+    // All instances must go through complete verification pipeline
 
     // 2) Recombine DEC digits → parent ME(B, L)
     let me_parent = recombine_me_digits_to_parent(params, output_instances)
@@ -288,11 +252,34 @@ fn recombine_me_digits_to_parent(
         pow_k *= base_k;
     }
 
+    // SECURITY FIX: Recompute y_scalars for parent ME instance
+    // y_scalars[j] = Y_j(r) = ⟨(M_j z_parent), χ_r⟩ 
+    // For recombined parent, this should be Σ b^i * Y_j,i(r) from digits
+    let y_scalars_parent = if let Some(first_digit) = digits.first() {
+        let t = first_digit.y_scalars.len();
+        let mut parent_scalars = vec![K::ZERO; t];
+        let mut pow_k = K::from(F::ONE);
+        let base_k = K::from(F::from_u64(params.b as u64));
+        
+        for digit in digits {
+            for j in 0..t {
+                if j < digit.y_scalars.len() {
+                    parent_scalars[j] += digit.y_scalars[j] * pow_k;
+                }
+            }
+            pow_k *= base_k;
+        }
+        parent_scalars
+    } else {
+        vec![]
+    };
+
     Ok(MeInstance {
         c: c_parent,
         X: X_parent,
         r: r_ref.clone(),
         y: y_parent,
+        y_scalars: y_scalars_parent, // SECURITY: Correct recombined Y_j(r) scalars
         m_in,
         fold_digest: digits[0].fold_digest, // All digits should have same fold_digest
     })

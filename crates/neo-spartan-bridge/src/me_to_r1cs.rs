@@ -355,20 +355,13 @@ impl SpartanCircuit<E> for MeCircuit {
             n_constraints += 1;
         }
 
-        // If no constraints were added, add trivial equalities (dev safety)
+        // CRITICAL SECURITY: Reject vacuous circuits that have no binding to the statement
         if self.wit.ajtai_rows.as_ref().map_or(true, |r| r.is_empty())
             && self.wit.weight_vectors.is_empty()
         {
-            // 1 * 1 = 1 
-            for i in 0..2 {
-                cs.enforce(
-                    || format!("tautology_{i}"),
-                    |lc| lc + CS::one(),
-                    |lc| lc + CS::one(),
-                    |lc| lc + CS::one(),
-                );
-                n_constraints += 1;
-            }
+            eprintln!("❌ SECURITY VIOLATION: Cannot synthesize circuit with no Ajtai binding AND no ME constraints.");
+            eprintln!("   This would create a vacuous proof with no binding to the statement.");
+            return Err(SynthesisError::AssignmentMissing);
         }
 
         // All witness variables are now allocated as REST with power-of-2 length

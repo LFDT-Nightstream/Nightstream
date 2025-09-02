@@ -195,6 +195,7 @@ fn test_p0_3_range_verification_in_pi_ccs_not_placeholders() {
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO],
         y: vec![vec![K::ZERO; D]],
+        y_scalars: vec![K::ZERO], // Test placeholder
         m_in: 1,
         fold_digest: [0u8; 32],
     };
@@ -334,6 +335,7 @@ fn test_p0_4_fold_digest_binds_transcript_to_me_instances() {
                 X: Mat::zero(D, 1, F::ZERO),
                 r: vec![K::ZERO],
                 y: vec![vec![K::ZERO; D]],
+                y_scalars: vec![K::ZERO], // Test placeholder
                 m_in: 1,
                 fold_digest: [42u8; 32], // Test that field exists and is accessible
             };
@@ -390,6 +392,7 @@ fn test_me_instance_fold_digest_integration() {
         X: Mat::zero(1, 1, F::ZERO),
         r: vec![K::ZERO],
         y: vec![vec![K::ZERO]],
+        y_scalars: vec![K::ZERO], // Test placeholder
         m_in: 1,
         fold_digest: digest1,
     };
@@ -399,6 +402,7 @@ fn test_me_instance_fold_digest_integration() {
         X: Mat::zero(1, 1, F::ZERO), 
         r: vec![K::ZERO],
         y: vec![vec![K::ZERO]],
+        y_scalars: vec![K::ZERO], // Test placeholder
         m_in: 1,
         fold_digest: digest2,
     };

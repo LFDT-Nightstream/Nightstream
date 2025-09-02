@@ -25,7 +25,7 @@ use neo_math::F;
 use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle, verify_open};
 use neo_params::NeoParams;
 // Neo folding and compression now handled via orchestrator
-use neo_orchestrator::{prove_single, verify_single};
+use neo_orchestrator::{prove, verify};
 
 /// Build Fibonacci R1CS: z[i+2] = z[i+1] + z[i] for i = 0..n_steps-1
 /// Variables: [1, z0, z1, ..., z_{n_steps+1}] (constant wire at index 0)
@@ -174,22 +174,28 @@ fn main() -> Result<()> {
     }
     let z_matrix = Mat::from_row_major(d, m, z_matrix_data);
     
-    // Use the proper Ajtai commitment directly (no more byte conversion)
+    // SECURITY FIX: Provide ≥2 MCS instances as required by folding pipeline
+    // The single-instance bypass was removed for security, so we duplicate the instance
     let mcs_instance = ConcreteMcsInstance {
         c: commitment,
-        x: public_inputs, // Empty for this example
+        x: public_inputs.clone(), // Empty for this example
         m_in: 0,
     };
     let mcs_witness = ConcreteMcsWitness {
-        w: z,
-        Z: z_matrix, // Now correctly constructed from column-major decomp_z
+        w: z.clone(),
+        Z: z_matrix.clone(), // Now correctly constructed from column-major decomp_z
     };
     
-    println!("   MCS instance created with commitment d={} κ={}", mcs_instance.c.d, mcs_instance.c.kappa);
+    // Duplicate the instance to satisfy k+1 ≥ 2 requirement
+    let mcs_instances = vec![mcs_instance.clone(), mcs_instance];
+    let mcs_witnesses = vec![mcs_witness.clone(), mcs_witness];
+    
+    println!("   MCS instances created: {} instances with commitment d={} κ={}", 
+             mcs_instances.len(), mcs_instances[0].c.d, mcs_instances[0].c.kappa);
     
     // Step 7: Generate complete Neo SNARK proof using orchestrator
     println!("\n🔀 Step 7: Generating Neo SNARK proof...");
-    match prove_single(&ccs, &mcs_instance, &mcs_witness) {
+    match prove(&params, &ccs, &mcs_instances, &mcs_witnesses) {
         Ok((proof_bytes, metrics)) => {
             // Check if this is a demo stub
             if let Ok(proof_str) = std::str::from_utf8(&proof_bytes) {
@@ -212,7 +218,7 @@ fn main() -> Result<()> {
             // Step 8: End-to-end verification
             println!("\n🔍 Step 8: End-to-end verification...");
             let verify_start = Instant::now();
-            let verified = verify_single(&ccs, &mcs_instance, &proof_bytes);
+            let verified = verify(&ccs, &mcs_instances, &proof_bytes);
             let verification_time = verify_start.elapsed();
             
             if verified {

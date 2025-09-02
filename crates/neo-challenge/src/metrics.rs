@@ -46,15 +46,14 @@ pub fn empirical_expansion_stats(rhos: &[Rho], cfg: &StrongSetConfig, trials: us
 
 fn l_inf(v: &[Fq]) -> f64 {
     // Convert to small signed repr; good enough for metrics.
+    let q: u128 = neo_math::GOLDILOCKS_MODULUS as u128; // 2^64 - 2^32 + 1
+    let half_q = (q / 2) as i128;
     v.iter().map(|x| {
         let mut u = x.as_canonical_u64() as i128;
         // center in [-q/2, q/2] for heuristic readability
-        let q = <Fq as p3_field::Field>::order();
-        let q_u128: u128 = q.to_u64_digits()[0] as u128;
-        let half_q = (q_u128 / 2) as i128;
-        if u > half_q { u -= q_u128 as i128; }
-        (u.abs()) as f64
-    }).fold(0f64, f64::max)
+        if u > half_q { u -= q as i128; }
+        u.unsigned_abs() as f64
+    }).fold(0.0, f64::max)
 }
 
 fn mul_rho_vec(m: &RowMajorMatrix<Fq>, v: &[Fq], d: usize) -> Vec<Fq> {

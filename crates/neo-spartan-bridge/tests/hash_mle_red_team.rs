@@ -134,7 +134,6 @@ fn test_proof_tampering() {
     println!("✅ SECURITY: Proof tampering detection works through API");
 }
 
-#[ignore]
 #[test]
 fn test_bridge_api_security() {
     // RED TEAM: Test the high-level bridge API security

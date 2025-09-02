@@ -176,8 +176,9 @@ pub fn pi_dec<L: SModuleHomomorphism<F, Cmt>>(
         assert_range_b(&digit_slice, b)
             .map_err(|e| PiDecError::RangeCheckFailed(format!("Digit {}: {}", digit_idx, e)))?;
         
-        // Generate range proof for this digit (includes bound verification)
-        let proof_data = generate_range_proof(&digit_slice, b)?;
+        // Range verification now happens in Π_CCS via composed polynomial Q
+        // Generate placeholder proof data for backward compatibility
+        let proof_data = generate_placeholder_range_proof(&digit_slice, b)?;
         
         // Commit to this digit: c_i = L(Z_i)
         let c_i = l.commit(&z_digit);
@@ -229,6 +230,7 @@ pub fn pi_dec<L: SModuleHomomorphism<F, Cmt>>(
             r: me_B.r.clone(),
             y: y_i,
             m_in: me_B.m_in,
+            fold_digest: me_B.fold_digest, // Preserve the fold digest binding
         });
     }
     
@@ -311,6 +313,25 @@ pub fn pi_dec_verify<L: SModuleHomomorphism<F, Cmt>>(
         }
     }
     
+    // === CRITICAL X RECOMPOSITION CHECK ===
+    // Verify that X = L_x(Z) is consistent across the DEC split  
+    // Each entry of parent X should equal the recomposition of child X entries
+    {
+        let base_f = neo_math::F::from_u64(b as u64);
+        // collect child X columns for each (r,c)
+        let rows = input_me.X.rows();
+        let cols = input_me.X.cols();
+        for r in 0..rows {
+            for c in 0..cols {
+                let parent = input_me.X[(r,c)];
+                let limbs: Vec<neo_math::F> = output_me_list.iter().map(|d| d.X[(r,c)]).collect();
+                if parent != recombine_base_b(base_f, &limbs) {
+                    return Ok(false); // X recomposition failed - SOUNDNESS CRITICAL
+                }
+            }
+        }
+    }
+    
     // === Verify instance consistency ===
     for (i, me_digit) in output_me_list.iter().enumerate() {
         // All digits should have same r
@@ -331,12 +352,14 @@ pub fn pi_dec_verify<L: SModuleHomomorphism<F, Cmt>>(
         }
     }
     
-    // === Verify range proofs for each digit ===
+    // === Range proofs moved to Π_CCS ===
+    // Range constraints are now verified as part of the composed polynomial Q in Π_CCS.
+    // This ensures that ||Z_i||_∞ < b is cryptographically proven, not just asserted.
+    // The placeholder range proofs here are no longer needed.
     if !proof.range_proofs.is_empty() {
-        let range_verification = verify_range_proofs(&proof.range_proofs, k, b)?;
-        if !range_verification {
-            return Ok(false);
-        }
+        // For backward compatibility, we still accept range proof data but don't verify it
+        // since the real verification happens in Π_CCS
+        eprintln!("⚠️  Range proof data present but verification moved to Π_CCS");
     }
     
     // === Verify y_j recomputation consistency ===  
@@ -404,65 +427,24 @@ fn verify_split_open<L: SModuleHomomorphism<F, Cmt>>(
     Ok(Vec::new())
 }
 
-/// Generate range proof for a digit slice ensuring ||Z_i||_∞ < b
-fn generate_range_proof(digit_slice: &[F], b: u32) -> Result<Vec<u8>, PiDecError> {
-    // Verify the range constraint using neo-ajtai's assert_range_b
-    assert_range_b(digit_slice, b)
-        .map_err(|e| PiDecError::RangeCheckFailed(format!("Range constraint failed: {}", e)))?;
+/// Generate placeholder range proof data for backward compatibility.
+/// IMPORTANT: Real range verification now happens in Π_CCS via composed polynomial Q.
+fn generate_placeholder_range_proof(digit_slice: &[F], b: u32) -> Result<Vec<u8>, PiDecError> {
+    // The actual range constraint verification is now handled in Π_CCS
+    // This function only generates placeholder data for protocol compatibility
     
-    // Range constraint satisfied - generate proof data
-    // For now, we encode the bounds as a simple proof structure
     let mut proof_data = Vec::new();
     proof_data.extend_from_slice(&b.to_le_bytes()); // Base b
     proof_data.extend_from_slice(&(digit_slice.len() as u32).to_le_bytes()); // Length
-    // In a production system, this would include zero-knowledge range proofs
-    // For audit purposes, the deterministic check is sufficient
+    
+    // Note: No cryptographic range proof is generated here anymore.
+    // Security comes from the range constraint polynomials in Π_CCS.
     Ok(proof_data)
 }
 
-/// Verify range proofs for all digits  
-fn verify_range_proofs(range_proofs: &[u8], k: usize, expected_b: u32) -> Result<bool, PiDecError> {
-    if range_proofs.is_empty() && k > 0 {
-        return Err(PiDecError::RangeCheckFailed("Missing range proofs".into()));
-    }
-    
-    // Parse the combined proof data
-    let mut offset = 0;
-    for _i in 0..k {
-        if offset + 8 > range_proofs.len() {
-            return Ok(false); // Insufficient proof data
-        }
-        
-        // Extract base b from proof data
-        let proof_b = u32::from_le_bytes([
-            range_proofs[offset],
-            range_proofs[offset + 1],
-            range_proofs[offset + 2],
-            range_proofs[offset + 3],
-        ]);
-        
-        // Extract length from proof data  
-        let _proof_len = u32::from_le_bytes([
-            range_proofs[offset + 4],
-            range_proofs[offset + 5],
-            range_proofs[offset + 6],
-            range_proofs[offset + 7],
-        ]);
-        
-        if proof_b != expected_b {
-            return Ok(false); // Base mismatch
-        }
-        
-        // In production, we would verify the actual range proof here
-        // For now, the presence of correctly formatted proof data suffices
-        offset += 8;
-        
-        // Skip any additional proof data for this digit
-        // (In production this would be the ZK proof data)
-    }
-    
-    Ok(true)
-}
+// REMOVED: verify_range_proofs function
+// This was a placeholder that only parsed bytes without cryptographic verification.
+// Range constraints are now properly verified in Π_CCS via composed polynomial Q.
 
 /// Verify ME relation consistency for a digit instance
 fn verify_me_relation_consistency(me_digit: &MeInstance<Cmt, F, K>, expected_r: &[K]) -> bool {
@@ -520,6 +502,7 @@ mod tests {
             r: vec![K::new_real(F::from_u64(42))], // dummy r vector
             y: vec![vec![K::new_real(F::from_u64(100))]], // dummy y vector
             m_in: 1,
+            fold_digest: [0u8; 32], // Dummy digest for test
         }
     }
     

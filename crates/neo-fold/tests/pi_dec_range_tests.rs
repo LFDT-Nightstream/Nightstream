@@ -60,6 +60,7 @@ fn create_test_me_instance(base: u32) -> (MeInstance<Commitment, F, K>, MeWitnes
         y,
         r,
         m_in: 3,
+        fold_digest: [0u8; 32], // Dummy digest for test
     };
     
     (instance, witness)
@@ -197,6 +198,7 @@ fn test_pi_dec_range_proof_validation() {
             y,
             r: me_instance.r.clone(),
             m_in: me_instance.m_in,
+            fold_digest: [0u8; 32], // Dummy digest for test
         };
         digit_instances.push(instance);
     }
@@ -272,6 +274,7 @@ fn test_pi_dec_empty_input_rejection() {
         y: vec![],
         r: vec![],
         m_in: 0,
+        fold_digest: [0u8; 32], // Dummy digest for test
     };
     
     let result = pi_dec(&mut transcript, &params, &empty_instance, &empty_witness, &ccs, &l);
@@ -315,6 +318,7 @@ fn test_pi_dec_me_relation_consistency() {
             y,
             r, // This r is different from me_instance.r
             m_in: me_instance.m_in,
+            fold_digest: [0u8; 32], // Dummy digest for test
         };
         inconsistent_digit_instances.push(instance);
     }

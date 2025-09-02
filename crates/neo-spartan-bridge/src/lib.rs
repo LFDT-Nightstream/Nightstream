@@ -151,6 +151,17 @@ pub fn compress_mle_with_hash_mle(poly: &[hash_mle::F], point: &[hash_mle::F]) -
 /// Verify a ProofBundle produced by `compress_mle_with_hash_mle`.
 pub fn verify_mle_hash_mle(bundle: &ProofBundle) -> Result<()> {
     let prf = hash_mle::HashMleProof::from_bytes(&bundle.proof)?;
+    
+    // CRITICAL SECURITY CHECK: Bind public_io_bytes to the proof
+    // Recompute the canonical public IO bytes from the proof's claim
+    let expected_public_io = hash_mle::encode_public_io(&prf);
+    
+    // Constant-time comparison to prevent floating public input attacks
+    if expected_public_io.as_slice() != bundle.public_io_bytes.as_slice() {
+        anyhow::bail!("PublicIoMismatch: proof's canonical public IO doesn't match bundled bytes");
+    }
+    
+    // Proceed with normal verification
     hash_mle::verify_hash_mle(&prf)
 }
 

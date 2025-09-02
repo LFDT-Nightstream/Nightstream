@@ -84,6 +84,8 @@ pub struct MeInstance<C, F, K> {
     pub y: Vec<Vec<K>>,
     /// m_in
     pub m_in: usize,
+    /// **SECURITY**: Transcript-derived digest binding this ME to the folding proof
+    pub fold_digest: [u8; 32],
 }
 
 /// ME witness: Z.
@@ -94,7 +96,9 @@ pub struct MeWitness<F> {
     pub Z: Mat<F>,
 }
 
-/// Check `c == L(Z)` for MCS. Also return `z = x || w` for downstream use.
+/// Check `c == L(Z)` for MCS. 
+/// Note: The critical Z == Decomp_b(z) check is now handled in the folding pipeline
+/// where both neo-ccs and neo-ajtai dependencies are available.
 pub fn check_mcs_opening<F: Field, C, L: SModuleHomomorphism<F, C>>(
     l: &L,
     inst: &McsInstance<C, F>,
@@ -118,11 +122,12 @@ where C: PartialEq
     let mut z = inst.x.clone();
     z.extend_from_slice(&wit.w);
 
-    // c == L(Z)
+    // === COMMITMENT BINDING ===
     let c_star = l.commit(&wit.Z);
     if c_star != inst.c {
         return Err(CcsError::Relation("c != L(Z)".into()));
     }
+
     Ok(z)
 }
 

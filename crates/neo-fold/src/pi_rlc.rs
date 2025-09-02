@@ -132,6 +132,7 @@ pub fn pi_rlc_prove(
         y: y_prime,
         r: first_me.r.clone(), // Same challenge vector
         m_in,
+        fold_digest: first_me.fold_digest, // Preserve the fold digest binding
     };
     
     let proof = PiRlcProof {

@@ -23,7 +23,6 @@ pub use pi_dec::{pi_dec, pi_dec_verify, PiDecProof};
 use neo_ccs::{MeInstance, MeWitness, CcsStructure};
 use neo_math::{F, K, Rq, cf_inv};
 use neo_ajtai::{Commitment as Cmt, s_lincomb};
-use neo_challenge::{sample_kplus1_invertible, DEFAULT_STRONGSET};
 use p3_field::PrimeCharacteristicRing;
 use crate::pi_rlc::GuardParams; // For creating dummy RLC proofs in single-instance case
 
@@ -32,6 +31,8 @@ use crate::pi_rlc::GuardParams; // For creating dummy RLC proofs in single-insta
 pub struct FoldingProof {
     /// Π_CCS proof (sum-check over K) 
     pub pi_ccs_proof: PiCcsProof,
+    /// The k+1 ME(b, L) instances produced by Π_CCS (public, transcript-bound)
+    pub pi_ccs_outputs: Vec<MeInstance<Cmt, F, K>>,
     /// Π_RLC proof (S-action combination)
     pub pi_rlc_proof: PiRlcProof,
     /// Π_DEC proof (verified split opening)  
@@ -86,6 +87,7 @@ pub fn fold_ccs_instances(
         
         let proof = FoldingProof {
             pi_ccs_proof,
+            pi_ccs_outputs: me_list.clone(),
             pi_rlc_proof: dummy_rlc,
             pi_dec_proof: dummy_dec,
         };
@@ -139,6 +141,7 @@ pub fn fold_ccs_instances(
 
     let proof = FoldingProof {
         pi_ccs_proof,
+        pi_ccs_outputs: me_list.clone(),
         pi_rlc_proof,
         pi_dec_proof,
     };
@@ -147,130 +150,77 @@ pub fn fold_ccs_instances(
 
 /// Verify a folding proof end-to-end over the single FS transcript.
 ///
-/// Checks:
-/// 1) Π_CCS rounds & r-binding,
-/// 2) Π_RLC domain: re-derive ρ's, enforce guard, and bind commitments from inputs,
-/// 3) Π_DEC: recomposition (c, y) and range.
+/// Enhanced verification with full RLC checking:
+/// 1) Π_CCS rounds & r-binding against proof.pi_ccs_outputs
+/// 2) Π_RLC complete verification: ρ derivation, guard, and S-action on (c, X, y)
+/// 3) Π_DEC: recomposition & range checks from parent to digits
 ///
-/// Note: Π_RLC cannot re-check X and y without the intermediate ME list; the
-/// final ME relation is expected to be enforced by the Spartan2 bridge.
+/// This enables complete verification of all transformations across the pipeline.
 pub fn verify_folding_proof(
-    params: &neo_params::NeoParams,
+    params: &neo_params::NeoParams,  
     structure: &CcsStructure<F>,
     input_instances: &[neo_ccs::McsInstance<Cmt, F>],
-    output_instances: &[MeInstance<Cmt, F, K>],
+    output_instances: &[MeInstance<Cmt, F, K>],  // k digits from Π_DEC
     proof: &FoldingProof,
 ) -> Result<bool, FoldingError> {
-    // Basic shape
-    if input_instances.is_empty() {
-        return Err(FoldingError::InvalidInput("no input instances".into()));
+    if input_instances.is_empty() { 
+        return Err(FoldingError::InvalidInput("no inputs".into())); 
     }
-    if output_instances.is_empty() {
-        return Err(FoldingError::InvalidInput("no output instances".into()));
+    if proof.pi_ccs_outputs.len() != input_instances.len() {
+        return Ok(false); // must carry exactly k+1 ME(b,L) from Π_CCS
     }
 
-    // Single transcript from the start
+    // One shared transcript
     let mut tr = FoldTranscript::default();
 
-    // === 1) Π_CCS: rounds + r binding
+    // 1) Π_CCS rounds & r-binding FOR THE Π_CCS OUTPUTS
     let ok_ccs = pi_ccs::pi_ccs_verify(
-        &mut tr, params, structure, input_instances, output_instances, &proof.pi_ccs_proof,
+        &mut tr, params, structure, input_instances, &proof.pi_ccs_outputs, &proof.pi_ccs_proof,
     )?;
-    if !ok_ccs {
-        return Ok(false);
-    }
+    if !ok_ccs { return Ok(false); }
 
-    // === 2) RLC/DEC short-circuit: single-instance path
+    // Single-instance short-circuit
     if input_instances.len() == 1 {
-        // Expect trivial/dummy RLC & DEC proof
-        if !proof.pi_rlc_proof.rho_elems.is_empty() {
-            return Ok(false);
+        if proof.pi_rlc_proof.rho_elems.is_empty()
+            && proof.pi_dec_proof.digit_commitments.as_ref().map_or(true, |v| v.is_empty())
+            && output_instances.len() == 1
+        {
+            return Ok(true);
         }
-        // DEC may be absent; if it is present, there must be exactly one output
-        if output_instances.len() != 1 {
-            return Ok(false);
-        }
-        return Ok(true);
-    }
-
-    // === 3) Π_RLC: re-derive ρ's, enforce guard, and bind commitments from inputs
-    //
-    // Domain + parameter absorption must mirror the prover.
-    tr.domain(transcript::Domain::Rlc);
-    tr.absorb_bytes(b"neo/params/v1");
-    tr.absorb_u64(&[params.q, params.lambda as u64, input_instances.len() as u64, params.s as u64]);
-
-    let mut challenger = tr.challenger();
-    let (expected_rhos, t_bound) = sample_kplus1_invertible(
-        &mut challenger, &DEFAULT_STRONGSET, input_instances.len(),
-    ).map_err(|e| PiRlcError::SamplingFailed(e.to_string()))?;
-
-    // Check the published ρ coeffs match transcript-derived ones
-    if proof.pi_rlc_proof.rho_elems.len() != expected_rhos.len() {
-        return Ok(false);
-    }
-    for (a, exp) in proof.pi_rlc_proof.rho_elems.iter().zip(expected_rhos.iter()) {
-        // expected_rhos[i].coeffs is Vec<F> of length D
-        let exp_arr: [F; neo_math::D] = exp.coeffs.as_slice().try_into()
-            .map_err(|_| FoldingError::PiRlc(PiRlcError::SamplingFailed("bad rho length".into())))?;
-        if a != &exp_arr {
-            return Ok(false);
-        }
-    }
-
-    // Enforce the guard (k+1)T(b-1) < B
-    let k = input_instances.len() - 1;
-    let lhs = (k as u128 + 1) * (t_bound as u128) * ((params.b as u128) - 1);
-    if lhs >= params.B as u128 {
         return Ok(false);
     }
 
-    // Rebuild parent ME(B, L) by recombining the k digit outputs (needed by DEC verify)
+    // 2) Recombine DEC digits → parent ME(B, L)
     let me_parent = recombine_me_digits_to_parent(params, output_instances)
         .map_err(|e| FoldingError::InvalidInput(format!("recombine digits: {e}")))?;
 
-    // Bind commitments across RLC:  c_RLC (from input commitments and ρ's) == parent.c
-    let input_cs: Vec<Cmt> = input_instances.iter().map(|i| i.c.clone()).collect();
-    let rho_ring: Vec<Rq> = expected_rhos.iter()
-        .map(|rho| {
-            let arr: [F; neo_math::D] = rho.coeffs.as_slice().try_into().expect("length D");
-            cf_inv(arr)
-        })
-        .collect();
-    let c_from_inputs = s_lincomb(&rho_ring, &input_cs)
-        .map_err(|e| FoldingError::PiRlc(PiRlcError::SActionError(format!("s_lincomb: {e}"))))?;
-    if c_from_inputs != me_parent.c {
-        return Ok(false);
-    }
+    // 3) Π_RLC: verify ρ (transcript), guard, and S-action linear combination for c, X, y
+    let ok_rlc = pi_rlc::pi_rlc_verify(
+        &mut tr, params,
+        &proof.pi_ccs_outputs,  // k+1 inputs (ME(b, L))
+        &me_parent,             // combined output ME(B, L)
+        &proof.pi_rlc_proof,
+    )?;
+    if !ok_rlc { return Ok(false); }
 
-    // === 4) Π_DEC: recomposition & range checks (if present)
-    //
-    // We accept "no DEC" proofs only when the prover already short-circuited (handled above).
-    let dec_proof_present = proof.pi_dec_proof.digit_commitments.as_ref().map(|v| !v.is_empty()).unwrap_or(false)
-        || !proof.pi_dec_proof.range_proofs.is_empty();
-    if !dec_proof_present {
-        // If DEC artifacts are missing in a multi-instance fold, treat as invalid
-        return Ok(false);
-    }
-
-    // neo-ajtai S-module is only used inside DEC verify for recomposition; try real one, else a minimal no-op stub.
+    // 4) Π_DEC: recomposition & range checks from parent → digits
     if let Ok(l_real) = neo_ajtai::AjtaiSModule::from_global() {
         let ok_dec = pi_dec::pi_dec_verify(&mut tr, params, &me_parent, output_instances, &proof.pi_dec_proof, &l_real)
             .map_err(|e| FoldingError::InvalidInput(format!("pi_dec_verify failed: {e}")))?;
         return Ok(ok_dec);
     } else {
-        // Fallback: pass a small stub; verify_split_open does not use it in the current code.
-        struct NoOpSModule;
-        impl neo_ccs::traits::SModuleHomomorphism<F, Cmt> for NoOpSModule {
+        // verify_split_open doesn't use `l` in current code; fallback stub suffices
+        struct NoOp; 
+        impl neo_ccs::traits::SModuleHomomorphism<F, Cmt> for NoOp {
             fn commit(&self, _z: &neo_ccs::Mat<F>) -> Cmt { Cmt::zeros(neo_math::D, 1) }
             fn project_x(&self, z: &neo_ccs::Mat<F>, min: usize) -> neo_ccs::Mat<F> {
-                let rows = z.rows(); let cols = min.min(z.cols());
-                let mut out = neo_ccs::Mat::zero(rows, cols, F::ZERO);
-                for r in 0..rows { for c in 0..cols { out[(r, c)] = z[(r, c)]; } }
+                let rows=z.rows(); let cols=min.min(z.cols());
+                let mut out=neo_ccs::Mat::zero(rows, cols, F::ZERO);
+                for r in 0..rows { for c in 0..cols { out[(r,c)]=z[(r,c)]; } } 
                 out
             }
         }
-        let ok_dec = pi_dec::pi_dec_verify(&mut tr, params, &me_parent, output_instances, &proof.pi_dec_proof, &NoOpSModule)
+        let ok_dec = pi_dec::pi_dec_verify(&mut tr, params, &me_parent, output_instances, &proof.pi_dec_proof, &NoOp)
             .map_err(|e| FoldingError::InvalidInput(format!("pi_dec_verify failed: {e}")))?;
         return Ok(ok_dec);
     }
@@ -344,5 +294,6 @@ fn recombine_me_digits_to_parent(
         r: r_ref.clone(),
         y: y_parent,
         m_in,
+        fold_digest: digits[0].fold_digest, // All digits should have same fold_digest
     })
 }

@@ -65,6 +65,7 @@ fn create_test_me_instances(count: usize) -> Vec<MeInstance<Commitment, F, K>> {
             y,
             r,
             m_in: 4,
+            fold_digest: [0u8; 32], // Dummy digest for test
         }
     }).collect()
 }

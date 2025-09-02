@@ -47,6 +47,16 @@ pub fn prove_hash_mle(poly: &[F], point: &[F]) -> Result<HashMleProof> {
     let c = PCS::commit(&ck, poly, &r, true)?;
     
     let mut t = <E as Engine>::TE::new(b"neo/hash-mle/poseidon2");
+    
+    // SECURITY: Bind commitment and point into Fiat-Shamir transcript 
+    // This prevents floating public input attacks by making the challenges depend on the statement
+    t.absorb(b"neo-hash-mle-commitment", &c);
+    
+    // Use proper transcript representation for point coordinates  
+    for x in point { 
+        t.absorb(b"neo-hash-mle-point-coord", x);
+    }
+    
     let (eval, arg) = PCS::prove(&ck, &mut t, &c, poly, &r, point)?;
     
     Ok(HashMleProof { commitment: c, point: point.to_vec(), eval, arg })
@@ -55,6 +65,16 @@ pub fn prove_hash_mle(poly: &[F], point: &[F]) -> Result<HashMleProof> {
 pub fn verify_hash_mle(prf: &HashMleProof) -> Result<()> {
     let (_ck, vk) = PCS::setup(b"neo/hash-mle/poseidon2", 0);
     let mut t = <E as Engine>::TE::new(b"neo/hash-mle/poseidon2");
+    
+    // SECURITY: Bind commitment and point into Fiat-Shamir transcript 
+    // This must match the prover-side transcript binding exactly
+    t.absorb(b"neo-hash-mle-commitment", &prf.commitment);
+    
+    // Use proper transcript representation for point coordinates  
+    for x in &prf.point { 
+        t.absorb(b"neo-hash-mle-point-coord", x);
+    }
+    
     PCS::verify(&vk, &mut t, &prf.commitment, &prf.point, &prf.eval, &prf.arg)
         .map_err(|e| anyhow::anyhow!("Hash-MLE verification failed: {:?}", e))
 }

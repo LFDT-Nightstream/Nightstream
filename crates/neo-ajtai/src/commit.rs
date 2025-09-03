@@ -95,13 +95,13 @@ fn commit_pay_per_bit_pm1(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
                 }
             }
             
-            // t = 1..d-1: only compute cf(a_ij * X^t) when digit is non-zero
-            let mut a_xt = pp.m_rows[i][j];
+            // t = 1..d-1: JUMP DIRECTLY to non-zero positions (true pay-per-bit!)
+            // This achieves O(#nonzeros·d) instead of O(d²) complexity
             for t in 1..d {
-                a_xt = a_xt.mul_by_monomial(1);  // X^(t-1) -> X^t
                 let vt = v[t];
                 if vt != Fq::ZERO {
-                    let col = cf(a_xt);
+                    // Jump directly to X^t without iterating through intermediate powers
+                    let col = cf(pp.m_rows[i][j].mul_by_monomial(t));
                     if vt == Fq::ONE {
                         add_col(acc_i, &col);
                     } else if vt == m1 {
@@ -110,6 +110,7 @@ fn commit_pay_per_bit_pm1(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
                         debug_assert!(false, "PRECONDITION VIOLATED: digits must be in {{-1,0,1}}");
                     }
                 }
+                // CRITICAL: When vt == 0, we do NO WORK - this is the pay-per-bit savings!
             }
         }
     }

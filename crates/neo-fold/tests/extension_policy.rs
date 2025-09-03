@@ -23,7 +23,7 @@ fn extension_policy_enforces_s_min_limit() {
     let summary = result_pass.unwrap();
     assert_eq!(summary.s_supported, 2, "v1 policy should always use s=2");
     assert_eq!(summary.s_min, 2, "Minimal circuit should have s_min=2 with Goldilocks-127");
-    assert_eq!(summary.slack_bits, 1, "Minimal circuit should have +1 slack bits with exact bit-length arithmetic");
+    assert_eq!(summary.slack_bits, 0, "Minimal circuit should have exactly 0 slack bits with exact integer arithmetic");
     
     println!("✅ Minimal circuit: ell={}, d={}, s_min={}, slack_bits={}", 
              ell_minimal, d_minimal, summary.s_min, summary.slack_bits);
@@ -110,7 +110,7 @@ fn extension_policy_computes_correct_s_min() {
     
     let test_cases = [
         (1u32, 1u32, 2u32),    // Minimal: ceil((127 + 0) / 64) = ceil(1.98) = 2
-        (2u32, 1u32, 2u32),    // ceil((127 + 1) / 64) = ceil(2.00) = 2 (exact calculation)
+        (2u32, 1u32, 3u32),    // 2^127 * 2 overflows u128, so s_min = 3 (exact calculation)
         (4u32, 2u32, 3u32),    // ceil((127 + ~3) / 64) = ceil(2.05) = 3  
         (8u32, 4u32, 3u32),    // ceil((127 + ~5) / 64) = ceil(2.08) = 3
     ];
@@ -121,7 +121,7 @@ fn extension_policy_computes_correct_s_min() {
                    "s_min mismatch for ell={}, d={}: expected {}, got {}",
                    ell, d, expected_s_min, actual_s_min);
         
-        println!("✅ s_min({}, {}) = {} ✓", ell, d, actual_s_min);
+        println!("✅ s_min({}, {}) = {} ✓ (exact calculation)", ell, d, actual_s_min);
     }
 }
 

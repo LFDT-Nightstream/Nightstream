@@ -197,55 +197,49 @@ impl NeoParams {
         println!("🔒 Suggested lambda = max_lambda - 2 (safety margin)");
     }
 
-    /// Compute the minimal extension degree for given (ℓ, d_sc) under target λ using exact bit-length arithmetic.
-    /// Uses the inequality: s·⌈log₂ q⌉ ≥ λ + ⌈log₂(ℓ·d_sc)⌉
-    /// This is equivalent to q^s ≥ 2^λ ⋅ (ℓ·d_sc) but avoids overflow issues.
+    /// Compute the minimal extension degree for given (ℓ, d_sc) under target λ using EXACT integer arithmetic.
+    /// Checks the actual inequality: q^s ≥ 2^λ ⋅ (ℓ·d_sc) for s ∈ {1, 2}.
+    /// This is critical for soundness - bit-length approximations can under-estimate s_min!
     pub fn s_min(&self, ell: u32, d_sc: u32) -> u32 {
         let ld = (ell as u128) * (d_sc as u128);
-        let lq = self.ilog2_ceil_u64(self.q);
-        let rhs = (self.lambda as u32) + self.ilog2_ceil_u128(ld.max(1));
         
-        // Find minimal s such that s·lq ≥ rhs
-        (rhs + lq - 1) / lq  // Ceiling division: ceil(rhs / lq)
-    }
-    
-    /// Compute ⌈log₂(x)⌉ for u64 using bit operations
-    fn ilog2_ceil_u64(&self, x: u64) -> u32 {
-        if x == 0 { return 0; }  // Handle edge case
-        let floor_log2 = 63 - x.leading_zeros();
-        if x.is_power_of_two() { 
-            floor_log2 
-        } else { 
-            floor_log2 + 1 
-        }
-    }
-    
-    /// Compute ⌈log₂(x)⌉ for u128 using bit operations  
-    fn ilog2_ceil_u128(&self, x: u128) -> u32 {
-        if x == 0 { return 0; }  // Handle edge case
-        let floor_log2 = 127 - x.leading_zeros();
-        if x.is_power_of_two() { 
-            floor_log2 
-        } else { 
-            floor_log2 + 1 
-        }
+        // Handle overflow cases: if λ >= 128 or 2^λ * ld overflows u128, then s_min >= 3
+        if self.lambda >= 128 { return 3; }  // 2^λ doesn't fit in u128
+        
+        let rhs = match (1u128 << self.lambda).checked_mul(ld) {
+            Some(val) => val,
+            None => return 3,  // RHS overflow means we definitely need s_min >= 3
+        };
+        
+        let q128 = self.q as u128;
+        if q128 >= rhs { return 1; }                // q ≥ 2^λ · (ℓ·d_sc)
+        
+        let q2 = q128.checked_mul(q128).unwrap();   // q^2 fits in u128 for 64-bit q
+        if q2 >= rhs { return 2; }                  // q^2 ≥ 2^λ · (ℓ·d_sc)
+        
+        3                                           // otherwise s_min ≥ 3
     }
 
     /// Extension policy v1: support s=2 only. If s_min>2, return UnsupportedExtension{required=s_min}.
-    /// When s_min ≤ 2, compute exact slack_bits using bit-length arithmetic.
+    /// When s_min ≤ 2, compute exact slack_bits against the ACTUAL field size |K| = q^2.
     pub fn extension_check(&self, ell: u32, d_sc: u32) -> Result<ExtensionSummary, ParamsError> {
         let s_min = self.s_min(ell, d_sc);
         if s_min > 2 {
             return Err(ParamsError::UnsupportedExtension { required: s_min });
         }
         
-        // Compute slack_bits: 2⋅⌈log₂ q⌉ - (λ + ⌈log₂(ℓ⋅d_sc)⌉)
-        // This measures the security margin in the extension field
-        let lq = self.ilog2_ceil_u64(self.q);
         let ld = (ell as u128) * (d_sc as u128);
-        let lld = self.ilog2_ceil_u128(ld.max(1));
         
-        let slack_bits = (2 * lq as i32) - (self.lambda as i32 + lld as i32);
+        // Exact slack: floor(log₂(q²)) - (λ + ceil(log₂(ℓ·d_sc)))
+        let q2 = (self.q as u128).pow(2);
+        let floor_log2_q2 = if q2 == 0 { 0 } else { 127 - q2.leading_zeros() } as i32;
+        
+        let ceil_log2_ld = if ld == 0 { 0 } else {
+            let floor_log2_ld = 127 - ld.leading_zeros();
+            if ld.is_power_of_two() { floor_log2_ld } else { floor_log2_ld + 1 }
+        } as i32;
+        
+        let slack_bits = floor_log2_q2 - (self.lambda as i32 + ceil_log2_ld);
         
         Ok(ExtensionSummary {
             s_min,

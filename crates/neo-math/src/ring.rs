@@ -158,9 +158,16 @@ impl Rq {
     }
 }
 
-/// Reduce polynomial mod Phi_81(X) = X^54 + X^27 + 1 in-place
-/// For degrees i >= D: coeffs[i-54] -= coeffs[i] and coeffs[i-27] -= coeffs[i]
-fn reduce_mod_phi_81(coeffs: &mut [Fq; 2*D - 1]) {
+/// Reduce polynomial in-place modulo Φ₈₁(X) = X^54 + X^27 + 1.
+/// 
+/// **Precondition**: `coeffs` holds coefficients for degrees 0..(2*D-2) with D=54.
+/// 
+/// Implements the cyclotomic reduction X^i ≡ -X^(i-54) - X^(i-27) for i≥54 
+/// in a single downward pass, avoiding double-counting corner cases.
+///
+/// This is specific to η=81, giving the 54th cyclotomic polynomial
+/// Φ₈₁(X) = X^54 + X^27 + 1 = ∏(X - ζ₈₁^k) where gcd(k,81)=1.
+pub fn reduce_mod_phi_81(coeffs: &mut [Fq; 2*D - 1]) {
     for i in (D..(2*D - 1)).rev() {
         let t = coeffs[i];
         coeffs[i] = Fq::ZERO;

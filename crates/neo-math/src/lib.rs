@@ -19,13 +19,12 @@ pub enum SActionError {
     DimMismatch { expected: usize, got: usize },
 }
 
-pub use field::{Fq, K, GOLDILOCKS_MODULUS, TWO_ADICITY, nonresidue, two_adic_generator, KExtensions};
-pub use ring::{ETA, D, Rq, cf, cf_inv, inf_norm};
+pub use field::{Fq, K, GOLDILOCKS_MODULUS, TWO_ADICITY, nonresidue, two_adic_generator, KExtensions, from_base, from_complex, embed_base_to_ext, project_ext_to_base};
+pub use ring::{ETA, D, Rq, cf, cf_inv, inf_norm, reduce_mod_phi_81};
 pub use s_action::SAction;
 pub use norms::{NeoMathError, Norms};
 
-// Import trait for field operations
-use p3_field::PrimeCharacteristicRing;
+// Import trait for field operations - removed unused import
 
 // Backward compatibility exports for existing crates
 pub use Fq as F;  // Field type alias
@@ -36,32 +35,9 @@ pub type ExtF = K; // Extension field type alias
 // Use neo-ajtai for decomposition functions
 // For ModInt/polynomial functionality, use the main field/ring types
 
-// Extension field utility functions for backward compatibility
-pub fn embed_base_to_ext(base: Fq) -> K {
-    K::new_real(base)
-}
+// Extension field utility functions moved to field.rs
 
-pub fn from_base(base: Fq) -> K {
-    K::new_real(base)
-}
-
-pub fn project_ext_to_base(ext: K) -> Option<Fq> {
-    // Check if imaginary part is zero
-    if ext.imag() == Fq::ZERO {
-        Some(ext.real())
-    } else {
-        None
-    }
-}
-
-// Generate a random extension field element for backward compatibility
-pub fn random_extf() -> K {
-    use rand::Rng;
-    let mut rng = rand::rng();
-    let a = Fq::from_u64(rng.random::<u64>());
-    let b = Fq::from_u64(rng.random::<u64>());
-    K::new_complex(a, b)
-}
+// Random generation moved to field.rs
 
 // Ring type aliases 
 pub type RingElement = Rq;

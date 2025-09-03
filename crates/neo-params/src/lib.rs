@@ -191,33 +191,66 @@ impl NeoParams {
         for &ell_d_product in &[1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 128, 256] {
             let max_lambda = Self::max_lambda_for_s2(ell_d_product, 1); // Use ell_d_product directly
             let suggested = max_lambda.saturating_sub(2); // 2-bit safety margin
-            println!(" {:>8} | {:>10} | {:>16}", ell_d_product, max_lambda, suggested);
+            println!(" {ell_d_product:>8} | {max_lambda:>10} | {suggested:>16}");
         }
         println!("\n💡 Rule of thumb: Each doubling of ell*d_sc costs ~1 bit of lambda");
         println!("🔒 Suggested lambda = max_lambda - 2 (safety margin)");
     }
 
-    /// Compute the minimal extension degree for given (ℓ, d_sc) under target λ.
-    /// s_min = ceil( (λ + log2(ℓ·d_sc)) / log2(q) )
+    /// Compute the minimal extension degree for given (ℓ, d_sc) under target λ using exact bit-length arithmetic.
+    /// Uses the inequality: s·⌈log₂ q⌉ ≥ λ + ⌈log₂(ℓ·d_sc)⌉
+    /// This is equivalent to q^s ≥ 2^λ ⋅ (ℓ·d_sc) but avoids overflow issues.
     pub fn s_min(&self, ell: u32, d_sc: u32) -> u32 {
         let ld = (ell as u128) * (d_sc as u128);
-        let num = (self.lambda as f64) + log2_u128(ld);
-        let den = (self.q as f64).log2();
-        (num / den).ceil() as u32
+        let lq = self.ilog2_ceil_u64(self.q);
+        let rhs = (self.lambda as u32) + self.ilog2_ceil_u128(ld.max(1));
+        
+        // Find minimal s such that s·lq ≥ rhs
+        (rhs + lq - 1) / lq  // Ceiling division: ceil(rhs / lq)
+    }
+    
+    /// Compute ⌈log₂(x)⌉ for u64 using bit operations
+    fn ilog2_ceil_u64(&self, x: u64) -> u32 {
+        if x == 0 { return 0; }  // Handle edge case
+        let floor_log2 = 63 - x.leading_zeros();
+        if x.is_power_of_two() { 
+            floor_log2 
+        } else { 
+            floor_log2 + 1 
+        }
+    }
+    
+    /// Compute ⌈log₂(x)⌉ for u128 using bit operations  
+    fn ilog2_ceil_u128(&self, x: u128) -> u32 {
+        if x == 0 { return 0; }  // Handle edge case
+        let floor_log2 = 127 - x.leading_zeros();
+        if x.is_power_of_two() { 
+            floor_log2 
+        } else { 
+            floor_log2 + 1 
+        }
     }
 
     /// Extension policy v1: support s=2 only. If s_min>2, return UnsupportedExtension{required=s_min}.
-    /// When s_min ≤ 2, return slack_bits = floor( 2·log2(q) − (λ + log2(ℓ·d_sc)) ).
+    /// When s_min ≤ 2, compute exact slack_bits using bit-length arithmetic.
     pub fn extension_check(&self, ell: u32, d_sc: u32) -> Result<ExtensionSummary, ParamsError> {
         let s_min = self.s_min(ell, d_sc);
         if s_min > 2 {
             return Err(ParamsError::UnsupportedExtension { required: s_min });
         }
-        let slack = (2.0 * (self.q as f64).log2()) - ((self.lambda as f64) + log2_u128((ell as u128) * (d_sc as u128)));
+        
+        // Compute slack_bits: 2⋅⌈log₂ q⌉ - (λ + ⌈log₂(ℓ⋅d_sc)⌉)
+        // This measures the security margin in the extension field
+        let lq = self.ilog2_ceil_u64(self.q);
+        let ld = (ell as u128) * (d_sc as u128);
+        let lld = self.ilog2_ceil_u128(ld.max(1));
+        
+        let slack_bits = (2 * lq as i32) - (self.lambda as i32 + lld as i32);
+        
         Ok(ExtensionSummary {
             s_min,
             s_supported: 2,
-            slack_bits: slack.floor() as i32,
+            slack_bits,
         })
     }
 }

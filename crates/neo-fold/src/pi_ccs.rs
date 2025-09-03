@@ -285,9 +285,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 
     let ext = params.extension_check(ell as u32, d_sc as u32)
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(format!("Extension policy validation failed: {}", e)))?;
+    // Enforce strict security policy: slack_bits must be non-negative
+    // This ensures we meet or exceed the target lambda-bit security level
     if ext.slack_bits < 0 {
         return Err(PiCcsError::ExtensionPolicyFailed(format!(
-            "Insufficient security slack: {} bits (need ≥ 0)", ext.slack_bits
+            "Insufficient security slack: {} bits (need ≥ 0 for target {}-bit security)", 
+            ext.slack_bits, params.lambda
         )));
     }
     tr.absorb_ccs_header(64, ext.s_supported, params.lambda, ell as u32, d_sc as u32, ext.slack_bits);

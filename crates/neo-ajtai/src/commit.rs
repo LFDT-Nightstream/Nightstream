@@ -6,7 +6,7 @@ use crate::error::{AjtaiError, AjtaiResult};
 
 
 /// Bring in ring & S-action APIs from neo-math.
-use neo_math::ring::{Rq as RqEl, cf_inv as cf_unmap};
+use neo_math::ring::{Rq as RqEl, cf_inv as cf_unmap, cf};
 use neo_math::s_action::SAction;
 
 /// Sample a uniform element from F_q using rejection sampling to avoid bias.
@@ -44,12 +44,102 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
     Ok(PP { kappa, m, d, m_rows: rows })
 }
 
+/// Check if ALL digits are exactly in {-1, 0, 1} for safe pay-per-bit optimization
+/// This is a strict precondition to avoid the correctness bug where non-{-1,0,1} digits
+/// would be incorrectly treated as -1.
+#[allow(non_snake_case, dead_code)]
+fn all_digits_pm1_or_zero(Z: &[Fq]) -> bool {
+    let m1 = Fq::ZERO - Fq::ONE;
+    Z.iter().all(|&d| d == Fq::ZERO || d == Fq::ONE || d == m1)
+}
+
+// Helper functions for pay-per-bit optimization
+#[inline]
+#[allow(dead_code)]
+fn add_col(acc: &mut [Fq], col: &[Fq]) {
+    for (a, &x) in acc.iter_mut().zip(col) { *a += x; }
+}
+
+#[inline] 
+#[allow(dead_code)]
+fn sub_col(acc: &mut [Fq], col: &[Fq]) {
+    for (a, &x) in acc.iter_mut().zip(col) { *a -= x; }
+}
+
+/// Pay-per-bit optimized commit for digits strictly in {-1, 0, 1}
+/// Uses the rotation matrix identity: cf(a⋅b) = rot(a)⋅cf(b) = ∑_t z_t ⋅ (column t of rot(a))
+/// Only adds/subtracts pre-rotated columns when z_t ≠ 0
+/// PRECONDITION: ALL digits in Z must be in {-1, 0, 1}
+#[allow(non_snake_case, dead_code)]
+fn commit_pay_per_bit_pm1(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
+    let d = pp.d; let m = pp.m; let kappa = pp.kappa;
+    let mut c = Commitment::zeros(d, kappa);
+
+    // For each Ajtai row i and message column j
+    for i in 0..kappa {
+        let acc_i = c.col_mut(i);
+        for j in 0..m {
+            let v = &Z[j*d..(j+1)*d];  // digits for column j
+            
+            let m1 = Fq::ZERO - Fq::ONE;
+            
+            // t = 0: only compute cf(a_ij) if needed
+            if v[0] != Fq::ZERO {
+                let col0 = cf(pp.m_rows[i][j]);
+                if v[0] == Fq::ONE {
+                    add_col(acc_i, &col0);
+                } else if v[0] == m1 {
+                    sub_col(acc_i, &col0);  
+                } else {
+                    debug_assert!(false, "PRECONDITION VIOLATED: digits must be in {{-1,0,1}}");
+                }
+            }
+            
+            // t = 1..d-1: only compute cf(a_ij * X^t) when digit is non-zero
+            let mut a_xt = pp.m_rows[i][j];
+            for t in 1..d {
+                a_xt = a_xt.mul_by_monomial(1);  // X^(t-1) -> X^t
+                let vt = v[t];
+                if vt != Fq::ZERO {
+                    let col = cf(a_xt);
+                    if vt == Fq::ONE {
+                        add_col(acc_i, &col);
+                    } else if vt == m1 {
+                        sub_col(acc_i, &col);
+                    } else {
+                        debug_assert!(false, "PRECONDITION VIOLATED: digits must be in {{-1,0,1}}");
+                    }
+                }
+            }
+        }
+    }
+    c
+}
+
 /// MUST: Commit(pp, Z) = cf(M · cf^{-1}(Z)) as c ∈ F_q^{d×κ}.  S-homomorphic over S by construction.
+/// Automatically chooses between dense O(d²) and sparse O(#nonzeros × d) algorithms based on digit sparsity.
 #[allow(non_snake_case)]
 pub fn commit(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     // Z is d×m (column-major by (col*d + row)), output c is d×kappa (column-major)
-    let d = pp.d; let m = pp.m; let kappa = pp.kappa;
+    let d = pp.d; let m = pp.m; let _kappa = pp.kappa;
     assert_eq!(Z.len(), d*m, "Z must be d×m");
+
+    // Choose algorithm: sparse path ONLY if ALL digits are in {-1, 0, 1}
+    // This prevents the correctness bug where digits like 2, 3, etc. would be treated as -1
+    #[cfg(feature = "variable_time_commit")]
+    {
+        if all_digits_pm1_or_zero(Z) {
+            return commit_pay_per_bit_pm1(pp, Z);
+        }
+    }
+    commit_dense(pp, Z)
+}
+
+/// Dense commit implementation (original algorithm)
+/// Kept as fallback when digits are not sparse
+#[allow(non_snake_case)]
+fn commit_dense(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
+    let d = pp.d; let m = pp.m; let kappa = pp.kappa;
 
     // Pre-extract columns of Z (digits per column)
     let cols: Vec<&[Fq]> = (0..m).map(|j| &Z[j*d .. (j+1)*d]).collect();
@@ -126,6 +216,27 @@ pub fn s_mul(rho_ring: &RqEl, c: &Commitment) -> Commitment {
         dst.copy_from_slice(&dst_result);
     }
     out
+}
+
+/// Reference implementation of commit for testing: c = cf(M · cf^{-1}(Z))
+/// This implements the specification directly using S-action matrix multiplication
+/// Used to validate the optimized commit paths produce identical results
+#[allow(non_snake_case, dead_code)]
+pub fn commit_spec(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
+    let d = pp.d; let m = pp.m;
+    let mut c = Commitment::zeros(d, pp.kappa);
+    
+    for i in 0..pp.kappa {
+        let acc_i = c.col_mut(i);
+        for j in 0..m {
+            let a_ij = pp.m_rows[i][j];
+            let s = SAction::from_ring(a_ij);
+            let v: [Fq; neo_math::ring::D] = Z[j*d..(j+1)*d].try_into().unwrap();
+            let w = s.apply_vec(&v);
+            for (a, &x) in acc_i.iter_mut().zip(&w) { *a += x; }
+        }
+    }
+    c
 }
 
 pub fn s_lincomb(rhos: &[RqEl], cs: &[Commitment]) -> AjtaiResult<Commitment> {

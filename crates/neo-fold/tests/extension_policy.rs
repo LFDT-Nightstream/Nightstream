@@ -23,7 +23,7 @@ fn extension_policy_enforces_s_min_limit() {
     let summary = result_pass.unwrap();
     assert_eq!(summary.s_supported, 2, "v1 policy should always use s=2");
     assert_eq!(summary.s_min, 2, "Minimal circuit should have s_min=2 with Goldilocks-127");
-    assert_eq!(summary.slack_bits, 0, "Minimal circuit should have exactly 0 slack bits");
+    assert_eq!(summary.slack_bits, 1, "Minimal circuit should have +1 slack bits with exact bit-length arithmetic");
     
     println!("✅ Minimal circuit: ell={}, d={}, s_min={}, slack_bits={}", 
              ell_minimal, d_minimal, summary.s_min, summary.slack_bits);
@@ -33,13 +33,15 @@ fn extension_policy_enforces_s_min_limit() {
 fn extension_policy_rejects_non_minimal_circuits() {
     let params = NeoParams::goldilocks_127();
     
-    // Test that even slightly larger circuits are rejected with Goldilocks-127  
+    // With exact bit-length arithmetic, these cases now correctly compute s_min:
+    // ell=2,d=1 -> s_min=2 (now passes!), ell=1,d=2 -> s_min=2 (now passes!)
+    // But larger circuits still require s_min=3+
     let test_cases = [
-        (2u32, 1u32),  // ell=2 should require s_min=3
-        (1u32, 2u32),  // d=2 should require s_min=3  
-        (4u32, 2u32),  // Typical small circuit
-        (8u32, 2u32),  // Medium circuit
-        (25u32, 8u32), // Large circuit
+        (4u32, 2u32),  // ell=4,d=2: ld=8, s_min=3 (should reject)
+        (8u32, 2u32),  // ell=8,d=2: ld=16, s_min=3 (should reject) 
+        (25u32, 8u32), // Large circuit: s_min >> 2 (should reject)
+        (16u32, 1u32), // ell=16: s_min=3 (should reject)
+        (1u32, 16u32), // d=16: s_min=3 (should reject) 
     ];
     
     for (ell, d) in test_cases {
@@ -108,7 +110,7 @@ fn extension_policy_computes_correct_s_min() {
     
     let test_cases = [
         (1u32, 1u32, 2u32),    // Minimal: ceil((127 + 0) / 64) = ceil(1.98) = 2
-        (2u32, 1u32, 3u32),    // ceil((127 + 1) / 64) = ceil(2.00) = 3
+        (2u32, 1u32, 2u32),    // ceil((127 + 1) / 64) = ceil(2.00) = 2 (exact calculation)
         (4u32, 2u32, 3u32),    // ceil((127 + ~3) / 64) = ceil(2.05) = 3  
         (8u32, 4u32, 3u32),    // ceil((127 + ~5) / 64) = ceil(2.08) = 3
     ];

@@ -4,6 +4,13 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 
+[features]
+default = []
+# Enable variable-time pay-per-bit optimization (potential side-channel leakage)  
+# This feature allows timing-dependent optimizations that may leak digit patterns
+# through timing/memory access patterns. Only enable if prover-local leakage is acceptable.
+variable_time_commit = []
+
 [dependencies]
 # Workspace deps
 neo-math = { path = "../neo-math" }

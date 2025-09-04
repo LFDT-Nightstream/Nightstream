@@ -8,9 +8,8 @@ members = [
   "crates/neo-fold",
   "crates/neo-challenge",
   "crates/neo-spartan-bridge",
-  # Main applications
-  "neo-main",
-  "neo-orchestrator",
+  # Facade crate
+  "crates/neo",
   # Other existing crates (temporarily disabled)
   # "neo-arithmetize",
   # "neo-bench",

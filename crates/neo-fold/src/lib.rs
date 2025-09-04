@@ -62,7 +62,7 @@ pub fn fold_ccs_instances(
     structure: &CcsStructure<F>,
     instances: &[neo_ccs::McsInstance<Cmt, F>],
     witnesses: &[neo_ccs::McsWitness<F>],
-) -> Result<(Vec<MeInstance<Cmt, F, K>>, FoldingProof), FoldingError> {
+) -> Result<(Vec<MeInstance<Cmt, F, K>>, Vec<MeWitness<F>>, FoldingProof), FoldingError> {
     if instances.is_empty() || instances.len() != witnesses.len() {
         return Err(FoldingError::InvalidInput("empty or mismatched inputs".into()));
     }
@@ -116,7 +116,7 @@ pub fn fold_ccs_instances(
     let me_b_wit = MeWitness { Z: z_prime };
 
     // 3) Π_DEC: 1 ME(B,L) → k ME(b,L) with verified openings & range assertions
-    let (me_out, _digit_wits, pi_dec_proof) =
+    let (me_out, digit_wits, pi_dec_proof) =
         pi_dec::pi_dec(&mut tr, params, &me_b, &me_b_wit, structure, &l)
             .map_err(|e| match e {
                 pi_dec::PiDecError::InvalidInput(msg) => FoldingError::PiDec(crate::error::PiDecError::InvalidInput(msg)),
@@ -132,7 +132,7 @@ pub fn fold_ccs_instances(
         pi_rlc_proof,
         pi_dec_proof,
     };
-    Ok((me_out, proof))
+    Ok((me_out, digit_wits, proof))
 }
 
 /// Verify a folding proof end-to-end over the single FS transcript.

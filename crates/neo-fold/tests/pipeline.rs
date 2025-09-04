@@ -40,7 +40,7 @@ fn fold_pipeline_smoke() {
     }
 
     // Fold: k+1=2 → Π_RLC reduces to 1 → Π_DEC expands to k=12 final instances
-    let (out_mes, proof) = fold_ccs_instances(&params, &ccs, &instances, &witnesses).expect("fold ok");
+    let (out_mes, _witnesses, proof) = fold_ccs_instances(&params, &ccs, &instances, &witnesses).expect("fold ok");
     assert_eq!(out_mes.len(), params.k as usize, "should produce k final instances from Π_DEC");
     
     // Verify all output instances have consistent structure

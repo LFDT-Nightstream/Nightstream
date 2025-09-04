@@ -1,0 +1,30 @@
+[package]
+name = "neo"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Neo: simple facade (prove/verify) over Ajtai+Folding+Spartan2"
+authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
+rust-version = "1.88"
+
+[dependencies]
+anyhow = { workspace = true }
+bincode = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+rand = { workspace = true }
+p3-field = { workspace = true }
+subtle = { workspace = true }
+
+neo-params = { path = "../neo-params" }
+neo-math   = { path = "../neo-math" }
+neo-ajtai  = { path = "../neo-ajtai" }
+neo-ccs    = { path = "../neo-ccs" }
+neo-fold   = { path = "../neo-fold" }
+neo-spartan-bridge = { path = "../neo-spartan-bridge" }
+
+[dev-dependencies]
+rand = { workspace = true }
+
+[[example]]
+name = "fib"
+path = "examples/fib.rs"

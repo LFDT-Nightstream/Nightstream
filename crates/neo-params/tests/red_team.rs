@@ -114,3 +114,71 @@ fn goldilocks_preset_security_invariants() {
     println!("✅ RED TEAM: Goldilocks preset satisfies all security invariants");
     println!("   Guard margin: {:.1}% ({} out of {})", margin_ratio * 100.0, margin, rhs);
 }
+
+/// Test parameter boundary conditions for overflow cases
+#[test] 
+fn parameter_overflow_boundary_test() {
+    use neo_params::{NeoParams, ParamsError};
+    
+    const GOLDILOCKS_MODULUS: u64 = 0xFFFF_FFFF_0000_0001; // 2^64 - 2^32 + 1
+    
+    // Test with lambda=128 which should force overflow and require s_min >= 3
+    let high_lambda_params = NeoParams {
+        q: GOLDILOCKS_MODULUS,
+        eta: 81,
+        d: 54, 
+        kappa: 3,
+        m: 4,
+        lambda: 128, // Very high security parameter
+        s: 2,
+        k: 1,
+        T: 256,
+        b: 2,
+        B: 1024,
+    };
+    
+    // With lambda=128 and any reasonable ell, d_sc, this should overflow and return s_min >= 3
+    let result = high_lambda_params.extension_check(1, 1);
+    match result {
+        Err(ParamsError::UnsupportedExtension { required }) => {
+            assert!(required >= 3, "Expected s_min >= 3 for overflow case, got {}", required);
+            println!("✅ Overflow case correctly requires s_min >= 3 (got {})", required);
+        },
+        Ok(_) => panic!("Expected overflow case to fail with UnsupportedExtension"),
+        Err(e) => panic!("Unexpected error type: {:?}", e),
+    }
+    
+    // Test boundary case where s=1 fails but s=2 might succeed  
+    let boundary_params = NeoParams {
+        q: GOLDILOCKS_MODULUS,
+        eta: 81,
+        d: 54,
+        kappa: 3,
+        m: 4,
+        lambda: 127, // Challenging security parameter
+        s: 2,
+        k: 1, 
+        T: 256,
+        b: 2,
+        B: 1024,
+    };
+    
+    // Test with challenging values - higher ell and d_sc should make s=1 fail
+    let result_s1 = boundary_params.extension_check(1000, 256); // High ell and d_sc 
+    assert!(result_s1.is_err(), "s=1 should fail for challenging parameters");
+    
+    let result_s2 = boundary_params.extension_check(100, 128); // Less challenging
+    // s=2 might succeed or fail depending on exact values, but shouldn't panic
+    match result_s2 {
+        Ok(slack) => {
+            println!("✅ s=2 succeeds with slack: {:?}", slack);
+        },
+        Err(ParamsError::UnsupportedExtension { required }) => {
+            println!("✅ s=2 fails, requires s_min = {}", required);
+            assert!(required > 2, "Required s_min should be > 2");
+        },
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+    
+    println!("✅ Parameter boundary conditions handled correctly");
+}

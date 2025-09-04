@@ -3,22 +3,34 @@
 //! Implements the complete folding protocol: Π_CCS → Π_RLC → Π_DEC  
 //! Uses one transcript (Poseidon2), one backend (Ajtai), and one sum-check over K.
 
+#![forbid(unsafe_code)]
+
 pub mod error;
 /// Poseidon2 transcript for Fiat-Shamir
 pub mod transcript;
+/// Strong sampling set infrastructure for challenges
+pub mod strong_set;
+/// Π_RLC verifier: Random Linear Combination verification
+pub mod verify_linear;
 /// Π_CCS: Sum-check reduction over extension field K  
 pub mod pi_ccs;
 /// Π_RLC: Random linear combination with S-action
 pub mod pi_rlc;
 /// Π_DEC: Verified split opening (TODO: implement real version)
 pub mod pi_dec;
+/// Spartan2 bridge adapter (modern → legacy types + digest binding)
+pub mod bridge_adapter;
 
 // Re-export main types
 pub use error::{FoldingError, PiCcsError, PiRlcError, PiDecError};
 pub use transcript::{FoldTranscript, Domain};
+pub use strong_set::{StrongSamplingSet, VerificationError, ds};
+pub use verify_linear::{verify_linear_rlc, verify_linear_rlc as verify_linear};
 pub use pi_ccs::{pi_ccs_prove, pi_ccs_verify, PiCcsProof, eval_tie_constraints, eval_range_decomp_constraints};  
 pub use pi_rlc::{pi_rlc_prove, pi_rlc_verify, PiRlcProof};
 pub use pi_dec::{pi_dec, pi_dec_verify, PiDecProof};
+#[allow(deprecated)]
+pub use bridge_adapter::{compress_via_bridge, verify_via_bridge, verify_via_bridge_with_io, modern_to_legacy_instance, modern_to_legacy_witness};
 
 use neo_ccs::{MeInstance, MeWitness, CcsStructure};
 use neo_math::{F, K, Rq, cf_inv};

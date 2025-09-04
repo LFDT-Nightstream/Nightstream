@@ -245,7 +245,8 @@ impl NeoParams {
         }
         
         // Exact slack for s=2: compute floor(log₂(q²/(2^λ·ℓd))) without floating point
-        let q2 = (self.q as u128).checked_mul(self.q as u128).unwrap(); // q^2 fits for 64-bit q
+        let q = self.q as u128;
+        let q2 = q * q; // q^2 cannot overflow u128 for 64-bit q
         let ld = (ell as u128).checked_mul(d_sc as u128).unwrap();
         
         let rhs = 1u128.checked_shl(self.lambda)

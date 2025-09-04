@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 #![deny(missing_docs)]
 //! CCS frontend for Neo: structures, relations (MCS/ME), and row-wise checks.
 //!

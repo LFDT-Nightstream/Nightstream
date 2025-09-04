@@ -5,12 +5,13 @@ use neo_math::{Rq, Fq, D, cf, cf_inv, SAction};
 use neo_math::ring::{rot_apply_vec, test_reduce_mod_phi_81};
 use p3_field::PrimeCharacteristicRing;
 use p3_matrix::Matrix;
-use rand::Rng;
+use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
+use rand_chacha::rand_core::RngCore;
 
 /// Test the fundamental ring/S-action isomorphism: cf(a*b) == rot(a)·cf(b)
 #[test]
 fn ring_s_action_isomorphism() {
-    let mut rng = rand::rng();
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
     
     for _ in 0..20 {
         // Generate random ring elements
@@ -34,7 +35,7 @@ fn ring_s_action_isomorphism() {
 /// Test power-of-X property: cf(a * X^j) equals column j of rot(a)
 #[test]
 fn power_of_x_columns() {
-    let mut rng = rand::rng();
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
     
     for _ in 0..10 {
         let a = Rq::random_uniform(&mut rng);
@@ -93,7 +94,7 @@ fn monomial_multiplication_regression() {
 /// Test cyclotomic polynomial relation: X^54 ≡ -X^27 - 1 (mod Φ_81)
 #[test]
 fn cyclotomic_phi_81_relation() {
-    let mut rng = rand::rng();
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
     
     // Test the fundamental cyclotomic relation for random polynomials
     for _ in 0..10 {
@@ -136,7 +137,7 @@ fn cyclotomic_phi_81_relation() {
 /// Test that sparse bit multiplication is consistent with dense multiplication
 #[test]
 fn sparse_vs_dense_multiplication() {
-    let mut rng = rand::rng();
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
     
     for _ in 0..10 {
         let a = Rq::random_small(&mut rng, 100);
@@ -146,7 +147,7 @@ fn sparse_vs_dense_multiplication() {
         let mut dense_poly = Rq::zero();
         
         for i in 0..D {
-            if rng.random::<bool>() && sparse_bits.len() < 5 {
+            if (rng.next_u32() % 2) == 0 && sparse_bits.len() < 5 {
                 sparse_bits.push((i, true));
                 // Build equivalent dense polynomial
                 let mut x_i_coeffs = [Fq::ZERO; D];
@@ -168,7 +169,7 @@ fn sparse_vs_dense_multiplication() {
 /// Test ring arithmetic properties: associativity, distributivity, etc.
 #[test]
 fn ring_arithmetic_properties() {
-    let mut rng = rand::rng();
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
     
     for _ in 0..10 {
         let a = Rq::random_uniform(&mut rng);
@@ -196,7 +197,7 @@ fn ring_arithmetic_properties() {
 /// Test infinity norm properties
 #[test]
 fn infinity_norm_properties() {
-    let mut rng = rand::rng();
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
     
     // Test that zero has norm 0
     assert_eq!(Rq::zero().norm_inf(), 0);
@@ -219,4 +220,34 @@ fn infinity_norm_properties() {
             "Triangle inequality violated: ||a+b|| = {} > {} + {} = ||a|| + ||b||",
             norm_sum, norm_a, norm_b);
     }
+}
+
+/// Test that rotation step agrees with ring multiply by X
+#[test]
+fn rotation_step_vs_ring_multiply() {
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    
+    for _ in 0..10 {
+        let a = Rq::random_uniform(&mut rng);
+        
+        // Method 1: Use rotation matrix application
+        // rot(a) · cf(X) should equal cf(a · X)
+        let x_poly = {
+            let mut coeffs = vec![Fq::ZERO; neo_math::D];
+            coeffs[1] = Fq::ONE; // X = 0 + 1*X + 0*X^2 + ...
+            Rq::from_field_coeffs(coeffs)
+        };
+        let cf_x = cf(x_poly); // cf of X (monomial degree 1)
+        let rot_a_cf_x = rot_apply_vec(&a, &cf_x);
+        
+        // Method 2: Ring multiply by X (monomial degree 1) then cf
+        let a_times_x = a.mul_by_monomial(1);
+        let cf_a_times_x = cf(a_times_x);
+        
+        // They should be equivalent: rot(a)·cf(X) = cf(a·X)
+        assert_eq!(rot_a_cf_x, cf_a_times_x,
+            "rot(a)·cf(X) should equal cf(a·X)");
+    }
+    
+    println!("✅ Rotation step agrees with ring multiply by X");
 }

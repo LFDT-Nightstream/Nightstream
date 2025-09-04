@@ -54,12 +54,20 @@ pub struct FoldTranscript {
 
 impl FoldTranscript {
     pub fn new(initial_data: &[u8]) -> Self {
-        // Poseidon2 with default parameters for Goldilocks.
-        // Use a fixed seed for deterministic transcript initialization
-        use rand::SeedableRng;
-        let mut rng = rand_chacha::ChaCha20Rng::from_seed([0u8; 32]);
+        // DETERMINISTIC Poseidon2 parameters for cross-implementation compatibility.
+        // NOTE: This uses a fixed seed to generate consistent parameters across runs.
+        // TODO: Replace with hard-coded canonical parameters when available upstream.
+        const NEO_POSEIDON2_SEED: u64 = 0x4E_454F_504F_5345_49; // "NEOPOSEI" in hex
+        use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
+        let mut rng = ChaCha8Rng::seed_from_u64(NEO_POSEIDON2_SEED);
         let perm = Poseidon2Goldilocks::<POSEIDON2_WIDTH>::new_from_rng_128(&mut rng);
         let mut ch = NeoChallenger::new(perm);
+        
+        // VERSIONING: Explicit domain separation for parameter choice compatibility
+        // This ensures incompatibility with different parameter generation is intentional and trackable
+        for &byte in b"neo.fold.v1.poseidon2.params.seeded/NEOPOSEI" {
+            ch.observe(F::from_u32(byte as u32));
+        }
         
         // Seal the transcript version.
         // Convert bytes to field elements and observe them individually
@@ -125,7 +133,7 @@ impl FoldTranscript {
     pub fn challenge_k(&mut self) -> K {
         let a0 = self.challenge_f();
         let a1 = self.challenge_f();
-        K::new_complex(a0, a1)
+        neo_math::from_complex(a0, a1)
     }
 
     /// Draw multiple extension field challenges

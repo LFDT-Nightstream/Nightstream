@@ -7,7 +7,7 @@
 
 use crate::transcript::{FoldTranscript, Domain};
 use crate::error::PiCcsError;
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
+use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat, SparsePoly};
 use neo_ajtai::Commitment as Cmt;
 use neo_math::{F, K};
 use p3_field::{PrimeCharacteristicRing, Field};
@@ -59,17 +59,32 @@ fn lagrange_interpolate_k(xs: &[K], ys: &[K]) -> Vec<K> {
     coeffs
 }
 
+/// Absorb sparse polynomial definition into transcript for soundness binding.
+/// This prevents a malicious prover from using different polynomials with the same matrix structure.
+fn absorb_sparse_polynomial(tr: &mut FoldTranscript, f: &SparsePoly<F>) {
+    // Absorb polynomial structure
+    tr.absorb_bytes(b"neo/ccs/poly");
+    tr.absorb_u64(&[f.arity() as u64]);
+    tr.absorb_u64(&[f.terms().len() as u64]);
+    
+    // Absorb each term: coefficient + exponents (sorted for determinism)
+    let mut terms: Vec<_> = f.terms().iter().collect();
+    terms.sort_by_key(|term| &term.exps); // deterministic ordering
+    
+    for term in terms {
+        tr.absorb_f(&[term.coeff]);
+        tr.absorb_u64(&term.exps.iter().map(|&e| e as u64).collect::<Vec<_>>());
+    }
+}
+
 /// Batching coefficients for the composed polynomial Q
+/// 
+/// In v1: Only CCS constraints are included in Q(u).
+/// Range and evaluation tie constraints are handled outside the sum-check.
 #[derive(Debug, Clone)]
 struct BatchingCoeffs {
     /// α coefficients for CCS constraints f(Mz)  
     alphas: Vec<K>,
-    /// β coefficients for range/decomposition constraints NC_i (UNUSED - removed from sum-check)
-    #[allow(dead_code)]
-    betas: Vec<K>, 
-    /// γ coefficients for evaluation tie constraints ⟨M_j^T χ_u, Z⟩ - y_j (UNUSED - removed from sum-check)
-    #[allow(dead_code)]
-    gammas: Vec<K>,
 }
 
 /// Compute Y_j(u) = ⟨(M_j z), χ_u⟩ in K, for all j, then f(Y(u)) in K.
@@ -232,32 +247,28 @@ pub fn eval_tie_constraints(
     total
 }
 
-/// Evaluate the full composed polynomial Q(u) = α·CCS + β·NC
+/// Evaluate the composed polynomial Q(u) = α·CCS
 /// This is what the sum-check actually proves is zero.
-/// 
-/// NOTE: Tie constraints omitted from sum-check to prevent soundness issues.
-/// They are only zero at challenge point r, not at arbitrary evaluation points u.
-/// Security comes from cryptographic commitment binding c = L(Z).
+///
+/// v1: RANGE and TIE are enforced outside the sum-check (Π_DEC and ME checks).
+/// This prevents the prover/verifier polynomial mismatch until proper eq() gating is implemented.
 fn eval_composed_polynomial_q(
     s: &CcsStructure<F>,
     z: &[F],
-    _Z: &neo_ccs::Mat<F>,  // Not used since range constraints removed
+    _Z: &neo_ccs::Mat<F>,
     mz_cache: Option<&[Vec<F>]>,
-    _claimed_y: &[Vec<K>],  // Not used in sum-check (tie constraints omitted)
+    _claimed_y: &[Vec<K>],
     u: &[K],
     coeffs: &BatchingCoeffs,
-    _params: &neo_params::NeoParams,  // Not used since range constraints removed
+    _params: &neo_params::NeoParams,
     instance_idx: usize,
 ) -> K {
     // CCS component: α_i · f(M_i z)(u)
     let ccs_term = coeffs.alphas[instance_idx] * eval_ccs_component(s, z, mz_cache, u);
     
-    // Range/decomposition constraints REMOVED from sum-check:
-    // - Verifier cannot compute them without private witness Z
-    // - Range verification handled by Π_DEC and bridge SNARK
-    // - This eliminates a major security gap in terminal verification
-    
-    ccs_term  // Only CCS constraints in sum-check
+    // RANGE: omit in v1 (checked via Π_DEC)
+    // TIE:   omit in v1 (checked via ME/Π_RLC)
+    ccs_term
 }
 
 /// Prove Π_CCS: CCS instances satisfy constraints via sum-check
@@ -338,33 +349,45 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         insts.push(Inst{ z, Z: &wit.Z, m_in: inst.m_in, mz, c: inst.c.clone() });
     }
 
+    // --- SECURITY: Absorb instance data BEFORE sampling challenges to prevent malleability ---
+    tr.absorb_bytes(b"neo/ccs/instances");
+    tr.absorb_u64(&[s.n as u64, s.m as u64, s.t() as u64]);
+    // Absorb CCS matrices
+    for mj in &s.matrices {
+        tr.absorb_f(mj.as_slice());
+    }
+    // CRITICAL: Absorb polynomial definition to prevent malicious polynomial substitution
+    absorb_sparse_polynomial(tr, &s.f);
+    
+    // Absorb all instance data (commitment, public inputs, witness structure)
+    for inst in mcs_list.iter() {
+        // Absorb instance data that affects soundness
+        tr.absorb_f(&inst.x);
+        tr.absorb_u64(&[inst.m_in as u64]);
+        // CRITICAL: Absorb commitment to prevent cross-instance attacks
+        tr.absorb_f(&inst.c.data);
+    }
+
     // --- Generate batching coefficients for composed polynomial Q ---
     tr.absorb_bytes(b"neo/ccs/batch");
     
     // α coefficients for CCS constraints (one per instance)
     let alphas: Vec<K> = (0..insts.len()).map(|_| tr.challenge_k()).collect();
-
-    // β coefficients REMOVED - range constraints not in sum-check
-    // tr.absorb_bytes(b"neo/ccs/range_constraints"); // Not absorbed
-    let betas: Vec<K> = vec![]; // Empty - range constraints removed from sum-check
     
-    // γ coefficients for evaluation tie constraints (not used in sum-check polynomial)
-    tr.absorb_bytes(b"neo/ccs/eval_ties"); 
-    let gammas: Vec<K> = vec![tr.challenge_k()]; // Generate for consistency, but not used in Q(u)
-    
-    let batch_coeffs = BatchingCoeffs { alphas, betas, gammas };
+    let batch_coeffs = BatchingCoeffs { alphas };
 
     // --- Run sum-check rounds over composed polynomial Q (degree ≤ d_sc) ---
     let mut rounds: Vec<Vec<K>> = Vec::with_capacity(ell);
     let mut prefix: Vec<K> = Vec::with_capacity(ell);
-    let sample_xs: Vec<K> = (0..=d_sc as u64).map(|u| K::from(F::from_u64(u))).collect();
 
-    // Prepare claimed y values for each instance (will be computed during ME instance creation)
-    // For now, use placeholder - we'll compute the real values after sum-check
-    let placeholder_y: Vec<Vec<K>> = vec![vec![K::ZERO; neo_math::D]; s.t()];
+    // Tie values are not part of Q(u) in v1 - ties enforced via ME/Π_RLC checks
+    let claimed_y_empty: Vec<Vec<K>> = vec![];
 
     // initial running sum is the public target: sum_{u∈{0,1}^ℓ} Q(u) == 0
     let mut running_sum = K::ZERO;
+
+    // OPTIMIZATION: Precompute sample points once (invariant across rounds)
+    let sample_xs: Vec<K> = (0..=d_sc as u64).map(|u| K::from(F::from_u64(u))).collect();
 
     for i in 0..ell {
         // For each sample X, compute S_i(X) = Σ_{tail} Q(prefix, X, tail), batched over instances.
@@ -384,7 +407,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
                 for (inst_idx, inst) in insts.iter().enumerate() {
                     let q_val = eval_composed_polynomial_q(
                         s, &inst.z, inst.Z, Some(&inst.mz),
-                        &placeholder_y, &u, &batch_coeffs, params, inst_idx
+                        &claimed_y_empty, &u, &batch_coeffs, params, inst_idx
                     );
                     sum_at_X += q_val;
                 }
@@ -495,19 +518,30 @@ pub fn pi_ccs_verify(
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
     tr.absorb_ccs_header(64, ext.s_supported, params.lambda, ell as u32, d_sc as u32, ext.slack_bits);
 
+    // --- SECURITY: Absorb instance data BEFORE sampling challenges (match prover) ---
+    tr.absorb_bytes(b"neo/ccs/instances");
+    tr.absorb_u64(&[s.n as u64, s.m as u64, s.t() as u64]);
+    // Absorb CCS matrices
+    for mj in &s.matrices {
+        tr.absorb_f(mj.as_slice());
+    }
+    // CRITICAL: Absorb polynomial definition to prevent malicious polynomial substitution
+    absorb_sparse_polynomial(tr, &s.f);
+    
+    // Absorb all instance data (commitment, public inputs, witness structure)
+    for inst in mcs_list.iter() {
+        // Absorb instance data that affects soundness
+        tr.absorb_f(&inst.x);
+        tr.absorb_u64(&[inst.m_in as u64]);
+        // CRITICAL: Absorb commitment to prevent cross-instance attacks
+        tr.absorb_f(&inst.c.data);
+    }
+
     // Re-derive the SAME batching coefficients as the prover
     tr.absorb_bytes(b"neo/ccs/batch");
     let alphas: Vec<K> = (0..mcs_list.len()).map(|_| tr.challenge_k()).collect();
     
-    // β coefficients REMOVED to match prover - range constraints not in sum-check
-    // tr.absorb_bytes(b"neo/ccs/range_constraints"); // Not absorbed
-    let betas: Vec<K> = vec![]; // Empty - range constraints removed from sum-check
-    
-    // γ coefficients for evaluation tie constraints (for consistency, not used in Q(u))
-    tr.absorb_bytes(b"neo/ccs/eval_ties");
-    let gammas: Vec<K> = vec![tr.challenge_k()]; // Generate to match prover, but not used in sum-check
-    
-    let _batch_coeffs = BatchingCoeffs { alphas, betas, gammas };
+    let batch_coeffs = BatchingCoeffs { alphas };
 
     if proof.sumcheck_rounds.len() != ell { return Ok(false); }
 
@@ -562,11 +596,11 @@ pub fn pi_ccs_verify(
     
     for (inst_idx, me_inst) in out_me.iter().enumerate() {
         // 1) CCS component: α_i · f(Y(r)) using CORRECT Y_j(r) scalars from ME
-        let ccs_contribution = if inst_idx < _batch_coeffs.alphas.len() {
+        let ccs_contribution = if inst_idx < batch_coeffs.alphas.len() {
             // SECURITY FIX: Use the correct Y_j(r) = ⟨(M_j z), χ_r⟩ scalars
             // NOT the sum of y vector components (which are Z * (M_j^T * χ_r) vectors)
             let f_eval = s.f.eval_in_ext::<K>(&me_inst.y_scalars);
-            _batch_coeffs.alphas[inst_idx] * f_eval
+            batch_coeffs.alphas[inst_idx] * f_eval
         } else {
             K::ZERO
         };

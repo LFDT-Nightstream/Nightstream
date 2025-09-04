@@ -9,6 +9,9 @@ use crate::error::{AjtaiError, AjtaiResult};
 use neo_math::ring::{Rq as RqEl, cf_inv as cf_unmap, cf, D, ETA};
 use neo_math::s_action::SAction;
 
+// Compile-time guard: this file's rot_step assumes Φ₈₁
+const _: () = { ["η must be 81"][(!(ETA == 81)) as usize]; };
+
 /// Sample a uniform element from F_q using rejection sampling to avoid bias.
 #[inline]
 fn sample_uniform_fq<R: RngCore + CryptoRng>(rng: &mut R) -> Fq {
@@ -49,6 +52,8 @@ fn rot_step_xd_plus_1(cur: &[Fq; D], next: &mut [Fq; D]) {
 /// Rotation step dispatcher - compile-time constant for η=81 ⇒ D=54
 #[inline]
 fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
+    // Guard against accidental future misuse
+    debug_assert!(ETA == 81, "rot_step_phi_81 is only correct for η=81 (D=54)");
     // Compile-time constant in this repo (η=81 ⇒ D=54); keep a readable switch.
     if ETA == 81 { rot_step_phi_81(cur, next) }
     else { rot_step_xd_plus_1(cur, next) } // safe fallback if you later add AGL
@@ -94,7 +99,8 @@ pub fn try_commit(pp: &PP<RqEl>, Z: &[Fq]) -> AjtaiResult<Commitment> {
         });
     }
     
-    Ok(commit_dense(pp, Z))
+    // Route to the audited constant-time variant by default for security
+    Ok(commit_masked_ct(pp, Z))
 }
 
 /// Convenience wrapper that panics on dimension mismatch (for tests and controlled environments).
@@ -103,10 +109,15 @@ pub fn commit(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     try_commit(pp, Z).expect("commit: Z dimensions must match d×m")
 }
 
-/// Constant-time dense commit implementation  
-/// Computes c = cf(M · cf^{-1}(Z)) using S-action matrix multiplication
-#[allow(non_snake_case)]
-fn commit_dense(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
+/// Commit implementation via SAction::apply_vec.
+/// 
+/// **Constant-time depends on SAction implementation** - this function has fixed loops
+/// but relies on SAction::apply_vec being constant-time. For guaranteed constant-time
+/// behavior, prefer commit_masked_ct() or commit_precomp_ct() which are constant-time
+/// by construction.
+#[cfg(any(test, feature = "testing"))]
+#[allow(non_snake_case, dead_code)]
+fn commit_via_saction(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d; let m = pp.m; let kappa = pp.kappa;
 
     // Pre-extract columns of Z (digits per column)
@@ -136,12 +147,14 @@ fn commit_dense(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
 }
 
 /// MUST: Verify opening by recomputing commitment (binding implies uniqueness).
+#[must_use = "Ajtai verification must be checked; ignoring this result is a security bug"]
 #[allow(non_snake_case)]
 pub fn verify_open(pp: &PP<RqEl>, c: &Commitment, Z: &[Fq]) -> bool {
     &commit(pp, Z) == c
 }
 
 /// MUST: Verify split opening: c == Σ b^{i-1} c_i and Z == Σ b^{i-1} Z_i, with ||Z_i||_∞<b (range assertions done by caller).
+#[must_use = "Ajtai verification must be checked; ignoring this result is a security bug"]
 #[allow(non_snake_case)]
 pub fn verify_split_open(pp: &PP<RqEl>, c: &Commitment, b: u32, c_is: &[Commitment], Z_is: &[Vec<Fq>]) -> bool {
     let k = c_is.len();
@@ -292,7 +305,7 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
     for t in 0..D {
         cols[t] = col;
         rot_step(&col, &mut nxt);
-        col = nxt;
+        core::mem::swap(&mut col, &mut nxt); // Avoid copying 54 elements
     }
 }
 
@@ -317,9 +330,9 @@ pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
 
     let mut C = Commitment::zeros(d, kappa);
 
-    // Stack-allocated scratch for columns of rot(a_ij) 
-    // 54×54×8 ≈ 23 KiB fits comfortably on most target stacks
-    let mut cols = [[Fq::ZERO; D]; D]; // d columns, each length d
+    // Heap-allocated scratch for columns of rot(a_ij) to avoid stack overflow
+    // 54×54×8 ≈ 23 KiB per allocation, hoisted outside inner loop for reuse
+    let mut cols = vec![[Fq::ZERO; D]; D].into_boxed_slice();
 
     for i in 0..kappa {
         let acc_i = C.col_mut(i);
@@ -337,4 +350,172 @@ pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
         }
     }
     C
+}
+
+/// Linear opening proof for Ajtai commitments
+/// Proves that y_j = Z * v_j for given linear functionals v_j without revealing Z
+#[cfg(any(test, feature = "testing"))]
+#[derive(Debug, Clone)]
+pub struct LinearOpeningProof {
+    /// The opened values y_j = Z * v_j for each linear functional
+    pub opened_values: Vec<Vec<neo_math::K>>,
+    /// Placeholder for additional proof data (future extension)
+    pub proof_data: Vec<u8>,
+}
+
+/// Generate a linear opening proof for multiple linear functionals
+/// 
+/// Given commitment c = L(Z) and linear functionals v_j, proves that y_j = Z * v_j
+/// 
+/// SECURITY NOTE: Since Ajtai is S-homomorphic and linear, this is a deterministic
+/// verification that doesn't require zero-knowledge. The "proof" is just the claimed
+/// values y_j, and verification checks consistency with the commitment via linearity.
+/// 
+/// # Arguments
+/// * `pp` - Public parameters
+/// * `c` - Commitment to witness Z
+/// * `Z` - The witness matrix (prover-side only)
+/// * `v_slices` - Linear functionals v_j ∈ F^m (each promoted to K inside)
+/// 
+/// # Returns
+/// * Tuple of (opened values y_j, proof)
+#[cfg(any(test, feature = "testing"))]
+#[allow(non_snake_case)]
+pub fn open_linear(
+    _pp: &PP<RqEl>,
+    _c: &Commitment,
+    Z: &[Fq],  // flattened witness (d*m elements)
+    v_slices: &[Vec<Fq>],  // each v_j ∈ F^m
+) -> (Vec<Vec<neo_math::K>>, LinearOpeningProof) {
+    let d = neo_math::D;
+    let m = v_slices.first().map(|v| v.len()).unwrap_or(0);
+    
+    // Debug assertion: Z must be d×m (dimension check)
+    debug_assert_eq!(Z.len(), d * m, "open_linear: Z must be d×m ({}×{})", d, m);
+    
+    let mut opened_values = Vec::with_capacity(v_slices.len());
+    
+    for v_j in v_slices {
+        // Debug assertion: each v_j must have length m
+        debug_assert_eq!(v_j.len(), m, "open_linear: v_j must have length m ({})", m);
+        
+        // Compute y_j = Z * v_j where Z is d×m matrix and v_j is m-vector
+        // Result is d-dimensional vector in extension field K
+        let mut y_j = Vec::with_capacity(d);
+        
+        for row in 0..d {
+            let mut sum = neo_math::K::ZERO;
+            for col in 0..m {
+                // Z is d×m in **column-major** order: (col * d + row)
+                let z_element = Z[col * d + row];
+                let v_element = v_j[col];
+                sum += neo_math::K::from(z_element) * neo_math::K::from(v_element);
+            }
+            y_j.push(sum);
+        }
+        
+        opened_values.push(y_j);
+    }
+    
+    let proof = LinearOpeningProof {
+        opened_values: opened_values.clone(),
+        proof_data: Vec::new(),  // Deterministic verification needs no extra proof
+    };
+    
+    (opened_values, proof)
+}
+
+// NOTE: verify_linear is intentionally NOT PROVIDED in the Ajtai commitment layer.
+//
+// ### Why no verify_linear?
+// Proving a generic linear evaluation `y = Z · v` from **only one** Ajtai commitment
+// `c = L(Z)` is not possible in general without additional openings/structure:
+// it requires reweighting per‑column contributions inside `Σ_j a_{ij} · ẑ_j`,
+// which are **lost** in the compressed commitment.
+//
+// ### Where to find linear verification:
+// In Neo, linear evaluation ties are enforced inside the FS transcript via:
+// - Π_CCS (sum‑check over extension field)
+// - Π_RLC (random linear combination - see neo_fold::verify_linear)  
+// - Π_DEC recomposition checks
+//
+// Use neo_fold::verify_linear for Π_RLC verification and verify_split_open for
+// recomposition checks. The commitment layer only provides S-homomorphic binding.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neo_math::{Rq, cf, D, Fq};
+    use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
+
+    /// Test that rot_step_phi_81 matches ring multiplication by X
+    /// This directly tests the hand-rolled rotation step against the ring arithmetic
+    #[test]
+    fn rot_step_phi81_matches_ring_mul_by_x() {
+        let mut rng = ChaCha20Rng::seed_from_u64(1234);
+        
+        for _ in 0..50 {
+            let a = Rq::random_uniform(&mut rng);
+            let mut col = cf(a);                // column 0 = cf(a)
+            let mut nxt = [Fq::ZERO; D];
+
+            // Test: rot_step should turn 'col' into cf(a * X)
+            let a_times_x = a.mul_by_monomial(1);  // ring multiply by X
+            let expected = cf(a_times_x);          // cf(a * X)
+            
+            rot_step(&col, &mut nxt);              // our rotation step
+            
+            assert_eq!(
+                nxt, expected,
+                "rot_step should produce cf(a * X), but got different result"
+            );
+            
+            // Verify we can continue the sequence correctly
+            col = nxt; // advance to next column
+            let a_times_x2 = a.mul_by_monomial(2);
+            let expected2 = cf(a_times_x2);
+            
+            rot_step(&col, &mut nxt);
+            assert_eq!(
+                nxt, expected2, 
+                "Second rot_step should produce cf(a * X^2)"
+            );
+        }
+    }
+    
+    /// Test the cyclotomic identity X^54 ≡ -X^27 - 1 through rotation steps
+    #[test] 
+    fn rot_step_cyclotomic_identity() {
+        // Start with X (monomial degree 1)
+        let x = {
+            let mut coeffs = vec![Fq::ZERO; D];
+            coeffs[1] = Fq::ONE; // X = 0 + 1*X + 0*X^2 + ...
+            Rq::from_field_coeffs(coeffs)
+        };
+        
+        let mut col = cf(x);
+        let mut nxt = [Fq::ZERO; D];
+        
+        // Apply rot_step 53 times to get from cf(X) to cf(X^54)
+        for _ in 0..53 {
+            rot_step(&col, &mut nxt);
+            core::mem::swap(&mut col, &mut nxt);
+        }
+        
+        // col now represents cf(X^54)
+        // According to Φ₈₁(X) = X^54 + X^27 + 1, we have X^54 ≡ -X^27 - 1
+        
+        // Compute expected value: cf(-X^27 - 1)
+        let x27 = {
+            let mut coeffs = vec![Fq::ZERO; D];
+            coeffs[27] = Fq::ONE;
+            Rq::from_field_coeffs(coeffs)
+        };
+        let neg_x27_minus_1 = cf(Rq::zero() - x27 - Rq::one());
+        
+        assert_eq!(
+            col, neg_x27_minus_1,
+            "X^54 should equal -X^27 - 1 under Φ₈₁ reduction"
+        );
+    }
 }

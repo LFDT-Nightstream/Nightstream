@@ -211,7 +211,7 @@ pub fn pi_dec<L: SModuleHomomorphism<F, Cmt>>(
     // === Create k ME(b,L) instances ===
     let mut me_instances = Vec::with_capacity(k);
     
-    for (i, (wit, c_i)) in digit_witnesses.iter().zip(digit_commitments.iter()).enumerate() {
+    for (_i, (wit, c_i)) in digit_witnesses.iter().zip(digit_commitments.iter()).enumerate() {
         // Derive X_i = L_x(Z_i) for each digit
         let X_i = l.project_x(&wit.Z, me_B.m_in);
         
@@ -236,18 +236,37 @@ pub fn pi_dec<L: SModuleHomomorphism<F, Cmt>>(
             y_i.push(y_ij);
         }
         
-        // SECURITY FIX: Compute Y_j(r) scalars for this digit instance  
-        // These should be consistent with the recombination formula
-        let y_scalars_i = if i < me_B.y_scalars.len() {
-            // For digit i, Y_j(r) = coefficient of b^i in parent Y_j(r)
-            // This is an approximation; exact computation would need digit witness z_i
-            me_B.y_scalars.iter().map(|&parent_scalar| {
-                // Simple approximation: parent_scalar / k for each digit
-                parent_scalar * K::from(F::from_u64(1)) // Placeholder
-            }).collect()
-        } else {
-            vec![K::ZERO; me_B.y_scalars.len()]
-        };
+        // CRITICAL FIX: Compute Y_{j,i}(r) = ⟨M_j z_i, χ_r⟩ for each digit witness,
+        // where z_i ∈ F^m is the base‑b recomposition of the columns of Z_i.
+        //
+        // z_i[col] = Σ_{row=0}^{d-1} (b^row) · Z_i[row, col]
+        let mut y_scalars_i = Vec::with_capacity(s.t());
+        let base_f = F::from_u64(b as u64);
+        let d_digit = wit.Z.rows(); // actual digit matrix height (not hardcoded D)
+
+        // Recompose z_i from Z_i using proper base-b recomposition
+        let mut z_i_vec = vec![F::ZERO; s.m];
+        for col in 0..s.m {
+            let mut acc = F::ZERO;
+            let mut pow = F::ONE;
+            for row in 0..d_digit {
+                acc += wit.Z[(row, col)] * pow;
+                pow *= base_f;
+            }
+            z_i_vec[col] = acc;
+        }
+
+        // Now compute Y_{j,i}(r) = ⟨M_j z_i, χ_r⟩ with correct dimensions
+        for (_j, mj) in s.matrices.iter().enumerate() {
+            let mj_zi = neo_ccs::utils::mat_vec_mul_ff::<F>(
+                mj.as_slice(), s.n, s.m, &z_i_vec,
+            );
+            let mut y_scalar_ji = K::ZERO;
+            for row in 0..s.n {
+                y_scalar_ji += K::from(mj_zi[row]) * rb[row];
+            }
+            y_scalars_i.push(y_scalar_ji);
+        }
 
         me_instances.push(MeInstance {
             c: c_i.clone(),
@@ -390,6 +409,27 @@ pub fn pi_dec_verify<L: SModuleHomomorphism<F, Cmt>>(
         }
     }
     
+    // === CRITICAL y_scalars RECOMPOSITION CHECK ===
+    // Verify that Y_j^parent(r) = Σ_i b^i · Y_{j,i}(r) for each matrix j
+    {
+        let base_k = K::from(F::from_u64(b as u64));
+        for j in 0..input_me.y_scalars.len() {
+            let parent_scalar = input_me.y_scalars[j];
+            let digit_scalars: Vec<K> = output_me_list.iter()
+                .filter_map(|me| me.y_scalars.get(j).copied())
+                .collect();
+            
+            if digit_scalars.len() != k {
+                return Ok(false); // Inconsistent y_scalars structure
+            }
+            
+            let recomposed = recombine_base_b(base_k, &digit_scalars);
+            if parent_scalar != recomposed {
+                return Ok(false); // y_scalars recomposition failed - SOUNDNESS CRITICAL
+            }
+        }
+    }
+    
     // === Verify instance consistency ===
     for (i, me_digit) in output_me_list.iter().enumerate() {
         // All digits should have same r
@@ -418,7 +458,7 @@ pub fn pi_dec_verify<L: SModuleHomomorphism<F, Cmt>>(
     if !proof.range_proofs.is_empty() {
         // For backward compatibility, we still accept range proof data but don't verify it here
         // since the real verification happens in the bridge SNARK's synthesize() method
-        eprintln!("⚠️  Range proof data present but verification happens in bridge SNARK");
+        // Range proof data present but verification happens in bridge SNARK (silently handled)
     }
     
     // === Verify y_j recomputation consistency ===  

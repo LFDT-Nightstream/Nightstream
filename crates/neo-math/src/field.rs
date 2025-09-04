@@ -67,10 +67,11 @@ impl KExtensions for K {
 /// Gated to avoid accidentally introducing a hard dependency on rand in neo-math
 #[cfg(any(test, feature = "testing"))]
 pub fn random_extf() -> K {
-    use rand::Rng;
-    let mut rng = rand::rng();
-    let real = Fq::from_u64(rng.random::<u64>());
-    let imag = Fq::from_u64(rng.random::<u64>());
+    use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
+    use rand_chacha::rand_core::RngCore;
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    let real = Fq::from_u64(rng.next_u64());
+    let imag = Fq::from_u64(rng.next_u64());
     from_complex(real, imag)
 }
 

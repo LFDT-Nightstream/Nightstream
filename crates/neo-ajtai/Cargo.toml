@@ -28,3 +28,8 @@ p3-matrix = "0.3.0"
 
 [dev-dependencies]
 proptest = "1.7"
+
+# Integration tests that require testing features
+[[test]]
+name = "linear_opening_security"
+required-features = ["testing"]

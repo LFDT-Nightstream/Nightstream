@@ -1,7 +1,7 @@
 //! S-action implementation: "left multiplication by a in R_q" as rot(a).
 //! Definitionally correct: j-th column is cf(a * X^j mod Phi_81).
 
-use crate::{Rq, Fq, K, D, SActionError};
+use crate::{Rq, Fq, K, D, SActionError, from_complex};
 use crate::ring::{cf, cf_inv};
 use p3_field::PrimeCharacteristicRing;
 use p3_matrix::dense::DenseMatrix;
@@ -90,14 +90,12 @@ impl SAction {
         
         // Apply S-action to the processed part
         for i in 0..process_len {
-            result.push(K::new_complex(rotated_re[i], rotated_im[i]));
+            result.push(from_complex(rotated_re[i], rotated_im[i]));
         }
         
         // Copy any remaining elements unchanged (though this won't happen due to early length check)
         // This makes the behavior consistent with apply_k_slice and prevents future index errors
-        for i in process_len..y.len() {
-            result.push(y[i]);
-        }
+        result.extend_from_slice(&y[process_len..]);
         
         Ok(result)
     }
@@ -134,7 +132,7 @@ impl SAction {
         
         // Write results
         for i in 0..process_len {
-            result[i] = K::new_complex(rotated_re[i], rotated_im[i]);
+            result[i] = from_complex(rotated_re[i], rotated_im[i]);
         }
         
         // Copy any remaining elements unchanged if result is longer than what we processed

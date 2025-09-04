@@ -1,10 +1,30 @@
 use neo_fold::{verify_folding_proof, FoldingProof};
 use neo_fold::{pi_ccs::PiCcsProof, pi_rlc::PiRlcProof, pi_dec::PiDecProof};
 use neo_ccs::{CcsStructure, Mat, McsInstance, MeInstance, SparsePoly, Term};
-use neo_ajtai::Commitment as Cmt;
-use neo_math::{F, K};
+use neo_ajtai::{Commitment as Cmt, setup as ajtai_setup, set_global_pp};
+use neo_math::{F, K, ring::D};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
+use rand::{rngs::StdRng, SeedableRng};
+
+/// Create a dummy ProofBundle for testing purposes
+/// SECURITY NOTE: This is only for testing - real verification requires actual Spartan2 proofs
+fn dummy_proof_bundle() -> neo_spartan_bridge::ProofBundle {
+    neo_spartan_bridge::ProofBundle::new_with_vk(
+        vec![0u8; 32],  // dummy proof
+        vec![0u8; 32],  // dummy verifier key
+        vec![0u8; 16],  // dummy public IO
+    )
+}
+
+/// Set up AjtaiSModule global PP for testing
+/// This is required for the fail-closed DEC verification
+fn setup_ajtai_for_tests() {
+    let mut rng = StdRng::seed_from_u64(1); // Deterministic for tests
+    let pp = ajtai_setup(&mut rng, D, 8, 2).expect("Ajtai setup should succeed");
+    // Ignore error if already initialized from previous test
+    let _ = set_global_pp(pp);
+}
 
 fn tiny_ccs() -> CcsStructure<F> {
     let m0 = Mat::from_row_major(1, 1, vec![F::ONE]); // n=1, m=1
@@ -39,6 +59,7 @@ fn derive_rhos(params: &NeoParams, s: &CcsStructure<F>, input_count: usize) -> (
 
 #[test]
 fn verify_shortcircuit_single_instance() {
+    setup_ajtai_for_tests(); // Required for fail-closed DEC verification
     let params = NeoParams::goldilocks_127();
     let s = tiny_ccs();
 
@@ -68,12 +89,14 @@ fn verify_shortcircuit_single_instance() {
         pi_dec_proof: PiDecProof { digit_commitments: None, recomposition_proof: vec![], range_proofs: vec![] },
     };
 
-    let ok = verify_folding_proof(&params, &s, &[inst], &output_digits, &proof).unwrap();
+    let dummy_bundle = dummy_proof_bundle();
+    let ok = verify_folding_proof(&params, &s, &[inst], &output_digits, &proof, &dummy_bundle).unwrap();
     assert!(!ok, "single-instance bypass was removed for security - should now fail");
 }
 
 #[test]
 fn verify_multi_instance_zero_commitments_dec_present() {
+    setup_ajtai_for_tests(); // Required for fail-closed DEC verification
     let params = NeoParams::goldilocks_127();
     let s = tiny_ccs();
 
@@ -126,12 +149,14 @@ fn verify_multi_instance_zero_commitments_dec_present() {
         },
     };
 
-    let ok = verify_folding_proof(&params, &s, &insts, &digits, &proof).unwrap();
+    let dummy_bundle = dummy_proof_bundle();
+    let ok = verify_folding_proof(&params, &s, &insts, &digits, &proof, &dummy_bundle).unwrap();
     assert!(!ok, "multi-instance with dummy proof data should fail verification");
 }
 
 #[test]
 fn verify_rejects_when_rho_mismatch() {
+    setup_ajtai_for_tests(); // Required for fail-closed DEC verification
     let params = NeoParams::goldilocks_127();
     let s = tiny_ccs();
 
@@ -181,12 +206,14 @@ fn verify_rejects_when_rho_mismatch() {
         },
     };
 
-    let ok = verify_folding_proof(&params, &s, &insts, &digits, &proof).unwrap();
+    let dummy_bundle = dummy_proof_bundle();
+    let ok = verify_folding_proof(&params, &s, &insts, &digits, &proof, &dummy_bundle).unwrap();
     assert!(!ok, "must reject when ρ are not transcript-derived");
 }
 
 #[test]
 fn verify_rejects_when_range_base_mismatches() {
+    setup_ajtai_for_tests(); // Required for fail-closed DEC verification
     let params = NeoParams::goldilocks_127();
     let s = tiny_ccs();
 
@@ -236,6 +263,52 @@ fn verify_rejects_when_range_base_mismatches() {
         },
     };
 
-    let ok = verify_folding_proof(&params, &s, &insts, &digits, &proof).unwrap();
+    let dummy_bundle = dummy_proof_bundle();
+    let ok = verify_folding_proof(&params, &s, &insts, &digits, &proof, &dummy_bundle).unwrap();
     assert!(!ok, "DEC must reject when the encoded base differs");
+}
+
+#[test]
+fn verify_rejects_spartan_bundle_mismatch() {
+    setup_ajtai_for_tests(); // Required for fail-closed DEC verification
+    let params = NeoParams::goldilocks_127();
+    let s = tiny_ccs();
+    
+    let inst = McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![], m_in: 0 };
+    
+    // Π_CCS outputs: exactly 1 ME(b,L)
+    let me_ccs = MeInstance {
+        c: inst.c.clone(),
+        X: Mat::from_row_major(1, 1, vec![F::ZERO]),
+        r: vec![],               // ell = 0
+        y: vec![vec![K::ZERO]],
+        y_scalars: vec![K::ZERO], // Test placeholder
+        m_in: 0,
+        fold_digest: [0u8; 32],  // Dummy digest for test
+    };
+    
+    let output_digits = vec![me_ccs.clone()];
+    
+    let proof = FoldingProof {
+        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32] },
+        pi_ccs_outputs: vec![me_ccs],
+        pi_rlc_proof: PiRlcProof {
+            rho_elems: vec![],
+            guard_params: neo_fold::pi_rlc::GuardParams { k: 0, T: 0, b: params.b as u64, B: params.B as u64 },
+        },
+        pi_dec_proof: PiDecProof { digit_commitments: None, recomposition_proof: vec![], range_proofs: vec![] },
+    };
+    
+    // Create bundle with mismatched public IO bytes (one byte different)
+    let mut mismatched_public_io = vec![0u8; 16];
+    mismatched_public_io[0] = 1; // Make it different from expected all-zeros
+    let mismatched_bundle = neo_spartan_bridge::ProofBundle::new_with_vk(
+        vec![0u8; 32],  // dummy proof
+        vec![0u8; 32],  // dummy verifier key
+        mismatched_public_io,  // mismatched public IO
+    );
+    
+    // Should fail due to public IO mismatch (anti-replay protection)
+    let ok = verify_folding_proof(&params, &s, &[inst], &output_digits, &proof, &mismatched_bundle).unwrap();
+    assert!(!ok, "verification should fail when Spartan bundle public IO doesn't match current instance");
 }

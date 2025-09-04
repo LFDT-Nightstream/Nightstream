@@ -54,18 +54,21 @@ pub struct FoldTranscript {
 
 impl FoldTranscript {
     pub fn new(initial_data: &[u8]) -> Self {
-        // DETERMINISTIC Poseidon2 parameters for cross-implementation compatibility.
-        // NOTE: This uses a fixed seed to generate consistent parameters across runs.
-        // TODO: Replace with hard-coded canonical parameters when available upstream.
-        const NEO_POSEIDON2_SEED: u64 = 0x4E_454F_504F_5345_49; // "NEOPOSEI" in hex
+        // PRODUCTION: Use fixed, deterministic Poseidon2 parameters.
+        // NOTE: We changed both the Poseidon2 seed and how u64s are absorbed (bytes, not u32 truncation).
+        //       Bump the transcript domain to v2 to avoid cross-version collisions.
+        // 
+        // CROSS-VERSION DETERMINISM: Using new_from_rng_128 with a fixed seed ensures 
+        // deterministic parameter generation within this crate version. For stronger
+        // cross-version guarantees, consider freezing the generated constants directly.
         use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
-        let mut rng = ChaCha8Rng::seed_from_u64(NEO_POSEIDON2_SEED);
+        const FIXED_POSEIDON2_SEED: u64 = 0x4E454F5F46495845; // "NEO_FIXE" in hex
+        let mut rng = ChaCha8Rng::seed_from_u64(FIXED_POSEIDON2_SEED);
         let perm = Poseidon2Goldilocks::<POSEIDON2_WIDTH>::new_from_rng_128(&mut rng);
         let mut ch = NeoChallenger::new(perm);
         
-        // VERSIONING: Explicit domain separation for parameter choice compatibility
-        // This ensures incompatibility with different parameter generation is intentional and trackable
-        for &byte in b"neo.fold.v1.poseidon2.params.seeded/NEOPOSEI" {
+        // VERSIONING: Explicit domain separation (v2) reflecting parameter & absorption changes.
+        for &byte in b"neo.fold.v2.poseidon2.params.fixed/u64.bytes" {
             ch.observe(F::from_u32(byte as u32));
         }
         
@@ -102,12 +105,13 @@ impl FoldTranscript {
     }
 
     pub fn absorb_u64(&mut self, xs: &[u64]) {
-        // Encode as canonical Goldilocks elements.
-        use p3_field::integers::QuotientMap;
-        let tmp: Vec<F> = xs.iter().map(|&u| F::from_u32(u as u32)).collect();
-        // Observe each field element individually
-        for &x in tmp.iter() {
-            self.ch.observe(x);
+        // Safer: absorb as 8 bytes per u64 to avoid truncation
+        // ENDIANNESS: Uses little-endian byte order for deterministic cross-platform behavior
+        for &u in xs {
+            let bytes = u.to_le_bytes(); // Little-endian byte representation
+            for b in bytes {
+                self.ch.observe(F::from_u32(b as u32));
+            }
         }
     }
 

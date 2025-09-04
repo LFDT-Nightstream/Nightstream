@@ -307,8 +307,43 @@ pub fn pi_rlc_verify(
             }
         }
     }
+
+    // === CRITICAL: Verify y_scalars' S-action combination ===
+    // This prevents malleating the scalars used by Π_CCS terminal check
+    {
+        // BLOCKING FIX: Guard against empty inputs and mismatched lengths
+        if input_me_list.is_empty() { return Ok(false); }
+        if rho_ring.len() != input_me_list.len() { return Ok(false); }
+        
+        let t_scal = input_me_list[0].y_scalars.len();
+        if _output_me.y_scalars.len() != t_scal { return Ok(false); }
+        
+        // Verify that all input ME instances have consistent y_scalars lengths and shared r
+        for me in input_me_list.iter() {
+            if me.y_scalars.len() != t_scal {
+                return Ok(false); // Inconsistent y_scalars length
+            }
+            if me.r != input_me_list[0].r {
+                return Ok(false); // Inconsistent evaluation point r
+            }
+        }
+        
+        let mut expected_scal = vec![K::ZERO; t_scal];
+        for (rho, me) in rho_ring.iter().zip(input_me_list.iter()) {
+            let s_action = SAction::from_ring(*rho);
+            let rotated = match s_action.apply_k_vec(&me.y_scalars) {
+                Ok(rotated) => rotated,
+                Err(_) => return Ok(false), // S-action failed = verification failure
+            };
+            if rotated.len() != t_scal {
+                return Ok(false); // Length mismatch = verification failure
+            }
+            for (e, r) in expected_scal.iter_mut().zip(rotated.iter()) { *e += *r; }
+        }
+        if expected_scal != _output_me.y_scalars { return Ok(false); }
+    }
     
-    // All verifications passed: guard, c', X', and y' are all correct
+    // All verifications passed: guard, c', X', y', and y_scalars are all correct
     Ok(true)
 }
 

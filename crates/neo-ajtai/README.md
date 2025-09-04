@@ -18,6 +18,21 @@ Ajtai matrix commitment with pay‑per‑bit embedding.
 - **Pay‑per‑bit ring multiply** so commit cost scales with Hamming weight.
 
 ## Tests
+
+### Standard Tests
 - S‑linearity; decomp/split recomposition; negative cases.
 - Opening‑verification tests; microbench showing pay‑per‑bit scaling.
 - Security test confirms `verify_linear()` is not provided (use `neo_fold::verify_linear` instead).
+
+### Testing Feature
+Some tests require the `testing` feature to access internal functions:
+
+```bash
+# Run standard tests
+cargo test --package neo-ajtai
+
+# Run tests that require internal access (e.g., rotation_tests.rs)
+cargo test --package neo-ajtai --features testing
+```
+
+The `testing` feature exposes `rot_step` for integration testing but is **not part of the stable API** and may change without notice in future versions.

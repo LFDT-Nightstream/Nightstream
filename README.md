@@ -1,10 +1,46 @@
 # Neo: Lattice-based Folding Scheme Implementation
-[![Crates.io](https://img.shields.io/crates/v/neo-main.svg)](https://crates.io/crates/neo-main)
+[![Crates.io](https://img.shields.io/crates/v/neo.svg)](https://crates.io/crates/neo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This repository contains a non-production, research-grade implementation of **Neo**, a lattice-based folding scheme for CCS (Customizable Constraint Systems) over small fields, as described in the paper "Neo: Lattice-based folding scheme for CCS over small fields and pay-per-bit commitments" by Wilson Nguyen and Srinath Setty (2025).
 
 The codebase is structured as a Rust workspace with multiple crates, focusing on modularity and testability. It's functional for small-scale demos (e.g., folding CCS instances with verification) but **not secure for production use**—parameters are toy-sized, partial ZK/Fiat-Shamir, naive multiplications, and no audits. For real applications, scale parameters, add full cryptographic hardening, and audit.
+
+## Quick Start
+
+Neo now provides a simple, ergonomic API with just two main functions: `prove` and `verify`.
+
+### Running the Demo
+
+```bash
+cargo run -p neo --example fib
+```
+
+### Using the API
+
+```rust
+use neo::{prove, verify, ProveInput, NeoParams, CcsStructure, F};
+
+// Create your CCS, witness, and parameters
+let ccs = fibonacci_ccs(8);                                    // Your constraint system
+let witness = generate_fibonacci_witness(10);                  // Satisfying witness
+let public_input = vec![];                                     // Public inputs
+let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);    // Auto-tuned parameters
+
+// Generate proof
+let proof = prove(ProveInput {
+    params: &params,
+    ccs: &ccs,
+    public_input: &public_input,
+    witness: &witness,
+})?;
+
+// Verify proof
+let is_valid = verify(&ccs, &public_input, &proof)?;
+assert!(is_valid);
+```
+
+The facade hides the complexity of the folding pipeline while maintaining full functionality.
 
 ## Features
 - **Fields & Arithmetic**: Goldilocks field (64-bit prime) for CCS, modular ints for lattice Z_q.

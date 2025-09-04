@@ -33,7 +33,7 @@ pub use commit::{setup, commit, try_commit, verify_open, verify_split_open, s_mu
 
 // Testing-only exports (open_linear for differential testing only)
 #[cfg(any(test, feature = "testing"))]
-pub use commit::{LinearOpeningProof, open_linear};
+pub use commit::{LinearOpeningProof, open_linear, rot_step};
 
 // NOTE: verify_linear is intentionally NOT PROVIDED in the Ajtai commitment layer.
 // Generic linear openings y = Z·v cannot be verified from a single Ajtai commitment.

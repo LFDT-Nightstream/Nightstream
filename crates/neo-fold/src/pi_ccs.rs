@@ -578,6 +578,19 @@ pub fn pi_ccs_verify(
     // Light structural sanity: every output ME must carry the same r
     if !out_me.iter().all(|me| me.r == r) { return Ok(false); }
 
+    // === CRITICAL BINDING: out_me[i] must match input instance ===
+    // This prevents attacks where unrelated ME outputs pass RLC/DEC algebra
+    if out_me.len() != mcs_list.len() { return Ok(false); }
+    for (out, inp) in out_me.iter().zip(mcs_list.iter()) {
+        if out.c != inp.c { return Ok(false); }
+        if out.m_in != inp.m_in { return Ok(false); }
+        
+        // Shape/consistency checks: catch subtle mismatches before terminal verification
+        if out.X.rows() != neo_math::D { return Ok(false); }
+        if out.X.cols() != inp.m_in { return Ok(false); }
+        if out.y.len() != s.t() { return Ok(false); } // Number of CCS matrices
+    }
+
     // === CRITICAL SUM-CHECK TERMINAL VERIFICATION ===
     // This is the missing piece that makes the proof sound!
     // We must verify that the final running_sum equals Q(r).

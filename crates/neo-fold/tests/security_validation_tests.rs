@@ -286,7 +286,7 @@ fn test_p0_4_fold_digest_binds_transcript_to_me_instances() {
     let result = fold_ccs_instances(&params, &ccs, &[instance.clone()], &[witness.clone()]);
     
     match result {
-        Ok((me_outputs, _proof)) => {
+        Ok((me_outputs, _witnesses, _proof)) => {
             // Test 1: All ME instances should have non-trivial fold_digest
             for me in &me_outputs {
                 assert_ne!(
@@ -311,7 +311,7 @@ fn test_p0_4_fold_digest_binds_transcript_to_me_instances() {
             
             // Test 3: fold_digest should be deterministic for same input
             let result2 = fold_ccs_instances(&params, &ccs, &[instance], &[witness]);
-            if let Ok((me_outputs2, _)) = result2 {
+            if let Ok((me_outputs2, _, _)) = result2 {
                 for (me1, me2) in me_outputs.iter().zip(me_outputs2.iter()) {
                     assert_eq!(
                         me1.fold_digest,

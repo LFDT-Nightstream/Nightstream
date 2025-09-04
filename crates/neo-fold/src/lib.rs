@@ -1,5 +1,8 @@
 //! Neo Folding Protocol - Single Three-Reduction Pipeline
 //!
+//! **BREAKING CHANGE v2**: `verify_folding_proof` now requires a `spartan_bundle` parameter
+//! for mandatory succinct last-mile verification and anti-replay protection.
+//!
 //! Implements the complete folding protocol: Π_CCS → Π_RLC → Π_DEC  
 //! Uses one transcript (Poseidon2), one backend (Ajtai), and one sum-check over K.
 
@@ -200,9 +203,12 @@ pub fn verify_folding_proof(
     // A malicious prover could replay a valid Spartan proof for different data without this check
     let legacy_me_parent = crate::bridge_adapter::modern_to_legacy_instance(&me_parent, params);
     let expected_public_io = neo_spartan_bridge::encode_bridge_io_header(&legacy_me_parent);
-    
+
     // If the bundle's bound public IO doesn't match this call's (c, X, r, y), treat as verify-fail.
-    if expected_public_io != spartan_bundle.public_io_bytes {
+    // Check both length and content to prevent edge cases
+    if spartan_bundle.public_io_bytes.len() != expected_public_io.len()
+        || spartan_bundle.public_io_bytes != expected_public_io
+    {
         return Ok(false);
     }
 

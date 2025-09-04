@@ -57,6 +57,10 @@ impl FoldTranscript {
         // PRODUCTION: Use fixed, deterministic Poseidon2 parameters.
         // NOTE: We changed both the Poseidon2 seed and how u64s are absorbed (bytes, not u32 truncation).
         //       Bump the transcript domain to v2 to avoid cross-version collisions.
+        // 
+        // CROSS-VERSION DETERMINISM: Using new_from_rng_128 with a fixed seed ensures 
+        // deterministic parameter generation within this crate version. For stronger
+        // cross-version guarantees, consider freezing the generated constants directly.
         use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
         const FIXED_POSEIDON2_SEED: u64 = 0x4E454F5F46495845; // "NEO_FIXE" in hex
         let mut rng = ChaCha8Rng::seed_from_u64(FIXED_POSEIDON2_SEED);
@@ -102,10 +106,11 @@ impl FoldTranscript {
 
     pub fn absorb_u64(&mut self, xs: &[u64]) {
         // Safer: absorb as 8 bytes per u64 to avoid truncation
+        // ENDIANNESS: Uses little-endian byte order for deterministic cross-platform behavior
         for &u in xs {
-            let bytes = u.to_le_bytes();
-            for b in bytes { 
-                self.ch.observe(F::from_u32(b as u32)); 
+            let bytes = u.to_le_bytes(); // Little-endian byte representation
+            for b in bytes {
+                self.ch.observe(F::from_u32(b as u32));
             }
         }
     }

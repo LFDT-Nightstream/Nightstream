@@ -35,4 +35,4 @@ cargo test --package neo-ajtai
 cargo test --package neo-ajtai --features testing
 ```
 
-The `testing` feature exposes `rot_step` for integration testing but is not part of the stable API.
+The `testing` feature exposes `rot_step` for integration testing but is **not part of the stable API** and may change without notice in future versions.

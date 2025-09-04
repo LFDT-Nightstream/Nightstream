@@ -39,6 +39,7 @@
 
 use anyhow::Result;
 use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle};
+#[cfg(debug_assertions)]
 use rand::SeedableRng;
 use p3_field::PrimeCharacteristicRing;
 use subtle::ConstantTimeEq;
@@ -121,7 +122,7 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     #[cfg(debug_assertions)]
     let mut rng = rand::rngs::StdRng::from_seed([42u8; 32]);
     #[cfg(not(debug_assertions))]
-    let mut rng = rand::rngs::OsRng;
+    let mut rng = rand::rng();
     
     let pp = ajtai_setup(&mut rng, d, /*kappa*/ 16, input.witness.len())?;
     

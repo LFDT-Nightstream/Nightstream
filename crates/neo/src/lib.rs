@@ -43,6 +43,7 @@ use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle};
 use rand::SeedableRng;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use subtle::ConstantTimeEq;
+// LZ4 is already imported via the use of block::compress and block::decompress below
 
 // Race-safe Ajtai PP initialization helper
 fn ensure_global_ajtai_pp<FN>(mut setup: FN) -> anyhow::Result<()>
@@ -284,14 +285,20 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     
     let bundle = neo_spartan_bridge::compress_me_to_spartan(&legacy_me, &legacy_wit)?;
 
-    // Step 6: Capture public IO and serialize proof
+    // Step 6: Capture public IO and serialize proof with LZ4 compression
     let public_io = bundle.public_io_bytes.clone();
-    let proof_bytes = bincode::serialize(&bundle)?;
+    let uncompressed_bytes = bincode::serialize(&bundle)?;
+    let compressed_bytes = lz4_flex::compress_prepend_size(&uncompressed_bytes);
+    
+    #[cfg(debug_assertions)]
+    eprintln!("✅ LZ4 compression: {} → {} bytes ({:.1}% reduction)", 
+              uncompressed_bytes.len(), compressed_bytes.len(),
+              100.0 * (1.0 - compressed_bytes.len() as f64 / uncompressed_bytes.len() as f64));
     
     Ok(Proof {
         v: 1,
         public_io,
-        bundle: proof_bytes,
+        bundle: compressed_bytes,
     })
 }
 
@@ -312,7 +319,34 @@ pub fn verify(ccs: &CcsStructure<F>, public_input: &[F], proof: &Proof) -> Resul
     // Check proof version
     anyhow::ensure!(proof.v == 1, "unsupported proof version: {}", proof.v);
     
-    let bundle: neo_spartan_bridge::ProofBundle = bincode::deserialize(&proof.bundle)?;
+    // Size guard to prevent decompression bombs
+    const MAX_BUNDLE_BYTES: usize = 64 * 1024 * 1024; // 64 MiB limit
+    anyhow::ensure!(proof.bundle.len() >= 4, "malformed proof bundle: too short");
+    
+    let expected_len = {
+        let mut len_bytes = [0u8; 4];
+        len_bytes.copy_from_slice(&proof.bundle[0..4]);
+        u32::from_le_bytes(len_bytes) as usize
+    };
+    
+    anyhow::ensure!(
+        expected_len <= MAX_BUNDLE_BYTES,
+        "proof bundle too large after decompression: {} bytes (limit {})",
+        expected_len, MAX_BUNDLE_BYTES
+    );
+    
+    // Decompress and deserialize
+    let decompressed_bytes = lz4_flex::decompress_size_prepended(&proof.bundle)
+        .map_err(|e| anyhow::anyhow!("lz4 decode failed: {e}"))?;
+    
+    // Verify decompressed size matches header
+    anyhow::ensure!(
+        decompressed_bytes.len() == expected_len,
+        "decompressed length mismatch ({} != header {})",
+        decompressed_bytes.len(),
+        expected_len
+    );
+    let bundle: neo_spartan_bridge::ProofBundle = bincode::deserialize(&decompressed_bytes)?;
     
     // Anti-replay binding check: ensure the public IO bytes in the proof 
     // match exactly what the bundle claims to verify (constant-time for security)
@@ -398,48 +432,54 @@ fn adapt_from_modern(
         v_im.push(vj_im);
     }
 
-    // 4) Inflate to per-column outputs expected by the bridge:
-    //    y has length 2*d*m (re/imag interleaved), and weight_vectors has same length.
-    let z_digits = &wit_legacy.z_digits;               // col-major: idx = c*d + r
-    anyhow::ensure!(z_digits.len() == d * m, "z_digits length {} != d*m {}*{}", z_digits.len(), d, m);
+    // 4) Compact outputs: 2·t limbs (Re/Im per matrix), not 2·d·m.
+    //    For each CCS matrix j, build ONE weight vector w_re[j] and w_im[j] over F^{d·m}
+    //    s.t. <w_re[j], z_digits> = Re(Y_j(r)), <w_im[j], z_digits> = Im(Y_j(r)).
+    //
+    //    Indexing: z_digits is column-major: idx = c*d + r.
 
-    // Build re/imag outputs per (c,r) and matching one-hot weight vectors:
-    let mut y_full: Vec<F> = Vec::with_capacity(2 * d * m);
-    let mut weight_vectors: Vec<Vec<F>> = Vec::with_capacity(2 * d * m);
+    let z_digits_i64 = &wit_legacy.z_digits;
+    let to_f = |zi: i64| if zi >= 0 { F::from_u64(zi as u64) } else { -F::from_u64((-zi) as u64) };
 
-    for c in 0..m {
-        // pre-accumulate sum_j v_j[c] for re/imag
-        let sum_v_re_c = (0..t).fold(F::ZERO, |acc, j| acc + v_re[j][c]);
-        let sum_v_im_c = (0..t).fold(F::ZERO, |acc, j| acc + v_im[j][c]);
+    let mut y_full: Vec<F> = Vec::with_capacity(2 * t);
+    let mut weight_vectors: Vec<Vec<F>> = Vec::with_capacity(2 * t);
 
-        for r in 0..d {
-            // z_digits elements are in [-b, ..., b] range (small), convert to field element
-            let zi = z_digits[c * d + r];
-            let z_rc = if zi >= 0 {
-                F::from_u64(zi as u64)
-            } else {
-                -F::from_u64((-zi) as u64)
-            };
-            let coeff_re = sum_v_re_c * pow_b[r];
-            let coeff_im = sum_v_im_c * pow_b[r];
+    for j in 0..t {
+        // Build aggregated weights for this matrix j
+        let mut w_re = vec![F::ZERO; d * m];
+        let mut w_im = vec![F::ZERO; d * m];
 
-            // y entries (re, im) for this (r,c):
-            y_full.push(coeff_re * z_rc);
-            y_full.push(coeff_im * z_rc);
+        for c in 0..m {
+            // v_re[j][c], v_im[j][c] are the column coefficients for matrix j
+            let base_re = v_re[j][c];
+            let base_im = v_im[j][c];
 
-            // matching one-hot weights (dot with z_digits equals y)
-            let mut w_re = vec![F::ZERO; d * m];
-            let mut w_im = vec![F::ZERO; d * m];
-            w_re[c * d + r] = coeff_re;
-            w_im[c * d + r] = coeff_im;
-            weight_vectors.push(w_re);
-            weight_vectors.push(w_im);
+            for r in 0..d {
+                let idx = c * d + r;      // column-major
+                let coeff = pow_b[r];     // b^r
+                w_re[idx] = base_re * coeff;
+                w_im[idx] = base_im * coeff;
+            }
         }
+
+        // Expected y limbs (host-side, for circuit equality)
+        let mut y_re = F::ZERO;
+        let mut y_im = F::ZERO;
+        for idx in 0..(d * m) {
+            let zf = to_f(z_digits_i64[idx]);
+            y_re += w_re[idx] * zf;
+            y_im += w_im[idx] * zf;
+        }
+
+        y_full.push(y_re);
+        y_full.push(y_im);
+        weight_vectors.push(w_re);
+        weight_vectors.push(w_im);
     }
 
-    // Install the inflated claims
+    // Install compact outputs
     #[cfg(debug_assertions)]
-    eprintln!("✅ Built {} y scalars and {} weight vectors (2*d*m)", 
+    eprintln!("✅ Built {} y scalars and {} weight vectors (2*t, massively reduced from 2*d*m)", 
               y_full.len(), weight_vectors.len());
     
     me_legacy.y_outputs = y_full;

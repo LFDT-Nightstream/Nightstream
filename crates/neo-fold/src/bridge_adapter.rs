@@ -134,6 +134,16 @@ pub fn modern_to_legacy_witness(
         }
     }
 
+    // CRITICAL FIX: Pad z_digits to next power of two to match synthesize() allocation
+    // This ensures InvalidWitnessLength doesn't occur in Spartan2 proving
+    let original_len = z_digits.len();
+    let target_len = if original_len <= 1 { 1 } else { original_len.next_power_of_two() };
+    if original_len < target_len {
+        z_digits.resize(target_len, 0i64); // Pad with zeros
+        eprintln!("🔍 modern_to_legacy_witness(): z_digits padded from {} to {} (power-of-two)", 
+                  original_len, target_len);
+    }
+
     Ok(neo_ccs::MEWitness {
         z_digits,
         weight_vectors: Vec::new(), // optional, bridge works without them

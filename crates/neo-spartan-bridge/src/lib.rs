@@ -188,8 +188,9 @@ pub fn verify_me_spartan(bundle: &ProofBundle) -> Result<bool> {
             for x in &publics {
                 bytes.extend_from_slice(&x.to_canonical_u64().to_le_bytes());
             }
-            // 3) Bind to bundle's public IO bytes
-            if bytes != bundle.public_io_bytes {
+            // 3) Bind to bundle's public IO bytes (constant-time comparison)
+            use subtle::ConstantTimeEq;
+            if bytes.ct_eq(&bundle.public_io_bytes).unwrap_u8() != 1 {
                 eprintln!("❌ Public IO mismatch: SNARK public inputs don't match bundle.public_io_bytes ({} vs {})",
                           bytes.len(), bundle.public_io_bytes.len());
                 return Ok(false);

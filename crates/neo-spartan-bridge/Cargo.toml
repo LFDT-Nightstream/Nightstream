@@ -30,6 +30,9 @@ bincode = { workspace = true }
 # For deterministic Poseidon2 seeding
 rand_chacha = { workspace = true }
 
+# For constant-time comparisons
+subtle = { workspace = true }
+
 # Neo workspace dependencies for ME types and Ajtai commitments
 neo-ccs = { path = "../neo-ccs" }
 neo-math = { version = "0.1.0", path = "../neo-math" }

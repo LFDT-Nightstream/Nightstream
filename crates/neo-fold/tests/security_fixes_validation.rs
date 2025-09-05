@@ -40,16 +40,29 @@ fn test_bridge_witness_layout_consistency() {
     let legacy_witness = modern_to_legacy_witness(&witness, &params)
         .expect("witness conversion should succeed with valid data");
     
-    // Verify column-major flattening: should be [0,1,0,1,0,1]  
-    // Column 0: [0,1,0] (rows 0,1,2 of column 0)
-    // Column 1: [1,0,1] (rows 0,1,2 of column 1) 
+    // Verify column-major flattening on the *prefix* (un-padded part): [0,1,0, 1,0,1]
+    // Column 0: [0,1,0]; Column 1: [1,0,1]
     let expected_order = [0i64, 1, 0, 1, 0, 1];
-    assert_eq!(legacy_witness.z_digits.len(), 6);
-    for (i, &expected) in expected_order.iter().enumerate() {
-        assert_eq!(legacy_witness.z_digits[i], expected, 
-            "Mismatch at position {}: expected {}, got {}", 
-            i, expected, legacy_witness.z_digits[i]);
-    }
+    let dm = d * m; // 3*2 = 6
+
+    // Since the bridge now pads z_digits to a power of two for Hash-MLE,
+    // the total length should be next_power_of_two(dm) and padding must be zeros.
+    let expected_len = dm.next_power_of_two();
+    assert_eq!(
+        legacy_witness.z_digits.len(), expected_len,
+        "z_digits must be padded to next power-of-two ({} -> {})",
+        dm, expected_len
+    );
+
+    // Check the unpadded prefix matches the intended column-major layout
+    assert_eq!(
+        &legacy_witness.z_digits[..dm], expected_order.as_slice(),
+        "prefix (un-padded) must match column-major flattening"
+    );
+
+    // Check the padding is all zeros
+    assert!(legacy_witness.z_digits[dm..].iter().all(|&x| x == 0),
+        "padding must be zeros");
 }
 
 /// Test Π_DEC recomposition: ensure digit recomposition is inverse of decomposition  

@@ -67,9 +67,24 @@ pub fn fold_ccs_instances(
         return Err(FoldingError::InvalidInput("empty or mismatched inputs".into()));
     }
 
-    // Ajtai S-module from the globally published PP
-    let l = neo_ajtai::AjtaiSModule::from_global()
-        .map_err(|e| FoldingError::InvalidInput(format!("Ajtai PP not initialized: {}", e)))?;
+    // Ajtai S-module consistent with the actual Z shape (d,m)
+    let d = witnesses[0].Z.rows();
+    let m = witnesses[0].Z.cols();
+    
+    // Shape consistency check: ensure all witnesses have same Z dimensions
+    for (i, w) in witnesses.iter().enumerate() {
+        if w.Z.rows() != d || w.Z.cols() != m {
+            return Err(FoldingError::InvalidInput(format!(
+                "inconsistent witness Z shape at index {}: expected {}x{}, got {}x{}",
+                i, d, m, w.Z.rows(), w.Z.cols()
+            )));
+        }
+    }
+    
+    let l = neo_ajtai::AjtaiSModule::from_global_for_dims(d, m)
+        .map_err(|e| FoldingError::InvalidInput(format!(
+            "Ajtai PP not initialized for (d={}, m={}): {}", d, m, e
+        )))?;
 
     // One transcript shared end-to-end
     let mut tr = FoldTranscript::default();
@@ -80,14 +95,11 @@ pub fn fold_ccs_instances(
 
     // SECURITY FIX: Removed single-instance fast path that bypassed RLC/DEC
     // All instances must go through the complete pipeline for security
-    // The demo should provide ≥2 instances to avoid needing this bypass
 
     // 2) Π_RLC: k+1 ME(b,L) → 1 ME(B,L) (only for multiple instances)
     let (me_b, pi_rlc_proof) = pi_rlc::pi_rlc_prove(&mut tr, params, &me_list)?;
 
     // 2b) Build the combined witness Z' = Σ rot(ρ_i)·Z_i for the DEC prover
-    let d = witnesses[0].Z.rows();
-    let m = witnesses[0].Z.cols();
     if d != neo_math::D {
         return Err(FoldingError::InvalidInput(format!(
             "Ajtai ring dimension D={} but witness Z has rows={}", neo_math::D, d

@@ -43,4 +43,4 @@ pub use commit::{LinearOpeningProof, open_linear, rot_step};
 #[cfg(any(test, feature = "testing"))]
 pub use commit::commit_spec;
 
-pub use s_module::{AjtaiSModule, set_global_pp, get_global_pp};
+pub use s_module::{AjtaiSModule, set_global_pp, get_global_pp, get_global_pp_for_dims, has_global_pp_for_dims, get_global_pp_for_z_len};

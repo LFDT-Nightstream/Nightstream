@@ -28,6 +28,10 @@ pub enum AjtaiError {
     /// Commitment verification failed
     #[error("Commitment verification failed")]
     VerificationFailed,
+    
+    /// Internal error (e.g., lock poisoning, system failures)
+    #[error("Internal error: {0}")]
+    Internal(&'static str),
 }
 
 /// Result type for Ajtai operations

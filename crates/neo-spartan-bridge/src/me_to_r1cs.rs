@@ -106,21 +106,25 @@ impl SpartanCircuit<E> for MeCircuit {
         }
         // 4) base dimension b
         pv.push(<E as Engine>::Scalar::from(self.me.base_b as u64));
-        // 5) fold digest limbs
-        pv.extend(self.digest_to_scalars());
-
-        // 6) Pad to power-of-2 EXACTLY like inputize() does - CRITICAL for transcript consistency
-        let current_public_count = self.me.c_coords.len() + self.me.y_outputs.len() + 
-                                   self.me.r_point.len() + 1 + self.digest_to_scalars().len();
-        let target_count = current_public_count.next_power_of_two();
         
-        // Pad with zeros to match inputize() exactly
-        while pv.len() < target_count {
+        // 5) Pad to power-of-2 BEFORE digest - CRITICAL: match encode_bridge_io_header() order
+        let current_count_without_digest = self.me.c_coords.len() + self.me.y_outputs.len() + 
+                                           self.me.r_point.len() + 1;
+        let digest_scalars = self.digest_to_scalars();
+        let total_needed = current_count_without_digest + digest_scalars.len();
+        let target_count = total_needed.next_power_of_two();
+        let padding_needed = target_count - total_needed;
+        
+        // Add padding zeros BEFORE digest to match encode_bridge_io_header() order
+        for _ in 0..padding_needed {
             pv.push(<E as Engine>::Scalar::ZERO);
         }
+        
+        // 6) fold digest limbs LAST (after padding)
+        pv.extend(digest_scalars);
 
-        if current_public_count != target_count {
-            eprintln!("🔧 TRANSCRIPT FIX: public_values() padded from {} to {} (matches inputize)", current_public_count, pv.len());
+        if padding_needed > 0 {
+            eprintln!("🔧 TRANSCRIPT FIX: public_values() padded from {} to {} (matches encode_bridge_io_header)", total_needed, pv.len());
         }
         Ok(pv)
     }
@@ -152,6 +156,12 @@ impl SpartanCircuit<E> for MeCircuit {
         _z_pre: &[AllocatedNum<<E as Engine>::Scalar>],  // empty
         _challenges: Option<&[<E as Engine>::Scalar]>,
     ) -> Result<(), SynthesisError> {
+        // SECURITY: refuse to synthesize an unbound circuit
+        if self.wit.ajtai_rows.as_ref().map_or(true, |r| r.is_empty()) {
+            eprintln!("❌ SECURITY: Ajtai rows missing; refusing to synthesize unbound circuit.");
+            return Err(SynthesisError::AssignmentMissing);
+        }
+
         let mut z_vars = Vec::<AllocatedNum<<E as Engine>::Scalar>>::new();
         
         // 1) Allocate REST witness variables exactly in the z_digits order
@@ -414,25 +424,28 @@ impl SpartanCircuit<E> for MeCircuit {
         let b_alloc = AllocatedNum::alloc(cs.namespace(|| "base_b"), || Ok(b_val))?;
         let _ = b_alloc.inputize(cs.namespace(|| "public_base_b"));
         
-        // 5) fold digest limbs
+        // 5) Pad to power-of-2 BEFORE digest - CRITICAL: match encode_bridge_io_header() order
+        let current_count_without_digest = self.me.c_coords.len() + self.me.y_outputs.len() + 
+                                           self.me.r_point.len() + 1;
         let digest_scalars = self.digest_to_scalars();
+        let total_needed = current_count_without_digest + digest_scalars.len();
+        let target_count = total_needed.next_power_of_two();
+        let padding_needed = target_count - total_needed;
+        
+        // Add padding zeros BEFORE digest to match encode_bridge_io_header() order
+        for i in 0..padding_needed {
+            let zero_alloc = AllocatedNum::alloc(cs.namespace(|| format!("padding_{}", i)), || Ok(<E as Engine>::Scalar::ZERO))?;
+            let _ = zero_alloc.inputize(cs.namespace(|| format!("public_padding_{}", i)));
+        }
+        
+        // 6) fold digest limbs LAST (after padding)
         for (i, &digest_val) in digest_scalars.iter().enumerate() {
             let digest_alloc = AllocatedNum::alloc(cs.namespace(|| format!("digest_{}", i)), || Ok(digest_val))?;
             let _ = digest_alloc.inputize(cs.namespace(|| format!("public_digest_{}", i)));
         }
         
-        // 6) Pad to power-of-2 for Hash-MLE compatibility  
-        let current_public_count = self.me.c_coords.len() + self.me.y_outputs.len() + 
-                                   self.me.r_point.len() + 1 + digest_scalars.len();
-        let target_count = current_public_count.next_power_of_two();
-        
-        for i in current_public_count..target_count {
-            let zero_alloc = AllocatedNum::alloc(cs.namespace(|| format!("padding_{}", i)), || Ok(<E as Engine>::Scalar::ZERO))?;
-            let _ = zero_alloc.inputize(cs.namespace(|| format!("public_padding_{}", i)));
-        }
-        
-        if current_public_count != target_count {
-            eprintln!("🔍 inputize() padded from {} to {} public inputs (power of 2)", current_public_count, target_count);
+        if padding_needed > 0 {
+            eprintln!("🔍 inputize() padded from {} to {} public inputs (matches encode_bridge_io_header)", total_needed, target_count);
         }
 
         Ok(())

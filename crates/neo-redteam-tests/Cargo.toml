@@ -1,14 +1,14 @@
 [package]
-name = "neo-tests"
+name = "neo-redteam-tests"
 version = "0.1.0"
 edition = "2021"
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
-description = "Property tests and integration tests for Neo protocol"
+description = "Red-team security tests for Neo protocol - vulnerability detection and exploit verification"
 license = "MIT OR Apache-2.0"
 
-[[bin]]
-name = "neo-demo"
-path = "src/main.rs"
+[features]
+default = []
+redteam = []
 
 [dependencies]
 neo = { path = "../neo" }

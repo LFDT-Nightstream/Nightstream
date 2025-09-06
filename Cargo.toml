@@ -10,9 +10,9 @@ members = [
   "crates/neo-spartan-bridge",
   # Facade crate
   "crates/neo",
-  # Other existing crates (temporarily disabled)
-  # "neo-arithmetize",
-  # "neo-bench",
+  # Tests
+  "crates/neo-tests",
+  "crates/neo-redteam-tests",
 ]
 resolver = "2"
 

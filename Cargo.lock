@@ -608,6 +608,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
+name = "lz4_flex"
+version = "0.11.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ab2867e3eeeca90e844d1940eab391c9dc5228783db2ed999acbc0a9ed375a"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
 name = "matchers"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -637,6 +646,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "lz4_flex",
  "neo-ajtai",
  "neo-ccs",
  "neo-fold",
@@ -644,6 +654,7 @@ dependencies = [
  "neo-params",
  "neo-spartan-bridge",
  "p3-field",
+ "p3-goldilocks",
  "rand 0.9.2",
  "serde",
  "subtle",
@@ -751,6 +762,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo-redteam-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "criterion",
+ "neo",
+ "neo-ajtai",
+ "neo-ccs",
+ "neo-challenge",
+ "neo-fold",
+ "neo-math",
+ "neo-params",
+ "neo-spartan-bridge",
+ "p3-field",
+ "p3-goldilocks",
+ "proptest",
+ "rand 0.9.2",
+]
+
+[[package]]
 name = "neo-spartan-bridge"
 version = "0.1.0"
 dependencies = [
@@ -770,7 +801,28 @@ dependencies = [
  "rand_chacha",
  "serde",
  "spartan2",
+ "subtle",
  "thiserror 2.0.16",
+]
+
+[[package]]
+name = "neo-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "criterion",
+ "neo",
+ "neo-ajtai",
+ "neo-ccs",
+ "neo-challenge",
+ "neo-fold",
+ "neo-math",
+ "neo-params",
+ "neo-spartan-bridge",
+ "p3-field",
+ "p3-goldilocks",
+ "proptest",
+ "rand 0.9.2",
 ]
 
 [[package]]
@@ -1613,6 +1665,12 @@ dependencies = [
  "num-integer",
  "strength_reduce",
 ]
+
+[[package]]
+name = "twox-hash"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 
 [[package]]
 name = "typenum"

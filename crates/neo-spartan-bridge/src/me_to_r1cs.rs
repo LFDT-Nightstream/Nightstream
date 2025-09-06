@@ -181,6 +181,22 @@ impl SpartanCircuit<E> for MeCircuit {
         let mut n_constraints = 0usize;
         let to_s = |x: p3_goldilocks::Goldilocks| <E as Engine>::Scalar::from(x.as_canonical_u64());
 
+        // Enforce padded limbs are exactly zero (avoid unconstrained witness coords)
+        if target_rest > orig_rest {
+            let mut pad_ct = 0usize;
+            for i in orig_rest..target_rest {
+                cs.enforce(
+                    || format!("pad_zero_{}", i),
+                    |lc| lc + z_vars[i].get_variable(),
+                    |lc| lc + CS::one(),
+                    |lc| lc, // == 0
+                );
+                pad_ct += 1;
+            }
+            n_constraints += pad_ct;
+            eprintln!("🔧 Enforced {} padded REST limbs to zero", pad_ct);
+        }
+
         // (RANGE) Enforce |Z_i| < b  (digits ∈ {-(b-1), …, (b-1)})
         // For small b (e.g., b=2 => {-1,0,1}), constrain with a product polynomial.
         // For b=2: v*(v-1)*(v+1) == 0.

@@ -45,28 +45,11 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use subtle::ConstantTimeEq;
 // LZ4 is already imported via the use of block::compress and block::decompress below
 
-// Race-safe Ajtai PP initialization helper
-fn ensure_global_ajtai_pp<FN>(mut setup: FN) -> anyhow::Result<()>
-where
-    FN: FnMut() -> anyhow::Result<()>,
-{
-    // If it is already initialized, just return.
-    if neo_ajtai::get_global_pp().is_ok() {
-        return Ok(());
-    }
-
-    // Try to initialize. If a concurrent test beat us to it, treat it as success.
-    match setup() {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("already initialized") || msg.contains("AlreadyInitialized") {
-                Ok(())
-            } else {
-                Err(e)
-            }
-        }
-    }
+// Init Ajtai PP for a specific (d, m) if absent.
+fn ensure_ajtai_pp_for_dims<FN>(d: usize, m: usize, mut setup: FN) -> anyhow::Result<()>
+where FN: FnMut() -> anyhow::Result<()> {
+    if neo_ajtai::has_global_pp_for_dims(d, m) { return Ok(()); }
+    setup()
 }
 
 // Simple, deterministic 256-bit mixer (not meant as a crypto hash; adequate for binding tests).
@@ -215,10 +198,10 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     neo_ccs::check_ccs_rowwise_zero(input.ccs, input.public_input, input.witness)
         .map_err(|e| anyhow::anyhow!("CCS check failed - witness does not satisfy constraints: {:?}", e))?;
 
-    // Step 1: Ajtai setup (race-safe global state)
+    // Step 1: Ajtai setup (parameter-aware global registry)
     let d = neo_math::ring::D;
-    
-    ensure_global_ajtai_pp(|| {
+    let m_w = input.witness.len();
+    ensure_ajtai_pp_for_dims(d, m_w, || {
         // Use deterministic RNG only in debug builds for reproducibility
         // In release builds, use cryptographically secure randomness
         #[cfg(debug_assertions)]
@@ -226,23 +209,21 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
         #[cfg(not(debug_assertions))]
         let mut rng = rand::rng();
         
-        let pp = ajtai_setup(&mut rng, d, /*kappa*/ 16, input.witness.len())?;
-        
-        // Publish PP globally so folding protocols can access it 
-        neo_ajtai::set_global_pp(pp.clone()).map_err(anyhow::Error::from)
+        let pp = ajtai_setup(&mut rng, d, /*kappa*/ 16, m_w)?;
+        neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
     
     // Step 2: Decompose and commit to witness
     let decomp_z = decomp_b(input.witness, input.params.b, d, DecompStyle::Balanced);
     anyhow::ensure!(decomp_z.len() % d == 0, "decomp length not multiple of d");
     
-    // Get PP from global state (now guaranteed to be initialized)
-    let pp = neo_ajtai::get_global_pp()
-        .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP: {}", e))?;
-    let commitment = commit(&pp, &decomp_z);
+    // Pick PP that matches this exact Z shape
+    let m = decomp_z.len() / d;
+    let pp = neo_ajtai::get_global_pp_for_dims(d, m)
+        .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP for (d={}, m={}): {}", d, m, e))?;
+    let commitment = commit(&*pp, &decomp_z);
     
     // Step 3: Build MCS instance/witness (row-major conversion)
-    let m = decomp_z.len() / d;
     let mut z_row_major = vec![F::ZERO; d * m];
     for col in 0..m { 
         for row in 0..d { 
@@ -488,13 +469,15 @@ fn adapt_from_modern(
     // OFFICIAL API: Get Ajtai binding rows from PP
     // These rows L_i satisfy <L_i, z_digits> = c_coords[i] and are derived
     // directly from the public Ajtai matrix parameters.
-    let pp = neo_ajtai::get_global_pp()
-        .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP for binding: {}", e))?;
-
-    let z_len = first_wit.Z.rows() * first_wit.Z.cols();
+    // Use PP that matches the witness Z dimensions
+    let d_pp = first_wit.Z.rows();
+    let m_pp = first_wit.Z.cols();
+    let pp = neo_ajtai::get_global_pp_for_dims(d_pp, m_pp)
+        .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP for binding (d={}, m={}): {}", d_pp, m_pp, e))?;
+    let z_len = d_pp * m_pp;
 
     // Fetch the official Ajtai rows in the exact orientation the circuit expects
-    let rows = neo_ajtai::rows_for_coords(&pp, z_len, me_legacy.c_coords.len())
+    let rows = neo_ajtai::rows_for_coords(&*pp, z_len, me_legacy.c_coords.len())
         .map_err(|e| anyhow::anyhow!("Failed to derive Ajtai binding rows: {}", e))?;
 
     // SECURITY CRITICAL: Strict validation of ALL rows from authentic PP

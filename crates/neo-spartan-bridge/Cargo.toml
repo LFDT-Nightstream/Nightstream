@@ -6,7 +6,7 @@ license = "Apache-2.0"
 
 [features]
 default = []
-debug-logs = []
+debug-logs = []  # Available but not used by default
 
 [dependencies]
 # Core utilities

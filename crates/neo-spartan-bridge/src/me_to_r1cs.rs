@@ -166,7 +166,7 @@ impl SpartanCircuit<E> for MeCircuit {
         
         // 1) Allocate REST witness variables exactly in the z_digits order
         #[cfg(feature = "debug-logs")]
-        eprintln!("🔍 Witness allocation (REST segment - z_digits first):");
+        // eprintln!("🔍 Witness allocation (REST segment - z_digits first):");
         for (i, &z) in self.wit.z_digits.iter().enumerate() {
             let val = if z >= 0 {
                 <E as Engine>::Scalar::from(z as u64)
@@ -174,7 +174,7 @@ impl SpartanCircuit<E> for MeCircuit {
                 -<E as Engine>::Scalar::from((-z) as u64)
             };
             #[cfg(feature = "debug-logs")]
-            eprintln!("   z_vars[{}] = {} (from z_digits[{}] = {})", i, val.to_canonical_u64(), i, z);
+            // eprintln!("   z_vars[{}] = {} (from z_digits[{}] = {})", i, val.to_canonical_u64(), i, z);
             z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("REST_Z[{i}]")), || Ok(val))?);
         }
         
@@ -319,7 +319,7 @@ impl SpartanCircuit<E> for MeCircuit {
             for i in 0..n {
                 let row = &rows[i];
                 let upto = core::cmp::min(row.len(), z_vars.len());
-                let c_scalar = <E as Engine>::Scalar::from(self.me.c_coords[i].as_canonical_u64());
+                let _c_scalar = <E as Engine>::Scalar::from(self.me.c_coords[i].as_canonical_u64());
 
                 // 🔧 DEBUG: Compute expected LHS value for constraint debugging
                 let mut expected_lhs = <E as Engine>::Scalar::ZERO;
@@ -335,8 +335,8 @@ impl SpartanCircuit<E> for MeCircuit {
                     expected_lhs += row_coeff * z_val;
                 }
                 #[cfg(feature = "debug-logs")]
-                eprintln!("🔍 Ajtai constraint {}: computed LHS = {}, expected RHS = {}", 
-                    i, expected_lhs.to_canonical_u64(), c_scalar.to_canonical_u64());
+                // eprintln!("🔍 Ajtai constraint {}: computed LHS = {}, expected RHS = {}", 
+                //     i, expected_lhs.to_canonical_u64(), _c_scalar.to_canonical_u64());
 
                 cs.enforce(
                     || format!("ajtai_bind_{i}"),
@@ -359,7 +359,7 @@ impl SpartanCircuit<E> for MeCircuit {
         for j in 0..m {
             let wj = &self.wit.weight_vectors[j];
             let upto = core::cmp::min(wj.len(), z_vars.len());
-            let y_scalar = <E as Engine>::Scalar::from(self.me.y_outputs[j].as_canonical_u64());
+            let _y_scalar = <E as Engine>::Scalar::from(self.me.y_outputs[j].as_canonical_u64());
 
             // 🔧 DEBUG: Compute expected LHS value for ME constraint debugging
             let mut expected_lhs = <E as Engine>::Scalar::ZERO;
@@ -375,8 +375,8 @@ impl SpartanCircuit<E> for MeCircuit {
                 expected_lhs += w_coeff * z_val;
             }
             #[cfg(feature = "debug-logs")]
-            eprintln!("🔍 ME constraint {}: computed LHS = {}, expected RHS = {}", 
-                j, expected_lhs.to_canonical_u64(), y_scalar.to_canonical_u64());
+            // eprintln!("🔍 ME constraint {}: computed LHS = {}, expected RHS = {}", 
+            //     j, expected_lhs.to_canonical_u64(), _y_scalar.to_canonical_u64());
 
             cs.enforce(
                 || format!("me_eval_{j}"),
@@ -523,23 +523,25 @@ pub fn prove_me_snark(
     }; 
     
     // 3. Generate proof using prepared SNARK  
-    eprintln!("🔍 About to call R1CSSNARK::<E>::prove()");
-    eprintln!("🔧 Hash-MLE debugging: About to call prove with:");
+    // eprintln!("🔍 About to call R1CSSNARK::<E>::prove()");
+    // eprintln!("🔧 Hash-MLE debugging: About to call prove with:");
     
     // Get dimensions before the move for error reporting
     let public_values_len = circuit.public_values().unwrap().len();
     let witness_len = circuit.wit.z_digits.len();
     
-    eprintln!("   📊 Pre-prove dimensions:");
-    eprintln!("     - Public values: {}", public_values_len);
-    eprintln!("     - Original witness len: {}", witness_len);
-    eprintln!("     - Shape summary: shared=0, precommitted=0, rest=8 (from logs)");
-    eprintln!("   🎯 All vectors should be power-of-2 for Hash-MLE");
+    // NOTE: The massive "TABLE STRUCTURE DEBUG" logs with W_full arrays 
+    // are coming from the Spartan2 library itself, not this code.
+    // eprintln!("   📊 Pre-prove dimensions:");
+    // eprintln!("     - Public values: {}", public_values_len);
+    // eprintln!("     - Original witness len: {}", witness_len);
+    // eprintln!("     - Shape summary: shared=0, precommitted=0, rest=8 (from logs)");
+    // eprintln!("   🎯 All vectors should be power-of-2 for Hash-MLE");
     
     let snark_proof = match R1CSSNARK::<E>::prove(&pk, circuit, &prep_snark, false) {
         Ok(proof) => {
-            eprintln!("✅ R1CSSNARK::<E>::prove() completed successfully!");
-            eprintln!("🎉 Hash-MLE commitment structure worked correctly!");
+            // eprintln!("✅ R1CSSNARK::<E>::prove() completed successfully!");
+            // eprintln!("🎉 Hash-MLE commitment structure worked correctly!");
             proof
         }
         Err(e) => {

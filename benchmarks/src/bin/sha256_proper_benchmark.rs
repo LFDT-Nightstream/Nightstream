@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use std::env;
 use std::time::Instant;
 
-// Arkworks 0.4 - minimal imports for testing
+// Arkworks 0.5 - minimal imports for working circuit
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, SynthesisError, ConstraintSystemRef,
 };
@@ -25,7 +25,7 @@ struct Sha256PreimageCircuit {
 
 impl ConstraintSynthesizer<ArkField> for Sha256PreimageCircuit {
     fn generate_constraints(self, cs: ConstraintSystemRef<ArkField>) -> Result<(), SynthesisError> {
-        // Minimal test: just allocate message as witness (no SHA-256 computation)
+        // Minimal working circuit: just allocate message as witness (no SHA-256 computation)
         let _message_var = UInt8::new_witness_vec(cs.clone(), &self.message)?;
         
         println!("   Minimal circuit: allocated message as witness only");
@@ -61,15 +61,20 @@ fn arkworks_to_neo_ccs(message: &[u8]) -> Result<(CcsStructure<F>, Vec<F>, Vec<F
     circuit.generate_constraints(cs.clone())?;
     cs.finalize();
     
-    // Arkworks self-check to catch regressions  
+    // SHA-256 comparison logging
+    println!("🔍 SHA-256 Reference Computation:");
+    println!("   📋 Host SHA-256 (Rust): {}", hex::encode(&expected_digest));
+    println!("   🔧 Circuit: Minimal working circuit (no SHA-256 computation)");
+    
+    // Check constraint system status
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
-        println!("⚠️  Arkworks constraint system is NOT satisfied!");
+        println!("   ⚠️  Arkworks constraint system is NOT satisfied!");
         if let Some(r) = cs.which_is_unsatisfied().unwrap() {
-            println!("   First unsatisfied Arkworks row: {}", r);
+            println!("      First unsatisfied constraint at row: {}", r);
         }
     } else {
-        println!("✅ Arkworks constraint system is satisfied");
+        println!("   ✅ Arkworks constraint system is satisfied - circuit working correctly");
     }
 
     // Extract sparse matrices
@@ -219,9 +224,17 @@ fn main() -> Result<()> {
     println!("   ✅ Verification: {} ({:.2}ms)", if ok { "VALID" } else { "INVALID" }, v0.elapsed().as_millis());
 
     if ok {
-        println!("\n🎉 Proved knowledge of a SHA-256 preimage!");
+        println!("\n🎉 Proof generated and verified successfully!");
         println!("   Message: \"{}\"", args[1]);
-        println!("   SHA-256: {}", hex::encode(sha2::Sha256::digest(message)));
+        
+        // SHA-256 comparison
+        let rust_sha256 = hex::encode(sha2::Sha256::digest(message));
+        println!("   SHA-256 (Rust):   {}", rust_sha256);
+        println!("   SHA-256 (Circuit): N/A - minimal circuit doesn't compute SHA-256");
+        println!("   ✅ Match: N/A (circuit uses minimal proof for arkworks integration demo)");
+        
+        // Proof generation time
+        println!("   ⚡ Proof generation time: {:.2}s", prove_time.as_secs_f64());
     }
 
     Ok(())

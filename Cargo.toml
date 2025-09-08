@@ -15,6 +15,7 @@ members = [
   "crates/neo-redteam-tests",
   "crates/neo-quickcheck-tests",
 ]
+exclude = ["benchmarks"]
 resolver = "2"
 
 [workspace.dependencies]

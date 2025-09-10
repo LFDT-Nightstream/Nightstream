@@ -11,6 +11,9 @@
 //! - The R1CS is constructed sparsely: only the few non-zeros per row are stored.
 //! - We verify after proving, but we *only* time the prove() call for the CSV.
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use anyhow::Result;
 use neo::{prove, verify, CcsStructure, NeoParams, ProveInput, F};
 use neo_ccs::{r1cs_to_ccs, Mat, check_ccs_rowwise_zero};
@@ -147,6 +150,14 @@ fn prove_once(n: usize, params: &NeoParams) -> Result<(f64, usize)> {
 }
 
 fn main() -> Result<()> {
+    // Configure Rayon to use all available CPU cores for maximum parallelization
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_cpus::get())
+        .build_global()
+        .expect("Failed to configure Rayon thread pool");
+
+    println!("🚀 Using {} threads for parallel computation", rayon::current_num_threads());
+
     // Auto-tuned params for Goldilocks; adjust if you want different security/arity
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
 

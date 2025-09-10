@@ -26,7 +26,7 @@ pub mod me_to_r1cs;
 
 // Tests will be added in a separate PR to avoid compilation complexity
 
-pub use types::ProofBundle;
+pub use types::{ProofBundle, Proof};
 
 use anyhow::Result;
 use neo_ccs::{MEInstance, MEWitness};
@@ -34,6 +34,18 @@ use p3_field::{PrimeField64, PrimeCharacteristicRing};
 use spartan2::spartan::{R1CSSNARK, SpartanVerifierKey};
 // Arc not needed for this file - it's used in me_to_r1cs
 use spartan2::traits::snark::R1CSSNARKTrait;
+
+// SECURITY: Gated logging to prevent CWE-532 (sensitive info leakage)
+#[cfg(feature = "neo-logs")]
+use tracing::{debug, info};
+
+#[cfg(not(feature = "neo-logs"))]
+macro_rules! debug { ($($tt:tt)*) => {} }
+#[cfg(not(feature = "neo-logs"))]
+macro_rules! info  { ($($tt:tt)*) => {} }
+#[cfg(not(feature = "neo-logs"))]
+#[allow(unused_macros)] // May be used conditionally
+macro_rules! warn  { ($($tt:tt)*) => {} }
 
 /// Safe conversion from signed integer to field element, avoiding edge cases like i64::MIN
 #[inline]
@@ -257,15 +269,15 @@ pub fn compress_me_to_spartan(me: &MEInstance, wit: &MEWitness) -> Result<ProofB
         }
     };
     
-    let vk_bytes = bincode::serialize(&*vk_arc)?;
+    let vk_bytes = serialize_vk_stable(&*vk_arc)?;
     let io = encode_bridge_io_header(me);
     Ok(ProofBundle::new_with_vk(proof_bytes, vk_bytes, io))
 }
 
 /// Verify a ProofBundle containing an ME R1CS SNARK
 pub fn verify_me_spartan(bundle: &ProofBundle) -> Result<bool> {
-    let snark: R1CSSNARK<E> = bincode::deserialize(&bundle.proof)?;
-    let vk: SpartanVerifierKey<E> = bincode::deserialize(&bundle.vk)?;
+    let snark: R1CSSNARK<E> = deserialize_snark_stable(&bundle.proof)?;
+    let vk: SpartanVerifierKey<E> = deserialize_vk_stable(&bundle.vk)?;
     
     // 1) Verify SNARK and get public scalars (map verification failures to Ok(false))
     match snark.verify(&vk) {
@@ -339,4 +351,292 @@ pub fn compress_me_eval(poly: &[hash_mle::F], point: &[hash_mle::F], expected_ev
     let proof_bytes = prf.to_bytes()?;
     let public_io   = hash_mle::encode_public_io(&prf);
     Ok(ProofBundle::new_with_vk(proof_bytes, Vec::new(), public_io))
+}
+
+// ===============================================================================
+// VK REGISTRY SYSTEM - Keeps VK out of proofs!
+// ===============================================================================
+
+use once_cell::sync::Lazy;
+use dashmap::DashMap;
+use std::sync::Arc;
+
+/// Global VK registry - maps circuit keys to verifier keys for lean proof verification
+static VK_REGISTRY: Lazy<DashMap<[u8; 32], Arc<SpartanVerifierKey<E>>>> = 
+    Lazy::new(|| DashMap::new());
+
+/// Register a VK for a circuit (called during proving to cache VK for verification)
+/// SECURITY: Restricted to crate-only access to prevent VK registry tampering (CWE-200)
+pub(crate) fn register_vk(circuit_key: [u8; 32], vk: Arc<SpartanVerifierKey<E>>) {
+    VK_REGISTRY.insert(circuit_key, vk);
+}
+
+/// Lookup a VK by circuit key (called during verification)
+pub fn lookup_vk(circuit_key: &[u8; 32]) -> Option<Arc<SpartanVerifierKey<E>>> {
+    VK_REGISTRY.get(circuit_key).map(|entry| entry.clone())
+}
+
+/// Get VK registry stats (for monitoring)
+pub fn vk_registry_stats() -> usize {
+    VK_REGISTRY.len()
+}
+
+/// Clear the VK registry (for testing)
+/// SECURITY: Only exposed for testing to prevent production VK registry tampering
+#[cfg(any(test, feature = "testing"))]
+pub fn clear_vk_registry() {
+    VK_REGISTRY.clear()
+}
+
+/// Clear the VK registry (internal)
+/// SECURITY: Restricted to crate-only access to prevent VK registry tampering
+#[cfg(not(any(test, feature = "testing")))]
+#[allow(dead_code)] // May be used by internal code
+pub(crate) fn clear_vk_registry() {
+    VK_REGISTRY.clear()
+}
+
+// ===============================================================================
+// 🔒 STABLE BINCODE SERIALIZATION - Critical for VK digest consistency
+// ===============================================================================
+
+/// Stable bincode configuration for VK serialization - CRITICAL for digest consistency
+/// 
+/// Using bincode 1.x with explicit configuration for stability across:
+/// - Different bincode versions  
+/// - Different platforms (endianness)
+/// - Different compilation environments
+/// 
+/// ⚠️ NEVER CHANGE THIS CONFIG - it would break all existing VK digests!
+fn stable_bincode_config() -> impl bincode::Options + Copy {
+    use bincode::{DefaultOptions, Options};
+    DefaultOptions::new()
+        .with_fixint_encoding()     // Fixed-width integer encoding for stability
+        .with_little_endian()       // Explicit endianness for cross-platform stability
+}
+
+/// Serialize VK with stable configuration for digest computation
+fn serialize_vk_stable(vk: &spartan2::spartan::SpartanVerifierKey<E>) -> anyhow::Result<Vec<u8>> {
+    use bincode::Options;
+    stable_bincode_config().serialize(vk)
+        .map_err(|e| anyhow::anyhow!("VK serialization failed: {}", e))
+}
+
+/// Deserialize SNARK proof with stable configuration  
+fn deserialize_snark_stable(bytes: &[u8]) -> anyhow::Result<spartan2::spartan::R1CSSNARK<E>> {
+    use bincode::Options;
+    stable_bincode_config().deserialize(bytes)
+        .map_err(|e| anyhow::anyhow!("SNARK deserialization failed: {}", e))
+}
+
+/// Deserialize old-format VK with stable configuration (for legacy ProofBundle support)
+fn deserialize_vk_stable(bytes: &[u8]) -> anyhow::Result<spartan2::spartan::SpartanVerifierKey<E>> {
+    use bincode::Options;
+    stable_bincode_config().deserialize(bytes)
+        .map_err(|e| anyhow::anyhow!("VK deserialization failed: {}", e))
+}
+
+/// NEW: Compress ME to lean Proof (without VK) - FIXES THE 51MB ISSUE!
+pub fn compress_me_to_lean_proof(me: &neo_ccs::MEInstance, wit: &neo_ccs::MEWitness) -> anyhow::Result<Proof> {
+    use blake3;
+    
+    // Normalize witness (same as before)
+    let wit_norm = if wit.z_digits.len().is_power_of_two() {
+        wit.clone()
+    } else {
+        let next_pow2 = wit.z_digits.len().next_power_of_two();
+        let mut normalized = wit.clone();
+        normalized.z_digits.resize(next_pow2, 0);
+        
+        if let Some(ref mut ajtai_rows) = normalized.ajtai_rows {
+            for row in ajtai_rows.iter_mut() {
+                let pad_len = next_pow2 - row.len();
+                row.extend(std::iter::repeat(neo_math::F::ZERO).take(pad_len));
+            }
+        }
+        normalized
+    };
+
+    // SECURITY: Refuse to prove unbound circuits
+    if wit_norm.ajtai_rows.as_ref().map_or(true, |rows| rows.is_empty()) {
+        anyhow::bail!("AjtaiBindingMissing: witness.ajtai_rows is None/empty; cannot bind c_coords to Z");
+    }
+
+    // Prove using existing Spartan infrastructure
+    let snark_result = me_to_r1cs::prove_me_snark(me, &wit_norm);
+    let (proof_bytes, _public_outputs, vk_arc) = match snark_result {
+        Ok(result) => {
+            eprintln!("✅ SNARK generation successful!");
+            result
+        }
+        Err(e) => {
+            eprintln!("🚨 SNARK generation failed: {:?}", e);
+            return Err(anyhow::Error::msg(format!("Spartan2 SNARK failed: {}", e)));
+        }
+    };
+    
+    // Generate circuit fingerprint
+    let circuit = me_to_r1cs::MeCircuit::new(me.clone(), wit_norm, None, me.header_digest);
+    let circuit_key_obj = me_to_r1cs::CircuitKey::from_circuit(&circuit);
+    let circuit_key: [u8; 32] = circuit_key_obj.into_bytes(); // Convert to [u8; 32]
+    
+    // CRITICAL: VK digest stability depends on bincode serialization consistency
+    // 
+    // ⚠️  STABILITY RISK: This VK digest uses `bincode` serialization which is NOT canonical.
+    //     Different versions of `bincode` or `spartan2` may produce different bytes for 
+    //     the same VK, causing digest mismatches and proof rejection.
+    //
+    // 📋 MITIGATION PLAN:
+    //   1. Pin `bincode` version in Cargo.lock
+    //   2. Use frozen bincode config: `bincode::config::standard().with_fixed_int_encoding()`
+    //   3. Replace with canonical encoding when Spartan2 provides `to_canonical_bytes()`
+    //   4. Add unit test asserting digest stability across serialize→deserialize roundtrip
+    //
+    // CURRENT STATUS: Acceptable for single-process/same-version usage
+    let vk_bytes = serialize_vk_stable(&*vk_arc)?;
+    
+    // VK digest v1: BLAKE3(bincode_v1(vk) || "VK_DIGEST_V1")
+    // Domain separation ensures digest stability and prevents collisions
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&vk_bytes);
+    hasher.update(b"VK_DIGEST_V1"); // Domain separator for version 1
+    let vk_digest: [u8; 32] = hasher.finalize().into();
+    
+    // Register VK for verification (out-of-band)
+    register_vk(circuit_key, vk_arc.clone());
+    
+    // Encode public IO
+    let public_io_bytes = encode_bridge_io_header(me);
+    
+    // Create lean proof (NO VK INSIDE!)
+    let proof = Proof::new(circuit_key, vk_digest, public_io_bytes, proof_bytes);
+    
+    info!("Created lean proof: {} bytes (vs ~51MB with VK)", 
+             proof.total_size());
+    
+    Ok(proof)
+}
+
+/// NEW: Verify lean Proof using VK registry - SOLVES THE 51MB ISSUE!
+pub fn verify_lean_proof(proof: &Proof) -> anyhow::Result<bool> {
+    use blake3;
+    
+    // Lookup VK from registry
+    let vk = lookup_vk(&proof.circuit_key)
+        .ok_or_else(|| anyhow::anyhow!(
+            "VK not found in registry for circuit key: {:02x?}", 
+            &proof.circuit_key[..8]
+        ))?;
+    
+    // Verify VK digest binding (v1 format with domain separation)  
+    let vk_bytes = serialize_vk_stable(&*vk)?;
+    
+    // Compute VK digest v1 (must match the format used during proving)
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&vk_bytes);
+    hasher.update(b"VK_DIGEST_V1"); // Same domain separator as in compress_me_to_lean_proof
+    let computed_digest: [u8; 32] = hasher.finalize().into();
+    
+    anyhow::ensure!(
+        computed_digest == proof.vk_digest,
+        "VK digest mismatch - proof bound to different circuit"
+    );
+    
+    // SECURITY: Prevent maliciously huge proof_bytes from causing memory exhaustion
+    const MAX_PROOF_BYTES: usize = 64 * 1024 * 1024; // 64MB limit
+    anyhow::ensure!(
+        proof.proof_bytes.len() <= MAX_PROOF_BYTES,
+        "proof_bytes too large: {} bytes (limit {})",
+        proof.proof_bytes.len(), MAX_PROOF_BYTES
+    );
+    
+    // Deserialize and verify Spartan proof
+    let snark: spartan2::spartan::R1CSSNARK<E> = deserialize_snark_stable(&proof.proof_bytes)?;
+    
+    // CRITICAL SECURITY: Get public values from Spartan and bind to public IO
+    let public_values = snark.verify(&*vk)
+        .map_err(|e| anyhow::anyhow!("Spartan verification failed: {}", e))?;
+    
+    // CRITICAL SECURITY: Serialize public scalars identically to encode_bridge_io_header()
+    // This prevents tampering with public_io_bytes
+    let mut expected_public_io = Vec::with_capacity(public_values.len() * 8);
+    for x in &public_values {
+        expected_public_io.extend_from_slice(&x.to_canonical_u64().to_le_bytes());
+    }
+    
+    // CRITICAL SECURITY: Constant-time comparison to prevent public IO tampering attacks
+    use subtle::ConstantTimeEq;
+    if expected_public_io.ct_eq(&proof.public_io_bytes).unwrap_u8() != 1 {
+        debug!("Public IO mismatch: Spartan public values don't match proof.public_io_bytes ({} vs {} bytes)",
+                 expected_public_io.len(), proof.public_io_bytes.len());
+        return Ok(false);
+    }
+    
+    info!("Lean verification successful: proof verified using cached VK with public IO binding");
+    Ok(true)
+}
+
+#[cfg(test)]
+mod lean_proof_tests {
+    use super::*;
+    use neo_ccs::{MEInstance, MEWitness};
+    use neo_math::F;
+    use p3_field::PrimeCharacteristicRing;
+
+    #[test]
+    fn test_lean_proof_system_demo() {
+        println!("\n🚀 [LEAN PROOF DEMO] Testing the VK registry system!");
+        
+        // Create minimal test data  
+        let z_digits = vec![1i64, 2, 3, 0, 1, 1, 0, 2]; // 8 elements (power of 2)
+        let ajtai_rows = vec![
+            vec![F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO],
+            vec![F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO],
+        ];
+        
+        let c_coords = vec![F::ONE, F::from_u64(2)];
+        let y_outputs = vec![F::from_u64(6), F::from_u64(3)]; 
+        let r_point = vec![F::from_u64(42), F::from_u64(73)];
+        
+        #[allow(deprecated)]
+        let me_instance = MEInstance {
+            c_coords,
+            y_outputs, 
+            r_point,
+            base_b: 4,
+            header_digest: [1u8; 32],
+        };
+        
+        #[allow(deprecated)]
+        let me_witness = MEWitness {
+            z_digits,
+            weight_vectors: vec![vec![F::ONE; 8], vec![F::ONE; 8]],
+            ajtai_rows: Some(ajtai_rows),
+        };
+        
+        println!("🎯 [TEST] Generating lean proof...");
+        
+        // Test lean proof generation
+        let lean_proof = compress_me_to_lean_proof(&me_instance, &me_witness)
+            .expect("Lean proof generation should succeed");
+            
+        println!("✅ [SUCCESS] Lean proof: {} bytes", lean_proof.total_size());
+        println!("   Circuit Key: {} bytes", lean_proof.circuit_key.len());
+        println!("   VK Digest: {} bytes", lean_proof.vk_digest.len());
+        println!("   Public IO: {} bytes", lean_proof.public_io_bytes.len());
+        println!("   Proof Bytes: {} bytes", lean_proof.proof_bytes.len());
+        
+        // Test lean proof verification 
+        println!("🎯 [TEST] Verifying lean proof...");
+        let is_valid = verify_lean_proof(&lean_proof)
+            .expect("Lean proof verification should not error");
+            
+        assert!(is_valid, "Lean proof should be valid");
+        println!("✅ [SUCCESS] Lean proof verified!");
+        
+        // Show registry stats
+        println!("📊 [STATS] VK registry entries: {}", vk_registry_stats());
+        
+        println!("🎉 [COMPLETE] Lean proof system working - 51MB issue SOLVED!");
+    }
 }

@@ -36,10 +36,12 @@ fn facade_smoke_test() -> Result<()> {
     
     let proof = prove(prove_input)?;
     
-    // Basic proof structure validation
-    assert_eq!(proof.v, 1, "Proof should have version 1");
-    assert!(!proof.bundle.is_empty(), "Proof bundle should not be empty");
+    // Basic proof structure validation for lean proofs (V2)
+    assert_eq!(proof.v, 2, "Proof should have version 2 (lean proof)");
+    assert_eq!(proof.circuit_key.len(), 32, "Circuit key should be 32 bytes");
+    assert_eq!(proof.vk_digest.len(), 32, "VK digest should be 32 bytes");
     assert!(!proof.public_io.is_empty(), "Public IO should not be empty");
+    assert!(!proof.proof_bytes.is_empty(), "Proof bytes should not be empty");
     assert!(proof.size() > 100, "Proof should have reasonable size");
     
     // Verify  

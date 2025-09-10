@@ -27,7 +27,7 @@ mod tests;
 
 // Re-export core types
 pub use error::{CcsError, DimMismatch, RelationError};
-pub use matrix::{Mat, MatRef};
+pub use matrix::{Mat, MatRef, CsrMatrix};
 pub use poly::{SparsePoly, Term};
 pub use r1cs::r1cs_to_ccs;
 // Main CCS types and functions (audit-ready)

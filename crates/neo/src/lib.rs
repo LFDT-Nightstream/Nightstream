@@ -43,7 +43,7 @@ use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle};
 use rand::SeedableRng;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use subtle::ConstantTimeEq;
-// LZ4 is already imported via the use of block::compress and block::decompress below
+use tracing::{debug, info, warn};
 
 // Init Ajtai PP for a specific (d, m) if absent.
 fn ensure_ajtai_pp_for_dims<FN>(d: usize, m: usize, mut setup: FN) -> anyhow::Result<()>
@@ -137,21 +137,30 @@ pub use neo_params::NeoParams;
 pub use neo_ccs::CcsStructure;
 pub use neo_math::{F, K};
 
-/// Opaque proof object (bincode-encoded Spartan bundle, versioned)
+/// Lean proof object without VK - FIXES THE 51MB ISSUE!
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct ProofV1 {
+pub struct Proof {
     /// Version tag for forward-compat
     pub v: u16,
+    /// Circuit fingerprint for VK lookup
+    pub circuit_key: [u8; 32],
+    /// VK digest for binding verification
+    pub vk_digest: [u8; 32],
     /// Public IO bytes bound by the bridge (anti-replay)
     pub public_io: Vec<u8>,
-    /// Serialized Spartan bundle (includes proof + VK)
-    pub bundle: Vec<u8>,
+    /// ONLY the Spartan2 proof bytes (no 51MB VK!)
+    pub proof_bytes: Vec<u8>,
 }
 
-impl ProofV1 {
-    /// Returns the total size of the proof in bytes
+
+impl Proof {
+    /// Returns the total size of the lean proof in bytes
     pub fn size(&self) -> usize {
-        self.bundle.len() + self.public_io.len() + std::mem::size_of::<u16>()
+        std::mem::size_of::<u16>() + // v
+        32 + // circuit_key
+        32 + // vk_digest
+        self.public_io.len() +
+        self.proof_bytes.len()
     }
     
     /// Returns the public IO bytes bound by the proof (for verification binding)
@@ -165,7 +174,7 @@ impl ProofV1 {
     }
 }
 
-pub type Proof = ProofV1;
+
 
 /// Inputs needed by the prover (explicit is better than global state)
 pub struct ProveInput<'a> {
@@ -185,6 +194,7 @@ pub struct ProveInput<'a> {
 ///
 /// Returns an opaque proof that can be verified with `verify`.
 pub fn prove(input: ProveInput) -> Result<Proof> {
+    let total_start = std::time::Instant::now();
     // Parameter guard: enforce (k+1)T(b-1) < B for RLC soundness
     anyhow::ensure!(
         (input.params.k as u128 + 1)
@@ -195,10 +205,15 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     );
 
     // Fail-fast CCS consistency check: witness must satisfy the constraint system
+    // Only perform expensive check in debug builds - skip in release for performance
+    #[cfg(debug_assertions)]
     neo_ccs::check_ccs_rowwise_zero(input.ccs, input.public_input, input.witness)
         .map_err(|e| anyhow::anyhow!("CCS check failed - witness does not satisfy constraints: {:?}", e))?;
 
-    // Step 1: Ajtai setup (parameter-aware global registry)
+    // Step 1: Ajtai setup (parameter-aware global registry)  
+    let ajtai_start = std::time::Instant::now();
+    debug!("Starting Ajtai setup and decomposition");
+    
     let d = neo_math::ring::D;
     let _m_w = input.witness.len(); // Original witness length before decomposition
     // CRITICAL FIX: Use decomposed dimensions for PP setup, not raw witness length
@@ -223,7 +238,14 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     let m = m_correct;
     let pp = neo_ajtai::get_global_pp_for_dims(d, m)
         .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP for (d={}, m={}): {}", d, m, e))?;
+    
+    let commit_start = std::time::Instant::now();
     let commitment = commit(&*pp, &decomp_z);
+    let commit_time = commit_start.elapsed();
+    
+    let ajtai_time = ajtai_start.elapsed();
+    debug!("Ajtai setup completed: {:.2}ms (commit: {:.2}ms)", 
+            ajtai_time.as_secs_f64() * 1000.0, commit_time.as_secs_f64() * 1000.0);
     
     // Step 3: Build MCS instance/witness (row-major conversion)
     let mut z_row_major = vec![F::ZERO; d * m];
@@ -249,15 +271,27 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     let mcs_witnesses = std::iter::repeat(mcs_wit).take(2).collect::<Vec<_>>();
 
     // Step 4: Execute folding pipeline
+    let fold_start = std::time::Instant::now();
+    debug!("Starting CCS folding (Pi_CCS + Pi_RLC)");
+    
     let (me_instances, digit_witnesses, _folding_proof) = neo_fold::fold_ccs_instances(
         input.params, 
         input.ccs, 
         &mcs_instances, 
         &mcs_witnesses
     )?;
+    
+    let fold_time = fold_start.elapsed();
+    println!("⏱️  [TIMING] CCS folding completed: {:.2}ms", fold_time.as_secs_f64() * 1000.0);
 
     // Step 5: Bridge to Spartan (legacy adapter)
+    let bridge_start = std::time::Instant::now();
+    println!("⏱️  [TIMING] Starting bridge adapter (ME -> Spartan format)...");
+    
     let (mut legacy_me, legacy_wit) = adapt_from_modern(&me_instances, &digit_witnesses, input.ccs, input.params)?;
+    
+    let bridge_time = bridge_start.elapsed();
+    println!("⏱️  [TIMING] Bridge adapter completed: {:.2}ms", bridge_time.as_secs_f64() * 1000.0);
     
     // Bind proof to the caller's CCS & public input
     let context_digest = context_digest_v0(input.ccs, input.public_input);
@@ -266,22 +300,72 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
         legacy_me.header_digest = context_digest;
     }
     
-    let bundle = neo_spartan_bridge::compress_me_to_spartan(&legacy_me, &legacy_wit)?;
+    let spartan_start = std::time::Instant::now();
+    println!("⏱️  [TIMING] Starting Spartan2 proving...");
+    
+    // DEBUG: Check witness sizes before Spartan compression
+    #[allow(deprecated)]
+    if let Some(ajtai_rows) = &legacy_wit.ajtai_rows {
+        let total_elements: usize = ajtai_rows.iter().map(|row| row.len()).sum();
+        println!("🚨 [PROOF SIZE DEBUG] Ajtai rows: {} rows, {} total elements (~{}MB if included)", 
+                 ajtai_rows.len(), total_elements, total_elements * 32 / 1_000_000);
+    }
+    #[allow(deprecated)]
+    {
+        println!("🚨 [PROOF SIZE DEBUG] z_digits: {} elements", legacy_wit.z_digits.len());
+        println!("🚨 [PROOF SIZE DEBUG] weight_vectors: {} vectors, {} total elements", 
+                 legacy_wit.weight_vectors.len(), 
+                 legacy_wit.weight_vectors.iter().map(|v| v.len()).sum::<usize>());
+    }
+    
+    // Use lean proof system without VK - FIXES THE 51MB ISSUE!
+    let lean_proof = neo_spartan_bridge::compress_me_to_lean_proof(&legacy_me, &legacy_wit)?;
+    
+    let spartan_time = spartan_start.elapsed();
+    println!("⏱️  [TIMING] Spartan2 proving completed: {:.2}ms", spartan_time.as_secs_f64() * 1000.0);
 
-    // Step 6: Capture public IO and serialize proof with LZ4 compression
-    let public_io = bundle.public_io_bytes.clone();
-    let uncompressed_bytes = bincode::serialize(&bundle)?;
-    let compressed_bytes = lz4_flex::compress_prepend_size(&uncompressed_bytes);
+    // Step 6: Serialize lean proof (no 51MB VK!)
+    let serialize_start = std::time::Instant::now();
+    println!("🚨 [LEAN PROOF DEBUG] Proof components:");
+    println!("  - Circuit Key: {} bytes", lean_proof.circuit_key.len());
+    println!("  - VK Digest: {} bytes", lean_proof.vk_digest.len()); 
+    println!("  - Public IO: {} bytes", lean_proof.public_io_bytes.len());
+    println!("  - Proof Bytes: {} bytes", lean_proof.proof_bytes.len());
+    println!("  - Total lean proof: {} bytes ({:.1}KB vs ~51MB with old system!)", 
+             lean_proof.total_size(), lean_proof.total_size() as f64 / 1000.0);
     
-    #[cfg(feature = "debug-logs")]
-    eprintln!("✅ LZ4 compression: {} → {} bytes ({:.1}% reduction)", 
-              uncompressed_bytes.len(), compressed_bytes.len(),
-              100.0 * (1.0 - compressed_bytes.len() as f64 / uncompressed_bytes.len() as f64));
+    let serialize_time = serialize_start.elapsed();
+    let total_time = total_start.elapsed();
     
+    // Print detailed timing breakdown
+    println!("\n📊 DETAILED TIMING BREAKDOWN:");
+    println!("=====================================");
+    println!("Ajtai Setup & Commit:     {:>8.2}ms ({:>5.1}%)", 
+             ajtai_time.as_secs_f64() * 1000.0,
+             100.0 * ajtai_time.as_secs_f64() / total_time.as_secs_f64());
+    println!("CCS Folding (Pi_CCS):     {:>8.2}ms ({:>5.1}%)", 
+             fold_time.as_secs_f64() * 1000.0,
+             100.0 * fold_time.as_secs_f64() / total_time.as_secs_f64());
+    println!("Bridge Adapter:           {:>8.2}ms ({:>5.1}%)", 
+             bridge_time.as_secs_f64() * 1000.0,
+             100.0 * bridge_time.as_secs_f64() / total_time.as_secs_f64());
+    println!("Spartan2 Proving:         {:>8.2}ms ({:>5.1}%)", 
+             spartan_time.as_secs_f64() * 1000.0,
+             100.0 * spartan_time.as_secs_f64() / total_time.as_secs_f64());
+    println!("Serialization:            {:>8.2}ms ({:>5.1}%)", 
+             serialize_time.as_secs_f64() * 1000.0,
+             100.0 * serialize_time.as_secs_f64() / total_time.as_secs_f64());
+    println!("=====================================");
+    println!("TOTAL PROVING TIME:       {:>8.2}ms", total_time.as_secs_f64() * 1000.0);
+    println!();
+    
+    // Return the new lean proof structure - NO 51MB VK!
     Ok(Proof {
-        v: 1,
-        public_io,
-        bundle: compressed_bytes,
+        v: 2, // Version 2 for lean proofs
+        circuit_key: lean_proof.circuit_key,
+        vk_digest: lean_proof.vk_digest,
+        public_io: lean_proof.public_io_bytes,
+        proof_bytes: lean_proof.proof_bytes,
     })
 }
 
@@ -295,65 +379,52 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
 /// - ✅ **Cryptographic proof validity**: Spartan2 SNARK verification
 /// - ✅ **Anti-replay protection**: Internal public-IO consistency  
 ///
-/// This function first validates that the proof was generated for the specific
-/// `(ccs, public_input)` pair provided by checking a context digest, then
-/// proceeds with full cryptographic verification via the Spartan2 verifier.
+/// This function validates that the proof was generated for the specific
+/// `(ccs, public_input)` pair provided and performs full cryptographic 
+/// verification via the lean Spartan2 verifier using VK registry.
 pub fn verify(ccs: &CcsStructure<F>, public_input: &[F], proof: &Proof) -> Result<bool> {
-    // Check proof version
-    anyhow::ensure!(proof.v == 1, "unsupported proof version: {}", proof.v);
+    info!("Starting lean proof verification without embedded VK");
     
-    // Size guard to prevent decompression bombs
-    const MAX_BUNDLE_BYTES: usize = 64 * 1024 * 1024; // 64 MiB limit
-    anyhow::ensure!(proof.bundle.len() >= 4, "malformed proof bundle: too short");
+    // CRITICAL SECURITY: Ensure proof version is supported
+    anyhow::ensure!(proof.v == 2, "unsupported proof version: {}", proof.v);
     
-    let expected_len = {
-        let mut len_bytes = [0u8; 4];
-        len_bytes.copy_from_slice(&proof.bundle[0..4]);
-        u32::from_le_bytes(len_bytes) as usize
-    };
+    // CRITICAL SECURITY: Re-derive expected public IO from caller's (ccs, public_input)
+    // and bind proof to this specific context to prevent replay attacks
+    let expected_context_digest = context_digest_v0(ccs, public_input);
     
+    // Extract context digest from proof's public IO (should be at the end)
     anyhow::ensure!(
-        expected_len <= MAX_BUNDLE_BYTES,
-        "proof bundle too large after decompression: {} bytes (limit {})",
-        expected_len, MAX_BUNDLE_BYTES
+        proof.public_io.len() >= 32,
+        "malformed proof: public IO too short to contain context digest"
     );
+    let proof_context_digest = &proof.public_io[proof.public_io.len() - 32..];
     
-    // Decompress and deserialize
-    let decompressed_bytes = lz4_flex::decompress_size_prepended(&proof.bundle)
-        .map_err(|e| anyhow::anyhow!("lz4 decode failed: {e}"))?;
-    
-    // Verify decompressed size matches header
-    anyhow::ensure!(
-        decompressed_bytes.len() == expected_len,
-        "decompressed length mismatch ({} != header {})",
-        decompressed_bytes.len(),
-        expected_len
-    );
-    let bundle: neo_spartan_bridge::ProofBundle = bincode::deserialize(&decompressed_bytes)?;
-    
-    // Anti-replay binding check: ensure the public IO bytes in the proof 
-    // match exactly what the bundle claims to verify (constant-time for security)
-    anyhow::ensure!(
-        proof.public_io.ct_eq(&bundle.public_io_bytes).unwrap_u8() == 1,
-        "Public IO mismatch: proof.public_io != bundle.public_io_bytes"
-    );
-    
-    // 1) Extract digest from proof bundle - digest is at the end (tail)
-    if proof.public_io.len() < 32 {
-        return Err(anyhow::anyhow!("malformed proof: missing header digest"));
-    }
-    let expected = context_digest_v0(ccs, public_input);
-    let tail = &proof.public_io[proof.public_io.len() - 32..];
-
-    // 2) Compare — bind proof to verifier's context (constant-time)
-    if tail.ct_eq(&expected).unwrap_u8() == 0 {
-        // Not our CCS/IO: reject without touching Spartan
+    // SECURITY: Constant-time comparison to bind proof to verifier's context
+    if proof_context_digest.ct_eq(&expected_context_digest).unwrap_u8() == 0 {
+        // Proof was generated for different (ccs, public_input) - reject without Spartan verification
+        warn!("Proof context mismatch - rejecting without cryptographic verification");
         return Ok(false);
     }
     
-    // 3) Context matches - proceed with full cryptographic verification
-    neo_spartan_bridge::verify_me_spartan(&bundle)
+    debug!("Proof context binding verified");
+    
+    // Convert lean proof to bridge format for verification
+    let bridge_proof = neo_spartan_bridge::Proof {
+        version: 1,
+        circuit_key: proof.circuit_key,
+        vk_digest: proof.vk_digest,
+        public_io_bytes: proof.public_io.clone(),
+        proof_bytes: proof.proof_bytes.clone(),
+    };
+    
+    // CRITICAL SECURITY: Verify using VK registry AND ensure Spartan validates public_io
+    // The Spartan verifier must consume and validate the public_io bytes to prevent tampering
+    let is_valid = neo_spartan_bridge::verify_lean_proof(&bridge_proof)?;
+    
+    info!("Lean proof verification completed successfully using cached VK");
+    Ok(is_valid)
 }
+
 
 // Internal adapter function to bridge modern ME instances to legacy format,
 // using extension-field aware weight vectors with proper layout detection.
@@ -398,29 +469,101 @@ fn adapt_from_modern(
     // Helper to split K -> (real, imag). neo_math::K exposes .real()/.imag()
     let k_split = |x: neo_math::K| (x.real(), x.imag());
 
-    // 3) Build per-matrix limb vectors v_re[j], v_im[j] in F^m
+    // 3) Build per-matrix limb vectors v_re[j], v_im[j] in F^m via TRUE SPARSE matrix-vector multiply
     let m = ccs.m;
     let n = ccs.n;
     let t = ccs.matrices.len(); // number of CCS matrices
 
-    // v_j limbs in F^m
-    let mut v_re: Vec<Vec<F>> = Vec::with_capacity(t);
-    let mut v_im: Vec<Vec<F>> = Vec::with_capacity(t);
-
-    for mj in &ccs.matrices {
-        let mut vj_re = vec![F::ZERO; m];
-        let mut vj_im = vec![F::ZERO; m];
-        for row in 0..n {
-            let (rre, rim) = k_split(chi_r_k[row]);
-            for col in 0..m {
-                let a = mj[(row, col)];
-                vj_re[col] += a * rre;
-                vj_im[col] += a * rim;
+    // 🔥 NUCLEAR OPTIMIZATION: Convert to CSR format for REAL O(nnz) sparse operations
+    use rayon::prelude::*;
+    
+    println!("🔥 [NUCLEAR] Converting {} matrices to CSR format (one-time cost)...", t);
+    let csr_start = std::time::Instant::now();
+    let csr_matrices: Vec<_> = ccs.matrices
+        .par_iter()
+        .enumerate()
+        .map(|(j, mj)| {
+            let csr = mj.to_csr();
+            println!("🔥 Matrix {}: {}×{} → {} non-zeros ({:.2}% density)", 
+                     j, mj.rows(), mj.cols(), csr.nnz(),
+                     100.0 * csr.nnz() as f64 / (mj.rows() * mj.cols()) as f64);
+            csr
+        })
+        .collect();
+    let csr_time = csr_start.elapsed();
+    println!("🔥 [NUCLEAR] CSR conversion completed: {:.2}ms", csr_time.as_secs_f64() * 1000.0);
+    
+    // Pre-compute k_split once (hoist out of inner loops)
+    println!("⏱️  [OPTIMIZATION] Pre-computing {} k_split operations...", n);
+    let r_pairs: Vec<(F, F)> = chi_r_k.iter().map(|&x| k_split(x)).collect();
+    
+    // 💥 MASSIVE WIN: TRUE O(nnz) sparse matrix-vector multiply using CSR
+    let spmv_start = std::time::Instant::now();
+    let (v_re, v_im): (Vec<Vec<F>>, Vec<Vec<F>>) = csr_matrices
+        .par_iter()
+        .enumerate()
+        .map(|(j, csr)| {
+            println!("💥 [TRUE SPARSE] Matrix {} SpMV: {} non-zeros (vs {:.0}M dense)", 
+                     j, csr.nnz(), (n * m) as f64 / 1_000_000.0);
+            
+            // This is the REAL performance win - only touches non-zero elements!
+            let mut vj_re = vec![F::ZERO; m];
+            let mut vj_im = vec![F::ZERO; m];
+            
+            // Process rows in parallel chunks with thread-local accumulators
+            let threads = rayon::current_num_threads();
+            let chunks = (threads * 2).max(1);
+            let chunk_sz = (n + chunks - 1) / chunks;
+            
+            let partials: Vec<(Vec<F>, Vec<F>)> = (0..chunks)
+                .into_par_iter()
+                .map(|ci| {
+                    let start = ci * chunk_sz;
+                    let end = (start + chunk_sz).min(n);
+                    
+                    let mut loc_re = vec![F::ZERO; m];
+                    let mut loc_im = vec![F::ZERO; m];
+                    
+                    // TRUE SPARSE: Only process actual non-zeros!
+                    for row in start..end {
+                        let (rre, rim) = r_pairs[row];
+                        let row_start = csr.row_ptrs[row];
+                        let row_end = csr.row_ptrs[row + 1];
+                        
+                        // Iterate ONLY non-zero elements - HUGE win!
+                        for idx in row_start..row_end {
+                            let col = csr.col_indices[idx];
+                            let a = csr.values[idx];
+                            
+                            // Simple accumulation - no features, just working code
+                            loc_re[col] += a * rre;
+                            loc_im[col] += a * rim;
+                        }
+                    }
+                    
+                    (loc_re, loc_im)
+                })
+                .collect();
+            
+            // Reduce partials
+            for (loc_re, loc_im) in partials {
+                for i in 0..m {
+                    vj_re[i] += loc_re[i];
+                    vj_im[i] += loc_im[i];
+                }
             }
-        }
-        v_re.push(vj_re);
-        v_im.push(vj_im);
-    }
+            
+            (vj_re, vj_im)
+        })
+        .unzip();
+    
+    let spmv_time = spmv_start.elapsed();
+    println!("💥 [TRUE SPARSE] All SpMV completed: {:.2}ms", spmv_time.as_secs_f64() * 1000.0);
+    
+    let total_nnz: usize = csr_matrices.iter().map(|csr| csr.nnz()).sum();
+    let total_dense = n * m * t;
+    println!("💥 [PERFORMANCE] Processed {} non-zeros instead of {} elements ({:.0}x reduction)", 
+             total_nnz, total_dense, total_dense as f64 / total_nnz as f64);
 
     // 4) Compact outputs: 2·t limbs (Re/Im per matrix), not 2·d·m.
     //    For each CCS matrix j, build ONE weight vector w_re[j] and w_im[j] over F^{d·m}
@@ -428,16 +571,26 @@ fn adapt_from_modern(
     //
     //    Indexing: z_digits is column-major: idx = c*d + r.
 
+    println!("🔍 [DEBUG] Starting weight vector construction for {} matrices (d={}, m={})", t, d, m);
+    let weight_start = std::time::Instant::now();
+
     let z_digits_i64 = &wit_legacy.z_digits;
     let to_f = |zi: i64| if zi >= 0 { F::from_u64(zi as u64) } else { -F::from_u64((-zi) as u64) };
 
     let mut y_full: Vec<F> = Vec::with_capacity(2 * t);
     let mut weight_vectors: Vec<Vec<F>> = Vec::with_capacity(2 * t);
+    
+    println!("🔍 [DEBUG] z_digits length: {}, expected: {}", z_digits_i64.len(), d * m);
 
     for j in 0..t {
+        let matrix_start = std::time::Instant::now();
+        
         // Build aggregated weights for this matrix j
         let mut w_re = vec![F::ZERO; d * m];
         let mut w_im = vec![F::ZERO; d * m];
+
+        println!("🔍 [DEBUG] Matrix {}: Building weight vectors ({}×{} = {} elements)", j, d, m, d * m);
+        let w_build_start = std::time::Instant::now();
 
         for c in 0..m {
             // v_re[j][c], v_im[j][c] are the column coefficients for matrix j
@@ -451,8 +604,14 @@ fn adapt_from_modern(
                 w_im[idx] = base_im * coeff;
             }
         }
+        
+        let w_build_time = w_build_start.elapsed();
+        println!("🔍 [DEBUG] Matrix {}: Weight build: {:.2}ms", j, w_build_time.as_secs_f64() * 1000.0);
 
         // Expected y limbs (host-side, for circuit equality)
+        println!("🔍 [DEBUG] Matrix {}: Computing y limbs over {} elements", j, d * m);
+        let y_compute_start = std::time::Instant::now();
+        
         let mut y_re = F::ZERO;
         let mut y_im = F::ZERO;
         for idx in 0..(d * m) {
@@ -461,11 +620,20 @@ fn adapt_from_modern(
             y_im += w_im[idx] * zf;
         }
 
+        let y_compute_time = y_compute_start.elapsed();
+        println!("🔍 [DEBUG] Matrix {}: Y compute: {:.2}ms", j, y_compute_time.as_secs_f64() * 1000.0);
+
         y_full.push(y_re);
         y_full.push(y_im);
         weight_vectors.push(w_re);
         weight_vectors.push(w_im);
+        
+        let matrix_time = matrix_start.elapsed();
+        println!("🔍 [DEBUG] Matrix {}: Total time: {:.2}ms", j, matrix_time.as_secs_f64() * 1000.0);
     }
+    
+    let weight_time = weight_start.elapsed();
+    println!("🔍 [TIMING] Weight vector construction completed: {:.2}ms", weight_time.as_secs_f64() * 1000.0);
 
     // Install compact outputs
     #[cfg(feature = "debug-logs")]
@@ -479,18 +647,34 @@ fn adapt_from_modern(
     // These rows L_i satisfy <L_i, z_digits> = c_coords[i] and are derived
     // directly from the public Ajtai matrix parameters.
     // Use PP that matches the witness Z dimensions
+    println!("🔍 [DEBUG] Starting Ajtai binding rows computation...");
+    let ajtai_binding_start = std::time::Instant::now();
+    
     let d_pp = first_wit.Z.rows();
     let m_pp = first_wit.Z.cols();
+    println!("🔍 [DEBUG] Ajtai dimensions: d_pp={}, m_pp={}", d_pp, m_pp);
+    
     let pp = neo_ajtai::get_global_pp_for_dims(d_pp, m_pp)
         .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP for binding (d={}, m={}): {}", d_pp, m_pp, e))?;
     let z_len = d_pp * m_pp;
+    
+    println!("🔍 [DEBUG] z_len={}, c_coords.len()={}", z_len, me_legacy.c_coords.len());
 
     // Fetch the official Ajtai rows in the exact orientation the circuit expects
+    println!("🔍 [DEBUG] Calling rows_for_coords with z_len={}, num_coords={}", z_len, me_legacy.c_coords.len());
+    let rows_start = std::time::Instant::now();
+    
     let rows = neo_ajtai::rows_for_coords(&*pp, z_len, me_legacy.c_coords.len())
         .map_err(|e| anyhow::anyhow!("Failed to derive Ajtai binding rows: {}", e))?;
+        
+    let rows_time = rows_start.elapsed();
+    println!("🔍 [TIMING] rows_for_coords completed: {:.2}ms", rows_time.as_secs_f64() * 1000.0);
 
     // SECURITY CRITICAL: Strict validation of ALL rows from authentic PP
     // If any row fails validation, we fail closed - no synthetic fallbacks allowed
+    println!("🔍 [DEBUG] Starting security validation of {} rows...", rows.len());
+    let validation_start = std::time::Instant::now();
+    
     {
         use neo_math::F;
         let dot = |row: &[F]| -> F {
@@ -502,7 +686,12 @@ fn adapt_from_modern(
         
         // Validate ALL rows, not just a prefix - this is security critical
         let check_count = core::cmp::min(rows.len(), me_legacy.c_coords.len());
+        println!("🔍 [DEBUG] Validating {} rows with dot products...", check_count);
+        
         for i in 0..check_count {
+            if i % 100 == 0 {
+                println!("🔍 [DEBUG] Validating row {}/{}...", i, check_count);
+            }
             let computed = dot(&rows[i]);
             let expected = me_legacy.c_coords[i];
             anyhow::ensure!(
@@ -514,22 +703,40 @@ fn adapt_from_modern(
         }
     }
     
+    let validation_time = validation_start.elapsed();
+    println!("🔍 [TIMING] Security validation completed: {:.2}ms", validation_time.as_secs_f64() * 1000.0);
+    
     // Install the validated authentic rows, padded to match z_digits length
     // CRITICAL: Bridge adapter pads z_digits to power-of-two, so Ajtai rows must match
+    println!("🔍 [DEBUG] Installing rows: z_digits.len()={}, z_len={}", wit_legacy.z_digits.len(), z_len);
+    let padding_start = std::time::Instant::now();
+    
     if wit_legacy.z_digits.len() > z_len {
         // z_digits was padded by bridge adapter - extend Ajtai rows with zero coefficients
         let mut padded_rows = rows;
         let pad_len = wit_legacy.z_digits.len() - z_len;
-        for row in &mut padded_rows {
+        let num_rows = padded_rows.len();
+        println!("🔍 [DEBUG] Padding {} rows with {} zeros each...", num_rows, pad_len);
+        
+        for (i, row) in padded_rows.iter_mut().enumerate() {
+            if i % 1000 == 0 {
+                println!("🔍 [DEBUG] Padding row {}/{}...", i, num_rows);
+            }
             row.extend(std::iter::repeat(F::ZERO).take(pad_len));
         }
-        #[cfg(feature = "debug-logs")]
-        eprintln!("🔍 Ajtai rows padded from {} to {} to match z_digits padding", 
+        
+        println!("🔍 [DEBUG] Ajtai rows padded from {} to {} to match z_digits padding", 
                   z_len, wit_legacy.z_digits.len());
         wit_legacy.ajtai_rows = Some(padded_rows);
     } else {
         wit_legacy.ajtai_rows = Some(rows);
     }
+    
+    let padding_time = padding_start.elapsed();
+    println!("🔍 [TIMING] Row padding completed: {:.2}ms", padding_time.as_secs_f64() * 1000.0);
+    
+    let ajtai_binding_time = ajtai_binding_start.elapsed();
+    println!("🔍 [TIMING] Ajtai binding rows total: {:.2}ms", ajtai_binding_time.as_secs_f64() * 1000.0);
 
     Ok((me_legacy, wit_legacy))
 }

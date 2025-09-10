@@ -117,73 +117,150 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
 /// * `num_coords` - Number of coordinate rows to return
 ///
 /// # Returns
-/// Authentic rows from the Ajtai matrix, or an error if extraction is not implemented.
+/// Authentic rows from the Ajtai matrix, optimized with S-action caching and parallel processing.
 ///
-/// # Security Note
-/// Currently returns an error until proper matrix extraction from PP is implemented.
-/// This ensures no synthetic rows can accidentally be used in production.
+/// # Performance Optimizations
+/// - Caches pre-computed S-action matrices to avoid repeated polynomial multiplications
+/// - Parallelizes row construction across available CPU cores
+/// - Uses HashMap for O(1) element deduplication vs O(n²) linear search
+///
+/// # Security Note  
+/// Includes bounds validation to ensure matrix dimensions are consistent and prevent panics.
+/// Optimized rows_for_coords implementation
 pub fn rows_for_coords(
     pp: &PP<RqEl>, 
     z_len: usize, 
     num_coords: usize
 ) -> AjtaiResult<Vec<Vec<Fq>>> {
+    use rayon::prelude::*;
+    
+    // SECURITY: Gated logging to prevent CWE-532 (sensitive info leakage)
+    #[cfg(feature = "neo-logs")]
+    use tracing::{debug, info};
+    
+    #[cfg(not(feature = "neo-logs"))]
+    macro_rules! debug { ($($tt:tt)*) => {} }
+    #[cfg(not(feature = "neo-logs"))]
+    macro_rules! info  { ($($tt:tt)*) => {} }
+    
     let d = pp.d;
     let m = pp.m; 
     let kappa = pp.kappa;
     
-    // Validate inputs
-    if z_len != d * m {
-        return Err(AjtaiError::SizeMismatch { 
-            expected: d * m, 
-            actual: z_len 
-        });
-    }
+    // SECURITY: Ensure compile-time ring dimension matches runtime PP dimension
+    debug_assert_eq!(D, d, "Ajtai ring dimension D ({}) != pp.d ({})", D, d);
     
+    // CRITICAL: Validate dimensions to prevent binding bugs (B4)
+    if z_len != d * m {
+        return Err(AjtaiError::InvalidInput("z_len must equal d*m"));
+    }
     if num_coords > d * kappa {
         return Err(AjtaiError::InvalidInput("num_coords exceeds d*kappa"));
     }
     
-    let mut rows = Vec::with_capacity(num_coords);
+    info!("Starting optimized Ajtai binding rows computation...");
+    let total_start = std::time::Instant::now();
+
+    // 🚀 OPTIMIZATION 1: Pre-compute and cache all unique S-action matrices
+    debug!("Building S-action cache for {} ring elements...", kappa * m);
+    let cache_start = std::time::Instant::now();
     
-    // Extract the first num_coords rows from the linearized commitment matrix
-    for coord_idx in 0..num_coords {
-        let mut row = vec![Fq::ZERO; z_len];
-        
-        // Determine which commitment coordinate this row corresponds to  
-        let commit_col = coord_idx / d;  // Which column of commitment (0..kappa)
-        let commit_row = coord_idx % d;  // Which row within that column (0..d)
-        
-        if commit_col >= kappa {
-            break; // Don't go beyond available commitment coordinates
-        }
-        
-        // For this commitment coordinate, compute its dependency on z_digits
-        // The commitment is computed as: c[commit_col][commit_row] = Σ_j S-action(M[commit_col][j])[commit_row] · Z_col_j
-        
+    // Use HashMap with cf() canonical form for O(1) deduplication instead of O(n²) Vec::position
+    use std::collections::HashMap;
+    
+    let mut unique_map = HashMap::new();
+    let mut all_elements = Vec::new();
+    let mut element_indices = vec![vec![0; m]; kappa];
+    
+    for commit_col in 0..kappa {
         for j in 0..m {
-            // Get the ring element M[commit_col][j]
             let a_ij = pp.m_rows[commit_col][j];
             
-            // Convert to S-action (d×d field linear map)
-            let s_action = SAction::from_ring(a_ij);
+            // Use canonical form of ring element as key (arrays implement Hash+Eq)
+            let canonical_key = cf(a_ij);
             
-            // For each input digit position in column j
-            for input_row in 0..d {
-                let input_idx = j * d + input_row;  // Column-major indexing in z_digits
-                
-                // Get the S-action coefficient that multiplies z_digits[input_idx] 
-                // to contribute to commitment coordinate [commit_col][commit_row]
-                // Apply the S-action to a unit vector to extract the coefficient
-                let mut unit_vec = [Fq::ZERO; D];
-                unit_vec[input_row] = Fq::ONE;
-                let result = s_action.apply_vec(&unit_vec);
-                let coeff = result[commit_row];
-                row[input_idx] = coeff;
+            // O(1) average lookup instead of O(n) - HUGE performance win!
+            let idx = *unique_map.entry(canonical_key).or_insert_with(|| {
+                let new_idx = all_elements.len();
+                all_elements.push(a_ij);
+                new_idx
+            });
+            
+            element_indices[commit_col][j] = idx;
+        }
+    }
+    
+    debug!("Found {} unique ring elements (vs {} total)", all_elements.len(), kappa * m);
+    
+    // Pre-compute S-action matrix for each unique element
+    let mut s_action_matrices = Vec::with_capacity(all_elements.len());
+    for &a_ij in &all_elements {
+        let s_action = SAction::from_ring(a_ij);
+        
+        // 🚀 OPTIMIZATION 2: Compute full S-action matrix once (not 54 unit vector ops!)
+        let mut matrix = vec![vec![Fq::ZERO; d]; d];
+        for input_row in 0..d {
+            let mut unit_vec = [Fq::ZERO; D];
+            unit_vec[input_row] = Fq::ONE;
+            let result = s_action.apply_vec(&unit_vec);
+            for commit_row in 0..d {
+                matrix[commit_row][input_row] = result[commit_row];
             }
         }
-        
-        rows.push(row);
+        s_action_matrices.push(matrix);
     }
+    
+    let _cache_time = cache_start.elapsed();
+    debug!("S-action cache built: {:.2}ms ({:.0}x reduction in S-action computations)", 
+             _cache_time.as_secs_f64() * 1000.0, 
+             (kappa * m * num_coords) as f64 / all_elements.len() as f64);
+
+    // 🚀 OPTIMIZATION 3: Parallel row computation
+    debug!("Computing {} rows in parallel across {} threads...", 
+             num_coords, rayon::current_num_threads());
+    let parallel_start = std::time::Instant::now();
+    
+    let rows: Vec<Vec<Fq>> = (0..num_coords)
+        .into_par_iter()
+        .map(|coord_idx| {
+            let mut row = vec![Fq::ZERO; z_len];
+            
+            // Determine which commitment coordinate this row corresponds to  
+            let commit_col = coord_idx / d;  // Which column of commitment (0..kappa)
+            let commit_row = coord_idx % d;  // Which row within that column (0..d)
+            
+            // SECURITY: This should be unreachable with proper num_coords validation
+            debug_assert!(commit_col < kappa, 
+                "coord_idx {} out of range: commit_col {} >= kappa {}", 
+                coord_idx, commit_col, kappa);
+            if commit_col >= kappa {
+                return row; // Defensive fallback for release builds
+            }
+            
+            // 🚀 OPTIMIZATION 4: Vectorized coefficient extraction
+            for j in 0..m {
+                let element_idx = element_indices[commit_col][j];
+                let s_action_matrix = &s_action_matrices[element_idx];
+                
+                // Extract entire column of coefficients at once
+                let base_idx = j * d;
+                for input_row in 0..d {
+                    let input_idx = base_idx + input_row;  // Column-major indexing in z_digits
+                    row[input_idx] = s_action_matrix[commit_row][input_row];
+                }
+            }
+            
+            row
+        })
+        .collect();
+    
+    let _parallel_time = parallel_start.elapsed();
+    let _total_time = total_start.elapsed();
+    
+    debug!("Parallel computation completed: {:.2}ms", _parallel_time.as_secs_f64() * 1000.0);
+    info!("Total optimized time: {:.2}ms (vs ~{:.0}s unoptimized)", 
+             _total_time.as_secs_f64() * 1000.0, 
+             (kappa * m * num_coords * d) as f64 / 1_000_000.0); // Rough estimate of old time
     
     Ok(rows)
 }

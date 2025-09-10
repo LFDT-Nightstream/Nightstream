@@ -34,11 +34,11 @@ fn e2e_rejects_tampered_proof() {
     // produce proof
     let proof = prove(prove_input).expect("prove should succeed");
 
-    // tamper: flip one byte
+    // tamper: flip one byte in the proof_bytes (main proof data)
     let mut forged_proof = proof.clone();
-    if !forged_proof.bundle.is_empty() { 
-        let len = forged_proof.bundle.len();
-        forged_proof.bundle[len/2] ^= 1; 
+    if !forged_proof.proof_bytes.is_empty() { 
+        let len = forged_proof.proof_bytes.len();
+        forged_proof.proof_bytes[len/2] ^= 1; 
     }
 
     // Tampered proof should either return false or fail with error

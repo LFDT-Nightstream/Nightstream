@@ -444,10 +444,11 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         } else {
             // Many tails: use existing tail-parallelization strategy
             sample_xs.iter().map(|&X| {
-                let sum_at_X = if num_tails > 64 {
+                let sum_at_X = if num_tails >= rayon::current_num_threads() {
                     // Large tail space: parallelize with grain size to reduce scheduling overhead
+                    // OPTIMIZATION: Lower thresholds for better CPU utilization on modern multi-core systems
                     (0..num_tails).into_par_iter()
-                        .with_min_len(128) // Grain size control to avoid too many tiny tasks
+                        .with_min_len(32) // Lowered from 128 for better saturation without overhead
                         .map(|tail| {
                             // OPTIMIZATION: Reuse buffer to reduce allocation churn
                             let mut u = Vec::with_capacity(ell);

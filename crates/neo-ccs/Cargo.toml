@@ -13,10 +13,15 @@ p3-matrix = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+
+# For structured logging (gated behind neo-logs feature)  
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 spartan2 = { workspace = true, optional = true }
 
 [features]
 default = []
+# Enable verbose logging for debugging (OFF by default for security - CWE-532) 
+neo-logs = []
 legacy-compat = []    # Temporary feature for legacy CCS types
 spartan2-compat = ["spartan2", "neo-math/spartan2-compat", "legacy-compat"]
 

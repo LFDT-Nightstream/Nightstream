@@ -7,10 +7,15 @@ license = "Apache-2.0"
 [features]
 default = []
 debug-logs = []  # Available but not used by default
+# Enable verbose logging for debugging (OFF by default for security - CWE-532)
+neo-logs = []
+# Expose testing utilities without making them part of the stable API
+testing = []
 
 [dependencies]
 once_cell = "1.19"
 dashmap = "5.5"
+blake3 = { workspace = true }
 # Core utilities
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -29,11 +34,15 @@ anyhow = { workspace = true }
 # For proof serialization
 bincode = { workspace = true }
 
+
 # For deterministic Poseidon2 seeding
 rand_chacha = { workspace = true }
 
 # For constant-time comparisons
 subtle = { workspace = true }
+
+# For secure logging (gated behind neo-logs feature)
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 # Neo workspace dependencies for ME types and Ajtai commitments
 neo-ccs = { path = "../neo-ccs" }

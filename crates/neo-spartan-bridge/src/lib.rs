@@ -287,11 +287,18 @@ pub fn verify_me_spartan(bundle: &ProofBundle) -> Result<bool> {
             for x in &publics {
                 bytes.extend_from_slice(&x.to_canonical_u64().to_le_bytes());
             }
-            // 3) Bind to bundle's public IO bytes (constant-time comparison)
+            // 3) Validate lengths and compare using constant-time to prevent tampering
+            // Check lengths explicitly for robustness and clarity
+            if bytes.len() != bundle.public_io_bytes.len() {
+                eprintln!("❌ Public IO length mismatch: SNARK returned {} bytes, bundle has {} bytes",                                                                                                             
+                          bytes.len(), bundle.public_io_bytes.len());
+                return Ok(false);
+            }
+            
+            // Constant-time comparison for equal-length byte arrays
             use subtle::ConstantTimeEq;
             if bytes.ct_eq(&bundle.public_io_bytes).unwrap_u8() != 1 {
-                eprintln!("❌ Public IO mismatch: SNARK public inputs don't match bundle.public_io_bytes ({} vs {})",
-                          bytes.len(), bundle.public_io_bytes.len());
+                eprintln!("❌ Public IO content mismatch: SNARK public inputs don't match bundle.public_io_bytes");
                 return Ok(false);
             }
             eprintln!("✅ Public IO verification passed: {} bytes match exactly", bytes.len());
@@ -381,6 +388,143 @@ pub fn vk_registry_stats() -> usize {
     VK_REGISTRY.len()
 }
 
+/// **CRITICAL API**: Register a VK from raw bytes for cross-process verification
+/// 
+/// This enables verification in separate processes that didn't generate the proof.
+/// The verifier can load VK bytes (from disk, network, etc.) and register them
+/// before calling verify_lean_proof().
+/// 
+/// # Arguments
+/// * `circuit_key` - Circuit fingerprint (32-byte identifier)
+/// * `vk_bytes` - Serialized Spartan verifier key bytes
+/// 
+/// # Returns
+/// * `Ok(vk_digest)` - The computed VK digest for validation
+/// * `Err(...)` - If VK deserialization fails
+/// 
+/// # Example
+/// ```rust,no_run
+/// use neo_spartan_bridge::register_vk_bytes;
+/// 
+/// let vk_bytes = std::fs::read("circuit.vk")?;
+/// let circuit_key = [0u8; 32]; // Load from somewhere
+/// let vk_digest = register_vk_bytes(circuit_key, &vk_bytes)?;
+/// println!("Registered VK with digest: {:02x?}", &vk_digest[..8]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+pub fn register_vk_bytes(circuit_key: [u8; 32], vk_bytes: &[u8]) -> anyhow::Result<[u8; 32]> {
+    // Deserialize VK with stable configuration
+    let vk: spartan2::spartan::SpartanVerifierKey<E> = deserialize_vk_stable(vk_bytes)?;
+    
+    // Compute VK digest v1 (must match the format used during proving)
+    let vk_digest = {
+        use blake3::Hasher;
+        let mut hasher = Hasher::new();
+        hasher.update(vk_bytes);
+        hasher.update(b"VK_DIGEST_V1"); // Same domain separator
+        hasher.finalize().into()
+    };
+    
+    // Register VK in global registry for verification
+    register_vk(circuit_key, Arc::new(vk));
+    
+    #[cfg(feature = "neo-logs")]
+    info!(
+        "Registered VK for circuit {:02x?} with digest {:02x?}",
+        &circuit_key[..8], &vk_digest[..8]
+    );
+    
+    Ok(vk_digest)
+}
+
+/// Export Spartan2 input data to JSON for external profiling and testing
+/// 
+/// This function exports the exact MEInstance and MEWitness data that gets fed to Spartan2,
+/// allowing external repositories to create reproducible test cases and profile Spartan2 directly.
+/// 
+/// The exported JSON contains:
+/// - Instance data: c_coords, y_outputs, r_point, base_b, header_digest  
+/// - Witness data: z_digits, weight_vectors, ajtai_rows
+/// - Metadata: sizes, sparsity info, timestamp
+fn export_spartan2_data_to_json(me: &neo_ccs::MEInstance, wit: &neo_ccs::MEWitness) -> anyhow::Result<()> {
+    use serde_json::json;
+    use std::fs::File;
+    use std::io::Write;
+    
+    println!("📊 [SPARTAN2 EXPORT] Exporting Spartan2 input data to JSON for external profiling...");
+    let export_start = std::time::Instant::now();
+    
+    // Compute statistics for metadata
+    let total_z_digits = wit.z_digits.len();
+    let total_weight_vectors = wit.weight_vectors.len();
+    let total_weight_elements: usize = wit.weight_vectors.iter().map(|v| v.len()).sum();
+    let ajtai_rows_count = wit.ajtai_rows.as_ref().map_or(0, |rows| rows.len());
+    let ajtai_total_elements: usize = wit.ajtai_rows.as_ref()
+        .map_or(0, |rows| rows.iter().map(|row| row.len()).sum());
+    
+    // Create comprehensive export data
+    let export_data = json!({
+        "metadata": {
+            "export_timestamp": chrono::Utc::now().to_rfc3339(),
+            "neo_version": env!("CARGO_PKG_VERSION"),
+            "description": "Spartan2 input data exported from Neo for external profiling",
+            "data_sizes": {
+                "c_coords_len": me.c_coords.len(),
+                "y_outputs_len": me.y_outputs.len(), 
+                "r_point_len": me.r_point.len(),
+                "z_digits_len": total_z_digits,
+                "weight_vectors_count": total_weight_vectors,
+                "weight_elements_total": total_weight_elements,
+                "ajtai_rows_count": ajtai_rows_count,
+                "ajtai_elements_total": ajtai_total_elements
+            },
+            "estimated_memory_mb": {
+                "z_digits": total_z_digits * 8 / 1_000_000,
+                "weight_vectors": total_weight_elements * 32 / 1_000_000,
+                "ajtai_rows": ajtai_total_elements * 32 / 1_000_000,
+                "total_estimated": (total_z_digits * 8 + (total_weight_elements + ajtai_total_elements) * 32) / 1_000_000
+            }
+        },
+        "instance": {
+            "c_coords": me.c_coords,
+            "y_outputs": me.y_outputs,
+            "r_point": me.r_point,
+            "base_b": me.base_b,
+            "header_digest": me.header_digest
+        },
+        "witness": {
+            "z_digits": wit.z_digits,
+            "weight_vectors": wit.weight_vectors,
+            "ajtai_rows": wit.ajtai_rows
+        }
+    });
+    
+    // Generate timestamped filename
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+    let filename = format!("spartan2_input_data_{}.json", timestamp);
+    
+    // Write to file with pretty formatting
+    let mut file = File::create(&filename)?;
+    let json_str = serde_json::to_string_pretty(&export_data)?;
+    file.write_all(json_str.as_bytes())?;
+    file.flush()?;
+    
+    let export_time = export_start.elapsed();
+    let file_size_mb = json_str.len() as f64 / 1_000_000.0;
+    
+    println!("📊 [SPARTAN2 EXPORT] Successfully exported to '{}' ({:.1}MB, {:.0}ms)", 
+             filename, file_size_mb, export_time.as_millis());
+    println!("📊 [SPARTAN2 EXPORT] Data summary:");
+    println!("    - Instance: {} c_coords, {} y_outputs, {} r_point elements", 
+             me.c_coords.len(), me.y_outputs.len(), me.r_point.len());
+    println!("    - Witness: {} z_digits, {} weight_vectors ({} elements), {} ajtai_rows ({} elements)",
+             total_z_digits, total_weight_vectors, total_weight_elements, 
+             ajtai_rows_count, ajtai_total_elements);
+    println!("📊 [SPARTAN2 EXPORT] Use this data to create reproducible Spartan2 test cases!");
+    
+    Ok(())
+}
+
 /// Clear the VK registry (for testing)
 /// SECURITY: Only exposed for testing to prevent production VK registry tampering
 #[cfg(any(test, feature = "testing"))]
@@ -460,6 +604,11 @@ pub fn compress_me_to_lean_proof(me: &neo_ccs::MEInstance, wit: &neo_ccs::MEWitn
     // SECURITY: Refuse to prove unbound circuits
     if wit_norm.ajtai_rows.as_ref().map_or(true, |rows| rows.is_empty()) {
         anyhow::bail!("AjtaiBindingMissing: witness.ajtai_rows is None/empty; cannot bind c_coords to Z");
+    }
+    
+    // PERFORMANCE DEBUGGING: Export Spartan2 input data to JSON for external profiling
+    if std::env::var("NEO_EXPORT_SPARTAN2_DATA").is_ok() {
+        export_spartan2_data_to_json(me, &wit_norm)?;
     }
 
     // Prove using existing Spartan infrastructure
@@ -564,11 +713,18 @@ pub fn verify_lean_proof(proof: &Proof) -> anyhow::Result<bool> {
         expected_public_io.extend_from_slice(&x.to_canonical_u64().to_le_bytes());
     }
     
-    // CRITICAL SECURITY: Constant-time comparison to prevent public IO tampering attacks
+    // CRITICAL SECURITY: Validate lengths and compare using constant-time to prevent tampering
+    // Check lengths explicitly for robustness and clarity  
+    if expected_public_io.len() != proof.public_io_bytes.len() {
+        debug!("Public IO length mismatch: expected {} bytes, got {} bytes",
+                 expected_public_io.len(), proof.public_io_bytes.len());
+        return Ok(false);
+    }
+    
+    // Constant-time comparison for equal-length byte arrays
     use subtle::ConstantTimeEq;
     if expected_public_io.ct_eq(&proof.public_io_bytes).unwrap_u8() != 1 {
-        debug!("Public IO mismatch: Spartan public values don't match proof.public_io_bytes ({} vs {} bytes)",
-                 expected_public_io.len(), proof.public_io_bytes.len());
+        debug!("Public IO content mismatch: Spartan public values don't match proof.public_io_bytes");
         return Ok(false);
     }
     

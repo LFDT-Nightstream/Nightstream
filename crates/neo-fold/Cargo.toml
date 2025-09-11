@@ -27,6 +27,7 @@ rand_chacha = { workspace = true }
 thiserror = { workspace = true }
 bincode = { workspace = true }
 rayon = { workspace = true }
+blake3 = "1.5"
 
 [dev-dependencies]
 criterion = { workspace = true }

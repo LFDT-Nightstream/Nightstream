@@ -425,6 +425,54 @@ pub fn verify(ccs: &CcsStructure<F>, public_input: &[F], proof: &Proof) -> Resul
     Ok(is_valid)
 }
 
+/// **CONVENIENCE API**: Verify with explicit VK bytes for cross-process verification
+/// 
+/// This is a convenience wrapper for verifiers running in separate processes
+/// that need to load VK bytes from disk/network before verification.
+/// 
+/// # Arguments
+/// * `ccs` - The circuit structure  
+/// * `public_input` - Public inputs to the circuit
+/// * `proof` - The lean proof to verify
+/// * `vk_bytes` - Serialized verifier key bytes
+/// 
+/// # Returns
+/// * `Ok(true)` - Proof is valid
+/// * `Ok(false)` - Proof is invalid (verification failed)
+/// * `Err(...)` - Verification error (malformed proof, VK issues, etc.)
+/// 
+/// # Example
+/// ```rust,no_run
+/// use neo::{verify_with_vk, CcsStructure, F};
+/// 
+/// let vk_bytes = std::fs::read("circuit.vk")?;
+/// let proof_bytes = std::fs::read("proof.bin")?; 
+/// let proof: neo::Proof = bincode::deserialize(&proof_bytes)?;
+/// 
+/// let is_valid = verify_with_vk(&ccs, &public_input, &proof, &vk_bytes)?;
+/// println!("Proof valid: {}", is_valid);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+pub fn verify_with_vk(
+    ccs: &CcsStructure<F>, 
+    public_input: &[F], 
+    proof: &Proof, 
+    vk_bytes: &[u8]
+) -> Result<bool> {
+    info!("Starting cross-process verification with provided VK bytes");
+    
+    // Register the VK bytes and get the computed digest 
+    let computed_vk_digest = neo_spartan_bridge::register_vk_bytes(proof.circuit_key, vk_bytes)?;
+    
+    // Verify the VK digest matches what's in the proof (additional security check)
+    anyhow::ensure!(
+        computed_vk_digest == proof.vk_digest,
+        "VK digest mismatch: provided VK bytes don't match proof's expected VK"
+    );
+    
+    // Now delegate to the standard verify function
+    verify(ccs, public_input, proof)
+}
 
 // Internal adapter function to bridge modern ME instances to legacy format,
 // using extension-field aware weight vectors with proper layout detection.

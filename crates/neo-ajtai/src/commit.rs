@@ -80,7 +80,7 @@ fn rot_step_impl(cur: &[Fq; D], next: &mut [Fq; D]) {
 pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usize) -> AjtaiResult<PP<RqEl>> {
     // Ensure d matches the fixed ring dimension from neo-math
     if d != neo_math::ring::D {
-        return Err(AjtaiError::InvalidDimensions("d parameter must match ring dimension D"));
+        return Err(AjtaiError::InvalidDimensions("d parameter must match ring dimension D".to_string()));
     }
     let mut rows = Vec::with_capacity(kappa);
     for _ in 0..kappa {
@@ -92,7 +92,7 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
                 .collect();
             let coeffs: [Fq; neo_math::ring::D] = coeffs_vec
                 .try_into()
-                .map_err(|_| AjtaiError::InvalidDimensions("Failed to create coefficient array"))?;
+                .map_err(|_| AjtaiError::InvalidDimensions("Failed to create coefficient array".to_string()))?;
             row.push(cf_unmap(coeffs));
         }
         rows.push(row);
@@ -147,15 +147,20 @@ pub fn rows_for_coords(
     let m = pp.m; 
     let kappa = pp.kappa;
     
-    // SECURITY: Ensure compile-time ring dimension matches runtime PP dimension
-    debug_assert_eq!(D, d, "Ajtai ring dimension D ({}) != pp.d ({})", D, d);
+    // CRITICAL SECURITY: Ensure compile-time ring dimension matches runtime PP dimension
+    // This MUST be a runtime check to prevent binding bugs in release builds
+    if D != d {
+        return Err(AjtaiError::InvalidInput(
+            format!("Ajtai ring dimension mismatch: compile-time D ({}) != runtime pp.d ({})", D, d)
+        ));
+    }
     
     // CRITICAL: Validate dimensions to prevent binding bugs (B4)
     if z_len != d * m {
-        return Err(AjtaiError::InvalidInput("z_len must equal d*m"));
+        return Err(AjtaiError::InvalidInput("z_len must equal d*m".to_string()));
     }
     if num_coords > d * kappa {
-        return Err(AjtaiError::InvalidInput("num_coords exceeds d*kappa"));
+        return Err(AjtaiError::InvalidInput("num_coords exceeds d*kappa".to_string()));
     }
     
     info!("Starting optimized Ajtai binding rows computation...");
@@ -446,7 +451,9 @@ pub fn s_lincomb(rhos: &[RqEl], cs: &[Commitment]) -> AjtaiResult<Commitment> {
 #[allow(non_snake_case)]
 pub fn commit_masked_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d; let m = pp.m; let kappa = pp.kappa;
-    debug_assert_eq!(d, D);
+    
+    // CRITICAL SECURITY: Runtime dimension checks to prevent binding bugs
+    assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");
 
     let mut C = Commitment::zeros(d, kappa);
@@ -505,7 +512,9 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
 #[allow(non_snake_case)]
 pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d; let m = pp.m; let kappa = pp.kappa;
-    debug_assert_eq!(d, D);
+    
+    // CRITICAL SECURITY: Runtime dimension checks to prevent binding bugs
+    assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");
 
     let mut C = Commitment::zeros(d, kappa);

@@ -5,6 +5,7 @@ version = { workspace = true }
 authors = { workspace = true }
 
 [dependencies]
+once_cell = "1"
 neo-math = { path = "../neo-math" }
 # neo-ring functionality now in neo-math
 # Sumcheck functionality integrated locally
@@ -18,7 +19,6 @@ thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
-once_cell = { workspace = true }
 
 # For structured logging (gated behind neo-logs feature)  
 tracing = { version = "0.1", default-features = false, features = ["std"] }
@@ -28,8 +28,9 @@ spartan2 = { workspace = true, optional = true }
 default = []
 # Enable verbose logging for debugging (OFF by default for security - CWE-532) 
 neo-logs = []
-legacy-compat = []    # Temporary feature for legacy CCS types
-spartan2-compat = ["spartan2", "neo-math/spartan2-compat", "legacy-compat"]
+# Enable testing features (including unsafe direct sum operations)
+testing = []
+spartan2-compat = ["spartan2", "neo-math/spartan2-compat"]
 
 [dev-dependencies]
 criterion = { workspace = true }

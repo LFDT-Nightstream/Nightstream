@@ -63,13 +63,23 @@ fn main() -> Result<()> {
         step: 0,
     };
     
+    // Create batch builder with SECURE binding specification
+    // Increment witness layout: [const=1, prev_x, next_x]
+    // y_step output (next_x) is at index 2
+    let binding_spec = neo::ivc::StepBindingSpec {
+        y_step_offsets: vec![2], // next_x at index 2
+        x_witness_indices: vec![], // No step public inputs for increment
+        y_prev_witness_indices: vec![1], // prev_x at index 1
+    };
+    
     // Use Every(3) policy - emit proof every 3 steps
-    let mut batch_builder = IvcBatchBuilder::new(
+    let mut batch_builder = IvcBatchBuilder::new_with_bindings(
         params.clone(),
         step_ccs.clone(), 
         initial_acc,
-        EmissionPolicy::Every(3)
-    );
+        EmissionPolicy::Every(3),
+        binding_spec,
+    )?;
     
     println!("📊 Using EmissionPolicy::Every(3)");
     println!("   Will auto-emit after steps 3, 6, 9, etc.");
@@ -116,12 +126,18 @@ fn main() -> Result<()> {
     
     println!("\n   Approach 1: Immediate proving (bypasses Final SNARK Layer):");
     // Clone for demonstration - in practice you'd choose one approach
-    let mut batch_clone = IvcBatchBuilder::new(
+    let binding_spec_clone = neo::ivc::StepBindingSpec {
+        y_step_offsets: vec![2], // same as original
+        x_witness_indices: vec![],
+        y_prev_witness_indices: vec![1], // same as original
+    };
+    let mut batch_clone = IvcBatchBuilder::new_with_bindings(
         params.clone(), 
         step_ccs.clone(),
         batch_builder.accumulator.clone(),
-        EmissionPolicy::Every(3)
-    );
+        EmissionPolicy::Every(3),
+        binding_spec_clone,
+    )?;
     
     // Re-add the last step to demonstrate
     let last_witness = build_increment_witness(6);

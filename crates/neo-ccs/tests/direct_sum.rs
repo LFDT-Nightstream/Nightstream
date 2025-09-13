@@ -40,25 +40,33 @@ fn direct_sum_composes_public_and_witness_concatenation() {
     // Direct-sum
     let ccs_sum: CcsStructure<F> = direct_sum_transcript_mixed(&ccs_left, &ccs_right, [0u8;32]).unwrap();
 
-    // Concatenate public and witness in the same order (left || right)
-    let mut public = pub_left.clone();
-    public.extend_from_slice(&pub_right);
-
-    let mut witness = wit_left.clone();
-    witness.extend_from_slice(&wit_right);
+    // Safe direct_sum expects simple concatenation: [left_all || right_all]
+    let mut left_input = pub_left.clone();
+    left_input.extend_from_slice(&wit_left);
+    
+    let mut right_input = pub_right.clone();
+    right_input.extend_from_slice(&wit_right);
+    
+    // Input vector for safe direct_sum: [left_all || right_all]
+    let mut combined_input = left_input.clone();
+    combined_input.extend_from_slice(&right_input);
+    
+    // For CCS check: all input is "witness", no separate public
+    let public = vec![]; // No separate public input
+    let witness = combined_input;
 
     assert!(check_ccs_rowwise_zero(&ccs_sum, &public, &witness).is_ok());
 
-    // Tamper right side public -> must fail
-    let mut public_bad = public.clone();
-    let last = public_bad.len() - 1;
-    public_bad[last] = public_bad[last] + fe(1);
-    assert!(check_ccs_rowwise_zero(&ccs_sum, &public_bad, &witness).is_err());
+    // Tamper right side input -> must fail
+    let mut witness_bad = witness.clone();
+    let last = witness_bad.len() - 1;
+    witness_bad[last] = witness_bad[last] + fe(1);
+    assert!(check_ccs_rowwise_zero(&ccs_sum, &public, &witness_bad).is_err());
 
-    // Tamper left side public -> must also fail  
-    let mut public_left_bad = public.clone();
-    public_left_bad[0] = public_left_bad[0] + fe(1); // tamper first lhs element
-    assert!(check_ccs_rowwise_zero(&ccs_sum, &public_left_bad, &witness).is_err());
+    // Tamper left side input -> must also fail  
+    let mut witness_left_bad = witness.clone();
+    witness_left_bad[0] = witness_left_bad[0] + fe(1); // tamper first lhs element
+    assert!(check_ccs_rowwise_zero(&ccs_sum, &public, &witness_left_bad).is_err());
 }
 
 #[test]
@@ -82,10 +90,19 @@ fn direct_sum_independent_constraints() {
 
     // Direct sum should fail because right side fails
     let ccs_sum = direct_sum_transcript_mixed(&ccs_left, &ccs_right, [0u8;32]).unwrap();
-    let mut public_combined = pub_left.clone();
-    public_combined.extend_from_slice(&pub_right);
-    let mut witness_combined = wit_left.clone();
-    witness_combined.extend_from_slice(&wit_right);
+    
+    // Safe direct_sum expects simple concatenation: [left_all || right_all]
+    let mut left_input = pub_left.clone();
+    left_input.extend_from_slice(&wit_left);
+    
+    let mut right_input = pub_right.clone();
+    right_input.extend_from_slice(&wit_right);
+    
+    let mut combined_input = left_input.clone();
+    combined_input.extend_from_slice(&right_input);
+    
+    let public_combined = vec![]; // No separate public input
+    let witness_combined = combined_input;
 
     assert!(check_ccs_rowwise_zero(&ccs_sum, &public_combined, &witness_combined).is_err());
 }
@@ -107,10 +124,19 @@ fn direct_sum_both_sides_pass() {
 
     // Direct sum should also pass
     let ccs_sum = direct_sum_transcript_mixed(&ccs_left, &ccs_right, [0u8;32]).unwrap();
-    let mut public_combined = pub_left.clone();
-    public_combined.extend_from_slice(&pub_right);
-    let mut witness_combined = wit_left.clone();
-    witness_combined.extend_from_slice(&wit_right);
+    
+    // Safe direct_sum expects simple concatenation: [left_all || right_all]
+    let mut left_input = pub_left.clone();
+    left_input.extend_from_slice(&wit_left);
+    
+    let mut right_input = pub_right.clone();
+    right_input.extend_from_slice(&wit_right);
+    
+    let mut combined_input = left_input.clone();
+    combined_input.extend_from_slice(&right_input);
+    
+    let public_combined = vec![]; // No separate public input
+    let witness_combined = combined_input;
 
     assert!(check_ccs_rowwise_zero(&ccs_sum, &public_combined, &witness_combined).is_ok());
 }
@@ -126,7 +152,7 @@ fn direct_sum_preserves_matrix_structure() {
     // Check dimensions
     assert_eq!(ccs_sum.n, ccs_left.n + ccs_right.n, "row count should be sum");
     assert_eq!(ccs_sum.m, ccs_left.m + ccs_right.m, "column count should be sum");
-    assert_eq!(ccs_sum.matrices.len(), ccs_left.matrices.len(), "matrix count should match (assuming same count)");
+    assert_eq!(ccs_sum.matrices.len(), ccs_left.matrices.len() + ccs_right.matrices.len(), "matrix count should be t1 + t2");
 }
 
 #[test]

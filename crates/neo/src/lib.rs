@@ -42,6 +42,8 @@ use anyhow::Result;
 use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle};
 #[cfg(debug_assertions)]
 use rand::SeedableRng;
+#[cfg(not(debug_assertions))]  
+use rand_chacha::ChaCha20Rng;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 // Poseidon2 is now imported via the unified module
 use p3_symmetric::Permutation;
@@ -156,6 +158,8 @@ pub use ivc::{
     augmentation_ccs, AugmentConfig,
     // PRODUCTION OPTION A: Public ρ EV (recommended)
     ev_with_public_rho_ccs, build_ev_with_public_rho_witness,
+    // Batch proving (Final SNARK Layer)
+    BatchData, prove_batch_data, IvcBatchBuilder, EmissionPolicy,
 };
 
 /// Counts and bookkeeping for public results embedded in the proof.
@@ -310,12 +314,14 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     let m_correct = decomp_z.len() / d; // This is the actual m we'll use
     
     ensure_ajtai_pp_for_dims(d, m_correct, || {
-        // Use deterministic RNG only in debug builds for reproducibility
-        // In release builds, use cryptographically secure randomness
+        // 🔒 SECURITY: Use CSPRNG in release builds
         #[cfg(debug_assertions)]
         let mut rng = rand::rngs::StdRng::from_seed([42u8; 32]);
         #[cfg(not(debug_assertions))]
-        let mut rng = rand::rng();
+        let mut rng = {
+            use rand::rngs::OsRng;
+            rand_chacha::ChaCha20Rng::from_rng(OsRng)?
+        };
         
         let pp = ajtai_setup(&mut rng, d, /*kappa*/ 16, m_correct)?;
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)

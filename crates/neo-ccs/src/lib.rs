@@ -13,8 +13,6 @@ pub mod error;
 pub mod crypto;
 /// Cryptographic gadgets for CCS circuits.
 pub mod gadgets;
-/// Direct sum operations for CCS structures.
-pub mod direct_sum;
 /// Matrix types and operations.
 pub mod matrix;
 /// Polynomial types and evaluation.
@@ -36,29 +34,8 @@ pub use matrix::{Mat, MatRef, CsrMatrix};
 pub use poly::{SparsePoly, Term};
 pub use r1cs::r1cs_to_ccs;
 
-/// Mixed transcript direct sum for HyperNova-style composition.
-/// 
-/// This function performs a direct sum of two CCS structures while accepting
-/// a step digest parameter for transcript binding. The digest is used for higher-level
-/// binding but doesn't affect the composition itself - it simply creates a block-diagonal
-/// combination of the input CCS structures.
-/// 
-/// # Arguments
-/// * `left` - First CCS structure  
-/// * `right` - Second CCS structure
-/// * `_step_digest` - Digest for transcript binding (currently unused)
-/// 
-/// # Returns
-/// Result containing the combined CCS structure
-pub fn direct_sum_transcript_mixed(
-    left: &CcsStructure<neo_math::F>,
-    right: &CcsStructure<neo_math::F>,
-    _step_digest: [u8; 32],
-) -> Result<CcsStructure<neo_math::F>, String> {
-    // For now, use simple direct sum for compatibility with existing tests
-    // TODO: Consider security implications and whether mixed direct sum is needed
-    Ok(direct_sum::direct_sum(left, right))
-}
+// 🔒 SECURITY FIX: Use the cancellation-resistant implementation from utils
+pub use utils::direct_sum_transcript_mixed;
 // Main CCS types and functions (audit-ready)
 pub use relations::{
     CcsStructure, McsInstance, McsWitness, MeInstance, MeWitness,

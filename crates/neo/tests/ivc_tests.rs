@@ -311,6 +311,14 @@ fn test_high_level_ivc_api() {
         step: 1,
         public_input: None,
         y_step: &y_step, // REAL y_step from step computation
+        // 🔒 SECURITY: Using correct binding spec for identity circuit  
+        // step_witness = [const=1, input=5, output=5]
+        // y_compact and y_step are both length 2, so we need 2 offsets each
+        binding_spec: &neo::ivc::StepBindingSpec {
+            y_step_offsets: vec![2, 2], // Both y_step elements map to output at index 2
+            x_witness_indices: vec![], // No step public inputs
+            y_prev_witness_indices: vec![1, 1], // Both y_prev elements map to input at index 1 
+        },
     };
     
     // Test high-level proving (this uses the full Neo proving pipeline!)
@@ -320,8 +328,13 @@ fn test_high_level_ivc_api() {
             println!("   Next accumulator step: {}", step_result.proof.next_accumulator.step);
             println!("   Next state length: {}", step_result.next_state.len());
             
-            // Test high-level verification
-            match verify_ivc_step(&step_ccs, &step_result.proof, &initial_acc) {
+            // Test high-level verification  
+            let verify_binding_spec = neo::ivc::StepBindingSpec {
+                y_step_offsets: vec![2, 2], // Both y_step elements map to output at index 2
+                x_witness_indices: vec![], // No step public inputs
+                y_prev_witness_indices: vec![1, 1], // Both y_prev elements map to input at index 1
+            };
+            match verify_ivc_step(&step_ccs, &step_result.proof, &initial_acc, &verify_binding_spec) {
                 Ok(is_valid) => {
                     if is_valid {
                         println!("✅ High-level IVC verification succeeded!");
@@ -335,6 +348,7 @@ fn test_high_level_ivc_api() {
         Err(e) => {
             println!("⚠️ High-level IVC proving error (expected in test env): {}", e);
             println!("   This is expected if Ajtai parameters aren't set up for this test");
+            panic!("High-level IVC proving error: {}", e);
         }
     }
     

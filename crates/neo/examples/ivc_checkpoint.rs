@@ -81,13 +81,22 @@ fn main() -> Result<()> {
         step: 0,
     };
     
-    // Create batch builder with on-demand emission policy
-    let mut batch_builder = IvcBatchBuilder::new(
+    // Create batch builder with SECURE binding specification
+    // Fibonacci witness layout: [const=1, prev_a, prev_b, next_a, next_b]  
+    // y_step outputs (next_a, next_b) are at indices 3, 4
+    let binding_spec = neo::ivc::StepBindingSpec {
+        y_step_offsets: vec![3, 4], // next_a at index 3, next_b at index 4
+        x_witness_indices: vec![], // No step public inputs for Fibonacci
+        y_prev_witness_indices: vec![1, 2], // prev_a at index 1, prev_b at index 2
+    };
+    
+    let mut batch_builder = IvcBatchBuilder::new_with_bindings(
         params, 
         step_ccs, 
         initial_acc, 
-        EmissionPolicy::OnDemand
-    );
+        EmissionPolicy::OnDemand,
+        binding_spec,
+    )?;
     
     println!("✅ IVC Batch Builder initialized");
     println!("   Initial state: {:?}", batch_builder.accumulator.y_compact.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());

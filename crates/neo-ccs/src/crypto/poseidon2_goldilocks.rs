@@ -9,6 +9,7 @@ use p3_field::PrimeCharacteristicRing;
 use p3_symmetric::Permutation;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+use once_cell::sync::Lazy;
 
 /// Poseidon2 parameters
 pub const WIDTH: usize = 12;
@@ -22,10 +23,17 @@ pub const DIGEST_LEN: usize = CAPACITY;   // we squeeze 4 fe's (=32 bytes)
 /// Fixed seed so all permutations are identical across crates/runs.
 pub const SEED: [u8; 32] = *b"neo_poseidon2_goldilocks_seed___";
 
-/// Expose the permutation so other crates can use the *same* Poseidon2 instance.
-pub fn permutation() -> Poseidon2Goldilocks<{ WIDTH }> {
+/// Cached Poseidon2 permutation instance (computed once).
+/// Uses a fixed seed for deterministic constant generation.
+pub static PERM: Lazy<Poseidon2Goldilocks<{ WIDTH }>> = Lazy::new(|| {
     let mut rng = ChaCha8Rng::from_seed(SEED);
     Poseidon2Goldilocks::<{ WIDTH }>::new_from_rng_128(&mut rng)
+});
+
+/// Returns a reference to the cached Poseidon2 permutation.
+/// This avoids repeated construction and ensures consistent parameters.
+pub fn permutation() -> &'static Poseidon2Goldilocks<{ WIDTH }> {
+    &*PERM
 }
 
 /// Standard sponge with add-absorb + finalize (padding = add 1 then permute)

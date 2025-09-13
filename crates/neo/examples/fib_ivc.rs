@@ -15,6 +15,8 @@
 //!
 //! Usage: cargo run -p neo --example fib_ivc
 
+#![allow(deprecated)] // This example demonstrates in-circuit hash evolution - uses toy hash for demo
+
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
@@ -188,6 +190,7 @@ fn run_ivc_step_with_hash(
     // 7) Advance accumulator
     let next_acc = Accumulator {
         c_z_digest: prev_acc.c_z_digest,   // TODO: upgrade to check commitment evolution in-circuit
+        c_coords: prev_acc.c_coords.clone(), // TODO: upgrade to check commitment evolution in-circuit
         y_compact: y_next,
         step: prev_acc.step + 1,
     };
@@ -277,6 +280,7 @@ fn run_ivc_hash_demo(n_steps: usize) -> Result<()> {
     println!("\n🔄 Running IVC steps with in-circuit ρ derivation...");
     let mut accumulator = Accumulator {
         c_z_digest: [0u8; 32],
+        c_coords: vec![F::ZERO; 128], // Default commit_len (d * kappa = 32 * 4 = 128)
         y_compact: vec![F::ZERO; y_len], // Start with zero accumulator
         step: 0,
     };

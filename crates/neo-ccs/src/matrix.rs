@@ -76,7 +76,7 @@ impl CsrMatrix {
                 let val = &dense[(row, col)];
                 if val != zero {
                     col_indices.push(col);
-                    values.push(val.clone());
+                    values.push(*val);
                 }
             }
         }
@@ -168,8 +168,7 @@ impl Mat<neo_math::F> {
         self.row(row)
             .iter()
             .enumerate()
-            .filter(move |(_, val)| *val != zero)
-            .map(|(col, val)| (col, val))
+              .filter(move |(_, val)| *val != zero)
     }
     
     /// Count non-zeros in a specific row (useful for allocation sizing)

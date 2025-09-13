@@ -27,7 +27,7 @@ impl<F: Field> CcsStructure<F> {
         if matrices.is_empty() { return Err(RelationError::InvalidStructure); }
         let n = matrices[0].rows();
         let m = matrices[0].cols();
-        for (_j, mj) in matrices.iter().enumerate() {
+        for mj in matrices.iter() {
             if mj.rows() != n || mj.cols() != m {
                 return Err(RelationError::InvalidStructure);
             }

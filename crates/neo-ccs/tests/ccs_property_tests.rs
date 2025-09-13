@@ -204,3 +204,4 @@ fn test_power_of_two_validation() {
     assert!(!validate_power_of_two(7));
     assert!(!validate_power_of_two(9));
 }
+

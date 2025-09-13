@@ -1,4 +1,4 @@
-#[allow(clippy::uninlined_format_args)]
+#![allow(clippy::uninlined_format_args)]
 use neo_params::{NeoParams, ParamsError};
 
 #[test]
@@ -32,7 +32,7 @@ fn extension_policy_rejects_when_s_min_gt_2() {
     match e {
         ParamsError::UnsupportedExtension { required } => {
             assert!(required > 2);
-            println!("✅ RED TEAM: Extension policy correctly rejects s_min={} > 2", required);
+            println!("✅ RED TEAM: Extension policy correctly rejects s_min={required} > 2");
         },
         _ => panic!("expected UnsupportedExtension"),
     }
@@ -99,7 +99,7 @@ fn goldilocks_preset_security_invariants() {
     // Verify the guard inequality is satisfied with margin
     let lhs = (p.k as u128 + 1) * (p.T as u128) * ((p.b as u128) - 1);
     let rhs = p.B as u128;
-    assert!(lhs < rhs, "Guard inequality must hold: {} < {}", lhs, rhs);
+    assert!(lhs < rhs, "Guard inequality must hold: {lhs} < {rhs}");
     
     // Verify reasonable margin exists (not too tight)
     let margin = rhs - lhs;
@@ -141,11 +141,11 @@ fn parameter_overflow_boundary_test() {
     let result = high_lambda_params.extension_check(1, 1);
     match result {
         Err(ParamsError::UnsupportedExtension { required }) => {
-            assert!(required >= 3, "Expected s_min >= 3 for overflow case, got {}", required);
-            println!("✅ Overflow case correctly requires s_min >= 3 (got {})", required);
+            assert!(required >= 3, "Expected s_min >= 3 for overflow case, got {required}");
+            println!("✅ Overflow case correctly requires s_min >= 3 (got {required})");
         },
         Ok(_) => panic!("Expected overflow case to fail with UnsupportedExtension"),
-        Err(e) => panic!("Unexpected error type: {:?}", e),
+        Err(e) => panic!("Unexpected error type: {e:?}"),
     }
     
     // Test boundary case where s=1 fails but s=2 might succeed  
@@ -171,13 +171,13 @@ fn parameter_overflow_boundary_test() {
     // s=2 might succeed or fail depending on exact values, but shouldn't panic
     match result_s2 {
         Ok(slack) => {
-            println!("✅ s=2 succeeds with slack: {:?}", slack);
+            println!("✅ s=2 succeeds with slack: {slack:?}");
         },
         Err(ParamsError::UnsupportedExtension { required }) => {
-            println!("✅ s=2 fails, requires s_min = {}", required);
+            println!("✅ s=2 fails, requires s_min = {required}");
             assert!(required > 2, "Required s_min should be > 2");
         },
-        Err(e) => panic!("Unexpected error: {:?}", e),
+        Err(e) => panic!("Unexpected error: {e:?}"),
     }
     
     println!("✅ Parameter boundary conditions handled correctly");

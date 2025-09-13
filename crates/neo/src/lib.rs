@@ -43,121 +43,90 @@ use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle};
 #[cfg(debug_assertions)]
 use rand::SeedableRng;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+// Poseidon2 is now imported via the unified module
 use p3_symmetric::Permutation;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
 use tracing::{debug, info, warn};
 
 // Init Ajtai PP for a specific (d, m) if absent.
-fn ensure_ajtai_pp_for_dims<FN>(d: usize, m: usize, mut setup: FN) -> anyhow::Result<()>
+pub(crate) fn ensure_ajtai_pp_for_dims<FN>(d: usize, m: usize, mut setup: FN) -> anyhow::Result<()>
 where FN: FnMut() -> anyhow::Result<()> {
     if neo_ajtai::has_global_pp_for_dims(d, m) { return Ok(()); }
     setup()
 }
 
-// ZK-friendly Poseidon2-based context digest with proper domain separation and security
-// Parameters: width=16, rate=14, capacity=2 for ~128-bit collision resistance
-// Uses capacity=2 for ~128-bit collision security instead of capacity=1
+// ZK-friendly Poseidon2-based context digest with proper domain separation.
+// Parameters: width=12, capacity=4, rate=8.
+// SECURITY NOTE: collision security ≈ 2^(capacity_bits/2) = 2^(256/2) = 2^128.
+// This is ample for binding a proving context (do not reuse as a general object hash).
 fn context_digest_v1(ccs: &CcsStructure<F>, public_input: &[F]) -> [u8; 32] {
-    use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
-    
-    // Use fixed seed for deterministic Poseidon2 (following codebase pattern)
-    // WARNING: These parameters are frozen for this version. Changing the seed
-    // will break verification of existing proofs unless version is also bumped.
-    const CONTEXT_DIGEST_SEED: u64 = 0x4E454F5F434F4E54; // "NEO_CONT" in hex
-    let mut rng = ChaCha8Rng::seed_from_u64(CONTEXT_DIGEST_SEED);
-    let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
-    
-    // Sponge state for Poseidon2 (width=16, capacity=2, rate=14)
-    // Using capacity=2 gives ~128-bit collision security for binding digest
-    let mut state = [Goldilocks::ZERO; 16];
-    let mut absorbed = 0;
-    const RATE: usize = 14; // width - capacity = 16 - 2 = 14
-    
-    // Enhanced domain separation with version and security parameters
-    const DOMAIN_STRING: &[u8] = b"neo/context/v1|poseidon2-goldilocks-w16-cap2";
+    use neo_ccs::crypto::poseidon2_goldilocks as p2;
+    use p3_goldilocks::Goldilocks;
+
+    let poseidon2 = p2::permutation();
+    let mut state = [Goldilocks::ZERO; p2::WIDTH];
+    let mut absorbed = 0usize;
+    const RATE: usize = p2::RATE; // 8
+
+    const DOMAIN_STRING: &[u8] = b"neo/context/v1|poseidon2-goldilocks-w12-cap4";
     for &byte in DOMAIN_STRING {
-        if absorbed >= RATE {
-            state = poseidon2.permute(state);
-            absorbed = 0;
-        }
-        state[absorbed] = Goldilocks::from_u32(byte as u32);
+        if absorbed == RATE { state = poseidon2.permute(state); absorbed = 0; }
+        state[absorbed] = Goldilocks::from_u64(byte as u64);
         absorbed += 1;
     }
-    
-    // Helper to absorb a u64 value with proper capacity management
-    let absorb_u64 = |state: &mut [Goldilocks; 16], absorbed: &mut usize, val: u64| {
-        if *absorbed >= RATE {
-            *state = poseidon2.permute(*state);
-            *absorbed = 0;
+
+    // Helper function to absorb elements
+    fn absorb_goldilocks(state: &mut [Goldilocks; p2::WIDTH], absorbed: &mut usize, poseidon2: &p3_goldilocks::Poseidon2Goldilocks<{ p2::WIDTH }>, elem: Goldilocks) {
+        if *absorbed == p2::RATE { 
+            *state = poseidon2.permute(*state); 
+            *absorbed = 0; 
         }
-        state[*absorbed] = Goldilocks::from_u64(val);
+        state[*absorbed] = elem;
         *absorbed += 1;
-    };
-    
-    // Helper to absorb field elements with proper capacity management
-    let absorb_f = |state: &mut [Goldilocks; 16], absorbed: &mut usize, f_val: F| {
-        if *absorbed >= RATE {
-            *state = poseidon2.permute(*state);
-            *absorbed = 0;
-        }
-        state[*absorbed] = Goldilocks::from_u64(f_val.as_canonical_u64());
-        *absorbed += 1;
-    };
-    
-    // 1. Basic CCS dimensions
-    absorb_u64(&mut state, &mut absorbed, ccs.n as u64);
-    absorb_u64(&mut state, &mut absorbed, ccs.m as u64);
-    absorb_u64(&mut state, &mut absorbed, ccs.matrices.len() as u64);
-    
-    // 2. All matrix entries in canonical sparse format (deterministic order)
+    }
+
+    absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(ccs.n as u64));
+    absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(ccs.m as u64));
+    absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(ccs.matrices.len() as u64));
+
     for (j, matrix) in ccs.matrices.iter().enumerate() {
-        absorb_u64(&mut state, &mut absorbed, j as u64); // Matrix index
-        absorb_u64(&mut state, &mut absorbed, matrix.rows() as u64);
-        absorb_u64(&mut state, &mut absorbed, matrix.cols() as u64);
-        
-        // Absorb non-zero entries in (row, col, val) order
+        absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(j as u64));
+        absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(matrix.rows() as u64));
+        absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(matrix.cols() as u64));
         for r in 0..matrix.rows() {
             for c in 0..matrix.cols() {
                 let val = matrix[(r, c)];
                 if val != F::ZERO {
-                    absorb_u64(&mut state, &mut absorbed, r as u64);
-                    absorb_u64(&mut state, &mut absorbed, c as u64);
-                    absorb_f(&mut state, &mut absorbed, val);
+                    absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(r as u64));
+                    absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(c as u64));
+                    absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(val.as_canonical_u64()));
                 }
             }
         }
     }
-    
-    // 3. Polynomial f in deterministic term order
+
     let mut terms: Vec<_> = ccs.f.terms().iter().collect();
-    terms.sort_by_key(|t| &t.exps); // Deterministic ordering
-    
-    absorb_u64(&mut state, &mut absorbed, terms.len() as u64);
+    terms.sort_by_key(|t| &t.exps);
+    absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(terms.len() as u64));
     for term in terms {
-        absorb_f(&mut state, &mut absorbed, term.coeff);
-        absorb_u64(&mut state, &mut absorbed, term.exps.len() as u64);
-        for &exp in &term.exps {
-            absorb_u64(&mut state, &mut absorbed, exp as u64);
+        absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(term.coeff.as_canonical_u64()));
+        absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(term.exps.len() as u64));
+        for &e in &term.exps { 
+            absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(e as u64)); 
         }
     }
-    
-    // 4. Public inputs
-    absorb_u64(&mut state, &mut absorbed, public_input.len() as u64);
-    for &x in public_input {
-        absorb_f(&mut state, &mut absorbed, x);
+
+    absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(public_input.len() as u64));
+    for &x in public_input { 
+        absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(x.as_canonical_u64())); 
     }
-    
-    // Final permutation
+
     state = poseidon2.permute(state);
-    
-    // Convert to 32-byte digest (use first 4 field elements)
     let mut digest = [0u8; 32];
     for (i, &elem) in state[..4].iter().enumerate() {
         digest[i*8..(i+1)*8].copy_from_slice(&elem.as_canonical_u64().to_le_bytes());
     }
-    
     digest
 }
 
@@ -178,9 +147,15 @@ pub use ivc::{
     // Core IVC types
     Accumulator, IvcProof, IvcStepInput, IvcChainProof, IvcStepResult, IvcChainStepInput,
     // High-level proving/verifying functions  
-    prove_ivc_step, verify_ivc_step, prove_ivc_chain, verify_ivc_chain,
+    prove_ivc_step, prove_ivc_step_with_extractor, verify_ivc_step, prove_ivc_chain, verify_ivc_chain,
+    // Step output extractors (fixes "folding with itself" issue)
+    StepOutputExtractor, LastNExtractor, IndexExtractor,
     // Advanced commitment binding (production-ready)
     Commitment, BindingMetadata, bind_commitment_full,
+    // Nova embedded verifier and augmentation (production-ready)  
+    augmentation_ccs, AugmentConfig,
+    // PRODUCTION OPTION A: Public ρ EV (recommended)
+    ev_with_public_rho_ccs, build_ev_with_public_rho_witness,
 };
 
 /// Counts and bookkeeping for public results embedded in the proof.
@@ -395,15 +370,18 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     )?;
     
     let fold_time = fold_start.elapsed();
+    #[cfg(feature = "neo-logs")]
     println!("⏱️  [TIMING] CCS folding completed: {:.2}ms", fold_time.as_secs_f64() * 1000.0);
 
     // Step 5: Bridge to Spartan (legacy adapter)
     let bridge_start = std::time::Instant::now();
+    #[cfg(feature = "neo-logs")]
     println!("⏱️  [TIMING] Starting bridge adapter (ME -> Spartan format)...");
     
     let (mut legacy_me, legacy_wit) = adapt_from_modern(&me_instances, &digit_witnesses, input.ccs, input.params, input.output_claims)?;
     
     let bridge_time = bridge_start.elapsed();
+    #[cfg(feature = "neo-logs")]
     println!("⏱️  [TIMING] Bridge adapter completed: {:.2}ms", bridge_time.as_secs_f64() * 1000.0);
     
     // Bind proof to the caller's CCS & public input
@@ -424,6 +402,7 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     let public_results = legacy_me.y_outputs[num_y_compact..].to_vec();
     
     let spartan_start = std::time::Instant::now();
+    #[cfg(feature = "neo-logs")]
     println!("⏱️  [TIMING] Starting Spartan2 proving...");
     
     // DEBUG: Check witness sizes before Spartan compression
@@ -445,6 +424,7 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     let lean_proof = neo_spartan_bridge::compress_me_to_lean_proof(&legacy_me, &legacy_wit)?;
     
     let spartan_time = spartan_start.elapsed();
+    #[cfg(feature = "neo-logs")]
     println!("⏱️  [TIMING] Spartan2 proving completed: {:.2}ms", spartan_time.as_secs_f64() * 1000.0);
 
     // Step 6: Serialize lean proof (no 51MB VK!)
@@ -646,8 +626,11 @@ pub fn verify_and_extract_exact(
 ) -> Result<Vec<F>> {
     use anyhow::ensure;
 
-    // 1) Verify cryptographic proof and context binding
-    verify(ccs, public_input, proof)?;
+    // 1) CRITICAL SECURITY: Verify cryptographic proof and context binding
+    let is_valid = verify(ccs, public_input, proof)?;
+    if !is_valid {
+        anyhow::bail!("Cryptographic proof verification failed - invalid proof");
+    }
 
     // 2) Decode all y-outputs from cryptographic `public_io` 
     let ys = decode_public_io_y(&proof.public_io)?;

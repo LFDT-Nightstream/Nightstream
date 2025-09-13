@@ -34,7 +34,7 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
     let last = cur[D - 1];
     // shift: next[k] = cur[k-1] for k>=1; next[0] = 0
     next[0] = Fq::ZERO;
-    for k in 1..D { next[k] = cur[k - 1]; }
+    next[1..D].copy_from_slice(&cur[..(D - 1)]);
     // cyclotomic corrections for X^54 ≡ -X^27 - 1
     next[0] -= last;        // -1 * last
     next[27] -= last;       // -X^27 * last
@@ -46,7 +46,7 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
 fn rot_step_xd_plus_1(cur: &[Fq; D], next: &mut [Fq; D]) {
     let last = cur[D - 1];
     next[0] = Fq::ZERO;
-    for k in 1..D { next[k] = cur[k - 1]; }
+    next[1..D].copy_from_slice(&cur[..(D - 1)]);
     next[0] -= last; // X^D ≡ -1
 }
 

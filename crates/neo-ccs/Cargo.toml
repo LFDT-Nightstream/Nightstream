@@ -10,9 +10,15 @@ neo-math = { path = "../neo-math" }
 # Sumcheck functionality integrated locally
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+once_cell = { workspace = true }
 
 # For structured logging (gated behind neo-logs feature)  
 tracing = { version = "0.1", default-features = false, features = ["std"] }

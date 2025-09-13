@@ -88,7 +88,7 @@ impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
         // Mat is row-major; Ajtai commit expects column-major (d×m)
         let mut col_major = vec![Fq::ZERO; d * m];
         for c in 0..m { for r in 0..d { col_major[c*d + r] = z[(r,c)]; } }
-        ajtai_commit(&*self.pp, &col_major)
+        ajtai_commit(&self.pp, &col_major)
     }
 
     fn project_x(&self, z: &Mat<Fq>, min: usize) -> Mat<Fq> {

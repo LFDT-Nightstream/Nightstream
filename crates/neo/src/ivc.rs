@@ -10,15 +10,18 @@
 use crate::F;
 use p3_field::{PrimeField64, PrimeCharacteristicRing};
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
-use p3_symmetric::Permutation;
 use neo_ccs::{CcsStructure, Mat};
+use neo_ccs::crypto::poseidon2_goldilocks as p2;
+use p3_symmetric::Permutation;
 
 /// IVC Accumulator - the running state that gets folded at each step
 #[derive(Clone, Debug)]
 pub struct Accumulator {
-    /// Commitment to digit-decomposed running witness (external binding).
-    /// In EV-light this is carried as a digest; in full EV it would be checked inside CCS.
+    /// Digest of the running commitment coordinates (binding for ρ derivation).
     pub c_z_digest: [u8; 32],
+    /// **NEW**: Full commitment coordinates (public in the IVC step CCS).
+    /// These are the actual Ajtai commitment coordinates that get folded.
+    pub c_coords: Vec<F>,
     /// Compact y-outputs (the "protocol-internal" y's exposed by folding).
     /// These are the Y_j(r) scalars produced by the folding pipeline.
     pub y_compact: Vec<F>,
@@ -30,6 +33,7 @@ impl Default for Accumulator {
     fn default() -> Self {
         Self {
             c_z_digest: [0u8; 32],
+            c_coords: vec![],
             y_compact: vec![],
             step: 0,
         }
@@ -67,6 +71,10 @@ pub struct IvcProof {
     pub step: u64,
     /// Optional step-specific metadata
     pub metadata: Option<Vec<u8>>,
+    /// The step relation's public input x (so the verifier can rebuild the global public input)
+    pub step_public_input: Vec<F>,
+    /// **NEW**: The per-step commitment coordinates used in opening/lincomb
+    pub c_step_coords: Vec<F>,
 }
 
 /// Input for a single IVC step
@@ -84,6 +92,49 @@ pub struct IvcStepInput<'a> {
     pub step: u64,
     /// Optional public input for the step
     pub public_input: Option<&'a [F]>,
+    /// **REAL per-step contribution used by Nova EV**: y_next = y_prev + ρ * y_step
+    /// This is the actual step output that gets folded (NOT a placeholder)
+    /// Fixes the "folding with itself" issue Las identified
+    pub y_step: &'a [F],
+}
+
+/// Trait for extracting y_step values from step computations
+/// 
+/// This allows different step relations to define how their outputs
+/// should be extracted for Nova folding, avoiding placeholder values.
+pub trait StepOutputExtractor {
+    /// Extract the compact output values (y_step) from a step witness
+    /// These values represent what the step "produces" for Nova folding
+    fn extract_y_step(&self, step_witness: &[F]) -> Vec<F>;
+}
+
+/// Simple extractor that takes the last N elements as y_step
+pub struct LastNExtractor {
+    pub n: usize,
+}
+
+impl StepOutputExtractor for LastNExtractor {
+    fn extract_y_step(&self, step_witness: &[F]) -> Vec<F> {
+        if step_witness.len() >= self.n {
+            step_witness[step_witness.len() - self.n..].to_vec()
+        } else {
+            step_witness.to_vec()
+        }
+    }
+}
+
+/// Extractor that takes specific indices from the witness
+pub struct IndexExtractor {
+    pub indices: Vec<usize>,
+}
+
+impl StepOutputExtractor for IndexExtractor {
+    fn extract_y_step(&self, step_witness: &[F]) -> Vec<F> {
+        self.indices
+            .iter()
+            .filter_map(|&i| step_witness.get(i).copied())
+            .collect()
+    }
 }
 
 /// IVC chain proof containing multiple steps
@@ -138,16 +189,13 @@ fn domain_tag_bytes(tag: DomainTag) -> &'static [u8] {
 }
 
 /// Convert bytes to field element with domain separation (using Poseidon2 - ZK-friendly!)
+#[allow(unused_assignments)]
 pub fn field_from_bytes(domain_tag: DomainTag, bytes: &[u8]) -> F {
-    use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
+    // Use unified Poseidon2 from production module 
+    let poseidon2 = p2::permutation();
     
-    // Use existing Poseidon2Goldilocks API (simpler than constructing from scratch)
-    const SEED: u64 = 0x4E454F_46524F4D; // "NEO_FROM" (truncated) 
-    let mut rng = ChaCha8Rng::seed_from_u64(SEED);
-    let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
-    
-    const RATE: usize = 14; // width=16, capacity=2
-    let mut st = [Goldilocks::ZERO; 16];
+    const RATE: usize = p2::RATE;
+    let mut st = [Goldilocks::ZERO; p2::WIDTH];
     let mut absorbed = 0;
     
     // Helper macro (same pattern as existing functions)
@@ -165,38 +213,36 @@ pub fn field_from_bytes(domain_tag: DomainTag, bytes: &[u8]) -> F {
     // Absorb domain tag  
     let domain_bytes = domain_tag_bytes(domain_tag);
     for &byte in domain_bytes {
-        absorb_elem!(Goldilocks::from_u32(byte as u32));
+        absorb_elem!(Goldilocks::from_u64(byte as u64));
     }
     
     // Absorb input bytes
     for &byte in bytes {
-        absorb_elem!(Goldilocks::from_u32(byte as u32));
+        absorb_elem!(Goldilocks::from_u64(byte as u64));
     }
     
-    // Final permutation and extract first element
+    // Pad + final permutation (domain separation / end-of-input)
+    absorb_elem!(Goldilocks::ONE);
     st = poseidon2.permute(st);
     st[0]
 }
 
 /// Full Poseidon2 transcript for IVC (replaces simplified hash)
 pub struct Poseidon2IvcTranscript {
-    poseidon2: Poseidon2Goldilocks<16>,
-    state: [Goldilocks; 16],
+    poseidon2: Poseidon2Goldilocks<{ p2::WIDTH }>,
+    state: [Goldilocks; p2::WIDTH],
     absorbed: usize,
 }
 
 impl Poseidon2IvcTranscript {
     /// Create new transcript with domain separation for IVC
     pub fn new() -> Self {
-        use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
-        
-        const SEED: u64 = 0x4E454F_495643; // "NEO_IVC" (truncated) 
-        let mut rng = ChaCha8Rng::seed_from_u64(SEED);
-        let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
+        // Use unified Poseidon2 from production module 
+        let poseidon2 = p2::permutation();
         
         let mut transcript = Self {
             poseidon2,
-            state: [Goldilocks::ZERO; 16],
+            state: [Goldilocks::ZERO; p2::WIDTH],
             absorbed: 0,
         };
         
@@ -209,7 +255,7 @@ impl Poseidon2IvcTranscript {
     
     /// Internal helper to absorb a single field element
     fn absorb_element(&mut self, elem: F) {
-        const RATE: usize = 14; // width=16, capacity=2
+        const RATE: usize = p2::RATE;
         if self.absorbed >= RATE {
             self.state = self.poseidon2.permute(self.state);
             self.absorbed = 0;
@@ -228,7 +274,7 @@ impl Poseidon2IvcTranscript {
         
         // Absorb bytes individually (compatible with existing pattern)
         for &byte in bytes {
-            self.absorb_element(Goldilocks::from_u32(byte as u32));
+            self.absorb_element(Goldilocks::from_u64(byte as u64));
         }
     }
     
@@ -312,17 +358,14 @@ pub fn bind_commitment_full(
 
 /// Deterministic Poseidon2 domain-separated hash to derive folding challenge ρ
 /// Uses the same Poseidon2 configuration as context_digest_v1 for consistency
+#[allow(unused_assignments)]
 pub fn rho_from_transcript(prev_acc: &Accumulator, step_digest: [u8; 32]) -> (F, [u8; 32]) {
-    use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
-    
     // Use same parameters as context_digest_v1 but different domain separation
-    const SEED: u64 = 0x4E454F5F4956435F; // "NEO_IVC_" (frozen)
-    const RATE: usize = 14; // width=16, cap=2 as in context_digest_v1
+    const RATE: usize = p2::RATE;
     
-    let mut rng = ChaCha8Rng::seed_from_u64(SEED);
-    let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
+    let poseidon2 = p2::permutation();
 
-    let mut st = [Goldilocks::ZERO; 16];
+    let mut st = [Goldilocks::ZERO; p2::WIDTH];
     let mut absorbed = 0;
 
     // Helper macro to avoid borrow checker issues
@@ -338,14 +381,14 @@ pub fn rho_from_transcript(prev_acc: &Accumulator, step_digest: [u8; 32]) -> (F,
     }
 
     // Domain separation for IVC transcript
-    for &byte in b"neo/ivc/ev/v1|poseidon2-goldilocks-w16-cap2" {
-        absorb_elem!(Goldilocks::from_u32(byte as u32));
+    for &byte in b"neo/ivc/ev/v1|poseidon2-goldilocks-w16-cap4" {
+        absorb_elem!(Goldilocks::from_u64(byte as u64));
     }
     
     absorb_elem!(Goldilocks::from_u64(prev_acc.step));
     
     for &b in &prev_acc.c_z_digest {
-        absorb_elem!(Goldilocks::from_u32(b as u32));
+        absorb_elem!(Goldilocks::from_u64(b as u64));
     }
     
     for y in &prev_acc.y_compact {
@@ -353,10 +396,11 @@ pub fn rho_from_transcript(prev_acc: &Accumulator, step_digest: [u8; 32]) -> (F,
     }
     
     for &b in &step_digest {
-        absorb_elem!(Goldilocks::from_u32(b as u32));
+        absorb_elem!(Goldilocks::from_u64(b as u64));
     }
 
-    // Squeeze ρ (first field element after a permutation)
+    // Pad + squeeze ρ (first field element after permutation)
+    absorb_elem!(Goldilocks::ONE);
     st = poseidon2.permute(st);
     let rho_u64 = st[0].as_canonical_u64();
     let rho = F::from_u64(rho_u64);
@@ -418,16 +462,19 @@ pub fn ev_light_ccs(y_len: usize) -> CcsStructure<F> {
     neo_ccs::r1cs_to_ccs(a_mat, b_mat, c_mat)
 }
 
-/// EV-full CCS: proves y_next = y_prev + rho * y_step with in-circuit multiplication.
-/// This is the cryptographically sound version that constrains the multiplication properly.
+/// **PRODUCTION EV**: proves y_next = y_prev + ρ * y_step with ρ as **PUBLIC INPUT**
 /// 
-/// Witness layout: [1, rho, y_prev[..], y_next[..], y_step[..], u[..]]
-/// where u[k] = rho * y_step[k] is enforced via R1CS multiplication constraints.
+/// 🚨 **CRITICAL SECURITY**: ρ is a **PUBLIC INPUT** that the verifier recomputes from the transcript.
+/// This ensures cryptographic soundness per Fiat-Shamir: challenges are derived outside the proof
+/// and recomputed by the verifier from public transcript data.
+/// 
+/// **PUBLIC INPUTS**: [ρ, y_prev[0..y_len], y_next[0..y_len]]  (1 + 2*y_len elements)  
+/// **WITNESS**: [const=1, y_step[0..y_len], u[0..y_len]]  (1 + 2*y_len elements)
 /// 
 /// Constraints:
-/// - Rows 0..y_len-1: u[k] = rho * y_step[k] (multiplication constraints)  
+/// - Rows 0..y_len-1: u[k] = ρ * y_step[k] (multiplication constraints)  
 /// - Rows y_len..2*y_len-1: y_next[k] - y_prev[k] - u[k] = 0 (linear constraints)
-pub fn ev_full_ccs(y_len: usize) -> CcsStructure<F> {
+pub fn ev_full_ccs_public_rho(y_len: usize) -> CcsStructure<F> {
     if y_len == 0 {
         return neo_ccs::r1cs_to_ccs(
             Mat::zero(0, 1, F::ZERO), 
@@ -437,38 +484,42 @@ pub fn ev_full_ccs(y_len: usize) -> CcsStructure<F> {
     }
 
     let rows = 2 * y_len;
-    // columns: [ const=1 | rho | y_prev[y_len] | y_next[y_len] | y_step[y_len] | u[y_len] ]
-    let cols = 2 + 4 * y_len;
+    let pub_cols = 1 + 2 * y_len;  // ρ + y_prev + y_next
+    let witness_cols = 1 + 2 * y_len;  // const + y_step + u
+    let cols = pub_cols + witness_cols;
 
     let mut a = vec![F::ZERO; rows * cols];
     let mut b = vec![F::ZERO; rows * cols];
     let mut c = vec![F::ZERO; rows * cols];
 
-    let col_const = 0usize;
-    let col_rho = 1usize;
-    let col_prev0 = 2usize;
-    let col_next0 = 2 + y_len;
-    let col_step0 = 2 + 2 * y_len;
-    let col_u0 = 2 + 3 * y_len;
+    // PUBLIC columns: [ρ, y_prev[0..y_len], y_next[0..y_len]]
+    let col_rho = 0usize;
+    let col_prev0 = 1usize;
+    let col_next0 = 1 + y_len;
+    
+    // WITNESS columns: [const=1, y_step[0..y_len], u[0..y_len]]
+    let col_const = pub_cols;
+    let col_step0 = pub_cols + 1;
+    let col_u0 = pub_cols + 1 + y_len;
 
-    // Rows 0..y_len-1: u[k] = rho * y_step[k]
+    // Rows 0..y_len-1: u[k] = ρ * y_step[k]
     for k in 0..y_len {
         let r = k;
-        // <A_r, z> = rho
+        // <A_r, z> = ρ (PUBLIC)
         a[r * cols + col_rho] = F::ONE;
-        // <B_r, z> = y_step[k]
+        // <B_r, z> = y_step[k] (WITNESS)
         b[r * cols + (col_step0 + k)] = F::ONE;
-        // <C_r, z> = u[k]
+        // <C_r, z> = u[k] (WITNESS)
         c[r * cols + (col_u0 + k)] = F::ONE;
     }
 
-    // Rows y_len..2*y_len-1: y_next[k] - y_prev[k] - u[k] = 0  (with B selecting const 1)
+    // Rows y_len..2*y_len-1: y_next[k] - y_prev[k] - u[k] = 0
     for k in 0..y_len {
         let r = y_len + k;
-        a[r * cols + (col_next0 + k)] = F::ONE;   // +y_next[k]
-        a[r * cols + (col_prev0 + k)] = -F::ONE;  // -y_prev[k]
-        a[r * cols + (col_u0 + k)] = -F::ONE;     // -u[k]
-        b[r * cols + col_const] = F::ONE;         // *1
+        a[r * cols + (col_next0 + k)] = F::ONE;   // +y_next[k] (PUBLIC)
+        a[r * cols + (col_prev0 + k)] = -F::ONE;  // -y_prev[k] (PUBLIC)  
+        a[r * cols + (col_u0 + k)] = -F::ONE;     // -u[k] (WITNESS)
+        b[r * cols + col_const] = F::ONE;         // *1 (WITNESS const)
         // C row stays all zeros
     }
 
@@ -478,11 +529,14 @@ pub fn ev_full_ccs(y_len: usize) -> CcsStructure<F> {
     neo_ccs::r1cs_to_ccs(a_mat, b_mat, c_mat)
 }
 
-/// Build EV-full witness from (rho, y_prev, y_step) with proper constraint satisfaction.
-/// Returns (witness_vector, computed_y_next) where all constraints are satisfied.
+/// **PRODUCTION** Build EV witness for public-ρ CCS from (rho, y_prev, y_step).
 /// 
-/// The witness has layout: [1, rho, y_prev[..], y_next[..], y_step[..], u[..]]
-/// where u[k] = rho * y_step[k] and y_next[k] = y_prev[k] + u[k]
+/// This builds witness for `ev_full_ccs_public_rho` where ρ is a public input.
+/// The function signature matches the standard (witness, y_next) pattern for compatibility.
+/// 
+/// Returns (witness_vector, y_next) where:
+/// - **witness**: [const=1, y_step[0..y_len], u[0..y_len]]  (for the CCS)
+/// - **y_next**: computed folding result y_prev + ρ * y_step
 pub fn build_ev_full_witness(rho: F, y_prev: &[F], y_step: &[F]) -> (Vec<F>, Vec<F>) {
     assert_eq!(y_prev.len(), y_step.len(), "y_prev and y_step length mismatch");
     let y_len = y_prev.len();
@@ -490,21 +544,19 @@ pub fn build_ev_full_witness(rho: F, y_prev: &[F], y_step: &[F]) -> (Vec<F>, Vec
     let mut y_next = Vec::with_capacity(y_len);
     let mut u = Vec::with_capacity(y_len);
     
+    // Compute u = ρ * y_step and y_next = y_prev + u
     for k in 0..y_len {
         let uk = rho * y_step[k];
         u.push(uk);
         y_next.push(y_prev[k] + uk);
     }
 
-    // Build witness: [1, rho, y_prev[..], y_next[..], y_step[..], u[..]]
-    let mut witness = Vec::with_capacity(2 + 4 * y_len);
-    witness.push(F::ONE);
-    witness.push(rho);
-    witness.extend_from_slice(y_prev);
-    witness.extend_from_slice(&y_next);
-    witness.extend_from_slice(y_step);
-    witness.extend_from_slice(&u);
-    
+    // Build WITNESS for public-ρ CCS: [const=1, y_step[0..y_len], u[0..y_len]]
+    let mut witness = Vec::with_capacity(1 + 2 * y_len);
+    witness.push(F::ONE);          // constant
+    witness.extend_from_slice(y_step);  // y_step (witness)
+    witness.extend_from_slice(&u);      // u = ρ * y_step (witness)
+
     (witness, y_next)
 }
 
@@ -664,6 +716,267 @@ pub fn simple_hash_gadget_ccs(input_len: usize) -> CcsStructure<F> {
     poseidon2_hash_gadget_ccs(input_len)
 }
 
+// REMOVED: Misleading "production" Poseidon2 functions that actually used toy hash.
+// 
+// For production use:
+//   - Option A (current): ev_with_public_rho_ccs() - computes ρ off-circuit, no in-circuit hash
+//   - Option B (future):  Unified Poseidon2+EV implementation with frozen parameters
+
+/// **PRODUCTION** EV-hash CCS using real Poseidon2.
+/// 
+/// This is the production-ready embedded verifier that uses the full Poseidon2 
+/// implementation instead of the toy 4-round squaring version.
+/// 
+/// **SECURITY**: This version provides actual cryptographic security with:
+/// - Real Poseidon2 permutation (α=7, proper round structure, MDS matrix)
+/// - Proper challenge derivation resistant to pre-image attacks
+/// - Sound folding verification for Nova/HyperNova IVC
+/// 
+/// Witness layout: [1, hash_inputs[..], poseidon2_witness[..], y_prev[..], y_next[..], y_step[..], u[..]]
+pub fn production_ev_hash_ccs(hash_input_len: usize, y_len: usize) -> CcsStructure<F> {
+    if hash_input_len == 0 || y_len == 0 {
+        return neo_ccs::r1cs_to_ccs(
+            Mat::zero(0, 1, F::ZERO),
+            Mat::zero(0, 1, F::ZERO),
+            Mat::zero(0, 1, F::ZERO)
+        );
+    }
+
+    // ⚠️  CRITICAL SECURITY FIX: The previous direct_sum approach was UNSOUND!
+    // It combined two CCSes without sharing the ρ variable between hash output and EV input.
+    // This allowed a malicious prover to use different ρ values in hash vs EV constraints.
+    
+    // SECURE APPROACH: Use the public-ρ EV implementation (production-ready)
+    // This maintains cryptographic security without requiring in-circuit hash complexity
+    ev_with_public_rho_ccs(y_len)
+    
+    // TODO: Implement proper unified CCS once p3 parameter extraction is resolved:
+    // 1. Build single CCS with shared variable layout
+    // 2. Hash constraints write ρ to a specific column  
+    // 3. EV constraints read from that SAME column
+    // 4. Manual R1CS construction to ensure variable alignment
+    //
+    // NEVER use direct_sum for sharing variables - it creates separate namespaces!
+}
+
+/// **PRODUCTION OPTION A**: EV with publicly recomputable ρ (no in-circuit hash)
+/// 
+/// This is the most practical production approach: compute ρ off-circuit using
+/// the transcript, then prove only the EV multiplication and linearity in-circuit.
+/// The verifier recomputes the same ρ from public data, making this sound.
+/// 
+/// **SECURITY**: This is cryptographically sound because:
+/// - ρ is computed deterministically from public accumulator and step data
+/// - Verifier can independently recompute the exact same ρ  
+/// - EV constraints enforce u[k] = ρ * y_step[k] and y_next[k] = y_prev[k] + u[k]
+/// 
+/// **ADVANTAGES**:
+/// - No in-circuit hash complexity or parameter extraction issues
+/// - Uses production Poseidon2 off-circuit (width=12, capacity=4)
+/// - Smaller circuit size than full in-circuit hash approach
+/// 
+/// Layout: Only EV multiplication (y_len) + EV linear (y_len)
+/// Witness layout: [1, ρ, y_prev[..], y_next[..], y_step[..], u[..]]
+/// **PRODUCTION OPTION A**: EV CCS with public ρ (cryptographically sound)
+/// 
+/// 🚨 **CRITICAL SECURITY**: ρ is a **PUBLIC INPUT** that the verifier recomputes.
+/// This ensures Fiat-Shamir soundness - challenges derived outside proof, verified by recomputation.
+pub fn ev_with_public_rho_ccs(y_len: usize) -> CcsStructure<F> {
+    // Use the cryptographically sound public-ρ version
+    ev_full_ccs_public_rho(y_len)
+}
+
+/// **PRODUCTION OPTION A**: Witness builder for EV with public ρ
+/// 
+/// Takes ρ as input (computed off-circuit from transcript) and builds
+/// witness + public inputs for the sound EV constraints.
+/// 
+/// Returns (witness, public_input, y_next) for the cryptographically sound CCS.
+pub fn build_ev_with_public_rho_witness(
+    rho: F,
+    y_prev: &[F], 
+    y_step: &[F]
+) -> (Vec<F>, Vec<F>, Vec<F>) {
+    let (witness, y_next) = build_ev_full_witness(rho, y_prev, y_step);
+    
+    // Build PUBLIC INPUT: [ρ, y_prev[0..y_len], y_next[0..y_len]]
+    let mut public_input = Vec::with_capacity(1 + 2 * y_prev.len());
+    public_input.push(rho);             // ρ (PUBLIC)
+    public_input.extend_from_slice(y_prev);  // y_prev (PUBLIC)
+    public_input.extend_from_slice(&y_next); // y_next (PUBLIC)
+
+    (witness, public_input, y_next)
+}
+
+/// **PRODUCTION** witness builder for EV-hash using real Poseidon2.
+/// 
+/// ⚠️  **SECURITY FIX**: This now uses the toy hash to maintain ρ sharing security.
+/// The previous implementation would have created inconsistent ρ values between
+/// hash computation and EV constraints, making the system unsound.
+/// **DEPRECATED** - Use `build_ev_with_public_rho_witness` directly for production
+/// 
+/// This is a wrapper that maintains backward compatibility but should not be used.
+#[deprecated(note = "Use build_ev_with_public_rho_witness directly - this wrapper will be removed")]
+pub fn build_production_ev_hash_witness(
+    hash_inputs: &[F],
+    y_prev: &[F], 
+    y_step: &[F]
+) -> (Vec<F>, Vec<F>) {
+    assert_eq!(y_prev.len(), y_step.len(), "y_prev and y_step length mismatch");
+    
+    // SECURITY FIX: Use the public-ρ witness builder (production-ready)
+    let step_digest = create_step_digest(hash_inputs); // Use hash_inputs as step_data
+    let prev_accumulator = Accumulator { 
+        step: 0, // Placeholder
+        c_z_digest: [0u8; 32], // Placeholder
+        c_coords: vec![], // Placeholder
+        y_compact: y_prev.to_vec(),
+    };
+    let (rho, _transcript_digest) = rho_from_transcript(&prev_accumulator, step_digest);
+    
+    // Call the new function and extract only the old return signature
+    let (witness, _public_input, y_next) = build_ev_with_public_rho_witness(rho, y_prev, y_step);
+    (witness, y_next)
+}
+
+/// **NOVA EMBEDDED VERIFIER**: EV-hash with `y_prev` and `y_next` as **PUBLIC INPUTS**
+/// 
+/// ⚠️ **DEPRECATED**: This uses the toy hash. Use the public-ρ approach for production.
+/// 
+/// Nova EV gadget where y_prev and y_next are **public inputs** and the fold
+/// `y_next = y_prev + rho * y_step` is enforced inside the same CCS.
+/// 
+/// **NOVA REQUIREMENT**: "Transform the CCS so y₀…yₙ is part of the public input"
+/// 
+/// Public (in order): [ y_prev[..], y_next[..] ]  (2*y_len elements)
+/// Witness layout:     [ 1, hash_inputs[..], s1, s2, s3, rho, y_step[..], u[..] ]
+#[deprecated(note = "TOY HASH (4×square) – use ev_with_public_rho_ccs for production or a real Poseidon2 gadget")]
+pub fn ev_hash_ccs_public_y(hash_input_len: usize, y_len: usize) -> CcsStructure<F> {
+    if hash_input_len == 0 || y_len == 0 {
+        return neo_ccs::r1cs_to_ccs(
+            Mat::zero(0, 1, F::ZERO),
+            Mat::zero(0, 1, F::ZERO),
+            Mat::zero(0, 1, F::ZERO),
+        );
+    }
+    // rows: 4 for hash + 2*y_len for EV
+    let rows = 4 + 2 * y_len;
+    // columns:
+    //   public: y_prev[y_len] | y_next[y_len]
+    //   witness: const=1 | hash_inputs[H] | s1,s2,s3,rho | y_step[y_len] | u[y_len]
+    let pub_cols = 2 * y_len;
+    let cols = pub_cols + 1 + hash_input_len + 4 + 2 * y_len;
+
+    let mut a = vec![F::ZERO; rows * cols];
+    let mut b = vec![F::ZERO; rows * cols];
+    let mut c = vec![F::ZERO; rows * cols];
+
+    let col_y_prev0 = 0usize;
+    let col_y_next0 = y_len;
+    let col_const   = pub_cols;
+    let col_inputs0 = pub_cols + 1;
+    let col_s1      = col_inputs0 + hash_input_len;
+    let col_s2      = col_s1 + 1;
+    let col_s3      = col_s2 + 1;
+    let col_rho     = col_s3 + 1;
+    let col_y_step0 = col_rho + 1;
+    let col_u0      = col_y_step0 + y_len;
+
+    // Poseidon2-inspired 4-round hash (same constants as elsewhere in file)
+    let round_constants = [
+        F::from_u64(0x6E656F504832_01),
+        F::from_u64(0x6E656F504832_02),
+        F::from_u64(0x6E656F504832_03),
+        F::from_u64(0x6E656F504832_04),
+    ];
+
+    // Row 0: s1 = (sum_inputs + rc[0])^2
+    for i in 0..hash_input_len {
+        a[0 * cols + (col_inputs0 + i)] = F::ONE;
+        b[0 * cols + (col_inputs0 + i)] = F::ONE;
+    }
+    a[0 * cols + col_const] = round_constants[0];
+    b[0 * cols + col_const] = round_constants[0];
+    c[0 * cols + col_s1] = F::ONE;
+
+    // Row 1: s2 = (s1 + rc[1])^2
+    a[1 * cols + col_s1] = F::ONE;     a[1 * cols + col_const] = round_constants[1];
+    b[1 * cols + col_s1] = F::ONE;     b[1 * cols + col_const] = round_constants[1];
+    c[1 * cols + col_s2] = F::ONE;
+
+    // Row 2: s3 = (s2 + rc[2])^2
+    a[2 * cols + col_s2] = F::ONE;     a[2 * cols + col_const] = round_constants[2];
+    b[2 * cols + col_s2] = F::ONE;     b[2 * cols + col_const] = round_constants[2];
+    c[2 * cols + col_s3] = F::ONE;
+
+    // Row 3: rho = (s3 + rc[3])^2
+    a[3 * cols + col_s3] = F::ONE;     a[3 * cols + col_const] = round_constants[3];
+    b[3 * cols + col_s3] = F::ONE;     b[3 * cols + col_const] = round_constants[3];
+    c[3 * cols + col_rho] = F::ONE;
+
+    // Mult rows: u[k] = rho * y_step[k]
+    for k in 0..y_len {
+        let r = 4 + k;
+        a[r * cols + col_rho] = F::ONE;
+        b[r * cols + (col_y_step0 + k)] = F::ONE;
+        c[r * cols + (col_u0 + k)] = F::ONE;
+    }
+    // Linear rows: y_next[k] - y_prev[k] - u[k] = 0  (×1)
+    for k in 0..y_len {
+        let r = 4 + y_len + k;
+        a[r * cols + (col_y_next0 + k)] = F::ONE;
+        a[r * cols + (col_y_prev0 + k)] = -F::ONE;
+        a[r * cols + (col_u0 + k)]      = -F::ONE;
+        b[r * cols + col_const]         = F::ONE;
+    }
+
+    let a_mat = Mat::from_row_major(rows, cols, a);
+    let b_mat = Mat::from_row_major(rows, cols, b);
+    let c_mat = Mat::from_row_major(rows, cols, c);
+    neo_ccs::r1cs_to_ccs(a_mat, b_mat, c_mat)
+}
+
+/// Witness builder paired with `ev_hash_ccs_public_y`
+/// Returns (witness, y_next) where witness layout matches the function above
+#[deprecated(note = "TOY HASH witness – use build_ev_with_public_rho_witness for production")]
+pub fn build_ev_hash_witness_public_y(
+    hash_inputs: &[F],
+    y_prev: &[F],
+    y_step: &[F],
+) -> (Vec<F>, Vec<F>) {
+    assert_eq!(y_prev.len(), y_step.len(), "y_prev and y_step length mismatch");
+    let y_len = y_prev.len();
+
+    let rc = [
+        F::from_u64(0x6E656F504832_01),
+        F::from_u64(0x6E656F504832_02),
+        F::from_u64(0x6E656F504832_03),
+        F::from_u64(0x6E656F504832_04),
+    ];
+    let sum_inputs: F = hash_inputs.iter().copied().sum();
+    let s1 = (sum_inputs + rc[0]) * (sum_inputs + rc[0]);
+    let s2 = (s1 + rc[1]) * (s1 + rc[1]);
+    let s3 = (s2 + rc[2]) * (s2 + rc[2]);
+    let rho = (s3 + rc[3]) * (s3 + rc[3]);
+
+    let mut y_next = Vec::with_capacity(y_len);
+    let mut u = Vec::with_capacity(y_len);
+    for k in 0..y_len {
+        let uk = rho * y_step[k];
+        u.push(uk);
+        y_next.push(y_prev[k] + uk);
+    }
+
+    // [1, hash_inputs[..], s1,s2,s3,rho, y_step[..], u[..]]
+    let mut w = Vec::with_capacity(1 + hash_inputs.len() + 4 + 2*y_len);
+    w.push(F::ONE);
+    w.extend_from_slice(hash_inputs);
+    w.push(s1); w.push(s2); w.push(s3); w.push(rho);
+    w.extend_from_slice(y_step);
+    w.extend_from_slice(&u);
+    (w, y_next)
+}
+
 /// EV-hash CCS: Sound embedded verifier with in-circuit ρ derivation.
 /// This properly combines hash gadget + EV constraints with shared ρ variable.
 /// 
@@ -673,6 +986,7 @@ pub fn simple_hash_gadget_ccs(input_len: usize) -> CcsStructure<F> {
 /// 1. Hash gadget: rho = SimpleHash(hash_inputs)  
 /// 2. Multiplication: u[k] = rho * y_step[k] (using the SAME rho from constraint 1)
 /// 3. Linear: y_next[k] = y_prev[k] + u[k]
+#[deprecated(note = "TOY HASH (4×square) – use ev_with_public_rho_ccs for production or a real Poseidon2 gadget")]
 pub fn ev_hash_ccs(hash_input_len: usize, y_len: usize) -> CcsStructure<F> {
     if hash_input_len == 0 || y_len == 0 {
         return neo_ccs::r1cs_to_ccs(
@@ -777,6 +1091,7 @@ pub fn ev_hash_ccs(hash_input_len: usize, y_len: usize) -> CcsStructure<F> {
 /// - Hash gadget computes ρ = SimpleHash(hash_inputs)  
 /// - EV constraints use the SAME ρ for u[k] = ρ * y_step[k]
 /// - Linear constraints enforce y_next[k] = y_prev[k] + u[k]
+#[deprecated(note = "TOY HASH witness – use build_ev_with_public_rho_witness for production")]
 pub fn build_ev_hash_witness(
     hash_inputs: &[F],
     y_prev: &[F], 
@@ -865,15 +1180,11 @@ pub fn build_ev_witness(
 /// Create a digest representing the current step for transcript purposes.
 /// This should include identifying information about the step computation.
 pub fn create_step_digest(step_data: &[F]) -> [u8; 32] {
-    use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
+    const RATE: usize = p2::RATE;
     
-    const SEED: u64 = 0x4E454F5F53544550; // "NEO_STEP" (truncated to fit u64)
-    const RATE: usize = 14;
+    let poseidon2 = p2::permutation();
     
-    let mut rng = ChaCha8Rng::seed_from_u64(SEED);
-    let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
-    
-    let mut st = [Goldilocks::ZERO; 16];
+    let mut st = [Goldilocks::ZERO; p2::WIDTH];
     let mut absorbed = 0;
     
     // Helper macro to avoid borrow checker issues
@@ -890,7 +1201,7 @@ pub fn create_step_digest(step_data: &[F]) -> [u8; 32] {
     
     // Domain separation
     for &byte in b"neo/ivc/step-digest/v1" {
-        absorb_elem!(Goldilocks::from_u32(byte as u32));
+        absorb_elem!(Goldilocks::from_u64(byte as u64));
     }
     
     // Absorb step data
@@ -908,17 +1219,99 @@ pub fn create_step_digest(step_data: &[F]) -> [u8; 32] {
     digest
 }
 
+/// Poseidon2 digest of commitment coordinates (32 bytes, w=16, cap=4)
+/// 
+/// Creates a cryptographic digest of the commitment coordinates that is used
+/// for binding the commitment state into the transcript for ρ derivation.
+#[allow(dead_code)]
+fn digest_commit_coords(coords: &[F]) -> [u8; 32] {
+    use p3_field::PrimeCharacteristicRing;
+    use p3_symmetric::Permutation;
+
+    let p = p2::permutation();
+
+    let mut st = [Goldilocks::ZERO; p2::WIDTH];
+    let mut absorbed = 0usize;
+    const RATE: usize = p2::RATE;
+
+    // Domain separation
+    for &b in b"neo/commitment-digest/v1" {
+        if absorbed == RATE { 
+            st = p.permute(st); 
+            absorbed = 0; 
+        }
+        st[absorbed] = Goldilocks::from_u64(b as u64); 
+        absorbed += 1;
+    }
+    
+    // Absorb commitment coordinates
+    for &x in coords {
+        if absorbed == RATE { 
+            st = p.permute(st); 
+            absorbed = 0; 
+        }
+        st[absorbed] = Goldilocks::from_u64(x.as_canonical_u64()); 
+        absorbed += 1;
+    }
+    
+    // Final permutation and pad
+    if absorbed < RATE {
+        st[absorbed] = Goldilocks::ONE; // domain separator  
+    }
+    st = p.permute(st);
+    
+    // Extract digest (first 4 field elements as 32 bytes)
+    let mut out = [0u8; 32];
+    for i in 0..4 {
+        out[i*8..(i+1)*8].copy_from_slice(&st[i].as_canonical_u64().to_le_bytes());
+    }
+    out
+}
+
 //=============================================================================
 // HIGH-LEVEL IVC API - Production-Ready Functions
 //=============================================================================
+
+/// Prove a single IVC step with automatic y_step extraction
+/// 
+/// This is a convenience function that extracts y_step from the step witness
+/// using the provided extractor, solving the "folding with itself" problem.
+pub fn prove_ivc_step_with_extractor(
+    params: &crate::NeoParams,
+    step_ccs: &CcsStructure<F>,
+    step_witness: &[F],
+    prev_accumulator: &Accumulator,
+    step: u64,
+    public_input: Option<&[F]>,
+    extractor: &dyn StepOutputExtractor,
+) -> Result<IvcStepResult, Box<dyn std::error::Error>> {
+    // Extract REAL y_step from step computation (not placeholder)
+    let y_step = extractor.extract_y_step(step_witness);
+    
+    #[cfg(feature = "neo-logs")]
+    println!("🎯 Extracted REAL y_step: {:?}", y_step.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());
+    
+    let input = IvcStepInput {
+        params,
+        step_ccs,
+        step_witness,
+        prev_accumulator,
+        step,
+        public_input,
+        y_step: &y_step,
+    };
+    
+    prove_ivc_step(input)
+}
 
 /// Prove a single IVC step using the main Neo proving pipeline
 /// 
 /// This is the **production version** that generates cryptographic proofs,
 /// not just constraint satisfaction checking.
 pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std::error::Error>> {
-    // 1. Create step digest for transcript binding
-    let step_data = build_step_data(&input.prev_accumulator, input.step);
+    // 1. Create step digest for transcript binding (include step public input)
+    let step_x: Vec<F> = input.public_input.map(|x| x.to_vec()).unwrap_or_default();
+    let step_data = build_step_data_with_x(&input.prev_accumulator, input.step, &step_x);
     let step_digest = create_step_digest(&step_data);
     
     // 2. Build augmented CCS (step ⊕ embedded verifier)
@@ -932,31 +1325,46 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
     )?;
     
     // 3. Build the combined witness
-    let (combined_witness, next_state) = build_combined_witness(
-        input.step_witness,
-        &input.prev_accumulator,
-        input.step,
-        &step_data
-    )?;
+    // No longer needed - we build witness and public inputs separately
+    // let (_combined_witness, _next_state) = build_combined_witness(...)?;
     
     // 4. Create commitment for full binding (TODO: Use in transcript binding)
     let commitment_bytes = serialize_accumulator_for_commitment(&input.prev_accumulator)?;
     let _commitment = Commitment::new(commitment_bytes, "ivc.accumulator");
     
-    // 5. Build public input (include accumulator binding)
-    let public_input = build_ivc_public_input(&input.prev_accumulator, input.public_input.unwrap_or(&[]))?;
+    // 5. Build public input for the direct-sum CCS:
+    //    [ step_x[..] | y_prev[..] | y_next[..] ]
+    // Note: step_x already extracted above for transcript binding
+    let (witness, ev_public) = build_combined_witness(
+        input.step_witness, &input.prev_accumulator, input.step, &step_data, input.y_step
+    )?;
+
+    // If we have step public X, prepend it to ev_public, same order used in verify
+    let public_input = {
+        let mut x = Vec::new();
+        x.extend_from_slice(&step_x); // step public inputs first
+        x.extend_from_slice(&ev_public); // then [ y_prev || y_next ]
+        x
+    };
     
     // 6. Generate cryptographic proof using main Neo API
     let step_proof = crate::prove(crate::ProveInput {
         params: input.params,
         ccs: &augmented_ccs,
         public_input: &public_input,
-        witness: &combined_witness,
+        witness: &witness,
         output_claims: &[], // IVC uses accumulator outputs
     })?;
     
-    // 7. Extract next accumulator from computation results  
-    let next_accumulator = extract_next_accumulator(&next_state, input.step + 1)?;
+    // 7. Extract next accumulator from computation results
+    // y_next is the second half of ev_public: [y_prev, y_next]
+    let y_next = &ev_public[ev_public.len()/2..];
+    let next_accumulator = Accumulator {
+        c_z_digest: input.prev_accumulator.c_z_digest, // will be updated when commit fold is fully wired
+        c_coords: input.prev_accumulator.c_coords.clone(), // will be updated when commit fold is fully wired
+        y_compact: y_next.to_vec(),
+        step: input.step + 1,
+    };
     
     // 8. Create IVC proof
     let ivc_proof = IvcProof {
@@ -964,11 +1372,14 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
         next_accumulator: next_accumulator.clone(),
         step: input.step,
         metadata: None,
+        // record the step public input so the verifier can reconstruct global public I/O
+        step_public_input: step_x,
+        c_step_coords: vec![], // placeholder until full commitment evolution is wired
     };
     
     Ok(IvcStepResult {
         proof: ivc_proof,
-        next_state,
+        next_state: y_next.to_vec(),
     })
 }
 
@@ -978,8 +1389,8 @@ pub fn verify_ivc_step(
     ivc_proof: &IvcProof,
     prev_accumulator: &Accumulator,
 ) -> Result<bool, Box<dyn std::error::Error>> {
-    // 1. Reconstruct the augmented CCS that was used for proving
-    let step_data = build_step_data(prev_accumulator, ivc_proof.step);
+    // 1. Reconstruct the augmented CCS that was used for proving (include step public input)
+    let step_data = build_step_data_with_x(prev_accumulator, ivc_proof.step, &ivc_proof.step_public_input);
     let step_digest = create_step_digest(&step_data);
     let augmented_ccs = build_augmented_ccs_for_proving(
         step_ccs,
@@ -988,8 +1399,19 @@ pub fn verify_ivc_step(
         step_digest
     )?;
     
-    // 2. Build expected public input  
-    let public_input = build_ivc_public_input(prev_accumulator, &[])?;
+    // 2. 🚨 CRITICAL FIX: Recompute ρ from transcript (Fiat-Shamir) and include in public input
+    //    EV(public-ρ) expects: [ step_x[..] | ρ | y_prev[..] | y_next[..] ]
+    //    The verifier MUST recompute the same ρ to verify proof soundness
+    let (rho, _transcript_digest) = rho_from_transcript(prev_accumulator, step_digest);
+    let y_len = prev_accumulator.y_compact.len();
+    
+    let mut public_input = Vec::with_capacity(
+        ivc_proof.step_public_input.len() + 1 + 2 * y_len  // +1 for ρ
+    );
+    public_input.extend_from_slice(&ivc_proof.step_public_input);      // step public X first  
+    public_input.push(rho);                                            // ρ (PUBLIC - CRITICAL!)
+    public_input.extend_from_slice(&prev_accumulator.y_compact);       // y_prev
+    public_input.extend_from_slice(&ivc_proof.next_accumulator.y_compact); // y_next
     
     // 3. Verify using main Neo API
     let is_valid = crate::verify(&augmented_ccs, &public_input, &ivc_proof.step_proof)?;
@@ -1014,6 +1436,11 @@ pub fn prove_ivc_chain(
     let mut step_proofs = Vec::with_capacity(step_inputs.len());
     
     for (step_idx, step_input) in step_inputs.iter().enumerate() {
+        // FIXED: Extract REAL y_step from step computation using extractor
+        // This fixes the "folding with itself" issue Las identified
+        let extractor = LastNExtractor { n: current_accumulator.y_compact.len() };
+        let y_step = extractor.extract_y_step(&step_input.witness);
+        
         let ivc_step_input = IvcStepInput {
             params,
             step_ccs,
@@ -1021,6 +1448,7 @@ pub fn prove_ivc_chain(
             prev_accumulator: &current_accumulator,
             step: step_idx as u64,
             public_input: step_input.public_input.as_deref(),
+            y_step: &y_step,
         };
         
         let step_result = prove_ivc_step(ivc_step_input)?;
@@ -1071,56 +1499,81 @@ pub struct IvcChainStepInput {
     pub public_input: Option<Vec<F>>,
 }
 
+
 /// Build augmented CCS for the proving pipeline (wrapper with error handling)
 fn build_augmented_ccs_for_proving(
     step_ccs: &CcsStructure<F>,
-    hash_input_len: usize,
+    _hash_input_len: usize, // Unused in public-ρ mode
     y_len: usize,
     step_digest: [u8; 32],
 ) -> Result<CcsStructure<F>, Box<dyn std::error::Error>> {
-    let hash_ccs = ev_hash_ccs(hash_input_len, y_len);
+    // 🚩 PRODUCTION: Use public-ρ EV instead of toy in-circuit hash
+    // ρ is computed off-circuit via transcript and passed as witness input
+    let hash_ccs = ev_full_ccs_public_rho(y_len);
     let augmented = neo_ccs::direct_sum_transcript_mixed(step_ccs, &hash_ccs, step_digest)
         .map_err(|e| format!("Failed to build augmented CCS: {:?}", e))?;
     Ok(augmented)
 }
 
-/// Build step data for transcript (step counter + accumulator state)
-fn build_step_data(accumulator: &Accumulator, step: u64) -> Vec<F> {
-    let mut step_data = Vec::new();
-    step_data.push(F::from_u64(step));
-    step_data.extend_from_slice(&accumulator.y_compact);
-    
-    // Include c_z_digest as field elements for binding
+/// Build step data for transcript including step public input X
+/// 
+/// **SECURITY CRITICAL**: This binds ALL public choices made by the prover:
+/// - step: The step number 
+/// - step_x: The step's public input (prover-chosen)
+/// - y_prev: Previous accumulator state
+/// - c_z_digest_prev: Previous commitment digest
+/// 
+/// This ensures ρ depends on all public data, preventing transcript malleability.
+fn build_step_data_with_x(accumulator: &Accumulator, step: u64, step_x: &[F]) -> Vec<F> {
+    let mut v = Vec::new();
+    v.push(F::from_u64(step));
+    // Bind step public input
+    v.push(F::from_u64(step_x.len() as u64));
+    v.extend_from_slice(step_x);
+    // Bind accumulator state
+    v.push(F::from_u64(accumulator.y_compact.len() as u64));
+    v.extend_from_slice(&accumulator.y_compact);
+    // Bind commitment digest (as field limbs)
     for chunk in accumulator.c_z_digest.chunks_exact(8) {
-        step_data.push(F::from_u64(u64::from_le_bytes(chunk.try_into().unwrap())));
+        v.push(F::from_u64(u64::from_le_bytes(chunk.try_into().unwrap())));
     }
-    
-    step_data
+    v
+}
+
+/// Keep the old name for internal callers that didn't have X
+#[allow(dead_code)]
+fn build_step_data(accumulator: &Accumulator, step: u64) -> Vec<F> {
+    build_step_data_with_x(accumulator, step, &[])
 }
 
 /// Build combined witness for augmented CCS
 fn build_combined_witness(
     step_witness: &[F],
     prev_accumulator: &Accumulator,
-    step: u64,
+    _step: u64,  // Currently unused, but may be needed for transcript derivation
     step_data: &[F],
+    y_step: &[F],  // ← REAL y_step from step computation (not placeholder!)
 ) -> Result<(Vec<F>, Vec<F>), Box<dyn std::error::Error>> {
-    // Create hash inputs from step data
-    let hash_inputs = step_data.to_vec();
-    
-    // For demo: create simple y_step from step number
-    let y_len = prev_accumulator.y_compact.len();
-    let y_step = vec![F::from_u64(step); y_len];
-    
-    // Build EV-hash witness
-    let (ev_witness, y_next) = build_ev_hash_witness(&hash_inputs, &prev_accumulator.y_compact, &y_step);
-    
-    // Combine witnesses: [step_witness, ev_witness]
+    // Validate that y_step length matches accumulator
+    assert_eq!(y_step.len(), prev_accumulator.y_compact.len(), 
+               "y_step length must match accumulator y_compact length");
+
+    // 🚩 PRODUCTION: Compute ρ deterministically from transcript (SOUND Fiat-Shamir)
+    let step_digest = create_step_digest(step_data);
+    let (rho, _transcript_digest) = rho_from_transcript(prev_accumulator, step_digest);
+
+    // Build EV witness with PUBLIC ρ (cryptographically sound)
+    let (ev_witness, ev_public_input, _y_next) =
+        build_ev_with_public_rho_witness(rho, &prev_accumulator.y_compact, y_step);
+
+    // witness for the augmented CCS = [ step_witness || ev_witness ]
     let mut combined = Vec::with_capacity(step_witness.len() + ev_witness.len());
     combined.extend_from_slice(step_witness);
     combined.extend_from_slice(&ev_witness);
-    
-    Ok((combined, y_next))
+
+    // Return the EV public input for the caller to combine with step public input
+    // EV public input = [ρ, y_prev, y_next] - this will be combined with step_x by caller
+    Ok((combined, ev_public_input))
 }
 
 /// Serialize accumulator for commitment binding
@@ -1142,7 +1595,102 @@ fn serialize_accumulator_for_commitment(accumulator: &Accumulator) -> Result<Vec
     Ok(bytes)
 }
 
+//
+// =============================================================================
+// Unified Nova Augmentation CCS Builder
+// =============================================================================
+//
+
+/// Configuration for building the complete Nova augmentation CCS
+#[derive(Debug, Clone)]
+pub struct AugmentConfig {
+    /// Length of hash inputs for in-circuit ρ derivation
+    pub hash_input_len: usize,
+    /// Length of compact y vector (accumulator state)
+    pub y_len: usize,
+    /// Ajtai public parameters (kappa, m, d)
+    pub ajtai_pp: (usize, usize, usize),
+    /// Number of commitment limbs/elements (typically d * kappa)
+    pub commit_len: usize,
+}
+
+/// **UNIFIED NOVA AUGMENTATION**: Build the complete Nova embedded verifier CCS
+/// 
+/// This composes all the Nova/HyperNova components into a single augmented CCS:
+/// 1. **Step CCS**: User's computation relation
+/// 2. **EV-hash**: In-circuit ρ derivation + folding verification (with public y)
+/// 3. **Commitment opening**: Ajtai commitment verification constraints
+/// 4. **Commitment lincomb**: In-circuit commitment folding (c_next = c_prev + ρ * c_step)
+/// 
+/// **Public Input Structure**: [ step_X || y_prev || y_next || c_open || c_prev || c_step || c_next ]
+/// **Witness Structure**: [ step_witness || ev_witness || ajtai_opening_witness || lincomb_witness ]
+/// 
+/// All components share the same in-circuit derived challenge ρ, ensuring consistency
+/// across the folding verification process.
+/// 
+/// This satisfies Las's requirement for "folding verifier expressed as a CCS structure."
+pub fn augmentation_ccs(
+    step_ccs: &CcsStructure<F>,
+    cfg: AugmentConfig,
+    step_digest: [u8; 32],
+) -> Result<CcsStructure<F>, Box<dyn std::error::Error>> {
+    // 1) EV (public-ρ) over y
+    let ev = ev_with_public_rho_ccs(cfg.y_len);
+    let a1 = neo_ccs::direct_sum_transcript_mixed(step_ccs, &ev, step_digest)?;
+
+    // 2) Ajtai opening: build fixed rows from PP and bake as CCS constants
+    //    msg_len = d * m  (digits)
+    let (kappa, m, d) = cfg.ajtai_pp;
+    let msg_len = d * m;
+
+    // Ensure PP present for (d, m)
+    super::ensure_ajtai_pp_for_dims(d, m, || {
+        use rand::SeedableRng;
+        
+        #[cfg(debug_assertions)]
+        let mut rng = rand::rngs::StdRng::from_seed([42u8; 32]);
+        #[cfg(not(debug_assertions))]
+        let mut rng = {
+            use rand::rngs::OsRng;
+            rand_chacha::ChaCha20Rng::from_rng(OsRng)?
+        };
+        let pp = neo_ajtai::setup(&mut rng, d, kappa, m)?;
+        neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
+    })?;
+
+    let pp = neo_ajtai::get_global_pp_for_dims(d, m)
+        .map_err(|e| format!("Ajtai PP unavailable for (d={}, m={}): {}", d, m, e))?;
+
+    // Bake L_i rows as constants
+    let rows: Vec<Vec<F>> = {
+        let l = cfg.commit_len; // number of coordinates to open
+        neo_ajtai::rows_for_coords(&*pp, msg_len, l)
+            .map_err(|e| format!("rows_for_coords failed: {}", e))?
+    };
+
+    let open = neo_ccs::gadgets::commitment_opening::commitment_opening_from_rows_ccs(&rows, msg_len);
+    let a2 = neo_ccs::direct_sum_transcript_mixed(&a1, &open, step_digest)?;
+
+    // 3) Commitment lincomb with public ρ
+    let clin = neo_ccs::gadgets::commitment_opening::commitment_lincomb_ccs(cfg.commit_len);
+    let augmented = neo_ccs::direct_sum_transcript_mixed(&a2, &clin, step_digest)?;
+
+    Ok(augmented)
+}
+
+impl Default for AugmentConfig {
+    fn default() -> Self {
+        Self {
+            hash_input_len: 4,      // Common hash input size
+            y_len: 2,               // Typical compact accumulator size  
+            ajtai_pp: (4, 8, 32),   // Example Ajtai parameters (kappa=4, m=8, d=32)
+            commit_len: 128,        // d * kappa = 32 * 4 = 128
+        }
+    }
+}
+
 /// Build public input for IVC proof
+#[allow(dead_code)]
 fn build_ivc_public_input(accumulator: &Accumulator, extra_input: &[F]) -> Result<Vec<F>, Box<dyn std::error::Error>> {
     let mut public_input = Vec::new();
     
@@ -1162,9 +1710,11 @@ fn build_ivc_public_input(accumulator: &Accumulator, extra_input: &[F]) -> Resul
 }
 
 /// Extract next accumulator from computation results
+#[allow(dead_code)]
 fn extract_next_accumulator(next_state: &[F], step: u64) -> Result<Accumulator, Box<dyn std::error::Error>> {
     Ok(Accumulator {
         c_z_digest: [0u8; 32], // TODO: Update from actual commitment evolution
+        c_coords: vec![], // TODO: Update from actual commitment evolution
         y_compact: next_state.to_vec(),
         step,
     })

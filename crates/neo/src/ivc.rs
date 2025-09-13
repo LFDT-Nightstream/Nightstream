@@ -8,8 +8,9 @@
 //! "my local computation is correct" AND "the fold from the last step was correct."
 
 use crate::F;
-use p3_field::{PrimeField64, PrimeCharacteristicRing};
+use p3_field::PrimeField64;
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+use p3_field::PrimeCharacteristicRing;
 use neo_ccs::{CcsStructure, Mat};
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
 use p3_symmetric::Permutation;
@@ -381,7 +382,7 @@ pub fn rho_from_transcript(prev_acc: &Accumulator, step_digest: [u8; 32]) -> (F,
     }
 
     // Domain separation for IVC transcript
-    for &byte in b"neo/ivc/ev/v1|poseidon2-goldilocks-w16-cap4" {
+    for &byte in b"neo/ivc/ev/v1|poseidon2-goldilocks-w12-cap4" {
         absorb_elem!(Goldilocks::from_u64(byte as u64));
     }
     
@@ -1737,5 +1738,245 @@ fn verify_accumulator_progression(
     // TODO: Add more accumulator validation rules
     
     Ok(())
+}
+
+/// When to emit a SNARK proof for the IVC run.
+#[derive(Clone, Copy, Debug)]
+pub enum EmissionPolicy {
+    /// Never emit automatically; the caller must call `extract_batch()` and handle proving separately.
+    Never,
+    /// Emit after every `n` steps are appended.
+    Every(usize),
+    /// Only on explicit demand (alias of Never; kept for readability).
+    OnDemand,
+}
+
+/// Accumulated batch data ready for the "Final SNARK Layer"
+#[derive(Debug)]
+pub struct BatchData {
+    /// The direct-sum CCS covering all batched steps
+    pub ccs: CcsStructure<F>,
+    /// Concatenated public inputs for all steps
+    pub public_input: Vec<F>,
+    /// Concatenated witnesses for all steps  
+    pub witness: Vec<F>,
+    /// Number of IVC steps covered by this batch
+    pub steps_covered: usize,
+}
+
+/// A small, stateful builder to batch many IVC steps and emit a single SNARK proof on demand.
+pub struct IvcBatchBuilder {
+    params: crate::NeoParams,
+    step_ccs: CcsStructure<F>,
+    y_len: usize,
+
+    // Rolling batch
+    batch_ccs: Option<CcsStructure<F>>,
+    batch_public: Vec<F>,
+    batch_witness: Vec<F>,
+    steps_in_batch: usize,
+
+    // Accumulator state (evolves with each appended step)
+    pub accumulator: Accumulator,
+
+    // Policy
+    policy: EmissionPolicy,
+}
+
+impl IvcBatchBuilder {
+    /// Create a new batch builder.
+    pub fn new(
+        params: crate::NeoParams,
+        step_ccs: CcsStructure<F>,
+        initial_accumulator: Accumulator,
+        policy: EmissionPolicy,
+    ) -> Self {
+        let y_len = initial_accumulator.y_compact.len();
+        Self {
+            params,
+            step_ccs,
+            y_len,
+            batch_ccs: None,
+            batch_public: Vec::new(),
+            batch_witness: Vec::new(),
+            steps_in_batch: 0,
+            accumulator: initial_accumulator,
+            policy,
+        }
+    }
+
+    /// Append one IVC step **without** emitting a SNARK.
+    ///
+    /// This:
+    ///  - builds EV(public-ρ) witness/public for the step,
+    ///  - direct-sums the per-step augmented CCS into the rolling CCS,
+    ///  - updates the running accumulator (y_next, step += 1).
+    ///
+    /// Returns the y_next for convenience.
+    pub fn append_step(
+        &mut self,
+        step_witness: &[F],
+        step_public_x: Option<&[F]>,
+        y_step_real: &[F], // Extracted from the step relation (fixes the "folding with itself" issue)
+    ) -> anyhow::Result<Vec<F>> {
+        // 1) Build transcript-bound step data and digest for ρ derivation & domain-separation
+        let x_vec: Vec<F> = step_public_x.map(|x| x.to_vec()).unwrap_or_default();
+        let step_data = build_step_data_with_x(&self.accumulator, self.accumulator.step, &x_vec);
+        let step_digest = create_step_digest(&step_data);
+
+        // 2) Build the augmented CCS for just this step: step_ccs ⊕ EV(public-ρ)
+        let augmented = build_augmented_ccs_for_proving(
+            &self.step_ccs,
+            step_data.len(),     // unused in public-ρ mode, but kept for clarity
+            self.y_len,
+            step_digest,
+        ).map_err(|e| anyhow::anyhow!("Failed to build augmented CCS: {}", e))?;
+
+        // 3) Compute ρ deterministically from transcript and build EV witness/public
+        let (rho, _td) = rho_from_transcript(&self.accumulator, step_digest);
+        let (ev_wit, ev_public, y_next) =
+            build_ev_with_public_rho_witness(rho, &self.accumulator.y_compact, y_step_real);
+
+        // Public input for this *per-step* augmented CCS:
+        //   [ step_x || ρ || y_prev || y_next ]
+        let mut this_public = Vec::with_capacity(x_vec.len() + ev_public.len());
+        this_public.extend_from_slice(&x_vec);
+        this_public.extend_from_slice(&ev_public);
+
+        // Witness for this *per-step* augmented CCS:
+        //   [ step_witness || ev_wit ]
+        let mut this_witness = Vec::with_capacity(step_witness.len() + ev_wit.len());
+        this_witness.extend_from_slice(step_witness);
+        this_witness.extend_from_slice(&ev_wit);
+
+        // 4) Merge into rolling batch (direct-sum CCS; concat public/witness)
+        self.batch_ccs = Some(match &self.batch_ccs {
+            None => augmented,
+            Some(bc) => neo_ccs::direct_sum_transcript_mixed(bc, &augmented, step_digest)
+                .map_err(|e| anyhow::anyhow!("Failed to direct sum CCS: {}", e))?,
+        });
+        self.batch_public.extend_from_slice(&this_public);
+        self.batch_witness.extend_from_slice(&this_witness);
+        self.steps_in_batch += 1;
+
+        // 5) Advance accumulator
+        self.accumulator.y_compact = y_next.clone();
+        self.accumulator.step += 1;
+
+        // 6) Emission policy
+        if let EmissionPolicy::Every(n) = self.policy {
+            if self.steps_in_batch >= n {
+                // Emit right away; ignore the proof result here, caller can call emit_now() explicitly if needed.
+                let _ = self.emit_now_internal();
+            }
+        }
+
+        Ok(y_next)
+    }
+
+    /// Extract the current batch data for external proving (Final SNARK Layer).
+    ///
+    /// Returns the accumulated CCS, public input, and witness for the batch.
+    /// Resets the batch after extraction.
+    ///
+    /// This is the correct method for `EmissionPolicy::Never` - accumulate fast, prove later.
+    pub fn extract_batch(&mut self) -> Option<BatchData> {
+        let ccs = self.batch_ccs.take()?;
+        if self.batch_witness.is_empty() {
+            return None;
+        }
+
+        let batch_data = BatchData {
+            ccs,
+            public_input: std::mem::take(&mut self.batch_public),
+            witness: std::mem::take(&mut self.batch_witness),
+            steps_covered: self.steps_in_batch,
+        };
+
+        // Reset batch state
+        self.steps_in_batch = 0;
+
+        Some(batch_data)
+    }
+
+    /// Emit a single SNARK proof for the *current batch*, then reset the batch.
+    ///
+    /// ⚠️  **WARNING**: This bypasses the "Final SNARK Layer" and proves immediately!
+    /// Only use this for `EmissionPolicy::Every(n)` or when you want immediate proving.
+    /// For `EmissionPolicy::Never`, use `extract_batch()` instead.
+    ///
+    /// Returns `Ok(Some(proof))` if a proof is emitted, `Ok(None)` if the batch is empty.
+    pub fn emit_now(&mut self) -> anyhow::Result<Option<crate::Proof>> {
+        self.emit_now_internal()
+    }
+
+    fn emit_now_internal(&mut self) -> anyhow::Result<Option<crate::Proof>> {
+        let Some(batch_data) = self.extract_batch() else {
+            return Ok(None);
+        };
+
+        // NOTE: We do not set application-level OutputClaims here; pass [].
+        let proof = crate::prove(crate::ProveInput {
+            params: &self.params,
+            ccs: &batch_data.ccs,
+            public_input: &batch_data.public_input,
+            witness: &batch_data.witness,
+            output_claims: &[],
+        })?;
+
+        Ok(Some(proof))
+    }
+
+    /// Return the number of steps currently in the non-emitted batch.
+    pub fn pending_steps(&self) -> usize {
+        self.steps_in_batch
+    }
+
+    /// Return whether the batch currently has something to emit.
+    pub fn has_pending_batch(&self) -> bool {
+        self.batch_ccs.is_some()
+    }
+
+    /// Finalize the batch builder by extracting any remaining batch data.
+    /// 
+    /// This is a convenience method for handling partial batches with any emission policy.
+    /// Always call this after your main step loop to ensure no steps are lost.
+    ///
+    /// Returns `Some(BatchData)` if there were pending steps, `None` if batch was empty.
+    /// The caller can then pass the BatchData to their "Final SNARK Layer".
+    pub fn finalize(&mut self) -> Option<BatchData> {
+        self.extract_batch()
+    }
+
+    /// Finalize and immediately prove any remaining steps.
+    /// 
+    /// This bypasses the "Final SNARK Layer" pattern and proves directly.
+    /// Use this only when you want immediate proving rather than batch extraction.
+    ///
+    /// Returns `Ok(Some(proof))` if there were pending steps, `Ok(None)` if batch was empty.
+    pub fn finalize_and_prove(&mut self) -> anyhow::Result<Option<crate::Proof>> {
+        if self.has_pending_batch() {
+            self.emit_now()
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// Final SNARK Layer: Convert accumulated BatchData into a succinct proof.
+///
+/// This is the "expensive" step that should be called separately from the fast IVC loop.
+/// Use this with `EmissionPolicy::Never` after calling `batch.finalize()`.
+pub fn prove_batch_data(
+    params: &crate::NeoParams,
+    batch_data: BatchData,
+) -> anyhow::Result<crate::Proof> {
+    crate::prove(crate::ProveInput {
+        params,
+        ccs: &batch_data.ccs,
+        public_input: &batch_data.public_input,
+        witness: &batch_data.witness,
+        output_claims: &[], // No application-level output claims for IVC
+    })
 }
 

@@ -5,8 +5,8 @@
 //! - Used for transcripts, context digests, and any off-circuit hashing
 
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
-use p3_symmetric::Permutation;
 use p3_field::PrimeCharacteristicRing;
+use p3_symmetric::Permutation;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 

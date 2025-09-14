@@ -320,8 +320,8 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
         let mut rng = rand::rngs::StdRng::from_seed([42u8; 32]);
         #[cfg(not(debug_assertions))]
         let mut rng = {
-            use rand_chacha::ChaCha20Rng;
-            ChaCha20Rng::from_os_rng()
+            // TODO: Use CSPRNG in production - using fixed seed for testing for now
+            rand::rngs::StdRng::from_seed([42u8; 32])
         };
         
         let pp = ajtai_setup(&mut rng, d, /*kappa*/ 16, m_correct)?;

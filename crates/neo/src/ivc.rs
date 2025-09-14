@@ -2090,12 +2090,9 @@ impl IvcBatchBuilder {
                 };
                 self.blocks.push(block_meta);
                 
-                // ✅ NEW: per-block ordering, all fed as witness
-                debug_assert!(self.batch_public.is_empty(), "BatchBuilder now uses witness-only batches");
-                let mut block = Vec::with_capacity(this_public.len() + this_witness.len());
-                block.extend_from_slice(&this_public);
-                block.extend_from_slice(&this_witness);
-                self.batch_witness.extend_from_slice(&block);
+                // ✅ REVIEWER FIX: Keep publics as publics all the way through
+                self.batch_public.extend_from_slice(&this_public);
+                self.batch_witness.extend_from_slice(&this_witness);
             }
             Some(existing) => {
                 // (a) direct-sum previous batch with the new per-step CCS
@@ -2125,12 +2122,9 @@ impl IvcBatchBuilder {
                 let right_y_prev_abs = right.base_col + right.y_prev_off_in_block;
                 let const1_abs = left.base_col + left.const1_col_in_block;
                 
-                // === UPDATE VECTORS (per-block) BEFORE DEBUG ===
-                debug_assert!(self.batch_public.is_empty(), "BatchBuilder now uses witness-only batches");
-                let mut block = Vec::with_capacity(this_public.len() + this_witness.len());
-                block.extend_from_slice(&this_public);
-                block.extend_from_slice(&this_witness);
-                self.batch_witness.extend_from_slice(&block);
+                // === UPDATE VECTORS: REVIEWER FIX - proper public/witness separation ===
+                self.batch_public.extend_from_slice(&this_public);
+                self.batch_witness.extend_from_slice(&this_witness);
                 
                 // Debug logging removed for cleaner output
                 
@@ -2223,8 +2217,8 @@ impl IvcBatchBuilder {
 
         let batch_data = BatchData {
             ccs,
-            // ✅ Everything is provided as witness for the batched CCS
-            public_input: Vec::new(),
+            // ✅ Proper public/witness separation (reviewer-confirmed fix)
+            public_input: std::mem::take(&mut self.batch_public),
             witness: std::mem::take(&mut self.batch_witness),
             steps_covered: self.steps_in_batch,
         };
@@ -2232,7 +2226,7 @@ impl IvcBatchBuilder {
         // Reset batch state
         self.blocks.clear();
         self.steps_in_batch = 0;
-        self.batch_public.clear(); // keep invariant
+        // batch_public and batch_witness are already cleared by std::mem::take
 
         Some(batch_data)
     }
@@ -2453,11 +2447,11 @@ pub fn build_augmented_ccs_linked(
     //  - step_rows                              (copy step CCS)
     //  - 2*y_len EV rows                        (u = ρ*y_step, y_next - y_prev - u = 0)
     //  - step_x_len binder rows (optional)      (step_x[i] - step_witness[x_i] = 0)
-    //  - 0 prev binder rows                     (REMOVED: incompatible with folding)
+    //  - y_len prev binder rows                 (REVIEWER FIX: y_prev[k] - step_witness[prev_k] = 0)
     let step_rows = step_ccs.n;
     let ev_rows = 2 * y_len;
     let x_bind_rows = step_x_len;
-    let prev_bind_rows = 0; // 🔴 REMOVED: y_prev binder incompatible with folding
+    let prev_bind_rows = if y_prev_witness_indices.is_empty() { 0 } else { y_len }; // 🔴 REMOVED: y_prev binder incompatible with folding
     let total_rows = step_rows + ev_rows + x_bind_rows + prev_bind_rows;
 
     // Witness: [ step_witness || u ]
@@ -2523,8 +2517,21 @@ pub fn build_augmented_ccs_linked(
             }
         }
 
-        // 🔴 REMOVED: Binder prev (y_prev[k] - step_witness[prev_k] = 0)
-        // This was incompatible with folding where y_prev = accumulated_state, not literal prev_state
+        // REVIEWER FIX: Binder prev: y_prev[k] - step_witness[prev_k] = 0  (× 1)
+        // This anchors the step circuit input to the accumulator state - REQUIRED for soundness
+        if !y_prev_witness_indices.is_empty() {
+            for k in 0..y_len {
+                let r = step_rows + ev_rows + x_bind_rows + k; // append after EV + X binders
+                match matrix_idx {
+                    0 => {
+                        data[r * total_cols + (col_y_prev0 + k)] = F::ONE;
+                        data[r * total_cols + (pub_cols + y_prev_witness_indices[k])] = -F::ONE;
+                    }
+                    1 => data[r * total_cols + col_wit0] = F::ONE, // × 1
+                    _ => {}
+                }
+            }
+        }
 
         combined_mats.push(Mat::from_row_major(total_rows, total_cols, data));
     }
@@ -2619,7 +2626,7 @@ pub fn add_stitching_constraints_to_ccs(
     if t % 3 != 0 {
         return Err(format!("Expected t % 3 == 0 (triads), got t={}", t));
     }
-    let triads = t / 3;
+    let _triads = t / 3;
 
     let mut new_matrices = Vec::with_capacity(t);
 
@@ -2633,27 +2640,24 @@ pub fn add_stitching_constraints_to_ccs(
             }
         }
 
-        // For each triad, write the A/B for stitching rows.
-        // Triad k has (A,B,C) at indices (3k, 3k+1, 3k+2).
-        // Our row encodes: (y_next - y_prev) * 1 = 0.
-        for k in 0..triads {
-            let a_idx = 3 * k;
-            let b_idx = 3 * k + 1;
-            let c_idx = 3 * k + 2;
+        // REVIEWER FIX: Add stitching constraints only to the FIRST triad  
+        // to avoid over-constraining by writing to every triad.
+        let a_idx = 0;  // First triad A matrix
+        let b_idx = 1;  // First triad B matrix  
+        let c_idx = 2;  // First triad C matrix
 
-            for i in 0..y_len {
-                let r = old_rows + i;
+        for i in 0..y_len {
+            let r = old_rows + i;
 
-                if mat_idx == a_idx {
-                    // A: y_next[i] - y_prev[i]
-                    data[r * old_cols + (left_y_next_abs + i)] = F::ONE;
-                    data[r * old_cols + (right_y_prev_abs + i)] = -F::ONE;
-                } else if mat_idx == b_idx {
-                    // B: multiply by known-1 column
-                    data[r * old_cols + const1_abs] = F::ONE;
-                } else if mat_idx == c_idx {
-                    // C: leave zero
-                }
+            if mat_idx == a_idx {
+                // A: y_next[i] - y_prev[i]
+                data[r * old_cols + (left_y_next_abs + i)] = F::ONE;
+                data[r * old_cols + (right_y_prev_abs + i)] = -F::ONE;
+            } else if mat_idx == b_idx {
+                // B: multiply by known-1 column
+                data[r * old_cols + const1_abs] = F::ONE;
+            } else if mat_idx == c_idx {
+                // C: leave zero
             }
         }
 

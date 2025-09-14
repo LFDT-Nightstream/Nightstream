@@ -1916,6 +1916,9 @@ pub struct IvcBatchBuilder {
     
     // 🔧 NEW: Track block metadata for proper stitching
     blocks: Vec<BlockMeta>,
+    
+    /// Length of the per-step witness chunk ([step_witness || u]), established on the first append
+    witness_len_per_block: Option<usize>,
 
     // Accumulator state (evolves with each appended step)
     pub accumulator: Accumulator,
@@ -1963,6 +1966,7 @@ impl IvcBatchBuilder {
             batch_public: Vec::new(),
             steps_in_batch: 0,
             blocks: Vec::new(),
+            witness_len_per_block: None,
             accumulator: initial_accumulator,
             policy,
         })
@@ -2049,6 +2053,18 @@ impl IvcBatchBuilder {
         
         // Build linked witness: [step_witness || u] where u = ρ * y_step  
         let this_witness = build_linked_augmented_witness(step_witness, &self.binding_spec.y_step_offsets, rho);
+        
+        // Establish or check per-block witness length
+        if let Some(len) = self.witness_len_per_block {
+            if len != this_witness.len() {
+                return Err(anyhow::anyhow!(
+                    "Inconsistent per-step witness length: got {}, expected {}",
+                    this_witness.len(), len
+                ));
+            }
+        } else {
+            self.witness_len_per_block = Some(this_witness.len());
+        }
         
         println!("🔍 Debug step {} witness construction:", self.steps_in_batch);
         println!("   Input step_witness len: {}", step_witness.len());
@@ -2211,24 +2227,61 @@ impl IvcBatchBuilder {
     /// This is the correct method for `EmissionPolicy::Never` - accumulate fast, prove later.
     pub fn extract_batch(&mut self) -> Option<BatchData> {
         let ccs = self.batch_ccs.take()?;
-        if self.batch_witness.is_empty() {
+        if self.steps_in_batch == 0 {
             return None;
         }
 
-        let batch_data = BatchData {
-            ccs,
-            // ✅ Proper public/witness separation (reviewer-confirmed fix)
-            public_input: std::mem::take(&mut self.batch_public),
-            witness: std::mem::take(&mut self.batch_witness),
-            steps_covered: self.steps_in_batch,
-        };
+        // REVIEWER FIX: Handle single-step vs multi-step differently based on direct_sum usage
         
-        // Reset batch state
+        // Single-step case: the per-step CCS still expects (public, witness)
+        if self.steps_in_batch == 1 {
+            let batch_data = BatchData {
+                ccs,
+                public_input: std::mem::take(&mut self.batch_public),
+                witness: std::mem::take(&mut self.batch_witness),
+                steps_covered: 1,
+            };
+            
+            // Reset batch state
+            self.blocks.clear();
+            self.steps_in_batch = 0;
+            
+            return Some(batch_data);
+        }
+
+        // Multi-step case: the safe direct-sum expects everything packed into the witness
+        let wit_len_per_block = self.witness_len_per_block.expect("set on first append");
+        let steps = self.blocks.len(); // Capture before clearing
+        let mut combined_witness = 
+            Vec::with_capacity(self.batch_public.len() + self.batch_witness.len());
+
+        let mut p_off = 0usize;
+        let mut w_off = 0usize;
+
+        for blk in &self.blocks {
+            let pub_len = blk.pub_len;
+            // [block_public || block_witness]
+            combined_witness.extend_from_slice(&self.batch_public[p_off .. p_off + pub_len]);
+            combined_witness.extend_from_slice(&self.batch_witness[w_off .. w_off + wit_len_per_block]);
+            p_off += pub_len;
+            w_off += wit_len_per_block;
+        }
+
+        debug_assert_eq!(p_off, self.batch_public.len());
+        debug_assert_eq!(w_off, self.batch_witness.len());
+
+        // Reset rolling buffers for next batch
         self.blocks.clear();
         self.steps_in_batch = 0;
-        // batch_public and batch_witness are already cleared by std::mem::take
+        self.batch_public.clear();
+        self.batch_witness.clear();
 
-        Some(batch_data)
+        Some(BatchData {
+            ccs,
+            public_input: Vec::new(), // <- IMPORTANT: all inputs are now in witness
+            witness: combined_witness,
+            steps_covered: steps,
+        })
     }
 
     /// Emit a single SNARK proof for the *current batch*, then reset the batch.
@@ -2451,7 +2504,7 @@ pub fn build_augmented_ccs_linked(
     let step_rows = step_ccs.n;
     let ev_rows = 2 * y_len;
     let x_bind_rows = step_x_len;
-    let prev_bind_rows = if y_prev_witness_indices.is_empty() { 0 } else { y_len }; // 🔴 REMOVED: y_prev binder incompatible with folding
+    let prev_bind_rows = 0; // 🔒 Do not bind public y_prev to step witness columns in folding
     let total_rows = step_rows + ev_rows + x_bind_rows + prev_bind_rows;
 
     // Witness: [ step_witness || u ]
@@ -2517,21 +2570,9 @@ pub fn build_augmented_ccs_linked(
             }
         }
 
-        // REVIEWER FIX: Binder prev: y_prev[k] - step_witness[prev_k] = 0  (× 1)
-        // This anchors the step circuit input to the accumulator state - REQUIRED for soundness
-        if !y_prev_witness_indices.is_empty() {
-            for k in 0..y_len {
-                let r = step_rows + ev_rows + x_bind_rows + k; // append after EV + X binders
-                match matrix_idx {
-                    0 => {
-                        data[r * total_cols + (col_y_prev0 + k)] = F::ONE;
-                        data[r * total_cols + (pub_cols + y_prev_witness_indices[k])] = -F::ONE;
-                    }
-                    1 => data[r * total_cols + col_wit0] = F::ONE, // × 1
-                    _ => {}
-                }
-            }
-        }
+        // 🔒 REMOVED: y_prev binder incompatible with folding semantics
+        // The public y_prev (accumulated state) should NOT equal step witness columns.
+        // Security comes from: (1) u = ρ*y_step linked to witness, (2) public stitching y_next^(i) == y_prev^(i+1)
 
         combined_mats.push(Mat::from_row_major(total_rows, total_cols, data));
     }

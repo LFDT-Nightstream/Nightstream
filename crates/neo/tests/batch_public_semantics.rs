@@ -96,33 +96,51 @@ fn batch_builder_properly_separates_public_witness() {
     let x_len = 0usize;
     let y_len = 1usize;
     let pub_len_per_step = x_len + 1 + 2 * y_len; // [step_x||ρ||y_prev||y_next] = 3
-    let expected_public_len = steps * pub_len_per_step;
-    
-    // ✅ This test verifies the CORRECTED behavior: public inputs properly separated
-    assert_eq!(
-        data.public_input.len(),
-        expected_public_len,
-        "BatchData.public_input must contain all per-step public data; \
-         got {}, expected {} (steps={}, pub_per_step={})",
-        data.public_input.len(),
-        expected_public_len,
-        steps,
-        pub_len_per_step
-    );
-
     let wit_len_per_step = 4 + y_len; // [1, prev_x, step_num, next_x] + u = 5 
-    let expected_witness_len = steps * wit_len_per_step;
 
-    assert_eq!(
-        data.witness.len(),
-        expected_witness_len,
-        "BatchData.witness must contain only witness data; \
-         got {}, expected {} (steps={}, wit_per_step={})",
-        data.witness.len(),
-        expected_witness_len, 
-        steps,
-        wit_len_per_step
-    );
+    // ✅ REVIEWER FIX: Handle single-step vs multi-step correctly
+    if steps == 1 {
+        // Single-step: public_input contains public data, witness contains witness data
+        let expected_public_len = pub_len_per_step;
+        let expected_witness_len = wit_len_per_step;
+        
+        assert_eq!(
+            data.public_input.len(),
+            expected_public_len,
+            "Single-step BatchData.public_input must contain public data; \
+             got {}, expected {}",
+            data.public_input.len(),
+            expected_public_len
+        );
+        
+        assert_eq!(
+            data.witness.len(),
+            expected_witness_len,
+            "Single-step BatchData.witness must contain witness data; \
+             got {}, expected {}",
+            data.witness.len(),
+            expected_witness_len
+        );
+    } else {
+        // Multi-step: public_input is empty, witness contains everything in per-block format
+        assert_eq!(
+            data.public_input.len(),
+            0,
+            "Multi-step BatchData.public_input must be empty (everything packed in witness)"
+        );
+        
+        let expected_combined_len = steps * (pub_len_per_step + wit_len_per_step);
+        assert_eq!(
+            data.witness.len(),
+            expected_combined_len,
+            "Multi-step BatchData.witness must contain per-block format [pub||wit] for each step; \
+             got {}, expected {} (steps={}, block_size={})",
+            data.witness.len(),
+            expected_combined_len,
+            steps,
+            pub_len_per_step + wit_len_per_step
+        );
+    }
 }
 
 /// 2) RED‑TEAM: tamper ρ in the public inputs and the CCS must reject.
@@ -166,28 +184,35 @@ fn batch_public_tamper_rho_fails() {
 
     let data = batch.finalize().expect("expected non-empty batch");
 
-    // Confirm public inputs are properly populated (not empty)
-    assert!(
-        !data.public_input.is_empty(),
-        "public_input must be populated for this test to be meaningful"
-    );
-
-    // Public input layout: [step1_public || step2_public] 
-    // where each step_public = [step_x || ρ || y_prev || y_next]
-    let _steps = 2;
+    let steps = 2;
     let x_len = 0;
     let y_len = 1;
-    let pub_len_per_step = x_len + 1 + 2 * y_len; // [x || rho || y_prev || y_next] = 3
-    let rho_step0 = 0 * pub_len_per_step + x_len;  // = 0 (first ρ)
-    let _rho_step1 = 1 * pub_len_per_step + x_len;  // = 3 (second ρ)
-    
-    let mut tampered_public = data.public_input.clone();
-    
-    // Flip ρ for the first step: tamper the actual public input
-    tampered_public[rho_step0] = tampered_public[rho_step0] + F::ONE;
+    let _pub_len_per_step = x_len + 1 + 2 * y_len; // [x || rho || y_prev || y_next] = 3
 
-    // With properly separated public/witness, tampering ρ must break constraints.
-    let err = check_ccs_rowwise_zero(&data.ccs, &tampered_public, &data.witness)
-        .expect_err("Tampering ρ in public inputs should make CCS constraints fail");
-    eprintln!("Expected failure after ρ tamper in public inputs: {:?}", err);
+    // REVIEWER FIX: Handle multi-step correctly (public_input will be empty)
+    if steps == 1 {
+        // Single-step: ρ is in public_input
+        assert!(!data.public_input.is_empty(), "Single-step batch must have public_input");
+        
+        let mut tampered_public = data.public_input.clone();
+        let rho_idx = x_len; // ρ is right after step_x
+        tampered_public[rho_idx] = tampered_public[rho_idx] + F::ONE;
+
+        let err = check_ccs_rowwise_zero(&data.ccs, &tampered_public, &data.witness)
+            .expect_err("Tampering ρ in public inputs should make CCS constraints fail");
+        eprintln!("Expected failure after ρ tamper in single-step public: {:?}", err);
+    } else {
+        // Multi-step: ρ is in witness (per-block format)
+        assert_eq!(data.public_input.len(), 0, "Multi-step batch must have empty public_input");
+        
+        let mut tampered_witness = data.witness.clone();
+        // In per-block format: [pub0 || wit0 || pub1 || wit1]
+        // First ρ is at index x_len = 0 (first element of first public block)
+        let rho_step0_idx = x_len; // = 0
+        tampered_witness[rho_step0_idx] = tampered_witness[rho_step0_idx] + F::ONE;
+
+        let err = check_ccs_rowwise_zero(&data.ccs, &data.public_input, &tampered_witness)
+            .expect_err("Tampering ρ in witness should make CCS constraints fail");
+        eprintln!("Expected failure after ρ tamper in multi-step witness: {:?}", err);
+    }
 }

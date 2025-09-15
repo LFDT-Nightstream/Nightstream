@@ -74,7 +74,7 @@ fn make_instance_and_witness(params: &NeoParams, offset: u64, l: &DummyS) -> (Mc
 
     // Expose one public input so X has 1 column (fixes X 54x0 in digits)
     let inst = McsInstance { c, x: vec![z[0]], m_in: 1 };
-    let wit  = McsWitness { w: z, Z };
+    let wit  = McsWitness { w: z[1..].to_vec(), Z };
     (inst, wit)
 }
 
@@ -158,7 +158,6 @@ fn tie_residual(s: &neo_ccs::CcsStructure<F>, Z: &neo_ccs::Mat<F>, r: &[K], y: &
 }
 
 #[test]
-#[ignore] // TODO: Debug Π_DEC verification failure - may be issue with witness recombination logic
 fn folding_roundtrip_accepts() {
     // Parameters: create minimal test parameters with k=2
     let params = NeoParams {

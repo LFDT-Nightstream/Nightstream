@@ -72,8 +72,8 @@ fn make_instance_and_witness(params: &NeoParams, offset: u64, l: &DummyS) -> (Mc
     // Use dummy commitment with correct shape
     let c = l.commit(&Z);
 
-    // Set m_in to 0 for simplicity (all variables are private)
-    let inst = McsInstance { c, x: vec![], m_in: 0 };
+    // Expose one public input so X has 1 column (fixes X 54x0 in digits)
+    let inst = McsInstance { c, x: vec![z[0]], m_in: 1 };
     let wit  = McsWitness { w: z, Z };
     (inst, wit)
 }

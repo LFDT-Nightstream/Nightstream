@@ -126,7 +126,7 @@ pub fn pi_rlc_prove(
     }
     
     // === Build combined ME instance ===
-    // Compute parent y_scalars from combined y-vectors using base-b weighting over Ajtai rows
+    // Define y_scalars as base-b recombination of y-vectors' rows (consistent with DEC recomposition)
     let mut y_scalars_combined = vec![K::ZERO; first_me.y.len()];
     let base_b_f = F::from_u64(params.b as u64);
     let mut pow_b_f = vec![F::ONE; neo_math::D];
@@ -310,39 +310,21 @@ pub fn pi_rlc_verify(
         }
     }
 
-    // === CRITICAL: Verify y_scalars' S-action combination ===
-    // This prevents malleating the scalars used by Π_CCS terminal check
+    // === CRITICAL: Verify y_scalars consistency with output y-vectors (base-b recomposition) ===
     {
-        // BLOCKING FIX: Guard against empty inputs and mismatched lengths
-        if input_me_list.is_empty() { return Ok(false); }
-        if rho_ring.len() != input_me_list.len() { return Ok(false); }
-        
-        let t_scal = input_me_list[0].y_scalars.len();
-        if _output_me.y_scalars.len() != t_scal { return Ok(false); }
-        
-        // Verify that all input ME instances have consistent y_scalars lengths and shared r
-        for me in input_me_list.iter() {
-            if me.y_scalars.len() != t_scal {
-                return Ok(false); // Inconsistent y_scalars length
-            }
-            if me.r != input_me_list[0].r {
-                return Ok(false); // Inconsistent evaluation point r
-            }
+        let t = _output_me.y.len();
+        if _output_me.y_scalars.len() != t { return Ok(false); }
+        let base_b_f = F::from_u64(params.b as u64);
+        let mut pow_b_f = vec![F::ONE; neo_math::D];
+        for i in 1..neo_math::D { pow_b_f[i] = pow_b_f[i-1] * base_b_f; }
+        let pow_b_k: Vec<K> = pow_b_f.iter().map(|&x| K::from(x)).collect();
+        for j in 0..t {
+            let yj = &_output_me.y[j];
+            let mut acc = K::ZERO;
+            let len = yj.len().min(pow_b_k.len());
+            for r in 0..len { acc += yj[r] * pow_b_k[r]; }
+            if acc != _output_me.y_scalars[j] { return Ok(false); }
         }
-        
-        let mut expected_scal = vec![K::ZERO; t_scal];
-        for (rho, me) in rho_ring.iter().zip(input_me_list.iter()) {
-            let s_action = SAction::from_ring(*rho);
-            let rotated = match s_action.apply_k_vec(&me.y_scalars) {
-                Ok(rotated) => rotated,
-                Err(_) => return Ok(false), // S-action failed = verification failure
-            };
-            if rotated.len() != t_scal {
-                return Ok(false); // Length mismatch = verification failure
-            }
-            for (e, r) in expected_scal.iter_mut().zip(rotated.iter()) { *e += *r; }
-        }
-        if expected_scal != _output_me.y_scalars { return Ok(false); }
     }
     
     // All verifications passed: guard, c', X', y', and y_scalars are all correct

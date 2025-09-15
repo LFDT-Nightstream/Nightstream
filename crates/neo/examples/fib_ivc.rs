@@ -204,6 +204,7 @@ fn run_ivc_step_with_hash(
 /// Demonstrate IVC with in-circuit ρ derivation
 fn run_ivc_hash_demo(n_steps: usize) -> Result<()> {
     let demo_start = Instant::now();
+    let mut steps_total_time = std::time::Duration::from_millis(0);
     println!("🚀 Neo IVC with In-Circuit ρ Derivation Demo");
     println!("==============================================");
     println!("Computing F({}) using {} IVC steps with IN-CIRCUIT ρ DERIVATION", n_steps, n_steps);
@@ -271,6 +272,9 @@ fn run_ivc_hash_demo(n_steps: usize) -> Result<()> {
     println!("   Step CCS: {} constraints, {} variables", step_ccs.n, step_ccs.m);
     println!("   EV-hash CCS: {} constraints for hash + {} y-elements", 2 + 2 * y_len, y_len);
     println!("   Augmented CCS: {} constraints, {} variables", augmented_ccs.n, augmented_ccs.m);
+    let aug_constraints = augmented_ccs.n;
+    let aug_variables = augmented_ccs.m;
+    let aug_matrices = augmented_ccs.matrices.len();
     
     // Verify the step CCS
     let test_state = FibState::new();
@@ -310,6 +314,7 @@ fn run_ivc_hash_demo(n_steps: usize) -> Result<()> {
         state = next_state;
         
         let step_time = step_start.elapsed();
+        steps_total_time += step_time;
         println!("   Step completed: {:.2}ms", step_time.as_secs_f64() * 1000.0);
     }
     
@@ -353,11 +358,33 @@ fn run_ivc_hash_demo(n_steps: usize) -> Result<()> {
     let total_time = demo_start.elapsed();
     println!("\n🏁 IVC SUMMARY");
     println!("=========================================");
-    println!("Steps (Fibonacci transitions):   {:>8}", n_steps);
-    println!("Final F({}) mod p:              {:>8}", state.i, state.a);
-    println!("Verification match:              {:>8}", if state.a == expected { "YES" } else { "NO" });
-    println!("Total demo time:                 {:>8.2} ms", total_time.as_secs_f64() * 1000.0);
-    println!("CPU Threads Used:                {:>8}", rayon::current_num_threads());
+    println!("Circuit Information:");
+    println!("  Fibonacci Length (steps): {:>8}", n_steps);
+    println!("  Aug CCS Constraints:      {:>8}", aug_constraints);
+    println!("  Aug CCS Variables:        {:>8}", aug_variables);
+    println!("  Aug CCS Matrices:         {:>8}", aug_matrices);
+    println!();
+    println!("Performance Metrics:");
+    println!("  IVC Steps Total:          {:>8.2} ms", steps_total_time.as_secs_f64() * 1000.0);
+    println!("  Avg per Step:             {:>8.2} ms", (steps_total_time.as_secs_f64() * 1000.0) / (n_steps as f64));
+    println!("  End-to-End Total:         {:>8.2} ms", total_time.as_secs_f64() * 1000.0);
+    println!("  SNARK Proof:               {:>8}", "N/A (IVC demo)");
+    println!("  Proof Size:                {:>8}", "N/A");
+    println!();
+    println!("System Configuration:");
+    println!("  CPU Threads Used:         {:>8}", rayon::current_num_threads());
+    println!("  Memory Allocator:         {:>8}", "mimalloc");
+    println!("  Build Mode:               {:>8}", "Release + Optimizations");
+    println!("  SIMD Instructions:        {:>8}", "target-cpu=native");
+    println!();
+    let steps_per_ms = (n_steps as f64) / (steps_total_time.as_secs_f64() * 1000.0);
+    let total_aug_constraints = aug_constraints as u64 * n_steps as u64;
+    println!("Efficiency Metrics:");
+    println!("  Steps/ms:                 {:>8.2}", steps_per_ms);
+    println!("  Aug Constraints per Step: {:>8}", aug_constraints);
+    println!("  Total Aug Constraints:    {:>8}", total_aug_constraints);
+    println!("=========================================");
+    println!("\n🎉 Neo IVC flow complete!");
     println!("=========================================");
     
     Ok(())

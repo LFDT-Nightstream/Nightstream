@@ -126,15 +126,17 @@ pub fn pi_rlc_prove(
     }
     
     // === Build combined ME instance ===
-    // SECURITY FIX: Combine y_scalars using same S-action as other components
-    let mut y_scalars_combined = vec![K::ZERO; first_me.y_scalars.len()];
-    for (me, rho_ring) in me_list.iter().zip(&rho_ring_elems) {
-        let s_action = SAction::from_ring(*rho_ring);
-        let rotated_scalars = s_action.apply_k_vec(&me.y_scalars)
-            .map_err(|e| PiRlcError::SActionError(format!("y_scalars rotation failed: {e}")))?;
-        for (combined, &rotated) in y_scalars_combined.iter_mut().zip(&rotated_scalars) {
-            *combined += rotated;
-        }
+    // Compute parent y_scalars from combined y-vectors using base-b weighting over Ajtai rows
+    let mut y_scalars_combined = vec![K::ZERO; first_me.y.len()];
+    let base_b_f = F::from_u64(params.b as u64);
+    let mut pow_b_f = vec![F::ONE; neo_math::D];
+    for i in 1..neo_math::D { pow_b_f[i] = pow_b_f[i-1] * base_b_f; }
+    let pow_b_k: Vec<K> = pow_b_f.iter().map(|&x| K::from(x)).collect();
+    for (j, yj_vec) in y_prime.iter().enumerate() {
+        let mut acc = K::ZERO;
+        let len = yj_vec.len().min(pow_b_k.len());
+        for r in 0..len { acc += yj_vec[r] * pow_b_k[r]; }
+        y_scalars_combined[j] = acc;
     }
 
     let me_combined = MeInstance {

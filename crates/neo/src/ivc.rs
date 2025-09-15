@@ -1352,12 +1352,11 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
     //    Bind step_x to a Poseidon2 digest of the previous accumulator (Las requirement).
     let acc_digest_fields = compute_accumulator_digest_fields(&input.prev_accumulator)?;
     let step_x: Vec<F> = match input.public_input {
-        Some(x) => {
-            let provided = x.to_vec();
-            if provided != acc_digest_fields {
-                return Err("step public input must equal H(prev_accumulator)".into());
-            }
-            provided
+        Some(app_inputs) => {
+            // Support x = [H(prev_acc) || app_inputs]
+            let mut combined = acc_digest_fields.clone();
+            combined.extend_from_slice(app_inputs);
+            combined
         }
         None => acc_digest_fields,
     };
@@ -1375,10 +1374,10 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
     }
     // Allow empty x_witness_indices (no binders) even when step_x is present.
     // If binders are provided, the lengths must match.
-    if !input.binding_spec.x_witness_indices.is_empty()
-        && input.binding_spec.x_witness_indices.len() != step_x.len()
-    {
-        return Err("x_witness_indices length must match step_x length when provided".into());
+    if !input.binding_spec.x_witness_indices.is_empty() {
+        if input.binding_spec.x_witness_indices.len() != step_x.len() {
+            return Err("x_witness_indices length must match step_x length when provided".into());
+        }
     }
 
     // 3. Build base augmented CCS (step ⊕ embedded verifier) 
@@ -1506,8 +1505,11 @@ pub fn verify_ivc_step(
     binding_spec: &StepBindingSpec,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     // 0. Enforce Las binding: step_x must equal H(prev_accumulator)
-    let expected_x = compute_accumulator_digest_fields(prev_accumulator)?;
-    if ivc_proof.step_public_input != expected_x {
+    let expected_prefix = compute_accumulator_digest_fields(prev_accumulator)?;
+    if ivc_proof.step_public_input.len() < expected_prefix.len() {
+        return Ok(false);
+    }
+    if ivc_proof.step_public_input[..expected_prefix.len()] != expected_prefix[..] {
         return Ok(false);
     }
 

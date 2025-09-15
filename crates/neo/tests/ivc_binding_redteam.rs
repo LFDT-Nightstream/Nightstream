@@ -41,7 +41,7 @@ fn compute_x_digest(acc: &Accumulator) -> Vec<F> {
 }
 
 #[test]
-fn prover_rejects_wrong_step_x_digest() {
+fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_increment_step_ccs();
 
@@ -65,25 +65,24 @@ fn prover_rejects_wrong_step_x_digest() {
         const1_witness_index: 0,
     };
 
-    // Wrong x (does not equal H(prev_acc)) - must match digest size (4 elements)
-    let wrong_x = vec![F::from_u64(123456), F::from_u64(789), F::from_u64(101112), F::from_u64(131415)];
+    // Attempt to provide a fake digest as public input; this is treated as app inputs now
+    let malicious_app_inputs = vec![F::from_u64(123456), F::from_u64(789), F::from_u64(101112), F::from_u64(131415)];
     let input = IvcStepInput {
         params: &params,
         step_ccs: &step_ccs,
         step_witness: &step_witness,
         prev_accumulator: &prev_acc,
         step: 0,
-        public_input: Some(&wrong_x),
+        public_input: Some(&malicious_app_inputs),
         y_step: &y_step,
         binding_spec: &binding,
     };
 
-    let result = prove_ivc_step(input);
-    assert!(result.is_err(), "prover should reject wrong step_x digest");
-    if let Err(err) = result {
-        let msg = format!("{}", err);
-        assert!(msg.contains("must equal H(prev_accumulator)"));
-    }
+    let result = prove_ivc_step(input).expect("prover should accept and prepend digest prefix");
+    // Verify the prefix equals H(prev_acc)
+    let expected_prefix = compute_x_digest(&prev_acc);
+    assert!(result.proof.step_public_input.len() >= expected_prefix.len());
+    assert_eq!(&result.proof.step_public_input[..expected_prefix.len()], &expected_prefix[..]);
 }
 
 #[test]

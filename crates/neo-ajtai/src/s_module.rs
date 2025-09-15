@@ -20,7 +20,7 @@ pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
     let key = (pp.d, pp.m);
     let mut w = registry()
         .write()
-        .map_err(|_| AjtaiError::Internal("PP registry poisoned"))?;
+        .map_err(|_| AjtaiError::Internal("PP registry poisoned".to_string()))?;
     w.entry(key).or_insert_with(|| Arc::new(pp));
     Ok(())
 }
@@ -29,12 +29,12 @@ pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
 pub fn get_global_pp() -> Result<PPRef, AjtaiError> {
     let r = registry()
         .read()
-        .map_err(|_| AjtaiError::Internal("PP registry poisoned"))?;
+        .map_err(|_| AjtaiError::Internal("PP registry poisoned".to_string()))?;
     let mut it = r.values();
     match (it.next(), it.next()) {
         (Some(pp), None) => Ok(pp.clone()),
-        (None, _) => Err(AjtaiError::InvalidInput("Ajtai PP not initialized (call set_global_pp())")),
-        _ => Err(AjtaiError::InvalidInput("Multiple Ajtai PPs present; use get_global_pp_for_dims()")),
+        (None, _) => Err(AjtaiError::InvalidInput("Ajtai PP not initialized (call set_global_pp())".to_string())),
+        _ => Err(AjtaiError::InvalidInput("Multiple Ajtai PPs present; use get_global_pp_for_dims()".to_string())),
     }
 }
 
@@ -47,16 +47,16 @@ pub fn has_global_pp_for_dims(d: usize, m: usize) -> bool {
 pub fn get_global_pp_for_dims(d: usize, m: usize) -> Result<PPRef, AjtaiError> {
     registry()
         .read()
-        .map_err(|_| AjtaiError::Internal("PP registry poisoned"))?
+        .map_err(|_| AjtaiError::Internal("PP registry poisoned".to_string()))?
         .get(&(d, m))
         .cloned()
-        .ok_or(AjtaiError::InvalidInput("Ajtai PP not initialized for requested (d,m)"))
+        .ok_or(AjtaiError::InvalidInput("Ajtai PP not initialized for requested (d,m)".to_string()))
 }
 
 /// Get the Ajtai PP using `z_len = d*m`.
 pub fn get_global_pp_for_z_len(z_len: usize) -> Result<PPRef, AjtaiError> {
     let d = neo_math::D;
-    if z_len % d != 0 { return Err(AjtaiError::InvalidInput("z_len not multiple of D")); }
+    if z_len % d != 0 { return Err(AjtaiError::InvalidInput("z_len not multiple of D".to_string())); }
     get_global_pp_for_dims(d, z_len / d)
 }
 
@@ -88,7 +88,7 @@ impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
         // Mat is row-major; Ajtai commit expects column-major (d×m)
         let mut col_major = vec![Fq::ZERO; d * m];
         for c in 0..m { for r in 0..d { col_major[c*d + r] = z[(r,c)]; } }
-        ajtai_commit(&*self.pp, &col_major)
+        ajtai_commit(&self.pp, &col_major)
     }
 
     fn project_x(&self, z: &Mat<Fq>, min: usize) -> Mat<Fq> {

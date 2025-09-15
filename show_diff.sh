@@ -157,22 +157,47 @@ fi
         untracked_count=$(echo "$untracked_files" | wc -l)
     fi
     
+    # Calculate file statistics for the summary
+    if [ -f "$output_file" ]; then
+        summary_size=$(wc -c < "$output_file")
+        summary_lines=$(wc -l < "$output_file")
+        summary_words=$(wc -w < "$output_file")
+        # Approximate AI token count (1 token ≈ 4 characters for English text)
+        summary_ai_tokens=$((summary_size / 4))
+    else
+        summary_size=0
+        summary_lines=0
+        summary_words=0
+        summary_ai_tokens=0
+    fi
+    
     echo "Modified files: $modified_count"
     echo "Untracked files: $untracked_count"
     if [ ${#paths[@]} -gt 0 ]; then
         echo "Filtered paths: ${paths[*]}"
     fi
+    echo ""
+    echo "File Statistics:"
+    echo "Total size: ${summary_size} bytes"
+    echo "Total lines: ${summary_lines}"
+    echo "Total words: ${summary_words}"
+    echo "Total AI tokens (est): ${summary_ai_tokens}"
 } >> "$output_file"
 
 # Show final statistics
 if [ -f "$output_file" ]; then
     final_size=$(wc -c < "$output_file")
     final_lines=$(wc -l < "$output_file")
+    final_words=$(wc -w < "$output_file")
+    # Approximate AI token count (1 token ≈ 4 characters for English text)
+    final_ai_tokens=$((final_size / 4))
     echo
     echo "=== Diff Report Generated ==="
     echo "Output file: $output_file"
     echo "Total size: ${final_size} bytes"
     echo "Total lines: ${final_lines}"
+    echo "Total words: ${final_words}"
+    echo "Total AI tokens (est): ${final_ai_tokens}"
     echo
     echo "View the diff with: cat $output_file"
     echo "Or open in editor: nano $output_file"

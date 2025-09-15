@@ -33,14 +33,14 @@ fn tiny_me_instance() -> (MEInstance, MEWitness) {
     };
     let c0 = dot_f_z(&ajtai_rows[0]); // = 1
     let c1 = dot_f_z(&ajtai_rows[1]); // = 2
-    let c_coords = vec![c0, c1, F::ZERO, F::ZERO];
+    let c_coords = vec![c0, c1]; // Match the number of Ajtai rows
 
     // ME weights: w0 sums z0..z3; w1 sums z5+z7
     let w0 = vec![F::ONE, F::ONE, F::ONE, F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO];
     let w1 = vec![F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ONE];
     let y0 = dot_f_z(&w0); // 1+2+3+0 = 6
     let y1 = dot_f_z(&w1); // 1 + 2 = 3 (z5 + z7)
-    let y_outputs = vec![y0, y1, F::ZERO, F::ZERO];
+    let y_outputs = vec![y0, y1]; // Match the number of weight vectors
 
     let me = MEInstance {
         c_coords,

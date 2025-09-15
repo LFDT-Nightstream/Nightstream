@@ -1,4 +1,5 @@
 use neo_ajtai::{setup, commit as ajtai_commit, set_global_pp, AjtaiSModule};
+use std::sync::Arc;
 use neo_ccs::{Mat, traits::SModuleHomomorphism};
 use neo_math::F as Fq;
 use p3_field::PrimeCharacteristicRing as _;
@@ -10,7 +11,7 @@ fn ajtai_smodule_commit_matches_direct_commit() {
     let kappa = 4; let m = 3;
     let pp = setup(&mut rng, d, kappa, m).unwrap();
     set_global_pp(pp.clone()).unwrap();
-    let l = AjtaiSModule::new(&pp);
+    let l = AjtaiSModule::new(Arc::new(pp.clone()));
 
     // Random Z as a d×m row-major matrix, then re-commit both ways
     let mut z = Mat::zero(d, m, Fq::ZERO);

@@ -35,6 +35,7 @@ fn bridge_rejects_public_io_tamper() {
         ccs: &ccs,
         public_input: &public_input,
         witness: &witness,
+        output_claims: &[],
     };
     
     let proof = prove(prove_input).expect("Proof generation should succeed");
@@ -75,6 +76,7 @@ fn bridge_rejects_different_ccs() {
         ccs: &ccs1,
         public_input: &public_input,
         witness: &witness,
+        output_claims: &[],
     };
     
     let proof = prove(prove_input).expect("Proof generation should succeed");

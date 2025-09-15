@@ -26,18 +26,147 @@
 
 use anyhow::Result;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use dashmap::DashMap;
 use ff::Field;
+use once_cell::sync::Lazy;
 use p3_field::{PrimeField64, PrimeCharacteristicRing};
+use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+use p3_symmetric::{Permutation};
+// RNG imports are now local to the static initializer
 use spartan2::errors::SpartanError;
 use spartan2::provider::GoldilocksMerkleMleEngine as E;
 use spartan2::spartan::{R1CSSNARK, SpartanProverKey, SpartanVerifierKey};
 use spartan2::traits::{circuit::SpartanCircuit, Engine, pcs::PCSEngineTrait, snark::R1CSSNARKTrait};
+use std::sync::Arc;
 
 // Real Spartan2 SNARK uses circuits directly, not R1CS shapes
 // (the R1CS conversion happens internally)
 
 use neo_ajtai::PP as AjtaiPP; // for later PP-backed binding
 use neo_ccs::{MEInstance, MEWitness};
+
+/// Circuit fingerprint key for caching SNARK setup and preparation
+/// SECURITY CRITICAL: This must fingerprint the actual constraint constants/wiring, 
+/// not just sizes. Two circuits with same dimensions but different matrices 
+/// CANNOT safely share keys.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct CircuitKey([u8; 32]);
+
+impl CircuitKey {
+    pub fn from_circuit(circuit: &MeCircuit) -> Self {
+        // Use Poseidon2 over Goldilocks for program fingerprinting (consistent with Neo transcript)
+        const WIDTH: usize = 16;
+        
+        let mut state = Vec::<Goldilocks>::new();
+        
+        // Domain separation tag and versioning (encode as field elements)
+        state.push(Goldilocks::from_u64(0x4e454f5f50524f)); // "NEO_PRO" as u64  
+        state.push(Goldilocks::from_u64(0x4752414d5f4b4559)); // "GRAM_KEY" as u64
+        state.push(Goldilocks::from_u64(2)); // version 2 (excludes public input values)
+        
+        // Base parameters that alter constraint generation
+        state.push(Goldilocks::from_u64(circuit.me.base_b));
+        state.push(Goldilocks::from_u64(circuit.wit.z_digits.len() as u64));
+        state.push(Goldilocks::from_u64(circuit.me.c_coords.len() as u64));
+        state.push(Goldilocks::from_u64(circuit.me.y_outputs.len() as u64));
+        state.push(Goldilocks::from_u64(circuit.me.r_point.len() as u64));
+        
+        // CRITICAL: Hash all Ajtai rows (constraint matrix constants)
+        if let Some(rows) = &circuit.wit.ajtai_rows {
+            state.push(Goldilocks::from_u64(rows.len() as u64));
+            for row in rows {
+                state.push(Goldilocks::from_u64(row.len() as u64));
+                for &coeff in row {
+                    state.push(Goldilocks::from_u64(coeff.as_canonical_u64()));
+                }
+            }
+        } else {
+            state.push(Goldilocks::ZERO);
+        }
+        
+        // CRITICAL: Hash all weight vectors (constraint matrix constants)
+        state.push(Goldilocks::from_u64(circuit.wit.weight_vectors.len() as u64));
+        for weight_vec in &circuit.wit.weight_vectors {
+            state.push(Goldilocks::from_u64(weight_vec.len() as u64));
+            for &coeff in weight_vec {
+                state.push(Goldilocks::from_u64(coeff.as_canonical_u64()));
+            }
+        }
+        
+        // CIRCUIT STRUCTURE ONLY: Hash counts/lengths that affect circuit shape,
+        // but NOT the values of public inputs (c_coords, y_outputs, r_point, fold_digest).
+        // Public input values vary per instance and must not fragment the PK/VK cache.
+        
+        // Include counts/lengths that determine circuit structure
+        state.push(Goldilocks::from_u64(circuit.me.c_coords.len() as u64));
+        state.push(Goldilocks::from_u64(circuit.me.y_outputs.len() as u64)); 
+        state.push(Goldilocks::from_u64(circuit.me.r_point.len() as u64));
+        
+        // Fold digest is per-instance randomness, not circuit structure - exclude values
+        // (If needed for transcript binding, it should be a public input, not in cache key)
+        
+        // Apply Poseidon2 permutation to get deterministic fingerprint
+        // STABILITY: Create a singleton Poseidon2 instance for circuit fingerprinting
+        // This avoids RNG-dependent construction and ensures fingerprint stability
+        // across library versions and builds.
+        static CIRCUIT_FINGERPRINT_POSEIDON2: Lazy<Poseidon2Goldilocks<16>> = 
+            Lazy::new(|| {
+                use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
+                // NOTE: This RNG usage is one-time on first use (lazy runtime init).
+                // It yields deterministic constants per process for the fixed seed,
+                // but may still change across library versions if parameter derivation changes.
+                // For maximum stability across versions, prefer explicit fixed Poseidon2 parameters.
+                const FINGERPRINT_SEED: u64 = 0x4E454F5F434B4559; // "NEO_CKEY" - distinct from transcript
+                let mut rng = ChaCha8Rng::seed_from_u64(FINGERPRINT_SEED);
+                Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng)
+            });
+        let poseidon2 = &*CIRCUIT_FINGERPRINT_POSEIDON2;
+        
+        // Pad to multiple of width (16 for Poseidon2)
+        let mut padded_state = state;
+        while padded_state.len() % WIDTH != 0 {
+            padded_state.push(Goldilocks::ZERO);
+        }
+        
+        // Hash in chunks of WIDTH, building up a running hash
+        let mut final_hash = [Goldilocks::ZERO; WIDTH];
+        for chunk in padded_state.chunks(WIDTH) {
+            let mut chunk_array = [Goldilocks::ZERO; WIDTH];
+            chunk_array[..chunk.len()].copy_from_slice(chunk);
+            // Absorb previous hash state (Merkle-Damgård style)
+            for (i, &val) in final_hash.iter().enumerate() {
+                chunk_array[i] += val;
+            }
+            poseidon2.permute_mut(&mut chunk_array);
+            final_hash = chunk_array;
+        }
+        
+        // Convert to 32-byte digest (use first 4 field elements)
+        let mut digest = [0u8; 32];
+        for (i, &elem) in final_hash[..4].iter().enumerate() {
+            digest[i*8..(i+1)*8].copy_from_slice(&elem.as_canonical_u64().to_le_bytes());
+        }
+        
+        Self(digest)
+    }
+    
+    /// Extract the inner bytes for use in lean proof system
+    pub fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+/// Global cache for SNARK proving keys (keyed by circuit fingerprint)
+static PK_CACHE: Lazy<DashMap<CircuitKey, Arc<SpartanProverKey<E>>>> =
+    Lazy::new(DashMap::new);
+
+/// Global cache for SNARK verifying keys (keyed by circuit fingerprint)
+static VK_CACHE: Lazy<DashMap<CircuitKey, Arc<SpartanVerifierKey<E>>>> =
+    Lazy::new(DashMap::new);
+
+// Note: Prepared SNARK caching would provide additional performance benefits,
+// but requires determining the exact return type of prep_prove() from Spartan2.
+// The PK/VK caching above provides the largest performance win.
 
 /// ME(b,L) circuit
 #[derive(Clone, Debug)]
@@ -166,7 +295,9 @@ impl SpartanCircuit<E> for MeCircuit {
         
         // 1) Allocate REST witness variables exactly in the z_digits order
         #[cfg(feature = "debug-logs")]
-        // eprintln!("🔍 Witness allocation (REST segment - z_digits first):");
+        eprintln!("🔍 Witness allocation (REST segment - z_digits first):");
+        
+        // CRITICAL FIX: Always allocate witness variables, not just when debug-logs is enabled
         for (i, &z) in self.wit.z_digits.iter().enumerate() {
             let val = if z >= 0 {
                 <E as Engine>::Scalar::from(z as u64)
@@ -174,7 +305,8 @@ impl SpartanCircuit<E> for MeCircuit {
                 -<E as Engine>::Scalar::from((-z) as u64)
             };
             #[cfg(feature = "debug-logs")]
-            // eprintln!("   z_vars[{}] = {} (from z_digits[{}] = {})", i, val.to_canonical_u64(), i, z);
+            eprintln!("   z_vars[{}] = {} (from z_digits[{}] = {})", i, val.to_canonical_u64(), i, z);
+            
             z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("REST_Z[{i}]")), || Ok(val))?);
         }
         
@@ -491,91 +623,82 @@ pub fn setup_me_snark(
     R1CSSNARK::<E>::setup(circuit)
 }
 
-/// Public API: prove a real Spartan2 SNARK over Hash‑MLE (Poseidon2) 
+/// Public API: prove a real Spartan2 SNARK over Hash‑MLE (Poseidon2) with caching
 pub fn prove_me_snark(
     me: &MEInstance,
     wit: &MEWitness,
-) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, SpartanVerifierKey<E>), SpartanError> {
+) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, Arc<SpartanVerifierKey<E>>), SpartanError> {
     let circuit = MeCircuit::new(me.clone(), wit.clone(), None, me.header_digest);
     
     // Assert PCS width is correct for Hash-MLE (binary hypercube)
     let pcs_width = <E as Engine>::PCS::width();
+    #[cfg(feature = "debug-logs")]
     eprintln!("🔍 ENGINE PCS WIDTH = {}", pcs_width);
     assert_eq!(pcs_width, 2, "Hash-MLE PCS must report width=2 (binary hypercube arity), got {}", pcs_width);
     
-    // 1. Setup SNARK keys with circuit  
-    eprintln!("🔍 About to call R1CSSNARK::<E>::setup()");
-    let (pk, vk) = R1CSSNARK::<E>::setup(circuit.clone())?;
-    eprintln!("✅ R1CSSNARK::<E>::setup() completed");
+    // Generate circuit fingerprint for secure caching
+    let circuit_key = CircuitKey::from_circuit(&circuit);
     
-    // 2. Prepare proving (creates PrepSNARK) - capacity overflow is now fixed
-    eprintln!("🔍 About to call prep_prove()");
+    #[cfg(feature = "debug-logs")]
+    eprintln!("🔑 Circuit fingerprint: {:?}", circuit_key);
     
-    let prep_snark = match R1CSSNARK::<E>::prep_prove(&pk, circuit.clone(), false) {
-        Ok(prep) => {
-            eprintln!("✅ prep_prove() completed successfully");
-            prep
-        }
-        Err(e) => {
-            eprintln!("❌ prep_prove() failed with: {:?}", e);
-            return Err(e);
-        }
-    }; 
-    
-    // 3. Generate proof using prepared SNARK  
-    // eprintln!("🔍 About to call R1CSSNARK::<E>::prove()");
-    // eprintln!("🔧 Hash-MLE debugging: About to call prove with:");
-    
-    // Get dimensions before the move for error reporting
-    let public_values_len = circuit.public_values().unwrap().len();
-    let witness_len = circuit.wit.z_digits.len();
-    
-    // NOTE: The massive "TABLE STRUCTURE DEBUG" logs with W_full arrays 
-    // are coming from the Spartan2 library itself, not this code.
-    // eprintln!("   📊 Pre-prove dimensions:");
-    // eprintln!("     - Public values: {}", public_values_len);
-    // eprintln!("     - Original witness len: {}", witness_len);
-    // eprintln!("     - Shape summary: shared=0, precommitted=0, rest=8 (from logs)");
-    // eprintln!("   🎯 All vectors should be power-of-2 for Hash-MLE");
-    
-    let snark_proof = match R1CSSNARK::<E>::prove(&pk, circuit, &prep_snark, false) {
-        Ok(proof) => {
-            // eprintln!("✅ R1CSSNARK::<E>::prove() completed successfully!");
-            // eprintln!("🎉 Hash-MLE commitment structure worked correctly!");
-            proof
-        }
-        Err(e) => {
-            eprintln!("❌ R1CSSNARK::<E>::prove() failed with: {:?}", e);
-            
-            // Detailed error analysis
-            let err_str = format!("{:?}", e);
-            if err_str.contains("combine_blinds") {
-                eprintln!("🔍 HASH-MLE COMMITMENT ERROR ANALYSIS:");
-                eprintln!("   This is a 'combine_blinds expects exactly one' error");
-                eprintln!("   Likely causes:");
-                eprintln!("   1. Hash-MLE expecting single commitment but getting multiple");
-                eprintln!("   2. Mismatch between number of polynomial segments and blind factors");
-                eprintln!("   3. Issue with how precommitted/rest segments are handled in commitments");
-                eprintln!("   🎯 Current structure: precommitted=8, rest=8 (both power-of-2)");
-                eprintln!("   💡 Suggestion: Hash-MLE might expect single unified commitment");
-            } else if err_str.contains("power of two") {
-                eprintln!("🔍 POWER-OF-2 ERROR (unexpected - should be fixed):");
-                eprintln!("   We thought this was fixed with precommitted=8, rest=8");
-                eprintln!("   There might be another vector we're missing");
-            } else {
-                eprintln!("🔍 OTHER HASH-MLE ERROR:");
-                eprintln!("   Unknown Hash-MLE error type: {}", err_str);
-            }
-            
-            eprintln!("   📊 Context:");
-            eprintln!("     - Public values: {} (padded to power of 2)", public_values_len);
-            eprintln!("     - Original witness: {}", witness_len);
-            eprintln!("     - prep_prove() succeeded, so shape constraints are OK");
-            eprintln!("     - Error is in final proof generation step");
-            
-            return Err(e);
-        }
+    // 1. Get or create SNARK keys (with secure fingerprint-based caching)
+    let (pk, vk) = if let Some(cached_pk) = PK_CACHE.get(&circuit_key) {
+        let cached_vk = VK_CACHE.get(&circuit_key)
+            .expect("VK must exist if PK exists");
+        #[cfg(feature = "debug-logs")]
+        eprintln!("✅ Using cached SNARK keys for circuit fingerprint");
+        (cached_pk.clone(), cached_vk.clone())
+    } else {
+        #[cfg(feature = "debug-logs")]
+        eprintln!("🔍 Setting up new SNARK keys for new circuit fingerprint");
+        let (new_pk, new_vk) = R1CSSNARK::<E>::setup(circuit.clone())?;
+        let pk_arc = Arc::new(new_pk);
+        let vk_arc = Arc::new(new_vk);
+        PK_CACHE.insert(circuit_key.clone(), pk_arc.clone());
+        VK_CACHE.insert(circuit_key.clone(), vk_arc.clone());
+        #[cfg(feature = "debug-logs")]
+        eprintln!("✅ SNARK setup completed and cached");
+        (pk_arc, vk_arc)
     };
+    
+    // 2. Prepare SNARK (with cached keys, this is much faster than full setup)
+    #[cfg(feature = "debug-logs")]
+    eprintln!("🔍 Preparing SNARK with cached keys");
+    let prep_snark = R1CSSNARK::<E>::prep_prove(&pk, circuit.clone(), true)?; // Enable internal caches
+    #[cfg(feature = "debug-logs")]
+    eprintln!("✅ SNARK preparation completed (keys were cached)"); 
+    
+    // 3. Generate proof using prepared SNARK (this is the only non-cacheable step)
+    #[cfg(feature = "debug-logs")]
+    eprintln!("🔍 Generating proof with cached setup and preparation");
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        let public_values_len = circuit.public_values().unwrap().len();
+        let witness_len = circuit.wit.z_digits.len();
+        eprintln!("📊 Proof dimensions: {} public values, {} witness elements", 
+                 public_values_len, witness_len);
+    }
+    
+    let snark_proof = R1CSSNARK::<E>::prove(&pk, circuit, &prep_snark, false)
+        .map_err(|e| {
+            // Only show detailed error analysis in debug mode
+            #[cfg(feature = "debug-logs")]
+            {
+                eprintln!("❌ SNARK proving failed: {:?}", e);
+                let err_str = format!("{:?}", e);
+                if err_str.contains("combine_blinds") {
+                    eprintln!("🔍 Hash-MLE commitment error - check segment structure");
+                } else if err_str.contains("power of two") {
+                    eprintln!("🔍 Power-of-2 constraint violation");
+                }
+            }
+            e
+        })?;
+        
+    #[cfg(feature = "debug-logs")]
+    eprintln!("✅ SNARK proof generated successfully with cached keys!");
     
     // 4. Do NOT self-verify here.
     // Some tests intentionally create inconsistent instances/witnesses to check tamper detection
@@ -592,8 +715,25 @@ pub fn prove_me_snark(
     let proof_bytes = bincode::serialize(&snark_proof)
         .map_err(|e| SpartanError::InternalError { reason: format!("Proof serialization failed: {e}") })?;
     
+    // Note: VK doesn't implement Clone, so we need to return the Arc directly
+    // The caller will need to handle the Arc wrapper
     Ok((proof_bytes, public_outputs, vk))
 }
+
+/// Clear the SNARK caches (useful for testing or memory management)
+pub fn clear_snark_caches() {
+    PK_CACHE.clear();
+    VK_CACHE.clear();
+    #[cfg(feature = "debug-logs")]
+    eprintln!("🧹 Cleared SNARK key caches");
+}
+
+/// Get cache statistics (useful for monitoring)
+pub fn get_cache_stats() -> (usize, usize) {
+    (PK_CACHE.len(), VK_CACHE.len())
+}
+
+// Comprehensive tests added below for circuit fingerprint collision detection
 
 /// Optional helper if you want a structured verify in tests
 pub fn verify_me_snark(

@@ -7,11 +7,11 @@ use thiserror::Error;
 pub enum AjtaiError {
     /// Invalid dimensions or parameters
     #[error("Invalid dimensions: {0}")]
-    InvalidDimensions(&'static str),
+    InvalidDimensions(String),
     
     /// Invalid input data
     #[error("Invalid input: {0}")]
-    InvalidInput(&'static str),
+    InvalidInput(String),
     
     /// Range constraint violation
     #[error("Range assertion failed: |{value}| >= {bound}")]
@@ -31,7 +31,7 @@ pub enum AjtaiError {
     
     /// Internal error (e.g., lock poisoning, system failures)
     #[error("Internal error: {0}")]
-    Internal(&'static str),
+    Internal(String),
 }
 
 /// Result type for Ajtai operations

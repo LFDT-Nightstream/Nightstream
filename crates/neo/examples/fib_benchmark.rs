@@ -4,17 +4,24 @@
 //! constraints z[i+2] = z[i+1] + z[i] for i=0..n-2. It then proves for several n
 //! and prints a CSV: `n,prover time (ms),proof size (bytes)`.
 //!
+//! The proof demonstrates: "I know a valid Fibonacci sequence of length n, and F(n) ≡ X (mod p)"
+//! where X is the final result exposed as a public output, and all intermediate values stay secret.
+//!
 //! Usage: cargo run --release -p neo --example fib_benchmark
 //!        # or customize ns: N="100,1000,10000,50000" cargo run --release -p neo --example fib_benchmark
 //!
 //! Notes:
 //! - The R1CS is constructed sparsely: only the few non-zeros per row are stored.
 //! - We verify after proving, but we *only* time the prove() call for the CSV.
+//! - Each proof includes an OutputClaim that exposes F(n) mod p as public output.
+
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use anyhow::Result;
-use neo::{prove, verify, CcsStructure, NeoParams, ProveInput, F};
+use neo::{prove, CcsStructure, NeoParams, ProveInput, F, claim_z_eq};
 use neo_ccs::{r1cs_to_ccs, Mat, check_ccs_rowwise_zero};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::env;
 use std::time::Instant;
 
@@ -135,25 +142,45 @@ fn prove_once(n: usize, params: &NeoParams) -> Result<(f64, usize)> {
     check_ccs_rowwise_zero(&ccs, &[], &wit)
         .map_err(|e| anyhow::anyhow!("CCS witness check failed: {:?}", e))?;
 
-    // Prove
+    // Create output claim to expose the final Fibonacci number F(n)
+    // Witness structure: [1, z0, z1, z2, ..., z_n] so z_n is at index n+1
+    let final_fib_value = wit[n + 1]; // F(n) in finite field
+    let final_claim = claim_z_eq(params, ccs.m, n + 1, final_fib_value);
+
+    // Prove (with public output claim)
     let t0 = Instant::now();
-    let proof = prove(ProveInput { params, ccs: &ccs, public_input: &[], witness: &wit })?;
+    let proof = prove(ProveInput { 
+        params, 
+        ccs: &ccs, 
+        public_input: &[], 
+        witness: &wit,
+        output_claims: &[final_claim], // Expose F(n) as public output
+    })?;
     let prove_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
-    // Optionally verify (not included in timing)
-    let _ok = verify(&ccs, &[], &proof)?;
+    // Secure one-liner that verifies and extracts the single public output
+    let out = neo::verify_and_extract_exact(&ccs, &[], &proof, 1)?;
+    eprintln!("n = {:>6} → verified F(n) mod p = {}", n, out[0].as_canonical_u64());
 
     Ok((prove_ms, proof.size()))
 }
 
 fn main() -> Result<()> {
+    // Configure Rayon to use all available CPU cores for maximum parallelization
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_cpus::get())
+        .build_global()
+        .expect("Failed to configure Rayon thread pool");
+
+    println!("🚀 Using {} threads for parallel computation", rayon::current_num_threads());
+
     // Auto-tuned params for Goldilocks; adjust if you want different security/arity
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
 
     // Allow overriding the benchmark list via env var N="10,20,50,100"
     let ns: Vec<usize> = match env::var("N") {
         Ok(s) => s.split(',').filter_map(|x| x.trim().parse().ok()).collect(),
-        Err(_) => vec![100, 1000, 10000, 50000],  // Test non-power-of-two values!
+        Err(_) => vec![10000],  // Test non-power-of-two values! 100, 1000, 10000, 50000
     };
 
     // Warm-up (small n) to stabilize allocations, not timed in the table

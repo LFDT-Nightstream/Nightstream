@@ -10,15 +10,27 @@ neo-math = { path = "../neo-math" }
 # Sumcheck functionality integrated locally
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+once_cell = { workspace = true }
+
+# For structured logging (gated behind neo-logs feature)  
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 spartan2 = { workspace = true, optional = true }
 
 [features]
 default = []
-legacy-compat = []    # Temporary feature for legacy CCS types
-spartan2-compat = ["spartan2", "neo-math/spartan2-compat", "legacy-compat"]
+# Enable verbose logging for debugging (OFF by default for security - CWE-532) 
+neo-logs = []
+# Enable testing features (including unsafe direct sum operations)
+testing = []
+spartan2-compat = ["spartan2", "neo-math/spartan2-compat"]
 
 [dev-dependencies]
 criterion = { workspace = true }

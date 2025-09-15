@@ -11,6 +11,7 @@
 use neo_fold::transcript::FoldTranscript;
 use neo_ccs::{MeInstance, Mat, traits::SModuleHomomorphism};
 use neo_ajtai::{setup, AjtaiSModule, set_global_pp};
+use std::sync::Arc;
 use neo_math::{F, K, ring::D};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -69,7 +70,7 @@ fn test_p0_1_real_composed_polynomial_q_verification() {
     let mut rng = rng();
     let pp = setup(&mut rng, D, 16, witness.Z.cols()).expect("Setup should succeed");
     let _ = set_global_pp(pp.clone()); // May already be initialized from previous test
-    let ajtai = AjtaiSModule::new(&pp);
+    let ajtai = AjtaiSModule::new(Arc::new(pp.clone()));
     let commitment = ajtai.commit(&witness.Z);
     
     let instance = McsInstance { c: commitment, x: vec![], m_in: witness.Z.cols() };
@@ -134,7 +135,7 @@ fn test_p0_2_z_decomposition_binding_rejects_malicious_witness() {
     let mut rng = rng();
     let pp = setup(&mut rng, D, 16, malicious_witness.Z.cols()).expect("Setup should succeed");
     let _ = set_global_pp(pp.clone()); // May already be initialized from previous test
-    let ajtai = AjtaiSModule::new(&pp);
+    let ajtai = AjtaiSModule::new(Arc::new(pp.clone()));
     let commitment = ajtai.commit(&malicious_witness.Z);
     
     let instance = McsInstance { c: commitment, x: vec![], m_in: malicious_witness.Z.cols() };
@@ -187,7 +188,7 @@ fn test_p0_3_range_verification_in_pi_ccs_not_placeholders() {
     let mut rng = rng();
     let pp = setup(&mut rng, D, 4, 4).expect("Setup should succeed");
     let _ = set_global_pp(pp.clone()); // May already be initialized from previous test
-    let ajtai = AjtaiSModule::new(&pp);
+    let ajtai = AjtaiSModule::new(Arc::new(pp.clone()));
     
     // Create dummy ME instance and proof with range proof data
     let parent_me = MeInstance {
@@ -277,7 +278,7 @@ fn test_p0_4_fold_digest_binds_transcript_to_me_instances() {
     let mut rng = rng();
     let pp = setup(&mut rng, D, 16, witness.Z.cols()).expect("Setup should succeed");
     let _ = set_global_pp(pp.clone()); // May already be initialized from previous test
-    let ajtai = AjtaiSModule::new(&pp);
+    let ajtai = AjtaiSModule::new(Arc::new(pp.clone()));
     let commitment = ajtai.commit(&witness.Z);
     
     let instance = McsInstance { c: commitment, x: vec![], m_in: witness.Z.cols() };
@@ -434,7 +435,7 @@ fn test_global_pp_initialization_security() {
             "Global PP should succeed or already be initialized: {:?}", result);
     
     // Test that AjtaiSModule works with the PP
-    let ajtai = AjtaiSModule::new(&pp);
+    let ajtai = AjtaiSModule::new(Arc::new(pp.clone()));
     let test_matrix = Mat::zero(D, 4, F::ZERO);
     let commitment = ajtai.commit(&test_matrix); // Should not panic
     

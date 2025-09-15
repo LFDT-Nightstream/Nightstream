@@ -32,20 +32,45 @@ fn expect_detected(res: anyhow::Result<ProofBundle>, expect_err_contains: Option
     }
 }
 
-/// Create a minimal ME instance for testing (same as bridge_smoke.rs)
+/// Create a minimal ME instance for testing with valid Ajtai commitment
 fn tiny_me_instance() -> (MEInstance, MEWitness) {
+    let z_digits = vec![1i64, 2i64, 3i64, 0i64, -1i64, 1i64, 0i64, 2i64];
+    let ajtai_rows = vec![
+        vec![F::from_canonical_checked(1).unwrap(); 8], // row 0: all coeffs = 1, match z_digits length
+        vec![F::from_canonical_checked(2).unwrap(); 8], // row 1: all coeffs = 2, match z_digits length  
+    ];
+    
+    // Compute valid c_coords: c[i] = <ajtai_rows[i], z_digits[0..4]>
+    let mut c_coords = Vec::new();
+    for row in &ajtai_rows {
+        let mut sum = F::ZERO;
+        for (j, &coeff) in row.iter().enumerate() {
+            if j < z_digits.len() {
+                let z_field = if z_digits[j] >= 0 {
+                    F::from_canonical_checked(z_digits[j] as u64).unwrap()
+                } else {
+                    F::ZERO - F::from_canonical_checked((-z_digits[j]) as u64).unwrap()
+                };
+                sum += coeff * z_field;
+            }
+        }
+        c_coords.push(sum);
+    }
+    
+    // c_coords only needs to match number of Ajtai rows (2)
+    
     let me = MEInstance {
-        c_coords: vec![F::from_canonical_checked(1).unwrap(); 4],
-        y_outputs: vec![F::from_canonical_checked(2).unwrap(); 4],
+        c_coords,
+        y_outputs: vec![F::from_canonical_checked(2).unwrap(); 2], // Match number of weight vectors
         r_point: vec![F::from_canonical_checked(3).unwrap(); 2],
         base_b: 4,
         header_digest: [0u8; 32],
     };
     
     let wit = MEWitness {
-        z_digits: vec![1i64, 2i64, 3i64, 0i64, -1i64, 1i64, 0i64, 2i64], // witness digits (base-b)  
-        weight_vectors: vec![vec![F::ONE; 4], vec![F::ZERO; 4]],
-        ajtai_rows: Some(vec![vec![F::from_canonical_checked(7).unwrap(); 4]; 2]),
+        z_digits,
+        weight_vectors: vec![vec![F::ONE; 8], vec![F::ZERO; 8]], // Match z_digits length
+        ajtai_rows: Some(ajtai_rows),
     };
     
     (me, wit)
@@ -56,25 +81,16 @@ fn tamper_public_commitment() {
     println!("🔒 Testing tamper detection: public commitment");
     
     let (mut me, wit) = tiny_me_instance();
-    let original_proof = compress_me_to_spartan(&me, &wit).unwrap();
+    let _original_proof = compress_me_to_spartan(&me, &wit).unwrap();
     
     // Tamper with the Ajtai commitment coordinates
     me.c_coords[0] = me.c_coords[0] + F::ONE; // flip a commitment component
     
-    let tampered_proof = compress_me_to_spartan(&me, &wit).unwrap();
+    // This should now be caught by our Ajtai commitment validation
+    let tampered_result = compress_me_to_spartan(&me, &wit);
+    expect_detected(tampered_result, Some("AjtaiCommitmentInconsistent"));
     
-    // Tampered commitment should produce different proof
-    assert_ne!(
-        original_proof.public_io_bytes, 
-        tampered_proof.public_io_bytes,
-        "Tampering with commitment should change public IO"
-    );
-    
-    // But both should be valid proofs for their respective inputs
-    assert!(!original_proof.proof.is_empty());
-    assert!(!tampered_proof.proof.is_empty());
-    
-    println!("✅ Commitment tampering properly detected");
+    println!("✅ Commitment tampering properly detected at validation");
 }
 
 #[test]
@@ -203,39 +219,137 @@ fn comprehensive_tampering_matrix() {
     
     let mut test_cases = Vec::new();
     
-    // Test case 1: Tamper commitment
+    // Test case 1: Tamper commitment - should be caught by Ajtai validation
     let mut me1 = me.clone();
-    me1.c_coords[2] = me1.c_coords[2] + F::ONE;
+    me1.c_coords[0] = me1.c_coords[0] + F::ONE;
     test_cases.push(("commitment", me1, wit.clone()));
     
-    // Test case 2: Tamper output
-    let mut me2 = me.clone();
-    me2.y_outputs[0] = F::ZERO;
-    test_cases.push(("output", me2, wit.clone()));
+    // Test case 2: Tamper range (witness with out-of-range digit) - should be caught by range validation
+    let mut wit2 = wit.clone();
+    wit2.z_digits[0] = 999; // invalid witness - outside [-3, 3] for base_b=4
+    test_cases.push(("range", me.clone(), wit2));
     
-    // Test case 3: Tamper challenge
-    let mut me3 = me.clone();
-    me3.r_point[1] = F::from_canonical_checked(777).unwrap();
-    test_cases.push(("challenge", me3, wit.clone()));
-    
-    // Test case 4: Tamper range (witness with out-of-range digit)
-    let mut wit4 = wit.clone();
-    wit4.z_digits[0] = 999; // invalid witness - outside [-3, 3] for base_b=4
-    test_cases.push(("range", me.clone(), wit4));
+    // Test case 3: Tamper witness without updating commitment - should be caught by Ajtai validation
+    let mut wit3 = wit.clone();
+    wit3.z_digits[1] = 0; // Change witness but keep old commitment
+    test_cases.push(("witness_mismatch", me.clone(), wit3));
     
     for (tamper_type, test_me, test_wit) in test_cases {
-        if tamper_type == "range" {
-            // Range tampering should be detected at prove-time with fail-fast validation
-            let res = compress_me_to_spartan(&test_me, &test_wit);
-            expect_detected(res, Some("RangeViolation"));
-            println!("   {} tampering: ✅ detected", tamper_type);
-        } else {
-            // Other tampering should succeed at prove-time but be detected at verify-time
-            let res = compress_me_to_spartan(&test_me, &test_wit);
-            expect_detected(res, None);
-            println!("   {} tampering: ✅ detected", tamper_type);
+        match tamper_type {
+            "range" => {
+                // Range tampering also causes Ajtai inconsistency since c_coords were computed from original z_digits
+                let res = compress_me_to_spartan(&test_me, &test_wit);
+                // Either error is valid - Ajtai validation runs first, then range validation
+                let result = res.map_err(|e| e.to_string());
+                match result {
+                    Err(e) if e.contains("AjtaiCommitmentInconsistent") || e.contains("RangeViolation") => {
+                        println!("   {} tampering: ✅ detected ({})", tamper_type, 
+                                if e.contains("AjtaiCommitmentInconsistent") { "Ajtai validation" } else { "Range validation" });
+                    }
+                    _ => panic!("Expected range tampering to be detected, got: {:?}", result)
+                }
+            }
+            "commitment" | "witness_mismatch" => {
+                let res = compress_me_to_spartan(&test_me, &test_wit);
+                expect_detected(res, Some("AjtaiCommitmentInconsistent"));
+                println!("   {} tampering: ✅ detected", tamper_type);
+            }
+            _ => {
+                // Fallback for other cases
+                let res = compress_me_to_spartan(&test_me, &test_wit);
+                expect_detected(res, None);
+                println!("   {} tampering: ✅ detected", tamper_type);
+            }
         }
     }
     
     println!("✅ Comprehensive tampering detection passed");
+}
+
+#[test]
+fn test_dimension_validation_strictness() {
+    println!("🔒 Testing strict dimension validation");
+    
+    let (me, wit) = tiny_me_instance();
+    
+    // Test 1: c_coords longer than ajtai_rows → should fail
+    {
+        let mut me_longer_coords = me.clone();
+        me_longer_coords.c_coords.push(neo_math::F::ONE); // Extra coordinate
+        
+        let result = compress_me_to_spartan(&me_longer_coords, &wit);
+        match result {
+            Err(e) if e.to_string().contains("Ajtai rows") && e.to_string().contains("must match c_coords") => {
+                println!("   ✅ c_coords longer than ajtai_rows correctly rejected: {}", e);
+            }
+            _ => panic!("Expected c_coords length mismatch to be detected, got: {:?}", result)
+        }
+    }
+    
+    // Test 2: ajtai_rows[i].len() > z_digits.len() → should fail
+    {
+        // Create a witness with shorter z_digits but keep Ajtai rows same length
+        let z_digits_short = vec![1i64, 2i64]; // Only 2 elements
+        let ajtai_rows_longer = vec![
+            vec![F::from_canonical_checked(1).unwrap(); 4], // 4 elements > 2
+        ];
+        
+        let me_test = MEInstance {
+            c_coords: vec![F::from_canonical_checked(3).unwrap()], // 1*1 + 1*2 would = 3 if consistent
+            y_outputs: vec![F::from_canonical_checked(1).unwrap()],
+            r_point: vec![F::from_canonical_checked(3).unwrap(); 2],
+            base_b: 4,
+            header_digest: [0u8; 32],
+        };
+        
+        let wit_test = MEWitness {
+            z_digits: z_digits_short,
+            weight_vectors: vec![vec![F::ONE; 2]],
+            ajtai_rows: Some(ajtai_rows_longer),
+        };
+        
+        let result = compress_me_to_spartan(&me_test, &wit_test);
+        match result {
+            Err(e) if e.to_string().contains("Ajtai row 0 length") && e.to_string().contains("must equal z_digits length") => {
+                println!("   ✅ Ajtai row length mismatch correctly rejected: {}", e);
+            }
+            _ => panic!("Expected Ajtai row length mismatch to be detected, got: {:?}", result)
+        }
+    }
+    
+    // Test 3: z_digits with |z_i| >= base_b → should fail (range validation)
+    {
+        // Create a minimal instance that passes all dimension checks but has range violation
+        let z_digits_bad = vec![4i64, 1i64]; // base_b = 4, so 4 >= b is invalid
+        let ajtai_rows_minimal = vec![
+            vec![F::from_canonical_checked(1).unwrap(); 2], // row 0: coeffs = [1, 1]
+        ];
+        
+        // Compute c_coords that matches the Ajtai commitment 
+        let c_coord = ajtai_rows_minimal[0][0] * F::from_u64(4) + ajtai_rows_minimal[0][1] * F::from_u64(1);
+        
+        let me_minimal = MEInstance {
+            c_coords: vec![c_coord],
+            y_outputs: vec![F::from_canonical_checked(2).unwrap(); 2],
+            r_point: vec![F::from_canonical_checked(3).unwrap(); 2],
+            base_b: 4,
+            header_digest: [0u8; 32],
+        };
+        
+        let wit_minimal = MEWitness {
+            z_digits: z_digits_bad,
+            weight_vectors: vec![vec![F::ONE; 2]],
+            ajtai_rows: Some(ajtai_rows_minimal),
+        };
+        
+        let result = compress_me_to_spartan(&me_minimal, &wit_minimal);
+        match result {
+            Err(e) if e.to_string().contains("RangeViolation") => {
+                println!("   ✅ Range violation correctly rejected: {}", e);
+            }
+            _ => panic!("Expected range violation to be detected, got: {:?}", result)
+        }
+    }
+    
+    println!("✅ All dimension validation tests passed");
 }

@@ -34,7 +34,7 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
     let last = cur[D - 1];
     // shift: next[k] = cur[k-1] for k>=1; next[0] = 0
     next[0] = Fq::ZERO;
-    for k in 1..D { next[k] = cur[k - 1]; }
+    next[1..D].copy_from_slice(&cur[..(D - 1)]);
     // cyclotomic corrections for X^54 ≡ -X^27 - 1
     next[0] -= last;        // -1 * last
     next[27] -= last;       // -X^27 * last
@@ -46,7 +46,7 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
 fn rot_step_xd_plus_1(cur: &[Fq; D], next: &mut [Fq; D]) {
     let last = cur[D - 1];
     next[0] = Fq::ZERO;
-    for k in 1..D { next[k] = cur[k - 1]; }
+    next[1..D].copy_from_slice(&cur[..(D - 1)]);
     next[0] -= last; // X^D ≡ -1
 }
 
@@ -80,7 +80,7 @@ fn rot_step_impl(cur: &[Fq; D], next: &mut [Fq; D]) {
 pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usize) -> AjtaiResult<PP<RqEl>> {
     // Ensure d matches the fixed ring dimension from neo-math
     if d != neo_math::ring::D {
-        return Err(AjtaiError::InvalidDimensions("d parameter must match ring dimension D"));
+        return Err(AjtaiError::InvalidDimensions("d parameter must match ring dimension D".to_string()));
     }
     let mut rows = Vec::with_capacity(kappa);
     for _ in 0..kappa {
@@ -92,7 +92,7 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
                 .collect();
             let coeffs: [Fq; neo_math::ring::D] = coeffs_vec
                 .try_into()
-                .map_err(|_| AjtaiError::InvalidDimensions("Failed to create coefficient array"))?;
+                .map_err(|_| AjtaiError::InvalidDimensions("Failed to create coefficient array".to_string()))?;
             row.push(cf_unmap(coeffs));
         }
         rows.push(row);
@@ -102,88 +102,169 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
 
 // Variable-time optimization removed for security and simplicity
 
-/// OFFICIAL API: Extract Ajtai binding rows for Neo circuit integration.
-/// 
-/// **TEMPORARY IMPLEMENTATION**: This function returns synthetic binding rows
-/// that satisfy the circuit's requirements by construction. Each row `L_i` 
-/// satisfies `<L_i, z_digits> = c_coords[i]` for any witness/commitment pair.
-/// 
-/// **TODO**: Replace with true mathematical extraction from the Ajtai public parameters
-/// once the mapping between witness decomposition and commitment coordinates is clarified.
 ///
-/// # Arguments  
-/// * `_pp` - Ajtai public parameters (currently unused in synthetic implementation)
-/// * `z_len` - Length of z_digits vector 
-/// * `num_coords` - Number of coordinate rows to return
+/// **PRODUCTION IMPLEMENTATION** — true extraction from Ajtai public parameters.
 ///
-/// # Returns
-/// Authentic rows from the Ajtai matrix, or an error if extraction is not implemented.
+/// Builds the linear map `L ∈ F_q^{(d·κ) × (d·m)}` such that, for **column‑major**
+/// encodings of `Z ∈ F_q^{d×m}` and commitment `c ∈ F_q^{d×κ}`:
 ///
-/// # Security Note
-/// Currently returns an error until proper matrix extraction from PP is implemented.
-/// This ensures no synthetic rows can accidentally be used in production.
+///   `vec(c) = L · vec(Z)`  where  `c = cf(M · cf^{-1}(Z))`.
+///
+/// Using the identity `cf(a·b) = rot(a) · cf(b)`, the row corresponding to
+/// `(commit_col=i, commit_row=r)` has blocks
+///
+///   `L[(i,r), (j, 0..d-1)] = col_t(rot(a_ij))[r]  for t=0..d-1`,
+///
+/// i.e. the `t`‑th rotation column of `a_ij` evaluated at row `r`. This matches the
+/// prover's constant‑time path (`commit_masked_ct`) exactly.
+///
+/// **Indexing conventions**
+/// - `z_len` must be `d·m`. The caller pads rows externally if the circuit padded `z_digits`
+///   to a power of two (we intentionally keep the extractor strict).
+/// - `num_coords` ≤ `d·κ`; typical usage requests all `d·κ` rows.
+///
+/// **Performance**
+/// - Deduplicates equal `a_ij` by hashing `cf(a_ij)` (O(1) average).
+/// - Precomputes all rotation columns per unique ring element via `rot_step`.
+/// - Builds rows in parallel with Rayon.
+///
+/// **Security**
+/// - Strict runtime dimension checks (prevents binding bugs).
+/// - No secret‑dependent branching/memory access; depends only on public `pp`.
+///
 pub fn rows_for_coords(
     pp: &PP<RqEl>, 
     z_len: usize, 
     num_coords: usize
 ) -> AjtaiResult<Vec<Vec<Fq>>> {
+    use rayon::prelude::*;
+
+    // SECURITY: Gated logging to prevent CWE-532 (sensitive info leakage)
+    #[cfg(feature = "neo-logs")]
+    use tracing::{debug, info};
+    
+    #[cfg(not(feature = "neo-logs"))]
+    macro_rules! debug { ($($tt:tt)*) => {} }
+    #[cfg(not(feature = "neo-logs"))]
+    macro_rules! info  { ($($tt:tt)*) => {} }
+    
     let d = pp.d;
     let m = pp.m; 
     let kappa = pp.kappa;
     
-    // Validate inputs
+    // CRITICAL SECURITY: Ensure compile-time ring dimension matches runtime PP dimension
+    // This MUST be a runtime check to prevent binding bugs in release builds
+    if D != d {
+        return Err(AjtaiError::InvalidInput(
+            format!("Ajtai ring dimension mismatch: compile-time D ({}) != runtime pp.d ({})", D, d)
+        ));
+    }
+    
+    // CRITICAL: Validate dimensions to prevent binding bugs (B4).
+    // Keep extractor strict; the caller can pad rows externally if z_digits was power-of-two padded.
     if z_len != d * m {
-        return Err(AjtaiError::SizeMismatch { 
-            expected: d * m, 
-            actual: z_len 
-        });
+        return Err(AjtaiError::InvalidInput("z_len must equal d*m".to_string()));
     }
-    
     if num_coords > d * kappa {
-        return Err(AjtaiError::InvalidInput("num_coords exceeds d*kappa"));
+        return Err(AjtaiError::InvalidInput("num_coords exceeds d*kappa".to_string()));
     }
     
-    let mut rows = Vec::with_capacity(num_coords);
+    info!("Starting Ajtai binding rows computation (true extraction)...");
+    let total_start = std::time::Instant::now();
+
+    // 🚀 OPTIMIZATION 1: Deduplicate identical ring elements
+    debug!("Deduplicating {} ring elements...", kappa * m);
+    let cache_start = std::time::Instant::now();
     
-    // Extract the first num_coords rows from the linearized commitment matrix
-    for coord_idx in 0..num_coords {
-        let mut row = vec![Fq::ZERO; z_len];
-        
-        // Determine which commitment coordinate this row corresponds to  
-        let commit_col = coord_idx / d;  // Which column of commitment (0..kappa)
-        let commit_row = coord_idx % d;  // Which row within that column (0..d)
-        
-        if commit_col >= kappa {
-            break; // Don't go beyond available commitment coordinates
-        }
-        
-        // For this commitment coordinate, compute its dependency on z_digits
-        // The commitment is computed as: c[commit_col][commit_row] = Σ_j S-action(M[commit_col][j])[commit_row] · Z_col_j
-        
+    // Use HashMap with cf() canonical form for O(1) deduplication instead of O(n²) Vec::position
+    use std::collections::HashMap;
+    
+    let mut unique_map = HashMap::new();
+    let mut all_elements: Vec<RqEl> = Vec::new();
+    let mut element_indices = vec![vec![0; m]; kappa];
+    
+    for commit_col in 0..kappa {
         for j in 0..m {
-            // Get the ring element M[commit_col][j]
             let a_ij = pp.m_rows[commit_col][j];
             
-            // Convert to S-action (d×d field linear map)
-            let s_action = SAction::from_ring(a_ij);
+            // Use canonical form of ring element as key (arrays implement Hash+Eq)
+            let canonical_key = cf(a_ij);
             
-            // For each input digit position in column j
-            for input_row in 0..d {
-                let input_idx = j * d + input_row;  // Column-major indexing in z_digits
-                
-                // Get the S-action coefficient that multiplies z_digits[input_idx] 
-                // to contribute to commitment coordinate [commit_col][commit_row]
-                // Apply the S-action to a unit vector to extract the coefficient
-                let mut unit_vec = [Fq::ZERO; D];
-                unit_vec[input_row] = Fq::ONE;
-                let result = s_action.apply_vec(&unit_vec);
-                let coeff = result[commit_row];
-                row[input_idx] = coeff;
-            }
+            // O(1) average lookup instead of O(n) - HUGE performance win!
+            let idx = *unique_map.entry(canonical_key).or_insert_with(|| {
+                let new_idx = all_elements.len();
+                all_elements.push(a_ij);
+                new_idx
+            });
+            
+            element_indices[commit_col][j] = idx;
         }
-        
-        rows.push(row);
     }
+    
+    debug!("Found {} unique ring elements (vs {} total)", all_elements.len(), kappa * m);
+    
+    // 🚀 OPTIMIZATION 2: Precompute all rotation columns for each unique element.
+    // cols[t] = cf(a * X^t) for t ∈ [0..d-1]; computed via rot_step in O(d^2) once.
+    let precomp_start = std::time::Instant::now();
+    let mut rot_columns: Vec<Box<[[Fq; D]]>> = Vec::with_capacity(all_elements.len());
+    rot_columns.par_extend(
+        all_elements.par_iter().map(|&a_ij| {
+            let mut cols = vec![[Fq::ZERO; D]; D].into_boxed_slice();
+            precompute_rot_columns(a_ij, &mut cols);
+            cols
+        })
+    );
+    let _precomp_time = precomp_start.elapsed();
+    
+    let _cache_time = cache_start.elapsed();
+    debug!("Precomputation completed: {:.2}ms", _precomp_time.as_secs_f64() * 1000.0);
+
+    // 🚀 OPTIMIZATION 3: Parallel row computation
+    debug!("Computing {} rows in parallel across {} threads...", 
+             num_coords, rayon::current_num_threads());
+    let parallel_start = std::time::Instant::now();
+    
+    let rows: Vec<Vec<Fq>> = (0..num_coords)
+        .into_par_iter()
+        .map(|coord_idx| {
+            let mut row = vec![Fq::ZERO; z_len];
+            
+            // Determine which commitment coordinate this row corresponds to  
+            let commit_col = coord_idx / d;  // Which column of commitment (0..kappa)
+            let commit_row = coord_idx % d;  // Which row within that column (0..d)
+            
+            // SECURITY: This should be unreachable with proper num_coords validation
+            debug_assert!(commit_col < kappa, 
+                "coord_idx {} out of range: commit_col {} >= kappa {}", 
+                coord_idx, commit_col, kappa);
+            if commit_col >= kappa {
+                return row; // Defensive fallback for release builds
+            }
+            
+            // 🚀 OPTIMIZATION 4: Vectorized coefficient extraction from precomputed rot columns
+            for j in 0..m {
+                let element_idx = element_indices[commit_col][j];
+                let cols = &rot_columns[element_idx];
+                
+                // Extract entire column of coefficients at once
+                let base_idx = j * d;
+                for input_row in 0..d {
+                    let input_idx = base_idx + input_row;      // column-major in z_digits
+                    row[input_idx] = cols[input_row][commit_row];
+                }
+            }
+            
+            row
+        })
+        .collect();
+    
+    let _parallel_time = parallel_start.elapsed();
+    let _total_time = total_start.elapsed();
+    
+    debug!("Parallel computation completed: {:.2}ms", _parallel_time.as_secs_f64() * 1000.0);
+    info!("Total optimized time: {:.2}ms (vs ~{:.0}s unoptimized)", 
+             _total_time.as_secs_f64() * 1000.0, 
+             (kappa * m * num_coords * d) as f64 / 1_000_000.0); // Rough estimate of old time
     
     Ok(rows)
 }
@@ -369,7 +450,9 @@ pub fn s_lincomb(rhos: &[RqEl], cs: &[Commitment]) -> AjtaiResult<Commitment> {
 #[allow(non_snake_case)]
 pub fn commit_masked_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d; let m = pp.m; let kappa = pp.kappa;
-    debug_assert_eq!(d, D);
+    
+    // CRITICAL SECURITY: Runtime dimension checks to prevent binding bugs
+    assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");
 
     let mut C = Commitment::zeros(d, kappa);
@@ -428,7 +511,9 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
 #[allow(non_snake_case)]
 pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d; let m = pp.m; let kappa = pp.kappa;
-    debug_assert_eq!(d, D);
+    
+    // CRITICAL SECURITY: Runtime dimension checks to prevent binding bugs
+    assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");
 
     let mut C = Commitment::zeros(d, kappa);
@@ -544,3 +629,47 @@ pub fn open_linear(
 //
 // Use neo_fold::verify_linear for Π_RLC verification and verify_split_open for
 // recomposition checks. The commitment layer only provides S-homomorphic binding.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::{rngs::StdRng, SeedableRng};
+
+    #[test]
+    fn rows_for_coords_matches_commit() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let d = D;
+        let kappa = 4;
+        let m = 3;
+
+        let pp = setup(&mut rng, d, kappa, m).expect("setup ok");
+
+        // random Z
+        let mut z = vec![Fq::ZERO; d*m];
+        for x in &mut z { *x = super::sample_uniform_fq(&mut rng); }
+
+        // build rows
+        let z_len = d*m;
+        let num_coords = d*kappa;
+        let rows = rows_for_coords(&pp, z_len, num_coords).expect("rows ok");
+
+        // compute L·z
+        let mut c_flat = vec![Fq::ZERO; num_coords];
+        for (row_i, row) in rows.iter().enumerate() {
+            debug_assert_eq!(row.len(), z_len);
+            let mut acc = Fq::ZERO;
+            for (a, &b) in row.iter().zip(&z) { acc += (*a) * b; }
+            c_flat[row_i] = acc;
+        }
+
+        // compute commit and flatten column-major
+        let c = commit_masked_ct(&pp, &z);
+        let mut c_flat_expected = vec![Fq::ZERO; num_coords];
+        for i in 0..kappa {
+            for r in 0..d {
+                c_flat_expected[i*d + r] = c.data[i * d + r];
+            }
+        }
+        assert_eq!(c_flat, c_flat_expected, "L·z must equal vec(commit(pp, Z))");
+    }
+}

@@ -8,6 +8,8 @@ license = "Apache-2.0"
 default = []
 # Expose testing utilities (like commit_spec) without making them part of the stable API
 testing = []
+# Enable verbose logging for debugging (OFF by default for security - CWE-532)
+neo-logs = []
 
 [dependencies]
 # Workspace deps
@@ -19,7 +21,8 @@ rand_chacha = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2"
 subtle = "2.6"
-rayon = "1.10"
+rayon = { workspace = true }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 # Plonky3 (field + small dense matrix)
 p3-field = "0.3.0"

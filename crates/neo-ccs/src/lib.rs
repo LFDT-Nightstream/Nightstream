@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+#![allow(deprecated)]
 //! CCS frontend for Neo: structures, relations (MCS/ME), and row-wise checks.
 //!
 //! Implements the MUST and SHOULD in the Neo spec, matching the paper's §4.1 relations
@@ -8,6 +9,10 @@
 // Audit-ready core modules
 /// Error types for CCS operations.
 pub mod error;
+/// Production cryptographic primitives (Poseidon2, etc.).
+pub mod crypto;
+/// Cryptographic gadgets for CCS circuits.
+pub mod gadgets;
 /// Matrix types and operations.
 pub mod matrix;
 /// Polynomial types and evaluation.
@@ -21,15 +26,16 @@ pub mod traits;
 /// Utility functions for tensor products and matrix operations.
 pub mod utils;
 
-// Tests module
-#[cfg(test)]
-mod tests;
+// Tests are now in tests/ccs_property_tests.rs as integration tests
 
 // Re-export core types
 pub use error::{CcsError, DimMismatch, RelationError};
-pub use matrix::{Mat, MatRef};
+pub use matrix::{Mat, MatRef, CsrMatrix};
 pub use poly::{SparsePoly, Term};
 pub use r1cs::r1cs_to_ccs;
+
+// 🔒 SECURITY FIX: Use the cancellation-resistant implementation from utils
+pub use utils::direct_sum_transcript_mixed;
 // Main CCS types and functions (audit-ready)
 pub use relations::{
     CcsStructure, McsInstance, McsWitness, MeInstance, MeWitness,
@@ -37,18 +43,18 @@ pub use relations::{
     check_ccs_rowwise_relaxed,
 };
 pub use traits::SModuleHomomorphism;
-pub use utils::{tensor_point, mat_vec_mul_fk, mat_vec_mul_ff, validate_power_of_two};
+pub use utils::{tensor_point, mat_vec_mul_fk, mat_vec_mul_ff, validate_power_of_two, direct_sum, direct_sum_mixed};
 
 // ===== DEPRECATED LEGACY BRIDGE TYPES =====
 // These are kept temporarily for bridge compatibility but are NOT audit-ready.
 // They will be removed in a future version once the bridge is modernized.
-
 /// Legacy Matrix Evaluation instance - for bridge compatibility only
 /// 
 /// ⚠️ **DEPRECATED & NOT AUDIT-READY**: Use `relations::MeInstance<C, F, K>` instead.
 /// This type exists only to keep the spartan-bridge compiling during modernization.
 #[deprecated(since = "0.1.0", note = "Use relations::MeInstance<C, F, K> instead")]
-#[derive(Clone, Debug)]
+#[allow(deprecated)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct MEInstance {
     /// Ajtai commitment coordinates c ∈ F_q^{d×κ}
     pub c_coords: Vec<neo_math::F>, 
@@ -67,7 +73,8 @@ pub struct MEInstance {
 /// ⚠️ **DEPRECATED & NOT AUDIT-READY**: Use `relations::MeWitness<F>` instead.
 /// This type exists only to keep the spartan-bridge compiling during modernization.
 #[deprecated(since = "0.1.0", note = "Use relations::MeWitness<F> instead")]
-#[derive(Clone, Debug)]
+#[allow(deprecated)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct MEWitness {
     /// Witness digits Z in base b: |Z|_∞ < b
     pub z_digits: Vec<i64>, 

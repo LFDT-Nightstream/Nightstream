@@ -70,7 +70,6 @@ fn test_bridge_witness_layout_consistency() {
 #[allow(non_snake_case)]
 fn test_pi_dec_recomposition_correctness() {
     use neo_ajtai::{decomp_b, DecompStyle};
-    
     let b = 3u32;
     let d = 4; // Enough digits for test values
     

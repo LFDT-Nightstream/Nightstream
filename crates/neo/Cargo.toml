@@ -7,15 +7,26 @@ description = "Neo: simple facade (prove/verify) over Ajtai+Folding+Spartan2"
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
 rust-version = "1.88"
 
+[features]
+default = []
+debug-logs = ["neo-spartan-bridge/debug-logs"]
+# Enable comprehensive logging across all Neo components 
+neo-logs = ["neo-spartan-bridge/neo-logs", "neo-ccs/neo-logs", "neo-ajtai/neo-logs"]
+
 [dependencies]
 anyhow = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 rand = { workspace = true }
+rayon = { workspace = true }
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
+p3-symmetric = { workspace = true }
+rand_chacha = { workspace = true }
 subtle = { workspace = true }
-lz4_flex = "0.11"
+
+# For structured logging (gated behind neo-logs feature)
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 neo-params = { path = "../neo-params" }
 neo-math   = { path = "../neo-math" }
@@ -26,7 +37,9 @@ neo-spartan-bridge = { path = "../neo-spartan-bridge" }
 
 [dev-dependencies]
 rand = { workspace = true }
+mimalloc = { workspace = true }
+num_cpus = { workspace = true }
+num-bigint = "0.4"  # For examples only
+# Enable testing features for security tests
+neo-spartan-bridge = { path = "../neo-spartan-bridge", features = ["testing"] }
 
-[[example]]
-name = "fib"
-path = "examples/fib.rs"

@@ -33,4 +33,4 @@ jobs:
           ${{ runner.os }}-cargo-
           
     - name: Run tests
-      run: cargo test --workspace --features "testing,redteam,quickcheck"
+      run: cargo test --release --workspace --features "testing,redteam,quickcheck"

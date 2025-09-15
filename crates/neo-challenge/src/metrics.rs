@@ -46,7 +46,7 @@ pub fn empirical_expansion_stats(rhos: &[Rho], cfg: &StrongSetConfig, trials: us
 
 fn l_inf(v: &[Fq]) -> f64 {
     // Convert to small signed repr; good enough for metrics.
-    let q: u128 = neo_math::GOLDILOCKS_MODULUS as u128; // 2^64 - 2^32 + 1
+    let q: u128 = neo_math::GOLDILOCKS_MODULUS; // 2^64 - 2^32 + 1
     let half_q = (q / 2) as i128;
     v.iter().map(|x| {
         let mut u = x.as_canonical_u64() as i128;

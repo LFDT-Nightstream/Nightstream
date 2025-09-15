@@ -72,6 +72,7 @@ fn safe_params_are_accepted() {
         ccs: &ccs,
         public_input: &public_input,
         witness: &witness,
+        output_claims: &[],
     };
     
     // This should succeed with safe parameters

@@ -276,12 +276,12 @@ fn test_high_level_ivc_api() {
     use neo::{prove_ivc_step, verify_ivc_step, IvcStepInput, Accumulator, NeoParams};
     use neo_ccs::{r1cs_to_ccs, Mat};
     
-    // Create a simple step CCS (identity: output = input)
+    // Create a simple step CCS (identity: output = input) with 3 columns to match witness [1, input, output]
     let step_ccs = r1cs_to_ccs(
-        Mat::from_row_major(1, 2, vec![F::ZERO, F::ONE]), // A: [0, 1]
-        Mat::from_row_major(1, 2, vec![F::ONE, F::ZERO]), // B: [1, 0] 
-        Mat::from_row_major(1, 2, vec![F::ZERO, F::ONE]), // C: [0, 1]
-        // Constraint: 0*1 + 1*input = output (so output = input)
+        Mat::from_row_major(1, 3, vec![F::ZERO, F::ONE,  F::ZERO]), // A: input
+        Mat::from_row_major(1, 3, vec![F::ONE,  F::ZERO, F::ZERO]), // B: 1
+        Mat::from_row_major(1, 3, vec![F::ZERO, F::ZERO, F::ONE]),  // C: output
+        // Constraint: input * 1 = output (so output = input)
     );
     
     // Setup parameters
@@ -299,8 +299,8 @@ fn test_high_level_ivc_api() {
     let step_witness = vec![F::ONE, F::from_u64(5), F::from_u64(5)]; // [const, input, output]
     
     // Extract y_step from step computation (for identity function: output = input = 5)  
-    // Must match accumulator y_compact length (2 elements)
-    let y_step = vec![F::from_u64(5), F::from_u64(1)]; // [primary_output, step_counter_or_auxiliary]
+    // Must match what binding spec reads from witness: y_step_offsets = [2, 2] both read output = 5
+    let y_step = vec![F::from_u64(5), F::from_u64(5)]; // Both components read output column
     
     // Create IVC step input
     let ivc_input = IvcStepInput {

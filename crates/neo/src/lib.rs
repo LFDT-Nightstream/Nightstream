@@ -159,6 +159,9 @@ pub use ivc::{
     BatchData, prove_batch_data, IvcBatchBuilder, EmissionPolicy,
 };
 
+/// Chain-style step/verify wrapper API for examples
+pub mod ivc_chain;
+
 /// Counts and bookkeeping for public results embedded in the proof.
 /// Backwards-compatible: all fields have defaults for older proofs.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -1017,4 +1020,3 @@ fn adapt_from_modern(
 
     Ok((me_legacy, wit_legacy))
 }
-

@@ -10,6 +10,8 @@ members = [
   "crates/neo-spartan-bridge",
   # Facade crate
   "crates/neo",
+  # CLI
+  "crates/neo-cli",
   # Tests
   "crates/neo-tests",
   "crates/neo-redteam-tests",
@@ -76,5 +78,4 @@ edition = "2021"
 version = "0.1.0"
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
 rust-version = "1.88"
-
 

@@ -40,6 +40,7 @@ fn bridge_rejects_cross_proof_swap() {
         public_input: &public_input_a,
         witness: &witness_a,
         output_claims: &[],
+        vjs_opt: None,
     }).expect("Proof A should succeed");
     
     let proof_b = prove(ProveInput {
@@ -48,6 +49,7 @@ fn bridge_rejects_cross_proof_swap() {
         public_input: &public_input_b,
         witness: &witness_b,
         output_claims: &[],
+        vjs_opt: None,
     }).expect("Proof B should succeed");
     
     // Verify that each proof works with its own CCS (sanity check)
@@ -111,6 +113,7 @@ fn bridge_rejects_different_public_inputs() {
         public_input: &public_input_empty,
         witness: &witness,
         output_claims: &[],
+        vjs_opt: None,
     }).expect("Proof should succeed");
     
     // Verify against original public input (should work)

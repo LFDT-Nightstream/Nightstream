@@ -53,6 +53,7 @@ fn test_prove_with_public_inputs_after_fix() {
         public_input: &public_input,
         witness: &witness,
         output_claims: &[],
+        vjs_opt: None,
     });
 
     assert!(result.is_ok(), "Proving must succeed when CCS.m matches |x|+|w| and m_in=|x|");

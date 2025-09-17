@@ -1445,6 +1445,7 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
         public_input: &public_input,
         witness: &witness,
         output_claims: &[], // IVC uses accumulator outputs
+        vjs_opt: None,
     })?;
     
     // 7. 🔒 SECURITY: Evolve commitment coordinates with same rho as y folding
@@ -1895,6 +1896,11 @@ pub enum EmissionPolicy {
     Never,
     /// Emit after every `n` steps are appended.
     Every(usize),
+    /// Emit when the accumulated batch CCS variables `m_total` reaches or exceeds this threshold.
+    /// This caps batch size by variable budget instead of step count.
+    ByM(usize),
+    /// Emit when either step count reaches `every_n` OR accumulated variables reach `max_m`.
+    EveryOrByM { every_n: usize, max_m: usize },
     /// Only on explicit demand (alias of Never; kept for readability).
     OnDemand,
 }
@@ -1912,15 +1918,38 @@ pub struct BatchData {
     pub steps_covered: usize,
 }
 
-/// Metadata for tracking absolute column positions of each step block in the batch CCS
+/// Per-emission timing statistics for benchmarking.
+#[derive(Debug, Clone)]
+pub struct EmitStats {
+    /// Number of steps covered in this emitted batch
+    pub steps_covered: usize,
+    /// Total variables (columns) in the batch CCS
+    pub m_total: usize,
+    /// Assembly time in milliseconds (extract + stitching)
+    pub assemble_ms: f64,
+    /// Proving time in milliseconds for this batch
+    pub prove_ms: f64,
+}
+
+// BlockMeta removed: assemble-on-emit no longer tracks absolute positions incrementally
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct BlockMeta {
-    base_col: usize,               // absolute column start in the batch CCS
-    pub_len: usize,                // step_x_len + 1 (rho) + 2*y_len
-    y_prev_off_in_block: usize,    // step_x_len + 1
-    y_next_off_in_block: usize,    // step_x_len + 1 + y_len
-    const1_col_in_block: usize,    // pub_len + const1_witness_index
+struct StepLayout {
+    pub_len: usize,
+    y_prev_off_in_block: usize,
+    y_next_off_in_block: usize,
+    const1_col_in_block: usize,
+    step_m: usize,
+}
+
+#[derive(Debug, Clone)]
+struct PendingStep {
+    ccs: CcsStructure<F>,
+    public: Vec<F>,
+    witness: Vec<F>,
+    layout: StepLayout,
+    step_digest: [u8; 32],
 }
 
 /// A small, stateful builder to batch many IVC steps and emit a single SNARK proof on demand.
@@ -1931,23 +1960,24 @@ pub struct IvcBatchBuilder {
     /// **SECURITY**: Trusted binding specification for this step circuit
     binding_spec: StepBindingSpec,
 
-    // Rolling batch
-    batch_ccs: Option<CcsStructure<F>>,
-    batch_witness: Vec<F>,
-    batch_public: Vec<F>,
+    // Accumulate per-step blocks, then assemble once at emit-time
+    pending: Vec<PendingStep>,
     steps_in_batch: usize,
-    
-    // 🔧 NEW: Track block metadata for proper stitching
-    blocks: Vec<BlockMeta>,
-    
-    /// Length of the per-step witness chunk ([step_witness || u]), established on the first append
-    witness_len_per_block: Option<usize>,
+    pending_m_total: usize,
 
     // Accumulator state (evolves with each appended step)
     pub accumulator: Accumulator,
 
     // Policy
     policy: EmissionPolicy,
+
+    // No per-step CCS caching: per-step CCS depends on step-specific digest
+    per_step_expected_x_len: Option<usize>,
+    per_step_expected_pub_len: Option<usize>,
+    per_step_expected_step_m: Option<usize>,
+
+    // Optional hook to report emit-time timings (assembly vs proving)
+    emit_hook: Option<Box<dyn FnMut(&EmitStats) + Send>>, 
 }
 
 impl IvcBatchBuilder {
@@ -1971,6 +2001,15 @@ impl IvcBatchBuilder {
                 binding_spec.y_step_offsets.len(), y_len
             ));
         }
+        if !binding_spec.y_prev_witness_indices.is_empty()
+            && binding_spec.y_prev_witness_indices.len() != y_len
+        {
+            return Err(anyhow::anyhow!(
+                "y_prev_witness_indices length {} must equal y_len {}",
+                binding_spec.y_prev_witness_indices.len(),
+                y_len
+            ));
+        }
         for &offset in &binding_spec.y_step_offsets {
             if offset >= step_ccs.m {
                 return Err(anyhow::anyhow!(
@@ -1984,15 +2023,25 @@ impl IvcBatchBuilder {
             step_ccs,
             y_len,
             binding_spec,
-            batch_ccs: None,
-            batch_witness: Vec::new(),
-            batch_public: Vec::new(),
+            pending: Vec::new(),
             steps_in_batch: 0,
-            blocks: Vec::new(),
-            witness_len_per_block: None,
+            pending_m_total: 0,
             accumulator: initial_accumulator,
             policy,
+            per_step_expected_x_len: None,
+            per_step_expected_pub_len: None,
+            per_step_expected_step_m: None,
+            emit_hook: None,
         })
+    }
+
+    /// Install a hook to observe per-emission timings (assembly and proving).
+    /// The hook is invoked after a successful emit with basic stats.
+    pub fn set_emit_hook<F>(&mut self, hook: F)
+    where
+        F: FnMut(&EmitStats) + Send + 'static,
+    {
+        self.emit_hook = Some(Box::new(hook));
     }
     
     /// Create a new batch builder (UNSAFE - for testing/legacy compatibility only).
@@ -2041,10 +2090,22 @@ impl IvcBatchBuilder {
         let step_digest = create_step_digest(&step_data);
 
         // 2) Build the augmented CCS for just this step: step_ccs ⊕ EV(public-ρ)
-        // 🔒 SECURITY: Use trusted binding specification
+        // SECURITY: do not cache; this builder depends on the per-step digest.
+        let x_len = x_vec.len();
+        // Invariant: keep x_len constant within a builder (common case)
+        if let Some(prev) = self.per_step_expected_x_len {
+            if prev != x_len {
+                return Err(anyhow::anyhow!(
+                    "x_len changed across steps: expected {}, got {}",
+                    prev, x_len
+                ));
+            }
+        } else {
+            self.per_step_expected_x_len = Some(x_len);
+        }
         let per_step_ccs = build_augmented_ccs_for_proving(
             &self.step_ccs,
-            x_vec.len(),
+            x_len,
             self.y_len,
             &self.binding_spec.y_step_offsets,
             &self.binding_spec.y_prev_witness_indices,
@@ -2077,17 +2138,7 @@ impl IvcBatchBuilder {
         // Build linked witness: [step_witness || u] where u = ρ * y_step  
         let this_witness = build_linked_augmented_witness(step_witness, &self.binding_spec.y_step_offsets, rho);
         
-        // Establish or check per-block witness length
-        if let Some(len) = self.witness_len_per_block {
-            if len != this_witness.len() {
-                return Err(anyhow::anyhow!(
-                    "Inconsistent per-step witness length: got {}, expected {}",
-                    this_witness.len(), len
-                ));
-            }
-        } else {
-            self.witness_len_per_block = Some(this_witness.len());
-        }
+        // No per-block witness length cache required with assemble-on-emit
         
         #[cfg(feature = "neo-logs")]
         {
@@ -2116,99 +2167,50 @@ impl IvcBatchBuilder {
         // ✅ All binding (step_x, y_prev) now integrated into unified CCS
 
         // 6) Build PROPER batch CCS with in-place stitching constraints
-        match &self.batch_ccs {
-            None => {
-                // First step - initialize batch structure  
-                self.batch_ccs = Some(per_step_ccs.clone());
-                
-                // Track block metadata for stitching
-                let x_len = x_vec.len();
-                let pub_len = x_len + 1 + 2 * self.y_len;  // step_x + rho + y_prev + y_next
-                let block_meta = BlockMeta {
-                    base_col: 0,
-                    pub_len,
-                    y_prev_off_in_block: x_len + 1,           // after step_x + rho
-                    y_next_off_in_block: x_len + 1 + self.y_len, // after step_x + rho + y_prev
-                    const1_col_in_block: pub_len + self.binding_spec.const1_witness_index,
-                };
-                self.blocks.push(block_meta);
-                
-                // ✅ REVIEWER FIX: Keep publics as publics all the way through
-                self.batch_public.extend_from_slice(&this_public);
-                self.batch_witness.extend_from_slice(&this_witness);
+        // Record this step; build batch CCS at emit-time
+        let x_len = x_vec.len();
+        let pub_len = x_len + 1 + 2 * self.y_len; // step_x + rho + y_prev + y_next
+        let layout = StepLayout {
+            pub_len,
+            y_prev_off_in_block: x_len + 1,
+            y_next_off_in_block: x_len + 1 + self.y_len,
+            const1_col_in_block: pub_len + self.binding_spec.const1_witness_index,
+            step_m: per_step_ccs.m,
+        };
+        if let Some(prev) = self.per_step_expected_pub_len {
+            if prev != layout.pub_len {
+                return Err(anyhow::anyhow!(
+                    "pub_len changed across steps: expected {}, got {}",
+                    prev, layout.pub_len
+                ));
             }
-            Some(existing) => {
-                // (a) direct-sum previous batch with the new per-step CCS
-                let base_col_right = existing.m;  // absolute column start for the new step
-                let with_step = neo_ccs::direct_sum_transcript_mixed(
-                    existing,
-                    &per_step_ccs,
-                    step_digest
-                ).map_err(|e| anyhow::anyhow!("Failed to direct-sum step into batch: {}", e))?;
-
-                // Track this step's block metadata
-                let x_len = x_vec.len();
-                let pub_len = x_len + 1 + 2 * self.y_len;
-                let this_block = BlockMeta {
-                    base_col: base_col_right,
-                    pub_len,
-                    y_prev_off_in_block: x_len + 1,
-                    y_next_off_in_block: x_len + 1 + self.y_len,
-                    const1_col_in_block: pub_len + self.binding_spec.const1_witness_index,
-                };
-                
-                // (b) Add in-place stitching constraints using absolute column indices
-                let left = &self.blocks[self.blocks.len() - 1];  // previous step
-                let right = &this_block;                         // current step
-                
-                let left_y_next_abs = left.base_col + left.y_next_off_in_block;
-                let right_y_prev_abs = right.base_col + right.y_prev_off_in_block;
-                let const1_abs = left.base_col + left.const1_col_in_block;
-                
-                // === UPDATE VECTORS: REVIEWER FIX - proper public/witness separation ===
-                self.batch_public.extend_from_slice(&this_public);
-                self.batch_witness.extend_from_slice(&this_witness);
-                
-                // Debug logging removed for cleaner output
-                
-                // (existing) aggregator stitching:
-                let final_batch = add_stitching_constraints_to_ccs(
-                    with_step,
-                    self.y_len,
-                    left_y_next_abs,
-                    right_y_prev_abs,
-                    const1_abs,
-                ).map_err(|e| anyhow::anyhow!("Failed to add stitching constraints: {}", e))?;
-
-                // NEW: step-witness stitching (next_x(i) == prev_x(i+1))
-                let mut final_batch = final_batch; // shadow for incremental appends
-                if !self.binding_spec.y_prev_witness_indices.is_empty() {
-                    // Sanity
-                    assert_eq!(self.binding_spec.y_prev_witness_indices.len(), self.y_len);
-                    assert_eq!(self.binding_spec.y_step_offsets.len(), self.y_len);
-
-                    for k in 0..self.y_len {
-                        let left_next_abs =
-                            left.base_col + left.pub_len + self.binding_spec.y_step_offsets[k];
-                        let right_prev_abs =
-                            right.base_col + right.pub_len + self.binding_spec.y_prev_witness_indices[k];
-
-                        final_batch = add_stitching_constraints_to_ccs(
-                            final_batch,
-                            1,                 // one row per component k
-                            left_next_abs,     // next_x^(i)[k]
-                            right_prev_abs,    // prev_x^(i+1)[k]
-                            const1_abs,        // multiply by 1 in B
-                        ).map_err(|e| anyhow::anyhow!(
-                            "Failed to add witness stitching constraints: {}", e
-                        ))?;
-                    }
-                }
-
-                self.batch_ccs = Some(final_batch);
-                self.blocks.push(this_block);
-            }
+        } else {
+            self.per_step_expected_pub_len = Some(layout.pub_len);
         }
+        if let Some(prev) = self.per_step_expected_step_m {
+            if prev != layout.step_m {
+                return Err(anyhow::anyhow!(
+                    "step_m changed across steps: expected {}, got {}",
+                    prev, layout.step_m
+                ));
+            }
+        } else {
+            self.per_step_expected_step_m = Some(layout.step_m);
+        }
+        if layout.const1_col_in_block >= layout.step_m {
+            return Err(anyhow::anyhow!(
+                "const1 index out of range: const1_col_in_block={} step_m={}",
+                layout.const1_col_in_block, layout.step_m
+            ));
+        }
+        self.pending.push(PendingStep {
+            ccs: per_step_ccs,
+            public: this_public,
+            witness: this_witness,
+            layout,
+            step_digest,
+        });
+        self.pending_m_total += self.pending.last().unwrap().layout.step_m;
 
         self.steps_in_batch += 1;
 
@@ -2236,18 +2238,32 @@ impl IvcBatchBuilder {
         self.accumulator.step += 1;
 
         // 8) Emission policy
-        if let EmissionPolicy::Every(n) = self.policy {
-            if self.steps_in_batch >= n {
-                // 🔧 FIX: Don't ignore proof errors - they indicate critical failures like sum-check issues
-                match self.emit_now_internal() {
-                    Ok(_) => {
-                        // Auto-emit succeeded
-                    }
-                    Err(e) => {
-                        return Err(anyhow::anyhow!("Auto-emit failed: {}", e).into());
+        match self.policy {
+            EmissionPolicy::Every(n) => {
+                if self.steps_in_batch >= n {
+                    match self.emit_now_internal() {
+                        Ok(_) => {}
+                        Err(e) => { return Err(anyhow::anyhow!("Auto-emit failed: {}", e).into()); }
                     }
                 }
             }
+            EmissionPolicy::ByM(max_m) => {
+                if self.pending_m_total >= max_m {
+                    match self.emit_now_internal() {
+                        Ok(_) => {}
+                        Err(e) => { return Err(anyhow::anyhow!("Auto-emit failed: {}", e).into()); }
+                    }
+                }
+            }
+            EmissionPolicy::EveryOrByM { every_n, max_m } => {
+                if self.steps_in_batch >= every_n || self.pending_m_total >= max_m {
+                    match self.emit_now_internal() {
+                        Ok(_) => {}
+                        Err(e) => { return Err(anyhow::anyhow!("Auto-emit failed: {}", e).into()); }
+                    }
+                }
+            }
+            _ => {}
         }
 
         Ok(y_next)
@@ -2259,56 +2275,76 @@ impl IvcBatchBuilder {
     /// Resets the batch after extraction.
     ///
     /// This is the correct method for `EmissionPolicy::Never` - accumulate fast, prove later.
-    pub fn extract_batch(&mut self) -> Option<BatchData> {
-        let ccs = self.batch_ccs.take()?;
-        if self.steps_in_batch == 0 {
-            return None;
+    pub fn extract_batch(&mut self) -> anyhow::Result<Option<BatchData>> {
+        if self.steps_in_batch == 0 || self.pending.is_empty() {
+            return Ok(None);
         }
 
-        // Pack per-step as stored in the direct-sum CCS: [p_i || w_i] per step,
-        // then concatenate steps: [p0|w0|p1|w1|...]. And make ALL of this private.
-        let wit_len_per_block = self.witness_len_per_block.expect("set on first append");
-        let steps = self.blocks.len();
+        // Move pending out so we can avoid cloning CCS blocks.
+        // Save counters so we can restore them on failure.
+        let moved_pending = std::mem::take(&mut self.pending);
+        let saved_steps = self.steps_in_batch;
+        let saved_m_total = self.pending_m_total;
 
-        let pub_total = self.batch_public.len();
-        let wit_total = self.batch_witness.len();
+        // Assemble inside a closure to catch errors and restore state.
+        let assembled: anyhow::Result<BatchData> = (|| {
+            let steps = moved_pending.len();
 
-        let mut combined_witness = Vec::with_capacity(pub_total + wit_total);
-        let mut p_off = 0usize;
-        let mut w_off = 0usize;
-        for blk in &self.blocks {
-            let pub_len = blk.pub_len;
-            combined_witness.extend_from_slice(&self.batch_public[p_off .. p_off + pub_len]);
-            combined_witness.extend_from_slice(&self.batch_witness[w_off .. w_off + wit_len_per_block]);
-            p_off += pub_len;
-            w_off += wit_len_per_block;
+            // 1) Pack witness now (before potentially consuming steps)
+            let pub_total: usize = moved_pending.iter().map(|p| p.public.len()).sum();
+            let wit_total: usize = moved_pending.iter().map(|p| p.witness.len()).sum();
+            let mut combined_witness = Vec::with_capacity(pub_total + wit_total);
+            for p in &moved_pending {
+                combined_witness.extend_from_slice(&p.public);
+                combined_witness.extend_from_slice(&p.witness);
+            }
+
+            // 2) Build CCS once from all pending steps (balanced merges, preserves order)
+            let blocks: Vec<(CcsStructure<F>, [u8; 32])> = moved_pending
+                .iter()
+                .map(|p| (p.ccs.clone(), p.step_digest))
+                .collect();
+            let mut ccs = direct_sum_transcript_mixed_many(blocks)
+                .map_err(|e| anyhow::anyhow!("direct_sum_transcript_mixed_many failed: {}", e))?;
+
+            // 3) Add stitching constraints in one pass
+            if steps >= 2 {
+                ccs = add_stitching_constraints_from_layouts(&ccs, &moved_pending, self.y_len, &self.binding_spec)
+                    .map_err(|e| anyhow::anyhow!("add_stitching_constraints_from_layouts failed: {}", e))?;
+            }
+
+            Ok(BatchData {
+                ccs,
+                public_input: Vec::new(),
+                witness: combined_witness,
+                steps_covered: steps,
+            })
+        })();
+
+        match assembled {
+            Ok(batch) => {
+                // Success: reset counters and drop moved_pending
+                self.steps_in_batch = 0;
+                self.pending_m_total = 0;
+
+                #[cfg(feature = "neo-logs")]
+                {
+                    println!("🔍 DEBUG extract_batch result:");
+                    println!("   public_input.len(): {}", 0);
+                    println!("   witness.len(): {}", batch.witness.len());
+                    println!("   steps_covered: {}", batch.steps_covered);
+                }
+
+                Ok(Some(batch))
+            }
+            Err(e) => {
+                // Failure: restore state
+                self.pending = moved_pending;
+                self.steps_in_batch = saved_steps;
+                self.pending_m_total = saved_m_total;
+                Err(e)
+            }
         }
-        debug_assert_eq!(p_off, pub_total);
-        debug_assert_eq!(w_off, wit_total);
-
-        // Reset for next batch
-        self.blocks.clear();
-        self.steps_in_batch = 0;
-        self.batch_public.clear();
-        self.batch_witness.clear();
-
-        // IMPORTANT: the direct-sum CCS's columns are [p0|w0|p1|w1|...].
-        // By returning empty public_input, the McsInstance will naturally have m_in = 0.
-
-        #[cfg(feature = "neo-logs")]
-        {
-            println!("🔍 DEBUG extract_batch result:");
-            println!("   public_input.len(): {}", 0);
-            println!("   witness.len(): {}", combined_witness.len());
-            println!("   steps_covered: {}", steps);
-        }
-
-        Some(BatchData {
-            ccs,
-            public_input: Vec::new(),
-            witness: combined_witness,
-            steps_covered: steps,
-        })
     }
 
     /// Emit a single SNARK proof for the *current batch*, then reset the batch.
@@ -2323,9 +2359,11 @@ impl IvcBatchBuilder {
     }
 
     fn emit_now_internal(&mut self) -> anyhow::Result<Option<crate::Proof>> {
-        let Some(batch_data) = self.extract_batch() else {
+        let assemble_start = std::time::Instant::now();
+        let Some(batch_data) = self.extract_batch()? else {
             return Ok(None);
         };
+        let assemble_ms = assemble_start.elapsed().as_secs_f64() * 1000.0;
 
         // Sanity: with packed witness approach, public_input should be empty and m == |witness|
         anyhow::ensure!(
@@ -2408,28 +2446,33 @@ impl IvcBatchBuilder {
         }
         
         // Overall check (using empty public_input with packed witness approach)
+        #[cfg(feature = "neo-logs")]
         match neo_ccs::check_ccs_rowwise_zero(&batch_data.ccs, &[], &batch_data.witness) {
-            Ok(()) => {
-                #[cfg(feature = "neo-logs")]
-                println!("     ✅ All CCS constraints satisfied with PACKED WITNESS approach!")
-            },
-            Err(_e) => {
-                #[cfg(feature = "neo-logs")]
-                {
-                    println!("     ❌ CCS constraints VIOLATED: {:?}", _e);
-                    println!("     This means the packed witness approach still has issues");
-                }
-            }
+            Ok(()) => println!("     ✅ All CCS constraints satisfied with PACKED WITNESS approach!"),
+            Err(e) => println!("     ❌ CCS constraints VIOLATED: {:?}", e),
         }
 
         // NOTE: We do not set application-level OutputClaims here; pass [].
+        let prove_start = std::time::Instant::now();
         let proof = crate::prove(crate::ProveInput {
             params: &self.params,
             ccs: &batch_data.ccs,
             public_input: &batch_data.public_input,
             witness: &batch_data.witness,
             output_claims: &[],
+            vjs_opt: None,
         })?;
+        let prove_ms = prove_start.elapsed().as_secs_f64() * 1000.0;
+
+        if let Some(hook) = self.emit_hook.as_mut() {
+            let stats = EmitStats {
+                steps_covered: batch_data.steps_covered,
+                m_total: batch_data.ccs.m,
+                assemble_ms,
+                prove_ms,
+            };
+            hook(&stats);
+        }
 
         #[cfg(feature = "neo-logs")]
         println!("     🔒 AUTO-EMITTED: Proof #{} (covered steps {}-{})",
@@ -2445,7 +2488,7 @@ impl IvcBatchBuilder {
 
     /// Return whether the batch currently has something to emit.
     pub fn has_pending_batch(&self) -> bool {
-        self.batch_ccs.is_some()
+        !self.pending.is_empty()
     }
 
     /// Finalize the batch builder by extracting any remaining batch data.
@@ -2455,7 +2498,7 @@ impl IvcBatchBuilder {
     ///
     /// Returns `Some(BatchData)` if there were pending steps, `None` if batch was empty.
     /// The caller can then pass the BatchData to their "Final SNARK Layer".
-    pub fn finalize(&mut self) -> Option<BatchData> {
+    pub fn finalize(&mut self) -> anyhow::Result<Option<BatchData>> {
         self.extract_batch()
     }
 
@@ -2500,6 +2543,7 @@ pub fn prove_batch_data(
         public_input: &batch_data.public_input,
         witness: &batch_data.witness,
         output_claims: &[], // No application-level output claims for IVC
+        vjs_opt: None,
     })
 }
 
@@ -2847,6 +2891,204 @@ pub fn add_stitching_constraints_to_ccs(
 
     CcsStructure::new(new_matrices, existing_ccs.f.clone())
         .map_err(|e| format!("Failed to extend CCS with stitching constraints: {:?}", e))
+}
+
+/// Batch version of stitching: add all cross-step constraints in a single pass.
+/// This avoids O(n^2) matrix rebuilds when many steps are accumulated.
+#[allow(dead_code)]
+// add_all_stitching_constraints_to_ccs removed in favor of layout-based stitching at emit-time
+
+/// Balanced merge using `direct_sum_transcript_mixed` that preserves block order.
+fn direct_sum_transcript_mixed_many(
+    mut blocks: Vec<(CcsStructure<F>, [u8; 32])>,
+) -> Result<CcsStructure<F>, String> {
+    use rayon::prelude::*;
+    if blocks.is_empty() { return Err("no blocks".into()); }
+    while blocks.len() > 1 {
+        // If odd length, carry the tail up unchanged
+        let tail = if blocks.len() & 1 == 1 { Some(blocks.pop().unwrap()) } else { None };
+        // Move pairs out to avoid clones
+        let mut it = blocks.into_iter();
+        let mut pairs: Vec<((CcsStructure<F>, [u8; 32]), (CcsStructure<F>, [u8; 32]))> = Vec::new();
+        while let (Some(a), Some(b)) = (it.next(), it.next()) {
+            pairs.push((a, b));
+        }
+        // Parallel merge pairs
+        let merged: Result<Vec<(CcsStructure<F>, [u8; 32])>, String> = pairs
+            .into_par_iter()
+            .map(|(left, right)| {
+                let (a, da) = left;
+                let (b, db) = right;
+                // Use combined digest as mixer input to bind both children
+                let mix = combine_step_digests(da, db);
+                let merged = neo_ccs::direct_sum_transcript_mixed(&a, &b, mix)
+                    .map_err(|e| format!("direct_sum_transcript_mixed failed: {}", e))?;
+                Ok((merged, mix))
+            })
+            .collect();
+        let mut next = merged?;
+        if let Some(t) = tail { next.push(t); }
+        blocks = next;
+    }
+    Ok(blocks.remove(0).0)
+}
+
+/// Combine two 32-byte step digests into a single transcript digest using Poseidon2.
+fn combine_step_digests(dl: [u8; 32], dr: [u8; 32]) -> [u8; 32] {
+    use neo_ccs::crypto::poseidon2_goldilocks as p2;
+    use p3_goldilocks::Goldilocks;
+
+    let poseidon2 = p2::permutation();
+    let mut st = [Goldilocks::ZERO; p2::WIDTH];
+    let mut rate_used = 0usize;
+    let absorb_u64 = |st: &mut [Goldilocks; p2::WIDTH], rate_used: &mut usize, limb: u64| {
+        if *rate_used >= p2::RATE { *st = poseidon2.permute(*st); *rate_used = 0; }
+        st[*rate_used] = Goldilocks::from_u64(limb);
+        *rate_used += 1;
+    };
+    // Domain separation: absorb 2 limbs of a tag
+    absorb_u64(&mut st, &mut rate_used, 0x6E656F5F64697265); // "neo_dire"
+    absorb_u64(&mut st, &mut rate_used, 0x63745F73756D5F76); // "ct_sum_v"
+    // Absorb left and right digests as 4×u64 each
+    for i in 0..4 {
+        let limb = u64::from_le_bytes(dl[i*8..(i+1)*8].try_into().unwrap());
+        absorb_u64(&mut st, &mut rate_used, limb);
+    }
+    for i in 0..4 {
+        let limb = u64::from_le_bytes(dr[i*8..(i+1)*8].try_into().unwrap());
+        absorb_u64(&mut st, &mut rate_used, limb);
+    }
+    // pad and permute
+    absorb_u64(&mut st, &mut rate_used, 1);
+    st = poseidon2.permute(st);
+    let mut out = [0u8; 32];
+    for i in 0..4 {
+        out[i*8..(i+1)*8].copy_from_slice(&st[i].as_canonical_u64().to_le_bytes());
+    }
+    out
+}
+
+/// Add stitching constraints for all adjacent steps using per-step layouts.
+fn add_stitching_constraints_from_layouts(
+    base: &CcsStructure<F>,
+    pending: &[PendingStep],
+    y_len: usize,
+    binding: &StepBindingSpec,
+) -> Result<CcsStructure<F>, String> {
+    if y_len == 0 || pending.len() < 2 { return Ok(base.clone()); }
+
+    let old_rows = base.n;
+    let old_cols = base.m;
+    // Aggregator stitching rows (always)
+    let mut add_rows = (pending.len() - 1) * y_len;
+    // Optional witness stitching rows if binding provides y_prev_witness_indices
+    let do_wit_stitch = !binding.y_prev_witness_indices.is_empty();
+    if do_wit_stitch { add_rows += (pending.len() - 1) * y_len; }
+    let new_rows = old_rows + add_rows;
+
+    // Precompute base_col offsets per step in the combined CCS
+    let mut base_cols = Vec::with_capacity(pending.len());
+    let mut acc = 0usize;
+    for p in pending {
+        base_cols.push(acc);
+        acc += p.layout.step_m;
+    }
+
+    // Validate indices
+    let mut max_col_needed = 0usize;
+    for i in 0..pending.len() - 1 {
+        let left = &pending[i].layout;
+        let right = &pending[i + 1].layout;
+        let left_base = base_cols[i];
+        let right_base = base_cols[i + 1];
+        let last_left_next = left_base + left.y_next_off_in_block + y_len - 1;
+        let last_right_prev = right_base + right.y_prev_off_in_block + y_len - 1;
+        let const1_abs = left_base + left.const1_col_in_block;
+        max_col_needed = max_col_needed.max(last_left_next.max(last_right_prev).max(const1_abs));
+        if do_wit_stitch {
+            let last_left_next_wit = left_base + left.pub_len + binding.y_step_offsets[y_len - 1];
+            let last_right_prev_wit = right_base + right.pub_len + binding.y_prev_witness_indices[y_len - 1];
+            max_col_needed = max_col_needed.max(last_left_next_wit.max(last_right_prev_wit));
+        }
+    }
+    if max_col_needed >= old_cols {
+        return Err(format!(
+            "Column index out of range in stitching: need {}, have {}",
+            max_col_needed, old_cols
+        ));
+    }
+
+    let t = base.matrices.len();
+    if t % 3 != 0 { return Err(format!("Stitching expects t to be a multiple of 3 (triads), got t={}", t)); }
+
+    use rayon::prelude::*;
+    let new_mats: Vec<Mat<F>> = base.matrices
+        .par_iter()
+        .enumerate()
+        .map(|(mat_idx, old)| {
+            // Efficient row append on dense Mat
+            let mut mat = old.clone();
+            mat.append_zero_rows(new_rows - old_rows, F::ZERO);
+        // append constraints
+        let is_a = (mat_idx % 3) == 0;
+        let is_b = (mat_idx % 3) == 1;
+        let mut r_out = old_rows;
+        for i in 0..pending.len() - 1 {
+            let left = &pending[i].layout;
+            let right = &pending[i + 1].layout;
+            let left_base = base_cols[i];
+            let right_base = base_cols[i + 1];
+            let left_y_next_abs = left_base + left.y_next_off_in_block;
+            let right_y_prev_abs = right_base + right.y_prev_off_in_block;
+            let const1_abs = left_base + left.const1_col_in_block;
+                for k in 0..y_len {
+                    let r = r_out + k;
+                    if is_a {
+                        mat.set(r, left_y_next_abs + k, F::ONE);
+                        mat.set(r, right_y_prev_abs + k, -F::ONE);
+                    } else if is_b {
+                        mat.set(r, const1_abs, F::ONE);
+                    }
+                }
+                r_out += y_len;
+            }
+            // Optional: witness stitching next_x(i)[k] == prev_x(i+1)[k]
+            if do_wit_stitch {
+                for i in 0..pending.len() - 1 {
+                let left = &pending[i].layout;
+                let right = &pending[i + 1].layout;
+                let left_base = base_cols[i];
+                let right_base = base_cols[i + 1];
+                let const1_abs = left_base + left.const1_col_in_block;
+                    for k in 0..y_len {
+                        let left_next_abs = left_base + left.pub_len + binding.y_step_offsets[k];
+                        let right_prev_abs = right_base + right.pub_len + binding.y_prev_witness_indices[k];
+                        let r = r_out + k;
+                        if is_a {
+                            mat.set(r, left_next_abs, F::ONE);
+                            mat.set(r, right_prev_abs, -F::ONE);
+                        } else if is_b {
+                            mat.set(r, const1_abs, F::ONE);
+                        }
+                    }
+                    r_out += y_len;
+                }
+            }
+            // Debug-assert: for C (idx 2) appended rows must remain zero
+            #[cfg(debug_assertions)]
+            if (mat_idx % 3) == 2 {
+                for r in old_rows..new_rows {
+                    let row = mat.row(r);
+                    let zero = row.iter().all(|&v| v == F::ZERO);
+                    debug_assert!(zero, "C-matrix appended row {} must be zero", r - old_rows);
+                }
+            }
+
+            mat
+        })
+        .collect();
+
+    CcsStructure::new(new_mats, base.f.clone()).map_err(|e| format!("Failed to stitch CCS: {:?}", e))
 }
 
 /// Build CCS that enforces cross-step stitching: y_next^(i) == y_prev^(i+1).

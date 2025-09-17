@@ -73,6 +73,7 @@ fn safe_params_are_accepted() {
         public_input: &public_input,
         witness: &witness,
         output_claims: &[],
+        vjs_opt: None,
     };
     
     // This should succeed with safe parameters

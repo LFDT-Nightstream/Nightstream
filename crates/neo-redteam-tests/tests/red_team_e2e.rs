@@ -30,6 +30,7 @@ fn e2e_rejects_tampered_proof() {
         public_input: &public_input,
         witness: &witness,
         output_claims: &[],
+        vjs_opt: None,
     };
 
     // produce proof

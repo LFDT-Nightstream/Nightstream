@@ -44,6 +44,23 @@ impl<T: Clone> Mat<T> {
         let start = i * self.cols;
         &mut self.data[start .. start + self.cols]
     }
+
+    /// Append `k` zero rows to the matrix in-place.
+    /// The caller must provide the zero element for the field type.
+    pub fn append_zero_rows(&mut self, k: usize, zero: T) {
+        if k == 0 { return; }
+        let extra = k * self.cols;
+        self.data.resize(self.data.len() + extra, zero);
+        self.rows += k;
+    }
+
+    /// Set a single entry at (row, col) to the provided value.
+    #[inline]
+    pub fn set(&mut self, row: usize, col: usize, val: T) {
+        debug_assert!(row < self.rows, "row out of bounds");
+        debug_assert!(col < self.cols, "col out of bounds");
+        self.data[row * self.cols + col] = val;
+    }
 }
 
 /// TRUE Compressed Sparse Row (CSR) format - only stores non-zeros!

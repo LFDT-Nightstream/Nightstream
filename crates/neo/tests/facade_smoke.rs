@@ -33,6 +33,7 @@ fn facade_smoke_test() -> Result<()> {
         public_input: &public_input,
         witness: &witness,
         output_claims: &[],
+        vjs_opt: None,
     };
     
     let proof = prove(prove_input)?;
@@ -65,6 +66,7 @@ fn facade_invalid_witness_should_fail() {
         public_input: &public_input, 
         witness: &invalid_witness,
         output_claims: &[],
+        vjs_opt: None,
     };
     
     // This should fail during proof generation due to unsatisfied constraints

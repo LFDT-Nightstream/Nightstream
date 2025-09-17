@@ -154,7 +154,8 @@ fn prove_once(n: usize, params: &NeoParams) -> Result<(f64, usize)> {
         ccs: &ccs, 
         public_input: &[], 
         witness: &wit,
-        output_claims: &[final_claim], // Expose F(n) as public output
+        output_claims: &[final_claim],
+        vjs_opt: None, // Expose F(n) as public output
     })?;
     let prove_ms = t0.elapsed().as_secs_f64() * 1000.0;
 

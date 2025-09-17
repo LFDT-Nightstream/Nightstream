@@ -198,7 +198,7 @@ fn build_fib_batch_ccs(params: &NeoParams, steps: usize) -> anyhow::Result<(Batc
     println!("   ✅ All {} steps completed! Auto-emitted {} proofs during execution.", steps, proofs_emitted);
     println!("   📦 Finalizing remaining batch data for final SNARK layer...");
 
-    let data = batch.finalize().ok_or_else(|| anyhow::anyhow!("No batch data produced"))?;
+    let data = batch.finalize()?.ok_or_else(|| anyhow::anyhow!("No batch data produced"))?;
     Ok((data, step_ccs))
 }
 
@@ -285,6 +285,7 @@ fn cmd_gen(n: usize, out: PathBuf, bundle_vk: bool, emit_vk: bool) -> Result<()>
         public_input: &batch_data.public_input,
         witness: &batch_data.witness,
         output_claims: &[final_claim],
+        vjs_opt: None,
     })?;
     let prove_time = prove_start.elapsed();
     let proof_size = proof.size();

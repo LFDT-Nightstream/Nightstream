@@ -104,7 +104,7 @@ fn test_batch_constraints_satisfied() {
     let y1 = extractor.extract_y_step(&w1);
     batch_builder.append_step(&w1, None, &y1).unwrap();
 
-    let batch_data = batch_builder.finalize().unwrap();
+    let batch_data = batch_builder.finalize().unwrap().unwrap();
 
     // Under current implementation we expect packed mode (all-private)
     assert!(batch_data.public_input.is_empty(), "Batch public_input must be empty in packed mode");

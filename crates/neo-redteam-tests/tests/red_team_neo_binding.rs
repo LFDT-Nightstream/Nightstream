@@ -31,6 +31,7 @@ fn rt26_verify_wrong_public_input_must_fail() {
     let proof = prove(ProveInput {
         params: &params, ccs: &ccs, public_input: &public_input, witness: &witness,
         output_claims: &[],
+        vjs_opt: None,
     }).expect("prove ok");
 
     // Tamper: change the public_input at verification time
@@ -49,6 +50,7 @@ fn rt26_verify_wrong_ccs_must_fail() {
     let proof = prove(ProveInput {
         params: &params, ccs: &ccs, public_input: &public_input, witness: &witness,
         output_claims: &[],
+        vjs_opt: None,
     }).expect("prove ok");
 
     // Tamper CCS deterministically: flip one entry in the first matrix

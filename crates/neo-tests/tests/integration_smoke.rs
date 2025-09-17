@@ -34,6 +34,7 @@ fn neo_basic_prove_verify_works() {
         public_input: &public_input,
         witness: &witness,
         output_claims: &[],
+        vjs_opt: None,
     };
 
     // Generate proof
@@ -62,6 +63,7 @@ fn neo_constraint_violation_fails() {
         public_input: &public_input,
         witness: &invalid_witness,
         output_claims: &[],
+        vjs_opt: None,
     };
 
     // Proof generation should fail with constraint violation

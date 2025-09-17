@@ -328,6 +328,7 @@ fn run_fibonacci_proof(fib_length: usize) -> Result<()> {
         public_input: &public_inputs,
         witness: &z,
         output_claims: &[final_claim],
+        vjs_opt: None,
     })?;
     
     let prove_time = prove_start.elapsed();
@@ -335,16 +336,31 @@ fn run_fibonacci_proof(fib_length: usize) -> Result<()> {
     println!("   - Proof generation time: {:.2} ms", prove_time.as_secs_f64() * 1000.0);
     println!("   - Proof size: {} bytes", proof.size());
     
-    // Step 6: Verify the proof and extract verified results (single call)
-    println!("\n🔍 Step 6: Verifying Neo SNARK proof and extracting results...");
+    // Step 6: Verify the proof explicitly (similar to ivc_every_policy.rs)
+    println!("\n🔍 Step 6: Verifying Neo SNARK proof...");
     let verify_start = Instant::now();
     
-    let outputs = neo::verify_and_extract_exact(&ccs, &public_inputs, &proof, 1)?;
+    // First, do explicit proof verification
+    let is_valid = neo::verify(&ccs, &public_inputs, &proof)?;
     let verify_time = verify_start.elapsed();
+    
+    println!("   Proof verification: {}", if is_valid { "✅ VALID" } else { "❌ INVALID" });
+    println!("   - Verification time: {:.2} ms", verify_time.as_secs_f64() * 1000.0);
+    
+    if !is_valid {
+        return Err(anyhow::anyhow!("Proof verification failed!"));
+    }
+    
+    // Step 7: Extract verified results
+    println!("\n🔍 Step 7: Extracting verified outputs...");
+    let extract_start = Instant::now();
+    
+    let outputs = neo::verify_and_extract_exact(&ccs, &public_inputs, &proof, 1)?;
+    let extract_time = extract_start.elapsed();
     let y_verified = outputs[0].as_canonical_u64();
     
-    println!("   ✅ Complete protocol verification PASSED!");
-    println!("   - Verification time: {:.2} ms", verify_time.as_secs_f64() * 1000.0);
+    println!("   ✅ Output extraction completed!");
+    println!("   - Extraction time: {:.2} ms", extract_time.as_secs_f64() * 1000.0);
     println!("   🔢 Verified public output (from cryptographic public_io): F({}) ≡ {} (mod p)", fib_length, y_verified);
         
     // Final Performance Summary
@@ -361,8 +377,9 @@ fn run_fibonacci_proof(fib_length: usize) -> Result<()> {
     println!("Performance Metrics:");
     println!("  Proof Generation:       {:>8.2} ms", prove_time.as_secs_f64() * 1000.0);
     println!("  Proof Verification:     {:>8.2} ms", verify_time.as_secs_f64() * 1000.0);
+    println!("  Output Extraction:      {:>8.2} ms", extract_time.as_secs_f64() * 1000.0);
     println!("  Total End-to-End:       {:>8.2} ms", 
-           (prove_time + verify_time).as_secs_f64() * 1000.0);
+           (prove_time + verify_time + extract_time).as_secs_f64() * 1000.0);
     println!("  Proof Size:             {:>8} bytes ({:.1} KB)", 
            proof.size(), proof.size() as f64 / 1024.0);
     println!();
@@ -383,7 +400,7 @@ fn run_fibonacci_proof(fib_length: usize) -> Result<()> {
     println!("  Constraints/ms:         {:>8.1}", constraints_per_ms);
     println!("  KB per Constraint:      {:>8.3}", kb_per_constraint);
     println!("  Verification Speedup:   {:>8.1}x", 
-           prove_time.as_secs_f64() / verify_time.as_secs_f64());
+           prove_time.as_secs_f64() / (verify_time.as_secs_f64() + extract_time.as_secs_f64()));
     println!("=========================================");
     println!("\n🎉 Neo Protocol Flow Complete!");
     println!("   ✨ Fibonacci constraints successfully proven with Neo lattice-based SNARK");

@@ -463,7 +463,7 @@ fn test_secure_batch_builder_blocks_stitching_attack() -> Result<()> {
         
         // Try to extract the batch - this should work
         let batch_data = secure_batch.finalize();
-        if let Some(data) = batch_data {
+        if let Ok(Some(data)) = batch_data {
             println!("📦 Batch extracted: {} steps, {} constraints", 
                      data.steps_covered, data.ccs.n);
             
@@ -517,7 +517,7 @@ fn test_secure_batch_builder_blocks_stitching_attack() -> Result<()> {
     let step2_y_step = honest_extractor.extract_y_step(&step2_witness);
     let _y2_next = honest_batch.append_step(&step2_witness, None, &step2_y_step)?;
     
-    let honest_batch_data = honest_batch.finalize().unwrap();
+    let honest_batch_data = honest_batch.finalize().unwrap().unwrap();
     let honest_constraint_result = check_ccs_rowwise_zero(
         &honest_batch_data.ccs, 
         &honest_batch_data.public_input, 
@@ -572,7 +572,7 @@ fn test_secure_batch_builder_basic() -> Result<()> {
     println!("✅ Single step appended to SecureBatchBuilder");
     
     // Try to extract and verify
-    if let Some(batch_data) = secure_batch.finalize() {
+    if let Ok(Some(batch_data)) = secure_batch.finalize() {
         println!("📦 Extracted batch: {} steps, {} constraints, pub={}, wit={}", 
                  batch_data.steps_covered, batch_data.ccs.n, 
                  batch_data.public_input.len(), batch_data.witness.len());

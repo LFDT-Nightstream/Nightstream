@@ -22,6 +22,8 @@ pub struct PiCcsProof {
     pub sumcheck_rounds: Vec<Vec<K>>,
     /// Extension policy binding digest  
     pub header_digest: [u8; 32],
+    /// Precomputed v_j = M_j^T * χ_r vectors over K (one per matrix)
+    pub vjs: Vec<Vec<K>>, 
 }
 
 // ===== CSR Sparse Matrix Operations =====
@@ -889,7 +891,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     println!("🔧 [TIMING] ME instance building: {:.2}ms", 
              me_start.elapsed().as_secs_f64() * 1000.0);
 
-    let proof = PiCcsProof { sumcheck_rounds: rounds, header_digest: fold_digest };
+    let proof = PiCcsProof { sumcheck_rounds: rounds, header_digest: fold_digest, vjs };
     Ok((out_me, proof))
 }
 

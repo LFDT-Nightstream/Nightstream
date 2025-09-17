@@ -95,6 +95,7 @@ fn prove_and_verify_fibonacci_with_public_seed() -> Result<()> {
         public_input: &public_input,
         witness: &witness,
         output_claims: &[claim],
+        vjs_opt: None,
     })?;
 
     // Verify success with correct public input

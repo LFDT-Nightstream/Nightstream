@@ -91,7 +91,7 @@ fn batch_builder_properly_separates_public_witness() {
         prev += step_number;
     }
 
-    let data = batch.finalize().expect("expected non-empty batch");
+    let data = batch.finalize().expect("finalize failed").expect("expected non-empty batch");
 
     let x_len = 0usize;
     let y_len = 1usize;
@@ -182,7 +182,7 @@ fn batch_public_tamper_rho_fails() {
         prev += step_number;
     }
 
-    let data = batch.finalize().expect("expected non-empty batch");
+    let data = batch.finalize().expect("finalize failed").expect("expected non-empty batch");
 
     let steps = 2;
     let x_len = 0;

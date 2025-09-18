@@ -11,7 +11,17 @@
 //! Each test should FAIL, confirming the vulnerability exists, before we fix the implementation.
 
 use anyhow::Result;
-use neo::{NeoParams, F, ivc::{prove_ivc_step_with_extractor, prove_ivc_final_snark, Accumulator, StepBindingSpec, LastNExtractor}};
+use neo::{NeoParams, F, ivc::{
+    prove_ivc_step_with_extractor,
+    prove_ivc_final_snark,
+    Accumulator,
+    StepBindingSpec,
+    LastNExtractor,
+    build_final_snark_public_input,
+    build_step_data_with_x,
+    create_step_digest,
+    rho_from_transcript,
+}};
 use neo_ccs::{r1cs_to_ccs, Mat, CcsStructure};
 use p3_field::PrimeCharacteristicRing;
 
@@ -80,8 +90,8 @@ fn test_vulnerability_folding_chain_duplication() -> Result<()> {
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        // Bind step_x = [H(prev_acc)[4] || delta] → witness indices [0,1,2,3,2]
-        x_witness_indices: vec![0, 1, 2, 3, 2],
+        // Bind only the app input (delta) to witness[2]
+        x_witness_indices: vec![2],
         y_prev_witness_indices: vec![1],
         const1_witness_index: 0,
     };
@@ -128,8 +138,16 @@ fn test_vulnerability_folding_chain_duplication() -> Result<()> {
     println!("   Expected chain sum (if folding works): {}", expected_chain_sum);
     println!("   Expected last step only (if folding broken): {}", deltas[2]);
     
-    // Generate final SNARK with the arithmetic result
-    let final_public_input = vec![F::from_u64(x)]; // x = 600 (full chain)
+    // Build the correct augmented CCS public input for the final SNARK
+    let final_step = ivc_proofs.last().unwrap();
+    let step_x = final_step.step_public_input.clone();
+    let prev_acc = &ivc_proofs[ivc_proofs.len() - 2].next_accumulator; // we ran 3 steps
+    let step_data = build_step_data_with_x(prev_acc, final_step.step, &step_x);
+    let step_digest = create_step_digest(&step_data);
+    let (rho, _td) = rho_from_transcript(prev_acc, step_digest);
+    let y_prev = &prev_acc.y_compact;
+    let y_next = &final_step.next_accumulator.y_compact;
+    let final_public_input = build_final_snark_public_input(&step_x, rho, y_prev, y_next);
     let final_proof = prove_ivc_final_snark(&params, &ivc_proofs, &final_public_input)
         .map_err(|e| anyhow::anyhow!("Final SNARK failed: {}", e))?;
     
@@ -146,10 +164,10 @@ fn test_vulnerability_folding_chain_duplication() -> Result<()> {
         return Err(anyhow::anyhow!("Folding chain duplication: proof doesn't verify with full chain"));
     }
     
-    // 🚨 CRITICAL TEST: Try to verify with just the last step's result
-    // If folding is broken (duplicating), this should also verify incorrectly
-    let last_step_only_input = vec![F::from_u64(deltas[2])]; // Just 300, not 600
-    let is_valid_last_step_only = neo::verify(final_augmented_ccs, &last_step_only_input, &final_proof)
+    // 🚨 CRITICAL TEST: Try to verify with a wrong public input consistent in length but wrong values
+    // Replace y_prev with an incorrect value (use last delta instead of accumulated state)
+    let wrong_public_input = build_final_snark_public_input(&step_x, rho, &vec![F::from_u64(deltas[2])], y_next);
+    let is_valid_last_step_only = neo::verify(final_augmented_ccs, &wrong_public_input, &final_proof)
         .map_err(|e| anyhow::anyhow!("Verification failed: {}", e))?;
     
     if is_valid_last_step_only {
@@ -184,12 +202,11 @@ fn test_vulnerability_final_snark_public_input_format() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
-    // 🔒 SECURITY FIX ACCOMMODATION: Provide proper witness binding to test other vulnerabilities
-    // step_x = [H(prev_acc)[4 elements] || delta] = 5 elements total
-    // We need to bind all 5 elements to witness positions
+    // 🔒 Provide proper witness binding to test other aspects
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![0, 1, 2, 3, 2], // Bind step_x[0..4] to witness[0..3], step_x[4] (delta) to witness[2]
+        // Bind only the app input (delta) to witness[2]
+        x_witness_indices: vec![2],
         y_prev_witness_indices: vec![1],
         const1_witness_index: 0,
     };
@@ -224,7 +241,7 @@ fn test_vulnerability_final_snark_public_input_format() -> Result<()> {
     let final_augmented_ccs = step_result.proof.augmented_ccs.as_ref().unwrap();
     
     // 🚨 WRONG FORMAT: Using simple [x] instead of augmented CCS layout
-    let wrong_format_input = vec![F::from_u64(delta)]; // Simple arithmetic result
+    let wrong_format_input = vec![F::from_u64(delta)];
     
     println!("   Attempting to generate final SNARK with WRONG format: {:?}", wrong_format_input);
     
@@ -274,7 +291,7 @@ fn test_vulnerability_missing_witness_binding() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
-    // 🚨 VULNERABLE: x_witness_indices=[] removes binding
+    // 🚫 FIXED: x_witness_indices=[] is rejected by the prover
     let vulnerable_binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
         x_witness_indices: vec![],      // This is the vulnerability!
@@ -359,11 +376,10 @@ fn test_vulnerability_fixed_ajtai_seed() -> Result<()> {
     // For now, we'll check if the parameters produce identical behavior
     // by running identical computations and seeing if we get identical results
     let step_ccs = build_increment_ccs();
-    // 🔒 SECURITY FIX ACCOMMODATION: Provide proper witness binding to test other vulnerabilities
-    // step_x = [H(prev_acc)[4 elements] || delta] = 5 elements total
+    // Bind only the app input (delta) to witness[2]
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![0, 1, 2, 3, 2], // Bind step_x[0..4] to witness[0..3], step_x[4] (delta) to witness[2]
+        x_witness_indices: vec![2],
         y_prev_witness_indices: vec![1],
         const1_witness_index: 0,
     };
@@ -448,8 +464,8 @@ fn test_vulnerability_fixed_ajtai_seed() -> Result<()> {
 fn test_comprehensive_vulnerability_suite() -> Result<()> {
     println!("🧪 COMPREHENSIVE VULNERABILITY TEST SUITE");
     println!("=========================================");
-    println!("Running all architectural vulnerability tests...");
-    println!("These tests should FAIL, confirming vulnerabilities exist.\n");
+    println!("Running all architectural vulnerability tests as post-fix checks...");
+    println!("These now confirm vulnerabilities are fixed.\n");
 
     let mut vulnerabilities_found = 0;
     let mut total_tests = 0;
@@ -458,52 +474,32 @@ fn test_comprehensive_vulnerability_suite() -> Result<()> {
     total_tests += 1;
     println!("🔍 Test 1/4: Folding Chain Duplication");
     match test_vulnerability_folding_chain_duplication() {
-        Ok(_) => {
-            println!("   ⚠️  Test PASSED - Vulnerability may be fixed or test needs refinement");
-        }
-        Err(e) => {
-            println!("   ❌ Test FAILED as expected - Vulnerability confirmed: {}", e);
-            vulnerabilities_found += 1;
-        }
+        Ok(_) => println!("   ✅ Passed: Chain duplication fixed"),
+        Err(e) => { println!("   ❌ Failed: {}", e); vulnerabilities_found += 1; }
     }
     
     // Test 2: Final SNARK Public Input Format
     total_tests += 1;
     println!("\n🔍 Test 2/4: Final SNARK Public Input Format");
     match test_vulnerability_final_snark_public_input_format() {
-        Ok(_) => {
-            println!("   ⚠️  Test PASSED - Vulnerability may be fixed or test needs refinement");
-        }
-        Err(e) => {
-            println!("   ❌ Test FAILED as expected - Vulnerability confirmed: {}", e);
-            vulnerabilities_found += 1;
-        }
+        Ok(_) => println!("   ✅ Passed: Final SNARK input format enforced"),
+        Err(e) => { println!("   ❌ Failed: {}", e); vulnerabilities_found += 1; }
     }
     
     // Test 3: Missing Witness Binding
     total_tests += 1;
     println!("\n🔍 Test 3/4: Missing Witness Binding");
     match test_vulnerability_missing_witness_binding() {
-        Ok(_) => {
-            println!("   ⚠️  Test PASSED - Vulnerability may be fixed or test needs refinement");
-        }
-        Err(e) => {
-            println!("   ❌ Test FAILED as expected - Vulnerability confirmed: {}", e);
-            vulnerabilities_found += 1;
-        }
+        Ok(_) => println!("   ✅ Passed: Missing witness binding rejected"),
+        Err(e) => { println!("   ❌ Failed: {}", e); vulnerabilities_found += 1; }
     }
     
     // Test 4: Fixed Ajtai Seed
     total_tests += 1;
     println!("\n🔍 Test 4/4: Fixed Ajtai Seed");
     match test_vulnerability_fixed_ajtai_seed() {
-        Ok(_) => {
-            println!("   ⚠️  Test PASSED - Vulnerability may be fixed or test needs refinement");
-        }
-        Err(e) => {
-            println!("   ❌ Test FAILED as expected - Vulnerability confirmed: {}", e);
-            vulnerabilities_found += 1;
-        }
+        Ok(_) => println!("   ✅ Passed: Ajtai seed randomness enforced"),
+        Err(e) => { println!("   ❌ Failed: {}", e); vulnerabilities_found += 1; }
     }
     
     // Summary
@@ -511,16 +507,11 @@ fn test_comprehensive_vulnerability_suite() -> Result<()> {
     println!("==============================");
     println!("Vulnerabilities found: {}/{} tests", vulnerabilities_found, total_tests);
     
-    if vulnerabilities_found == total_tests {
-        println!("🚨 ALL VULNERABILITIES CONFIRMED - Implementation needs fixes!");
-        println!("   This is the expected result before fixing the implementation.");
-        return Err(anyhow::anyhow!("All {} architectural vulnerabilities confirmed", vulnerabilities_found));
-    } else if vulnerabilities_found > 0 {
-        println!("⚠️  PARTIAL VULNERABILITIES - Some issues may be fixed or tests need refinement");
-        return Err(anyhow::anyhow!("{}/{} vulnerabilities found", vulnerabilities_found, total_tests));
-    } else {
+    if vulnerabilities_found == 0 {
         println!("✅ NO VULNERABILITIES FOUND - Implementation appears secure!");
-        println!("   This would be unexpected with the current implementation.");
         return Ok(());
+    } else {
+        println!("❌ {} failures detected", vulnerabilities_found);
+        return Err(anyhow::anyhow!("{}/{} tests failed", vulnerabilities_found, total_tests));
     }
 }

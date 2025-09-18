@@ -1,9 +1,8 @@
-//! Fibonacci Neo SNARK Demo (SP1-equivalent CCS + benchmark)
+//! Fibonacci Neo SNARK Benchmark
 //!
-//! This builds a CCS equivalent to the SP1 loop with seeds z0=0, z1=1, and
-//! constraints z[i+2] = z[i+1] + z[i] for i=0..n-2. It then proves for several n
-//! and prints a CSV: `n,prover time (ms),proof size (bytes)`.
-//!
+//! This benchmarks Neo SNARK proving for Fibonacci sequence computation using
+//! an efficient sparse matrix construction approach instead of a large monolithic matrix.
+//! 
 //! The proof demonstrates: "I know a valid Fibonacci sequence of length n, and F(n) ≡ X (mod p)"
 //! where X is the final result exposed as a public output, and all intermediate values stay secret.
 //!
@@ -11,16 +10,17 @@
 //!        # or customize ns: N="100,1000,10000,50000" cargo run --release -p neo --example fib_benchmark
 //!
 //! Notes:
-//! - The R1CS is constructed sparsely: only the few non-zeros per row are stored.
-//! - We verify after proving, but we *only* time the prove() call for the CSV.
-//! - Each proof includes an OutputClaim that exposes F(n) mod p as public output.
+//! - Uses sparse matrix construction for efficiency
+//! - Each constraint enforces: z[i+2] = z[i+1] + z[i] for the Fibonacci recurrence
+//! - Final SNARK proof exposes F(n) as public output
+//! - Much more memory efficient than dense matrix approaches
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use anyhow::Result;
-use neo::{prove, CcsStructure, NeoParams, ProveInput, F, claim_z_eq};
-use neo_ccs::{r1cs_to_ccs, Mat, check_ccs_rowwise_zero};
+use neo::{prove, ProveInput, NeoParams, CcsStructure, F, claim_z_eq};
+use neo_ccs::{check_ccs_rowwise_zero, r1cs_to_ccs, Mat};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::env;
 use std::time::Instant;
@@ -34,44 +34,14 @@ fn triplets_to_dense(rows: usize, cols: usize, triplets: Vec<(usize, usize, F)>)
     data
 }
 
-/// Pad all CCS matrices with zero-rows so that ccs.n is power-of-two.
-fn pad_ccs_rows_to_pow2(ccs: CcsStructure<F>) -> CcsStructure<F> {
-    let n = ccs.n;
-    let n_pad = n.next_power_of_two();
-    if n_pad == n { return ccs; }
-
-    let m = ccs.m;
-    let mut padded = Vec::with_capacity(ccs.matrices.len());
-    for mat in &ccs.matrices {
-        let mut out = Mat::zero(n_pad, m, F::ZERO);
-        // copy existing rows
-        for r in 0..n {
-            for c in 0..m {
-                out[(r, c)] = mat[(r, c)];
-            }
-        }
-        padded.push(out);
-    }
-
-    // Rebuild CCS with identical polynomial f, just with padded matrices
-    CcsStructure::new(padded, ccs.f.clone())
-        .expect("valid CCS after row padding")
-}
-
-/// Build sparse R1CS matrices encoding:
-///   seeds:  z0 = 0, z1 = 1
-///   step:   z[i+2] - z[i+1] - z[i] = 0 for i = 0..n-2
-///
-/// Variables (columns): [1, z0, z1, ..., z_n]
-/// Rows (constraints): 2 seed rows + (n-1) step rows => total rows = n + 1
-///
-/// Encoding as R1CS (Az) ∘ (Bz) = Cz where each row has:
-///   - B selects the constant wire (so Bz = 1)
-///   - C is 0
-///   - A row is the linear form we want to equal 0
-///
-/// IMPORTANT: we construct the matrices *sparsely*.
-fn fibonacci_ccs_equivalent_to_sp1(n: usize) -> CcsStructure<F> {
+/// Build CCS for Fibonacci sequence using sparse construction
+/// 
+/// Variables: [1, z0, z1, z2, ..., z_n] where z_i = F(i)
+/// Constraints:
+/// 1. z0 = 0 (F(0) = 0)
+/// 2. z1 = 1 (F(1) = 1) 
+/// 3. z[i+2] = z[i+1] + z[i] for i = 0..n-2 (Fibonacci recurrence)
+fn fibonacci_ccs(n: usize) -> CcsStructure<F> {
     assert!(n >= 1, "n must be >= 1");
 
     let rows = n + 1;        // 2 seed rows + (n-1) recurrence rows
@@ -95,10 +65,6 @@ fn fibonacci_ccs_equivalent_to_sp1(n: usize) -> CcsStructure<F> {
     // --- Recurrence rows ---
     // For i in 0..n-2:
     // Row (2+i): z[i+2] - z[i+1] - z[i] = 0
-    // Columns: z_k sits at col (k+1). So:
-    //   z[i]   -> col (i+1)
-    //   z[i+1] -> col (i+2)
-    //   z[i+2] -> col (i+3)
     for i in 0..(n - 1) {
         let r = 2 + i;
         a_trips.push((r, (i + 3),  F::ONE));  // +z[i+2]
@@ -112,30 +78,35 @@ fn fibonacci_ccs_equivalent_to_sp1(n: usize) -> CcsStructure<F> {
     let b = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, b_trips));
     let c = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, c_trips));
 
-    // Convert to CCS and pad to power-of-2 for Π_CCS compatibility
-    let ccs = r1cs_to_ccs(a, b, c);
-    pad_ccs_rows_to_pow2(ccs)
+    // Convert to CCS
+    r1cs_to_ccs(a, b, c)
 }
 
-/// Produce the witness vector [1, z0, z1, ..., z_n] with z0=0, z1=1 (mod F)
+/// Generate Fibonacci witness vector [1, z0, z1, ..., z_n] with z0=0, z1=1 (mod F)
 #[inline]
 fn fibonacci_witness(n: usize) -> Vec<F> {
     assert!(n >= 1);
-    let mut z: Vec<F> = Vec::with_capacity(n + 2);
+    
+    // We need exactly n+2 elements: [1, z0, z1, z2, ..., z_n]
+    let mut z = Vec::with_capacity(n + 2);
     z.push(F::ONE);  // constant 1
-    z.push(F::ZERO); // z0
-    z.push(F::ONE);  // z1
-    for k in 2..=n {
-        let next = z[k] + z[k - 1]; // note: z index is shifted by +1 due to constant at 0
+    z.push(F::ZERO); // z0 = 0
+    z.push(F::ONE);  // z1 = 1
+    
+    // Generate additional fibonacci numbers z2, z3, ..., z_n  
+    while z.len() < n + 2 {
+        let len = z.len();
+        let next = z[len - 1] + z[len - 2];
         z.push(next);
     }
+    
     z
 }
 
 /// Prove once for a given n, returning (prove_time_ms, proof_size_bytes).
 fn prove_once(n: usize, params: &NeoParams) -> Result<(f64, usize)> {
-    // Build CCS + witness
-    let ccs = fibonacci_ccs_equivalent_to_sp1(n);
+    // Build CCS + witness using efficient sparse construction
+    let ccs = fibonacci_ccs(n);
     let wit = fibonacci_witness(n);
 
     // Local sanity check (no public inputs)
@@ -181,11 +152,11 @@ fn main() -> Result<()> {
     // Allow overriding the benchmark list via env var N="10,20,50,100"
     let ns: Vec<usize> = match env::var("N") {
         Ok(s) => s.split(',').filter_map(|x| x.trim().parse().ok()).collect(),
-        Err(_) => vec![10000],  // Test non-power-of-two values! 100, 1000, 10000, 50000
+        Err(_) => vec![100, 1000, 10000],  // Reasonable defaults for benchmarking
     };
 
     // Warm-up (small n) to stabilize allocations, not timed in the table
-    let _ = prove_once(1, &params)?;
+    let _ = prove_once(10, &params)?;
 
     // Store results instead of printing immediately
     let mut results = Vec::new();

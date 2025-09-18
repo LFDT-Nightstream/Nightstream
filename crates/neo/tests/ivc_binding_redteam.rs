@@ -43,7 +43,8 @@ fn compute_x_digest(acc: &Accumulator) -> Vec<F> {
 #[test]
 fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    let step_ccs = build_increment_step_ccs();
+    // Extend the circuit with 4 unconstrained app slots so we can bind them
+    let step_ccs = build_increment_step_ccs_with_app_slots(4);
 
     let prev_acc = Accumulator {
         c_z_digest: [0u8; 32],
@@ -52,15 +53,17 @@ fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
         step: 0,
     };
 
-    // Witness: [1, prev_x=0, next_x=1]
-    let step_witness = vec![F::ONE, F::ZERO, F::ONE];
+    // Witness: [1, prev_x=0, next_x=1, app0..app3]
+    let step_witness = vec![
+        F::ONE, F::ZERO, F::ONE,
+        F::from_u64(123456), F::from_u64(789), F::from_u64(101112), F::from_u64(131415)
+    ];
     let y_step = vec![F::ONE];
 
-    // The accumulator digest has 4 elements, but we don't want to bind them to witness
-    // so we use empty x_witness_indices (no binders)
     let binding = StepBindingSpec {
         y_step_offsets: vec![2],
-        x_witness_indices: vec![], // No binders for step_x
+        // Bind only the *app* tail of step_x (digest prefix remains unbound by design).
+        x_witness_indices: vec![3, 4, 5, 6],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -129,6 +132,26 @@ fn verifier_rejects_tampered_step_x() {
     // Verifier must reject tampered x
     let is_valid = verify_ivc_step(&step_ccs, &forged, &prev_acc, &binding).expect("verify must not error");
     assert!(!is_valid, "verifier should reject proof with tampered step_x");
+}
+
+// Helper used above: variables = [1, prev_x, next_x, app_0..app_{k-1}],
+// with the single constraint next_x - prev_x - 1 = 0 and all app_* unconstrained.
+fn build_increment_step_ccs_with_app_slots(k: usize) -> CcsStructure<F> {
+    let rows = 1;
+    let cols = 3 + k;
+    let mut a = vec![F::ZERO; rows * cols];
+    let mut b = vec![F::ZERO; rows * cols];
+    let c = vec![F::ZERO; rows * cols];
+    // next_x - prev_x - 1 = 0
+    a[0 * cols + 2] = F::ONE;
+    a[0 * cols + 1] = -F::ONE;
+    a[0 * cols + 0] = -F::ONE;
+    b[0 * cols + 0] = F::ONE; // × 1
+    r1cs_to_ccs(
+        Mat::from_row_major(rows, cols, a),
+        Mat::from_row_major(rows, cols, b),
+        Mat::from_row_major(rows, cols, c),
+    )
 }
 
 

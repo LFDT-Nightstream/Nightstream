@@ -174,9 +174,9 @@ fn main() -> Result<()> {
 
     let args: Vec<String> = std::env::args().collect();
     let num_steps = if args.len() > 1 {
-        args[1].parse::<u64>().unwrap_or(10000)
+        args[1].parse::<u64>().unwrap_or(1000)
     } else {
-        100000
+        1000
     };
 
     println!("🔥 Neo IVC Fibonacci Folding Demo");

@@ -25,7 +25,7 @@ pub struct State {
     running_me: Option<neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>>,
     /// Running folded ME witness (None for first step, Some after first fold)
     running_me_wit: Option<neo_ccs::MeWitness<F>>,
-    ivc_proofs: Vec<IvcProof>,
+    pub ivc_proofs: Vec<IvcProof>,
 }
 
 impl State {
@@ -147,6 +147,12 @@ pub fn finalize_and_prove(state: State) -> anyhow::Result<Option<(crate::Proof, 
     };
     let y_next = &state.accumulator.y_compact;
     
+    // Get the augmented CCS from the final proof for verification
+    let augmented_ccs = state.ivc_proofs.last().unwrap()
+        .augmented_ccs.as_ref()
+        .expect("Final proof missing augmented CCS")
+        .clone();
+
     // Build the correct public input format: [step_x || ρ || y_prev || y_next]
     let final_public_input = crate::ivc::build_final_snark_public_input(
         step_x, rho, y_prev, y_next
@@ -154,10 +160,21 @@ pub fn finalize_and_prove(state: State) -> anyhow::Result<Option<(crate::Proof, 
 
     // Generate Stage 5 final SNARK proof using the final ME instance
     let proof = if let (Some(final_me), Some(final_me_wit)) = (&state.running_me, &state.running_me_wit) {
-        // Use the final folded ME instance to generate the lean proof
-        let legacy_me = neo_fold::modern_to_legacy_instance(final_me, &state.params);
-        let legacy_wit = neo_fold::modern_to_legacy_witness(final_me_wit, &state.params)
-            .map_err(|e| anyhow::anyhow!("Failed to convert ME witness: {}", e))?;
+        // Use adapt_from_modern to properly populate ajtai_rows for Spartan bridge
+        let (mut legacy_me, legacy_wit) = crate::adapt_from_modern(
+            std::slice::from_ref(final_me),
+            std::slice::from_ref(final_me_wit),
+            &augmented_ccs,
+            &state.params,
+            &[],  // no extra OutputClaim for final proof
+            None, // no vjs needed for final proof
+        ).map_err(|e| anyhow::anyhow!("Bridge adapter failed: {}", e))?;
+        
+        // Bind proof to the augmented CCS + public input
+        let context_digest = crate::context_digest_v1(&augmented_ccs, &final_public_input);
+        #[allow(deprecated)]
+        { legacy_me.header_digest = context_digest; }
+        
         let lean = neo_spartan_bridge::compress_me_to_lean_proof(&legacy_me, &legacy_wit)?;
         
         crate::Proof {
@@ -166,21 +183,15 @@ pub fn finalize_and_prove(state: State) -> anyhow::Result<Option<(crate::Proof, 
             vk_digest: lean.vk_digest,
             public_io: lean.public_io_bytes,
             proof_bytes: lean.proof_bytes,
-            public_results: final_public_input.clone(),
+            public_results: vec![], // IVC chains have no separate application outputs
             meta: crate::ProofMeta { 
                 num_y_compact: state.ivc_proofs.last().unwrap().step_proof.meta.num_y_compact,
-                num_app_outputs: state.ivc_proofs.last().unwrap().step_proof.meta.num_app_outputs,
+                num_app_outputs: 0, // IVC chains have no separate application outputs
             },
         }
     } else {
         return Err(anyhow::anyhow!("No running ME instance available for final proof"));
     };
-
-    // Get the augmented CCS from the final proof for verification
-    let augmented_ccs = state.ivc_proofs.last().unwrap()
-        .augmented_ccs.as_ref()
-        .expect("Final proof missing augmented CCS")
-        .clone();
 
     Ok(Some((proof, augmented_ccs, final_public_input)))
 }

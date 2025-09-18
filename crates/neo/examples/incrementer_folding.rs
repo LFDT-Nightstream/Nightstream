@@ -17,7 +17,9 @@ use neo::ivc::{
     Accumulator,
     LastNExtractor,
     prove_ivc_step_with_extractor,
+    StepBindingSpec,
 };
+use neo::ivc_chain;
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use p3_field::PrimeCharacteristicRing;
 use anyhow::Result;
@@ -189,15 +191,37 @@ fn main() -> Result<()> {
     println!("\n🔄 Stage 5: Generating Final SNARK Layer proof...");
     let final_snark_start = Instant::now();
     
-    // Create final public input (the computation result)
-    let final_public_input = vec![F::from_u64(x)];
+    // Use the chained API to generate the final SNARK proof
+    // First, create a temporary state and populate it with the IVC proofs
+    let binding_spec = StepBindingSpec {
+        y_step_offsets: vec![1],        // Extract x from witness position 1
+        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        y_prev_witness_indices: vec![1], // Previous x from witness position 1
+        const1_witness_index: 0,        // Constant 1 at witness position 0
+    };
     
-    // Generate the final SNARK proof from all accumulated IVC steps
-    let final_proof = neo::ivc::prove_ivc_final_snark(
-        &params,
-        &ivc_proofs,
-        &final_public_input,
-    ).expect("Final SNARK generation failed");
+    let mut temp_state = ivc_chain::State::new(params.clone(), step_ccs.clone(), vec![F::ZERO], binding_spec)
+        .expect("Failed to create IVC chain state");
+    
+    // Add all IVC proofs to the state
+    for proof in &ivc_proofs {
+        temp_state.ivc_proofs.push(proof.clone());
+    }
+    
+    // Extract running ME from the final proof (if available)
+    if let Some(final_proof) = ivc_proofs.last() {
+        if let (Some(me_instances), Some(me_witnesses)) = (&final_proof.me_instances, &final_proof.digit_witnesses) {
+            if let (Some(final_me), Some(final_wit)) = (me_instances.last(), me_witnesses.last()) {
+                temp_state.set_running_me(final_me.clone(), final_wit.clone());
+            }
+        }
+    }
+    
+    // Generate final proof using chained API
+    let result = ivc_chain::finalize_and_prove(temp_state)
+        .expect("Failed to finalize and prove");
+    let (final_proof, final_augmented_ccs, final_public_input) = result
+        .expect("No steps to finalize");
     
     let final_snark_time = final_snark_start.elapsed();
     
@@ -205,12 +229,8 @@ fn main() -> Result<()> {
     println!("🔄 Verifying Final SNARK proof...");
     let verify_start = Instant::now();
     
-    // Get the augmented CCS from the final proof for verification
-    let final_augmented_ccs = ivc_proofs.last().unwrap()
-        .augmented_ccs.as_ref()
-        .expect("Final proof missing augmented CCS");
-    
-    let is_valid = neo::verify(final_augmented_ccs, &final_public_input, &final_proof)
+    // Use the CCS and public input returned by the chained API
+    let is_valid = neo::verify(&final_augmented_ccs, &final_public_input, &final_proof)
         .expect("Final SNARK verification failed");
     let verify_time = verify_start.elapsed();
     

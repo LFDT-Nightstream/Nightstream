@@ -57,6 +57,16 @@ impl State {
             ivc_proofs: Vec::new(),
         })
     }
+
+    /// Set the running ME instance and witness (for compatibility with old API)
+    pub fn set_running_me(
+        &mut self,
+        me: neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>,
+        wit: neo_ccs::MeWitness<F>,
+    ) {
+        self.running_me = Some(me);
+        self.running_me_wit = Some(wit);
+    }
 }
 
 /// Advance one step of the IVC chain using per-step Nova folding.

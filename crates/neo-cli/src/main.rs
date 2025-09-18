@@ -3,7 +3,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use neo::{NeoParams, CcsStructure, F, decode_public_io_y};
+use neo::{NeoParams, CcsStructure, F};
 use neo::ivc::{LastNExtractor, StepBindingSpec};
 use neo::ivc_chain;
 use neo_ccs::{r1cs_to_ccs, Mat};
@@ -389,10 +389,23 @@ fn cmd_verify(file: PathBuf, _vk_cli_path: Option<PathBuf>, n_override: Option<u
         }
     }
     
-    // Decode the proof's public_io to extract the verified Fibonacci result
-    let public_inputs = decode_public_io_y(&pkg.proof.public_io)?;
-    let y_verified = if !public_inputs.is_empty() {
-        public_inputs[0].as_canonical_u64()
+    // Extract the verified Fibonacci result from the final public input
+    // Layout: [step_x || ρ || y_prev || y_next]
+    let y_len = pkg.proof.meta.num_y_compact;
+    let total = pkg.final_public_input.len();
+    
+    // Calculate layout offsets
+    let step_x_len = total - (1 + 2 * y_len);  // total - (ρ + y_prev + y_next)
+    let y_next_start = step_x_len + 1 + y_len; // skip step_x, ρ, and y_prev
+    
+    let y_verified = if y_next_start < pkg.final_public_input.len() {
+        // For Fibonacci, we want the 'b' component (index 2 in y_next)
+        let fib_index = y_next_start + 2; // y_next[2] contains the Fibonacci result
+        if fib_index < pkg.final_public_input.len() {
+            pkg.final_public_input[fib_index].as_canonical_u64()
+        } else {
+            0 // fallback
+        }
     } else {
         0 // fallback
     };

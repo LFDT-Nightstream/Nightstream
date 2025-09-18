@@ -1389,12 +1389,12 @@ pub fn prove_ivc_step_chained(
     let m_step = decomp_z.len() / d;
 
     crate::ensure_ajtai_pp_for_dims(d, m_step, || {
-        use rand::SeedableRng; use std::time::{SystemTime, UNIX_EPOCH};
-        let seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
-        let mut seed_bytes = [0u8; 32];
-        seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
-        for i in 1..4 { let derived = seed.wrapping_mul(i as u64 + 1); seed_bytes[i*8..(i+1)*8].copy_from_slice(&derived.to_le_bytes()); }
-        let mut rng = rand::rngs::StdRng::from_seed(seed_bytes);
+        use rand::{RngCore, SeedableRng};
+        use rand::rngs::StdRng;
+        
+        let mut seed = [0u8; 32];
+        rand::rng().fill_bytes(&mut seed);
+        let mut rng = StdRng::from_seed(seed);
         let pp = crate::ajtai_setup(&mut rng, d, 16, m_step)?;
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
@@ -1420,6 +1420,14 @@ pub fn prove_ivc_step_chained(
     // 6) Reify previous ME→MCS, or create trivial zero instance (base case)
     let (lhs_inst, lhs_wit) = match (prev_me, prev_me_wit) {
         (Some(me), Some(wit)) => {
+            // Dimension checks for ME→MCS reification
+            if wit.Z.rows() != d {
+                return Err(format!("prev ME witness Z has wrong row count: expected {}, got {}", d, wit.Z.rows()).into());
+            }
+            if wit.Z.cols() != m_step {
+                return Err(format!("prev ME witness Z has wrong column count: expected {}, got {}", m_step, wit.Z.cols()).into());
+            }
+            
             // Recompose z from Z using base b
             let base_f = F::from_u64(input.params.b as u64);
             let d_rows = wit.Z.rows();
@@ -1434,6 +1442,11 @@ pub fn prove_ivc_step_chained(
             let x_prev = z_vec[..me.m_in].to_vec();
             let w_prev = z_vec[me.m_in..].to_vec();
             let inst = neo_ccs::McsInstance { c: me.c.clone(), x: x_prev, m_in: me.m_in };
+            
+            // Check m_in consistency with current step
+            if me.m_in != step_public_input.len() {
+                return Err(format!("m_in mismatch between prev ME ({}) and current step ({})", me.m_in, step_public_input.len()).into());
+            }
             let wit_mcs = neo_ccs::McsWitness::<F> { w: w_prev, Z: wit.Z.clone() };
             (inst, wit_mcs)
         }
@@ -1459,16 +1472,11 @@ pub fn prove_ivc_step_chained(
     ).map_err(|e| format!("Nova folding failed: {}", e))?;
 
     // 8) Evolve commitment coordinates with rho
-    let mut c_step_coords: Vec<F> = step_commitment
+    let c_step_coords: Vec<F> = step_commitment
         .data
         .iter()
         .map(|&x| F::from_u64(x.as_canonical_u64()))
         .collect();
-    if !c_step_coords.is_empty() {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
-        c_step_coords[0] += F::from_u64(nanos);
-    }
     let (c_coords_next, c_z_digest_next) = if input.prev_accumulator.c_coords.is_empty() {
         let digest = digest_commit_coords(&c_step_coords);
         (c_step_coords.clone(), digest)
@@ -1504,8 +1512,8 @@ pub fn prove_ivc_step_chained(
         step_y_prev: input.prev_accumulator.y_compact.clone(),
         step_y_next: y_next.clone(),
         c_step_coords,
-        me_instances: Some(me_instances.clone()),
-        digit_witnesses: Some(digit_witnesses.clone()),
+        me_instances: Some(me_instances.clone()), // Keep for final SNARK generation (TODO: optimize)
+        digit_witnesses: Some(digit_witnesses.clone()), // Keep for final SNARK generation (TODO: optimize)
         folding_proof: Some(folding_proof),
         augmented_ccs: Some(step_augmented_ccs),
     };
@@ -1520,7 +1528,7 @@ pub fn prove_ivc_step_chained(
 /// where you don't need to maintain chaining state between calls.
 /// For proper Nova chaining, use `prove_ivc_step_chained` directly.
 pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std::error::Error>> {
-    // Use the chained version with no previous ME instance (will do self-folding for simple API)
+    // Use the chained version with no previous ME instance (will fold with trivial zero instance)
     let (result, _me, _wit) = prove_ivc_step_chained(input, None, None)?;
     Ok(result)
 }
@@ -1834,18 +1842,12 @@ pub fn augmentation_ccs(
 
     // Ensure PP present for (d, m)
     super::ensure_ajtai_pp_for_dims(d, m, || {
-        // 🔒 SECURITY FIX: Use secure random generation instead of fixed seed
-        use rand::SeedableRng;
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let seed = SystemTime::now().duration_since(UNIX_EPOCH)
-            .unwrap_or_default().as_nanos() as u64;
-        let mut seed_bytes = [0u8; 32];
-        seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
-        for i in 1..4 {
-            let derived = seed.wrapping_mul(i as u64 + 1);
-            seed_bytes[i*8..(i+1)*8].copy_from_slice(&derived.to_le_bytes());
-        }
-        let mut rng = rand::rngs::StdRng::from_seed(seed_bytes);
+        use rand::{RngCore, SeedableRng};
+        use rand::rngs::StdRng;
+        
+        let mut seed = [0u8; 32];
+        rand::rng().fill_bytes(&mut seed);
+        let mut rng = StdRng::from_seed(seed);
         let pp = neo_ajtai::setup(&mut rng, d, kappa, m)?;
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
@@ -1955,89 +1957,8 @@ pub fn build_final_snark_public_input(
     public_input
 }
 
-/// **STAGE 5: Final SNARK Layer** - Convert accumulated IVC steps into a succinct proof.
-///
-/// This implements the "expensive" Stage 5 from system-architecture.md that should be called 
-/// separately from the fast per-step IVC loop (Stages 1-4).
-/// 
-/// Takes the accumulated ME instances from all IVC steps and runs Spartan/SuperSpartan + FRI PCS
-/// to produce a lean proof that attests to the entire IVC chain.
-pub fn prove_ivc_final_snark(
-    params: &crate::NeoParams,
-    ivc_proofs: &[IvcProof],
-    final_public_input: &[F],
-) -> anyhow::Result<crate::Proof> {
-    if ivc_proofs.is_empty() {
-        return Err(anyhow::anyhow!("Cannot generate final SNARK from empty IVC chain"));
-    }
-    
-    // 🔒 SECURITY FIX: Validate public input format matches augmented CCS layout
-    // The augmented CCS expects: [step_x || ρ || y_prev || y_next]
-    // Reject arbitrary formats like [x] or [step_count] that were vulnerable
-    let final_ivc_proof = ivc_proofs.last().unwrap();
-    let _augmented_ccs = final_ivc_proof.augmented_ccs.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Final step missing augmented CCS"))?;
-    
-    // Validate public input length matches augmented CCS expectations
-    // For linked augmented CCS, public input layout is: [step_x || ρ || y_prev || y_next]
-    // where len(step_x) = len(final_ivc_proof.step_public_input)
-    // and y_len = step_proof.meta.num_y_compact
-    let step_x_len = final_ivc_proof.step_public_input.len();
-    let y_len = final_ivc_proof.step_proof.meta.num_y_compact;
-    let expected_pub_len = step_x_len + 1 + 2 * y_len;
-    if final_public_input.len() != expected_pub_len {
-            return Err(anyhow::anyhow!(
-            "SECURITY: Final public input length {} does not match expected augmented CCS layout length {} (step_x:{} + ρ:1 + 2*y:{}).",
-            final_public_input.len(), expected_pub_len, step_x_len, y_len
-        ));
-    }
-    
-    // Use the final step's ME instances and witnesses (they represent the folded state)
-    let final_ivc_proof = ivc_proofs.last().unwrap();
-    let me_instances = final_ivc_proof.me_instances.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Final step missing ME instances"))?;
-    let digit_witnesses = final_ivc_proof.digit_witnesses.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Final step missing digit witnesses"))?;
-    let folding_proof = final_ivc_proof.folding_proof.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Final step missing folding proof"))?;
-    let augmented_ccs = final_ivc_proof.augmented_ccs.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Final step missing augmented CCS"))?;
-    
-    // Bridge to Spartan format using the augmented CCS
-    let (mut legacy_me, legacy_wit) = crate::adapt_from_modern(
-        me_instances,
-        digit_witnesses,
-        augmented_ccs,
-        params,
-        &[],  // no extra OutputClaim for final proof
-        Some(&folding_proof.pi_ccs_proof.vjs),
-    ).map_err(|e| anyhow::anyhow!("Bridge adapter failed: {}", e))?;
-    
-    // Bind proof to the augmented CCS + public input
-    let context_digest = crate::context_digest_v1(augmented_ccs, final_public_input);
-    #[allow(deprecated)]
-    { legacy_me.header_digest = context_digest; }
-    
-    // Generate the final lean SNARK proof
-    let lean = neo_spartan_bridge::compress_me_to_lean_proof(&legacy_me, &legacy_wit)
-        .map_err(|e| anyhow::anyhow!("Final SNARK compression failed: {}", e))?;
-    
-    // Extract final results from the last IVC step
-    let final_results = ivc_proofs.last().unwrap().step_proof.public_results.clone();
-    
-    Ok(crate::Proof {
-        v: 2,
-        circuit_key: lean.circuit_key,
-        vk_digest: lean.vk_digest,
-        public_io: lean.public_io_bytes,
-        proof_bytes: lean.proof_bytes,
-        public_results: final_results,
-        meta: crate::ProofMeta { 
-            num_y_compact: ivc_proofs.last().unwrap().step_proof.meta.num_y_compact,
-            num_app_outputs: ivc_proofs.last().unwrap().step_proof.meta.num_app_outputs,
-        },
-    })
-}
+// prove_ivc_final_snark has been removed - use ivc_chain::finalize_and_prove instead
+// This provides better memory efficiency and proper API design
 pub fn build_augmented_ccs_linked(
     step_ccs: &CcsStructure<F>,
     step_x_len: usize,

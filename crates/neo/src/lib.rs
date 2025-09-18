@@ -356,28 +356,17 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     let m_correct = decomp_z.len() / d; // This is the actual m we'll use
     
     ensure_ajtai_pp_for_dims(d, m_correct, || {
-        // 🔒 SECURITY FIX: Use secure random generation instead of fixed seed
-        #[cfg(debug_assertions)]
-        let mut rng = {
-            // In debug builds, use a fixed seed for reproducible tests
-            use rand::SeedableRng;
-            rand::rngs::StdRng::from_seed([42u8; 32])
-        };
-        #[cfg(not(debug_assertions))]
-        let mut rng = {
-            // 🔒 SECURITY: Use time-based seed for non-deterministic generation in release builds
-            use rand::SeedableRng;
-            use std::time::{SystemTime, UNIX_EPOCH};
-            let seed = SystemTime::now().duration_since(UNIX_EPOCH)
-                .unwrap_or_default().as_nanos() as u64;
-            let mut seed_bytes = [0u8; 32];
-            seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
-            // Fill remaining bytes with a simple pattern based on the seed
-            for i in 1..4 {
-                let derived = seed.wrapping_mul(i as u64 + 1);
-                seed_bytes[i*8..(i+1)*8].copy_from_slice(&derived.to_le_bytes());
-            }
-            rand::rngs::StdRng::from_seed(seed_bytes)
+        use rand::{RngCore, SeedableRng};
+        use rand::rngs::StdRng;
+        
+        // Use OS entropy for cryptographically secure randomness
+        // For deterministic builds in CI, this can be overridden with NEO_DETERMINISTIC env var
+        let mut rng = if std::env::var("NEO_DETERMINISTIC").is_ok() {
+            StdRng::from_seed([42u8; 32])
+        } else {
+            let mut seed = [0u8; 32];
+            rand::rng().fill_bytes(&mut seed);
+            StdRng::from_seed(seed)
         };
         
         let pp = ajtai_setup(&mut rng, d, /*kappa*/ 16, m_correct)?;

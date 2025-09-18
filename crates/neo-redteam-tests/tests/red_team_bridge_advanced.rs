@@ -42,7 +42,7 @@ fn tiny_me_instance() -> (MEInstance, MEWitness) {
     let y_outputs = vec![y0, y1]; // Match the number of weight vectors
 
     let me = MEInstance {
-        c_step_coords: vec![], // TODO: Pattern A - populate with actual pre-commit coords
+        c_step_coords: vec![], // Pattern B: Populated by IVC layer, not folding
         u_offset: 0,
         u_len: 0,
         c_coords,

@@ -87,7 +87,7 @@ pub fn modern_to_legacy_instance(
     neo_ccs::MEInstance {
         c_step_coords: vec![],
         u_offset: 0,
-        u_len: 0, // TODO: Pattern A - populate with actual pre-commit coords
+        u_len: 0, // Pattern B: Unused (computed deterministically from witness structure)
         c_coords,
         y_outputs,
         r_point,

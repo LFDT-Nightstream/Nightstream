@@ -142,7 +142,7 @@ pub fn pi_rlc_prove(
     let me_combined = MeInstance {
         c_step_coords: vec![],
         u_offset: 0,
-        u_len: 0, // TODO: Pattern A - populate with actual pre-commit coords
+        u_len: 0, // Pattern B: Unused (computed deterministically from witness structure)
         c: c_prime,
         X: X_prime,
         y: y_prime,

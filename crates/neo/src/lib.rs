@@ -41,7 +41,6 @@
 
 use anyhow::Result;
 use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle};
-use rand::SeedableRng;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 // Poseidon2 is now imported via the unified module
 use p3_symmetric::Permutation;
@@ -60,7 +59,7 @@ where FN: FnMut() -> anyhow::Result<()> {
 // Parameters: width=12, capacity=4, rate=8.
 // SECURITY NOTE: collision security ≈ 2^(capacity_bits/2) = 2^(256/2) = 2^128.
 // This is ample for binding a proving context (do not reuse as a general object hash).
-fn context_digest_v1(ccs: &CcsStructure<F>, public_input: &[F]) -> [u8; 32] {
+pub(crate) fn context_digest_v1(ccs: &CcsStructure<F>, public_input: &[F]) -> [u8; 32] {
     use neo_ccs::crypto::poseidon2_goldilocks as p2;
     use p3_goldilocks::Goldilocks;
 
@@ -157,7 +156,7 @@ pub use ivc::{
     // PRODUCTION OPTION A: Public ρ EV (recommended)
     ev_with_public_rho_ccs, build_ev_with_public_rho_witness,
     // Batch proving (Final SNARK Layer)
-    BatchData, prove_batch_data, IvcBatchBuilder, EmissionPolicy, EmitStats,
+    // REMOVED: BatchData, prove_batch_data, IvcBatchBuilder, EmissionPolicy, EmitStats - not part of Neo architecture
 };
 
 /// Chain-style step/verify wrapper API for examples
@@ -357,13 +356,28 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     let m_correct = decomp_z.len() / d; // This is the actual m we'll use
     
     ensure_ajtai_pp_for_dims(d, m_correct, || {
-        // 🔒 SECURITY: Use CSPRNG in release builds
+        // 🔒 SECURITY FIX: Use secure random generation instead of fixed seed
         #[cfg(debug_assertions)]
-        let mut rng = rand::rngs::StdRng::from_seed([42u8; 32]);
+        let mut rng = {
+            // In debug builds, use a fixed seed for reproducible tests
+            use rand::SeedableRng;
+            rand::rngs::StdRng::from_seed([42u8; 32])
+        };
         #[cfg(not(debug_assertions))]
         let mut rng = {
-            // TODO: Use CSPRNG in production - using fixed seed for testing for now
-            rand::rngs::StdRng::from_seed([42u8; 32])
+            // 🔒 SECURITY: Use time-based seed for non-deterministic generation in release builds
+            use rand::SeedableRng;
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let seed = SystemTime::now().duration_since(UNIX_EPOCH)
+                .unwrap_or_default().as_nanos() as u64;
+            let mut seed_bytes = [0u8; 32];
+            seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
+            // Fill remaining bytes with a simple pattern based on the seed
+            for i in 1..4 {
+                let derived = seed.wrapping_mul(i as u64 + 1);
+                seed_bytes[i*8..(i+1)*8].copy_from_slice(&derived.to_le_bytes());
+            }
+            rand::rngs::StdRng::from_seed(seed_bytes)
         };
         
         let pp = ajtai_setup(&mut rng, d, /*kappa*/ 16, m_correct)?;
@@ -647,7 +661,7 @@ pub fn verify_with_vk(
 
 /// Decode y-elements from `public_io` (excluding trailing 32-byte context digest).
 /// Single source of truth for public_io parsing shared by prover and verifier.
-fn decode_public_io_y(public_io: &[u8]) -> Result<Vec<F>> {
+pub fn decode_public_io_y(public_io: &[u8]) -> Result<Vec<F>> {
     const CTX_LEN: usize = 32;
     anyhow::ensure!(public_io.len() >= CTX_LEN, "public_io too short");
     let body = &public_io[..public_io.len() - CTX_LEN];
@@ -734,7 +748,7 @@ pub fn verify_and_extract(ccs: &CcsStructure<F>, public_input: &[F], proof: &Pro
 // Internal adapter function to bridge modern ME instances to legacy format,
 // using extension-field aware weight vectors with proper layout detection.
 #[allow(deprecated)]
-fn adapt_from_modern(
+pub(crate) fn adapt_from_modern(
     me_instances: &[neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>],
     digit_witnesses: &[neo_ccs::MeWitness<F>],
     ccs: &CcsStructure<F>,

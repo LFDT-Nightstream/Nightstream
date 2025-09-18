@@ -417,12 +417,12 @@ pub fn register_vk_bytes(circuit_key: [u8; 32], vk_bytes: &[u8]) -> anyhow::Resu
     let vk: spartan2::spartan::SpartanVerifierKey<E> = deserialize_vk_stable(vk_bytes)?;
     
     // Compute VK digest v1 (must match the format used during proving)
-    let vk_digest = {
+    let vk_digest: [u8; 32] = {
         use blake3::Hasher;
         let mut hasher = Hasher::new();
         hasher.update(vk_bytes);
         hasher.update(b"VK_DIGEST_V1"); // Same domain separator
-        hasher.finalize().into()
+        *hasher.finalize().as_bytes()
     };
     
     // Register VK in global registry for verification

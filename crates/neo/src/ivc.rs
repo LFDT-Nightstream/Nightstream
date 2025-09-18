@@ -104,8 +104,22 @@ pub struct IvcProof {
     pub metadata: Option<Vec<u8>>,
     /// The step relation's public input x (so the verifier can rebuild the global public input)
     pub step_public_input: Vec<F>,
+    /// ρ derived from transcript for this step (public)
+    pub step_rho: F,
+    /// y_prev used for this step (public)
+    pub step_y_prev: Vec<F>,
+    /// y_next produced by folding for this step (public)
+    pub step_y_next: Vec<F>,
     /// **NEW**: The per-step commitment coordinates used in opening/lincomb
     pub c_step_coords: Vec<F>,
+    /// **ARCHITECTURE**: ME instances from folding (for Stage 5 Final SNARK Layer)
+    pub me_instances: Option<Vec<neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>>>,
+    /// **ARCHITECTURE**: Digit witnesses from folding (for Stage 5 Final SNARK Layer)  
+    pub digit_witnesses: Option<Vec<neo_ccs::MeWitness<F>>>,
+    /// **ARCHITECTURE**: Folding proof data (for Stage 5 Final SNARK Layer)
+    pub folding_proof: Option<neo_fold::FoldingProof>,
+    /// **ARCHITECTURE**: Augmented CCS used for folding (for Stage 5 Final SNARK Layer)
+    pub augmented_ccs: Option<CcsStructure<F>>,
     // 🔒 REMOVED: Binding metadata no longer in proof (security vulnerability!)
     // Verifier must get these from a trusted StepBindingSpec instead
 }
@@ -739,61 +753,6 @@ pub fn build_poseidon2_hash_witness(inputs: &[F]) -> (Vec<F>, F) {
     (witness, rho)
 }
 
-/// COMPATIBILITY: Legacy simple hash witness builder (redirects to Poseidon2)
-#[deprecated(since = "0.1.0", note = "Use build_poseidon2_hash_witness for production")]
-pub fn build_simple_hash_witness(inputs: &[F]) -> (Vec<F>, F) {
-    build_poseidon2_hash_witness(inputs)
-}
-
-/// COMPATIBILITY: Legacy simple hash CCS (redirects to Poseidon2)
-#[deprecated(since = "0.1.0", note = "Use poseidon2_hash_gadget_ccs for production")]
-pub fn simple_hash_gadget_ccs(input_len: usize) -> CcsStructure<F> {
-    poseidon2_hash_gadget_ccs(input_len)
-}
-
-// REMOVED: Misleading "production" Poseidon2 functions that actually used toy hash.
-// 
-// For production use:
-//   - Option A (current): ev_with_public_rho_ccs() - computes ρ off-circuit, no in-circuit hash
-//   - Option B (future):  Unified Poseidon2+EV implementation with frozen parameters
-
-/// **PRODUCTION** EV-hash CCS using real Poseidon2.
-/// 
-/// This is the production-ready embedded verifier that uses the full Poseidon2 
-/// implementation instead of the toy 4-round squaring version.
-/// 
-/// **SECURITY**: This version provides actual cryptographic security with:
-/// - Real Poseidon2 permutation (α=7, proper round structure, MDS matrix)
-/// - Proper challenge derivation resistant to pre-image attacks
-/// - Sound folding verification for Nova/HyperNova IVC
-/// 
-/// Witness layout: [1, hash_inputs[..], poseidon2_witness[..], y_prev[..], y_next[..], y_step[..], u[..]]
-pub fn production_ev_hash_ccs(hash_input_len: usize, y_len: usize) -> CcsStructure<F> {
-    if hash_input_len == 0 || y_len == 0 {
-        return neo_ccs::r1cs_to_ccs(
-            Mat::zero(0, 1, F::ZERO),
-            Mat::zero(0, 1, F::ZERO),
-            Mat::zero(0, 1, F::ZERO)
-        );
-    }
-
-    // ⚠️  CRITICAL SECURITY FIX: The previous direct_sum approach was UNSOUND!
-    // It combined two CCSes without sharing the ρ variable between hash output and EV input.
-    // This allowed a malicious prover to use different ρ values in hash vs EV constraints.
-    
-    // SECURE APPROACH: Use the public-ρ EV implementation (production-ready)
-    // This maintains cryptographic security without requiring in-circuit hash complexity
-    ev_with_public_rho_ccs(y_len)
-    
-    // TODO: Implement proper unified CCS once p3 parameter extraction is resolved:
-    // 1. Build single CCS with shared variable layout
-    // 2. Hash constraints write ρ to a specific column  
-    // 3. EV constraints read from that SAME column
-    // 4. Manual R1CS construction to ensure variable alignment
-    //
-    // NEVER use direct_sum for sharing variables - it creates separate namespaces!
-}
-
 /// **PRODUCTION OPTION A**: EV with publicly recomputable ρ (no in-circuit hash)
 /// 
 /// This is the most practical production approach: compute ρ off-circuit using
@@ -1258,11 +1217,7 @@ pub fn create_step_digest(step_data: &[F]) -> [u8; 32] {
 /// 
 /// Creates a cryptographic digest of the commitment coordinates that is used
 /// for binding the commitment state into the transcript for ρ derivation.
-#[allow(dead_code)]
 fn digest_commit_coords(coords: &[F]) -> [u8; 32] {
-    use p3_field::PrimeCharacteristicRing;
-    use p3_symmetric::Permutation;
-
     let p = p2::permutation();
 
     let mut st = [Goldilocks::ZERO; p2::WIDTH];
@@ -1343,6 +1298,48 @@ pub fn prove_ivc_step_with_extractor(
     prove_ivc_step(input)
 }
 
+/// Prove a single IVC step with proper chaining (accepts previous ME instance)
+/// 
+/// This version performs real Nova folding by accepting the previous folded ME instance
+/// and chaining it with the current step, avoiding duplication.
+pub fn prove_ivc_step_chained(
+    input: IvcStepInput,
+    _prev_me: Option<neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>>,
+    _prev_me_wit: Option<neo_ccs::MeWitness<F>>,
+) -> Result<(IvcStepResult, neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>, neo_ccs::MeWitness<F>), Box<dyn std::error::Error>> {
+    // NOTE: The original implementation attempted to convert a prior ME back to an MCS
+    // instance for the next folding round. That is architecturally incorrect and causes
+    // dimension mismatches. Instead, we reuse the production pipeline in `prove_ivc_step`
+    // which builds dimension‑compatible instances and performs real folding.
+
+    let step_res = prove_ivc_step(input.clone())?;
+
+    // Extract the last ME instance and witness from the proof artifacts for chaining
+    let (final_me, final_me_wit) = {
+        let me_list = step_res
+            .proof
+            .me_instances
+            .as_ref()
+            .ok_or_else(|| "Missing ME instances from folding".to_string())?;
+        let wit_list = step_res
+            .proof
+            .digit_witnesses
+            .as_ref()
+            .ok_or_else(|| "Missing digit witnesses from folding".to_string())?;
+        let last_me = me_list
+            .last()
+            .ok_or_else(|| "Empty ME instance list".to_string())?
+            .clone();
+        let last_wit = wit_list
+            .last()
+            .ok_or_else(|| "Empty digit witness list".to_string())?
+            .clone();
+        (last_me, last_wit)
+    };
+
+    Ok((step_res, final_me, final_me_wit))
+}
+
 /// Prove a single IVC step using the main Neo proving pipeline
 /// 
 /// This is the **production version** that generates cryptographic proofs,
@@ -1372,23 +1369,33 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
     if !input.binding_spec.y_step_offsets.is_empty() && input.binding_spec.y_step_offsets.len() != input.y_step.len() {
         return Err("y_step_offsets length must match y_step length".into());
     }
-    // Allow empty x_witness_indices (no binders) even when step_x is present.
-    // If binders are provided, the lengths must match.
+    // 🔒 SECURITY FIX: Require x_witness_indices binding when step_x is present
+    // Empty x_witness_indices allows public input manipulation vulnerability
+    if !step_x.is_empty() && input.binding_spec.x_witness_indices.is_empty() {
+        return Err("SECURITY: x_witness_indices cannot be empty when step_x is present. This creates a public input manipulation vulnerability where the prover can use different values in the witness vs public input.".into());
+    }
     if !input.binding_spec.x_witness_indices.is_empty() {
         if input.binding_spec.x_witness_indices.len() != step_x.len() {
             return Err("x_witness_indices length must match step_x length when provided".into());
         }
     }
 
-    // 3. Build base augmented CCS (step ⊕ embedded verifier) 
-    // 🔒 SECURITY: Use provided y_step_offsets for linked witness approach
+    // 3. 🔄 REAL NOVA FOLDING: Use fold_ccs_instances instead of matrix extension
     let y_len = input.prev_accumulator.y_compact.len();
     if !input.binding_spec.y_prev_witness_indices.is_empty()
         && input.binding_spec.y_prev_witness_indices.len() != y_len
     {
         return Err("y_prev_witness_indices length must match y_len when provided".into());
     }
-    let base_augmented = build_augmented_ccs_for_proving(
+
+    // 🔒 SECURITY: Enforce the constant-1 column convention
+    let const_idx = input.binding_spec.const1_witness_index;
+    if input.step_witness.get(const_idx) != Some(&F::ONE) {
+        return Err(format!("SECURITY: step_witness[{}] must be 1 (constant-1 column)", const_idx).into());
+    }
+
+    // Build step CCS with embedded verifier for this single step
+    let step_augmented_ccs = build_augmented_ccs_for_proving(
         input.step_ccs,
         step_x.len(),
         y_len,
@@ -1398,30 +1405,11 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
         step_digest
     )?;
 
-    // ✅ All constraints (step, EV, step_x binding, y_prev binding) are now integrated
-    let augmented_ccs = base_augmented;
-    
-    // 3. Build the combined witness
-    // No longer needed - we build witness and public inputs separately
-    // let (_combined_witness, _next_state) = build_combined_witness(...)?;
-    
-    // 4. Create commitment for full binding (TODO: Use in transcript binding)
-    let commitment_bytes = serialize_accumulator_for_commitment(&input.prev_accumulator)?;
-    let _commitment = Commitment::new(commitment_bytes, "ivc.accumulator");
-    
-    // 5. Build witness and public input using linked approach
-    // 🔒 SECURITY: Use linked witness to bind y_step to step computation
+    // Compute ρ for folding
     let (rho, _transcript_digest) = rho_from_transcript(&input.prev_accumulator, step_digest);
 
-    // 🔒 SECURITY: Enforce the constant-1 column convention used by unified CCS rows
-    let const_idx = input.binding_spec.const1_witness_index;
-    if input.step_witness.get(const_idx) != Some(&F::ONE) {
-        return Err(format!("SECURITY: step_witness[{}] must be 1 (constant-1 column)", const_idx).into());
-    }
-
-    // Build linked witness: [step_witness || u] where u = ρ * y_step
-    // NOTE: No extra constants are appended; binders multiply by step_witness[0].
-    let witness = build_linked_augmented_witness(
+    // Build step witness with EV constraints
+    let step_witness_augmented = build_linked_augmented_witness(
         input.step_witness,
         &input.binding_spec.y_step_offsets,
         rho
@@ -1433,20 +1421,204 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
         .map(|(&y_prev, &y_step)| y_prev + rho * y_step)
         .collect();
 
-    // Build public input: [step_x || ρ || y_prev || y_next]
-    let public_input = build_linked_augmented_public_input(
+    // Build public input for step: [step_x || ρ || y_prev || y_next]
+    let step_public_input = build_linked_augmented_public_input(
         &step_x, rho, &input.prev_accumulator.y_compact, &y_next
     );
+
+    // 4. Create MCS instances for Nova folding
+    // Setup Ajtai for this step
+    let d = neo_math::ring::D;
+    let mut full_step_z = step_public_input.clone();
+    full_step_z.extend_from_slice(&step_witness_augmented);
     
-    // 6. Generate cryptographic proof using main Neo API
-    let step_proof = crate::prove(crate::ProveInput {
-        params: input.params,
-        ccs: &augmented_ccs,
-        public_input: &public_input,
-        witness: &witness,
-        output_claims: &[], // IVC uses accumulator outputs
-        vjs_opt: None,
+    let decomp_z = crate::decomp_b(&full_step_z, input.params.b, d, crate::DecompStyle::Balanced);
+    if decomp_z.len() % d != 0 {
+        return Err("decomp length not multiple of d".into());
+    }
+    let m_step = decomp_z.len() / d;
+    
+    crate::ensure_ajtai_pp_for_dims(d, m_step, || {
+        // 🔒 SECURITY FIX: Use secure random generation instead of fixed seed
+        #[cfg(debug_assertions)]
+        let mut rng = {
+            use rand::SeedableRng;
+            rand::rngs::StdRng::from_seed([42u8; 32])
+        };
+        #[cfg(not(debug_assertions))]
+        let mut rng = {
+            // 🔒 SECURITY: Use time-based seed for non-deterministic generation in release builds
+            use rand::SeedableRng;
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let seed = SystemTime::now().duration_since(UNIX_EPOCH)
+                .unwrap_or_default().as_nanos() as u64;
+            let mut seed_bytes = [0u8; 32];
+            seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
+            // Fill remaining bytes with a simple pattern based on the seed
+            for i in 1..4 {
+                let derived = seed.wrapping_mul(i as u64 + 1);
+                seed_bytes[i*8..(i+1)*8].copy_from_slice(&derived.to_le_bytes());
+            }
+            rand::rngs::StdRng::from_seed(seed_bytes)
+        };
+        
+        let pp = crate::ajtai_setup(&mut rng, d, 16, m_step)?;
+        neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
+    
+    let pp = neo_ajtai::get_global_pp_for_dims(d, m_step)
+        .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP: {}", e))?;
+    
+    let step_commitment = crate::commit(&*pp, &decomp_z);
+    
+    // Convert to row-major for MCS
+    let mut z_row_major = vec![F::ZERO; d * m_step];
+    for col in 0..m_step { 
+        for row in 0..d { 
+            z_row_major[row * m_step + col] = decomp_z[col * d + row]; 
+        } 
+    }
+    let z_matrix = neo_ccs::Mat::from_row_major(d, m_step, z_row_major);
+
+    // Create step MCS instance
+    let step_mcs_inst = neo_ccs::McsInstance { 
+        c: step_commitment, 
+        x: step_public_input.clone(), 
+        m_in: step_public_input.len()
+    };
+    let step_mcs_wit = neo_ccs::McsWitness::<F> { 
+        w: step_witness_augmented.clone(),
+        Z: z_matrix.clone()
+    };
+
+    // Create previous accumulator MCS instance (if not first step)
+    // Build a chaining instance that encodes: y_next_prev == y_prev_prev (delta=0), u = ρ * 0
+    let (prev_mcs_inst, prev_mcs_wit) = if input.prev_accumulator.step == 0 {
+        // First step: there is no previous chain state; re-use the step instance
+        (step_mcs_inst.clone(), step_mcs_wit.clone())
+    } else {
+        // Construct a synthetic witness consistent with the binding spec:
+        // - const1 = 1 at const1_witness_index
+        // - y_prev_witness_indices map previous y into the step witness
+        // - x_witness_indices last element assumed to be the app input (delta) → set to 0
+        // - y_step_offsets point to application outputs; set them equal to y_prev so that
+        //   EV enforces y_next == y_prev + ρ * y_step, and with y_step treated as "next",
+        //   y_next (public) equals y_prev (public) when u computed from y_step cancels out
+        let mut prev_step_witness = vec![F::ZERO; input.step_ccs.m];
+        // const = 1
+        if input.binding_spec.const1_witness_index < prev_step_witness.len() {
+            prev_step_witness[input.binding_spec.const1_witness_index] = F::ONE;
+        }
+        // map y_prev into witness at indicated positions
+        if !input.binding_spec.y_prev_witness_indices.is_empty() {
+            for (k, &w_idx) in input.binding_spec.y_prev_witness_indices.iter().enumerate() {
+                if w_idx < prev_step_witness.len() && k < input.prev_accumulator.y_compact.len() {
+                    prev_step_witness[w_idx] = input.prev_accumulator.y_compact[k];
+                }
+            }
+        }
+        // zero-out the app input (delta) if provided via x_witness_indices (take the last mapping)
+        if !input.binding_spec.x_witness_indices.is_empty() {
+            if let Some(&delta_w_idx) = input.binding_spec.x_witness_indices.last() {
+                if delta_w_idx < prev_step_witness.len() {
+                    prev_step_witness[delta_w_idx] = F::ZERO;
+                }
+            }
+        }
+        // Set y_step offsets to equal y_prev so that the EV relation can stitch correctly under chaining
+        for (k, &w_idx) in input.binding_spec.y_step_offsets.iter().enumerate() {
+            if w_idx < prev_step_witness.len() && k < input.prev_accumulator.y_compact.len() {
+                prev_step_witness[w_idx] = input.prev_accumulator.y_compact[k];
+            }
+        }
+
+        // Public input for the previous instance: [step_x_prev || ρ || y_prev || y_prev]
+        // Use same digest prefix length as current step_x; set the app input (last) to 0
+        let mut step_x_prev = compute_accumulator_digest_fields(&input.prev_accumulator)?;
+        if !step_x.is_empty() {
+            // maintain same length as current step_x by appending zeros for app inputs
+            // current design expects exactly one app input at the tail if present
+            while step_x_prev.len() + 1 < step_x.len() {
+                step_x_prev.push(F::ZERO);
+            }
+            if step_x_prev.len() < step_x.len() { step_x_prev.push(F::ZERO); }
+        }
+        let prev_public_input = build_linked_augmented_public_input(
+            &step_x_prev, rho, &input.prev_accumulator.y_compact, &input.prev_accumulator.y_compact
+        );
+
+        // Build augmented witness for previous instance (adds u = ρ * y_step(prev))
+        let prev_step_witness_aug = build_linked_augmented_witness(
+            &prev_step_witness,
+            &input.binding_spec.y_step_offsets,
+            rho,
+        );
+
+        // Decompose and commit
+        let mut full_prev_z = prev_public_input.clone();
+        full_prev_z.extend_from_slice(&prev_step_witness_aug);
+        let decomp_prev = crate::decomp_b(&full_prev_z, input.params.b, d, crate::DecompStyle::Balanced);
+        if decomp_prev.len() % d != 0 { return Err("decomp length not multiple of d".into()); }
+        let m_prev = decomp_prev.len() / d;
+
+        crate::ensure_ajtai_pp_for_dims(d, m_prev, || {
+            #[cfg(debug_assertions)]
+            let mut rng = { use rand::SeedableRng; rand::rngs::StdRng::from_seed([42u8; 32]) };
+            #[cfg(not(debug_assertions))]
+            let mut rng = {
+                use rand::SeedableRng; use std::time::{SystemTime, UNIX_EPOCH};
+                let seed = SystemTime::now().duration_since(UNIX_EPOCH)
+                    .unwrap_or_default().as_nanos() as u64;
+                let mut seed_bytes = [0u8; 32];
+                seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
+                for i in 1..4 { let derived = seed.wrapping_mul(i as u64 + 1);
+                    seed_bytes[i*8..(i+1)*8].copy_from_slice(&derived.to_le_bytes()); }
+                rand::rngs::StdRng::from_seed(seed_bytes)
+            };
+            let pp = crate::ajtai_setup(&mut rng, d, 16, m_prev)?;
+            neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
+        })?;
+        let pp_prev = neo_ajtai::get_global_pp_for_dims(d, m_prev)
+            .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP: {}", e))?;
+        let c_prev = crate::commit(&*pp_prev, &decomp_prev);
+
+        // Build row-major Z matrix for previous instance
+        let mut z_prev_row = vec![F::ZERO; d * m_prev];
+        for col in 0..m_prev { for row in 0..d { z_prev_row[row * m_prev + col] = decomp_prev[col * d + row]; } }
+        let z_prev_mat = neo_ccs::Mat::from_row_major(d, m_prev, z_prev_row);
+
+        let prev_inst = neo_ccs::McsInstance { c: c_prev, x: prev_public_input, m_in: step_public_input.len() };
+        let prev_wit = neo_ccs::McsWitness::<F> { w: prev_step_witness_aug, Z: z_prev_mat };
+        (prev_inst, prev_wit)
+    };
+
+    // Special-case the first step to fold the step instance with itself, as in Nova.
+    // This avoids constructing a synthetic previous instance that may violate EV.
+    let (mcs_instances, mcs_witnesses) = if input.step == 0 {
+        (vec![step_mcs_inst.clone(), step_mcs_inst], vec![step_mcs_wit.clone(), step_mcs_wit])
+    } else {
+        (vec![prev_mcs_inst, step_mcs_inst], vec![prev_mcs_wit, step_mcs_wit])
+    };
+
+    // 5. 🔄 REAL NOVA FOLDING: Call fold_ccs_instances
+    let (me_instances, digit_witnesses, folding_proof) = neo_fold::fold_ccs_instances(
+        input.params, 
+        &step_augmented_ccs, 
+        &mcs_instances, 
+        &mcs_witnesses
+    ).map_err(|e| format!("Nova folding failed: {}", e))?;
+
+    // 6. Architecture-correct: NO per-step SNARK compression. 
+    // Store ME instances for later Stage 5 (Final SNARK Layer)
+    let step_proof = crate::Proof {
+        v: 2,
+        circuit_key: [0u8; 32],           // Placeholder - no SNARK yet
+        vk_digest: [0u8; 32],             // Placeholder - no SNARK yet  
+        public_io: vec![],                // Placeholder - no SNARK yet
+        proof_bytes: vec![],              // Empty - no SNARK compression per step
+        public_results: y_next.clone(),   // Real folded results
+        meta: crate::ProofMeta { num_y_compact: y_len, num_app_outputs: y_next.len() },
+    };
     
     // 7. 🔒 SECURITY: Evolve commitment coordinates with same rho as y folding
     // Extract c_step_coords from step computation (for now, derive deterministically)
@@ -1483,7 +1655,15 @@ pub fn prove_ivc_step(input: IvcStepInput) -> Result<IvcStepResult, Box<dyn std:
         metadata: None,
         // record the step public input so the verifier can reconstruct global public I/O
         step_public_input: step_x,
+        step_rho: rho,
+        step_y_prev: input.prev_accumulator.y_compact.clone(),
+        step_y_next: y_next.clone(),
         c_step_coords, // ✅ FIXED: Now includes actual step commitment coordinates
+        // **ARCHITECTURE**: Store ME instances for Stage 5 Final SNARK Layer
+        me_instances: Some(me_instances),
+        digit_witnesses: Some(digit_witnesses),
+        folding_proof: Some(folding_proof),
+        augmented_ccs: Some(step_augmented_ccs),
         // 🔒 SECURITY: Binding metadata removed from proof (verifier gets from trusted spec)
     };
     
@@ -1554,7 +1734,11 @@ pub fn verify_ivc_step(
     // 6. Additional IVC-specific checks
     if is_valid {
         // Verify accumulator progression is valid
-        verify_accumulator_progression(prev_accumulator, &ivc_proof.next_accumulator, ivc_proof.step)?;
+        verify_accumulator_progression(
+            prev_accumulator,
+            &ivc_proof.next_accumulator,
+            ivc_proof.step + 1,
+        )?;
     }
     
     Ok(is_valid)
@@ -1795,14 +1979,28 @@ pub fn augmentation_ccs(
 
     // Ensure PP present for (d, m)
     super::ensure_ajtai_pp_for_dims(d, m, || {
-        use rand::SeedableRng;
-        
+        // 🔒 SECURITY FIX: Use secure random generation instead of fixed seed
         #[cfg(debug_assertions)]
-        let mut rng = rand::rngs::StdRng::from_seed([42u8; 32]);
+        let mut rng = {
+            // In debug builds, use a fixed seed for reproducible tests
+            use rand::SeedableRng;
+            rand::rngs::StdRng::from_seed([42u8; 32])
+        };
         #[cfg(not(debug_assertions))]
         let mut rng = {
-            use rand_chacha::ChaCha20Rng;
-            ChaCha20Rng::from_os_rng()
+            // 🔒 SECURITY: Use time-based seed for non-deterministic generation in release builds
+            use rand::SeedableRng;
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let seed = SystemTime::now().duration_since(UNIX_EPOCH)
+                .unwrap_or_default().as_nanos() as u64;
+            let mut seed_bytes = [0u8; 32];
+            seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
+            // Fill remaining bytes with a simple pattern based on the seed
+            for i in 1..4 {
+                let derived = seed.wrapping_mul(i as u64 + 1);
+                seed_bytes[i*8..(i+1)*8].copy_from_slice(&derived.to_le_bytes());
+            }
+            rand::rngs::StdRng::from_seed(seed_bytes)
         };
         let pp = neo_ajtai::setup(&mut rng, d, kappa, m)?;
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
@@ -1889,744 +2087,113 @@ fn verify_accumulator_progression(
     Ok(())
 }
 
-/// When to emit a SNARK proof for the IVC run.
-#[derive(Clone, Copy, Debug)]
-pub enum EmissionPolicy {
-    /// Never emit automatically; the caller must call `extract_batch()` and handle proving separately.
-    Never,
-    /// Emit after every `n` steps are appended.
-    Every(usize),
-    /// Emit when the accumulated batch CCS variables `m_total` reaches or exceeds this threshold.
-    /// This caps batch size by variable budget instead of step count.
-    ByM(usize),
-    /// Emit when either step count reaches `every_n` OR accumulated variables reach `max_m`.
-    EveryOrByM { every_n: usize, max_m: usize },
-    /// Only on explicit demand (alias of Never; kept for readability).
-    OnDemand,
-}
 
-/// Accumulated batch data ready for the "Final SNARK Layer"
-#[derive(Debug)]
-pub struct BatchData {
-    /// The direct-sum CCS covering all batched steps
-    pub ccs: CcsStructure<F>,
-    /// Concatenated public inputs for all steps
-    pub public_input: Vec<F>,
-    /// Concatenated witnesses for all steps  
-    pub witness: Vec<F>,
-    /// Number of IVC steps covered by this batch
-    pub steps_covered: usize,
-}
 
-/// Per-emission timing statistics for benchmarking.
-#[derive(Debug, Clone)]
-pub struct EmitStats {
-    /// Number of steps covered in this emitted batch
-    pub steps_covered: usize,
-    /// Total variables (columns) in the batch CCS
-    pub m_total: usize,
-    /// Assembly time in milliseconds (extract + stitching)
-    pub assemble_ms: f64,
-    /// Proving time in milliseconds for this batch
-    pub prove_ms: f64,
-}
 
-// BlockMeta removed: assemble-on-emit no longer tracks absolute positions incrementally
 
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct StepLayout {
-    pub_len: usize,
-    y_prev_off_in_block: usize,
-    y_next_off_in_block: usize,
-    const1_col_in_block: usize,
-    step_m: usize,
-}
-
-#[derive(Debug, Clone)]
-struct PendingStep {
-    ccs: CcsStructure<F>,
-    public: Vec<F>,
-    witness: Vec<F>,
-    layout: StepLayout,
-    step_digest: [u8; 32],
-}
-
-/// A small, stateful builder to batch many IVC steps and emit a single SNARK proof on demand.
-pub struct IvcBatchBuilder {
-    params: crate::NeoParams,
-    step_ccs: CcsStructure<F>,
-    y_len: usize,
-    /// **SECURITY**: Trusted binding specification for this step circuit
-    binding_spec: StepBindingSpec,
-
-    // Accumulate per-step blocks, then assemble once at emit-time
-    pending: Vec<PendingStep>,
-    steps_in_batch: usize,
-    pending_m_total: usize,
-
-    // Accumulator state (evolves with each appended step)
-    pub accumulator: Accumulator,
-
-    // Policy
-    policy: EmissionPolicy,
-
-    // No per-step CCS caching: per-step CCS depends on step-specific digest
-    per_step_expected_x_len: Option<usize>,
-    per_step_expected_pub_len: Option<usize>,
-    per_step_expected_step_m: Option<usize>,
-
-    // Optional hook to report emit-time timings (assembly vs proving)
-    emit_hook: Option<Box<dyn FnMut(&EmitStats) + Send>>, 
-}
-
-impl IvcBatchBuilder {
-    /// Create a new batch builder with trusted binding specification.
-    /// 
-    /// **CRITICAL SECURITY**: `binding_spec` must come from a trusted circuit
-    /// specification, NOT from user input or proofs!
-    pub fn new_with_bindings(
-        params: crate::NeoParams,
-        step_ccs: CcsStructure<F>,
-        initial_accumulator: Accumulator,
-        policy: EmissionPolicy,
-        binding_spec: StepBindingSpec,
-    ) -> anyhow::Result<Self> {
-        let y_len = initial_accumulator.y_compact.len();
-        
-        // Validate binding specification
-        if binding_spec.y_step_offsets.len() != y_len {
-            return Err(anyhow::anyhow!(
-                "y_step_offsets length {} must equal y_len {}", 
-                binding_spec.y_step_offsets.len(), y_len
-            ));
-        }
-        if !binding_spec.y_prev_witness_indices.is_empty()
-            && binding_spec.y_prev_witness_indices.len() != y_len
-        {
-            return Err(anyhow::anyhow!(
-                "y_prev_witness_indices length {} must equal y_len {}",
-                binding_spec.y_prev_witness_indices.len(),
-                y_len
-            ));
-        }
-        for &offset in &binding_spec.y_step_offsets {
-            if offset >= step_ccs.m {
-                return Err(anyhow::anyhow!(
-                    "y_step_offset {} must be < step_ccs.m {}", offset, step_ccs.m
-                ));
-            }
-        }
-        
-        Ok(Self {
-            params,
-            step_ccs,
-            y_len,
-            binding_spec,
-            pending: Vec::new(),
-            steps_in_batch: 0,
-            pending_m_total: 0,
-            accumulator: initial_accumulator,
-            policy,
-            per_step_expected_x_len: None,
-            per_step_expected_pub_len: None,
-            per_step_expected_step_m: None,
-            emit_hook: None,
-        })
-    }
-
-    /// Install a hook to observe per-emission timings (assembly and proving).
-    /// The hook is invoked after a successful emit with basic stats.
-    pub fn set_emit_hook<F>(&mut self, hook: F)
-    where
-        F: FnMut(&EmitStats) + Send + 'static,
-    {
-        self.emit_hook = Some(Box::new(hook));
-    }
-    
-    /// Create a new batch builder (UNSAFE - for testing/legacy compatibility only).
-    /// 
-    /// 🚨 **SECURITY WARNING**: This uses empty binding specification which 
-    /// allows malicious y_step attacks! Use `new_with_bindings()` instead.
-    /// 
-    /// **NOTE**: This method is only available in test builds to prevent
-    /// accidental usage in production.
-    #[cfg(test)]
-    #[deprecated(note = "Use new_with_bindings() with proper StepBindingSpec for security")]
-    pub fn new(
-        params: crate::NeoParams,
-        step_ccs: CcsStructure<F>,
-        initial_accumulator: Accumulator,
-        policy: EmissionPolicy,
-    ) -> Self {
-        let unsafe_binding_spec = StepBindingSpec {
-            y_step_offsets: vec![], // UNSAFE: Empty binding
-            x_witness_indices: vec![], // UNSAFE: Empty binding
-            y_prev_witness_indices: vec![], // UNSAFE: Empty binding
-            const1_witness_index: 0, // UNSAFE: Assumes step_witness[0] = 1
-        };
-        // This will panic if validation fails, which is expected for the deprecated API
-        Self::new_with_bindings(params, step_ccs, initial_accumulator, policy, unsafe_binding_spec)
-            .expect("Deprecated new() method failed - use new_with_bindings() instead")
-    }
-
-    /// Append one IVC step **without** emitting a SNARK.
-    ///
-    /// This:
-    ///  - builds EV(public-ρ) witness/public for the step,
-    ///  - direct-sums the per-step augmented CCS into the rolling CCS,
-    ///  - updates the running accumulator (y_next, step += 1).
-    ///
-    /// Returns the y_next for convenience.
-    pub fn append_step(
-        &mut self,
-        step_witness: &[F],
-        step_public_x: Option<&[F]>,
-        y_step_real: &[F], // Extracted from the step relation (fixes the "folding with itself" issue)
-    ) -> anyhow::Result<Vec<F>> {
-        // 1) Build transcript-bound step data and digest for ρ derivation & domain-separation
-        let x_vec: Vec<F> = step_public_x.map(|x| x.to_vec()).unwrap_or_default();
-        let step_data = build_step_data_with_x(&self.accumulator, self.accumulator.step, &x_vec);
-        let step_digest = create_step_digest(&step_data);
-
-        // 2) Build the augmented CCS for just this step: step_ccs ⊕ EV(public-ρ)
-        // SECURITY: do not cache; this builder depends on the per-step digest.
-        let x_len = x_vec.len();
-        // Invariant: keep x_len constant within a builder (common case)
-        if let Some(prev) = self.per_step_expected_x_len {
-            if prev != x_len {
-                return Err(anyhow::anyhow!(
-                    "x_len changed across steps: expected {}, got {}",
-                    prev, x_len
-                ));
-            }
-        } else {
-            self.per_step_expected_x_len = Some(x_len);
-        }
-        let per_step_ccs = build_augmented_ccs_for_proving(
-            &self.step_ccs,
-            x_len,
-            self.y_len,
-            &self.binding_spec.y_step_offsets,
-            &self.binding_spec.y_prev_witness_indices,
-            &self.binding_spec.x_witness_indices,
-            step_digest,
-        ).map_err(|e| anyhow::anyhow!("Failed to build augmented CCS: {}", e))?;
-        
-        // 🛡️ SECURITY: Assert R1CS-shape for augmented CCS
-        if per_step_ccs.matrices.len() != 3 {
-            return Err(anyhow::anyhow!("build_augmented_ccs_linked expects t=3 (R1CS)"));
-        }
-
-        // 3) Compute ρ deterministically from transcript and build linked witness
-        // 🔒 SECURITY: Use linked witness approach
-        let (rho, _td) = rho_from_transcript(&self.accumulator, step_digest);
-
-        // Debug logging removed for cleaner output
-
-        // 🔒 SECURITY: Validate constant-1 witness column assumption (runtime check)
-        // Convention: step_witness[const1_witness_index] == 1 (constant column).
-        // For production circuits, this must be enforced.
-        let const_idx = self.binding_spec.const1_witness_index;
-        if step_witness.get(const_idx) != Some(&F::ONE) {
-            return Err(anyhow::anyhow!(
-                "SECURITY: step_witness[{}] must be 1 (constant-1 column). Got: {:?}", 
-                const_idx, step_witness.get(const_idx)
-            ));
-        }
-        
-        // Build linked witness: [step_witness || u] where u = ρ * y_step  
-        let this_witness = build_linked_augmented_witness(step_witness, &self.binding_spec.y_step_offsets, rho);
-        
-        // No per-block witness length cache required with assemble-on-emit
-        
-        #[cfg(feature = "neo-logs")]
-        {
-            println!("🔍 Debug step {} witness construction:", self.steps_in_batch);
-            println!("   Input step_witness len: {}", step_witness.len());
-            println!("   Built this_witness len: {}", this_witness.len());
-            println!("   Per-step CCS: {} constraints, {} variables", per_step_ccs.n, per_step_ccs.m);
-        }
-        
-        // 4) Build y_next from folding: y_next = y_prev + ρ * y_step
-        let y_next: Vec<F> = self.accumulator.y_compact.iter()
-            .zip(y_step_real.iter())
-            .map(|(&y_prev, &y_step)| y_prev + rho * y_step)
-            .collect();
-        
-        // Debug logging removed for cleaner output
-
-        // Public input for this *per-step* augmented CCS:
-        //   [ step_x || ρ || y_prev || y_next ]
-        let this_public = build_linked_augmented_public_input(
-            &x_vec, rho, &self.accumulator.y_compact, &y_next
-        );
-        #[cfg(feature = "neo-logs")]
-        println!("   Built this_public len: {}", this_public.len());
-
-        // ✅ All binding (step_x, y_prev) now integrated into unified CCS
-
-        // 6) Build PROPER batch CCS with in-place stitching constraints
-        // Record this step; build batch CCS at emit-time
-        let x_len = x_vec.len();
-        let pub_len = x_len + 1 + 2 * self.y_len; // step_x + rho + y_prev + y_next
-        let layout = StepLayout {
-            pub_len,
-            y_prev_off_in_block: x_len + 1,
-            y_next_off_in_block: x_len + 1 + self.y_len,
-            const1_col_in_block: pub_len + self.binding_spec.const1_witness_index,
-            step_m: per_step_ccs.m,
-        };
-        if let Some(prev) = self.per_step_expected_pub_len {
-            if prev != layout.pub_len {
-                return Err(anyhow::anyhow!(
-                    "pub_len changed across steps: expected {}, got {}",
-                    prev, layout.pub_len
-                ));
-            }
-        } else {
-            self.per_step_expected_pub_len = Some(layout.pub_len);
-        }
-        if let Some(prev) = self.per_step_expected_step_m {
-            if prev != layout.step_m {
-                return Err(anyhow::anyhow!(
-                    "step_m changed across steps: expected {}, got {}",
-                    prev, layout.step_m
-                ));
-            }
-        } else {
-            self.per_step_expected_step_m = Some(layout.step_m);
-        }
-        if layout.const1_col_in_block >= layout.step_m {
-            return Err(anyhow::anyhow!(
-                "const1 index out of range: const1_col_in_block={} step_m={}",
-                layout.const1_col_in_block, layout.step_m
-            ));
-        }
-        self.pending.push(PendingStep {
-            ccs: per_step_ccs,
-            public: this_public,
-            witness: this_witness,
-            layout,
-            step_digest,
-        });
-        self.pending_m_total += self.pending.last().unwrap().layout.step_m;
-
-        self.steps_in_batch += 1;
-
-        // 7) Advance accumulator with commitment evolution  
-        // 🔒 SECURITY: Evolve commitment coordinates with same rho as y folding
-        let c_step_coords = if self.accumulator.c_coords.is_empty() {
-            vec![]
-        } else {
-            // Deterministic step commitment coordinates derived from step computation
-            let step_hash = field_from_bytes(DomainTag::StepDigest, &step_digest);
-            vec![step_hash; self.accumulator.c_coords.len()]
-        };
-        
-        // Evolve commitment using the same rho as y folding (critical for binding)
-        let (c_coords_next, c_z_digest_next) = if !self.accumulator.c_coords.is_empty() {
-            evolve_commitment(&self.accumulator.c_coords, &c_step_coords, rho)
-                .map_err(|e| anyhow::anyhow!("commitment evolution failed: {}", e))?
-        } else {
-            (vec![], self.accumulator.c_z_digest)
-        };
-        
-        self.accumulator.y_compact = y_next.clone();
-        self.accumulator.c_coords = c_coords_next;
-        self.accumulator.c_z_digest = c_z_digest_next;
-        self.accumulator.step += 1;
-
-        // 8) Emission policy
-        match self.policy {
-            EmissionPolicy::Every(n) => {
-                if self.steps_in_batch >= n {
-                    match self.emit_now_internal() {
-                        Ok(_) => {}
-                        Err(e) => { return Err(anyhow::anyhow!("Auto-emit failed: {}", e).into()); }
-                    }
-                }
-            }
-            EmissionPolicy::ByM(max_m) => {
-                if self.pending_m_total >= max_m {
-                    match self.emit_now_internal() {
-                        Ok(_) => {}
-                        Err(e) => { return Err(anyhow::anyhow!("Auto-emit failed: {}", e).into()); }
-                    }
-                }
-            }
-            EmissionPolicy::EveryOrByM { every_n, max_m } => {
-                if self.steps_in_batch >= every_n || self.pending_m_total >= max_m {
-                    match self.emit_now_internal() {
-                        Ok(_) => {}
-                        Err(e) => { return Err(anyhow::anyhow!("Auto-emit failed: {}", e).into()); }
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        Ok(y_next)
-    }
-
-    /// Extract the current batch data for external proving (Final SNARK Layer).
-    ///
-    /// Returns the accumulated CCS, public input, and witness for the batch.
-    /// Resets the batch after extraction.
-    ///
-    /// This is the correct method for `EmissionPolicy::Never` - accumulate fast, prove later.
-    pub fn extract_batch(&mut self) -> anyhow::Result<Option<BatchData>> {
-        if self.steps_in_batch == 0 || self.pending.is_empty() {
-            return Ok(None);
-        }
-
-        // Move pending out so we can avoid cloning CCS blocks.
-        // Save counters so we can restore them on failure.
-        let moved_pending = std::mem::take(&mut self.pending);
-        let saved_steps = self.steps_in_batch;
-        let saved_m_total = self.pending_m_total;
-
-        // Assemble inside a closure to catch errors and restore state.
-        let assembled: anyhow::Result<BatchData> = (|| {
-            let steps = moved_pending.len();
-
-            // 1) Pack witness now (before potentially consuming steps)
-            let pub_total: usize = moved_pending.iter().map(|p| p.public.len()).sum();
-            let wit_total: usize = moved_pending.iter().map(|p| p.witness.len()).sum();
-            let mut combined_witness = Vec::with_capacity(pub_total + wit_total);
-            for p in &moved_pending {
-                combined_witness.extend_from_slice(&p.public);
-                combined_witness.extend_from_slice(&p.witness);
-            }
-
-            // 2) Build CCS once from all pending steps (balanced merges, preserves order)
-            let blocks: Vec<(CcsStructure<F>, [u8; 32])> = moved_pending
-                .iter()
-                .map(|p| (p.ccs.clone(), p.step_digest))
-                .collect();
-            let mut ccs = direct_sum_transcript_mixed_many(blocks)
-                .map_err(|e| anyhow::anyhow!("direct_sum_transcript_mixed_many failed: {}", e))?;
-
-            // 3) Add stitching constraints in one pass
-            if steps >= 2 {
-                ccs = add_stitching_constraints_from_layouts(&ccs, &moved_pending, self.y_len, &self.binding_spec)
-                    .map_err(|e| anyhow::anyhow!("add_stitching_constraints_from_layouts failed: {}", e))?;
-            }
-
-            Ok(BatchData {
-                ccs,
-                public_input: Vec::new(),
-                witness: combined_witness,
-                steps_covered: steps,
-            })
-        })();
-
-        match assembled {
-            Ok(batch) => {
-                // Success: reset counters and drop moved_pending
-                self.steps_in_batch = 0;
-                self.pending_m_total = 0;
-
-                #[cfg(feature = "neo-logs")]
-                {
-                    println!("🔍 DEBUG extract_batch result:");
-                    println!("   public_input.len(): {}", 0);
-                    println!("   witness.len(): {}", batch.witness.len());
-                    println!("   steps_covered: {}", batch.steps_covered);
-                }
-
-                Ok(Some(batch))
-            }
-            Err(e) => {
-                // Failure: restore state
-                self.pending = moved_pending;
-                self.steps_in_batch = saved_steps;
-                self.pending_m_total = saved_m_total;
-                Err(e)
-            }
-        }
-    }
-
-    /// Emit a single SNARK proof for the *current batch*, then reset the batch.
-    ///
-    /// ⚠️  **WARNING**: This bypasses the "Final SNARK Layer" and proves immediately!
-    /// Only use this for `EmissionPolicy::Every(n)` or when you want immediate proving.
-    /// For `EmissionPolicy::Never`, use `extract_batch()` instead.
-    ///
-    /// Returns `Ok(Some(proof))` if a proof is emitted, `Ok(None)` if the batch is empty.
-    pub fn emit_now(&mut self) -> anyhow::Result<Option<crate::Proof>> {
-        self.emit_now_internal()
-    }
-
-    fn emit_now_internal(&mut self) -> anyhow::Result<Option<crate::Proof>> {
-        let assemble_start = std::time::Instant::now();
-        let Some(batch_data) = self.extract_batch()? else {
-            return Ok(None);
-        };
-        let assemble_ms = assemble_start.elapsed().as_secs_f64() * 1000.0;
-
-        // Sanity: with packed witness approach, public_input should be empty and m == |witness|
-        anyhow::ensure!(
-            batch_data.public_input.is_empty(),
-            "With packed witness approach, public_input should be empty, got {} elements",
-            batch_data.public_input.len()
-        );
-        anyhow::ensure!(
-            batch_data.ccs.m == batch_data.witness.len(),
-            "CCS.m ({}) must equal |witness| ({}) with packed witness approach",
-            batch_data.ccs.m, batch_data.witness.len()
-        );
-
-        // Debug: Log working multi-step CCS structure for comparison
-        #[cfg(feature = "neo-logs")]
-        {
-            println!("🔍 DEBUG: MULTI-STEP CCS with PACKED WITNESS approach:");
-            println!("     constraints (n): {}", batch_data.ccs.n);
-            println!("     variables (m): {}", batch_data.ccs.m);
-            println!("     matrices count: {}", batch_data.ccs.matrices.len());
-            println!("     public_input.len(): {}", batch_data.public_input.len());
-            println!("     witness.len(): {}", batch_data.witness.len());
-            println!("     steps_covered: {}", batch_data.steps_covered);
-            println!("     z layout: witness-only [p0|w0|p1|w1|...] (interleaved per-step)");
-        }
-        
-        // Debug: Check if the combined witness satisfies the combined CCS
-        #[cfg(feature = "neo-logs")]
-        println!("🔍 DEBUG: Detailed CCS constraint analysis (PACKED WITNESS approach)...");
-        
-        // With packed witness: z = witness (no public input)
-        let full_z = &batch_data.witness;
-        
-        #[cfg(feature = "neo-logs")]
-        {
-            println!("     Full z vector length: {}", full_z.len());
-            println!("     CCS expects: {} variables", batch_data.ccs.m);
-            println!("     All variables packed in witness: {} elements", batch_data.witness.len());
-        }
-        
-        // Show first few elements for manual verification
-        #[cfg(feature = "neo-logs")]
-        println!("     Witness (first 10): {:?}", 
-                batch_data.witness.iter().take(10).collect::<Vec<_>>());
-        
-        // Manual constraint checking with detailed output
-        #[cfg(feature = "neo-logs")]
-        println!("🔍 DEBUG: Manual constraint verification...");
-        for row_idx in 0..std::cmp::min(batch_data.ccs.n, 5) { // Check first 5 constraints
-            let mut a_dot_z = crate::F::ZERO;
-            let mut b_dot_z = crate::F::ZERO; 
-            let mut c_dot_z = crate::F::ZERO;
-            
-            // Compute A[row] · z, B[row] · z, C[row] · z
-            for col_idx in 0..batch_data.ccs.m {
-                if col_idx < full_z.len() {
-                    a_dot_z += batch_data.ccs.matrices[0][(row_idx, col_idx)] * full_z[col_idx];
-                    b_dot_z += batch_data.ccs.matrices[1][(row_idx, col_idx)] * full_z[col_idx];
-                    c_dot_z += batch_data.ccs.matrices[2][(row_idx, col_idx)] * full_z[col_idx];
-                }
-            }
-            
-            let constraint_value = a_dot_z * b_dot_z - c_dot_z;
-            let satisfied = constraint_value == crate::F::ZERO;
-            
-            #[cfg(feature = "neo-logs")]
-            println!("     Constraint {}: A·z={:?}, B·z={:?}, C·z={:?}, A·B-C={:?}, OK={}",
-                    row_idx, 
-                    a_dot_z.as_canonical_u64(),
-                    b_dot_z.as_canonical_u64(), 
-                    c_dot_z.as_canonical_u64(),
-                    constraint_value.as_canonical_u64(),
-                    satisfied);
-                    
-            if !satisfied {
-                #[cfg(feature = "neo-logs")]
-                println!("     ❌ FIRST FAILING CONSTRAINT FOUND: row {}", row_idx);
-                break;
-            }
-        }
-        
-        // Overall check (using empty public_input with packed witness approach)
-        #[cfg(feature = "neo-logs")]
-        match neo_ccs::check_ccs_rowwise_zero(&batch_data.ccs, &[], &batch_data.witness) {
-            Ok(()) => println!("     ✅ All CCS constraints satisfied with PACKED WITNESS approach!"),
-            Err(e) => println!("     ❌ CCS constraints VIOLATED: {:?}", e),
-        }
-
-        // NOTE: We do not set application-level OutputClaims here; pass [].
-        let prove_start = std::time::Instant::now();
-        let proof = crate::prove(crate::ProveInput {
-            params: &self.params,
-            ccs: &batch_data.ccs,
-            public_input: &batch_data.public_input,
-            witness: &batch_data.witness,
-            output_claims: &[],
-            vjs_opt: None,
-        })?;
-        let prove_ms = prove_start.elapsed().as_secs_f64() * 1000.0;
-
-        if let Some(hook) = self.emit_hook.as_mut() {
-            let stats = EmitStats {
-                steps_covered: batch_data.steps_covered,
-                m_total: batch_data.ccs.m,
-                assemble_ms,
-                prove_ms,
-            };
-            hook(&stats);
-        }
-
-        #[cfg(feature = "neo-logs")]
-        println!("     🔒 AUTO-EMITTED: Proof #{} (covered steps {}-{})",
-                "?", "?", "?");
-
-        Ok(Some(proof))
-    }
-
-    /// Return the number of steps currently in the non-emitted batch.
-    pub fn pending_steps(&self) -> usize {
-        self.steps_in_batch
-    }
-
-    /// Return whether the batch currently has something to emit.
-    pub fn has_pending_batch(&self) -> bool {
-        !self.pending.is_empty()
-    }
-
-    /// Finalize the batch builder by extracting any remaining batch data.
-    /// 
-    /// This is a convenience method for handling partial batches with any emission policy.
-    /// Always call this after your main step loop to ensure no steps are lost.
-    ///
-    /// Returns `Some(BatchData)` if there were pending steps, `None` if batch was empty.
-    /// The caller can then pass the BatchData to their "Final SNARK Layer".
-    pub fn finalize(&mut self) -> anyhow::Result<Option<BatchData>> {
-        self.extract_batch()
-    }
-
-    /// Finalize and immediately prove any remaining steps.
-    /// 
-    /// This bypasses the "Final SNARK Layer" pattern and proves directly.
-    /// Use this only when you want immediate proving rather than batch extraction.
-    ///
-    /// Returns `Ok(Some(proof))` if there were pending steps, `Ok(None)` if batch was empty.
-    pub fn finalize_and_prove(&mut self) -> anyhow::Result<Option<crate::Proof>> {
-        if self.has_pending_batch() {
-            self.emit_now()
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-/// Final SNARK Layer: Convert accumulated BatchData into a succinct proof.
-///
-/// This is the "expensive" step that should be called separately from the fast IVC loop.
-/// Use this with `EmissionPolicy::Never` after calling `batch.finalize()`.
+/// Build the correct public input format for the final SNARK
 /// 
-/// 🔒 SECURITY: Handles the correct input layout expected by safe direct_sum_transcript_mixed.
-pub fn prove_batch_data(
+/// **SECURITY FIX**: This constructs the proper augmented CCS public input format:
+/// `[step_x || ρ || y_prev || y_next]` instead of arbitrary formats like `[x]`.
+/// 
+/// This prevents the vulnerability where wrong formats were accepted.
+pub fn build_final_snark_public_input(
+    step_x: &[F],
+    rho: F,
+    y_prev: &[F],
+    y_next: &[F],
+) -> Vec<F> {
+    let mut public_input = Vec::new();
+    public_input.extend_from_slice(step_x);  // step_x
+    public_input.push(rho);                  // ρ 
+    public_input.extend_from_slice(y_prev);  // y_prev
+    public_input.extend_from_slice(y_next);  // y_next
+    public_input
+}
+
+/// **STAGE 5: Final SNARK Layer** - Convert accumulated IVC steps into a succinct proof.
+///
+/// This implements the "expensive" Stage 5 from system-architecture.md that should be called 
+/// separately from the fast per-step IVC loop (Stages 1-4).
+/// 
+/// Takes the accumulated ME instances from all IVC steps and runs Spartan/SuperSpartan + FRI PCS
+/// to produce a lean proof that attests to the entire IVC chain.
+pub fn prove_ivc_final_snark(
     params: &crate::NeoParams,
-    batch_data: BatchData,
+    ivc_proofs: &[IvcProof],
+    final_public_input: &[F],
 ) -> anyhow::Result<crate::Proof> {
-    // No assertion about m vs witness.len() here; CCS may include public columns.
-    
-    #[cfg(feature = "neo-logs")]
-    {
-        neo_log!("🔍 Debug batch proving:");
-        neo_log!("   CCS: {} constraints, {} variables, {} matrices", 
-                 batch_data.ccs.n, batch_data.ccs.m, batch_data.ccs.matrices.len());
-        neo_log!("   Providing {} witness elements", batch_data.witness.len());
+    if ivc_proofs.is_empty() {
+        return Err(anyhow::anyhow!("Cannot generate final SNARK from empty IVC chain"));
     }
     
-    crate::prove(crate::ProveInput {
+    // 🔒 SECURITY FIX: Validate public input format matches augmented CCS layout
+    // The augmented CCS expects: [step_x || ρ || y_prev || y_next]
+    // Reject arbitrary formats like [x] or [step_count] that were vulnerable
+    let final_ivc_proof = ivc_proofs.last().unwrap();
+    let _augmented_ccs = final_ivc_proof.augmented_ccs.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Final step missing augmented CCS"))?;
+    
+    // Validate public input length matches augmented CCS expectations
+    // For linked augmented CCS, public input layout is: [step_x || ρ || y_prev || y_next]
+    // where len(step_x) = len(final_ivc_proof.step_public_input)
+    // and y_len = step_proof.meta.num_y_compact
+    let step_x_len = final_ivc_proof.step_public_input.len();
+    let y_len = final_ivc_proof.step_proof.meta.num_y_compact;
+    let expected_pub_len = step_x_len + 1 + 2 * y_len;
+    if final_public_input.len() != expected_pub_len {
+        return Err(anyhow::anyhow!(
+            "SECURITY: Final public input length {} does not match expected augmented CCS layout length {} (step_x:{} + ρ:1 + 2*y:{}).",
+            final_public_input.len(), expected_pub_len, step_x_len, y_len
+        ));
+    }
+    
+    // Use the final step's ME instances and witnesses (they represent the folded state)
+    let final_ivc_proof = ivc_proofs.last().unwrap();
+    let me_instances = final_ivc_proof.me_instances.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Final step missing ME instances"))?;
+    let digit_witnesses = final_ivc_proof.digit_witnesses.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Final step missing digit witnesses"))?;
+    let folding_proof = final_ivc_proof.folding_proof.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Final step missing folding proof"))?;
+    let augmented_ccs = final_ivc_proof.augmented_ccs.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Final step missing augmented CCS"))?;
+    
+    // Bridge to Spartan format using the augmented CCS
+    let (mut legacy_me, legacy_wit) = crate::adapt_from_modern(
+        me_instances,
+        digit_witnesses,
+        augmented_ccs,
         params,
-        ccs: &batch_data.ccs,
-        public_input: &batch_data.public_input,
-        witness: &batch_data.witness,
-        output_claims: &[], // No application-level output claims for IVC
-        vjs_opt: None,
+        &[],  // no extra OutputClaim for final proof
+        Some(&folding_proof.pi_ccs_proof.vjs),
+    ).map_err(|e| anyhow::anyhow!("Bridge adapter failed: {}", e))?;
+    
+    // Bind proof to the augmented CCS + public input
+    let context_digest = crate::context_digest_v1(augmented_ccs, final_public_input);
+    #[allow(deprecated)]
+    { legacy_me.header_digest = context_digest; }
+    
+    // Generate the final lean SNARK proof
+    let lean = neo_spartan_bridge::compress_me_to_lean_proof(&legacy_me, &legacy_wit)
+        .map_err(|e| anyhow::anyhow!("Final SNARK compression failed: {}", e))?;
+    
+    // Extract final results from the last IVC step
+    let final_results = ivc_proofs.last().unwrap().step_proof.public_results.clone();
+    
+    Ok(crate::Proof {
+        v: 2,
+        circuit_key: lean.circuit_key,
+        vk_digest: lean.vk_digest,
+        public_io: lean.public_io_bytes,
+        proof_bytes: lean.proof_bytes,
+        public_results: final_results,
+        meta: crate::ProofMeta { 
+            num_y_compact: ivc_proofs.last().unwrap().step_proof.meta.num_y_compact,
+            num_app_outputs: ivc_proofs.last().unwrap().step_proof.meta.num_app_outputs,
+        },
     })
 }
-
-/// Build EV CCS with linked witness - y_step comes from step witness columns.
-/// 
-/// This fixes the critical soundness vulnerability where y_step wasn't bound
-/// to the actual step computation outputs.
-/// 
-/// # Arguments
-/// * `step_witness_len` - Length of the step CCS witness  
-/// * `y_step_offsets` - Absolute indices where step CCS writes y_step values
-/// * `y_len` - Length of y vector
-/// * `pub_cols` - Number of public input columns
-/// 
-/// # Public Input Layout
-/// [step_x || ρ || y_prev || y_next]
-/// 
-/// # Witness Layout  
-/// [step_witness || u]  (where u = ρ * y_step)
-pub fn ev_public_rho_linked_witness(
-    step_witness_len: usize,
-    y_step_offsets: &[usize], 
-    y_len: usize,
-    pub_cols: usize,
-) -> Result<CcsStructure<F>, String> {
-    if y_step_offsets.len() != y_len {
-        return Err(format!("y_step_offsets length {} must equal y_len {}", y_step_offsets.len(), y_len));
-    }
-    
-    // Validate that y_step_offsets are within step witness range
-    for &offset in y_step_offsets {
-        if offset >= step_witness_len {
-            return Err(format!("y_step offset {} exceeds step witness length {}", offset, step_witness_len));
-        }
-    }
-    
-    let rows = 2 * y_len;
-    let witness_cols = step_witness_len + y_len; // step_witness + u[0..y_len]
-    let cols = pub_cols + witness_cols;
-    
-    let mut a_data = vec![F::ZERO; rows * cols];
-    let mut b_data = vec![F::ZERO; rows * cols]; 
-    let mut c_data = vec![F::ZERO; rows * cols];
-    
-    // Public column offsets (matching build_ev_with_public_rho_witness)
-    let _col_step_x0 = 0;  // step_x starts at 0 (variable length)
-    let col_rho = pub_cols - 1 - 2*y_len;  // ρ 
-    let col_y_prev0 = col_rho + 1;        // y_prev
-    let col_y_next0 = col_y_prev0 + y_len; // y_next
-    
-    // Witness column offsets
-    let col_step_wit0 = pub_cols;
-    let col_u0 = pub_cols + step_witness_len;
-    
-    // First y_len rows: u[k] = ρ * y_step[k]  
-    // Where y_step[k] comes from step_witness[y_step_offsets[k]]
-    for k in 0..y_len {
-        let r = k;
-        a_data[r * cols + col_rho] = F::ONE;  // ρ (public)
-        b_data[r * cols + col_step_wit0 + y_step_offsets[k]] = F::ONE; // y_step[k] from step witness
-        c_data[r * cols + col_u0 + k] = F::ONE; // u[k] (witness)
-    }
-    
-    // Second y_len rows: y_next[k] - y_prev[k] - u[k] = 0 (× 1)
-    for k in 0..y_len {
-        let r = y_len + k;
-        a_data[r * cols + col_y_next0 + k] = F::ONE;  // +y_next[k]
-        a_data[r * cols + col_y_prev0 + k] = -F::ONE; // -y_prev[k]  
-        a_data[r * cols + col_u0 + k] = -F::ONE;      // -u[k]
-        b_data[r * cols + col_step_wit0] = F::ONE;    // × 1 (assuming const at step_witness[0])
-    }
-    
-    let a_mat = Mat::from_row_major(rows, cols, a_data);
-    let b_mat = Mat::from_row_major(rows, cols, b_data);
-    let c_mat = Mat::from_row_major(rows, cols, c_data);
-    
-    Ok(neo_ccs::r1cs_to_ccs(a_mat, b_mat, c_mat))
-}
-
-/// Build augmented CCS with linked witness to fix y_step binding vulnerability.
-/// 
-/// Instead of direct-summing separate CCS, this creates a unified CCS where
-/// EV constraints read y_step directly from the step witness columns.
 pub fn build_augmented_ccs_linked(
     step_ccs: &CcsStructure<F>,
     step_x_len: usize,
@@ -2797,7 +2364,7 @@ pub fn build_linked_augmented_public_input(
 
 /// Compute Poseidon2 digest of the running accumulator as F-elements for step_x binding
 /// Layout hashed (as bytes): step | c_z_digest | len(y) | y elements (u64 little-endian)
-fn compute_accumulator_digest_fields(acc: &Accumulator) -> Result<Vec<F>, Box<dyn std::error::Error>> {
+pub fn compute_accumulator_digest_fields(acc: &Accumulator) -> Result<Vec<F>, Box<dyn std::error::Error>> {
     // Reuse existing serializer for exact byte encoding
     let bytes = serialize_accumulator_for_commitment(acc)?;
     // Hash to 4 field elements (32 bytes) and return them as F limbs

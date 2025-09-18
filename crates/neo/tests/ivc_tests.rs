@@ -356,46 +356,6 @@ fn test_high_level_ivc_api() {
     println!("✅ High-level IVC API test completed (production-ready functions tested)");
 }
 
-/// Test the production Poseidon2 embedded verifier
-#[test]
-fn test_production_poseidon2_embedded_verifier() {
-    use neo::ivc::{production_ev_hash_ccs, build_production_ev_hash_witness};
-    use neo_ccs::check_ccs_rowwise_zero;
-    
-    // Test parameters
-    let hash_input_len = 4;
-    let y_len = 3;
-    
-    // Build production EV-hash CCS (uses real Poseidon2)
-    let ev_ccs = production_ev_hash_ccs(hash_input_len, y_len);
-    println!("✅ Production EV-hash CCS created: {} constraints, {} variables", ev_ccs.m, ev_ccs.n);
-    
-    // Test inputs
-    let hash_inputs = vec![F::from_u64(1), F::from_u64(2), F::from_u64(3), F::from_u64(4)];
-    let y_prev = vec![F::from_u64(10), F::from_u64(20), F::from_u64(30)];
-    let y_step = vec![F::from_u64(5), F::from_u64(7), F::from_u64(9)];
-    
-    // Build witness
-    let (witness, y_next) = build_production_ev_hash_witness(&hash_inputs, &y_prev, &y_step);
-    println!("   Witness length: {} (expected: {})", witness.len(), ev_ccs.n);
-    println!("   y_next computed: {:?}", y_next.iter().map(|x| x.as_canonical_u64()).collect::<Vec<_>>());
-    
-    // Verify that y_next != y_prev (non-trivial computation)
-    assert_ne!(y_next, y_prev, "Production EV should produce different y_next");
-    
-    // Check constraints (this tests the full production Poseidon2 + EV pipeline)
-    match check_ccs_rowwise_zero(&ev_ccs, &[], &witness) {
-        Ok(_) => {
-            println!("✅ Production Poseidon2 embedded verifier constraints satisfied!");
-            println!("   This verifies real Poseidon2 hash + Nova folding constraints work together");
-        }
-        Err(e) => {
-            println!("❌ Production EV constraint check failed: {:?}", e);
-            println!("   Note: This is expected if the variable sharing between P2 and EV isn't implemented yet");
-        }
-    }
-}
-
 /// **NOVA STEP 1 TEST**: Public Input Binding Proof of Concept
 /// 
 /// This demonstrates the core Nova requirement: making accumulator values 

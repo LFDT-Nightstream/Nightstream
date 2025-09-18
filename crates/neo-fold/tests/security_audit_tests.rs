@@ -60,6 +60,9 @@ fn create_test_me_instances(count: usize) -> Vec<MeInstance<Commitment, F, K>> {
         let r = vec![K::from(F::ONE); 8]; // log(n) elements
         
         MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
             c: commitment,
             X,
             y,

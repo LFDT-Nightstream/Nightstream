@@ -53,7 +53,7 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],           // next_x at position 3
         x_witness_indices: vec![2],        // bind delta to witness position 2
-        y_prev_witness_indices: vec![1],   // bind prev_x to witness position 1
+        y_prev_witness_indices: vec![],    // no binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
     

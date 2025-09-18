@@ -66,6 +66,14 @@ pub struct MEInstance {
     pub base_b: u64,
     /// Transcript header digest for binding to neo-fold
     pub header_digest: [u8; 32],
+    /// **PATTERN A**: Pre-commitment coordinates for linear link constraints
+    /// c_step_coords[i] are the coordinates of the pre-commitment (with ρ=0 for EV part)
+    /// Used to enforce: c_full[i] - c_step_coords[i] = ⟨L_i, U⟩ where U = ρ·y_step
+    pub c_step_coords: Vec<neo_math::F>,
+    /// Pattern A: Offset where ρ-dependent part starts in witness vector
+    pub u_offset: usize,
+    /// Pattern A: Length of the ρ-dependent part (typically y_len)
+    pub u_len: usize,
 }
 
 /// Legacy Matrix Evaluation witness - for bridge compatibility only

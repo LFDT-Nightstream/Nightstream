@@ -55,6 +55,9 @@ fn create_test_me_instance(base: u32) -> (MeInstance<Commitment, F, K>, MeWitnes
     let r = vec![K::from(F::ONE); 8];
     
     let instance = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: commitment,
         X,
         y,
@@ -194,6 +197,9 @@ fn test_pi_dec_range_proof_validation() {
         let y = vec![vec![K::from(F::from_u64(i as u64)); neo_math::D]];
         
         let instance = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
             c: Commitment::zeros(neo_math::D, 4),
             X,
             y,
@@ -271,6 +277,9 @@ fn test_pi_dec_empty_input_rejection() {
     // Create empty witness
     let empty_witness = MeWitness { Z: Mat::zero(0, 0, F::ZERO) };
     let empty_instance = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: Commitment::zeros(1, 1),
         X: Mat::zero(1, 1, F::ZERO),
         y: vec![],
@@ -316,6 +325,9 @@ fn test_pi_dec_me_relation_consistency() {
         let r = vec![K::from(F::from_u64(i as u64 + 999)); 8];
         
         let instance = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
             c: Commitment::zeros(neo_math::D, 4),
             X,
             y,

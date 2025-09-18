@@ -152,7 +152,7 @@ fn main() -> Result<()> {
     // Allow overriding the benchmark list via env var N="10,20,50,100"
     let ns: Vec<usize> = match env::var("N") {
         Ok(s) => s.split(',').filter_map(|x| x.trim().parse().ok()).collect(),
-        Err(_) => vec![100, 1000, 10000, 50000],  // Reasonable defaults for benchmarking
+        Err(_) => vec![100, 1000],  // Reasonable defaults for benchmarking
     };
 
     // Warm-up (small n) to stabilize allocations, not timed in the table

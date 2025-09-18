@@ -138,14 +138,18 @@ pub fn finalize_and_prove(state: State) -> anyhow::Result<Option<(crate::Proof, 
     };
     
     // Use stored ρ when available; recompute as fallback
-    let rho = if final_ivc_proof.step_rho != F::ZERO { final_ivc_proof.step_rho } else {
+    let rho = if final_ivc_proof.step_rho != F::ZERO { 
+        final_ivc_proof.step_rho 
+    } else {
         let step_data = crate::ivc::build_step_data_with_x(
             prev_accumulator, 
             final_ivc_proof.step, 
             step_x
         );
         let step_digest = crate::ivc::create_step_digest(&step_data);
-        let (rho, _td) = crate::ivc::rho_from_transcript(prev_accumulator, step_digest);
+        // Use stored step commitment coordinates for consistent rho derivation
+        let c_step_coords = &final_ivc_proof.c_step_coords;
+        let (rho, _td) = crate::ivc::rho_from_transcript(prev_accumulator, step_digest, c_step_coords);
         rho
     };
     
@@ -171,7 +175,7 @@ pub fn finalize_and_prove(state: State) -> anyhow::Result<Option<(crate::Proof, 
     // Generate Stage 5 final SNARK proof using the final ME instance
     let proof = if let (Some(final_me), Some(final_me_wit)) = (&state.running_me, &state.running_me_wit) {
         // Use adapt_from_modern to properly populate ajtai_rows for Spartan bridge
-        let (mut legacy_me, legacy_wit) = crate::adapt_from_modern(
+        let (mut legacy_me, legacy_wit, _ajtai_pp) = crate::adapt_from_modern(
             std::slice::from_ref(final_me),
             std::slice::from_ref(final_me_wit),
             &augmented_ccs,
@@ -185,7 +189,8 @@ pub fn finalize_and_prove(state: State) -> anyhow::Result<Option<(crate::Proof, 
         #[allow(deprecated)]
         { legacy_me.header_digest = context_digest; }
         
-        let lean = neo_spartan_bridge::compress_me_to_lean_proof(&legacy_me, &legacy_wit)?;
+        let ajtai_pp_arc = std::sync::Arc::new(_ajtai_pp);
+        let lean = neo_spartan_bridge::compress_me_to_lean_proof_with_pp(&legacy_me, &legacy_wit, Some(ajtai_pp_arc))?;
         
         crate::Proof {
             v: 2,

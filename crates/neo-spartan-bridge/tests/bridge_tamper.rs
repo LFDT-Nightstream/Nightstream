@@ -60,6 +60,9 @@ fn tiny_me_instance() -> (MEInstance, MEWitness) {
     // c_coords only needs to match number of Ajtai rows (2)
     
     let me = MEInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c_coords,
         y_outputs: vec![F::from_canonical_checked(2).unwrap(); 2], // Match number of weight vectors
         r_point: vec![F::from_canonical_checked(3).unwrap(); 2],
@@ -295,6 +298,9 @@ fn test_dimension_validation_strictness() {
         ];
         
         let me_test = MEInstance {
+            c_step_coords: vec![],
+            u_offset: 0,
+            u_len: 0,
             c_coords: vec![F::from_canonical_checked(3).unwrap()], // 1*1 + 1*2 would = 3 if consistent
             y_outputs: vec![F::from_canonical_checked(1).unwrap()],
             r_point: vec![F::from_canonical_checked(3).unwrap(); 2],
@@ -329,6 +335,9 @@ fn test_dimension_validation_strictness() {
         let c_coord = ajtai_rows_minimal[0][0] * F::from_u64(4) + ajtai_rows_minimal[0][1] * F::from_u64(1);
         
         let me_minimal = MEInstance {
+            c_step_coords: vec![],
+            u_offset: 0,
+            u_len: 0,
             c_coords: vec![c_coord],
             y_outputs: vec![F::from_canonical_checked(2).unwrap(); 2],
             r_point: vec![F::from_canonical_checked(3).unwrap(); 2],

@@ -78,7 +78,18 @@ fn me_consistency_rejects_tamper() {
     // y = Z * v (in K^d)
     let y0 = neo_ccs::utils::mat_vec_mul_fk::<Fq, K>(Z.as_slice(), d, m, &v_k);
 
-    let inst = MeInstance::<_, Fq, K> { c: c.clone(), X: X.clone(), r: r.clone(), y: vec![y0.clone()], y_scalars: vec![K::ZERO], m_in, fold_digest: [0u8; 32] };
+    let inst = MeInstance::<_, Fq, K> {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
+        c: c.clone(),
+        X: X.clone(),
+        r: r.clone(),
+        y: vec![y0.clone()],
+        y_scalars: vec![K::ZERO],
+        m_in,
+        fold_digest: [0u8; 32],
+    };
     let wit  = MeWitness::<Fq> { Z: Z.clone() };
 
     // Baseline must succeed

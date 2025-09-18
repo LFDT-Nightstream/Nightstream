@@ -26,7 +26,7 @@ fn ev_public_rho_happy_path() {
     step_data.extend_from_slice(&y_prev);
 
     let step_digest = create_step_digest(&step_data);
-    let (rho, _dig) = rho_from_transcript(&prev_acc, step_digest);
+    let (rho, _dig) = rho_from_transcript(&prev_acc, step_digest, &[]);
 
     let ccs = ev_full_ccs_public_rho(y_prev.len());
     let (witness, y_next) = build_ev_full_witness(rho, &y_prev, &y_step);
@@ -45,7 +45,7 @@ fn ev_public_rho_rejects_tampering_rho_and_y_next() {
     let prev_acc = Accumulator { c_z_digest: [0;32], c_coords: vec![], y_compact: y_prev.clone(), step: 1 };
 
     let step_digest = create_step_digest(&[fe(1), fe(2), fe(3)]);
-    let (rho, _) = rho_from_transcript(&prev_acc, step_digest);
+    let (rho, _) = rho_from_transcript(&prev_acc, step_digest, &[]);
 
     let ccs = ev_full_ccs_public_rho(y_prev.len());
     let (witness, mut y_next) = build_ev_full_witness(rho, &y_prev, &y_step);
@@ -78,14 +78,14 @@ fn rho_changes_if_accumulator_or_step_digest_changes() {
     let sd1 = create_step_digest(&[fe(123)]);
     let sd2 = create_step_digest(&[fe(124)]); // different digest
 
-    let (rho_1a, _) = rho_from_transcript(&acc1, sd1);
-    let (rho_1b, _) = rho_from_transcript(&acc1, sd1);
+    let (rho_1a, _) = rho_from_transcript(&acc1, sd1, &[]);
+    let (rho_1b, _) = rho_from_transcript(&acc1, sd1, &[]);
     assert_eq!(rho_1a, rho_1b, "determinism failed");
 
-    let (rho_2, _) = rho_from_transcript(&acc2, sd1);
+    let (rho_2, _) = rho_from_transcript(&acc2, sd1, &[]);
     assert_ne!(rho_1a, rho_2, "changing accumulator.step must change ρ");
 
-    let (rho_3, _) = rho_from_transcript(&acc1, sd2);
+    let (rho_3, _) = rho_from_transcript(&acc1, sd2, &[]);
     assert_ne!(rho_1a, rho_3, "changing step_digest must change ρ");
 }
 

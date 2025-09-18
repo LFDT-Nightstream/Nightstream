@@ -32,6 +32,9 @@ fn create_test_instance() -> (MEInstance, MEWitness) {
     }
     
     let me = MEInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c_coords,
         y_outputs: vec![F::from_u64(42), F::from_u64(84)],
         r_point: vec![F::from_u64(123)],
@@ -128,9 +131,9 @@ fn create_test_instance() -> (MEInstance, MEWitness) {
     
 #[allow(deprecated)]
 #[test]
-    fn circuit_key_ignores_fold_digest() {
-    // Test that different fold digests produce the SAME circuit key
-    // (fold digest is per-instance randomness, not circuit structure)
+fn circuit_key_includes_fold_digest() {
+    // Test that different fold digests produce DIFFERENT circuit keys
+    // (fold digest affects circuit behavior and must be included for security)
     let (me, wit) = create_test_instance();
     
     let circuit1 = MeCircuit::new(me.clone(), wit.clone(), None, [42; 32]);
@@ -139,9 +142,9 @@ fn create_test_instance() -> (MEInstance, MEWitness) {
     let circuit2 = MeCircuit::new(me, wit, None, [255; 32]); // Different digest
     let key2 = CircuitKey::from_circuit(&circuit2);
     
-    assert_eq!(key1, key2,
-        "Different fold digests must produce SAME circuit keys (digest is per-instance data)");
-    }
+    assert_ne!(key1, key2,
+        "Different fold digests must produce DIFFERENT circuit keys (digest affects circuit behavior)");
+}
     
 #[allow(deprecated)]
 #[test]
@@ -162,7 +165,7 @@ fn create_test_instance() -> (MEInstance, MEWitness) {
     
 #[allow(deprecated)]
 #[test]
-    fn circuit_key_enables_cache_reuse() {
+fn circuit_key_enables_cache_reuse() {
     // CRITICAL: Test that different instances of the same program produce the same key,
     // enabling PK/VK cache reuse across multiple proofs.
     let (me1, wit1) = create_test_instance();
@@ -173,16 +176,17 @@ fn create_test_instance() -> (MEInstance, MEWitness) {
     me2.y_outputs[0] = me2.y_outputs[0] + neo_math::F::from_u64(17);
     me2.r_point[0] = me2.r_point[0] + neo_math::F::from_u64(99);
     
-    // Use different fold digests (per-instance randomness)
-    let circuit1 = MeCircuit::new(me1, wit1, None, [1; 32]);
-    let circuit2 = MeCircuit::new(me2, wit2, None, [2; 32]);
+    // Use SAME fold digest (since fold digest is now part of circuit key)
+    let same_digest = [42; 32];
+    let circuit1 = MeCircuit::new(me1, wit1, None, same_digest);
+    let circuit2 = MeCircuit::new(me2, wit2, None, same_digest);
     
     let key1 = CircuitKey::from_circuit(&circuit1);
     let key2 = CircuitKey::from_circuit(&circuit2);
     
     assert_eq!(key1, key2, 
-        "Different instances with same program structure must produce same cache key");
-    }
+        "Different instances with same program structure and fold digest must produce same cache key");
+}
     
 #[allow(deprecated)]
 #[test]

@@ -4,7 +4,7 @@
 //! testing against the specification. They run with default features and catch 
 //! regressions in fundamental operations.
 
-use neo_ajtai::{setup, commit, verify_open, commit_masked_ct, commit_precomp_ct};
+use neo_ajtai::{setup, commit, verify_open, commit_masked_ct, commit_precomp_ct, rows_for_coords, compute_single_ajtai_row};
 use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
@@ -215,4 +215,95 @@ fn constant_time_variants_basic_functionality() {
     assert!(verify_open(&pp, &c_precomp_diff, &z_different), "Precomp CT different input should verify");
     
     println!("✅ Constant-time commit variants work correctly and maintain basic security properties");
+}
+
+#[test]
+fn streaming_matches_batch_computation() {
+    // Test that the streaming single-row computation matches the batch computation
+    use rand::{SeedableRng, rngs::StdRng};
+    
+    let mut rng = StdRng::seed_from_u64(12345);
+    let d = neo_math::D;
+    let kappa = 4;
+    let m = 3;
+
+    let pp = setup(&mut rng, d, kappa, m).expect("setup ok");
+    let z_len = d * m;
+    let num_coords = d * kappa;
+
+    // Compute all rows using the original batch method
+    let batch_rows = rows_for_coords(&pp, z_len, num_coords).expect("batch rows ok");
+
+    // Compute the same rows using the streaming method
+    let mut streaming_rows = Vec::new();
+    for coord_idx in 0..num_coords {
+        let row = compute_single_ajtai_row(&pp, coord_idx, z_len, num_coords)
+            .expect("streaming row ok");
+        streaming_rows.push(row);
+    }
+
+    // Compare results
+    assert_eq!(batch_rows.len(), streaming_rows.len(), "Row count mismatch");
+    
+    for (i, (batch_row, streaming_row)) in batch_rows.iter().zip(streaming_rows.iter()).enumerate() {
+        assert_eq!(batch_row.len(), streaming_row.len(), "Row {} length mismatch", i);
+        
+        for (j, (&batch_val, &streaming_val)) in batch_row.iter().zip(streaming_row.iter()).enumerate() {
+            assert_eq!(batch_val, streaming_val, 
+                "Mismatch at row {} position {}: batch={:?} vs streaming={:?}", 
+                i, j, batch_val, streaming_val);
+        }
+    }
+    
+    println!("✅ Streaming computation matches batch computation for {} rows", num_coords);
+}
+
+#[test]
+fn rows_for_coords_matches_commit() {
+    // Test that rows_for_coords produces the correct linear algebra representation
+    use rand::{SeedableRng, rngs::StdRng, Rng};
+    
+    let mut rng = StdRng::seed_from_u64(42);
+    let d = neo_math::D;
+    let kappa = 4;
+    let m = 3;
+
+    let pp = setup(&mut rng, d, kappa, m).expect("setup ok");
+
+    // Create random Z vector
+    let mut z = vec![Fq::ZERO; d*m];
+    for x in &mut z { 
+        // Generate random field element (equivalent to sample_uniform_fq)
+        *x = Fq::from_u64(rng.random::<u64>());
+    }
+
+    // Build rows using rows_for_coords
+    let z_len = d*m;
+    let num_coords = d*kappa;
+    let rows = rows_for_coords(&pp, z_len, num_coords).expect("rows ok");
+
+    // Compute L·z (matrix-vector product)
+    let mut c_flat = vec![Fq::ZERO; num_coords];
+    for (row_i, row) in rows.iter().enumerate() {
+        assert_eq!(row.len(), z_len);
+        let mut acc = Fq::ZERO;
+        for (a, &b) in row.iter().zip(&z) { 
+            acc += (*a) * b; 
+        }
+        c_flat[row_i] = acc;
+    }
+
+    // Compute commitment and flatten to column-major order
+    let c = commit_masked_ct(&pp, &z);
+    let mut c_flat_expected = vec![Fq::ZERO; num_coords];
+    for i in 0..kappa {
+        for r in 0..d {
+            c_flat_expected[i*d + r] = c.data[i * d + r];
+        }
+    }
+    
+    // The linear algebra representation should match the commitment
+    assert_eq!(c_flat, c_flat_expected, "L·z must equal vec(commit(pp, Z))");
+    
+    println!("✅ rows_for_coords produces correct linear algebra representation");
 }

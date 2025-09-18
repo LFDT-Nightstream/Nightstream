@@ -37,6 +37,9 @@ fn tiny_me_and_witness() -> (MEInstance, MEWitness) {
     let w1 = vec![F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ONE];
 
     let me = MEInstance {
+        c_step_coords: vec![], // TODO: Pattern A - populate with actual pre-commit coords
+        u_offset: 0,
+        u_len: 0,
         c_coords,
         y_outputs: vec![dot_f_z(&w0, &z), dot_f_z(&w1, &z), F::ZERO, F::ZERO],
         r_point: vec![F::from_u64(3); 2],

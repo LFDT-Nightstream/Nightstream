@@ -543,6 +543,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             .map_err(|e| PiCcsError::InvalidInput(format!("MCS opening failed: {e}")))?;
         println!("🔧 [INSTANCE {}] MCS opening check: {:.2}ms", inst_idx, 
                  z_check_start.elapsed().as_secs_f64() * 1000.0);
+        // SECURITY: Ensure z matches CCS width to prevent OOB during M*z
+        if z.len() != s.m {
+            return Err(PiCcsError::InvalidInput(format!(
+                "SECURITY: z length {} does not match CCS column count {} (malformed instance)",
+                z.len(), s.m
+            )));
+        }
         
         // === CRITICAL SECURITY CHECK: Z == Decomp_b(z) ===
         // This prevents prover from using satisfying z for CCS but different Z for commitment
@@ -878,6 +885,9 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             .collect();
 
         out_me.push(MeInstance{ 
+            c_step_coords: vec![],
+        u_offset: 0,  // TODO: Pattern A - populate with actual U offset
+        u_len: 0,     // TODO: Pattern A - populate with actual U length // TODO: Pattern A - populate with actual pre-commit coords
             c: inst.c.clone(), 
             X, 
             r: r.clone(), 

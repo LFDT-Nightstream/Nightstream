@@ -128,6 +128,9 @@ fn recombine_me_digits_to_parent(params: &NeoParams, digits: &[neo_ccs::MeInstan
     }
 
     neo_ccs::MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: c_parent,
         X: X_parent,
         r: r_ref,

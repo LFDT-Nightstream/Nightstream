@@ -89,6 +89,14 @@ pub struct MeInstance<C, F, K> {
     pub m_in: usize,
     /// **SECURITY**: Transcript-derived digest binding this ME to the folding proof
     pub fold_digest: [u8; 32],
+    /// **PATTERN A**: Pre-commitment coordinates for linear link constraints
+    /// c_step_coords[i] are the coordinates of the pre-commitment (with ρ=0 for EV part)
+    /// Used to enforce: c_full[i] - c_step_coords[i] = ⟨L_i, U⟩ where U = ρ·y_step
+    pub c_step_coords: Vec<F>,
+    /// Pattern A: Offset where ρ-dependent part starts in witness vector
+    pub u_offset: usize,
+    /// Pattern A: Length of the ρ-dependent part (typically y_len)  
+    pub u_len: usize,
 }
 
 /// ME witness: Z.

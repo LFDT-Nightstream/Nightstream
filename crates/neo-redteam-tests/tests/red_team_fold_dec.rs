@@ -93,6 +93,9 @@ fn recombine_parent(params: &NeoParams, digits: &[MeInstance<neo_ajtai::Commitme
     }
 
     MeInstance {
+        c_step_coords: vec![], // TODO: Pattern A - populate with actual pre-commit coords
+        u_offset: 0,
+        u_len: 0,
         c: c_parent, 
         X: X_parent, 
         r: r_ref,

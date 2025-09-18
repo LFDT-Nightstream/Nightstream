@@ -103,8 +103,8 @@ fn test_rho_from_transcript_deterministic() {
     };
     let step_digest = [2u8; 32];
     
-    let (rho1, _) = rho_from_transcript(&acc, step_digest);
-    let (rho2, _) = rho_from_transcript(&acc, step_digest);
+    let (rho1, _) = rho_from_transcript(&acc, step_digest, &[]);
+    let (rho2, _) = rho_from_transcript(&acc, step_digest, &[]);
     
     assert_eq!(rho1, rho2, "rho_from_transcript should be deterministic");
 }
@@ -316,7 +316,7 @@ fn test_high_level_ivc_api() {
         binding_spec: &neo::ivc::StepBindingSpec {
             y_step_offsets: vec![2, 2], // Both y_step elements map to output at index 2
             x_witness_indices: vec![], // No step public inputs
-            y_prev_witness_indices: vec![1, 1], // Both y_prev elements map to input at index 1
+            y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
             const1_witness_index: 0, // Constant-1 at index 0
         },
     };

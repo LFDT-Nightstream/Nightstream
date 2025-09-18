@@ -269,6 +269,9 @@ pub fn pi_dec<L: SModuleHomomorphism<F, Cmt>>(
         }
 
         me_instances.push(MeInstance {
+            c_step_coords: vec![], // TODO: Pattern A - populate with actual pre-commit coords
+            u_offset: 0,
+            u_len: 0,
             c: c_i.clone(),
             X: X_i,
             r: me_B.r.clone(),
@@ -603,6 +606,9 @@ mod tests {
             y_scalars: vec![K::new_real(F::from_u64(200))], // dummy y_scalars for test
             m_in: 1,
             fold_digest: [0u8; 32], // Dummy digest for test
+            c_step_coords: vec![],
+            u_offset: 0,
+            u_len: 0,
         }
     }
     

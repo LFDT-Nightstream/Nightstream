@@ -29,7 +29,7 @@ pub mod s_module;
 pub use error::{AjtaiError, AjtaiResult};
 pub use types::{Commitment, PP};
 pub use decomp::{decomp_b, split_b, assert_range_b, DecompStyle};
-pub use commit::{setup, commit, try_commit, verify_open, verify_split_open, s_mul, s_lincomb, commit_masked_ct, commit_precomp_ct, rows_for_coords};
+pub use commit::{setup, commit, try_commit, verify_open, verify_split_open, s_mul, s_lincomb, commit_masked_ct, commit_precomp_ct, rows_for_coords, compute_single_ajtai_row, compute_aggregated_ajtai_row};
 
 // Testing-only exports (open_linear for differential testing only)
 #[cfg(any(test, feature = "testing"))]

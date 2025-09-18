@@ -198,6 +198,9 @@ fn test_bridge_header_digest_binding() {
     
     let m_in = 2;
     let instance1 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: commitment.clone(),
         X: Mat::from_row_major(d, m_in, vec![F::ZERO; d * m_in]),
         r: vec![K::ONE, K::ZERO],  // Different r values
@@ -208,6 +211,9 @@ fn test_bridge_header_digest_binding() {
     };
     
     let instance2 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: commitment,
         X: Mat::from_row_major(d, m_in, vec![F::ZERO; d * m_in]),
         r: vec![K::ZERO, K::ONE], // Different r values  

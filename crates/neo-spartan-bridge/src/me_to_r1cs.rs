@@ -102,8 +102,13 @@ impl CircuitKey {
         state.push(Goldilocks::from_u64(circuit.me.y_outputs.len() as u64)); 
         state.push(Goldilocks::from_u64(circuit.me.r_point.len() as u64));
         
-        // Fold digest is per-instance randomness, not circuit structure - exclude values
-        // (If needed for transcript binding, it should be a public input, not in cache key)
+        // CRITICAL: Include header digest (fold_digest) as it affects circuit behavior
+        // Different header digests create different circuits that need different keys
+        for chunk in circuit.fold_digest.chunks(8) {
+            let mut bytes = [0u8; 8];
+            bytes[..chunk.len()].copy_from_slice(chunk);
+            state.push(Goldilocks::from_u64(u64::from_le_bytes(bytes)));
+        }
         
         // Apply Poseidon2 permutation to get deterministic fingerprint
         // STABILITY: Create a singleton Poseidon2 instance for circuit fingerprinting
@@ -174,13 +179,13 @@ pub struct MeCircuit {
     pub me: MEInstance,
     pub wit: MEWitness,
     /// Optional Ajtai PP; once you expose rows from PP, use this instead of wit.ajtai_rows
-    pub pp: Option<AjtaiPP<neo_math::Rq>>,
+    pub pp: Option<std::sync::Arc<AjtaiPP<neo_math::Rq>>>,
     /// 32-byte fold digest (binds transcript / header)
     pub fold_digest: [u8; 32],
 }
 
 impl MeCircuit {
-    pub fn new(me: MEInstance, wit: MEWitness, pp: Option<AjtaiPP<neo_math::Rq>>, fold_digest: [u8; 32]) -> Self {
+    pub fn new(me: MEInstance, wit: MEWitness, pp: Option<std::sync::Arc<AjtaiPP<neo_math::Rq>>>, fold_digest: [u8; 32]) -> Self {
         Self { me, wit, pp, fold_digest }
     }
 
@@ -286,8 +291,11 @@ impl SpartanCircuit<E> for MeCircuit {
         _challenges: Option<&[<E as Engine>::Scalar]>,
     ) -> Result<(), SynthesisError> {
         // SECURITY: refuse to synthesize an unbound circuit
-        if self.wit.ajtai_rows.as_ref().map_or(true, |r| r.is_empty()) {
-            eprintln!("❌ SECURITY: Ajtai rows missing; refusing to synthesize unbound circuit.");
+        let has_ajtai_rows = self.wit.ajtai_rows.as_ref().map_or(false, |r| !r.is_empty());
+        let has_pp = self.pp.is_some();
+        
+        if !has_ajtai_rows && !has_pp {
+            eprintln!("❌ SECURITY: Ajtai rows missing AND no PP provided; refusing to synthesize unbound circuit.");
             return Err(SynthesisError::AssignmentMissing);
         }
 
@@ -446,12 +454,14 @@ impl SpartanCircuit<E> for MeCircuit {
         }
 
         // (A) Ajtai binding: <L_i, Z> = c_i  (rows are constants in v1)
+        // Use streaming approach if ajtai_rows is None but PP is available
         if let Some(rows) = &self.wit.ajtai_rows {
+            // Traditional approach: use pre-materialized rows
             let n = core::cmp::min(rows.len(), self.me.c_coords.len());
             for i in 0..n {
                 let row = &rows[i];
                 let upto = core::cmp::min(row.len(), z_vars.len());
-                let _c_scalar = <E as Engine>::Scalar::from(self.me.c_coords[i].as_canonical_u64());
+                let c_scalar = <E as Engine>::Scalar::from(self.me.c_coords[i].as_canonical_u64());
 
                 // 🔧 DEBUG: Compute expected LHS value for constraint debugging
                 let mut expected_lhs = <E as Engine>::Scalar::ZERO;
@@ -467,8 +477,8 @@ impl SpartanCircuit<E> for MeCircuit {
                     expected_lhs += row_coeff * z_val;
                 }
                 #[cfg(feature = "debug-logs")]
-                // eprintln!("🔍 Ajtai constraint {}: computed LHS = {}, expected RHS = {}", 
-                //     i, expected_lhs.to_canonical_u64(), _c_scalar.to_canonical_u64());
+                eprintln!("🔍 Ajtai constraint {}: computed LHS = {}, expected RHS = {}", 
+                    i, expected_lhs.to_canonical_u64(), c_scalar.to_canonical_u64());
 
                 cs.enforce(
                     || format!("ajtai_bind_{i}"),
@@ -484,7 +494,66 @@ impl SpartanCircuit<E> for MeCircuit {
                 );
                 n_constraints += 1;
             }
+        } else if let Some(pp) = &self.pp {
+            // 🚀 STREAMING APPROACH: Compute rows on-demand from PP to avoid memory cliff
+            let n = self.me.c_coords.len();
+            let z_len_padded = self.wit.z_digits.len();
+            let z_len_original = pp.d * pp.m; // Original dimensions from PP
+            
+            for i in 0..n {
+                // Compute single row on-demand using original dimensions
+                let mut row = match neo_ajtai::compute_single_ajtai_row(pp, i, z_len_original, n) {
+                    Ok(row) => row,
+                    Err(e) => {
+                        eprintln!("❌ Failed to compute Ajtai row {}: {}", i, e);
+                        return Err(SynthesisError::AssignmentMissing);
+                    }
+                };
+                
+                // Pad the row with zeros to match the padded witness length
+                if z_len_padded > z_len_original {
+                    let pad_len = z_len_padded - z_len_original;
+                    row.extend(std::iter::repeat(neo_math::F::ZERO).take(pad_len));
+                }
+                
+                let upto = core::cmp::min(row.len(), z_vars.len());
+                let c_scalar = <E as Engine>::Scalar::from(self.me.c_coords[i].as_canonical_u64());
+
+                // 🔧 DEBUG: Compute expected LHS value for constraint debugging
+                let mut expected_lhs = <E as Engine>::Scalar::ZERO;
+                for j in 0..upto {
+                    let row_coeff = to_s(row[j]);
+                    let z_val = if j < self.wit.z_digits.len() {
+                        let z = self.wit.z_digits[j];
+                        if z >= 0 { <E as Engine>::Scalar::from(z as u64) }
+                        else { -<E as Engine>::Scalar::from((-z) as u64) }
+                    } else {
+                        <E as Engine>::Scalar::ZERO // padded variables
+                    };
+                    expected_lhs += row_coeff * z_val;
+                }
+                #[cfg(feature = "debug-logs")]
+                eprintln!("🔍 Ajtai STREAMING constraint {}: computed LHS = {}, expected RHS = {}", 
+                    i, expected_lhs.to_canonical_u64(), c_scalar.to_canonical_u64());
+
+                cs.enforce(
+                    || format!("ajtai_bind_streaming_{i}"),
+                    |lc| {
+                        let mut lc = lc;
+                        for j in 0..upto {
+                            lc = lc + (to_s(row[j]), z_vars[j].get_variable());
+                        }
+                        lc
+                    },
+                    |lc| lc + CS::one(),            // multiply by constant 1 (X side)
+                    |lc| lc + (c_scalar, CS::one()),// right side also uses constant 1
+                );
+                n_constraints += 1;
+            }
         }
+
+        // Pattern A link constraints removed - they were incorrect (applied Ajtai rows to witness vars, not digits)
+        // and expensive (O(d·κ) constraints). The RLC binder in the folding layer provides the correct binding.
 
         // (B) ME evals: <w_j, Z> = y_j  
         let m = core::cmp::min(self.wit.weight_vectors.len(), self.me.y_outputs.len());
@@ -520,14 +589,14 @@ impl SpartanCircuit<E> for MeCircuit {
                     lc
                 },
                 |lc| lc + CS::one(),               // multiply by constant 1
-                |lc| lc + (y_scalar, CS::one()),   // RHS uses constant 1
+                |lc| lc + (_y_scalar, CS::one()),  // RHS uses constant 1
             );
             n_constraints += 1;
         }
 
         // CRITICAL SECURITY: Reject vacuous circuits that have no binding to the statement
-        if self.wit.ajtai_rows.as_ref().map_or(true, |r| r.is_empty())
-            && self.wit.weight_vectors.is_empty()
+        let has_ajtai_binding = has_ajtai_rows || has_pp;
+        if !has_ajtai_binding && self.wit.weight_vectors.is_empty()
         {
             eprintln!("❌ SECURITY VIOLATION: Cannot synthesize circuit with no Ajtai binding AND no ME constraints.");
             eprintln!("   This would create a vacuous proof with no binding to the statement.");
@@ -628,7 +697,16 @@ pub fn prove_me_snark(
     me: &MEInstance,
     wit: &MEWitness,
 ) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, Arc<SpartanVerifierKey<E>>), SpartanError> {
-    let circuit = MeCircuit::new(me.clone(), wit.clone(), None, me.header_digest);
+    prove_me_snark_with_pp(me, wit, None)
+}
+
+/// Public API: prove a real Spartan2 SNARK with optional PP for streaming Ajtai rows
+pub fn prove_me_snark_with_pp(
+    me: &MEInstance,
+    wit: &MEWitness,
+    pp: Option<std::sync::Arc<neo_ajtai::PP<neo_math::Rq>>>,
+) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, Arc<SpartanVerifierKey<E>>), SpartanError> {
+    let circuit = MeCircuit::new(me.clone(), wit.clone(), pp, me.header_digest);
     
     // Assert PCS width is correct for Hash-MLE (binary hypercube)
     let pcs_width = <E as Engine>::PCS::width();

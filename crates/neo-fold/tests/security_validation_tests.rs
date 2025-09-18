@@ -192,6 +192,9 @@ fn test_p0_3_range_verification_in_pi_ccs_not_placeholders() {
     
     // Create dummy ME instance and proof with range proof data
     let parent_me = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: neo_ajtai::Commitment::zeros(D, 1),
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO],
@@ -332,6 +335,9 @@ fn test_p0_4_fold_digest_binds_transcript_to_me_instances() {
             
             // Even if full folding fails, we can still test fold_digest field exists
             let dummy_me = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
                 c: neo_ajtai::Commitment::zeros(D, 1),
                 X: Mat::zero(D, 1, F::ZERO),
                 r: vec![K::ZERO],
@@ -389,6 +395,9 @@ fn test_me_instance_fold_digest_integration() {
     let digest2 = [2u8; 32]; 
     
     let me1 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: neo_ajtai::Commitment::zeros(D, 1),
         X: Mat::zero(1, 1, F::ZERO),
         r: vec![K::ZERO],
@@ -399,6 +408,9 @@ fn test_me_instance_fold_digest_integration() {
     };
     
     let me2 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: neo_ajtai::Commitment::zeros(D, 1),
         X: Mat::zero(1, 1, F::ZERO), 
         r: vec![K::ZERO],

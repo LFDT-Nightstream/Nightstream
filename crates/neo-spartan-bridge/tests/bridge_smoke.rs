@@ -46,6 +46,9 @@ fn tiny_me_instance() -> (MEInstance, MEWitness) {
     let y_outputs = vec![y0, y1]; // Match the number of weight vectors
 
     let me = MEInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c_coords,
         y_outputs,
         r_point: vec![F::from_u64(3); 2], // unused by constraints here

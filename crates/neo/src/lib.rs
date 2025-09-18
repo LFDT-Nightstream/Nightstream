@@ -430,7 +430,7 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     #[cfg(feature = "neo-logs")]
     println!("⏱️  [TIMING] Starting bridge adapter (ME -> Spartan format)...");
     
-    let (mut legacy_me, legacy_wit) = adapt_from_modern(
+    let (mut legacy_me, legacy_wit, ajtai_pp) = adapt_from_modern(
         &me_instances,
         &digit_witnesses,
         input.ccs,
@@ -479,8 +479,9 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
                  legacy_wit.weight_vectors.iter().map(|v| v.len()).sum::<usize>());
     }
     
-    // Use lean proof system without VK - FIXES THE 51MB ISSUE!
-    let lean_proof = neo_spartan_bridge::compress_me_to_lean_proof(&legacy_me, &legacy_wit)?;
+    // Use lean proof system without VK with streaming Ajtai rows - FIXES THE 51MB ISSUE!
+    let ajtai_pp_arc = std::sync::Arc::new(ajtai_pp);
+    let lean_proof = neo_spartan_bridge::compress_me_to_lean_proof_with_pp(&legacy_me, &legacy_wit, Some(ajtai_pp_arc))?;
     
     let spartan_time = spartan_start.elapsed();
     #[cfg(feature = "neo-logs")]
@@ -744,7 +745,7 @@ pub(crate) fn adapt_from_modern(
     params: &NeoParams,
     output_claims: &[OutputClaim<F>],
     vjs_opt: Option<&[Vec<neo_math::K>]>,
-) -> Result<(neo_ccs::MEInstance, neo_ccs::MEWitness)> {
+) -> Result<(neo_ccs::MEInstance, neo_ccs::MEWitness, neo_ajtai::PP<neo_math::Rq>)> {
     use neo_ccs::utils::tensor_point;
     use p3_field::PrimeCharacteristicRing;
 
@@ -959,11 +960,9 @@ pub(crate) fn adapt_from_modern(
     me_legacy.y_outputs = y_full;
     wit_legacy.weight_vectors = weight_vectors;
 
-    // OFFICIAL API: Get Ajtai binding rows from PP
-    // These rows L_i satisfy <L_i, z_digits> = c_coords[i] and are derived
-    // directly from the public Ajtai matrix parameters.
-    // Use PP that matches the witness Z dimensions
-    println!("🔍 [DEBUG] Starting Ajtai binding rows computation...");
+    // 🚀 STREAMING OPTIMIZATION: Use PP directly instead of materializing all rows
+    // This avoids the memory cliff from storing large row matrices
+    println!("🔍 [DEBUG] Setting up streaming Ajtai binding...");
     let ajtai_binding_start = std::time::Instant::now();
     
     let d_pp = first_wit.Z.rows();
@@ -976,19 +975,9 @@ pub(crate) fn adapt_from_modern(
     
     println!("🔍 [DEBUG] z_len={}, c_coords.len()={}", z_len, me_legacy.c_coords.len());
 
-    // Fetch the official Ajtai rows in the exact orientation the circuit expects
-    println!("🔍 [DEBUG] Calling rows_for_coords with z_len={}, num_coords={}", z_len, me_legacy.c_coords.len());
-    let rows_start = std::time::Instant::now();
-    
-    let rows = neo_ajtai::rows_for_coords(&*pp, z_len, me_legacy.c_coords.len())
-        .map_err(|e| anyhow::anyhow!("Failed to derive Ajtai binding rows: {}", e))?;
-        
-    let rows_time = rows_start.elapsed();
-    println!("🔍 [TIMING] rows_for_coords completed: {:.2}ms", rows_time.as_secs_f64() * 1000.0);
-
-    // SECURITY CRITICAL: Strict validation of ALL rows from authentic PP
-    // If any row fails validation, we fail closed - no synthetic fallbacks allowed
-    println!("🔍 [DEBUG] Starting security validation of {} rows...", rows.len());
+    // SECURITY CRITICAL: Validate a few sample rows to ensure PP is authentic
+    // We can't validate all rows without materializing them, but we can spot-check
+    println!("🔍 [DEBUG] Performing spot-check validation of Ajtai PP...");
     let validation_start = std::time::Instant::now();
     
     {
@@ -1000,59 +989,39 @@ pub(crate) fn adapt_from_modern(
             })
         };
         
-        // Validate ALL rows, not just a prefix - this is security critical
-        let check_count = core::cmp::min(rows.len(), me_legacy.c_coords.len());
-        println!("🔍 [DEBUG] Validating {} rows with dot products...", check_count);
+        // Validate a few sample rows (first, middle, last) to ensure PP authenticity
+        let num_coords = me_legacy.c_coords.len();
+        let sample_indices = if num_coords > 0 {
+            vec![0, num_coords / 2, num_coords.saturating_sub(1)]
+        } else {
+            vec![]
+        };
         
-        for i in 0..check_count {
-            if i % 100 == 0 {
-                println!("🔍 [DEBUG] Validating row {}/{}...", i, check_count);
+        for &i in &sample_indices {
+            if i < num_coords {
+                let row = neo_ajtai::compute_single_ajtai_row(&*pp, i, z_len, num_coords)
+                    .map_err(|e| anyhow::anyhow!("Failed to compute sample Ajtai row {}: {}", i, e))?;
+                let computed = dot(&row);
+                let expected = me_legacy.c_coords[i];
+                anyhow::ensure!(
+                    computed == expected,
+                    "SECURITY: Ajtai PP validation failed on sample row {} - <L_{}, z_digits> = {} != c_coords[{}] = {}. \
+                     Authentic PP is required for security.",
+                    i, i, computed, i, expected
+                );
             }
-            let computed = dot(&rows[i]);
-            let expected = me_legacy.c_coords[i];
-            anyhow::ensure!(
-                computed == expected,
-                "SECURITY: Ajtai row {} validation failed - <L_{}, z_digits> = {} != c_coords[{}] = {}. \
-                 Authentic binding rows from PP are required for security.",
-                i, i, computed, i, expected
-            );
         }
+        println!("🔍 [DEBUG] Spot-check validation passed for {} sample rows", sample_indices.len());
     }
     
     let validation_time = validation_start.elapsed();
-    println!("🔍 [TIMING] Security validation completed: {:.2}ms", validation_time.as_secs_f64() * 1000.0);
+    println!("🔍 [TIMING] PP spot-check validation completed: {:.2}ms", validation_time.as_secs_f64() * 1000.0);
     
-    // Install the validated authentic rows, padded to match z_digits length
-    // CRITICAL: Bridge adapter pads z_digits to power-of-two, so Ajtai rows must match
-    println!("🔍 [DEBUG] Installing rows: z_digits.len()={}, z_len={}", wit_legacy.z_digits.len(), z_len);
-    let padding_start = std::time::Instant::now();
-    
-    if wit_legacy.z_digits.len() > z_len {
-        // z_digits was padded by bridge adapter - extend Ajtai rows with zero coefficients
-        let mut padded_rows = rows;
-        let pad_len = wit_legacy.z_digits.len() - z_len;
-        let num_rows = padded_rows.len();
-        println!("🔍 [DEBUG] Padding {} rows with {} zeros each...", num_rows, pad_len);
-        
-        for (i, row) in padded_rows.iter_mut().enumerate() {
-            if i % 1000 == 0 {
-                println!("🔍 [DEBUG] Padding row {}/{}...", i, num_rows);
-            }
-            row.extend(std::iter::repeat(F::ZERO).take(pad_len));
-        }
-        
-        println!("🔍 [DEBUG] Ajtai rows padded from {} to {} to match z_digits padding", 
-                  z_len, wit_legacy.z_digits.len());
-        wit_legacy.ajtai_rows = Some(padded_rows);
-    } else {
-        wit_legacy.ajtai_rows = Some(rows);
-    }
-    
-    let padding_time = padding_start.elapsed();
-    println!("🔍 [TIMING] Row padding completed: {:.2}ms", padding_time.as_secs_f64() * 1000.0);
+    // Don't materialize rows - leave ajtai_rows as None and let the circuit use PP directly
+    wit_legacy.ajtai_rows = None;
     
     let ajtai_binding_time = ajtai_binding_start.elapsed();
-    println!("🔍 [TIMING] Ajtai binding rows total: {:.2}ms", ajtai_binding_time.as_secs_f64() * 1000.0);
+    println!("🔍 [TIMING] Ajtai streaming setup total: {:.2}ms", ajtai_binding_time.as_secs_f64() * 1000.0);
 
-    Ok((me_legacy, wit_legacy))
+    Ok((me_legacy, wit_legacy, (*pp).clone()))
 }

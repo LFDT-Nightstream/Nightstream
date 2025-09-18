@@ -67,6 +67,9 @@ fn verify_shortcircuit_single_instance() {
 
     // Π_CCS outputs: exactly 1 ME(b,L)
     let me_ccs = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: inst.c.clone(),
         X: Mat::from_row_major(1, 1, vec![F::ZERO]),
         r: vec![],               // ell = 0
@@ -107,14 +110,23 @@ fn verify_multi_instance_zero_commitments_dec_present() {
     ];
 
     // Π_CCS outputs (two ME(b,L)), all zeros
-    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
-    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me0 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0, c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me1 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0, c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
 
     // DEC digits: params.k many zero digits
     let k = params.k as usize;
     let mut digits = Vec::with_capacity(k);
     for _ in 0..k {
         digits.push(MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
             c: Cmt::zeros(neo_math::D, 1),
             X: Mat::from_row_major(1,1,vec![F::ZERO]),
             r: vec![],
@@ -164,14 +176,23 @@ fn verify_rejects_when_rho_mismatch() {
         McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![], m_in: 1 },
         McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![F::ZERO], m_in: 1 },
     ];
-    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
-    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me0 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0, c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me1 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0, c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
 
     // DEC digits (zeros)
     let k = params.k as usize;
     let mut digits = Vec::with_capacity(k);
     for _ in 0..k {
         digits.push(MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
             c: Cmt::zeros(neo_math::D, 1),
             X: Mat::from_row_major(1,1,vec![F::ZERO]),
             r: vec![],
@@ -221,13 +242,22 @@ fn verify_rejects_when_range_base_mismatches() {
         McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![], m_in: 1 },
         McsInstance { c: Cmt::zeros(neo_math::D, 1), x: vec![F::ZERO], m_in: 1 },
     ];
-    let me0 = MeInstance { c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
-    let me1 = MeInstance { c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me0 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0, c: insts[0].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
+    let me1 = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0, c: insts[1].c.clone(), X: Mat::from_row_major(1,1,vec![F::ZERO]), r: vec![], y: vec![vec![K::ZERO]], y_scalars: vec![K::ZERO], m_in: 1, fold_digest: [0u8; 32] };
 
     let k = params.k as usize;
     let mut digits = Vec::with_capacity(k);
     for _ in 0..k {
         digits.push(MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
             c: Cmt::zeros(neo_math::D, 1),
             X: Mat::from_row_major(1,1,vec![F::ZERO]),
             r: vec![],
@@ -278,6 +308,9 @@ fn verify_rejects_spartan_bundle_mismatch() {
     
     // Π_CCS outputs: exactly 1 ME(b,L)
     let me_ccs = MeInstance {
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c: inst.c.clone(),
         X: Mat::from_row_major(1, 1, vec![F::ZERO]),
         r: vec![],               // ell = 0

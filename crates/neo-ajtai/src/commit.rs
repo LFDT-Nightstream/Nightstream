@@ -283,8 +283,16 @@ pub fn try_commit(pp: &PP<RqEl>, Z: &[Fq]) -> AjtaiResult<Commitment> {
         });
     }
     
-    // Route to the audited constant-time variant by default for security
-    Ok(commit_masked_ct(pp, Z))
+    // 🚀 PERFORMANCE OPTIMIZATION: Use precomputed rotations for large m
+    // For small m, masked CT is faster due to lower setup cost
+    // For large m, precomputed CT amortizes the rotation computation cost
+    const PRECOMP_THRESHOLD: usize = 256; // Threshold tuned for D=54: precomp pays off when m*D > 16k
+    
+    if m >= PRECOMP_THRESHOLD {
+        Ok(commit_precomp_ct(pp, Z))
+    } else {
+        Ok(commit_masked_ct(pp, Z))
+    }
 }
 
 /// Convenience wrapper that panics on dimension mismatch (for tests and controlled environments).
@@ -630,46 +638,113 @@ pub fn open_linear(
 // Use neo_fold::verify_linear for Π_RLC verification and verify_split_open for
 // recomposition checks. The commitment layer only provides S-homomorphic binding.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rand::{rngs::StdRng, SeedableRng};
+/// Compute a single Ajtai binding row on-demand from PP
+/// 
+/// This is the streaming version of `rows_for_coords` that computes only one row
+/// to avoid materializing the entire row matrix in memory.
+/// 
+/// # Arguments
+/// * `pp` - Ajtai public parameters
+/// * `coord_idx` - Index of the coordinate (row) to compute (0..num_coords)
+/// * `z_len` - Length of the witness vector (must equal d*m)
+/// * `num_coords` - Total number of coordinates (for validation, must be <= d*kappa)
+/// 
+/// # Returns
+/// A single row vector of length `z_len` such that `<row, z_digits> = c_coords[coord_idx]`
 
-    #[test]
-    fn rows_for_coords_matches_commit() {
-        let mut rng = StdRng::seed_from_u64(42);
-        let d = D;
-        let kappa = 4;
-        let m = 3;
-
-        let pp = setup(&mut rng, d, kappa, m).expect("setup ok");
-
-        // random Z
-        let mut z = vec![Fq::ZERO; d*m];
-        for x in &mut z { *x = super::sample_uniform_fq(&mut rng); }
-
-        // build rows
-        let z_len = d*m;
-        let num_coords = d*kappa;
-        let rows = rows_for_coords(&pp, z_len, num_coords).expect("rows ok");
-
-        // compute L·z
-        let mut c_flat = vec![Fq::ZERO; num_coords];
-        for (row_i, row) in rows.iter().enumerate() {
-            debug_assert_eq!(row.len(), z_len);
-            let mut acc = Fq::ZERO;
-            for (a, &b) in row.iter().zip(&z) { acc += (*a) * b; }
-            c_flat[row_i] = acc;
-        }
-
-        // compute commit and flatten column-major
-        let c = commit_masked_ct(&pp, &z);
-        let mut c_flat_expected = vec![Fq::ZERO; num_coords];
-        for i in 0..kappa {
-            for r in 0..d {
-                c_flat_expected[i*d + r] = c.data[i * d + r];
-            }
-        }
-        assert_eq!(c_flat, c_flat_expected, "L·z must equal vec(commit(pp, Z))");
+/// Compute an aggregated Ajtai row for RLC binding: G = Σ r_i * L_i
+/// This enables a single linear constraint that binds c_step to the witness
+/// via: ⟨G, z⟩ = Σ r_i * c_step[i], avoiding the need for d*κ constraints.
+/// 
+/// # Arguments
+/// * `pp` - Ajtai public parameters
+/// * `r_coeffs` - Random coefficients for linear combination (length = num_coords)
+/// * `z_len` - Length of the witness vector z
+/// * `num_coords` - Number of commitment coordinates (d * κ)
+/// 
+/// # Returns
+/// Aggregated row G where G[j] = Σ r_i * L_i[j] for all coordinates i
+pub fn compute_aggregated_ajtai_row(
+    pp: &PP<RqEl>,
+    r_coeffs: &[Fq],
+    z_len: usize,
+    num_coords: usize,
+) -> AjtaiResult<Vec<Fq>> {
+    if r_coeffs.len() != num_coords {
+        return Err(AjtaiError::InvalidDimensions(format!(
+            "r_coeffs length {} must equal num_coords {}", 
+            r_coeffs.len(), num_coords
+        )));
     }
+    
+    let mut aggregated_row = vec![Fq::ZERO; z_len];
+    
+    // For each coordinate i, compute r_i * L_i and add to aggregated_row
+    for (coord_idx, &r_i) in r_coeffs.iter().enumerate() {
+        let row_i = compute_single_ajtai_row(pp, coord_idx, z_len, num_coords)?;
+        
+        // Add r_i * L_i to the aggregated row
+        for (j, &l_ij) in row_i.iter().enumerate() {
+            aggregated_row[j] += r_i * l_ij;
+        }
+    }
+    
+    Ok(aggregated_row)
+}
+
+pub fn compute_single_ajtai_row(
+    pp: &PP<RqEl>,
+    coord_idx: usize,
+    z_len: usize,
+    num_coords: usize,
+) -> AjtaiResult<Vec<Fq>> {
+    let d = pp.d;
+    let m = pp.m;
+    let kappa = pp.kappa;
+    
+    // Validation (same as rows_for_coords)
+    if D != d {
+        return Err(AjtaiError::InvalidInput(
+            format!("Ajtai ring dimension mismatch: compile-time D ({}) != runtime pp.d ({})", D, d)
+        ));
+    }
+    if z_len != d * m {
+        return Err(AjtaiError::InvalidInput("z_len must equal d*m".to_string()));
+    }
+    if num_coords > d * kappa {
+        return Err(AjtaiError::InvalidInput("num_coords exceeds d*kappa".to_string()));
+    }
+    if coord_idx >= num_coords {
+        return Err(AjtaiError::InvalidInput("coord_idx out of range".to_string()));
+    }
+    
+    // Determine which commitment coordinate this row corresponds to  
+    let commit_col = coord_idx / d;  // Which column of commitment (0..kappa)
+    let commit_row = coord_idx % d;  // Which row within that column (0..d)
+    
+    if commit_col >= kappa {
+        return Err(AjtaiError::InvalidInput("coord_idx out of range w.r.t. kappa".to_string()));
+    }
+    
+    let mut row = vec![Fq::ZERO; z_len];
+    
+    // 🚀 STREAMING OPTIMIZATION: O(m·D) using proper cyclotomic rotation
+    // Use the same rot_step logic as the original, but compute on-demand
+    for j in 0..m {
+        let a_ij = pp.m_rows[commit_col][j]; // Get ring element a_{i,j}
+        
+        // Start with cf(a_ij) and rotate through positions
+        let mut col = cf(a_ij); // [Fq; D] - coefficient representation  
+        let mut nxt = [Fq::ZERO; D];
+        
+        // Fill row positions for this j, rotating col for each t
+        for t in 0..d {
+            row[j * d + t] = col[commit_row];
+            // Rotate to next position: col := rot_step(col)
+            rot_step(&col, &mut nxt);
+            core::mem::swap(&mut col, &mut nxt);
+        }
+    }
+    
+    Ok(row)
 }

@@ -2005,6 +2005,23 @@ pub fn verify_ivc_step(
     //  - Verify a Spartan proof that attests "there exists a valid base IVC proof."
     //    This replaces running the folding verifier locally and is behind a feature flag.
 
+    // 🔐 LAYER 2: Verify the commitment fold equation on coordinates + digest
+    let commit_valid = verify_commitment_evolution(
+        &prev_accumulator.c_coords,
+        &ivc_proof.next_accumulator.c_coords,
+        &ivc_proof.next_accumulator.c_z_digest,
+        &ivc_proof.c_step_coords,
+        rho,
+    );
+
+    if !commit_valid {
+        #[cfg(feature = "neo-logs")]
+        eprintln!("❌ Commitment fold check failed: c_next != c_prev + ρ·c_step or digest mismatch");
+        return Ok(false);
+    }
+
+    // TODO: add folding proof verification
+
     if is_valid {
         // Verify accumulator progression is valid
         verify_accumulator_progression(
@@ -2235,37 +2252,6 @@ impl Default for AugmentConfig {
             commit_len: 128,        // d * kappa = 32 * 4 = 128
         }
     }
-}
-
-/// Build public input for IVC proof
-#[allow(dead_code)]
-fn build_ivc_public_input(accumulator: &Accumulator, extra_input: &[F]) -> Result<Vec<F>, Box<dyn std::error::Error>> {
-    let mut public_input = Vec::new();
-    
-    // Include accumulator state as public input
-    public_input.push(F::from_u64(accumulator.step));
-    public_input.extend_from_slice(&accumulator.y_compact);
-    
-    // Add c_z_digest as public field elements
-    for chunk in accumulator.c_z_digest.chunks_exact(8) {
-        public_input.push(F::from_u64(u64::from_le_bytes(chunk.try_into().unwrap())));
-    }
-    
-    // Add extra input
-    public_input.extend_from_slice(extra_input);
-    
-    Ok(public_input)
-}
-
-/// Extract next accumulator from computation results
-#[allow(dead_code)]
-fn extract_next_accumulator(next_state: &[F], step: u64) -> Result<Accumulator, Box<dyn std::error::Error>> {
-    Ok(Accumulator {
-        c_z_digest: [0u8; 32], // TODO: Update from actual commitment evolution
-        c_coords: vec![], // TODO: Update from actual commitment evolution
-        y_compact: next_state.to_vec(),
-        step,
-    })
 }
 
 /// Verify accumulator progression follows IVC rules
@@ -2730,4 +2716,50 @@ fn evolve_commitment(
     // Compute digest of evolved coordinates  
     let digest = digest_commit_coords(&coords_next);
     Ok((coords_next, digest))
+}
+
+/// Verify the Ajtai commitment evolution equation:
+///   c_next == c_prev + rho * c_step
+/// Also checks the published digest matches the recomputed digest.
+fn verify_commitment_evolution(
+    prev_coords: &[F],
+    next_coords: &[F],
+    published_next_digest: &[u8; 32],
+    c_step_coords: &[F],
+    rho: F,
+) -> bool {
+    let (expected_next, expected_digest) = if prev_coords.is_empty() {
+        // Base step: c_next should equal c_step (rho is irrelevant because c_prev=0)
+        (c_step_coords.to_vec(), digest_commit_coords(c_step_coords))
+    } else {
+        match evolve_commitment(prev_coords, c_step_coords, rho) {
+            Ok(pair) => pair,
+            Err(_) => return false,
+        }
+    };
+
+    ct_eq_coords(&expected_next, next_coords) && ct_eq_bytes(&expected_digest, published_next_digest)
+}
+
+/// Constant-time equality check for byte slices
+#[inline]
+fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() { return false; }
+    a.ct_eq(b).unwrap_u8() == 1
+}
+
+/// Constant-time equality check for field element coordinates
+#[inline]
+fn ct_eq_coords(a: &[F], b: &[F]) -> bool {
+    if a.len() != b.len() { return false; }
+    // Compare as little-endian u64 limbs in constant time
+    let mut ok = 1u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        let xb = x.as_canonical_u64().to_le_bytes();
+        let yb = y.as_canonical_u64().to_le_bytes();
+        let eq = (&xb as &[u8]).ct_eq(&yb).unwrap_u8();
+        // accumulate mismatches without branches
+        ok &= eq;
+    }
+    ok == 1
 }

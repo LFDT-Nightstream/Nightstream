@@ -217,8 +217,11 @@ fn main() -> Result<()> {
         }
     }
     
-    // Generate final proof using chained API
-    let result = ivc_chain::finalize_and_prove(temp_state)
+    // Generate final proof using chained API (embed IVC EV)
+    let result = ivc_chain::finalize_and_prove_with_options(
+        temp_state,
+        neo::ivc_chain::FinalizeOptions { embed_ivc_ev: true },
+    )
         .expect("Failed to finalize and prove");
     let (final_proof, final_augmented_ccs, final_public_input) = result
         .expect("No steps to finalize");

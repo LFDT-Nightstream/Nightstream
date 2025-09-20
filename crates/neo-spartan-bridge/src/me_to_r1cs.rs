@@ -45,6 +45,17 @@ use std::sync::Arc;
 use neo_ajtai::PP as AjtaiPP; // for later PP-backed binding
 use neo_ccs::{MEInstance, MEWitness};
 
+/// Optional data to embed the IVC EV check inside the Spartan circuit.
+/// When present, the circuit exposes y_step via extra weight vectors
+/// (appended to `me.y_outputs`) and enforces for each component k:
+///   rho * y_step[k] = y_next[k] - y_prev[k]
+#[derive(Clone, Debug)]
+pub struct IvcEvEmbed {
+    pub rho: neo_math::F,
+    pub y_prev: Vec<neo_math::F>,
+    pub y_next: Vec<neo_math::F>,
+}
+
 /// Circuit fingerprint key for caching SNARK setup and preparation
 /// SECURITY CRITICAL: This must fingerprint the actual constraint constants/wiring, 
 /// not just sizes. Two circuits with same dimensions but different matrices 
@@ -101,6 +112,13 @@ impl CircuitKey {
         state.push(Goldilocks::from_u64(circuit.me.c_coords.len() as u64));
         state.push(Goldilocks::from_u64(circuit.me.y_outputs.len() as u64)); 
         state.push(Goldilocks::from_u64(circuit.me.r_point.len() as u64));
+        // Include presence of EV embedding and its length (affects circuit/public IO shape)
+        if let Some(ev) = &circuit.ev {
+            state.push(Goldilocks::from_u64(0x45564D)); // tag 'EVM' (any constant tag)
+            state.push(Goldilocks::from_u64(ev.y_next.len() as u64));
+        } else {
+            state.push(Goldilocks::from_u64(0));
+        }
         
         // CRITICAL: Include header digest (fold_digest) as it affects circuit behavior
         // Different header digests create different circuits that need different keys
@@ -182,11 +200,20 @@ pub struct MeCircuit {
     pub pp: Option<std::sync::Arc<AjtaiPP<neo_math::Rq>>>,
     /// 32-byte fold digest (binds transcript / header)
     pub fold_digest: [u8; 32],
+    /// Optional embedded IVC EV data (rho, y_prev, y_next) used to enforce
+    /// y_next = y_prev + rho * y_step, where y_step is exposed via additional
+    /// weight vectors appended to `me.y_outputs` by the adapter.
+    pub ev: Option<IvcEvEmbed>,
 }
 
 impl MeCircuit {
     pub fn new(me: MEInstance, wit: MEWitness, pp: Option<std::sync::Arc<AjtaiPP<neo_math::Rq>>>, fold_digest: [u8; 32]) -> Self {
-        Self { me, wit, pp, fold_digest }
+        Self { me, wit, pp, fold_digest, ev: None }
+    }
+
+    pub fn with_ev(mut self, ev: Option<IvcEvEmbed>) -> Self {
+        self.ev = ev;
+        self
     }
 
     #[inline]
@@ -224,10 +251,20 @@ impl SpartanCircuit<E> for MeCircuit {
         }
         // 4) base dimension b
         pv.push(<E as Engine>::Scalar::from(self.me.base_b as u64));
+
+        // 4.5) Optional IVC EV public inputs: y_prev, y_next, rho
+        if let Some(ev) = &self.ev {
+            for &v in &ev.y_prev { pv.push(<E as Engine>::Scalar::from(v.as_canonical_u64())); }
+            for &v in &ev.y_next { pv.push(<E as Engine>::Scalar::from(v.as_canonical_u64())); }
+            pv.push(<E as Engine>::Scalar::from(ev.rho.as_canonical_u64()));
+        }
         
         // 5) Pad to power-of-2 BEFORE digest - CRITICAL: match encode_bridge_io_header() order
-        let current_count_without_digest = self.me.c_coords.len() + self.me.y_outputs.len() + 
-                                           self.me.r_point.len() + 1;
+        let mut current_count_without_digest = self.me.c_coords.len() + self.me.y_outputs.len() + 
+                                               self.me.r_point.len() + 1;
+        if let Some(ev) = &self.ev {
+            current_count_without_digest += ev.y_prev.len() + ev.y_next.len() + 1; // +rho
+        }
         let digest_scalars = self.digest_to_scalars();
         let total_needed = current_count_without_digest + digest_scalars.len();
         let target_count = total_needed.next_power_of_two();
@@ -617,12 +654,15 @@ impl SpartanCircuit<E> for MeCircuit {
             let c_alloc = AllocatedNum::alloc(cs.namespace(|| format!("c_coord_{}", i)), || Ok(c_val))?;
             let _ = c_alloc.inputize(cs.namespace(|| format!("public_c_{}", i)));
         }
-        
+
         // 2) y outputs — already flattened (K -> [F;2]) in adapter
+        // Keep allocated handles so optional EV constraints can reference them.
+        let mut y_public_vars: Vec<AllocatedNum<<E as Engine>::Scalar>> = Vec::with_capacity(self.me.y_outputs.len());
         for (i, &y_limb) in self.me.y_outputs.iter().enumerate() {
             let v = <E as Engine>::Scalar::from(y_limb.as_canonical_u64());
             let a = AllocatedNum::alloc(cs.namespace(|| format!("y_output_limb_{}", i)), || Ok(v))?;
             let _ = a.inputize(cs.namespace(|| format!("public_y_limb_{}", i)));
+            y_public_vars.push(a);
         }
         
         // 3) challenge r (Fq^m)
@@ -631,15 +671,58 @@ impl SpartanCircuit<E> for MeCircuit {
             let r_alloc = AllocatedNum::alloc(cs.namespace(|| format!("r_point_{}", i)), || Ok(r_val))?;
             let _ = r_alloc.inputize(cs.namespace(|| format!("public_r_{}", i)));
         }
-        
+
         // 4) base dimension b
         let b_val = <E as Engine>::Scalar::from(self.me.base_b as u64);
         let b_alloc = AllocatedNum::alloc(cs.namespace(|| "base_b"), || Ok(b_val))?;
         let _ = b_alloc.inputize(cs.namespace(|| "public_base_b"));
+
+        // 4.5) Optional IVC EV public inputs and constraints
+        if let Some(ev) = &self.ev {
+            // Inputize y_prev, y_next, rho
+            let mut y_prev_vars = Vec::with_capacity(ev.y_prev.len());
+            for (i, &v) in ev.y_prev.iter().enumerate() {
+                let val = <E as Engine>::Scalar::from(v.as_canonical_u64());
+                let a = AllocatedNum::alloc(cs.namespace(|| format!("ivc_y_prev_{}", i)), || Ok(val))?;
+                let _ = a.inputize(cs.namespace(|| format!("public_ivc_y_prev_{}", i)));
+                y_prev_vars.push(a);
+            }
+            let mut y_next_vars = Vec::with_capacity(ev.y_next.len());
+            for (i, &v) in ev.y_next.iter().enumerate() {
+                let val = <E as Engine>::Scalar::from(v.as_canonical_u64());
+                let a = AllocatedNum::alloc(cs.namespace(|| format!("ivc_y_next_{}", i)), || Ok(val))?;
+                let _ = a.inputize(cs.namespace(|| format!("public_ivc_y_next_{}", i)));
+                y_next_vars.push(a);
+            }
+            let rho_val = <E as Engine>::Scalar::from(ev.rho.as_canonical_u64());
+            let rho_var = AllocatedNum::alloc(cs.namespace(|| "ivc_rho"), || Ok(rho_val))?;
+            let _ = rho_var.inputize(cs.namespace(|| "public_ivc_rho"));
+
+            // Enforce for k in 0..y_len: (y_step_pub[k]) * rho = (y_next[k] - y_prev[k])
+            // We assume the last ev.y_next.len() entries of y_outputs correspond to y_step
+            // values appended by the adapter.
+            let y_len = ev.y_next.len();
+            let start = self.me.y_outputs.len().saturating_sub(y_len);
+            for k in 0..y_len {
+                let y_step_var = &y_public_vars[start + k];
+                let yn = &y_next_vars[k];
+                let yp = &y_prev_vars[k];
+                cs.enforce(
+                    || format!("ivc_ev_{}", k),
+                    |lc| lc + y_step_var.get_variable(),
+                    |lc| lc + rho_var.get_variable(),
+                    |lc| lc + yn.get_variable() - yp.get_variable(),
+                );
+                n_constraints += 1;
+            }
+        }
         
         // 5) Pad to power-of-2 BEFORE digest - CRITICAL: match encode_bridge_io_header() order
-        let current_count_without_digest = self.me.c_coords.len() + self.me.y_outputs.len() + 
-                                           self.me.r_point.len() + 1;
+        let mut current_count_without_digest = self.me.c_coords.len() + self.me.y_outputs.len() + 
+                                               self.me.r_point.len() + 1;
+        if let Some(ev) = &self.ev {
+            current_count_without_digest += ev.y_prev.len() + ev.y_next.len() + 1; // +rho
+        }
         let digest_scalars = self.digest_to_scalars();
         let total_needed = current_count_without_digest + digest_scalars.len();
         let target_count = total_needed.next_power_of_two();
@@ -681,7 +764,7 @@ pub fn prove_me_snark(
     me: &MEInstance,
     wit: &MEWitness,
 ) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, Arc<SpartanVerifierKey<E>>), SpartanError> {
-    prove_me_snark_with_pp(me, wit, None)
+    prove_me_snark_with_pp(me, wit, None, None)
 }
 
 /// Public API: prove a real Spartan2 SNARK with optional PP for streaming Ajtai rows
@@ -689,8 +772,9 @@ pub fn prove_me_snark_with_pp(
     me: &MEInstance,
     wit: &MEWitness,
     pp: Option<std::sync::Arc<neo_ajtai::PP<neo_math::Rq>>>,
+    ev: Option<IvcEvEmbed>,
 ) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, Arc<SpartanVerifierKey<E>>), SpartanError> {
-    let circuit = MeCircuit::new(me.clone(), wit.clone(), pp, me.header_digest);
+    let circuit = MeCircuit::new(me.clone(), wit.clone(), pp, me.header_digest).with_ev(ev);
     
     // Assert PCS width is correct for Hash-MLE (binary hypercube)
     let pcs_width = <E as Engine>::PCS::width();
@@ -714,7 +798,7 @@ pub fn prove_me_snark_with_pp(
     } else {
         #[cfg(feature = "debug-logs")]
         eprintln!("🔍 Setting up new SNARK keys for new circuit fingerprint");
-        let (new_pk, new_vk) = R1CSSNARK::<E>::setup(circuit.clone())?;
+    let (new_pk, new_vk) = R1CSSNARK::<E>::setup(circuit.clone())?;
         let pk_arc = Arc::new(new_pk);
         let vk_arc = Arc::new(new_vk);
         PK_CACHE.insert(circuit_key.clone(), pk_arc.clone());
@@ -767,7 +851,7 @@ pub fn prove_me_snark_with_pp(
     // via public IO changes. They expect proving to succeed and verification to fail externally.
     // Instead, deterministically reconstruct the circuit's public values for binding/debugging.
     let public_outputs = {
-        let circuit_for_publics = MeCircuit::new(me.clone(), wit.clone(), None, me.header_digest);
+    let circuit_for_publics = MeCircuit::new(me.clone(), wit.clone(), None, me.header_digest);
         circuit_for_publics
             .public_values()
             .map_err(|e| SpartanError::SynthesisError { reason: format!("public_values() failed: {e}") })?

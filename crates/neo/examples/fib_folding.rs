@@ -303,7 +303,10 @@ fn main() -> Result<()> {
     println!("\n🔄 Step 7: Generating Final SNARK Layer proof...");
     let final_snark_start = Instant::now();
     
-    let (final_proof, final_ccs, final_public_input) = ivc_chain::finalize_and_prove(state)?
+    let (final_proof, final_ccs, final_public_input) = ivc_chain::finalize_and_prove_with_options(
+        state,
+        neo::ivc_chain::FinalizeOptions { embed_ivc_ev: true },
+    )?
         .ok_or_else(|| anyhow::anyhow!("No steps to finalize"))?;
     
     let final_snark_time = final_snark_start.elapsed();

@@ -262,7 +262,10 @@ fn cmd_gen(n: usize, out: PathBuf, bundle_vk: bool, emit_vk: bool) -> Result<()>
 
     // Generate final SNARK proof
     let prove_start = std::time::Instant::now();
-    let result = ivc_chain::finalize_and_prove(state)?;
+    let result = ivc_chain::finalize_and_prove_with_options(
+        state,
+        neo::ivc_chain::FinalizeOptions { embed_ivc_ev: true },
+    )?;
     let prove_time = prove_start.elapsed();
 
     let (proof, final_ccs, final_public_input) = result.ok_or_else(|| {

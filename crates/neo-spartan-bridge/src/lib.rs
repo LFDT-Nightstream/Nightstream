@@ -27,6 +27,7 @@ pub mod me_to_r1cs;
 // Tests will be added in a separate PR to avoid compilation complexity
 
 pub use types::{ProofBundle, Proof};
+pub use crate::me_to_r1cs::IvcEvEmbed;
 
 use anyhow::Result;
 use neo_ccs::{MEInstance, MEWitness};
@@ -200,6 +201,48 @@ pub fn encode_bridge_io_header(me: &MEInstance) -> Vec<u8> {
     out
 }
 
+/// Encode header with optional IVC EV public inputs. When `ev` is Some,
+/// appends `y_prev || y_next || rho` before padding and digest, and MUST
+/// match MeCircuit::public_values() order.
+pub fn encode_bridge_io_header_with_ev(me: &MEInstance, ev: Option<&crate::me_to_r1cs::IvcEvEmbed>) -> Vec<u8> {
+    use p3_field::PrimeField64;
+    let mut out = Vec::new();
+    // c_coords
+    for &c in &me.c_coords { out.extend_from_slice(&c.as_canonical_u64().to_le_bytes()); }
+    // y_outputs
+    for &y_limb in &me.y_outputs { out.extend_from_slice(&y_limb.as_canonical_u64().to_le_bytes()); }
+    // r_point
+    for &r in &me.r_point { out.extend_from_slice(&r.as_canonical_u64().to_le_bytes()); }
+    // base_b
+    out.extend_from_slice(&(me.base_b as u64).to_le_bytes());
+    // Optional EV
+    if let Some(ev) = ev {
+        for &v in &ev.y_prev { out.extend_from_slice(&v.as_canonical_u64().to_le_bytes()); }
+        for &v in &ev.y_next { out.extend_from_slice(&v.as_canonical_u64().to_le_bytes()); }
+        out.extend_from_slice(&ev.rho.as_canonical_u64().to_le_bytes());
+    }
+    // Padding before digest
+    let num_scalars = (out.len() / 8) + 4; // +4 for digest limbs
+    let next_power_of_2 = num_scalars.next_power_of_two();
+    let padding_scalars = next_power_of_2 - num_scalars;
+    for _ in 0..padding_scalars { out.extend_from_slice(&0u64.to_le_bytes()); }
+    // digest
+    for chunk in me.header_digest.chunks(8) {
+        let limb = u64::from_le_bytes([
+            chunk.get(0).copied().unwrap_or(0),
+            chunk.get(1).copied().unwrap_or(0),
+            chunk.get(2).copied().unwrap_or(0),
+            chunk.get(3).copied().unwrap_or(0),
+            chunk.get(4).copied().unwrap_or(0),
+            chunk.get(5).copied().unwrap_or(0),
+            chunk.get(6).copied().unwrap_or(0),
+            chunk.get(7).copied().unwrap_or(0),
+        ]);
+        out.extend_from_slice(&limb.to_le_bytes());
+    }
+    out
+}
+
 /// **Main Entry Point**: Compress final ME(b,L) claim using Spartan2 + Hash-MLE PCS.
 /// Note: no FRI parameters; the bridge uses Hash‑MLE PCS only.
 pub fn compress_me_to_spartan(me: &MEInstance, wit: &MEWitness) -> Result<ProofBundle> {
@@ -343,7 +386,7 @@ pub fn compress_me_to_spartan_with_pp(
 
     // Try the SNARK generation and provide detailed error diagnostics
     let pp_arc = pp.map(std::sync::Arc::new);
-    let snark_result = me_to_r1cs::prove_me_snark_with_pp(me, &wit_norm, pp_arc);
+    let snark_result = me_to_r1cs::prove_me_snark_with_pp(me, &wit_norm, pp_arc, None);
     let (proof_bytes, _public_outputs, vk_arc) = match snark_result {
         Ok(result) => {
             eprintln!("✅ SNARK generation successful!");
@@ -708,7 +751,7 @@ pub fn compress_me_to_lean_proof_with_pp(
     }
 
     // Prove using existing Spartan infrastructure
-    let snark_result = me_to_r1cs::prove_me_snark_with_pp(me, &wit_norm, pp);
+    let snark_result = me_to_r1cs::prove_me_snark_with_pp(me, &wit_norm, pp, None);
     let (proof_bytes, _public_outputs, vk_arc) = match snark_result {
         Ok(result) => {
             eprintln!("✅ SNARK generation successful!");
@@ -756,6 +799,47 @@ pub fn compress_me_to_lean_proof_with_pp(
     info!("Created lean proof: {} bytes (vs ~51MB with VK)", 
              proof.total_size());
     
+    Ok(proof)
+}
+
+/// NEW: Compress ME to lean Proof with optional EV embedding inside Spartan
+pub fn compress_me_to_lean_proof_with_pp_and_ev(
+    me: &neo_ccs::MEInstance,
+    wit: &neo_ccs::MEWitness,
+    pp: Option<std::sync::Arc<neo_ajtai::PP<neo_math::Rq>>>,
+    ev: Option<crate::me_to_r1cs::IvcEvEmbed>,
+) -> anyhow::Result<Proof> {
+    let wit_norm = if wit.z_digits.len().is_power_of_two() { wit.clone() } else {
+        let next_pow2 = wit.z_digits.len().next_power_of_two();
+        let mut normalized = wit.clone();
+        normalized.z_digits.resize(next_pow2, 0);
+        if let Some(ref mut ajtai_rows) = normalized.ajtai_rows {
+            for row in ajtai_rows.iter_mut() { row.resize(next_pow2, neo_math::F::ZERO); }
+        }
+        normalized
+    };
+
+    let has_ajtai_rows = wit_norm.ajtai_rows.as_ref().map_or(false, |rows| !rows.is_empty());
+    let has_pp = pp.is_some();
+    if !has_ajtai_rows && !has_pp { anyhow::bail!("AjtaiBindingMissing: witness.ajtai_rows is None/empty AND no PP provided; cannot bind c_coords to Z"); }
+
+    let snark_result = me_to_r1cs::prove_me_snark_with_pp(me, &wit_norm, pp, ev.clone());
+    let (proof_bytes, _public_outputs, vk_arc) = match snark_result {
+        Ok(result) => { eprintln!("✅ SNARK generation successful!"); result }
+        Err(e) => { eprintln!("🚨 SNARK generation failed: {:?}", e); return Err(anyhow::Error::msg(format!("Spartan2 SNARK failed: {}", e))); }
+    };
+
+    let circuit = me_to_r1cs::MeCircuit::new(me.clone(), wit_norm, None, me.header_digest).with_ev(ev.clone());
+    let circuit_key_obj = me_to_r1cs::CircuitKey::from_circuit(&circuit);
+    let circuit_key: [u8; 32] = circuit_key_obj.into_bytes();
+
+    let vk_bytes = serialize_vk_stable(&*vk_arc)?;
+    let vk_digest: [u8; 32] = compute_vk_digest(&vk_bytes, 2);
+    register_vk(circuit_key, vk_arc.clone());
+
+    let public_io_bytes = encode_bridge_io_header_with_ev(me, ev.as_ref());
+    let proof = Proof::new(circuit_key, vk_digest, public_io_bytes, proof_bytes);
+    info!("Created lean proof (with EV): {} bytes", proof.total_size());
     Ok(proof)
 }
 

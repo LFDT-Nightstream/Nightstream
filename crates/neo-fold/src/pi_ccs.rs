@@ -14,6 +14,7 @@ use p3_field::{PrimeCharacteristicRing, Field, PrimeField64};
 use rayon::prelude::*;
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
+use crate::sumcheck::{RoundOracle, run_sumcheck, verify_sumcheck_rounds, SumcheckOutput};
 
 fn format_ext(x: K) -> String {
     format!("{:?}", x)
@@ -181,15 +182,6 @@ fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<Gold
     state[0..4].to_vec()
 }
 
-// ===== Sum-check helpers =====
-
-#[inline]
-fn poly_eval_k(coeffs: &[K], x: K) -> K {
-    let mut acc = K::ZERO;
-    for &c in coeffs.iter().rev() { acc = acc * x + c; }
-    acc
-}
-
 // ===== MLE Folding DP Helpers =====
 
 /// Pad vector to power of 2 length with zeros
@@ -208,35 +200,6 @@ fn pad_to_pow2_k(mut v: Vec<K>, ell: usize) -> Result<Vec<K>, PiCcsError> {
 
 // ===== Blocked Parallel Matrix-Vector Multiplication =====
 
-#[inline]
-fn poly_mul_k(a: &[K], b: &[K]) -> Vec<K> {
-    let mut out = vec![K::ZERO; a.len() + b.len() - 1];
-    for (i, &ai) in a.iter().enumerate() {
-        for (j, &bj) in b.iter().enumerate() { out[i + j] += ai * bj; }
-    }
-    out
-}
-
-/// Lagrange interpolation at distinct points xs with values ys (returns coeffs lowest→highest).
-fn lagrange_interpolate_k(xs: &[K], ys: &[K]) -> Vec<K> {
-    assert_eq!(xs.len(), ys.len());
-    let m = xs.len();
-    let mut coeffs = vec![K::ZERO; m];
-    for i in 0..m {
-        let (xi, yi) = (xs[i], ys[i]);
-        let mut denom = K::ONE;
-        let mut numer = vec![K::ONE]; // polynomial 1
-        for j in 0..m {
-            if i == j { continue; }
-            denom *= xi - xs[j];
-            numer = poly_mul_k(&numer, &[-xs[j], K::ONE]); // (X - x_j)
-        }
-        let scale = yi * denom.inverse(); // K is a field; panic if denom=0 (distinct xs)
-        for k in 0..numer.len() { coeffs[k] += numer[k] * scale; }
-    }
-    coeffs
-}
-
 /// Absorb sparse polynomial definition into transcript for soundness binding.
 /// This prevents a malicious prover from using different polynomials with the same matrix structure.
 fn absorb_sparse_polynomial(tr: &mut FoldTranscript, f: &SparsePoly<F>) {
@@ -252,6 +215,106 @@ fn absorb_sparse_polynomial(tr: &mut FoldTranscript, f: &SparsePoly<F>) {
     for term in terms {
         tr.absorb_f(&[term.coeff]);
         tr.absorb_u64(&term.exps.iter().map(|&e| e as u64).collect::<Vec<_>>());
+    }
+}
+
+// ===== Local MLE partial structures and Sum-check round oracles =====
+
+// Generic CCS partials: one shrinking vector per matrix M_j z
+struct MlePartials { s_per_j: Vec<Vec<K>> }
+// R1CS residual partials: one shrinking vector over row-wise residuals
+struct MleResiduals { s: Vec<K> }
+
+struct GenericCcsOracle<'a> {
+    s: &'a CcsStructure<F>,
+    alphas: Vec<K>,
+    partials_per_inst: Vec<MlePartials>,
+    ell: usize,
+    d_sc: usize,
+}
+impl<'a> RoundOracle for GenericCcsOracle<'a> {
+    fn num_rounds(&self) -> usize { self.ell }
+    fn degree_bound(&self) -> usize { self.d_sc }
+    fn evals_at(&mut self, sample_xs: &[K]) -> Vec<K> {
+        let t = self.s.t();
+        let mut sample_ys = vec![K::ZERO; sample_xs.len()];
+        for (inst_idx, partials) in self.partials_per_inst.iter().enumerate() {
+            let mut a = vec![K::ZERO; t];
+            let mut delta = vec![K::ZERO; t];
+            for j in 0..t {
+                let v = &partials.s_per_j[j];
+                debug_assert!(v.len().is_power_of_two() && v.len() >= 2);
+                let half = v.len() >> 1;
+                let (mut aj, mut dj) = (K::ZERO, K::ZERO);
+                for k in 0..half {
+                    let e = v[2*k];
+                    let o = v[2*k + 1];
+                    aj += e;
+                    dj += o - e;
+                }
+                a[j] = aj; delta[j] = dj;
+            }
+            let alpha = self.alphas[inst_idx];
+            let mut y_buf = vec![K::ZERO; t];
+            for (sx, &X) in sample_xs.iter().enumerate() {
+                for j in 0..t { y_buf[j] = a[j] + delta[j] * X; }
+                let f_eval = self.s.f.eval_in_ext::<K>(&y_buf);
+                sample_ys[sx] += alpha * f_eval;
+            }
+        }
+        sample_ys
+    }
+    fn fold(&mut self, r_i: K) {
+        for partials in self.partials_per_inst.iter_mut() {
+            for v in &mut partials.s_per_j {
+                let n2 = v.len() >> 1;
+                for k in 0..n2 {
+                    let a0 = v[2*k]; let b0 = v[2*k + 1];
+                    v[k] = (K::ONE - r_i) * a0 + r_i * b0;
+                }
+                v.truncate(n2);
+            }
+        }
+    }
+}
+
+struct R1csResidualOracle {
+    alphas: Vec<K>,
+    residuals_per_inst: Vec<MleResiduals>,
+    ell: usize,
+    d_sc: usize,
+}
+impl RoundOracle for R1csResidualOracle {
+    fn num_rounds(&self) -> usize { self.ell }
+    fn degree_bound(&self) -> usize { self.d_sc }
+    fn evals_at(&mut self, sample_xs: &[K]) -> Vec<K> {
+        let mut sample_ys = vec![K::ZERO; sample_xs.len()];
+        for (inst_idx, partials) in self.residuals_per_inst.iter().enumerate() {
+            let v = &partials.s;
+            debug_assert!(v.len().is_power_of_two() && v.len() >= 2);
+            let half = v.len() >> 1;
+            let (mut a_res, mut d_res) = (K::ZERO, K::ZERO);
+            for k in 0..half {
+                let e = v[2*k]; let o = v[2*k + 1];
+                a_res += e; d_res += o - e;
+            }
+            let alpha = self.alphas[inst_idx];
+            for (sx, &X) in sample_xs.iter().enumerate() {
+                sample_ys[sx] += alpha * (a_res + d_res * X);
+            }
+        }
+        sample_ys
+    }
+    fn fold(&mut self, r_i: K) {
+        for partials in self.residuals_per_inst.iter_mut() {
+            let v = &mut partials.s;
+            let n2 = v.len() >> 1;
+            for k in 0..n2 {
+                let a0 = v[2*k]; let b0 = v[2*k + 1];
+                v[k] = (K::ONE - r_i) * a0 + r_i * b0;
+            }
+            v.truncate(n2);
+        }
     }
 }
 
@@ -553,197 +616,62 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
              batching_start.elapsed().as_secs_f64() * 1000.0);
 
     // --- Run sum-check rounds over composed polynomial Q (degree ≤ d_sc) ---
-    let mut rounds: Vec<Vec<K>> = Vec::with_capacity(ell);
-    let mut prefix: Vec<K> = Vec::with_capacity(ell);
-
-    // Tie values are not part of Q(u) in v1 - ties enforced via ME/Π_RLC checks
-    let _claimed_y_empty: Vec<Vec<K>> = vec![];
-
-    // initial running sum is the public target: sum_{u∈{0,1}^ℓ} Q(u) == 0
-    let mut running_sum = K::ZERO;
     println!("🔍 Sum-check starting: {} instances, {} rounds", insts.len(), ell);
-
-    // OPTIMIZATION: Precompute sample points once (invariant across rounds)
     let sample_xs: Vec<K> = (0..=d_sc as u64).map(|u| K::from(F::from_u64(u))).collect();
-
-    // Decide evaluation mode: generic CCS (any t) vs R1CS-like (t>=3)
     let use_generic_ccs = s.t() < 3;
 
-    // Generic CCS partials: one shrinking vector per matrix M_j z
-    struct MlePartials { s_per_j: Vec<Vec<K>> }
-    // R1CS residual partials: one shrinking vector over row-wise residuals
-    struct MleResiduals { s: Vec<K> }
-
+    // Build partial states (invariant across the engine)
     let mle_start = std::time::Instant::now();
-    let mut partials_per_inst_opt: Option<Vec<MlePartials>> = None;
-    let mut residuals_per_inst_opt: Option<Vec<MleResiduals>> = None;
-
+    let partials_per_inst_opt: Option<Vec<MlePartials>>;
+    let residuals_per_inst_opt: Option<Vec<MleResiduals>>;
     if use_generic_ccs {
         let partials: Result<Vec<MlePartials>, PiCcsError> = insts.par_iter().map(|inst| {
             let mut s_per_j = Vec::with_capacity(s.t());
             for j in 0..s.t() {
-                let mut w_k: Vec<K> = inst.mz[j].iter().map(|&x| K::from(x)).collect();
-                w_k = pad_to_pow2_k(w_k, ell)?;
+                let w_k: Vec<K> = inst.mz[j].iter().map(|&x| K::from(x)).collect();
+                let w_k = pad_to_pow2_k(w_k, ell)?;
                 s_per_j.push(w_k);
             }
             Ok(MlePartials { s_per_j })
         }).collect();
         partials_per_inst_opt = Some(partials?);
+        residuals_per_inst_opt = None;
     } else {
         let residuals: Result<Vec<MleResiduals>, PiCcsError> = insts.par_iter().map(|inst| {
-            // Build row-wise residual vector: r[i] = (Az)[i]*(Bz)[i] − (Cz)[i] in K
-            let az = &inst.mz[0];
-            let bz = &inst.mz[1];
-            let cz = &inst.mz[2];
+            let az = &inst.mz[0]; let bz = &inst.mz[1]; let cz = &inst.mz[2];
             let mut row_residuals: Vec<K> = Vec::with_capacity(s.n);
             for i in 0..s.n {
-                let a = K::from(az[i]);
-                let b = K::from(bz[i]);
-                let c = K::from(cz[i]);
+                let a = K::from(az[i]); let b = K::from(bz[i]); let c = K::from(cz[i]);
                 row_residuals.push(a * b - c);
             }
             let s_vec = pad_to_pow2_k(row_residuals, ell)?;
             Ok(MleResiduals { s: s_vec })
         }).collect();
         residuals_per_inst_opt = Some(residuals?);
+        partials_per_inst_opt = None;
     }
-    println!("🔧 [TIMING] MLE partials setup: {:.2}ms", 
+    println!("🔧 [TIMING] MLE partials setup: {:.2}ms",
              mle_start.elapsed().as_secs_f64() * 1000.0);
 
-    let sumcheck_start = std::time::Instant::now();
-    for i in 0..ell {
-        // ===== PROPER LINEAR-TIME MLE FOLDING =====
-        // At round i, each vector has length 2^{ell-i}, and we read (a_j,b_j) = (S[0],S[1])
-        let round_start = std::time::Instant::now();
-        
-        // Preallocate buffers to avoid per-round allocations
-        let mut sample_ys = vec![K::ZERO; sample_xs.len()];
+    // Drive rounds with the generic engine
+    let initial_sum = K::ZERO;
+    let SumcheckOutput { rounds, challenges: r, final_sum: _running_sum } = if use_generic_ccs {
+        let mut oracle = GenericCcsOracle {
+            s, alphas: batch_coeffs.alphas.clone(),
+            partials_per_inst: partials_per_inst_opt.unwrap(),
+            ell, d_sc,
+        };
+        run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs)?
+    } else {
+        let mut oracle = R1csResidualOracle {
+            alphas: batch_coeffs.alphas.clone(),
+            residuals_per_inst: residuals_per_inst_opt.unwrap(),
+            ell, d_sc,
+        };
+        run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs)?
+    };
 
-        if use_generic_ccs {
-            // Generic CCS: accumulate α_i · f(Y(X)) using per-matrix partials
-            if let Some(partials_per_inst) = partials_per_inst_opt.as_ref() {
-                for (inst_idx, partials) in partials_per_inst.iter().enumerate() {
-                    let mut a = vec![K::ZERO; s.t()];
-                    let mut delta = vec![K::ZERO; s.t()];
-                    let mut y_buf = vec![K::ZERO; s.t()];
-                    for j in 0..s.t() {
-                        let v = &partials.s_per_j[j];
-                        debug_assert!(v.len().is_power_of_two() && v.len() >= 2,
-                                      "Vector length {} invalid at round {} for matrix {}", v.len(), i, j);
-                        let half = v.len() >> 1;
-                        let mut aj = K::ZERO;
-                        let mut dj = K::ZERO;
-                        for k in 0..half {
-                            let e = v[2*k];
-                            let o = v[2*k + 1];
-                            aj += e;
-                            dj += o - e;
-                        }
-                        a[j] = aj;
-                        delta[j] = dj;
-                    }
-                    let alpha = batch_coeffs.alphas[inst_idx];
-                    for (sx, &X) in sample_xs.iter().enumerate() {
-                        for j in 0..s.t() { y_buf[j] = a[j] + delta[j] * X; }
-                        let f_eval = s.f.eval_in_ext::<K>(&y_buf);
-                        sample_ys[sx] += alpha * f_eval;
-                    }
-                }
-            }
-        } else if let Some(residuals_per_inst) = residuals_per_inst_opt.as_ref() {
-            // R1CS-style: accumulate α_i · ⟨Az∘Bz−Cz, χ_X⟩ using residual partials
-            for (inst_idx, partials) in residuals_per_inst.iter().enumerate() {
-                let v = &partials.s; // length = 2^{ell-i}
-                debug_assert!(v.len().is_power_of_two() && v.len() >= 2,
-                              "Residual vector length {} invalid at round {}", v.len(), i);
-                let half = v.len() >> 1;
-                let mut a_res = K::ZERO;
-                let mut d_res = K::ZERO;
-                for k in 0..half {
-                    let e = v[2*k];
-                    let o = v[2*k + 1];
-                    a_res += e;        // sum of evens
-                    d_res += o - e;    // sum of (odds - evens)
-                }
-                let alpha = batch_coeffs.alphas[inst_idx];
-                for (sx, &X) in sample_xs.iter().enumerate() {
-                    let val = a_res + d_res * X; // ⟨residuals, χ_X⟩
-                    sample_ys[sx] += alpha * val;
-                }
-            }
-        }
-        let coeffs = lagrange_interpolate_k(&sample_xs, &sample_ys);
-        if coeffs.len() > d_sc + 1 {
-            return Err(PiCcsError::SumcheckError(format!(
-                "round {i}: degree {} exceeds bound {d_sc}", coeffs.len()-1
-            )));
-        }
-
-        // Verifier-side checks (non-interactively enforced via transcript):
-        // Check p(0)+p(1)=running_sum
-        let p0 = poly_eval_k(&coeffs, K::ZERO);
-        let p1 = poly_eval_k(&coeffs, K::ONE);
-        let sum_p0_p1 = p0 + p1;
-        
-        if p0 + p1 != running_sum {
-            println!("🚨 CRITICAL Sum-check FAILURE in round {}:", i);
-            println!("   Expected p0+p1: {:?}", running_sum);
-            println!("   Actual p0+p1: {:?}", sum_p0_p1);
-            println!("   This should cause proof failure!");
-            return Err(PiCcsError::SumcheckError(format!(
-                "round {i}: p(0)+p(1) mismatch")));
-        } else {
-            println!("✅ Sum-check round {} PASSED", i);
-        }
-
-        // Bind polynomial to transcript and sample r_i
-        tr.absorb_ext_as_base_fields_k(b"neo/ccs/round", coeffs[0]);
-        for c in coeffs.iter().skip(1) { tr.absorb_ext_as_base_fields_k(b"neo/ccs/round", *c); }
-        let r_i = tr.challenge_k();
-
-        // Update state
-        running_sum = poly_eval_k(&coeffs, r_i);
-        prefix.push(r_i);
-        rounds.push(coeffs);
-
-        // ===== KEY LINEAR-TIME STEP: Fold all vectors in-place with r_i =====
-        // This is the standard MLE folding: S[k] <- (1-r_i)*S[2k] + r_i*S[2k+1]
-        // After this, each vector shrinks from length 2^{ell-i} to 2^{ell-i-1}
-        if use_generic_ccs {
-            if let Some(partials_per_inst) = partials_per_inst_opt.as_mut() {
-                for partials in partials_per_inst.iter_mut() {
-                    for v in &mut partials.s_per_j {
-                        let n2 = v.len() >> 1;
-                        for k in 0..n2 {
-                            let a0 = v[2*k];
-                            let b0 = v[2*k + 1];
-                            v[k] = (K::ONE - r_i) * a0 + r_i * b0;
-                        }
-                        v.truncate(n2);
-                    }
-                }
-            }
-        } else if let Some(residuals_per_inst) = residuals_per_inst_opt.as_mut() {
-            for partials in residuals_per_inst.iter_mut() {
-                let v = &mut partials.s;
-                let n2 = v.len() >> 1;
-                for k in 0..n2 {
-                    let a0 = v[2*k];
-                    let b0 = v[2*k + 1];
-                    v[k] = (K::ONE - r_i) * a0 + r_i * b0;
-                }
-                v.truncate(n2);
-            }
-        }
-        
-        println!("🔧 [ROUND {}] {:.2}ms", i, round_start.elapsed().as_secs_f64() * 1000.0);
-    }
-    
-    println!("🔧 [TIMING] Sum-check rounds total: {:.2}ms ({} rounds)", 
-             sumcheck_start.elapsed().as_secs_f64() * 1000.0, ell);
-
-    // r has length ℓ; rb has length 2^ℓ, we will only use indices 0..s.n
-    let r = prefix;
+    println!("🔧 [TIMING] Sum-check rounds complete ({} rounds)", ell);
     let rb = neo_ccs::utils::tensor_point::<K>(&r);
     debug_assert!(rb.len() >= s.n, "tensor point smaller than n");
 
@@ -870,31 +798,10 @@ pub fn pi_ccs_verify(
     let batch_coeffs = BatchingCoeffs { alphas };
 
     if proof.sumcheck_rounds.len() != ell { return Ok(false); }
-
-    let mut running_sum = K::ZERO;
-    let mut r = Vec::with_capacity(ell);
-
-    // Check sum-check rounds
-    for (i, coeffs) in proof.sumcheck_rounds.iter().enumerate() {
-        if coeffs.is_empty() || coeffs.len() > d_sc + 1 { return Ok(false); }
-        let p0 = poly_eval_k(coeffs, K::ZERO);
-        let p1 = poly_eval_k(coeffs, K::ONE);
-        if p0 + p1 != running_sum {
-            eprintln!("❌ PI_CCS VERIFY: round {} failed: p0+p1 != running_sum (p0={}, p1={}, runningSum={})",
-                      i,
-                      format_ext(p0),
-                      format_ext(p1),
-                      format_ext(running_sum));
-            return Ok(false);
-        }
-
-        // absorb coeffs and sample r_i (same as prover)
-        tr.absorb_ext_as_base_fields_k(b"neo/ccs/round", coeffs[0]);
-        for c in coeffs.iter().skip(1) { tr.absorb_ext_as_base_fields_k(b"neo/ccs/round", *c); }
-        let r_i = tr.challenge_k();
-        running_sum = poly_eval_k(coeffs, r_i);
-        r.push(r_i);
-    }
+    // Check sum-check rounds using shared helper (derives r and running_sum)
+    let (r, running_sum, ok_rounds) =
+        verify_sumcheck_rounds(tr, d_sc, K::ZERO, &proof.sumcheck_rounds);
+    if !ok_rounds { return Ok(false); }
 
     // === CRITICAL TRANSCRIPT BINDING SECURITY CHECK ===
     // Only apply transcript binding when we have sum-check rounds

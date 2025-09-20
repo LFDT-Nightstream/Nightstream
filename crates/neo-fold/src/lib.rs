@@ -17,6 +17,8 @@ pub mod transcript;
 pub mod strong_set;
 /// Π_RLC verifier: Random Linear Combination verification
 pub mod verify_linear;
+/// Generic sum-check engine shared by Π_CCS
+pub mod sumcheck;
 /// Π_CCS: Sum-check reduction over extension field K  
 pub mod pi_ccs;
 /// Π_RLC: Random linear combination with S-action

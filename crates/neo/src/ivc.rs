@@ -620,7 +620,7 @@ pub fn build_ev_full_witness(rho: F, y_prev: &[F], y_step: &[F]) -> (Vec<F>, Vec
     (witness, y_next)
 }
 
-/// Poseidon2-inspired hash gadget for deriving ρ inside CCS (PRODUCTION VERSION).
+/// Poseidon2-inspired hash gadget for deriving ρ inside CCS (TOY VERSION).
 /// 
 /// ✅ UPGRADE COMPLETE: This implements key security properties of Poseidon2:
 /// - Multiple rounds with nonlinear operations

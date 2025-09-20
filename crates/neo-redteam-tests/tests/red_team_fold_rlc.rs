@@ -4,7 +4,7 @@
 
 #![cfg(feature = "redteam")]
 
-use neo_fold::{fold_ccs_instances, verify_folding_proof};
+use neo_fold::{fold_ccs_instances, verify_folding_proof_with_spartan};
 use neo_ccs::{CcsStructure, Mat, SparsePoly, Term, McsInstance, McsWitness};
 use neo_params::NeoParams;
 use neo_math::{F, ring::D};
@@ -84,7 +84,7 @@ fn rt13_non_invertible_rhos_fail() {
     let dummy_bundle = dummy_proof_bundle();
 
     // Verify end-to-end: should fail at Π_RLC step with Ok(false)
-    let ok = verify_folding_proof(
+    let ok = verify_folding_proof_with_spartan(
         &params, &ccs, &inputs, &digits, &fold_proof, &dummy_bundle
     ).expect("verify path runs");
     assert!(!ok, "Π_RLC must reject duplicate/non-invertible ρ differences");

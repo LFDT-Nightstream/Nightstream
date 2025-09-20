@@ -6,7 +6,7 @@
 #![cfg(feature = "redteam")]
 #![allow(deprecated)] // Allow use of legacy bridge types for compatibility testing
 
-use neo_fold::{fold_ccs_instances, verify_folding_proof};
+use neo_fold::{fold_ccs_instances, verify_folding_proof_with_spartan};
 use neo_ccs::{CcsStructure, Mat, SparsePoly, Term, McsInstance, McsWitness};
 use neo_params::NeoParams;
 use neo_math::{F, ring::D};
@@ -76,7 +76,7 @@ fn rt22_digit_bundle_as_parent_must_fail_binding() {
         .expect("digit bundle");
 
     // … but verifier expects the *parent* ME(B,L) bundle inside verify_folding_proof.
-    let ok = verify_folding_proof(
+    let ok = verify_folding_proof_with_spartan(
         &params, &ccs, &instances, &digits, &proof, &digit_bundle
     ).expect("verify path runs");
     assert!(

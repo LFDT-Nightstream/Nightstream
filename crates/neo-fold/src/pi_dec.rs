@@ -453,15 +453,13 @@ pub fn pi_dec_verify<L: SModuleHomomorphism<F, Cmt>>(
         }
     }
     
-    // === Range constraints enforced in Bridge SNARK ===
-    // Range constraints ||Z_i||_∞ < b are enforced in the final bridge SNARK.
-    // The bridge circuit implements product polynomials like z*(z-1)*(z+1)=0 for b=2,
-    // ensuring each digit Z_i ∈ {-(b-1), ..., (b-1)} cryptographically.
-    // Π_DEC itself doesn't verify range - the bridge SNARK does.
-    if !proof.range_proofs.is_empty() {
-        // For backward compatibility, we still accept range proof data but don't verify it here
-        // since the real verification happens in the bridge SNARK's synthesize() method
-        // Range proof data present but verification happens in bridge SNARK (silently handled)
+    // === Range constraints: minimal gating ===
+    // Until a full range argument is wired end‑to‑end here, fail closed unless
+    // placeholder range proof data is present. The bridge SNARK enforces the
+    // actual cryptographic range constraints, but we avoid accepting proofs
+    // that omit any range evidence entirely.
+    if proof.range_proofs.is_empty() {
+        return Err(PiDecError::RangeCheckFailed("missing range proofs".into()));
     }
     
     // === Verify y_j recomputation consistency ===  

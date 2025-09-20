@@ -273,7 +273,7 @@ fn test_vulnerability_final_snark_public_input_format() -> Result<()> {
     ).map_err(|e| anyhow::anyhow!("IVC step failed: {}", e))?;
 
     ivc_proofs.push(step_result.proof.clone());
-    let _final_augmented_ccs = step_result.proof.augmented_ccs.as_ref().unwrap();
+    // Augmented CCS is reconstructed by verifiers; no need to read from proof
     
     // 🚨 WRONG FORMAT: Using simple [x] instead of augmented CCS layout
     let wrong_format_input = vec![F::from_u64(delta)];

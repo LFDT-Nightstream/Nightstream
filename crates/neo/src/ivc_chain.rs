@@ -12,7 +12,7 @@
 use crate::{F, NeoParams};
 use crate::{OutputClaim, expose_z_component};
 use crate::ivc::{Accumulator, IvcProof, StepBindingSpec, prove_ivc_step_chained, LastNExtractor, IvcStepInput, StepOutputExtractor};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use neo_ccs::CcsStructure;
 
 /// Minimal state wrapper for the simple API
@@ -174,11 +174,80 @@ pub fn finalize_and_prove_with_options(
     };
     let y_next = &state.accumulator.y_compact;
     
-    // Get the augmented CCS from the final proof for verification
-    let augmented_ccs = state.ivc_proofs.last().unwrap()
-        .augmented_ccs.as_ref()
-        .expect("Final proof missing augmented CCS")
-        .clone();
+    // Reconstruct the exact augmented CCS used for folding at the final step
+    // (same logic as verifier; binds to transcript via RLC binder)
+    let final_proof = state.ivc_proofs.last().unwrap();
+    let step_data = crate::ivc::build_step_data_with_x(prev_accumulator, final_proof.step, step_x);
+    let step_digest = crate::ivc::create_step_digest(&step_data);
+    let num_coords = final_proof.c_step_coords.len();
+    let rlc_coeffs = crate::ivc::generate_rlc_coefficients(prev_accumulator, step_digest, &final_proof.c_step_coords, num_coords);
+
+    // Build augmented public input with recomputed ρ
+    let step_public_input_aug = crate::ivc::build_linked_augmented_public_input(
+        step_x,
+        rho,
+        y_prev,
+        y_next,
+    );
+    // Dummy witness (zeros) to size the augmented witness tail
+    let step_witness_aug = crate::ivc::build_linked_augmented_witness(
+        &vec![F::ZERO; state.step_ccs.m],
+        &state.binding.y_step_offsets,
+        rho,
+    );
+    // Full z = [public || witness]
+    let mut full_step_z = step_public_input_aug.clone();
+    full_step_z.extend_from_slice(&step_witness_aug);
+    let d = neo_math::ring::D;
+    let decomp_z = crate::decomp_b(&full_step_z, 2, d, crate::DecompStyle::Balanced);
+    let m_step = decomp_z.len() / d;
+    
+    // Ensure Ajtai PP and compute aggregated row g_full
+    crate::ensure_ajtai_pp_for_dims(d, m_step, || {
+        use rand::{SeedableRng, RngCore};
+        use rand::rngs::StdRng;
+        let mut rng = if std::env::var("NEO_DETERMINISTIC").is_ok() {
+            StdRng::from_seed([42u8; 32])
+        } else {
+            let mut seed = [0u8; 32];
+            rand::rng().fill_bytes(&mut seed);
+            StdRng::from_seed(seed)
+        };
+        let pp = crate::ajtai_setup(&mut rng, d, 16, m_step)?;
+        neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
+    })?;
+    let pp_full = neo_ajtai::get_global_pp_for_dims(d, m_step)
+        .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP for full witness: {}", e))?;
+    let z_len_digits = d * m_step;
+    let g_full = neo_ajtai::compute_aggregated_ajtai_row(&*pp_full, &rlc_coeffs, z_len_digits, num_coords)
+        .map_err(|e| anyhow::anyhow!("compute_aggregated_ajtai_row failed: {}", e))?;
+
+    // Extract U = ρ·y_step digit slice and compute rhs_diff to match prover
+    let y_len = y_prev.len();
+    let u_offset = step_public_input_aug.len() + state.step_ccs.m;
+    let u_digits_start = u_offset * d;
+    let u_digits_len = y_len * d;
+    let mut g_u = vec![F::ZERO; z_len_digits];
+    g_u[u_digits_start .. u_digits_start + u_digits_len]
+        .copy_from_slice(&g_full[u_digits_start .. u_digits_start + u_digits_len]);
+
+    let rhs_full = rlc_coeffs.iter().zip(final_proof.folding_proof.as_ref().ok_or_else(|| anyhow::anyhow!("missing folding_proof"))?.pi_ccs_inputs[1].c.data.iter())
+        .fold(F::ZERO, |acc, (ri, cf)| acc + *ri * F::from_u64(cf.as_canonical_u64()));
+    let rhs_step = rlc_coeffs.iter().zip(final_proof.c_step_coords.iter())
+        .fold(F::ZERO, |acc, (ri, cs)| acc + *ri * *cs);
+    let rhs_diff = rhs_full - rhs_step;
+    let rlc_binder = Some((g_u, rhs_diff));
+
+    let augmented_ccs = crate::ivc::build_augmented_ccs_linked_with_rlc(
+        &state.step_ccs,
+        step_x.len(),
+        &state.binding.y_step_offsets,
+        &state.binding.y_prev_witness_indices,
+        &state.binding.x_witness_indices,
+        y_len,
+        state.binding.const1_witness_index,
+        rlc_binder,
+    ).map_err(|e| anyhow::anyhow!("Failed to build final augmented CCS: {}", e))?;
 
     // Build the correct public input format: [step_x || ρ || y_prev || y_next]
     let final_public_input = crate::ivc::build_final_snark_public_input(

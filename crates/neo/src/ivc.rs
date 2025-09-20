@@ -15,6 +15,8 @@ use neo_ccs::{CcsStructure, Mat};
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
 use p3_symmetric::Permutation;
 use subtle::ConstantTimeEq;
+use neo_fold::{FoldTranscript, pi_ccs_verify, pi_rlc_verify, pi_dec_verify};
+use neo_ajtai::AjtaiSModule;
 
 /// Domain tag for IVC transcript, tied to Poseidon2 configuration
 const IVC_DOMAIN_TAG: &[u8] = b"neo/ivc/ev/v1|poseidon2-goldilocks-w12-cap4";
@@ -123,8 +125,6 @@ pub struct IvcProof {
     pub digit_witnesses: Option<Vec<neo_ccs::MeWitness<F>>>,
     /// **ARCHITECTURE**: Folding proof data (for Stage 5 Final SNARK Layer)
     pub folding_proof: Option<neo_fold::FoldingProof>,
-    /// **ARCHITECTURE**: Augmented CCS used for folding (for Stage 5 Final SNARK Layer)
-    pub augmented_ccs: Option<CcsStructure<F>>,
     // 🔒 REMOVED: Binding metadata no longer in proof (security vulnerability!)
     // Verifier must get these from a trusted StepBindingSpec instead
 }
@@ -1779,7 +1779,6 @@ pub fn prove_ivc_step_chained(
         me_instances: Some(me_instances.clone()), // Keep for final SNARK generation (TODO: optimize)
         digit_witnesses: Some(digit_witnesses.clone()), // Keep for final SNARK generation (TODO: optimize)
         folding_proof: Some(folding_proof),
-        augmented_ccs: Some(step_augmented_ccs),
     };
 
     Ok((IvcStepResult { proof: ivc_proof, next_state: y_next }, me_instances.last().unwrap().clone(), digit_witnesses.last().unwrap().clone()))
@@ -1901,7 +1900,8 @@ pub fn verify_ivc_step(
         .map_err(|e| anyhow::anyhow!("compute_aggregated_ajtai_row failed: {}", e))?;
 
     // Restrict to U = ρ·y_step slice (by digits)
-    let u_offset = step_public_input.len() - (1 + 2 * y_len) + step_ccs.m - binding_spec.y_step_offsets.len();
+    // Align verifier's offset with prover: U starts immediately after [public_input || step_witness]
+    let u_offset = step_public_input.len() + step_ccs.m;
     let u_len = y_len;
     let u_digits_start = u_offset * d;
     let u_digits_len = u_len * d;
@@ -1909,15 +1909,32 @@ pub fn verify_ivc_step(
     g_u[u_digits_start .. u_digits_start + u_digits_len]
         .copy_from_slice(&g_full[u_digits_start .. u_digits_start + u_digits_len]);
 
-    // The verifier cannot reconstruct rhs_diff without the witness, so we set it to zero
-    // The prover must ensure the constraint is satisfied by constructing the witness correctly
-    let rhs_diff = F::ZERO;
+    // Compute rhs_diff to match the prover's augmented CCS exactly:
+    // rhs_diff = (Σ r_i * c_full[i]) - (Σ r_i * c_step[i])
+    // We take c_full from the RHS MCS instance carried in the folding proof inputs.
+    let rhs_diff = if let Some(folding) = ivc_proof.folding_proof.as_ref() {
+        // Expect two inputs: [LHS (prev), RHS (current full)]
+        if folding.pi_ccs_inputs.len() >= 2 {
+            let rhs_c = &folding.pi_ccs_inputs[1].c; // full commitment for current step instance
+            let rhs_full = rlc_coeffs.iter().zip(rhs_c.data.iter())
+                .fold(F::ZERO, |acc, (ri, cf)| acc + *ri * F::from_u64(cf.as_canonical_u64()));
+            let rhs_step = rlc_coeffs.iter().zip(ivc_proof.c_step_coords.iter())
+                .fold(F::ZERO, |acc, (ri, cs)| acc + *ri * *cs);
+            rhs_full - rhs_step
+        } else {
+            // Fail closed: structure unexpected; use zero to avoid panicking but will likely mismatch
+            F::ZERO
+        }
+    } else {
+        // No folding proof: treat as zero; verifier will reject later if needed
+        F::ZERO
+    };
     
     let rlc_binder = Some((g_u, rhs_diff));
 
     // Build verifier CCS exactly like prover (no fallback for security)
     // 🔒 SECURITY: Verifier must use identical CCS as prover
-    let _augmented_ccs = build_augmented_ccs_linked_with_rlc(
+    let augmented_ccs_v = build_augmented_ccs_linked_with_rlc(
         step_ccs,
         step_x_len,
         &binding_spec.y_step_offsets,
@@ -2043,12 +2060,8 @@ pub fn verify_ivc_step(
 
     // Add folding proof verification
     if is_valid && !(prev_accumulator.step == 0 && prev_augmented_x.is_none()) {
-        let augmented = ivc_proof
-            .augmented_ccs
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("IVC proof missing augmented_ccs"))?;
-        
-        let folding_ok = verify_ivc_step_folding(params, ivc_proof, augmented, prev_accumulator, prev_augmented_x)?;
+        // 🔒 SECURITY: Bind folding verification to verifier‑reconstructed augmented CCS
+        let folding_ok = verify_ivc_step_folding(params, ivc_proof, &augmented_ccs_v, prev_accumulator, prev_augmented_x)?;
         if !folding_ok {
             #[cfg(feature = "neo-logs")]
             eprintln!("❌ Folding proof verification failed");
@@ -2981,7 +2994,7 @@ fn recombine_me_digits_to_parent_local(
 }
 
 /// Verify a single step's folding proof (Pi-CCS + Pi-RLC + Pi-DEC).
-/// - `augmented_ccs` **must** be the exact CCS used by the prover for folding (we carry it in `IvcProof`).
+/// - `augmented_ccs` must match the prover's folding CCS; the caller should reconstruct it.
 /// - `prev_step_x`: previous step's `step_public_input` (None for step 0).
 pub fn verify_ivc_step_folding(
     params: &crate::NeoParams,
@@ -2990,9 +3003,6 @@ pub fn verify_ivc_step_folding(
     prev_acc: &Accumulator,
     prev_augmented_x: Option<&[F]>,
 ) -> Result<bool, Box<dyn std::error::Error>> {
-    use neo_fold::{FoldTranscript, pi_ccs_verify, pi_rlc_verify, pi_dec_verify};
-    use neo_ajtai::AjtaiSModule;
-
     let folding = ivc_proof
         .folding_proof
         .as_ref()

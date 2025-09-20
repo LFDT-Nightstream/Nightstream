@@ -10,7 +10,7 @@
 use crate::error::PiCcsError;
 use crate::transcript::FoldTranscript;
 use neo_math::K;
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
 /// Trait implemented by problem-specific provers (e.g., generic CCS, R1CS fast-path).
 pub trait RoundOracle {
@@ -82,6 +82,20 @@ pub fn run_sumcheck(
     initial_sum: K,
     sample_xs: &[K],
 ) -> Result<SumcheckOutput, PiCcsError> {
+    // Guard: Lagrange interpolation requires distinct sample points.
+    // Use a HashSet over canonical coefficient pairs (F coords) for O(n) expected time.
+    {
+        use std::collections::HashSet;
+        use neo_math::KExtensions;
+        let mut seen: HashSet<(u64, u64)> = HashSet::with_capacity(sample_xs.len());
+        for &x in sample_xs {
+            let [re, im] = x.as_coeffs();
+            let key = (re.as_canonical_u64(), im.as_canonical_u64());
+            if !seen.insert(key) {
+                return Err(PiCcsError::SumcheckError("duplicate sample_xs".into()));
+            }
+        }
+    }
     let ell = oracle.num_rounds();
     let d_sc = oracle.degree_bound();
 

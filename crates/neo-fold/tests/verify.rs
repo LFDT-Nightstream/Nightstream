@@ -83,7 +83,7 @@ fn verify_shortcircuit_single_instance() {
     let output_digits = vec![me_ccs.clone()];
 
     let proof = FoldingProof {
-        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32], vjs: vec![] },
+        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32] },
         pi_ccs_inputs: vec![McsInstance { c: inst.c.clone(), x: inst.x.clone(), m_in: inst.m_in }],
         pi_ccs_outputs: vec![me_ccs],
         pi_rlc_proof: PiRlcProof {
@@ -149,7 +149,7 @@ fn verify_multi_instance_zero_commitments_dec_present() {
     let (rho_elems, t_bound) = derive_rhos(&params, &s, insts.len());
 
     let proof = FoldingProof {
-        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32], vjs: vec![] },
+        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32] },
         pi_ccs_inputs: insts.iter().map(|inst| McsInstance { c: inst.c.clone(), x: inst.x.clone(), m_in: inst.m_in }).collect(),
         pi_ccs_outputs: vec![me0, me1],
         pi_rlc_proof: PiRlcProof {
@@ -216,7 +216,7 @@ fn verify_rejects_when_rho_mismatch() {
     }
 
     let proof = FoldingProof {
-        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32], vjs: vec![] },
+        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32] },
         pi_ccs_inputs: insts.iter().map(|inst| McsInstance { c: inst.c.clone(), x: inst.x.clone(), m_in: inst.m_in }).collect(),
         pi_ccs_outputs: vec![me0, me1],
         pi_rlc_proof: PiRlcProof {
@@ -283,7 +283,7 @@ fn verify_rejects_when_range_base_mismatches() {
     }
 
     let proof = FoldingProof {
-        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32], vjs: vec![] },
+        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32] },
         pi_ccs_inputs: insts.iter().map(|inst| McsInstance { c: inst.c.clone(), x: inst.x.clone(), m_in: inst.m_in }).collect(),
         pi_ccs_outputs: vec![me0, me1],
         pi_rlc_proof: PiRlcProof {
@@ -327,7 +327,7 @@ fn verify_rejects_spartan_bundle_mismatch() {
     let output_digits = vec![me_ccs.clone()];
     
     let proof = FoldingProof {
-        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32], vjs: vec![] },
+        pi_ccs_proof: PiCcsProof { sumcheck_rounds: vec![], header_digest: [0u8; 32] },
         pi_ccs_inputs: vec![McsInstance { c: inst.c.clone(), x: inst.x.clone(), m_in: inst.m_in }],
         pi_ccs_outputs: vec![me_ccs],
         pi_rlc_proof: PiRlcProof {

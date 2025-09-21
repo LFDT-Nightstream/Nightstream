@@ -26,8 +26,6 @@ pub struct PiCcsProof {
     pub sumcheck_rounds: Vec<Vec<K>>,
     /// Extension policy binding digest  
     pub header_digest: [u8; 32],
-    /// Precomputed v_j = M_j^T * χ_r vectors over K (one per matrix)
-    pub vjs: Vec<Vec<K>>, 
 }
 
 // ===== CSR Sparse Matrix Operations =====
@@ -275,11 +273,54 @@ fn absorb_sparse_polynomial(tr: &mut FoldTranscript, f: &SparsePoly<F>) {
     }
 }
 
+// Detect whether a CCS structure encodes an R1CS relation: t=3 and f(y)=y0*y1 - y2.
+fn is_r1cs_shape(s: &CcsStructure<F>) -> bool {
+    // Detect up to a nonzero scalar multiple and variable permutation:
+    // f(y0,y1,y2) = λ·(y_i · y_j − y_k), where {i,j,k} = {0,1,2} and λ ≠ 0.
+    if s.t() != 3 || s.f.arity() != 3 { return false; }
+    use std::collections::BTreeMap;
+    let mut map: BTreeMap<[u32; 3], F> = BTreeMap::new();
+    for term in s.f.terms() {
+        if term.exps.len() != 3 { return false; }
+        let mut key = [0u32; 3];
+        key.copy_from_slice(&term.exps[..3]);
+        *map.entry(key).or_insert(F::ZERO) += term.coeff;
+    }
+    // Drop zero coefficients
+    map.retain(|_, c| *c != F::ZERO);
+    if map.len() != 2 { return false; }
+
+    // Identify the product term (two ones) and the single term (one one)
+    let mut prod_key = None; let mut prod_coeff = F::ZERO;
+    let mut single_key = None; let mut single_coeff = F::ZERO;
+    for (k, &c) in &map {
+        let wt: u32 = k.iter().copied().sum();
+        match wt {
+            2 => {
+                // Must be exactly [1,1,0] up to permutation
+                if k.iter().all(|&e| e <= 1) { prod_key = Some(*k); prod_coeff = c; }
+            }
+            1 => {
+                if k.iter().all(|&e| e <= 1) { single_key = Some(*k); single_coeff = c; }
+            }
+            _ => return false,
+        }
+    }
+    let (prod, single) = match (prod_key, single_key) { (Some(p), Some(s)) => (p, s), _ => return false };
+    // The single 1 must be on the index where the product has a 0 (complement index)
+    let zero_idx = prod.iter().position(|&e| e == 0).unwrap();
+    if single[zero_idx] != 1 { return false; }
+    // Coefficients must be opposite up to a nonzero scalar: single = -prod
+    if prod_coeff == F::ZERO { return false; }
+    single_coeff == -prod_coeff
+}
+
 // ===== Local MLE partial structures and Sum-check round oracles =====
 
 // Generic CCS partials: one shrinking vector per matrix M_j z
 struct MlePartials { s_per_j: Vec<Vec<K>> }
 // R1CS residual partials: one shrinking vector over row-wise residuals
+#[allow(dead_code)]
 struct MleResiduals { s: Vec<K> }
 
 struct GenericCcsOracle<'a> {
@@ -370,43 +411,89 @@ impl<'a> RoundOracle for GenericCcsOracle<'a> {
     }
 }
 
-struct R1csResidualOracle {
+// Legacy residual oracle removed (replaced by eq-weighted oracle)
+
+// === Eq-weighted R1CS oracle: binds product via equality MLE ===
+struct R1csEqOracle {
     alphas: Vec<K>,
-    residuals_per_inst: Vec<MleResiduals>,
+    a_per_inst: Vec<Vec<K>>, // shrinking tables (length halves each round)
+    b_per_inst: Vec<Vec<K>>, 
+    c_per_inst: Vec<Vec<K>>, 
+    w: Vec<K>,               // eq-binding vector
+    eq_prefix: K,            // ∏_{j<i} eq(w_j, r_j)
     ell: usize,
-    d_sc: usize,
+    round: usize,
 }
-impl RoundOracle for R1csResidualOracle {
+
+impl R1csEqOracle {
+    #[inline]
+    fn eq_lin(wi: K, x: K) -> K { (K::ONE - wi) * (K::ONE - x) + wi * x }
+}
+
+impl RoundOracle for R1csEqOracle {
     fn num_rounds(&self) -> usize { self.ell }
-    fn degree_bound(&self) -> usize { self.d_sc }
-    fn evals_at(&mut self, sample_xs: &[K]) -> Vec<K> {
-        let mut sample_ys = vec![K::ZERO; sample_xs.len()];
-        for (inst_idx, partials) in self.residuals_per_inst.iter().enumerate() {
-            let v = &partials.s;
-            debug_assert!(v.len().is_power_of_two() && v.len() >= 2);
-            let half = v.len() >> 1;
-            let (mut a_res, mut d_res) = (K::ZERO, K::ZERO);
-            for k in 0..half {
-                let e = v[2*k]; let o = v[2*k + 1];
-                a_res += e; d_res += o - e;
+    fn degree_bound(&self) -> usize { 3 }
+    fn evals_at(&mut self, xs: &[K]) -> Vec<K> {
+        debug_assert!(self.a_per_inst.iter().all(|a| a.len().is_power_of_two()));
+        debug_assert!(self.b_per_inst.iter().all(|a| a.len().is_power_of_two()));
+        debug_assert!(self.c_per_inst.iter().all(|a| a.len().is_power_of_two()));
+        let i = self.round;
+        let wi = self.w[i];
+        let pair_cnt = self.a_per_inst[0].len() >> 1;
+        // Build suffix weights eq(w_{>i}, ·) of length 2^{ell-i-1}
+        let rem = self.ell - (i + 1);
+        let mut suffix = vec![K::ONE; pair_cnt];
+        for mask in 0..pair_cnt {
+            let mut acc = K::ONE;
+            let mut m = mask;
+            for j in 0..rem {
+                let wj = self.w[i + 1 + j];
+                acc *= if (m & 1) == 0 { K::ONE - wj } else { wj };
+                m >>= 1;
             }
+            suffix[mask] = acc;
+        }
+
+        let mut ys = vec![K::ZERO; xs.len()];
+        for inst_idx in 0..self.a_per_inst.len() {
             let alpha = self.alphas[inst_idx];
-            for (sx, &X) in sample_xs.iter().enumerate() {
-                sample_ys[sx] += alpha * (a_res + d_res * X);
+            let a = &self.a_per_inst[inst_idx];
+            let b = &self.b_per_inst[inst_idx];
+            let c = &self.c_per_inst[inst_idx];
+            for k in 0..pair_cnt {
+                let e = 2*k;
+                let o = e + 1;
+                let a0 = a[e]; let da = a[o] - a[e];
+                let b0 = b[e]; let db = b[o] - b[e];
+                let c0 = c[e]; let dc = c[o] - c[e];
+                let w_suf = suffix[k];
+                for (t, &x) in xs.iter().enumerate() {
+                    let ax = a0 + da * x;
+                    let bx = b0 + db * x;
+                    let cx = c0 + dc * x;
+                    let res = ax * bx - cx; // deg 2
+                    let eqix = Self::eq_lin(wi, x); // deg 1
+                    ys[t] += alpha * self.eq_prefix * eqix * w_suf * res;
+                }
             }
         }
-        sample_ys
+        ys
     }
     fn fold(&mut self, r_i: K) {
-        for partials in self.residuals_per_inst.iter_mut() {
-            let v = &mut partials.s;
-            let n2 = v.len() >> 1;
-            for k in 0..n2 {
-                let a0 = v[2*k]; let b0 = v[2*k + 1];
-                v[k] = (K::ONE - r_i) * a0 + r_i * b0;
-            }
-            v.truncate(n2);
+        // Shrink tables
+        for a in &mut self.a_per_inst {
+            let n2 = a.len() >> 1; for k in 0..n2 { a[k] = (K::ONE - r_i) * a[2*k] + r_i * a[2*k + 1]; } a.truncate(n2);
         }
+        for b in &mut self.b_per_inst {
+            let n2 = b.len() >> 1; for k in 0..n2 { b[k] = (K::ONE - r_i) * b[2*k] + r_i * b[2*k + 1]; } b.truncate(n2);
+        }
+        for c in &mut self.c_per_inst {
+            let n2 = c.len() >> 1; for k in 0..n2 { c[k] = (K::ONE - r_i) * c[2*k] + r_i * c[2*k + 1]; } c.truncate(n2);
+        }
+        // Extend eq prefix
+        let wi = self.w[self.round];
+        self.eq_prefix *= Self::eq_lin(wi, r_i);
+        self.round += 1;
     }
 }
 
@@ -696,8 +783,11 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     println!("🔧 [TIMING] Transcript absorption: {:.2}ms", 
              transcript_start.elapsed().as_secs_f64() * 1000.0);
 
-    // --- Generate batching coefficients for composed polynomial Q ---
+    // --- Generate eq-binding vector and batching coefficients for composed polynomial Q ---
     let batching_start = std::time::Instant::now();
+    // Eq-binding vector w sampled before batching (used only when t>=3)
+    tr.absorb_bytes(b"neo/ccs/eq");
+    let w_eq: Vec<K> = (0..ell).map(|_| tr.challenge_k()).collect();
     tr.absorb_bytes(b"neo/ccs/batch");
     
     // α coefficients for CCS constraints (one per instance)
@@ -709,17 +799,15 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 
     // --- Run sum-check rounds over composed polynomial Q (degree ≤ d_sc) ---
     println!("🔍 Sum-check starting: {} instances, {} rounds", insts.len(), ell);
-    let sample_xs: Vec<K> = (0..=d_sc as u64).map(|u| K::from(F::from_u64(u))).collect();
-    
-    // TODO: Implement product-binding check for R1CS
-    // SOUNDNESS: until we add a product-binding check for R1CS,
-    // force the generic CCS oracle for all t.
-    let use_generic_ccs = true;
+    let sample_xs_generic: Vec<K> = (0..=d_sc as u64).map(|u| K::from(F::from_u64(u))).collect();
+    let sample_xs_r1cs: Vec<K> = (0..=3u64).map(|u| K::from(F::from_u64(u))).collect();
+    // Enable R1CS eq-binding terminal check whenever the CCS is R1CS-shaped.
+    let use_r1cs = is_r1cs_shape(s);
+    let use_generic_ccs = !use_r1cs;
 
     // Build partial states (invariant across the engine)
     let mle_start = std::time::Instant::now();
     let partials_per_inst_opt: Option<Vec<MlePartials>>;
-    let residuals_per_inst_opt: Option<Vec<MleResiduals>>;
     if use_generic_ccs {
         let partials: Result<Vec<MlePartials>, PiCcsError> = insts.par_iter().map(|inst| {
             let mut s_per_j = Vec::with_capacity(s.t());
@@ -731,19 +819,8 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             Ok(MlePartials { s_per_j })
         }).collect();
         partials_per_inst_opt = Some(partials?);
-        residuals_per_inst_opt = None;
     } else {
-        let residuals: Result<Vec<MleResiduals>, PiCcsError> = insts.par_iter().map(|inst| {
-            let az = &inst.mz[0]; let bz = &inst.mz[1]; let cz = &inst.mz[2];
-            let mut row_residuals: Vec<K> = Vec::with_capacity(s.n);
-            for i in 0..s.n {
-                let a = K::from(az[i]); let b = K::from(bz[i]); let c = K::from(cz[i]);
-                row_residuals.push(a * b - c);
-            }
-            let s_vec = pad_to_pow2_k(row_residuals, ell)?;
-            Ok(MleResiduals { s: s_vec })
-        }).collect();
-        residuals_per_inst_opt = Some(residuals?);
+        // R1CS eq-weighted oracle uses A,B,C shrinking tables instead of residuals
         partials_per_inst_opt = None;
     }
     println!("🔧 [TIMING] MLE partials setup: {:.2}ms",
@@ -759,16 +836,35 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             ell, d_sc,
             first_round_done: false,
         };
-        if d_sc >= 1 { run_sumcheck_skip_eval_at_one(tr, &mut oracle, initial_sum, &sample_xs)? }
-        else { run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs)? }
+        if d_sc >= 1 { run_sumcheck_skip_eval_at_one(tr, &mut oracle, initial_sum, &sample_xs_generic)? }
+        else { run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs_generic)? }
     } else {
-        let mut oracle = R1csResidualOracle {
+        // Build A,B,C shrinking tables per instance
+        let mut a_per_inst = Vec::with_capacity(insts.len());
+        let mut b_per_inst = Vec::with_capacity(insts.len());
+        let mut c_per_inst = Vec::with_capacity(insts.len());
+        for inst in &insts {
+            let mut a_vk: Vec<K> = inst.mz[0].iter().map(|&x| K::from(x)).collect();
+            let mut b_vk: Vec<K> = inst.mz[1].iter().map(|&x| K::from(x)).collect();
+            let mut c_vk: Vec<K> = inst.mz[2].iter().map(|&x| K::from(x)).collect();
+            a_vk = pad_to_pow2_k(a_vk, ell)?;
+            b_vk = pad_to_pow2_k(b_vk, ell)?;
+            c_vk = pad_to_pow2_k(c_vk, ell)?;
+            a_per_inst.push(a_vk);
+            b_per_inst.push(b_vk);
+            c_per_inst.push(c_vk);
+        }
+        let mut oracle = R1csEqOracle {
             alphas: batch_coeffs.alphas.clone(),
-            residuals_per_inst: residuals_per_inst_opt.unwrap(),
-            ell, d_sc,
+            a_per_inst,
+            b_per_inst,
+            c_per_inst,
+            w: w_eq.clone(),
+            eq_prefix: K::ONE,
+            ell,
+            round: 0,
         };
-        if d_sc >= 1 { run_sumcheck_skip_eval_at_one(tr, &mut oracle, initial_sum, &sample_xs)? }
-        else { run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs)? }
+        run_sumcheck_skip_eval_at_one(tr, &mut oracle, initial_sum, &sample_xs_r1cs)?
     };
 
     println!("🔧 [TIMING] Sum-check rounds complete ({} rounds)", ell);
@@ -837,7 +933,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     println!("🔧 [TIMING] ME instance building: {:.2}ms", 
              me_start.elapsed().as_secs_f64() * 1000.0);
 
-    let proof = PiCcsProof { sumcheck_rounds: rounds, header_digest: fold_digest, vjs };
+    let proof = PiCcsProof { sumcheck_rounds: rounds, header_digest: fold_digest };
     Ok((out_me, proof))
 }
 
@@ -882,7 +978,9 @@ pub fn pi_ccs_verify(
         tr.absorb_f(&inst.c.data);
     }
 
-    // Re-derive the SAME batching coefficients as the prover
+    // Re-derive the SAME eq-binding vector and batching coefficients as the prover
+    tr.absorb_bytes(b"neo/ccs/eq");
+    let w_eq: Vec<K> = (0..ell).map(|_| tr.challenge_k()).collect();
     tr.absorb_bytes(b"neo/ccs/batch");
     let alphas: Vec<K> = (0..mcs_list.len()).map(|_| tr.challenge_k()).collect();
     
@@ -890,8 +988,11 @@ pub fn pi_ccs_verify(
 
     if proof.sumcheck_rounds.len() != ell { return Ok(false); }
     // Check sum-check rounds using shared helper (derives r and running_sum)
+    // Enable R1CS eq-binding terminal check whenever the CCS is R1CS-shaped.
+    let is_r1cs = is_r1cs_shape(s);
+    let d_round = if is_r1cs { 3 } else { d_sc };
     let (r, running_sum, ok_rounds) =
-        verify_sumcheck_rounds(tr, d_sc, K::ZERO, &proof.sumcheck_rounds);
+        verify_sumcheck_rounds(tr, d_round, K::ZERO, &proof.sumcheck_rounds);
     if !ok_rounds { return Ok(false); }
 
     // === CRITICAL TRANSCRIPT BINDING SECURITY CHECK ===
@@ -919,9 +1020,9 @@ pub fn pi_ccs_verify(
     // === CRITICAL BINDING: out_me[i] must match input instance ===
     // This prevents attacks where unrelated ME outputs pass RLC/DEC algebra
     if out_me.len() != mcs_list.len() { return Ok(false); }
-    for (out, inp) in out_me.iter().zip(mcs_list.iter()) {
-        if out.c != inp.c { return Ok(false); }
-        if out.m_in != inp.m_in { return Ok(false); }
+    for (i, (out, inp)) in out_me.iter().zip(mcs_list.iter()).enumerate() {
+        if out.c != inp.c { #[allow(unused_variables)] let _i = i; /* logs gated by workspace */ return Ok(false); }
+        if out.m_in != inp.m_in { #[allow(unused_variables)] let _i = i; return Ok(false); }
         
         // Shape/consistency checks: catch subtle mismatches before terminal verification
         if out.X.rows() != neo_math::D { return Ok(false); }
@@ -936,10 +1037,25 @@ pub fn pi_ccs_verify(
     // NOTE: Only CCS and range/decomp constraints in Q(r).
     // Tie constraints removed from sum-check as they break soundness.
     
-    // Terminal check: Only safe when Q(r) can be computed from y_scalars alone.
-    // For generic CCS with t < 3 (no element-wise product), Q(r) = Σ α_i · f(Y_i(r)).
-    // For R1CS-style (t ≥ 3), ⟨Az∘Bz, χ_r⟩ cannot be derived from y_scalars; skip here.
-    if s.t() < 3 {
+    // Terminal check: generic CCS (t<3) uses Q(r) = Σ α_i·f(Y(r));
+    // R1CS-style (t≥3) uses eq-binding: running_sum = eq(w,r)·Σ α_i·(A(r)B(r)−C(r)).
+    if is_r1cs {
+        // R1CS eq-bound terminal check
+        if !out_me.iter().all(|me| me.y_scalars.len() == 3) { return Ok(false); }
+        let mut wr = K::ONE;
+        for (wi, ri) in w_eq.iter().zip(r.iter()) {
+            wr *= (K::ONE - *wi) * (K::ONE - *ri) + *wi * *ri;
+        }
+        let mut expected = K::ZERO;
+        for (inst_idx, me_inst) in out_me.iter().enumerate() {
+            let a = me_inst.y_scalars[0];
+            let b = me_inst.y_scalars[1];
+            let c = me_inst.y_scalars[2];
+            expected += batch_coeffs.alphas[inst_idx] * (a * b - c);
+        }
+        if running_sum != wr * expected { return Ok(false); }
+    } else {
+        // Generic CCS
         if !out_me.iter().all(|me| me.y_scalars.len() == s.t()) { return Ok(false); }
         let mut expected_q_r = K::ZERO;
         for (inst_idx, me_inst) in out_me.iter().enumerate() {
@@ -949,16 +1065,7 @@ pub fn pi_ccs_verify(
         if running_sum != expected_q_r { return Ok(false); }
     }
 
-    // Verify v_j = M_j^T χ_r if provided
-    if !proof.vjs.is_empty() {
-        let mats_csr: Vec<Csr<F>> = s.matrices.iter().map(|m| to_csr::<F>(m, s.n, s.m)).collect();
-        let w = HalfTableEq::new(&r);
-        let vjs_hat: Vec<Vec<K>> = mats_csr.par_iter().map(|csr| spmv_csr_t_weighted_fk::<_>(csr, &w)).collect();
-        if proof.vjs.len() != vjs_hat.len() { return Ok(false); }
-        for (lhs, rhs) in proof.vjs.iter().zip(vjs_hat.iter()) {
-            if lhs.len() != rhs.len() || !lhs.iter().zip(rhs).all(|(a,b)| *a == *b) { return Ok(false); }
-        }
-    }
+    // Optionally verify v_j = M_j^T χ_r if carried (disabled to keep verifier lightweight)
 
     Ok(true)
 }

@@ -418,7 +418,7 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     let fold_start = std::time::Instant::now();
     debug!("Starting CCS folding (Pi_CCS + Pi_RLC)");
     
-    let (me_instances, digit_witnesses, folding_proof) = neo_fold::fold_ccs_instances(
+    let (me_instances, digit_witnesses, _folding_proof) = neo_fold::fold_ccs_instances(
         input.params, 
         input.ccs, 
         &mcs_instances, 
@@ -440,7 +440,7 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
         input.ccs,
         input.params,
         input.output_claims,
-        input.vjs_opt.or(Some(folding_proof.pi_ccs_proof.vjs.as_slice())),
+        input.vjs_opt,
     )?;
     
     let bridge_time = bridge_start.elapsed();

@@ -76,3 +76,70 @@ fn rlc_binder_linear_equality_correctness() {
     let check = check_ccs_rowwise_zero(&augmented, &x_pub, &w_priv);
     assert!(check.is_ok(), "RLC binder vulnerability detected: system using multiplicative encoding instead of linear equality");
 }
+
+/// Regression: the RLC binder must reject assignments where <G, z_witness> != rhs_diff.
+/// This guards against accidentally reintroducing the multiplicative encoding.
+#[test]
+fn rlc_binder_rejects_mismatch() {
+    // --- Step CCS (trivial) ---
+    let rows = 1usize;
+    let cols = 2usize;
+    let zero = vec![F::ZERO; rows * cols];
+    let a = Mat::from_row_major(rows, cols, zero.clone());
+    let b = Mat::from_row_major(rows, cols, zero.clone());
+    let c = Mat::from_row_major(rows, cols, zero);
+    let step_ccs: CcsStructure<F> = r1cs_to_ccs(a, b, c);
+
+    // --- Parameters for augmentation ---
+    let y_len = 1usize;
+    let step_x_len = 1usize;
+    let const1_witness_index = 0usize; // step_witness[0] = 1
+    let y_step_offset = 1usize;        // step_witness[1] holds y_step
+
+    let x_witness_indices: Vec<usize> = vec![];
+    let y_prev_witness_indices: Vec<usize> = vec![];
+
+    // EV semantics
+    let rho = F::from_u64(3);
+    let y_step = F::from_u64(5);
+    let u = rho * y_step;              // 15
+    let y_prev = F::from_u64(7);
+    let y_next = y_prev + u;           // 22
+    let step_x = F::from_u64(42);
+
+    // Witness block: [step_witness || u]
+    let step_witness = vec![F::ONE, y_step];
+    let u_vec = vec![u];
+
+    // Aggregated Ajtai row G over witness columns: pick G = [0, 0, 1] so <G, z_wit> = u
+    let total_wit_cols = step_ccs.m + y_len; // 2 + 1 = 3
+    let mut g = vec![F::ZERO; total_wit_cols];
+    g[2] = F::ONE;
+    // Choose rhs different from <G,z>
+    let rhs_diff = u + F::from_u64(1);
+
+    let augmented = neo::ivc::build_augmented_ccs_linked_with_rlc(
+        &step_ccs,
+        step_x_len,
+        &[y_step_offset],
+        &y_prev_witness_indices,
+        &x_witness_indices,
+        y_len,
+        const1_witness_index,
+        Some((g.clone(), rhs_diff)),
+    ).expect("failed to build augmented CCS");
+
+    // Public input: [step_x || rho || y_prev || y_next]
+    let mut x_pub = Vec::with_capacity(step_x_len + 1 + 2 * y_len);
+    x_pub.push(step_x);
+    x_pub.push(rho);
+    x_pub.push(y_prev);
+    x_pub.push(y_next);
+
+    // Witness: [step_witness || u]
+    let mut w_priv = step_witness.clone();
+    w_priv.extend_from_slice(&u_vec);
+
+    let check = check_ccs_rowwise_zero(&augmented, &x_pub, &w_priv);
+    assert!(check.is_err(), "RLC binder accepted mismatched equality: expected failure, got success");
+}

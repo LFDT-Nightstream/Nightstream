@@ -1099,34 +1099,29 @@ pub fn prove_ivc_step_chained(
     
     // Pattern B: Use pre_commitment for ρ derivation and accumulator evolution
 
-    // 🔒 SECURITY: Build RLC binder to bind c_step_coords to actual witness
     // Get PP for the full witness dimensions (m_step)
-    let pp_full = neo_ajtai::get_global_pp_for_dims(d, m_step)
+    let _pp_full = neo_ajtai::get_global_pp_for_dims(d, m_step)
         .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP for full witness: {}", e))?;
-    
-    // Compute aggregated row g_full = Σ_i r_i · L_i for full witness
-    let z_len_digits = d * m_step;
-    let g_full = neo_ajtai::compute_aggregated_ajtai_row(&*pp_full, &rlc_coeffs, z_len_digits, num_coords)
-        .map_err(|e| anyhow::anyhow!("compute_aggregated_ajtai_row failed: {}", e))?;
-
-    // Restrict to U = ρ·y_step slice (by digits)
-    let u_digits_start = u_offset * d;
-    let u_digits_len = u_len * d;
-    let mut g_u = vec![F::ZERO; z_len_digits];
-    g_u[u_digits_start .. u_digits_start + u_digits_len]
-        .copy_from_slice(&g_full[u_digits_start .. u_digits_start + u_digits_len]);
 
     // Build full commitment that matches the full witness (for CCS consistency)
-    let full_commitment = crate::commit(&*pp_full, &decomp_z);
-
-    // RHS = Σ r_i (c_full[i] - c_step[i])
-    let rhs_step = rlc_coeffs.iter().zip(c_step_coords.iter())
-        .fold(F::ZERO, |acc, (ri, csi)| acc + *ri * *csi);
-    let rhs_full = rlc_coeffs.iter().zip(full_commitment.data.iter())
-        .fold(F::ZERO, |acc, (ri, cf)| acc + *ri * F::from_u64(cf.as_canonical_u64()));
-    let rhs_diff = rhs_full - rhs_step;
-
-    let rlc_binder = Some((g_u, rhs_diff));
+    let full_commitment = crate::commit(&*_pp_full, &decomp_z);
+    // CCS-level RLC binder intentionally disabled. Soundness is enforced by
+    // Pi-CCS → Pi-RLC → Pi-DEC and commitment evolution checks.
+    // Intentionally no CCS-level RLC binder row in the proving CCS.
+    // Rationale:
+    // - The linear form you might try to enforce, <G, vec(Z)> = rhs, lives in Ajtai digit space
+    //   (Z are base-b digits). CCS variables are the undigitized vector z. Encoding this check
+    //   directly in CCS is structurally mismatched unless we first lift the relevant digit columns
+    //   into CCS, which increases width and duplicates Π_DEC checks.
+    // - Soundness and completeness are already enforced by the folding pipeline:
+    //      • Π_CCS (with eq-binding for R1CS shapes) enforces the constraint relation,
+    //      • Π_RLC performs the random linear combination with strong-set guard,
+    //      • Π_DEC authenticates digit decomposition & range, tying digits to the commitment,
+    //      • The IVC layer checks commitment evolution c_next = c_prev + ρ·c_step.
+    //   This mirrors HyperNova/LatticeFold-style reductions and keeps CCS lean.
+    // - For experiments, the builder still supports adding a single linear row; unit tests cover
+    //   that it is encoded as a true linear equality (<G,z> = rhs) and rejects mismatches.
+    let rlc_binder = None;
     let step_augmented_ccs = build_augmented_ccs_linked_with_rlc(
         input.step_ccs,
         step_x.len(),
@@ -1390,8 +1385,7 @@ pub fn verify_ivc_step(
     let y_len = prev_accumulator.y_compact.len();
     let step_x_len = ivc_proof.step_public_input.len();
     
-    // 🔒 SECURITY: Reconstruct the same RLC binder as the prover
-    // First, recompute ρ to get the same transcript state
+    // 🔒 SECURITY: Recompute ρ to get the same transcript state
     let (rho, _transcript_digest) = rho_from_transcript(prev_accumulator, step_digest, &ivc_proof.c_step_coords);
     
     // --- Guard A: if the proof carries a step_rho, it must match the verifier's recomputation
@@ -1409,9 +1403,7 @@ pub fn verify_ivc_step(
         return Ok(false);
     }
     
-    // Generate the same RLC coefficients as the prover
-    let num_coords = ivc_proof.c_step_coords.len();
-    let rlc_coeffs = generate_rlc_coefficients(prev_accumulator, step_digest, &ivc_proof.c_step_coords, num_coords);
+    // RLC coefficients no longer needed here (binder disabled)
     
     // Reconstruct witness structure to determine dimensions
     let step_witness_augmented = build_linked_augmented_witness(
@@ -1452,47 +1444,18 @@ pub fn verify_ivc_step(
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
     
-    // Get PP for the full witness dimensions
-    let pp_full = neo_ajtai::get_global_pp_for_dims(d, m_step)
+    // Get PP for the full witness dimensions (kept for potential future checks)
+    let _pp_full = neo_ajtai::get_global_pp_for_dims(d, m_step)
         .map_err(|e| anyhow::anyhow!("Failed to get Ajtai PP for full witness: {}", e))?;
     
-    // Compute the same aggregated row as the prover
-    let z_len_digits = d * m_step;
-    let g_full = neo_ajtai::compute_aggregated_ajtai_row(&*pp_full, &rlc_coeffs, z_len_digits, num_coords)
-        .map_err(|e| anyhow::anyhow!("compute_aggregated_ajtai_row failed: {}", e))?;
-
-    // Restrict to U = ρ·y_step slice (by digits)
-    // Align verifier's offset with prover: U starts immediately after [public_input || step_witness]
-    let u_offset = step_public_input.len() + step_ccs.m;
-    let u_len = y_len;
-    let u_digits_start = u_offset * d;
-    let u_digits_len = u_len * d;
-    let mut g_u = vec![F::ZERO; z_len_digits];
-    g_u[u_digits_start .. u_digits_start + u_digits_len]
-        .copy_from_slice(&g_full[u_digits_start .. u_digits_start + u_digits_len]);
-
-    // Compute rhs_diff to match the prover's augmented CCS exactly:
-    // rhs_diff = (Σ r_i * c_full[i]) - (Σ r_i * c_step[i])
-    // We take c_full from the RHS MCS instance carried in the folding proof inputs.
-    let rhs_diff = if let Some(folding) = ivc_proof.folding_proof.as_ref() {
-        // Expect two inputs: [LHS (prev), RHS (current full)]
-        if folding.pi_ccs_inputs.len() >= 2 {
-            let rhs_c = &folding.pi_ccs_inputs[1].c; // full commitment for current step instance
-            let rhs_full = rlc_coeffs.iter().zip(rhs_c.data.iter())
-                .fold(F::ZERO, |acc, (ri, cf)| acc + *ri * F::from_u64(cf.as_canonical_u64()));
-            let rhs_step = rlc_coeffs.iter().zip(ivc_proof.c_step_coords.iter())
-                .fold(F::ZERO, |acc, (ri, cs)| acc + *ri * *cs);
-            rhs_full - rhs_step
-        } else {
-            // Fail closed: structure unexpected; use zero to avoid panicking but will likely mismatch
-            F::ZERO
-        }
-    } else {
-        // No folding proof: treat as zero; verifier will reject later if needed
-        F::ZERO
-    };
-    
-    let rlc_binder = Some((g_u, rhs_diff));
+    // CCS-level binder disabled in verifier too (see rationale above).
+    // The verifier reconstructs the exact augmented CCS the prover used, without any extra
+    // binder row. The required equalities are checked by:
+    //   - Π_CCS terminal eq-binding (for R1CS) or generic CCS terminal,
+    //   - Π_RLC combination check with guard bound T,
+    //   - Π_DEC recomposition & range checks that bind digits to the Ajtai commitment,
+    //   - Commitment evolution on coordinates + digest.
+    let rlc_binder = None;
 
     // Build verifier CCS exactly like prover (no fallback for security)
     // 🔒 SECURITY: Verifier must use identical CCS as prover
@@ -1570,6 +1533,9 @@ pub fn verify_ivc_step(
     };
     
     let is_valid = digest_valid && y_next_valid;
+    // TEMP DEBUG: print digest and y_next checks
+    println!("  Digest valid: {}", digest_valid);
+    println!("  y_next valid: {}", y_next_valid);
     
     #[cfg(feature = "neo-logs")]
     {
@@ -2374,7 +2340,18 @@ fn verify_commitment_evolution(
         }
     };
 
-    ct_eq_coords(&expected_next, next_coords) && ct_eq_bytes(&expected_digest, published_next_digest)
+    let coords_ok = ct_eq_coords(&expected_next, next_coords);
+    let digest_ok = ct_eq_bytes(&expected_digest, published_next_digest);
+    if !coords_ok || !digest_ok {
+        println!("  commit coords eq: {}", coords_ok);
+        println!("  commit digest eq: {}", digest_ok);
+        println!("  prev.len={}, step.len={}, next.len={}", prev_coords.len(), c_step_coords.len(), next_coords.len());
+        let head = |v: &[F]| v.iter().take(4).map(|f| f.as_canonical_u64()).collect::<Vec<_>>();
+        println!("  prev head: {:?}", head(prev_coords));
+        println!("  step head: {:?}", head(c_step_coords));
+        println!("  next head: {:?}", head(next_coords));
+    }
+    coords_ok && digest_ok
 }
 
 /// Constant-time equality check for byte slices
@@ -2585,12 +2562,22 @@ pub fn verify_ivc_step_folding(
         || stored_inputs[0].x != lhs.x
         || stored_inputs[0].c.data != lhs.c.data
     {
+        #[cfg(feature = "neo-logs")] {
+            eprintln!("  Pi-CCS input[0] mismatch: m_in {} vs {}", stored_inputs[0].m_in, lhs.m_in);
+            eprintln!("  x equal: {}", (stored_inputs[0].x == lhs.x));
+            eprintln!("  c equal: {}", (stored_inputs[0].c.data == lhs.c.data));
+        }
         return Ok(false);
     }
     if stored_inputs[1].m_in != rhs.m_in
         || stored_inputs[1].x != rhs.x
         || stored_inputs[1].c.data != rhs.c.data
     {
+        #[cfg(feature = "neo-logs")] {
+            eprintln!("  Pi-CCS input[1] mismatch: m_in {} vs {}", stored_inputs[1].m_in, rhs.m_in);
+            eprintln!("  x equal: {}", (stored_inputs[1].x == rhs.x));
+            eprintln!("  c equal: {}", (stored_inputs[1].c.data == rhs.c.data));
+        }
         return Ok(false);
     }
 

@@ -1,4 +1,4 @@
-#![allow(deprecated)] // Tests include backwards compatibility for toy hash functions
+// Toy hash functions removed - now using secure public-ρ EV path everywhere
 
 use neo::ivc::*;
 use neo::F;
@@ -50,28 +50,23 @@ fn test_ev_full_ccs_with_multiplication() {
     assert!(check_ccs_rowwise_zero(&ev_ccs, &public_input, &witness).is_ok());
 }
 
-#[test]
-fn test_poseidon2_hash_gadget() {
-    let inputs = vec![F::from_u64(10), F::from_u64(20), F::from_u64(30)];
-    let hash_ccs = poseidon2_hash_gadget_ccs(inputs.len());
-    
-    let (witness, computed_rho) = build_poseidon2_hash_witness(&inputs);
-    
-    println!("Poseidon2 hash witness: {:?}", witness.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());
-    println!("Computed rho: {}", computed_rho.as_canonical_u64());
-    println!("Poseidon2 hash CCS: {} constraints, {} variables", hash_ccs.n, hash_ccs.m);
-    
-    // Should satisfy the Poseidon2 hash CCS
-    assert!(check_ccs_rowwise_zero(&hash_ccs, &[], &witness).is_ok());
-    
-    println!("✅ Poseidon2 hash gadget test passed");
-}
+// Toy hash gadget test removed - production uses rho_from_transcript() with real Poseidon2
 
 #[test]
 fn test_ev_with_public_rho_roundtrip() {
     let y_prev = vec![F::from_u64(1), F::from_u64(2)];
     let y_step = vec![F::from_u64(3), F::from_u64(4)];
-    let rho = F::from_u64(123); // in production you'd call rho_from_transcript
+    
+    // Use production rho_from_transcript() instead of hardcoded value
+    let acc = Accumulator {
+        c_z_digest: [1u8; 32],
+        c_coords: vec![],
+        y_compact: y_prev.clone(),
+        step: 5,
+    };
+    let step_digest = [2u8; 32];
+    let c_step_coords = vec![F::from_u64(10), F::from_u64(20)];
+    let (rho, _) = rho_from_transcript(&acc, step_digest, &c_step_coords);
 
     let ccs = ev_with_public_rho_ccs(y_prev.len());
     let (witness, public_input, y_next) =
@@ -81,7 +76,54 @@ fn test_ev_with_public_rho_roundtrip() {
     assert!(check_ccs_rowwise_zero(&ccs, &public_input, &witness).is_ok());
     assert_eq!(y_next, rlc_accumulate_y(&y_prev, &y_step, rho));
     
-    println!("✅ Public-ρ EV roundtrip test passed!");
+    println!("✅ Public-ρ EV roundtrip test passed with production rho_from_transcript!");
+}
+
+#[test]
+fn test_rho_transcript_sensitivity() {
+    // Test that changing any transcript input changes ρ with overwhelming probability
+    let base_acc = Accumulator {
+        c_z_digest: [1u8; 32],
+        c_coords: vec![],
+        y_compact: vec![F::from_u64(100), F::from_u64(200)],
+        step: 5,
+    };
+    let base_step_digest = [2u8; 32];
+    let base_c_step_coords = vec![F::from_u64(10), F::from_u64(20)];
+    
+    let (base_rho, _) = rho_from_transcript(&base_acc, base_step_digest, &base_c_step_coords);
+    
+    // 1. Change step number -> ρ should change
+    let mut acc1 = base_acc.clone();
+    acc1.step = 6;
+    let (rho1, _) = rho_from_transcript(&acc1, base_step_digest, &base_c_step_coords);
+    assert_ne!(base_rho, rho1, "Changing step should change ρ");
+    
+    // 2. Change y_compact -> ρ should change  
+    let mut acc2 = base_acc.clone();
+    acc2.y_compact[0] = F::from_u64(101);
+    let (rho2, _) = rho_from_transcript(&acc2, base_step_digest, &base_c_step_coords);
+    assert_ne!(base_rho, rho2, "Changing y_compact should change ρ");
+    
+    // 3. Change step_digest -> ρ should change
+    let mut step_digest3 = base_step_digest;
+    step_digest3[0] = 3;
+    let (rho3, _) = rho_from_transcript(&base_acc, step_digest3, &base_c_step_coords);
+    assert_ne!(base_rho, rho3, "Changing step_digest should change ρ");
+    
+    // 4. Change c_step_coords -> ρ should change
+    let mut c_step_coords4 = base_c_step_coords.clone();
+    c_step_coords4[0] = F::from_u64(11);
+    let (rho4, _) = rho_from_transcript(&base_acc, base_step_digest, &c_step_coords4);
+    assert_ne!(base_rho, rho4, "Changing c_step_coords should change ρ");
+    
+    // 5. Change c_z_digest -> ρ should change
+    let mut acc5 = base_acc.clone();
+    acc5.c_z_digest[0] = 2;
+    let (rho5, _) = rho_from_transcript(&acc5, base_step_digest, &base_c_step_coords);
+    assert_ne!(base_rho, rho5, "Changing c_z_digest should change ρ");
+    
+    println!("✅ ρ transcript sensitivity test passed - all inputs affect output");
 }
 
 #[test]
@@ -442,12 +484,21 @@ fn test_nova_public_binding_security() {
     use neo_ccs::check_ccs_rowwise_zero;
     
     let y_len = 2;
-    let rho = F::from_u64(77);
-    
-    let nova_ccs = ev_with_public_rho_ccs(y_len);
-    
     let y_prev = vec![F::from_u64(10), F::from_u64(20)];
     let y_step = vec![F::from_u64(3), F::from_u64(4)];
+    
+    // Use production rho_from_transcript() for realistic test
+    let acc = Accumulator {
+        c_z_digest: [3u8; 32],
+        c_coords: vec![],
+        y_compact: y_prev.clone(),
+        step: 7,
+    };
+    let step_digest = [4u8; 32];
+    let c_step_coords = vec![F::from_u64(30), F::from_u64(40)];
+    let (rho, _) = rho_from_transcript(&acc, step_digest, &c_step_coords);
+    
+    let nova_ccs = ev_with_public_rho_ccs(y_len);
     
     let (witness, public_input, _y_next) = build_ev_with_public_rho_witness(rho, &y_prev, &y_step);
     
@@ -455,16 +506,29 @@ fn test_nova_public_binding_security() {
     assert!(check_ccs_rowwise_zero(&nova_ccs, &public_input, &witness).is_ok(), 
            "Valid Nova witness should satisfy constraints");
     
-    // Tampered ρ should fail
-    let mut tampered_public = public_input.clone();
-    tampered_public[0] = F::from_u64(999); // Change ρ
+    // 1) Tamper ρ -> must fail
+    let mut tampered_rho = public_input.clone();
+    tampered_rho[0] = F::from_u64(999); // Change ρ
+    assert!(check_ccs_rowwise_zero(&nova_ccs, &tampered_rho, &witness).is_err(),
+           "Tampered ρ should be rejected");
     
-    match check_ccs_rowwise_zero(&nova_ccs, &tampered_public, &witness) {
-        Ok(_) => panic!("❌ Tampered ρ should be rejected!"),
-        Err(_) => println!("✅ ρ tampering correctly detected and rejected")
-    }
+    // 2) Tamper y_prev[0] -> must fail (index 1 is y_prev[0])
+    let mut tampered_y_prev = public_input.clone();
+    tampered_y_prev[1] = F::from_u64(999); // Change y_prev[0]
+    assert!(check_ccs_rowwise_zero(&nova_ccs, &tampered_y_prev, &witness).is_err(),
+           "Tampered y_prev should be rejected");
     
-    println!("🔒 **SECURITY VERIFIED**: Public input binding prevents tampering");
+    // 3) Tamper y_next[0] -> must fail (index 1+y_len is y_next[0])
+    let mut tampered_y_next = public_input.clone();
+    tampered_y_next[1 + y_len] = F::from_u64(999); // Change y_next[0]
+    assert!(check_ccs_rowwise_zero(&nova_ccs, &tampered_y_next, &witness).is_err(),
+           "Tampered y_next should be rejected");
+    
+    println!("✅ All public input tampering correctly detected and rejected:");
+    println!("   - ρ tampering: rejected");
+    println!("   - y_prev tampering: rejected");
+    println!("   - y_next tampering: rejected");
+    println!("🔒 **SECURITY VERIFIED**: Public input binding prevents all tampering");
 }
 
 /// **NOVA STEP 2 TEST**: Commitment opening verification in CCS
@@ -571,17 +635,25 @@ fn test_nova_embedded_verifier_public_y_public_rho() {
     
     // Test parameters
     let y_len = 2;
-    let rho = F::from_u64(77);
+    let y_prev = vec![F::from_u64(100), F::from_u64(200)]; // Previous accumulator state
+    let y_step = vec![F::from_u64(5), F::from_u64(7)];     // Current step contribution
+    
+    // Use production rho_from_transcript() for realistic end-to-end test
+    let acc = Accumulator {
+        c_z_digest: [5u8; 32],
+        c_coords: vec![],
+        y_compact: y_prev.clone(),
+        step: 10,
+    };
+    let step_digest = [6u8; 32];
+    let c_step_coords = vec![F::from_u64(50), F::from_u64(70)];
+    let (rho, _) = rho_from_transcript(&acc, step_digest, &c_step_coords);
     
     // Build Nova-style EV CCS where y_prev/y_next are PUBLIC INPUTS
     let nova_ccs = ev_with_public_rho_ccs(y_len);
     
     println!("   Nova EV CCS: {} constraints, {} variables", nova_ccs.n, nova_ccs.m);
     println!("   Public variables: {} (ρ + y_prev[{}] + y_next[{}])", 1 + 2*y_len, y_len, y_len);
-    
-    // Test inputs for Nova folding
-    let y_prev = vec![F::from_u64(100), F::from_u64(200)]; // Previous accumulator state
-    let y_step = vec![F::from_u64(5), F::from_u64(7)];     // Current step contribution
     
     // Build Nova-style witness
     let (witness, public_input, y_next) = build_ev_with_public_rho_witness(rho, &y_prev, &y_step);

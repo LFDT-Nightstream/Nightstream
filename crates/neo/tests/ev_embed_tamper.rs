@@ -1,4 +1,4 @@
-#![allow(deprecated)]
+// EV embedding tamper tests - using secure public-ρ EV path
 
 use anyhow::Result;
 use neo::{F, NeoParams};

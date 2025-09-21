@@ -462,7 +462,13 @@ pub fn rho_from_transcript(prev_acc: &Accumulator, step_digest: [u8; 32], c_step
     // Pad + squeeze ρ (first field element after permutation)
     absorb_elem!(Goldilocks::ONE);
     st = poseidon2.permute(st);
-    let rho_u64 = st[0].as_canonical_u64();
+    
+    // Defense-in-depth: map away from degenerate values
+    let mut rho_raw = st[0];
+    if rho_raw == Goldilocks::ZERO { 
+        rho_raw = Goldilocks::ONE; 
+    }
+    let rho_u64 = rho_raw.as_canonical_u64();
     let rho = F::from_u64(rho_u64);
 
     // Return also a 32-byte transcript digest for binding this step
@@ -620,149 +626,7 @@ pub fn build_ev_full_witness(rho: F, y_prev: &[F], y_step: &[F]) -> (Vec<F>, Vec
     (witness, y_next)
 }
 
-/// Poseidon2-inspired hash gadget for deriving ρ inside CCS (TOY VERSION).
-/// 
-/// ✅ UPGRADE COMPLETE: This implements key security properties of Poseidon2:
-/// - Multiple rounds with nonlinear operations
-/// - Domain separation with fixed constants
-/// - Collision resistance suitable for Fiat-Shamir
-/// - ZK-friendly operations (no Blake3!)
-///
-/// Simplified for efficient CCS representation:
-/// - 4 rounds instead of full Poseidon2's ~22 partial rounds  
-/// - Squaring (x²) instead of full S-box (x⁵) for constraint efficiency
-/// - Deterministic round constants derived from "neo/ivc" domain
-/// 
-/// Input layout: [step_counter, y_prev[..], step_digest_elements[..]]
-/// Output: single field element ρ  
-/// 
-/// Constraints implement: ρ = Poseidon2Hash(step_counter, y_prev, step_digest)
-pub fn poseidon2_hash_gadget_ccs(input_len: usize) -> CcsStructure<F> {
-    if input_len == 0 {
-        return neo_ccs::r1cs_to_ccs(
-            Mat::zero(0, 1, F::ZERO),
-            Mat::zero(0, 1, F::ZERO),
-            Mat::zero(0, 1, F::ZERO)
-        );
-    }
-
-    // Poseidon2-inspired: 4 rounds with better domain separation and mixing
-    // Round structure: input -> mix -> square -> mix -> square -> ... -> output
-    // 
-    // Variables: [1, inputs[..], s1, s2, s3, s4] where s4 is final ρ
-    let num_rounds = 4;
-    let cols = 1 + input_len + num_rounds;
-    let rows = num_rounds; // One constraint per round
-    
-    let mut a = vec![F::ZERO; rows * cols];
-    let mut b = vec![F::ZERO; rows * cols]; 
-    let mut c = vec![F::ZERO; rows * cols];
-    
-    let col_const = 0usize;
-    let col_inputs_start = 1usize;
-    let col_states_start = 1 + input_len;
-    
-    // Poseidon2-style round constants (domain-separated, deterministic)
-    let round_constants = [
-        F::from_u64(0x6E656F504832_01), // "neoP2H" + round 1
-        F::from_u64(0x6E656F504832_02), // "neoP2H" + round 2  
-        F::from_u64(0x6E656F504832_03), // "neoP2H" + round 3
-        F::from_u64(0x6E656F504832_04), // "neoP2H" + round 4
-    ];
-    
-    // Round 0: s1 = (sum_inputs + domain_tag + rc[0])^2
-    let row = 0;
-    let state_col = col_states_start + 0;
-    
-    // A: sum_inputs + constants 
-    a[row * cols + col_const] = round_constants[0];
-    for i in 0..input_len {
-        a[row * cols + col_inputs_start + i] = F::ONE;
-    }
-    
-    // B: sum_inputs + constants (for squaring)
-    b[row * cols + col_const] = round_constants[0];
-    for i in 0..input_len {
-        b[row * cols + col_inputs_start + i] = F::ONE;
-    }
-    
-    // C: s1
-    c[row * cols + state_col] = F::ONE;
-    
-    // Rounds 1-3: si+1 = (si + rc[i])^2 (nonlinear mixing)
-    for round in 1..num_rounds {
-        let row = round;
-        let prev_state_col = col_states_start + round - 1;
-        let curr_state_col = col_states_start + round;
-        
-        // A: si + round_constant
-        a[row * cols + col_const] = round_constants[round];
-        a[row * cols + prev_state_col] = F::ONE;
-        
-        // B: si + round_constant (for squaring)
-        b[row * cols + col_const] = round_constants[round];
-        b[row * cols + prev_state_col] = F::ONE;
-        
-        // C: si+1
-        c[row * cols + curr_state_col] = F::ONE;
-    }
-    
-    // Final output ρ = s4 (last state)
-    
-    let a_mat = Mat::from_row_major(rows, cols, a);
-    let b_mat = Mat::from_row_major(rows, cols, b);
-    let c_mat = Mat::from_row_major(rows, cols, c);
-    neo_ccs::r1cs_to_ccs(a_mat, b_mat, c_mat)
-}
-
-/// Build witness for the Poseidon2-inspired hash gadget  
-/// Returns (witness, computed_rho) where witness = [1, inputs[..], s1, s2, s3, s4] 
-pub fn build_poseidon2_hash_witness(inputs: &[F]) -> (Vec<F>, F) {
-    // Same round constants as in CCS
-    let round_constants = [
-        F::from_u64(0x6E656F504832_01), // "neoP2H" + round 1
-        F::from_u64(0x6E656F504832_02), // "neoP2H" + round 2  
-        F::from_u64(0x6E656F504832_03), // "neoP2H" + round 3
-        F::from_u64(0x6E656F504832_04), // "neoP2H" + round 4
-    ];
-    
-    let sum_inputs: F = inputs.iter().copied().sum();
-    
-    // Round 0: s1 = (sum_inputs + rc[0])^2
-    let s1 = {
-        let input_with_const = sum_inputs + round_constants[0];
-        input_with_const * input_with_const
-    };
-    
-    // Round 1: s2 = (s1 + rc[1])^2  
-    let s2 = {
-        let state_with_const = s1 + round_constants[1];
-        state_with_const * state_with_const
-    };
-    
-    // Round 2: s3 = (s2 + rc[2])^2
-    let s3 = {
-        let state_with_const = s2 + round_constants[2];
-        state_with_const * state_with_const
-    };
-    
-    // Round 3: s4 = (s3 + rc[3])^2 (final ρ)
-    let rho = {
-        let state_with_const = s3 + round_constants[3]; 
-        state_with_const * state_with_const
-    };
-    
-    // Build witness: [1, inputs[..], s1, s2, s3, s4]
-    let mut witness = Vec::with_capacity(1 + inputs.len() + 4);
-    witness.push(F::ONE);
-    witness.extend_from_slice(inputs);
-    witness.push(s1);
-    witness.push(s2);
-    witness.push(s3);
-    witness.push(rho); // s4 is the final output
-    
-    (witness, rho)
-}
+// Toy hash functions completely removed - production uses rho_from_transcript() with real Poseidon2
 
 /// **PRODUCTION OPTION A**: EV with publicly recomputable ρ (no in-circuit hash)
 /// 

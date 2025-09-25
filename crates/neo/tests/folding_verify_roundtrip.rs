@@ -66,7 +66,7 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
     };
 
     // Verify (strict: step checks + folding)
-    let ok = ivc::verify_ivc_chain_strict(
+    let ok = ivc::verify_ivc_chain(
         &step_ccs,
         &chain,
         &initial_acc,

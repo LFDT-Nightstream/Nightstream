@@ -94,6 +94,8 @@ fn test_ivc_proof_with_forged_coords() -> Result<()> {
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = ivc::prove_ivc_step(step_input).expect("Failed to prove IVC step");
@@ -218,6 +220,8 @@ fn test_multiple_forged_coords() -> Result<()> {
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = ivc::prove_ivc_step(step_input).expect("Failed to prove IVC step");

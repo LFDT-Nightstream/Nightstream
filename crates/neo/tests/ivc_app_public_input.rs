@@ -37,7 +37,7 @@ fn app_public_inputs_accepted_now() {
 
     // Provide app inputs that should be appended to H(prev_acc)
     let app_inputs = vec![F::from_u64(42), F::from_u64(7)];
-    let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &step_witness, prev_accumulator: &prev_acc, step: 0, public_input: Some(&app_inputs), y_step: &y_step, binding_spec: &binding };
+    let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &step_witness, prev_accumulator: &prev_acc, step: 0, public_input: Some(&app_inputs), y_step: &y_step, binding_spec: &binding, transcript_only_app_inputs: false, prev_augmented_x: None };
     let ok = prove_ivc_step(input).expect("prover should accept app public inputs with prefix digest");
 
     // Prover accepted: validate that x = [H(prev_acc) || app_inputs]
@@ -68,7 +68,7 @@ fn tampered_digest_prefix_rejected() {
     let binding = StepBindingSpec { y_step_offsets: vec![2], x_witness_indices: vec![3, 4], y_prev_witness_indices: vec![], const1_witness_index: 0 };
 
     let app_inputs = vec![F::from_u64(11), F::from_u64(22)];
-    let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &step_witness, prev_accumulator: &prev_acc, step: 0, public_input: Some(&app_inputs), y_step: &y_step, binding_spec: &binding };
+    let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &step_witness, prev_accumulator: &prev_acc, step: 0, public_input: Some(&app_inputs), y_step: &y_step, binding_spec: &binding, transcript_only_app_inputs: false, prev_augmented_x: None };
     let ok = prove_ivc_step(input).expect("prover should succeed");
 
     // Tamper with digest prefix
@@ -79,5 +79,3 @@ fn tampered_digest_prefix_rejected() {
     let valid = verify_ivc_step(&step_ccs, &forged, &prev_acc, &binding, &params, None).expect("verifier should not error");
     assert!(!valid, "verifier must reject when digest prefix does not match H(prev_acc)");
 }
-
-

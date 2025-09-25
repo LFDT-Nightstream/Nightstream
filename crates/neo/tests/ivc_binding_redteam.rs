@@ -79,6 +79,8 @@ fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
         public_input: Some(&malicious_app_inputs),
         y_step: &y_step,
         binding_spec: &binding,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
 
     let result = prove_ivc_step(input).expect("prover should accept and prepend digest prefix");
@@ -119,6 +121,8 @@ fn verifier_rejects_tampered_step_x() {
         public_input: None, // library fills with H(prev_acc)
         y_step: &y_step,
         binding_spec: &binding,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     let ok = prove_ivc_step(input_ok).expect("proving should succeed");
 
@@ -153,5 +157,3 @@ fn build_increment_step_ccs_with_app_slots(k: usize) -> CcsStructure<F> {
         Mat::from_row_major(rows, cols, c),
     )
 }
-
-

@@ -27,6 +27,10 @@ pub struct State {
     running_me: Option<neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>>,
     /// Running folded ME witness (None for first step, Some after first fold)
     running_me_wit: Option<neo_ccs::MeWitness<F>>,
+    /// Running previous RHS MCS instance to feed as next LHS (strict linkage)
+    running_lhs_mcs: Option<neo_ccs::McsInstance<neo_ajtai::Commitment, F>>,
+    /// Running previous RHS MCS witness to feed as next LHS (strict linkage)
+    running_lhs_mcs_wit: Option<neo_ccs::McsWitness<F>>,
     pub ivc_proofs: Vec<IvcProof>,
 }
 
@@ -56,6 +60,8 @@ impl State {
             initial_y: y0,
             running_me: None,
             running_me_wit: None,
+            running_lhs_mcs: None,
+            running_lhs_mcs_wit: None,
             ivc_proofs: Vec::new(),
         })
     }
@@ -93,19 +99,27 @@ pub fn step(mut state: State, io: &[F], witness: &[F]) -> anyhow::Result<State> 
         public_input: if io.is_empty() { None } else { Some(io) },
         y_step: &y_step,
         binding_spec: &state.binding,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: state.ivc_proofs.last().map(|p| p.step_augmented_public_input.as_slice()),
     };
     
     // Perform chained Nova folding
-    let (step_res, new_me, new_me_wit) = prove_ivc_step_chained(
+    let (step_res, new_me, new_me_wit, lhs_next) = prove_ivc_step_chained(
         input,
         state.running_me.clone(),
         state.running_me_wit.clone(),
+        state
+            .running_lhs_mcs
+            .clone()
+            .zip(state.running_lhs_mcs_wit.clone()),
     ).map_err(|e| anyhow::anyhow!("IVC step proving failed: {}", e))?;
 
     // Update state with new running fold state
     state.accumulator = step_res.proof.next_accumulator.clone();
     state.running_me = Some(new_me);
     state.running_me_wit = Some(new_me_wit);
+    state.running_lhs_mcs = Some(lhs_next.0);
+    state.running_lhs_mcs_wit = Some(lhs_next.1);
     state.ivc_proofs.push(step_res.proof);
 
     Ok(state)

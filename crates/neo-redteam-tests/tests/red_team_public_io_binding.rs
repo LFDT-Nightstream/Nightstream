@@ -107,6 +107,8 @@ fn test_public_io_digest_matches_augmented_pi() -> Result<()> {
         public_input: Some(&x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input).expect("prove step");
@@ -177,6 +179,7 @@ fn test_verifier_rejects_when_augmented_pi_changes_but_x_same() -> Result<()> {
         params: &params, step_ccs: &step_ccs, step_witness: &witness_a,
         prev_accumulator: &acc_a, step: 0, public_input: Some(&x),
         y_step: &y_step_a, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     };
     let result_a = prove_ivc_step(step_a).expect("prove step A");
     
@@ -190,6 +193,7 @@ fn test_verifier_rejects_when_augmented_pi_changes_but_x_same() -> Result<()> {
         params: &params, step_ccs: &step_ccs, step_witness: &witness_b,
         prev_accumulator: &acc_b, step: 0, public_input: Some(&x),
         y_step: &y_step_b, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     };
     let _result_b = prove_ivc_step(step_b).expect("prove step B");
     
@@ -245,6 +249,7 @@ fn test_context_digest_changes_when_any_bound_field_changes() -> Result<()> {
         params: &params, step_ccs: &step_ccs, step_witness: &witness_a,
         prev_accumulator: &acc_a, step: 0, public_input: Some(&x),
         y_step: &y_step_a, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     }).expect("prove A");
     
     // Scenario B: prev_x = 3 (different y_prev, same x)
@@ -261,6 +266,7 @@ fn test_context_digest_changes_when_any_bound_field_changes() -> Result<()> {
         params: &params, step_ccs: &step_ccs, step_witness: &witness_b,
         prev_accumulator: &acc_b, step: 0, public_input: Some(&x),
         y_step: &y_step_b, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     }).expect("prove B");
     
     // Extract digests from public_io (last 32 bytes)
@@ -320,6 +326,7 @@ fn test_rho_challenge_binding() -> Result<()> {
         params: &params, step_ccs: &step_ccs, step_witness: &witness_1,
         prev_accumulator: &acc_1, step: 0, public_input: Some(&x),
         y_step: &y_step_1, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     }).expect("prove 1");
     
     let witness_2 = vec![F::ONE, F::from_u64(8), F::from_u64(3), F::from_u64(11)];
@@ -328,6 +335,7 @@ fn test_rho_challenge_binding() -> Result<()> {
         params: &params, step_ccs: &step_ccs, step_witness: &witness_2,
         prev_accumulator: &acc_2, step: 0, public_input: Some(&x),
         y_step: &y_step_2, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     }).expect("prove 2");
     
     // ρ values should be different because they're derived from different transcripts
@@ -382,6 +390,7 @@ fn test_step_index_binding_prevents_replay() -> Result<()> {
         params: &params, step_ccs: &step_ccs, step_witness: &witness,
         prev_accumulator: &acc, step: 0, public_input: Some(&x),
         y_step: &y_step, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     }).expect("prove step 0");
     
     // Prove at step 1 (different step index, same computation)
@@ -391,6 +400,7 @@ fn test_step_index_binding_prevents_replay() -> Result<()> {
         params: &params, step_ccs: &step_ccs, step_witness: &witness,
         prev_accumulator: &acc_step_1, step: 1, public_input: Some(&x),
         y_step: &y_step, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     }).expect("prove step 1");
     
     // Extract digests
@@ -475,6 +485,7 @@ fn test_ccs_domain_separation() -> Result<()> {
         params: &params, step_ccs: &step_ccs_1, step_witness: &witness_1,
         prev_accumulator: &acc, step: 0, public_input: Some(&x),
         y_step: &y_step_1, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     }).expect("prove with incrementer CCS");
     
     // Prove with modified incrementer CCS: 3 + 2 + 1 = 6
@@ -484,6 +495,7 @@ fn test_ccs_domain_separation() -> Result<()> {
         params: &params, step_ccs: &step_ccs_2, step_witness: &witness_2,
         prev_accumulator: &acc, step: 0, public_input: Some(&x),
         y_step: &y_step_2, binding_spec: &binding_spec,
+        transcript_only_app_inputs: false, prev_augmented_x: None,
     }).expect("prove with modified incrementer CCS");
     
     // Extract digests
@@ -555,6 +567,8 @@ fn test_verifier_accepts_with_mismatched_prev_acc_vulnerability() -> Result<()> 
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input).expect("proving failed");
@@ -646,6 +660,8 @@ fn test_vulnerability_when_y_prev_not_bound() -> Result<()> {
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input).expect("proving failed");
@@ -740,6 +756,8 @@ fn test_context_digest_provides_automatic_y_prev_binding() -> Result<()> {
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input).expect("proving failed");
@@ -827,6 +845,8 @@ fn test_step_index_manipulation_attack() -> Result<()> {
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input_0).expect("proving failed");
@@ -911,6 +931,8 @@ fn test_public_input_prefix_attack() -> Result<()> {
         public_input: Some(&step_x_a),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input_a).expect("proving failed");
@@ -995,6 +1017,8 @@ fn test_public_io_malleability_attack() -> Result<()> {
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input).expect("proving failed");
@@ -1095,6 +1119,8 @@ fn test_zero_rho_bypass_attack() -> Result<()> {
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input).expect("proving failed");
@@ -1184,6 +1210,8 @@ fn test_coordinated_rho_coordinates_attack() -> Result<()> {
         public_input: Some(&step_x),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     let step_result = prove_ivc_step(step_input).expect("proving failed");

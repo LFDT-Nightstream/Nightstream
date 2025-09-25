@@ -352,6 +352,8 @@ fn test_high_level_ivc_api() {
             y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
             const1_witness_index: 0, // Constant-1 at index 0
         },
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
     
     // Test high-level proving (this uses the full Neo proving pipeline!)

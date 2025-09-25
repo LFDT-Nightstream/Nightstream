@@ -101,10 +101,13 @@ fn test_folding_chain_dimension_mismatch() {
         public_input: None,
         y_step: &[F::from_u64(5)], // z = 5
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
 
-    let (step0_result, step0_me, step0_me_wit) = match prove_ivc_step_chained(
+    let (step0_result, step0_me, step0_me_wit, _lhs0) = match prove_ivc_step_chained(
         step0_input,
+        None,
         None,
         None,
     ) {
@@ -139,6 +142,8 @@ fn test_folding_chain_dimension_mismatch() {
         public_input: None,
         y_step: &[F::from_u64(7)], // z = 7
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
 
     println!("   Attempting to fold with previous ME instance...");
@@ -149,8 +154,9 @@ fn test_folding_chain_dimension_mismatch() {
         step1_input,
         Some(step0_me),
         Some(step0_me_wit),
+        None,
     ) {
-        Ok((step1_ok, step1_me, step1_wit)) => {
+        Ok((step1_ok, step1_me, step1_wit, _lhs1)) => {
             println!("✅ Step 1 succeeded!");
             println!("   ME instance dimensions: X = {}×{}", step1_me.X.rows(), step1_me.X.cols());
             println!("   ME witness dimensions: Z = {}×{}", step1_wit.Z.rows(), step1_wit.Z.cols());

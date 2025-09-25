@@ -140,6 +140,8 @@ pub use neo_math::{F, K};
 
 /// IVC (Incrementally Verifiable Computation) with embedded verifier
 pub mod ivc;
+/// NIVC driver (HyperNova-style non-uniform IVC)
+pub mod nivc;
 
 // Re-export high-level IVC API for production use
 pub use ivc::{
@@ -149,7 +151,6 @@ pub use ivc::{
     prove_ivc_step, prove_ivc_step_with_extractor, verify_ivc_step, prove_ivc_chain, verify_ivc_chain,
     // Folding verification functions
     verify_ivc_step_folding,
-    verify_ivc_chain_strict,
     recreate_mcs_instances_for_verification,
     // Step output extractors (fixes "folding with itself" issue)
     StepOutputExtractor, LastNExtractor, IndexExtractor,
@@ -161,6 +162,12 @@ pub use ivc::{
     ev_with_public_rho_ccs, build_ev_with_public_rho_witness,
     // Batch proving (Final SNARK Layer)
     // REMOVED: BatchData, prove_batch_data, IvcBatchBuilder, EmissionPolicy, EmitStats - not part of Neo architecture
+};
+
+// Re-export core NIVC types and helpers
+pub use nivc::{
+    NivcProgram, NivcStepSpec, NivcState, NivcStepProof, NivcChainProof,
+    verify_nivc_chain, NivcFinalizeOptions, finalize_nivc_chain_with_options, finalize_nivc_chain,
 };
 
 /// Chain-style step/verify wrapper API for examples

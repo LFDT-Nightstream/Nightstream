@@ -124,6 +124,8 @@ fn test_real_nova_folding_5_steps() -> Result<(), Box<dyn std::error::Error + Se
             public_input: Some(&step_public_input),
             y_step: &y_step,
             binding_spec: &binding_spec,
+            transcript_only_app_inputs: false,
+            prev_augmented_x: None,
         };
 
         // 🔍 CRITICAL: Measure constraint system size BEFORE folding
@@ -267,6 +269,8 @@ fn test_folding_equation_validation() -> Result<(), Box<dyn std::error::Error + 
         public_input: Some(&step_public_input),
         y_step: &y_step,
         binding_spec: &binding_spec,
+        transcript_only_app_inputs: false,
+        prev_augmented_x: None,
     };
 
     let step_result = prove_ivc_step(ivc_input).expect("IVC step should succeed");
@@ -341,6 +345,8 @@ fn test_not_constraint_batching() -> Result<(), Box<dyn std::error::Error + Send
             public_input: Some(&step_public_input),
             y_step: &y_step,
             binding_spec: &binding_spec,
+            transcript_only_app_inputs: false,
+            prev_augmented_x: None,
         };
 
         let step_result = prove_ivc_step(ivc_input).expect("IVC step should succeed");

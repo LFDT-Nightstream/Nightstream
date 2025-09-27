@@ -944,6 +944,7 @@ dependencies = [
  "neo-math",
  "neo-params",
  "neo-spartan-bridge",
+ "neo-transcript",
  "num-bigint 0.4.6",
  "num_cpus",
  "p3-field",
@@ -1175,6 +1176,22 @@ dependencies = [
  "p3-goldilocks",
  "proptest",
  "rand 0.9.2",
+]
+
+[[package]]
+name = "neo-transcript"
+version = "0.1.0"
+dependencies = [
+ "neo-ccs",
+ "neo-math",
+ "once_cell",
+ "p3-field",
+ "p3-goldilocks",
+ "p3-symmetric",
+ "rand 0.9.2",
+ "rand_chacha",
+ "serde",
+ "subtle",
 ]
 
 [[package]]

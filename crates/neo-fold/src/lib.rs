@@ -60,6 +60,40 @@ pub struct FoldingProof {
     pub pi_dec_proof: PiDecProof,
 }
 
+/// Compute a compact digest of a FoldingProof for out-of-circuit binding.
+///
+/// This does not replace in-circuit verification, but provides a stable
+/// fingerprint that higher layers can bind into a final SNARK while the
+/// full fold-verifier circuit is being brought up.
+pub fn folding_proof_digest(proof: &FoldingProof) -> [u8; 32] {
+    use blake3::Hasher;
+    let mut h = Hasher::new();
+    h.update(b"neo/folding_proof_digest/v1");
+    // Pi-CCS: bind header digest and round counts
+    h.update(&proof.pi_ccs_proof.header_digest);
+    let rounds = proof.pi_ccs_proof.sumcheck_rounds.len() as u64;
+    h.update(&rounds.to_le_bytes());
+    // Pi-RLC: bind guard params and rho count
+    let rlc_rho_len = proof.pi_rlc_proof.rho_elems.len() as u64;
+    h.update(&rlc_rho_len.to_le_bytes());
+    h.update(&proof.pi_rlc_proof.guard_params.k.to_le_bytes());
+    h.update(&proof.pi_rlc_proof.guard_params.T.to_le_bytes());
+    h.update(&proof.pi_rlc_proof.guard_params.b.to_le_bytes());
+    h.update(&proof.pi_rlc_proof.guard_params.B.to_le_bytes());
+    // Pi-DEC: bind simple sizes (number of output digit instances)
+    // Bind simple sizes from DEC proof for stability
+    let dec_digit_commitments = proof.pi_dec_proof.digit_commitments.as_ref().map(|v| v.len()).unwrap_or(0) as u64;
+    h.update(&dec_digit_commitments.to_le_bytes());
+    // Range proofs length (opaque bytes)
+    h.update(&(proof.pi_dec_proof.range_proofs.len() as u64).to_le_bytes());
+    // Also bind how many inputs/outputs Pi-CCS carried
+    let ccs_in_len = proof.pi_ccs_inputs.len() as u64;
+    let ccs_out_len = proof.pi_ccs_outputs.len() as u64;
+    h.update(&ccs_in_len.to_le_bytes());
+    h.update(&ccs_out_len.to_le_bytes());
+    *h.finalize().as_bytes()
+}
+
 /// Fold k+1 CCS instances to k instances using the three-reduction pipeline  
 /// Input: k+1 CCS instances and witnesses
 /// Output: k ME instances and folding proof

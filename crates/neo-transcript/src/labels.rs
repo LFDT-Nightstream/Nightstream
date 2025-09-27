@@ -1,0 +1,15 @@
+pub const CCS_HEADER: &[u8]      = b"ccs/header";
+pub const CCS_DIMS: &[u8]        = b"ccs/dims";
+pub const POLY_SPARSE: &[u8]     = b"poly/sparse";
+pub const POLY_LEN: &[u8]        = b"poly/len";
+pub const POLY_COEFF: &[u8]      = b"poly/coeff";
+pub const POLY_EXPS: &[u8]       = b"poly/exps";
+pub const COMMIT_COORDS: &[u8]   = b"commit/coords";
+pub const ACC_DIGEST: &[u8]      = b"acc/digest";
+pub const STEP_DIGEST: &[u8]     = b"step/digest";
+pub const CHAL_RHO: &[u8]        = b"chal/rho";
+pub const PI_CCS: &[u8]          = b"phase/pi-ccs";
+pub const PI_RLC: &[u8]          = b"phase/pi-rlc";
+pub const PI_DEC: &[u8]          = b"phase/pi-dec";
+pub const EV: &[u8]              = b"ev";
+pub const STEP: &[u8]            = b"ivc/step";

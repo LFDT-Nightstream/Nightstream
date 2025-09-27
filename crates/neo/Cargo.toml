@@ -36,6 +36,7 @@ neo-ajtai  = { path = "../neo-ajtai" }
 neo-ccs    = { path = "../neo-ccs" }
 neo-fold   = { path = "../neo-fold" }
 neo-spartan-bridge = { path = "../neo-spartan-bridge" }
+neo-transcript = { path = "../neo-transcript" }
 
 [dev-dependencies]
 rand = { workspace = true }
@@ -44,4 +45,3 @@ num_cpus = { workspace = true }
 num-bigint = "0.4"  # For examples only
 # Enable testing features for security tests
 neo-spartan-bridge = { path = "../neo-spartan-bridge", features = ["testing"] }
-

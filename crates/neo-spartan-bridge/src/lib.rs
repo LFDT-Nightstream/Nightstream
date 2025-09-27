@@ -221,6 +221,27 @@ pub fn encode_bridge_io_header_with_ev(me: &MEInstance, ev: Option<&crate::me_to
         for &v in &ev.y_prev { out.extend_from_slice(&v.as_canonical_u64().to_le_bytes()); }
         for &v in &ev.y_next { out.extend_from_slice(&v.as_canonical_u64().to_le_bytes()); }
         out.extend_from_slice(&ev.rho.as_canonical_u64().to_le_bytes());
+        if let Some(d) = &ev.fold_chain_digest {
+            for chunk in d.chunks(8) {
+                let limb = u64::from_le_bytes([
+                    chunk.get(0).copied().unwrap_or(0),
+                    chunk.get(1).copied().unwrap_or(0),
+                    chunk.get(2).copied().unwrap_or(0),
+                    chunk.get(3).copied().unwrap_or(0),
+                    chunk.get(4).copied().unwrap_or(0),
+                    chunk.get(5).copied().unwrap_or(0),
+                    chunk.get(6).copied().unwrap_or(0),
+                    chunk.get(7).copied().unwrap_or(0),
+                ]);
+                out.extend_from_slice(&limb.to_le_bytes());
+            }
+        }
+        if let (Some(cprev), Some(cstep), Some(cnext)) = (&ev.acc_c_prev, &ev.acc_c_step, &ev.acc_c_next) {
+            for &x in cprev { out.extend_from_slice(&x.as_canonical_u64().to_le_bytes()); }
+            for &x in cstep { out.extend_from_slice(&x.as_canonical_u64().to_le_bytes()); }
+            for &x in cnext { out.extend_from_slice(&x.as_canonical_u64().to_le_bytes()); }
+            if let Some(r_eff) = ev.rho_eff { out.extend_from_slice(&r_eff.as_canonical_u64().to_le_bytes()); }
+        }
     }
     // Padding before digest
     let num_scalars = (out.len() / 8) + 4; // +4 for digest limbs

@@ -121,6 +121,12 @@ pub(crate) fn context_digest_v1(ccs: &CcsStructure<F>, public_input: &[F]) -> [u
         absorb_goldilocks(&mut state, &mut absorbed, &poseidon2, Goldilocks::from_u64(x.as_canonical_u64())); 
     }
 
+    // End-of-message marker for uniform sponge framing
+    if absorbed == RATE {
+        state = poseidon2.permute(state);
+        absorbed = 0;
+    }
+    state[absorbed] = Goldilocks::ONE;
     state = poseidon2.permute(state);
     let mut digest = [0u8; 32];
     for (i, &elem) in state[..4].iter().enumerate() {
@@ -155,7 +161,7 @@ pub use ivc::{
     // Step output extractors (fixes "folding with itself" issue)
     StepOutputExtractor, LastNExtractor, IndexExtractor,
     // Advanced commitment binding (production-ready)
-    Commitment, BindingMetadata, bind_commitment_full,
+    Commitment, BindingMetadata,
     // Nova embedded verifier and augmentation (production-ready)  
     augmentation_ccs, AugmentConfig,
     // PRODUCTION OPTION A: Public ρ EV (recommended)
@@ -380,7 +386,7 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
             StdRng::from_seed(seed)
         };
         
-        let pp = ajtai_setup(&mut rng, d, /*kappa*/ 16, m_correct)?;
+        let pp = ajtai_setup(&mut rng, d, input.params.kappa as usize, m_correct)?;
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
     
@@ -658,6 +664,81 @@ pub fn verify_with_vk(
     
     // Now delegate to the standard verify function
     verify(ccs, public_input, proof)
+}
+
+/// Parse bridge public IO given segment sizes.
+/// Layout: [c_coords | y_outputs | r_point | base_b | padding | header_digest(4 limbs)]
+pub fn parse_bridge_public_io_with_sizes(
+    public_io: &[u8],
+    c_coords_len: usize,
+    y_outputs_len: usize,
+    r_point_len: usize,
+) -> anyhow::Result<(Vec<F>, Vec<F>, Vec<F>, u64, [u8;32])> {
+    use anyhow::ensure;
+    const CTX_LEN: usize = 32;
+    ensure!(public_io.len() >= CTX_LEN, "public_io too short");
+    let (body, tail) = public_io.split_at(public_io.len() - CTX_LEN);
+    let mut header_digest = [0u8; 32];
+    header_digest.copy_from_slice(tail);
+
+    ensure!(body.len() % 8 == 0, "public_io misaligned: not a multiple of 8 bytes");
+    let scalars = body.len() / 8;
+    let needed = c_coords_len + y_outputs_len + r_point_len + 1; // + base_b
+    ensure!(scalars >= needed, "not enough scalars in body (have {}, need {})", scalars, needed);
+
+    let to_u64 = |i: usize| -> u64 {
+        let start = i * 8;
+        u64::from_le_bytes(body[start..start + 8].try_into().unwrap())
+    };
+    let mut idx = 0usize;
+    let mut c_coords = Vec::with_capacity(c_coords_len);
+    for _ in 0..c_coords_len { c_coords.push(F::from_u64(to_u64(idx))); idx += 1; }
+    let mut y_outputs = Vec::with_capacity(y_outputs_len);
+    for _ in 0..y_outputs_len { y_outputs.push(F::from_u64(to_u64(idx))); idx += 1; }
+    let mut r_point = Vec::with_capacity(r_point_len);
+    for _ in 0..r_point_len { r_point.push(F::from_u64(to_u64(idx))); idx += 1; }
+    let base_b = to_u64(idx);
+
+    Ok((c_coords, y_outputs, r_point, base_b, header_digest))
+}
+
+/// Verify and extract app outputs by parsing the bridge IO with explicit sizes.
+/// Exact equality is enforced against the tail of y_outputs (appended claims) in order.
+pub fn verify_and_extract_exact_with_sizes(
+    ccs: &CcsStructure<F>,
+    public_input: &[F],
+    proof: &Proof,
+    c_coords_len: usize,
+    y_outputs_len: usize,
+    r_point_len: usize,
+    expected_app_outputs: usize,
+) -> anyhow::Result<Vec<F>> {
+    let is_valid = verify(ccs, public_input, proof)?;
+    if !is_valid { anyhow::bail!("cryptographic verification failed"); }
+    let (_c, y_all, _r, _b, _hdr) = parse_bridge_public_io_with_sizes(
+        &proof.public_io,
+        c_coords_len, y_outputs_len, r_point_len
+    )?;
+    anyhow::ensure!(
+        expected_app_outputs <= y_all.len(),
+        "expected {} app outputs but y_outputs has {} elements",
+        expected_app_outputs, y_all.len()
+    );
+    let start = y_all.len() - expected_app_outputs;
+    let y_tail = &y_all[start..];
+    if !proof.public_results.is_empty() {
+        anyhow::ensure!(
+            proof.public_results.len() == expected_app_outputs,
+            "public_results len {} != expected {}",
+            proof.public_results.len(), expected_app_outputs
+        );
+        anyhow::ensure!(
+            &proof.public_results[..] == y_tail,
+            "claimed public_results do not match y_outputs tail"
+        );
+        return Ok(proof.public_results.clone());
+    }
+    Ok(y_tail.to_vec())
 }
 
 /// Decode y-elements from `public_io` (excluding trailing 32-byte context digest).

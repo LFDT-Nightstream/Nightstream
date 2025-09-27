@@ -1,0 +1,21 @@
+[package]
+name = "neo-transcript"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["std"]
+std = []
+debug-log = []
+
+[dependencies]
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-symmetric = { workspace = true }
+neo-math = { path = "../neo-math" }
+neo-ccs = { path = "../neo-ccs" }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+once_cell = { workspace = true }
+subtle = { workspace = true }
+serde = { workspace = true, optional = true, features = ["derive"] }

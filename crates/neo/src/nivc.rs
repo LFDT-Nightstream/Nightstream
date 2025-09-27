@@ -365,10 +365,10 @@ pub fn finalize_nivc_chain_with_options(
     #[allow(deprecated)]
     { legacy_me.header_digest = context_digest; }
 
-    // Compress to lean proof, optionally embedding full IVC verifier checks (EV + linkage + commit-evo)
+    // Compress to lean proof, embedding EV (stable) by default
     let ajtai_pp_arc = std::sync::Arc::new(_pp);
     let lean = if opts.embed_ivc_ev {
-        // Expose y_step via linear claims (stable, working path) and embed EV in-circuit.
+        // Expose y_step via claims (stable path) and embed EV
         anyhow::ensure!(rho != F::ZERO, "ρ is zero; EV embedding not supported");
         let rho_inv = F::ONE / rho;
         let pub_cols = final_public_input.len();
@@ -390,7 +390,19 @@ pub fn finalize_nivc_chain_with_options(
         ).map_err(|e| anyhow::anyhow!("Bridge adapter (with EV claims) failed: {}", e))?;
         #[allow(deprecated)]
         { legacy_me2.header_digest = context_digest; }
-        let ev_embed = neo_spartan_bridge::IvcEvEmbed { rho, y_prev: y_prev.clone(), y_next: y_next.clone(), y_step_public: None };
+        let fold_digest_opt = last.inner.folding_proof.as_ref().map(|fp| neo_fold::folding_proof_digest(fp));
+        // Stable EV-only embedding with fold-chain digest bound in public IO
+        let ev_embed = neo_spartan_bridge::IvcEvEmbed {
+            rho,
+            y_prev: y_prev.clone(),
+            y_next: y_next.clone(),
+            y_step_public: None,
+            fold_chain_digest: fold_digest_opt,
+            acc_c_prev: None,
+            acc_c_step: None,
+            acc_c_next: None,
+            rho_eff: None,
+        };
         neo_spartan_bridge::compress_me_to_lean_proof_with_pp_and_ev(&legacy_me2, &legacy_wit2, Some(ajtai_pp_arc), Some(ev_embed))?
     } else {
         neo_spartan_bridge::compress_me_to_lean_proof_with_pp(&legacy_me, &legacy_wit, Some(ajtai_pp_arc))?
@@ -415,5 +427,3 @@ pub fn finalize_nivc_chain(
 ) -> anyhow::Result<Option<(crate::Proof, neo_ccs::CcsStructure<F>, Vec<F>)>> {
     finalize_nivc_chain_with_options(program, params, chain, NivcFinalizeOptions { embed_ivc_ev: true })
 }
-
-// (Track A combined proof path removed; single-SNARK finalize path remains.)

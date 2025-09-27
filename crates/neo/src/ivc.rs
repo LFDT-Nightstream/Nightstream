@@ -9,7 +9,7 @@
 
 use crate::F;
 use p3_field::PrimeField64;
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+use p3_goldilocks::Goldilocks;
 use p3_field::PrimeCharacteristicRing;
 use neo_ccs::{CcsStructure, Mat};
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
@@ -17,9 +17,11 @@ use p3_symmetric::Permutation;
 use subtle::ConstantTimeEq;
 use neo_fold::{FoldTranscript, pi_ccs_verify, pi_rlc_verify, pi_dec_verify};
 use neo_ajtai::AjtaiSModule;
+// Centralized transcript
+use neo_transcript::{Transcript, Poseidon2Transcript};
+use neo_transcript::labels as tr_labels;
 
-/// Domain tag for IVC transcript, tied to Poseidon2 configuration
-const IVC_DOMAIN_TAG: &[u8] = b"neo/ivc/ev/v1|poseidon2-goldilocks-w12-cap4";
+// (moved) Domain tags now live in neo-transcript::labels
 
 /// Feature-gated debug logging for Neo
 #[allow(unused_macros)]
@@ -250,265 +252,22 @@ pub struct BindingMetadata<'a> {
 }
 
 /// Domain separation tags for transcript operations
-pub enum DomainTag {
-    TranscriptInit,
-    AbsorbBytes, 
-    AbsorbFields,
-    BindCommitment,
-    BindDigestCompat,
-    SampleChallenge,
-    StepDigest,
-    RhoDerivation,
-    CommitDigest,
-}
-
-fn domain_tag_bytes(tag: DomainTag) -> &'static [u8] {
-    match tag {
-        DomainTag::TranscriptInit => b"neo/ivc/transcript/init/v1",
-        DomainTag::AbsorbBytes => b"neo/ivc/transcript/absorb_bytes/v1", 
-        DomainTag::AbsorbFields => b"neo/ivc/transcript/absorb_fields/v1",
-        DomainTag::BindCommitment => b"neo/ivc/transcript/bind_commitment/full/v1",
-        DomainTag::BindDigestCompat => b"neo/ivc/transcript/bind_commitment/digest_compat/v1",
-        DomainTag::SampleChallenge => b"neo/ivc/transcript/sample_challenge/v1",
-        DomainTag::StepDigest => b"neo/ivc/step_digest/v1",
-        DomainTag::RhoDerivation => b"neo/ivc/rho_derivation/v1",
-        DomainTag::CommitDigest => b"neo/ivc/commit_digest/v1",
-    }
-}
-
-/// Convert bytes to field element with domain separation (using Poseidon2 - ZK-friendly!)
-#[allow(unused_assignments)]
-pub fn field_from_bytes(domain_tag: DomainTag, bytes: &[u8]) -> F {
-    // Use unified Poseidon2 from production module 
-    let poseidon2 = p2::permutation();
-    
-    const RATE: usize = p2::RATE;
-    let mut st = [Goldilocks::ZERO; p2::WIDTH];
-    let mut absorbed = 0;
-    
-    // Helper macro (same pattern as existing functions)
-    macro_rules! absorb_elem {
-        ($val:expr) => {
-            if absorbed >= RATE {
-                st = poseidon2.permute(st);
-                absorbed = 0;
-            }
-            st[absorbed] = $val;
-            absorbed += 1;
-        };
-    }
-    
-    // Absorb domain tag  
-    let domain_bytes = domain_tag_bytes(domain_tag);
-    for &byte in domain_bytes {
-        absorb_elem!(Goldilocks::from_u64(byte as u64));
-    }
-    
-    // Absorb input bytes
-    for &byte in bytes {
-        absorb_elem!(Goldilocks::from_u64(byte as u64));
-    }
-    
-    // Pad + final permutation (domain separation / end-of-input)
-    absorb_elem!(Goldilocks::ONE);
-    st = poseidon2.permute(st);
-    st[0]
-}
-
-/// Full Poseidon2 transcript for IVC (replaces simplified hash)
-pub struct Poseidon2IvcTranscript {
-    poseidon2: &'static Poseidon2Goldilocks<{ p2::WIDTH }>, // Store reference, not owned value
-    state: [Goldilocks; p2::WIDTH],
-    absorbed: usize,
-}
-
-impl Poseidon2IvcTranscript {
-    /// Create new transcript with domain separation for IVC
-    pub fn new() -> Self {
-        // Use unified Poseidon2 from production module 
-        let mut transcript = Self {
-            poseidon2: p2::permutation(), // No clone - store the reference directly
-            state: [Goldilocks::ZERO; p2::WIDTH],
-            absorbed: 0,
-        };
-        
-        // Domain separate for IVC transcript initialization
-        let init_tag = field_from_bytes(DomainTag::TranscriptInit, b"");
-        transcript.absorb_element(init_tag);
-        
-        transcript
-    }
-    
-    /// Internal helper to absorb a single field element
-    fn absorb_element(&mut self, elem: F) {
-        const RATE: usize = p2::RATE;
-        if self.absorbed >= RATE {
-            self.state = self.poseidon2.permute(self.state);
-            self.absorbed = 0;
-        }
-        self.state[self.absorbed] = elem;
-        self.absorbed += 1;
-    }
-    
-    /// Absorb raw bytes with length prefixing and domain separation  
-    pub fn absorb_bytes(&mut self, label: &str, bytes: &[u8]) {
-        let label_fe = field_from_bytes(DomainTag::AbsorbBytes, label.as_bytes());
-        let len_fe = F::from_u64(bytes.len() as u64);
-        
-        self.absorb_element(label_fe);
-        self.absorb_element(len_fe);
-        
-        // Absorb bytes individually (compatible with existing pattern)
-        for &byte in bytes {
-            self.absorb_element(Goldilocks::from_u64(byte as u64));
-        }
-    }
-    
-    /// Absorb field elements directly
-    pub fn absorb_fields(&mut self, label: &str, elements: &[F]) {
-        let label_fe = field_from_bytes(DomainTag::AbsorbFields, label.as_bytes());
-        let len_fe = F::from_u64(elements.len() as u64);
-        
-        self.absorb_element(label_fe);
-        self.absorb_element(len_fe);
-        
-        for &elem in elements {
-            self.absorb_element(elem);
-        }
-    }
-    
-    /// Sample a challenge from the transcript
-    pub fn challenge(&mut self, label: &str) -> F {
-        let label_fe = field_from_bytes(DomainTag::SampleChallenge, label.as_bytes());
-        self.absorb_element(label_fe);
-        
-        // Squeeze: permute and return first element
-        self.state = self.poseidon2.permute(self.state);
-        self.absorbed = 1; // First element is "consumed"
-        self.state[0]
-    }
-    
-    /// Extract 32-byte digest from current state  
-    pub fn digest(&mut self) -> [u8; 32] {
-        // Final permutation
-        self.state = self.poseidon2.permute(self.state);
-        
-        let mut digest = [0u8; 32];
-        // Use first 4 field elements (4 * 8 = 32 bytes)
-        for i in 0..4 {
-            let bytes = self.state[i].as_canonical_u64().to_le_bytes();
-            digest[i*8..(i+1)*8].copy_from_slice(&bytes);
-        }
-        
-        digest
-    }
-}
-
-/// Bind commitment with full data (not just digest) - PRODUCTION VERSION
-pub fn bind_commitment_full(
-    transcript: &mut Poseidon2IvcTranscript,
-    label: &str, 
-    commitment: &Commitment,
-    metadata: Option<BindingMetadata<'_>>,
-) {
-    // Domain separation for binding operation
-    let bind_tag = field_from_bytes(DomainTag::BindCommitment, b"");
-    let label_fe = field_from_bytes(DomainTag::BindCommitment, label.as_bytes()); 
-    transcript.absorb_fields("bind/tag", &[bind_tag, label_fe]);
-    
-    // Bind domain and length
-    transcript.absorb_bytes("bind/domain", commitment.domain.as_bytes());
-    transcript.absorb_fields("bind/len", &[F::from_u64(commitment.bytes.len() as u64)]);
-    
-    // Bind actual commitment bytes  
-    transcript.absorb_bytes("bind/bytes", &commitment.bytes);
-    
-    // Bind optional metadata
-    if let Some(meta) = metadata {
-        let len = F::from_u64(meta.kv_pairs.len() as u64);
-        transcript.absorb_fields("bind/meta_len", &[len]);
-        
-        for (key, value) in meta.kv_pairs {
-            transcript.absorb_bytes("bind/meta/key", key.as_bytes());
-            
-            // Split u128 into two u64 values for field absorption
-            let lo = *value as u64;
-            let hi = (*value >> 64) as u64;
-            transcript.absorb_fields("bind/meta/val", &[
-                F::from_u64(lo),
-                F::from_u64(hi),
-            ]);
-        }
-    }
-}
+// Old local transcript helpers removed in favor of neo-transcript
 
 /// Deterministic Poseidon2 domain-separated hash to derive folding challenge ρ
 /// Uses the same Poseidon2 configuration as context_digest_v1 for consistency
 #[allow(unused_assignments)]
 pub fn rho_from_transcript(prev_acc: &Accumulator, step_digest: [u8; 32], c_step_coords: &[F]) -> (F, [u8; 32]) {
-    // Use same parameters as context_digest_v1 but different domain separation
-    const RATE: usize = p2::RATE;
-    
-    let poseidon2 = p2::permutation();
-
-    let mut st = [Goldilocks::ZERO; p2::WIDTH];
-    let mut absorbed = 0;
-
-    // Helper macro to avoid borrow checker issues
-    macro_rules! absorb_elem {
-        ($val:expr) => {
-            if absorbed >= RATE {
-                st = poseidon2.permute(st);
-                absorbed = 0;
-            }
-            st[absorbed] = $val;
-            absorbed += 1;
-        };
-    }
-
-    // Domain separation for IVC transcript
-    for &byte in IVC_DOMAIN_TAG {
-        absorb_elem!(Goldilocks::from_u64(byte as u64));
-    }
-    
-    absorb_elem!(Goldilocks::from_u64(prev_acc.step));
-    
-    for &b in &prev_acc.c_z_digest {
-        absorb_elem!(Goldilocks::from_u64(b as u64));
-    }
-    
-    for y in &prev_acc.y_compact {
-        absorb_elem!(Goldilocks::from_u64(y.as_canonical_u64()));
-    }
-    
-    for &b in &step_digest {
-        absorb_elem!(Goldilocks::from_u64(b as u64));
-    }
-    
-    // SECURITY FIX: Absorb step commitment coordinates before deriving ρ
-    // This ensures both sides of the linear combination c_next = c_prev + ρ·c_step are fixed
-    for &coord in c_step_coords {
-        absorb_elem!(Goldilocks::from_u64(coord.as_canonical_u64()));
-    }
-
-    // Pad + squeeze ρ (first field element after permutation)
-    absorb_elem!(Goldilocks::ONE);
-    st = poseidon2.permute(st);
-    
-    // Defense-in-depth: map away from degenerate values
-    let mut rho_raw = st[0];
-    if rho_raw == Goldilocks::ZERO { 
-        rho_raw = Goldilocks::ONE; 
-    }
-    let rho_u64 = rho_raw.as_canonical_u64();
-    let rho = F::from_u64(rho_u64);
-
-    // Return also a 32-byte transcript digest for binding this step
-    let mut dig = [0u8; 32];
-    for i in 0..4 {
-        dig[i*8..(i+1)*8].copy_from_slice(&st[i].as_canonical_u64().to_le_bytes());
-    }
-    
+    // Use centralized Merlin-style transcript (Poseidon2 backend)
+    let mut tr = Poseidon2Transcript::new(b"neo/ivc");
+    tr.append_fields(tr_labels::STEP, &[F::from_u64(prev_acc.step)]);
+    tr.append_message(tr_labels::ACC_DIGEST, &prev_acc.c_z_digest);
+    tr.append_fields(b"acc/y", &prev_acc.y_compact);
+    tr.append_message(tr_labels::STEP_DIGEST, &step_digest);
+    tr.append_fields(tr_labels::COMMIT_COORDS, c_step_coords);
+    let mut rho = tr.challenge_field(tr_labels::CHAL_RHO);
+    if rho == F::ZERO { rho = F::ONE; }
+    let dig = tr.digest32();
     (rho, dig)
 }
 
@@ -838,7 +597,12 @@ pub fn create_step_digest(step_data: &[F]) -> [u8; 32] {
         absorb_elem!(Goldilocks::from_u64(f.as_canonical_u64()));
     }
     
-    // Final permutation and extract digest
+    // End-of-message marker and final permutation
+    if absorbed >= RATE {
+        st = poseidon2.permute(st);
+        absorbed = 0;
+    }
+    st[absorbed] = Goldilocks::ONE;
     st = poseidon2.permute(st);
     let mut digest = [0u8; 32];
     for (i, &elem) in st[..4].iter().enumerate() {
@@ -1044,7 +808,7 @@ pub fn prove_ivc_step_chained(
             rand::rng().fill_bytes(&mut seed);
             StdRng::from_seed(seed)
         };
-        let pp = crate::ajtai_setup(&mut rng, d, 16, m_final)?;
+        let pp = crate::ajtai_setup(&mut rng, d, input.params.kappa as usize, m_final)?;
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
 
@@ -1136,7 +900,7 @@ pub fn prove_ivc_step_chained(
             rand::rng().fill_bytes(&mut seed);
             StdRng::from_seed(seed)
         };
-        let pp = crate::ajtai_setup(&mut rng, d, 16, m_step)?;
+        let pp = crate::ajtai_setup(&mut rng, d, input.params.kappa as usize, m_step)?;
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
     
@@ -1476,7 +1240,12 @@ pub fn verify_ivc_step(
     // Compute full witness dimensions
     let mut full_step_z = step_public_input.clone();
     full_step_z.extend_from_slice(&step_witness_augmented);
-    let decomp_z = crate::decomp_b(&full_step_z, 2, neo_math::ring::D, crate::DecompStyle::Balanced);
+    let decomp_z = crate::decomp_b(
+        &full_step_z,
+        params.b, // use the same base as prover
+        neo_math::ring::D,
+        crate::DecompStyle::Balanced
+    );
     let m_step = decomp_z.len() / neo_math::ring::D;
     let d = neo_math::ring::D;
     
@@ -1492,7 +1261,7 @@ pub fn verify_ivc_step(
             rand::rng().fill_bytes(&mut seed);
             StdRng::from_seed(seed)
         };
-        let pp = crate::ajtai_setup(&mut rng, d, 16, m_step)?;
+        let pp = crate::ajtai_setup(&mut rng, d, params.kappa as usize, m_step)?;
         neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
     })?;
     

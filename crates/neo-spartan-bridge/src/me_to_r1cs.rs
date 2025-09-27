@@ -56,6 +56,14 @@ pub struct IvcEvEmbed {
     pub y_next: Vec<neo_math::F>,
     /// Optional: provide y_step as public (host-computed) to avoid extra y_outputs claims
     pub y_step_public: Option<Vec<neo_math::F>>, 
+    /// Optional: provide fold chain digest (32 bytes) packed as 4 limbs
+    pub fold_chain_digest: Option<[u8; 32]>,
+    /// Optional: accumulator commitment evolution inputs (all same length)
+    pub acc_c_prev: Option<Vec<neo_math::F>>,
+    pub acc_c_step: Option<Vec<neo_math::F>>,
+    pub acc_c_next: Option<Vec<neo_math::F>>,
+    /// Optional: effective rho for commit evolution (first use → 1, else ρ)
+    pub rho_eff: Option<neo_math::F>,
 }
 
 /// Circuit fingerprint key for caching SNARK setup and preparation
@@ -268,18 +276,38 @@ impl SpartanCircuit<E> for MeCircuit {
         // 4) base dimension b
         pv.push(<E as Engine>::Scalar::from(self.me.base_b as u64));
 
-        // 4.5) Optional IVC EV public inputs: y_prev, y_next, rho
+        // 4.5) Optional IVC EV public inputs: y_prev, y_next, rho, fold_chain_digest, acc commit evo
         if let Some(ev) = &self.ev {
             for &v in &ev.y_prev { pv.push(<E as Engine>::Scalar::from(v.as_canonical_u64())); }
             for &v in &ev.y_next { pv.push(<E as Engine>::Scalar::from(v.as_canonical_u64())); }
             pv.push(<E as Engine>::Scalar::from(ev.rho.as_canonical_u64()));
+            if let Some(d) = &ev.fold_chain_digest {
+                for chunk in d.chunks(8) {
+                    let mut b = [0u8; 8];
+                    b[..chunk.len()].copy_from_slice(chunk);
+                    pv.push(<E as Engine>::Scalar::from(u64::from_le_bytes(b)));
+                }
+            }
+            if let (Some(cprev), Some(cstep), Some(cnext)) = (&ev.acc_c_prev, &ev.acc_c_step, &ev.acc_c_next) {
+                for &x in cprev { pv.push(<E as Engine>::Scalar::from(x.as_canonical_u64())); }
+                for &x in cstep { pv.push(<E as Engine>::Scalar::from(x.as_canonical_u64())); }
+                for &x in cnext { pv.push(<E as Engine>::Scalar::from(x.as_canonical_u64())); }
+                if let Some(r_eff) = ev.rho_eff { pv.push(<E as Engine>::Scalar::from(r_eff.as_canonical_u64())); }
+            }
         }
         
         // 5) Pad to power-of-2 BEFORE digest - CRITICAL: match encode_bridge_io_header() order
-        let mut current_count_without_digest = self.me.c_coords.len() + self.me.y_outputs.len() + 
-                                               self.me.r_point.len() + 1;
+        let mut current_count_without_digest = self.me.c_coords.len()
+            + self.me.y_outputs.len()
+            + self.me.r_point.len()
+            + 1; // base_b
         if let Some(ev) = &self.ev {
             current_count_without_digest += ev.y_prev.len() + ev.y_next.len() + 1; // +rho
+            if ev.fold_chain_digest.is_some() { current_count_without_digest += 4; }
+            if let (Some(cprev), Some(cstep), Some(cnext)) = (&ev.acc_c_prev, &ev.acc_c_step, &ev.acc_c_next) {
+                current_count_without_digest += cprev.len() + cstep.len() + cnext.len();
+                if ev.rho_eff.is_some() { current_count_without_digest += 1; }
+            }
         }
         let digest_scalars = self.digest_to_scalars();
         let total_needed = current_count_without_digest + digest_scalars.len();
@@ -715,6 +743,61 @@ impl SpartanCircuit<E> for MeCircuit {
             let rho_val = <E as Engine>::Scalar::from(ev.rho.as_canonical_u64());
             let rho_var = AllocatedNum::alloc(cs.namespace(|| "ivc_rho"), || Ok(rho_val))?;
             let _ = rho_var.inputize(cs.namespace(|| "public_ivc_rho"));
+
+            // Optional: fold chain digest limbs as public inputs (no constraints yet)
+            if let Some(d) = &ev.fold_chain_digest {
+                for (i, chunk) in d.chunks(8).enumerate() {
+                    let limb = <E as Engine>::Scalar::from(u64::from_le_bytes([
+                        chunk.get(0).copied().unwrap_or(0),
+                        chunk.get(1).copied().unwrap_or(0),
+                        chunk.get(2).copied().unwrap_or(0),
+                        chunk.get(3).copied().unwrap_or(0),
+                        chunk.get(4).copied().unwrap_or(0),
+                        chunk.get(5).copied().unwrap_or(0),
+                        chunk.get(6).copied().unwrap_or(0),
+                        chunk.get(7).copied().unwrap_or(0),
+                    ]));
+                    let limb_alloc = AllocatedNum::alloc(cs.namespace(|| format!("fold_chain_digest_{}", i)), || Ok(limb))?;
+                    let _ = limb_alloc.inputize(cs.namespace(|| format!("public_fold_chain_digest_{}", i)));
+                }
+            }
+
+            // Optional accumulator commitment evolution inputs
+            if let (Some(cprev), Some(cstep), Some(cnext)) = (&ev.acc_c_prev, &ev.acc_c_step, &ev.acc_c_next) {
+                // Inputize sequences
+                let mut cprev_vars = Vec::with_capacity(cprev.len());
+                let mut cstep_vars = Vec::with_capacity(cstep.len());
+                let mut cnext_vars = Vec::with_capacity(cnext.len());
+                for (i, &v) in cprev.iter().enumerate() {
+                    let s = <E as Engine>::Scalar::from(v.as_canonical_u64());
+                    let a = AllocatedNum::alloc(cs.namespace(|| format!("acc_c_prev_{}", i)), || Ok(s))?;
+                    let _ = a.inputize(cs.namespace(|| format!("public_acc_c_prev_{}", i)));
+                    cprev_vars.push(a);
+                }
+                for (i, &v) in cstep.iter().enumerate() {
+                    let s = <E as Engine>::Scalar::from(v.as_canonical_u64());
+                    let a = AllocatedNum::alloc(cs.namespace(|| format!("acc_c_step_{}", i)), || Ok(s))?;
+                    let _ = a.inputize(cs.namespace(|| format!("public_acc_c_step_{}", i)));
+                    cstep_vars.push(a);
+                }
+                for (i, &v) in cnext.iter().enumerate() {
+                    let s = <E as Engine>::Scalar::from(v.as_canonical_u64());
+                    let a = AllocatedNum::alloc(cs.namespace(|| format!("acc_c_next_{}", i)), || Ok(s))?;
+                    let _ = a.inputize(cs.namespace(|| format!("public_acc_c_next_{}", i)));
+                    cnext_vars.push(a);
+                }
+                let rho_eff_s = <E as Engine>::Scalar::from(ev.rho_eff.unwrap_or(ev.rho).as_canonical_u64());
+                // Enforce acc_c_next[i] = acc_c_prev[i] + rho_eff * acc_c_step[i]
+                let n = core::cmp::min(cprev_vars.len(), core::cmp::min(cstep_vars.len(), cnext_vars.len()));
+                for i in 0..n {
+                    cs.enforce(
+                        || format!("acc_commit_evo_{}", i),
+                        |lc| lc + cnext_vars[i].get_variable(),
+                        |lc| lc + CS::one(),
+                        |lc| lc + cprev_vars[i].get_variable() + (rho_eff_s, cstep_vars[i].get_variable()),
+                    );
+                }
+            }
             // Enforce for k in 0..y_len: (y_step[k]) * rho = (y_next[k] - y_prev[k])
             let y_len = ev.y_next.len();
             // Select y_step source: either provided public values (allocated privately), or tail of y_outputs
@@ -797,10 +880,17 @@ impl SpartanCircuit<E> for MeCircuit {
         }
         
         // 5) Pad to power-of-2 BEFORE digest - CRITICAL: match encode_bridge_io_header() order
-        let mut current_count_without_digest = self.me.c_coords.len() + self.me.y_outputs.len() + 
-                                               self.me.r_point.len() + 1;
+        let mut current_count_without_digest = self.me.c_coords.len()
+            + self.me.y_outputs.len()
+            + self.me.r_point.len()
+            + 1; // base_b
         if let Some(ev) = &self.ev {
             current_count_without_digest += ev.y_prev.len() + ev.y_next.len() + 1; // +rho
+            if ev.fold_chain_digest.is_some() { current_count_without_digest += 4; }
+            if let (Some(cprev), Some(cstep), Some(cnext)) = (&ev.acc_c_prev, &ev.acc_c_step, &ev.acc_c_next) {
+                current_count_without_digest += cprev.len() + cstep.len() + cnext.len();
+                if ev.rho_eff.is_some() { current_count_without_digest += 1; }
+            }
         }
         let digest_scalars = self.digest_to_scalars();
         let total_needed = current_count_without_digest + digest_scalars.len();

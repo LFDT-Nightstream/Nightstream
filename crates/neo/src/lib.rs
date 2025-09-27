@@ -170,6 +170,8 @@ pub use nivc::{
     verify_nivc_chain, NivcFinalizeOptions, finalize_nivc_chain_with_options, finalize_nivc_chain,
 };
 
+// Track B path uses single-SNARK finalize via finalize_nivc_chain_with_options.
+
 
 /// Counts and bookkeeping for public results embedded in the proof.
 /// Backwards-compatible: all fields have defaults for older proofs.

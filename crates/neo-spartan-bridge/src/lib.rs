@@ -28,6 +28,7 @@ pub mod me_to_r1cs;
 
 pub use types::{ProofBundle, Proof};
 pub use crate::me_to_r1cs::IvcEvEmbed;
+pub use crate::me_to_r1cs::{CommitEvoEmbed, IvcLinkageInputs};
 
 use anyhow::Result;
 use neo_ccs::{MEInstance, MEWitness};
@@ -840,6 +841,35 @@ pub fn compress_me_to_lean_proof_with_pp_and_ev(
     let public_io_bytes = encode_bridge_io_header_with_ev(me, ev.as_ref());
     let proof = Proof::new(circuit_key, vk_digest, public_io_bytes, proof_bytes);
     info!("Created lean proof (with EV): {} bytes", proof.total_size());
+    Ok(proof)
+}
+
+/// Compress using the IVC verifier-style circuit with EV + linkage + commit-evo embeddings.
+pub fn compress_ivc_verifier_to_lean_proof_with_linkage(
+    me: &neo_ccs::MEInstance,
+    wit: &neo_ccs::MEWitness,
+    pp: Option<std::sync::Arc<neo_ajtai::PP<neo_math::Rq>>>,
+    ev: Option<crate::me_to_r1cs::IvcEvEmbed>,
+    commit: Option<crate::me_to_r1cs::CommitEvoEmbed>,
+    linkage: Option<crate::me_to_r1cs::IvcLinkageInputs>,
+) -> anyhow::Result<Proof> {
+    // Prove using extended MeCircuit
+    let (proof_bytes, _public_outputs, vk_arc) = me_to_r1cs::prove_me_snark_with_pp_and_ivc(me, wit, pp, ev.clone(), commit, linkage)
+        .map_err(|e| anyhow::anyhow!("IVC verifier SNARK failed: {}", e))?;
+
+    // Circuit fingerprint
+    let circuit = me_to_r1cs::MeCircuit::new(me.clone(), wit.clone(), None, me.header_digest).with_ev(ev.clone());
+    let circuit_key_obj = me_to_r1cs::CircuitKey::from_circuit(&circuit);
+    let circuit_key: [u8; 32] = circuit_key_obj.into_bytes();
+
+    // VK digest
+    let vk_bytes = serialize_vk_stable(&*vk_arc)?;
+    let vk_digest: [u8; 32] = compute_vk_digest(&vk_bytes, 2);
+    register_vk(circuit_key, vk_arc.clone());
+
+    // Encode public IO with EV header when present
+    let public_io_bytes = encode_bridge_io_header_with_ev(me, ev.as_ref());
+    let proof = Proof::new(circuit_key, vk_digest, public_io_bytes, proof_bytes);
     Ok(proof)
 }
 

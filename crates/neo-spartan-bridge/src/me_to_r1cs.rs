@@ -54,6 +54,8 @@ pub struct IvcEvEmbed {
     pub rho: neo_math::F,
     pub y_prev: Vec<neo_math::F>,
     pub y_next: Vec<neo_math::F>,
+    /// Optional: provide y_step as public (host-computed) to avoid extra y_outputs claims
+    pub y_step_public: Option<Vec<neo_math::F>>, 
 }
 
 /// Circuit fingerprint key for caching SNARK setup and preparation
@@ -204,15 +206,29 @@ pub struct MeCircuit {
     /// y_next = y_prev + rho * y_step, where y_step is exposed via additional
     /// weight vectors appended to `me.y_outputs` by the adapter.
     pub ev: Option<IvcEvEmbed>,
+    /// Optional commitment evolution embedding
+    pub commit: Option<CommitEvoEmbed>,
+    /// Optional linkage inputs
+    pub linkage: Option<IvcLinkageInputs>,
 }
 
 impl MeCircuit {
     pub fn new(me: MEInstance, wit: MEWitness, pp: Option<std::sync::Arc<AjtaiPP<neo_math::Rq>>>, fold_digest: [u8; 32]) -> Self {
-        Self { me, wit, pp, fold_digest, ev: None }
+        Self { me, wit, pp, fold_digest, ev: None, commit: None, linkage: None }
     }
 
     pub fn with_ev(mut self, ev: Option<IvcEvEmbed>) -> Self {
         self.ev = ev;
+        self
+    }
+
+    pub fn with_commit(mut self, commit: Option<CommitEvoEmbed>) -> Self {
+        self.commit = commit;
+        self
+    }
+
+    pub fn with_linkage(mut self, linkage: Option<IvcLinkageInputs>) -> Self {
+        self.linkage = linkage;
         self
     }
 
@@ -649,10 +665,12 @@ impl SpartanCircuit<E> for MeCircuit {
         // This replaces the old public_values() method approach
         
         // 1) Ajtai commitment coords (Fq)
+        let mut c_public_vars: Vec<AllocatedNum<<E as Engine>::Scalar>> = Vec::with_capacity(self.me.c_coords.len());
         for (i, &c) in self.me.c_coords.iter().enumerate() {
             let c_val = <E as Engine>::Scalar::from(c.as_canonical_u64());
             let c_alloc = AllocatedNum::alloc(cs.namespace(|| format!("c_coord_{}", i)), || Ok(c_val))?;
             let _ = c_alloc.inputize(cs.namespace(|| format!("public_c_{}", i)));
+            c_public_vars.push(c_alloc);
         }
 
         // 2) y outputs — already flattened (K -> [F;2]) in adapter
@@ -697,21 +715,82 @@ impl SpartanCircuit<E> for MeCircuit {
             let rho_val = <E as Engine>::Scalar::from(ev.rho.as_canonical_u64());
             let rho_var = AllocatedNum::alloc(cs.namespace(|| "ivc_rho"), || Ok(rho_val))?;
             let _ = rho_var.inputize(cs.namespace(|| "public_ivc_rho"));
-
-            // Enforce for k in 0..y_len: (y_step_pub[k]) * rho = (y_next[k] - y_prev[k])
-            // We assume the last ev.y_next.len() entries of y_outputs correspond to y_step
-            // values appended by the adapter.
+            // Enforce for k in 0..y_len: (y_step[k]) * rho = (y_next[k] - y_prev[k])
             let y_len = ev.y_next.len();
-            let start = self.me.y_outputs.len().saturating_sub(y_len);
+            // Select y_step source: either provided public values (allocated privately), or tail of y_outputs
+            let mut y_step_vars: Vec<AllocatedNum<<E as Engine>::Scalar>> = Vec::with_capacity(y_len);
+            if let Some(step_pub) = &ev.y_step_public {
+                for (k, &vf) in step_pub.iter().enumerate().take(y_len) {
+                    let val = <E as Engine>::Scalar::from(vf.as_canonical_u64());
+                    let v = AllocatedNum::alloc(cs.namespace(|| format!("ivc_y_step_pub_{}", k)), || Ok(val))?;
+                    y_step_vars.push(v);
+                }
+            } else {
+                let start = self.me.y_outputs.len().saturating_sub(y_len);
+                for k in 0..y_len { y_step_vars.push(y_public_vars[start + k].clone()); }
+            }
             for k in 0..y_len {
-                let y_step_var = &y_public_vars[start + k];
                 let yn = &y_next_vars[k];
                 let yp = &y_prev_vars[k];
+                let y_step_var = &y_step_vars[k];
                 cs.enforce(
                     || format!("ivc_ev_{}", k),
                     |lc| lc + y_step_var.get_variable(),
                     |lc| lc + rho_var.get_variable(),
                     |lc| lc + yn.get_variable() - yp.get_variable(),
+                );
+                n_constraints += 1;
+            }
+        }
+
+        // Optional linkage constraints (bind specific undigitized witness values)
+        if let Some(link) = &self.linkage {
+            let d = neo_math::D;
+            let mut pow_b: Vec<<E as Engine>::Scalar> = vec![<E as Engine>::Scalar::ONE; d];
+            for r in 1..d { pow_b[r] = pow_b[r-1] * <E as Engine>::Scalar::from(self.me.base_b as u64); }
+            let mut enforce_z_eq = |idx_abs: usize, expected_f: neo_math::F, tag: &str| -> Result<(), SynthesisError> {
+                let k = idx_abs;
+                let upto = core::cmp::min(d, z_vars.len().saturating_sub(k * d));
+                let expect = <E as Engine>::Scalar::from(expected_f.as_canonical_u64());
+                cs.enforce(
+                    || format!("link_{}", tag),
+                    |lc| {
+                        let mut acc = lc;
+                        for r in 0..upto {
+                            let z_idx = k * d + r;
+                            acc = acc + (pow_b[r], z_vars[z_idx].get_variable());
+                        }
+                        acc
+                    },
+                    |lc| lc + CS::one(),
+                    |lc| lc + (expect, CS::one()),
+                );
+                n_constraints += 1;
+                Ok(())
+            };
+            for (j, &idx) in link.x_indices_abs.iter().enumerate() {
+                let expected = link.step_io.get(j).copied().unwrap_or(neo_math::F::ZERO);
+                enforce_z_eq(idx, expected, &format!("x_{}", j))?;
+            }
+            for (i, &idx) in link.y_prev_indices_abs.iter().enumerate() {
+                let expected = self.ev.as_ref().map(|e| e.y_prev.get(i).copied().unwrap_or(neo_math::F::ZERO)).unwrap_or(neo_math::F::ZERO);
+                enforce_z_eq(idx, expected, &format!("y_prev_{}", i))?;
+            }
+            if let Some(c1_idx) = link.const1_index_abs { enforce_z_eq(c1_idx, neo_math::F::ONE, "const1")?; }
+        }
+
+        // Optional commitment evolution constraints: c_next (public) equals c_prev + rho*c_step
+        if let Some(commit) = &self.commit {
+            let rho_s = <E as Engine>::Scalar::from(commit.rho.as_canonical_u64());
+            let n = core::cmp::min(commit.c_prev.len(), core::cmp::min(commit.c_step.len(), c_public_vars.len()));
+            for i in 0..n {
+                let rhs_const = <E as Engine>::Scalar::from(commit.c_prev[i].as_canonical_u64())
+                    + rho_s * <E as Engine>::Scalar::from(commit.c_step[i].as_canonical_u64());
+                cs.enforce(
+                    || format!("commit_evo_{}", i),
+                    |lc| lc + c_public_vars[i].get_variable(),
+                    |lc| lc + CS::one(),
+                    |lc| lc + (rhs_const, CS::one()),
                 );
                 n_constraints += 1;
             }
@@ -863,6 +942,65 @@ pub fn prove_me_snark_with_pp(
     
     // Note: VK doesn't implement Clone, so we need to return the Arc directly
     // The caller will need to handle the Arc wrapper
+    Ok((proof_bytes, public_outputs, vk))
+}
+
+/// Commitment evolution embedding input
+#[derive(Clone, Debug)]
+pub struct CommitEvoEmbed {
+    pub rho: neo_math::F,
+    pub c_prev: Vec<neo_math::F>,
+    pub c_step: Vec<neo_math::F>,
+}
+
+/// Linkage inputs specifying which undigitized witness positions must equal given values
+#[derive(Clone, Debug)]
+pub struct IvcLinkageInputs {
+    pub x_indices_abs: Vec<usize>,
+    pub y_prev_indices_abs: Vec<usize>,
+    pub const1_index_abs: Option<usize>,
+    pub step_io: Vec<neo_math::F>,
+}
+
+/// Public API: prove with EV, commit-evo, and linkage embeddings (IVC verifier style)
+pub fn prove_me_snark_with_pp_and_ivc(
+    me: &MEInstance,
+    wit: &MEWitness,
+    pp: Option<std::sync::Arc<AjtaiPP<neo_math::Rq>>>,
+    ev: Option<IvcEvEmbed>,
+    commit: Option<CommitEvoEmbed>,
+    linkage: Option<IvcLinkageInputs>,
+) -> Result<(Vec<u8>, Vec<<E as Engine>::Scalar>, Arc<SpartanVerifierKey<E>>), SpartanError> {
+    let circuit = MeCircuit::new(me.clone(), wit.clone(), pp, me.header_digest)
+        .with_ev(ev)
+        .with_commit(commit)
+        .with_linkage(linkage);
+
+    // Normal cached proving path
+    let circuit_key = CircuitKey::from_circuit(&circuit);
+    let (pk, vk) = if let Some(cached_pk) = PK_CACHE.get(&circuit_key) {
+        let cached_vk = VK_CACHE.get(&circuit_key).expect("VK must exist if PK exists");
+        (cached_pk.clone(), cached_vk.clone())
+    } else {
+        let (new_pk, new_vk) = R1CSSNARK::<E>::setup(circuit.clone())?;
+        let pk_arc = Arc::new(new_pk);
+        let vk_arc = Arc::new(new_vk);
+        PK_CACHE.insert(circuit_key.clone(), pk_arc.clone());
+        VK_CACHE.insert(circuit_key.clone(), vk_arc.clone());
+        (pk_arc, vk_arc)
+    };
+    let prep = R1CSSNARK::<E>::prep_prove(&pk, circuit.clone(), true)?;
+    let snark_proof = R1CSSNARK::<E>::prove(&pk, circuit, &prep, false)?;
+
+    // Recompute public values deterministically (same layout function as normal)
+    let public_outputs = {
+        let circuit_for_publics = MeCircuit::new(me.clone(), wit.clone(), None, me.header_digest);
+        circuit_for_publics
+            .public_values()
+            .map_err(|e| SpartanError::SynthesisError { reason: format!("public_values() failed: {e}") })?
+    };
+    let proof_bytes = bincode::serialize(&snark_proof)
+        .map_err(|e| SpartanError::InternalError { reason: format!("Proof serialization failed: {e}") })?;
     Ok((proof_bytes, public_outputs, vk))
 }
 

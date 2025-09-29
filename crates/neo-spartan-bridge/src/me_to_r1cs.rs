@@ -145,9 +145,8 @@ impl CircuitKey {
             state.push(Goldilocks::from_u64(0));
         }
 
-        // RLC GUARD FINGERPRINT: include presence and a digest over c_step_coords (avoid huge keys)
-        let rlc_guard_on = std::env::var("NEO_ENABLE_RLC_GUARD").ok().as_deref() == Some("1")
-            && !circuit.me.c_step_coords.is_empty()
+        // RLC GUARD FINGERPRINT: enabled by default when lengths match
+        let rlc_guard_on = !circuit.me.c_step_coords.is_empty()
             && circuit.me.c_step_coords.len() == circuit.me.c_coords.len();
         state.push(Goldilocks::from_u64(if rlc_guard_on { 1 } else { 0 }));
         if rlc_guard_on {
@@ -765,9 +764,9 @@ impl SpartanCircuit<E> for MeCircuit {
             }
         }
 
-        // Optional: RLC guard tying c_step_coords to Ajtai rows via transcript-derived coefficients.
-        // Enabled when env NEO_ENABLE_RLC_GUARD=1 and lengths match.
-        if std::env::var("NEO_ENABLE_RLC_GUARD").ok().as_deref() == Some("1") {
+        // RLC guard tying c_step_coords to Ajtai rows via transcript-derived coefficients.
+        // Enabled by default when lengths match.
+        {
             let n = self.me.c_coords.len();
             if !self.me.c_step_coords.is_empty() && self.me.c_step_coords.len() == n {
                 let seed = self.fold_digest;

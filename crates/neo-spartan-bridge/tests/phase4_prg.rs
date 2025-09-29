@@ -41,7 +41,7 @@ fn prg_mode_end_to_end_lean_proof() {
     // Enable PRG-derived Ajtai rows inside the circuit
     std::env::set_var("NEO_ENABLE_PRG_ROWS", "1");
     // Enable the in-circuit RLC guard for this test
-    std::env::set_var("NEO_ENABLE_RLC_GUARD", "1");
+    // RLC guard is enabled by default now; no env needed
 
     // Set up a small instance in PRG mode: no Ajtai rows, no PP
     let seed = [7u8; 32];

@@ -33,4 +33,4 @@ jobs:
           ${{ runner.os }}-cargo-
           
     - name: Run tests
-      run: NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --features "testing,neo_dev_only,debug-logs,fs-guard,redteam,quickcheck"
+      run: NEO_PI_CCS_PREFLIGHT=1 NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --features "testing,neo_dev_only,debug-logs,fs-guard,redteam,quickcheck"

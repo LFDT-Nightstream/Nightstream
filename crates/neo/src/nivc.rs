@@ -748,9 +748,9 @@ pub fn finalize_nivc_chain_with_options(
         // Bind header digest to legacy ME used for proving
         #[allow(deprecated)]
         { legacy_me.header_digest = context_digest; }
-        // Build Pi-CCS embed from augmented_ccs matrices (sparse triplets)
-        let pi_ccs_embed_opt = if std::env::var("NEO_ENABLE_PI_CCS").ok().as_deref() == Some("1") {
-            let pi = {
+        // Build Pi-CCS embed from augmented_ccs matrices (sparse triplets).
+        // Default-on when EV embedding is enabled.
+        let pi_ccs_embed_opt = {
             use neo_spartan_bridge::{CcsCsr, PiCcsEmbed};
             let mut mats = Vec::with_capacity(augmented_ccs.matrices.len());
             for mj in &augmented_ccs.matrices {
@@ -763,10 +763,8 @@ pub fn finalize_nivc_chain_with_options(
                 }}
                 mats.push(CcsCsr { rows, cols, entries });
             }
-            PiCcsEmbed { matrices: mats }
+            Some(PiCcsEmbed { matrices: mats })
         };
-            Some(pi)
-        } else { None };
 
         // Guard A: Cheap parity check between encoder and circuit public IO (debug only)
         if cfg!(debug_assertions) {

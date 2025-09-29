@@ -6,6 +6,10 @@
 //!
 //! Run:
 //!   NEO_DETERMINISTIC=1 cargo run -p neo --example fib_folding_nivc -- 1000
+//!
+//! Notes:
+//! - EV embedding is enabled at finalize time and Pi‑CCS terminal checking is
+//!   on by default for EV runs (no env needed).
 
 use anyhow::Result;
 use std::time::Instant;
@@ -144,6 +148,8 @@ fn main() -> Result<()> {
     // Finalize NIVC chain with outer SNARK (Stage 5), equivalent to uniform example
     let chain = st.into_proof();
     println!("\n🔄 Step 7: Generating Final SNARK Layer proof...");
+    println!("   • EV embedding: enabled");
+    println!("   • Pi-CCS terminal check: enabled by default for EV");
     let final_snark_start = Instant::now();
     let (final_proof, final_ccs, final_public_input) =
         neo::finalize_nivc_chain_with_options(&program, &params, chain, neo::NivcFinalizeOptions { embed_ivc_ev: true })?

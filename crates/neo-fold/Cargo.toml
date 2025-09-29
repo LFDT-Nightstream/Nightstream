@@ -10,6 +10,8 @@ default = []
 testing = []
 # Forward neo-transcript debug logging so tests can enable transcript dumps on stable
 debug-logs = ["neo-transcript/debug-log"]
+# Forward fs-guard so tests can compare prover vs verifier transcript events
+fs-guard = ["neo-transcript/fs-guard"]
 # Note: dev feature removed - neo-spartan-bridge now uses Poseidon2-only (no dev mode)
 
 [dependencies]

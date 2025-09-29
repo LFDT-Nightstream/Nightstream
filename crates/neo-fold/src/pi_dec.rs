@@ -120,6 +120,13 @@ pub fn pi_dec<L: SModuleHomomorphism<F, Cmt>>(
     // Bind parent commitment exactly as verifier expects
     tr.append_message(b"parent_commitment_tag", b"");
     tr.append_fields(b"parent_commitment", &me_B.c.data);
+    // Restore additional transcript bindings to harden against malleability:
+    // parent X matrix, m_in, and fold digest.
+    tr.append_message(b"parent_x_tag", b"");
+    tr.append_u64s(b"parent_x_dims", &[me_B.X.rows() as u64, me_B.X.cols() as u64]);
+    tr.append_u64s(b"parent_m_in", &[me_B.m_in as u64]);
+    tr.append_fields(b"parent_x", me_B.X.as_slice());
+    tr.append_bytes_packed(b"parent_fold_digest", &me_B.fold_digest);
     
     let d = wit_B.Z.rows();
     let m = wit_B.Z.cols();
@@ -218,6 +225,18 @@ pub fn pi_dec<L: SModuleHomomorphism<F, Cmt>>(
     for (i, c_i) in digit_commitments.iter().enumerate() {
         tr.append_u64s(b"digit_index", &[i as u64]);
         tr.append_fields(b"digit_commitment", &c_i.data);
+    }
+
+    // Also bind per-digit X matrices and fold digests for parity with verifier
+    tr.append_message(b"digit_x_tag", b"");
+    for (i, wit) in digit_witnesses.iter().enumerate() {
+        // Recompute X_i deterministically as done below
+        let X_i = l.project_x(&wit.Z, me_B.m_in);
+        tr.append_u64s(b"digit_idx", &[i as u64]);
+        tr.append_u64s(b"digit_x_dims", &[X_i.rows() as u64, X_i.cols() as u64]);
+        tr.append_fields(b"digit_x", X_i.as_slice());
+        // All digits inherit parent's fold_digest; bind explicitly
+        tr.append_bytes_packed(b"digit_fold_digest", &me_B.fold_digest);
     }
     
     // === Create k ME(b,L) instances ===
@@ -325,6 +344,12 @@ pub fn pi_dec_verify<L: SModuleHomomorphism<F, Cmt>>(
     // Bind parent ME commitment identically to prover
     tr.append_message(b"parent_commitment_tag", b"");
     tr.append_fields(b"parent_commitment", &input_me.c.data);
+    // Mirror prover-side bindings: parent X, m_in, and fold digest
+    tr.append_message(b"parent_x_tag", b"");
+    tr.append_u64s(b"parent_x_dims", &[input_me.X.rows() as u64, input_me.X.cols() as u64]);
+    tr.append_u64s(b"parent_m_in", &[input_me.m_in as u64]);
+    tr.append_fields(b"parent_x", input_me.X.as_slice());
+    tr.append_bytes_packed(b"parent_fold_digest", &input_me.fold_digest);
     
     let k = params.k as usize;
     let b = params.b;
@@ -344,6 +369,15 @@ pub fn pi_dec_verify<L: SModuleHomomorphism<F, Cmt>>(
         for (i, c_i) in digit_commitments.iter().enumerate() {
             tr.append_u64s(b"digit_index", &[i as u64]);
             tr.append_fields(b"digit_commitment", &c_i.data);
+        }
+
+        // Mirror prover: bind per-digit X matrices and fold digests
+        tr.append_message(b"digit_x_tag", b"");
+        for (i, me_digit) in output_me_list.iter().enumerate() {
+            tr.append_u64s(b"digit_idx", &[i as u64]);
+            tr.append_u64s(b"digit_x_dims", &[me_digit.X.rows() as u64, me_digit.X.cols() as u64]);
+            tr.append_fields(b"digit_x", me_digit.X.as_slice());
+            tr.append_bytes_packed(b"digit_fold_digest", &me_digit.fold_digest);
         }
         
         // Verify c = Σ b^i · c_i using neo-ajtai verified opening

@@ -862,7 +862,9 @@ impl SpartanCircuit<E> for MeCircuit {
             n_constraints += 1;
         }
 
-        // (C) Pi-CCS terminal check (STRICT): compute χ_r over K (F^2), v = M^T·χ_r (Re), then enforce w = v·b^r
+        // (C) Pi-CCS terminal check (STRICT): compute χ_r over K (F^2),
+        // v = M^T·χ_r. If witness carries both Re and Im lanes (2k weight vectors),
+        // bind BOTH lanes: w_re = v_re·b^r and w_im = v_im·b^r.
         if let Some(pi) = &self.pi_ccs {
             let d = neo_math::ring::D;
             let k = pi.matrices.len();
@@ -873,6 +875,10 @@ impl SpartanCircuit<E> for MeCircuit {
                 return Err(SynthesisError::AssignmentMissing);
             };
             let w_subset: Vec<&Vec<neo_math::F>> = w_subset_indices.iter().map(|&idx| &self.wit.weight_vectors[idx]).collect();
+            let has_im_lane = m_w == 2 * k;
+            let w_im_subset: Option<Vec<&Vec<neo_math::F>>> = if has_im_lane {
+                Some((0..k).map(|j| &self.wit.weight_vectors[2*j + 1]).collect())
+            } else { None };
 
             // r is stored as (re0, im0, re1, im1, ...)
             let n_rows = pi.matrices.first().map(|m| m.rows).unwrap_or(0);
@@ -948,7 +954,7 @@ impl SpartanCircuit<E> for MeCircuit {
                 }
                 chi_re.push(acc_re); chi_im.push(acc_im);
             }
-            // Build v = M^T·χ_r (Re) and tie digits
+            // Build v = M^T·χ_r (Re; and Im if present) and tie digits
             let base_b = <E as Engine>::Scalar::from(self.me.base_b as u64);
             let mut pow_b = vec![<E as Engine>::Scalar::ONE; d];
             for i in 1..d { pow_b[i] = pow_b[i-1] * base_b; }
@@ -1013,6 +1019,46 @@ impl SpartanCircuit<E> for MeCircuit {
                     }
                     cs.enforce(|| format!("pi_ccs_w_tie_{}_{}_{}", j, c, r), |lc| lc + v_vars[c].get_variable(), |lc| lc + (pow_b[r], CS::one()), |lc| lc + (w_const, CS::one())); n_constraints += 1;
                 }}
+
+                // If Im lane exists, also compute v_im and tie Im digits
+                if has_im_lane {
+                    let wj_im = &w_im_subset.as_ref().unwrap()[j];
+                    if wj_im.len() != expected_w_len { eprintln!("[PI-CCS] w_im_j length {} != cols*d {}*{}", wj_im.len(), mj.cols, d); return Err(SynthesisError::AssignmentMissing); }
+                    // Compute v_im[c] = Σ_r  a[r,c]·χ_im[r]
+                    let mut v_im_vars: Vec<AllocatedNum<<E as Engine>::Scalar>> = Vec::with_capacity(mj.cols);
+                    for c in 0..mj.cols {
+                        // host hint for v_im[c]
+                        let mut v_acc_im = neo_math::F::ZERO;
+                        for (r_i, a) in &by_col[c] {
+                            // compute χ_im_host[r_i]
+                            let mut re = neo_math::F::ONE; let mut im = neo_math::F::ZERO;
+                            for t in 0..ell_needed {
+                                let (rt_re, rt_im) = r_pairs[t];
+                                let bit = ((r_i >> t) & 1) == 1;
+                                let tr = if bit { rt_re } else { neo_math::F::ONE - rt_re };
+                                let ti = if bit { rt_im } else { -rt_im };
+                                let new_re = re * tr - im * ti; let new_im = re * ti + im * tr; re = new_re; im = new_im;
+                            }
+                            v_acc_im += *a * im;
+                        }
+                        let v_hint_im = <E as Engine>::Scalar::from(v_acc_im.as_canonical_u64());
+                        let v_im = AllocatedNum::alloc(cs.namespace(|| format!("pi_ccs_v_im_{}_{}", j, c)), || Ok(v_hint_im))?;
+                        cs.enforce(|| format!("pi_ccs_v_im_link_{}_{}", j, c), |lc| lc + v_im.get_variable(), |lc| lc + CS::one(), |mut lc| {
+                            for (r_i, a) in &by_col[c] {
+                                let a_s = <E as Engine>::Scalar::from(a.as_canonical_u64());
+                                lc = lc + (a_s, chi_im[*r_i].get_variable());
+                            }
+                            lc
+                        }); n_constraints += 1;
+                        v_im_vars.push(v_im);
+                    }
+                    // tie Im digits: w_im[c*d + r] == v_im[c]·b^r
+                    for c in 0..mj.cols { for r in 0..d {
+                        let idx = c*d + r;
+                        let w_const_im = <E as Engine>::Scalar::from(wj_im[idx].as_canonical_u64());
+                        cs.enforce(|| format!("pi_ccs_w_im_tie_{}_{}_{}", j, c, r), |lc| lc + v_im_vars[c].get_variable(), |lc| lc + (pow_b[r], CS::one()), |lc| lc + (w_const_im, CS::one())); n_constraints += 1;
+                    }}
+                }
             }
         }
 

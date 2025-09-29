@@ -72,7 +72,10 @@ pub fn pi_rlc_prove(
     #[cfg(not(feature = "testing"))]
     let test_identity = false;
 
+    #[cfg(all(debug_assertions, feature = "testing"))]
     let force_identity = std::env::var("NEO_TEST_RLC_IDENTITY").ok().as_deref() == Some("1");
+    #[cfg(not(all(debug_assertions, feature = "testing")))]
+    let force_identity = false;
     let (rhos, T_bound) = if test_identity || force_identity {
         // Derive dummy T bound from config for guard display; value not used.
         let cfg = DEFAULT_STRONGSET.clone();

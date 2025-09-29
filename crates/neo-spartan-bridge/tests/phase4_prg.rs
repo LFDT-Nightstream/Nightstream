@@ -94,3 +94,100 @@ fn prg_mode_end_to_end_lean_proof() {
     let ok_bad = neo_spartan_bridge::verify_lean_proof(&res_bad);
     assert!(ok_bad.is_err() || !ok_bad.unwrap(), "tampering c_step_coords should make verification fail");
 }
+
+#[test]
+fn prg_mode_tamper_header_digest_fails() {
+    use neo_ccs::{MEInstance, MEWitness};
+
+    std::env::set_var("NEO_ENABLE_PRG_ROWS", "1");
+
+    let seed = [9u8; 32];
+    let base_b = 3u64;
+    let z_len = 8usize;
+
+    let mut z_digits = vec![0i64; z_len];
+    for (i, zi) in z_digits.iter_mut().enumerate() { *zi = match i % 5 { 0 => -2, 1 => -1, 2 => 0, 3 => 1, _ => 2 }; }
+
+    let rows = 4usize;
+    let mut c_coords: Vec<neo_math::F> = Vec::with_capacity(rows);
+    for i in 0..rows {
+        let row = expand_row_from_seed(seed, i as u32, z_len);
+        let mut acc = F::ZERO;
+        for (a, &zv) in row.iter().zip(z_digits.iter()) {
+            let zf = if zv >= 0 { F::from_u64(zv as u64) } else { -F::from_u64((-zv) as u64) };
+            acc += *a * zf;
+        }
+        c_coords.push(neo_math::F::from_u64(acc.as_canonical_u64()));
+    }
+
+    let me = MEInstance {
+        c_coords: c_coords.clone(),
+        y_outputs: vec![],
+        r_point: vec![],
+        base_b,
+        header_digest: seed,
+        c_step_coords: c_coords.clone(),
+        u_offset: 0,
+        u_len: 0,
+    };
+    let wit = MEWitness { z_digits, weight_vectors: vec![], ajtai_rows: None };
+
+    // Honest
+    let proof = neo_spartan_bridge::compress_me_to_lean_proof_with_pp(&me, &wit, None).expect("prove ok");
+    assert!(neo_spartan_bridge::verify_lean_proof(&proof).expect("verify runs"));
+
+    // Tamper header_digest only (seed flip) -> host PRG parity must reject at prove-time
+    let mut me_bad = me.clone();
+    me_bad.header_digest[0] ^= 1;
+    let res_bad = neo_spartan_bridge::compress_me_to_lean_proof_with_pp(&me_bad, &wit, None);
+    assert!(res_bad.is_err(), "tampering header_digest should be rejected at prove-time");
+}
+
+#[test]
+fn prg_mode_tamper_c_coords_fails() {
+    use neo_ccs::{MEInstance, MEWitness};
+
+    std::env::set_var("NEO_ENABLE_PRG_ROWS", "1");
+
+    let seed = [11u8; 32];
+    let base_b = 3u64;
+    let z_len = 8usize;
+
+    let mut z_digits = vec![0i64; z_len];
+    for (i, zi) in z_digits.iter_mut().enumerate() { *zi = match i % 5 { 0 => -2, 1 => -1, 2 => 0, 3 => 1, _ => 2 }; }
+
+    let rows = 4usize;
+    let mut c_coords: Vec<neo_math::F> = Vec::with_capacity(rows);
+    for i in 0..rows {
+        let row = expand_row_from_seed(seed, i as u32, z_len);
+        let mut acc = F::ZERO;
+        for (a, &zv) in row.iter().zip(z_digits.iter()) {
+            let zf = if zv >= 0 { F::from_u64(zv as u64) } else { -F::from_u64((-zv) as u64) };
+            acc += *a * zf;
+        }
+        c_coords.push(neo_math::F::from_u64(acc.as_canonical_u64()));
+    }
+
+    let me = MEInstance {
+        c_coords: c_coords.clone(),
+        y_outputs: vec![],
+        r_point: vec![],
+        base_b,
+        header_digest: seed,
+        c_step_coords: c_coords.clone(),
+        u_offset: 0,
+        u_len: 0,
+    };
+    let wit = MEWitness { z_digits, weight_vectors: vec![], ajtai_rows: None };
+
+    // Honest
+    let proof = neo_spartan_bridge::compress_me_to_lean_proof_with_pp(&me, &wit, None).expect("prove ok");
+    assert!(neo_spartan_bridge::verify_lean_proof(&proof).expect("verify runs"));
+
+    // Tamper c_coords
+    let mut me_bad = me.clone();
+    me_bad.c_coords[0] += neo_math::F::ONE;
+    // In PRG mode, proving should fail fast due to host parity check
+    let res_bad = neo_spartan_bridge::compress_me_to_lean_proof_with_pp(&me_bad, &wit, None);
+    assert!(res_bad.is_err(), "tampering c_coords should be rejected at prove-time");
+}

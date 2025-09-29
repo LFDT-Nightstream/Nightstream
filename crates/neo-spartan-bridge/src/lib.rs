@@ -744,9 +744,8 @@ pub fn compress_me_to_lean_proof_with_pp(
         );
     }
     
-    // If PP is provided (streaming rows) and no materialized Ajtai rows were given,
-    // perform a strict host-side parity check: for every row i,
-    //   c_coords[i] == <row_i, z_digits>  (using original, unpadded row length)
+    // If Ajtai rows are provided or PP is provided, perform host-side parity checks.
+    // In PRG mode (no rows, no PP, enable_prg), also perform seeded parity check.
     if wit_norm.ajtai_rows.as_ref().map_or(true, |rows| rows.is_empty()) {
         if let Some(pp_arc) = pp.as_ref() {
             let d_pp = pp_arc.d;
@@ -766,6 +765,26 @@ pub fn compress_me_to_lean_proof_with_pp(
                 if acc != me.c_coords[i] {
                     anyhow::bail!(
                         "AjtaiCommitmentInconsistent at row {}: computed {} vs claimed {}",
+                        i, acc.as_canonical_u64(), me.c_coords[i].as_canonical_u64()
+                    );
+                }
+            }
+        } else if enable_prg {
+            // PRG-mode host parity: derive rows from seed and check against c_coords
+            let rows = me.c_coords.len();
+            let z_len = wit_norm.z_digits.len();
+            for i in 0..rows {
+                let row = crate::ajtai_prg::expand_row_from_seed(me.header_digest, i as u32, z_len);
+                let upto = core::cmp::min(row.len(), z_len);
+                let mut acc = neo_math::F::ZERO;
+                for j in 0..upto {
+                    let zi = wit_norm.z_digits[j];
+                    let zf = if zi >= 0 { neo_math::F::from_u64(zi as u64) } else { -neo_math::F::from_u64((-zi) as u64) };
+                    acc += row[j] * zf;
+                }
+                if acc != me.c_coords[i] {
+                    anyhow::bail!(
+                        "PRG Ajtai parity failed at row {}: computed {} vs claimed {}",
                         i, acc.as_canonical_u64(), me.c_coords[i].as_canonical_u64()
                     );
                 }

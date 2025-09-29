@@ -66,3 +66,38 @@ fn ajtai_bind_tamper_digit_fails() {
     assert!(res.is_err(), "Tampered digits should cause proving to fail");
 }
 
+#[test]
+fn rlc_guard_disabled_with_pp_succeeds() {
+    // With PP present and non-empty c_step_coords, the RLC guard must stay OFF and proving should succeed
+    let d = neo_math::ring::D; let m = 1usize; let kappa = 2usize;
+    // Simple small-range digits
+    let mut z_digits: Vec<i64> = Vec::with_capacity(d*m);
+    for i in 0..(d*m) { z_digits.push(match i % 3 { 0 => -1, 1 => 0, _ => 1 }); }
+    let to_f = |zi: i64| if zi >= 0 { F::from_u64(zi as u64) } else { -F::from_u64((-zi) as u64) };
+    let z_f: Vec<F> = z_digits.iter().copied().map(to_f).collect();
+
+    use rand::SeedableRng; use rand::rngs::StdRng;
+    let mut rng = StdRng::from_seed([23u8; 32]);
+    let pp = neo_ajtai::setup(&mut rng, d, kappa, m).expect("setup");
+    let c = neo_ajtai::commit(&pp, &z_f);
+
+    #[allow(deprecated)]
+    let me = neo_ccs::MEInstance {
+        c_coords: c.data.clone(),
+        y_outputs: vec![],
+        r_point: vec![],
+        base_b: 2,
+        header_digest: [0u8; 32],
+        // Non-empty c_step_coords would previously activate the guard; with PP it must be ignored
+        c_step_coords: c.data.clone(),
+        u_offset: 0,
+        u_len: 0,
+    };
+    #[allow(deprecated)]
+    let wit = neo_ccs::MEWitness { z_digits, weight_vectors: vec![], ajtai_rows: None };
+
+    // Guard stays off (pp present); proof should verify
+    let proof = neo_spartan_bridge::compress_me_to_lean_proof_with_pp(&me, &wit, Some(Arc::new(pp))).expect("prove");
+    let ok = neo_spartan_bridge::verify_lean_proof(&proof).expect("verify path");
+    assert!(ok, "Lean proof should verify with PP present and guard disabled");
+}

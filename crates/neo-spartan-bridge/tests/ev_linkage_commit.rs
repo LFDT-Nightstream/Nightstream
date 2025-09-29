@@ -118,6 +118,152 @@ fn linkage_attack_fails_v1() {
 }
 
 #[test]
+fn y_step_public_mismatch_ev_fails_v1() {
+    let (me, wit) = tiny_me_instance();
+    // Honest step
+    let rho = F::from_u64(7);
+    let y_prev = vec![F::from_u64(1), F::from_u64(2)];
+    let y_step_honest = me.y_outputs.clone();
+    let y_next = vec![
+        y_prev[0] + rho * y_step_honest[0],
+        y_prev[1] + rho * y_step_honest[1],
+    ];
+
+    // Tamper y_step_public only (keep ρ, y_prev, y_next fixed)
+    let mut y_step_bad = y_step_honest.clone();
+    y_step_bad[0] += F::ONE;
+    let ev = IvcEvEmbed {
+        rho,
+        y_prev: y_prev.clone(),
+        y_next: y_next.clone(),
+        y_step_public: Some(y_step_bad),
+        fold_chain_digest: None,
+        acc_c_prev: None,
+        acc_c_step: None,
+        acc_c_next: None,
+        rho_eff: None,
+    };
+
+    let proof = compress_ivc_verifier_to_lean_proof_with_linkage(&me, &wit, None, Some(ev), None, None)
+        .expect("prove");
+    let ok = verify_lean_proof(&proof).unwrap_or(false);
+    assert!(
+        !ok,
+        "verification must fail when y_step_public mismatches EV relation"
+    );
+}
+
+#[test]
+fn rho_flip_with_digest_fails_v1() {
+    let (me, wit) = tiny_me_instance();
+    let rho = F::from_u64(9);
+    let y_prev = vec![F::from_u64(3), F::from_u64(4)];
+    let y_step = me.y_outputs.clone();
+    let y_next = vec![y_prev[0] + rho * y_step[0], y_prev[1] + rho * y_step[1]];
+    let fold_digest = [0x55u8; 32];
+
+    let ev = IvcEvEmbed {
+        rho,
+        y_prev: y_prev.clone(),
+        y_next: y_next.clone(),
+        y_step_public: Some(y_step.clone()),
+        fold_chain_digest: Some(fold_digest),
+        acc_c_prev: None,
+        acc_c_step: None,
+        acc_c_next: None,
+        rho_eff: None,
+    };
+    let mut proof = compress_ivc_verifier_to_lean_proof_with_linkage(&me, &wit, None, Some(ev), None, None)
+        .expect("prove");
+
+    // Compute offset to rho scalar in public IO with y_step_public present
+    let scalars_before_rho = me.c_coords.len()
+        + (me.y_outputs.len() + y_step.len())
+        + me.r_point.len()
+        + 1 /*base_b*/
+        + y_prev.len()
+        + y_next.len();
+    let byte_off = scalars_before_rho * 8;
+    assert!(proof.public_io_bytes.len() >= byte_off + 8, "public io too short for rho");
+    // Flip a byte in rho
+    proof.public_io_bytes[byte_off] ^= 0xA5;
+
+    let ok = verify_lean_proof(&proof).unwrap_or(false);
+    assert!(
+        !ok,
+        "verification must fail when rho is tampered while digest stays bound"
+    );
+}
+
+#[test]
+fn ajtai_step_linkage_digit_tamper_fails_v1() {
+    let (me, mut wit) = tiny_me_instance();
+    // Bind Ajtai to acc_c_step; start from honest step = current c_coords
+    let acc_c_step = me.c_coords.clone();
+    let rho = F::from_u64(5);
+    let y_prev = vec![F::from_u64(1), F::from_u64(2)];
+    let y_step = me.y_outputs.clone();
+    let y_next = vec![y_prev[0] + rho * y_step[0], y_prev[1] + rho * y_step[1]];
+    let ev = IvcEvEmbed {
+        rho,
+        y_prev: y_prev.clone(),
+        y_next: y_next.clone(),
+        y_step_public: Some(y_step),
+        fold_chain_digest: None,
+        acc_c_prev: None,
+        acc_c_step: Some(acc_c_step),
+        acc_c_next: None,
+        rho_eff: None,
+    };
+
+    // Tamper one Ajtai digit in the witness (break ⟨L_i, z⟩ = acc_c_step[i])
+    if !wit.z_digits.is_empty() { wit.z_digits[0] += 1; }
+    let proof = compress_ivc_verifier_to_lean_proof_with_linkage(&me, &wit, None, Some(ev), None, None)
+        .expect("prove");
+    let ok = verify_lean_proof(&proof).unwrap_or(false);
+    assert!(
+        !ok,
+        "verification must fail when Ajtai/step linkage is violated by digit tamper"
+    );
+}
+
+#[test]
+fn commit_evo_bad_c_next_fails_v1() {
+    let (me, wit) = tiny_me_instance();
+    let rho = F::from_u64(3);
+    let y_prev = vec![F::from_u64(1), F::from_u64(2)];
+    let y_step = me.y_outputs.clone();
+    let y_next = vec![y_prev[0] + rho * y_step[0], y_prev[1] + rho * y_step[1]];
+
+    // Honest commit-evo inputs
+    let c_prev = vec![F::from_u64(5), F::from_u64(6)];
+    let c_step = vec![F::from_u64(7), F::from_u64(8)];
+    let mut c_next = vec![c_prev[0] + rho * c_step[0], c_prev[1] + rho * c_step[1]];
+    // Tamper c_next only
+    c_next[0] += F::ONE;
+
+    let ev = IvcEvEmbed {
+        rho,
+        y_prev: y_prev.clone(),
+        y_next: y_next.clone(),
+        y_step_public: Some(y_step),
+        fold_chain_digest: None,
+        acc_c_prev: Some(c_prev),
+        acc_c_step: Some(c_step),
+        acc_c_next: Some(c_next),
+        rho_eff: None,
+    };
+
+    let proof = compress_ivc_verifier_to_lean_proof_with_linkage(&me, &wit, None, Some(ev), None, None)
+        .expect("prove");
+    let ok = verify_lean_proof(&proof).unwrap_or(false);
+    assert!(
+        !ok,
+        "verification must fail when commit evolution public c_next is incorrect"
+    );
+}
+
+#[test]
 fn commit_evolution_ok_v1() {
     let (me, wit) = tiny_me_instance();
     // Commit evolution enforces: c_next (me.c_coords) = c_prev + rho * c_step

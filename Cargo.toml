@@ -60,8 +60,6 @@ blake3 = "1.5"
 criterion = { version = "0.6", features = ["html_reports"] }
 proptest = "1.7"
 
-
-
 [profile.dev]
 opt-level = 1
 incremental = true
@@ -73,6 +71,14 @@ codegen-units = 1
 panic = "abort"
 incremental = false
 strip = "symbols"
+
+# Profiling-friendly profile: balances performance with good debug symbols
+[profile.profiling]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+debug = 2  # Full debug info including line numbers
+strip = false  # Keep symbols for profiler
 
 [workspace.package]
 edition = "2021"

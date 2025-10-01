@@ -3,8 +3,8 @@ name = "neo-quickcheck-tests"
 version = "0.1.0"
 edition = "2021"
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
-description = "Property-based and quickcheck tests for Neo protocol - comprehensive property verification"
-license = "MIT OR Apache-2.0"
+description = "Property-based and quickcheck tests for Nightstream protocol - comprehensive property verification"
+license = "Apache-2.0"
 publish = false
 
 [features]

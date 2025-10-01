@@ -1,14 +1,20 @@
-# Neo — Lattice‑based Folding + Hash‑MLE SNARK
+# Nightstream — Lattice‑based Folding
 
-Neo is an end‑to‑end **post‑quantum** proving system that couples a lattice‑based folding scheme with a **Hash‑MLE** polynomial commitment SNARK. It targets circuits expressed as **Customizable Constraint Systems (CCS)** over Goldilocks field, supports efficient recursion, and avoids elliptic curves, pairings, and FRI. The design is informed by recent folding systems (e.g., Nova/HyperNova) and adapts them to a lattice setting with a practical Hash‑MLE backend.
+[![GitHub License](https://img.shields.io/github/license/nicarq/halo3)](LICENSE)
+[![OpenSSF Best Practices](https://bestpractices.coreinfrastructure.org/projects/00000/badge)](https://bestpractices.coreinfrastructure.org/projects/00000)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nicarq/halo3/badge)](https://scorecard.dev/viewer/?uri=github.com/nicarq/halo3)
 
-> **🚧 Status**: Research prototype with working end‑to‑end **prove/verify** for small CCS programs. Security checks and transcript binding are implemented. Currently optimizing proof size and memory usage.
+Nightstream is an end‑to‑end **post‑quantum** proving system that couples a lattice‑based folding scheme with a **Hash‑MLE** polynomial commitment SNARK. It targets circuits expressed as **Customizable Constraint Systems (CCS)** over Goldilocks field, supports efficient recursion, and avoids elliptic curves, pairings, and FRI. The design is informed by recent folding systems (e.g., Nova/HyperNova) and adapts them to a lattice setting with a practical Hash‑MLE backend.
+
+Nightstream is an implementation of the protocol introduced in the Neo paper "Lattice‑based folding scheme for CCS over small fields" (Nguyen & Setty, 2025); see References & Background → Academic Foundation.
+
+> **🚧 Status**: Research prototype with end‑to‑end **prove/verify** and IVC/NIVC demos. Security guards and canonical transcript/public‑IO binding are implemented. Lean proofs (VK registry) shipped; sparse weights and memory reductions are in progress.
 
 ---
 
-## Why Neo?
+## Why Nightstream?
 
-* **🔒 Post‑quantum security**: **Hash‑MLE** polynomial commitment scheme using only hash functions and multilinear extension evaluations
+* **🔒 Post‑quantum security**: **Hash‑MLE** polynomial commitment scheme (currently) using only hash functions and multilinear extension evaluations
 * **⚡ Optimized for modern fields**: CCS over Goldilocks provides excellent prover performance with **degree‑2 extension field** for sum‑check soundness
 * **🎯 Simple API**: Clean two‑function interface (`neo::prove` and `neo::verify`) hides complexity while maintaining full functionality  
 * **🔐 Cryptographic hygiene**: Unified **Poseidon2** transcript across folding and Hash‑MLE phases with anti‑replay protection
@@ -20,18 +26,23 @@ Neo is an end‑to‑end **post‑quantum** proving system that couples a lattic
 ### Prerequisites
 * **Rust** ≥ 1.88 (MSRV; CI uses stable channel)
 * Sufficient RAM for demo proofs (~2GB recommended)
-* `git` and `clang` (for optimized builds)
+* `git` and a C compiler (gcc or clang) for the mimalloc allocator
 
 ### One-line demo
 ```bash
-cargo run -p neo --example fib --release
+# Option A: run the benchmarked demo
+cargo run -p neo --example fib_benchmark --release
+
+# Option B: use the CLI to generate and verify a Fibonacci proof
+cargo run -p neo-cli -- gen -n 32 --release              # writes fib_proof.bin
+cargo run -p neo-cli -- verify -f fib_proof.bin --release
 ```
 
 ### Build & test everything
 ```bash
-cargo build --release                    # Build all crates
-cargo test --workspace                   # Run comprehensive test suite
-cargo run -p neo --example fib --release # Demo end-to-end Fibonacci proof
+cargo build --release                           # Build all crates
+cargo test --workspace                          # Run comprehensive test suite
+cargo run -p neo --example fib_benchmark --release # Demo end-to-end Fibonacci proof
 ```
 
 ---
@@ -50,12 +61,13 @@ fn main() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2); // Auto-tuned params
 
     // 2) Generate proof
-    let proof = prove(ProveInput {
-        params: &params,
-        ccs: &ccs,
-        public_input: &public_input,
-        witness: &witness,
-    })?;
+    let proof = prove(ProveInput::new(
+        &params,
+        &ccs,
+        &public_input,
+        &witness,
+        &[],  // output_claims (optional public outputs)
+    ))?;
     
     println!("✅ Proof generated! Size: {} bytes", proof.size());
 
@@ -71,7 +83,7 @@ fn main() -> Result<()> {
 
 ## Architecture & Pipeline
 
-Neo implements a four-stage proving pipeline:
+Nightstream implements a four-stage proving pipeline:
 
 ### 1. **Ajtai Commitment (Module-SIS)**
 The witness undergoes base-`b` decomposition and lattice commitment, establishing the linear algebra foundation for subsequent reductions.
@@ -93,7 +105,7 @@ Spartan2 produces constant-size proofs with logarithmic verification time and po
 
 ```
 crates/
-  neo/                  # 🎯 Main API: prove() and verify() functions
+  neo/                  # 🎯 Main API: prove() and verify() functions + IVC/NIVC
   neo-ajtai/            # 🔐 Lattice (Ajtai) commitments over module-SIS  
   neo-ccs/              # ⚙️  Customizable Constraint Systems, matrices, utilities
   neo-fold/             # 🔄 Folding pipeline: CCS→RLC→DEC reductions + transcripts
@@ -101,28 +113,57 @@ crates/
   neo-math/             # 🧮 Field arithmetic, rings, polynomial operations
   neo-challenge/        # 🎲 Challenge generation and strong sets
   neo-params/           # ⚙️  Parameter management and security validation
+  neo-transcript/       # 📝 Poseidon2 transcript for Fiat-Shamir
+  neo-cli/              # 🔧 Command-line interface
+  neo-tests/            # ✅ Integration tests
+  neo-redteam-tests/    # 🔴 Security and attack tests
+  neo-quickcheck-tests/ # ⚡ Property-based tests
 
 crates/neo/examples/
-  fib.rs                # 📚 Complete Fibonacci sequence proof demo
+  fib_benchmark.rs      # 📊 Fibonacci SNARK benchmark (various sizes)
+  fib_folding_nivc.rs   # 🔄 Fibonacci with IVC folding
+  incrementer_folding.rs # 🔢 Simple incrementer IVC example
+  nivc_demo.rs          # 🎯 Non-uniform IVC (NIVC) demo
 ```
 
 ---
 
 ## Examples
 
-### Fibonacci Demo
+### Fibonacci Benchmark
 ```bash
-cargo run -p neo --example fib --release
+cargo run -p neo --example fib_benchmark --release
 ```
 
-This demonstrates proving correctness of a Fibonacci computation (`z[i+2] = z[i+1] + z[i]`) as a CCS program, running the complete folding pipeline, and verifying the final SNARK.
+This benchmarks Nightstream SNARK proving for Fibonacci sequences of various sizes, demonstrating efficient sparse matrix construction. Still needs some more work to be standarized.
 
 **What you'll see:**
-- CCS constraint system generation (8 Fibonacci steps)
-- Witness generation and local verification  
-- Neo SNARK proof generation with timing
-- Succinct proof verification 
+- Sparse CCS constraint system generation
+- Witness generation and validation
+- Nightstream SNARK proof generation with detailed timing breakdown
+- Proof verification
 - Performance metrics and proof size
+
+### Fibonacci with IVC Folding
+```bash
+cargo run -p neo --example fib_folding_nivc --release
+```
+
+Demonstrates incrementally verifiable computation (IVC) with Fibonacci steps, using Nova-style folding.
+
+### Incrementer Example
+```bash
+cargo run -p neo --example incrementer_folding --release
+```
+
+Simple state machine example showing NIVC (non-uniform IVC) API: state transitions with proof-carrying computation.
+
+### NIVC Multi-Lane Demo
+```bash
+cargo run -p neo --example nivc_demo --release
+```
+
+Shows heterogeneous step types in non-uniform IVC, demonstrating multiple computation types in a single proof chain.
 
 ---
 
@@ -135,7 +176,7 @@ This demonstrates proving correctness of a Fibonacci computation (`z[i+2] = z[i+
 * **Constant-time verification**: Prevents timing side-channels in proof validation
 * **Cryptographically secure RNG**: Production builds use `OsRng`; debug builds use deterministic seeds for reproducibility
 
-### ⚠️ Current Limitations  
+### ⚠️ Current Limitations
 * WIP
 
 ### 🔬 Security Posture
@@ -147,16 +188,16 @@ This demonstrates proving correctness of a Fibonacci computation (`z[i+2] = z[i+
 
 | Metric | Current Implementation | Target (Post-Optimization) |
 |--------|----------------------|---------------------------|
-| **Proof Size** | ~1MB | Unoptimized |
-| **Prover Time** | ~50ms | ~10-100ms |
+| **Proof Size** | ~500kb | Unoptimized |
+| **Prover Time** | ~25ms (per folding) | TBD |
 | **Verifier Time** | ~7ms | ~1-10ms |
 | **Memory Usage** | TBD | TBD |
 
 ### Optimization Roadmap
 - [ ] **Sparse weight vectors** in bridge (currently quadratic in `d·m`)
-- [ ] **Compact public IO** encoding (currently verbose for debugging)
-- [ ] **Parallel proving** optimizations
-- [ ] **Memory efficiency** improvements
+- [x] **Compact public IO** encoding (canonical, padded-before-digest)
+- [x] **Parallel proving** optimizations (CSR SpMV, Ajtai rows)
+- [ ] **Memory efficiency** improvements (ongoing)
 
 ---
 
@@ -164,6 +205,9 @@ This demonstrates proving correctness of a Fibonacci computation (`z[i+2] = z[i+
 
 ### Running Tests
 ```bash
+# All tests with extra guards and verbose debugging
+NEO_PI_CCS_PREFLIGHT=1 NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --features "testing,neo_dev_only,debug-logs,fs-guard,redteam,quickcheck"
+
 # Core functionality
 cargo test -p neo-fold -- --nocapture
 cargo test -p neo-spartan-bridge -- --nocapture
@@ -177,15 +221,6 @@ cargo test -p neo-fold security_validation -- --nocapture
 cargo test --workspace
 ```
 
-### Benchmarking
-```bash
-# Install criterion if needed
-cargo install cargo-criterion
-
-# Run benchmarks
-cargo criterion --bench folding --warm-up-time 10 --measurement-time 30
-```
-
 ### Parameter Validation (Optional)
 ```bash
 # Validate lattice security parameters
@@ -197,16 +232,18 @@ sage sage_params.sage
 ## Roadmap
 
 ### Near Term (Next Release)
-- [ ] **Explicit parameter threading** (remove global PP state)
-- [ ] **Sparse bridge representation** (reduce memory footprint)
-- [x] **Typed public-IO validation** (bind verifier parameters to proof)
-- [ ] **Comprehensive benchmarks** (end-to-end and per-phase)
+- [ ] **Explicit parameter threading** (remove global PP state) — *Still uses `OnceLock` registry; concurrent proving limited*
+- [~] **Sparse bridge representation** (reduce memory footprint) — *CSR SpMV implemented; weight vector optimization ongoing*
+- [x] **Typed public-IO validation** (bind verifier parameters to proof) — *Context digest binding complete*
+- [ ] **Comprehensive benchmarks** (end-to-end and per-phase) — *Only example benchmarks; no criterion suite yet*
+- [ ] **Lookup arguments** (table constraints for range checks, bitwise ops) — *Planned for CCS extension*
 
 ### Medium Term  
-- [x] **Recursive proof composition** (proof-carrying state)
-- [ ] **Additional circuit examples** (Merkle trees, VDF gadgets)
-- [ ] **Performance optimizations** (parallel operations, memory efficiency)
-- [ ] **Security audit preparation** (hardened parameter sets)
+- [x] **Recursive proof composition** (proof-carrying state) — *IVC/NIVC fully functional*
+- [~] **Additional circuit examples** (Merkle trees, VDF gadgets) — *Have: Fibonacci, incrementer; Need: Merkle, VDF*
+- [~] **Performance optimizations** (parallel operations, memory efficiency) — *Rayon parallelization done; memory work ongoing*
+- [ ] **GPU acceleration exploration** (Mojo for matmul/MSM) — *Exploratory: GPU-accelerated matrix operations*
+- [~] **Security audit preparation** (hardened parameter sets) — *Track B security tests in progress; not audit-ready*
 
 ### Long Term
 - [ ] **Production deployment tools** (parameter generation, key management)
@@ -215,27 +252,9 @@ sage sage_params.sage
 
 ---
 
-## Platform Support
-
-### Native ARM64 Compatibility ✅
-Neo fully supports **ARM64 architectures** including Apple Silicon (M1/M2/M3/M4) and ARM64 Linux:
-
-```bash
-# Optimal ARM64 performance
-export RUSTFLAGS="-C target-cpu=native"
-cargo build --release
-```
-
-**Benefits of field-native design:**
-- No problematic elliptic curve dependencies
-- Direct Goldilocks operations with NEON optimizations  
-- Simplified cross-platform deployment
-
----
-
 ## Contributing
 
-We welcome contributions! Please:
+We welcome contributions to Nightstream! Please:
 
 * **Add tests** for behavioral changes
 * **Run formatting**: `cargo fmt` and `cargo clippy`  
@@ -245,7 +264,7 @@ We welcome contributions! Please:
 ### Development Setup
 ```bash
 git clone <repo-url>
-cd neo
+cd halo3
 cargo build --workspace
 cargo test --workspace
 ```
@@ -255,18 +274,42 @@ cargo test --workspace
 ## References & Background
 
 ### Academic Foundation
-* **Neo Paper**: "Lattice-based folding scheme for CCS over small fields" (Nguyen & Setty, 2025)
+* **Neo Protocol**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields and pay-per-bit commitments](https://eprint.iacr.org/2025/294)" (ePrint 2025/294)
+  - Introduces the pay-per-bit Ajtai commitment scheme this implementation uses
+  - Adapts HyperNova folding to lattice setting with Goldilocks field support
+  - Post-quantum secure using lattices
+* **Spartan**: Srinath Setty, "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020)
+  - Sum-check based zkSNARK providing our final proof compression layer
+  - Linear-time polynomial IOP with succinct verification
 * **Nova**: Recursive arguments from folding schemes ([project page](https://github.com/Microsoft/Nova))
 * **HyperNova**: CCS extensions and improved ergonomics
-* **Poseidon2**: Sponge-friendly permutation for transcript hashing
+* **Plonky3**: Modular STARK/PLONK framework ([Succinct Labs](https://github.com/succinctlabs/plonky3))
+  - Provides Goldilocks field implementation with SIMD optimizations (AVX2, AVX-512, NEON)
+  - Poseidon2 hash function for Fiat-Shamir transcripts
+  - Challenger/symmetric crypto primitives used throughout Nightstream
 * **Sum-check Protocol**: Multilinear evaluation verification ([primer](https://xn--2-umb.com/24/sumcheck/))
+* **Sum-check Optimizations**: Bagad et al., "[Speeding Up Sum-Check Proving](https://eprint.iacr.org/2025/1117)" (ePrint 2025/1117)
 
-### Related Work
-Understanding folding SNARKs? Start with [Nova's overview](https://github.com/Microsoft/Nova) for conceptual background, then see [Poseidon2 documentation](https://dev.ingonyama.com/icicle/primitives/poseidon2) for transcript primitives.
+### Related Work & Implementation
+* **[Spartan2](https://github.com/microsoft/Spartan2)**: Generic Spartan implementation supporting multiple polynomial commitment schemes (elliptic curve, hash-based, and lattice-based including Greyhound). Nightstream uses Spartan2's Hash-MLE backend with P3 integration for the final proof compression.
+* **[Plonky3](https://github.com/succinctlabs/plonky3)**: Nightstream builds on Plonky3's field arithmetic (`p3-goldilocks`), Poseidon2 implementation (`p3-poseidon2`, `p3-symmetric`), and challenger/transcript primitives (`p3-challenger`) for consistent cryptographic operations across the stack.
+* **[Merlin](https://github.com/dalek-cryptography/merlin)**: Composable proof transcripts for public-coin arguments. Nightstream's transcript API design (`neo-transcript`) draws inspiration from Merlin's domain separation, message framing, and challenge generation patterns, adapted for Poseidon2-based Fiat-Shamir transforms.
+* **Understanding folding SNARKs**: Start with [Nova's overview](https://github.com/Microsoft/Nova) for conceptual background on folding schemes, then review the [Neo paper](https://eprint.iacr.org/2025/294) for lattice-specific adaptations.
+
+---
+
+## Governance & Policies
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Maintainers](MAINTAINERS.md)
+- [Adopters](ADOPTERS.md) — please add verifiable references when your usage becomes public.
+
+> **Note:** Update the OpenSSF Best Practices badge once a project ID is issued (replace `00000` with the assigned identifier).
 
 ---
 
 ## License
 
-Licensed under your choice of:
-* **MIT License** ([LICENSE-MIT](LICENSE-MIT))
+Licensed under the terms of the [Apache License, Version 2.0](LICENSE).

@@ -83,5 +83,5 @@ strip = false  # Keep symbols for profiler
 [workspace.package]
 edition = "2021"
 version = "0.1.0"
-authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
+authors = ["Nico Arqueros (Shinkai Labs) <nico@shinkai.com>"]
 rust-version = "1.88"

@@ -1,6 +1,6 @@
-# Neo Lattice System Architecture (IVC with On‑Demand SNARK Emission)
+# Nightstream Lattice System Architecture (IVC with On‑Demand SNARK Emission)
 
-This document describes the high‑level architecture of Neo’s lattice SNARK pipeline, with emphasis on **Incrementally Verifiable Computation (IVC)** implemented via a **public‑ρ embedded verifier (EV)** and **on‑demand SNARK emission**. The pipeline separates **fast per‑step accumulation** from **expensive compression** (Spartan2/SuperSpartan), allowing you to emit proofs *every step*, *at checkpoints*, or only *once at the end*.
+This document describes the high‑level architecture of Nightstream's lattice SNARK pipeline, with emphasis on **Incrementally Verifiable Computation (IVC)** implemented via a **public‑ρ embedded verifier (EV)** and **on‑demand SNARK emission**. The pipeline separates **fast per‑step accumulation** from **expensive compression** (Spartan2/SuperSpartan), allowing you to emit proofs *every step*, *at checkpoints*, or only *once at the end*.
 
 ---
 
@@ -14,7 +14,7 @@ This document describes the high‑level architecture of Neo’s lattice SNARK p
 | + Private Witness w         |
 +-----------------------------+
             |
-            v  (External to Neo)
+            v  (External to Nightstream)
 +-----------------------------+
 | Arithmetization to CCS/MCS  |
 | - Define CCS structure s    |
@@ -127,7 +127,7 @@ This document describes the high‑level architecture of Neo’s lattice SNARK p
 * Encode the CCS into a **Q polynomial** and prove its correct evaluation via **sumcheck** over the hypercube.
 * Outputs **k ME claims** (matrix extension claims) representing multilinear evaluations.
 
-**Optional memory arguments** (compatible with Neo):
+**Optional memory arguments** (compatible with Nightstream):
 
 * **Shout**: read‑only lookup folding
 * **Twist**: read/write memory folding

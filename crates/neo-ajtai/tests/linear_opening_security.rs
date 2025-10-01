@@ -46,15 +46,3 @@ fn linear_opening_produces_correct_evaluation() {
     // Verification of linear relations must be done via neo_fold::verify_linear (Π_RLC)
     // which provides the actual cryptographic soundness guarantees.
 }
-
-// REMOVED: Pointless test that just asserts true
-// 
-// The API design is enforced by:
-// 1. Only exporting open_linear (not verify_linear) in lib.rs
-// 2. Documentation clearly directing users to neo_fold::verify_linear
-// 3. Integration tests demonstrating correct usage pattern
-//
-// If verify_linear were accidentally added, it would be caught by:
-// - API review process
-// - Integration tests failing
-// - Documentation being inconsistent

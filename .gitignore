@@ -22,3 +22,4 @@ fib_proof_1000.bin
 fib_proof_10.bin
 test_bundled.bin
 test_lean.bin
+profile.json.gz

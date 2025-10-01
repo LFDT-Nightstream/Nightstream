@@ -1,6 +1,6 @@
-# Neo Red-Team Security Tests
+# neo-redteam-tests
 
-Security-focused tests designed to detect vulnerabilities and verify that exploit attempts are properly rejected by the Neo protocol.
+Security-focused tests designed to detect vulnerabilities and verify that exploit attempts are properly rejected by the Nightstream protocol.
 
 ## Running Tests
 

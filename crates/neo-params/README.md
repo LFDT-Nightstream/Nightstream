@@ -1,6 +1,6 @@
 # neo-params
 
-Typed parameter sets with validation and security estimates for Neo protocol.
+Typed parameter sets with validation and security estimates for Nightstream protocol.
 
 ## Surface
 - `NeoParams` struct with typed presets for different security levels and field choices.

@@ -3,6 +3,7 @@ name = "neo-ccs"
 edition = { workspace = true }
 version = { workspace = true }
 authors = { workspace = true }
+license = "Apache-2.0"
 
 [dependencies]
 neo-math = { path = "../neo-math" }

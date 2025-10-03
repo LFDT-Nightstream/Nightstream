@@ -20,6 +20,7 @@ use neo_ajtai::AjtaiSModule;
 // Centralized transcript
 use neo_transcript::{Transcript, Poseidon2Transcript};
 use neo_transcript::labels as tr_labels;
+use neo_math::{Rq, cf_inv, SAction};
 
 // (moved) Domain tags now live in neo-transcript::labels
 
@@ -2667,6 +2668,45 @@ pub fn verify_ivc_step_folding(
         #[cfg(feature = "neo-logs")]
         eprintln!("❌ Parent-level ME consistency failed");
         return Ok(false);
+    }
+
+    // 8) Cross-link Π‑CCS outputs to the parent ME: recombine Π‑CCS y via ρ and 
+    //    require the scalars match the parent ME (which DEC/tie bound to Z).
+    {
+        let rhos_ring: Vec<Rq> = folding
+            .pi_rlc_proof
+            .rho_elems
+            .iter()
+            .map(|coeffs| cf_inv(*coeffs))
+            .collect();
+        // Recombine y vectors per matrix index j using S-action
+        let t = folding.pi_ccs_outputs.get(0).map(|m| m.y.len()).unwrap_or(0);
+        let d = neo_math::D;
+        let mut y_parent_vecs: Vec<Vec<neo_math::K>> = vec![vec![neo_math::K::ZERO; d]; t];
+        for (rho, me) in rhos_ring.iter().zip(folding.pi_ccs_outputs.iter()) {
+            let s_act = SAction::from_ring(*rho);
+            for j in 0..t {
+                let yj_rot = s_act
+                    .apply_k_vec(&me.y[j])
+                    .map_err(|_| anyhow::anyhow!("S-action dim mismatch for y[j]"))?;
+                for r in 0..d { y_parent_vecs[j][r] += yj_rot[r]; }
+            }
+        }
+        // Compute y_scalars from recombined y vectors (base-b powers)
+        let mut pow_b_f = vec![F::ONE; d];
+        for i in 1..d { pow_b_f[i] = pow_b_f[i-1] * F::from_u64(params.b as u64); }
+        let pow_b_k: Vec<neo_math::K> = pow_b_f.into_iter().map(neo_math::K::from).collect();
+        let mut y_scalars_from_rlc = vec![neo_math::K::ZERO; t];
+        for j in 0..t {
+            let mut acc = neo_math::K::ZERO;
+            for r in 0..d { acc += y_parent_vecs[j][r] * pow_b_k[r]; }
+            y_scalars_from_rlc[j] = acc;
+        }
+        if y_scalars_from_rlc != me_parent.y_scalars {
+            #[cfg(feature = "neo-logs")]
+            eprintln!("❌ Cross-link failed: RLC-recombined y_scalars != parent y_scalars");
+            return Ok(false);
+        }
     }
 
     Ok(true)

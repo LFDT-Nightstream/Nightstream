@@ -129,3 +129,105 @@ fn ivc_proof_with_invalid_witness_from_generation() {
     assert!(!ok, "IVC verification accepted a proof generated with an invalid witness!");
 }
 
+#[test]
+fn ivc_cross_link_vulnerability_pi_ccs_rhs_vs_parent_me() {
+    // THE VULNERABILITY (from security review):
+    // Π-CCS RHS ME (pi_ccs_outputs[1]) is not cross-linked to the parent ME
+    // (which is bound to Z via check_me_consistency).
+    //
+    // A sophisticated malicious prover could:
+    // 1. Generate Π-CCS proof with manipulated y_scalars (makes terminal check pass)
+    // 2. Provide digit witnesses/ME that are self-consistent (passes tie check)  
+    // 3. Exploit: NO check that pi_ccs_outputs[1].y_scalars == me_parent.y_scalars
+    // 4. Verifier accepts even though witness doesn't satisfy the CCS
+    
+    let step_ccs = tiny_r1cs_to_ccs();
+    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+
+    let prev_acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
+
+    let binding = StepBindingSpec {
+        y_step_offsets: vec![],
+        x_witness_indices: vec![],
+        y_prev_witness_indices: vec![],
+        const1_witness_index: 0,
+    };
+
+    // Start with a VALID witness to get a valid proof structure
+    let valid_witness = vec![F::ONE, F::ONE];
+    let extractor = LastNExtractor { n: 0 };
+
+    let valid_proof_res = prove_ivc_step_with_extractor(
+        &params,
+        &step_ccs,
+        &valid_witness,
+        &prev_acc,
+        prev_acc.step,
+        None,
+        &extractor,
+        &binding,
+    ).expect("Valid proof generation should succeed");
+
+    // Now construct a MALICIOUS proof that exploits the missing cross-link:
+    // We'll tamper with the Π-CCS RHS ME's y_scalars to different values
+    // while keeping the digit witnesses and digit ME instances unchanged.
+    //
+    // Without the cross-link check, the verifier will:
+    // - Accept the Π-CCS proof (because we'll keep it internally consistent OR it fails earlier)
+    // - Accept the tie check (because digit ME and digit witnesses match)
+    // - But NOT check that pi_ccs_outputs[1].y_scalars matches the parent ME's y_scalars
+    
+    let malicious_proof = {
+        let mut malicious_folding = valid_proof_res.proof.folding_proof.clone()
+            .expect("Folding proof should exist");
+        
+        // Tamper with the RHS ME's y_scalars
+        if malicious_folding.pi_ccs_outputs.len() >= 2 {
+            let rhs_me = &mut malicious_folding.pi_ccs_outputs[1];
+            
+            // Change the y_scalars to wrong values
+            // This breaks the tie relationship: these y_scalars won't match
+            // what you'd compute from the actual digit witnesses
+            if !rhs_me.y_scalars.is_empty() {
+                rhs_me.y_scalars[0] += neo_math::K::from(F::from_u64(999));
+            }
+        }
+        
+        // Construct the malicious IvcProof with tampered pi_ccs_outputs
+        neo::ivc::IvcProof {
+            step_proof: valid_proof_res.proof.step_proof.clone(),
+            next_accumulator: valid_proof_res.proof.next_accumulator.clone(),
+            step: valid_proof_res.proof.step,
+            metadata: valid_proof_res.proof.metadata.clone(),
+            step_public_input: valid_proof_res.proof.step_public_input.clone(),
+            step_augmented_public_input: valid_proof_res.proof.step_augmented_public_input.clone(),
+            prev_step_augmented_public_input: valid_proof_res.proof.prev_step_augmented_public_input.clone(),
+            step_rho: valid_proof_res.proof.step_rho,
+            step_y_prev: valid_proof_res.proof.step_y_prev.clone(),
+            step_y_next: valid_proof_res.proof.step_y_next.clone(),
+            c_step_coords: valid_proof_res.proof.c_step_coords.clone(),
+            me_instances: valid_proof_res.proof.me_instances.clone(), // Unchanged
+            digit_witnesses: valid_proof_res.proof.digit_witnesses.clone(), // Unchanged
+            folding_proof: Some(malicious_folding), // TAMPERED folding proof
+        }
+    };
+
+    // Attempt verification
+    let ok = verify_ivc_step(
+        &step_ccs,
+        &malicious_proof,
+        &prev_acc,
+        &binding,
+        &params,
+        None,
+    ).expect("verify_ivc_step should not error");
+
+    if ok {
+        // TEST FAILS - VULNERABILITY EXISTS!
+        panic!(
+            "The verifier ACCEPTED a malicious proof with tampered Π-CCS RHS y_scalars!"
+        );
+    }
+    
+    println!("✅ Test PASSED: Verifier correctly REJECTED the tampered proof.");
+}

@@ -1056,7 +1056,10 @@ pub fn pi_ccs_verify(
             let c = me_inst.y_scalars[2];
             expected += batch_coeffs.alphas[inst_idx] * (a * b - c);
         }
+        // First, transcript consistency: running sum must equal terminal claim
         if running_sum != wr * expected { return Ok(false); }
+        // Soundness: terminal residual must vanish
+        if wr * expected != K::ZERO { return Ok(false); }
     } else {
         // Generic CCS
         if !out_me.iter().all(|me| me.y_scalars.len() == s.t()) { return Ok(false); }
@@ -1065,7 +1068,10 @@ pub fn pi_ccs_verify(
             let f_eval = s.f.eval_in_ext::<K>(&me_inst.y_scalars);
             expected_q_r += batch_coeffs.alphas[inst_idx] * f_eval;
         }
+        // First, transcript consistency: running sum must equal terminal claim
         if running_sum != expected_q_r { return Ok(false); }
+        // Soundness: terminal residual must vanish
+        if expected_q_r != K::ZERO { return Ok(false); }
     }
 
     // Optionally verify v_j = M_j^T χ_r if carried (disabled to keep verifier lightweight)

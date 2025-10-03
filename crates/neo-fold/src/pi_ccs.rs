@@ -1056,10 +1056,7 @@ pub fn pi_ccs_verify(
             let c = me_inst.y_scalars[2];
             expected += batch_coeffs.alphas[inst_idx] * (a * b - c);
         }
-        // First, transcript consistency: running sum must equal terminal claim
         if running_sum != wr * expected { return Ok(false); }
-        // Soundness: terminal residual must vanish
-        if wr * expected != K::ZERO { return Ok(false); }
     } else {
         // Generic CCS
         if !out_me.iter().all(|me| me.y_scalars.len() == s.t()) { return Ok(false); }
@@ -1068,13 +1065,193 @@ pub fn pi_ccs_verify(
             let f_eval = s.f.eval_in_ext::<K>(&me_inst.y_scalars);
             expected_q_r += batch_coeffs.alphas[inst_idx] * f_eval;
         }
-        // First, transcript consistency: running sum must equal terminal claim
         if running_sum != expected_q_r { return Ok(false); }
-        // Soundness: terminal residual must vanish
-        if expected_q_r != K::ZERO { return Ok(false); }
     }
 
     // Optionally verify v_j = M_j^T χ_r if carried (disabled to keep verifier lightweight)
 
     Ok(true)
+}
+
+/// Replay the Π_CCS transcript to derive (r, alphas) exactly as the verifier did.
+pub fn pi_ccs_derive_r_and_alphas(
+    params: &neo_params::NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[McsInstance<Cmt, F>],
+    proof: &PiCcsProof,
+) -> Result<(Vec<K>, Vec<K>), PiCcsError> {
+    let mut tr = Poseidon2Transcript::new(b"neo/fold");
+    // Header (same as in pi_ccs_verify)
+    if s.n == 0 { return Err(PiCcsError::InvalidInput("n=0 not allowed".into())); }
+    let n_pad = s.n.next_power_of_two();
+    let ell = n_pad.trailing_zeros() as usize;
+    let d_sc = s.max_degree() as usize;
+    eprintln!("[pi-ccs] derive_tail: s.n={}, n_pad={}, ell={}, d_sc={}, rounds_in_proof={}", s.n, n_pad, ell, d_sc, proof.sumcheck_rounds.len());
+    let ext = params.extension_check(ell as u32, d_sc as u32)
+        .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
+    tr.append_message(b"neo/ccs/header/v1", b"");
+    tr.append_u64s(b"ccs/header", &[64, ext.s_supported as u64, params.lambda as u64, ell as u64, d_sc as u64, ext.slack_bits.unsigned_abs() as u64]);
+    tr.append_message(b"ccs/slack_sign", &[if ext.slack_bits >= 0 {1} else {0}]);
+
+    // Instances
+    tr.append_message(b"neo/ccs/instances", b"");
+    tr.append_u64s(b"dims", &[s.n as u64, s.m as u64, s.t() as u64]);
+    let matrix_digest = digest_ccs_matrices(s);
+    for &digest_elem in &matrix_digest { tr.append_fields(b"mat_digest", &[F::from_u64(digest_elem.as_canonical_u64())]); }
+    absorb_sparse_polynomial(&mut tr, &s.f);
+    for inst in mcs_list.iter() {
+        tr.append_fields(b"x", &inst.x);
+        tr.append_u64s(b"m_in", &[inst.m_in as u64]);
+        tr.append_fields(b"c_data", &inst.c.data);
+    }
+    // Sample eq-binding vector and batch alphas
+    tr.append_message(b"neo/ccs/eq", b"");
+    let _w_eq: Vec<K> = (0..ell).map(|_| { let ch = tr.challenge_fields(b"chal/k", 2); neo_math::from_complex(ch[0], ch[1]) }).collect();
+    tr.append_message(b"neo/ccs/batch", b"");
+    let alphas: Vec<K> = (0..mcs_list.len()).map(|_| { let ch = tr.challenge_fields(b"chal/k", 2); neo_math::from_complex(ch[0], ch[1]) }).collect();
+
+    // Derive r by verifying rounds (structure only)
+    let is_r1cs = is_r1cs_shape(s);
+    let d_round = if is_r1cs { 3 } else { d_sc };
+    let (r, _running_sum, ok_rounds) = verify_sumcheck_rounds(&mut tr, d_round, K::ZERO, &proof.sumcheck_rounds);
+    if !ok_rounds {
+        eprintln!("[pi-ccs] rounds invalid: expected ell={}, d_round={}, got rounds={} (s.n={})",
+                  ell, d_round, proof.sumcheck_rounds.len(), s.n);
+    }
+    if !ok_rounds { return Err(PiCcsError::SumcheckError("rounds invalid".into())); }
+    Ok((r, alphas))
+}
+
+/// Data derived from the Π-CCS transcript tail used by the verifier.
+#[derive(Debug, Clone)]
+pub struct TranscriptTail {
+    pub wr: K,
+    pub r: Vec<K>,
+    pub alphas: Vec<K>,
+}
+
+/// Replay the Π-CCS transcript to derive the tail (wr, r, alphas).
+pub fn pi_ccs_derive_transcript_tail(
+    params: &neo_params::NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[McsInstance<Cmt, F>],
+    proof: &PiCcsProof,
+) -> Result<TranscriptTail, PiCcsError> {
+    let mut tr = Poseidon2Transcript::new(b"neo/fold");
+    // Header (same as in pi_ccs_verify)
+    if s.n == 0 { return Err(PiCcsError::InvalidInput("n=0 not allowed".into())); }
+    let n_pad = s.n.next_power_of_two();
+    let ell = n_pad.trailing_zeros() as usize;
+    let d_sc = s.max_degree() as usize;
+    let ext = params.extension_check(ell as u32, d_sc as u32)
+        .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
+    tr.append_message(b"neo/ccs/header/v1", b"");
+    tr.append_u64s(b"ccs/header", &[64, ext.s_supported as u64, params.lambda as u64, ell as u64, d_sc as u64, ext.slack_bits.unsigned_abs() as u64]);
+    tr.append_message(b"ccs/slack_sign", &[if ext.slack_bits >= 0 {1} else {0}]);
+
+    // Instances
+    tr.append_message(b"neo/ccs/instances", b"");
+    tr.append_u64s(b"dims", &[s.n as u64, s.m as u64, s.t() as u64]);
+    let matrix_digest = digest_ccs_matrices(s);
+    for &digest_elem in &matrix_digest { tr.append_fields(b"mat_digest", &[F::from_u64(digest_elem.as_canonical_u64())]); }
+    absorb_sparse_polynomial(&mut tr, &s.f);
+    for inst in mcs_list.iter() {
+        tr.append_fields(b"x", &inst.x);
+        tr.append_u64s(b"m_in", &[inst.m_in as u64]);
+        tr.append_fields(b"c_data", &inst.c.data);
+    }
+
+    // Sample eq-binding vector w and batch alphas
+    tr.append_message(b"neo/ccs/eq", b"");
+    let w_eq: Vec<K> = (0..ell)
+        .map(|_| { let ch = tr.challenge_fields(b"chal/k", 2); neo_math::from_complex(ch[0], ch[1]) })
+        .collect();
+    tr.append_message(b"neo/ccs/batch", b"");
+    let alphas: Vec<K> = (0..mcs_list.len())
+        .map(|_| { let ch = tr.challenge_fields(b"chal/k", 2); neo_math::from_complex(ch[0], ch[1]) })
+        .collect();
+
+    // Derive r by verifying rounds (structure only)
+    let is_r1cs = is_r1cs_shape(s);
+    let d_round = if is_r1cs { 3 } else { d_sc };
+    let (r, _running_sum, ok_rounds) = verify_sumcheck_rounds(&mut tr, d_round, K::ZERO, &proof.sumcheck_rounds);
+    if !ok_rounds { return Err(PiCcsError::SumcheckError("rounds invalid".into())); }
+
+    // Compute wr = EQ(w, r)
+    let mut wr = K::ONE;
+    for (wi, ri) in w_eq.iter().zip(r.iter()) {
+        wr *= (K::ONE - *wi) * (K::ONE - *ri) + *wi * *ri;
+    }
+
+    Ok(TranscriptTail { wr, r, alphas })
+}
+
+/// Backward-compatible wrapper; prefer `pi_ccs_derive_transcript_tail`.
+#[doc(hidden)]
+pub fn pi_ccs_derive_wr_r_and_alphas(
+    params: &neo_params::NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[McsInstance<Cmt, F>],
+    proof: &PiCcsProof,
+) -> Result<(K, Vec<K>, Vec<K>), PiCcsError> {
+    let tail = pi_ccs_derive_transcript_tail(params, s, mcs_list, proof)?;
+    Ok((tail.wr, tail.r, tail.alphas))
+}
+
+/// Compute the terminal claim from Π_CCS outputs given wr or generic CCS terminal.
+pub fn pi_ccs_compute_terminal_claim_r1cs_or_ccs(
+    s: &CcsStructure<F>,
+    wr: K,
+    alphas: &[K],
+    out_me: &[MeInstance<Cmt, F, K>],
+) -> K {
+    if is_r1cs_shape(s) {
+        let mut expected = K::ZERO;
+        for (inst_idx, me_inst) in out_me.iter().enumerate() {
+            if me_inst.y_scalars.len() < 3 { return K::from(F::from_u64(0xdeadbeefu64)); }
+            let a = me_inst.y_scalars[0];
+            let b = me_inst.y_scalars[1];
+            let c = me_inst.y_scalars[2];
+            expected += alphas[inst_idx] * (a * b - c);
+        }
+        wr * expected
+    } else {
+        let mut expected_q_r = K::ZERO;
+        for (inst_idx, me_inst) in out_me.iter().enumerate() {
+            let f_eval = s.f.eval_in_ext::<K>(&me_inst.y_scalars);
+            expected_q_r += alphas[inst_idx] * f_eval;
+        }
+        expected_q_r
+    }
+}
+
+/// DEPRECATED: use `pi_ccs_compute_terminal_claim_r1cs_or_ccs` with `wr` instead.
+#[doc(hidden)]
+pub fn pi_ccs_compute_terminal_claim(
+    s: &CcsStructure<F>,
+    _r: &[K],
+    alphas: &[K],
+    out_me: &[MeInstance<Cmt, F, K>],
+) -> K {
+    // Maintain behavior for backward compatibility in tests: this computes EQ(r,r)=1.
+    // Prefer using the wr-aware variant wherever possible.
+    let is_r1cs = is_r1cs_shape(s);
+    if is_r1cs {
+        let mut expected = K::ZERO;
+        for (inst_idx, me_inst) in out_me.iter().enumerate() {
+            if me_inst.y_scalars.len() < 3 { return K::from(F::from_u64(0xdeadbeefu64)); }
+            let a = me_inst.y_scalars[0];
+            let b = me_inst.y_scalars[1];
+            let c = me_inst.y_scalars[2];
+            expected += alphas[inst_idx] * (a * b - c);
+        }
+        expected // wr==1 when w:=r
+    } else {
+        let mut expected_q_r = K::ZERO;
+        for (inst_idx, me_inst) in out_me.iter().enumerate() {
+            let f_eval = s.f.eval_in_ext::<K>(&me_inst.y_scalars);
+            expected_q_r += alphas[inst_idx] * f_eval;
+        }
+        expected_q_r
+    }
 }

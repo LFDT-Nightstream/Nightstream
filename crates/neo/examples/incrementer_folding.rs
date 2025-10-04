@@ -124,10 +124,10 @@ fn main() -> Result<()> {
 
     // Binding spec for witness layout: [1, prev_x, delta, next_x]
     // In NIVC mode, app inputs (which, step_io, lanes_root) are transcript-only and do not map
-    // one-to-one to witness indices. Leave x_witness_indices empty to avoid mismatches.
+    // one-to-one to witness indices. Leave step_program_input_witness_indices empty to avoid mismatches.
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],                // next_x at index 3
-        x_witness_indices: vec![],             // transcript-only app inputs in NIVC
+        step_program_input_witness_indices: vec![],             // transcript-only app inputs in NIVC
         y_prev_witness_indices: vec![],        // No binding to EV y_prev in this example
         const1_witness_index: 0,
     };

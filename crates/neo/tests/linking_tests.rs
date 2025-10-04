@@ -26,7 +26,7 @@ fn ivc_linking_rejects_mismatched_prev_augmented_x() -> anyhow::Result<()> {
     let step_ccs = trivial_step_ccs(y_len);
     let binding = neo::ivc::StepBindingSpec {
         y_step_offsets: vec![1],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -73,7 +73,7 @@ fn nivc_lane_local_linking_rejects_mismatch() -> anyhow::Result<()> {
     let ccs = trivial_step_ccs(y_len);
     let binding = neo::ivc::StepBindingSpec {
         y_step_offsets: vec![1],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -109,7 +109,7 @@ fn ivc_linking_accepts_matched_prev_augmented_x() -> anyhow::Result<()> {
     let step_ccs = trivial_step_ccs(y_len);
     let binding = neo::ivc::StepBindingSpec {
         y_step_offsets: vec![1],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

@@ -334,7 +334,7 @@ pub fn finalize_nivc_chain_with_options(
         step_x.len(),
         &spec.binding.y_step_offsets,
         &spec.binding.y_prev_witness_indices,
-        &spec.binding.x_witness_indices,
+        &spec.binding.step_program_input_witness_indices,
         y_len,
         spec.binding.const1_witness_index,
         None,
@@ -753,7 +753,7 @@ pub fn finalize_nivc_chain_with_options(
 
         // 3) Linkage: bind specific undigitized witness positions to provided step IO values.
         let linkage = Some(neo_spartan_bridge::IvcLinkageInputs {
-            x_indices_abs: spec.binding.x_witness_indices.clone(),
+            x_indices_abs: spec.binding.step_program_input_witness_indices.clone(),
             y_prev_indices_abs: spec.binding.y_prev_witness_indices.clone(),
             const1_index_abs: None, // const-1 binding is enforced by CCS; avoid double-binding here
             step_io: last.step_io.clone(),

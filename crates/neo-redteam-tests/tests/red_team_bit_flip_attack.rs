@@ -52,7 +52,7 @@ fn test_single_bit_flip_in_rho() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = ivc::StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -136,7 +136,7 @@ fn test_multiple_bit_flips_in_rho() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = ivc::StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

@@ -78,7 +78,7 @@ fn test_public_io_digest_matches_augmented_pi() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // witness[3] is next_x
-        x_witness_indices: vec![2],     // witness[2] is delta = x  
+        step_program_input_witness_indices: vec![2],     // witness[2] is delta = x  
         y_prev_witness_indices: vec![], // unused for this test
         const1_witness_index: 0,
     };
@@ -146,8 +146,8 @@ fn test_verifier_rejects_when_augmented_pi_changes_but_x_same() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
-        y_step_offsets: vec![3],
-        x_witness_indices: vec![2], 
+        y_step_offsets: vec![3],   
+        step_program_input_witness_indices: vec![2], 
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -227,8 +227,8 @@ fn test_context_digest_changes_when_any_bound_field_changes() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
-        y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        y_step_offsets: vec![3],   
+        step_program_input_witness_indices: vec![2], 
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -302,7 +302,7 @@ fn test_rho_challenge_binding() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -370,7 +370,7 @@ fn test_step_index_binding_prevents_replay() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -467,7 +467,7 @@ fn test_ccs_domain_separation() -> Result<()> {
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -535,7 +535,7 @@ fn test_verifier_accepts_with_mismatched_prev_acc_vulnerability() -> Result<()> 
     // This is what real IVC should do - bind the previous state
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // next_x at witness[3]
-        x_witness_indices: vec![2],     // delta at witness[2]  
+        step_program_input_witness_indices: vec![2],     // delta at witness[2]  
         y_prev_witness_indices: vec![1], // <-- BIND prev state to witness[1]!
         const1_witness_index: 0,
     };
@@ -627,7 +627,7 @@ fn test_vulnerability_when_y_prev_not_bound() -> Result<()> {
     // VULNERABILITY: Do NOT bind previous state (like most existing tests)
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // next_x at witness[3]
-        x_witness_indices: vec![2],     // delta at witness[2]  
+        step_program_input_witness_indices: vec![2],     // delta at witness[2]  
         y_prev_witness_indices: vec![], // <-- NO BINDING! This is the vulnerability
         const1_witness_index: 0,
     };
@@ -717,7 +717,7 @@ fn test_context_digest_provides_automatic_y_prev_binding() -> Result<()> {
     // Use minimal binding (no explicit y_prev binding in witness)
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![2],     
+        step_program_input_witness_indices: vec![2],     
         y_prev_witness_indices: vec![], // No explicit witness binding
         const1_witness_index: 0,
     };
@@ -804,7 +804,7 @@ fn test_step_index_manipulation_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -891,7 +891,7 @@ fn test_public_input_prefix_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -979,7 +979,7 @@ fn test_public_io_malleability_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -1088,7 +1088,7 @@ fn test_zero_rho_bypass_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -1179,7 +1179,7 @@ fn test_coordinated_rho_coordinates_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

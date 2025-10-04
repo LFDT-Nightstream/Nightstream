@@ -37,7 +37,7 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
     let step_ccs = trivial_step_ccs(y_len);
     let binding = ivc::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
-        x_witness_indices: vec![],          // no app x in this trivial example
+        step_program_input_witness_indices: vec![],          // no app x in this trivial example
         y_prev_witness_indices: vec![],     // not needed for this test
         const1_witness_index: 0,
     };
@@ -140,7 +140,7 @@ fn fold_roundtrip_rejects_mutated_rhs_commitment() -> anyhow::Result<()> {
     let step_ccs = trivial_step_ccs(y_len);
     let binding = ivc::StepBindingSpec {
         y_step_offsets: vec![1],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

@@ -94,7 +94,7 @@ fn test_fibonacci_integration() -> Result<()> {
     
     let binding_spec = neo::ivc::StepBindingSpec {
         y_step_offsets: vec![4],           // b_next (index 4) is our step output
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

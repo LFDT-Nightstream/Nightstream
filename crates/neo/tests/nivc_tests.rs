@@ -32,7 +32,7 @@ fn base_case_not_self_fold_anymore() -> anyhow::Result<()> {
     let step_ccs = trivial_step_ccs_rows(y_len, 1);
     let binding = neo::ivc::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -88,7 +88,7 @@ fn nivc_mixed_circuits_roundtrip() -> anyhow::Result<()> {
 
     let bind_a = neo::ivc::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -136,7 +136,7 @@ fn nivc_enforces_selector_and_root_and_step_io() -> anyhow::Result<()> {
     let ccs_b = trivial_step_ccs_rows(y_len, 2);
     let binding = neo::ivc::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

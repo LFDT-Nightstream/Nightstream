@@ -194,8 +194,8 @@ impl Commitment {
 pub struct StepBindingSpec {
     /// Positions of y_step values in the step witness (for linked witness binding)
     pub y_step_offsets: Vec<usize>,
-    /// Positions of step_x values in the step witness (for transcript binding)  
-    pub x_witness_indices: Vec<usize>,
+    /// Positions of step program-supplied public inputs in the step witness (binds the tail of step_x)
+    pub step_program_input_witness_indices: Vec<usize>,
     /// Positions of y_prev (state input) in the step witness - must be length y_len
     pub y_prev_witness_indices: Vec<usize>,
     /// Index of the constant-1 column in the step witness (for stitching constraints)
@@ -258,7 +258,7 @@ pub struct IvcStepInput<'a> {
     /// **SECURITY**: Trusted binding specification (NOT from prover!)
     pub binding_spec: &'a StepBindingSpec,
     /// If true, app inputs in step_x are transcript-only and are NOT read from the witness.
-    /// In this mode, `x_witness_indices` may be empty even when step_x has app inputs (NIVC).
+    /// In this mode, `step_program_input_witness_indices` may be empty even when step_x has app inputs (NIVC).
     pub transcript_only_app_inputs: bool,
     /// Optional: the previous step's augmented public input [step_x || ρ || y_prev || y_next].
     /// If provided, it is propagated into the proof's `prev_step_augmented_public_input` to
@@ -308,7 +308,7 @@ impl StepOutputExtractor for IndexExtractor {
 /// Build a canonical zero MCS instance for a given shape (m_in, m_step) to start a fold chain.
 ///
 /// This avoids the unsound base case where the prover folded the step with itself.
-fn zero_mcs_instance_for_shape(
+pub fn zero_mcs_instance_for_shape(
     m_in: usize,
     m_step: usize,
     const1_witness_index: Option<usize>,
@@ -335,8 +335,38 @@ fn zero_mcs_instance_for_shape(
     }
 
     // Use actual commitment for the base-case Z to satisfy c = L(Z)
-    let l = neo_ajtai::AjtaiSModule::from_global_for_dims(d, m_step)
-        .map_err(|e| anyhow::anyhow!("AjtaiSModule unavailable for (d={}, m={}): {}", d, m_step, e))?;
+    // Ensure Ajtai PP exists for (d, m_step). In testing, auto-ensure; in prod, error out.
+    let l = match neo_ajtai::AjtaiSModule::from_global_for_dims(d, m_step) {
+        Ok(l) => l,
+        Err(_) => {
+            #[cfg(not(feature = "testing"))]
+            {
+                return Err(anyhow::anyhow!(
+                    "Ajtai PP missing for dims (D={}, m={}); register CRS/PP before proving base case",
+                    d, m_step
+                ));
+            }
+            #[cfg(feature = "testing")]
+            {
+                let kappa_guess = neo_ajtai::get_global_pp().map(|pp| pp.kappa).unwrap_or(16usize);
+                super::ensure_ajtai_pp_for_dims(d, m_step, || {
+                    use rand::{RngCore, SeedableRng};
+                    use rand::rngs::StdRng;
+                    let mut rng = if std::env::var("NEO_DETERMINISTIC").is_ok() {
+                        StdRng::from_seed([42u8; 32])
+                    } else {
+                        let mut seed = [0u8; 32];
+                        rand::rng().fill_bytes(&mut seed);
+                        StdRng::from_seed(seed)
+                    };
+                    let pp = crate::ajtai_setup(&mut rng, d, kappa_guess, m_step)?;
+                    neo_ajtai::set_global_pp(pp).map_err(anyhow::Error::from)
+                })?;
+                neo_ajtai::AjtaiSModule::from_global_for_dims(d, m_step)
+                    .map_err(|e| anyhow::anyhow!("AjtaiSModule unavailable for (d={}, m={}): {}", d, m_step, e))?
+            }
+        }
+    };
     let c_zero = l.commit(&z_zero);
 
     Ok((
@@ -874,7 +904,7 @@ pub fn prove_ivc_step_chained(
         None => acc_digest_fields,
     };
 
-    let step_data = build_step_data_with_x(&input.prev_accumulator, input.step, &step_x);
+    let step_data = build_step_transcript_data(&input.prev_accumulator, input.step, &step_x);
     let step_digest = create_step_digest(&step_data);
 
     // 2) Validate binding metadata
@@ -887,14 +917,14 @@ pub fn prove_ivc_step_chained(
     // Only require binding for the app-input tail of step_x
     let digest_len = compute_accumulator_digest_fields(&input.prev_accumulator)?.len();
     let app_len = step_x.len().saturating_sub(digest_len);
-    let x_bind_len = input.binding_spec.x_witness_indices.len();
+    let x_bind_len = input.binding_spec.step_program_input_witness_indices.len();
     // SECURITY: If there are app inputs in step_x, they must be bound to witness indices
     // to prevent public input manipulation.
     if app_len > 0 && x_bind_len == 0 && !input.transcript_only_app_inputs {
-        return Err("SECURITY: x_witness_indices cannot be empty when step_x has app inputs; this would allow public input manipulation".into());
+        return Err("SECURITY: step_program_input_witness_indices cannot be empty when step_x has app inputs; this would allow public input manipulation".into());
     }
     if x_bind_len > 0 && x_bind_len != app_len {
-        return Err("x_witness_indices length must match app public input length".into());
+        return Err("step_program_input_witness_indices length must match app public input length".into());
     }
 
     let y_len = input.prev_accumulator.y_compact.len();
@@ -933,7 +963,7 @@ pub fn prove_ivc_step_chained(
     
     // Build the final public input structure for dimension calculation
     let temp_y_next = input.prev_accumulator.y_compact.clone(); // placeholder
-    let final_public_input = build_linked_augmented_public_input(
+    let final_public_input = build_augmented_public_input_for_step(
         &step_x, F::ONE, &input.prev_accumulator.y_compact, &temp_y_next
     );
     
@@ -961,7 +991,7 @@ pub fn prove_ivc_step_chained(
 
     // Build pre-commit vector: same structure as final but with ρ=0 for EV part
     // (equivalent to committing only to [step_x || step_witness] under Pattern B semantics)
-    let pre_public_input = build_linked_augmented_public_input(
+    let pre_public_input = build_augmented_public_input_for_step(
         &step_x, F::ZERO, &input.prev_accumulator.y_compact, &temp_y_next
     );
     let pre_witness = build_linked_augmented_witness(
@@ -1022,7 +1052,7 @@ pub fn prove_ivc_step_chained(
         .zip(input.y_step.iter())
         .map(|(&p, &s)| p + rho * s)
         .collect();
-    let step_public_input = build_linked_augmented_public_input(
+    let step_public_input = build_augmented_public_input_for_step(
         &step_x, rho, &input.prev_accumulator.y_compact, &y_next
     );
 
@@ -1081,7 +1111,7 @@ pub fn prove_ivc_step_chained(
         step_x.len(),
         &input.binding_spec.y_step_offsets,
         &input.binding_spec.y_prev_witness_indices,
-        &input.binding_spec.x_witness_indices,
+        &input.binding_spec.step_program_input_witness_indices,
         y_len,
         input.binding_spec.const1_witness_index,
         rlc_binder, // RLC binder enabled for soundness
@@ -1248,7 +1278,7 @@ pub fn prove_ivc_step_chained(
         step_x.len(),
         &input.binding_spec.y_step_offsets,
         &input.binding_spec.y_prev_witness_indices,
-        &input.binding_spec.x_witness_indices,
+        &input.binding_spec.step_program_input_witness_indices,
         y_len,
         input.binding_spec.const1_witness_index,
     ).map_err(|e| anyhow::anyhow!("Failed to build digest CCS: {}", e))?;
@@ -1345,7 +1375,7 @@ pub fn verify_ivc_step(
     }
 
     // 1. Reconstruct the augmented CCS that was used for proving
-    let step_data = build_step_data_with_x(prev_accumulator, ivc_proof.step, &ivc_proof.step_public_input);
+    let step_data = build_step_transcript_data(prev_accumulator, ivc_proof.step, &ivc_proof.step_public_input);
     let step_digest = create_step_digest(&step_data);
     
     // 2. Build base augmented CCS using TRUSTED binding metadata
@@ -1379,7 +1409,7 @@ pub fn verify_ivc_step(
         &binding_spec.y_step_offsets,
         rho
     );
-    let step_public_input = build_linked_augmented_public_input(
+    let step_public_input = build_augmented_public_input_for_step(
         &ivc_proof.step_public_input,
         rho,
         &prev_accumulator.y_compact,
@@ -1448,14 +1478,14 @@ pub fn verify_ivc_step(
         step_x_len,
         &binding_spec.y_step_offsets,
         &binding_spec.y_prev_witness_indices,
-        &binding_spec.x_witness_indices,
+        &binding_spec.step_program_input_witness_indices,
         y_len,
         binding_spec.const1_witness_index,
         rlc_binder, // RLC binder enabled for soundness
     )?;
     
     // 4. Build public input using the recomputed ρ
-    let public_input = build_linked_augmented_public_input(
+    let public_input = build_augmented_public_input_for_step(
         &ivc_proof.step_public_input,                 // step_x 
         rho,                                          // ρ (PUBLIC - CRITICAL!)
         &prev_accumulator.y_compact,                  // y_prev
@@ -1471,7 +1501,7 @@ pub fn verify_ivc_step(
         step_x_len,
         &binding_spec.y_step_offsets,
         &binding_spec.y_prev_witness_indices,
-        &binding_spec.x_witness_indices,
+        &binding_spec.step_program_input_witness_indices,
         y_len,
         binding_spec.const1_witness_index,
     ).map_err(|e| anyhow::anyhow!("Failed to build verifier digest CCS: {}", e))?;
@@ -1713,7 +1743,7 @@ pub struct IvcChainStepInput {
 /// - c_z_digest_prev: Previous commitment digest
 /// 
 /// This ensures ρ depends on all public data, preventing transcript malleability.
-pub fn build_step_data_with_x(accumulator: &Accumulator, step: u64, step_x: &[F]) -> Vec<F> {
+pub fn build_step_transcript_data(accumulator: &Accumulator, step: u64, step_x: &[F]) -> Vec<F> {
     let mut v = Vec::new();
     v.push(F::from_u64(step));
     // Bind step public input
@@ -1888,7 +1918,7 @@ pub fn build_augmented_ccs_linked(
     step_x_len: usize,
     y_step_offsets: &[usize],
     y_prev_witness_indices: &[usize],   
-    x_witness_indices: &[usize],        
+    step_program_input_witness_indices: &[usize],        
     y_len: usize,
     const1_witness_index: usize,
 ) -> Result<CcsStructure<F>, String> {
@@ -1897,7 +1927,7 @@ pub fn build_augmented_ccs_linked(
         step_x_len,
         y_step_offsets,
         y_prev_witness_indices,
-        x_witness_indices,
+        step_program_input_witness_indices,
         y_len,
         const1_witness_index,
         None, // No RLC binder by default
@@ -1910,7 +1940,7 @@ pub fn build_augmented_ccs_linked_with_rlc(
     step_x_len: usize,
     y_step_offsets: &[usize],
     y_prev_witness_indices: &[usize],   
-    x_witness_indices: &[usize],        
+    step_program_input_witness_indices: &[usize],        
     y_len: usize,
     const1_witness_index: usize,
     rlc_binder: Option<(Vec<F>, F)>, // (aggregated_row, rhs) for RLC constraint
@@ -1935,13 +1965,13 @@ pub fn build_augmented_ccs_linked_with_rlc(
         ));
     }
     // Allow binding only the app input tail of step_x; not the digest prefix
-    if !x_witness_indices.is_empty() && x_witness_indices.len() > step_x_len {
-        return Err(format!("x_witness_indices length {} cannot exceed step_x_len {}", x_witness_indices.len(), step_x_len));
+    if !step_program_input_witness_indices.is_empty() && step_program_input_witness_indices.len() > step_x_len {
+        return Err(format!("step_program_input_witness_indices length {} cannot exceed step_public_input_len {}", step_program_input_witness_indices.len(), step_x_len));
     }
     if const1_witness_index >= step_ccs.m {
         return Err(format!("const1_witness_index {} out of range (m={})", const1_witness_index, step_ccs.m));
     }
-    for &o in y_step_offsets.iter().chain(y_prev_witness_indices).chain(x_witness_indices) {
+    for &o in y_step_offsets.iter().chain(y_prev_witness_indices).chain(step_program_input_witness_indices) {
         if o >= step_ccs.m {
             return Err(format!("witness offset {} out of range (m={})", o, step_ccs.m));
         }
@@ -1958,7 +1988,7 @@ pub fn build_augmented_ccs_linked_with_rlc(
     //  - 1 RLC binder row (optional)            (⟨G, z⟩ = Σ r_i * c_step[i])
     let step_rows = step_ccs.n;
     let ev_rows = 2 * y_len;
-    let x_bind_rows = if x_witness_indices.is_empty() { 0 } else { step_x_len };
+    let x_bind_rows = if step_program_input_witness_indices.is_empty() { 0 } else { step_x_len };
     let prev_bind_rows = if y_prev_witness_indices.is_empty() { 0 } else { y_len };
     let rlc_rows = if rlc_binder.is_some() { 1 } else { 0 };
     let total_rows = step_rows + ev_rows + x_bind_rows + prev_bind_rows + rlc_rows;
@@ -2023,16 +2053,16 @@ pub fn build_augmented_ccs_linked_with_rlc(
         }
 
         // Binder X: step_x[i] - step_witness[x_i] = 0  (if any)
-        if !x_witness_indices.is_empty() {
-            // Bind only the last x_witness_indices.len() elements of step_x (the app inputs)
-            let bind_len = x_witness_indices.len();
+        if !step_program_input_witness_indices.is_empty() {
+            // Bind only the last step_program_input_witness_indices.len() elements of step_x (the app inputs)
+            let bind_len = step_program_input_witness_indices.len();
             let bind_start = step_x_len - bind_len;
             for i in 0..bind_len {
                 let r = step_rows + ev_rows + i;
                 match matrix_idx {
                     0 => {
                         data[r * total_cols + (bind_start + i)] = F::ONE;                         // + step_x[bind_start + i]
-                        data[r * total_cols + (pub_cols + x_witness_indices[i])] = -F::ONE;      // - step_witness[x_i]
+                        data[r * total_cols + (pub_cols + step_program_input_witness_indices[i])] = -F::ONE;      // - step_witness[x_i]
                     }
                     1 => data[r * total_cols + col_const1_abs] = F::ONE,                        // × 1
                     _ => {}
@@ -2121,7 +2151,7 @@ pub fn build_linked_augmented_witness(
 /// Build public input for linked augmented CCS.
 /// 
 /// Public input layout: [step_x || ρ || y_prev || y_next]
-pub fn build_linked_augmented_public_input(
+pub fn build_augmented_public_input_for_step(
     step_x: &[F],
     rho: F,
     y_prev: &[F],
@@ -2141,12 +2171,12 @@ fn compute_augmented_public_input_for_step(
     prev_acc: &Accumulator,
     proof: &IvcProof,
 ) -> Result<(Vec<F>, F), Box<dyn std::error::Error>> {
-    let step_data = build_step_data_with_x(prev_acc, proof.step, &proof.step_public_input);
+    let step_data = build_step_transcript_data(prev_acc, proof.step, &proof.step_public_input);
     let step_digest = create_step_digest(&step_data);
     let (rho_calc, _td) = rho_from_transcript(prev_acc, step_digest, &proof.c_step_coords);
     let rho = if proof.step_rho != F::ZERO { proof.step_rho } else { rho_calc };
 
-    let x_aug = build_linked_augmented_public_input(
+    let x_aug = build_augmented_public_input_for_step(
         &proof.step_public_input,
         rho,
         &prev_acc.y_compact,
@@ -2616,6 +2646,7 @@ pub fn verify_ivc_step_folding(
     prev_acc: &Accumulator,
     prev_augmented_x: Option<&[F]>,
 ) -> Result<bool, Box<dyn std::error::Error>> {
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] enter");
     #[cfg(feature = "neo-logs")]
     {
@@ -2630,9 +2661,11 @@ pub fn verify_ivc_step_folding(
         .ok_or_else(|| anyhow::anyhow!("IVC proof missing folding_proof"))?;
 
     // 1) Cross-check against stored Pi-CCS inputs, using RHS as the binding point.
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=inputs");
     let stored_inputs = &folding.pi_ccs_inputs;
     if stored_inputs.len() != 2 {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: pi_ccs_inputs.len() != 2");
         return Err(anyhow::anyhow!("folding proof missing pi_ccs_inputs").into());
     }
@@ -2641,6 +2674,7 @@ pub fn verify_ivc_step_folding(
     let (x_rhs_expected, _) = compute_augmented_public_input_for_step(prev_acc, ivc_proof)
         .map_err(|e| anyhow::anyhow!("failed to compute augmented input: {}", e))?;
     if x_rhs_expected != ivc_proof.step_augmented_public_input {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: RHS augmented input mismatch vs proof copy");
         return Ok(false);
     }
@@ -2648,11 +2682,13 @@ pub fn verify_ivc_step_folding(
     // LHS checks: now STRICT — enforce exact X equality and also bind to caller-provided prev_augmented_x when present.
     // Ensure LHS/RHS shapes match.
     if stored_inputs[0].m_in != stored_inputs[1].m_in {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: LHS/RHS m_in mismatch");
         return Ok(false);
     }
     // Ensure LHS commitment matches the stored output commitment.
     if stored_inputs[0].c.data != folding.pi_ccs_outputs[0].c.data {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: LHS commitment mismatch vs stored output");
         return Ok(false);
     }
@@ -2661,6 +2697,7 @@ pub fn verify_ivc_step_folding(
     let x_lhs_proof = ivc_proof.prev_step_augmented_public_input.clone();
     let m_in = x_rhs_expected.len();
     if x_lhs_proof.len() != m_in {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: LHS augmented x length mismatch");
         return Ok(false);
     }
@@ -2670,25 +2707,29 @@ pub fn verify_ivc_step_folding(
         let step_x_len = ivc_proof.step_public_input.len();
         let y_len = ivc_proof.step_y_prev.len();
         if x_lhs_proof.len() != step_x_len + 1 + 2 * y_len {
+            #[cfg(feature = "neo-logs")]
             eprintln!("[folding] early: base-case LHS augmented input length mismatch");
             return Ok(false);
         }
         // Require canonical zero vector for base-case LHS augmented x (matches zero_mcs_instance_for_shape)
-        if !x_lhs_proof.iter().all(|&f| f == F::ZERO) { eprintln!("[folding] early: base-case LHS augmented x not all zeros"); return Ok(false); }
+        if !x_lhs_proof.iter().all(|&f| f == F::ZERO) { #[cfg(feature = "neo-logs")] eprintln!("[folding] early: base-case LHS augmented x not all zeros"); return Ok(false); }
     } else if let Some(_px) = prev_augmented_x {
         // Production strict: enforce provided prev_augmented_x linkage
         let px = _px;
         if px != x_lhs_proof.as_slice() {
+            #[cfg(feature = "neo-logs")]
             eprintln!("[folding] early: prev_augmented_x linkage mismatch");
             return Ok(false);
         }
     }
     // Bind to the LHS stored input inside Pi-CCS as well.
     if stored_inputs[0].x != x_lhs_proof {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: LHS stored x mismatch vs proof LHS augmented x");
         return Ok(false);
     }
     if stored_inputs[0].m_in != x_lhs_proof.len() {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: LHS m_in mismatch vs proof LHS augmented x len");
         return Ok(false);
     }
@@ -2701,18 +2742,23 @@ pub fn verify_ivc_step_folding(
 
     // RHS checks: bind to expected augmented x and stored output commitment.
     if stored_inputs[1].x != x_rhs_expected {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: RHS x mismatch: stored != expected");
         let _ex: Vec<_> = x_rhs_expected.iter().take(6).map(|f| f.as_canonical_u64()).collect();
         let _sx: Vec<_> = stored_inputs[1].x.iter().take(6).map(|f| f.as_canonical_u64()).collect();
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding]    expected head: {:?}", _ex);
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding]    stored   head: {:?}", _sx);
         return Ok(false);
     }
     if stored_inputs[1].m_in != x_rhs_expected.len() {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: RHS m_in mismatch vs expected len");
         return Ok(false);
     }
     if stored_inputs[1].c.data != folding.pi_ccs_outputs[1].c.data {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] early: RHS commitment mismatch vs stored output");
         return Ok(false);
     }
@@ -2739,6 +2785,7 @@ pub fn verify_ivc_step_folding(
     }
 
     // 2) Verify Pi-CCS against those instances.
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=pi-ccs");
     let mut tr = Poseidon2Transcript::new(b"neo/fold");
     let ok_ccs = pi_ccs_verify(
@@ -2756,6 +2803,7 @@ pub fn verify_ivc_step_folding(
     // 2b) (Skip) Intra-output y vs y_scalars check; rely on Π‑RLC/Π‑DEC path for scalar consistency.
 
     // 4) Recombine digit MEs to the parent ME for Pi‑RLC and Pi‑DEC checks.
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=recombine-me");
     let me_digits = ivc_proof
         .me_instances
@@ -2767,6 +2815,7 @@ pub fn verify_ivc_step_folding(
     //      Binding between Π‑CCS outputs and the recomposed parent is enforced by Π‑RLC and Π‑DEC.
 
     // 5) Verify Pi‑RLC.
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=rlc");
     let ok_rlc = pi_rlc_verify(
         &mut tr,
@@ -2777,13 +2826,14 @@ pub fn verify_ivc_step_folding(
     )?;
     #[cfg(feature = "neo-logs")]
     println!("   Pi-RLC verify: {}", ok_rlc);
-    if !ok_rlc { eprintln!("[folding] rlc_verify=false"); return Ok(false); }
+    if !ok_rlc { #[cfg(feature = "neo-logs")] eprintln!("[folding] rlc_verify=false"); return Ok(false); }
 
     // 6) Recombine digit witnesses to get true (d, m) for Ajtai S-module; then verify Π‑DEC.
     let wit_digits = ivc_proof
         .digit_witnesses
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("IVC proof missing digit witnesses for DEC and tie check"))?;
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=recombine-wit");
     let wit_parent = recombine_digit_witnesses_to_parent_local(params, wit_digits)
         .map_err(|e| anyhow::anyhow!("recombine_digit_witnesses_to_parent failed: {}", e))?;
@@ -2828,10 +2878,11 @@ pub fn verify_ivc_step_folding(
             .me_instances
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("IVC proof missing digit ME instances for DEC and tie check"))?;
-        if me_digits.len() != wit_digits.len() { eprintln!("[folding] early: digit me count != digit witness count"); return Ok(false); }
+        if me_digits.len() != wit_digits.len() { #[cfg(feature = "neo-logs")] eprintln!("[folding] early: digit me count != digit witness count"); return Ok(false); }
         for (_i, (dw, me_i)) in wit_digits.iter().zip(me_digits.iter()).enumerate() {
             let c_from_wit = l_real.commit(&dw.Z);
             if c_from_wit.data != me_i.c.data {
+                #[cfg(feature = "neo-logs")]
                 eprintln!("[folding] digit witness-commit mismatch");
                 return Ok(false);
             }
@@ -2855,9 +2906,10 @@ pub fn verify_ivc_step_folding(
     )?;
     #[cfg(feature = "neo-logs")]
     println!("   Pi-DEC verify: {} (d_rows={}, m_cols={})", ok_dec, d_rows, m_cols);
-    if !ok_dec { eprintln!("[folding] dec_verify=false"); return Ok(false); }
+    if !ok_dec { #[cfg(feature = "neo-logs")] eprintln!("[folding] dec_verify=false"); return Ok(false); }
 
     // Derive the Π‑CCS transcript tail once; use r for tie and reuse for residual later.
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=derive-tail");
     let tail = pi_ccs_derive_transcript_tail(
         params,
@@ -2874,9 +2926,12 @@ pub fn verify_ivc_step_folding(
     // Recompute X from Z via S-module for tie check to avoid any recombination drift.
     let mut me_parent_tie = me_parent.clone();
     me_parent_tie.X = l_real.project_x(&wit_parent.Z, me_parent.m_in);
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=tie (r.len()={})", me_parent_tie.r.len());
-    if let Err(e) = tie_check_with_r(augmented_ccs, &me_parent_tie, &wit_parent, &me_parent_tie.r) {
+    if let Err(_e) = tie_check_with_r(augmented_ccs, &me_parent_tie, &wit_parent, &me_parent_tie.r) {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] ❌ tie_with_r failed: {}", e);
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] debug: me_parent.y.len={} (t), y[0].len={} (D)", me_parent.y.len(), me_parent.y.get(0).map(|v| v.len()).unwrap_or(0));
         return Ok(false);
     }
@@ -2884,6 +2939,7 @@ pub fn verify_ivc_step_folding(
     // 8) Cross-link Π‑CCS outputs to the parent ME: recombine Π‑CCS y via ρ and 
     //    require the scalars match the parent ME (which DEC/tie bound to Z).
     {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] stage=cross-link");
         // Hygiene: arity/shape guards
         if folding.pi_rlc_proof.rho_elems.len() != folding.pi_ccs_outputs.len() {
@@ -2939,12 +2995,14 @@ pub fn verify_ivc_step_folding(
             ).into());
         }
         if y_scalars_from_rlc != me_parent.y_scalars {
+            #[cfg(feature = "neo-logs")]
             eprintln!("[folding] cross-link failed: recombined y_scalars != parent y_scalars");
             return Ok(false);
         }
     }
 
     // 9) Enforce residual vanishing at r using the same transcript-derived tail.
+    #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=residual");
     if tail.alphas.len() != folding.pi_ccs_outputs.len() {
         return Err(anyhow::anyhow!("alpha count != number of Π‑CCS outputs").into());
@@ -2958,12 +3016,10 @@ pub fn verify_ivc_step_folding(
         &folding.pi_ccs_outputs,
     );
     if tail.running_sum != expected_term {
+        #[cfg(feature = "neo-logs")]
         eprintln!("[folding] terminal equality mismatch: running_sum != expected");
         return Ok(false);
     }
 
     Ok(true)
 }
-
-
-// (removed) verify_ivc_chain_strict: verify_ivc_chain is now strict

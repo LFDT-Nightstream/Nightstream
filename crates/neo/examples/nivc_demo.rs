@@ -34,7 +34,7 @@ fn main() -> anyhow::Result<()> {
     // Binding: y_step lives at witness indices [1..=y_len]; const1 at 0
     let binding = neo::ivc::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

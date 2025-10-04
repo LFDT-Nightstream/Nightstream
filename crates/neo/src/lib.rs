@@ -166,6 +166,8 @@ pub use ivc::{
     augmentation_ccs, AugmentConfig,
     // PRODUCTION OPTION A: Public ρ EV (recommended)
     ev_with_public_rho_ccs, build_ev_with_public_rho_witness,
+    // Base case helpers for testing
+    zero_mcs_instance_for_shape,
     // Batch proving (Final SNARK Layer)
     // REMOVED: BatchData, prove_batch_data, IvcBatchBuilder, EmissionPolicy, EmitStats - not part of Neo architecture
 };

@@ -16,7 +16,7 @@ fn tiny_r1cs_to_ccs() -> neo_ccs::CcsStructure<F> {
 fn make_binding_spec() -> StepBindingSpec {
     StepBindingSpec {
         y_step_offsets: vec![],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     }
@@ -76,4 +76,3 @@ fn hygiene_y_vector_wrong_length_is_error() {
     let res = verify_ivc_step(&step_ccs, &proof, &prev_acc, &binding, &params, None);
     assert!(res.is_err(), "expected Err(..) for |y[j]| != D, got {:?}", res);
 }
-

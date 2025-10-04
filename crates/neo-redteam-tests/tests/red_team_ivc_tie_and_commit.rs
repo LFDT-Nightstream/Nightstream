@@ -20,7 +20,7 @@ fn tiny_r1cs_to_ccs() -> neo_ccs::CcsStructure<F> {
 fn make_binding_spec() -> StepBindingSpec {
     StepBindingSpec {
         y_step_offsets: vec![],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     }

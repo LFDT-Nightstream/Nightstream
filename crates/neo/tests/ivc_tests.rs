@@ -348,7 +348,7 @@ fn test_high_level_ivc_api() {
         // y_compact and y_step are both length 2, so we need 2 offsets each
         binding_spec: &neo::ivc::StepBindingSpec {
             y_step_offsets: vec![2, 2], // Both y_step elements map to output at index 2
-            x_witness_indices: vec![], // No step public inputs
+            step_program_input_witness_indices: vec![], // No step public inputs
             y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
             const1_witness_index: 0, // Constant-1 at index 0
         },
@@ -366,7 +366,7 @@ fn test_high_level_ivc_api() {
             // Test high-level verification - MUST use the same binding spec as prover for digest consistency
             let verify_binding_spec = neo::ivc::StepBindingSpec {
                 y_step_offsets: vec![2, 2], // Both y_step elements map to output at index 2
-                x_witness_indices: vec![], // No step public inputs
+                step_program_input_witness_indices: vec![], // No step public inputs
                 y_prev_witness_indices: vec![], // Same as prover: No binding to EV y_prev
                 const1_witness_index: 0, // Constant-1 at index 0
             };

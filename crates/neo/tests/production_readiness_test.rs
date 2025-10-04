@@ -32,7 +32,7 @@ fn prove_ivc_final_snark_compat(
     let step_ccs = build_increment_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -133,7 +133,7 @@ fn run_ivc_chain(num_steps: usize) -> Result<IvcChainMetrics> {
     // Use binding spec with proper app input binding
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -234,7 +234,7 @@ fn test_negative_mutate_early_step_witness() -> Result<()> {
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };

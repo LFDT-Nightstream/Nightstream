@@ -38,7 +38,7 @@ fn ev_embedding_public_io_tamper_detected() -> Result<()> {
     // y_step is b_next at index 4
     let binding = neo::ivc::StepBindingSpec {
         y_step_offsets: vec![4],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

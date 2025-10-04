@@ -46,7 +46,7 @@ fn test_y_prev_binding_enforcement(
     // Build public input and witness
     let rho = F::from_u64(42); // dummy rho
     let y_next: Vec<F> = y_prev.iter().map(|&y| y + rho).collect();
-    let public_input = build_linked_augmented_public_input(
+    let public_input = build_augmented_public_input_for_step(
         &vec![F::ZERO; 4], // dummy step_x
         rho,
         y_prev,
@@ -107,7 +107,7 @@ fn create_test_ccs() -> CcsStructure<F> {
 fn create_test_binding_spec() -> StepBindingSpec {
     StepBindingSpec {
         y_step_offsets: vec![0, 1],      // Extract y_step from witness[0], witness[1]
-        x_witness_indices: vec![],        // No x binding for simplicity
+        step_program_input_witness_indices: vec![],        // No x binding for simplicity
         y_prev_witness_indices: vec![0, 1], // Bind y_prev to witness[0], witness[1]
         const1_witness_index: 2,         // witness[2] must be 1
     }

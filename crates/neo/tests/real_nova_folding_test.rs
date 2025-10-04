@@ -76,7 +76,7 @@ fn test_real_nova_folding_5_steps() -> Result<(), Box<dyn std::error::Error + Se
     // Binding spec for witness layout: [const, prev_x, delta, next_x]
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // next_x at index 3
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -242,7 +242,7 @@ fn test_folding_equation_validation() -> Result<(), Box<dyn std::error::Error + 
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -318,7 +318,7 @@ fn test_not_constraint_batching() -> Result<(), Box<dyn std::error::Error + Send
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };

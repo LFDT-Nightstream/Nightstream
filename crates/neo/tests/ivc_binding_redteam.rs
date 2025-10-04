@@ -62,8 +62,8 @@ fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
 
     let binding = StepBindingSpec {
         y_step_offsets: vec![2],
-        // Bind only the *app* tail of step_x (digest prefix remains unbound by design).
-        x_witness_indices: vec![3, 4, 5, 6],
+        // Bind only the *program* tail of step_x (digest prefix remains unbound by design).
+        step_program_input_witness_indices: vec![3, 4, 5, 6],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -107,7 +107,7 @@ fn verifier_rejects_tampered_step_x() {
     let y_step = vec![F::ONE];
     let binding = StepBindingSpec {
         y_step_offsets: vec![2],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

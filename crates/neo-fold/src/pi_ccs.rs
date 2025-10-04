@@ -1269,7 +1269,6 @@ pub fn pi_ccs_derive_transcript_tail(
     let (r, running_sum, ok_rounds) = verify_sumcheck_rounds(&mut tr, d_round, K::ZERO, &proof.sumcheck_rounds);
     if !ok_rounds {
         #[cfg(feature = "debug-logs")]
-        #[cfg(feature = "debug-logs")]
         eprintln!("[pi-ccs] rounds invalid: expected <= {}, got {} rounds", d_round, proof.sumcheck_rounds.len());
         return Err(PiCcsError::SumcheckError("rounds invalid".into()));
     }
@@ -1280,7 +1279,6 @@ pub fn pi_ccs_derive_transcript_tail(
         wr *= (K::ONE - *wi) * (K::ONE - *ri) + *wi * *ri;
     }
 
-    #[cfg(feature = "debug-logs")]
     #[cfg(feature = "debug-logs")]
     eprintln!("[pi-ccs] derive_tail: s.n={}, ell={}, d_sc={}, outputs={}, rounds={}", s.n, ell, d_sc, mcs_list.len(), proof.sumcheck_rounds.len());
     Ok(TranscriptTail { wr, r, alphas, running_sum })

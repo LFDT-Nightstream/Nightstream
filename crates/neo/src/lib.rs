@@ -168,8 +168,6 @@ pub use ivc::{
     ev_with_public_rho_ccs, build_ev_with_public_rho_witness,
     // Base case helpers for testing
     zero_mcs_instance_for_shape,
-    // Batch proving (Final SNARK Layer)
-    // REMOVED: BatchData, prove_batch_data, IvcBatchBuilder, EmissionPolicy, EmitStats - not part of Neo architecture
 };
 
 // Re-export core NIVC types and helpers
@@ -178,8 +176,10 @@ pub use nivc::{
     verify_nivc_chain, NivcFinalizeOptions, finalize_nivc_chain_with_options, finalize_nivc_chain,
 };
 
-// Track B path uses single-SNARK finalize via finalize_nivc_chain_with_options.
 
+/// High-level Nova/Sonobe-style session API
+pub mod session;
+pub use session::{NeoStep, StepSpec, StepArtifacts, StepDescriptor, IvcSession, verify_chain_with_descriptor};
 
 /// Counts and bookkeeping for public results embedded in the proof.
 /// Backwards-compatible: all fields have defaults for older proofs.

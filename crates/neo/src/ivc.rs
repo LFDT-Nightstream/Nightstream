@@ -940,6 +940,27 @@ pub fn prove_ivc_step_chained(
         return Err(format!("SECURITY: step_witness[{}] must be 1 (constant-1 column)", const_idx).into());
     }
 
+    // Guard: extractor vs binding_spec.y_step_offsets must agree
+    // This prevents a subtle class of bugs where the EV constraints are wired to
+    // witness positions different from the values used to compute y_next.
+    if !input.binding_spec.y_step_offsets.is_empty() {
+        let mut y_from_offsets = Vec::with_capacity(input.binding_spec.y_step_offsets.len());
+        for &idx in &input.binding_spec.y_step_offsets {
+            y_from_offsets.push(*input
+                .step_witness
+                .get(idx)
+                .ok_or_else(|| format!("y_step_offsets index {} out of bounds for step_witness (len={})", idx, input.step_witness.len()))?);
+        }
+        if y_from_offsets != input.y_step {
+            return Err(format!(
+                "Extractor/binding mismatch: y_step extracted by StepOutputExtractor != step_witness[y_step_offsets].\n  extracted: {:?}\n  from_offsets: {:?}\n  offsets: {:?}",
+                input.y_step.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>(),
+                y_from_offsets.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>(),
+                input.binding_spec.y_step_offsets
+            ).into());
+        }
+    }
+
     // 3) SECURITY FIX: Use full augmentation CCS to prove commitment evolution
     // Moved after Ajtai dimensions (m_step, kappa, d) are known.
 

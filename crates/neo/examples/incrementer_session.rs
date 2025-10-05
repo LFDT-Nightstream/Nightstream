@@ -113,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let params = NeoParams::goldilocks_small_circuits();
 
     // Initial state x=0
-    let mut session = IvcSession::new(&params, vec![F::ZERO], 0);
+    let mut session = IvcSession::new(&params, Some(vec![F::ZERO]), 0);
     let mut stepper = IncrementerStep::new();
 
     // Run N steps with deltas 1,2,3 repeating

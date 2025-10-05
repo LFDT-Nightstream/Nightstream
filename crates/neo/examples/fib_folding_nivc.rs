@@ -148,7 +148,7 @@ fn main() -> Result<()> {
 
     // Step 3: Initialize IVC session with y0 = [1]
     let y0 = vec![F::ONE];
-    let mut session = IvcSession::new(&params, y0.clone(), 0);
+    let mut session = IvcSession::new(&params, Some(y0.clone()), 0);
     let mut stepper = stepper; // mutable for trait API
 
     // Fibonacci state (mod q)

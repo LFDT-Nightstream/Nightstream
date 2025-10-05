@@ -93,29 +93,20 @@ pub struct IvcSession {
 }
 
 impl IvcSession {
-    /// Create a new session with an initial state. `start_step` is the public
+    /// Create a new session with an optional initial state. `start_step` is the public
     /// step counter bound into the transcript.
-    pub fn new(params: &NeoParams, initial_state: Vec<F>, start_step: u64) -> Self {
+    /// - When `initial_state` is `None`, the accumulator state is initialized lazily
+    ///   on the first step to a zero vector of length `spec.y_len`.
+    pub fn new(params: &NeoParams, initial_state: Option<Vec<F>>, start_step: u64) -> Self {
         IvcSession {
             params: *params,
-            acc: Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: initial_state, step: start_step },
+            acc: Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: initial_state.unwrap_or_default(), step: start_step },
             step: start_step,
             proofs: Vec::new(),
             prev_me: None,
             prev_me_wit: None,
             prev_lhs_mcs: None,
         }
-    }
-
-    /// Create a new session with optional initial state.
-    ///
-    /// When `initial_state` is `None`, the session defers fixing the state length
-    /// until the first step is synthesized. At that time, it initializes the
-    /// accumulator state to a zero vector of length `spec.y_len` provided by the
-    /// step adapter. This removes the need to guess an "empty" state upfront.
-    pub fn new_opt(params: &NeoParams, initial_state: Option<Vec<F>>, start_step: u64) -> Self {
-        let y = initial_state.unwrap_or_default();
-        IvcSession::new(params, y, start_step)
     }
 
     /// Current state (y_prev)

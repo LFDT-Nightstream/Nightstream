@@ -79,7 +79,7 @@ impl NeoStep for MinimalStep {
 #[test]
 fn test_self_fold_basecase_manual_verify() {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    let mut session = IvcSession::new(&params, vec![], 0);
+    let mut session = IvcSession::new(&params, None, 0);
     let mut stepper = MinimalStep::new();
 
     // Prove a couple of steps (0 and 1)
@@ -120,7 +120,7 @@ fn test_self_fold_basecase_manual_verify() {
 #[test]
 fn test_basecase_chain_verifies_canonical() {
     let params = NeoParams::goldilocks_small_circuits();
-    let mut session = IvcSession::new(&params, vec![], 0);
+    let mut session = IvcSession::new(&params, None, 0);
     let mut stepper = MinimalStep::new();
 
     let _ = session.prove_step(&mut stepper, &NoInputs).expect("prove step 0");

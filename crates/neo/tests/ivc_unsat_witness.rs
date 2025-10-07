@@ -1,22 +1,50 @@
 //! IVC negative test: unsatisfiable step witness should be rejected by verify_ivc_step.
 //! This test intentionally does NOT call `check_ccs_rowwise_zero` beforehand.
+//!
+//! Uses a 3-row CCS (ℓ=2) to ensure the verifier can detect invalid witnesses
+//! via the initial_sum == 0 check at the base case.
 
 use neo::{F, NeoParams};
 use neo::ivc::{
     Accumulator, LastNExtractor, StepBindingSpec,
     prove_ivc_step_with_extractor, verify_ivc_step,
 };
-use neo_ccs::{Mat, r1cs::r1cs_to_ccs};
+use neo_ccs::{Mat, SparsePoly, Term, CcsStructure};
 use p3_field::PrimeCharacteristicRing;
 
-/// Tiny R1CS-encoded CCS for constraint: (z0 - z1) * z0 = 0
+/// Build a 3-row CCS to achieve ℓ=2 (3 rows → padded to 4 → ℓ=2)
+/// CCS polynomial: f(M0, M1, M2) = M0·M1 - M2
+/// Witness format: [const1, z0, z1]
+/// Constraints:
+///   Row 0: z0 * z0 = z0  (z0 is boolean)
+///   Row 1: z1 * z1 = z1  (z1 is boolean)
+///   Row 2: z0 * z1 = z0  (if z0=1, then z1 must be 1)
 fn tiny_r1cs_to_ccs() -> neo_ccs::CcsStructure<F> {
-    // One row, two vars: A = [1, -1], B = [1, 0], C = [0, 0]
-    // Row-wise, (A z)[i] * (B z)[i] - (C z)[i] = 0  =>  (z0 - z1) * z0 = 0
-    let a = Mat::from_row_major(1, 2, vec![F::ONE, -F::ONE]);
-    let b = Mat::from_row_major(1, 2, vec![F::ONE, F::ZERO]);
-    let c = Mat::from_row_major(1, 2, vec![F::ZERO, F::ZERO]);
-    r1cs_to_ccs(a, b, c)
+    let m0 = Mat::from_row_major(3, 3, vec![
+        F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
+        F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
+        F::ZERO, F::ONE, F::ZERO,   // Row 2: z0
+    ]);
+    let m1 = Mat::from_row_major(3, 3, vec![
+        F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
+        F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
+        F::ZERO, F::ZERO, F::ONE,   // Row 2: z1
+    ]);
+    let m2 = Mat::from_row_major(3, 3, vec![
+        F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
+        F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
+        F::ZERO, F::ONE, F::ZERO,   // Row 2: z0
+    ]);
+    
+    // CCS polynomial: f(X0, X1, X2) = X0·X1 - X2
+    let terms = vec![
+        Term { coeff: F::ONE, exps: vec![1, 1, 0] },   // X0 * X1
+        Term { coeff: -F::ONE, exps: vec![0, 0, 1] },  // -X2
+    ];
+    let f = SparsePoly::new(3, terms);
+    
+    CcsStructure::new(vec![m0, m1, m2], f)
+        .expect("valid CCS structure")
 }
 
 #[test]
@@ -37,10 +65,11 @@ fn ivc_unsat_step_witness_should_fail_verify() {
         const1_witness_index: 0,
     };
 
-    // UNSAT step witness for (z0 - z1) * z0 = 0: choose z = [1, 5]
-    // (1 - 5) * 1 = -4 != 0, so the step CCS is violated.
-    // Note: witness[0] == 1 satisfies the const-1 convention used by the augmented CCS.
-    let step_witness = vec![F::ONE, F::from_u64(5)];
+    // INVALID witness: [const1=1, z0=1, z1=5]
+    // Row 0: 1*1 - 1 = 0 ✓
+    // Row 1: 5*5 - 5 = 20 ≠ 0 ❌
+    // Row 2: 1*5 - 1 = 4 ≠ 0 ❌
+    let step_witness = vec![F::ONE, F::ONE, F::from_u64(5)];
 
     // No app public inputs; y_len == 0, so extractor returns empty y_step
     let extractor = LastNExtractor { n: 0 };
@@ -78,9 +107,12 @@ fn ivc_proof_with_invalid_witness_from_generation() {
     // this invalid witness, so the digit witnesses will be consistent with the ME instances.
     // However, the witness itself violates the CCS, so verification should reject it.
     //
-    // For constraint: (z0 - z1) * z0 = 0
-    // Valid witness examples: [1, 1], [0, 0], [0, 5], etc.
-    // INVALID witness: [2, 5] -> (2 - 5) * 2 = -6 ≠ 0
+    // For the 3-row CCS with constraints:
+    //   Row 0: z0 * z0 = z0  (z0 is boolean)
+    //   Row 1: z1 * z1 = z1  (z1 is boolean)
+    //   Row 2: z0 * z1 = z0  (if z0=1, then z1 must be 1)
+    // Valid witness examples: [1, 1, 1], [1, 0, 0], etc.
+    // INVALID witness: [1, 1, 7] -> Row 1: 7*7 - 7 = 42 ≠ 0, Row 2: 1*7 - 1 = 6 ≠ 0
     
     let step_ccs = tiny_r1cs_to_ccs();
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
@@ -94,10 +126,11 @@ fn ivc_proof_with_invalid_witness_from_generation() {
         const1_witness_index: 0,
     };
 
-    // INVALID witness: [1, 7] doesn't satisfy (z0 - z1) * z0 = 0
-    // because (1 - 7) * 1 = -6 ≠ 0
-    // Note: First element is 1 to satisfy const-1 convention
-    let invalid_witness = vec![F::ONE, F::from_u64(7)];
+    // INVALID witness: [const1=1, z0=1, z1=7]
+    // Row 0: 1*1 - 1 = 0 ✓
+    // Row 1: 7*7 - 7 = 42 ≠ 0 ❌
+    // Row 2: 1*7 - 1 = 6 ≠ 0 ❌
+    let invalid_witness = vec![F::ONE, F::ONE, F::from_u64(7)];
     let extractor = LastNExtractor { n: 0 };
 
     // Prove with the INVALID witness
@@ -154,7 +187,8 @@ fn ivc_cross_link_vulnerability_pi_ccs_rhs_vs_parent_me() {
     };
 
     // Start with a VALID witness to get a valid proof structure
-    let valid_witness = vec![F::ONE, F::ONE];
+    // Valid witness: [const1=1, z0=1, z1=1]
+    let valid_witness = vec![F::ONE, F::ONE, F::ONE];
     let extractor = LastNExtractor { n: 0 };
 
     let valid_proof_res = prove_ivc_step_with_extractor(

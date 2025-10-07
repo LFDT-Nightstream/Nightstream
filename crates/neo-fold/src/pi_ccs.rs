@@ -1144,6 +1144,8 @@ pub fn pi_ccs_verify(
             )));
         }
     }
+    
+    // Compute batched terminal evaluation
     let mut expected_q_r = K::ZERO;
     for (inst_idx, me_inst) in out_me.iter().enumerate() {
         let f_eval = s.f.eval_in_ext::<K>(&me_inst.y_scalars);
@@ -1159,8 +1161,27 @@ pub fn pi_ccs_verify(
         return Ok(false);
     }
 
-    // Note: In the folding pipeline, zero-ness is enforced at later stages (RLC/DEC).
-    // Here we only require terminal equality consistency.
+    // 🔒 SOUNDNESS FIX: Verify that the claimed initial sum is zero
+    // For a valid CCS instance, Σ_{x∈{0,1}^ℓ} f((M·z)[x]) should equal 0.
+    // The initial sum T⁰ = Σ_i α_i · Σ_x f((M·z_i)[x]) should also be 0 when all instances are valid.
+    // 
+    // Bug: Previously didn't check if initial_sum == 0, allowing batching of valid + invalid
+    // instances to produce a non-zero initial sum that still passed terminal verification.
+    // In base case: LHS all-zero gives T⁰ ≈ 0, so invalid RHS is caught.
+    // In non-base case: LHS + invalid RHS could produce non-zero T⁰ that verifies.
+    if claimed_initial != K::ZERO {
+        #[cfg(feature = "debug-logs")]
+        eprintln!(
+            "[pi-ccs] SOUNDNESS CHECK FAILED: initial sum T⁰ = {} ≠ 0\n\
+             This indicates at least one batched instance violates the CCS relation.\n\
+             For valid instances: Σ_{{x∈{{0,1}}^ℓ}} f((M·z)[x]) must equal 0.",
+            format_ext(claimed_initial)
+        );
+        return Ok(false);
+    }
+
+    // Initial sum is zero (all instances satisfy CCS) and terminal consistency confirmed.
+    // RLC/DEC stages will verify commitment bindings separately.
 
     // TODO: verify v_j = M_j^T χ_r if carried (disabled to keep verifier lightweight) under a flag for testing
 

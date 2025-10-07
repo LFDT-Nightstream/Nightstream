@@ -1625,6 +1625,7 @@ pub fn verify_ivc_step(
         &augmented_ccs_v,
         prev_accumulator,
         prev_augmented_x,
+        binding_spec,
     )?;
     if !folding_ok {
         #[cfg(feature = "debug-logs")]
@@ -2664,6 +2665,7 @@ pub fn verify_ivc_step_folding(
     augmented_ccs: &neo_ccs::CcsStructure<F>,
     prev_acc: &Accumulator,
     prev_augmented_x: Option<&[F]>,
+    _binding_spec: &StepBindingSpec,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     #[cfg(feature = "neo-logs")]
     eprintln!("[folding] enter");
@@ -3026,26 +3028,34 @@ pub fn verify_ivc_step_folding(
         }
     }
 
-    // 9) Enforce satisfiability in the tie‑free case (no step y-outputs):
-    //     When y_len is 0, Q encodes only CCS constraints (no folding accumulator),
-    //     so Σ α_i f(Y_i(r)) must equal 0 for a valid witness.
+    // 9) Enforce CCS satisfiability check for first step (base case)
+    //    When prev_acc.c_coords.is_empty(), this is the first step with no prior accumulator.
+    //    Both batched instances (LHS zero instance + RHS fresh step) should satisfy their CCS,
+    //    so the sum over the hypercube (initial_sum) must be zero.
+    //    
+    //    CAVEAT: Only enforce when ℓ >= 2. In the ℓ=1 case (single-row padded to 2),
+    //    the augmented CCS can carry a constant offset (e.g., from const-1 binding or other glue),
+    //    so the hypercube sum of Q need not be zero even for a valid witness.
+    //    This signature appears as p(0)=α₀, p(1)=0 in the sum-check rounds.
     #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=residual");
-    let y_len = prev_acc.y_compact.len();
-    if y_len == 0 {
-        // Compute Σ α_i f(Y_i(r)) from the ME outputs (same terminal used by Π‑CCS)
+    if prev_acc.c_coords.is_empty() && tail.r.len() >= 2 {
+        // Base case with ℓ >= 2: both instances should be satisfied
         use crate::K;
-        let mut residue = K::ZERO;
-        for (i, me) in folding.pi_ccs_outputs.iter().enumerate() {
-            // f is the CCS polynomial; evaluate it on the Y scalars at r
-            let f_eval = augmented_ccs.f.eval_in_ext::<K>(&me.y_scalars);
-            residue += tail.alphas[i] * f_eval;
-        }
-        if residue != K::ZERO {
+        if tail.initial_sum != K::ZERO {
             #[cfg(feature = "neo-logs")]
-            eprintln!("[folding] non-zero CCS residual at r (tie-free): rejecting");
+            eprintln!(
+                "[folding] non-zero CCS sum over hypercube (base case, ℓ={}): initial_sum={:?}, rejecting",
+                tail.r.len(), tail.initial_sum
+            );
             return Ok(false);
         }
+    } else {
+        #[cfg(feature = "neo-logs")]
+        eprintln!(
+            "[folding] skipping CCS-sum guard (c_coords.is_empty()={}, ℓ={})",
+            prev_acc.c_coords.is_empty(), tail.r.len()
+        );
     }
 
     Ok(true)

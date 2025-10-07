@@ -1174,6 +1174,8 @@ pub struct TranscriptTail {
     pub r: Vec<K>,
     pub alphas: Vec<K>,
     pub running_sum: K,
+    /// The claimed sum over the hypercube (T in the paper), used to verify satisfiability
+    pub initial_sum: K,
 }
 
 /// Replay the Π-CCS transcript to derive the tail (wr, r, alphas).
@@ -1251,7 +1253,7 @@ pub fn pi_ccs_derive_transcript_tail(
     
     #[cfg(feature = "debug-logs")]
     eprintln!("[pi-ccs] derive_tail: s.n={}, ell={}, d_sc={}, outputs={}, rounds={}", s.n, ell, d_sc, mcs_list.len(), proof.sumcheck_rounds.len());
-    Ok(TranscriptTail { _wr, r, alphas, running_sum })
+    Ok(TranscriptTail { _wr, r, alphas, running_sum, initial_sum: claimed_initial })
 }
 
 // (Removed backward-compat wrappers in favor of `pi_ccs_derive_transcript_tail` only)

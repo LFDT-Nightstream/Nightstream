@@ -9,7 +9,7 @@
 // Audit-ready core modules
 /// Error types for CCS operations.
 pub mod error;
-/// Production cryptographic primitives (Poseidon2, etc.).
+/// Production cryptographic primitives (Poseidon2 implementation).
 pub mod crypto;
 /// Cryptographic gadgets for CCS circuits.
 pub mod gadgets;

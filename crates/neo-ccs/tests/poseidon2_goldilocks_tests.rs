@@ -1,4 +1,5 @@
 //! Tests for production Poseidon2 over Goldilocks Field
+//! Implementation in neo-ccs, parameters from neo-params
 
 use neo_ccs::crypto::poseidon2_goldilocks::*;
 use p3_goldilocks::Goldilocks;

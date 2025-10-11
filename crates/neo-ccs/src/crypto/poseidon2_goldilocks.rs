@@ -8,6 +8,7 @@
 //! 
 //! ```rust
 //! use neo_ccs::crypto::poseidon2_goldilocks as p2;
+//! use p3_goldilocks::Goldilocks;
 //! 
 //! // Hash field elements
 //! let input = [Goldilocks::from_u64(42); 10];

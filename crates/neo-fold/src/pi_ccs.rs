@@ -753,7 +753,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     };
     // Bind initial_sum BEFORE rounds to the transcript (prover side)
     tr.append_fields(b"sumcheck/initial_sum", &initial_sum.as_coeffs());
-    let SumcheckOutput { rounds, challenges: r, final_sum: running_sum } = {
+    let SumcheckOutput { rounds, challenges: r, final_sum: _running_sum } = {
         let mut oracle = GenericCcsOracle {
             s, alphas: batch_coeffs.alphas.clone(),
             partials_per_inst: partials_per_inst_opt.unwrap(),
@@ -871,12 +871,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             );
         }
         eprintln!("[pi-ccs][prove] Σ alpha f(Y) = {}", format_ext(sum_qr));
-        eprintln!("[pi-ccs][prove] final running_sum = {}", format_ext(running_sum));
+        eprintln!("[pi-ccs][prove] final running_sum = {}", format_ext(_running_sum));
 
         // Prover-side self-check: compare sum-check terminal running_sum vs Σ α_i f(Y(r))
         eprintln!(
             "[pi-ccs][prove/self-check] running_sum = {}",
-            format_ext(running_sum)
+            format_ext(_running_sum)
         );
         eprintln!(
             "[pi-ccs][prove/self-check] Σ α f(Y)   = {}",
@@ -917,7 +917,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         }
     }
     #[cfg(not(any(feature = "neo-logs", feature = "debug-logs")))]
-    let _ = running_sum;
+    let _ = _running_sum;
 
     // (Optional) self-check could compare against generic terminal; omitted for performance.
 

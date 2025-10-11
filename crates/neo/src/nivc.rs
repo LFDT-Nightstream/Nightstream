@@ -36,45 +36,60 @@ use crate::ivc::{
 /// Poseidon2 (implementation in neo-ccs, params from neo-params)
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
 
-/// One step specification in an NIVC program
+/// One step specification in an NIVC program (corresponds to one function `F_j` in Definition 11)
 #[derive(Clone)]
 pub struct NivcStepSpec {
+    /// The constraint system (CCS) for this step type (i.e. defines relation F_j)
     pub ccs: CcsStructure<F>,
+    /// Binding spec: how to map witness bits to y_step, linking indices, etc.
     pub binding: StepBindingSpec,
 }
 
-/// Program registry of all step types
+/// A non-uniform IVC program: a set of available step types `F_0, F_1, …`
 #[derive(Clone)]
 pub struct NivcProgram {
+    /// Vector of step types (lanes) available
     pub steps: Vec<NivcStepSpec>,
 }
 
 impl NivcProgram {
     pub fn new(steps: Vec<NivcStepSpec>) -> Self { Self { steps } }
+    /// Number of lanes / step types = ℓ in paper
     pub fn len(&self) -> usize { self.steps.len() }
+    /// Is program empty? (shouldn't be in valid usage)
     pub fn is_empty(&self) -> bool { self.steps.is_empty() }
 }
 
-/// Running ME state per lane
+/// Maintains the running "ME / accumulator state" for a particular lane (function F_j)
 #[derive(Clone, Default)]
 pub struct LaneRunningState {
+    /// The ME instance (folded up to now) for this lane j; optional if no steps used yet
     pub me: Option<neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>>,
+    /// Witness associated with the ME instance (for proving)
     pub wit: Option<neo_ccs::MeWitness<F>>,
+    /// Coordinates c_coords of the lane's current accumulator commitment
     pub c_coords: Vec<F>,
+    /// Digest (e.g. compressed hash) of the lane's current accumulator state
     pub c_digest: [u8; 32],
+    /// (Optional) left-hand side MCS instance, used for linking multiple ME instances
     pub lhs_mcs: Option<neo_ccs::McsInstance<neo_ajtai::Commitment, F>>,
+    /// Witness for the above MCS instance
     pub lhs_mcs_wit: Option<neo_ccs::McsWitness<F>>,
 }
 
-/// NIVC accumulator: per‑lane commitment state + global y and step counter
+/// The NIVC accumulator: global state plus per-lane running states (reflects "U vector + y")
 #[derive(Clone)]
 pub struct NivcAccumulators {
+    /// Running state for each lane j (i.e. U_j)
     pub lanes: Vec<LaneRunningState>,
+    /// The shared compact state y (this is `z_i` in the paper, or the global accumulator state)
     pub global_y: Vec<F>,
+    /// Step counter: number of total steps executed so far
     pub step: u64,
 }
 
 impl NivcAccumulators {
+    /// Initialize with `num_lanes` and starting state `y0`
     pub fn new(num_lanes: usize, y0: Vec<F>) -> Self {
         Self {
             lanes: vec![LaneRunningState::default(); num_lanes],
@@ -84,32 +99,42 @@ impl NivcAccumulators {
     }
 }
 
-/// NIVC step proof: identify which lane was executed and carry the inner IVC proof
+/// Proof of one NIVC step: i.e., that one application of F_j from state z_i yields z_{i+1}
 #[derive(Clone)]
 pub struct NivcStepProof {
+    /// Which lane / function index `j` was used (this corresponds to φ choice)
     pub which_type: usize,
-    /// Application-level public inputs bound into the transcript for this step
+    /// Public application-level inputs bound into the transcript (step_io)
     pub step_io: Vec<F>,
+    /// The inner IVC proof (folding the chosen lane) that enforces zᵢ → zᵢ₊₁
     pub inner: IvcProof,
 }
 
-/// NIVC chain proof: sequence of step proofs and the final accumulator snapshot
+/// Full NIVC chain proof: sequence of step proofs + final accumulator snapshot
 #[derive(Clone)]
 pub struct NivcChainProof {
+    /// The sequence of step proofs produced by the prover
     pub steps: Vec<NivcStepProof>,
+    /// The final accumulator (global_y and all lanes) after all steps
     pub final_acc: NivcAccumulators,
 }
 
-/// NIVC driver state for proving
+/// Prover-side state / context for building an NIVC proof
 pub struct NivcState {
+    /// Public params (e.g. commitment parameters, field parameters)
     pub params: NeoParams,
+    /// The NIVC program (available step types F_j)
     pub program: NivcProgram,
+    /// The current accumulator state (U vector + y)
     pub acc: NivcAccumulators,
+    /// Collected step proofs (in order) as the proof is built
     steps: Vec<NivcStepProof>,
+    /// For each lane j, the previous *augmented public input* X (used to enforce left-linking)
     prev_aug_x_by_lane: Vec<Option<Vec<F>>>,
 }
 
 impl NivcState {
+    /// Create a fresh NIVC prover state with initial y = y₀
     pub fn new(params: NeoParams, program: NivcProgram, y0: Vec<F>) -> anyhow::Result<Self> {
         if program.is_empty() { anyhow::bail!("NIVC program has no step types"); }
         let lanes = program.len();

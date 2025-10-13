@@ -12,9 +12,8 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use neo::{F, NeoParams};
+use neo::{F, NeoParams, StepBindingSpec};
 use p3_field::PrimeField64;
-use neo::ivc::StepBindingSpec;
 use neo::{NivcProgram, NivcState, NivcStepSpec, NivcFinalizeOptions};
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use p3_field::PrimeCharacteristicRing;
@@ -123,10 +122,12 @@ fn main() -> Result<()> {
     let params_time = params_start.elapsed();
 
     // Binding spec for witness layout: [1, prev_x, delta, next_x]
+    // In NIVC mode, app inputs (which, step_io, lanes_root) are transcript-only and do not map
+    // one-to-one to witness indices. Leave step_program_input_witness_indices empty to avoid mismatches.
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],                // next_x at index 3
-        x_witness_indices: vec![2],             // bind delta (public input) to witness position 2
-        y_prev_witness_indices: vec![],         // No binding to EV y_prev (they're different values!)
+        step_program_input_witness_indices: vec![],             // transcript-only app inputs in NIVC
+        y_prev_witness_indices: vec![],        // No binding to EV y_prev in this example
         const1_witness_index: 0,
     };
 

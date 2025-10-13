@@ -1,4 +1,18 @@
 {
     "rust-analyzer.check.command": "clippy",
-    "rust-analyzer.cargo.features": ["testing"]
+    "rust-analyzer.cargo.features": ["testing"],
+    "rust-analyzer.runnables.extraEnv": {
+        "PATH": "${env:HOME}/.cargo/bin:${env:PATH}"
+    },
+    "terminal.integrated.env.osx": {
+        "PATH": "${env:HOME}/.cargo/bin:${env:PATH}"
+    },
+    "terminal.integrated.inheritEnv": true,
+    "terminal.integrated.profiles.osx": {
+        "zsh": {
+            "path": "/bin/zsh",
+            "args": ["-l"]
+        }
+    },
+    "terminal.integrated.defaultProfile.osx": "zsh"
 } 

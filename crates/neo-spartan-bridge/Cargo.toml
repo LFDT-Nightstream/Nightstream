@@ -51,7 +51,7 @@ subtle = { workspace = true }
 # For secure logging (gated behind neo-logs feature)
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 
-# Neo workspace dependencies for ME types and Ajtai commitments
+# Nightstream workspace dependencies for ME types and Ajtai commitments
 neo-ccs = { path = "../neo-ccs" }
 neo-math = { version = "0.1.0", path = "../neo-math" }
 neo-ajtai = { version = "0.1.0", path = "../neo-ajtai" }

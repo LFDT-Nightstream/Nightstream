@@ -1,4 +1,4 @@
-# Neo Implementation Requirements (Derived from Nguyen & Setty 2025)
+# Nightstream Implementation Requirements (Derived from Neo by Nguyen & Setty 2025)
 
 > **Legend**
 > **MUST** = mandatory for cryptographic correctness / soundness  

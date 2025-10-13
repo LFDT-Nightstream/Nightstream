@@ -3,8 +3,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use neo::{NeoParams, CcsStructure, F, NivcProgram, NivcState, NivcStepSpec};
-use neo::ivc::StepBindingSpec;
+use neo::{NeoParams, CcsStructure, F, NivcProgram, NivcState, NivcStepSpec, StepBindingSpec};
 use neo_ccs::{r1cs_to_ccs, Mat};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::fs;
@@ -207,7 +206,7 @@ fn cmd_gen(n: usize, out: PathBuf, bundle_vk: bool, emit_vk: bool) -> Result<()>
     let y_len = 3;
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![4, 5, 6],     // last three entries are i_next, a_next, b_next
-        x_witness_indices: vec![],         // no extra public X binding for this example
+        step_program_input_witness_indices: vec![],         // no extra public X binding for this example
         y_prev_witness_indices: vec![1, 2, 3], // previous state inside witness
         const1_witness_index: 0,
     };

@@ -3,8 +3,8 @@ name = "neo-redteam-tests"
 version = "0.1.0"
 edition = "2021"
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
-description = "Red-team security tests for Neo protocol - vulnerability detection and exploit verification"
-license = "MIT OR Apache-2.0"
+description = "Red-team security tests for Nightstream protocol - vulnerability detection and exploit verification"
+license = "Apache-2.0"
 
 [features]
 default = []

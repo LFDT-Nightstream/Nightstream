@@ -5,7 +5,7 @@
 //! 2. Challenge derivation includes step commitment
 //! 3. Folding proof verification (basic test)
 
-use neo::ivc::*;
+use neo::*;
 use neo::F;
 use neo_ccs::{CcsStructure, Mat, SparsePoly, Term};
 use p3_field::PrimeCharacteristicRing;
@@ -46,7 +46,7 @@ fn test_y_prev_binding_enforcement(
     // Build public input and witness
     let rho = F::from_u64(42); // dummy rho
     let y_next: Vec<F> = y_prev.iter().map(|&y| y + rho).collect();
-    let public_input = build_linked_augmented_public_input(
+    let public_input = build_augmented_public_input_for_step(
         &vec![F::ZERO; 4], // dummy step_x
         rho,
         y_prev,
@@ -107,7 +107,7 @@ fn create_test_ccs() -> CcsStructure<F> {
 fn create_test_binding_spec() -> StepBindingSpec {
     StepBindingSpec {
         y_step_offsets: vec![0, 1],      // Extract y_step from witness[0], witness[1]
-        x_witness_indices: vec![],        // No x binding for simplicity
+        step_program_input_witness_indices: vec![],        // No x binding for simplicity
         y_prev_witness_indices: vec![0, 1], // Bind y_prev to witness[0], witness[1]
         const1_witness_index: 2,         // witness[2] must be 1
     }
@@ -266,7 +266,7 @@ fn test_c_step_coords_tampering_detection() {
     
     use crate::*;
     use neo_math::F;
-    use neo::ivc::LastNExtractor;
+    use neo::LastNExtractor;
     
     // Create a simple test CCS and binding spec
     let step_ccs = create_test_ccs();
@@ -299,7 +299,7 @@ fn test_c_step_coords_tampering_detection() {
             
             // First verify the valid proof should succeed
             println!("   Testing valid proof verification...");
-            let valid_verify_result = verify_ivc_step(
+            let valid_verify_result = verify_ivc_step_legacy(
                 &step_ccs,
                 &step_result.proof,
                 &prev_accumulator,
@@ -329,7 +329,7 @@ fn test_c_step_coords_tampering_detection() {
                 tampered_proof.c_step_coords[0] = tampered_proof.c_step_coords[0] + F::ONE;
                 
                 // Verification should fail due to RLC binder constraint
-                let verify_result = verify_ivc_step(
+                let verify_result = verify_ivc_step_legacy(
                     &step_ccs,
                     &tampered_proof,
                     &prev_accumulator,

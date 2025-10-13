@@ -49,7 +49,7 @@ fn rlc_binder_linear_equality_correctness() {
     let rhs_diff = u; // Intended: <G, z_wit> = rhs_diff ≠ 0
 
     // Build augmented CCS with the current RLC binder encoding
-    let augmented = neo::ivc::build_augmented_ccs_linked_with_rlc(
+    let augmented = neo::build_augmented_ccs_linked_with_rlc(
         &step_ccs,
         step_x_len,
         &[y_step_offset],
@@ -118,7 +118,7 @@ fn rlc_binder_rejects_mismatch() {
     // Choose rhs different from <G,z>
     let rhs_diff = u + F::from_u64(1);
 
-    let augmented = neo::ivc::build_augmented_ccs_linked_with_rlc(
+    let augmented = neo::build_augmented_ccs_linked_with_rlc(
         &step_ccs,
         step_x_len,
         &[y_step_offset],

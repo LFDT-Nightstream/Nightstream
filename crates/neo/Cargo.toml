@@ -2,17 +2,17 @@
 name = "neo"
 version = "0.1.0"
 edition = "2021"
-license = "MIT OR Apache-2.0"
-description = "Neo: simple facade (prove/verify) over Ajtai+Folding+Spartan2"
+license = "Apache-2.0"
+description = "Nightstream: simple facade (prove/verify) over Ajtai+Folding+Spartan2"
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
 rust-version = "1.88"
 
 [features]
 default = []
 debug-logs = ["neo-spartan-bridge/debug-logs", "neo-transcript/debug-log"]
-# Enable comprehensive logging across all Neo components 
+# Enable comprehensive logging across all Nightstream components 
 neo-logs = ["neo-spartan-bridge/neo-logs", "neo-ccs/neo-logs", "neo-ajtai/neo-logs"]
-# Enable testing features across all Neo components
+# Enable testing features across all Nightstream components
 testing = [
   "neo-spartan-bridge/testing",
   "neo-ccs/testing",

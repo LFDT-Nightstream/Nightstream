@@ -78,9 +78,9 @@ fn test_fibonacci_nivc_ev_embed_small() -> Result<()> {
     let step_ccs = fibonacci_step_ccs();
 
     // Binding: output y_step is b_next (index 4), const1 at 0. No app inputs.
-    let binding = neo::ivc::StepBindingSpec {
+    let binding = neo::StepBindingSpec {
         y_step_offsets: vec![4],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

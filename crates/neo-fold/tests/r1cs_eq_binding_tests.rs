@@ -14,12 +14,26 @@ fn setup_ajtai() {
     let _ = set_global_pp(pp);
 }
 
-// Build an R1CS-shaped CCS where f = 7·(X2·X0 − X1)
+// Build an R1CS-shaped CCS where f = 7·(X2·X0 − X1) with 3 rows (ℓ=2)
 fn r1cs_scaled_permuted() -> CcsStructure<F> {
-    // Keep n,m small; shape matters, not values
-    let a = Mat::from_row_major(2, 2, vec![F::ONE, F::ZERO, F::ZERO, F::ONE]);
-    let b = Mat::from_row_major(2, 2, vec![F::ONE, F::ZERO, F::ZERO, F::ONE]);
-    let c = Mat::from_row_major(2, 2, vec![F::ONE, F::ZERO, F::ZERO, F::ONE]);
+    // 3 rows to ensure ℓ=2 after padding to 4
+    // Row 0-1: identity structure (as before)
+    // Row 2: zero row for padding (0 * 0 = 0, always satisfied)
+    let a = Mat::from_row_major(3, 2, vec![
+        F::ONE, F::ZERO,   // Row 0 (identity pattern)
+        F::ZERO, F::ONE,   // Row 1 (identity pattern)
+        F::ZERO, F::ZERO,  // Row 2 (all zeros)
+    ]);
+    let b = Mat::from_row_major(3, 2, vec![
+        F::ONE, F::ZERO,   // Row 0 (identity pattern)
+        F::ZERO, F::ONE,   // Row 1 (identity pattern)
+        F::ZERO, F::ZERO,  // Row 2 (all zeros)
+    ]);
+    let c = Mat::from_row_major(3, 2, vec![
+        F::ONE, F::ZERO,   // Row 0 (identity pattern)
+        F::ZERO, F::ONE,   // Row 1 (identity pattern)
+        F::ZERO, F::ZERO,  // Row 2 (all zeros)
+    ]);
     let lambda = F::from_u64(7);
     // Terms: λ·X2·X0 + (−λ)·X1
     let terms = vec![

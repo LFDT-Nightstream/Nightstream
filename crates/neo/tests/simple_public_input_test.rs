@@ -7,13 +7,14 @@ use neo::{NeoParams, F};
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use p3_field::PrimeCharacteristicRing;
 
-/// CCS with m = 4 and two constraints:
+/// CCS with m = 4 and three constraints (pads to 4, ℓ=2):
 /// rows:
 ///   (x0 - w0) * 1 = 0
 ///   (x1 - w1) * 1 = 0
+///   0 * 1 = 0  (padding to reach ℓ=2)
 /// variables: [x0, x1, w0, w1]
 fn create_public_equals_witness_ccs() -> CcsStructure<F> {
-    let rows = 2;
+    let rows = 3;
     let cols = 4;
 
     let mut a_data = vec![F::ZERO; rows * cols];
@@ -29,6 +30,9 @@ fn create_public_equals_witness_ccs() -> CcsStructure<F> {
     a_data[1 * cols + 1] = F::ONE;   // +x1
     a_data[1 * cols + 3] = -F::ONE;  // -w1
     b_data[1 * cols + 1] = F::ONE;   // ×1 via x1 column
+    
+    // Row 2: 0 * 1 = 0 (padding to reach ℓ=2)
+    b_data[2 * cols + 0] = F::ONE;   // ×1
 
     let a_mat = Mat::from_row_major(rows, cols, a_data);
     let b_mat = Mat::from_row_major(rows, cols, b_data);

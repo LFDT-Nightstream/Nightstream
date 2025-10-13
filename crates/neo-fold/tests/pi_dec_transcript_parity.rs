@@ -4,11 +4,13 @@
 //! and that a simple tamper causes verification to fail while transcript parity diverges
 //! (since we now absorb parent/digit X and fold digest explicitly).
 
+#[allow(unused_imports)]
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use neo_ccs::{CcsStructure, Mat};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
+#[allow(dead_code)]
 fn make_dummy_ccs() -> CcsStructure<F> {
     // Minimal 1x1 CCS just to drive Pi-DEC structure; values don't matter
     let a = Mat::from_row_major(1, 1, vec![F::ONE]);

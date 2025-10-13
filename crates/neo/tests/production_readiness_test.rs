@@ -15,13 +15,13 @@
 
 use anyhow::Result;
 use std::time::Instant;
-use neo::{NeoParams, F, ivc::{prove_ivc_step_with_extractor, Accumulator, StepBindingSpec, LastNExtractor}};
+use neo::{NeoParams, F, prove_ivc_step_with_extractor, Accumulator, StepBindingSpec, LastNExtractor};
 use neo::{NivcProgram, NivcStepSpec, NivcFinalizeOptions};
 
 // Helper function to replace the removed prove_ivc_final_snark
 fn prove_ivc_final_snark_compat(
     params: &NeoParams,
-    ivc_proofs: &[neo::ivc::IvcProof],
+    ivc_proofs: &[neo::IvcProof],
     _final_public_input: &[F], // Ignored; NIVC finalize reconstructs format
 ) -> anyhow::Result<(neo::Proof, neo_ccs::CcsStructure<F>, Vec<F>)> {
     if ivc_proofs.is_empty() {
@@ -32,7 +32,7 @@ fn prove_ivc_final_snark_compat(
     let step_ccs = build_increment_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -41,7 +41,7 @@ fn prove_ivc_final_snark_compat(
     // Build a synthetic NIVC chain from IVC proofs
     let steps: Vec<neo::NivcStepProof> = ivc_proofs
         .iter()
-        .map(|p| neo::NivcStepProof { which_type: 0, step_io: p.step_public_input.clone(), inner: p.clone() })
+        .map(|p| neo::NivcStepProof { lane_idx: 0, step_io: p.public_inputs.wrapper_public_input_x().to_vec(), inner: p.clone() })
         .collect();
     let last = ivc_proofs.last().unwrap();
     let mut acc = neo::nivc::NivcAccumulators::new(1, last.next_accumulator.y_compact.clone());
@@ -133,7 +133,7 @@ fn run_ivc_chain(num_steps: usize) -> Result<IvcChainMetrics> {
     // Use binding spec with proper app input binding
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -177,15 +177,15 @@ fn run_ivc_chain(num_steps: usize) -> Result<IvcChainMetrics> {
     let final_snark_start = Instant::now();
     // Build proper final public input format: [step_x || ρ || y_prev || y_next]
     let final_ivc_proof = ivc_proofs.last().unwrap();
-    let step_x = &final_ivc_proof.step_public_input;
-    let rho = final_ivc_proof.step_rho;
+    let step_x = final_ivc_proof.public_inputs.wrapper_public_input_x();
+    let rho = final_ivc_proof.public_inputs.rho();
     let y_prev = if ivc_proofs.len() > 1 {
         &ivc_proofs[ivc_proofs.len() - 2].next_accumulator.y_compact
     } else {
         &vec![F::ZERO] // Initial y for single step
     };
     let y_next = &accumulator.y_compact;
-    let final_public_input = neo::ivc::build_final_snark_public_input(step_x, rho, y_prev, y_next);
+    let final_public_input = neo::build_final_snark_public_input(step_x, rho, y_prev, y_next);
     
     let (final_proof, final_augmented_ccs_actual, final_public_input_actual) = prove_ivc_final_snark_compat(&params, &ivc_proofs, &final_public_input)
         .map_err(|e| anyhow::anyhow!("Final SNARK failed: {}", e))?;
@@ -234,7 +234,7 @@ fn test_negative_mutate_early_step_witness() -> Result<()> {
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -293,15 +293,15 @@ fn test_negative_mutate_early_step_witness() -> Result<()> {
     
     // Build proper final public input format: [step_x || ρ || y_prev || y_next]
     let final_ivc_proof = ivc_proofs.last().unwrap();
-    let step_x = &final_ivc_proof.step_public_input;
-    let rho = final_ivc_proof.step_rho;
+    let step_x = final_ivc_proof.public_inputs.wrapper_public_input_x();
+    let rho = final_ivc_proof.public_inputs.rho();
     let y_prev = if ivc_proofs.len() > 1 {
         &ivc_proofs[ivc_proofs.len() - 2].next_accumulator.y_compact
     } else {
         &vec![F::ZERO] // Initial y for single step
     };
     let y_next = &accumulator.y_compact;
-    let final_public_input = neo::ivc::build_final_snark_public_input(step_x, rho, y_prev, y_next);
+    let final_public_input = neo::build_final_snark_public_input(step_x, rho, y_prev, y_next);
     
     match prove_ivc_final_snark_compat(&params, &ivc_proofs, &final_public_input)
         .map_err(|e| anyhow::anyhow!("Final SNARK failed: {}", e)) {

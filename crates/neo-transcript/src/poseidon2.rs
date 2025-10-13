@@ -5,7 +5,7 @@ use neo_math::F;
 use crate::{Transcript, TranscriptProtocol};
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
 
-const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w12-r8";
+const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w16-r8";
 
 #[derive(Clone)]
 pub struct Poseidon2Transcript {

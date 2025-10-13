@@ -3,8 +3,8 @@ name = "neo-tests"
 version = "0.1.0"
 edition = "2021"
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
-description = "Property tests and integration tests for Neo protocol"
-license = "MIT OR Apache-2.0"
+description = "Property tests and integration tests for Nightstream protocol"
+license = "Apache-2.0"
 
 [[bin]]
 name = "neo-demo"
@@ -23,6 +23,8 @@ rand = { workspace = true }
 anyhow = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-field = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

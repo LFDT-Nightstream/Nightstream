@@ -3,9 +3,11 @@ name = "neo-ccs"
 edition = { workspace = true }
 version = { workspace = true }
 authors = { workspace = true }
+license = "Apache-2.0"
 
 [dependencies]
 neo-math = { path = "../neo-math" }
+neo-params = { path = "../neo-params" }
 # neo-ring functionality now in neo-math
 # Sumcheck functionality integrated locally
 p3-field = { workspace = true }

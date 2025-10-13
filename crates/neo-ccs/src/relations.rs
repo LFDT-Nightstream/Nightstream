@@ -5,7 +5,7 @@ use crate::{
     matrix::{Mat, MatRef},
     poly::SparsePoly,
     traits::SModuleHomomorphism,
-    utils::{validate_power_of_two, tensor_point, mat_vec_mul_ff, mat_vec_mul_fk},
+    utils::{tensor_point, mat_vec_mul_ff, mat_vec_mul_fk},
 };
 
 /// CCS structure: matrices {M_j} and a sparse polynomial `f` in `t` variables.
@@ -163,10 +163,10 @@ where C: PartialEq
     }
 
     // y_j == Z M_j^T r^b
-    if !validate_power_of_two(s.n) {
-        return Err(CcsError::NNotPowerOfTwo { n: s.n });
-    }
-    let ell = s.n.trailing_zeros() as usize;
+    // Allow arbitrary n by deriving ℓ from the next power of two.
+    // χ_r is length 2^ℓ, and we consume only the first n entries.
+    let n_pad = s.n.next_power_of_two();
+    let ell = n_pad.trailing_zeros() as usize;
     if inst.r.len() != ell {
         return Err(CcsError::Len {
             context: "r (extension point)",

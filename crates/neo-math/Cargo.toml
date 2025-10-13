@@ -4,8 +4,8 @@ version = { workspace = true }
 authors = { workspace = true }
 edition = { workspace = true }
 rust-version = { workspace = true }
-license = "MIT OR Apache-2.0"
-description = "Neo math primitives: Fq, F_{q^2}, cyclotomic ring R_q, S-action"
+license = "Apache-2.0"
+description = "Nightstream math primitives: Fq, F_{q^2}, cyclotomic ring R_q, S-action"
 
 [dependencies]
 # Plonky3 field + Goldilocks + Matrix (no NTT/FFT in folding layer per Neo design)

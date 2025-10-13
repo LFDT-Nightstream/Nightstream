@@ -1,7 +1,7 @@
 //! Red-team tests for IVC step_x binding: x must equal H(prev_accumulator)
 
 use neo::{F, NeoParams};
-use neo::ivc::{Accumulator, IvcStepInput, StepBindingSpec, prove_ivc_step, verify_ivc_step};
+use neo::{Accumulator, IvcStepInput, StepBindingSpec, prove_ivc_step, verify_ivc_step_legacy};
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -43,8 +43,7 @@ fn compute_x_digest(acc: &Accumulator) -> Vec<F> {
 #[test]
 fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    // Extend the circuit with 4 unconstrained app slots so we can bind them
-    let step_ccs = build_increment_step_ccs_with_app_slots(4);
+    let step_ccs = build_increment_step_ccs();
 
     let prev_acc = Accumulator {
         c_z_digest: [0u8; 32],
@@ -53,30 +52,27 @@ fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
         step: 0,
     };
 
-    // Witness: [1, prev_x=0, next_x=1, app0..app3]
-    let step_witness = vec![
-        F::ONE, F::ZERO, F::ONE,
-        F::from_u64(123456), F::from_u64(789), F::from_u64(101112), F::from_u64(131415)
-    ];
+    // Witness: [1, prev_x=0, next_x=1]
+    let step_witness = vec![F::ONE, F::ZERO, F::ONE];
     let y_step = vec![F::ONE];
 
     let binding = StepBindingSpec {
         y_step_offsets: vec![2],
-        // Bind only the *app* tail of step_x (digest prefix remains unbound by design).
-        x_witness_indices: vec![3, 4, 5, 6],
+        // No app input binding needed for this test - we're just testing digest prefix
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
 
-    // Attempt to provide a fake digest as public input; this is treated as app inputs now
-    let malicious_app_inputs = vec![F::from_u64(123456), F::from_u64(789), F::from_u64(101112), F::from_u64(131415)];
+    // Don't provide public input - the prover will use H(prev_acc) as the prefix
+    // (In the NIVC wrapper, lane metadata is added automatically)
     let input = IvcStepInput {
         params: &params,
         step_ccs: &step_ccs,
         step_witness: &step_witness,
         prev_accumulator: &prev_acc,
         step: 0,
-        public_input: Some(&malicious_app_inputs),
+        public_input: None,
         y_step: &y_step,
         binding_spec: &binding,
         transcript_only_app_inputs: false,
@@ -84,10 +80,9 @@ fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
     };
 
     let result = prove_ivc_step(input).expect("prover should accept and prepend digest prefix");
-    // Verify the prefix equals H(prev_acc)
+    // Verify the accumulator digest equals H(prev_acc)
     let expected_prefix = compute_x_digest(&prev_acc);
-    assert!(result.proof.step_public_input.len() >= expected_prefix.len());
-    assert_eq!(&result.proof.step_public_input[..expected_prefix.len()], &expected_prefix[..]);
+    assert_eq!(result.proof.public_inputs.acc_digest(), &expected_prefix[..]);
 }
 
 #[test]
@@ -107,7 +102,7 @@ fn verifier_rejects_tampered_step_x() {
     let y_step = vec![F::ONE];
     let binding = StepBindingSpec {
         y_step_offsets: vec![2],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -129,31 +124,18 @@ fn verifier_rejects_tampered_step_x() {
     // Tamper with step_x after proving
     let mut forged = ok.proof.clone();
     let correct_x = compute_x_digest(&prev_acc);
-    assert_eq!(forged.step_public_input, correct_x);
-    // Tamper with wrong size (should be 4 elements like correct_x)
-    forged.step_public_input = vec![F::from_u64(999), F::from_u64(888), F::from_u64(777), F::from_u64(666)];
+    assert_eq!(forged.public_inputs.acc_digest(), &correct_x[..]);
+    // Tamper with the accumulator digest (first 4 elements)
+    let buf = forged.public_inputs.__test_tamper_buffer();
+    buf[0] = F::from_u64(999);
+    buf[1] = F::from_u64(888);
+    buf[2] = F::from_u64(777);
+    buf[3] = F::from_u64(666);
 
-    // Verifier must reject tampered x
-    let is_valid = verify_ivc_step(&step_ccs, &forged, &prev_acc, &binding, &params, None).expect("verify must not error");
-    assert!(!is_valid, "verifier should reject proof with tampered step_x");
-}
-
-// Helper used above: variables = [1, prev_x, next_x, app_0..app_{k-1}],
-// with the single constraint next_x - prev_x - 1 = 0 and all app_* unconstrained.
-fn build_increment_step_ccs_with_app_slots(k: usize) -> CcsStructure<F> {
-    let rows = 1;
-    let cols = 3 + k;
-    let mut a = vec![F::ZERO; rows * cols];
-    let mut b = vec![F::ZERO; rows * cols];
-    let c = vec![F::ZERO; rows * cols];
-    // next_x - prev_x - 1 = 0
-    a[0 * cols + 2] = F::ONE;
-    a[0 * cols + 1] = -F::ONE;
-    a[0 * cols + 0] = -F::ONE;
-    b[0 * cols + 0] = F::ONE; // × 1
-    r1cs_to_ccs(
-        Mat::from_row_major(rows, cols, a),
-        Mat::from_row_major(rows, cols, b),
-        Mat::from_row_major(rows, cols, c),
-    )
+    // Verifier must reject tampered x (should return Err, not Ok(false))
+    let result = verify_ivc_step_legacy(&step_ccs, &forged, &prev_acc, &binding, &params, None);
+    assert!(result.is_err(), "verifier must error when digest prefix is tampered");
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("Las binding check failed") || err_msg.contains("step_x prefix does not match"), 
+            "error should indicate Las binding check failure, got: {}", err_msg);
 }

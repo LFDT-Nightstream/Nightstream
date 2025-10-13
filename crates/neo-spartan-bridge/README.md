@@ -55,5 +55,3 @@ cargo test -p neo-spartan-bridge -- --nocapture
 * MMCS: Poseidon2‑Merkle (arity 8).
 * Default FRI params: `log_blowup=1`, `num_queries=100`, `pow_bits=16`.
 * **No `unsafe`** — crate is compiled with `#![forbid(unsafe_code)]`.
-
-**This bridge provides the production-ready foundation for compressing Neo's folded claims into succinct Spartan2 proofs using real FRI polynomial commitments.**

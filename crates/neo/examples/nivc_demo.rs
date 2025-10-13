@@ -32,9 +32,9 @@ fn main() -> anyhow::Result<()> {
     let ccs_b = trivial_step_ccs_rows(y_len, 2);
 
     // Binding: y_step lives at witness indices [1..=y_len]; const1 at 0
-    let binding = neo::ivc::StepBindingSpec {
+    let binding = neo::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -54,13 +54,13 @@ fn main() -> anyhow::Result<()> {
     let w2 = vec![F::ONE, F::from_u64(13), F::from_u64(17)]; // type 0
 
     let sp0 = st.step(0, &[], &w0)?; // A
-    println!("step0: which_type={}, y_next={:?}", sp0.which_type, sp0.inner.next_accumulator.y_compact.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());
+    println!("step0: lane_idx={}, y_next={:?}", sp0.lane_idx, sp0.inner.next_accumulator.y_compact.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());
 
     let sp1 = st.step(1, &[], &w1)?; // B
-    println!("step1: which_type={}, y_next={:?}", sp1.which_type, sp1.inner.next_accumulator.y_compact.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());
+    println!("step1: lane_idx={}, y_next={:?}", sp1.lane_idx, sp1.inner.next_accumulator.y_compact.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());
 
     let sp2 = st.step(0, &[], &w2)?; // A
-    println!("step2: which_type={}, y_next={:?}", sp2.which_type, sp2.inner.next_accumulator.y_compact.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());
+    println!("step2: lane_idx={}, y_next={:?}", sp2.lane_idx, sp2.inner.next_accumulator.y_compact.iter().map(|f| f.as_canonical_u64()).collect::<Vec<_>>());
 
     // Build chain proof and verify
     let chain = st.into_proof();

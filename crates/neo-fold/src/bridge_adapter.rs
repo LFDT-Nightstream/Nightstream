@@ -177,15 +177,3 @@ pub fn verify_via_bridge(serialized: &[u8]) -> Result<bool, String> {
         .map_err(|e| format!("bridge verify error: {e}"))
 }
 
-/// Compatibility wrapper for the old verify_via_bridge signature.
-/// 
-/// The public_inputs parameter is ignored in v2 as the bridge binds to
-/// the instance data via the header digest.
-#[deprecated(note = "Use verify_via_bridge(serialized) directly - public_inputs are bound via header digest")]
-pub fn verify_via_bridge_with_io(_public_inputs: &[F], serialized: &[u8]) -> Result<bool, String> {
-    // Return error if public_inputs is non-empty (as suggested in the review)
-    if !_public_inputs.is_empty() {
-        return Err("public_inputs are now bound via header digest - pass empty slice".to_string());
-    }
-    verify_via_bridge(serialized)
-}

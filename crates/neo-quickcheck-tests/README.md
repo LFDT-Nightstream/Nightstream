@@ -1,6 +1,6 @@
-# Neo QuickCheck Tests
+# neo-quickcheck-tests
 
-Property-based tests that verify critical protocol invariants using randomized generation to explore mathematical identities and security properties fundamental to Neo's correctness.
+Property-based tests that verify critical protocol invariants using randomized generation to explore mathematical identities and security properties fundamental to Nightstream's correctness.
 
 ## Running Tests
 
@@ -15,7 +15,7 @@ cargo test -p neo-quickcheck-tests --features quickcheck
 ```
 
 **Why this flag?**
-Neo's property-based tests are intended to be invoked explicitly in a "security/property verification" mode rather than during routine development cycles.
+Nightstream's property-based tests are intended to be invoked explicitly in a "security/property verification" mode rather than during routine development cycles.
 
 ## ✅ Final Test Suite
 

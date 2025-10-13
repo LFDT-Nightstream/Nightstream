@@ -2,8 +2,8 @@
 name = "neo-challenge"
 version = "0.1.0"
 edition = "2021"
-license = "Apache-2.0 OR MIT"
-description = "Strong-sampler challenge set C for Neo (rot(a) with invertible differences) + expansion metrics"
+license = "Apache-2.0"
+description = "Strong-sampler challenge set C for Nightstream (rot(a) with invertible differences) + expansion metrics"
 
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }

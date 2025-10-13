@@ -5,7 +5,7 @@
 //! for the next folding step, the dimensions don't match the step circuit.
 
 use neo::{NeoParams, F};
-use neo::ivc::{Accumulator, StepBindingSpec, IvcStepInput, prove_ivc_step_chained, compute_accumulator_digest_fields};
+use neo::{Accumulator, StepBindingSpec, IvcStepInput, prove_ivc_step_chained, compute_accumulator_digest_fields};
 use neo_ccs::{r1cs_to_ccs, Mat};
 use p3_field::PrimeCharacteristicRing;
 
@@ -72,7 +72,7 @@ fn test_folding_chain_dimension_mismatch() {
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3], // z (index 3) is our step output
         // Bind 4 digest fields into witness slots [4,5,6,7]
-        x_witness_indices: vec![4, 5, 6, 7],
+        step_program_input_witness_indices: vec![4, 5, 6, 7],
         y_prev_witness_indices: vec![3], // Previous z becomes current state
         const1_witness_index: 0, // constant 1 at index 0
     };

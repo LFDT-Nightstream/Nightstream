@@ -1,6 +1,6 @@
 use anyhow::Result;
 use neo::{NeoParams, F};
-use neo::ivc::{StepBindingSpec, IvcStepInput, prove_ivc_step_chained, Accumulator, IvcProof};
+use neo::{StepBindingSpec, IvcStepInput, prove_ivc_step_chained, Accumulator, IvcProof};
 use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -51,7 +51,7 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],           // next_x at position 3
-        x_witness_indices: vec![2],        // bind delta to witness position 2
+        step_program_input_witness_indices: vec![2],        // bind delta to witness position 2
         y_prev_witness_indices: vec![],    // no binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -84,7 +84,7 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
     let step1_public_input = vec![F::from_u64(3)]; // delta=3
     {
         let y_step = step1_witness[3..=3].to_vec();
-        let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &step1_witness, prev_accumulator: &acc, step: 1, public_input: Some(&step1_public_input), y_step: &y_step, binding_spec: &binding_spec, transcript_only_app_inputs: false, prev_augmented_x: proofs.last().map(|p| p.step_augmented_public_input.as_slice()) };
+        let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &step1_witness, prev_accumulator: &acc, step: 1, public_input: Some(&step1_public_input), y_step: &y_step, binding_spec: &binding_spec, transcript_only_app_inputs: false, prev_augmented_x: proofs.last().map(|p| p.public_inputs.step_augmented_public_input()) };
         let (res, me, wit, lhs) = prove_ivc_step_chained(
             input,
             prev_me.take(),
@@ -100,7 +100,7 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
     let step2_public_input = vec![F::from_u64(2)]; // delta=2
     {
         let y_step = step2_witness[3..=3].to_vec();
-        let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &step2_witness, prev_accumulator: &acc, step: 2, public_input: Some(&step2_public_input), y_step: &y_step, binding_spec: &binding_spec, transcript_only_app_inputs: false, prev_augmented_x: proofs.last().map(|p| p.step_augmented_public_input.as_slice()) };
+        let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &step2_witness, prev_accumulator: &acc, step: 2, public_input: Some(&step2_public_input), y_step: &y_step, binding_spec: &binding_spec, transcript_only_app_inputs: false, prev_augmented_x: proofs.last().map(|p| p.public_inputs.step_augmented_public_input()) };
         let (res, _me, _wit, _lhs) = prove_ivc_step_chained(
             input,
             prev_me.take(),
@@ -116,9 +116,9 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
     // and could be the same. If we're properly chaining, they should be different.
     assert!(proofs.len() >= 3, "Should have at least 3 IVC proofs");
     
-    let rho_0 = proofs[0].step_rho;
-    let rho_1 = proofs[1].step_rho;
-    let rho_2 = proofs[2].step_rho;
+    let rho_0 = proofs[0].public_inputs.rho();
+    let rho_1 = proofs[1].public_inputs.rho();
+    let rho_2 = proofs[2].public_inputs.rho();
     
     println!("🔍 Folding randomness values:");
     println!("   Step 0 ρ: {:?}", rho_0);
@@ -182,10 +182,10 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
     let mut app_x = F::ZERO; // initial prev_x = 0
     for (i, proof) in proofs.iter().enumerate() {
         // App input (delta) is the last element of step_x
-        let delta = proof.step_public_input.last().copied().expect("step_public_input not empty");
+        let delta = proof.public_inputs.wrapper_public_input_x().last().copied().expect("step_public_input not empty");
         app_x += delta;               // next_x = prev_x + delta
         let next_x = app_x;           // y_step for this EV configuration
-        let rho = proof.step_rho;
+        let rho = proof.public_inputs.rho();
         expected_y += rho * next_x;
         println!("   Accumulate step {}: expected_y += rho*next_x = {:?}", i, (rho * next_x).as_canonical_u64());
     }

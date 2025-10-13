@@ -107,8 +107,11 @@ pub fn pi_rlc_prove(
         )));
     }
     
-    eprintln!("✅ PI_RLC: Guard check passed: {} < {}", guard_lhs, params.B);
-    eprintln!("  Strong sampling: T_bound = {}", T_bound);
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("✅ PI_RLC: Guard check passed: {} < {}", guard_lhs, params.B);
+        eprintln!("  Strong sampling: T_bound = {}", T_bound);
+    }
     
     // === Convert rhos to ring elements ===
     let rho_ring_elems: Vec<Rq> = rhos.iter()
@@ -193,8 +196,11 @@ pub fn pi_rlc_prove(
         },
     };
     
-    eprintln!("✅ PI_RLC: Combination completed");
-    eprintln!("  Combined {} instances into 1", me_list.len());
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("✅ PI_RLC: Combination completed");
+        eprintln!("  Combined {} instances into 1", me_list.len());
+    }
     
     Ok((me_combined, proof))
 }

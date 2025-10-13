@@ -9,9 +9,9 @@
 //! 6. Final proof verifies the entire chain
 
 use neo::{F, NeoParams};
-use neo::ivc::{
-    Accumulator, IvcStepInput, prove_ivc_step, StepBindingSpec, 
-    StepOutputExtractor, LastNExtractor
+use neo::{
+    Accumulator, IvcStepInput, prove_ivc_step_chained, StepBindingSpec, 
+    StepOutputExtractor, LastNExtractor, verify_ivc_step_legacy
 };
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -76,7 +76,7 @@ fn test_real_nova_folding_5_steps() -> Result<(), Box<dyn std::error::Error + Se
     // Binding spec for witness layout: [const, prev_x, delta, next_x]
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // next_x at index 3
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![],     // No public input binding needed for this test
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -105,7 +105,6 @@ fn test_real_nova_folding_5_steps() -> Result<(), Box<dyn std::error::Error + Se
 
         // Build witness
         let step_witness = build_step_witness(prev_x, delta);
-        let step_public_input = vec![F::from_u64(delta)];
         
         // Extract y_step (the actual step output)
         let extractor = LastNExtractor { n: 1 };
@@ -114,14 +113,14 @@ fn test_real_nova_folding_5_steps() -> Result<(), Box<dyn std::error::Error + Se
         println!("   y_step extracted: {}", y_step[0].as_canonical_u64());
         assert_eq!(y_step[0].as_canonical_u64(), expected_next_x, "y_step should equal expected next_x");
 
-        // Create IVC step input
+        // Create IVC step input (no app public input needed for this test)
         let ivc_input = IvcStepInput {
             params: &params,
             step_ccs: &step_ccs,
             step_witness: &step_witness,
             prev_accumulator: &current_accumulator,
             step: step_i as u64,
-            public_input: Some(&step_public_input),
+            public_input: None, // No app public input needed - testing folding, not input binding
             y_step: &y_step,
             binding_spec: &binding_spec,
             transcript_only_app_inputs: false,
@@ -135,14 +134,21 @@ fn test_real_nova_folding_5_steps() -> Result<(), Box<dyn std::error::Error + Se
         println!("   Pre-folding: {} constraints, {} variables", pre_folding_constraints, pre_folding_variables);
 
         // Execute the step (this should do REAL Nova folding)
-        let step_result = prove_ivc_step(ivc_input).expect("IVC step should succeed");
+        let (step_result, _me, _wit, _lhs) = prove_ivc_step_chained(ivc_input, None, None, None).expect("IVC step should succeed");
         
         // 🔍 VALIDATION 0: Verify the proof is valid
-        use neo::ivc::verify_ivc_step;
-        let is_valid = verify_ivc_step(&step_ccs, &step_result.proof, &current_accumulator, &binding_spec, &params, None)
-            .expect("IVC verification should not error");
-        assert!(is_valid, "IVC step verification must succeed for step {}", step_i);
-        println!("   ✅ Step {} verification: PASSED", step_i);
+        let verification_result = verify_ivc_step_legacy(&step_ccs, &step_result.proof, &current_accumulator, &binding_spec, &params, None);
+        match verification_result {
+            Ok(is_valid) => {
+                if !is_valid {
+                    panic!("IVC step verification returned false for step {}", step_i);
+                }
+                println!("   ✅ Step {} verification: PASSED", step_i);
+            }
+            Err(e) => {
+                panic!("IVC verification error for step {}: {}", step_i, e);
+            }
+        }
         
         // 🔍 VALIDATION 1: Constraint system size should NOT grow (no matrix expansion)
         // If we were doing matrix expansion, the constraint system would grow with each step
@@ -242,7 +248,7 @@ fn test_folding_equation_validation() -> Result<(), Box<dyn std::error::Error + 
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![],     // No public input binding needed for this test
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -257,7 +263,6 @@ fn test_folding_equation_validation() -> Result<(), Box<dyn std::error::Error + 
 
     // Single step: 100 + 42 = 142
     let step_witness = build_step_witness(100, 42);
-    let step_public_input = vec![F::from_u64(42)];
     let y_step = vec![F::from_u64(142)];
 
     let ivc_input = IvcStepInput {
@@ -266,21 +271,28 @@ fn test_folding_equation_validation() -> Result<(), Box<dyn std::error::Error + 
         step_witness: &step_witness,
         prev_accumulator: &initial_accumulator,
         step: 0,
-        public_input: Some(&step_public_input),
+        public_input: None, // No app public input needed - testing folding, not input binding
         y_step: &y_step,
         binding_spec: &binding_spec,
         transcript_only_app_inputs: false,
         prev_augmented_x: None,
     };
 
-    let step_result = prove_ivc_step(ivc_input).expect("IVC step should succeed");
+    let (step_result, _me, _wit, _lhs) = prove_ivc_step_chained(ivc_input, None, None, None).expect("IVC step should succeed");
     
     // Verify the proof is valid
-    use neo::ivc::verify_ivc_step;
-    let is_valid = verify_ivc_step(&step_ccs, &step_result.proof, &initial_accumulator, &binding_spec, &params, None)
-        .expect("IVC verification should not error");
-    assert!(is_valid, "IVC step verification must succeed");
-    println!("✅ Step verification: PASSED");
+    let verification_result = verify_ivc_step_legacy(&step_ccs, &step_result.proof, &initial_accumulator, &binding_spec, &params, None);
+    match verification_result {
+        Ok(is_valid) => {
+            if !is_valid {
+                panic!("IVC step verification returned false");
+            }
+            println!("✅ Step verification: PASSED");
+        }
+        Err(e) => {
+            panic!("IVC verification error: {}", e);
+        }
+    }
     
     // The folding equation should hold: y_next = y_prev + ρ*y_step
     // Where ρ is a cryptographic challenge from Fiat-Shamir transcript
@@ -318,7 +330,7 @@ fn test_not_constraint_batching() -> Result<(), Box<dyn std::error::Error + Send
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],     // Bind delta (public input) to witness position 2
+        step_program_input_witness_indices: vec![],     // No public input binding needed for this test
         y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
         const1_witness_index: 0,
     };
@@ -333,7 +345,6 @@ fn test_not_constraint_batching() -> Result<(), Box<dyn std::error::Error + Send
     // Run multiple steps and verify constraint system doesn't grow
     for step_i in 0..3 {
         let step_witness = build_step_witness(step_i as u64, 1);
-        let step_public_input = vec![F::ONE];
         let y_step = vec![F::from_u64(step_i as u64 + 1)];
 
         let ivc_input = IvcStepInput {
@@ -342,14 +353,14 @@ fn test_not_constraint_batching() -> Result<(), Box<dyn std::error::Error + Send
             step_witness: &step_witness,
             prev_accumulator: &accumulator,
             step: step_i as u64,
-            public_input: Some(&step_public_input),
+            public_input: None, // No app public input needed - testing folding, not input binding
             y_step: &y_step,
             binding_spec: &binding_spec,
             transcript_only_app_inputs: false,
             prev_augmented_x: None,
         };
 
-        let step_result = prove_ivc_step(ivc_input).expect("IVC step should succeed");
+        let (step_result, _me, _wit, _lhs) = prove_ivc_step_chained(ivc_input, None, None, None).expect("IVC step should succeed");
         accumulator = step_result.proof.next_accumulator;
         
         // If this were constraint batching, we'd see growing constraint systems

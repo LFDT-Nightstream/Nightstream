@@ -1,7 +1,10 @@
 #![cfg(test)]
 
-use neo::ivc;
-use neo::{F, CcsStructure, NeoParams};
+use neo::{
+    F, CcsStructure, NeoParams,
+    StepBindingSpec, Accumulator, IvcProof, IvcStepInput, IvcChainProof,
+    prove_ivc_step_chained, verify_ivc_chain_legacy, verify_ivc_step_legacy,
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 fn trivial_step_ccs(y_len: usize) -> CcsStructure<F> {
@@ -35,16 +38,16 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
     let params = NeoParams::goldilocks_small_circuits();
     let y_len = 2usize;
     let step_ccs = trivial_step_ccs(y_len);
-    let binding = ivc::StepBindingSpec {
+    let binding = StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
-        x_witness_indices: vec![],          // no app x in this trivial example
+        step_program_input_witness_indices: vec![],          // no app x in this trivial example
         y_prev_witness_indices: vec![],     // not needed for this test
         const1_witness_index: 0,
     };
     let y0 = vec![F::from_u64(10), F::from_u64(20)];
     // Manual chained proving (replaces ivc_chain)
-    let mut acc = ivc::Accumulator { c_z_digest: [0u8;32], c_coords: vec![], y_compact: y0.clone(), step: 0 };
-    let mut proofs: Vec<ivc::IvcProof> = Vec::new();
+    let mut acc = Accumulator { c_z_digest: [0u8;32], c_coords: vec![], y_compact: y0.clone(), step: 0 };
+    let mut proofs: Vec<IvcProof> = Vec::new();
     let mut prev_me = None;
     let mut prev_me_wit = None;
     let mut prev_lhs = None;
@@ -57,7 +60,7 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
     ];
     for (i, w) in steps.into_iter().enumerate() {
         let y_step = w[1..=y_len].to_vec();
-        let input = ivc::IvcStepInput {
+        let input = IvcStepInput {
             params: &params,
             step_ccs: &step_ccs,
             step_witness: &w,
@@ -67,9 +70,9 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
             y_step: &y_step,
             binding_spec: &binding,
             transcript_only_app_inputs: false,
-            prev_augmented_x: proofs.last().map(|p| p.step_augmented_public_input.as_slice()),
+            prev_augmented_x: proofs.last().map(|p| p.public_inputs.step_augmented_public_input()),
         };
-        let (res, me, wit, lhs_next) = ivc::prove_ivc_step_chained(
+        let (res, me, wit, lhs_next) = prove_ivc_step_chained(
             input,
             prev_me.take(),
             prev_me_wit.take(),
@@ -81,8 +84,8 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
         prev_lhs = Some(lhs_next);
         proofs.push(res.proof);
     }
-    let chain = ivc::IvcChainProof { steps: proofs.clone(), final_accumulator: acc.clone(), chain_length: proofs.len() as u64 };
-    let initial_acc = ivc::Accumulator {
+    let chain = IvcChainProof { steps: proofs.clone(), final_accumulator: acc.clone(), chain_length: proofs.len() as u64 };
+    let initial_acc = Accumulator {
         c_z_digest: [0u8; 32],
         c_coords: vec![],
         y_compact: y0,
@@ -90,7 +93,7 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
     };
 
     // Verify (strict: step checks + folding)
-    let ok = ivc::verify_ivc_chain(
+    let ok = verify_ivc_chain_legacy(
         &step_ccs,
         &chain,
         &initial_acc,
@@ -106,13 +109,13 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
         for (i, step_proof) in chain.steps.iter().enumerate() {
             println!("🔍 DEBUG: Verifying step {} individually", i);
             println!("  prev_step_x: {:?}", prev_step_x.as_ref().map(|x| x.len()));
-            println!("  step_public_input: {:?}", step_proof.step_public_input.len());
-            println!("  step_rho: {}", step_proof.step_rho.as_canonical_u64());
-            println!("  step_y_prev: {:?}", step_proof.step_y_prev.len());
-            println!("  step_y_next: {:?}", step_proof.step_y_next.len());
+            println!("  step_public_input: {:?}", step_proof.public_inputs.wrapper_public_input_x().len());
+            println!("  step_rho: {}", step_proof.public_inputs.rho().as_canonical_u64());
+            println!("  step_y_prev: {:?}", step_proof.public_inputs.y_prev().len());
+            println!("  step_y_next: {:?}", step_proof.public_inputs.y_next().len());
                 
                 // Verify step (now includes folding verification)
-                let step_ok = ivc::verify_ivc_step(&step_ccs, step_proof, &current_acc, &binding, &params, prev_step_x.as_deref())
+                let step_ok = verify_ivc_step_legacy(&step_ccs, step_proof, &current_acc, &binding, &params, prev_step_x.as_deref())
                     .map_err(|e| anyhow::anyhow!("Step {} verification failed: {}", i, e))?;
                 println!("  Step verification: {}", step_ok);
                 
@@ -124,7 +127,7 @@ fn fold_roundtrip_chain_ok() -> anyhow::Result<()> {
                 
                 current_acc = step_proof.next_accumulator.clone();
                 // Reconstruct the full augmented public input for the next step
-                prev_step_x = Some(step_proof.step_augmented_public_input.clone());
+                prev_step_x = Some(step_proof.public_inputs.step_augmented_public_input().to_vec());
         }
     }
     
@@ -138,19 +141,19 @@ fn fold_roundtrip_rejects_mutated_rhs_commitment() -> anyhow::Result<()> {
     let params = NeoParams::goldilocks_small_circuits();
     let y_len = 1usize;
     let step_ccs = trivial_step_ccs(y_len);
-    let binding = ivc::StepBindingSpec {
+    let binding = StepBindingSpec {
         y_step_offsets: vec![1],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
     let y0 = vec![F::from_u64(1)];
     // manual single-step proof
-    let acc = ivc::Accumulator { c_z_digest: [0u8;32], c_coords: vec![], y_compact: y0.clone(), step: 0 };
+    let acc = Accumulator { c_z_digest: [0u8;32], c_coords: vec![], y_compact: y0.clone(), step: 0 };
     let w = vec![F::ONE, F::from_u64(7)];
     let y_step = w[1..=y_len].to_vec();
-    let input = ivc::IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &w, prev_accumulator: &acc, step: 0, public_input: Some(&[]), y_step: &y_step, binding_spec: &binding, transcript_only_app_inputs: false, prev_augmented_x: None };
-    let (res, _, _, _) = ivc::prove_ivc_step_chained(input, None, None, None)
+    let input = IvcStepInput { params: &params, step_ccs: &step_ccs, step_witness: &w, prev_accumulator: &acc, step: 0, public_input: Some(&[]), y_step: &y_step, binding_spec: &binding, transcript_only_app_inputs: false, prev_augmented_x: None };
+    let (res, _, _, _) = prove_ivc_step_chained(input, None, None, None)
         .map_err(|e| anyhow::anyhow!("prove_ivc_step_chained failed: {}", e))?;
     let _acc_unused = res.proof.next_accumulator.clone();
     let mut step_proof = res.proof.clone();
@@ -164,8 +167,8 @@ fn fold_roundtrip_rejects_mutated_rhs_commitment() -> anyhow::Result<()> {
         }
     }
 
-    let initial_acc = ivc::Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![F::ZERO], step: 0 };
-    let ok = ivc::verify_ivc_step(
+    let initial_acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: y0, step: 0 };
+    let ok = verify_ivc_step_legacy(
         &step_ccs,
         &step_proof,
         &initial_acc,

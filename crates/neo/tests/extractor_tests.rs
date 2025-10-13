@@ -2,7 +2,7 @@
 //! These tests ensure extractors return real step outputs, not placeholder values.
 
 use neo::F;
-use neo::ivc::{LastNExtractor, IndexExtractor, StepOutputExtractor};
+use neo::{LastNExtractor, IndexExtractor, StepOutputExtractor};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]

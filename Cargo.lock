@@ -986,6 +986,7 @@ dependencies = [
  "criterion",
  "neo-ajtai",
  "neo-math",
+ "neo-params",
  "once_cell",
  "p3-field",
  "p3-goldilocks",
@@ -1178,6 +1179,8 @@ dependencies = [
  "p3-goldilocks",
  "proptest",
  "rand 0.9.2",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

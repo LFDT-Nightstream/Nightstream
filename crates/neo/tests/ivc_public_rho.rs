@@ -1,6 +1,6 @@
 //! IVC EV (public-ρ) tests: fold enforced in-circuit, ρ is public and recomputed
 use neo::F;
-use neo::ivc::{
+use neo::{
     ev_full_ccs_public_rho, build_ev_full_witness, create_step_digest, rho_from_transcript,
     Accumulator,
 };

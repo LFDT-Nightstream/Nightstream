@@ -13,10 +13,18 @@
 //!
 //! NOTE: The per-instance (ℓ, d_sc) used in the sum-check live in neo-fold.
 //!       Use `extension_check()` *there* with the preset's q, s, λ.
+//!
+//! ## Cryptographic Primitives
+//! 
+//! This crate also provides the canonical Poseidon2 configuration used throughout Neo.
+//! All hash operations (transcripts, digests) MUST use this single source of truth.
 
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+/// Production Poseidon2 over Goldilocks (single source of truth)
+pub mod poseidon2_goldilocks;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(non_snake_case)] // Allow mathematical notation from paper (B, T, etc.)

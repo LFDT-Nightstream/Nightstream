@@ -83,9 +83,9 @@ fn rt13_non_invertible_rhos_fail() {
     // We don't need a real Spartan bundle because verification should fail in Π_RLC first.
     let dummy_bundle = dummy_proof_bundle();
 
-    // Verify end-to-end: should fail at Π_RLC step with Ok(false)
-    let ok = verify_folding_proof_with_spartan(
+    // Verify end-to-end: should fail at Π_RLC step with error
+    let result = verify_folding_proof_with_spartan(
         &params, &ccs, &inputs, &digits, &fold_proof, &dummy_bundle
-    ).expect("verify path runs");
-    assert!(!ok, "Π_RLC must reject duplicate/non-invertible ρ differences");
+    );
+    assert!(result.is_err(), "Π_RLC must reject duplicate/non-invertible ρ differences");
 }

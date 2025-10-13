@@ -11,16 +11,17 @@
 //! Each test should FAIL, confirming the vulnerability exists, before we fix the implementation.
 
 use anyhow::Result;
-use neo::{NeoParams, F, ivc::{
+use neo::{
+    NeoParams, F,
     prove_ivc_step_with_extractor,
     Accumulator,
     StepBindingSpec,
     LastNExtractor,
     build_final_snark_public_input,
-    build_step_data_with_x,
+    build_step_transcript_data,
     create_step_digest,
     rho_from_transcript,
-}};
+};
 use neo::{NivcProgram, NivcStepSpec, NivcFinalizeOptions};
 use neo_ccs::{r1cs_to_ccs, Mat, CcsStructure};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -91,7 +92,7 @@ fn test_vulnerability_folding_chain_duplication() -> Result<()> {
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
         // Bind only the app input (delta) to witness[2]
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![1],
         const1_witness_index: 0,
     };
@@ -153,20 +154,20 @@ fn test_vulnerability_folding_chain_duplication() -> Result<()> {
     
     // Build the correct augmented CCS public input for the final SNARK
     let final_step = ivc_proofs.last().unwrap();
-    let step_x = final_step.step_public_input.clone();
+    let step_x = final_step.public_inputs.wrapper_public_input_x().to_vec();
     let prev_acc = &ivc_proofs[ivc_proofs.len() - 2].next_accumulator; // we ran 3 steps
-    let step_data = build_step_data_with_x(prev_acc, final_step.step, &step_x);
+    let step_data = build_step_transcript_data(prev_acc, final_step.step, &step_x);
     let step_digest = create_step_digest(&step_data);
     let (rho, _td) = rho_from_transcript(prev_acc, step_digest, &[]);
     let y_prev = &prev_acc.y_compact;
     let y_next = &final_step.next_accumulator.y_compact;
     let _final_public_input = build_final_snark_public_input(&step_x, rho, y_prev, y_next);
     // Build NIVC program and synthetic chain from IVC proofs
-    let binding_spec = StepBindingSpec { y_step_offsets: vec![3], x_witness_indices: vec![2], y_prev_witness_indices: vec![1], const1_witness_index: 0 };
+    let binding_spec = StepBindingSpec { y_step_offsets: vec![3], step_program_input_witness_indices: vec![2], y_prev_witness_indices: vec![1], const1_witness_index: 0 };
     let program = NivcProgram::new(vec![NivcStepSpec { ccs: step_ccs.clone(), binding: binding_spec }]);
     let steps: Vec<neo::NivcStepProof> = ivc_proofs
         .iter()
-        .map(|p| neo::NivcStepProof { which_type: 0, step_io: p.step_public_input.clone(), inner: p.clone() })
+        .map(|p| neo::NivcStepProof { lane_idx: 0, step_io: p.public_inputs.wrapper_public_input_x().to_vec(), inner: p.clone() })
         .collect();
     let mut acc = neo::nivc::NivcAccumulators::new(1, y_next.clone());
     if let (Some(meis), Some(wits)) = (&final_step.me_instances, &final_step.digit_witnesses) {
@@ -235,7 +236,7 @@ fn test_vulnerability_final_snark_public_input_format() -> Result<()> {
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
         // Bind only the app input (delta) to witness[2]
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![1],
         const1_witness_index: 0,
     };
@@ -278,7 +279,7 @@ fn test_vulnerability_final_snark_public_input_format() -> Result<()> {
     // Try to create a state and manually set wrong public input (this should fail in finalize_and_prove)
     let temp_binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![1],
         const1_witness_index: 0,
     };
@@ -286,7 +287,7 @@ fn test_vulnerability_final_snark_public_input_format() -> Result<()> {
     let program = NivcProgram::new(vec![NivcStepSpec { ccs: step_ccs.clone(), binding: temp_binding_spec }]);
     let steps: Vec<neo::NivcStepProof> = ivc_proofs
         .iter()
-        .map(|p| neo::NivcStepProof { which_type: 0, step_io: p.step_public_input.clone(), inner: p.clone() })
+        .map(|p| neo::NivcStepProof { lane_idx: 0, step_io: p.public_inputs.wrapper_public_input_x().to_vec(), inner: p.clone() })
         .collect();
     let last = ivc_proofs.last().unwrap();
     let mut acc = neo::nivc::NivcAccumulators::new(1, last.next_accumulator.y_compact.clone());
@@ -370,10 +371,10 @@ fn test_vulnerability_missing_witness_binding() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
-    // 🚫 FIXED: x_witness_indices=[] is rejected by the prover
+    // 🚫 FIXED: step_program_input_witness_indices=[] is rejected by the prover when app inputs exist
     let vulnerable_binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![],      // This is the vulnerability!
+        step_program_input_witness_indices: vec![],      // This is the vulnerability!
         y_prev_witness_indices: vec![1],
         const1_witness_index: 0,
     };
@@ -463,7 +464,7 @@ fn test_vulnerability_fixed_ajtai_seed() -> Result<()> {
     // Bind only the app input (delta) to witness[2]
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![2],
         y_prev_witness_indices: vec![1],
         const1_witness_index: 0,
     };

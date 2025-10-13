@@ -4,8 +4,8 @@
 //! which would be a very subtle attack vector.
 
 use anyhow::Result;
-use neo::{F, ivc, NeoParams};
-use neo::ivc::StepOutputExtractor;
+use neo::{F, NeoParams, StepOutputExtractor, LastNExtractor};
+use neo::{Accumulator, StepBindingSpec, IvcStepInput, prove_ivc_step, verify_ivc_step};
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -50,61 +50,61 @@ fn test_single_bit_flip_in_rho() -> Result<()> {
     // Setup (same as other tests)
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
-    let binding_spec = ivc::StepBindingSpec {
+    let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // No public input binding needed for this test
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
     
-    let initial_acc = ivc::Accumulator { 
+    let initial_acc = Accumulator { 
         c_z_digest: [0;32], 
         c_coords: vec![], 
         y_compact: vec![F::ZERO], 
         step: 0 
     };
 
-    let step_x = vec![F::from_u64(7)];
+    // Use delta=7 for the incrementer
     let prev_x = initial_acc.y_compact[0];
-    let delta = step_x[0];
+    let delta = F::from_u64(7);
     let next_x = prev_x + delta;
     let step_witness = vec![F::ONE, prev_x, delta, next_x];
 
     // Generate valid proof
-    let extractor = ivc::LastNExtractor { n: 1 };
+    let extractor = LastNExtractor { n: 1 };
     let y_step = extractor.extract_y_step(&step_witness);
     
-    let step_input = ivc::IvcStepInput {
+    let step_input = IvcStepInput {
         params: &params,
         step_ccs: &step_ccs,
         step_witness: &step_witness,
         prev_accumulator: &initial_acc,
         step: 0,
-        public_input: Some(&step_x),
+        public_input: None, // No public input needed - testing ρ tampering, not input binding
         y_step: &y_step,
         binding_spec: &binding_spec,
         transcript_only_app_inputs: false,
         prev_augmented_x: None,
     };
     
-    let step_result = ivc::prove_ivc_step(step_input).expect("Failed to prove IVC step");
+    let step_result = prove_ivc_step(step_input).expect("Failed to prove IVC step");
     let mut proof_with_flipped_rho = step_result.proof;
     
-    println!("🔍 Original ρ: {}", proof_with_flipped_rho.step_rho.as_canonical_u64());
+    println!("🔍 Original ρ: {}", proof_with_flipped_rho.public_inputs.rho().as_canonical_u64());
     
     // Flip a single bit in ρ (flip the least significant bit)
-    let original_rho_u64 = proof_with_flipped_rho.step_rho.as_canonical_u64();
+    let original_rho_u64 = proof_with_flipped_rho.public_inputs.rho().as_canonical_u64();
     let flipped_rho_u64 = original_rho_u64 ^ 1; // XOR with 1 flips the LSB
     let flipped_rho = F::from_u64(flipped_rho_u64);
     
-    proof_with_flipped_rho.step_rho = flipped_rho;
+    proof_with_flipped_rho.public_inputs.__test_tamper_rho(flipped_rho);
     
     println!("🔍 Flipped ρ:  {} (flipped bit 0)", flipped_rho_u64);
     println!("🔍 Difference: {} (should be 1)", original_rho_u64 ^ flipped_rho_u64);
     
     // Test verification with single bit flip
     println!("\n🧪 Testing verification with single bit flip in ρ...");
-    let result = match ivc::verify_ivc_step(&step_ccs, &proof_with_flipped_rho, &initial_acc, &binding_spec, &params, None) {
+    let result = match verify_ivc_step(&step_ccs, &proof_with_flipped_rho, &initial_acc, &binding_spec, &params, None) {
         Ok(result) => result,
         Err(e) => {
             println!("⚠️  Verification returned error: {}", e);
@@ -134,47 +134,47 @@ fn test_multiple_bit_flips_in_rho() -> Result<()> {
     // Setup
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
-    let binding_spec = ivc::StepBindingSpec {
+    let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // No public input binding needed for this test
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
     
-    let initial_acc = ivc::Accumulator { 
+    let initial_acc = Accumulator { 
         c_z_digest: [0;32], 
         c_coords: vec![], 
         y_compact: vec![F::ZERO], 
         step: 0 
     };
 
-    let step_x = vec![F::from_u64(13)];
+    // Use delta=13 for the incrementer
     let prev_x = initial_acc.y_compact[0];
-    let delta = step_x[0];
+    let delta = F::from_u64(13);
     let next_x = prev_x + delta;
     let step_witness = vec![F::ONE, prev_x, delta, next_x];
 
     // Generate valid proof
-    let extractor = ivc::LastNExtractor { n: 1 };
+    let extractor = LastNExtractor { n: 1 };
     let y_step = extractor.extract_y_step(&step_witness);
     
-    let step_input = ivc::IvcStepInput {
+    let step_input = IvcStepInput {
         params: &params,
         step_ccs: &step_ccs,
         step_witness: &step_witness,
         prev_accumulator: &initial_acc,
         step: 0,
-        public_input: Some(&step_x),
+        public_input: None, // No public input needed - testing ρ tampering, not input binding
         y_step: &y_step,
         binding_spec: &binding_spec,
         transcript_only_app_inputs: false,
         prev_augmented_x: None,
     };
     
-    let step_result = ivc::prove_ivc_step(step_input).expect("Failed to prove IVC step");
+    let step_result = prove_ivc_step(step_input).expect("Failed to prove IVC step");
     let original_proof = step_result.proof;
     
-    println!("🔍 Original ρ: {}", original_proof.step_rho.as_canonical_u64());
+    println!("🔍 Original ρ: {}", original_proof.public_inputs.rho().as_canonical_u64());
     
     // Test flipping different bit positions
     let bit_positions = [0, 1, 7, 15, 31, 32, 63]; // Various bit positions
@@ -182,16 +182,16 @@ fn test_multiple_bit_flips_in_rho() -> Result<()> {
     
     for &bit_pos in &bit_positions {
         let mut proof_with_flipped_bit = original_proof.clone();
-        let original_rho_u64 = proof_with_flipped_bit.step_rho.as_canonical_u64();
+        let original_rho_u64 = proof_with_flipped_bit.public_inputs.rho().as_canonical_u64();
         let flipped_rho_u64 = original_rho_u64 ^ (1u64 << bit_pos); // Flip specific bit
         let flipped_rho = F::from_u64(flipped_rho_u64);
         
-        proof_with_flipped_bit.step_rho = flipped_rho;
+        proof_with_flipped_bit.public_inputs.__test_tamper_rho(flipped_rho);
         
         println!("\n🔍 Testing bit position {}: {} -> {}", 
                  bit_pos, original_rho_u64, flipped_rho_u64);
         
-        let result = match ivc::verify_ivc_step(&step_ccs, &proof_with_flipped_bit, &initial_acc, &binding_spec, &params, None) {
+        let result = match verify_ivc_step(&step_ccs, &proof_with_flipped_bit, &initial_acc, &binding_spec, &params, None) {
             Ok(result) => result,
             Err(e) => {
                 println!("   ⚠️  Verification returned error: {}", e);

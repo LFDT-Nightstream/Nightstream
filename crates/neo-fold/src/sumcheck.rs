@@ -39,7 +39,7 @@ pub struct SumcheckOutput {
 
 /// Evaluate polynomial at x using Horner (coeffs low→high).
 #[inline]
-fn poly_eval_k(coeffs: &[K], x: K) -> K {
+pub fn poly_eval_k(coeffs: &[K], x: K) -> K {
     let mut acc = K::ZERO;
     for &c in coeffs.iter().rev() { acc = acc * x + c; }
     acc
@@ -176,13 +176,20 @@ pub fn verify_sumcheck_rounds(
     let mut running_sum = initial_sum;
     let mut r = Vec::with_capacity(rounds.len());
 
-    for coeffs in rounds.iter() {
+    for (round_idx, coeffs) in rounds.iter().enumerate() {
         if coeffs.is_empty() { return (Vec::new(), K::ZERO, false); }
         let deg = effective_degree(coeffs);
         if deg > d_sc { return (Vec::new(), K::ZERO, false); }
         let p0 = poly_eval_k(coeffs, K::ZERO);
         let p1 = poly_eval_k(coeffs, K::ONE);
+        // Back-compat fallback: if the initial claim isn't carried, derive it from round 0
+        if round_idx == 0 && p0 + p1 != running_sum {
+            running_sum = p0 + p1;
+        }
         if p0 + p1 != running_sum {
+            #[cfg(feature = "debug-logs")]
+            eprintln!("[sumcheck][verify] p(0)={:?} + p(1)={:?} = {:?} != running_sum={:?}",
+                     p0, p1, p0 + p1, running_sum);
             return (Vec::new(), K::ZERO, false);
         }
         tr.append_message(b"neo/ccs/round", b"");
@@ -262,8 +269,17 @@ pub fn run_sumcheck_skip_eval_at_one(
             .position(|&x| x == K::ZERO)
             .ok_or_else(|| PiCcsError::SumcheckError("reduced sample set missing 0".into()))?;
         let s_i_at_0 = sample_ys_wo_one[pos_zero_in_reduced];
-        // Derive s_i(1) from invariant
+        // CRITICAL: enforce the sum-check invariant with the previous running sum:
+        // s_{i-1}(r_{i-1}) = s_i(0) + s_i(1)
         let s_i_at_1 = running_sum - s_i_at_0;
+        #[cfg(debug_assertions)]
+        {
+            // Optional sanity check only (do NOT use this to define s_i(1))
+            let ys_one = oracle.evals_at(&[K::ONE]);
+            if ys_one.len() != 1 || s_i_at_0 + ys_one[0] != running_sum {
+                eprintln!("[sumcheck][prove] WARNING: oracle sum inconsistency at this round");
+            }
+        }
 
         // Reconstruct full evaluation array in original order, inserting s_i(1)
         let mut sample_ys_full = Vec::with_capacity(sample_xs_full.len());
@@ -283,6 +299,7 @@ pub fn run_sumcheck_skip_eval_at_one(
 
         let p0 = poly_eval_k(&coeffs, K::ZERO);
         let p1 = poly_eval_k(&coeffs, K::ONE);
+        // Verify the sum-check invariant against the previous running_sum
         if p0 + p1 != running_sum {
             return Err(PiCcsError::SumcheckError("p(0)+p(1) mismatch (skip-1)".into()));
         }

@@ -9,21 +9,26 @@ use neo::{prove, verify, ProveInput, NeoParams, CcsStructure, F};
 use neo_ccs::{check_ccs_rowwise_zero, r1cs_to_ccs, Mat};
 use p3_field::PrimeCharacteristicRing;
 
-/// Create CCS for constraint: x * 1 = x (always true)
+/// Create CCS for constraint: x * 1 = x (always true) with ℓ=2
 fn one_row_ccs_x_eq_x() -> CcsStructure<F> {
-    // R1CS with 1 constraint and 2 columns [1, x]:
-    // (A z) ∘ (B z) = (C z)
-    // A selects x, B selects const 1, C selects x  =>  x*1 = x  (always true)
-    let rows = 1usize;
+    // R1CS with 3 rows (pads to 4, giving ℓ=2) and 2 columns [1, x]:
+    // Row 0: x * 1 = x  (the actual constraint)
+    // Row 1-2: 0 * 1 = 0  (trivial padding to reach ℓ=2)
+    let rows = 3usize;
     let cols = 2usize; // [const, x]
 
     let mut a = vec![F::ZERO; rows * cols];
     let mut b = vec![F::ZERO; rows * cols];
     let mut c = vec![F::ZERO; rows * cols];
 
+    // Row 0: x * 1 = x
     a[0 * cols + 1] = F::ONE; // A picks x
     b[0 * cols + 0] = F::ONE; // B picks 1
     c[0 * cols + 1] = F::ONE; // C expects x
+    
+    // Rows 1-2: 0 * 1 = 0 (padding)
+    b[1 * cols + 0] = F::ONE;
+    b[2 * cols + 0] = F::ONE;
 
     r1cs_to_ccs(
         Mat::from_row_major(rows, cols, a),
@@ -32,18 +37,25 @@ fn one_row_ccs_x_eq_x() -> CcsStructure<F> {
     )
 }
 
-/// Create CCS for constraint: x * 1 = 0 (different statement)
+/// Create CCS for constraint: x * 1 = 0 (different statement) with ℓ=2
 fn one_row_ccs_x_eq_0() -> CcsStructure<F> {
-    // Same shape, but now the constraint is x*1 = 0 (different statement)
-    let rows = 1usize;
+    // R1CS with 3 rows (pads to 4, giving ℓ=2):
+    // Row 0: x * 1 = 0 (the actual constraint - different from x_eq_x)
+    // Row 1-2: 0 * 1 = 0  (trivial padding to reach ℓ=2)
+    let rows = 3usize;
     let cols = 2usize;
 
     let mut a = vec![F::ZERO; rows * cols];
     let mut b = vec![F::ZERO; rows * cols];
     let     c = vec![F::ZERO; rows * cols]; // all zeros => RHS == 0
 
+    // Row 0: x * 1 = 0
     a[0 * cols + 1] = F::ONE; // A picks x
     b[0 * cols + 0] = F::ONE; // B picks 1
+    
+    // Rows 1-2: 0 * 1 = 0 (padding)
+    b[1 * cols + 0] = F::ONE;
+    b[2 * cols + 0] = F::ONE;
 
     r1cs_to_ccs(
         Mat::from_row_major(rows, cols, a),
@@ -109,8 +121,9 @@ fn test_verify_rejects_proof_with_tampered_public_input() -> Result<()> {
         vjs_opt: None,
     })?;
     
-    // Verification should succeed with original context
-    let valid = verify(&ccs, &public_input, &proof)?;
+    // Verification should succeed with original context (use explicit VK bytes to avoid registry races)
+    let vk_bytes = neo_spartan_bridge::export_vk_bytes(&proof.circuit_key).expect("export vk");
+    let valid = neo::verify_with_vk(&ccs, &public_input, &proof, &vk_bytes)?;
     assert!(valid, "Proof should verify with original context");
     
     // Create tampered public input (add a field element)
@@ -166,8 +179,9 @@ fn test_verify_succeeds_with_correct_context() -> Result<()> {
         vjs_opt: None, 
     })?;
     
-    // Verification should succeed with exact same context
-    let valid = verify(&ccs, &public_input, &proof)?;
+    // Verification should succeed with exact same context (use explicit VK bytes)
+    let vk_bytes = neo_spartan_bridge::export_vk_bytes(&proof.circuit_key).expect("export vk");
+    let valid = neo::verify_with_vk(&ccs, &public_input, &proof, &vk_bytes)?;
     assert!(valid, "Proof should verify with correct matching context");
     
     Ok(())
@@ -233,6 +247,7 @@ fn test_malformed_proof_rejected() -> Result<()> {
 // ========================================================================
 
 #[test]
+#[serial]
 fn rejects_wrong_ccs_or_public_input() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
 

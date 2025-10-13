@@ -13,10 +13,24 @@ use neo_ccs::{Mat, r1cs::r1cs_to_ccs};
 use p3_field::PrimeCharacteristicRing;
 
 fn create_ccs_with_constant(constant: u64) -> neo_ccs::CcsStructure<F> {
-    // CCS: (z0 - constant) * 1 = 0  → forces z0 = constant
-    let a = Mat::from_row_major(1, 2, vec![F::ONE, F::ZERO]);
-    let b = Mat::from_row_major(1, 2, vec![F::ONE, F::ZERO]);
-    let c = Mat::from_row_major(1, 2, vec![F::from_u64(constant), F::ZERO]);
+    // CCS with 3 rows (pads to 4, ℓ=2):
+    // Row 0: z0 * 1 = constant (forces z0 = constant)
+    // Row 1-2: 0 * 0 = 0 (padding)
+    let a = Mat::from_row_major(3, 2, vec![
+        F::ONE, F::ZERO,   // Row 0: z0
+        F::ZERO, F::ZERO,  // Row 1: padding
+        F::ZERO, F::ZERO,  // Row 2: padding
+    ]);
+    let b = Mat::from_row_major(3, 2, vec![
+        F::ONE, F::ZERO,   // Row 0: * 1
+        F::ZERO, F::ZERO,  // Row 1: padding
+        F::ZERO, F::ZERO,  // Row 2: padding
+    ]);
+    let c = Mat::from_row_major(3, 2, vec![
+        F::from_u64(constant), F::ZERO,  // Row 0: = constant
+        F::ZERO, F::ZERO,                 // Row 1: padding
+        F::ZERO, F::ZERO,                 // Row 2: padding
+    ]);
     r1cs_to_ccs(a, b, c)
 }
 

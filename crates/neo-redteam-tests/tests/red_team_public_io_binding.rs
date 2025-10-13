@@ -26,8 +26,9 @@
 
 use anyhow::Result;
 use neo::{F, NeoParams};
-use neo::ivc::{
+use neo::{
     Accumulator, IvcStepInput, StepBindingSpec, prove_ivc_step, verify_ivc_step,
+    prove_ivc_step_chained, verify_ivc_step_legacy,
     LastNExtractor, StepOutputExtractor, rho_from_transcript,
 };
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
@@ -78,7 +79,7 @@ fn test_public_io_digest_matches_augmented_pi() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // witness[3] is next_x
-        x_witness_indices: vec![2],     // witness[2] is delta = x  
+        step_program_input_witness_indices: vec![],     // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![], // unused for this test
         const1_witness_index: 0,
     };
@@ -90,10 +91,10 @@ fn test_public_io_digest_matches_augmented_pi() -> Result<()> {
     };
     
     // Make one valid step: prev_x=0, delta=5, next_x=5
-    let x = vec![F::from_u64(5)]; // delta
+    let delta = F::from_u64(5);
     let prev_x = initial_acc.y_compact[0];
-    let next_x = prev_x + x[0];
-    let witness = vec![F::ONE, prev_x, x[0], next_x];
+    let next_x = prev_x + delta;
+    let witness = vec![F::ONE, prev_x, delta, next_x];
     
     let extractor = LastNExtractor { n: 1 };
     let y_step = extractor.extract_y_step(&witness);
@@ -104,21 +105,21 @@ fn test_public_io_digest_matches_augmented_pi() -> Result<()> {
         step_witness: &witness,
         prev_accumulator: &initial_acc,
         step: 0,
-        public_input: Some(&x),
+        public_input: None, // No app public input - testing digest binding, not input binding
         y_step: &y_step,
         binding_spec: &binding_spec,
         transcript_only_app_inputs: false,
         prev_augmented_x: None,
     };
     
-    let step_result = prove_ivc_step(step_input).expect("prove step");
+    let (step_result, _me, _wit, _lhs) = prove_ivc_step_chained(step_input, None, None, None).expect("prove step");
     let proof = step_result.proof;
     
     // The key test: verify that the proof's public_io digest was computed from
     // the FULL augmented public input, not just x
     // 
     // We reconstruct what the verifier should compute and check it matches
-    let is_valid = verify_ivc_step(&step_ccs, &proof, &initial_acc, &binding_spec, &params, None)
+    let is_valid = verify_ivc_step_legacy(&step_ccs, &proof, &initial_acc, &binding_spec, &params, None)
         .map_err(|e| anyhow::anyhow!("Verification failed: {}", e))?;
     
     if !is_valid {
@@ -146,8 +147,8 @@ fn test_verifier_rejects_when_augmented_pi_changes_but_x_same() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
-        y_step_offsets: vec![3],
-        x_witness_indices: vec![2], 
+        y_step_offsets: vec![3],   
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata 
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -227,8 +228,8 @@ fn test_context_digest_changes_when_any_bound_field_changes() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
-        y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        y_step_offsets: vec![3],   
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata 
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -302,7 +303,7 @@ fn test_rho_challenge_binding() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -339,8 +340,8 @@ fn test_rho_challenge_binding() -> Result<()> {
     }).expect("prove 2");
     
     // ρ values should be different because they're derived from different transcripts
-    let rho_1 = result_1.proof.step_rho;
-    let rho_2 = result_2.proof.step_rho;
+    let rho_1 = result_1.proof.public_inputs.rho();
+    let rho_2 = result_2.proof.public_inputs.rho();
     
     if rho_1 == rho_2 {
         println!("   ❌ CRITICAL VULNERABILITY: ρ values are identical for different statements!");
@@ -370,7 +371,7 @@ fn test_step_index_binding_prevents_replay() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -467,7 +468,7 @@ fn test_ccs_domain_separation() -> Result<()> {
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -535,7 +536,7 @@ fn test_verifier_accepts_with_mismatched_prev_acc_vulnerability() -> Result<()> 
     // This is what real IVC should do - bind the previous state
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // next_x at witness[3]
-        x_witness_indices: vec![2],     // delta at witness[2]  
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata     // delta at witness[2]  
         y_prev_witness_indices: vec![1], // <-- BIND prev state to witness[1]!
         const1_witness_index: 0,
     };
@@ -549,9 +550,8 @@ fn test_verifier_accepts_with_mismatched_prev_acc_vulnerability() -> Result<()> 
     };
     
     // Build a valid step relative to A: prev_x = 0, delta = 7 -> next_x = 7
-    let step_x = vec![F::from_u64(7)];
+    let delta = F::from_u64(7);
     let prev_x = prev_acc_a.y_compact[0]; // 0
-    let delta = step_x[0];                // 7
     let next_x = prev_x + delta;          // 7
     let step_witness = vec![F::ONE, prev_x, delta, next_x];
     
@@ -564,18 +564,18 @@ fn test_verifier_accepts_with_mismatched_prev_acc_vulnerability() -> Result<()> 
         step_witness: &step_witness,
         prev_accumulator: &prev_acc_a,
         step: 0,
-        public_input: Some(&step_x),
+        public_input: None, // No app public input - testing digest binding, not input binding
         y_step: &y_step,
         binding_spec: &binding_spec,
         transcript_only_app_inputs: false,
         prev_augmented_x: None,
     };
     
-    let step_result = prove_ivc_step(step_input).expect("proving failed");
+    let (step_result, _me, _wit, _lhs) = prove_ivc_step_chained(step_input, None, None, None).expect("proving failed");
     let proof = step_result.proof;
     
     // Positive control: A should verify
-    let valid_verify = verify_ivc_step(&step_ccs, &proof, &prev_acc_a, &binding_spec, &params, None)
+    let valid_verify = verify_ivc_step_legacy(&step_ccs, &proof, &prev_acc_a, &binding_spec, &params, None)
         .map_err(|e| anyhow::anyhow!("Verifier error for A: {}", e))?;
     
     if !valid_verify {
@@ -593,7 +593,7 @@ fn test_verifier_accepts_with_mismatched_prev_acc_vulnerability() -> Result<()> 
     
     // CRITICAL TEST: With a sound verifier, this MUST be REJECTED 
     // because y_prev is bound in the witness but the accumulator has different y_prev
-    let accepted = verify_ivc_step(&step_ccs, &proof, &prev_acc_b, &binding_spec, &params, None)
+    let accepted = verify_ivc_step_legacy(&step_ccs, &proof, &prev_acc_b, &binding_spec, &params, None)
         .unwrap_or(false);
     
     if accepted {
@@ -627,7 +627,7 @@ fn test_vulnerability_when_y_prev_not_bound() -> Result<()> {
     // VULNERABILITY: Do NOT bind previous state (like most existing tests)
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // next_x at witness[3]
-        x_witness_indices: vec![2],     // delta at witness[2]  
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata     // delta at witness[2]  
         y_prev_witness_indices: vec![], // <-- NO BINDING! This is the vulnerability
         const1_witness_index: 0,
     };
@@ -717,7 +717,7 @@ fn test_context_digest_provides_automatic_y_prev_binding() -> Result<()> {
     // Use minimal binding (no explicit y_prev binding in witness)
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        
-        x_witness_indices: vec![2],     
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata     
         y_prev_witness_indices: vec![], // No explicit witness binding
         const1_witness_index: 0,
     };
@@ -804,7 +804,7 @@ fn test_step_index_manipulation_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -891,7 +891,7 @@ fn test_public_input_prefix_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -979,7 +979,7 @@ fn test_public_io_malleability_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -1088,7 +1088,7 @@ fn test_zero_rho_bypass_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -1138,7 +1138,7 @@ fn test_zero_rho_bypass_attack() -> Result<()> {
     // Attack: Forge c_step_coords AND zero step_rho to bypass Guard A
     if !proof.c_step_coords.is_empty() {
         proof.c_step_coords[0] += F::from_u64(42); // Forge coordinates
-        proof.step_rho = F::ZERO; // Zero ρ to skip the guard!
+        proof.public_inputs.__test_tamper_rho(F::ZERO); // Zero ρ to skip the guard!
         
         println!("   🔧 Attack executed:");
         println!("   - Forged c_step_coords[0] by adding 42");
@@ -1179,7 +1179,7 @@ fn test_coordinated_rho_coordinates_attack() -> Result<()> {
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
-        x_witness_indices: vec![2],
+        step_program_input_witness_indices: vec![], // Empty - NIVC wrapper handles lane metadata
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };
@@ -1230,7 +1230,7 @@ fn test_coordinated_rho_coordinates_attack() -> Result<()> {
     if !proof.c_step_coords.is_empty() {
         // Store original values for comparison
         let original_coord = proof.c_step_coords[0];
-        let original_rho = proof.step_rho;
+        let original_rho = proof.public_inputs.rho();
         
         // Forge coordinates
         proof.c_step_coords[0] += F::from_u64(123); // Forge coordinates
@@ -1238,13 +1238,13 @@ fn test_coordinated_rho_coordinates_attack() -> Result<()> {
         // Recompute step_rho for the forged coordinates using the same logic as the verifier
         let step_digest = [1u8; 32]; // Use a dummy digest for this test
         let (recomputed_rho, _transcript) = rho_from_transcript(&acc_original, step_digest, &proof.c_step_coords);
-        proof.step_rho = recomputed_rho; // Update ρ to match forged coordinates
+        proof.public_inputs.__test_tamper_rho(recomputed_rho); // Update ρ to match forged coordinates
         
         println!("   🔧 Coordinated attack executed:");
         println!("   - Original c_step_coords[0]: {}", original_coord.as_canonical_u64());
         println!("   - Forged c_step_coords[0]: {}", proof.c_step_coords[0].as_canonical_u64());
         println!("   - Original step_rho: {}", original_rho.as_canonical_u64());
-        println!("   - Recomputed step_rho: {}", proof.step_rho.as_canonical_u64());
+        println!("   - Recomputed step_rho: {}", proof.public_inputs.rho().as_canonical_u64());
         
         let malicious_accepted = verify_ivc_step(&step_ccs, &proof, &acc_original, &binding_spec, &params, None)
             .unwrap_or(false);

@@ -14,6 +14,8 @@ debug-logs = ["neo-transcript/debug-log"]
 # Forward fs-guard so tests can compare prover vs verifier transcript events
 fs-guard = ["neo-transcript/fs-guard"]
 # Note: dev feature removed - neo-spartan-bridge now uses Poseidon2-only (no dev mode)
+# Enable verbose logging for debugging (no-op in this crate; used for cfg gating)
+neo-logs = []
 
 [dependencies]
 neo-math = { path = "../neo-math" }

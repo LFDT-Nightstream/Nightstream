@@ -76,11 +76,11 @@ fn rt22_digit_bundle_as_parent_must_fail_binding() {
         .expect("digit bundle");
 
     // … but verifier expects the *parent* ME(B,L) bundle inside verify_folding_proof.
-    let ok = verify_folding_proof_with_spartan(
+    let result = verify_folding_proof_with_spartan(
         &params, &ccs, &instances, &digits, &proof, &digit_bundle
-    ).expect("verify path runs");
+    );
     assert!(
-        !ok,
+        result.is_err(),
         "Bridge binding must fail: digit bundle presented where parent bundle is expected"
     );
 }

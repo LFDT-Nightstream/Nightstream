@@ -1,6 +1,6 @@
 // Toy hash functions removed - now using secure public-ρ EV path everywhere
 
-use neo::ivc::*;
+use neo::*;
 use neo::F;
 use neo_ccs::check_ccs_rowwise_zero;
 #[allow(unused_imports)]
@@ -305,7 +305,7 @@ fn test_direct_sum_small_ccs_edge_cases() {
 /// Test the new high-level IVC API (production-ready proving/verification)
 #[test] 
 fn test_high_level_ivc_api() {
-    use neo::{prove_ivc_step, verify_ivc_step, IvcStepInput, Accumulator, NeoParams};
+    use neo::{prove_ivc_step, verify_ivc_step_legacy, IvcStepInput, Accumulator, NeoParams};
     use neo_ccs::{r1cs_to_ccs, Mat};
     
     // Create a simple step CCS (identity: output = input) with 3 columns to match witness [1, input, output]
@@ -346,9 +346,9 @@ fn test_high_level_ivc_api() {
         // 🔒 SECURITY: Using correct binding spec for identity circuit  
         // step_witness = [const=1, input=5, output=5]
         // y_compact and y_step are both length 2, so we need 2 offsets each
-        binding_spec: &neo::ivc::StepBindingSpec {
+        binding_spec: &neo::StepBindingSpec {
             y_step_offsets: vec![2, 2], // Both y_step elements map to output at index 2
-            x_witness_indices: vec![], // No step public inputs
+            step_program_input_witness_indices: vec![], // No step public inputs
             y_prev_witness_indices: vec![], // No binding to EV y_prev (they're different values!)
             const1_witness_index: 0, // Constant-1 at index 0
         },
@@ -364,14 +364,14 @@ fn test_high_level_ivc_api() {
             println!("   Next state length: {}", step_result.next_state.len());
             
             // Test high-level verification - MUST use the same binding spec as prover for digest consistency
-            let verify_binding_spec = neo::ivc::StepBindingSpec {
+            let verify_binding_spec = neo::StepBindingSpec {
                 y_step_offsets: vec![2, 2], // Both y_step elements map to output at index 2
-                x_witness_indices: vec![], // No step public inputs
+                step_program_input_witness_indices: vec![], // No step public inputs
                 y_prev_witness_indices: vec![], // Same as prover: No binding to EV y_prev
                 const1_witness_index: 0, // Constant-1 at index 0
             };
             // Test high-level verification - this MUST succeed for the test to pass
-            let is_valid = verify_ivc_step(&step_ccs, &step_result.proof, &initial_acc, &verify_binding_spec, &params, None)
+            let is_valid = verify_ivc_step_legacy(&step_ccs, &step_result.proof, &initial_acc, &verify_binding_spec, &params, None)
                 .expect("IVC verification should not error");
             assert!(is_valid, "IVC verification must succeed for valid proof");
             println!("✅ High-level IVC verification succeeded!");
@@ -482,7 +482,7 @@ fn test_nova_step1_public_y_embedded_verifier() {
 /// Test that the public binding actually constrains the values (security test)
 #[test]
 fn test_nova_public_binding_security() {
-    use neo::ivc::{ev_with_public_rho_ccs, build_ev_with_public_rho_witness};
+    use neo::{ev_with_public_rho_ccs, build_ev_with_public_rho_witness};
     use neo_ccs::check_ccs_rowwise_zero;
     
     let y_len = 2;
@@ -630,7 +630,7 @@ fn test_nova_step2_commitment_opening() {
 /// **Nova Pattern**: "Make y₀…yₙ part of the public input" + "check the fold inside the circuit"
 #[test] 
 fn test_nova_embedded_verifier_public_y_public_rho() {
-    use neo::ivc::{ev_with_public_rho_ccs, build_ev_with_public_rho_witness};
+    use neo::{ev_with_public_rho_ccs, build_ev_with_public_rho_witness};
     use neo_ccs::check_ccs_rowwise_zero;
     
     println!("🚀 **TESTING NOVA EMBEDDED VERIFIER (PUBLIC-ρ)**");
@@ -706,7 +706,7 @@ fn test_nova_embedded_verifier_public_y_public_rho() {
 /// Test the dimension and structure of the Nova embedded verifier
 #[test]
 fn test_nova_ev_structure() {
-    use neo::ivc::ev_with_public_rho_ccs;
+    use neo::ev_with_public_rho_ccs;
     
     let y_len = 3;
     
@@ -801,7 +801,7 @@ fn commitment_lincomb_accepts_and_rejects() {
 /// This tests the complete end-to-end Nova embedded verifier composition
 #[test]
 fn test_unified_nova_augmentation_ccs() {
-    use neo::ivc::{augmentation_ccs, AugmentConfig};
+    use neo::{augmentation_ccs, AugmentConfig};
     use neo_ccs::{CcsStructure, Mat, SparsePoly, Term};
     
     println!("🎯 **TESTING UNIFIED NOVA AUGMENTATION CCS**");

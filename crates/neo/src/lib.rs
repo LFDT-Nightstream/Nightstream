@@ -56,8 +56,8 @@ where FN: FnMut() -> anyhow::Result<()> {
 }
 
 // ZK-friendly Poseidon2-based context digest with proper domain separation.
-// Parameters: width=12, capacity=4, rate=8.
-// SECURITY NOTE: collision security ≈ 2^(capacity_bits/2) = 2^(256/2) = 2^128.
+// Parameters: width=16, capacity=8, rate=8 (from neo-params).
+// SECURITY NOTE: collision security ≈ 2^(capacity_bits/2) = 2^(512/2) = 2^256.
 // This is ample for binding a proving context (do not reuse as a general object hash).
 pub(crate) fn context_digest_v1(ccs: &CcsStructure<F>, public_input: &[F]) -> [u8; 32] {
     use neo_ccs::crypto::poseidon2_goldilocks as p2;
@@ -144,40 +144,68 @@ pub use neo_params::NeoParams;
 pub use neo_ccs::CcsStructure;
 pub use neo_math::{F, K};
 
-/// IVC (Incrementally Verifiable Computation) with embedded verifier
-pub mod ivc;
+// Shared types and utilities used by both IVC and NIVC
+mod shared;
+
+// IVC (Incrementally Verifiable Computation) - CRATE PRIVATE, composed by NIVC
+pub(crate) mod ivc;
+
 /// NIVC driver (HyperNova-style non-uniform IVC)
 pub mod nivc;
 
-// Re-export high-level IVC API for production use
-pub use ivc::{
-    // Core IVC types
-    Accumulator, IvcProof, IvcStepInput, IvcChainProof, IvcStepResult, IvcChainStepInput,
-    // High-level proving/verifying functions  
-    prove_ivc_step, prove_ivc_step_with_extractor, verify_ivc_step, prove_ivc_chain, verify_ivc_chain,
-    // Folding verification functions
-    verify_ivc_step_folding,
-    recreate_mcs_instances_for_verification,
-    // Step output extractors (fixes "folding with itself" issue)
-    StepOutputExtractor, LastNExtractor, IndexExtractor,
-    // Advanced commitment binding (production-ready)
-    Commitment, BindingMetadata,
-    // Nova embedded verifier and augmentation (production-ready)  
-    augmentation_ccs, AugmentConfig,
-    // PRODUCTION OPTION A: Public ρ EV (recommended)
-    ev_with_public_rho_ccs, build_ev_with_public_rho_witness,
-    // Batch proving (Final SNARK Layer)
-    // REMOVED: BatchData, prove_batch_data, IvcBatchBuilder, EmissionPolicy, EmitStats - not part of Neo architecture
+// Re-export high-level IVC API (Option A: single-lane NIVC implementation)
+// Core IVC types (from shared module)
+pub use shared::types::{
+    Accumulator, IvcProof, IvcStepInput, IvcChainProof, IvcStepResult, IvcChainStepInput, 
+    StepBindingSpec, Commitment, BindingMetadata, AugmentConfig,
 };
+pub use shared::binding::{StepOutputExtractor, LastNExtractor, IndexExtractor};
+
+// High-level IVC API (implemented as single-lane NIVC wrappers)
+// This unifies IVC and NIVC under a single implementation with no code duplication
+pub use ivc::lane::{
+    prove_ivc_step, verify_ivc_step, prove_ivc_chain, verify_ivc_chain,
+};
+
+// Advanced IVC API for specialized use cases
+// These are exposed for users who need direct access to the internal engine
+pub use ivc::pipeline::prover::{prove_ivc_step_with_extractor, prove_ivc_step_chained, prove_ivc_chain as prove_ivc_chain_legacy};
+pub use ivc::pipeline::verifier::verify_ivc_step as verify_ivc_step_legacy;
+pub use ivc::pipeline::verifier::verify_ivc_chain as verify_ivc_chain_legacy;
+pub use ivc::pipeline::folding::verify_ivc_step_folding;
+pub use ivc::internal::augmented::{
+    augmentation_ccs, build_augmented_ccs_linked, build_augmented_ccs_linked_with_rlc, 
+    build_final_snark_public_input, build_augmented_public_input_for_step,
+    build_linked_augmented_witness,
+};
+pub use ivc::internal::ev::{
+    ev_with_public_rho_ccs, build_ev_with_public_rho_witness, rlc_accumulate_y,
+    ev_full_ccs_public_rho, build_ev_full_witness, ev_light_ccs, build_ev_witness,
+};
+pub use ivc::internal::transcript::{build_step_transcript_data, create_step_digest, rho_from_transcript};
+pub use shared::digest::compute_accumulator_digest_fields;
+
+// Base case helper (from new modular structure)
+pub use ivc::zero_mcs_instance_for_shape;
+
+// TIE check helper for testing
+#[cfg(feature = "testing")]
+pub use ivc::internal::tie::tie_check_with_r_public;
 
 // Re-export core NIVC types and helpers
 pub use nivc::{
+    // API types
     NivcProgram, NivcStepSpec, NivcState, NivcStepProof, NivcChainProof,
-    verify_nivc_chain, NivcFinalizeOptions, finalize_nivc_chain_with_options, finalize_nivc_chain,
+    NivcAccumulators, LaneRunningState, LaneId, StepIdx,
+    // Functions
+    verify_nivc_chain, NivcFinalizeOptions, 
+    finalize_nivc_chain_with_options, finalize_nivc_chain,
 };
 
-// Track B path uses single-SNARK finalize via finalize_nivc_chain_with_options.
 
+/// High-level Nova/Sonobe-style session API
+pub mod session;
+pub use session::{NeoStep, StepSpec, StepArtifacts, StepDescriptor, IvcSession, verify_chain_with_descriptor};
 
 /// Counts and bookkeeping for public results embedded in the proof.
 /// Backwards-compatible: all fields have defaults for older proofs.
@@ -223,6 +251,69 @@ pub fn claim_z_eq(params: &NeoParams, m: usize, idx: usize, value: F) -> OutputC
         weight: expose_z_component(params, m, idx), 
         expected: value 
     }
+}
+
+/// Build MCS instance and witness from decomposed data
+/// 
+/// This is a shared helper used by both single-step proving and IVC to construct
+/// MCS (Matrix Constraint System) instances from decomposed witness data.
+/// 
+/// # Arguments
+/// * `commitment` - Ajtai commitment to the decomposed witness
+/// * `decomp_z` - Column-major decomposed witness vector (length d*m) in base field F, LSB-first per column
+/// * `public_input` - Public input vector x
+/// * `witness_part` - Private witness vector w (z = x || w)
+/// * `d` - Decomposition dimension (number of digits)
+/// * `m` - Number of CCS variables
+/// 
+/// # Security Notes
+/// - Commitment consistency (c = L(Z)) is verified in `neo_ccs::check_mcs_opening()` during folding
+/// - Digit bounds are enforced by `neo_ajtai::assert_range_b()` in the Pi_CCS protocol
+/// - This helper assumes inputs are already validated by upstream decomposition
+pub fn build_mcs_from_decomp(
+    commitment: neo_ajtai::Commitment,
+    decomp_z: &[F],
+    public_input: &[F],
+    witness_part: &[F],
+    d: usize,
+    m: usize,
+) -> (neo_ccs::McsInstance<neo_ajtai::Commitment, F>, neo_ccs::McsWitness<F>) {
+    // Dimension sanity checks (always enabled for safety)
+    let m_in = public_input.len();
+    assert_eq!(
+        m_in + witness_part.len(), m,
+        "MCS dimension mismatch: m_in + witness_len = {} + {} = {}, but m = {}",
+        m_in, witness_part.len(), m_in + witness_part.len(), m
+    );
+    assert_eq!(
+        decomp_z.len(), d * m,
+        "Decomp dimension mismatch: decomp_z.len = {}, but d*m = {}*{} = {}",
+        decomp_z.len(), d, m, d * m
+    );
+    
+    // Convert column-major decomp to row-major matrix
+    // decomp_z is stored as: [col0_digit0, col0_digit1, ..., col1_digit0, col1_digit1, ...]
+    // Z matrix should be: Z[row, col] = decomp_z[col * d + row]
+    // LSB-first convention: row 0 = b^0, row 1 = b^1, ...
+    let mut z_row_major = vec![F::ZERO; d * m];
+    for col in 0..m { 
+        for row in 0..d { 
+            z_row_major[row * m + col] = decomp_z[col * d + row]; 
+        } 
+    }
+    let z_matrix = neo_ccs::Mat::from_row_major(d, m, z_row_major);
+
+    let mcs_inst = neo_ccs::McsInstance { 
+        c: commitment, 
+        x: public_input.to_vec(), 
+        m_in: public_input.len()
+    };
+    let mcs_wit = neo_ccs::McsWitness::<F> { 
+        w: witness_part.to_vec(),
+        Z: z_matrix 
+    };
+    
+    (mcs_inst, mcs_wit)
 }
 
 /// Lean proof object without VK - FIXES THE 51MB ISSUE!
@@ -404,24 +495,15 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     debug!("Ajtai setup completed: {:.2}ms (commit: {:.2}ms)", 
             ajtai_time.as_secs_f64() * 1000.0, commit_time.as_secs_f64() * 1000.0);
     
-    // Step 3: Build MCS instance/witness (row-major conversion)
-    let mut z_row_major = vec![F::ZERO; d * m];
-    for col in 0..m { 
-        for row in 0..d { 
-            z_row_major[row*m + col] = decomp_z[col*d + row]; 
-        } 
-    }
-    let z_matrix = neo_ccs::Mat::from_row_major(d, m, z_row_major);
-
-    let mcs_inst = neo_ccs::McsInstance { 
-        c: commitment, 
-        x: input.public_input.to_vec(), 
-        m_in: input.public_input.len()  // 🔧 FIX: Use actual public input count, not hardcoded 0
-    };
-    let mcs_wit = neo_ccs::McsWitness::<F> { 
-        w: input.witness.to_vec(),  // Only witness part (public inputs are in McsInstance.x)
-        Z: z_matrix 
-    };
+    // Step 3: Build MCS instance/witness using shared helper
+    let (mcs_inst, mcs_wit) = build_mcs_from_decomp(
+        commitment,
+        &decomp_z,
+        input.public_input,
+        input.witness,
+        d,
+        m,
+    );
 
     // Duplicate the instance to satisfy k+1 ≥ 2 requirement for folding
     let mcs_instances = std::iter::repeat(mcs_inst).take(2).collect::<Vec<_>>();
@@ -590,6 +672,15 @@ pub fn verify(ccs: &CcsStructure<F>, public_input: &[F], proof: &Proof) -> Resul
     }
     
     debug!("Proof context binding verified");
+
+    // VK must be present in the registry for lean verification; refuse to proceed otherwise.
+    // This avoids accidental implicit VK sourcing and enforces explicit VK lifecycle.
+    if neo_spartan_bridge::lookup_vk(&proof.circuit_key).is_none() {
+        anyhow::bail!(
+            "VK registry missing entry for circuit key {:02x?}; register VK or use verify_with_vk",
+            &proof.circuit_key[..8]
+        );
+    }
     
     // Optional sanity check: the convenience fields match meta
     anyhow::ensure!(
@@ -664,81 +755,6 @@ pub fn verify_with_vk(
     
     // Now delegate to the standard verify function
     verify(ccs, public_input, proof)
-}
-
-/// Parse bridge public IO given segment sizes.
-/// Layout: [c_coords | y_outputs | r_point | base_b | padding | header_digest(4 limbs)]
-pub fn parse_bridge_public_io_with_sizes(
-    public_io: &[u8],
-    c_coords_len: usize,
-    y_outputs_len: usize,
-    r_point_len: usize,
-) -> anyhow::Result<(Vec<F>, Vec<F>, Vec<F>, u64, [u8;32])> {
-    use anyhow::ensure;
-    const CTX_LEN: usize = 32;
-    ensure!(public_io.len() >= CTX_LEN, "public_io too short");
-    let (body, tail) = public_io.split_at(public_io.len() - CTX_LEN);
-    let mut header_digest = [0u8; 32];
-    header_digest.copy_from_slice(tail);
-
-    ensure!(body.len() % 8 == 0, "public_io misaligned: not a multiple of 8 bytes");
-    let scalars = body.len() / 8;
-    let needed = c_coords_len + y_outputs_len + r_point_len + 1; // + base_b
-    ensure!(scalars >= needed, "not enough scalars in body (have {}, need {})", scalars, needed);
-
-    let to_u64 = |i: usize| -> u64 {
-        let start = i * 8;
-        u64::from_le_bytes(body[start..start + 8].try_into().unwrap())
-    };
-    let mut idx = 0usize;
-    let mut c_coords = Vec::with_capacity(c_coords_len);
-    for _ in 0..c_coords_len { c_coords.push(F::from_u64(to_u64(idx))); idx += 1; }
-    let mut y_outputs = Vec::with_capacity(y_outputs_len);
-    for _ in 0..y_outputs_len { y_outputs.push(F::from_u64(to_u64(idx))); idx += 1; }
-    let mut r_point = Vec::with_capacity(r_point_len);
-    for _ in 0..r_point_len { r_point.push(F::from_u64(to_u64(idx))); idx += 1; }
-    let base_b = to_u64(idx);
-
-    Ok((c_coords, y_outputs, r_point, base_b, header_digest))
-}
-
-/// Verify and extract app outputs by parsing the bridge IO with explicit sizes.
-/// Exact equality is enforced against the tail of y_outputs (appended claims) in order.
-pub fn verify_and_extract_exact_with_sizes(
-    ccs: &CcsStructure<F>,
-    public_input: &[F],
-    proof: &Proof,
-    c_coords_len: usize,
-    y_outputs_len: usize,
-    r_point_len: usize,
-    expected_app_outputs: usize,
-) -> anyhow::Result<Vec<F>> {
-    let is_valid = verify(ccs, public_input, proof)?;
-    if !is_valid { anyhow::bail!("cryptographic verification failed"); }
-    let (_c, y_all, _r, _b, _hdr) = parse_bridge_public_io_with_sizes(
-        &proof.public_io,
-        c_coords_len, y_outputs_len, r_point_len
-    )?;
-    anyhow::ensure!(
-        expected_app_outputs <= y_all.len(),
-        "expected {} app outputs but y_outputs has {} elements",
-        expected_app_outputs, y_all.len()
-    );
-    let start = y_all.len() - expected_app_outputs;
-    let y_tail = &y_all[start..];
-    if !proof.public_results.is_empty() {
-        anyhow::ensure!(
-            proof.public_results.len() == expected_app_outputs,
-            "public_results len {} != expected {}",
-            proof.public_results.len(), expected_app_outputs
-        );
-        anyhow::ensure!(
-            &proof.public_results[..] == y_tail,
-            "claimed public_results do not match y_outputs tail"
-        );
-        return Ok(proof.public_results.clone());
-    }
-    Ok(y_tail.to_vec())
 }
 
 /// Decode y-elements from `public_io` (excluding trailing 32-byte context digest).

@@ -6,10 +6,24 @@ use neo_ccs::{Mat, r1cs::r1cs_to_ccs};
 use p3_field::PrimeCharacteristicRing;
 
 fn tiny_ccs() -> neo_ccs::CcsStructure<F> {
-    // 1-row: (z0 - z1) * 1 = 0  → forces z0 = z1
-    let a = Mat::from_row_major(1, 2, vec![F::ONE, -F::ONE]);
-    let b = Mat::from_row_major(1, 2, vec![F::ONE, F::ZERO]);
-    let c = Mat::from_row_major(1, 2, vec![F::ZERO, F::ZERO]);
+    // CCS with 3 rows (pads to 4, ℓ=2):
+    // Row 0: (z0 - z1) * 1 = 0  → forces z0 = z1
+    // Row 1-2: 0 * 0 = 0 (padding)
+    let a = Mat::from_row_major(3, 2, vec![
+        F::ONE, -F::ONE,   // Row 0: z0 - z1
+        F::ZERO, F::ZERO,  // Row 1: padding
+        F::ZERO, F::ZERO,  // Row 2: padding
+    ]);
+    let b = Mat::from_row_major(3, 2, vec![
+        F::ONE, F::ZERO,   // Row 0: * 1
+        F::ZERO, F::ZERO,  // Row 1: padding
+        F::ZERO, F::ZERO,  // Row 2: padding
+    ]);
+    let c = Mat::from_row_major(3, 2, vec![
+        F::ZERO, F::ZERO,  // Row 0: = 0
+        F::ZERO, F::ZERO,  // Row 1: padding
+        F::ZERO, F::ZERO,  // Row 2: padding
+    ]);
     r1cs_to_ccs(a, b, c)
 }
 

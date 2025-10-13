@@ -28,7 +28,7 @@ fn fibonacci_step_ccs() -> neo_ccs::CcsStructure<F> {
 fn finalize_one_step_with_ev() -> Result<()> {
     let params = NeoParams::goldilocks_small_circuits();
     let step_ccs = fibonacci_step_ccs();
-    let binding = neo::ivc::StepBindingSpec { y_step_offsets: vec![4], x_witness_indices: vec![], y_prev_witness_indices: vec![], const1_witness_index: 0 };
+    let binding = neo::StepBindingSpec { y_step_offsets: vec![4], step_program_input_witness_indices: vec![], y_prev_witness_indices: vec![], const1_witness_index: 0 };
     let program = NivcProgram::new(vec![NivcStepSpec { ccs: step_ccs.clone(), binding }]);
     let y0 = vec![F::ONE];
     let mut st = NivcState::new(params.clone(), program.clone(), y0.clone())?;
@@ -42,4 +42,3 @@ fn finalize_one_step_with_ev() -> Result<()> {
     assert!(ok);
     Ok(())
 }
-

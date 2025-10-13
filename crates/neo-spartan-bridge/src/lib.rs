@@ -38,7 +38,7 @@ pub use crate::pi_ccs_embed::{PiCcsEmbed, CcsCsr};
 use anyhow::Result;
 use neo_ccs::{MEInstance, MEWitness};
 use p3_field::{PrimeField64, PrimeCharacteristicRing};
-use neo_ccs::crypto::poseidon2_goldilocks as p2; // unified Poseidon2 (w=12, r=8, cap=4)
+use neo_ccs::crypto::poseidon2_goldilocks as p2; // unified Poseidon2 (w=16, r=8, cap=8)
 use spartan2::spartan::{R1CSSNARK, SpartanVerifierKey};
 // Arc not needed for this file - it's used in me_to_r1cs
 use spartan2::traits::snark::R1CSSNARKTrait;
@@ -565,6 +565,20 @@ pub fn register_vk_bytes(circuit_key: [u8; 32], vk_bytes: &[u8]) -> anyhow::Resu
     );
     
     Ok(vk_digest)
+}
+
+/// Export serialized VK bytes for a circuit key from the registry.
+///
+/// This is intended for test and multi-process scenarios where callers want to
+/// capture the VK bytes produced during proving and later re-register them
+/// explicitly via `verify_with_vk` to avoid relying on global registry state.
+pub fn export_vk_bytes(circuit_key: &[u8; 32]) -> anyhow::Result<Vec<u8>> {
+    let vk = lookup_vk(circuit_key)
+        .ok_or_else(|| anyhow::anyhow!(
+            "VK not found in registry for circuit key: {:02x?}", &circuit_key[..8]
+        ))?;
+    let bytes = serialize_vk_stable(&*vk)?;
+    Ok(bytes)
 }
 
 /// Export Spartan2 input data to JSON for external profiling and testing

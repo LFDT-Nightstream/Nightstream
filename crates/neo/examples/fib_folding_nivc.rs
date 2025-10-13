@@ -1,21 +1,26 @@
-//! NIVC Fibonacci Folding Demo (single-lane)
+//! Fibonacci Folding Demo using IvcSession (single-step shape)
 //!
-//! This example runs the Fibonacci transition relation using the new NIVC driver.
-//! It models a single step type (lane 0) and performs many steps by repeatedly
-//! calling `NivcState::step(0, ...)`, then verifies the entire chain.
+//! This example proves a simple Fibonacci transition relation using the
+//! high-level Nova/Sonobe-style `IvcSession` API from `session.rs`.
+//! It performs many steps by repeatedly calling `session.prove_step(...)`,
+//! then finalizes to a succinct SNARK and verifies it.
 //!
 //! Run:
 //!   NEO_DETERMINISTIC=1 cargo run -p neo --example fib_folding_nivc -- 1000
 //!
 //! Notes:
-//! - EV embedding is enabled at finalize time and Pi‑CCS terminal checking is
-//!   on by default for EV runs (no env needed).
+//! - The cryptographic accumulator y has length 1; we expose `b_next` as the
+//!   step output via `y_step_indices = [4]` in the witness layout.
 
 use anyhow::Result;
 use std::time::Instant;
 use num_bigint::BigUint;
 
-use neo::{F, NeoParams, NivcProgram, NivcState, NivcStepSpec};
+use neo::{F, NeoParams};
+use neo::session::{
+    NeoStep, StepSpec, StepArtifacts, IvcSession, StepDescriptor,
+    IvcFinalizeOptions, finalize_ivc_chain_with_options,
+};
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -54,22 +59,62 @@ fn fibonacci_step_ccs() -> CcsStructure<F> {
 
 /// Build witness for a single Fibonacci step: (a, b) -> (b, a+b)
 /// Witness layout: [1, a_prev, b_prev, a_next, b_next]
-fn build_fibonacci_step_witness(a: u64, b: u64) -> Vec<F> {
-    const P128: u128 = 18446744069414584321u128; // Goldilocks prime
-    let add_mod_p = |x: u64, y: u64| -> u64 {
-        let s = (x as u128) + (y as u128);
-        let s = if s >= P128 { s - P128 } else { s };
-        s as u64
-    };
-    let a_next = b;
-    let b_next = add_mod_p(a, b);
-    vec![
-        F::ONE,
-        F::from_u64(a),
-        F::from_u64(b),
-        F::from_u64(a_next),
-        F::from_u64(b_next),
-    ]
+// (no standalone witness builder needed; the NeoStep adapter produces per-step witnesses)
+
+// External inputs for the Fibonacci step adapter (a_prev, b_prev)
+#[derive(Clone, Default)]
+struct FibInputs { a: F, b: F }
+
+// NeoStep adapter for the Fibonacci relation
+struct FibonacciStep {
+    ccs: CcsStructure<F>,
+    spec: StepSpec,
+}
+
+impl FibonacciStep {
+    fn new() -> Self {
+        let ccs = fibonacci_step_ccs();
+        let spec = StepSpec {
+            // Accumulator y has length 1 (we expose b_next each step)
+            y_len: 1,
+            // witness[0] == 1 (constant column)
+            const1_index: 0,
+            // y_step = [b_next] at witness index 4
+            y_step_indices: vec![4],
+            // No binding to y_prev inside the step witness (not used by circuit)
+            y_prev_indices: None,
+            // No app-level public inputs
+            app_input_indices: None,
+        };
+        Self { ccs, spec }
+    }
+}
+
+impl NeoStep for FibonacciStep {
+    type ExternalInputs = FibInputs;
+
+    fn state_len(&self) -> usize { 1 }
+    fn step_spec(&self) -> StepSpec { self.spec.clone() }
+
+    fn synthesize_step(
+        &mut self,
+        _step_idx: usize,
+        _z_prev: &[F],
+        inputs: &Self::ExternalInputs,
+    ) -> StepArtifacts {
+        // a_next = b; b_next = a + b (field addition modulo p)
+        let a_prev = inputs.a;
+        let b_prev = inputs.b;
+        let a_next = b_prev;
+        let b_next = a_prev + b_prev;
+        let witness = vec![F::ONE, a_prev, b_prev, a_next, b_next];
+        StepArtifacts {
+            ccs: self.ccs.clone(),
+            witness,
+            public_app_inputs: vec![],
+            spec: self.spec.clone(),
+        }
+    }
 }
 
 fn main() -> Result<()> {
@@ -86,7 +131,6 @@ fn main() -> Result<()> {
     println!("🔥 NIVC Fibonacci Folding (single-lane)");
     println!("Steps: {}", num_steps);
 
-    // Params and CCS
     // Step 1: Setup parameters
     println!("\n🔧 Step 1: Setting up Neo parameters...");
     let params_start = Instant::now();
@@ -96,32 +140,23 @@ fn main() -> Result<()> {
 
     // Step 2: Build step CCS
     println!("\n📐 Step 2: Building Fibonacci step CCS...");
-    let step_ccs = fibonacci_step_ccs();
+    let stepper = FibonacciStep::new();
+    let step_ccs = stepper.ccs.clone();
     println!("   CCS dimensions: {} constraints, {} variables", step_ccs.n, step_ccs.m);
     println!("   Step relation: (a, b) -> (b, a+b)");
     println!("   ✅ Step CCS built successfully");
 
-    // Binding: output y_step is b_next (index 4), const1 at 0. No app inputs.
-    let binding = neo::ivc::StepBindingSpec {
-        y_step_offsets: vec![4],
-        x_witness_indices: vec![],
-        y_prev_witness_indices: vec![],
-        const1_witness_index: 0,
-    };
-
-    // Program with a single step type (lane 0)
-    let program = NivcProgram::new(vec![NivcStepSpec { ccs: step_ccs.clone(), binding }]);
-
-    // Initial accumulator compact output: start from F(1) = 1
+    // Step 3: Initialize IVC session with y0 = [1]
     let y0 = vec![F::ONE];
-    let mut st = NivcState::new(params.clone(), program.clone(), y0.clone())?;
+    let mut session = IvcSession::new(&params, Some(y0.clone()), 0);
+    let mut stepper = stepper; // mutable for trait API
 
     // Fibonacci state (mod q)
     let mut a = 0u64; // F(0)
     let mut b = 1u64; // F(1)
 
-    // Step 6: Per-step Nova IVC folding
-    println!("\n🔄 Step 6: Running Nova IVC folding loop (NIVC single-lane)...");
+    // Step 4: Per-step folding via IvcSession
+    println!("\n🔄 Step 4: Running IVC folding loop (single-shape)...");
     println!("   Performing {} Fibonacci steps with per-step folding...", num_steps);
     let steps_start = Instant::now();
     // Preallocate per-step timing vector (minimal overhead)
@@ -129,9 +164,8 @@ fn main() -> Result<()> {
 
     for i in 0..num_steps {
         let t_step = Instant::now();
-        let wit = build_fibonacci_step_witness(a, b);
-        // No app IO; NIVC still binds which_type and lanes root internally
-        st.step(0, &[], &wit)
+        let inputs = FibInputs { a: F::from_u64(a), b: F::from_u64(b) };
+        session.prove_step(&mut stepper, &inputs)
             .map_err(|e| anyhow::anyhow!("step {} failed: {}", i, e))?;
         step_times_ms.push(t_step.elapsed().as_secs_f64() * 1000.0);
         // Update Fibonacci
@@ -145,19 +179,21 @@ fn main() -> Result<()> {
     }
     let steps_time = steps_start.elapsed();
 
-    // Finalize NIVC chain with outer SNARK (Stage 5), equivalent to uniform example
-    let chain = st.into_proof();
-    println!("\n🔄 Step 7: Generating Final SNARK Layer proof...");
-    println!("   • EV embedding: enabled");
+    // Finalize IVC chain with outer SNARK (Stage 5)
+    let (chain, _step_ios) = session.finalize();
+    let descriptor = StepDescriptor { ccs: step_ccs.clone(), spec: stepper.spec.clone() };
+    println!("\n🔄 Step 5: Generating Final SNARK Layer proof...");
+    println!("   • EV embedding: disabled (public-ρ path)");
     println!("   • Pi-CCS terminal check: enabled by default for EV");
     let final_snark_start = Instant::now();
     let (final_proof, final_ccs, final_public_input) =
-        neo::finalize_nivc_chain_with_options(&program, &params, chain, neo::NivcFinalizeOptions { embed_ivc_ev: true })?
-        .ok_or_else(|| anyhow::anyhow!("No steps to finalize"))?;
+        finalize_ivc_chain_with_options(&descriptor, &params, chain, IvcFinalizeOptions { embed_ivc_ev: false })
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?
+            .ok_or_else(|| anyhow::anyhow!("No steps to finalize"))?;
     let final_snark_time = final_snark_start.elapsed();
 
     // Verify outer SNARK
-    println!("\n🔍 Step 8: Verifying Final SNARK proof...");
+    println!("\n🔍 Step 6: Verifying Final SNARK proof...");
     let verify_start = Instant::now();
     let is_valid = neo::verify(&final_ccs, &final_public_input, &final_proof)?;
     let verify_time = verify_start.elapsed();
@@ -165,7 +201,7 @@ fn main() -> Result<()> {
     println!("   ✅ Final SNARK verification passed in {:.2} ms", verify_time.as_secs_f64() * 1000.0);
 
     // Step 9: Decode proof outputs
-    println!("\n🔍 Step 9: Extracting result from proof public IO...");
+    println!("\n🔍 Step 7: Extracting result from proof public IO...");
     let extract_start = Instant::now();
     // For Fibonacci we treat the arithmetic result as the current 'b'
     let proof_result = b;
@@ -177,7 +213,7 @@ fn main() -> Result<()> {
     println!("   🔢 Arithmetic result: {} (direct calculation)", proof_result);
 
     // Step 10: Comprehensive verification (local vs proof)
-    println!("\n🔍 Step 10: Comprehensive Fibonacci verification...");
+    println!("\n🔍 Step 8: Comprehensive Fibonacci verification...");
     let trace_start = Instant::now();
     let final_b = b; // local result after the loop
     println!("   📋 FIBONACCI COMPUTATION VERIFICATION:");
@@ -192,8 +228,8 @@ fn main() -> Result<()> {
     println!("   ✅ CRYPTOGRAPHIC PROOF VERIFICATION: Proof was verified as valid in Step 8!");
     let trace_time = trace_start.elapsed();
 
-    // Step 11: Compare with true Fibonacci (arbitrary precision)
-    println!("\n🧮 Step 11: Comparing with true arbitrary-precision Fibonacci...");
+    // Step 9: Compare with true Fibonacci (arbitrary precision)
+    println!("\n🧮 Step 9: Comparing with true arbitrary-precision Fibonacci...");
     let true_fib = {
         if (num_steps + 1) as usize == 0 { BigUint::from(0u64) } else {
             let mut prev = BigUint::from(0u64);
@@ -258,6 +294,6 @@ fn main() -> Result<()> {
     println!("  KB per Step:                {:>8.3}", kb_per_step);
     println!("  Folding vs SNARK Ratio:     {:>8.1}x faster", folding_vs_snark_ratio);
     println!("  Verification Speedup:       {:>8.1}x", verification_speedup);
-    println!("\n🎉 NIVC Fibonacci: final SNARK verified successfully");
+    println!("\n🎉 IVC Fibonacci: final SNARK verified successfully");
     Ok(())
 }

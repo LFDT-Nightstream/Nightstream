@@ -36,9 +36,9 @@ fn ev_embedding_public_io_tamper_detected() -> Result<()> {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
     let step_ccs = build_step_ccs();
     // y_step is b_next at index 4
-    let binding = neo::ivc::StepBindingSpec {
+    let binding = neo::StepBindingSpec {
         y_step_offsets: vec![4],
-        x_witness_indices: vec![],
+        step_program_input_witness_indices: vec![],
         y_prev_witness_indices: vec![],
         const1_witness_index: 0,
     };

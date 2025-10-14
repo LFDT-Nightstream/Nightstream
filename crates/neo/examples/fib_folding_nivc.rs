@@ -1,7 +1,7 @@
-//! Fibonacci Folding Demo using IvcSession (single-step shape)
+//! Fibonacci Folding Demo using FoldingSession (single-step shape)
 //!
 //! This example proves a simple Fibonacci transition relation using the
-//! high-level Nova/Sonobe-style `IvcSession` API from `session.rs`.
+//! high-level Nova/Sonobe-style `FoldingSession` API from `session.rs`.
 //! It performs many steps by repeatedly calling `session.prove_step(...)`,
 //! then finalizes to a succinct SNARK and verifies it.
 //!
@@ -18,9 +18,11 @@ use num_bigint::BigUint;
 
 use neo::{F, NeoParams};
 use neo::session::{
-    NeoStep, StepSpec, StepArtifacts, IvcSession, StepDescriptor,
+    NeoStep, StepSpec, StepArtifacts, FoldingSession, StepDescriptor,
     IvcFinalizeOptions, finalize_ivc_chain_with_options,
+    verify_chain_with_descriptor,
 };
+use neo::AppInputBinding;
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -148,14 +150,15 @@ fn main() -> Result<()> {
 
     // Step 3: Initialize IVC session with y0 = [1]
     let y0 = vec![F::ONE];
-    let mut session = IvcSession::new(&params, Some(y0.clone()), 0);
+    // Use TranscriptOnly mode (circuit reads from public x)
+    let mut session = FoldingSession::new(&params, Some(y0.clone()), 0, AppInputBinding::TranscriptOnly);
     let mut stepper = stepper; // mutable for trait API
 
     // Fibonacci state (mod q)
     let mut a = 0u64; // F(0)
     let mut b = 1u64; // F(1)
 
-    // Step 4: Per-step folding via IvcSession
+    // Step 4: Per-step folding via FoldingSession
     println!("\n🔄 Step 4: Running IVC folding loop (single-shape)...");
     println!("   Performing {} Fibonacci steps with per-step folding...", num_steps);
     let steps_start = Instant::now();
@@ -166,7 +169,7 @@ fn main() -> Result<()> {
         let t_step = Instant::now();
         let inputs = FibInputs { a: F::from_u64(a), b: F::from_u64(b) };
         session.prove_step(&mut stepper, &inputs)
-            .map_err(|e| anyhow::anyhow!("step {} failed: {}", i, e))?;
+            .unwrap_or_else(|e| panic!("step {} failed: {}", i, e));
         step_times_ms.push(t_step.elapsed().as_secs_f64() * 1000.0);
         // Update Fibonacci
         let next_a = b;
@@ -179,29 +182,40 @@ fn main() -> Result<()> {
     }
     let steps_time = steps_start.elapsed();
 
-    // Finalize IVC chain with outer SNARK (Stage 5)
-    let (chain, _step_ios) = session.finalize();
+    // Finalize IVC chain
+    let (chain, step_ios) = session.finalize();
     let descriptor = StepDescriptor { ccs: step_ccs.clone(), spec: stepper.spec.clone() };
-    println!("\n🔄 Step 5: Generating Final SNARK Layer proof...");
+    
+    // Verify entire NIVC chain (comprehensive verification) BEFORE generating final SNARK
+    println!("\n🔍 Step 5: Verifying entire NIVC chain...");
+    let verify_chain_start = Instant::now();
+    let chain_valid = verify_chain_with_descriptor(&descriptor, &chain, &y0, &params, &step_ios, AppInputBinding::TranscriptOnly)
+        .map_err(|e| anyhow::anyhow!("Chain verification failed: {}", e))?;
+    let verify_chain_time = verify_chain_start.elapsed();
+    anyhow::ensure!(chain_valid, "NIVC chain verification failed");
+    println!("   ✅ Full chain verification passed in {:.2} ms", verify_chain_time.as_secs_f64() * 1000.0);
+
+    // Generate Final SNARK Layer proof (Stage 6)
+    println!("\n🔄 Step 6: Generating Final SNARK Layer proof...");
     println!("   • EV embedding: disabled (public-ρ path)");
     println!("   • Pi-CCS terminal check: enabled by default for EV");
     let final_snark_start = Instant::now();
     let (final_proof, final_ccs, final_public_input) =
-        finalize_ivc_chain_with_options(&descriptor, &params, chain, IvcFinalizeOptions { embed_ivc_ev: false })
+        finalize_ivc_chain_with_options(&descriptor, &params, chain, AppInputBinding::TranscriptOnly, IvcFinalizeOptions { embed_ivc_ev: false })
             .map_err(|e| anyhow::anyhow!(e.to_string()))?
             .ok_or_else(|| anyhow::anyhow!("No steps to finalize"))?;
     let final_snark_time = final_snark_start.elapsed();
 
     // Verify outer SNARK
-    println!("\n🔍 Step 6: Verifying Final SNARK proof...");
+    println!("\n🔍 Step 7: Verifying Final SNARK proof...");
     let verify_start = Instant::now();
-    let is_valid = neo::verify(&final_ccs, &final_public_input, &final_proof)?;
+    let is_valid = neo::verify_spartan2(&final_ccs, &final_public_input, &final_proof)?;
     let verify_time = verify_start.elapsed();
     anyhow::ensure!(is_valid, "final proof verification failed");
     println!("   ✅ Final SNARK verification passed in {:.2} ms", verify_time.as_secs_f64() * 1000.0);
 
-    // Step 9: Decode proof outputs
-    println!("\n🔍 Step 7: Extracting result from proof public IO...");
+    // Step 8: Decode proof outputs
+    println!("\n🔍 Step 8: Extracting result from proof public IO...");
     let extract_start = Instant::now();
     // For Fibonacci we treat the arithmetic result as the current 'b'
     let proof_result = b;
@@ -212,8 +226,8 @@ fn main() -> Result<()> {
     println!("   🔢 Cryptographic accumulator: {} (Nova folded state)", accumulator_value);
     println!("   🔢 Arithmetic result: {} (direct calculation)", proof_result);
 
-    // Step 10: Comprehensive verification (local vs proof)
-    println!("\n🔍 Step 8: Comprehensive Fibonacci verification...");
+    // Step 9: Comprehensive verification (local vs proof)
+    println!("\n🔍 Step 9: Comprehensive Fibonacci verification...");
     let trace_start = Instant::now();
     let final_b = b; // local result after the loop
     println!("   📋 FIBONACCI COMPUTATION VERIFICATION:");
@@ -225,11 +239,11 @@ fn main() -> Result<()> {
     let local_validation_passed = final_b == b;
     if proof_validation_passed { println!("   ✅ CRYPTOGRAPHIC VALIDATION PASSED"); } else { println!("   ❌ CRYPTOGRAPHIC VALIDATION FAILED"); }
     if local_validation_passed { println!("   ✅ LOCAL VALIDATION PASSED"); } else { println!("   ❌ LOCAL VALIDATION FAILED"); }
-    println!("   ✅ CRYPTOGRAPHIC PROOF VERIFICATION: Proof was verified as valid in Step 8!");
+    println!("   ✅ CRYPTOGRAPHIC PROOF VERIFICATION: Full chain and proof verified successfully!");
     let trace_time = trace_start.elapsed();
 
-    // Step 9: Compare with true Fibonacci (arbitrary precision)
-    println!("\n🧮 Step 9: Comparing with true arbitrary-precision Fibonacci...");
+    // Step 10: Compare with true Fibonacci (arbitrary precision)
+    println!("\n🧮 Step 10: Comparing with true arbitrary-precision Fibonacci...");
     let true_fib = {
         if (num_steps + 1) as usize == 0 { BigUint::from(0u64) } else {
             let mut prev = BigUint::from(0u64);
@@ -273,6 +287,7 @@ fn main() -> Result<()> {
     } else { (0.0, 0.0) };
     println!("  Per-Step (ms):              min={:>6.2} median={:>6.2} p90={:>6.2} max={:>6.2}", min_ms, median_ms, p90_ms, max_ms);
     println!("  Final SNARK Generation:     {:>8.2} ms (Stage 5)", final_snark_time.as_secs_f64() * 1000.0);
+    println!("  Chain Verification:         {:>8.2} ms (full NIVC chain)", verify_chain_time.as_secs_f64() * 1000.0);
     println!("  Final SNARK Verification:   {:>8.2} ms", verify_time.as_secs_f64() * 1000.0);
     println!("  Output Extraction:          {:>8.2} ms", extract_time.as_secs_f64() * 1000.0);
     println!("  Trace Verification:         {:>8.2} ms", trace_time.as_secs_f64() * 1000.0);

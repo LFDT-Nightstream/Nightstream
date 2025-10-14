@@ -1,4 +1,4 @@
-//! Incrementer using the high-level IvcSession API (Nova/Sonobe-style)
+//! Incrementer using the high-level FoldingSession API (Nova/Sonobe-style)
 //!
 //! Proves x -> x + delta over multiple steps. The step relation is:
 //!   witness = [const=1, prev_x, delta, next_x]
@@ -10,9 +10,9 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use neo::{F, NeoParams};
+use neo::{F, NeoParams, AppInputBinding};
 use neo::session::{
-    NeoStep, StepSpec, StepArtifacts, IvcSession, StepDescriptor,
+    NeoStep, StepSpec, StepArtifacts, FoldingSession, StepDescriptor,
     verify_chain_with_descriptor, IvcFinalizeOptions, finalize_ivc_chain_with_options,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -20,22 +20,33 @@ use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 use std::time::Instant;
 
 /// Build the step CCS for: next_x - prev_x - delta = 0
+/// SOUNDNESS: Minimum n=4 constraint rows required (ℓ=ceil(log2(n)) must be ≥ 2).
+/// We add 3 dummy constraints: 0 × 1 = 0 (tautologies).
 fn build_increment_step_ccs() -> CcsStructure<F> {
     // Columns (witness): [const=1, prev_x, delta, next_x]
-    // Single constraint row
-    let rows = 1usize;
+    // 4 constraint rows (minimum for sumcheck security)
+    let rows = 4usize;
     let cols = 4usize;
 
     let mut a = vec![F::ZERO; rows * cols];
     let mut b = vec![F::ZERO; rows * cols];
     let c = vec![F::ZERO; rows * cols];
 
-    // A: next_x - prev_x - delta
+    // Row 0: next_x - prev_x - delta = 0 (main constraint)
+    // Written as: (next_x - prev_x - delta) × 1 = 0
     a[0 * cols + 3] = F::ONE;     // + next_x
     a[0 * cols + 1] = -F::ONE;    // - prev_x
     a[0 * cols + 2] = -F::ONE;    // - delta
-    // B: multiply by const 1
-    b[0 * cols + 0] = F::ONE;     // × const
+    b[0 * cols + 0] = F::ONE;     // × const (B=1)
+    // c[0 * cols + ...] = F::ZERO (already initialized)
+
+    // Rows 1-3: 0 × const = 0 (dummy constraints to reach minimum n=4)
+    // A=0, B=const, C=0 → 0 × anything = 0 (tautology)
+    for row in 1..4 {
+        // a[row * cols + ...] = F::ZERO (already all zeros)
+        b[row * cols + 0] = F::ONE;     // B: const
+        // c[row * cols + ...] = F::ZERO (already all zeros)
+    }
 
     let a_mat = Mat::from_row_major(rows, cols, a);
     let b_mat = Mat::from_row_major(rows, cols, b);
@@ -44,7 +55,10 @@ fn build_increment_step_ccs() -> CcsStructure<F> {
 
     // quick sanity
     let test = vec![F::ONE, F::from_u64(5), F::from_u64(7), F::from_u64(12)];
-    let _ = neo_ccs::check_ccs_rowwise_zero(&ccs, &[], &test);
+    neo_ccs::check_ccs_rowwise_zero(&ccs, &[], &test)
+        .expect("Test witness should satisfy CCS");
+    
+    eprintln!("✅ Incrementer CCS built: {} rows, {} cols", ccs.n, ccs.m);
     ccs
 }
 
@@ -113,7 +127,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let params = NeoParams::goldilocks_small_circuits();
 
     // Initial state x=0
-    let mut session = IvcSession::new(&params, Some(vec![F::ZERO]), 0);
+    // Use TranscriptOnly mode (circuit reads from public x)
+    let mut session = FoldingSession::new(&params, Some(vec![F::ZERO]), 0, AppInputBinding::TranscriptOnly);
     let mut stepper = IncrementerStep::new();
 
     // Run N steps with deltas 1,2,3 repeating
@@ -129,7 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Finalize and verify chain
     let (chain, step_ios) = session.finalize();
     let descriptor = StepDescriptor { ccs: stepper.ccs.clone(), spec: stepper.spec.clone() };
-    let ok = verify_chain_with_descriptor(&descriptor, &chain, &[F::ZERO], &params, &step_ios)?;
+    let ok = verify_chain_with_descriptor(&descriptor, &chain, &[F::ZERO], &params, &step_ios, AppInputBinding::TranscriptOnly)?;
 
     println!("✅ Chain verify: {}", ok);
     println!("Final state (acc): {:?}", chain.final_accumulator.y_compact);
@@ -139,10 +154,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Stage 5: Final succinct proof from IVC chain (single-step shape)
     if let Some((final_proof, final_ccs, final_public_input)) = finalize_ivc_chain_with_options(
-        &descriptor, &params, chain, IvcFinalizeOptions { embed_ivc_ev: false }
+        &descriptor, &params, chain, AppInputBinding::TranscriptOnly, IvcFinalizeOptions { embed_ivc_ev: true }
     )? {
         println!("\n🔒 Verifying final SNARK...");
-        let valid = neo::verify(&final_ccs, &final_public_input, &final_proof)?;
+        let valid = neo::verify_spartan2(&final_ccs, &final_public_input, &final_proof)?;
         println!("Final SNARK valid: {}", valid);
     } else {
         println!("\n(no steps, nothing to finalize)");

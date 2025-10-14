@@ -143,8 +143,6 @@ pub fn modern_to_legacy_witness(
     let target_len = if original_len <= 1 { 1 } else { original_len.next_power_of_two() };
     if original_len < target_len {
         z_digits.resize(target_len, 0i64); // Pad with zeros
-        eprintln!("🔍 modern_to_legacy_witness(): z_digits padded from {} to {} (power-of-two)", 
-                  original_len, target_len);
     }
 
     Ok(neo_ccs::MEWitness {

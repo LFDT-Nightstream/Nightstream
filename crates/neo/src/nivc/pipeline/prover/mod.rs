@@ -21,6 +21,7 @@
 
 use crate::F;
 use crate::ivc::{IvcStepInput, prove_ivc_step_chained};
+use crate::shared::types::AppInputBinding;
 use super::super::api::{NivcState, NivcStepProof};
 use super::super::internal::{IndexExtractor, lanes_root_fields};
 
@@ -80,7 +81,7 @@ pub fn step(
         public_input: Some(&app_inputs),
         y_step: &y_step,
         binding_spec: &spec.binding,
-        transcript_only_app_inputs: true,
+        app_input_binding: AppInputBinding::TranscriptOnly,
         prev_augmented_x: state.prev_aug_x_by_lane[lane_idx].as_deref(),
     };
     let (res, me_out, wit_out, lhs_next) =

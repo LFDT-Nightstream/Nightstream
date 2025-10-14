@@ -511,7 +511,6 @@ impl SpartanCircuit<E> for MeCircuit {
             z_vars.push(AllocatedNum::alloc(cs.namespace(|| format!("REST_Z_pad[{i}]")), 
                 || Ok(<E as Engine>::Scalar::ZERO))?);
         }
-        eprintln!("🔍 synthesize(): REST padded from {} to {} (power-of-two)", orig_rest, z_vars.len());
         debug_assert!(z_vars.len().is_power_of_two());
         
         let mut n_constraints = 0usize;
@@ -1487,10 +1486,6 @@ impl SpartanCircuit<E> for MeCircuit {
         for (i, &digest_val) in digest_scalars.iter().enumerate() {
             let digest_alloc = AllocatedNum::alloc(cs.namespace(|| format!("digest_{}", i)), || Ok(digest_val))?;
             let _ = digest_alloc.inputize(cs.namespace(|| format!("public_digest_{}", i)));
-        }
-        
-        if padding_needed > 0 {
-            eprintln!("🔍 inputize() padded from {} to {} public inputs (matches encode_bridge_io_header)", total_needed, target_count);
         }
 
         Ok(())

@@ -7,7 +7,7 @@
 
 use crate::F;
 use crate::shared::types::*;
-use crate::shared::binding::{StepOutputExtractor, LastNExtractor};
+use crate::shared::binding::{StepOutputExtractor, IndexExtractor};
 use neo_ccs::CcsStructure;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -30,6 +30,19 @@ pub fn prove_ivc_step_with_extractor(
     extractor: &dyn StepOutputExtractor,
     binding_spec: &StepBindingSpec,
 ) -> Result<IvcStepResult, Box<dyn std::error::Error>> {
+    // SECURITY: Validate CCS structure requirements
+    // ℓ = ceil(log2(n)) must be ≥ 2 for the sumcheck protocol
+    // n is padded to next power of 2 (max 2), so n=3 → 4 → ℓ=2 is acceptable
+    if step_ccs.n < 3 {
+        return Err(format!(
+            "CCS validation failed: n={} is too small (minimum n=3 required). \
+            The sumcheck challenge length ℓ=ceil(log2(n_padded)) must be ≥ 2 for protocol security. \
+            n is padded to next power-of-2 (minimum 2), so n=3→4→ℓ=2, n=2→2→ℓ=1 (too small). \
+            Please ensure your circuit has at least 3 constraint rows.",
+            step_ccs.n
+        ).into());
+    }
+    
     // NOTE: ℓ ≤ 1 limitation
     // 
     // When ℓ=1 (single-row CCS padded to 2 rows), the augmented CCS carries a constant offset
@@ -64,7 +77,7 @@ pub fn prove_ivc_step_with_extractor(
         public_input,
         y_step: &y_step,
         binding_spec, // Use TRUSTED binding specification
-        transcript_only_app_inputs: false,
+        app_input_binding: AppInputBinding::WitnessBound,
         prev_augmented_x: None,
     };
     
@@ -87,6 +100,19 @@ pub fn prove_ivc_step_chained(
     neo_ccs::MeWitness<F>,
     (neo_ccs::McsInstance<neo_ajtai::Commitment, F>, neo_ccs::McsWitness<F>),
 ), Box<dyn std::error::Error>> {
+    // SECURITY: Validate CCS structure requirements
+    // ℓ = ceil(log2(n)) must be ≥ 2 for the sumcheck protocol
+    // n is padded to next power of 2 (max 2), so n=3 → 4 → ℓ=2 is acceptable
+    if input.step_ccs.n < 3 {
+        return Err(format!(
+            "CCS validation failed: n={} is too small (minimum n=3 required). \
+            The sumcheck challenge length ℓ=ceil(log2(n_padded)) must be ≥ 2 for protocol security. \
+            n is padded to next power-of-2 (minimum 2), so n=3→4→ℓ=2, n=2→2→ℓ=1 (too small). \
+            Please ensure your circuit has at least 3 constraint rows.",
+            input.step_ccs.n
+        ).into());
+    }
+    
     // Proper chaining: fold previous (ME) with current (MCS) instead of self-folding
     // 1) Build step_x = [H(prev_acc) || app_inputs]
     let acc_digest_fields = compute_accumulator_digest_fields(&input.prev_accumulator)?;
@@ -109,17 +135,31 @@ pub fn prove_ivc_step_chained(
     if !input.binding_spec.y_step_offsets.is_empty() && input.binding_spec.y_step_offsets.len() != input.y_step.len() {
         return Err("y_step_offsets length must match y_step length".into());
     }
-    // Only require binding for the app-input tail of step_x
+    
+    // Validate app input binding based on mode
     let digest_len = compute_accumulator_digest_fields(&input.prev_accumulator)?.len();
     let app_len = step_x.len().saturating_sub(digest_len);
     let x_bind_len = input.binding_spec.step_program_input_witness_indices.len();
-    // SECURITY: If there are app inputs in step_x, they must be bound to witness indices
-    // to prevent public input manipulation.
-    if app_len > 0 && x_bind_len == 0 && !input.transcript_only_app_inputs {
-        return Err("SECURITY: step_program_input_witness_indices cannot be empty when step_x has app inputs; this would allow public input manipulation".into());
-    }
-    if x_bind_len > 0 && x_bind_len != app_len {
-        return Err("step_program_input_witness_indices length must match app public input length".into());
+    
+    match input.app_input_binding {
+        AppInputBinding::WitnessBound => {
+            // IVC mode: strict 1:1 binding required
+            if app_len > 0 && x_bind_len == 0 {
+                return Err("SECURITY: step_program_input_witness_indices cannot be empty when step_x has app inputs (WitnessBound mode); this would allow public input manipulation".into());
+            }
+            if x_bind_len > 0 && x_bind_len != app_len {
+                return Err(format!("SECURITY: step_program_input_witness_indices length ({}) must match app public input length ({}) in WitnessBound mode", x_bind_len, app_len).into());
+            }
+        }
+        AppInputBinding::TranscriptOnly => {
+            // NIVC mode: binding via Fiat-Shamir transcript
+            // Enforce that witness indices are NOT used in this mode to prevent confusion
+            if x_bind_len > 0 {
+                return Err(format!("SECURITY: step_program_input_witness_indices must be empty in TranscriptOnly mode (found {} indices); app inputs are bound via Fiat-Shamir transcript only", x_bind_len).into());
+            }
+            // App inputs are included in step_x which enters the FS transcript
+            // The transcript digest and challenges will bind these values
+        }
     }
 
     let y_len = input.prev_accumulator.y_compact.len();
@@ -633,6 +673,19 @@ pub fn prove_ivc_chain(
     initial_accumulator: Accumulator,
     binding_spec: &StepBindingSpec,          // NEW: Require trusted binding spec
 ) -> Result<IvcChainProof, Box<dyn std::error::Error>> {
+    // SECURITY: Validate CCS structure requirements
+    // ℓ = ceil(log2(n)) must be ≥ 2 for the sumcheck protocol
+    // n is padded to next power of 2 (max 2), so n=3 → 4 → ℓ=2 is acceptable
+    if step_ccs.n < 3 {
+        return Err(format!(
+            "CCS validation failed: n={} is too small (minimum n=3 required). \
+            The sumcheck challenge length ℓ=ceil(log2(n_padded)) must be ≥ 2 for protocol security. \
+            n is padded to next power-of-2 (minimum 2), so n=3→4→ℓ=2, n=2→2→ℓ=1 (too small). \
+            Please ensure your circuit has at least 3 constraint rows.",
+            step_ccs.n
+        ).into());
+    }
+    
     let mut current_accumulator = initial_accumulator;
     let mut step_proofs = Vec::with_capacity(step_inputs.len());
     // Carry the running ME instance across steps (proper chaining)
@@ -643,8 +696,8 @@ pub fn prove_ivc_chain(
     let mut prev_lhs_mcs: Option<(neo_ccs::McsInstance<neo_ajtai::Commitment, F>, neo_ccs::McsWitness<F>)> = None;
 
     for (step_idx, step_input) in step_inputs.iter().enumerate() {
-        // Extract REAL y_step from the witness using a simple extractor
-        let extractor = LastNExtractor { n: current_accumulator.y_compact.len() };
+        // Extract y_step from the witness using the binding spec indices
+        let extractor = IndexExtractor { indices: binding_spec.y_step_offsets.clone() };
         let y_step = extractor.extract_y_step(&step_input.witness);
 
         let ivc_step_input = IvcStepInput {
@@ -656,7 +709,7 @@ pub fn prove_ivc_chain(
             public_input: step_input.public_input.as_ref().map(|v| v.as_slice()),
             y_step: &y_step,
             binding_spec,
-            transcript_only_app_inputs: false,
+            app_input_binding: AppInputBinding::WitnessBound,
             prev_augmented_x: step_proofs.last().map(|p: &IvcProof| p.public_inputs.step_augmented_public_input()),
         };
 

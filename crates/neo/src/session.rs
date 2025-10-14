@@ -1,18 +1,36 @@
-//! High-level IVC session API (Nova/Sonobe-style)
+//! High-level folding session API (Nova/Sonobe-style)
 //!
-//! This module provides a thin ergonomic layer over the NIVC implementation,
+//! This module provides an ergonomic session-based API for incremental folding computation,
 //! specialized for the common case of a single step type (uniform IVC).
-//! Since IVC is a subset of NIVC (single-lane NIVC), this implementation
-//! delegates to `crate::nivc::NivcState` with a single-lane program.
 //!
-//! Core concepts:
+//! ## Dual Backend Architecture
+//!
+//! `FoldingSession` supports two backend implementations, selected via `AppInputBinding` mode:
+//!
+//! ### 1. StandaloneIvc Backend (`AppInputBinding::WitnessBound`)
+//! - Uses the lower-level IVC API directly
+//! - Enforces **in-circuit witness binding constraints** 
+//! - Guarantees belt-and-suspenders security: app inputs in the transcript match witness values
+//! - **Use when:** Your circuit consumes app inputs from witness columns (e.g., `witness[2] = delta`)
+//!
+//! ### 2. NivcSingleLane Backend (`AppInputBinding::TranscriptOnly`)  
+//! - Delegates to `crate::nivc::NivcState` with a single-lane program
+//! - Uses **transcript-only binding** (Fiat-Shamir + verifier checks)
+//! - No in-circuit witness binding constraints
+//! - **Use when:** 
+//!   - Your circuit reads app inputs from public `x` (not witness columns), OR
+//!   - Your circuit doesn't consume external inputs, OR
+//!   - App inputs are metadata-only (routing, scheduling hints)
+//!
+//! ## Core Concepts
+//!
 //! - `StepSpec`: single source of truth for how a step exposes its outputs
 //!   (`y_step_indices`) and where the constant-1 witness lives (`const1_index`).
 //! - `StepArtifacts`: per-step CCS + witness + optional public app inputs
 //!   produced by the circuit adapter.
 //! - `NeoStep`: circuit-facing trait; implementors produce `StepArtifacts` and
 //!   a stable `StepSpec`.
-//! - `IvcSession`: owns chaining state; each `prove_step` call folds one step
+//! - `FoldingSession`: owns chaining state; each `prove_step` call folds one step
 //!   and advances the accumulator.
 
 use crate::{NeoParams, CcsStructure, F};
@@ -22,6 +40,7 @@ use crate::ivc::{
     StepBindingSpec,
 };
 use crate::nivc::{NivcState, NivcProgram, NivcStepSpec};
+use crate::shared::types::AppInputBinding;
 
 /// Canonical description of how a step exposes its state/output and wiring.
 #[derive(Clone, Debug)]
@@ -32,19 +51,52 @@ pub struct StepSpec {
     pub const1_index: usize,
     /// Exact witness indices corresponding to the next state z_{i+1}
     pub y_step_indices: Vec<usize>,
-    /// Optional witness indices where the circuit reads y_prev (for binding)
+    /// Optional witness indices where the circuit reads y_prev.
+    /// SECURITY: If provided, enforces y_prev equality constraints in BOTH WitnessBound and TranscriptOnly modes.
+    /// This ensures state consistency—the circuit must use the same y_prev as the accumulator.
     pub y_prev_indices: Option<Vec<usize>>,
-    /// Optional witness indices that must bind to the app tail of step_x
+    /// Optional witness indices for app inputs. Binding behavior depends on mode:
+    /// - WitnessBound: enforces in-circuit equality (belt-and-suspenders)
+    /// - TranscriptOnly: binding via Fiat-Shamir transcript only (NIVC mode)
     pub app_input_indices: Option<Vec<usize>>,
 }
 
 impl StepSpec {
-    pub fn binding_spec(&self) -> StepBindingSpec {
-        StepBindingSpec {
-            y_step_offsets: self.y_step_indices.clone(),
-            y_prev_witness_indices: self.y_prev_indices.clone().unwrap_or_default(),
-            step_program_input_witness_indices: self.app_input_indices.clone().unwrap_or_default(),
-            const1_witness_index: self.const1_index,
+    /// Convert to StepBindingSpec based on the chosen binding mode.
+    /// 
+    /// **App Input Binding (mode-dependent):**
+    /// - **WitnessBound**: Enforces in-circuit equality between app inputs and witness.
+    ///   Use when the circuit consumes app inputs from witness columns.
+    /// - **TranscriptOnly**: App inputs only influence Fiat-Shamir transcript.
+    ///   Use when circuit reads from public `x` directly or inputs are metadata.
+    /// 
+    /// **State Binding (mode-independent):**
+    /// - `y_prev` binding is **orthogonal** to app input mode. If `y_prev_indices` is provided,
+    ///   the equality constraints are enforced in BOTH modes to ensure state consistency
+    ///   (the circuit uses the same y_prev as the accumulator).
+    pub fn binding_spec(&self, mode: AppInputBinding) -> StepBindingSpec {
+        match mode {
+            AppInputBinding::WitnessBound => {
+                // Uniform IVC: enforce that witness values match the app inputs
+                // that seed the transcript (belt-and-suspenders)
+                StepBindingSpec {
+                    y_step_offsets: self.y_step_indices.clone(),
+                    y_prev_witness_indices: self.y_prev_indices.clone().unwrap_or_default(),
+                    step_program_input_witness_indices: self.app_input_indices.clone().unwrap_or_default(),
+                    const1_witness_index: self.const1_index,
+                }
+            }
+        AppInputBinding::TranscriptOnly => {
+            // NIVC or when circuit reads from public `x` directly:
+            // no in-circuit witness binding for APP INPUTS, FS transcript + verifier checks only
+            // BUT: y_prev binding is orthogonal—it ensures state consistency regardless of app input mode
+            StepBindingSpec {
+                y_step_offsets: self.y_step_indices.clone(),
+                y_prev_witness_indices: self.y_prev_indices.clone().unwrap_or_default(),
+                step_program_input_witness_indices: vec![],
+                const1_witness_index: self.const1_index,
+            }
+        }
         }
     }
 }
@@ -82,12 +134,38 @@ pub trait NeoStep {
     ) -> StepArtifacts;
 }
 
-/// High-level IVC driver that owns chaining state.
-/// Internally delegates to a single-lane NIVC state.
-pub struct IvcSession {
-    inner: Option<NivcState>,
+/// Backend implementation strategy for FoldingSession
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum IvcBackend {
+    /// Use standalone IVC with WitnessBound mode (direct IVC API)
+    StandaloneIvc,
+    /// Use NIVC with TranscriptOnly mode (single-lane NIVC)
+    NivcSingleLane,
+}
+
+/// High-level folding session that owns chaining state.
+/// 
+/// Can operate in two modes:
+/// - **WitnessBound**: Uses standalone IVC with in-circuit witness binding
+/// - **TranscriptOnly**: Uses NIVC single-lane mode with transcript-only binding
+pub struct FoldingSession {
+    // NIVC backend (used when backend == NivcSingleLane)
+    nivc_inner: Option<NivcState>,
+    // Standalone IVC backend state (used when backend == StandaloneIvc)
+    ivc_accumulator: Option<Accumulator>,
+    #[allow(dead_code)]  // Reserved for future standalone IVC backend
+    ivc_prev_me: Option<neo_ccs::MeInstance<neo_ajtai::Commitment, F, neo_math::K>>,
+    #[allow(dead_code)]  // Reserved for future standalone IVC backend
+    ivc_prev_me_wit: Option<neo_ccs::MeWitness<F>>,
+    #[allow(dead_code)]  // Reserved for future standalone IVC backend
+    ivc_prev_lhs_mcs: Option<(neo_ccs::McsInstance<neo_ajtai::Commitment, F>, neo_ccs::McsWitness<F>)>,
+    #[allow(dead_code)]  // Reserved for future standalone IVC backend
+    ivc_proofs: Vec<IvcProof>,
+    
     params: NeoParams,
     step_spec: Option<StepSpec>,
+    binding_mode: Option<AppInputBinding>,
+    backend: IvcBackend,
     // Cached initial state for lazy initialization
     initial_state: Vec<F>,
     start_step: u64,
@@ -95,30 +173,85 @@ pub struct IvcSession {
     step_ios: Vec<Vec<F>>,
 }
 
-impl IvcSession {
-    /// Create a new session with an optional initial state. `start_step` is the public
-    /// step counter bound into the transcript.
-    /// - When `initial_state` is `None`, the accumulator state is initialized lazily
-    ///   on the first step to a zero vector of length `spec.y_len`.
-    pub fn new(params: &NeoParams, initial_state: Option<Vec<F>>, start_step: u64) -> Self {
-        IvcSession {
-            inner: None,
+impl FoldingSession {
+    /// Create a new session with an optional initial state and binding mode.
+    /// 
+    /// # Parameters
+    /// - `params`: Neo proving parameters
+    /// - `initial_state`: Optional initial state. If `None`, initializes to zero vector
+    /// - `start_step`: Initial step counter
+    /// - `binding_mode`: How to bind app inputs:
+    ///   - `WitnessBound`: Use standalone IVC with in-circuit witness binding constraints
+    ///   - `TranscriptOnly`: Use NIVC single-lane mode with transcript-only binding
+    /// 
+    /// # When to use WitnessBound vs TranscriptOnly
+    /// 
+    /// Use **WitnessBound** when:
+    /// - Your circuit consumes app inputs from witness columns (e.g., `witness[2] = delta`)
+    /// - You want belt-and-suspenders security: ensure the value that seeds ρ matches the witness
+    /// 
+    /// Use **TranscriptOnly** when:
+    /// - Your circuit reads app inputs from public `x` directly (not from witness columns)
+    /// - Your circuit doesn't consume external inputs
+    /// - App inputs are metadata-only (routing, scheduling hints)
+    pub fn new(
+        params: &NeoParams, 
+        initial_state: Option<Vec<F>>, 
+        start_step: u64,
+        binding_mode: AppInputBinding,
+    ) -> Self {
+        let backend = match binding_mode {
+            AppInputBinding::WitnessBound => IvcBackend::StandaloneIvc,
+            AppInputBinding::TranscriptOnly => IvcBackend::NivcSingleLane,
+        };
+        
+        FoldingSession {
+            nivc_inner: None,
+            ivc_accumulator: None,
+            ivc_prev_me: None,
+            ivc_prev_me_wit: None,
+            ivc_prev_lhs_mcs: None,
+            ivc_proofs: Vec::new(),
             params: *params,
             step_spec: None,
+            binding_mode: Some(binding_mode),
+            backend,
             initial_state: initial_state.unwrap_or_default(),
             start_step,
             step_ios: Vec::new(),
         }
     }
 
+    /// Create a new session with TranscriptOnly mode (backwards compatible).
+    /// 
+    /// **Deprecated**: Use `new()` with explicit binding mode instead.
+    #[deprecated(note = "Use new() with explicit binding_mode parameter instead")]
+    pub fn new_transcript_only(params: &NeoParams, initial_state: Option<Vec<F>>, start_step: u64) -> Self {
+        Self::new(params, initial_state, start_step, AppInputBinding::TranscriptOnly)
+    }
+
     /// Current state (y_prev)
     pub fn state(&self) -> &[F] {
-        self.inner.as_ref().map(|s| s.acc.global_y.as_slice()).unwrap_or(&self.initial_state)
+        match self.backend {
+            IvcBackend::NivcSingleLane => {
+                self.nivc_inner.as_ref().map(|s| s.acc.global_y.as_slice()).unwrap_or(&self.initial_state)
+            }
+            IvcBackend::StandaloneIvc => {
+                self.ivc_accumulator.as_ref().map(|a| a.y_compact.as_slice()).unwrap_or(&self.initial_state)
+            }
+        }
     }
     
     /// Current step index
     pub fn step(&self) -> u64 {
-        self.inner.as_ref().map(|s| s.acc.step).unwrap_or(self.start_step)
+        match self.backend {
+            IvcBackend::NivcSingleLane => {
+                self.nivc_inner.as_ref().map(|s| s.acc.step).unwrap_or(self.start_step)
+            }
+            IvcBackend::StandaloneIvc => {
+                self.ivc_accumulator.as_ref().map(|a| a.step).unwrap_or(self.start_step)
+            }
+        }
     }
 
     /// Prove one step and advance the session state.
@@ -133,8 +266,34 @@ impl IvcSession {
         // 1) Get artifacts for this step from the adapter
         let artifacts = stepper.synthesize_step(current_step as usize, &current_state, inputs);
 
-        // 2) Lazy initialization: create the NIVC state on first step
-        if self.inner.is_none() {
+        // 1.5) Validate CCS structure requirements
+        // SECURITY: ℓ = ceil(log2(n)) must be ≥ 2 for the sumcheck protocol
+        // n is padded to next power of 2 (max 2), so n=3 → 4 → ℓ=2 is acceptable
+        let n = artifacts.ccs.n;
+        if n < 3 {
+            return Err(format!(
+                "CCS validation failed: n={} is too small (minimum n=3 required). \
+                The sumcheck challenge length ℓ=ceil(log2(n_padded)) must be ≥ 2 for protocol security. \
+                n is padded to next power-of-2 (minimum 2), so n=3→4→ℓ=2, n=2→2→ℓ=1 (too small). \
+                Please ensure your circuit has at least 3 constraint rows.",
+                n
+            ).into());
+        }
+
+        // 2) Dispatch to appropriate backend
+        match self.backend {
+            IvcBackend::NivcSingleLane => self.prove_step_nivc(artifacts),
+            IvcBackend::StandaloneIvc => self.prove_step_standalone_ivc(artifacts),
+        }
+    }
+
+    /// Prove step using NIVC backend (TranscriptOnly mode)
+    fn prove_step_nivc(
+        &mut self,
+        artifacts: StepArtifacts,
+    ) -> Result<IvcProof, Box<dyn std::error::Error>> {
+        // Lazy initialization: create the NIVC state on first step
+        if self.nivc_inner.is_none() {
             // Initialize state if empty
             let y0 = if self.initial_state.is_empty() && artifacts.spec.y_len > 0 {
                 vec![F::ZERO; artifacts.spec.y_len]
@@ -147,12 +306,20 @@ impl IvcSession {
                 self.initial_state.clone()
             };
             
+            let mode = AppInputBinding::TranscriptOnly;
+            
+            // Warn if app_input_indices are declared (they won't be enforced in TranscriptOnly mode)
+            // NOTE: y_prev_indices ARE enforced even in TranscriptOnly mode (orthogonal to app input mode)
+            if artifacts.spec.app_input_indices.as_ref().is_some_and(|v| !v.is_empty()) {
+                eprintln!("⚠️  WARNING: FoldingSession uses TranscriptOnly mode.");
+                eprintln!("    app_input_indices will NOT be enforced via in-circuit equality constraints.");
+                eprintln!("    App inputs are cryptographically bound via Fiat-Shamir transcript only.");
+                eprintln!("    This is safe IF your circuit reads app inputs from public `x` (not witness).");
+                eprintln!("    NOTE: y_prev_indices ARE still enforced for state consistency (orthogonal).");
+            }
+            
             // Create single-lane NIVC program from this step's spec
-            // SECURITY FIX: Keep step_program_input_witness_indices for in-circuit binding
-            // during finalization. The transcript_only_app_inputs flag in IvcStepInput
-            // handles NIVC's transcript-based binding during step proving without
-            // compromising the security of the final SNARK.
-            let binding = artifacts.spec.binding_spec();
+            let binding = artifacts.spec.binding_spec(mode);
             let program = NivcProgram::new(vec![
                 NivcStepSpec {
                     ccs: artifacts.ccs.clone(),
@@ -162,71 +329,209 @@ impl IvcSession {
             
             let mut nivc_state = NivcState::new(self.params, program, y0)?;
             nivc_state.acc.step = self.start_step;
-            self.inner = Some(nivc_state);
+            self.nivc_inner = Some(nivc_state);
             self.step_spec = Some(artifacts.spec.clone());
         }
 
-        // 3) Verify that the step spec hasn't changed (IVC assumes uniform steps)
+        // Verify that the step spec hasn't changed (IVC assumes uniform steps)
         if let Some(ref cached_spec) = self.step_spec {
             if artifacts.spec.y_len != cached_spec.y_len {
                 return Err("Step spec changed: y_len mismatch".into());
             }
         }
 
-        // 4) Delegate to NIVC with single lane (lane index 0)
-        let nivc_state = self.inner.as_mut().unwrap();
+        // Delegate to NIVC with single lane (lane index 0)
+        let nivc_state = self.nivc_inner.as_mut().unwrap();
         let nivc_proof = nivc_state.step(
             0, // Single lane index
             &artifacts.public_app_inputs,
             &artifacts.witness,
         )?;
 
-        // 5) Store step_io for verification
+        // Store step_io for verification
         self.step_ios.push(artifacts.public_app_inputs.clone());
 
-        // 6) Extract the inner IVC proof to maintain API compatibility
+        // Extract the inner IVC proof to maintain API compatibility
         Ok(nivc_proof.inner)
+    }
+
+    /// Prove step using standalone IVC backend (WitnessBound mode)
+    fn prove_step_standalone_ivc(
+        &mut self,
+        artifacts: StepArtifacts,
+    ) -> Result<IvcProof, Box<dyn std::error::Error>> {
+        use crate::ivc::pipeline::prover::prove_ivc_step_chained;
+        use crate::shared::binding::{IndexExtractor, StepOutputExtractor};
+        use crate::shared::types::IvcStepInput;
+
+        // Lazy initialization: create initial accumulator on first step
+        if self.ivc_accumulator.is_none() {
+            // Initialize state if empty
+            let y0 = if self.initial_state.is_empty() && artifacts.spec.y_len > 0 {
+                vec![F::ZERO; artifacts.spec.y_len]
+            } else if artifacts.spec.y_len != self.initial_state.len() && !self.initial_state.is_empty() {
+                return Err(format!(
+                    "state length mismatch: spec.y_len={} != initial_state.len={}",
+                    artifacts.spec.y_len, self.initial_state.len()
+                ).into());
+            } else {
+                self.initial_state.clone()
+            };
+            
+            self.ivc_accumulator = Some(Accumulator {
+                c_z_digest: [0u8; 32],
+                c_coords: vec![],
+                y_compact: y0,
+                step: self.start_step,
+            });
+            self.step_spec = Some(artifacts.spec.clone());
+        }
+
+        // Verify that the step spec hasn't changed (IVC assumes uniform steps)
+        if let Some(ref cached_spec) = self.step_spec {
+            if artifacts.spec.y_len != cached_spec.y_len {
+                return Err("Step spec changed: y_len mismatch".into());
+            }
+        }
+
+        let prev_acc = self.ivc_accumulator.as_ref().unwrap();
+        let binding_mode = self.binding_mode.unwrap_or(AppInputBinding::WitnessBound);
+        let binding = artifacts.spec.binding_spec(binding_mode);
+
+        // Extract y_step from witness
+        let extractor = IndexExtractor { indices: binding.y_step_offsets.clone() };
+        let y_step = extractor.extract_y_step(&artifacts.witness);
+
+        // Build IvcStepInput
+        let step_input = IvcStepInput {
+            params: &self.params,
+            step_ccs: &artifacts.ccs,
+            step_witness: &artifacts.witness,
+            prev_accumulator: prev_acc,
+            step: prev_acc.step,
+            public_input: if artifacts.public_app_inputs.is_empty() {
+                None
+            } else {
+                Some(&artifacts.public_app_inputs[..])
+            },
+            y_step: &y_step,
+            binding_spec: &binding,
+            app_input_binding: binding_mode,
+            prev_augmented_x: self.ivc_proofs.last().map(|p| p.public_inputs.step_augmented_public_input()),
+        };
+
+        // Call lower-level IVC prover
+        let (step_result, me_out, me_wit_out, lhs_next) = prove_ivc_step_chained(
+            step_input,
+            self.ivc_prev_me.clone(),
+            self.ivc_prev_me_wit.clone(),
+            self.ivc_prev_lhs_mcs.clone(),
+        )?;
+
+        // Update state for next step
+        self.ivc_accumulator = Some(step_result.proof.next_accumulator.clone());
+        self.ivc_prev_me = Some(me_out);
+        self.ivc_prev_me_wit = Some(me_wit_out);
+        self.ivc_prev_lhs_mcs = Some(lhs_next);
+        
+        // Store proof and step_io
+        self.step_ios.push(artifacts.public_app_inputs);
+        let proof = step_result.proof.clone();
+        self.ivc_proofs.push(proof.clone());
+
+        Ok(proof)
     }
 
     /// Finalize the session and return an IVC chain proof with metadata for verification
     pub fn finalize(self) -> (IvcChainProof, Vec<Vec<F>>) {
-        if let Some(inner) = self.inner {
-            // Extract IVC proofs from NIVC chain (single-lane)
-            let nivc_chain = inner.into_proof();
-            let proofs: Vec<IvcProof> = nivc_chain.steps.into_iter().map(|sp| sp.inner).collect();
-            let final_accumulator = Accumulator {
-                c_z_digest: nivc_chain.final_acc.lanes[0].c_digest,
-                c_coords: nivc_chain.final_acc.lanes[0].c_coords.clone(),
-                y_compact: nivc_chain.final_acc.global_y,
-                step: nivc_chain.final_acc.step,
-            };
-            let chain = IvcChainProof {
-                steps: proofs,
-                final_accumulator: final_accumulator.clone(),
-                chain_length: final_accumulator.step,
-            };
-            (chain, self.step_ios)
-        } else {
-            // No steps taken, return empty chain
-            let chain = IvcChainProof {
-                steps: vec![],
-                final_accumulator: Accumulator {
-                    c_z_digest: [0u8; 32],
-                    c_coords: vec![],
-                    y_compact: self.initial_state,
-                    step: self.start_step,
-                },
-                chain_length: self.start_step,
-            };
-            (chain, vec![])
+        match self.backend {
+            IvcBackend::NivcSingleLane => {
+                if let Some(inner) = self.nivc_inner {
+                    // Extract IVC proofs from NIVC chain (single-lane)
+                    let nivc_chain = inner.into_proof();
+                    let proofs: Vec<IvcProof> = nivc_chain.steps.into_iter().map(|sp| sp.inner).collect();
+                    let final_accumulator = Accumulator {
+                        c_z_digest: nivc_chain.final_acc.lanes[0].c_digest,
+                        c_coords: nivc_chain.final_acc.lanes[0].c_coords.clone(),
+                        y_compact: nivc_chain.final_acc.global_y,
+                        step: nivc_chain.final_acc.step,
+                    };
+                    let chain = IvcChainProof {
+                        steps: proofs,
+                        final_accumulator: final_accumulator.clone(),
+                        chain_length: final_accumulator.step,  // Use final step counter for consistency with verifier
+                    };
+                    (chain, self.step_ios)
+                } else {
+                    // No steps taken, return empty chain
+                    let chain = IvcChainProof {
+                        steps: vec![],
+                        final_accumulator: Accumulator {
+                            c_z_digest: [0u8; 32],
+                            c_coords: vec![],
+                            y_compact: self.initial_state,
+                            step: self.start_step,
+                        },
+                        chain_length: 0,  // Zero steps taken
+                    };
+                    (chain, vec![])
+                }
+            }
+            IvcBackend::StandaloneIvc => {
+                if let Some(final_acc) = self.ivc_accumulator {
+                    let chain = IvcChainProof {
+                        steps: self.ivc_proofs,
+                        final_accumulator: final_acc.clone(),
+                        chain_length: final_acc.step,  // Use final step counter for consistency with verifier
+                    };
+                    (chain, self.step_ios)
+                } else {
+                    // No steps taken, return empty chain
+                    let chain = IvcChainProof {
+                        steps: vec![],
+                        final_accumulator: Accumulator {
+                            c_z_digest: [0u8; 32],
+                            c_coords: vec![],
+                            y_compact: self.initial_state,
+                            step: self.start_step,
+                        },
+                        chain_length: 0,
+                    };
+                    (chain, vec![])
+                }
+            }
         }
     }
 }
 
 /// Verify a complete chain using a descriptor (shape + spec) and the initial state.
-/// Since IvcSession now uses NIVC internally, this converts the IVC chain to NIVC format for verification.
+/// 
+/// This function automatically dispatches to the appropriate verification method based on
+/// the binding mode:
+/// - **TranscriptOnly**: Verifies via NIVC single-lane (transcript-based binding)
+/// - **WitnessBound**: Verifies via standalone IVC (in-circuit witness binding)
+/// 
 /// The step_ios parameter contains the original app inputs for each step (returned from finalize()).
 pub fn verify_chain_with_descriptor(
+    descriptor: &StepDescriptor,
+    chain: &IvcChainProof,
+    initial_state: &[F],
+    params: &NeoParams,
+    step_ios: &[Vec<F>],
+    binding_mode: AppInputBinding,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    match binding_mode {
+        AppInputBinding::TranscriptOnly => {
+            verify_chain_nivc_backend(descriptor, chain, initial_state, params, step_ios)
+        }
+        AppInputBinding::WitnessBound => {
+            verify_chain_ivc_backend(descriptor, chain, initial_state, params, step_ios)
+        }
+    }
+}
+
+/// Verify chain using NIVC backend (TranscriptOnly mode)
+fn verify_chain_nivc_backend(
     descriptor: &StepDescriptor,
     chain: &IvcChainProof,
     initial_state: &[F],
@@ -272,9 +577,8 @@ pub fn verify_chain_with_descriptor(
     };
     
     // Create single-lane NIVC program for verification
-    // SECURITY FIX: Keep step_program_input_witness_indices for consistency
-    // with the prover's binding spec (even though NIVC verification is transcript-based)
-    let binding = descriptor.spec.binding_spec();
+    let mode = AppInputBinding::TranscriptOnly;
+    let binding = descriptor.spec.binding_spec(mode);
     
     let program = NivcProgram::new(vec![
         NivcStepSpec {
@@ -287,6 +591,66 @@ pub fn verify_chain_with_descriptor(
         .map_err(|e| e.into())
 }
 
+/// Verify chain using standalone IVC backend (WitnessBound mode)
+fn verify_chain_ivc_backend(
+    descriptor: &StepDescriptor,
+    chain: &IvcChainProof,
+    _initial_state: &[F],
+    params: &NeoParams,
+    _step_ios: &[Vec<F>],
+) -> Result<bool, Box<dyn std::error::Error>> {
+    use crate::ivc::pipeline::verifier::verify_ivc_step;
+
+    if chain.steps.is_empty() {
+        return Ok(true); // Empty chain is trivially valid
+    }
+
+    let binding_mode = AppInputBinding::WitnessBound;
+    let binding = descriptor.spec.binding_spec(binding_mode);
+
+    // Verify each step in sequence
+    let mut prev_acc = Accumulator {
+        c_z_digest: [0u8; 32],
+        c_coords: vec![],
+        y_compact: chain.steps[0].public_inputs.y_prev().to_vec(),
+        step: if chain.steps[0].step > 0 { chain.steps[0].step - 1 } else { 0 },
+    };
+
+    for (idx, proof) in chain.steps.iter().enumerate() {
+        let prev_augmented_x = if idx > 0 {
+            Some(chain.steps[idx - 1].public_inputs.step_augmented_public_input())
+        } else {
+            None
+        };
+
+        let valid = verify_ivc_step(
+            &descriptor.ccs,
+            proof,
+            &prev_acc,
+            &binding,
+            params,
+            prev_augmented_x,
+        )?;
+
+        if !valid {
+            return Err(format!("IVC step {} verification failed", idx).into());
+        }
+
+        // Update prev_acc for next iteration
+        prev_acc = proof.next_accumulator.clone();
+    }
+
+    // Verify final accumulator matches
+    if chain.final_accumulator.c_z_digest != prev_acc.c_z_digest 
+        || chain.final_accumulator.y_compact != prev_acc.y_compact 
+        || chain.final_accumulator.step != prev_acc.step
+    {
+        return Err("Final accumulator mismatch".into());
+    }
+
+    Ok(true)
+}
+
 /// Options for IVC final proof (Stage 5)
 pub struct IvcFinalizeOptions { pub embed_ivc_ev: bool }
 
@@ -296,6 +660,7 @@ pub fn finalize_ivc_chain_with_options(
     descriptor: &StepDescriptor,
     params: &NeoParams,
     chain: IvcChainProof,
+    binding_mode: AppInputBinding,
     _opts: IvcFinalizeOptions,
 ) -> Result<Option<(crate::Proof, neo_ccs::CcsStructure<F>, Vec<F>)>, Box<dyn std::error::Error>> {
     if chain.steps.is_empty() { return Ok(None); }
@@ -410,12 +775,19 @@ pub fn finalize_ivc_chain_with_options(
     let rho = rho_computed;
 
     // Build augmented CCS used by the last step
+    // CRITICAL: Use the same binding mode that was used during proving
+    // y_prev binding is orthogonal and always preserved when provided
+    // app_input binding depends on the mode used during the session
+    let binding_spec = descriptor.spec.binding_spec(binding_mode);
+    let y_prev_witness_indices = binding_spec.y_prev_witness_indices;
+    let app_input_witness_indices = binding_spec.step_program_input_witness_indices;
+    
     let augmented_ccs = crate::ivc::build_augmented_ccs_linked_with_rlc(
         &descriptor.ccs,
         step_x.len(),
         &descriptor.spec.y_step_indices,
-        &descriptor.spec.y_prev_indices.clone().unwrap_or_default(),
-        &descriptor.spec.app_input_indices.clone().unwrap_or_default(),
+        &y_prev_witness_indices,
+        &app_input_witness_indices,
         y_len,
         descriptor.spec.const1_index,
         None,

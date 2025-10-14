@@ -1,17 +1,13 @@
 //! IVC (Incrementally Verifiable Computation) engine
 //!
-//! This module implements IVC in two layers:
+//! This module implements IVC with two layers:
 //! 1. Core folding primitives (internal, used by NIVC)
-//! 2. Public IVC API as single-lane NIVC wrappers (Option A)
+//! 2. Public IVC API (pipeline, exported via lib.rs)
 //!
-//! The public IVC API (`lane` module) provides IVC semantics by delegating to NIVC
-//! with exactly one lane, avoiding code duplication while maintaining ergonomics.
+//! The pipeline module provides the main IVC proving and verification functions.
 
 pub(crate) mod internal;
 pub(crate) mod pipeline;
-
-/// Public IVC API implemented as single-lane NIVC (Option A)
-pub mod lane;
 
 use crate::F;
 
@@ -83,7 +79,7 @@ impl FoldStepEngine for IvcEngine {
             public_input: input.public_input,
             y_step: input.y_step,
             binding_spec: input.binding_spec,
-            transcript_only_app_inputs: input.transcript_only_app_inputs,
+            app_input_binding: input.app_input_binding,
             prev_augmented_x: input.prev_augmented_x,
         };
         pipeline::prover::prove_ivc_step_chained(input_owned, prev_me, prev_me_wit, prev_lhs_mcs)

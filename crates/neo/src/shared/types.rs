@@ -336,6 +336,25 @@ impl IvcProof {
     }
 }
 
+/// Application input binding mode for IVC steps
+///
+/// This enum explicitly represents two distinct security models for binding
+/// application public inputs during IVC step proving:
+///
+/// - **WitnessBound**: Standard IVC mode where each app input must be cryptographically
+///   bound 1:1 to witness indices to prevent public input manipulation
+/// - **TranscriptOnly**: NIVC mode where app inputs are bound via the Fiat-Shamir
+///   transcript and later verification checks, allowing flexible multi-lane execution
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppInputBinding {
+    /// IVC mode: app inputs must be bound to witness indices
+    /// The indices vector length must match the number of app inputs
+    WitnessBound,
+    /// NIVC mode: app inputs are bound via Fiat-Shamir transcript
+    /// step_program_input_witness_indices should be empty in this mode
+    TranscriptOnly,
+}
+
 /// Input for a single IVC step
 #[derive(Clone, Debug)]
 pub struct IvcStepInput<'a> {
@@ -356,9 +375,10 @@ pub struct IvcStepInput<'a> {
     pub y_step: &'a [F],
     /// **SECURITY**: Trusted binding specification (NOT from prover!)
     pub binding_spec: &'a StepBindingSpec,
-    /// If true, app inputs in step_x are transcript-only and are NOT read from the witness.
-    /// In this mode, `step_program_input_witness_indices` may be empty even when step_x has app inputs (NIVC).
-    pub transcript_only_app_inputs: bool,
+    /// **SECURITY**: Application input binding mode
+    /// - Use `WitnessBound` for standard IVC (requires witness indices)
+    /// - Use `TranscriptOnly` for NIVC (bound via Fiat-Shamir transcript)
+    pub app_input_binding: AppInputBinding,
     /// Optional: the previous step's augmented public input [step_x || ρ || y_prev || y_next].
     /// If provided, it is propagated into the proof's `prev_step_augmented_public_input` to
     /// ensure exact chaining linkage.

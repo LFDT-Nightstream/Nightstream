@@ -47,22 +47,35 @@ fn manual_incrementer_calculation(num_steps: u64) -> (u64, Vec<u64>) {
 
 /// Simple step: add a public delta
 /// State: [x] -> [x + delta]
+/// SOUNDNESS: Pi-CCS requires at least 3 constraint rows (pads to 4, giving ℓ=2).
+/// We add 2 dummy constraints: const × 1 = 1 (tautologies).
 fn build_increment_step_ccs() -> CcsStructure<F> {
     // Variables: [const=1, prev_x, delta, next_x]
-    // Constraint: next_x - prev_x - delta = 0
-    let rows = 1;
+    // 3 constraint rows (minimum for Pi-CCS soundness)
+    let rows = 3;
     let cols = 4;
 
     let mut a_trips: Vec<(usize, usize, F)> = Vec::new();
     let mut b_trips: Vec<(usize, usize, F)> = Vec::new();
-    let c_trips: Vec<(usize, usize, F)> = Vec::new(); // always zero
+    let c_trips: Vec<(usize, usize, F)> = Vec::new();
 
-    // Constraint: next_x - prev_x - delta = 0
-    // Written as: (next_x - prev_x - delta) × const = 0
+    // Row 0: next_x - prev_x - delta = 0 (main constraint)
+    // Written as: (next_x - prev_x - delta) × 1 = 0
     a_trips.push((0, 3, F::ONE));   // +next_x
     a_trips.push((0, 1, -F::ONE));  // -prev_x
     a_trips.push((0, 2, -F::ONE));  // -delta
     b_trips.push((0, 0, F::ONE));   // × const 1
+
+    // Row 1: 0 × const = 0 (dummy constraint for Pi-CCS soundness, always true)
+    // A=0, B=const, C=0 → 0 × anything = 0 (tautology)
+    // a_trips: nothing (A=0)
+    b_trips.push((1, 0, F::ONE));   // B: const
+    // c_trips: nothing (C=0)
+
+    // Row 2: 0 × const = 0 (another dummy for minimum 3 rows)
+    // a_trips: nothing (A=0)
+    b_trips.push((2, 0, F::ONE));   // B: const
+    // c_trips: nothing (C=0)
 
     // Build matrices
     let a_data = triplets_to_dense(rows, cols, a_trips.clone());
@@ -166,12 +179,27 @@ fn main() -> Result<()> {
     println!("  - Compact output: {:?}", final_global_y);
     println!("  - Final computation result: {}", x);
     
+    // Generate NIVC chain proof
+    let chain = st.into_proof();
+    let initial_y = vec![F::ZERO];
+    
+    // **STAGE 4.5: Verify entire NIVC chain** - Comprehensive verification before final SNARK
+    println!("\n🔍 Stage 4.5: Verifying entire NIVC chain...");
+    let verify_chain_start = Instant::now();
+    let chain_valid = neo::verify_nivc_chain(&program, &params, &chain, &initial_y)
+        .expect("NIVC chain verification error");
+    let verify_chain_time = verify_chain_start.elapsed();
+    
+    if !chain_valid {
+        return Err(anyhow::anyhow!("NIVC chain verification failed!"));
+    }
+    println!("   ✅ Full NIVC chain verification passed in {:.2} ms", verify_chain_time.as_secs_f64() * 1000.0);
+    
     // **STAGE 5: Final SNARK Layer** - Generate succinct proof from accumulated ME instances
     println!("\n🔄 Stage 5: Generating Final SNARK Layer proof...");
     let final_snark_start = Instant::now();
     
     // Generate final proof using NIVC finalize (embed IVC EV)
-    let chain = st.into_proof();
     let (final_proof, final_augmented_ccs, final_public_input) = neo::finalize_nivc_chain_with_options(
         &program, &params, chain, NivcFinalizeOptions { embed_ivc_ev: true }
     )
@@ -185,7 +213,7 @@ fn main() -> Result<()> {
     let verify_start = Instant::now();
     
     // Use the CCS and public input returned by the chained API
-    let is_valid = neo::verify(&final_augmented_ccs, &final_public_input, &final_proof)
+    let is_valid = neo::verify_spartan2(&final_augmented_ccs, &final_public_input, &final_proof)
         .expect("Final SNARK verification failed");
     let verify_time = verify_start.elapsed();
     
@@ -323,6 +351,7 @@ fn main() -> Result<()> {
     println!("  Setup Time:             {:>8.2} ms", params_time.as_secs_f64() * 1000.0);
     println!("  Per-Step Folding:       {:>8.2} ms/step ({} steps, {:.2} ms total)", 
              steps_time.as_secs_f64() * 1000.0 / num_steps as f64, num_steps, steps_time.as_secs_f64() * 1000.0);
+    println!("  Chain Verification:     {:>8.2} ms (full NIVC chain)", verify_chain_time.as_secs_f64() * 1000.0);
     println!("  Final SNARK Generation: {:>8.2} ms (Stage 5)", final_snark_time.as_secs_f64() * 1000.0);
     println!("  Final SNARK Verification:{:>8.2} ms", verify_time.as_secs_f64() * 1000.0);
     println!("  Output Extraction:      {:>8.2} ms", extract_time.as_secs_f64() * 1000.0);

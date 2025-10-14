@@ -19,7 +19,7 @@
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use anyhow::Result;
-use neo::{prove, ProveInput, NeoParams, CcsStructure, F, claim_z_eq};
+use neo::{prove_spartan2, ProveInput, NeoParams, CcsStructure, F, claim_z_eq};
 use neo_ccs::{check_ccs_rowwise_zero, r1cs_to_ccs, Mat};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::env;
@@ -120,7 +120,7 @@ fn prove_once(n: usize, params: &NeoParams) -> Result<(f64, usize)> {
 
     // Prove (with public output claim)
     let t0 = Instant::now();
-    let proof = prove(ProveInput { 
+    let proof = prove_spartan2(ProveInput { 
         params, 
         ccs: &ccs, 
         public_input: &[], 

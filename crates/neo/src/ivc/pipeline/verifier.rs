@@ -28,6 +28,12 @@ pub fn verify_ivc_step(
     params: &crate::NeoParams,
     prev_augmented_x: Option<&[F]>,
 ) -> Result<bool, Box<dyn std::error::Error>> {
+    // SECURITY: Reject CCS structures that are too small for sumcheck security
+    // ℓ = ceil(log2(n_padded)) must be ≥ 2, so minimum n=3 (→ padded to 4 → ℓ=2)
+    if step_ccs.n < 3 {
+        return Ok(false);
+    }
+    
     // 0. Enforce Las binding: step_x must equal H(prev_accumulator)
     let expected_prefix = compute_accumulator_digest_fields(prev_accumulator)?;
     let step_public_input = ivc_proof.public_inputs.wrapper_public_input_x();
@@ -326,6 +332,7 @@ pub fn verify_ivc_step(
     
     Ok(is_valid)
 }
+
 /// the verifier requires the LHS augmented input to be the canonical all‑zeros vector of the
 /// correct shape (matching `zero_mcs_instance_for_shape`).
 ///
@@ -338,15 +345,26 @@ pub fn verify_ivc_chain(
     binding_spec: &StepBindingSpec,
     params: &crate::NeoParams,
 ) -> Result<bool, Box<dyn std::error::Error>> {
+    // SECURITY: Reject CCS structures that are too small for sumcheck security
+    // ℓ = ceil(log2(n_padded)) must be ≥ 2, so minimum n=3 (→ padded to 4 → ℓ=2)
+    if step_ccs.n < 3 {
+        return Ok(false);
+    }
+    
     // Strict threading of prev_augmented_x and RHS reconstruction checks
     let mut acc_before_curr_step = initial_accumulator.clone();
     let mut prev_augmented_x: Option<Vec<F>> = None;
-
-    for step_proof in &chain_proof.steps {
+    
+    for (step_idx, step_proof) in chain_proof.steps.iter().enumerate() {
         // Cross-check prover-supplied augmented input matches verifier reconstruction.
         let (expected_augmented, _) = compute_augmented_public_input_for_step(&acc_before_curr_step, step_proof)
-            .map_err(|e| anyhow::anyhow!("failed to compute augmented input: {}", e))?;
-        if expected_augmented != step_proof.public_inputs.step_augmented_public_input() { return Ok(false); }
+            .map_err(|e| {
+                anyhow::anyhow!("Step {}: failed to compute augmented input: {}", step_idx, e)
+            })?;
+        let actual_augmented = step_proof.public_inputs.step_augmented_public_input();
+        if expected_augmented != actual_augmented {
+            return Ok(false);
+        }
 
         // Enforce per-step verification (includes folding checks)
         let ok = verify_ivc_step(
@@ -357,14 +375,18 @@ pub fn verify_ivc_chain(
             params,
             prev_augmented_x.as_deref(),
         )?;
-        if !ok { return Ok(false); }
+        if !ok {
+            return Ok(false);
+        }
 
         // Advance and thread linkage
         acc_before_curr_step = step_proof.next_accumulator.clone();
         prev_augmented_x = Some(step_proof.public_inputs.step_augmented_public_input().to_vec());
     }
 
-    Ok(acc_before_curr_step.step == chain_proof.chain_length)
+    let final_step_matches = acc_before_curr_step.step == chain_proof.chain_length;
+    
+    Ok(final_step_matches)
 }
 fn verify_accumulator_progression(
     prev: &Accumulator,

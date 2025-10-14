@@ -365,8 +365,8 @@ fn cmd_verify(file: PathBuf, _vk_cli_path: Option<PathBuf>, n_override: Option<u
     println!("   Final CCS variables: {}", pkg.final_ccs.m);
     println!("   Final public input elements: {}", pkg.final_public_input.len());
     
-    // **CRITICAL FIX**: Actually call neo::verify with final CCS and public input
-    let verification_result = neo::verify(&pkg.final_ccs, &pkg.final_public_input, &pkg.proof);
+    // **CRITICAL FIX**: Actually call neo::verify_spartan2 with final CCS and public input
+    let verification_result = neo::verify_spartan2(&pkg.final_ccs, &pkg.final_public_input, &pkg.proof);
     
     match verification_result {
         Ok(true) => {

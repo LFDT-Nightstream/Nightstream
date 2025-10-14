@@ -1,43 +1,84 @@
-//! Neo: Simple facade for the Neo lattice-based SNARK protocol
+//! Neo: Lattice-based IVC/NIVC SNARK protocol
 //!
-//! This crate provides a simplified, ergonomic API for the complete Neo protocol pipeline,
-//! exposing just two main functions: `prove` and `verify`.
+//! This crate provides a complete implementation of the Neo protocol for
+//! Incrementally Verifiable Computation (IVC) and Non-uniform IVC (NIVC).
 //!
-//! ## Example
+//! # Verification Architecture
+//!
+//! Neo provides **three levels of verification APIs**, each with different security guarantees:
+//!
+//! ## 1. Chain Verifiers (PRIMARY APIs - Use These!)
+//!
+//! These verify complete IVC/NIVC chains with full folding semantics:
+//!
+//! - **[`verify_ivc_chain()`]** - Full IVC chain verification including:
+//!   - Las binding (accumulator digest linking)
+//!   - Strict ρ binding (Fiat-Shamir challenge consistency)
+//!   - Commitment evolution (c_next = c_prev + ρ·c_step)
+//!   - Folding proof verification (ΠCCS/ΠRLC/ΠDEC)
+//!   - Accumulator progression and chain threading
+//!   - Base case canonicalization and all security guards
+//!
+//! - **[`verify_nivc_chain()`]** - Multi-lane NIVC verification including:
+//!   - All IVC checks plus per-lane accumulator tracking
+//!   - Lane selector validation and lane-local linkage
+//!   - Global y and step progression
+//!
+//! - **[`verify_chain_with_descriptor()`]** - Session-based verification:
+//!   - Automatic descriptor-based circuit binding
+//!   - Converts to NIVC format for unified verification
+//!
+//! ## 2. Backward Compatibility
+//!
+//! - **[`verify_spartan2()`]** - Verify compressed Spartan2 proofs (post-finalization only)
+//!
+//! ## 3. Step Verifiers (Advanced Use)
+//!
+//! For incremental or custom verification:
+//! - **[`verify_ivc_step()`]** - Verify a single IVC step
+//! - **[`verify_ivc_step_folding()`]** - Verify just the folding component
+//!
+//! # IVC Example
 //!
 //! ```rust,no_run
-//! use neo::{prove, verify, ProveInput, CcsStructure, NeoParams, F};
-//! use anyhow::Result;
-//!
-//! fn main() -> Result<()> {
-//!     // Set up your circuit (CCS), witness, and parameters
-//!     // (In practice, you'd create these based on your specific circuit)
-//!     let ccs: CcsStructure<F> = todo!("Create your CCS structure");
-//!     let witness: Vec<F> = todo!("Create your witness vector");
-//!     let public_input: Vec<F> = vec![]; // Usually empty for private computation
-//!     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-//!
-//!     // Generate proof
-//!     let proof = prove(ProveInput {
-//!         params: &params,
-//!         ccs: &ccs,
-//!         public_input: &public_input,
-//!         witness: &witness,
-//!         output_claims: &[],
-//!         vjs_opt: None,
-//!     })?;
-//!
-//!     println!("Proof size: {} bytes", proof.size());
-//!
-//!     // Verify proof
-//!     let is_valid = verify(&ccs, &public_input, &proof)?;
-//!     println!("Proof valid: {}", is_valid);
-//!
-//!     Ok(())
-//! }
+//! # use neo::{prove_ivc_chain, verify, CcsStructure, NeoParams, F, Accumulator, StepBindingSpec, IvcChainStepInput};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+//! #     let step_ccs: CcsStructure<F> = todo!("Create your step circuit");
+//! #     let binding_spec = StepBindingSpec {
+//! #         y_step_offsets: vec![],
+//! #         step_program_input_witness_indices: vec![],
+//! #         y_prev_witness_indices: vec![],
+//! #         const1_witness_index: 0,
+//! #     };
+//! #     let initial_acc = Accumulator::default();
+//! #     
+//! #     let step_inputs: Vec<IvcChainStepInput> = vec![/* your step inputs */];
+//! #     
+//! #     // Generate IVC chain proof
+//! #     let chain_proof = prove_ivc_chain(
+//! #         &params,
+//! #         &step_ccs,
+//! #         &step_inputs,
+//! #         initial_acc,
+//! #         &binding_spec,
+//! #     )?;
+//! #     
+//! #     // ✅ Verify with full chain semantics
+//! #     let is_valid = verify(
+//! #         &step_ccs,
+//! #         &chain_proof,
+//! #         &initial_acc,
+//! #         &binding_spec,
+//! #         &params,
+//! #     )?;
+//! #     
+//! #     println!("IVC chain valid: {}", is_valid);
+//! #     Ok(())
+//! # }
 //! ```
 //!
-//! For a complete working example, see `examples/fib.rs`.
+//! For complete working examples, see `examples/fib_folding_nivc.rs` and `examples/incrementer_folding.rs`.
 
 use anyhow::Result;
 use neo_ajtai::{setup as ajtai_setup, commit, decomp_b, DecompStyle};
@@ -157,21 +198,28 @@ pub mod nivc;
 // Core IVC types (from shared module)
 pub use shared::types::{
     Accumulator, IvcProof, IvcStepInput, IvcChainProof, IvcStepResult, IvcChainStepInput, 
-    StepBindingSpec, Commitment, BindingMetadata, AugmentConfig,
+    StepBindingSpec, Commitment, BindingMetadata, AugmentConfig, AppInputBinding,
 };
 pub use shared::binding::{StepOutputExtractor, LastNExtractor, IndexExtractor};
 
-// High-level IVC API (implemented as single-lane NIVC wrappers)
-// This unifies IVC and NIVC under a single implementation with no code duplication
-pub use ivc::lane::{
-    prove_ivc_step, verify_ivc_step, prove_ivc_chain, verify_ivc_chain,
-};
+// ============================================================================
+// PRIMARY IVC API - Proving and Verification
+// ============================================================================
 
-// Advanced IVC API for specialized use cases
-// These are exposed for users who need direct access to the internal engine
-pub use ivc::pipeline::prover::{prove_ivc_step_with_extractor, prove_ivc_step_chained, prove_ivc_chain as prove_ivc_chain_legacy};
-pub use ivc::pipeline::verifier::verify_ivc_step as verify_ivc_step_legacy;
-pub use ivc::pipeline::verifier::verify_ivc_chain as verify_ivc_chain_legacy;
+// High-level IVC API
+// Direct access to the IVC pipeline for proving and verifying chains.
+//
+// **PRIMARY VERIFICATION API**: verify_ivc_chain() and verify_ivc_step()
+// These verify complete IVC chains with full chain semantics including:
+// - Las binding (step_x prefix matching H(prev_accumulator))
+// - Strict ρ binding (Fiat-Shamir challenge recomputation)
+// - Commitment evolution (c_next = c_prev + ρ·c_step)
+// - Folding proof verification (ΠCCS/ΠRLC/ΠDEC via sum-check)
+// - Accumulator progression (step counter validation)
+// - Chain threading (prev_augmented_x linkage)
+// - Base case canonicalization and all security guards
+pub use ivc::pipeline::prover::{prove_ivc_step, prove_ivc_chain, prove_ivc_step_with_extractor, prove_ivc_step_chained};
+pub use ivc::pipeline::verifier::{verify_ivc_step, verify_ivc_chain};
 pub use ivc::pipeline::folding::verify_ivc_step_folding;
 pub use ivc::internal::augmented::{
     augmentation_ccs, build_augmented_ccs_linked, build_augmented_ccs_linked_with_rlc, 
@@ -193,19 +241,29 @@ pub use ivc::zero_mcs_instance_for_shape;
 pub use ivc::internal::tie::tie_check_with_r_public;
 
 // Re-export core NIVC types and helpers
+/// **PRIMARY NIVC VERIFICATION API**: Verify a complete NIVC chain
+///
+/// Multi-lane NIVC verification with full chain semantics including
+/// per-lane accumulator tracking and lane selector validation.
+pub use nivc::verify_nivc_chain;
+
 pub use nivc::{
     // API types
     NivcProgram, NivcStepSpec, NivcState, NivcStepProof, NivcChainProof,
     NivcAccumulators, LaneRunningState, LaneId, StepIdx,
     // Functions
-    verify_nivc_chain, NivcFinalizeOptions, 
+    NivcFinalizeOptions, 
     finalize_nivc_chain_with_options, finalize_nivc_chain,
 };
 
 
 /// High-level Nova/Sonobe-style session API
 pub mod session;
-pub use session::{NeoStep, StepSpec, StepArtifacts, StepDescriptor, IvcSession, verify_chain_with_descriptor};
+/// **HIGH-LEVEL SESSION API**: Verify IVC chain using StepDescriptor
+///
+/// This provides session-based verification that automatically handles
+/// descriptor-based circuit binding and converts to NIVC verification.
+pub use session::{verify_chain_with_descriptor, NeoStep, StepSpec, StepArtifacts, StepDescriptor, FoldingSession};
 
 /// Counts and bookkeeping for public results embedded in the proof.
 /// Backwards-compatible: all fields have defaults for older proofs.
@@ -417,16 +475,13 @@ impl<'a> ProveInput<'a> {
     }
 }
 
-/// Generate a complete Neo SNARK proof for the given inputs
+/// Generate a Spartan2 proof for a single CCS instance (not IVC/NIVC chains).
 ///
-/// This orchestrates the full pipeline:
-/// 1. **Ajtai setup**: Generate PP; do `decomp_b`; commit; build the MCS instance.
-/// 2. **Fold**: Call your `neo-fold` entry (`fold_ccs_instances`) and get ME + folding proof.
-/// 3. **Compress**: Translate to the Spartan2 bridge and get a `ProofBundle`.
-/// 4. **Serialize**: Wrap that bundle into `Proof(Vec<u8>)`.
+/// **Note**: For IVC chains, use `prove_ivc_chain()` instead.
+/// This function generates a compressed Spartan2 SNARK for a single computation.
 ///
-/// Returns an opaque proof that can be verified with `verify`.
-pub fn prove(input: ProveInput) -> Result<Proof> {
+/// Returns an opaque proof that can be verified with `verify_spartan2()`.
+pub fn prove_spartan2(input: ProveInput) -> Result<Proof> {
     let total_start = std::time::Instant::now();
     // Parameter guard: enforce (k+1)T(b-1) < B for RLC soundness
     anyhow::ensure!(
@@ -634,20 +689,26 @@ pub fn prove(input: ProveInput) -> Result<Proof> {
     })
 }
 
-/// Verify a Neo SNARK proof against the given CCS and public inputs.
+/// Verify an IVC/NIVC chain with full chain semantics.
 ///
-/// # Security Properties
-/// 
-/// ## What This Function Validates
-/// 
-/// - ✅ **Context binding**: Proof is bound to specific `(ccs, public_input)` pair
-/// - ✅ **Cryptographic proof validity**: Spartan2 SNARK verification
-/// - ✅ **Anti-replay protection**: Internal public-IO consistency  
+/// This is the primary verification function that routes to the appropriate chain verifier.
+/// For IVC chains, use with IvcChainProof. For NIVC chains, use `verify_nivc_chain()` directly.
+pub fn verify(
+    step_ccs: &CcsStructure<F>,
+    chain: &IvcChainProof,
+    initial_accumulator: &Accumulator,
+    binding_spec: &StepBindingSpec,
+    params: &crate::NeoParams,
+) -> Result<bool> {
+    verify_ivc_chain(step_ccs, chain, initial_accumulator, binding_spec, params)
+        .map_err(|e| anyhow::anyhow!("IVC chain verification failed: {}", e))
+}
+
+/// Verify a Spartan2 proof (for backward compatibility with finalized proofs).
 ///
-/// This function validates that the proof was generated for the specific
-/// `(ccs, public_input)` pair provided and performs full cryptographic 
-/// verification via the lean Spartan2 verifier using VK registry.
-pub fn verify(ccs: &CcsStructure<F>, public_input: &[F], proof: &Proof) -> Result<bool> {
+/// **Note**: This only verifies compressed SNARK proofs, NOT IVC/NIVC chains.
+/// Use `verify()` or `verify_ivc_chain()` for proper chain verification.
+pub fn verify_spartan2(ccs: &CcsStructure<F>, public_input: &[F], proof: &Proof) -> Result<bool> {
     info!("Starting lean proof verification without embedded VK");
     
     // CRITICAL SECURITY: Ensure proof version is supported
@@ -753,8 +814,8 @@ pub fn verify_with_vk(
         "VK digest mismatch: provided VK bytes don't match proof's expected VK"
     );
     
-    // Now delegate to the standard verify function
-    verify(ccs, public_input, proof)
+    // Now delegate to the Spartan2 verify function
+    verify_spartan2(ccs, public_input, proof)
 }
 
 /// Decode y-elements from `public_io` (excluding trailing 32-byte context digest).
@@ -795,7 +856,7 @@ pub fn verify_and_extract_exact(
     use anyhow::ensure;
 
     // 1) CRITICAL SECURITY: Verify cryptographic proof and context binding
-    let is_valid = verify(ccs, public_input, proof)?;
+    let is_valid = verify_spartan2(ccs, public_input, proof)?;
     if !is_valid {
         anyhow::bail!("Cryptographic proof verification failed - invalid proof");
     }

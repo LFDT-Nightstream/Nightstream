@@ -12,7 +12,7 @@ fn trivial_step_ccs(y_len: usize) -> CcsStructure<F> {
     //  - index 0 = const 1
     //  - indices [1..=y_len] = y_step we bind into the augmentation
     let m = 1 + y_len;
-    let rows = 1; // At least one constraint for valid CCS
+    let rows = 4; // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     
     // Create identity constraint: 1 * 1 = 1 (always satisfied)
     let mut a_data = vec![F::ZERO; rows * m];
@@ -23,6 +23,12 @@ fn trivial_step_ccs(y_len: usize) -> CcsStructure<F> {
     a_data[0] = F::ONE;  // A[0,0] = 1 (constant column)
     b_data[0] = F::ONE;  // B[0,0] = 1 (constant column)
     c_data[0] = F::ONE;  // C[0,0] = 1 (result)
+    
+    // Rows 1-3: dummy constraints (0 * 1 = 0)
+    for row in 1..4 {
+        a_data[row * m] = F::ZERO;
+        b_data[row * m] = F::ONE;
+    }
     
     let a = neo_ccs::Mat::from_row_major(rows, m, a_data);
     let b = neo_ccs::Mat::from_row_major(rows, m, b_data);

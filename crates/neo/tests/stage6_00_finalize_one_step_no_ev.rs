@@ -12,12 +12,15 @@ fn triplets_to_dense(rows: usize, cols: usize, triplets: Vec<(usize, usize, F)>)
 }
 
 fn fibonacci_step_ccs() -> neo_ccs::CcsStructure<F> {
-    let rows = 2; let cols = 5; // [1, a_prev, b_prev, a_next, b_next]
+    let rows = 4; let cols = 5; // [1, a_prev, b_prev, a_next, b_next] - Minimum 4 rows required
     let mut a_trips = Vec::new();
     let mut b_trips = Vec::new();
     let c_trips = Vec::new();
     a_trips.push((0, 3, F::ONE)); a_trips.push((0, 2, -F::ONE)); b_trips.push((0, 0, F::ONE));
     a_trips.push((1, 4, F::ONE)); a_trips.push((1, 1, -F::ONE)); a_trips.push((1, 2, -F::ONE)); b_trips.push((1, 0, F::ONE));
+    // Add dummy constraints for rows 2-3 (0 * 1 = 0)
+    b_trips.push((2, 0, F::ONE));
+    b_trips.push((3, 0, F::ONE));
     let a = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, a_trips));
     let b = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, b_trips));
     let c = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, c_trips));

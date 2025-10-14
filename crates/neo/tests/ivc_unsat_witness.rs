@@ -1,8 +1,8 @@
 //! IVC negative test: unsatisfiable step witness should be rejected by verify_ivc_step.
 //! This test intentionally does NOT call `check_ccs_rowwise_zero` beforehand.
 //!
-//! Uses a 3-row CCS (ℓ=2) to ensure the verifier can detect invalid witnesses
-//! via the initial_sum == 0 check at the base case.
+//! Uses a 4-row CCS (ℓ=2, minimum required for security) to ensure the verifier 
+//! can detect invalid witnesses via the initial_sum == 0 check at the base case.
 
 use neo::{F, NeoParams};
 use neo::{
@@ -12,28 +12,32 @@ use neo::{
 use neo_ccs::{Mat, SparsePoly, Term, CcsStructure};
 use p3_field::PrimeCharacteristicRing;
 
-/// Build a 3-row CCS to achieve ℓ=2 (3 rows → padded to 4 → ℓ=2)
+/// Build a 4-row CCS to achieve ℓ=2 (minimum 4 rows required for security)
 /// CCS polynomial: f(M0, M1, M2) = M0·M1 - M2
 /// Witness format: [const1, z0, z1]
 /// Constraints:
 ///   Row 0: z0 * z0 = z0  (z0 is boolean)
 ///   Row 1: z1 * z1 = z1  (z1 is boolean)
 ///   Row 2: z0 * z1 = z0  (if z0=1, then z1 must be 1)
+///   Row 3: 0 * 1 = 0     (dummy constraint for security)
 fn tiny_r1cs_to_ccs() -> neo_ccs::CcsStructure<F> {
-    let m0 = Mat::from_row_major(3, 3, vec![
+    let m0 = Mat::from_row_major(4, 3, vec![
         F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
         F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
         F::ZERO, F::ONE, F::ZERO,   // Row 2: z0
+        F::ZERO, F::ZERO, F::ZERO,  // Row 3: 0 (dummy)
     ]);
-    let m1 = Mat::from_row_major(3, 3, vec![
+    let m1 = Mat::from_row_major(4, 3, vec![
         F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
         F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
         F::ZERO, F::ZERO, F::ONE,   // Row 2: z1
+        F::ONE, F::ZERO, F::ZERO,   // Row 3: 1 (dummy)
     ]);
-    let m2 = Mat::from_row_major(3, 3, vec![
+    let m2 = Mat::from_row_major(4, 3, vec![
         F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
         F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
         F::ZERO, F::ONE, F::ZERO,   // Row 2: z0
+        F::ZERO, F::ZERO, F::ZERO,  // Row 3: 0 (dummy)
     ]);
     
     // CCS polynomial: f(X0, X1, X2) = X0·X1 - X2
@@ -107,7 +111,7 @@ fn ivc_proof_with_invalid_witness_from_generation() {
     // this invalid witness, so the digit witnesses will be consistent with the ME instances.
     // However, the witness itself violates the CCS, so verification should reject it.
     //
-    // For the 3-row CCS with constraints:
+    // For the 4-row CCS with constraints:
     //   Row 0: z0 * z0 = z0  (z0 is boolean)
     //   Row 1: z1 * z1 = z1  (z1 is boolean)
     //   Row 2: z0 * z1 = z0  (if z0=1, then z1 must be 1)

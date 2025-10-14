@@ -23,6 +23,7 @@ use p3_field::PrimeCharacteristicRing;
 /// Valid witness: [1, 1, 1]
 fn simple_ccs_and_witness_valid() -> (CcsStructure<F>, Vec<F>, StepBindingSpec, LastNExtractor) {
     // Create 3 matrices for 3 rows, 3 columns [const1, z0, z1]
+    // n=3 gets padded to 4 in sumcheck, giving ℓ=2 which is acceptable
     let m0 = Mat::from_row_major(3, 3, vec![
         F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
         F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
@@ -76,7 +77,7 @@ fn simple_ccs_and_witness_valid() -> (CcsStructure<F>, Vec<F>, StepBindingSpec, 
 ///   Row 2: z0 * z1 = z0  (if z0=1, then z1 must be 1)
 /// Invalid witness: [1, 1, 5] violates rows 1 and 2
 fn simple_ccs_and_witness_invalid() -> (CcsStructure<F>, Vec<F>, StepBindingSpec, LastNExtractor) {
-    // Same structure as valid
+    // Same structure as valid (3 rows, padded to 4 for ℓ=2)
     let m0 = Mat::from_row_major(3, 3, vec![
         F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
         F::ZERO, F::ZERO, F::ONE,   // Row 1: z1

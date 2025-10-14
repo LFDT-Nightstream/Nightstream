@@ -36,29 +36,41 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 /// Build incrementer CCS: next_x = prev_x + delta
 /// Variables: [const=1, prev_x, delta, next_x]
-/// Constraint: next_x - prev_x - delta = 0
+/// Constraint 0: next_x - prev_x - delta = 0
+/// Constraints 1-2: dummy (0 * 1 = 0)
 fn build_incrementer_step_ccs() -> CcsStructure<F> {
-    let rows = 1;
+    // Minimum of 3 rows required (gets padded to 4 for ℓ=2)
+    let rows = 3;
     let cols = 4;
     
-    // A matrix: next_x - prev_x - delta
+    // A matrix: next_x - prev_x - delta in row 0, dummy rows 1-2
     let a = Mat::from_row_major(rows, cols, vec![
+        // Row 0: real constraint
         F::ZERO,  // const
         -F::ONE,  // -prev_x
         -F::ONE,  // -delta
         F::ONE,   // +next_x
+        // Rows 1-2: dummy constraints (0 * 1 = 0)
+        F::ZERO, F::ZERO, F::ZERO, F::ZERO,
+        F::ZERO, F::ZERO, F::ZERO, F::ZERO,
     ]);
     
-    // B matrix: select constant 1
+    // B matrix: select constant 1 for all rows
     let b = Mat::from_row_major(rows, cols, vec![
+        // Row 0
         F::ONE,   // const = 1
         F::ZERO,  // prev_x
         F::ZERO,  // delta
         F::ZERO,  // next_x
+        // Rows 1-2: const = 1 for dummy constraints
+        F::ONE, F::ZERO, F::ZERO, F::ZERO,
+        F::ONE, F::ZERO, F::ZERO, F::ZERO,
     ]);
     
-    // C matrix: zero (R1CS: A*z ∘ B*z = C*z, so 0 = 0)
+    // C matrix: zero for all rows
     let c = Mat::from_row_major(rows, cols, vec![
+        F::ZERO, F::ZERO, F::ZERO, F::ZERO,
+        F::ZERO, F::ZERO, F::ZERO, F::ZERO,
         F::ZERO, F::ZERO, F::ZERO, F::ZERO,
     ]);
     
@@ -451,27 +463,38 @@ fn test_ccs_domain_separation() -> Result<()> {
     
     // Build a different CCS: next_x = prev_x + delta + 1 (slightly different adder)
     let step_ccs_2 = {
-        let rows = 1;
+        // Minimum of 3 rows required (gets padded to 4 for ℓ=2)
+        let rows = 3;
         let cols = 4;
         
         // A matrix: next_x - prev_x - delta - 1 = 0 (so next_x = prev_x + delta + 1)
         let a = Mat::from_row_major(rows, cols, vec![
+            // Row 0: real constraint
             -F::ONE,  // -const (so we get -1)
             -F::ONE,  // -prev_x
             -F::ONE,  // -delta
             F::ONE,   // +next_x
+            // Rows 1-2: dummy constraints (0 * 1 = 0)
+            F::ZERO, F::ZERO, F::ZERO, F::ZERO,
+            F::ZERO, F::ZERO, F::ZERO, F::ZERO,
         ]);
         
-        // B matrix: select constant 1
+        // B matrix: select constant 1 for all rows
         let b = Mat::from_row_major(rows, cols, vec![
+            // Row 0
             F::ONE,   // const = 1
             F::ZERO,  // prev_x
             F::ZERO,  // delta
             F::ZERO,  // next_x
+            // Rows 1-2: const = 1 for dummy constraints
+            F::ONE, F::ZERO, F::ZERO, F::ZERO,
+            F::ONE, F::ZERO, F::ZERO, F::ZERO,
         ]);
         
-        // C matrix: zero (R1CS: A*z ∘ B*z = C*z, so 0 = 0)
+        // C matrix: zero for all rows
         let c = Mat::from_row_major(rows, cols, vec![
+            F::ZERO, F::ZERO, F::ZERO, F::ZERO,
+            F::ZERO, F::ZERO, F::ZERO, F::ZERO,
             F::ZERO, F::ZERO, F::ZERO, F::ZERO,
         ]);
         

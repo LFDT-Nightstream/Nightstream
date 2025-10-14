@@ -1,13 +1,13 @@
-use neo::{F, NeoParams};
+use neo::{F, NeoParams, AppInputBinding};
 use p3_field::PrimeCharacteristicRing;
-use neo::session::{NeoStep, StepSpec, StepArtifacts, IvcSession, StepDescriptor, verify_chain_with_descriptor};
+use neo::session::{NeoStep, StepSpec, StepArtifacts, FoldingSession, StepDescriptor, verify_chain_with_descriptor};
 use neo_ccs::{CcsStructure, Mat, r1cs_to_ccs};
 
-// Minimal step: two linear constraints over witness [1, a, b]
+// Minimal step: linear constraints over witness [1, a, b]
 //   r0: a - b = 0 (encoded as (a - b) * 1 = 0)
-//   r1: (a - b) = 0 again (duplicate row) to ensure n >= 2 (ell >= 1)
+//   r1-r3: dummy constraints (0 * 1 = 0) to reach minimum n=4 for security
 fn build_min_step_ccs() -> CcsStructure<F> {
-    let rows = 2usize;
+    let rows = 4usize;  // Minimum of 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let cols = 3usize; // [const=1, a, b]
 
     let mut a = vec![F::ZERO; rows * cols];
@@ -19,10 +19,12 @@ fn build_min_step_ccs() -> CcsStructure<F> {
     a[0 * cols + 2] = -F::ONE;      // -b
     b[0 * cols + 0] = F::ONE;       // × const 1
 
-    // Row 1: duplicate constraint to avoid degenerate n=1
-    a[1 * cols + 1] = F::ONE;       // +a
-    a[1 * cols + 2] = -F::ONE;      // -b
-    b[1 * cols + 0] = F::ONE;       // × const 1
+    // Rows 1-3: dummy constraints (0 * 1 = 0) to reach minimum n=4
+    for row in 1..4 {
+        a[row * cols + 0] = F::ZERO;    // 0
+        b[row * cols + 0] = F::ONE;     // × 1
+        // c[row] = 0 (already initialized)
+    }
 
     let a_mat = Mat::from_row_major(rows, cols, a);
     let b_mat = Mat::from_row_major(rows, cols, b);
@@ -79,7 +81,7 @@ impl NeoStep for MinimalStep {
 #[test]
 fn test_self_fold_basecase_manual_verify() {
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    let mut session = IvcSession::new(&params, None, 0);
+    let mut session = FoldingSession::new(&params, None, 0, AppInputBinding::TranscriptOnly);
     let mut stepper = MinimalStep::new();
 
     // Prove a couple of steps (0 and 1)
@@ -90,7 +92,7 @@ fn test_self_fold_basecase_manual_verify() {
     let descriptor = StepDescriptor { ccs: stepper.ccs.clone(), spec: stepper.spec.clone() };
 
     // Manual per-step verification with strict threading of prev_augmented_x
-    let binding = descriptor.spec.binding_spec();
+    let binding = descriptor.spec.binding_spec(AppInputBinding::WitnessBound);
     let mut acc = neo::Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
     let mut prev_augmented_x: Option<Vec<neo::F>> = None;
 
@@ -120,13 +122,13 @@ fn test_self_fold_basecase_manual_verify() {
 #[test]
 fn test_basecase_chain_verifies_canonical() {
     let params = NeoParams::goldilocks_small_circuits();
-    let mut session = IvcSession::new(&params, None, 0);
+    let mut session = FoldingSession::new(&params, None, 0, AppInputBinding::TranscriptOnly);
     let mut stepper = MinimalStep::new();
 
     let _ = session.prove_step(&mut stepper, &NoInputs).expect("prove step 0");
     let (chain, step_ios) = session.finalize();
     let descriptor = StepDescriptor { ccs: stepper.ccs.clone(), spec: stepper.spec.clone() };
 
-    let ok = verify_chain_with_descriptor(&descriptor, &chain, &[], &params, &step_ios).expect("verify should not error");
+    let ok = verify_chain_with_descriptor(&descriptor, &chain, &[], &params, &step_ios, AppInputBinding::TranscriptOnly).expect("verify should not error");
     assert!(ok, "canonical verifier should accept zero-base case chain");
 }

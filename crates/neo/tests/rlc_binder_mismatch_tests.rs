@@ -10,8 +10,8 @@ use p3_field::PrimeCharacteristicRing;
 #[test]
 fn rlc_binder_linear_equality_correctness() {
     // --- Step CCS (trivial) ---
-    // One row, two witness columns; A=B=C=0 so the step portion imposes no constraints.
-    let rows = 1usize;
+    // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2); A=B=C=0 so the step portion imposes no constraints.
+    let rows = 4usize;
     let cols = 2usize; // witness has at least 2 entries: [const1, y_step]
     let zero = vec![F::ZERO; rows * cols];
     let a = Mat::from_row_major(rows, cols, zero.clone());
@@ -82,7 +82,7 @@ fn rlc_binder_linear_equality_correctness() {
 #[test]
 fn rlc_binder_rejects_mismatch() {
     // --- Step CCS (trivial) ---
-    let rows = 1usize;
+    let rows = 4usize;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let cols = 2usize;
     let zero = vec![F::ZERO; rows * cols];
     let a = Mat::from_row_major(rows, cols, zero.clone());

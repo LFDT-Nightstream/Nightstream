@@ -45,7 +45,7 @@ fn build_fibonacci_step_witness(a: u64, b: u64) -> Vec<F> {
 /// 1. a_next = b_prev  (copy constraint)
 /// 2. b_next = a_prev + b_prev  (addition constraint)
 fn build_fibonacci_step_ccs() -> Result<CcsStructure<F>> {
-    let rows = 2;
+    let rows = 4;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let cols = 5; // [const, a_prev, b_prev, a_next, b_next]
     
     // Constraint 1: a_next - b_prev = 0
@@ -57,11 +57,14 @@ fn build_fibonacci_step_ccs() -> Result<CcsStructure<F>> {
     ];
     
     // Constraint 2: b_next - a_prev - b_prev = 0  
-    let b_triplets = vec![
+    let mut b_triplets = vec![
         (1, 4, F::ONE),   // +b_next
         (1, 1, -F::ONE),  // -a_prev
         (1, 2, -F::ONE),  // -b_prev
     ];
+    // Add dummy constraints for rows 2-3 (0 * 1 = 0)
+    b_triplets.push((2, 0, F::ONE));
+    b_triplets.push((3, 0, F::ONE));
     
     let a_data = triplets_to_dense(rows, cols, a_triplets);
     let b_data = triplets_to_dense(rows, cols, b_triplets);

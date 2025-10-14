@@ -11,7 +11,7 @@ use p3_field::PrimeCharacteristicRing;
 
 /// Build a simple 2-constraint CCS for testing: x + y = z, z * 1 = z
 fn build_simple_test_ccs() -> neo_ccs::CcsStructure<F> {
-    let rows = 2;  // 2 constraints
+    let rows = 4;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     // [1, x, y, z, d0, d1, d2, d3] where d* hold digest bindings
     let cols = 8;
 
@@ -23,11 +23,17 @@ fn build_simple_test_ccs() -> neo_ccs::CcsStructure<F> {
         F::ZERO, F::ONE, F::ONE, -F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO,
         // Row 1: z = z (identity)
         F::ZERO, F::ZERO, F::ZERO, F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO,
+        // Rows 2-3: dummy constraints (0 * 1 = 0)
+        F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO,
+        F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO,
     ];
     let b_data = vec![
         // Row 0: multiply by 1
         F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO,
         // Row 1: multiply by 1
+        F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO,
+        // Rows 2-3: dummy constraints (0 * 1 = 0)
+        F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO,
         F::ONE, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO, F::ZERO,
     ];
     let c_data = vec![F::ZERO; rows * cols]; // All zeros (linear constraints)

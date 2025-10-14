@@ -18,7 +18,7 @@ fn triplets_to_dense(rows: usize, cols: usize, triplets: Vec<(usize, usize, F)>)
 /// Build CCS for single Fibonacci step: (a, b) -> (b, a+b)
 /// Variables: [1, a_prev, b_prev, a_next, b_next]
 fn fibonacci_step_ccs() -> CcsStructure<F> {
-    let rows = 2;  // 2 constraints
+    let rows = 4;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let cols = 5;  // [1, a_prev, b_prev, a_next, b_next]
 
     let mut a_trips = Vec::new();
@@ -35,6 +35,10 @@ fn fibonacci_step_ccs() -> CcsStructure<F> {
     a_trips.push((1, 1, -F::ONE));  // -a_prev
     a_trips.push((1, 2, -F::ONE));  // -b_prev
     b_trips.push((1, 0, F::ONE));   // × 1
+
+    // Dummy constraints for rows 2-3 (0 * 1 = 0)
+    b_trips.push((2, 0, F::ONE));
+    b_trips.push((3, 0, F::ONE));
 
     let a = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, a_trips));
     let b = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, b_trips));

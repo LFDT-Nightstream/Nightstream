@@ -7,21 +7,28 @@ use neo_ccs::{Mat, r1cs_to_ccs};
 use p3_field::PrimeCharacteristicRing;
 
 /// Build a simple increment CCS: next = prev + delta
-/// Same structure as in_circuit_soundness_test.rs (proven working)
+/// Padded to 4 rows to satisfy ℓ >= 2 requirement
 fn build_increment_ccs() -> neo_ccs::CcsStructure<F> {
     // Variables: [const1, prev, delta, next]
     // Constraint: next - prev - delta = 0
-    let rows = 1;
+    let rows = 4;  // Minimum for ℓ >= 2
     let cols = 4;
     let mut a = vec![F::ZERO; rows * cols];
     let mut b = vec![F::ZERO; rows * cols];
     let c = vec![F::ZERO; rows * cols];
     
-    // (next - prev - delta) * const1 = 0
-    a[3] = F::ONE;   // +next
-    a[1] = -F::ONE;  // -prev
-    a[2] = -F::ONE;  // -delta
-    b[0] = F::ONE;   // * const1
+    // Row 0: (next - prev - delta) * const1 = 0
+    a[0 * cols + 3] = F::ONE;   // +next
+    a[0 * cols + 1] = -F::ONE;  // -prev
+    a[0 * cols + 2] = -F::ONE;  // -delta
+    b[0 * cols + 0] = F::ONE;   // * const1
+    
+    // Rows 1-3: Padding constraints (0 * const1 = 0)
+    // These are always satisfied and don't affect the circuit logic
+    for row in 1..rows {
+        b[row * cols + 0] = F::ONE;  // * const1
+        // a and c remain zero for these rows
+    }
     
     r1cs_to_ccs(
         Mat::from_row_major(rows, cols, a),

@@ -28,18 +28,33 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 /// Build simple incrementer CCS: next_x = prev_x + delta
 fn build_increment_ccs() -> CcsStructure<F> {
-    let rows = 1;
+    // Minimum of 4 rows required for security (ℓ=ceil(log2(n)) must be ≥ 2)
+    let rows = 4;
     let cols = 4; // [const=1, prev_x, delta, next_x]
 
     let mut a_trips = Vec::new();
     let mut b_trips = Vec::new();
     let c_trips = Vec::new();
 
-    // Constraint: next_x - prev_x - delta = 0
+    // Constraint 0: next_x - prev_x - delta = 0
     a_trips.push((0, 3, F::ONE));   // +next_x
     a_trips.push((0, 1, -F::ONE));  // -prev_x  
     a_trips.push((0, 2, -F::ONE));  // -delta
     b_trips.push((0, 0, F::ONE));   // × const 1
+
+    // Dummy constraints (rows 1, 2, 3): 1 * 1 = 0 (trivially satisfied)
+    for row in 1..4 {
+        a_trips.push((row, 0, F::ONE));   // const=1
+        b_trips.push((row, 0, F::ONE));   // × const=1
+        // c is zero, so a * b = c means 1 * 1 = 0, which needs adjustment
+        // Better: a * b = c with 0 * 1 = 0
+        // Actually for dummy: let's use 0 * 1 = 0
+        a_trips.pop(); // remove the previous
+        b_trips.pop(); // remove the previous
+        a_trips.push((row, 0, F::ZERO));  // 0
+        b_trips.push((row, 0, F::ONE));   // × 1
+        // = 0 (c is zero by default)
+    }
 
     let a_data = triplets_to_dense(rows, cols, a_trips);
     let b_data = triplets_to_dense(rows, cols, b_trips);

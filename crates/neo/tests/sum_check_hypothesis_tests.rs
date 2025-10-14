@@ -11,20 +11,24 @@ use neo_ccs::{CcsStructure, relations::check_ccs_rowwise_zero, Mat, SparsePoly, 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 fn simple_ccs() -> (CcsStructure<F>, Vec<F>, Vec<F>, StepBindingSpec, LastNExtractor) {
-    let m0 = Mat::from_row_major(3, 3, vec![
+    // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
+    let m0 = Mat::from_row_major(4, 3, vec![
         F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
         F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
         F::ZERO, F::ONE, F::ZERO,   // Row 2: z0
+        F::ZERO, F::ZERO, F::ZERO,  // Row 3: 0 (dummy)
     ]);
-    let m1 = Mat::from_row_major(3, 3, vec![
+    let m1 = Mat::from_row_major(4, 3, vec![
         F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
         F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
         F::ZERO, F::ZERO, F::ONE,   // Row 2: z1
+        F::ONE, F::ZERO, F::ZERO,   // Row 3: 1 (dummy)
     ]);
-    let m2 = Mat::from_row_major(3, 3, vec![
+    let m2 = Mat::from_row_major(4, 3, vec![
         F::ZERO, F::ONE, F::ZERO,   // Row 0: z0
         F::ZERO, F::ZERO, F::ONE,   // Row 1: z1
         F::ZERO, F::ONE, F::ZERO,   // Row 2: z0
+        F::ZERO, F::ZERO, F::ZERO,  // Row 3: 0 (dummy)
     ]);
     
     let f = SparsePoly::new(3, vec![

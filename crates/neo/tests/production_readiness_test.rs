@@ -66,7 +66,7 @@ use p3_field::PrimeCharacteristicRing;
 
 /// Build simple incrementer CCS: next_x = prev_x + delta
 fn build_increment_ccs() -> CcsStructure<F> {
-    let rows = 1;
+    let rows = 4;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let cols = 4; // [const=1, prev_x, delta, next_x]
 
     let mut a_trips = Vec::new();
@@ -78,6 +78,11 @@ fn build_increment_ccs() -> CcsStructure<F> {
     a_trips.push((0, 1, -F::ONE));  // -prev_x  
     a_trips.push((0, 2, -F::ONE));  // -delta
     b_trips.push((0, 0, F::ONE));   // × const 1
+
+    // Rows 1-3: dummy constraints (0 * 1 = 0)
+    for row in 1..4 {
+        b_trips.push((row, 0, F::ONE));
+    }
 
     let a_data = triplets_to_dense(rows, cols, a_trips);
     let b_data = triplets_to_dense(rows, cols, b_trips);

@@ -10,7 +10,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 fn build_extended_step_ccs() -> CcsStructure<F> {
     // Variables: [1, a, b, app1, app2] with constraint: b - a - 1 = 0
     // The app1 and app2 are unconstrained (just witness values for binding)
-    let rows = 1; let cols = 5;
+    let rows = 4; let cols = 5;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let mut a = vec![F::ZERO; rows * cols];
     let mut b = vec![F::ZERO; rows * cols];
     let c = vec![F::ZERO; rows * cols];
@@ -19,6 +19,11 @@ fn build_extended_step_ccs() -> CcsStructure<F> {
     a[0*cols + 0] = -F::ONE;  // -1
     // app1 (index 3) and app2 (index 4) are unconstrained
     b[0*cols + 0] = F::ONE;   // *1
+    // Rows 1-3: dummy constraints (0 * 1 = 0)
+    for row in 1..4 {
+        a[row * cols] = F::ZERO;
+        b[row * cols] = F::ONE;
+    }
     r1cs_to_ccs(Mat::from_row_major(rows, cols, a), Mat::from_row_major(rows, cols, b), Mat::from_row_major(rows, cols, c))
 }
 

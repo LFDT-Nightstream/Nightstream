@@ -309,11 +309,28 @@ fn test_high_level_ivc_api() {
     use neo_ccs::{r1cs_to_ccs, Mat};
     
     // Create a simple step CCS (identity: output = input) with 3 columns to match witness [1, input, output]
+    // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let step_ccs = r1cs_to_ccs(
-        Mat::from_row_major(1, 3, vec![F::ZERO, F::ONE,  F::ZERO]), // A: input
-        Mat::from_row_major(1, 3, vec![F::ONE,  F::ZERO, F::ZERO]), // B: 1
-        Mat::from_row_major(1, 3, vec![F::ZERO, F::ZERO, F::ONE]),  // C: output
-        // Constraint: input * 1 = output (so output = input)
+        Mat::from_row_major(4, 3, vec![
+            F::ZERO, F::ONE,  F::ZERO, // Row 0: A: input
+            F::ZERO, F::ZERO, F::ZERO, // Row 1-3: dummy constraints (0 * 1 = 0)
+            F::ZERO, F::ZERO, F::ZERO,
+            F::ZERO, F::ZERO, F::ZERO,
+        ]),
+        Mat::from_row_major(4, 3, vec![
+            F::ONE,  F::ZERO, F::ZERO, // Row 0: B: 1
+            F::ONE,  F::ZERO, F::ZERO, // Row 1-3: B: 1 (for dummy constraints)
+            F::ONE,  F::ZERO, F::ZERO,
+            F::ONE,  F::ZERO, F::ZERO,
+        ]),
+        Mat::from_row_major(4, 3, vec![
+            F::ZERO, F::ZERO, F::ONE,  // Row 0: C: output
+            F::ZERO, F::ZERO, F::ZERO, // Row 1-3: C: 0 (for dummy constraints)
+            F::ZERO, F::ZERO, F::ZERO,
+            F::ZERO, F::ZERO, F::ZERO,
+        ]),
+        // Constraint 0: input * 1 = output (so output = input)
+        // Constraints 1-3: 0 * 1 = 0 (dummy constraints for security)
     );
     
     // Setup parameters

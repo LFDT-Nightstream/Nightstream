@@ -17,9 +17,12 @@ fn triplets_to_dense(rows: usize, cols: usize, triplets: Vec<(usize, usize, F)>)
 //  - a_next - b_prev = 0
 //  - b_next - a_prev - b_prev = 0
 fn build_step_ccs() -> CcsStructure<F> {
-    let rows = 2; let cols = 5;
+    let rows = 4; let cols = 5;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let a_trips = vec![(0, 3, F::ONE), (0, 2, -F::ONE)];
-    let b_trips = vec![(1, 4, F::ONE), (1, 1, -F::ONE), (1, 2, -F::ONE)];
+    let mut b_trips = vec![(1, 4, F::ONE), (1, 1, -F::ONE), (1, 2, -F::ONE)];
+    // Add dummy constraints for rows 2-3 (0 * 1 = 0)
+    b_trips.push((2, 0, F::ONE));
+    b_trips.push((3, 0, F::ONE));
     let a = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, a_trips));
     let b = Mat::from_row_major(rows, cols, triplets_to_dense(rows, cols, b_trips));
     let c = Mat::from_row_major(rows, cols, vec![F::ZERO; rows * cols]);

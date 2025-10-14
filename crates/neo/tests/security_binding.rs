@@ -13,8 +13,8 @@ use p3_field::PrimeCharacteristicRing;
 fn one_row_ccs_x_eq_x() -> CcsStructure<F> {
     // R1CS with 3 rows (pads to 4, giving ℓ=2) and 2 columns [1, x]:
     // Row 0: x * 1 = x  (the actual constraint)
-    // Row 1-2: 0 * 1 = 0  (trivial padding to reach ℓ=2)
-    let rows = 3usize;
+    // Row 1-3: 0 * 1 = 0  (trivial padding to reach ℓ=2)
+    let rows = 4usize;  // Minimum 4 rows required
     let cols = 2usize; // [const, x]
 
     let mut a = vec![F::ZERO; rows * cols];
@@ -26,9 +26,10 @@ fn one_row_ccs_x_eq_x() -> CcsStructure<F> {
     b[0 * cols + 0] = F::ONE; // B picks 1
     c[0 * cols + 1] = F::ONE; // C expects x
     
-    // Rows 1-2: 0 * 1 = 0 (padding)
+    // Rows 1-3: 0 * 1 = 0 (padding)
     b[1 * cols + 0] = F::ONE;
     b[2 * cols + 0] = F::ONE;
+    b[3 * cols + 0] = F::ONE;
 
     r1cs_to_ccs(
         Mat::from_row_major(rows, cols, a),
@@ -41,8 +42,8 @@ fn one_row_ccs_x_eq_x() -> CcsStructure<F> {
 fn one_row_ccs_x_eq_0() -> CcsStructure<F> {
     // R1CS with 3 rows (pads to 4, giving ℓ=2):
     // Row 0: x * 1 = 0 (the actual constraint - different from x_eq_x)
-    // Row 1-2: 0 * 1 = 0  (trivial padding to reach ℓ=2)
-    let rows = 3usize;
+    // Row 1-3: 0 * 1 = 0  (trivial padding to reach ℓ=2)
+    let rows = 4usize;  // Minimum 4 rows required
     let cols = 2usize;
 
     let mut a = vec![F::ZERO; rows * cols];
@@ -53,9 +54,10 @@ fn one_row_ccs_x_eq_0() -> CcsStructure<F> {
     a[0 * cols + 1] = F::ONE; // A picks x
     b[0 * cols + 0] = F::ONE; // B picks 1
     
-    // Rows 1-2: 0 * 1 = 0 (padding)
+    // Rows 1-3: 0 * 1 = 0 (padding)
     b[1 * cols + 0] = F::ONE;
     b[2 * cols + 0] = F::ONE;
+    b[3 * cols + 0] = F::ONE;
 
     r1cs_to_ccs(
         Mat::from_row_major(rows, cols, a),
@@ -67,7 +69,7 @@ fn one_row_ccs_x_eq_0() -> CcsStructure<F> {
 /// Helper to create a simple test fixture
 fn create_simple_fibonacci_fixture() -> (CcsStructure<F>, Vec<F>, Vec<F>, NeoParams) {
     // Create minimal Fibonacci CCS for n=1: z2 = z1 + z0 with z0=0, z1=1
-    let rows = 3;  // 2 seed constraints + 1 recurrence  
+    let rows = 4;  // 2 seed constraints + 1 recurrence + 1 dummy (minimum 4 required)  
     let cols = 4;  // [1, z0, z1, z2]
     
     // A matrix (constraint coefficients)

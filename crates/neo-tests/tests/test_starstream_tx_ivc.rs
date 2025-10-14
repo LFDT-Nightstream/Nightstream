@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use neo::{F, NeoParams};
 use neo::{Accumulator, StepBindingSpec, IvcChainStepInput, prove_ivc_chain, verify_ivc_chain};
 use neo::{NivcProgram, NivcStepSpec, NivcState, verify_nivc_chain};
-use neo::{IvcSession, NeoStep, StepArtifacts, StepDescriptor, verify_chain_with_descriptor};
+use neo::{FoldingSession, NeoStep, StepArtifacts, StepDescriptor, verify_chain_with_descriptor};
+use neo::AppInputBinding;
 use neo_ccs::{Mat, r1cs::r1cs_to_ccs, CcsStructure};
 use p3_field::PrimeCharacteristicRing;
 
@@ -306,7 +307,7 @@ fn test_starstream_tx_session_api() {
         step_ccs: step_ccs.clone(),
     };
     
-    let mut session = IvcSession::new(&params, Some(y0.clone()), 0);
+    let mut session = FoldingSession::new(&params, Some(y0.clone()), 0, AppInputBinding::TranscriptOnly);
     
     let mut proof_succeeded = true;
     for _ in 0..export.steps.len() {
@@ -323,7 +324,7 @@ fn test_starstream_tx_session_api() {
     
     let (chain_proof, step_ios) = session.finalize();
     let descriptor = StepDescriptor { ccs: step_ccs, spec: step_spec };
-    let verify_result = verify_chain_with_descriptor(&descriptor, &chain_proof, &y0, &params, &step_ios);
+    let verify_result = verify_chain_with_descriptor(&descriptor, &chain_proof, &y0, &params, &step_ios, AppInputBinding::TranscriptOnly);
     handle_test_result(verify_result, export.metadata.should_fail, "Session");
 }
 

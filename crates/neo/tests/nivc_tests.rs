@@ -29,7 +29,7 @@ fn base_case_not_self_fold_anymore() -> anyhow::Result<()> {
 
     let params = NeoParams::goldilocks_small_circuits();
     let y_len = 2usize;
-    let step_ccs = trivial_step_ccs_rows(y_len, 1);
+    let step_ccs = trivial_step_ccs_rows(y_len, 4);  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let binding = neo::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
         step_program_input_witness_indices: vec![],
@@ -83,8 +83,8 @@ fn nivc_mixed_circuits_roundtrip() -> anyhow::Result<()> {
     let y_len = 2usize;
 
     // Two different CCS shapes (same m, different n)
-    let ccs_a = trivial_step_ccs_rows(y_len, 1);
-    let ccs_b = trivial_step_ccs_rows(y_len, 2);
+    let ccs_a = trivial_step_ccs_rows(y_len, 4);  // Minimum 4 rows required
+    let ccs_b = trivial_step_ccs_rows(y_len, 5);  // Different shape for mixed circuit test
 
     let bind_a = neo::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
@@ -132,8 +132,8 @@ fn nivc_enforces_selector_and_root_and_step_io() -> anyhow::Result<()> {
     let params = NeoParams::goldilocks_small_circuits();
     let y_len = 2usize;
 
-    let ccs_a = trivial_step_ccs_rows(y_len, 1);
-    let ccs_b = trivial_step_ccs_rows(y_len, 2);
+    let ccs_a = trivial_step_ccs_rows(y_len, 4);  // Minimum 4 rows required
+    let ccs_b = trivial_step_ccs_rows(y_len, 5);  // Different shape for mixed circuit test
     let binding = neo::StepBindingSpec {
         y_step_offsets: (1..=y_len).collect(),
         step_program_input_witness_indices: vec![],

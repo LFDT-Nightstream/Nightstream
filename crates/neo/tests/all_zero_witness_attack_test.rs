@@ -8,18 +8,26 @@ use neo_ccs::{Mat, r1cs_to_ccs};
 use p3_field::PrimeCharacteristicRing;
 
 /// Build a simple increment CCS: next = prev + delta
+/// Padded to 4 rows to satisfy ℓ >= 2 requirement
 fn build_increment_ccs() -> neo_ccs::CcsStructure<F> {
-    let rows = 1;
+    let rows = 4;  // Minimum for ℓ >= 2
     let cols = 4;
     let mut a = vec![F::ZERO; rows * cols];
     let mut b = vec![F::ZERO; rows * cols];
     let c = vec![F::ZERO; rows * cols];
     
-    // (next - prev - delta) * const1 = 0
-    a[3] = F::ONE;   // +next
-    a[1] = -F::ONE;  // -prev
-    a[2] = -F::ONE;  // -delta
-    b[0] = F::ONE;   // * const1
+    // Row 0: (next - prev - delta) * const1 = 0
+    a[0 * cols + 3] = F::ONE;   // +next
+    a[0 * cols + 1] = -F::ONE;  // -prev
+    a[0 * cols + 2] = -F::ONE;  // -delta
+    b[0 * cols + 0] = F::ONE;   // * const1
+    
+    // Rows 1-3: Padding constraints (0 * const1 = 0)
+    // These are always satisfied and don't affect the circuit logic
+    for row in 1..rows {
+        b[row * cols + 0] = F::ONE;  // * const1
+        // a and c remain zero for these rows
+    }
     
     r1cs_to_ccs(
         Mat::from_row_major(rows, cols, a),
@@ -252,7 +260,8 @@ fn test_valid_zero_state_with_const1_one() {
 
 #[test]
 fn test_all_zero_witness_attack_with_ivc_session() {
-    use neo::session::{IvcSession, NeoStep, StepArtifacts, StepSpec};
+    use neo::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
+    use neo::AppInputBinding;
     
     struct AllZeroAttackStepper {
         ccs: neo_ccs::CcsStructure<F>,
@@ -302,13 +311,13 @@ fn test_all_zero_witness_attack_with_ivc_session() {
     }
     
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    let mut session = IvcSession::new(&params, Some(vec![F::ZERO]), 0);
+    let mut session = FoldingSession::new(&params, Some(vec![F::ZERO]), 0, AppInputBinding::TranscriptOnly);
     let mut stepper = AllZeroAttackStepper::new();
     
     let step_result = session.prove_step(&mut stepper, &());
     
     match step_result {
-        Ok(_) => panic!("IvcSession should reject all-zero witness (const1=0)"),
+        Ok(_) => panic!("FoldingSession should reject all-zero witness (const1=0)"),
         Err(e) => {
             let error = e.to_string();
             assert!(
@@ -321,7 +330,8 @@ fn test_all_zero_witness_attack_with_ivc_session() {
 
 #[test]
 fn test_valid_ivc_session_with_proper_const1() {
-    use neo::session::{IvcSession, NeoStep, StepArtifacts, StepSpec};
+    use neo::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
+    use neo::AppInputBinding;
     
     struct HonestStepper {
         ccs: neo_ccs::CcsStructure<F>,
@@ -375,7 +385,7 @@ fn test_valid_ivc_session_with_proper_const1() {
     }
     
     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    let mut session = IvcSession::new(&params, Some(vec![F::ZERO]), 0);
+    let mut session = FoldingSession::new(&params, Some(vec![F::ZERO]), 0, AppInputBinding::TranscriptOnly);
     let mut stepper = HonestStepper::new();
     
     let step_result = session.prove_step(&mut stepper, &());

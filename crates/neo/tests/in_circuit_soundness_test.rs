@@ -12,7 +12,7 @@ use p3_field::{PrimeCharacteristicRing};
 /// Variables: [const, prev, delta, next]
 /// Constraint: next - prev - delta = 0
 fn build_increment_ccs() -> CcsStructure<F> {
-    let rows = 1;
+    let rows = 4;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let cols = 4;
     let mut a = vec![F::ZERO; rows * cols];
     let mut b = vec![F::ZERO; rows * cols];
@@ -23,6 +23,12 @@ fn build_increment_ccs() -> CcsStructure<F> {
     a[0 * cols + 1] = -F::ONE;  // -prev
     a[0 * cols + 2] = -F::ONE;  // -delta
     b[0 * cols + 0] = F::ONE;   // *const1
+
+    // Rows 1-3: dummy constraints (0 * 1 = 0)
+    for row in 1..4 {
+        a[row * cols] = F::ZERO;
+        b[row * cols] = F::ONE;
+    }
 
     let a_mat = Mat::from_row_major(rows, cols, a);
     let b_mat = Mat::from_row_major(rows, cols, b);

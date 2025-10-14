@@ -8,7 +8,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 fn build_increment_step_ccs() -> CcsStructure<F> {
     // Variables: [const=1, prev_x, next_x]
     // Constraint: next_x - prev_x - 1 = 0  => (next_x - prev_x - const) * 1 = 0
-    let rows = 1;
+    let rows = 4;  // Minimum 4 rows required (ℓ=ceil(log2(n)) must be ≥ 2)
     let cols = 3;
 
     let mut a = vec![F::ZERO; rows * cols];
@@ -20,6 +20,12 @@ fn build_increment_step_ccs() -> CcsStructure<F> {
     a[0 * cols + 1] = -F::ONE;    // - prev_x
     a[0 * cols + 0] = -F::ONE;    // - const (represents -1)
     b[0 * cols + 0] = F::ONE;     // * 1
+
+    // Rows 1-3: dummy constraints (0 * 1 = 0)
+    for row in 1..4 {
+        a[row * cols + 0] = F::ZERO;
+        b[row * cols + 0] = F::ONE;
+    }
 
     let a_mat = Mat::from_row_major(rows, cols, a);
     let b_mat = Mat::from_row_major(rows, cols, b);

@@ -181,25 +181,25 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
         println!("   ✅ Commitment coordinates are properly evolving");
     }
     
-    // FINAL TEST: Verify the EV folding equation accumulates correctly over steps
+    // FINAL TEST: Verify the EV folding equation with full outputs
     // Our EV picks y_step = next_x (application next state) via y_step_offsets = [3]
-    // With delta semantics (no ρ scaling): y_final = Σ next_x_i, where next_x_i = prev_x_i + delta_i
+    // With FULL OUTPUT semantics: y_final = last next_x (not a sum)
     // Note: ρ is only used for folding commitments, NOT for state evolution
-    let mut expected_y = F::ZERO;
+    let mut last_next_x = F::ZERO;
     let mut app_x = F::ZERO; // initial prev_x = 0
     for (i, proof) in proofs.iter().enumerate() {
         // App input (delta) is the last element of step_x
         let delta = proof.public_inputs.wrapper_public_input_x().last().copied().expect("step_public_input not empty");
         app_x += delta;               // next_x = prev_x + delta
         let next_x = app_x;           // y_step for this EV configuration
-        expected_y += next_x;         // accumulate WITHOUT ρ scaling
-        println!("   Accumulate step {}: expected_y += next_x = {:?}", i, next_x.as_canonical_u64());
+        last_next_x = next_x;         // track the last next_x (not accumulating)
+        println!("   Step {}: next_x = {:?}", i, next_x.as_canonical_u64());
     }
 
     let final_result_f = acc.y_compact[0];
-    assert_eq!(final_result_f, expected_y, 
-               "Final IVC y should equal Σ next_x_i (delta semantics, no ρ); got {:?} vs {:?}", 
-               final_result_f.as_canonical_u64(), expected_y.as_canonical_u64());
+    assert_eq!(final_result_f, last_next_x, 
+               "Final IVC y should equal last next_x (full outputs); got {:?} vs {:?}", 
+               final_result_f.as_canonical_u64(), last_next_x.as_canonical_u64());
     
     println!("🎉 IVC chaining test PASSED!");
     println!("   ✅ Folding randomness (ρ) values are distinct across steps");

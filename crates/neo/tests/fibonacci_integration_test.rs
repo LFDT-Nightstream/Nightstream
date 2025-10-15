@@ -200,7 +200,7 @@ fn test_fibonacci_integration() -> Result<()> {
     
     // Verify that the SNARK public input matches the folding accumulator (consistency check)
     assert_eq!(final_fib_from_proof, accumulator_commitment, 
-               "SNARK y_next should match folding accumulator (both are ρ-dependent)");
+               "SNARK y_next should match folding accumulator");
     
     // Verify our local computation matches the expected Fibonacci result
     assert_eq!(current_b, 13, "Local Fibonacci computation should match expected F(7) = 13");
@@ -208,14 +208,15 @@ fn test_fibonacci_integration() -> Result<()> {
     // Verify the proof was generated and verified successfully
     assert!(is_valid, "Final SNARK proof should be valid");
     
-    // Both accumulator and SNARK output should be different from raw Fibonacci (due to random ρ)
-    assert_ne!(accumulator_commitment, 13, "Folding accumulator should differ from raw Fibonacci (random ρ effect)");
-    assert_ne!(final_fib_from_proof, 13, "SNARK y_next should differ from raw Fibonacci (random ρ effect)");
+    // With FULL OUTPUT semantics, the accumulator equals the last Fibonacci value directly
+    // (ρ is only used for commitment folding, not state evolution)
+    assert_eq!(accumulator_commitment, 13, "Folding accumulator should equal last Fibonacci value (full outputs)");
+    assert_eq!(final_fib_from_proof, 13, "SNARK y_next should equal last Fibonacci value (full outputs)");
     
     println!("   ✅ Pattern B verification complete:");
     println!("      - Proof verifies ✅ (Fibonacci constraints satisfied)");
     println!("      - Accumulator consistency ✅ (folding ↔ SNARK match)"); 
-    println!("      - ρ-dependence ✅ (cryptographic values ≠ raw arithmetic)");
+    println!("      - Full outputs ✅ (accumulator = last Fibonacci value)");
     
     println!("✅ Fibonacci Integration Test PASSED!");
     println!("   ✅ {} steps completed successfully", num_steps);

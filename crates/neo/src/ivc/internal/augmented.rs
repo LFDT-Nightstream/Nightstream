@@ -143,13 +143,13 @@ pub fn build_augmented_ccs_linked_with_rlc(
                 _ => {}
             }
         }
-        // EV: y_next[k] - y_prev[k] - u[k] = 0  (× 1 via step_witness[0] == 1)
+        // FULL-OUTPUT EV: y_next[k] - u[k] = 0  (× 1 via step_witness[0] == 1)
+        // Enforces y_next = u = y_step (full next state, not delta)
         for k in 0..y_len {
             let r = step_rows + y_len + k;
             match matrix_idx {
                 0 => {
                     data[r * total_cols + (col_y_next0 + k)] = F::ONE;
-                    data[r * total_cols + (col_y_prev0 + k)] = -F::ONE;
                     data[r * total_cols + (col_u0 + k)]      = -F::ONE;
                 }
                 1 => data[r * total_cols + col_const1_abs] = F::ONE,
@@ -278,7 +278,7 @@ pub fn build_linked_augmented_witness(
         y_step.push(step_witness[offset]);
     }
     
-    // Compute u = y_step (delta semantics, no rho multiplier)
+    // Compute u = y_step (full output semantics: y_step contains the complete next state)
     let u: Vec<F> = y_step.iter().map(|&ys| ys).collect();
     
     // Combined witness: [step_witness || u]

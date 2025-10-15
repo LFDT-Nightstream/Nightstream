@@ -15,7 +15,6 @@ use super::super::internal::{
     transcript::{create_step_digest, build_step_transcript_data},
     augmented::{build_augmented_ccs_linked_with_rlc, build_linked_augmented_witness, build_augmented_public_input_for_step, build_augmented_ccs_linked},
     ev::generate_rlc_coefficients,
-    basecase::zero_mcs_instance_for_shape,
     commit::evolve_commitment,
 };
 use crate::shared::digest::{compute_accumulator_digest_fields, digest_commit_coords};
@@ -321,9 +320,11 @@ pub fn prove_ivc_step_chained(
         &input.binding_spec.y_step_offsets,
         rho
     );
+    // Compute y_next = y_prev + Δy (delta semantics, no rho)
+    // ρ is only for folding commitments, not for state evolution
     let y_next: Vec<F> = input.prev_accumulator.y_compact.iter()
         .zip(input.y_step.iter())
-        .map(|(&p, &s)| p + rho * s)
+        .map(|(&p, &s)| p + s)
         .collect();
     let step_public_input = build_augmented_public_input_for_step(
         &step_x, rho, &input.prev_accumulator.y_compact, &y_next
@@ -451,8 +452,12 @@ pub fn prove_ivc_step_chained(
             (inst, wit_mcs)
         }
         _ => {
-            // Base case (step 0): use a canonical zero running instance matching current shape.
-            zero_mcs_instance_for_shape(step_public_input.len(), m_step, Some(input.binding_spec.const1_witness_index))?
+            // Base case (step 0): Use the exact same RHS instance as LHS (self-fold).
+            // This works because:
+            // 1. The step CCS is trivially satisfied (same witness)
+            // 2. The EV constraints are satisfied (same y_prev, y_next, y_step)
+            // 3. The commitment is consistent
+            (step_mcs_inst.clone(), step_mcs_wit.clone())
         }
     }};
 
@@ -487,8 +492,21 @@ pub fn prove_ivc_step_chained(
     
     // 7) Fold prev-with-current using the production pipeline
     // Record the exact LHS augmented input used inside Pi-CCS for robust linking checks.
-    // Do not trust/progate external prev_augmented_x here; the authoritative value is lhs_inst.x.
     let prev_augmented_public_input = lhs_inst.x.clone();
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("🔍 DEBUG: About to fold instances");
+        eprintln!("  LHS x.len()={}, RHS x.len()={}", lhs_inst.x.len(), step_mcs_inst.x.len());
+        eprintln!("  LHS c.data.len()={}, RHS c.data.len()={}", lhs_inst.c.data.len(), step_mcs_inst.c.data.len());
+        if !lhs_inst.c.data.is_empty() && !step_mcs_inst.c.data.is_empty() {
+            eprintln!("  LHS c first 4: {:?}", &lhs_inst.c.data[..4.min(lhs_inst.c.data.len())]);
+            eprintln!("  RHS c first 4: {:?}", &step_mcs_inst.c.data[..4.min(step_mcs_inst.c.data.len())]);
+            eprintln!("  LHS == RHS commitment: {}", lhs_inst.c == step_mcs_inst.c);
+            eprintln!("  LHS == RHS x: {}", lhs_inst.x == step_mcs_inst.x);
+        }
+    }
+    
     // Clone MCS witnesses for later recombination of parent witness
     // (removed unused clones)
     let (mut me_instances, digit_witnesses, folding_proof) = neo_fold::fold_ccs_instances(

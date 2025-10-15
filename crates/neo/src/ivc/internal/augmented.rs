@@ -129,12 +129,16 @@ pub fn build_augmented_ccs_linked_with_rlc(
         let col_const1_abs = pub_cols + const1_witness_index;
         
         let col_u0 = pub_cols + step_wit_cols;
-        // EV: u[k] = ρ * y_step[k]
+        // EV: u[k] = y_step[k]  (delta semantics, no rho)
+        // ρ is only for folding instances/commitments, NOT for scaling state evolution
         for k in 0..y_len {
             let r = step_rows + k;
             match matrix_idx {
-                0 => data[r * total_cols + col_rho] = F::ONE,
-                1 => data[r * total_cols + (pub_cols + y_step_offsets[k])] = F::ONE,
+                // A: pick y_step[k]
+                0 => data[r * total_cols + (pub_cols + y_step_offsets[k])] = F::ONE,
+                // B: multiply by 1 (const-1 witness col)
+                1 => data[r * total_cols + col_const1_abs] = F::ONE,
+                // C: equals u[k]
                 2 => data[r * total_cols + (col_u0 + k)] = F::ONE,
                 _ => {}
             }
@@ -260,12 +264,13 @@ pub fn build_augmented_ccs_linked_with_rlc(
 
 /// Build witness for linked augmented CCS.
 /// 
-/// This creates the combined witness [step_witness || u] where u = ρ * y_step
+/// This creates the combined witness [step_witness || u] where u = y_step (delta)
 /// and y_step is extracted from the step_witness at the specified offsets.
+/// Note: ρ is NOT used here - it's only for folding commitments, not state evolution.
 pub fn build_linked_augmented_witness(
     step_witness: &[F],
     y_step_offsets: &[usize],
-    rho: F,
+    _rho: F,
 ) -> Vec<F> {
     // Extract y_step values from step witness
     let mut y_step = Vec::with_capacity(y_step_offsets.len());
@@ -273,8 +278,8 @@ pub fn build_linked_augmented_witness(
         y_step.push(step_witness[offset]);
     }
     
-    // Compute u = ρ * y_step
-    let u: Vec<F> = y_step.iter().map(|&ys| rho * ys).collect();
+    // Compute u = y_step (delta semantics, no rho multiplier)
+    let u: Vec<F> = y_step.iter().map(|&ys| ys).collect();
     
     // Combined witness: [step_witness || u]
     let mut combined_witness = step_witness.to_vec();
@@ -297,6 +302,25 @@ pub fn build_augmented_public_input_for_step(
     public_input.push(rho);
     public_input.extend_from_slice(y_prev);
     public_input.extend_from_slice(y_next);
+    public_input
+}
+
+/// Build public input for linked augmented CCS with identity semantics.
+/// 
+/// This is used for the LHS (identity/running) instance in folding where
+/// no state change occurs: y_next = y_prev.
+/// 
+/// Public input layout: [step_x || ρ || y_prev || y_prev]
+pub fn build_augmented_public_input_identity(
+    step_x: &[F],
+    rho: F,
+    y: &[F],
+) -> Vec<F> {
+    let mut public_input = Vec::new();
+    public_input.extend_from_slice(step_x);
+    public_input.push(rho);
+    public_input.extend_from_slice(y);  // y_prev
+    public_input.extend_from_slice(y);  // y_next = y_prev (identity)
     public_input
 }
 

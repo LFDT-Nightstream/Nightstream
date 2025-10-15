@@ -117,14 +117,15 @@ pub fn verify_ivc_step(
     }
 
     // Base-case canonicalization: when there is no prior accumulator commitment and the caller
-    // did not thread a previous augmented x, require the LHS augmented x be the canonical zero vector
-    // of the correct shape. This removes transcript malleability at step 0 and matches
-    // zero_mcs_instance_for_shape.
+    // did not thread a previous augmented x, the LHS should be a self-fold (LHS == RHS).
+    // This ensures the step CCS and EV constraints are satisfied with the same witness.
     if prev_accumulator.c_coords.is_empty() && prev_augmented_x.is_none() {
         let x_lhs = &ivc_proof.prev_step_augmented_public_input;
-        let expected_len = step_x_len + 1 + 2 * y_len;
-        if x_lhs.len() != expected_len { return Ok(false); }
-        if !x_lhs.iter().all(|&f| f == F::ZERO) { return Ok(false); }
+        if x_lhs != &step_augmented_input {
+            return Err(format!(
+                "Base case must use self-fold: LHS augmented input must equal RHS augmented input"
+            ).into());
+        }
     }
     
     // Compute full witness dimensions

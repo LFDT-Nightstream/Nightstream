@@ -29,12 +29,13 @@ fn rlc_binder_linear_equality_correctness() {
     let x_witness_indices: Vec<usize> = vec![];
     let y_prev_witness_indices: Vec<usize> = vec![];
 
-    // EV semantics we want: rho * y_step = u, y_next = y_prev + u
+    // EV semantics: u = y_step (delta semantics, no ρ), y_next = y_prev + u
+    // Note: ρ is only used for folding commitments, not for state evolution
     let rho = F::from_u64(3);
     let y_step = F::from_u64(5);
-    let u = rho * y_step;                // 15
+    let u = y_step;                      // 5 (no ρ scaling)
     let y_prev = F::from_u64(7);
-    let y_next = y_prev + u;             // 22
+    let y_next = y_prev + u;             // 12
     let step_x = F::from_u64(42);
 
     // Witness block: [step_witness || u] where step_witness = [1, y_step]

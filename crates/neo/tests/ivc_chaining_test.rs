@@ -183,7 +183,8 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
     
     // FINAL TEST: Verify the EV folding equation accumulates correctly over steps
     // Our EV picks y_step = next_x (application next state) via y_step_offsets = [3]
-    // Therefore: y_final = Σ rho_i * next_x_i, where next_x_i evolves as prev_x + delta_i over F
+    // With delta semantics (no ρ scaling): y_final = Σ next_x_i, where next_x_i = prev_x_i + delta_i
+    // Note: ρ is only used for folding commitments, NOT for state evolution
     let mut expected_y = F::ZERO;
     let mut app_x = F::ZERO; // initial prev_x = 0
     for (i, proof) in proofs.iter().enumerate() {
@@ -191,14 +192,13 @@ fn test_ivc_chaining_not_self_folding() -> Result<()> {
         let delta = proof.public_inputs.wrapper_public_input_x().last().copied().expect("step_public_input not empty");
         app_x += delta;               // next_x = prev_x + delta
         let next_x = app_x;           // y_step for this EV configuration
-        let rho = proof.public_inputs.rho();
-        expected_y += rho * next_x;
-        println!("   Accumulate step {}: expected_y += rho*next_x = {:?}", i, (rho * next_x).as_canonical_u64());
+        expected_y += next_x;         // accumulate WITHOUT ρ scaling
+        println!("   Accumulate step {}: expected_y += next_x = {:?}", i, next_x.as_canonical_u64());
     }
 
     let final_result_f = acc.y_compact[0];
     assert_eq!(final_result_f, expected_y, 
-               "Final IVC y should equal Σ rho_i*delta_i; got {:?} vs {:?}", 
+               "Final IVC y should equal Σ next_x_i (delta semantics, no ρ); got {:?} vs {:?}", 
                final_result_f.as_canonical_u64(), expected_y.as_canonical_u64());
     
     println!("🎉 IVC chaining test PASSED!");

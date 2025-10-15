@@ -56,7 +56,7 @@ fn base_case_not_self_fold_anymore() -> anyhow::Result<()> {
         prev_augmented_x: None,
     };
 
-    // Prove using the chained variant with no previous ME (should use zero LHS)
+    // Prove using the chained variant with no previous ME (should use self-fold)
     let (res, _me, _wit, _lhs) = neo::prove_ivc_step_chained(input, None, None, None)
         .map_err(|e| anyhow::anyhow!("prove_ivc_step_chained failed: {}", e))?;
 
@@ -66,8 +66,10 @@ fn base_case_not_self_fold_anymore() -> anyhow::Result<()> {
     let lhs = &fold.pi_ccs_inputs[0];
     let rhs = &fold.pi_ccs_inputs[1];
 
-    // LHS commitment should NOT equal RHS commitment at base case (no folding with itself)
-    assert_ne!(lhs.c.data, rhs.c.data, "base-case LHS commitment must differ from RHS");
+    // Base case now uses self-fold: LHS should equal RHS
+    // This ensures both the step CCS and EV constraints are satisfied
+    assert_eq!(lhs.c.data, rhs.c.data, "base-case uses self-fold: LHS commitment must equal RHS");
+    assert_eq!(lhs.x, rhs.x, "base-case uses self-fold: LHS public input must equal RHS");
 
     // Verify step succeeds
     let ok = neo::verify_ivc_step(&step_ccs, &res.proof, &prev_acc, &binding, &params, None)
@@ -106,9 +108,12 @@ fn nivc_mixed_circuits_roundtrip() -> anyhow::Result<()> {
     let w0 = vec![F::ONE, F::from_u64(3), F::from_u64(5)];
     let sp0 = st.step(0, &[], &w0)?;
     {
-        // Ensure base-case for lane 0 used distinct LHS/RHS commitments
+        // Base case now uses self-fold: LHS equals RHS
         let fold = sp0.inner.folding_proof.as_ref().expect("folding proof");
-        assert_ne!(fold.pi_ccs_inputs[0].c.data, fold.pi_ccs_inputs[1].c.data);
+        assert_eq!(fold.pi_ccs_inputs[0].c.data, fold.pi_ccs_inputs[1].c.data, 
+                   "base-case uses self-fold: LHS commitment must equal RHS");
+        assert_eq!(fold.pi_ccs_inputs[0].x, fold.pi_ccs_inputs[1].x,
+                   "base-case uses self-fold: LHS public input must equal RHS");
     }
 
     // Step 1: type 1 (different CCS)

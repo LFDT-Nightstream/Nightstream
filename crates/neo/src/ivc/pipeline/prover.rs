@@ -320,10 +320,13 @@ pub fn prove_ivc_step_chained(
         &input.binding_spec.y_step_offsets,
         rho
     );
-    // FULL OUTPUTS: integrator provides the whole next state
-    // y_step directly contains y_next (not a delta)
-    // ρ is only for folding commitments, not for state evolution
-    let y_next: Vec<F> = input.y_step.to_vec();
+    // Compute y_next using the correct folding equation: y_next = y_prev + ρ·y_step
+    // This must match the augmented CCS EV constraints
+    let y_next: Vec<F> = input.prev_accumulator.y_compact
+        .iter()
+        .zip(input.y_step.iter())
+        .map(|(y_prev, y_step)| *y_prev + rho * *y_step)
+        .collect();
     let step_public_input = build_augmented_public_input_for_step(
         &step_x, rho, &input.prev_accumulator.y_compact, &y_next
     );

@@ -129,28 +129,29 @@ pub fn build_augmented_ccs_linked_with_rlc(
         let col_const1_abs = pub_cols + const1_witness_index;
         
         let col_u0 = pub_cols + step_wit_cols;
-        // EV: u[k] = y_step[k]  (delta semantics, no rho)
-        // ρ is only for folding instances/commitments, NOT for scaling state evolution
+        // EV PART 1: u[k] = ρ · y_step[k]  (multiplication constraint)
+        // This is the CORRECT folding equation using public ρ from transcript
         for k in 0..y_len {
             let r = step_rows + k;
             match matrix_idx {
-                // A: pick y_step[k]
-                0 => data[r * total_cols + (pub_cols + y_step_offsets[k])] = F::ONE,
-                // B: multiply by 1 (const-1 witness col)
-                1 => data[r * total_cols + col_const1_abs] = F::ONE,
-                // C: equals u[k]
+                // A: pick ρ (PUBLIC INPUT)
+                0 => data[r * total_cols + col_rho] = F::ONE,
+                // B: multiply by y_step[k] (WITNESS)
+                1 => data[r * total_cols + (pub_cols + y_step_offsets[k])] = F::ONE,
+                // C: equals u[k] (WITNESS)
                 2 => data[r * total_cols + (col_u0 + k)] = F::ONE,
                 _ => {}
             }
         }
-        // FULL-OUTPUT EV: y_next[k] - u[k] = 0  (× 1 via step_witness[0] == 1)
-        // Enforces y_next = u = y_step (full next state, not delta)
+        // EV PART 2: y_next[k] - y_prev[k] - u[k] = 0  (linear constraint)
+        // Enforces: y_next = y_prev + u = y_prev + ρ·y_step (correct folding!)
         for k in 0..y_len {
             let r = step_rows + y_len + k;
             match matrix_idx {
                 0 => {
-                    data[r * total_cols + (col_y_next0 + k)] = F::ONE;
-                    data[r * total_cols + (col_u0 + k)]      = -F::ONE;
+                    data[r * total_cols + (col_y_next0 + k)] = F::ONE;   // +y_next[k]
+                    data[r * total_cols + (col_y_prev0 + k)] = -F::ONE;  // -y_prev[k]
+                    data[r * total_cols + (col_u0 + k)]      = -F::ONE;  // -u[k]
                 }
                 1 => data[r * total_cols + col_const1_abs] = F::ONE,
                 _ => {}
@@ -264,13 +265,13 @@ pub fn build_augmented_ccs_linked_with_rlc(
 
 /// Build witness for linked augmented CCS.
 /// 
-/// This creates the combined witness [step_witness || u] where u = y_step (delta)
+/// This creates the combined witness [step_witness || u] where u = ρ · y_step (folding)
 /// and y_step is extracted from the step_witness at the specified offsets.
-/// Note: ρ is NOT used here - it's only for folding commitments, not state evolution.
+/// ρ is used for the correct folding equation: y_next = y_prev + ρ·y_step
 pub fn build_linked_augmented_witness(
     step_witness: &[F],
     y_step_offsets: &[usize],
-    _rho: F,
+    rho: F,
 ) -> Vec<F> {
     // Extract y_step values from step witness
     let mut y_step = Vec::with_capacity(y_step_offsets.len());
@@ -278,8 +279,8 @@ pub fn build_linked_augmented_witness(
         y_step.push(step_witness[offset]);
     }
     
-    // Compute u = y_step (full output semantics: y_step contains the complete next state)
-    let u: Vec<F> = y_step.iter().map(|&ys| ys).collect();
+    // Compute u = ρ · y_step (correct folding equation!)
+    let u: Vec<F> = y_step.iter().map(|&ys| rho * ys).collect();
     
     // Combined witness: [step_witness || u]
     let mut combined_witness = step_witness.to_vec();

@@ -35,6 +35,59 @@ pub struct GuardParams {
     pub B: u64,
 }
 
+/// SECURITY FIX: Bind ME instance contents to transcript before sampling ρ
+/// 
+/// This prevents length-malleability attacks where different instance contents
+/// with the same length would produce identical ρ challenges.
+/// 
+/// The Fiat-Shamir transformation requires that verifier challenges are derived
+/// from a transcript that already commits to the public inputs. In the interactive
+/// protocol, the verifier samples ρ *after* seeing the instances; we achieve this
+/// non-interactively by absorbing instances before deriving ρ.
+fn absorb_me_instances(tr: &mut Poseidon2Transcript, me_list: &[MeInstance<Cmt, F, K>]) {
+    use neo_math::KExtensions;
+    
+    // Domain separate the binding section
+    tr.append_message(b"pi_rlc/bind_start", b"");
+    tr.append_u64s(b"count", &[me_list.len() as u64]);
+    
+    for (i, me) in me_list.iter().enumerate() {
+        // Bind index & shape so instances can't be permuted or shape-substituted
+        tr.append_u64s(b"idx_m_in_t", &[i as u64, me.m_in as u64, me.y.len() as u64]);
+        
+        // 1) Bind commitment c (commits to the underlying witness Z)
+        tr.append_fields(b"c", &me.c.data);
+        
+        // 2) Bind fold_digest (binds to upstream Pi-CCS transcript state)
+        //    This prevents cross-pipeline attacks where proofs from different
+        //    folding operations could be mixed.
+        tr.append_message(b"fold_digest", &me.fold_digest);
+        
+        // 3) Bind evaluation point r (K-vector from Pi-CCS sum-check)
+        //    Each K element is encoded as D base field coefficients
+        for rj in &me.r {
+            let coeffs = rj.as_coeffs();
+            tr.append_fields(b"r", &coeffs);
+        }
+        
+        // 4) Bind X matrix (projected public inputs)
+        //    This is critical - X carries the public CCS inputs
+        tr.append_fields(b"X", me.X.as_slice());
+        
+        // 5) Bind y vectors (evaluation results from Pi-CCS)
+        //    Each y_j is a d-dimensional K-vector
+        for (j, y_row) in me.y.iter().enumerate() {
+            tr.append_u64s(b"y_idx", &[j as u64]);
+            for kij in y_row {
+                let coeffs = kij.as_coeffs();
+                tr.append_fields(b"y_elem", &coeffs);
+            }
+        }
+    }
+    
+    tr.append_message(b"pi_rlc/bind_end", b"");
+}
+
 /// Prove Π_RLC: combine k+1 ME instances to k instances  
 pub fn pi_rlc_prove(
     tr: &mut Poseidon2Transcript,
@@ -57,6 +110,55 @@ pub fn pi_rlc_prove(
     let k = me_list.len() - 1; // k+1 → k
     let first_me = &me_list[0];
     let (d, m_in) = (first_me.X.rows(), first_me.X.cols());
+    let y_rows = first_me.y.len();
+    let y_cols0 = first_me.y.get(0).map(|v| v.len()).unwrap_or(0);
+    
+    // === HARDENING: Validate shape consistency across all instances ===
+    // All instances must have identical dimensions to be safely combined.
+    // This prevents silent errors from dimension mismatches.
+    for (idx, me) in me_list.iter().enumerate() {
+        if me.X.rows() != d || me.X.cols() != m_in {
+            return Err(PiRlcError::InvalidInput(
+                format!("X dimension mismatch at index {}: expected {}×{}, got {}×{}", 
+                    idx, d, m_in, me.X.rows(), me.X.cols())
+            ));
+        }
+        if me.y.len() != y_rows {
+            return Err(PiRlcError::InvalidInput(
+                format!("y row count mismatch at index {}: expected {}, got {}", 
+                    idx, y_rows, me.y.len())
+            ));
+        }
+        if me.y.iter().any(|row| row.len() != y_cols0) {
+            return Err(PiRlcError::InvalidInput(
+                format!("y column count mismatch at index {}", idx)
+            ));
+        }
+        if me.r != first_me.r {
+            return Err(PiRlcError::InvalidInput(
+                format!("evaluation point r mismatch at index {} (all instances must have same r)", idx)
+            ));
+        }
+        if me.m_in != m_in {
+            return Err(PiRlcError::InvalidInput(
+                format!("m_in mismatch at index {}: expected {}, got {}", 
+                    idx, m_in, me.m_in)
+            ));
+        }
+    }
+    
+    // HARDENING: Require d == D to avoid silent truncation in S-action
+    if d != neo_math::D {
+        return Err(PiRlcError::InvalidInput(
+            format!("X.rows() must equal D={}, got d={}", neo_math::D, d)
+        ));
+    }
+    
+    // === SECURITY FIX: Bind ME instance contents before sampling ρ ===
+    // This prevents length-malleability: different instances with the same length
+    // must produce different ρ challenges. The Fiat-Shamir transformation requires
+    // that challenges depend on the actual public inputs, not just their shape.
+    absorb_me_instances(tr, me_list);
     
     // === Sample ρ_i ∈ S with strong sampling ===
     // Test-only shortcut: if inputs are exact duplicates (common in small tests),
@@ -66,7 +168,12 @@ pub fn pi_rlc_prove(
         if me_list.len() == 2 {
             let a = &me_list[0];
             let b = &me_list[1];
-            a.c == b.c && a.X.as_slice() == b.X.as_slice() && a.y == b.y && a.r == b.r && a.m_in == b.m_in
+            a.c == b.c 
+                && a.X.as_slice() == b.X.as_slice() 
+                && a.y == b.y 
+                && a.r == b.r 
+                && a.m_in == b.m_in
+                && a.fold_digest == b.fold_digest  // SECURITY: must also match fold_digest
         } else { false }
     };
     #[cfg(not(feature = "testing"))]
@@ -231,6 +338,11 @@ pub fn pi_rlc_verify(
     tr.append_message(b"neo/params/v1", b"");
     tr.append_u64s(b"params", &[params.q, params.lambda as u64, input_me_list.len() as u64, params.s as u64]);
     
+    // === SECURITY FIX: Bind ME instance contents before sampling ρ ===
+    // The verifier must absorb exactly the same instance data as the prover did,
+    // ensuring that ρ challenges are deterministically derived from the public inputs.
+    absorb_me_instances(tr, input_me_list);
+    
     // === Re-derive ρ rotations deterministically ===
     // Test-only shortcut: if inputs are exact duplicates (common in small tests),
     // use identity combination matching the prover's behavior
@@ -239,7 +351,12 @@ pub fn pi_rlc_verify(
         if input_me_list.len() == 2 {
             let a = &input_me_list[0];
             let b = &input_me_list[1];
-            a.c == b.c && a.X.as_slice() == b.X.as_slice() && a.y == b.y && a.r == b.r && a.m_in == b.m_in
+            a.c == b.c 
+                && a.X.as_slice() == b.X.as_slice() 
+                && a.y == b.y 
+                && a.r == b.r 
+                && a.m_in == b.m_in
+                && a.fold_digest == b.fold_digest  // SECURITY: must also match fold_digest
         } else { false }
     };
     #[cfg(not(feature = "testing"))]

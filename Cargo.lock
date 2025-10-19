@@ -288,7 +288,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
 dependencies = [
  "ciborium-io",
- "half",
+ "half 2.6.0",
 ]
 
 [[package]]
@@ -686,6 +686,12 @@ dependencies = [
 
 [[package]]
 name = "half"
+version = "1.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b43ede17f21864e81be2fa654110bf1e793774238d86ef8555c37e6519c0403"
+
+[[package]]
+name = "half"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "459196ed295495a68f7d7fe1d84f6c4b7ff0e21fe3017b2f283c6fac3ad803c9"
@@ -1036,12 +1042,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo-diag"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hex",
+ "neo-ccs",
+ "neo-fold",
+ "neo-math",
+ "p3-field",
+ "serde_json",
+]
+
+[[package]]
 name = "neo-fold"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "blake3",
  "criterion",
+ "flate2",
+ "hex",
  "neo-ajtai",
  "neo-ccs",
  "neo-challenge",
@@ -1059,6 +1081,9 @@ dependencies = [
  "rand 0.9.2",
  "rand_chacha",
  "rayon",
+ "serde",
+ "serde_cbor",
+ "serde_json",
  "thiserror 2.0.16",
 ]
 
@@ -1789,6 +1814,16 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94a16b99c5ea4fe3daccd14853ad260ec00ea043b2708d1fd1da3106dcd8d9df"
 dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "serde_cbor"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bef2ebfde456fb76bbcf9f59315333decc4fda0b2b44b420243c11e0f5ec1f5"
+dependencies = [
+ "half 1.8.3",
  "serde",
 ]
 

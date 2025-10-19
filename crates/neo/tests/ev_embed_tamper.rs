@@ -36,7 +36,7 @@ fn build_step_witness(a: u64, b: u64) -> Vec<F> {
 
 #[test]
 fn ev_embedding_public_io_tamper_detected() -> Result<()> {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_step_ccs();
     // y_step is b_next at index 4
     let binding = neo::StepBindingSpec {

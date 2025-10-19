@@ -92,7 +92,7 @@ fn test_fibonacci_integration() -> Result<()> {
     println!("============================");
     
     // Step 1: Set up Neo parameters
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_fibonacci_step_ccs()?;
     
     let binding_spec = neo::StepBindingSpec {

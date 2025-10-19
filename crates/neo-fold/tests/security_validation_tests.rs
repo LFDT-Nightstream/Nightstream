@@ -465,7 +465,7 @@ fn test_integrated_p0_security_fixes() {
     assert!(result.is_ok(), "Extension policy should allow small circuits with s=2");
     
     // Verify auto-tuning works  
-    let auto_params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let auto_params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     assert_eq!(auto_params.s, 2, "Auto-tuned params should use s=2");
     assert!(auto_params.lambda <= 127, "Auto-tuned lambda should be reasonable for s=2");
     

@@ -108,7 +108,7 @@ fn recombine_parent(params: &NeoParams, digits: &[MeInstance<neo_ajtai::Commitme
 }
 
 fn build_inputs() -> (NeoParams, CcsStructure<F>, Vec<McsInstance<neo_ajtai::Commitment, F>>, Vec<McsWitness<F>>) {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let ccs = dummy_ccs();
     ensure_global_ajtai_pp(ccs.m);
 
@@ -185,8 +185,8 @@ fn rt8_base_mismatch_in_verify_must_fail() {
     let parent = recombine_parent(&params1, &digits);
 
     // … but verify with params₂ that has a different 'b' (base).
-    // If your API only exposes goldilocks_autotuned_s2(k, T, b), pick a different 'b' here.
-    let params2 = NeoParams::goldilocks_autotuned_s2(3, 2, 4);
+    // If your API only exposes goldilocks_for_circuit(k, T, b), pick a different 'b' here.
+    let params2 = NeoParams::goldilocks_for_circuit(3, 2, 4);
 
     let l = neo_ajtai::AjtaiSModule::from_global().expect("AjtaiSModule");
     let mut tr = Poseidon2Transcript::new(b"redteam");

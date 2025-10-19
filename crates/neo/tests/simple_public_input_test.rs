@@ -46,7 +46,7 @@ fn create_public_equals_witness_ccs() -> CcsStructure<F> {
 fn test_prove_with_public_inputs_after_fix() {
     let ccs = create_public_equals_witness_ccs();
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     // Public inputs (x0,x1) and witness (w0,w1) that satisfy constraints
     let public_input = vec![F::from_u64(7), F::from_u64(11)];

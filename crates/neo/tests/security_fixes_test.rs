@@ -198,7 +198,7 @@ fn test_c_step_coords_tampering_detection() {
     let binding_spec = create_test_binding_spec();
     
     // Create test parameters and accumulator
-    let params = neo::NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = neo::NeoParams::goldilocks_for_circuit(3, 2, 2);
     let prev_accumulator = Accumulator::default();
     
     // Create valid step witness and public input

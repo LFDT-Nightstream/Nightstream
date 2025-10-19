@@ -39,7 +39,7 @@ fn build_increment_ccs() -> neo_ccs::CcsStructure<F> {
 
 #[test]
 fn test_app_input_binding_prevents_malleability() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {
@@ -121,7 +121,7 @@ fn test_app_input_binding_prevents_malleability() {
 
 #[test]
 fn test_app_input_binding_allows_honest_proof() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {

@@ -104,7 +104,7 @@ fn create_simple_fibonacci_fixture() -> (CcsStructure<F>, Vec<F>, Vec<F>, NeoPar
     check_ccs_rowwise_zero(&ccs, &public_input, &witness)
         .expect("Test fixture should satisfy CCS");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     (ccs, public_input, witness, params)
 }
@@ -251,7 +251,7 @@ fn test_malformed_proof_rejected() -> Result<()> {
 #[test]
 #[serial]
 fn rejects_wrong_ccs_or_public_input() -> Result<()> {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Statement A
     let ccs_a = one_row_ccs_x_eq_x();
@@ -296,7 +296,7 @@ fn rejects_wrong_ccs_or_public_input() -> Result<()> {
 #[test]
 #[serial]
 fn rejects_tampered_public_io() -> Result<()> {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let ccs = one_row_ccs_x_eq_x();
     let z = vec![F::ONE, F::from_u64(5)];
     let public_input: Vec<F> = vec![];
@@ -330,7 +330,7 @@ fn rejects_tampered_public_io() -> Result<()> {
 #[test]
 #[serial]
 fn fails_when_vk_registry_is_missing() -> Result<()> {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let ccs = one_row_ccs_x_eq_x();
     let z = vec![F::ONE, F::from_u64(5)];
     let public_input: Vec<F> = vec![];

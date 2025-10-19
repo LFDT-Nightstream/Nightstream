@@ -13,6 +13,7 @@ members = [
   "crates/neo",
   # CLI
   "crates/neo-cli",
+  "crates/neo-diag",
   # Tests
   "crates/neo-tests",
   "crates/neo-redteam-tests",

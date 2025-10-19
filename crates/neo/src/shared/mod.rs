@@ -6,4 +6,5 @@
 pub mod types;
 pub mod binding;
 pub mod digest;
+pub mod pretty;
 

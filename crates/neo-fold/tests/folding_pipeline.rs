@@ -417,7 +417,7 @@ fn folding_roundtrip_accepts() {
 #[test]
 fn pi_ccs_detects_y_scalar_tamper() {
     // Same tiny CCS as above
-    let params = NeoParams::goldilocks_autotuned_s2(3, 1, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 1, 2);
     let l = DummyS { kappa: params.kappa as usize };
     let s = make_ccs();
 
@@ -446,7 +446,7 @@ fn pi_ccs_detects_y_scalar_tamper() {
 #[test]
 fn pi_dec_detects_digit_x_tamper() {
     // Build a 3-input fold to exercise DEC
-    let params = NeoParams::goldilocks_autotuned_s2(3, 1, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 1, 2);
     let l = DummyS { kappa: params.kappa as usize };
     let s = make_ccs();
     let m = 3; // z has 3 elements

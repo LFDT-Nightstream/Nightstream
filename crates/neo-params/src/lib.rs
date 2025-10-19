@@ -163,10 +163,43 @@ impl NeoParams {
         lambda_max.saturating_sub(1) // Leave 1 bit safety margin
     }
 
-    /// Auto-tuned Goldilocks preset for s=2 with given max workload parameters
-    /// Chooses lambda so that extension_check passes with some safety margin
+    /// Conservative preset for small circuits (ell ≤ 4, d_sc ≤ 3)
+    /// 
+    /// This is a safe default that works for most small circuits.
+    /// For larger circuits, use `goldilocks_for_circuit()` to auto-tune parameters.
+    pub fn goldilocks_small_circuits() -> Self {
+        Self::goldilocks_for_circuit(4, 3, 2) // max ell*d_sc=12, 2-bit safety
+    }
+
+    /// Auto-tuned parameters for a specific circuit
+    /// 
+    /// This is the recommended way to create parameters for any circuit size.
+    /// It automatically calculates the optimal lambda based on your circuit's requirements.
+    /// 
+    /// # Arguments
+    /// * `ell` - log₂(padded_circuit_size)
+    /// * `d_sc` - Maximum polynomial degree in CCS constraints
+    /// * `safety_margin` - Security margin in bits (recommended: 2-4)
+    /// 
+    /// # Security
+    /// - Base: ~128 bits for Goldilocks field (q^2 ≈ 2^128)
+    /// - Cost: ~1 bit per doubling of (ell * d_sc)
+    /// - Formula: lambda ≈ 128 - log₂(ell * d_sc) - safety_margin
+    /// - All configurations maintain >100 bits post-quantum security
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use neo_params::NeoParams;
+    /// 
+    /// // Auto-tune for circuit with 1024 constraints (ell=10), degree-3
+    /// let params = NeoParams::goldilocks_for_circuit(10, 3, 2);
+    /// 
+    /// // Auto-tune for circuit with 4096 constraints (ell=12), degree-2
+    /// let params = NeoParams::goldilocks_for_circuit(12, 2, 3);
+    /// ```
     #[allow(non_snake_case)] // Allow mathematical notation from paper
-    pub fn goldilocks_autotuned_s2(max_ell: u32, max_d_sc: u32, safety_margin: u32) -> Self {
+    pub fn goldilocks_for_circuit(max_ell: u32, max_d_sc: u32, safety_margin: u32) -> Self {
         let q: u64 = 0xFFFF_FFFF_0000_0001;
         let eta: u32 = 81;
         let d: u32 = 54;
@@ -185,9 +218,33 @@ impl NeoParams {
         Self::new(q, eta, d, kappa, m, b, k, T, s, lambda).unwrap()
     }
 
-    /// Preset for typical small-to-medium circuits (ell ≤ 4, d_sc ≤ 3)
-    pub fn goldilocks_small_circuits() -> Self {
-        Self::goldilocks_autotuned_s2(4, 3, 2) // max ell*d_sc=12, 2-bit safety
+    /// Compute optimal parameters from circuit size and degree
+    /// 
+    /// This is a helper for auto-detecting parameters in Session/folding code.
+    /// 
+    /// # Arguments
+    /// * `circuit_size` - Number of constraints (will be padded to power of 2)
+    /// * `max_degree` - Maximum polynomial degree in the circuit
+    /// 
+    /// # Returns
+    /// A tuple `(ell, d_sc)` suitable for `goldilocks_for_circuit()`
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use neo_params::NeoParams;
+    /// 
+    /// // Circuit with 100 constraints, degree 3
+    /// let (ell, d_sc) = NeoParams::compute_circuit_params(100, 3);
+    /// // ell = 7 (log2(128)), d_sc = 3
+    /// 
+    /// let params = NeoParams::goldilocks_for_circuit(ell, d_sc, 2);
+    /// ```
+    pub fn compute_circuit_params(circuit_size: usize, max_degree: u32) -> (u32, u32) {
+        // Pad circuit size to next power of 2 (minimum 2)
+        let padded_size = circuit_size.next_power_of_two().max(2);
+        let ell = padded_size.trailing_zeros();
+        (ell, max_degree)
     }
 
     /// Show lambda limits table for different workload sizes with s=2

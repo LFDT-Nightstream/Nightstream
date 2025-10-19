@@ -10,7 +10,7 @@ use rand::SeedableRng;
 fn fold_pipeline_smoke() {
     // Use autotuned parameters for ell=2, d=1 (4x4 matrix, degree-1)
     // This adjusts lambda down to support s=2 with larger circuits
-    let params = NeoParams::goldilocks_autotuned_s2(2, 1, 2);
+    let params = NeoParams::goldilocks_for_circuit(2, 1, 2);
 
     // Build a degree-1 CCS with 4 constraints: M z = 0 (linear)
     // n=4 gives ell=2, with d=1 this should work with goldilocks_127

@@ -124,7 +124,7 @@ fn main() -> Result<()> {
     // Setup
     println!("🔄 Initializing parameters...");
     let params_start = Instant::now();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     println!("✅ Parameters initialized in {:.2}ms", params_start.elapsed().as_secs_f64() * 1000.0);
     
     println!("🔄 Building step CCS...");

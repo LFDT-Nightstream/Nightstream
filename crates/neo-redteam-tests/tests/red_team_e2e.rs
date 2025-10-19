@@ -36,7 +36,7 @@ fn e2e_rejects_tampered_proof() {
     let public_input = vec![]; // no public inputs for this test
     
     // Use minimal parameters suitable for testing
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     let prove_input = ProveInput {
         params: &params,

@@ -10,6 +10,7 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+#[allow(unused_imports)] // NeoParams used in commented example code
 use neo::{F, NeoParams, AppInputBinding};
 use neo::session::{
     NeoStep, StepSpec, StepArtifacts, FoldingSession, StepDescriptor,
@@ -123,11 +124,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     rayon::ThreadPoolBuilder::new().num_threads(num_cpus::get()).build_global().ok();
 
     let total_start = Instant::now();
-    let params = NeoParams::goldilocks_small_circuits();
-
-    // Initial state x=0
-    // Use TranscriptOnly mode (circuit reads from public x)
-    let mut session = FoldingSession::new(&params, Some(vec![F::ZERO]), 0, AppInputBinding::WitnessBound);
+    
+    // Option 1: Auto-detect parameters from circuit (recommended)
+    // Parameters are detected on first prove_step() from the actual circuit
+    let mut session = FoldingSession::new(None, Some(vec![F::ZERO]), 0, AppInputBinding::WitnessBound);
+    
+    // Option 2: Explicit parameters (use when you know circuit size ahead of time)
+    // let params = NeoParams::goldilocks_small_circuits();
+    // let mut session = FoldingSession::new(Some(&params), Some(vec![F::ZERO]), 0, AppInputBinding::WitnessBound);
+    
     let mut stepper = IncrementerStep::new();
 
     // Run N steps with deltas 1,2,3 repeating
@@ -140,8 +145,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         x_local += delta_u;
     }
 
+    // Get params from session (auto-detected during first step)
+    let params = session.params().expect("params should be initialized after proving").clone();
+    
     // Finalize and verify chain
     let (chain, step_ios) = session.finalize();
+    
     let descriptor = StepDescriptor { ccs: stepper.ccs.clone(), spec: stepper.spec.clone() };
     let ok = verify_chain_with_descriptor(&descriptor, &chain, &[F::ZERO], &params, &step_ios, AppInputBinding::WitnessBound)?;
 

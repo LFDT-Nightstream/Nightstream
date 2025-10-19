@@ -75,7 +75,7 @@ fn rlc_guard_blocks_unsafe_params() {
 #[test]
 fn safe_params_are_accepted() {
     // Verify that safe parameters are still accepted
-    let safe_params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let safe_params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     let ccs = tiny_ccs();
     let witness = vec![F::from_u64(5), F::from_u64(5)]; // z0 = z1 = 5

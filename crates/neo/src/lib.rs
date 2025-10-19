@@ -43,7 +43,7 @@
 //! ```rust,no_run
 //! # use neo::{prove_ivc_chain, verify, CcsStructure, NeoParams, F, Accumulator, StepBindingSpec, IvcChainStepInput};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! #     let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+//! #     let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 //! #     let step_ccs: CcsStructure<F> = todo!("Create your step circuit");
 //! #     let binding_spec = StepBindingSpec {
 //! #         y_step_offsets: vec![],

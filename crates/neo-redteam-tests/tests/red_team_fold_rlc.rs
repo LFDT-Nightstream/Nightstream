@@ -43,7 +43,7 @@ fn dummy_proof_bundle() -> ProofBundle {
 #[test]
 #[serial]
 fn rt13_non_invertible_rhos_fail() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let ccs = dummy_ccs();
     ensure_global_ajtai_pp(ccs.m);
 

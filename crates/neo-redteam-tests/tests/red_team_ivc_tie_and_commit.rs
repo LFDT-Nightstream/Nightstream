@@ -44,7 +44,7 @@ fn make_valid_ivc_step() -> (neo::IvcStepResult, neo_ccs::CcsStructure<F>, NeoPa
     // std::env::set_var("NEO_DETERMINISTIC", "1");
 
     let step_ccs = tiny_r1cs_to_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let prev_acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
     let binding = make_binding_spec();
 

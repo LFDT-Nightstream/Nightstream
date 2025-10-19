@@ -87,7 +87,7 @@ fn test_public_io_digest_matches_augmented_pi() -> Result<()> {
     println!("🔒 Testing that public_io digest commits to FULL augmented public input...");
     
     // Setup
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],        // witness[3] is next_x
@@ -155,7 +155,7 @@ fn test_public_io_digest_matches_augmented_pi() -> Result<()> {
 fn test_verifier_rejects_when_augmented_pi_changes_but_x_same() -> Result<()> {
     println!("🔒 Testing that verifier rejects when bound fields change but x stays same...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],   
@@ -247,7 +247,7 @@ fn test_verifier_rejects_when_augmented_pi_changes_but_x_same() -> Result<()> {
 fn test_context_digest_changes_when_any_bound_field_changes() -> Result<()> {
     println!("🔒 Testing that context digest changes when any bound field changes...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],   
@@ -320,7 +320,7 @@ fn test_context_digest_changes_when_any_bound_field_changes() -> Result<()> {
 fn test_rho_challenge_binding() -> Result<()> {
     println!("🔒 Testing that ρ challenge is bound to full statement transcript...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
@@ -387,7 +387,7 @@ fn test_rho_challenge_binding() -> Result<()> {
 fn test_step_index_binding_prevents_replay() -> Result<()> {
     println!("🔒 Testing that step index binding prevents replay attacks...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
@@ -451,7 +451,7 @@ fn test_step_index_binding_prevents_replay() -> Result<()> {
 fn test_ccs_domain_separation() -> Result<()> {
     println!("🔒 Testing that CCS domain separation prevents cross-circuit attacks...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     // Two different CCS circuits
     let step_ccs_1 = build_incrementer_step_ccs(); // next_x = prev_x + delta
@@ -558,7 +558,7 @@ fn test_ccs_domain_separation() -> Result<()> {
 fn test_verifier_accepts_with_mismatched_prev_acc_vulnerability() -> Result<()> {
     println!("🔒 Testing critical vulnerability: verifier accepts proof with mismatched prev_acc...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     
     // CRITICAL: Bind previous state into the witness at index 1 (prev_x)
@@ -649,7 +649,7 @@ fn test_verifier_accepts_with_mismatched_prev_acc_vulnerability() -> Result<()> 
 fn test_vulnerability_when_y_prev_not_bound() -> Result<()> {
     println!("🔒 Testing vulnerability when y_prev is NOT bound (empty y_prev_witness_indices)...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     
     // VULNERABILITY: Do NOT bind previous state (like most existing tests)
@@ -738,7 +738,7 @@ fn test_vulnerability_when_y_prev_not_bound() -> Result<()> {
 fn test_context_digest_provides_automatic_y_prev_binding() -> Result<()> {
     println!("🔒 Testing that context digest provides automatic y_prev binding...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     
     // Use minimal binding (no explicit y_prev binding in witness)
@@ -826,7 +826,7 @@ fn test_context_digest_provides_automatic_y_prev_binding() -> Result<()> {
 fn test_step_index_manipulation_attack() -> Result<()> {
     println!("🔒 Testing step index manipulation attack - can we reuse proofs across steps?...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
@@ -912,7 +912,7 @@ fn test_step_index_manipulation_attack() -> Result<()> {
 fn test_public_input_prefix_attack() -> Result<()> {
     println!("🔒 Testing public input prefix attack - can we bypass step_x prefix binding?...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
@@ -999,7 +999,7 @@ fn test_public_input_prefix_attack() -> Result<()> {
 fn test_public_io_malleability_attack() -> Result<()> {
     println!("🔒 Testing public IO malleability attack - can we manipulate proof.public_io directly?...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
@@ -1107,7 +1107,7 @@ fn test_public_io_malleability_attack() -> Result<()> {
 fn test_zero_rho_bypass_attack() -> Result<()> {
     println!("🔒 Testing zero ρ bypass attack - can we skip the ρ guard by zeroing step_rho?...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
@@ -1197,7 +1197,7 @@ fn test_zero_rho_bypass_attack() -> Result<()> {
 fn test_coordinated_rho_coordinates_attack() -> Result<()> {
     println!("🔒 Testing coordinated ρ + coordinates attack - can we forge both and pass Guard A?...");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],

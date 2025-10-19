@@ -120,7 +120,7 @@ fn linear_ccs(n: usize) -> (CcsStructure<F>, Vec<F>) {
 fn splice_proof_bytes_and_public_io_must_fail() -> Result<()> {
     println!("🔓 TESTING SPLICE ATTACK VULNERABILITY");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Circuit A: Fibonacci  
     let (ccs_a, wit_a) = fib_ccs(3);
@@ -178,7 +178,7 @@ fn splice_proof_bytes_and_public_io_must_fail() -> Result<()> {
 
 #[test]
 fn normal_proofs_should_still_work() -> Result<()> {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Test normal proof A
     let (ccs_a, wit_a) = fib_ccs(2);

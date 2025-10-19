@@ -36,7 +36,7 @@ fn create_ccs_with_constant(constant: u64) -> neo_ccs::CcsStructure<F> {
 
 #[test]
 fn bridge_rejects_cross_proof_swap() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     // Create two different CCS structures and corresponding witnesses
     let ccs_a = create_ccs_with_constant(5); // z0 = 5
@@ -111,7 +111,7 @@ fn bridge_rejects_cross_proof_swap() {
 
 #[test]
 fn bridge_rejects_different_public_inputs() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     // Use same CCS but different public inputs
     let ccs = create_ccs_with_constant(5);

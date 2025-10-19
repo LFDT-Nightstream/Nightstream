@@ -39,7 +39,7 @@ fn facade_smoke_test() -> Result<()> {
     let ccs = minimal_identity_ccs();
     let witness = vec![F::ONE, F::from_u64(42)]; // [z0=1, z1=42] (satisfies 0*z0=0 for all rows)
     let public_input = vec![]; // No public inputs for this simple test
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2); // Small parameters for fast test
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2); // Small parameters for fast test
     
     // Prove
     let prove_input = ProveInput {
@@ -75,7 +75,7 @@ fn facade_invalid_witness_should_fail() {
     let ccs = minimal_identity_ccs();
     let invalid_witness = vec![F::from_u64(99)]; // Wrong length: expected 2 variables, got 1
     let public_input = vec![];
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     let prove_input = ProveInput {
         params: &params,

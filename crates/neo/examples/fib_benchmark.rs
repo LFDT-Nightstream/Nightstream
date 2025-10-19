@@ -147,7 +147,7 @@ fn main() -> Result<()> {
     println!("🚀 Using {} threads for parallel computation", rayon::current_num_threads());
 
     // Auto-tuned params for Goldilocks; adjust if you want different security/arity
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Allow overriding the benchmark list via env var N="10,20,50,100"
     let ns: Vec<usize> = match env::var("N") {

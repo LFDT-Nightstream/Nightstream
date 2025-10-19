@@ -41,7 +41,7 @@ fn neo_basic_prove_verify_works() {
     let public_input = vec![]; // no public inputs for this test
 
     // Use minimal parameters suitable for testing
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     let prove_input = ProveInput {
         params: &params,
@@ -70,7 +70,7 @@ fn neo_constraint_violation_fails() {
     let invalid_witness = vec![F::from_u64(1), F::from_u64(5)];
     let public_input = vec![];
 
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     let prove_input = ProveInput {
         params: &params,
@@ -94,7 +94,7 @@ fn neo_constraint_violation_fails() {
 #[test]
 fn neo_params_validation_works() {
     // This should succeed with reasonable parameters
-    let good_params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let good_params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     assert!(good_params.lambda >= 64, "security parameter should be reasonable");
     
     println!("✅ Neo parameter validation works correctly");

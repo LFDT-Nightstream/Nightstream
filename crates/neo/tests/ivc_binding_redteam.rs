@@ -48,7 +48,7 @@ fn compute_x_digest(acc: &Accumulator) -> Vec<F> {
 
 #[test]
 fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_step_ccs();
 
     let prev_acc = Accumulator {
@@ -92,7 +92,7 @@ fn prover_ignores_malicious_step_x_and_uses_digest_prefix() {
 
 #[test]
 fn verifier_rejects_tampered_step_x() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_step_ccs();
 
     let prev_acc = Accumulator {

@@ -149,7 +149,7 @@ fn main() -> Result<()> {
     // Step 3: Initialize IVC session with y0 = [1]
     let y0 = vec![F::ONE];
     // Use TranscriptOnly mode (circuit reads from public x)
-    let mut session = FoldingSession::new(&params, Some(y0.clone()), 0, AppInputBinding::TranscriptOnly);
+    let mut session = FoldingSession::new(Some(&params), Some(y0.clone()), 0, AppInputBinding::TranscriptOnly);
     let mut stepper = stepper; // mutable for trait API
 
     // Fibonacci state (mod q)

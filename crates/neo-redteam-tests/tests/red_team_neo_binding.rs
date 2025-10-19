@@ -22,7 +22,7 @@ fn dummy_ccs_structure() -> CcsStructure<F> {
 #[test]
 fn rt26_verify_wrong_public_input_must_fail() {
     // Arrange: small, satisfiable CCS + zero witness
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let ccs = dummy_ccs_structure();
     let witness = vec![F::ZERO; ccs.m]; // length matches m
     let public_input: Vec<F> = vec![];  // empty is fine here
@@ -42,7 +42,7 @@ fn rt26_verify_wrong_public_input_must_fail() {
 
 #[test]
 fn rt26_verify_wrong_ccs_must_fail() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let mut ccs = dummy_ccs_structure();
     let witness = vec![F::ZERO; ccs.m];
     let public_input: Vec<F> = vec![];

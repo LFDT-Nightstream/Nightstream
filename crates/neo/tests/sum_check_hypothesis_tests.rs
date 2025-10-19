@@ -54,7 +54,7 @@ fn simple_ccs() -> (CcsStructure<F>, Vec<F>, Vec<F>, StepBindingSpec, LastNExtra
 #[test]
 fn hypothesis_a_initial_sum_computation() {
     let (ccs, valid_wit, invalid_wit, binding, extractor) = simple_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     println!("\n==== HYPOTHESIS A: Initial Sum Computation ====");
     
@@ -103,7 +103,7 @@ fn hypothesis_a_initial_sum_computation() {
 #[test]
 fn hypothesis_b_terminal_check_and_batching() {
     let (ccs, valid_wit, invalid_wit, binding, extractor) = simple_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     println!("\n==== HYPOTHESIS B: Terminal Q(r) and Batching Coefficients ====");
     
@@ -164,7 +164,7 @@ fn hypothesis_b_terminal_check_and_batching() {
 #[test]
 fn hypothesis_c_individual_instance_verification() {
     let (ccs, valid_wit, invalid_wit, binding, extractor) = simple_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     println!("\n==== HYPOTHESIS C: Individual Instance Verification ====");
     
@@ -231,7 +231,7 @@ fn hypothesis_c_individual_instance_verification() {
 #[test]
 fn hypothesis_c_batching_cancellation_bug() {
     let (ccs, valid_wit, invalid_wit, binding, extractor) = simple_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     println!("\n==== CRITICAL: Testing Batching Cancellation Hypothesis ====");
     println!("In base case: LHS is all zeros, so α_0 · f(Y_0) ≈ 0");

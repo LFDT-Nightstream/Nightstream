@@ -42,7 +42,7 @@ fn pi_ccs_single_row_deg_shape() {
         .expect("witness should satisfy CCS row-wise");
 
     // 2) IVC setup with y_len=0 and no app inputs
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let acc0 = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
     let binding = StepBindingSpec {
         y_step_offsets: vec![],

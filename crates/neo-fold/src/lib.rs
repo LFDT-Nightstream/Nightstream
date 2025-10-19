@@ -28,6 +28,10 @@ pub mod pi_dec;
 /// Spartan2 bridge adapter (modern → legacy types + digest binding)
 pub mod bridge_adapter;
 
+/// Constraint diagnostic system (feature-gated)
+#[cfg(feature = "prove-diagnostics")]
+pub mod diagnostic;
+
 // Re-export main types
 pub use error::{FoldingError, PiCcsError, PiRlcError, PiDecError};
 use neo_transcript::{Poseidon2Transcript, Transcript};

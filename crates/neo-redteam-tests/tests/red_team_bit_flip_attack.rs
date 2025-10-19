@@ -56,7 +56,7 @@ fn test_single_bit_flip_in_rho() -> Result<()> {
     println!("🚀 Testing single bit flip in ρ (subtle attack)");
     
     // Setup (same as other tests)
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],
@@ -139,7 +139,7 @@ fn test_multiple_bit_flips_in_rho() -> Result<()> {
     println!("🚀 Testing multiple bit flips in ρ (various positions)");
     
     // Setup
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],

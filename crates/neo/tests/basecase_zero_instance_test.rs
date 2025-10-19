@@ -79,8 +79,8 @@ impl NeoStep for MinimalStep {
 // matching the strict linkage policy used by integrators with self-fold base case.
 #[test]
 fn test_self_fold_basecase_manual_verify() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    let mut session = FoldingSession::new(&params, None, 0, AppInputBinding::TranscriptOnly);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
+    let mut session = FoldingSession::new(Some(&params), None, 0, AppInputBinding::TranscriptOnly);
     let mut stepper = MinimalStep::new();
 
     // Prove a couple of steps (0 and 1)
@@ -121,7 +121,7 @@ fn test_self_fold_basecase_manual_verify() {
 #[test]
 fn test_basecase_chain_verifies_canonical() {
     let params = NeoParams::goldilocks_small_circuits();
-    let mut session = FoldingSession::new(&params, None, 0, AppInputBinding::TranscriptOnly);
+    let mut session = FoldingSession::new(Some(&params), None, 0, AppInputBinding::TranscriptOnly);
     let mut stepper = MinimalStep::new();
 
     let _ = session.prove_step(&mut stepper, &NoInputs).expect("prove step 0");

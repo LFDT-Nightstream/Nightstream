@@ -38,7 +38,7 @@ fn build_increment_ccs() -> neo_ccs::CcsStructure<F> {
 
 #[test]
 fn test_all_zero_witness_attack_blocked() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {
@@ -131,7 +131,7 @@ fn test_all_zero_witness_attack_blocked() {
 
 #[test]
 fn test_all_zero_witness_with_nonzero_const1_still_invalid() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {
@@ -202,7 +202,7 @@ fn test_all_zero_witness_with_nonzero_const1_still_invalid() {
 
 #[test]
 fn test_valid_zero_state_with_const1_one() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {
@@ -306,8 +306,8 @@ fn test_all_zero_witness_attack_with_ivc_session() {
         }
     }
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    let mut session = FoldingSession::new(&params, Some(vec![F::ZERO]), 0, AppInputBinding::TranscriptOnly);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
+    let mut session = FoldingSession::new(Some(&params), Some(vec![F::ZERO]), 0, AppInputBinding::TranscriptOnly);
     let mut stepper = AllZeroAttackStepper::new();
     
     let step_result = session.prove_step(&mut stepper, &());
@@ -379,8 +379,8 @@ fn test_valid_ivc_session_with_proper_const1() {
         }
     }
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
-    let mut session = FoldingSession::new(&params, Some(vec![F::ZERO]), 0, AppInputBinding::TranscriptOnly);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
+    let mut session = FoldingSession::new(Some(&params), Some(vec![F::ZERO]), 0, AppInputBinding::TranscriptOnly);
     let mut stepper = HonestStepper::new();
     
     let step_result = session.prove_step(&mut stepper, &());
@@ -400,7 +400,7 @@ fn test_valid_ivc_session_with_proper_const1() {
 /// - This would be a CRITICAL soundness bug
 #[test]
 fn test_complete_zero_witness_critical() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {

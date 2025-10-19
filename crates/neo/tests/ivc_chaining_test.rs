@@ -52,7 +52,7 @@ fn build_increment_witness(prev_x: u64, delta: u64) -> Vec<F> {
 fn test_ivc_chaining_not_self_folding() -> Result<()> {
     println!("🧪 Testing IVC chaining (not self-folding)");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let binding_spec = StepBindingSpec {

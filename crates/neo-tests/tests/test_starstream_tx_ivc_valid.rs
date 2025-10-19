@@ -179,7 +179,7 @@ fn test_r1cs_constraint_verification() {
 fn test_starstream_tx_ivc_proof_valid() {
     let export = load_test_export();
     let y0: Vec<F> = export.ivc_params.y0.iter().map(|s| parse_field_element(s)).collect();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: export.ivc_params.step_spec.y_step_indices.clone(),
@@ -221,7 +221,7 @@ fn test_starstream_tx_ivc_proof_valid() {
 fn test_starstream_tx_nivc_proof_valid() {
     let export = load_test_export();
     let y0: Vec<F> = export.ivc_params.y0.iter().map(|s| parse_field_element(s)).collect();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     let binding_spec = StepBindingSpec {
         y_step_offsets: export.ivc_params.step_spec.y_step_indices.clone(),
@@ -288,7 +288,7 @@ impl NeoStep for TestStepCircuit {
 fn test_starstream_tx_session_api_valid() {
     let export = load_test_export();
     let y0: Vec<F> = export.ivc_params.y0.iter().map(|s| parse_field_element(s)).collect();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     let step_spec = neo::StepSpec {
         y_len: export.ivc_params.step_spec.y_len,
@@ -304,7 +304,7 @@ fn test_starstream_tx_session_api_valid() {
         step_ccs: step_ccs.clone(),
     };
     
-    let mut session = FoldingSession::new(&params, Some(y0.clone()), 0, AppInputBinding::TranscriptOnly);
+    let mut session = FoldingSession::new(Some(&params), Some(y0.clone()), 0, AppInputBinding::TranscriptOnly);
     
     let mut proof_succeeded = true;
     for _ in 0..export.steps.len() {

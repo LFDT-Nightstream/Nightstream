@@ -75,7 +75,7 @@ fn test_real_nova_folding_5_steps() -> Result<(), Box<dyn std::error::Error + Se
     println!("======================================");
 
     // Setup
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     // Binding spec for witness layout: [const, prev_x, delta, next_x]
@@ -247,7 +247,7 @@ fn test_real_nova_folding_5_steps() -> Result<(), Box<dyn std::error::Error + Se
 fn test_folding_equation_validation() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("🧪 Testing Nova Folding Equation: y_next = y_prev + ρ*y_step");
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let binding_spec = StepBindingSpec {
@@ -324,7 +324,7 @@ fn test_not_constraint_batching() -> Result<(), Box<dyn std::error::Error + Send
     // a constraint system with N times the original size.
     // With real folding, the constraint system size stays constant.
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     let original_constraints = step_ccs.n;
     let original_variables = step_ccs.m;

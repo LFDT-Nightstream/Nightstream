@@ -76,7 +76,7 @@ fn prove_and_verify_fibonacci_with_public_seed() -> Result<()> {
     let ccs = fibonacci_ccs_with_public_seed(n);
 
     // Parameters
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Choose public seed p and construct private witness accordingly
     let p = F::from_u64(7);

@@ -68,6 +68,18 @@ pub fn build_augmented_ccs_linked_with_rlc(
     // Public input: [ step_x || ρ || y_prev || y_next ]
     let pub_cols = step_x_len + 1 + 2 * y_len;
 
+    #[cfg(feature = "neo-logs")]
+    {
+        let digest_len = 4; // DIGEST_LEN from neo-params
+        let app_inputs_len = step_x_len.saturating_sub(digest_len);
+        eprintln!("📐 Augmented CCS Structure:");
+        eprintln!("  base CCS: n={}, m={}", step_ccs.n, step_ccs.m);
+        eprintln!("  public columns = step_x({}) + rho(1) + y_prev({}) + y_next({}) = {}", 
+                  step_x_len, y_len, y_len, pub_cols);
+        eprintln!("    where step_x = digest({}) + app_inputs({})", digest_len, app_inputs_len);
+        eprintln!();
+    }
+
     // Row accounting (no preset cap):
     //  - step_rows                              (copy step CCS)
     //  - EV rows                                (see below; production: 2*y_len, testing: 2)
@@ -94,6 +106,23 @@ pub fn build_augmented_ccs_linked_with_rlc(
     let ev_wit_cols = y_len; // u
     let total_wit_cols = step_wit_cols + ev_wit_cols;
     let total_cols = pub_cols + total_wit_cols;
+
+    #[cfg(feature = "neo-logs")]
+    {
+        eprintln!("  row breakdown:");
+        eprintln!("    step_rows = {}", step_rows);
+        eprintln!("    ev_rows = {} (2 per y element)", ev_rows);
+        eprintln!("    x_bind_rows = {} (witness binding)", x_bind_rows);
+        eprintln!("    rlc_rows = {} (commitment binding)", rlc_rows);
+        eprintln!("    const1_enforce_rows = {}", const1_enforce_rows);
+        eprintln!("    total_rows = {} → padded to {}", total_rows, target_rows);
+        eprintln!();
+        eprintln!("  augmented m = base.m({}) + ev_wit({}) = {}", 
+                  step_wit_cols, ev_wit_cols, total_wit_cols);
+        eprintln!("  augmented total_cols = pub({}) + witness({}) = {}", 
+                  pub_cols, total_wit_cols, total_cols);
+        eprintln!();
+    }
 
     let mut combined_mats = Vec::new();
     for matrix_idx in 0..step_ccs.matrices.len() {

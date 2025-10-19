@@ -60,7 +60,7 @@ fn test_ivc_proof_with_forged_coords() -> Result<()> {
     println!("🚀 Testing IVC verification with forged c_step_coords");
     
     // Setup
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],   // next_x at witness[3]
@@ -191,7 +191,7 @@ fn test_multiple_forged_coords() -> Result<()> {
     println!("🚀 Testing multiple forged c_step_coords variations");
     
     // Setup (same as above)
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_incrementer_step_ccs();
     let binding_spec = StepBindingSpec {
         y_step_offsets: vec![3],

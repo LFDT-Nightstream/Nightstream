@@ -198,7 +198,7 @@ fn cmd_gen(n: usize, out: PathBuf, bundle_vk: bool, emit_vk: bool) -> Result<()>
 
     // Setup IVC chain
     let total_start = std::time::Instant::now();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let build_start = std::time::Instant::now();
     
     // Build step CCS and binding spec

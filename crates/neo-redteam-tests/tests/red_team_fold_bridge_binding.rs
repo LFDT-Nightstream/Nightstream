@@ -32,7 +32,7 @@ fn ensure_global_ajtai_pp(m: usize) {
 #[test]
 #[serial]
 fn rt22_digit_bundle_as_parent_must_fail_binding() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let ccs = dummy_ccs();
     ensure_global_ajtai_pp(ccs.m);
 

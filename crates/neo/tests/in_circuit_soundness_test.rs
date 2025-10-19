@@ -39,7 +39,7 @@ fn build_increment_ccs() -> CcsStructure<F> {
 
 #[test]
 fn test_valid_witness_passes() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {
@@ -97,7 +97,7 @@ fn test_valid_witness_passes() {
 
 #[test]
 fn test_invalid_witness_in_circuit_enforcement() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {
@@ -166,7 +166,7 @@ fn test_invalid_witness_in_circuit_enforcement() {
 /// linear constraints that multiply by const-1.
 #[test]
 fn test_const1_zero_attack_is_blocked() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let prev_acc = Accumulator {

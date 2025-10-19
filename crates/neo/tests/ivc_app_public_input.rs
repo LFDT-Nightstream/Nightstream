@@ -29,7 +29,7 @@ fn build_extended_step_ccs() -> CcsStructure<F> {
 
 #[test]
 fn app_public_inputs_accepted_now() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_extended_step_ccs();
     let prev_acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![F::ZERO], step: 0 };
     // Step witness must contain the app input values at the binding positions
@@ -67,7 +67,7 @@ fn app_public_inputs_accepted_now() {
 
 #[test]
 fn tampered_digest_prefix_rejected() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_extended_step_ccs();
     let prev_acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![F::ZERO], step: 0 };
     // Step witness must contain the app input values at the binding positions

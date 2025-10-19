@@ -62,7 +62,7 @@ fn make_instance_and_witness(z: Vec<F>, params: &NeoParams) -> (McsInstance<Cmt,
 #[test]
 fn pi_ccs_non_power_of_two_n_works() {
     // Use the same params as your example; any sane params work here.
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Exercise several non-power-of-two n; m is small/fixed.
     let ns = [3usize, 5, 6, 7, 9];

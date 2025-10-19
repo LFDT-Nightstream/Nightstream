@@ -115,7 +115,7 @@ fn test_y_prev_binding_removed() {
 fn test_self_contained_witnesses_witness_bound() {
     let params = NeoParams::goldilocks_small_circuits();
     let mut session = FoldingSession::new(
-        &params,
+        Some(&params),
         Some(vec![F::ZERO]),
         0,
         AppInputBinding::WitnessBound,
@@ -152,7 +152,7 @@ fn test_self_contained_witnesses_witness_bound() {
 fn test_self_contained_witnesses_transcript_only() {
     let params = NeoParams::goldilocks_small_circuits();
     let mut session = FoldingSession::new(
-        &params,
+        Some(&params),
         Some(vec![F::ZERO]),
         0,
         AppInputBinding::TranscriptOnly,

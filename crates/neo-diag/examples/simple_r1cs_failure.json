@@ -1,0 +1,143 @@
+{
+  "schema": "neo.constraint.diagnostic@1",
+  "field": {
+    "q": "18446744069414584321",
+    "name": "goldilocks",
+    "ext_deg": 1,
+    "encoding": "canonical_le_bytes_hex"
+  },
+  "folding": {
+    "phase": "Test",
+    "b": 2,
+    "k": 12,
+    "B": 4096,
+    "T": 2,
+    "challenge_set": "test@v1"
+  },
+  "structure": {
+    "hash": "blake3v1:3bf2b3d8513407148f0fe3507bf0f6aab5aadf525814c57c87599570a1a2c2b9",
+    "t": 3,
+    "n": 1,
+    "m": 3,
+    "row_index": 0,
+    "rows": [
+      {
+        "matrix_j": 0,
+        "idx": [
+          0
+        ],
+        "val": [
+          "0100000000000000"
+        ]
+      },
+      {
+        "matrix_j": 1,
+        "idx": [
+          1
+        ],
+        "val": [
+          "0100000000000000"
+        ]
+      },
+      {
+        "matrix_j": 2,
+        "idx": [
+          2
+        ],
+        "val": [
+          "0100000000000000"
+        ]
+      }
+    ],
+    "f_canonical": {
+      "terms": [
+        {
+          "coeff": "0100000000000000",
+          "vars": [
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "coeff": "00000000ffffffff",
+          "vars": [
+            [
+              2,
+              1
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "eval": {
+    "r": [],
+    "y_at_r": [],
+    "expected": "0000000000000000",
+    "actual": "0000000000000000",
+    "delta": "0000000000000000",
+    "delta_signed": "0"
+  },
+  "witness": {
+    "policy": "row_support_only",
+    "z_sparse": {
+      "idx": [
+        0,
+        1,
+        2
+      ],
+      "val": [
+        "0200000000000000",
+        "0300000000000000",
+        "0700000000000000"
+      ]
+    },
+    "gradient_blame": [
+      {
+        "i": 2,
+        "gradient": "00000000ffffffff",
+        "gradient_abs": "18446744069414584320",
+        "z_value": "0700000000000000",
+        "contribution": "fafffffffeffffff"
+      },
+      {
+        "i": 0,
+        "gradient": "0300000000000000",
+        "gradient_abs": "3",
+        "z_value": "0200000000000000",
+        "contribution": "0600000000000000"
+      },
+      {
+        "i": 1,
+        "gradient": "0200000000000000",
+        "gradient_abs": "2",
+        "z_value": "0300000000000000",
+        "contribution": "0600000000000000"
+      }
+    ],
+    "size": 3
+  },
+  "transcript": {
+    "transcript_hash": "unavailable",
+    "domain_labels": [],
+    "sumcheck": {
+      "alpha": [],
+      "beta": [],
+      "gamma": "",
+      "alpha_prime": [],
+      "r_prime": []
+    }
+  },
+  "context": {
+    "step_idx": 0,
+    "instruction": "Test",
+    "test": "test_diagnostic_example",
+    "failure_reason": "Deliberate test failure: 2*3 ≠ 7"
+  }
+}

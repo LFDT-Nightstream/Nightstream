@@ -101,7 +101,7 @@ fn test_vulnerability_folding_chain_duplication() -> Result<()> {
     println!("Expected: This test should FAIL - folding duplicates instead of chaining");
     println!("========================================================================");
 
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let binding_spec = StepBindingSpec {
@@ -242,7 +242,7 @@ fn test_vulnerability_final_snark_public_input_format() -> Result<()> {
     println!("Expected: This test should FAIL - using wrong public input format");
     println!("================================================================");
 
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     // 🔒 Provide proper witness binding to test other aspects
@@ -379,7 +379,7 @@ fn test_vulnerability_missing_witness_binding() -> Result<()> {
     println!("Expected: This test should FAIL - can prove with mismatched public input");
     println!("======================================================================");
 
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     // 🚫 FIXED: step_program_input_witness_indices=[] is rejected by the prover when app inputs exist
@@ -462,7 +462,7 @@ fn test_vulnerability_fixed_ajtai_seed() -> Result<()> {
     // uses proper randomness by checking that our seeding mechanism is in place.
     
     println!("   Testing randomness implementation...");
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     // Extract some identifiable components from the parameters
     // Note: This is a simplified check - in practice we'd need to access internal Ajtai matrices

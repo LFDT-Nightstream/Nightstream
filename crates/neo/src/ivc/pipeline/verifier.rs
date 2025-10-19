@@ -265,10 +265,19 @@ pub fn verify_ivc_step(
         eprintln!("  Overall validity: {}", is_valid);
         eprintln!("  Public IO length: {}", io.len());
         eprintln!("  Expected y_next length: {} bytes", y_len * 8);
+        eprintln!();
+        let digest_len = 4; // DIGEST_LEN from neo-params
+        let app_inputs_len = step_x_len.saturating_sub(digest_len);
+        eprintln!("🔍 VERIFIER CCS PARAMS:");
+        eprintln!("  digest_len = {} (mandatory H(prev_acc) prefix)", digest_len);
+        eprintln!("  app_inputs_len = {}", app_inputs_len);
+        eprintln!("  step_x_len = {} (digest {} + app {})", step_x_len, digest_len, app_inputs_len);
+        eprintln!("  y_len = {}", y_len);
+        eprintln!("  const1_idx = {}", binding_spec.const1_witness_index);
+        eprintln!();
+        eprintln!("🔍 VERIFIER DIGEST DEBUG:");
         eprintln!("  Digest CCS: n={}, m={}", digest_ccs.n, digest_ccs.m);
         eprintln!("  Public input length: {}", public_input.len());
-        eprintln!("  Verifier CCS params: step_x_len={}, y_len={}, const1_idx={}", 
-                  step_x_len, y_len, binding_spec.const1_witness_index);
         eprintln!("  Verifier y_step_offsets: {:?}", binding_spec.y_step_offsets);
     }
     

@@ -130,6 +130,27 @@ pub trait NeoStep {
         z_prev: &[F],
         inputs: &Self::ExternalInputs,
     ) -> StepArtifacts;
+    
+    /// Optional: Return security parameters for the circuit.
+    /// 
+    /// Returns `(ell, d_sc)` where:
+    /// - `ell`: log₂(max_padded_circuit_size) across all steps
+    /// - `d_sc`: maximum polynomial degree in CCS constraints
+    /// 
+    /// If `None` (default), parameters will be auto-detected from the first circuit.
+    /// Override this when you know the circuit size ahead of time to avoid synthesis overhead.
+    /// 
+    /// # Example
+    /// 
+    /// ```ignore
+    /// fn security_params(&self) -> Option<(u32, u32)> {
+    ///     // Circuit has max 1024 constraints, degree 3
+    ///     Some((10, 3))  // log2(1024) = 10
+    /// }
+    /// ```
+    fn security_params(&self) -> Option<(u32, u32)> {
+        None  // Default: auto-detect from first synthesis
+    }
 }
 
 /// Backend implementation strategy for FoldingSession
@@ -160,7 +181,8 @@ pub struct FoldingSession {
     #[allow(dead_code)]  // Reserved for future standalone IVC backend
     ivc_proofs: Vec<IvcProof>,
     
-    params: NeoParams,
+    /// Security parameters (lazy-initialized on first prove_step if None)
+    params: Option<NeoParams>,
     step_spec: Option<StepSpec>,
     binding_mode: Option<AppInputBinding>,
     backend: IvcBackend,
@@ -169,13 +191,20 @@ pub struct FoldingSession {
     start_step: u64,
     // Store step_io for each step (needed for verification)
     step_ios: Vec<Vec<F>>,
+    
+    // TODO: Add prove-diagnostics feature flag to Cargo.toml
+    // Enable automatic diagnostic capture on constraint failures
+    // #[cfg(feature = "prove-diagnostics")]
+    // pub enable_diagnostics: bool,
 }
 
 impl FoldingSession {
-    /// Create a new session with an optional initial state and binding mode.
+    /// Create a new folding session.
     /// 
     /// # Parameters
-    /// - `params`: Neo proving parameters
+    /// - `params`: Optional security parameters. If `None`:
+    ///   - First tries `stepper.security_params()` (if implemented)
+    ///   - Otherwise auto-detects from first circuit synthesis
     /// - `initial_state`: Optional initial state. If `None`, initializes to zero vector
     /// - `start_step`: Initial step counter
     /// - `binding_mode`: How to bind app inputs:
@@ -192,8 +221,29 @@ impl FoldingSession {
     /// - Your circuit reads app inputs from public `x` directly (not from witness columns)
     /// - Your circuit doesn't consume external inputs
     /// - App inputs are metadata-only (routing, scheduling hints)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// // Auto-detect parameters (recommended)
+    /// let session = FoldingSession::new(
+    ///     None,  // Auto-detect from first circuit
+    ///     None,
+    ///     0,
+    ///     AppInputBinding::TranscriptOnly,
+    /// );
+    /// 
+    /// // Explicit parameters (advanced)
+    /// let params = NeoParams::goldilocks_for_circuit(10, 3, 2);
+    /// let session = FoldingSession::new(
+    ///     Some(&params),
+    ///     None,
+    ///     0,
+    ///     AppInputBinding::TranscriptOnly,
+    /// );
+    /// ```
     pub fn new(
-        params: &NeoParams, 
+        params: Option<&NeoParams>, 
         initial_state: Option<Vec<F>>, 
         start_step: u64,
         binding_mode: AppInputBinding,
@@ -210,22 +260,17 @@ impl FoldingSession {
             ivc_prev_me_wit: None,
             ivc_prev_lhs_mcs: None,
             ivc_proofs: Vec::new(),
-            params: *params,
+            params: params.copied(),  // None means lazy-initialize on first prove_step
             step_spec: None,
             binding_mode: Some(binding_mode),
             backend,
             initial_state: initial_state.unwrap_or_default(),
             start_step,
             step_ios: Vec::new(),
+            // TODO: Re-enable when prove-diagnostics feature is added
+            // #[cfg(feature = "prove-diagnostics")]
+            // enable_diagnostics: std::env::var("NEO_DIAGNOSTICS").is_ok(),
         }
-    }
-
-    /// Create a new session with TranscriptOnly mode (backwards compatible).
-    /// 
-    /// **Deprecated**: Use `new()` with explicit binding mode instead.
-    #[deprecated(note = "Use new() with explicit binding_mode parameter instead")]
-    pub fn new_transcript_only(params: &NeoParams, initial_state: Option<Vec<F>>, start_step: u64) -> Self {
-        Self::new(params, initial_state, start_step, AppInputBinding::TranscriptOnly)
     }
 
     /// Current state (y_prev)
@@ -252,6 +297,13 @@ impl FoldingSession {
         }
     }
 
+    /// Get parameters (returns None if not yet initialized)
+    /// 
+    /// Parameters are auto-initialized on first `prove_step()` call.
+    pub fn params(&self) -> Option<&NeoParams> {
+        self.params.as_ref()
+    }
+
     /// Prove one step and advance the session state.
     pub fn prove_step<S: NeoStep>(
         &mut self,
@@ -264,7 +316,23 @@ impl FoldingSession {
         // 1) Get artifacts for this step from the adapter
         let artifacts = stepper.synthesize_step(current_step as usize, &current_state, inputs);
 
-        // 1.5) Validate CCS structure requirements
+        // 1.5) Lazy-initialize params if not set
+        if self.params.is_none() {
+            let params = if let Some((ell, d_sc)) = stepper.security_params() {
+                // Use explicit security params from the circuit
+                NeoParams::goldilocks_for_circuit(ell, d_sc, 2)
+            } else {
+                // Auto-detect from the synthesized circuit
+                let (ell, d_sc) = NeoParams::compute_circuit_params(
+                    artifacts.ccs.n,
+                    artifacts.ccs.max_degree() as u32
+                );
+                NeoParams::goldilocks_for_circuit(ell, d_sc, 2)
+            };
+            self.params = Some(params);
+        }
+
+        // 1.6) Validate CCS structure requirements
         // SECURITY: ℓ = ceil(log2(n)) must be ≥ 2 for the sumcheck protocol
         // n is padded to next power of 2 (max 2), so n=3 → 4 → ℓ=2 is acceptable
         let n = artifacts.ccs.n;
@@ -276,6 +344,28 @@ impl FoldingSession {
                 Please ensure your circuit has at least 3 constraint rows.",
                 n
             ).into());
+        }
+
+        // 1.7) Log step configuration for debugging
+        #[cfg(feature = "neo-logs")]
+        {
+            let binding_mode = self.binding_mode.unwrap_or(AppInputBinding::WitnessBound);
+            let app_inputs_len = artifacts.public_app_inputs.len();
+            let digest_len = 4; // DIGEST_LEN from neo-params
+            eprintln!("📋 StepSpec Configuration:");
+            eprintln!("  binding_mode: {:?}", binding_mode);
+            eprintln!("  y_len: {}", artifacts.spec.y_len);
+            eprintln!("  app_input_indices: {:?}", artifacts.spec.app_input_indices);
+            eprintln!("  public_app_inputs.len(): {}", app_inputs_len);
+            eprintln!();
+            eprintln!("  ⚙️  Neo will construct:");
+            eprintln!("  step_x = [H(prev_acc)[0..{}] || app_inputs[0..{}]]", digest_len, app_inputs_len);
+            eprintln!("  step_x_len = {} + {} = {}", digest_len, app_inputs_len, digest_len + app_inputs_len);
+            eprintln!("           │    │   │");
+            eprintln!("           │    │   └─ your app inputs");
+            eprintln!("           │    └───── accumulator digest (mandatory)");
+            eprintln!("           └────────── total");
+            eprintln!();
         }
 
         // 2) Dispatch to appropriate backend
@@ -325,7 +415,7 @@ impl FoldingSession {
                 }
             ]);
             
-            let mut nivc_state = NivcState::new(self.params, program, y0)?;
+            let mut nivc_state = NivcState::new(self.params.unwrap(), program, y0)?;
             nivc_state.acc.step = self.start_step;
             self.nivc_inner = Some(nivc_state);
             self.step_spec = Some(artifacts.spec.clone());
@@ -402,7 +492,7 @@ impl FoldingSession {
 
         // Build IvcStepInput
         let step_input = IvcStepInput {
-            params: &self.params,
+            params: &self.params.unwrap(),
             step_ccs: &artifacts.ccs,
             step_witness: &artifacts.witness,
             prev_accumulator: prev_acc,

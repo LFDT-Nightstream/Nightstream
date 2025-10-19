@@ -105,7 +105,7 @@ fn confirm_augmented_ccs_polynomial_mismatch() {
 #[test]
 fn demonstrate_the_exact_bug_manifestation() {
     let (ccs, valid_wit, invalid_wit, binding, extractor) = simple_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     println!("\n==== BUG MANIFESTATION ====\n");
     

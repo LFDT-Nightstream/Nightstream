@@ -16,6 +16,10 @@ fs-guard = ["neo-transcript/fs-guard"]
 # Note: dev feature removed - neo-spartan-bridge now uses Poseidon2-only (no dev mode)
 # Enable verbose logging for debugging (no-op in this crate; used for cfg gating)
 neo-logs = []
+# Enable constraint diagnostic system
+prove-diagnostics = ["serde", "serde_json", "flate2", "hex"]
+# Enable CBOR format for diagnostics (smaller but less readable)
+prove-diagnostics-cbor = ["prove-diagnostics", "serde_cbor"]
 
 [dependencies]
 neo-math = { path = "../neo-math" }
@@ -38,6 +42,13 @@ bincode = { workspace = true }
 rayon = { workspace = true }
 blake3 = "1.5"
 neo-transcript = { path = "../neo-transcript" }
+
+# Diagnostic system dependencies (feature-gated)
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+flate2 = { version = "1.0", optional = true }
+hex = { version = "0.4", optional = true }
+serde_cbor = { version = "0.11", optional = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

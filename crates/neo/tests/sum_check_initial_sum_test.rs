@@ -122,7 +122,7 @@ fn simple_ccs_and_witness_invalid() -> (CcsStructure<F>, Vec<F>, StepBindingSpec
 #[test]
 fn test_valid_witness_passes_verification() {
     let (ccs, witness, binding, extractor) = simple_ccs_and_witness_valid();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
 
     // Sanity: witness satisfies CCS rowwise
@@ -156,7 +156,7 @@ fn test_valid_witness_passes_verification() {
 #[test]
 fn test_invalid_witness_is_caught() {
     let (ccs, witness, binding, extractor) = simple_ccs_and_witness_invalid();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
 
     // Sanity: witness does NOT satisfy CCS rowwise
@@ -261,7 +261,7 @@ fn large_ccs_and_witness_valid() -> (CcsStructure<F>, Vec<F>, StepBindingSpec, L
 #[test]
 fn test_large_ccs_ell_4() {
     let (ccs, witness, binding, extractor) = large_ccs_and_witness_valid();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
 
     // Sanity: witness satisfies CCS rowwise
@@ -298,7 +298,7 @@ fn test_large_ccs_ell_4() {
 #[test]
 fn test_valid_witness_passes_with_non_empty_coords() {
     let (ccs, witness, binding, extractor) = simple_ccs_and_witness_valid();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Step 0: Start from base case (empty c_coords)
     let acc0 = Accumulator {
@@ -333,7 +333,7 @@ fn test_valid_witness_passes_with_non_empty_coords() {
 fn test_invalid_witness_is_caught_with_non_empty_coords() {
     let (ccs, witness_valid, binding, extractor) = simple_ccs_and_witness_valid();
     let (_, witness_bad, _, _) = simple_ccs_and_witness_invalid();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Step 0: Start with valid witness to establish c_coords
     let acc0 = Accumulator {
@@ -373,7 +373,7 @@ fn test_invalid_witness_is_caught_with_non_empty_coords() {
 #[test]
 fn test_mid_round_check_large_ccs_valid_with_non_empty_coords() {
     let (ccs, witness, binding, extractor) = large_ccs_and_witness_valid(); // ℓ = 4 (9 rows padded to 16)
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Step 0: Base case
     let acc0 = Accumulator {
@@ -407,7 +407,7 @@ fn test_mid_round_check_large_ccs_invalid_with_non_empty_coords() {
     // Using the same structure but with z0=1, z1=1, z2=5 (invalid for boolean constraints)
     let (ccs, witness_valid, binding, extractor) = large_ccs_and_witness_valid();
     let witness_bad = vec![F::ONE, F::ONE, F::ONE, F::from_u64(5)]; // z2=5 is invalid
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Step 0: Base case with valid witness
     let acc0 = Accumulator {

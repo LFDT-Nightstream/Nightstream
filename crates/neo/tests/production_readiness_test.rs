@@ -131,7 +131,7 @@ struct IvcChainMetrics {
 fn run_ivc_chain(num_steps: usize) -> Result<IvcChainMetrics> {
     let total_start = Instant::now();
     
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     // Use binding spec with proper app input binding
@@ -232,7 +232,7 @@ fn test_negative_mutate_early_step_witness() -> Result<()> {
     println!("Expected: Final SNARK must NOT verify with mutated early step");
     println!("=============================================================");
 
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_increment_ccs();
     
     let binding_spec = StepBindingSpec {

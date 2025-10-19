@@ -55,7 +55,7 @@ fn tiny_r1cs_to_ccs() -> neo_ccs::CcsStructure<F> {
 fn ivc_unsat_step_witness_should_fail_verify() {
     // Step CCS and params
     let step_ccs = tiny_r1cs_to_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     // Base accumulator: no prior commitment, no y (y_len = 0)
     let prev_acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
@@ -118,7 +118,7 @@ fn ivc_proof_with_invalid_witness_from_generation() {
     // INVALID witness: [1, 1, 7] -> Row 1: 7*7 - 7 = 42 ≠ 0, Row 2: 1*7 - 1 = 6 ≠ 0
     
     let step_ccs = tiny_r1cs_to_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     let prev_acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
 
@@ -177,7 +177,7 @@ fn ivc_cross_link_vulnerability_pi_ccs_rhs_vs_parent_me() {
     // 4. Verifier accepts even though witness doesn't satisfy the CCS
     
     let step_ccs = tiny_r1cs_to_ccs();
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
 
     let prev_acc = Accumulator { c_z_digest: [0u8; 32], c_coords: vec![], y_compact: vec![], step: 0 };
 

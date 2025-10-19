@@ -24,3 +24,5 @@ test_bundled.bin
 test_lean.bin
 profile.json.gz
 .DS_Store
+docs/hypernova-concise
+docs/neo-paper

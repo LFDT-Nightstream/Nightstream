@@ -70,7 +70,7 @@ fn test_folding_chain_dimension_mismatch() {
     println!();
 
     // Setup
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_simple_test_ccs();
     
     println!("📐 Step CCS dimensions: {} constraints, {} variables", step_ccs.m, step_ccs.n);
@@ -193,7 +193,7 @@ fn test_me_to_mcs_dimension_analysis() {
     println!("🔬 ME TO MCS DIMENSION ANALYSIS");
     println!("===============================");
     
-    let _params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let _params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     let step_ccs = build_simple_test_ccs();
     
     println!("Step CCS dimensions: {} constraints, {} variables", step_ccs.m, step_ccs.n);

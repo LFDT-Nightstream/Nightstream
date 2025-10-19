@@ -36,7 +36,7 @@ fn tiny_ccs() -> neo_ccs::CcsStructure<F> {
 
 #[test]
 fn bridge_rejects_public_io_tamper() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     // Create a valid CCS and witness
     let ccs = tiny_ccs();
@@ -78,7 +78,7 @@ fn bridge_rejects_public_io_tamper() {
 
 #[test]
 fn bridge_rejects_different_ccs() {
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2);
+    let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
     
     // Create original CCS and witness
     let ccs1 = tiny_ccs();

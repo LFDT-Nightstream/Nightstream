@@ -604,12 +604,19 @@ pub fn prove_ivc_step_chained(
     
     #[cfg(feature = "neo-logs")]
     {
+        let digest_len = 4; // DIGEST_LEN from neo-params
+        let app_inputs_len = step_x.len().saturating_sub(digest_len);
+        eprintln!("🔍 PROVER CCS PARAMS:");
+        eprintln!("  digest_len = {} (mandatory H(prev_acc) prefix)", digest_len);
+        eprintln!("  app_inputs_len = {}", app_inputs_len);
+        eprintln!("  step_x_len = {} (digest {} + app {})", step_x.len(), digest_len, app_inputs_len);
+        eprintln!("  y_len = {}", y_len);
+        eprintln!("  const1_idx = {}", input.binding_spec.const1_witness_index);
+        eprintln!();
         eprintln!("🔍 PROVER DIGEST DEBUG:");
         eprintln!("  Prover context digest: {:02x?}", &context_digest[..8]);
         eprintln!("  Digest CCS: n={}, m={}", digest_ccs.n, digest_ccs.m);
         eprintln!("  Step public input length: {}", step_public_input.len());
-        eprintln!("  Prover CCS params: step_x_len={}, y_len={}, const1_idx={}", 
-                  step_x.len(), y_len, input.binding_spec.const1_witness_index);
         eprintln!("  Prover y_step_offsets: {:?}", input.binding_spec.y_step_offsets);
     }
     

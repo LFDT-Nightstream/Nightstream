@@ -48,8 +48,7 @@ fn automatic_workflow_example() {
     let check = params.extension_check(ell, d_sc);
     assert!(check.is_ok());
     
-    println!("Circuit: {} constraints → ell={}, d_sc={}", 
-             circuit_size, ell, d_sc);
+    println!("Circuit: {circuit_size} constraints → ell={ell}, d_sc={d_sc}");
     println!("Auto-tuned: lambda={} bits", params.lambda);
 }
 

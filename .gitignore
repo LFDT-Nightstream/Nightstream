@@ -26,3 +26,4 @@ profile.json.gz
 .DS_Store
 docs/hypernova-concise
 docs/neo-paper
+neo_diagnostics

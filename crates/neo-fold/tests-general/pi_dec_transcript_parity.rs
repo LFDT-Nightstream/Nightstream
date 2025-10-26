@@ -45,7 +45,7 @@ fn pi_dec_transcript_parity_honest_and_tampered() {
 
     // Prove Pi-CCS → Pi-RLC → Parent instance
     let mut tr_c = Poseidon2Transcript::new(b"neo/fold");
-    let (me_list, _) = pi_ccs_prove(&mut tr_c, &params, &s, &[inst.clone(), inst.clone()], &[wit.clone(), wit.clone()], &l).expect("pi_ccs");
+    let (me_list, _) = pi_ccs_prove(&mut tr_c, &params, &s, &[inst.clone(), inst.clone()], &[wit.clone(), wit.clone()], &[], &[], &l).expect("pi_ccs");
     let mut tr_r = Poseidon2Transcript::new(b"neo/fold");
     let (me_b, _) = pi_rlc_prove(&mut tr_r, &params, &me_list).expect("pi_rlc");
     let me_b_wit = neo_ccs::MeWitness { Z: Mat::zero(neo_math::D, 1, F::ZERO) };

@@ -63,13 +63,13 @@ fn test_p0_1_real_composed_polynomial_q_verification() {
     
     // Test honest proof generation and verification
     let mut prove_transcript = Poseidon2Transcript::new(b"neo/fold");
-    let prove_result = pi_ccs_prove(&mut prove_transcript, &params, &ccs, &[instance.clone()], &[witness], &ajtai);
+    let prove_result = pi_ccs_prove(&mut prove_transcript, &params, &ccs, &[instance.clone()], &[witness], &[], &[], &ajtai);
     
     match prove_result {
         Ok((me_instances, proof)) => {
             // Verify the proof - this tests Q(r) = 0
             let mut verify_transcript = Poseidon2Transcript::new(b"neo/fold");
-            let verify_result = pi_ccs_verify(&mut verify_transcript, &params, &ccs, &[instance], &me_instances, &proof);
+            let verify_result = pi_ccs_verify(&mut verify_transcript, &params, &ccs, &[instance], &[], &me_instances, &proof);
             
             assert!(verify_result.is_ok(), "Honest proof verification should not error");
             assert!(verify_result.unwrap(), "Honest proof should pass Q(r) = 0 verification");

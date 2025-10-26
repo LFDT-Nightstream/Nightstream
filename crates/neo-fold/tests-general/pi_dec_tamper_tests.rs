@@ -62,7 +62,7 @@ fn pi_dec_detects_parent_x_tamper() {
 
     // Π_CCS → Π_RLC → get parent me_B and its witness Z'
     let mut tr_c = Poseidon2Transcript::new(b"neo/fold");
-    let (me_list, _) = pi_ccs_prove(&mut tr_c, &params, &s, &instances, &witnesses, &l).expect("pi_ccs");
+    let (me_list, _) = pi_ccs_prove(&mut tr_c, &params, &s, &instances, &witnesses, &[], &[], &l).expect("pi_ccs");
 
     let mut tr_r = Poseidon2Transcript::new(b"neo/fold");
     let (me_b, pi_rlc_proof) = pi_rlc_prove(&mut tr_r, &params, &me_list).expect("pi_rlc");

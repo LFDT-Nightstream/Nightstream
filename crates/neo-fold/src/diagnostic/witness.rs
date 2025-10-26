@@ -1,7 +1,7 @@
 //! Witness disclosure policies
 
 use serde::{Serialize, Deserialize};
-use super::types::{WitnessInfo, SparseVector, GradientContribution, SparseRow};
+use super::types::{WitnessInfo, GradientContribution, SparseRow};
 use neo_math::F;
 use p3_field::PrimeField64;
 
@@ -20,83 +20,42 @@ pub enum WitnessPolicy {
     
     /// Full witness (use with caution!)
     FullWitness,
+    
+    /// Full witness with private elements redacted (BLAKE3 hashes)
+    RedactedFull,
 }
 
 impl WitnessInfo {
-    /// Create witness info based on policy
+    /// Create witness info based on policy (LEGACY - for backward compat)
+    /// 
+    /// NOTE: This is kept for compatibility but the new `capture_full_witness`
+    /// function in capture.rs should be used for full storage mode.
     pub fn from_policy(
         witness: &[F],
-        rows: &[SparseRow],
+        _rows: &[SparseRow],
         gradient_blame: Vec<GradientContribution>,
         policy: WitnessPolicy,
+        m_in: usize,
     ) -> Self {
-        let z_sparse = match &policy {
-            WitnessPolicy::RowSupportOnly => {
-                // Only indices that appear in failing row
-                let mut indices: std::collections::HashSet<usize> = 
-                    std::collections::HashSet::new();
-                for row in rows {
-                    for &idx in &row.idx {
-                        indices.insert(idx);
-                    }
-                }
-                let mut idx_vec: Vec<_> = indices.into_iter().collect();
-                idx_vec.sort();
-                
-                SparseVector {
-                    idx: idx_vec.clone(),
-                    val: idx_vec.iter()
-                        .map(|&i| field_to_canonical_hex(witness[i]))
-                        .collect(),
-                }
-            }
-            
-            WitnessPolicy::GradientSlice { threshold, top_k } => {
-                // Only indices with large |∂r/∂z_i|
-                let threshold_val = parse_canonical_u64(threshold);
-                let indices: Vec<usize> = gradient_blame.iter()
-                    .take(*top_k)
-                    .filter(|g| {
-                        parse_canonical_u64(&g.gradient_abs) >= threshold_val
-                    })
-                    .map(|g| g.i)
-                    .collect();
-                
-                SparseVector {
-                    idx: indices.clone(),
-                    val: indices.iter()
-                        .map(|&i| field_to_canonical_hex(witness[i]))
-                        .collect(),
-                }
-            }
-            
-            WitnessPolicy::FullWitness => {
-                // Full witness - check safety guard
-                if std::env::var("NEO_DIAGNOSTIC_ALLOW_FULL_WITNESS").is_err() {
-                    eprintln!("⚠️  Warning: Full witness disclosure requires NEO_DIAGNOSTIC_ALLOW_FULL_WITNESS=1");
-                    eprintln!("⚠️  Falling back to RowSupportOnly policy for safety");
-                    
-                    // Fallback to row support
-                    return Self::from_policy(
-                        witness,
-                        rows,
-                        gradient_blame.clone(),
-                        WitnessPolicy::RowSupportOnly,
-                    );
-                }
-                
-                SparseVector {
-                    idx: (0..witness.len()).collect(),
-                    val: witness.iter()
-                        .map(|f| field_to_canonical_hex(*f))
-                        .collect(),
-                }
-            }
-        };
+        // For full storage, always store everything
+        let z_full: Vec<String> = witness.iter()
+            .map(|f| field_to_canonical_hex(*f))
+            .collect();
+        
+        let x_public: Vec<String> = witness[..m_in.min(witness.len())].iter()
+            .map(|f| field_to_canonical_hex(*f))
+            .collect();
+        
+        let w_private: Vec<String> = witness[m_in.min(witness.len())..].iter()
+            .map(|f| field_to_canonical_hex(*f))
+            .collect();
         
         WitnessInfo {
             policy,
-            z_sparse,
+            z_full,
+            x_public,
+            w_private,
+            z_decomposition: None,
             gradient_blame,
             size: witness.len(),
         }
@@ -144,9 +103,3 @@ pub fn field_to_signed_i128(f: F) -> i128 {
         canonical as i128
     }
 }
-
-/// Parse canonical u64 from string
-fn parse_canonical_u64(s: &str) -> u64 {
-    s.parse().unwrap_or(0)
-}
-

@@ -79,6 +79,8 @@ fn test_extension_policy_validation_in_protocol() {
         &ccs,
         &[mcs_instance.clone()],
         &[mcs_witness],
+        &[],
+        &[],
         &l,
     );
     
@@ -93,6 +95,7 @@ fn test_extension_policy_validation_in_protocol() {
                 &params,
                 &ccs,
                 &[mcs_instance],
+                &[],
                 &me_instances,
                 &proof,
             );
@@ -175,6 +178,8 @@ fn test_extension_policy_rejects_high_degree() {
         &high_degree_ccs,
         &[mcs_instance],
         &[mcs_witness],
+        &[],
+        &[],
         &l2,
     );
     

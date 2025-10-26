@@ -19,10 +19,21 @@ pub mod hash;
 pub mod witness;
 pub mod export;
 
+#[cfg(feature = "prove-diagnostics")]
+pub mod simple_printer;
+#[cfg(feature = "prove-diagnostics")]
+pub mod ccs_check;
+
 pub use types::*;
 pub use capture::capture_diagnostic;
-pub use export::{export_diagnostic, load_diagnostic, DiagnosticFormat};
 pub use witness::WitnessPolicy;
+
+#[cfg(feature = "prove-diagnostics")]
+pub use export::{export_diagnostic, load_diagnostic, DiagnosticFormat};
+#[cfg(feature = "prove-diagnostics")]
+pub use simple_printer::{print_simple_diagnostic, save_and_print_diagnostic};
+#[cfg(feature = "prove-diagnostics")]
+pub use ccs_check::check_ccs_with_diagnostics;
 
 /// Schema version for evolution
 pub const SCHEMA_VERSION: &str = "neo.constraint.diagnostic@1";

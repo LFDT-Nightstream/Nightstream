@@ -81,20 +81,14 @@ fn compute_poly_gradient(poly: &SparsePoly<F>, y: &[F]) -> Vec<F> {
             
             // Compute ∂(term)/∂y_k = e_k * coeff * y_k^{e_k-1} * Π_{j≠k} y_j^{e_j}
             let exp_k = exps[k];
-            let mut prod = coeff;
             
-            // Multiply by exponent e_k (for small exponents, just add)
-            for _ in 1..exp_k {
-                prod += coeff;
-            }
+            // SECURITY FIX: Use field multiplication by exponent, not repeated addition
+            // Previous bug: for _ in 1..exp_k { prod += coeff; } is WRONG
+            let mut prod = coeff * F::from_u64(exp_k as u64);
             
             // Multiply by y_k^{e_k-1}
             if exp_k > 1 {
-                let mut y_k_power = y[k];
-                for _ in 2..exp_k {
-                    y_k_power *= y[k];
-                }
-                prod *= y_k_power;
+                prod *= pow_u32(y[k], exp_k - 1);
             }
             // If exp_k == 1, y_k^0 = 1 (no multiplication needed)
             
@@ -105,11 +99,7 @@ fn compute_poly_gradient(poly: &SparsePoly<F>, y: &[F]) -> Vec<F> {
                 }
                 let exp_j = exps[j];
                 if exp_j > 0 {
-                    let mut y_j_power = y[j];
-                    for _ in 1..exp_j {
-                        y_j_power *= y[j];
-                    }
-                    prod *= y_j_power;
+                    prod *= pow_u32(y[j], exp_j);
                 }
             }
             
@@ -118,6 +108,30 @@ fn compute_poly_gradient(poly: &SparsePoly<F>, y: &[F]) -> Vec<F> {
     }
     
     grad
+}
+
+/// Fast exponentiation for field elements
+fn pow_u32(base: F, exp: u32) -> F {
+    if exp == 0 {
+        return F::ONE;
+    }
+    if exp == 1 {
+        return base;
+    }
+    
+    let mut result = F::ONE;
+    let mut base = base;
+    let mut exp = exp;
+    
+    while exp > 0 {
+        if exp % 2 == 1 {
+            result *= base;
+        }
+        base *= base;
+        exp /= 2;
+    }
+    
+    result
 }
 
 /// Special case: R1CS gradient (for reference and testing)

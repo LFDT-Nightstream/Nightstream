@@ -1,0 +1,27 @@
+mod algebraic_semantics_spec;
+mod dec_recomposition_tests;
+mod diagnostic_example;
+mod extension_policy;
+mod extension_policy_tests;
+mod folding_pipeline;
+mod pi_ccs_eq_weight_tests;
+mod pi_ccs_tests;
+mod pi_dec_range_tests;
+mod pi_dec_tamper_tests;
+mod pi_dec_transcript_parity;
+mod pi_rlc_transcript_binding;
+mod pipeline;
+mod r1cs_eq_binding_tests;
+mod security_audit_tests;
+mod security_fixes_validation;
+mod security_validation_tests;
+mod stage2_00_adapter_layout;
+mod stage2_01_adapter_instance;
+mod sumcheck_tests;
+mod terminal_claim_tests;
+mod transcript_parity;
+mod transcript_red_team;
+mod transcript_tests;
+mod transcript_uniqueness;
+mod verify;
+

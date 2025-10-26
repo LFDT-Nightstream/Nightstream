@@ -1,0 +1,13 @@
+K=2 IVC Simulation Fixture
+==========================
+
+Parameters:
+  b: 2
+  d: 54
+  m_in: 1
+
+Step 0: 1 + 1 = 2 (converted to ME)
+  z = [1, 1, 1, 0, 2]
+
+Step 1: 5 + 7 = 12 (folded with Step 0)
+  z = [1, 5, 7, 0, 12]

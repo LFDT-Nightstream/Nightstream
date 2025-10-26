@@ -38,7 +38,13 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use blake3::Hasher;
 pub use strong_set::{StrongSamplingSet, VerificationError, ds};
 pub use verify_linear::{verify_linear_rlc, verify_linear_rlc as verify_linear};
-pub use pi_ccs::{pi_ccs_prove, pi_ccs_verify, PiCcsProof, eval_tie_constraints, eval_range_decomp_constraints};  
+pub use pi_ccs::{
+    pi_ccs_prove, pi_ccs_verify, 
+    pi_ccs_prove_simple, pi_ccs_verify_simple,  // Convenience wrappers for k=1
+    PiCcsProof, 
+    eval_tie_constraints, 
+    eval_range_decomp_constraints
+};  
 pub use pi_rlc::{pi_rlc_prove, pi_rlc_verify, PiRlcProof};
 pub use pi_dec::{pi_dec, pi_dec_verify, PiDecProof};
 #[allow(deprecated)]
@@ -143,14 +149,15 @@ pub fn fold_ccs_instances(
     let mut tr = Poseidon2Transcript::new(b"neo/fold");
 
     // 1) Π_CCS: k+1 MCS → k+1 ME(b,L)
+    // Initial fold step: no ME inputs yet (k=1), pass empty slices
     let (me_list, pi_ccs_proof) =
-        pi_ccs::pi_ccs_prove(&mut tr, params, structure, instances, witnesses, &l)?;
+        pi_ccs::pi_ccs_prove(&mut tr, params, structure, instances, witnesses, &[], &[], &l)?;
 
     // Prover-side hardening: optional self-check of Π-CCS and fail-fast toggle.
     // Always compute the self-check result; fail fast if NEO_PROVER_FAIL_FAST is set.
     let self_check_result = {
         let mut tr_check = Poseidon2Transcript::new(b"neo/fold");
-        pi_ccs::pi_ccs_verify(&mut tr_check, params, structure, instances, &me_list, &pi_ccs_proof)
+        pi_ccs::pi_ccs_verify(&mut tr_check, params, structure, instances, &[], &me_list, &pi_ccs_proof)
     };
     match &self_check_result {
         Ok(_ok) => {
@@ -258,8 +265,9 @@ pub fn verify_folding_proof(
     let mut tr = Poseidon2Transcript::new(b"neo/fold");
 
     // 1) Π_CCS rounds & r-binding FOR THE Π_CCS OUTPUTS
+    // Initial fold step: no ME inputs (k=1)
     let ok_ccs = pi_ccs::pi_ccs_verify(
-        &mut tr, params, structure, input_instances, &proof.pi_ccs_outputs, &proof.pi_ccs_proof,
+        &mut tr, params, structure, input_instances, &[], &proof.pi_ccs_outputs, &proof.pi_ccs_proof,
     )?;
     if !ok_ccs { return Ok(false); }
 

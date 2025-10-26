@@ -42,7 +42,9 @@ pub fn export_diagnostic(
     diagnostic: &ConstraintDiagnostic,
     format: DiagnosticFormat,
 ) -> Result<PathBuf, std::io::Error> {
-    let dir = std::env::var("NEO_DIAGNOSTICS")
+    // NEO_DIAGNOSTICS_DIR controls where diagnostics are written (default: "diagnostics")
+    // This is separate from NEO_DIAGNOSTICS (boolean flag to enable diagnostics)
+    let dir = std::env::var("NEO_DIAGNOSTICS_DIR")
         .unwrap_or_else(|_| "diagnostics".to_string());
     
     std::fs::create_dir_all(&dir)?;
@@ -74,7 +76,7 @@ pub fn export_diagnostic(
                 eprintln!("   Consider using json.gz format or adjusting NEO_DIAGNOSTIC_MAX_SIZE");
             }
             
-            std::fs::write(&path, json)?;
+            write_locked(&path, json.as_bytes())?;
         }
         
         DiagnosticFormat::JsonGz => {
@@ -84,7 +86,14 @@ pub fn export_diagnostic(
             let json = serde_json::to_vec(&diagnostic)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
             
-            let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
+            // Allow configuring compression level
+            let compression = match std::env::var("NEO_DIAGNOSTIC_COMPRESSION").ok().as_deref() {
+                Some("fast") => Compression::fast(),
+                Some("best") => Compression::best(),
+                _ => Compression::default(),
+            };
+            
+            let mut encoder = GzEncoder::new(Vec::new(), compression);
             encoder.write_all(&json)?;
             let compressed = encoder.finish()?;
             
@@ -93,7 +102,7 @@ pub fn export_diagnostic(
                     compressed.len(), max_size);
             }
             
-            std::fs::write(&path, compressed)?;
+            write_locked(&path, &compressed)?;
         }
         
         #[cfg(feature = "prove-diagnostics-cbor")]
@@ -106,14 +115,35 @@ pub fn export_diagnostic(
                     cbor.len(), max_size);
             }
             
-            std::fs::write(&path, cbor)?;
+            write_locked(&path, &cbor)?;
         }
     }
     
     eprintln!("📊 Constraint diagnostic captured: {}", path.display());
-    eprintln!("💡 Replay with: cargo run --bin neo-diag {}", path.display());
     
     Ok(path)
+}
+
+/// Write file with restricted permissions (0o600 on Unix)
+/// This prevents accidental exposure of diagnostic data containing witness information
+#[cfg(unix)]
+fn write_locked(path: &Path, bytes: &[u8]) -> Result<(), std::io::Error> {
+    use std::fs::OpenOptions;
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut f = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)  // Owner read/write only
+        .open(path)?;
+    f.write_all(bytes)
+}
+
+#[cfg(not(unix))]
+fn write_locked(path: &Path, bytes: &[u8]) -> Result<(), std::io::Error> {
+    // On non-Unix platforms, use standard write
+    // TODO: Add Windows ACL restrictions if needed
+    std::fs::write(path, bytes)
 }
 
 /// Load diagnostic from file (auto-detects format)

@@ -78,16 +78,18 @@ fn pi_ccs_non_power_of_two_n_works() {
         // Prove
         let l = DummyS;
         let mut tr_p = Poseidon2Transcript::new(b"neo/fold");
-        let (out_me, prf) = pi_ccs_prove(&mut tr_p, &params, &s, &[inst.clone()], &[wit], &l)
+        let (out_me, prf) = pi_ccs_prove_simple(&mut tr_p, &params, &s, &[inst.clone()], &[wit], &l)
             .expect("pi_ccs_prove should succeed for non-power-of-two n");
 
-        // ℓ must equal ceil(log2 n)
-        let ell_expected = s.n.next_power_of_two().trailing_zeros() as usize;
-        assert_eq!(prf.sumcheck_rounds.len(), ell_expected, "sum-check rounds must equal ℓ");
+        // ℓ must equal log(dn) per paper (not just log n)
+        let d_pad = neo_math::D.next_power_of_two();
+        let n_pad = s.n.next_power_of_two().max(2);
+        let ell_expected = (d_pad * n_pad).trailing_zeros() as usize;
+        assert_eq!(prf.sumcheck_rounds.len(), ell_expected, "sum-check rounds must equal log(dn)");
 
         // Verify
         let mut tr_v = Poseidon2Transcript::new(b"neo/fold");
-        let ok = pi_ccs_verify(&mut tr_v, &params, &s, &[inst], &out_me, &prf)
+        let ok = pi_ccs_verify_simple(&mut tr_v, &params, &s, &[inst], &out_me, &prf)
             .expect("pi_ccs_verify should run");
         assert!(ok, "pi_ccs_verify should accept for n={}", n);
     }

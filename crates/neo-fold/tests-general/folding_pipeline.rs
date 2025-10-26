@@ -197,11 +197,11 @@ fn folding_roundtrip_accepts() {
 
     // Π_CCS (prove + verify)
     let mut tr_p = neo_transcript::Poseidon2Transcript::new(b"neo/fold");
-    let (me_list, pi_ccs_proof) = pi_ccs_prove(&mut tr_p, &params, &s, &instances, &witnesses, &l)
+    let (me_list, pi_ccs_proof) = pi_ccs_prove(&mut tr_p, &params, &s, &instances, &witnesses, &[], &[], &l)
         .expect("pi_ccs_prove");
 
     let mut tr_v = neo_transcript::Poseidon2Transcript::new(b"neo/fold");
-    let ok_ccs = neo_fold::pi_ccs::pi_ccs_verify(&mut tr_v, &params, &s, &instances, &me_list, &pi_ccs_proof)
+    let ok_ccs = neo_fold::pi_ccs::pi_ccs_verify(&mut tr_v, &params, &s, &instances, &[], &me_list, &pi_ccs_proof)
         .expect("pi_ccs_verify");
     assert!(ok_ccs, "Π_CCS verification must accept");
 
@@ -427,7 +427,7 @@ fn pi_ccs_detects_y_scalar_tamper() {
 
     // Π_CCS
     let mut tr_p = neo_transcript::Poseidon2Transcript::new(b"neo/fold");
-    let (mut me_list, proof) = pi_ccs_prove(&mut tr_p, &params, &s, &instances, &witnesses, &l)
+    let (mut me_list, proof) = pi_ccs_prove(&mut tr_p, &params, &s, &instances, &witnesses, &[], &[], &l)
         .expect("pi_ccs_prove(single)");
 
     // Tamper y_scalars (which feed the verified Q(r) terminal check)
@@ -438,7 +438,7 @@ fn pi_ccs_detects_y_scalar_tamper() {
     }
 
     let mut tr_v = neo_transcript::Poseidon2Transcript::new(b"neo/fold");
-    let ok = pi_ccs_verify(&mut tr_v, &params, &s, &instances, &me_list, &proof)
+    let ok = pi_ccs_verify(&mut tr_v, &params, &s, &instances, &[], &me_list, &proof)
         .expect("pi_ccs_verify");
     assert!(!ok, "Π_CCS must reject when y_scalars are tampered");
 }
@@ -460,7 +460,7 @@ fn pi_dec_detects_digit_x_tamper() {
 
     // Π_CCS
     let mut tr_p = neo_transcript::Poseidon2Transcript::new(b"neo/fold");
-    let (me_list, _) = pi_ccs_prove(&mut tr_p, &params, &s, &instances, &witnesses, &l)
+    let (me_list, _) = pi_ccs_prove(&mut tr_p, &params, &s, &instances, &witnesses, &[], &[], &l)
         .expect("pi_ccs_prove");
 
     // Π_RLC

@@ -256,7 +256,7 @@ pub fn run_sumcheck_skip_eval_at_one(
     let mut challenges = Vec::with_capacity(ell);
     let mut running_sum = initial_sum;
 
-    for _i in 0..ell {
+    for i in 0..ell {
         // Evaluate at all points except X=1
         let sample_ys_wo_one = oracle.evals_at(&sample_xs_wo_one);
         if sample_ys_wo_one.len() != sample_xs_wo_one.len() {
@@ -272,12 +272,19 @@ pub fn run_sumcheck_skip_eval_at_one(
         // CRITICAL: enforce the sum-check invariant with the previous running sum:
         // s_{i-1}(r_{i-1}) = s_i(0) + s_i(1)
         let s_i_at_1 = running_sum - s_i_at_0;
+        
+        // Prover-side sanity check: verify oracle consistency
+        // If the oracle has a bug (e.g., missing Ajtai contributions), fail fast here
+        // rather than generating a proof that will definitely fail verification.
         #[cfg(debug_assertions)]
         {
-            // Optional sanity check only (do NOT use this to define s_i(1))
             let ys_one = oracle.evals_at(&[K::ONE]);
             if ys_one.len() != 1 || s_i_at_0 + ys_one[0] != running_sum {
-                eprintln!("[sumcheck][prove] WARNING: oracle sum inconsistency at this round");
+                return Err(PiCcsError::SumcheckError(format!(
+                    "Oracle sum inconsistency at round {}: s_i(0) + s_i(1) = {} + {} != {} (running_sum). \
+                     This indicates a bug in the oracle implementation (likely missing Ajtai phase contributions).",
+                    i, s_i_at_0, ys_one[0], running_sum
+                )));
             }
         }
 

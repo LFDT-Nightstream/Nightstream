@@ -1,0 +1,9 @@
+---
+description: "Do not put tests in the same file as the implementation. Always generate tests in the tests directory."
+alwaysApply: true
+---
+
+# Rules
+
+- Never combine implementation and tests in the same source file.
+- If a test is catching a problem, IT SHOULD NOT PASS. Adding a test that passes because it catches a problem is not the right logic -- it should fail.

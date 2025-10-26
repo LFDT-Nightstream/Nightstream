@@ -10,8 +10,12 @@ use neo_fold::diagnostic::{
     capture_diagnostic, export_diagnostic, load_diagnostic,
     ContextInfo, FoldingContext, DiagnosticFormat,
 };
+
+#[cfg(feature = "prove-diagnostics")]
 use neo_ccs::{Mat, r1cs_to_ccs};
+#[cfg(feature = "prove-diagnostics")]
 use neo_math::F;
+#[cfg(feature = "prove-diagnostics")]
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
@@ -69,30 +73,18 @@ fn test_diagnostic_capture_and_replay() {
     // Verify gradient blame was computed
     assert!(!diagnostic.witness.gradient_blame.is_empty());
     
-    // Export to examples directory
-    let examples_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("neo-diag/examples");
-    std::fs::create_dir_all(&examples_dir).unwrap();
+    // Export to temp directory
+    let temp_dir = std::env::temp_dir().join("neo_diagnostics_test");
+    std::fs::create_dir_all(&temp_dir).unwrap();
     
-    std::env::set_var("NEO_DIAGNOSTICS", examples_dir.to_str().unwrap());
+    std::env::set_var("NEO_DIAGNOSTICS", temp_dir.to_str().unwrap());
     std::env::set_var("NEO_DIAGNOSTIC_FORMAT", "json");
     
     let path = export_diagnostic(&diagnostic, DiagnosticFormat::Json).unwrap();
     println!("✅ Diagnostic exported to: {}", path.display());
     
-    // Rename to a friendly example name
-    let example_path = examples_dir.join("simple_r1cs_failure.json");
-    std::fs::rename(&path, &example_path).ok();
-    println!("✅ Example saved as: {}", example_path.display());
-    
     // Load it back
-    let example_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("neo-diag/examples/simple_r1cs_failure.json");
-    let loaded = load_diagnostic(&example_path).unwrap();
+    let loaded = load_diagnostic(&path).unwrap();
     
     // Verify it matches
     assert_eq!(loaded.structure.hash, diagnostic.structure.hash);
@@ -103,6 +95,6 @@ fn test_diagnostic_capture_and_replay() {
     println!("   Actual:   {}", loaded.eval.actual);
     println!("   Delta:    {} (signed: {})", loaded.eval.delta, loaded.eval.delta_signed);
     
-    // Note: We keep the example file for documentation purposes
-    // It's tracked in git as an example for neo-diag
+    // Clean up
+    std::fs::remove_file(&path).ok();
 }

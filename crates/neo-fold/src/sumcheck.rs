@@ -287,6 +287,9 @@ pub fn run_sumcheck_skip_eval_at_one(
                 )));
             }
         }
+        // Suppress warning about unused 'i' in release builds (used in debug_assertions)
+        #[cfg(not(debug_assertions))]
+        let _ = i;
 
         // Reconstruct full evaluation array in original order, inserting s_i(1)
         let mut sample_ys_full = Vec::with_capacity(sample_xs_full.len());

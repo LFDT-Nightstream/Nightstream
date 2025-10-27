@@ -125,7 +125,6 @@ fn create_me_from_mcs(
 }
 
 #[test]
-#[ignore] // Remove #[ignore] once the Ajtai fixes are in place
 fn pi_ccs_k2_honest_fold() {
     // Setup: params, CCS structure, dummy S-module
     let params = NeoParams::goldilocks_for_circuit(3, 2, 2);
@@ -155,7 +154,7 @@ fn pi_ccs_k2_honest_fold() {
         &l,
     );
     
-    assert!(prove_result.is_ok(), "k=2 proving should succeed for valid witnesses");
+    assert!(prove_result.is_ok(), "k=2 proving should succeed for valid witnesses: {:?}", prove_result.err());
     let (me_outputs, proof) = prove_result.unwrap();
     
     assert_eq!(me_outputs.len(), 2, "k=2 should produce exactly 2 ME outputs");
@@ -178,7 +177,6 @@ fn pi_ccs_k2_honest_fold() {
 }
 
 #[test]
-#[ignore] // Remove once Ajtai fixes are in place
 fn pi_ccs_k2_multi_step_ivc_simulation() {
     // Simulate a 2-step IVC: Step 0 → ME, Step 1 folds with Step 0's ME
     let params = NeoParams::goldilocks_for_circuit(3, 2, 2);

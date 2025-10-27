@@ -137,6 +137,18 @@ pub fn run_sumcheck(
         // Standard consistency check: p(0) + p(1) == running_sum
         let p0 = poly_eval_k(&coeffs, K::ZERO);
         let p1 = poly_eval_k(&coeffs, K::ONE);
+        #[cfg(feature = "debug-logs")]
+        {
+            let fmt = |x: K| -> String {
+                let c = x.as_coeffs();
+                format!("{:?}", c)
+            };
+            eprintln!(
+                "[sumcheck][round{round}] deg={} p(0)={} p(1)={} p(0)+p(1)={} expected={}",
+                deg, fmt(p0), fmt(p1), fmt(p0 + p1), fmt(running_sum),
+                round = i
+            );
+        }
         if p0 + p1 != running_sum {
             return Err(PiCcsError::SumcheckError(format!(
                 "round {i}: p(0)+p(1) mismatch"
@@ -272,7 +284,19 @@ pub fn run_sumcheck_skip_eval_at_one(
         // CRITICAL: enforce the sum-check invariant with the previous running sum:
         // s_{i-1}(r_{i-1}) = s_i(0) + s_i(1)
         let s_i_at_1 = running_sum - s_i_at_0;
-        
+        #[cfg(feature = "debug-logs")]
+        {
+            let fmt = |x: K| -> String {
+                let c = x.as_coeffs();
+                format!("{:?}", c)
+            };
+            eprintln!(
+                "[sumcheck-skip1][round{round}] s(0)={} s(1)={} s(0)+s(1)={} expected={}",
+                fmt(s_i_at_0), fmt(s_i_at_1), fmt(s_i_at_0 + s_i_at_1), fmt(running_sum),
+                round = i
+            );
+        }
+
         // Prover-side sanity check: verify oracle consistency
         // If the oracle has a bug (e.g., missing Ajtai contributions), fail fast here
         // rather than generating a proof that will definitely fail verification.

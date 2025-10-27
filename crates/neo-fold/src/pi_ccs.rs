@@ -556,6 +556,9 @@ where
     ell_n: usize,  // log n (row dimension bits)
     d_sc: usize,
     round_idx: usize,  // track which round we're in (for phase detection)
+    // Claimed initial sum for this sum-check instance (for diagnostics)
+    #[allow(dead_code)]
+    initial_sum_claim: K,
     // Precomputed constants for eq(·,β) block (kept for logging/initial_sum only)
     #[allow(dead_code)]
     f_at_beta_r: K,      // F(β_r) precomputed
@@ -576,6 +579,7 @@ where
     // y_matrices[i] = Z_i · M_1^T, where rows are Ajtai dimension (ρ ∈ [d]),
     // columns are row dimension (folded during row rounds)
     nc_y_matrices: Vec<Vec<Vec<K>>>,  // [instance][ρ][row] - folded columnwise
+    #[allow(dead_code)]
     nc_row_gamma_pows: Vec<K>,
     // DEPRECATED: Old collapsed NC partials (kept for reference, not used)
     #[allow(dead_code)]
@@ -653,7 +657,8 @@ where
                     );
                     let mut w_pow = gamma_pow_i[i_off];
                     for _ in 0..j { w_pow *= gamma_to_k; }
-                    for rho in 0..d { G_eval[rho] += w_pow * y_ij[rho]; }
+                    let rho_lim = core::cmp::min(d, y_ij.len());
+                    for rho in 0..rho_lim { G_eval[rho] += w_pow * y_ij[rho]; }
                 }
             }
 
@@ -725,6 +730,7 @@ where
             
             for (sx, &X) in sample_xs.iter().enumerate() {
                 // (A) F block: Σ_k gate_r(k,X) * f(m_k(X))
+                let mut f_contribution = K::ZERO;
                 for k in 0..half_rows {
                     let w0 = self.w_beta_r_partial[2*k];
                     let w1 = self.w_beta_r_partial[2*k + 1];
@@ -737,109 +743,26 @@ where
                         m_vals[j] = (K::ONE - X) * a + X * b;
                     }
                     let f_val = self.s.f.eval_in_ext::<K>(&m_vals);
-                    sample_ys[sx] += gate_r * f_val;
+                    let contrib = gate_r * f_val;
+                    sample_ys[sx] += contrib;
+                    f_contribution += contrib;
+                }
+                
+                #[cfg(feature = "debug-logs")]
+                if sx <= 1 && self.round_idx <= 1 {
+                    eprintln!("[row{}][sample{}] F contribution: {} (X={})", 
+                             self.round_idx, sx, format_ext(f_contribution), format_ext(X));
                 }
 
-                // (A2) NC row block: Σ_k gate_r(k,X) * (Σ_i γ^i · [exact Ajtai sum of NC_i])
-                // CORRECT approach for non-multilinear NC:
-                //   Σ_Xa eq_a(Xa,βa) · NC_i(Xa,Xr)
-                // = Σ_Xa eq_a(Xa,βa) · ∏_t (Z̃_i(Xa,Xr) - t)
-                // = Σ_Xa eq_a(Xa,βa) · ∏_t (Σ_ρ χ_{Xa}[ρ] · y_{i,1}[ρ,Xr] - t)
-                //
-                // Key insight: We must collapse over Ajtai dimension FIRST (forming Z̃_i(Xa,Xr)),
-                // THEN apply the range polynomial. NOT the other way around!
-                //
-                // For the sum-check over X_a, we use:
-                //   Σ_{Xa∈{0,1}} eq_a(Xa,βa) · h(Xa) 
-                // where h(Xa) = ∏_t (Σ_ρ χ_{Xa}[ρ] · y_{i,1}[ρ,Xr] - t)
-                //
-                // In our 2-child setup for the current row bit X:
-                //   - Child 0: X=0, gives Xa values with current Ajtai bit = 0
-                //   - Child 1: X=1, gives Xa values with current Ajtai bit = 1
-                //
-                // Wait, this is confusing. Let me reconsider the structure.
-                // Actually, the row rounds bind ROW bits, not Ajtai bits!
-                // So X_a is still the full Ajtai hypercube during row rounds.
-                // We need to compute: for each row config (X, k),
-                //   Σ_Xa eq_a(Xa,βa) · ∏_t (Z̃_i(Xa, (X,k)) - t)
-                //
-                // And Z̃_i(Xa, Xr) = Σ_ρ χ_{Xa}[ρ] · y_{i,1}[ρ, Xr]
-                //
-                // So for each (X, k):
-                //   zi_at_Xr = [y_{i,1}[0, interpolated], y_{i,1}[1, interpolated], ...]  (length d)
-                //   Σ_Xa eq_a(Xa,βa) · ∏_t (Σ_ρ χ_{Xa}[ρ] · zi_at_Xr[ρ] - t)
-                //
-                // For multilinear evaluation over Xa∈{0,1}^ℓd, each Xa corresponds to ρ∈[d].
-                // So χ_{Xa}[ρ] = δ(binary(Xa) == ρ) * scaling_factor
-                //
-                // Actually, χ_{Xa} is the equality tensor: χ_{Xa}[ρ] = ∏_bit (Xa_bit==ρ_bit ? 1 : 0) for boolean.
-                // No wait, that's not right either. Let me look up the tensor_point definition.
-                //
-                // χ_point[ρ] = ∏_{bit} (point[bit] * ρ[bit] + (1-point[bit]) * (1-ρ[bit]))
-                // This is the MLE evaluation kernel.
-                //
-                // So Σ_ρ χ_point[ρ] · values[ρ] = MLE_{values}(point).
-                //
-                // Therefore:
-                // Σ_Xa eq_a(Xa,βa) · ∏_t (Σ_ρ χ_{Xa}[ρ] · y_{i,1}[ρ, Xr] - t)
-                // = Σ_Xa eq_a(Xa,βa) · ∏_t (MLE_{y_{i,1}[:,Xr]}(Xa) - t)
-                //
-                // So for each Xa∈{0,1}^ℓd, I need to:
-                //   1. Compute zi_eval = MLE_{y_{i,1}[:,Xr]}(Xa) = Σ_ρ χ_{Xa}[ρ] · y_{i,1}[ρ,Xr]
-                //   2. Compute Ni(Xa) = ∏_t (zi_eval - t)
-                //   3. Sum: Σ_Xa eq_a(Xa,βa) · Ni(Xa)
-                //
-                // This is exactly what OTHER AI was saying! I need to sum over all Xa∈{0,1}^ℓd.
-                if !self.nc_y_matrices.is_empty() {
-                    for k in 0..half_rows {
-                        let w0 = self.w_beta_r_partial[2*k];
-                        let w1 = self.w_beta_r_partial[2*k + 1];
-                        let gate_r = (K::ONE - X) * w0 + X * w1;
-
-                        let mut nc_sum = K::ZERO;
-                        for (i, y_mat) in self.nc_y_matrices.iter().enumerate() {
-                            // For each Ajtai point Xa∈{0,1}^ℓd (ρ=0..d):
-                            // First, interpolate y_{i,1}[:, Xr] for the current row bit X
-                            let mut y_at_Xr: Vec<K> = Vec::with_capacity(y_mat.len());
-                            for y_row in y_mat.iter() {
-                                let y0 = y_row[2*k];
-                                let y1 = y_row[2*k + 1];
-                                y_at_Xr.push((K::ONE - X) * y0 + X * y1);
-                            }
-                            
-                            // Now sum over Xa: Σ_Xa eq_a(Xa,βa) · ∏_t (MLE_y(Xa) - t)
-                            let d_ell = 1usize << self.ell_d;
-                            for xa_idx in 0..d_ell {
-                                // Compute MLE evaluation at this Xa point
-                                let mut zi_eval = K::ZERO;
-                                for (rho, &y_rho) in y_at_Xr.iter().enumerate() {
-                                    // χ_{Xa}[ρ] weight for this Xa point
-                                    // Build Xa as binary: xa_idx bits
-                                    let mut chi_xa_rho = K::ONE;
-                                    for bit_pos in 0..self.ell_d {
-                                        let xa_bit = if (xa_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                        let rho_bit = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                        chi_xa_rho *= xa_bit * rho_bit + (K::ONE - xa_bit) * (K::ONE - rho_bit);
-                                    }
-                                    zi_eval += chi_xa_rho * y_rho;
-                                }
-                                
-                                // Apply range polynomial
-                                let mut Ni = K::ONE;
-                                for t in -(self.b as i64 - 1)..=(self.b as i64 - 1) {
-                                    Ni *= zi_eval - K::from(F::from_i64(t));
-                                }
-                                
-                                // Weight by eq_a(Xa, βa)
-                                let eq_xa_beta = self.w_beta_a_partial[xa_idx];
-                                nc_sum += self.nc_row_gamma_pows[i] * eq_xa_beta * Ni;
-                            }
-                        }
-                        sample_ys[sx] += gate_r * nc_sum;
-                    }
+                // (A2) NC row block: defer NC to Ajtai phase (avoid double counting).
+                #[cfg(feature = "debug-logs")]
+                if sx <= 1 && self.round_idx <= 1 {
+                    eprintln!("[row{}][sample{}] NC contribution: 0 (deferred to Ajtai phase)", 
+                             self.round_idx, sx);
                 }
 
                 // (B) Eval row block: Σ_k gate_eval(k,X) * Geval_k(X)
+                let mut eval_contribution = K::ZERO;
                 for k in 0..half_eval {
                     let w0 = self.w_eval_r_partial[2*k];
                     let w1 = self.w_eval_r_partial[2*k + 1];
@@ -847,7 +770,16 @@ where
                     let a = self.eval_row_partial[2*k];
                     let b = self.eval_row_partial[2*k + 1];
                     let g_ev = (K::ONE - X) * a + X * b;
-                    sample_ys[sx] += gate_eval * g_ev;
+                    let contrib = gate_eval * g_ev;
+                    sample_ys[sx] += contrib;
+                    eval_contribution += contrib;
+                }
+                
+                #[cfg(feature = "debug-logs")]
+                if sx <= 1 && self.round_idx <= 1 {
+                    eprintln!("[row{}][sample{}] Eval contribution: {}, TOTAL: {} (X={})", 
+                             self.round_idx, sx, format_ext(eval_contribution), 
+                             format_ext(sample_ys[sx]), format_ext(X));
                 }
             }
 
@@ -870,30 +802,71 @@ where
 
             // (A) β-block: Ajtai-gated F(r') + dynamic NC(X_a, r')
             let f_rp = self.nc.as_ref().and_then(|st| st.f_at_rprime).unwrap();
-            // NC comes from dynamic Ajtai MLE on y-partials at r'
-            // nc.y_partials[i] has length 2^ell_d and shrinks each Ajtai round.
-            // For each pair k and sample X, interpolate and apply the balanced range poly.
+            
+            #[cfg(feature = "debug-logs")]
+            if self.round_idx == self.ell_n {
+                eprintln!("[ajtai{}] F(r') = {}, wr_scalar = {}", 
+                         self.round_idx - self.ell_n, format_ext(f_rp), format_ext(wr_scalar));
+            }
+            
             let nc_ref = self.nc.as_ref();
             for k in 0..half_beta_a {
                 let w0b = self.w_beta_a_partial[2 * k];
                 let w1b = self.w_beta_a_partial[2 * k + 1];
+                // IMPORTANT: keep wr_scalar OUTSIDE the Ajtai gate so it matches terminal Q
+                // Compute only the β_a gate here.
+                
                 for (sx, &X) in sample_xs.iter().enumerate() {
+                    // β_a gate for this pair at the current X (no wr_scalar here)
                     let gate_beta = (K::ONE - X) * w0b + X * w1b;
-                    // dynamic NC(X_a, r')
-                    let mut nc_sum = K::ZERO;
+
+                    // Contribution at this X: F(r') + Σ_i γ^i · Φ( y_i(X) )
+                    let mut sum_at_x = f_rp;
                     if let Some(nc) = nc_ref {
                         for (i, yv) in nc.y_partials.iter().enumerate() {
                             let y0 = yv[2 * k];
                             let y1 = yv[2 * k + 1];
-                            let y_eval = (K::ONE - X) * y0 + X * y1;
+                            let yx = (K::ONE - X) * y0 + X * y1;
                             let mut Ni = K::ONE;
                             for t in -(self.b as i64 - 1)..=(self.b as i64 - 1) {
-                                Ni *= y_eval - K::from(F::from_i64(t));
+                                Ni *= yx - K::from(F::from_i64(t));
                             }
-                            nc_sum += nc.gamma_pows[i] * Ni;
+                            sum_at_x += nc.gamma_pows[i] * Ni;
+                            #[cfg(feature = "debug-logs")]
+                            {
+                                // Optional heavy trace for first pair/sample only
+                                let verbose = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                                if verbose && k == 0 && sx <= 1 {
+                                    let ajtai_round = self.round_idx - self.ell_n;
+                                    let fmt = |x: K| -> String { format_ext(x) };
+                                    // Also compute Ni0 and Ni1 for contrast (do not use them)
+                                    let mut Ni0 = K::ONE; let mut Ni1 = K::ONE;
+                                    for t in -(self.b as i64 - 1)..=(self.b as i64 - 1) {
+                                        let tt = K::from(F::from_i64(t));
+                                        Ni0 *= y0 - tt; Ni1 *= y1 - tt;
+                                    }
+                                    eprintln!(
+                                        "[ajtai{ar}][trace] sx={sx} y0={} y1={} yX={} Phi(yX)={} Phi(y0)={} Phi(y1)={}",
+                                        fmt(y0), fmt(y1), fmt(yx), fmt(Ni), fmt(Ni0), fmt(Ni1), ar = ajtai_round
+                                    );
+                                }
+                            }
                         }
                     }
-                    sample_ys[sx] += gate_beta * wr_scalar * (f_rp + nc_sum);
+                    // Multiply by the row-half scalar outside to match terminal identity
+                    sample_ys[sx] += wr_scalar * gate_beta * sum_at_x;
+
+                    #[cfg(feature = "debug-logs")]
+                    if sx <= 1 && self.round_idx == self.ell_n && k == 0 {
+                        eprintln!(
+                            "[ajtai{}][sample{}] wr_scalar={}, gate_beta={}, (F+NC)(X)={}",
+                            self.round_idx - self.ell_n,
+                            sx,
+                            format_ext(wr_scalar),
+                            format_ext(gate_beta),
+                            format_ext(sum_at_x)
+                        );
+                    }
                 }
             }
 
@@ -923,6 +896,96 @@ where
         
         #[cfg(feature = "debug-logs")]
         if self.round_idx <= 2 {
+            // Try to locate indices for X=0 and X=1 for quick invariant check
+            let mut idx0: Option<usize> = None;
+            let mut idx1: Option<usize> = None;
+            for (i, &x) in sample_xs.iter().enumerate() {
+                if x == K::ZERO { idx0 = Some(i); }
+                if x == K::ONE  { idx1 = Some(i); }
+            }
+            if let (Some(i0), Some(i1)) = (idx0, idx1) {
+                let s0 = sample_ys[i0];
+                let s1 = sample_ys[i1];
+                let sum01 = s0 + s1;
+                eprintln!("[oracle][round{}] s(0)={}, s(1)={}, s(0)+s(1)={}, claim={}",
+                    self.round_idx, format_ext(s0), format_ext(s1), format_ext(sum01), format_ext(self.initial_sum_claim));
+            } else if self.round_idx < self.ell_n {
+                // In skip-at-one engine, we do not receive X=1. Compute s(1) ad hoc for diagnostics.
+                let X1 = K::ONE;
+                let mut s1 = K::ZERO;
+                // F block at X=1
+                let half_rows = self.w_beta_r_partial.len() >> 1;
+                for k in 0..half_rows {
+                    let w0 = self.w_beta_r_partial[2*k];
+                    let w1 = self.w_beta_r_partial[2*k + 1];
+                    let gate_r = (K::ONE - X1) * w0 + X1 * w1;
+                    let mut m_vals = vec![K::ZERO; self.partials_first_inst.s_per_j.len()];
+                    for j in 0..m_vals.len() {
+                        let a = self.partials_first_inst.s_per_j[j][2*k];
+                        let b = self.partials_first_inst.s_per_j[j][2*k + 1];
+                        m_vals[j] = (K::ONE - X1) * a + X1 * b;
+                    }
+                    s1 += gate_r * self.s.f.eval_in_ext::<K>(&m_vals);
+                }
+                // NC row block at X=1 (exact Ajtai sum)
+                if !self.nc_y_matrices.is_empty() {
+                    for k in 0..half_rows {
+                        let w0 = self.w_beta_r_partial[2*k];
+                        let w1 = self.w_beta_r_partial[2*k + 1];
+                        let gate_r = (K::ONE - X1) * w0 + X1 * w1;
+                        let mut nc_sum = K::ZERO;
+                        for (i, y_mat) in self.nc_y_matrices.iter().enumerate() {
+                            let mut y_at_Xr: Vec<K> = Vec::with_capacity(y_mat.len());
+                            for y_row in y_mat.iter() {
+                                let y0 = y_row[2*k];
+                                let y1 = y_row[2*k + 1];
+                                y_at_Xr.push((K::ONE - X1) * y0 + X1 * y1);
+                            }
+                            let d_ell = 1usize << self.ell_d;
+                            for xa_idx in 0..d_ell {
+                                let mut zi_eval = K::ZERO;
+                                for (rho, &y_rho) in y_at_Xr.iter().enumerate() {
+                                    let mut chi_xa_rho = K::ONE;
+                                    for bit_pos in 0..self.ell_d {
+                                        let xa_bit = if (xa_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                                        let rho_bit = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                                        chi_xa_rho *= xa_bit * rho_bit + (K::ONE - xa_bit) * (K::ONE - rho_bit);
+                                    }
+                                    zi_eval += chi_xa_rho * y_rho;
+                                }
+                                let mut Ni = K::ONE;
+                                for t in -(self.b as i64 - 1)..=(self.b as i64 - 1) {
+                                    Ni *= zi_eval - K::from(F::from_i64(t));
+                                }
+                                let eq_xa_beta = self.w_beta_a_partial[xa_idx];
+                                nc_sum += self.nc_row_gamma_pows[i] * eq_xa_beta * Ni;
+                            }
+                        }
+                        s1 += gate_r * nc_sum;
+                    }
+                }
+                // Eval row block at X=1
+                let half_eval = self.eval_row_partial.len() >> 1;
+                for k in 0..half_eval {
+                    let w0 = self.w_eval_r_partial[2*k];
+                    let w1 = self.w_eval_r_partial[2*k + 1];
+                    let gate_eval = (K::ONE - X1) * w0 + X1 * w1;
+                    let a = self.eval_row_partial[2*k];
+                    let b = self.eval_row_partial[2*k + 1];
+                    let g_ev = (K::ONE - X1) * a + X1 * b;
+                    s1 += gate_eval * g_ev;
+                }
+                // s0 from current returned samples if present
+                if let Some(i0) = idx0 {
+                    let s0 = sample_ys[i0];
+                    let sum01 = s0 + s1;
+                    eprintln!("[oracle][round{}] s(0)={}, s(1)[recomp]={}, s(0)+s(1)={}, claim={}",
+                        self.round_idx, format_ext(s0), format_ext(s1), format_ext(sum01), format_ext(self.initial_sum_claim));
+                } else {
+                    eprintln!("[oracle][round{}] s(1)[recomp]={}, claim={}",
+                        self.round_idx, format_ext(s1), format_ext(self.initial_sum_claim));
+                }
+            }
             eprintln!("[oracle][round{}] Returning {} samples: {:?}", 
                 self.round_idx, sample_ys.len(), 
                 if sample_ys.len() <= 4 { format!("{:?}", sample_ys) } else { format!("[{} values]", sample_ys.len()) });
@@ -1599,7 +1662,10 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         }
     }
     
-    let nc_sum_to_use = nc_sum_hypercube;  // Use the CORRECT hypercube sum
+    // Use the FULL hypercube sum for NC in the claimed initial sum.
+    // For non-multilinear NC, ∑_{X} eq(X,β)·NC(X) ≠ NC(β).
+    // Sum-check must prove the actual hypercube sum per Section 4.4.
+    let nc_sum_to_use = nc_sum_hypercube;
     
     // === Compute T (Eval-only part) and set initial_sum to FULL sum ===
     // **Paper Reference**: Section 4.4, claimed sum T definition
@@ -1662,6 +1728,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             ell_n,
             d_sc: d_sc,
             round_idx: 0,
+            initial_sum_claim: initial_sum,
             f_at_beta_r,
             nc_sum_beta,
             eval_row_partial,
@@ -2052,7 +2119,11 @@ pub fn pi_ccs_verify(
     // **Paper Reference**: Section 4.4, Step 2
     // Verify sum-check rounds and extract (r', α') and running_sum
     
-    if proof.sumcheck_rounds.len() != ell { return Ok(false); }
+    if proof.sumcheck_rounds.len() != ell {
+        #[cfg(feature = "debug-logs")]
+        eprintln!("[pi-ccs][verify] round count mismatch: have {}, expect {}", proof.sumcheck_rounds.len(), ell);
+        return Ok(false);
+    }
     // Check sum-check rounds using shared helper (derives r and running_sum)
     let d_round = d_sc;
     
@@ -2085,11 +2156,19 @@ pub fn pi_ccs_verify(
     tr.append_fields(b"sumcheck/initial_sum", &claimed_initial.as_coeffs());
     let (r_vec, running_sum, ok_rounds) =
         verify_sumcheck_rounds(tr, d_round, claimed_initial, &proof.sumcheck_rounds);
-    if !ok_rounds { return Ok(false); }
+    if !ok_rounds {
+        #[cfg(feature = "debug-logs")]
+        eprintln!("[pi-ccs][verify] sum-check rounds invalid (d_round={})", d_round);
+        return Ok(false);
+    }
 
     // Split r_vec into (r', α') - row-first ordering!
     // First ell_n challenges are row bits, last ell_d challenges are Ajtai bits
-    if r_vec.len() != ell { return Ok(false); }
+    if r_vec.len() != ell {
+        #[cfg(feature = "debug-logs")]
+        eprintln!("[pi-ccs][verify] r_vec length mismatch: have {}, expect {}", r_vec.len(), ell);
+        return Ok(false);
+    }
     let (r_prime, alpha_prime) = r_vec.split_at(ell_n);
 
     // =========================================================================

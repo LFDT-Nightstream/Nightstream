@@ -111,7 +111,7 @@ fn pi_ccs_k1_simple_valid_zero_state() {
 }
 
 #[test]
-#[ignore] // TODO: Remove after fixing Ajtai phase oracle bug (Issue A)
+// Ajtai oracle fix applied - test should now pass
 #[allow(non_snake_case)]
 fn pi_ccs_k1_simple_addition_circuit() {
     // Create a CCS with t=3 matrices and n=4 constraints (ell=2)

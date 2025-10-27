@@ -63,6 +63,51 @@ impl<T: Clone> Mat<T> {
     }
 }
 
+impl<F> Mat<F>
+where
+    F: p3_field::PrimeCharacteristicRing + Copy + Eq,
+{
+    /// Construct an identity matrix I_n over field F.
+    pub fn identity(n: usize) -> Self {
+        let mut m = Mat::zero(n, n, F::ZERO);
+        for i in 0..n { m.set(i, i, F::ONE); }
+        m
+    }
+
+    /// Check whether this matrix is exactly the identity matrix (I_n).
+    pub fn is_identity(&self) -> bool {
+        if self.rows != self.cols { return false; }
+        for r in 0..self.rows {
+            for c in 0..self.cols {
+                let v = self[(r, c)];
+                if r == c {
+                    if v != F::ONE { return false; }
+                } else if v != F::ZERO { return false; }
+            }
+        }
+        true
+    }
+
+    /// Check whether this matrix is a column selector: each column has exactly one 1 and zeros elsewhere.
+    /// Rows and cols can be different. This recognizes matrices used to expose Ajtai digits
+    /// via v = M^T * chi_r, where v[c] = chi_r[row_map(c)].
+    pub fn is_column_selector(&self) -> bool {
+        for c in 0..self.cols {
+            let mut ones = 0usize;
+            for r in 0..self.rows {
+                let v = self[(r, c)];
+                if v == F::ONE {
+                    ones += 1;
+                } else if v != F::ZERO {
+                    return false;
+                }
+            }
+            if ones != 1 { return false; }
+        }
+        true
+    }
+}
+
 /// TRUE Compressed Sparse Row (CSR) format - only stores non-zeros!
 /// Specialized for neo_math::F for simplicity and performance
 #[derive(Clone, Debug)]

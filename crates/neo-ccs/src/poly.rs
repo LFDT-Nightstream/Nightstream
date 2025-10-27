@@ -26,6 +26,23 @@ impl<F> SparsePoly<F> {
             .max()
             .unwrap_or(0)
     }
+
+    /// Return a new polynomial with one dummy variable inserted at the front (index 0).
+    /// All terms are updated by shifting exponents to the right and inserting 0 at position 0.
+    pub fn insert_var_at_front(&self) -> Self
+    where
+        F: Clone,
+    {
+        let new_t = self.t + 1;
+        let mut new_terms = Vec::with_capacity(self.terms.len());
+        for term in &self.terms {
+            let mut exps = Vec::with_capacity(new_t);
+            exps.push(0u32);
+            exps.extend(term.exps.iter().copied());
+            new_terms.push(Term { coeff: term.coeff.clone(), exps });
+        }
+        SparsePoly { t: new_t, terms: new_terms }
+    }
 }
 
 /// A single term: `coeff * ∏_j x_j^{exps[j]}`.

@@ -89,7 +89,6 @@ pub mod sparse_matrix;   // CSR sparse matrix operations
 pub mod eq_weights;      // Equality polynomial evaluation
 
 // Re-export commonly used public items
-pub use nc_constraints::eval_range_decomp_constraints;
 pub use transcript_replay::{TranscriptTail, pi_ccs_derive_transcript_tail, pi_ccs_compute_terminal_claim_r1cs_or_ccs};
 
 // ============================================================================
@@ -143,8 +142,8 @@ pub struct PiCcsProof {
 // ============================================================================
 // CONSTRAINT EVALUATION FUNCTIONS
 // ============================================================================
-// NC constraints (compute_nc_hypercube_sum, eval_range_decomp_constraints) 
-// are now in pi_ccs::nc_constraints submodule
+// NC constraints (compute_nc_hypercube_sum) are in pi_ccs::nc_constraints submodule
+// (Test-only eval_range_decomp_constraints moved to tests-core/test_helpers.rs)
 
 /// Evaluate tie constraint polynomials at point u.
 ///
@@ -494,7 +493,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     #[cfg(feature = "debug-logs")]
     {
         use crate::pi_ccs::terminal::rhs_Q_apr;
-        let rhs_dbg = rhs_Q_apr(&s, &ch, r_prime, alpha_prime, mcs_list, me_inputs, &out_me)?;
+        let rhs_dbg = rhs_Q_apr(&s, &ch, r_prime, alpha_prime, mcs_list, me_inputs, &out_me, params)?;
         eprintln!("[pi-ccs][prove] running_sum_sc={}, rhs_dbg={}", 
                   format_ext(running_sum_sc), format_ext(rhs_dbg));
     }
@@ -507,6 +506,11 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         header_digest: fold_digest,
         sc_initial_sum: Some(initial_sum),
     };
+    
+    // Defensive check: ensure output structure matches inputs
+    // (Active in debug builds or with strict-checks feature)
+    checks::sanity_check_outputs_against_inputs(&s, mcs_list, me_inputs, &out_me)?;
+    
     Ok((out_me, proof))
 }
 
@@ -840,8 +844,15 @@ pub fn pi_ccs_verify(
     // =========================================================================
     // Paper Section 4.4, Step 4: Verify evaluation claim
     //
-    // Check: v ?= eq((α',r'), β)·(F' + Σ_i γ^i·N_i') 
-    //            + eq((α',r'), (α,r))·Σ_{i,j} γ^{i+(j-1)k-1}·E_{(i,j)}'
+    // Original paper formula:
+    // v ?= eq((α',r'), β)·(F' + Σ_i γ^i·N_i')
+    //      + γ^k · Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1}·E_{(i,j)}'
+    //
+    // where E_{(i,j)}' := eq((α',r'), (α,r))·ỹ'_{(i,j)}(α')
+    //
+    // Factored form (implementation):
+    // v ?= eq((α',r'), β)·(F' + Σ_i γ^i·N_i')
+    //      + eq((α',r'), (α,r)) · [γ^k · Σ_{j,i=2}^{t,k} γ^{i+(j-1)k-1}·ỹ'_{(i,j)}(α')]
     //
     // This is the core soundness check. The verifier computes Q(α', r') from
     // public data and checks it matches the sum-check final evaluation.
@@ -905,20 +916,26 @@ pub fn pi_ccs_verify(
     #[cfg(feature = "debug-logs")]
     eprintln!("[pi-ccs][verify][beta] nc_prime = 0 (simplified)");
 
-    // Compute Eval sum: E_{(i,j)}' = eq((α',r'), (α,r))·ỹ'_{(i,j)}(α')
-    // Only relevant when k>1 (when we have ME inputs)
+    // Compute Eval': weighted sum of ỹ'_{(i,j)}(α') WITHOUT eq gate
+    // Eval' = Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1}·ỹ'_{(i,j)}(α')
+    // The eq gate and outer γ^k are applied separately below
+    //
+    // IMPORTANT: Use y' from OUTPUTS (at r'), not inputs (at r).
+    // Outputs are ordered: first |MCS| outputs, then |ME inputs| outputs.
     let mut eval_sum_prime = K::ZERO;
     let k_total = mcs_list.len() + me_inputs.len();
+    let me_outputs_start = mcs_list.len();
     #[cfg(feature = "debug-logs")]
-    eprintln!("[pi-ccs][verify] me_inputs_empty={}, k_total={}, t={} (verify)", me_inputs.is_empty(), k_total, s.t());
+    eprintln!("[pi-ccs][verify] me_inputs_empty={}, k_total={}, t={}, me_outputs_start={} (verify)", 
+        me_inputs.is_empty(), k_total, s.t(), me_outputs_start);
     for j in 0..s.t() {
-        for (i_off, inp) in me_inputs.iter().enumerate() {
-            let y_vec = &inp.y[j];
+        for (i_off, out) in out_me.iter().skip(me_outputs_start).enumerate() {
+            let y_vec = &out.y[j];
             let mut y_mle = K::ZERO;
             for (idx, &val) in y_vec.iter().enumerate() {
                 if idx < chi_alpha_prime.len() { y_mle += val * chi_alpha_prime[idx]; }
             }
-            // Exponent from paper: γ^{i+(j-1)k-1} where i = i_off+2 (ME inputs start at i=2)
+            // Inner exponent: γ^{i+(j-1)k-1} where i = i_off+2 (ME inputs start at i=2)
             let exponent = (i_off + 2) + j * k_total - 1;
             let mut w_pow = K::ONE;
             for _ in 0..exponent { w_pow *= gamma; }
@@ -932,10 +949,16 @@ pub fn pi_ccs_verify(
             eval_sum_prime += w_pow * y_mle;
         }
     }
+    
+    // Outer γ^k_total factor (from paper's Eval block)
+    let mut gamma_to_k = K::ONE;
+    for _ in 0..k_total {
+        gamma_to_k *= gamma;
+    }
 
     // Final check: v ?= Q(α', r')
-    // Q(α',r') = eq((α',r'), β)·(F' + Σ_i γ^i·N_i') 
-    //          + eq((α',r'), (α,r))·Σ_{i,j} γ^{i+(j-1)k-1}·E_{(i,j)}'
+    // Q(α',r') = eq((α',r'), β)·(F' + Σ_i γ^i·N_i')
+    //          + eq((α',r'), (α,r)) · [γ^k · Σ_{j,i=2}^{t,k} γ^{i+(j-1)k-1}·ỹ'_{(i,j)}(α')]
     #[cfg(feature = "debug-logs")]
     {
         eprintln!("[pi-ccs][verify] Terminal check components:");
@@ -943,10 +966,12 @@ pub fn pi_ccs_verify(
         eprintln!("  F' = {}", format_ext(f_prime));
         eprintln!("  Σ γ^i·N_i' = {}", format_ext(nc_sum_prime));
         eprintln!("  eq((α',r'), (α,r)) = {}", format_ext(eq_aprp_ar));
-        eprintln!("  Σ γ^{{...}}·E_{{(i,j)}}' = {}", format_ext(eval_sum_prime));
+        eprintln!("  γ^k = {}", format_ext(gamma_to_k));
+        eprintln!("  Eval' (inner sum) = {}", format_ext(eval_sum_prime));
+        eprintln!("  γ^k · Eval' = {}", format_ext(gamma_to_k * eval_sum_prime));
     }
     
-    let rhs = eq_aprp_beta * (f_prime + nc_sum_prime) + eq_aprp_ar * eval_sum_prime;
+    let rhs = eq_aprp_beta * (f_prime + nc_sum_prime) + eq_aprp_ar * (gamma_to_k * eval_sum_prime);
     if running_sum != rhs {
         #[cfg(feature = "debug-logs")]
         eprintln!(

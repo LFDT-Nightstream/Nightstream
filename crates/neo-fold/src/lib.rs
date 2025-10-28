@@ -46,8 +46,7 @@ pub use pi_ccs::{
     pi_ccs_prove, pi_ccs_verify, 
     pi_ccs_prove_simple, pi_ccs_verify_simple,  // Convenience wrappers for k=1
     PiCcsProof, 
-    eval_tie_constraints, 
-    eval_range_decomp_constraints
+    eval_tie_constraints
 };  
 pub use pi_rlc::{pi_rlc_prove, pi_rlc_verify, PiRlcProof};
 pub use pi_dec::{pi_dec, pi_dec_verify, PiDecProof};

@@ -172,17 +172,18 @@ pub fn precompute_beta_block(
     let beta_r_ht = HalfTableEq::new(&ch.beta_r);
     let chi_beta_r: Vec<K> = (0..(1 << ell_n)).map(|i| beta_r_ht.w(i)).collect();
 
-    let mut m_vals = vec![K::ZERO; s.t()];
-    for j in 0..s.t() {
-        let v_f = &insts[0].mz[j];
-        m_vals[j] = v_f
-            .iter()
-            .take(s.n)
-            .zip(&chi_beta_r)
-            .fold(K::ZERO, |acc, (&vv, &w)| acc + K::from(vv) * w);
+    // Compute f_at_beta_r = Σ_row χ_{β_r}(row) · f((M_0·z)[row], (M_1·z)[row], ..., (M_t·z)[row])
+    // This is the CORRECT "average of f" form, not "f of averages"
+    let mut f_at_beta_r = K::ZERO;
+    for row in 0..s.n {
+        let mut m_vals = vec![K::ZERO; s.t()];
+        for j in 0..s.t() {
+            let v_f = &insts[0].mz[j];
+            m_vals[j] = K::from(v_f[row]);
+        }
+        let f_row = s.f.eval_in_ext::<K>(&m_vals);
+        f_at_beta_r += chi_beta_r[row] * f_row;
     }
-
-    let f_at_beta_r = s.f.eval_in_ext::<K>(&m_vals);
 
     let nc_sum_hypercube = compute_nc_hypercube_sum(
         s,

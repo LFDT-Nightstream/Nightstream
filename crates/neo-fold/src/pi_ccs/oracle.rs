@@ -318,9 +318,10 @@ where
                                     zi1 += chi_xa_rho * y1;
                                 }
                                 // Range polynomials at the two discrete branches
+                                // ∏_{t=-(b-1)}^{b-1} (· - t)
                                 let mut N0 = K::ONE;
                                 let mut N1 = K::ONE;
-                                let low  = -(self.b as i64) - 1;
+                                let low  = -((self.b as i64) - 1);
                                 let high =  (self.b as i64) - 1;
                                 for t in low..=high {
                                     let t_k = K::from(F::from_i64(t));
@@ -404,8 +405,9 @@ where
                             let y0 = y[2 * k];
                             let y1 = y[2 * k + 1];
                             let yi = (K::ONE - X) * y0 + X * y1;
+                            // Range polynomial: ∏_{t=-(b-1)}^{b-1} (yi - t)
                             let mut Ni = K::ONE;
-                            let low  = -(self.b as i64) - 1;
+                            let low  = -((self.b as i64) - 1);
                             let high =  (self.b as i64) - 1;
                             for t in low..=high {
                                 Ni *= yi - K::from(F::from_i64(t));
@@ -503,7 +505,8 @@ where
                                     zi1 += chi_xa_rho * y1;
                                 }
                                 let mut N1 = K::ONE;
-                                let low  = -(self.b as i64) - 1;
+                                // Range polynomial: ∏_{t=-(b-1)}^{b-1} (· - t)
+                                let low  = -((self.b as i64) - 1);
                                 let high =  (self.b as i64) - 1;
                                 for t in low..=high { N1 *= zi1 - K::from(F::from_i64(t)); }
                                 let eq_xa_beta = self.w_beta_a_partial[xa_idx];

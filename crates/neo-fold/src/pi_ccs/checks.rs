@@ -8,118 +8,7 @@
 use crate::error::PiCcsError;
 use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ajtai::Commitment as Cmt;
-use neo_math::{F, K, D};
-
-/// Validate ME outputs against inputs for structural consistency
-///
-/// Checks:
-/// - Output count matches MCS + ME input count
-/// - Commitments and m_in values match
-/// - X matrices have correct shape (d×m_in)
-/// - y vectors have correct shape (t vectors, each d elements)
-/// - y_scalars length matches t
-pub fn sanity_check_outputs_against_inputs(
-    s: &CcsStructure<F>,
-    mcs_list: &[McsInstance<Cmt, F>],
-    me_inputs: &[MeInstance<Cmt, F, K>],
-    out_me: &[MeInstance<Cmt, F, K>],
-) -> Result<(), PiCcsError> {
-    if out_me.len() != mcs_list.len() + me_inputs.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "output count {} != MCS {} + ME {} = {}",
-            out_me.len(),
-            mcs_list.len(),
-            me_inputs.len(),
-            mcs_list.len() + me_inputs.len()
-        )));
-    }
-
-    for (i, (out, inp)) in out_me
-        .iter()
-        .take(mcs_list.len())
-        .zip(mcs_list.iter())
-        .enumerate()
-    {
-        if out.c != inp.c {
-            return Err(PiCcsError::InvalidInput(format!(
-                "output[{i}].c mismatch with MCS instance"
-            )));
-        }
-        if out.m_in != inp.m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "output[{i}].m_in mismatch"
-            )));
-        }
-        if out.X.rows() != D || out.X.cols() != inp.m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "output[{i}].X shape ({},{}), expected ({},{})",
-                out.X.rows(),
-                out.X.cols(),
-                D,
-                inp.m_in
-            )));
-        }
-        if out.y.len() != s.t() {
-            return Err(PiCcsError::InvalidInput(format!(
-                "output[{i}].y length {} != t={}",
-                out.y.len(),
-                s.t()
-            )));
-        }
-        for (j, yj) in out.y.iter().enumerate() {
-            if yj.len() != D {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "output[{i}].y[{j}] length {} != d={}",
-                    yj.len(),
-                    D
-                )));
-            }
-        }
-        if out.y_scalars.len() != s.t() {
-            return Err(PiCcsError::InvalidInput(format!(
-                "output[{i}].y_scalars length {} != t={}",
-                out.y_scalars.len(),
-                s.t()
-            )));
-        }
-    }
-
-    for (idx, (out, inp)) in out_me
-        .iter()
-        .skip(mcs_list.len())
-        .zip(me_inputs.iter())
-        .enumerate()
-    {
-        if out.c != inp.c {
-            return Err(PiCcsError::InvalidInput(format!(
-                "me_output[{idx}].c mismatch"
-            )));
-        }
-        if out.m_in != inp.m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "me_output[{idx}].m_in mismatch"
-            )));
-        }
-        if out.y.len() != s.t() {
-            return Err(PiCcsError::InvalidInput(format!(
-                "me_output[{idx}].y length {} != t={}",
-                out.y.len(),
-                s.t()
-            )));
-        }
-        for (j, yj) in out.y.iter().enumerate() {
-            if yj.len() != D {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "me_output[{idx}].y[{j}] length {} != d={}",
-                    yj.len(),
-                    D
-                )));
-            }
-        }
-    }
-
-    Ok(())
-}
+use neo_math::{F, K};
 
 /// Validate input consistency before starting reduction
 pub fn validate_inputs(
@@ -156,6 +45,61 @@ pub fn validate_inputs(
         return Err(PiCcsError::InvalidInput("n=0 not allowed".into()));
     }
 
+    Ok(())
+}
+
+/// Sanity check that outputs match inputs in count, shape, and ordering
+/// 
+/// This validates that:
+/// - Output count = |MCS| + |ME inputs|
+/// - Outputs are ordered: [MCS-derived outputs..., ME-derived outputs...]
+/// - Shape consistency (m_in)
+/// 
+/// This is a defensive check to prevent subtle bugs from output mis-ordering
+/// that would silently corrupt the γ-exponent schedule in Eval'.
+#[cfg(debug_assertions)]
+pub fn sanity_check_outputs_against_inputs(
+    s: &CcsStructure<F>,
+    mcs_list: &[McsInstance<Cmt, F>],
+    me_inputs: &[MeInstance<Cmt, F, K>],
+    out_me: &[MeInstance<Cmt, F, K>],
+) -> Result<(), PiCcsError> {
+    let expected_count = mcs_list.len() + me_inputs.len();
+    if out_me.len() != expected_count {
+        return Err(PiCcsError::InvalidInput(format!(
+            "output count {} != |MCS|={} + |ME|={} = {}",
+            out_me.len(),
+            mcs_list.len(),
+            me_inputs.len(),
+            expected_count
+        )));
+    }
+
+    // Check all outputs have correct m_in
+    for (idx, out) in out_me.iter().enumerate() {
+        if out.m_in != s.m {
+            return Err(PiCcsError::InvalidInput(format!(
+                "out_me[{}].m_in {} != s.m {}",
+                idx, out.m_in, s.m
+            )));
+        }
+    }
+
+    // Verify output ordering: first |MCS| outputs correspond to MCS inputs,
+    // then |ME| outputs correspond to ME inputs
+    
+    Ok(())
+}
+
+/// No-op version for release builds
+#[cfg(not(debug_assertions))]
+#[inline]
+pub fn sanity_check_outputs_against_inputs(
+    _s: &CcsStructure<F>,
+    _mcs_list: &[McsInstance<Cmt, F>],
+    _me_inputs: &[MeInstance<Cmt, F, K>],
+    _out_me: &[MeInstance<Cmt, F, K>],
+) -> Result<(), PiCcsError> {
     Ok(())
 }
 

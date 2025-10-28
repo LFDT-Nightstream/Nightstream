@@ -4,7 +4,8 @@
 //! - Half-table χ_r weight computation
 //! - Weighted sparse matrix-vector multiplication
 
-use neo_fold::pi_ccs::{HalfTableEq, to_csr, spmv_csr_t_weighted_fk, RowWeight};
+use neo_fold::eq_weights::{HalfTableEq, spmv_csr_t_weighted_fk, RowWeight};
+use neo_fold::sparse_matrix::to_csr;
 use neo_math::{F, K};
 use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng, rand_core::RngCore};
 use p3_field::PrimeCharacteristicRing;

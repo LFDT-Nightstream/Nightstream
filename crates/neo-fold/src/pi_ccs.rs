@@ -43,13 +43,40 @@ use rayon::prelude::*;
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
 use crate::sumcheck::{RoundOracle, run_sumcheck, run_sumcheck_skip_eval_at_one, verify_sumcheck_rounds, SumcheckOutput};
+use crate::sparse_matrix::{Csr, to_csr, spmv_csr_ff};
+use crate::eq_weights::{RowWeight, HalfTableEq, spmv_csr_t_weighted_fk};
 
 // ============================================================================
 // PROOF STRUCTURE
 // ============================================================================
 
+/// Format extension field element compactly as "r + i·u" where r, i are decimal values.
+/// 
+/// Example outputs:
+/// - Pure real: `12345678901234567890`
+/// - Complex: `12345678901234567890 + 98765432109876543210·u`
+/// 
+/// This is much more compact than the default Debug format which shows:
+/// `BinomialExtensionField { value: [12345..., 98765...], _phantom: PhantomData<...> }`
 #[allow(dead_code)]
-fn format_ext(x: K) -> String { format!("{:?}", x) }
+fn format_ext(x: K) -> String {
+    use neo_math::KExtensions;
+    let coeffs = x.as_coeffs();
+    let real = coeffs[0].as_canonical_u64();
+    let imag = coeffs[1].as_canonical_u64();
+    if imag == 0 {
+        format!("{}", real)
+    } else {
+        format!("{} + {}·u", real, imag)
+    }
+}
+
+/// Format a slice of extension field elements compactly as [elem1, elem2, ...]
+#[allow(dead_code)]
+fn format_ext_vec(xs: &[K]) -> String {
+    let formatted: Vec<String> = xs.iter().map(|&x| format_ext(x)).collect();
+    format!("[{}]", formatted.join(", "))
+}
 
 /// Π_CCS proof containing the single sum-check over K
 #[derive(Debug, Clone)]
@@ -66,6 +93,7 @@ pub struct PiCcsProof {
 // AJTAI-FIRST EVAL-ONLY ORACLE (Paper-aligned, claim T)
 // ============================================================================
 
+#[allow(dead_code)]
 struct AjtaiFirstEvalOracle {
     ell_d: usize,
     ell_n: usize,
@@ -80,9 +108,14 @@ struct AjtaiFirstEvalOracle {
     w_beta_a_partial: Vec<K>,
     w_beta_r_partial: Vec<K>,
     // Row MLE partials for M_j z (instance 1) to evaluate F over row rounds
+    #[allow(dead_code)]
     f_row_partials: Vec<Vec<K>>, // one vector per j, length 2^ell_n
     // f polynomial terms lifted to K: (coeff, exps)
+    #[allow(dead_code)]
     f_terms: Vec<(K, Vec<u32>)>,
+    // Precomputed scalar F(β_r) used previously in Ajtai round (currently unused)
+    #[allow(dead_code)]
+    f_beta_r: K,
 }
 
 impl RoundOracle for AjtaiFirstEvalOracle {
@@ -92,31 +125,30 @@ impl RoundOracle for AjtaiFirstEvalOracle {
     fn evals_at(&mut self, sample_xs: &[K]) -> Vec<K> {
         let mut ys = vec![K::ZERO; sample_xs.len()];
         if self.round_idx < self.ell_d {
-            // Ajtai phase: gate by α (Ajtai) and interpolate e_ajtai
-            let kmax = self.w_alpha_a_partial.len() >> 1;
+            // Ajtai phase: serve Eval (α-gated) only (Option B: no β·F here).
+            let kmax_alpha = self.w_alpha_a_partial.len() >> 1;
             for (i, &X) in sample_xs.iter().enumerate() {
                 let mut acc = K::ZERO;
-                for k in 0..kmax {
+                // (A) α-gated Eval
+                for k in 0..kmax_alpha {
                     let w0 = self.w_alpha_a_partial[2*k];
                     let w1 = self.w_alpha_a_partial[2*k + 1];
-                    let gate = (K::ONE - X) * w0 + X * w1;
+                    let gate_alpha = (K::ONE - X) * w0 + X * w1;
                     let a0 = self.e_ajtai[2*k];
                     let a1 = self.e_ajtai[2*k + 1];
                     let eval_x = (K::ONE - X) * a0 + X * a1;
-                    acc += gate * eval_x;
+                    acc += gate_alpha * eval_x;
                     #[cfg(feature = "debug-logs")]
                     {
-                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                        if dbg_oracle && i < 2 && k < 2 {
+                        let dbg = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                        if dbg && i < 2 && k < 2 {
                             eprintln!(
                                 "[oracle][ajtai] round={} sample={} k={} X={} gate_alpha={} eval_x={} contrib={}",
-                                self.round_idx,
-                                i,
-                                k,
+                                self.round_idx, i, k,
                                 format_ext(X),
-                                format_ext(gate),
+                                format_ext(gate_alpha),
                                 format_ext(eval_x),
-                                format_ext(gate * eval_x),
+                                format_ext(gate_alpha * eval_x),
                             );
                         }
                     }
@@ -166,12 +198,45 @@ impl RoundOracle for AjtaiFirstEvalOracle {
             // Row phase: β-block for F — serve eq_beta_a(collapsed) * gate_beta_r(X) * F_row(X)
             let kmax_beta = self.w_beta_r_partial.len() >> 1;
             let eq_beta_a_scalar = if self.w_beta_a_partial.is_empty() { K::ONE } else { self.w_beta_a_partial[0] };
+            #[cfg(feature = "debug-logs")]
+            let row_round_idx = self.round_idx.saturating_sub(self.ell_d);
+            #[cfg(feature = "debug-logs")]
+            {
+                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                if dbg_oracle && row_round_idx <= 1 {
+                    eprintln!(
+                        "[row{}][beta-F] eq_beta_a_scalar={} (collapsed Ajtai β gate)",
+                        row_round_idx,
+                        format_ext(eq_beta_a_scalar)
+                    );
+                    if self.w_beta_r_partial.len() == 1 {
+                        eprintln!(
+                            "[row{}][beta-F] eq_beta_r_collapsed(r') = {}",
+                            row_round_idx,
+                            format_ext(self.w_beta_r_partial[0])
+                        );
+                    }
+                }
+            }
             for (i, &X) in sample_xs.iter().enumerate() {
                 let mut acc_f = K::ZERO;
                 for k in 0..kmax_beta {
                     let wb0 = self.w_beta_r_partial[2*k];
                     let wb1 = self.w_beta_r_partial[2*k + 1];
                     let gate_beta_r = (K::ONE - X) * wb0 + X * wb1;
+                    #[cfg(feature = "debug-logs")]
+                    {
+                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                        if dbg_oracle && i <= 1 && row_round_idx <= 1 && k <= 1 {
+                            // Show raw pair weights and their gates at X=0,1
+                            eprintln!(
+                                "[row{}][pair{}][beta-F] w_beta_r[0]={} w_beta_r[1]={} gate@0={} gate@1={}",
+                                row_round_idx, k,
+                                format_ext(wb0), format_ext(wb1),
+                                format_ext(wb0), format_ext(wb1)
+                            );
+                        }
+                    }
                     // Evaluate v_j(X) from row partials at current pair k
                     let mut vjs: Vec<K> = Vec::with_capacity(self.f_row_partials.len());
                     for part in &self.f_row_partials {
@@ -191,9 +256,33 @@ impl RoundOracle for AjtaiFirstEvalOracle {
                         }
                         f_row += term;
                     }
-                    acc_f += eq_beta_a_scalar * gate_beta_r * f_row;
+                    let contrib = eq_beta_a_scalar * gate_beta_r * f_row;
+                    acc_f += contrib;
+                    #[cfg(feature = "debug-logs")]
+                    {
+                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                        if dbg_oracle && i <= 1 && row_round_idx <= 1 && k <= 1 {
+                            eprintln!(
+                                "[row{}][sample{}][k{}][beta-F] X={} gate_beta_r={} f_row={} contrib={}",
+                                row_round_idx, i, k, format_ext(X),
+                                format_ext(gate_beta_r),
+                                format_ext(f_row),
+                                format_ext(contrib)
+                            );
+                        }
+                    }
                 }
                 ys[i] += acc_f;
+                #[cfg(feature = "debug-logs")]
+                {
+                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                    if dbg_oracle && i <= 1 && row_round_idx <= 1 {
+                        eprintln!(
+                            "[row{}][sample{}][beta-F] total_f_contrib={} (X={})",
+                            row_round_idx, i, format_ext(acc_f), format_ext(X)
+                        );
+                    }
+                }
             }
         }
         ys
@@ -235,6 +324,17 @@ impl RoundOracle for AjtaiFirstEvalOracle {
                 self.w_beta_r_partial[k] = (K::ONE - r_i) * w0 + r_i * w1;
             }
             self.w_beta_r_partial.truncate(n2b);
+            #[cfg(feature = "debug-logs")]
+            {
+                // When the β row half-gate fully collapses, print the scalar eq_beta_r(r')
+                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                if dbg_oracle && self.w_beta_r_partial.len() == 1 {
+                    eprintln!(
+                        "[row][beta-F] eq_beta_r_collapsed(r') = {}",
+                        format_ext(self.w_beta_r_partial[0])
+                    );
+                }
+            }
             // Fold f_row_partials for each j over row dimension
             for part in &mut self.f_row_partials {
                 let m2 = part.len() >> 1;
@@ -248,162 +348,6 @@ impl RoundOracle for AjtaiFirstEvalOracle {
         }
         self.round_idx += 1;
     }
-}
-
-// ============================================================================
-// SPARSE MATRIX OPERATIONS (Supporting Infrastructure)
-// ============================================================================
-// Optimized CSR (Compressed Sparse Row) operations for efficient M·z and M^T·χ
-// computations, avoiding O(n*m) dense operations for highly sparse matrices.
-
-/// Minimal CSR (Compressed Sparse Row) format for sparse matrix operations
-/// This enables O(nnz) operations instead of O(n*m) for our extremely sparse matrices
-#[derive(Clone)]
-pub struct Csr<F: Field> {
-    pub rows: usize,
-    pub cols: usize,
-    pub indptr: Vec<usize>,  // len = rows + 1
-    pub indices: Vec<usize>, // len = nnz  
-    pub data: Vec<F>,        // len = nnz
-}
-
-/// Convert dense matrix to CSR format - O(nm) but done once
-pub fn to_csr<F: Field + Copy>(m: &Mat<F>, rows: usize, cols: usize) -> Csr<F> {
-    let mut indptr = Vec::with_capacity(rows + 1);
-    let mut indices = Vec::new();
-    let mut data = Vec::new();
-    indptr.push(0);
-    for r in 0..rows {
-        let row = m.row(r);
-        for (c, &v) in row.iter().enumerate() {
-            if v != F::ZERO {
-                indices.push(c);
-                data.push(v);
-            }
-        }
-        indptr.push(indices.len());
-    }
-    Csr { rows, cols, indptr, indices, data }
-}
-
-/// Sparse matrix-vector multiply: y = A * x  (CSR SpMV, O(nnz))
-fn spmv_csr_ff<F: Field + Send + Sync + Copy>(a: &Csr<F>, x: &[F]) -> Vec<F> {
-    let mut y = vec![F::ZERO; a.rows];
-    y.par_iter_mut().enumerate().for_each(|(r, yr)| {
-        let start = a.indptr[r];
-        let end = a.indptr[r + 1];
-        let mut acc = F::ZERO;
-        for k in start..end {
-            let c = a.indices[k];
-            acc += a.data[k] * x[c];
-        }
-        *yr = acc;
-    });
-    y
-}
-
-// (dense χ_r variant removed; tests compute the dense check inline to avoid dead code)
-
-// ============================================================================
-// EQUALITY WEIGHT COMPUTATIONS (eq(·,r) optimization)
-// ============================================================================
-// Half-table implementation to compute χ_r(row) = eq(row, r) without
-// materializing the full 2^ℓ tensor, using split lookup tables.
-
-/// Row weight provider: returns χ_r(row) or an equivalent row weight.
-pub trait RowWeight: Sync {
-    fn w(&self, row: usize) -> K;
-}
-
-/// Half-table implementation of χ_r row weights to avoid materializing the full tensor.
-pub struct HalfTableEq {
-    lo: Vec<K>,
-    hi: Vec<K>,
-    split: usize,
-}
-
-impl HalfTableEq {
-    pub fn new(r: &[K]) -> Self {
-        let ell = r.len();
-        let split = ell / 2; // lower split bits in lo, higher in hi
-        let lo_len = 1usize << split;
-        let hi_len = 1usize << (ell - split);
-
-        // Precompute factors (1-r_i, r_i)
-        let mut one_minus = Vec::with_capacity(ell);
-        for &ri in r { one_minus.push(K::ONE - ri); }
-
-        // Build lo table
-        let mut lo = vec![K::ONE; lo_len];
-        for mask in 0..lo_len {
-            let mut acc = K::ONE;
-            let mut m = mask;
-            for i in 0..split {
-                let bit = m & 1;
-                acc *= if bit == 0 { one_minus[i] } else { r[i] };
-                m >>= 1;
-            }
-            lo[mask] = acc;
-        }
-
-        // Build hi table
-        let mut hi = vec![K::ONE; hi_len];
-        for mask in 0..hi_len {
-            let mut acc = K::ONE;
-            let mut m = mask;
-            for j in 0..(ell - split) {
-                let idx = split + j;
-                let bit = m & 1;
-                acc *= if bit == 0 { one_minus[idx] } else { r[idx] };
-                m >>= 1;
-            }
-            hi[mask] = acc;
-        }
-
-        Self { lo, hi, split }
-    }
-}
-
-impl RowWeight for HalfTableEq {
-    #[inline]
-    fn w(&self, row: usize) -> K {
-        let lo_mask = (1usize << self.split) - 1;
-        let lo_idx = row & lo_mask;
-        let hi_idx = row >> self.split;
-        self.lo[lo_idx] * self.hi[hi_idx]
-    }
-}
-
-/// Weighted version of CSR transpose multiply: v = A^T * w, where w(row) is provided on-the-fly.
-/// Efficient parallel implementation using per-thread accumulators to avoid per-row Vec allocations
-pub fn spmv_csr_t_weighted_fk<F, W>(
-    a: &Csr<F>,
-    w: &W,
-) -> Vec<K> 
-where
-    F: Field + Send + Sync + Copy,
-    K: From<F>,
-    W: RowWeight + Sync,
-{
-    use rayon::prelude::*;
-    
-    let cols = a.cols;
-    let zero = K::ZERO;
-    
-    // Parallel fold: each thread builds a local accumulator, then reduce
-    (0..a.rows).into_par_iter()
-        .fold(|| vec![zero; cols], |mut acc, r| {
-            let wr = w.w(r);
-            for k in a.indptr[r]..a.indptr[r+1] {
-                let c = a.indices[k];
-                acc[c] += K::from(a.data[k]) * wr;
-            }
-            acc
-        })
-        .reduce(|| vec![zero; cols], |mut a, b| {
-            for i in 0..cols { a[i] += b[i]; }
-            a
-        })
 }
 
 // ============================================================================
@@ -990,11 +934,11 @@ where
 
         } else {
             // ===== AJTAI PHASE =====
-            // After row rounds, only the eq_a(X_a,β_a)·eq_r(r',β_r)·(F(r') + Σ_i γ^i·N_i(X_a,r'))
-            // contributes to Ajtai rounds. Eval block has been collapsed already over Ajtai at α.
+            // After row rounds, only eq_a(X_a,β_a)·eq_r(r',β_r)·F(r') contributes (Option B).
+            // Eval block has been collapsed already over Ajtai at α; NC is excluded in Option B.
 
             // Row equality gate after all row folds
-            let wr_scalar = if !self.w_beta_r_partial.is_empty() {
+            let _wr_scalar = if !self.w_beta_r_partial.is_empty() {
                 self.w_beta_r_partial[0]
             } else {
                 K::ONE
@@ -1005,79 +949,15 @@ where
             let half_beta_a = self.w_beta_a_partial.len() >> 1;
             let half_alpha_a = self.w_alpha_a_partial.len() >> 1;
 
-            // (A) β-block: Ajtai-gated F(r') + dynamic NC(X_a, r')
+            // (A) β-block for F: Ajtai-gated F(r') (NC excluded under Option B)
             let f_rp = self.nc.as_ref().and_then(|st| st.f_at_rprime).unwrap();
-            
-            #[cfg(feature = "debug-logs")]
-            {
-                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                if dbg_oracle && self.round_idx == self.ell_n {
-                    eprintln!("[ajtai{}] F(r') = {}, wr_scalar = {}", 
-                             self.round_idx - self.ell_n, format_ext(f_rp), format_ext(wr_scalar));
-                }
-            }
-            
-            let nc_ref = self.nc.as_ref();
             for k in 0..half_beta_a {
                 let w0b = self.w_beta_a_partial[2 * k];
                 let w1b = self.w_beta_a_partial[2 * k + 1];
-                // IMPORTANT: keep wr_scalar OUTSIDE the Ajtai gate so it matches terminal Q
-                // Compute only the β_a gate here.
-                
                 for (sx, &X) in sample_xs.iter().enumerate() {
-                    // β_a gate for this pair at the current X (no wr_scalar here)
                     let gate_beta = (K::ONE - X) * w0b + X * w1b;
-
-                    // Contribution at this X: F(r') + Σ_i γ^i · Φ( y_i(X) )
-                    let mut sum_at_x = f_rp;
-                    if let Some(nc) = nc_ref {
-                        for (i, yv) in nc.y_partials.iter().enumerate() {
-                            let y0 = yv[2 * k];
-                            let y1 = yv[2 * k + 1];
-                            let yx = (K::ONE - X) * y0 + X * y1;
-                            let mut Ni = K::ONE;
-                            for t in -(self.b as i64 - 1)..=(self.b as i64 - 1) {
-                                Ni *= yx - K::from(F::from_i64(t));
-                            }
-                            sum_at_x += nc.gamma_pows[i] * Ni;
-                            #[cfg(feature = "debug-logs")]
-                            {
-                                // Optional heavy trace for first pair/sample only
-                                let verbose = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                                if verbose && k == 0 && sx <= 1 {
-                                    let ajtai_round = self.round_idx - self.ell_n;
-                                    let fmt = |x: K| -> String { format_ext(x) };
-                                    // Also compute Ni0 and Ni1 for contrast (do not use them)
-                                    let mut Ni0 = K::ONE; let mut Ni1 = K::ONE;
-                                    for t in -(self.b as i64 - 1)..=(self.b as i64 - 1) {
-                                        let tt = K::from(F::from_i64(t));
-                                        Ni0 *= y0 - tt; Ni1 *= y1 - tt;
-                                    }
-                                    eprintln!(
-                                        "[ajtai{ar}][trace] sx={sx} y0={} y1={} yX={} Phi(yX)={} Phi(y0)={} Phi(y1)={}",
-                                        fmt(y0), fmt(y1), fmt(yx), fmt(Ni), fmt(Ni0), fmt(Ni1), ar = ajtai_round
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    // Multiply by the row-half scalar outside to match terminal identity
-                    sample_ys[sx] += wr_scalar * gate_beta * sum_at_x;
-
-                    #[cfg(feature = "debug-logs")]
-                    {
-                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                        if dbg_oracle && sx <= 1 && self.round_idx == self.ell_n && k == 0 {
-                            eprintln!(
-                                "[ajtai{}][sample{}] wr_scalar={}, gate_beta={}, (F+NC)(X)={}",
-                                self.round_idx - self.ell_n,
-                                sx,
-                                format_ext(wr_scalar),
-                                format_ext(gate_beta),
-                                format_ext(sum_at_x)
-                            );
-                        }
-                    }
+                    let wr_scalar = if !self.w_beta_r_partial.is_empty() { self.w_beta_r_partial[0] } else { K::ONE };
+                    sample_ys[sx] += wr_scalar * gate_beta * f_rp;
                 }
             }
 
@@ -1101,7 +981,7 @@ where
             #[cfg(feature = "debug-logs")]
             {
                 let ajtai_round = self.round_idx - self.ell_n;
-                eprintln!("[oracle][ajtai{}] Ajtai-gating F(r') and NC(X_a,r') via s_weighted", ajtai_round);
+                eprintln!("[oracle][ajtai{}] Ajtai-gating F(r') and Eval via s_weighted", ajtai_round);
             }
         }
         
@@ -1721,8 +1601,8 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // Build χ_α once for MLE evaluations over Ajtai dimension
     let chi_alpha: Vec<K> = neo_ccs::utils::tensor_point::<K>(&alpha);
     
-    // k_total = 1 (MCS) + me_inputs.len() (ME inputs) = k instances on output
-    let k_total = 1 + me_inputs.len();
+    // k_total = mcs_list.len() (MCS) + me_inputs.len() (ME inputs) = k instances on output
+    let k_total = mcs_list.len() + me_inputs.len();
     
     // === Precompute oracle constants (f_at_beta_r, nc_sum_beta, G_eval) ===
     // **Paper Reference**: Section 4.4, Step 4 - Terminal verification values
@@ -1747,12 +1627,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     }
     
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [F_BETA] m_vals = {:?}", m_vals.iter().take(3).collect::<Vec<_>>());
+    println!("🔧 [F_BETA] m_vals = {}", format_ext_vec(&m_vals[..m_vals.len().min(3)]));
     
     let f_at_beta_r = s.f.eval_in_ext::<K>(&m_vals);
     
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [F_BETA] f_at_beta_r = {:?}, polynomial = {:?}", f_at_beta_r, &s.f);
+    println!("🔧 [F_BETA] f_at_beta_r = {}, polynomial = {:?}", format_ext(f_at_beta_r), &s.f);
     
     // === NC sum at β: Σ_i γ^i N_i(β) ===
     // NC term uses y_{(i,1)} = Z_i * M_1^T * χ_{β_r}, just like other y vectors
@@ -1977,47 +1857,55 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         }
     }
     
-    // Paper-aligned claimed sum with full β-block (F only, NC omitted here): initial_sum = T + F(β_r)
-    // This ensures the oracle’s β·F contribution is proved inside the sum-check.
+    // Claimed sum: include β·F hypercube contribution via F(β_r) plus Eval-only T
+    // This aligns the sum-check initial claim with Q's total sum over the cube.
     let initial_sum = T + f_at_beta_r;
     
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [INITIAL_SUM] T(Eval)={} (paper-claimed sum)", format_ext(initial_sum));
+    println!("🔧 [INITIAL_SUM] (T + F(β_r)) = {}", format_ext(initial_sum));
     
     // Bind initial_sum BEFORE rounds to the transcript (prover side)
     tr.append_fields(b"sumcheck/initial_sum", &initial_sum.as_coeffs());
 
-    // Drive rounds with Ajtai-first Eval-only oracle
-    // Build e_ajtai = Σ_{i≥2,j} γ^{(i_off+1)+j*k_total} · y_{(i,j)} over Ajtai dimension
-    let d_a = 1usize << ell_d;
-    let mut e_ajtai = vec![K::ZERO; d_a];
-    for (i_off, me_input) in me_inputs.iter().enumerate() {
-        for j in 0..s.t() {
-            // Paper-aligned exponent: γ^{(i_off + 2) + j*k_total - 1}
-            let exp = (i_off + 2) + j * k_total - 1;
-            let mut w_pow = K::ONE;
-            for _ in 0..exp { w_pow *= gamma; }
-            let mut yj = me_input.y[j].clone();
-            yj.resize(d_a, K::ZERO);
-            for idx in 0..d_a { e_ajtai[idx] += w_pow * yj[idx]; }
-        }
+    // Drive rounds with Generic CCS oracle (row-first, then Ajtai), which preserves
+    // sum-check invariants for non-multilinear F and NC terms.
+    let z_witness_refs: Vec<&Mat<F>> = witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()).collect();
+    let me_offset = witnesses.len();
+    // Precompute γ^i for NC row-phase diagnostics
+    let mut nc_row_gamma_pows_vec = Vec::with_capacity(k_total);
+    {
+        let mut gcur = gamma;
+        for _ in 0..k_total { nc_row_gamma_pows_vec.push(gcur); gcur *= gamma; }
     }
 
-    let mut oracle = AjtaiFirstEvalOracle {
+    let mut oracle = GenericCcsOracle {
+        s: &s,
+        partials_first_inst: partials_first_inst,
+        w_beta_a_partial: w_beta_a_partial.clone(),
+        w_alpha_a_partial: w_alpha_a_partial.clone(),
+        w_beta_r_partial: w_beta_r_partial.clone(),
+        w_eval_r_partial: w_eval_r_partial.clone(),
+        z_witnesses: z_witness_refs,
+        gamma,
+        k_total,
+        b: params.b,
         ell_d,
         ell_n,
+        d_sc,
         round_idx: 0,
-        e_ajtai,
-        w_alpha_a_partial: w_alpha_a_partial.clone(),
-        w_eval_r_partial: w_eval_r_partial.clone(),
-        w_beta_a_partial: w_beta_a_partial.clone(),
-        w_beta_r_partial: w_beta_r_partial.clone(),
-        f_row_partials: partials_first_inst.s_per_j.clone(),
-        f_terms: {
-            let mut v = Vec::with_capacity(s.f.terms().len());
-            for t in s.f.terms() { v.push((K::from(t.coeff), t.exps.clone())); }
-            v
-        },
+        initial_sum_claim: initial_sum,
+        f_at_beta_r,
+        nc_sum_beta,
+        eval_row_partial: eval_row_partial.clone(),
+        row_chals: Vec::new(),
+        csr_m1: &mats_csr[0],
+        csrs: &mats_csr,
+        eval_ajtai_partial: None,
+        me_offset,
+        nc_y_matrices,
+        nc_row_gamma_pows: nc_row_gamma_pows_vec,
+        nc_row_partials: Vec::new(),
+        nc: None,
     };
     let SumcheckOutput { rounds, challenges: r, final_sum: running_sum_sc } = {
         if d_sc >= 1 { run_sumcheck_skip_eval_at_one(tr, &mut oracle, initial_sum, &sample_xs_generic)? }
@@ -2040,10 +1928,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // P → V: For all i ∈ [k], j ∈ [t], send y'_{(i,j)} = Z_i·M_j^T·r̂'
     // where r̂' is the MLE evaluation of the sum-check challenge r'
     
-    // Split the ℓ-vector into (α', r') - Ajtai-first ordering (paper-aligned)
-    // First ell_d challenges are Ajtai bits, last ell_n challenges are row bits
+    // Split the ℓ-vector into (r', α') - Row-first ordering (row rounds first)
+    // First ell_n challenges are row bits, last ell_d challenges are Ajtai bits
     if r.len() != ell { return Err(PiCcsError::SumcheckError("bad r length".into())); }
-    let (alpha_prime, r_prime) = r.split_at(ell_d);
+    let (r_prime, alpha_prime) = r.split_at(ell_n);
+    // Ensure no unused warning when debug logs or terminal checks inline skip using alpha_prime
+    let _ = alpha_prime;
 
     // Compute M_j^T * χ_r' using streaming/half-table weights (no full χ_r materialization)
     #[cfg(feature = "debug-logs")]
@@ -2460,14 +2350,14 @@ pub fn pi_ccs_verify(
         return Ok(false);
     }
 
-    // Split r_vec into (α', r') - Ajtai-first ordering (paper-aligned)
-    // First ell_d challenges are Ajtai bits, last ell_n challenges are row bits
+    // Split r_vec into (r', α') - Row-first ordering (row rounds first)
+    // First ell_n challenges are row bits, last ell_d challenges are Ajtai bits
     if r_vec.len() != ell {
         #[cfg(feature = "debug-logs")]
         eprintln!("[pi-ccs][verify] r_vec length mismatch: have {}, expect {}", r_vec.len(), ell);
         return Ok(false);
     }
-    let (alpha_prime, r_prime) = r_vec.split_at(ell_d);
+    let (r_prime, alpha_prime) = r_vec.split_at(ell_n);
 
     // =========================================================================
     // STEP 3: VERIFY TRANSCRIPT BINDING AND STRUCTURAL CHECKS
@@ -2631,7 +2521,10 @@ pub fn pi_ccs_verify(
         }
         acc
     };
-    let eq_aprp_beta = eq_points(alpha_prime, beta_a) * eq_points(r_prime, beta_r);
+    // Row-first splitting: r' comes first in r, α' comes last
+    let eq_beta_r_prime = eq_points(r_prime, beta_r);
+    let eq_beta_a_prime = eq_points(alpha_prime, beta_a);
+    let eq_aprp_beta = eq_beta_a_prime * eq_beta_r_prime;
     let eq_aprp_ar = if let Some(r_input) = r_input_opt {
         eq_points(alpha_prime, &alpha_vec) * eq_points(r_prime, r_input)
     } else {
@@ -2639,8 +2532,10 @@ pub fn pi_ccs_verify(
     };
 
     // F': use y_scalars directly (robust to Ajtai digit ordering)
+    // Use the first MCS-derived output for F' (matches the instance used in prover F partials)
+    let me_for_f = out_me.first().ok_or_else(|| PiCcsError::InvalidInput("no ME outputs".into()))?;
     let mut m_vals = vec![K::ZERO; s.t()];
-    for j in 0..s.t() { m_vals[j] = out_me[0].y_scalars[j]; }
+    for j in 0..s.t() { m_vals[j] = me_for_f.y_scalars[j]; }
     let f_prime = s.f.eval_in_ext::<K>(&m_vals);
     #[cfg(feature = "debug-logs")]
     {
@@ -2696,6 +2591,9 @@ pub fn pi_ccs_verify(
     {
         eprintln!("[pi-ccs][verify] eq_aprp_beta={}, f'={}, nc'={}, eq_aprp_ar={}, eval'={}",
             format_ext(eq_aprp_beta), format_ext(f_prime), format_ext(nc_sum_prime), format_ext(eq_aprp_ar), format_ext(eval_sum_prime));
+        // Decompose eq_aprp_beta into Ajtai and Row parts for debugging gate alignment
+        eprintln!("[pi-ccs][verify] eq_beta_a(alpha')={} eq_beta_r(r')={}",
+            format_ext(eq_beta_a_prime), format_ext(eq_beta_r_prime));
     }
     // NOTE: No gamma_to_k multiplier - exponents already correct in eval_sum_prime
     let rhs = eq_aprp_beta * (f_prime + nc_sum_prime) + eq_aprp_ar * eval_sum_prime;
@@ -2881,8 +2779,6 @@ pub fn pi_ccs_derive_transcript_tail(
     eprintln!("[pi-ccs] derive_tail: s.n={}, ell={}, d_sc={}, outputs={}, rounds={}", s.n, ell, d_sc, mcs_list.len(), proof.sumcheck_rounds.len());
     Ok(TranscriptTail { _wr, r, alphas: Vec::new(), running_sum, initial_sum: claimed_initial })
 }
-
-// (Removed backward-compat wrappers in favor of `pi_ccs_derive_transcript_tail` only)
 
 /// Compute the terminal claim from Π_CCS outputs given wr or generic CCS terminal.
 pub fn pi_ccs_compute_terminal_claim_r1cs_or_ccs(

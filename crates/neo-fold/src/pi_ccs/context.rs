@@ -58,9 +58,10 @@ pub fn build_dims_and_policy(
     
     let ell = ell_d + ell_n;
 
+    // Degree bound: max(F+eq, NC+eq, Eval+eq). NC has degree 2b-1 under range ∏_{t=-(b-1)}^{b-1}
     let d_sc = core::cmp::max(
         s.max_degree() as usize + 1,
-        core::cmp::max(2, 2 * (params.b as usize)),
+        core::cmp::max(2, 2 * (params.b as usize) + 2), // +1 for eq(X,β_r) gate on row rounds
     );
 
     let ext = params.extension_check(ell as u32, d_sc as u32)
@@ -75,4 +76,3 @@ pub fn build_dims_and_policy(
 
     Ok(Dims { ell_d, ell_n, ell, d_sc })
 }
-

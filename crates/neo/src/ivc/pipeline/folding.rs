@@ -4,7 +4,7 @@
 
 use crate::F;
 use crate::shared::types::*;
-use neo_fold::{pi_ccs_verify, pi_rlc_verify, pi_dec_verify};
+use neo_fold::{pi_ccs_verify_simple, pi_rlc_verify, pi_dec_verify};
 use neo_fold::pi_ccs::pi_ccs_derive_transcript_tail;
 use neo_transcript::{Transcript, Poseidon2Transcript};
 use neo_math::{Rq, cf_inv, SAction};
@@ -285,7 +285,7 @@ pub fn verify_ivc_step_folding(
     #[cfg(feature = "neo-logs")]
     eprintln!("[folding] stage=pi-ccs");
     let mut tr = Poseidon2Transcript::new(b"neo/fold");
-    let ok_ccs = pi_ccs_verify(
+    let ok_ccs = pi_ccs_verify_simple(
         &mut tr,
         params,
         augmented_ccs,

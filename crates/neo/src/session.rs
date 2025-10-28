@@ -192,10 +192,10 @@ pub struct FoldingSession {
     // Store step_io for each step (needed for verification)
     step_ios: Vec<Vec<F>>,
     
-    // TODO: Add prove-diagnostics feature flag to Cargo.toml
-    // Enable automatic diagnostic capture on constraint failures
-    // #[cfg(feature = "prove-diagnostics")]
-    // pub enable_diagnostics: bool,
+    // Enable automatic diagnostic capture on constraint failures (via NEO_DIAGNOSTICS env var)
+    #[cfg(feature = "prove-diagnostics")]
+    #[allow(dead_code)]  // Will be used when we integrate CCS checking with diagnostics
+    enable_diagnostics: bool,
 }
 
 impl FoldingSession {
@@ -267,9 +267,8 @@ impl FoldingSession {
             initial_state: initial_state.unwrap_or_default(),
             start_step,
             step_ios: Vec::new(),
-            // TODO: Re-enable when prove-diagnostics feature is added
-            // #[cfg(feature = "prove-diagnostics")]
-            // enable_diagnostics: std::env::var("NEO_DIAGNOSTICS").is_ok(),
+            #[cfg(feature = "prove-diagnostics")]
+            enable_diagnostics: std::env::var("NEO_DIAGNOSTICS").is_ok(),
         }
     }
 

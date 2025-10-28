@@ -192,7 +192,6 @@ pub fn prove_ivc_step_chained(
     // This check can be bypassed by a malicious prover who modifies the code.
     // The REAL security MUST come from in-circuit constraints in the augmented CCS.
     // 
-    // TODO: Investigate why step CCS constraints might not be properly enforced in-circuit.
     // The step CCS should be copied into the augmented CCS and checked cryptographically.
     //
     // let step_ccs_public_input = match input.public_input {
@@ -549,45 +548,6 @@ pub fn prove_ivc_step_chained(
         step: input.step + 1,
     };
 
-
-    // ❌ INCORRECT CHECK REMOVED:
-    // The following EV↔Π-CCS linkage check was treating rhs_me.y[j] as if j indexes
-    // state elements, but y[j] actually indexes CCS matrices (t=3 for R1CS: A,B,C).
-    // The EV constraints are already properly enforced in the augmented CCS (lines 2120-2142).
-    //
-    // PROVER-SIDE EV↔Π-CCS linkage check: catch invalid steps early
-    // This is a development-time guard that duplicates the verifier check for better error messages.
-    // SECURITY: The real check is in the verifier; this just provides early failure.
-    // {
-        // let rho_inv = F::ONE / rho;
-        // let d_digits = neo_math::D;
-        // let rhs_me = &folding_proof.pi_ccs_outputs[1]; // RHS = current step
-        
-        // Precompute powers of base b
-        // let mut pow_b_f = vec![F::ONE; d_digits];
-        // for i in 1..d_digits { pow_b_f[i] = pow_b_f[i-1] * F::from_u64(input.params.b as u64); }
-        // let pow_b_k: Vec<neo_math::K> = pow_b_f.iter().cloned().map(neo_math::K::from).collect();
-        
-        // Check EV vs Π-CCS for each component
-        // for j in 0..y_len.min(rhs_me.y.len()) {
-            // let mut y_rhs_scalar_k = neo_math::K::ZERO;
-            // for r in 0..d_digits { y_rhs_scalar_k += rhs_me.y[j][r] * pow_b_k[r]; }
-            
-            // let ev_j_f = (y_next[j] - input.prev_accumulator.y_compact[j]) * rho_inv;
-            // let ev_j_k = neo_math::K::from(ev_j_f);
-            
-            // if y_rhs_scalar_k != ev_j_k {
-                // return Err(format!(
-                    // "SOUNDNESS: EV↔Π-CCS linkage failed at j={}: \
-                    // prover produced y_step inconsistent with Π-CCS outputs.\n\
-                    // This indicates the step witness does not match the claimed state transition.\n\
-                    // RHS Π-CCS y[{}] scalarized: {:?}, EV (Δ/ρ)[{}]: {:?}",
-                    // j, j, y_rhs_scalar_k, j, ev_j_k
-                // ).into());
-            // }
-        // }
-    // }
-
     // 9) Package IVC proof (no per-step SNARK compression)
     // Compute context digest using a SIMPLE CCS construction (without RLC binder) for consistency
     // The verifier will reconstruct the same simple CCS for digest verification
@@ -671,6 +631,7 @@ pub fn prove_ivc_step_chained(
         (step_mcs_inst, step_mcs_wit)
     ))
 }
+
 /// Prove a single IVC step using the main Neo proving pipeline
 /// 
 /// This is a convenience wrapper around `prove_ivc_step_chained` for cases

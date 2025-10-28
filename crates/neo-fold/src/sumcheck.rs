@@ -191,7 +191,11 @@ pub fn verify_sumcheck_rounds(
     for (round_idx, coeffs) in rounds.iter().enumerate() {
         if coeffs.is_empty() { return (Vec::new(), K::ZERO, false); }
         let deg = effective_degree(coeffs);
-        if deg > d_sc { return (Vec::new(), K::ZERO, false); }
+        if deg > d_sc {
+            let dbg = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+            if dbg { eprintln!("[sumcheck][verify] round{}: degree {} exceeds bound {}", round_idx, deg, d_sc); }
+            return (Vec::new(), K::ZERO, false);
+        }
         let p0 = poly_eval_k(coeffs, K::ZERO);
         let p1 = poly_eval_k(coeffs, K::ONE);
         // Back-compat fallback: if the initial claim isn't carried, derive it from round 0
@@ -199,9 +203,8 @@ pub fn verify_sumcheck_rounds(
             running_sum = p0 + p1;
         }
         if p0 + p1 != running_sum {
-            #[cfg(feature = "debug-logs")]
-            eprintln!("[sumcheck][verify] p(0)={:?} + p(1)={:?} = {:?} != running_sum={:?}",
-                     p0, p1, p0 + p1, running_sum);
+            let dbg = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+            if dbg { eprintln!("[sumcheck][verify] round{}: p(0)+p(1) mismatch", round_idx); }
             return (Vec::new(), K::ZERO, false);
         }
         tr.append_message(b"neo/ccs/round", b"");

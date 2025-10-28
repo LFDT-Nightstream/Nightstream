@@ -63,7 +63,7 @@ use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
 use neo_ajtai::Commitment as Cmt;
 use neo_math::{F, K, KExtensions};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use crate::sumcheck::{run_sumcheck, run_sumcheck_skip_eval_at_one, verify_sumcheck_rounds, SumcheckOutput};
+use crate::sumcheck::{run_sumcheck, verify_sumcheck_rounds, SumcheckOutput};
 use crate::pi_ccs::sparse_matrix::{Csr, to_csr};
 use crate::pi_ccs::eq_weights::{HalfTableEq, RowWeight};
 use crate::pi_ccs::oracle::GenericCcsOracle;
@@ -455,15 +455,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         me_offset,
         nc_y_matrices,
         nc_row_gamma_pows: nc_row_gamma_pows_vec,
-        nc_row_partials: Vec::new(),
         nc: None,
     };
 
     // Execute sum-check protocol: reduces T = sum over {0,1}^{log(dn)} to v = Q(α', r')
-    let SumcheckOutput { rounds, challenges: r, final_sum: running_sum_sc } = {
-        if d_sc >= 1 { run_sumcheck_skip_eval_at_one(tr, &mut oracle, initial_sum, &sample_xs_generic)? }
-        else { run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs_generic)? }
-    };
+    let SumcheckOutput { rounds, challenges: r, final_sum: running_sum_sc } =
+        run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs_generic)?;
 
     #[cfg(feature = "debug-logs")]
     {
@@ -1020,4 +1017,3 @@ pub fn pi_ccs_verify_simple(
 ) -> Result<bool, PiCcsError> {
     pi_ccs_verify(tr, params, s, mcs_list, &[], out_me, proof)
 }
-

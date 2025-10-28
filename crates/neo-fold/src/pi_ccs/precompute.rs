@@ -221,6 +221,19 @@ pub fn precompute_eval_row_partial(
     let chi_alpha: Vec<K> = neo_ccs::utils::tensor_point::<K>(&ch.alpha);
     let mut G_eval = vec![K::ZERO; s.n];
 
+    // Precompute γ^{i-1} for ME witnesses (i = i_off+2 ⇒ i-1 = i_off+1)
+    let mut gamma_pow_i: Vec<K> = vec![K::ZERO; me_witnesses.len()];
+    {
+        let mut cur = ch.gamma; // γ^1
+        for i_off in 0..me_witnesses.len() {
+            gamma_pow_i[i_off] = cur;
+            cur *= ch.gamma;
+        }
+    }
+    // γ^{k_total}
+    let mut gamma_to_k = K::ONE;
+    for _ in 0..k_total { gamma_to_k *= ch.gamma; }
+
     for (i_off, Zi) in me_witnesses.iter().enumerate() {
         let mut u_i = vec![K::ZERO; s.m];
         for c in 0..s.m {
@@ -238,12 +251,9 @@ pub fn precompute_eval_row_partial(
             let mj_ref = MatRef::from_mat(&s.matrices[j]);
             let g_ij =
                 neo_ccs::utils::mat_vec_mul_fk::<F, K>(mj_ref.data, mj_ref.rows, mj_ref.cols, &u_i);
-
-            let exponent = (i_off + 2) + j * k_total - 1;
-            let mut w_pow = K::ONE;
-            for _ in 0..exponent {
-                w_pow *= ch.gamma;
-            }
+            // Weight: γ^k · γ^{i+(j-1)k-1} = γ^{i-1 + jk} with j starting at 0 here, times γ^k once.
+            let mut w_pow = gamma_to_k * gamma_pow_i[i_off];
+            for _ in 0..j { w_pow *= gamma_to_k; }
 
             for r in 0..s.n {
                 G_eval[r] += w_pow * g_ij[r];
@@ -297,7 +307,11 @@ pub fn compute_initial_sum_components(
 ) -> Result<K, PiCcsError> {
     let chi_alpha: Vec<K> = neo_ccs::utils::tensor_point::<K>(&ch.alpha);
 
-    let mut T = K::ZERO;
+    // Outer γ^k factor
+    let mut gamma_to_k = K::ONE;
+    for _ in 0..k_total { gamma_to_k *= ch.gamma; }
+
+    let mut T_inner = K::ZERO;
     for j in 0..s.t() {
         for (i_offset, me_input) in me_inputs.iter().enumerate() {
             let y_mle = me_input.y[j]
@@ -305,15 +319,14 @@ pub fn compute_initial_sum_components(
                 .zip(&chi_alpha)
                 .fold(K::ZERO, |acc, (&v, &w)| acc + v * w);
 
-            let exponent = (i_offset + 2) + j * k_total - 1;
-            let mut weight = K::ONE;
-            for _ in 0..exponent {
-                weight *= ch.gamma;
-            }
-            T += weight * y_mle;
+            // Weight without outer γ^k: γ^{i+(j-1)k-1} with j in 1..t → here j is 0..t-1 ⇒ γ^{i-1 + jk}
+            // Build γ^{i-1}
+            let mut weight_ij = K::ONE;
+            for _ in 0..(i_offset + 1) { weight_ij *= ch.gamma; }
+            for _ in 0..j { weight_ij *= gamma_to_k; }
+            T_inner += weight_ij * y_mle;
         }
     }
-
+    let T = gamma_to_k * T_inner; // apply outer γ^k
     Ok(beta_block.f_at_beta_r + beta_block.nc_sum_hypercube + T)
 }
-

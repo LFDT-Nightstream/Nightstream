@@ -17,3 +17,9 @@ mod integration_pi_ccs_k1_smoke;
 
 #[path = "06_integration_pi_ccs_k2_smoke.rs"]
 mod integration_pi_ccs_k2_smoke;
+
+#[path = "07_unit_nc_constraints.rs"]
+mod unit_nc_constraints;
+
+#[path = "08_unit_eval.rs"]
+mod unit_eval;

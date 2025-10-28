@@ -100,9 +100,9 @@ where
                 y_mle_x += chi_xa_rho * y_rho;
             }
             
-            // Apply range polynomial: NC_i = ∏_{t=-b+1}^{b-1} (y_mle_x - t)
+            // Apply range polynomial: NC_i = ∏_{t=-(b-1)}^{b-1} (y_mle_x - t)
             let mut Ni_x = K::ONE;
-            for t in -(params.b as i64 - 1)..=(params.b as i64 - 1) {
+            for t in (-(params.b as i64 - 1))..=(params.b as i64 - 1) {
                 Ni_x *= y_mle_x - K::from(F::from_i64(t));
             }
             
@@ -193,4 +193,3 @@ where
     // Return combined residual: if both are zero, constraints are satisfied
     decomp_residual + range_residual
 }
-

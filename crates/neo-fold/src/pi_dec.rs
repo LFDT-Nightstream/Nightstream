@@ -566,10 +566,6 @@ fn generate_placeholder_range_proof(digit_slice: &[F], b: u32) -> Result<Vec<u8>
     Ok(proof_data)
 }
 
-// REMOVED: verify_range_proofs function
-// This was a placeholder that only parsed bytes without cryptographic verification.
-// Range constraints are now properly verified in Π_CCS via composed polynomial Q.
-
 /// Verify ME relation consistency for a digit instance
 fn verify_me_relation_consistency(me_digit: &MeInstance<Cmt, F, K>, expected_r: &[K]) -> bool {
     // Verify r vector matches expected

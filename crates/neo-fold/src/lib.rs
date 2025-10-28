@@ -19,8 +19,12 @@ pub mod strong_set;
 pub mod verify_linear;
 /// Generic sum-check engine shared by Π_CCS
 pub mod sumcheck;
-/// Π_CCS: Sum-check reduction over extension field K  
+/// Π_CCS: Sum-check reduction over extension field K (with submodules)
 pub mod pi_ccs;
+
+// Re-export pi_ccs submodules at top level for backward compatibility
+pub use pi_ccs::sparse_matrix;
+pub use pi_ccs::eq_weights;
 /// Π_RLC: Random linear combination with S-action
 pub mod pi_rlc;
 /// Π_DEC: Verified split opening (TODO: implement real version)

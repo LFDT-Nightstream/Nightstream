@@ -6,7 +6,7 @@
 use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
-use crate::sparse_matrix::Csr;
+use crate::pi_ccs::sparse_matrix::Csr;
 
 /// Row weight provider: returns χ_r(row) or an equivalent row weight.
 pub trait RowWeight: Sync {

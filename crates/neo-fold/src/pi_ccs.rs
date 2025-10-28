@@ -76,6 +76,13 @@ struct AjtaiFirstEvalOracle {
     w_alpha_a_partial: Vec<K>,
     // Row r half-gate weights (length 2^ell_n), folded per row round
     w_eval_r_partial: Vec<K>,
+    // β gates for F block
+    w_beta_a_partial: Vec<K>,
+    w_beta_r_partial: Vec<K>,
+    // Row MLE partials for M_j z (instance 1) to evaluate F over row rounds
+    f_row_partials: Vec<Vec<K>>, // one vector per j, length 2^ell_n
+    // f polynomial terms lifted to K: (coeff, exps)
+    f_terms: Vec<(K, Vec<u32>)>,
 }
 
 impl RoundOracle for AjtaiFirstEvalOracle {
@@ -149,6 +156,39 @@ impl RoundOracle for AjtaiFirstEvalOracle {
                 }
                 ys[i] = acc;
             }
+
+            // Row phase: β-block for F — serve eq_beta_a(collapsed) * gate_beta_r(X) * F_row(X)
+            let kmax_beta = self.w_beta_r_partial.len() >> 1;
+            let eq_beta_a_scalar = if self.w_beta_a_partial.is_empty() { K::ONE } else { self.w_beta_a_partial[0] };
+            for (i, &X) in sample_xs.iter().enumerate() {
+                let mut acc_f = K::ZERO;
+                for k in 0..kmax_beta {
+                    let wb0 = self.w_beta_r_partial[2*k];
+                    let wb1 = self.w_beta_r_partial[2*k + 1];
+                    let gate_beta_r = (K::ONE - X) * wb0 + X * wb1;
+                    // Evaluate v_j(X) from row partials at current pair k
+                    let mut vjs: Vec<K> = Vec::with_capacity(self.f_row_partials.len());
+                    for part in &self.f_row_partials {
+                        let a = part[2*k];
+                        let b = part[2*k + 1];
+                        vjs.push((K::ONE - X) * a + X * b);
+                    }
+                    // Compute f_row = Σ coeff ∏ v_j^{exp_j}
+                    let mut f_row = K::ZERO;
+                    for (coeff, exps) in &self.f_terms {
+                        let mut term = *coeff;
+                        for (vj, &e) in vjs.iter().zip(exps.iter()) {
+                            if e == 0 { continue; }
+                            let mut p = *vj;
+                            for _ in 1..e { p *= *vj; }
+                            term *= p;
+                        }
+                        f_row += term;
+                    }
+                    acc_f += eq_beta_a_scalar * gate_beta_r * f_row;
+                }
+                ys[i] += acc_f;
+            }
         }
         ys
     }
@@ -164,9 +204,14 @@ impl RoundOracle for AjtaiFirstEvalOracle {
                 let w0 = self.w_alpha_a_partial[2*k];
                 let w1 = self.w_alpha_a_partial[2*k + 1];
                 self.w_alpha_a_partial[k] = (K::ONE - r_i) * w0 + r_i * w1;
+                // Fold β Ajtai half-gate as well
+                let b0a = self.w_beta_a_partial[2*k];
+                let b1a = self.w_beta_a_partial[2*k + 1];
+                self.w_beta_a_partial[k] = (K::ONE - r_i) * b0a + r_i * b1a;
             }
             self.e_ajtai.truncate(n2);
             self.w_alpha_a_partial.truncate(n2);
+            self.w_beta_a_partial.truncate(n2);
         } else {
             // Fold row eq partials
             let n2 = self.w_eval_r_partial.len() >> 1;
@@ -176,6 +221,24 @@ impl RoundOracle for AjtaiFirstEvalOracle {
                 self.w_eval_r_partial[k] = (K::ONE - r_i) * w0 + r_i * w1;
             }
             self.w_eval_r_partial.truncate(n2);
+            // Fold β row half-gate
+            let n2b = self.w_beta_r_partial.len() >> 1;
+            for k in 0..n2b {
+                let w0 = self.w_beta_r_partial[2*k];
+                let w1 = self.w_beta_r_partial[2*k + 1];
+                self.w_beta_r_partial[k] = (K::ONE - r_i) * w0 + r_i * w1;
+            }
+            self.w_beta_r_partial.truncate(n2b);
+            // Fold f_row_partials for each j over row dimension
+            for part in &mut self.f_row_partials {
+                let m2 = part.len() >> 1;
+                for k in 0..m2 {
+                    let a = part[2*k];
+                    let b = part[2*k + 1];
+                    part[k] = (K::ONE - r_i) * a + r_i * b;
+                }
+                part.truncate(m2);
+            }
         }
         self.round_idx += 1;
     }
@@ -1810,10 +1873,9 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         }
     }
     
-    // Paper-aligned claimed sum: T (Eval-only expansion)
-    // **Paper Reference**: Section 4.4 – The sum-check is run with claimed sum T.
-    // The β-gated (F+NC) block cancels for satisfied constraints; if it doesn't, sum-check invariants reject.
-    let initial_sum = T;
+    // Paper-aligned claimed sum with full β-block (F only, NC omitted here): initial_sum = T + F(β_r)
+    // This ensures the oracle’s β·F contribution is proved inside the sum-check.
+    let initial_sum = T + f_at_beta_r;
     
     #[cfg(feature = "debug-logs")]
     println!("🔧 [INITIAL_SUM] T(Eval)={} (paper-claimed sum)", format_ext(initial_sum));
@@ -1844,6 +1906,14 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         e_ajtai,
         w_alpha_a_partial: w_alpha_a_partial.clone(),
         w_eval_r_partial: w_eval_r_partial.clone(),
+        w_beta_a_partial: w_beta_a_partial.clone(),
+        w_beta_r_partial: w_beta_r_partial.clone(),
+        f_row_partials: partials_first_inst.s_per_j.clone(),
+        f_terms: {
+            let mut v = Vec::with_capacity(s.f.terms().len());
+            for t in s.f.terms() { v.push((K::from(t.coeff), t.exps.clone())); }
+            v
+        },
     };
     let SumcheckOutput { rounds, challenges: r, final_sum: running_sum_sc } = {
         if d_sc >= 1 { run_sumcheck_skip_eval_at_one(tr, &mut oracle, initial_sum, &sample_xs_generic)? }
@@ -2035,40 +2105,32 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             eq_points(alpha_prime, &alpha) * eq_points(r_prime, r_inp)
         } else { K::ZERO };
 
-        // F'(r') from out_me[0].y
-        let base_f = K::from(F::from_u64(params.b as u64));
-        let mut pow_cache = vec![K::ONE; neo_math::D];
-        for i in 1..neo_math::D { pow_cache[i] = pow_cache[i-1] * base_f; }
+        // F'(r') from y_scalars directly to avoid Ajtai recomposition ordering issues
         let mut m_vals_dbg = vec![K::ZERO; s.t()];
-        for j in 0..s.t() {
-            let mut acc = K::ZERO;
-            for row in 0..neo_math::D { acc += out_me[0].y[j][row] * pow_cache[row]; }
-            m_vals_dbg[j] = acc;
-        }
+        for j in 0..s.t() { m_vals_dbg[j] = out_me[0].y_scalars[j]; }
         let f_prime_dbg = s.f.eval_in_ext::<K>(&m_vals_dbg);
-
-        // Precompute χ_{α'}
-        let chi_alpha_prime: Vec<K> = neo_ccs::utils::tensor_point::<K>(alpha_prime);
-        // NC′: reconstruct only when identity-first (n == m and M₀ = Iₙ), else 0.
-        let mut nc_sum_prime = K::ZERO;
-        let has_id0 = s.n == s.m && s.matrices.get(0).map(|m| m.is_identity()).unwrap_or(false);
-        if has_id0 {
-            let mut gamma_pow = gamma; // γ^1
-            for meo in out_me.iter() {
-                let y_i1 = &meo.y[0];
-                let mut y_mle = K::ZERO;
-                for (idx, &val) in y_i1.iter().enumerate() { if idx < chi_alpha_prime.len() { y_mle += val * chi_alpha_prime[idx]; } }
-                let mut Ni = K::ONE;
-                for t in -(params.b as i64 - 1)..=(params.b as i64 - 1) { Ni *= y_mle - K::from(F::from_i64(t)); }
-                nc_sum_prime += gamma_pow * Ni;
-                gamma_pow *= gamma;
-            }
+        eprintln!("[pi-ccs][prove][beta] poly_arity={} terms_len={}", s.f.arity(), s.f.terms().len());
+        for (ti, term) in s.f.terms().iter().enumerate() {
+            let coeff_k: K = K::from(term.coeff);
+            eprintln!("[pi-ccs][prove][beta] term{}: coeff={} exps={:?}", ti, format_ext(coeff_k), term.exps);
         }
+        for j in 0..core::cmp::min(s.t(), 8) {
+            eprintln!("[pi-ccs][prove][beta] m_vals_dbg[{}] = {}", j, format_ext(m_vals_dbg[j]));
+        }
+        eprintln!("[pi-ccs][prove][beta] f_prime_dbg(before_guard) = {}", format_ext(f_prime_dbg));
+
+        // Precompute χ_{α'} for Eval-only logging
+        let chi_alpha_prime: Vec<K> = neo_ccs::utils::tensor_point::<K>(alpha_prime);
+        // Option B: Do not reconstruct NC′ from outputs at generic α′; set to 0.
+        let nc_sum_prime = K::ZERO;
+        eprintln!("[pi-ccs][prove][beta] nc_prime = 0 (Option B: no digit channel)");
 
         // Eval (Option B): compute from me_inputs to match the oracle (Ajtai-first, Eval-only)
         let mut eval_sum_prime = K::ZERO;
         if !me_inputs.is_empty() {
             let k_total = mcs_list.len() + me_inputs.len();
+            #[cfg(feature = "debug-logs")]
+            eprintln!("[pi-ccs][prove] me_inputs_empty=false, k_total={}, t={} (prove/debug)", k_total, s.t());
             for j in 0..s.t() {
                 for (i_off, inp) in me_inputs.iter().enumerate() {
                     let y_vec = &inp.y[j];
@@ -2078,9 +2140,19 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
                     let exponent = (i_off + 2) + j * k_total - 1;
                     let mut w_pow = K::ONE;
                     for _ in 0..exponent { w_pow *= gamma; }
+                    #[cfg(feature = "debug-logs")]
+                    if j < 2 && i_off < 2 {
+                        eprintln!(
+                            "[pi-ccs][prove] eval-exp j={} i_off={} exp={} gamma^exp={} y_mle={}",
+                            j, i_off, exponent, format_ext(w_pow), format_ext(y_mle)
+                        );
+                    }
                     eval_sum_prime += w_pow * y_mle;
                 }
             }
+        } else {
+            #[cfg(feature = "debug-logs")]
+            eprintln!("[pi-ccs][prove] me_inputs_empty=true (prove/debug), eval_sum_prime=0");
         }
 
         let eq_beta_f = eq_aprp_beta * f_prime_dbg;
@@ -2452,44 +2524,37 @@ pub fn pi_ccs_verify(
         K::ZERO  // k=1: No input ME, Eval term is zero
     };
 
-    // F': reconstruct m_j from out_me[0].y (Ajtai recomposition), then f(m_1..m_t)
-    let base_f = K::from(F::from_u64(params.b as u64));
-    let mut pow_cache = vec![K::ONE; neo_math::D];
-    for i in 1..neo_math::D { pow_cache[i] = pow_cache[i-1] * base_f; }
+    // F': use y_scalars directly (robust to Ajtai digit ordering)
     let mut m_vals = vec![K::ZERO; s.t()];
-    for j in 0..s.t() {
-        let y_vec = &out_me[0].y[j]; // K^d
-        let mut acc = K::ZERO;
-        for row in 0..neo_math::D { acc += y_vec[row] * pow_cache[row]; }
-        m_vals[j] = acc;
-    }
+    for j in 0..s.t() { m_vals[j] = out_me[0].y_scalars[j]; }
     let f_prime = s.f.eval_in_ext::<K>(&m_vals);
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[pi-ccs][verify][beta] poly_arity={} terms_len={}", s.f.arity(), s.f.terms().len());
+        for (ti, term) in s.f.terms().iter().enumerate() {
+            let coeff_k: K = K::from(term.coeff);
+            eprintln!("[pi-ccs][verify][beta] term{}: coeff={} exps={:?}", ti, format_ext(coeff_k), term.exps);
+        }
+        for j in 0..core::cmp::min(s.t(), 8) {
+            eprintln!("[pi-ccs][verify][beta] m_vals[{}] = {}", j, format_ext(m_vals[j]));
+        }
+        eprintln!("[pi-ccs][verify][beta] f_prime(before_guard) = {}", format_ext(f_prime));
+    }
+    // Full paper Option B: keep β-block at terminal; do not drop F′
 
     // chi_alpha_prime is used by both NC′ (if any) and Eval′.
     let chi_alpha_prime: Vec<K> = neo_ccs::utils::tensor_point::<K>(alpha_prime);
 
-    // N_i′: Only reconstruct when identity-first is in effect (n == m and M₀ = Iₙ).
-    // For rectangular CCS or non-identity-first, ME outputs mix columns, so NC′ is unreliable → 0.
-    let mut nc_sum_prime = K::ZERO;
-    let has_id0 = s.n == s.m && s.matrices.get(0).map(|m| m.is_identity()).unwrap_or(false);
-    if has_id0 {
-        let mut gamma_pow = gamma; // γ^1
-        for me in out_me.iter() {
-            let y_i1 = &me.y[0]; // j=0 corresponds to M₀ = Iₙ
-            let mut y_mle = K::ZERO;
-            for (idx, &val) in y_i1.iter().enumerate() {
-                if idx < chi_alpha_prime.len() { y_mle += val * chi_alpha_prime[idx]; }
-            }
-            let mut Ni = K::ONE;
-            for t in -(params.b as i64 - 1)..=(params.b as i64 - 1) { Ni *= y_mle - K::from(F::from_i64(t)); }
-            nc_sum_prime += gamma_pow * Ni;
-            gamma_pow *= gamma;
-        }
-    }
+    // Option B: Do not reconstruct NC′ from outputs at generic α′; set to 0.
+    let nc_sum_prime = K::ZERO;
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[pi-ccs][verify][beta] nc_prime = 0 (Option B: no digit channel)");
 
     // Eval sum (Option B): compute from me_inputs (shared r) to match oracle/T
     let mut eval_sum_prime = K::ZERO;
     let k_total = mcs_list.len() + me_inputs.len();
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[pi-ccs][verify] me_inputs_empty={}, k_total={}, t={} (verify)", me_inputs.is_empty(), k_total, s.t());
     for j in 0..s.t() {
         for (i_off, inp) in me_inputs.iter().enumerate() {
             let y_vec = &inp.y[j];
@@ -2501,6 +2566,13 @@ pub fn pi_ccs_verify(
             let exponent = (i_off + 2) + j * k_total - 1;
             let mut w_pow = K::ONE;
             for _ in 0..exponent { w_pow *= gamma; }
+            #[cfg(feature = "debug-logs")]
+            if j < 2 && i_off < 2 {
+                eprintln!(
+                    "[pi-ccs][verify] eval-exp j={} i_off={} exp={} gamma^exp={} y_mle={}",
+                    j, i_off, exponent, format_ext(w_pow), format_ext(y_mle)
+                );
+            }
             eval_sum_prime += w_pow * y_mle;
         }
     }

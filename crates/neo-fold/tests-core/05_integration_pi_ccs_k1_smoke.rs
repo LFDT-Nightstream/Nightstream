@@ -132,10 +132,10 @@ fn pi_ccs_k1_simple_addition_circuit() {
     let mut m2 = Mat::zero(n, m, F::ZERO);
     m2[(0, 4)] = F::ONE;  // row 0: select out
     
-    // Padding rows (always satisfied)
-    for row in 1..n {
-        m0[(row, 0)] = F::ONE;  // constant 1
-    }
+    // Do not add padding constraints that inject a constant on other rows.
+    // Under full Option B, F' is evaluated from the multilinear extension over rows;
+    // setting constants here would make f=a+b-c nonzero on padding rows.
+    // We keep other rows neutral (all zeros) so only row 0 contributes.
     
     // CCS polynomial: f(a,b,c) = a + b - c
     // This encodes: M0·z + M1·z - M2·z = 0 → x1 + x2 - out = 0
@@ -303,4 +303,3 @@ fn pi_ccs_k1_detects_invalid_witness() {
         }
     }
 }
-

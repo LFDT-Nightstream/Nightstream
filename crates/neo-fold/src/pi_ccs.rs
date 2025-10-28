@@ -105,17 +105,20 @@ impl RoundOracle for AjtaiFirstEvalOracle {
                     let eval_x = (K::ONE - X) * a0 + X * a1;
                     acc += gate * eval_x;
                     #[cfg(feature = "debug-logs")]
-                    if i < 2 && k < 2 {
-                        eprintln!(
-                            "[oracle][ajtai] round={} sample={} k={} X={} gate_alpha={} eval_x={} contrib={}",
-                            self.round_idx,
-                            i,
-                            k,
-                            format_ext(X),
-                            format_ext(gate),
-                            format_ext(eval_x),
-                            format_ext(gate * eval_x),
-                        );
+                    {
+                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                        if dbg_oracle && i < 2 && k < 2 {
+                            eprintln!(
+                                "[oracle][ajtai] round={} sample={} k={} X={} gate_alpha={} eval_x={} contrib={}",
+                                self.round_idx,
+                                i,
+                                k,
+                                format_ext(X),
+                                format_ext(gate),
+                                format_ext(eval_x),
+                                format_ext(gate * eval_x),
+                            );
+                        }
                     }
                 }
                 ys[i] = acc;
@@ -139,19 +142,22 @@ impl RoundOracle for AjtaiFirstEvalOracle {
                     let gate = (K::ONE - X) * w0 + X * w1;
                     acc += gate * e_scalar * eq_alpha_scalar;
                     #[cfg(feature = "debug-logs")]
-                    if i < 2 && k < 2 {
-                        let eq_alpha_dbg = if self.w_alpha_a_partial.is_empty() { K::ONE } else { self.w_alpha_a_partial[0] };
-                        eprintln!(
-                            "[oracle][row] round={} sample={} k={} X={} gate_row={} e_scalar={} eq_alpha(collapsed)={} contrib(with eq_a)={}",
-                            self.round_idx,
-                            i,
-                            k,
-                            format_ext(X),
-                            format_ext(gate),
-                            format_ext(e_scalar),
-                            format_ext(eq_alpha_dbg),
-                            format_ext(gate * e_scalar * eq_alpha_scalar),
-                        );
+                    {
+                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                        if dbg_oracle && i < 2 && k < 2 {
+                            let eq_alpha_dbg = if self.w_alpha_a_partial.is_empty() { K::ONE } else { self.w_alpha_a_partial[0] };
+                            eprintln!(
+                                "[oracle][row] round={} sample={} k={} X={} gate_row={} e_scalar={} eq_alpha(collapsed)={} contrib(with eq_a)={}",
+                                self.round_idx,
+                                i,
+                                k,
+                                format_ext(X),
+                                format_ext(gate),
+                                format_ext(e_scalar),
+                                format_ext(eq_alpha_dbg),
+                                format_ext(gate * e_scalar * eq_alpha_scalar),
+                            );
+                        }
                     }
                 }
                 ys[i] = acc;
@@ -848,7 +854,10 @@ where
         }
 
         #[cfg(feature = "debug-logs")]
-        eprintln!("[oracle][ajtai-pre] f_at_r' = {}", format_ext(f_at_rprime));
+        {
+            let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+            if dbg_oracle { eprintln!("[oracle][ajtai-pre] f_at_r' = {}", format_ext(f_at_rprime)); }
+        }
         self.nc = Some(NcState { y_partials, gamma_pows, f_at_rprime: Some(f_at_rprime) });
     }
 }
@@ -903,7 +912,12 @@ where
             //   Geval_k(X) = (1-X)·G_eval[2k] + X·G_eval[2k+1]
 
             #[cfg(feature = "debug-logs")]
-            eprintln!("[oracle][row{}] computing row-univariates (per-pair with exact NC Ajtai sum)", self.round_idx);
+            {
+                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                if dbg_oracle {
+                    eprintln!("[oracle][row{}] computing row-univariates (per-pair with exact NC Ajtai sum)", self.round_idx);
+                }
+            }
 
             let half_rows = self.w_beta_r_partial.len() >> 1;
             let half_eval = self.eval_row_partial.len() >> 1;
@@ -931,16 +945,22 @@ where
                 }
                 
                 #[cfg(feature = "debug-logs")]
-                if sx <= 1 && self.round_idx <= 1 {
-                    eprintln!("[row{}][sample{}] F contribution: {} (X={})", 
-                             self.round_idx, sx, format_ext(f_contribution), format_ext(X));
+                {
+                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                    if dbg_oracle && sx <= 1 && self.round_idx <= 1 {
+                        eprintln!("[row{}][sample{}] F contribution: {} (X={})", 
+                                 self.round_idx, sx, format_ext(f_contribution), format_ext(X));
+                    }
                 }
 
                 // (A2) NC row block: defer NC to Ajtai phase (avoid double counting).
                 #[cfg(feature = "debug-logs")]
-                if sx <= 1 && self.round_idx <= 1 {
-                    eprintln!("[row{}][sample{}] NC contribution: 0 (deferred to Ajtai phase)", 
-                             self.round_idx, sx);
+                {
+                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                    if dbg_oracle && sx <= 1 && self.round_idx <= 1 {
+                        eprintln!("[row{}][sample{}] NC contribution: 0 (deferred to Ajtai phase)", 
+                                 self.round_idx, sx);
+                    }
                 }
 
                 // (B) Eval row block: Σ_k gate_eval(k,X) * Geval_k(X)
@@ -958,10 +978,13 @@ where
                 }
                 
                 #[cfg(feature = "debug-logs")]
-                if sx <= 1 && self.round_idx <= 1 {
-                    eprintln!("[row{}][sample{}] Eval contribution: {}, TOTAL: {} (X={})", 
-                             self.round_idx, sx, format_ext(eval_contribution), 
-                             format_ext(sample_ys[sx]), format_ext(X));
+                {
+                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                    if dbg_oracle && sx <= 1 && self.round_idx <= 1 {
+                        eprintln!("[row{}][sample{}] Eval contribution: {}, TOTAL: {} (X={})", 
+                                 self.round_idx, sx, format_ext(eval_contribution), 
+                                 format_ext(sample_ys[sx]), format_ext(X));
+                    }
                 }
             }
 
@@ -986,9 +1009,12 @@ where
             let f_rp = self.nc.as_ref().and_then(|st| st.f_at_rprime).unwrap();
             
             #[cfg(feature = "debug-logs")]
-            if self.round_idx == self.ell_n {
-                eprintln!("[ajtai{}] F(r') = {}, wr_scalar = {}", 
-                         self.round_idx - self.ell_n, format_ext(f_rp), format_ext(wr_scalar));
+            {
+                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                if dbg_oracle && self.round_idx == self.ell_n {
+                    eprintln!("[ajtai{}] F(r') = {}, wr_scalar = {}", 
+                             self.round_idx - self.ell_n, format_ext(f_rp), format_ext(wr_scalar));
+                }
             }
             
             let nc_ref = self.nc.as_ref();
@@ -1039,15 +1065,18 @@ where
                     sample_ys[sx] += wr_scalar * gate_beta * sum_at_x;
 
                     #[cfg(feature = "debug-logs")]
-                    if sx <= 1 && self.round_idx == self.ell_n && k == 0 {
-                        eprintln!(
-                            "[ajtai{}][sample{}] wr_scalar={}, gate_beta={}, (F+NC)(X)={}",
-                            self.round_idx - self.ell_n,
-                            sx,
-                            format_ext(wr_scalar),
-                            format_ext(gate_beta),
-                            format_ext(sum_at_x)
-                        );
+                    {
+                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                        if dbg_oracle && sx <= 1 && self.round_idx == self.ell_n && k == 0 {
+                            eprintln!(
+                                "[ajtai{}][sample{}] wr_scalar={}, gate_beta={}, (F+NC)(X)={}",
+                                self.round_idx - self.ell_n,
+                                sx,
+                                format_ext(wr_scalar),
+                                format_ext(gate_beta),
+                                format_ext(sum_at_x)
+                            );
+                        }
                     }
                 }
             }
@@ -1089,8 +1118,13 @@ where
                 let s0 = sample_ys[i0];
                 let s1 = sample_ys[i1];
                 let sum01 = s0 + s1;
-                eprintln!("[oracle][round{}] s(0)={}, s(1)={}, s(0)+s(1)={}, claim={}",
-                    self.round_idx, format_ext(s0), format_ext(s1), format_ext(sum01), format_ext(self.initial_sum_claim));
+                {
+                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                    if dbg_oracle {
+                        eprintln!("[oracle][round{}] s(0)={}, s(1)={}, s(0)+s(1)={}, claim={}",
+                            self.round_idx, format_ext(s0), format_ext(s1), format_ext(sum01), format_ext(self.initial_sum_claim));
+                    }
+                }
             } else if self.round_idx < self.ell_n {
                 // In skip-at-one engine, we do not receive X=1. Compute s(1) ad hoc for diagnostics.
                 let X1 = K::ONE;
@@ -1164,13 +1198,23 @@ where
                     eprintln!("[oracle][round{}] s(0)={}, s(1)[recomp]={}, s(0)+s(1)={}, claim={}",
                         self.round_idx, format_ext(s0), format_ext(s1), format_ext(sum01), format_ext(self.initial_sum_claim));
                 } else {
-                    eprintln!("[oracle][round{}] s(1)[recomp]={}, claim={}",
-                        self.round_idx, format_ext(s1), format_ext(self.initial_sum_claim));
+                    {
+                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                        if dbg_oracle {
+                            eprintln!("[oracle][round{}] s(1)[recomp]={}, claim={}",
+                                self.round_idx, format_ext(s1), format_ext(self.initial_sum_claim));
+                        }
+                    }
                 }
             }
-            eprintln!("[oracle][round{}] Returning {} samples: {:?}", 
-                self.round_idx, sample_ys.len(), 
-                if sample_ys.len() <= 4 { format!("{:?}", sample_ys) } else { format!("[{} values]", sample_ys.len()) });
+            {
+                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                if dbg_oracle {
+                    eprintln!("[oracle][round{}] Returning {} samples: {:?}", 
+                        self.round_idx, sample_ys.len(), 
+                        if sample_ys.len() <= 4 { format!("{:?}", sample_ys) } else { format!("[{} values]", sample_ys.len()) });
+                }
+            }
         }
         
         sample_ys
@@ -1371,10 +1415,15 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     #[cfg(feature = "debug-logs")]
     let total_nnz: usize = mats_csr.iter().map(|c| c.data.len()).sum();
     #[cfg(feature = "debug-logs")]
-    println!("🔥 CSR conversion completed: {:.2}ms ({} matrices, {} nnz total, {:.4}% density)",
-             csr_start.elapsed().as_secs_f64() * 1000.0, 
-             mats_csr.len(), total_nnz, 
-             (total_nnz as f64) / (s.n * s.m * s.matrices.len()) as f64 * 100.0);
+    {
+        let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+        if dbg_timing {
+            println!("🔥 CSR conversion completed: {:.2}ms ({} matrices, {} nnz total, {:.4}% density)",
+                     csr_start.elapsed().as_secs_f64() * 1000.0, 
+                     mats_csr.len(), total_nnz, 
+                     (total_nnz as f64) / (s.n * s.m * s.matrices.len()) as f64 * 100.0);
+        }
+    }
 
     // --- Prepare per-instance data and check c=L(Z) ---
     // Also build z = x||w and cache M_j z over F for each instance.
@@ -1396,8 +1445,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         let z = neo_ccs::relations::check_mcs_opening(l, inst, wit)
             .map_err(|e| PiCcsError::InvalidInput(format!("MCS opening failed: {e}")))?;
         #[cfg(feature = "debug-logs")]
-        println!("🔧 [INSTANCE {}] MCS opening check: {:.2}ms", inst_idx, 
-                 z_check_start.elapsed().as_secs_f64() * 1000.0);
+        {
+            let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+            if dbg_timing {
+                println!("🔧 [INSTANCE {}] MCS opening check: {:.2}ms", inst_idx, 
+                         z_check_start.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
         // Ensure z matches CCS width to prevent OOB during M*z
         if z.len() != s.m {
             return Err(PiCcsError::InvalidInput(format!(
@@ -1412,16 +1466,26 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         let decomp_start = std::time::Instant::now();
         let Z_expected_col_major = neo_ajtai::decomp_b(&z, params.b, neo_math::D, neo_ajtai::DecompStyle::Balanced);
         #[cfg(feature = "debug-logs")]
-        println!("🔧 [INSTANCE {}] Decomp_b: {:.2}ms", inst_idx, 
-                 decomp_start.elapsed().as_secs_f64() * 1000.0);
+        {
+            let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+            if dbg_timing {
+                println!("🔧 [INSTANCE {}] Decomp_b: {:.2}ms", inst_idx, 
+                         decomp_start.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
         
         #[cfg(feature = "debug-logs")]
         let range_check_start = std::time::Instant::now();
         neo_ajtai::assert_range_b(&Z_expected_col_major, params.b)
             .map_err(|e| PiCcsError::InvalidInput(format!("Range check failed on expected Z: {e}")))?;
         #[cfg(feature = "debug-logs")]
-        println!("🔧 [INSTANCE {}] Range check: {:.2}ms", inst_idx, 
-                 range_check_start.elapsed().as_secs_f64() * 1000.0);
+        {
+            let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+            if dbg_timing {
+                println!("🔧 [INSTANCE {}] Range check: {:.2}ms", inst_idx, 
+                         range_check_start.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
         
         // Convert Z_expected from column-major to row-major format to match wit.Z
         #[cfg(feature = "debug-logs")]
@@ -1437,8 +1501,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             }
         }
         #[cfg(feature = "debug-logs")]
-        println!("🔧 [INSTANCE {}] Format conversion: {:.2}ms", inst_idx, 
-                 format_conv_start.elapsed().as_secs_f64() * 1000.0);
+        {
+            let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+            if dbg_timing {
+                println!("🔧 [INSTANCE {}] Format conversion: {:.2}ms", inst_idx, 
+                         format_conv_start.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
         
         // Compare Z with expected decomposition (both in row-major format)
         #[cfg(feature = "debug-logs")]
@@ -1447,8 +1516,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             return Err(PiCcsError::InvalidInput("Z != Decomp_b(z) - prover using inconsistent z and Z".into()));
         }
         #[cfg(feature = "debug-logs")]
-        println!("🔧 [INSTANCE {}] Z comparison: {:.2}ms", inst_idx, 
-                 z_compare_start.elapsed().as_secs_f64() * 1000.0);
+        {
+            let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+            if dbg_timing {
+                println!("🔧 [INSTANCE {}] Z comparison: {:.2}ms", inst_idx, 
+                         z_compare_start.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
         // Use CSR sparse matrix-vector multiply - O(nnz) instead of O(n*m)
         #[cfg(feature = "debug-logs")]
         let mz_start = std::time::Instant::now();
@@ -1456,15 +1530,25 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             spmv_csr_ff::<F>(csr, &z)
         ).collect();
         #[cfg(feature = "debug-logs")]
-        println!("💥 [TIMING] CSR M_j z computation: {:.2}ms (nnz={}, vs {}M dense elements - {}x reduction)", 
-                 mz_start.elapsed().as_secs_f64() * 1000.0, total_nnz, 
-                 (s.n * s.m * s.matrices.len()) / 1_000_000,
-                 (s.n * s.m * s.matrices.len()) / total_nnz.max(1));
+        {
+            let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+            if dbg_timing {
+                println!("💥 [TIMING] CSR M_j z computation: {:.2}ms (nnz={}, vs {}M dense elements - {}x reduction)", 
+                         mz_start.elapsed().as_secs_f64() * 1000.0, total_nnz, 
+                         (s.n * s.m * s.matrices.len()) / 1_000_000,
+                         (s.n * s.m * s.matrices.len()) / total_nnz.max(1));
+            }
+        }
         insts.push(Inst{ Z: &wit.Z, m_in: inst.m_in, mz, c: inst.c.clone() });
     }
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [TIMING] Instance preparation total: {:.2}ms ({} instances)", 
-             instance_prep_start.elapsed().as_secs_f64() * 1000.0, insts.len());
+    {
+        let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+        if dbg_timing {
+            println!("🔧 [TIMING] Instance preparation total: {:.2}ms ({} instances)", 
+                     instance_prep_start.elapsed().as_secs_f64() * 1000.0, insts.len());
+        }
+    }
 
     // =========================================================================
     // STEP 0: BIND INSTANCES TO TRANSCRIPT (before challenge sampling)
@@ -1493,8 +1577,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         tr.append_fields(b"c_data", &inst.c.data);
     }
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [TIMING] Transcript absorption: {:.2}ms", 
-             transcript_start.elapsed().as_secs_f64() * 1000.0);
+    {
+        let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+        if dbg_timing {
+            println!("🔧 [TIMING] Transcript absorption: {:.2}ms", 
+                     transcript_start.elapsed().as_secs_f64() * 1000.0);
+        }
+    }
 
     // --- Absorb ME inputs BEFORE sampling challenges ---
     // This binds the input ME claims (which define T) to prevent malleability
@@ -1546,9 +1635,14 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     };
     
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [TIMING] Challenge sampling: {:.2}ms (α: {}, β: {}, γ: 1{})",
-             chal_start.elapsed().as_secs_f64() * 1000.0, ell_d, ell,
-             if r_inp_full_opt.is_some() { ", using input r" } else { "" });
+    {
+        let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+        if dbg_timing {
+            println!("🔧 [TIMING] Challenge sampling: {:.2}ms (α: {}, β: {}, γ: 1{})",
+                     chal_start.elapsed().as_secs_f64() * 1000.0, ell_d, ell,
+                     if r_inp_full_opt.is_some() { ", using input r" } else { "" });
+        }
+    }
 
     // =========================================================================
     // STEP 2: BUILD Q POLYNOMIAL AND RUN SUM-CHECK
@@ -1588,7 +1682,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // --- Build MLE partials for instance 1 only ---
     // **Paper Reference**: Section 4.4, F polynomial uses M̃_j·z_1 evaluations
     #[cfg(feature = "debug-logs")]
-    println!("🔍 Sum-check starting: {} instances, {} rounds", insts.len(), ell);
+    {
+        let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+        if dbg_timing {
+            println!("🔍 Sum-check starting: {} instances, {} rounds", insts.len(), ell);
+        }
+    }
     let sample_xs_generic: Vec<K> = (0..=d_sc as u64).map(|u| K::from(F::from_u64(u))).collect();
     // Build partial states (invariant across the engine) for instance 1
     // F term MLE is only over ROW dimension (ell_n), not Ajtai dimension
@@ -1606,8 +1705,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         MlePartials { s_per_j }
     };
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [TIMING] MLE partials setup: {:.2}ms",
-             mle_start.elapsed().as_secs_f64() * 1000.0);
+    {
+        let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+        if dbg_timing {
+            println!("🔧 [TIMING] MLE partials setup: {:.2}ms",
+                     mle_start.elapsed().as_secs_f64() * 1000.0);
+        }
+    }
     
     // --- Compute initial sum T per paper: T = Σ_{j=1, i=2}^{t,k} γ^{i+(j-1)k-1} · ỹ_{(i,j)}(α) ---
     // **Paper Reference**: Section 4.4, Step 2 - Claimed sum definition
@@ -1922,7 +2026,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     
     
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [TIMING] Sum-check rounds complete: {} rounds", ell);
+    {
+        let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+        if dbg_timing {
+            println!("🔧 [TIMING] Sum-check rounds complete: {} rounds", ell);
+        }
+    }
 
     // =========================================================================
     // STEP 3: COMPUTE AND SEND y'_{(i,j)} VALUES
@@ -2043,8 +2152,13 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     }
 
     #[cfg(feature = "debug-logs")]
-    println!("🔧 [TIMING] ME instance building ({} outputs): {:.2}ms", 
-             out_me.len(), me_start.elapsed().as_secs_f64() * 1000.0);
+    {
+        let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
+        if dbg_timing {
+            println!("🔧 [TIMING] ME instance building ({} outputs): {:.2}ms", 
+                     out_me.len(), me_start.elapsed().as_secs_f64() * 1000.0);
+        }
+    }
 
     // Prover-side χ probes for diagnostics (first two instances)
     #[cfg(feature = "neo-logs")]

@@ -289,71 +289,56 @@ where
                 }
 
                 // (A2) NC row block: exact Ajtai hypercube sum per pair (paper-faithful)
-                // IMPORTANT: NC is non-linear in X_r. We must compute Ni at the two
-                // discrete row assignments (bit=0 and bit=1) separately, then combine
-                // them linearly via the gate weights. Interpolating yi and then taking
-                // the product is incorrect.
+                // Use folded pair weights w_i[2k], w_i[2k+1] and the k→(j0,j1) mapping.
                 if !self.nc_y_matrices.is_empty() {
-                    // Enumerate all pairs in the FULL row domain for the current row bit
-                    // and gate them using folded row equality weights projected to the
-                    // remaining-index space: weight_for_row_j = w_beta_r_partial[j >> round_idx].
                     let d_ell = 1usize << self.ell_d;
-                    let stride = 1usize << self.round_idx;      // current row bit
-                    let block = 2 * stride;
-                    let n_rows_full = self.w_beta_r_full.len();
-                    debug_assert!(n_rows_full % block == 0);
-                    let groups = n_rows_full / block;
-                    for g in 0..groups {
-                        let base = g * block;
-                        for off in 0..stride {
-                            let j0 = base + off;
-                            let j1 = j0 + stride;
-                            let idx0 = j0 >> self.round_idx;
-                            let idx1 = j1 >> self.round_idx;
-                            debug_assert!(idx0 < self.w_beta_r_partial.len());
-                            debug_assert!(idx1 < self.w_beta_r_partial.len());
-                            let w0 = self.w_beta_r_partial[idx0];
-                            let w1 = self.w_beta_r_partial[idx1];
+                    let stride = 1usize << self.round_idx;      // current row bit i
+                    let half_pairs = self.w_beta_r_partial.len() >> 1;
+                    for k in 0..half_pairs {
+                        // Map pair index k in the folded view to (j0,j1) in full row domain
+                        let j0 = (k & (stride - 1)) + ((k >> self.round_idx) << (self.round_idx + 1));
+                        let j1 = j0 + stride;
+                        let w0 = self.w_beta_r_partial[2 * k];
+                        let w1 = self.w_beta_r_partial[2 * k + 1];
 
-                            let mut sum_over_i = K::ZERO;
-                            for (i, y_mat) in self.nc_y_matrices.iter().enumerate() {
-                                let rows_len = y_mat.len();
-                                // Ajtai sums for both branches at (j0,j1)
-                                let mut ajtai_sum0 = K::ZERO;
-                                let mut ajtai_sum1 = K::ZERO;
-                                for xa_idx in 0..d_ell {
-                                    let mut zi0 = K::ZERO;
-                                    let mut zi1 = K::ZERO;
-                                    for rho in 0..rows_len {
-                                        let y0 = y_mat[rho][j0];
-                                        let y1 = y_mat[rho][j1];
-                                        let mut chi_xa_rho = K::ONE;
-                                        for bit_pos in 0..self.ell_d {
-                                            let xa_bit = if (xa_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                            let rho_bit = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                            chi_xa_rho *= xa_bit * rho_bit + (K::ONE - xa_bit) * (K::ONE - rho_bit);
-                                        }
-                                        zi0 += chi_xa_rho * y0;
-                                        zi1 += chi_xa_rho * y1;
+                        let mut sum_over_i = K::ZERO;
+                        for (i_inst, y_mat) in self.nc_y_matrices.iter().enumerate() {
+                            let rows_len = y_mat.len();
+                            // Ajtai sums for both branches at (j0,j1)
+                            let mut ajtai_sum0 = K::ZERO;
+                            let mut ajtai_sum1 = K::ZERO;
+                            for xa_idx in 0..d_ell {
+                                let mut zi0 = K::ZERO;
+                                let mut zi1 = K::ZERO;
+                                for rho in 0..rows_len {
+                                    let y0 = y_mat[rho][j0];
+                                    let y1 = y_mat[rho][j1];
+                                    let mut chi_xa_rho = K::ONE;
+                                    for bit_pos in 0..self.ell_d {
+                                        let xa_bit = if (xa_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                                        let rho_bit = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                                        chi_xa_rho *= xa_bit * rho_bit + (K::ONE - xa_bit) * (K::ONE - rho_bit);
                                     }
-                                    let mut N0 = K::ONE;
-                                    let mut N1 = K::ONE;
-                                    let low  = -((self.b as i64) - 1);
-                                    let high =  (self.b as i64) - 1;
-                                    for t in low..=high {
-                                        let t_k = K::from(F::from_i64(t));
-                                        N0 *= zi0 - t_k;
-                                        N1 *= zi1 - t_k;
-                                    }
-                                    let eq_xa_beta = self.w_beta_a_partial[xa_idx];
-                                    ajtai_sum0 += eq_xa_beta * N0;
-                                    ajtai_sum1 += eq_xa_beta * N1;
+                                    zi0 += chi_xa_rho * y0;
+                                    zi1 += chi_xa_rho * y1;
                                 }
-                                let gate = (K::ONE - X) * w0 * ajtai_sum0 + X * w1 * ajtai_sum1;
-                                sum_over_i += self.nc_row_gamma_pows[i] * gate;
+                                let mut N0 = K::ONE;
+                                let mut N1 = K::ONE;
+                                let low  = -((self.b as i64) - 1);
+                                let high =  (self.b as i64) - 1;
+                                for t in low..=high {
+                                    let t_k = K::from(F::from_i64(t));
+                                    N0 *= zi0 - t_k;
+                                    N1 *= zi1 - t_k;
+                                }
+                                let eq_xa_beta = self.w_beta_a_partial[xa_idx];
+                                ajtai_sum0 += eq_xa_beta * N0;
+                                ajtai_sum1 += eq_xa_beta * N1;
                             }
-                            sample_ys[sx] += sum_over_i;
+                            let gate = (K::ONE - X) * w0 * ajtai_sum0 + X * w1 * ajtai_sum1;
+                            sum_over_i += self.nc_row_gamma_pows[i_inst] * gate;
                         }
+                        sample_ys[sx] += sum_over_i;
                     }
                 }
                 // Paper-faithful choice: carry NC exclusively in Ajtai rounds.
@@ -531,8 +516,8 @@ where
                 let X1 = K::ONE;
                 let mut s1 = K::ZERO;
                 // F at X=1
-                let half_rows = self.w_beta_r_partial.len() >> 1;
-                for k in 0..half_rows {
+                let half_pairs = self.w_beta_r_partial.len() >> 1;
+                for k in 0..half_pairs {
                     let w0 = self.w_beta_r_partial[2*k];
                     let w1 = self.w_beta_r_partial[2*k + 1];
                     let gate_r = (K::ONE - X1) * w0 + X1 * w1;
@@ -544,47 +529,41 @@ where
                     }
                     s1 += gate_r * self.s.f.eval_in_ext::<K>(&m_vals);
                 }
-                // NC at X=1 using full-domain enumeration + projected folded weights
+                // NC at X=1 using pair-index mapping and second-branch weights
                 if !self.nc_y_matrices.is_empty() {
                     let stride = 1usize << self.round_idx;
-                    let block = 2 * stride;
-                    let n_rows_full = self.w_beta_r_full.len();
-                    let groups = n_rows_full / block;
-                    for g in 0..groups {
-                        let base = g * block;
-                        for off in 0..stride {
-                            let j0 = base + off;
-                            let j1 = j0 + stride;
-                            let idx1 = j1 >> self.round_idx;
-                            let w1 = self.w_beta_r_partial[idx1];
-                            let mut sum_over_i = K::ZERO;
-                            let d_ell = 1usize << self.ell_d;
-                            for (i, y_mat) in self.nc_y_matrices.iter().enumerate() {
-                                let rows_len = y_mat.len();
-                                let mut ajtai_sum1 = K::ZERO;
-                                for xa_idx in 0..d_ell {
-                                    let mut zi1 = K::ZERO;
-                                    for rho in 0..rows_len {
-                                        let y1 = y_mat[rho][j1];
-                                        let mut chi_xa_rho = K::ONE;
-                                        for bit_pos in 0..self.ell_d {
-                                            let xa_bit = if (xa_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                            let rho_bit = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                            chi_xa_rho *= xa_bit * rho_bit + (K::ONE - xa_bit) * (K::ONE - rho_bit);
-                                        }
-                                        zi1 += chi_xa_rho * y1;
+                    let d_ell = 1usize << self.ell_d;
+                    let half_pairs = self.w_beta_r_partial.len() >> 1;
+                    for k in 0..half_pairs {
+                        let j0 = (k & (stride - 1)) + ((k >> self.round_idx) << (self.round_idx + 1));
+                        let j1 = j0 + stride;
+                        let w1 = self.w_beta_r_partial[2 * k + 1];
+                        let mut sum_over_i = K::ZERO;
+                        for (i_inst, y_mat) in self.nc_y_matrices.iter().enumerate() {
+                            let rows_len = y_mat.len();
+                            let mut ajtai_sum1 = K::ZERO;
+                            for xa_idx in 0..d_ell {
+                                let mut zi1 = K::ZERO;
+                                for rho in 0..rows_len {
+                                    let y1 = y_mat[rho][j1];
+                                    let mut chi_xa_rho = K::ONE;
+                                    for bit_pos in 0..self.ell_d {
+                                        let xa_bit = if (xa_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                                        let rho_bit = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                                        chi_xa_rho *= xa_bit * rho_bit + (K::ONE - xa_bit) * (K::ONE - rho_bit);
                                     }
-                                    let mut N1 = K::ONE;
-                                    let low  = -((self.b as i64) - 1);
-                                    let high =  (self.b as i64) - 1;
-                                    for t in low..=high { N1 *= zi1 - K::from(F::from_i64(t)); }
-                                    let eq_xa_beta = self.w_beta_a_partial[xa_idx];
-                                    ajtai_sum1 += eq_xa_beta * N1;
+                                    zi1 += chi_xa_rho * y1;
                                 }
-                                sum_over_i += self.nc_row_gamma_pows[i] * (X1 * w1 * ajtai_sum1);
+                                let mut N1 = K::ONE;
+                                let low  = -((self.b as i64) - 1);
+                                let high =  (self.b as i64) - 1;
+                                for t in low..=high { N1 *= zi1 - K::from(F::from_i64(t)); }
+                                let eq_xa_beta = self.w_beta_a_partial[xa_idx];
+                                ajtai_sum1 += eq_xa_beta * N1;
                             }
-                            s1 += sum_over_i;
+                            sum_over_i += self.nc_row_gamma_pows[i_inst] * (X1 * w1 * ajtai_sum1);
                         }
+                        s1 += sum_over_i;
                     }
                 }
                 // Eval row block at X=1

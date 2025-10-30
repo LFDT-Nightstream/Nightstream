@@ -6,4 +6,5 @@ alwaysApply: true
 # Rules
 
 - Avoid adding comments in the code that read like if it was the description of a PR / Commit e.g., this fixes a security vulnerability
-- Don't add wording like "CRITICAL: " to code comments
+- Don't add wording like "CRITICAL: " to code comments.
+- Don't create summary documents.

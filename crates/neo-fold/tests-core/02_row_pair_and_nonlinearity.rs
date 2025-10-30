@@ -347,3 +347,217 @@ fn regression_ajtai_nc_sumcheck_round0_vs_exact_and_hypercube_b3() {
     assert_eq!(ys_sum, initial_sum,
         "Ajtai round 0 invariant broken: s(0)+s(1)={:?}, expected {:?}", ys_sum, initial_sum);
 }
+
+// === Hardening: Multiple challenge seeds ===
+// Test with different random challenges to ensure correctness across challenge space
+
+#[test]
+fn regression_ajtai_nc_multiple_challenge_seeds_b3() {
+    // Setup common structure
+    let rows = 4usize;
+    let cols = 4usize;
+    let a = Mat::from_row_major(rows, cols, vec![F::ZERO; rows * cols]);
+    let b = Mat::from_row_major(rows, cols, vec![F::ZERO; rows * cols]);
+    let c = Mat::from_row_major(rows, cols, vec![F::ZERO; rows * cols]);
+    let s_raw = r1cs_to_ccs(a, b, c);
+    let s = s_raw.ensure_identity_first().expect("identity-first");
+
+    let base_params = NeoParams::goldilocks_for_circuit(3, 2, 2);
+    let params = NeoParams { b: 3, ..base_params };
+
+    let z_full = vec![F::from_u64(5), F::ZERO, F::ZERO, F::ZERO];
+    let m_in = 1usize;
+    let d = neo_math::D;
+    let z_digits = neo_ajtai::decomp_b(&z_full, params.b, d, neo_ajtai::DecompStyle::Balanced);
+    let mut row_major = vec![F::ZERO; d * cols];
+    for col in 0..cols { for rho in 0..d { row_major[rho * cols + col] = z_digits[col * d + rho]; } }
+    let z_mat = Mat::from_row_major(d, cols, row_major);
+
+    let cmt = Commitment::zeros(d, 4);
+    let mcs_inst = McsInstance { c: cmt.clone(), x: vec![z_full[0]], m_in };
+    let mcs_wit  = McsWitness  { w: z_full[m_in..].to_vec(), Z: z_mat };
+
+    let (ell_d, ell_n, ell, _d_sc) = test_dims(s.n, params.b, s.max_degree() as usize);
+
+    // Test with three different challenge seeds
+    for seed in [b"seed/alpha" as &[u8], b"seed/beta", b"seed/gamma"] {
+        let mut tr = Poseidon2Transcript::new(seed);
+        neo_fold::pi_ccs::transcript::bind_header_and_instances(&mut tr, &params, &s, &[mcs_inst.clone()], ell, 8, 0).unwrap();
+        neo_fold::pi_ccs::transcript::bind_me_inputs(&mut tr, &[]).unwrap();
+        let ch = neo_fold::pi_ccs::transcript::sample_challenges(&mut tr, ell_d, ell).unwrap();
+
+        // Precompute NC y rows
+        let y_full = precompute::precompute_nc_full_rows(&s, &[mcs_wit.clone()], &[], ell_n).expect("y_full");
+
+        // Exact Ajtai branch sums at r' = 0^ell_n
+        let w_beta_a = HalfTableEq::new(&ch.beta_a);
+        let mut s0 = K::ZERO;
+        let mut s1 = K::ZERO;
+        let low  = -((params.b as i64) - 1);
+        let high =  (params.b as i64) - 1;
+
+        for rho in 0..D {
+            let eq_xa = w_beta_a.w(rho);
+            let y_val = y_full[0][rho][0];
+            let mut range = K::ONE;
+            for t in low..=high { range *= y_val - K::from(F::from_i64(t)); }
+            let term = ch.gamma * range;
+            if (rho & 1) == 0 { s0 += eq_xa * term; } else { s1 += eq_xa * term; }
+        }
+
+        let branch_sum = s0 + s1;
+
+        // Public hypercube NC sum
+        let beta_r_zero = vec![K::ZERO; ell_n];
+        let nc_hcube = compute_nc_hypercube_sum(
+            &s, &[mcs_wit.clone()], &[], &ch.beta_a, &beta_r_zero, ch.gamma, &params, ell_d, ell_n,
+        );
+
+        assert_eq!(branch_sum, nc_hcube, 
+            "Seed {:?}: Ajtai exact branch sum must match public hypercube NC sum", 
+            std::str::from_utf8(seed).unwrap());
+    }
+}
+
+// === Hardening: Non-zero r′ ===
+// Test with a non-zero row folding pattern to verify correctness at non-origin points
+
+#[test]
+fn regression_ajtai_nc_nonzero_rprime_b3() {
+    // Structure: all-zero R1CS → identity-first CCS
+    let rows = 4usize;
+    let cols = 4usize;
+    let a = Mat::from_row_major(rows, cols, vec![F::ZERO; rows * cols]);
+    let b = Mat::from_row_major(rows, cols, vec![F::ZERO; rows * cols]);
+    let c = Mat::from_row_major(rows, cols, vec![F::ZERO; rows * cols]);
+    let s_raw = r1cs_to_ccs(a, b, c);
+    let s = s_raw.ensure_identity_first().expect("identity-first");
+
+    let base_params = NeoParams::goldilocks_for_circuit(3, 2, 2);
+    let params = NeoParams { b: 3, ..base_params };
+
+    let z_full = vec![F::from_u64(5), F::ZERO, F::ZERO, F::ZERO];
+    let m_in = 1usize;
+    let d = neo_math::D;
+    let z_digits = neo_ajtai::decomp_b(&z_full, params.b, d, neo_ajtai::DecompStyle::Balanced);
+    let mut row_major = vec![F::ZERO; d * cols];
+    for col in 0..cols { for rho in 0..d { row_major[rho * cols + col] = z_digits[col * d + rho]; } }
+    let z_mat = Mat::from_row_major(d, cols, row_major);
+
+    let cmt = Commitment::zeros(d, 4);
+    let mcs_inst = McsInstance { c: cmt.clone(), x: vec![z_full[0]], m_in };
+    let mcs_wit  = McsWitness  { w: z_full[m_in..].to_vec(), Z: z_mat };
+
+    let (ell_d, ell_n, ell, d_sc) = test_dims(s.n, params.b, s.max_degree() as usize);
+
+    let mut tr = Poseidon2Transcript::new(b"test/regress/ajtai-nc-nonzero-rprime-b3");
+    neo_fold::pi_ccs::transcript::bind_header_and_instances(&mut tr, &params, &s, &[mcs_inst.clone()], ell, d_sc, 0).unwrap();
+    neo_fold::pi_ccs::transcript::bind_me_inputs(&mut tr, &[]).unwrap();
+    let ch = neo_fold::pi_ccs::transcript::sample_challenges(&mut tr, ell_d, ell).unwrap();
+
+    // CSR & precompute
+    let mats_csr: Vec<_> = s.matrices.iter().map(|m| to_csr::<F>(m, s.n, s.m)).collect();
+    let l = DummyS;
+    let wit_binding = [mcs_wit.clone()];
+    let insts = precompute::prepare_instances(&s, &params, &[mcs_inst.clone()], &wit_binding, &mats_csr, &l).unwrap();
+
+    let partials_first = build_mle_partials_first_inst(&s, ell_n, &insts).unwrap();
+    let beta_block = precompute_beta_block(&s, &params, &insts, &wit_binding, &[], &ch, ell_d, ell_n).unwrap();
+    let eval_row_partial = precompute_eval_row_partial(&s, &[], &ch, 1, ell_n).unwrap();
+    let nc_y = precompute::precompute_nc_full_rows(&s, &wit_binding, &[], ell_n).unwrap();
+
+    let initial_sum = compute_initial_sum_components(&s, &[], &ch, 1, &beta_block).unwrap();
+
+    // Equality weights
+    use neo_fold::pi_ccs::eq_weights::RowWeight;
+    let w_beta_a = HalfTableEq::new(&ch.beta_a);
+    let w_alpha_a = HalfTableEq::new(&ch.alpha);
+    let w_beta_r = HalfTableEq::new(&ch.beta_r);
+
+    let w_beta_a_partial = (0..(1usize << ell_d)).map(|i| w_beta_a.w(i)).collect::<Vec<_>>();
+    let w_alpha_a_partial = (0..(1usize << ell_d)).map(|i| w_alpha_a.w(i)).collect::<Vec<_>>();
+    let w_beta_r_partial = (0..(1usize << ell_n)).map(|i| w_beta_r.w(i)).collect::<Vec<_>>();
+    let w_eval_r_partial = vec![K::ZERO; 1usize << ell_n];
+
+    let z_refs: Vec<&Mat<F>> = std::iter::once(&mcs_wit.Z).collect();
+    let gamma_pows = vec![ch.gamma];
+    let mut oracle = GenericCcsOracle::<F> {
+        s: &s,
+        partials_first_inst: partials_first,
+        w_beta_a_partial: w_beta_a_partial.clone(),
+        w_alpha_a_partial: w_alpha_a_partial.clone(),
+        w_beta_r_partial: w_beta_r_partial.clone(),
+        w_beta_r_full: w_beta_r_partial.clone(),
+        w_eval_r_partial,
+        z_witnesses: z_refs,
+        gamma: ch.gamma,
+        k_total: 1,
+        b: params.b,
+        ell_d, ell_n, d_sc,
+        round_idx: 0,
+        initial_sum_claim: initial_sum,
+        f_at_beta_r: beta_block.f_at_beta_r,
+        nc_sum_beta: K::ZERO,
+        eval_row_partial: eval_row_partial.clone(),
+        row_chals: Vec::new(),
+        csr_m1: &mats_csr[0],
+        csrs: &mats_csr,
+        eval_ajtai_partial: None,
+        me_offset: 1,
+        nc_y_matrices: nc_y.clone(),
+        nc_row_gamma_pows: gamma_pows,
+        nc: None,
+    };
+
+    // Fold row rounds with NON-ZERO pattern: [1, 0, ...] (depends on ell_n)
+    // This tests r' != origin
+    let rprime_pattern: Vec<K> = (0..ell_n).map(|i| if i == 0 { K::ONE } else { K::ZERO }).collect();
+    for &r_i in &rprime_pattern {
+        oracle.fold(r_i);
+    }
+    assert_eq!(oracle.round_idx, ell_n);
+
+    // First Ajtai round: query at X ∈ {0,1}
+    let ys = oracle.evals_at(&[K::ZERO, K::ONE]);
+    assert_eq!(ys.len(), 2);
+    let ys_sum = ys[0] + ys[1];
+
+    // Exact Ajtai NC S0/S1 at the NON-ZERO r'
+    // Need to compute which row index r' selects
+    let mut rprime_index = 0usize;
+    for (i, &val) in rprime_pattern.iter().enumerate() {
+        if val == K::ONE { rprime_index |= 1 << i; }
+    }
+
+    let w_beta_a_full = HalfTableEq::new(&ch.beta_a);
+    let mut s0_exact = K::ZERO;
+    let mut s1_exact = K::ZERO;
+    let low  = -((params.b as i64) - 1);
+    let high =  (params.b as i64) - 1;
+
+    for rho in 0..D {
+        let eq_xa = w_beta_a_full.w(rho);
+        let y_val = nc_y[0][rho][rprime_index]; // select the computed r' row
+        let mut range = K::ONE;
+        for t in low..=high { range *= y_val - K::from(F::from_i64(t)); }
+        let term = ch.gamma * range;
+        if (rho & 1) == 0 { s0_exact += eq_xa * term; } else { s1_exact += eq_xa * term; }
+    }
+
+    let exact_branch_sum = s0_exact + s1_exact;
+
+    // Public hypercube sum with β_r == r' (the non-zero pattern)
+    let nc_hcube = compute_nc_hypercube_sum(
+        &s, &[mcs_wit.clone()], &[], &ch.beta_a, &rprime_pattern, ch.gamma, &params, ell_d, ell_n,
+    );
+
+    // Oracle must match exact computation and hypercube
+    assert_eq!(ys_sum, exact_branch_sum,
+        "Oracle Ajtai NC (non-zero r') s(0)+s(1) = {:?} != exact Ajtai branch sum {:?}", ys_sum, exact_branch_sum);
+    assert_eq!(exact_branch_sum, nc_hcube,
+        "Exact Ajtai branch sum (non-zero r') {:?} != public hypercube sum {:?}", exact_branch_sum, nc_hcube);
+
+    // Check sum-check invariant
+    assert_eq!(ys_sum, initial_sum,
+        "Ajtai round 0 invariant (non-zero r') broken: s(0)+s(1)={:?}, expected {:?}", ys_sum, initial_sum);
+}

@@ -43,11 +43,13 @@ where
         let half = w_beta_r.half;
         let mut acc = K::ZERO;
         
+        // Reuse m_vals buffer for performance
+        let mut m_vals = vec![K::ZERO; self.s_per_j.len()];
+        
         for k in 0..half {
             let gate = w_beta_r.eval(k, x);
             
             // Evaluate m_j,k(X) = (1-X)*s_j[2k] + X*s_j[2k+1] for each j
-            let mut m_vals = vec![K::ZERO; self.s_per_j.len()];
             for (j, partials) in self.s_per_j.iter().enumerate() {
                 let a = partials[2*k];
                 let b = partials[2*k+1];

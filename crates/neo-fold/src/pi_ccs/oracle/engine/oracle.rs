@@ -43,7 +43,6 @@ where
     pub w_beta_a_partial: Vec<K>,
     pub w_alpha_a_partial: Vec<K>,
     pub w_beta_r_partial: Vec<K>,
-    pub w_beta_r_full: Vec<K>,
     pub w_eval_r_partial: Vec<K>,
     pub eval_row_partial: Vec<K>,
     pub eval_ajtai_partial: Option<Vec<K>>,
@@ -65,7 +64,7 @@ where
 
 impl<'a, F> GenericCcsOracle<'a, F>
 where
-    F: Field + Send + Sync + Copy,
+    F: Field + PrimeCharacteristicRing + Send + Sync + Copy,
     K: From<F>,
 {
     /// Create a new oracle instance
@@ -93,7 +92,6 @@ where
         f_at_beta_r: K,
         nc_sum_beta: K,
     ) -> Self {
-        let w_beta_r_full = w_beta_r_partial.clone();
         Self {
             s,
             gamma,
@@ -108,7 +106,6 @@ where
             w_beta_a_partial,
             w_alpha_a_partial,
             w_beta_r_partial,
-            w_beta_r_full,
             w_eval_r_partial,
             eval_row_partial,
             eval_ajtai_partial: None,
@@ -131,14 +128,28 @@ where
         // Build χ_{r'} over rows from collected row challenges
         let w_r = HalfTableEq::new(&self.row_chals);
         
+        #[cfg(feature = "debug-logs")]
+        eprintln!("[enter_ajtai] M1 has {} rows, {} cols", self.csr_m1.rows, self.csr_m1.cols);
+        
         // v1 = M_1^T · χ_{r'} ∈ K^m
         let v1 = spmv_csr_t_weighted_fk(self.csr_m1, &w_r);
         
+        #[cfg(feature = "debug-logs")]
+        {
+            eprintln!("[enter_ajtai] row_chals={:?}", self.row_chals);
+            eprintln!("[enter_ajtai] v1={:?}", v1);
+        }
+        
         // For each Z_i, y_{i,1}(r') = Z_i · v1 ∈ K^d, then pad to 2^ell_d
+        // Note: Instance 1 is the MCS instance, which only contributes to NC, not Eval
         let mut y_partials = Vec::with_capacity(self.z_witnesses.len());
-        for Zi in &self.z_witnesses {
+        for (_idx, Zi) in self.z_witnesses.iter().enumerate() {
             let z_ref = MatRef::from_mat(Zi);
             let yi = mat_vec_mul_fk::<F,K>(z_ref.data, z_ref.rows, z_ref.cols, &v1);
+            
+            #[cfg(feature = "debug-logs")]
+            eprintln!("[enter_ajtai] Z[{}] has {} rows, {} cols, yi={:?}", _idx, z_ref.rows, z_ref.cols, yi);
+            
             y_partials.push(pad_to_pow2_k(yi, self.ell_d).expect("pad y_i"));
         }
         
@@ -169,19 +180,23 @@ where
                 vjs.push(spmv_csr_t_weighted_fk(csr, &w_r));
             }
             
-            // Precompute γ^{i_off+1} for ME witnesses
-            let me_count = self.z_witnesses.len().saturating_sub(self.me_offset);
-            let mut gamma_pow_i = vec![K::ONE; me_count];
-            let mut cur = self.gamma;
-            for i_off in 0..me_count {
-                gamma_pow_i[i_off] = cur;
-                cur *= self.gamma;
-            }
-            
-            // γ^{k_total}
+            // Precompute γ^k
             let mut gamma_to_k = K::ONE;
             for _ in 0..self.k_total {
                 gamma_to_k *= self.gamma;
+            }
+            
+            // Precompute γ^{i_abs-1} for ME witnesses (i_abs starts at me_offset+1)
+            debug_assert!(self.me_offset == 1, "code assumes ME witnesses start at instance 2, but me_offset={}", self.me_offset);
+            let me_count = self.z_witnesses.len().saturating_sub(self.me_offset);
+            let mut gamma_pow_i_abs = vec![K::ONE; me_count];
+            {
+                let mut g = K::ONE;
+                for _ in 0..self.me_offset { g *= self.gamma; }
+                for i_off in 0..me_count {
+                    gamma_pow_i_abs[i_off] = g; // γ^{i_abs-1}
+                    g *= self.gamma;
+                }
             }
             
             // Accumulate Ajtai vector over ME witnesses only (i≥2)
@@ -191,11 +206,13 @@ where
                     let y_ij = mat_vec_mul_fk::<F,K>(
                         z_ref.data, z_ref.rows, z_ref.cols, &vjs[j]
                     );
-                    // Paper: γ^k · γ^{i+(j-1)k-1} = γ^{i-1 + j·k}
-                    let mut w_pow = gamma_to_k * gamma_pow_i[i_off];
+                    
+                    // weight = γ^{i_abs-1} * (γ^k)^j
+                    let mut w_pow = gamma_pow_i_abs[i_off];
                     for _ in 0..j {
                         w_pow *= gamma_to_k;
                     }
+                    
                     let rho_lim = core::cmp::min(d, y_ij.len());
                     for rho in 0..rho_lim {
                         G_eval[rho] += w_pow * y_ij[rho];
@@ -256,7 +273,15 @@ where
             let g_beta = PairGate::new(&self.w_beta_r_partial);
             let g_eval = PairGate::new(&self.w_eval_r_partial);
             
-            // Note: We'll evaluate F block directly to avoid mutable borrow issues
+            #[cfg(debug_assertions)]
+            {
+                debug_assert!(self.w_beta_r_partial.len().is_power_of_two());
+                debug_assert_eq!(self.partials_first_inst.s_per_j.len(), self.s.t());
+                for v in &self.partials_first_inst.s_per_j {
+                    debug_assert_eq!(v.len() >> 1, g_beta.half);
+                }
+                debug_assert_eq!(self.eval_row_partial.len() >> 1, g_eval.half);
+            }
             
             // Create NC block if needed
             let nc_block = if !self.nc_y_matrices.is_empty() {
@@ -280,11 +305,13 @@ where
                 // F block evaluation
                 {
                     let half = g_beta.half;
+                    // Reuse m_vals buffer for performance
+                    let mut m_vals = vec![K::ZERO; self.partials_first_inst.s_per_j.len()];
+                    
                     for k in 0..half {
                         let gate = g_beta.eval(k, x);
                         
                         // Evaluate m_j,k(X) = (1-X)*s_j[2k] + X*s_j[2k+1] for each j
-                        let mut m_vals = vec![K::ZERO; self.partials_first_inst.s_per_j.len()];
                         for (j, partials) in self.partials_first_inst.s_per_j.iter().enumerate() {
                             let a = partials[2*k];
                             let b = partials[2*k+1];
@@ -336,6 +363,12 @@ where
             // Create gates
             let g_beta = PairGate::new(&self.w_beta_a_partial);
             let g_alpha = PairGate::new(&self.w_alpha_a_partial);
+            
+            #[cfg(debug_assertions)]
+            {
+                debug_assert_eq!(self.w_beta_a_partial.len() % 2, 0);
+                debug_assert_eq!(self.w_alpha_a_partial.len() % 2, 0);
+            }
             
             // Create blocks
             let f_block = self.nc_state.as_ref().and_then(|nc| nc.f_at_rprime).map(|f_rp| {
@@ -392,8 +425,8 @@ where
                             #[cfg(feature = "debug-logs")]
                             {
                                 let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                                if dbg_oracle && k == 0 && i == 0 {
-                                    eprintln!("      y0={:?} y1={:?}", y0, y1);
+                                if dbg_oracle && k == 0 && x == K::ZERO {
+                                    eprintln!("      Instance {}: y0={:?} y1={:?}", i+1, y0, y1);
                                 }
                             }
                             
@@ -401,6 +434,15 @@ where
                                 let tk = K::from(F::from_i64(t));
                                 n0 *= y0 - tk;
                                 n1 *= y1 - tk;
+                            }
+                            
+                            #[cfg(feature = "debug-logs")]
+                            {
+                                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                                if dbg_oracle && k == 0 && x == K::ZERO && i == 0 {
+                                    eprintln!("        After product: n0={:?} n1={:?}", n0, n1);
+                                    eprintln!("        gamma_pows[{}]={:?}", i, nc_state.gamma_pows[i]);
+                                }
                             }
                             
                             nc0 += nc_state.gamma_pows[i] * n0;

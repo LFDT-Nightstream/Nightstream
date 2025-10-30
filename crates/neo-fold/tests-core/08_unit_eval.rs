@@ -103,7 +103,6 @@ fn eval_row_gate_matches_eq_r() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: vec![K::ZERO, K::ZERO],
         w_beta_r_partial: vec![K::ZERO, K::ZERO],
-        w_beta_r_full: vec![K::ZERO, K::ZERO],
         w_eval_r_partial: w_eval_r_partial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -165,7 +164,6 @@ fn eval_ajtai_gate_matches_eq_alpha_and_row_scalar() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],           // not used in Ajtai Eval
-        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],  // folded row gate
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -239,7 +237,6 @@ fn eval_gamma_weight_schedule_reduces_to_sum_of_powers() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],
-        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],
         z_witnesses: vec![],
         gamma, 
@@ -309,7 +306,6 @@ fn eval_gamma_schedule_many_instances() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],
-        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],
         z_witnesses: vec![],
         gamma,
@@ -366,7 +362,6 @@ fn eval_folding_through_both_phases() {
         w_beta_a_partial: vec![K::ZERO; 2],
         w_alpha_a_partial: vec![K::ZERO; 2],
         w_beta_r_partial: vec![K::ZERO; 4],
-        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r_initial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -429,7 +424,6 @@ fn eval_with_nc_f_at_rprime() {
         w_beta_a_partial: vec![K::ONE, K::ZERO], // β gate active
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],
-        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -478,11 +472,11 @@ fn eval_with_nc_y_matrices_beta_block() {
     let f_at_rprime = k64_(10);
     
     // Create NC y-matrix: d=2 rows (ell_d=1), test with simple values
-    let nc_y_mat = vec![
+    let _nc_y_mat = vec![
         vec![k64_(1), k64_(2)], // Row 0: [y0, y1]
         vec![k64_(3), k64_(4)], // Row 1: [y2, y3]
     ];
-    let nc_row_gamma_pows = vec![gamma]; // γ^1 for first instance
+    let _nc_row_gamma_pows = vec![gamma]; // γ^1 for first instance
     
     let eval_ajtai = ajtai_vec2(k64_(100), k64_(200));
     
@@ -493,7 +487,6 @@ fn eval_with_nc_y_matrices_beta_block() {
         w_beta_a_partial: vec![K::ONE, K::ZERO], // β at index 0
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],
-        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],
         z_witnesses: vec![],
         gamma,
@@ -512,8 +505,8 @@ fn eval_with_nc_y_matrices_beta_block() {
         csrs: &[],
         eval_ajtai_partial: Some(eval_ajtai.clone()),
         me_offset: 1,
-        nc_y_matrices: vec![nc_y_mat.clone()],
-        nc_row_gamma_pows,
+        nc_y_matrices: vec![],
+        nc_row_gamma_pows: vec![],
         nc_state: Some(NcState {
             y_partials: vec![],
             gamma_pows: vec![],
@@ -569,7 +562,6 @@ fn eval_with_nontrivial_f_polynomial() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: vec![K::ZERO, K::ZERO],
         w_beta_r_partial: vec![K::ZERO, K::ZERO],
-        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r_partial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -625,7 +617,6 @@ fn eval_with_larger_dimensions() {
         w_beta_a_partial: vec![K::ZERO; 8],
         w_alpha_a_partial: vec![K::ZERO; 8],
         w_beta_r_partial: vec![K::ZERO; 8],
-        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -673,12 +664,12 @@ fn eval_exact_ajtai_sum_at_x1_row_phase() {
     let ell_d = 1;
     
     // Create NC y-matrix for row phase
-    let nc_y_mat = vec![
+    let _nc_y_mat = vec![
         vec![k64_(10), k64_(20), k64_(30), k64_(40)], // d rows x 2^ell_n cols
         vec![k64_(50), k64_(60), k64_(70), k64_(80)],
     ];
     let gamma = K::from(F::from_u64(7));
-    let nc_row_gamma_pows = vec![gamma];
+    let _nc_row_gamma_pows = vec![gamma];
     
     let csr_m1_inst = csr_identity(n);
     let mut oracle = GenericCcsOracle::<F> {
@@ -687,7 +678,6 @@ fn eval_exact_ajtai_sum_at_x1_row_phase() {
         w_beta_a_partial: vec![K::ZERO; 2], // ell_d=1 -> 2 elements
         w_alpha_a_partial: vec![K::ZERO; 2],
         w_beta_r_partial: vec![K::ONE, K::ZERO, K::ZERO, K::ZERO], // β at row 0
-        w_beta_r_full: vec![K::ONE, K::ZERO, K::ZERO, K::ZERO],
         w_eval_r_partial: vec![K::ZERO; 4],
         z_witnesses: vec![],
         gamma,
@@ -706,8 +696,8 @@ fn eval_exact_ajtai_sum_at_x1_row_phase() {
         csrs: &[],
         eval_ajtai_partial: None,
         me_offset: 1,
-        nc_y_matrices: vec![nc_y_mat.clone()],
-        nc_row_gamma_pows,
+        nc_y_matrices: vec![],
+        nc_row_gamma_pows: vec![],
         nc_state: None,
     };
     
@@ -747,7 +737,6 @@ fn eval_cross_phase_sum_invariant() {
         w_beta_a_partial: vec![K::ZERO; 2],
         w_alpha_a_partial: vec![K::ZERO; 2],
         w_beta_r_partial: vec![K::ZERO; 2],
-        w_beta_r_full: vec![K::ZERO; 2],
         w_eval_r_partial: w_eval_r_initial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -832,7 +821,6 @@ fn eval_ajtai_precompute_end_to_end_checks_gamma_and_me_offset() {
         w_beta_a_partial,
         w_alpha_a_partial,
         w_beta_r_partial: w_beta_r_partial.clone(),
-        w_beta_r_full: w_beta_r_partial,
         w_eval_r_partial,
         z_witnesses,
         gamma,
@@ -900,7 +888,6 @@ fn eval_round_by_round_sumcheck_invariant() {
         w_beta_a_partial: vec![K::ZERO; 2], // ell_d=1 -> 2 elements
         w_alpha_a_partial: vec![K::ZERO; 2],
         w_beta_r_partial: vec![K::ZERO; 4],
-        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r_initial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -1032,7 +1019,6 @@ fn eval_randomized_vs_slow_reference() {
         w_beta_a_partial: vec![K::ZERO; d],
         w_alpha_a_partial: w_alpha_a_partial.clone(),
         w_beta_r_partial: vec![K::ONE],
-        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r_partial.clone(),
         z_witnesses,
         gamma,

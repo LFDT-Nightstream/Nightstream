@@ -422,7 +422,8 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     let z_witness_refs: Vec<&Mat<F>> = witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()).collect();
     let me_offset = witnesses.len();
 
-    let mut nc_row_gamma_pows_vec = Vec::with_capacity(k_total);
+    // Build gamma_pows for k instances: [γ^1, γ^2, ..., γ^k]
+    let mut nc_row_gamma_pows_vec: Vec<K> = Vec::with_capacity(k_total);
     {
         let mut gcur = ch.gamma;
         for _ in 0..k_total { nc_row_gamma_pows_vec.push(gcur); gcur *= ch.gamma; }

@@ -38,7 +38,7 @@ where
 
 impl<'a, F> RowBlock for NcRowBlock<'a, F>
 where
-    F: Field + Send + Sync + Copy,
+    F: Field + PrimeCharacteristicRing + Send + Sync + Copy,
     K: From<F>,
 {
     fn eval_at(&self, x: K, w_beta_r: PairGate) -> K {
@@ -133,7 +133,7 @@ where
 
 impl<'a, F> AjtaiBlock for NcAjtaiBlock<'a, F>
 where
-    F: Field + Send + Sync + Copy,
+    F: Field + PrimeCharacteristicRing + Send + Sync + Copy,
     K: From<F>,
 {
     fn eval_at(&self, x: K, w_beta_a: PairGate, wr_scalar: K) -> K {

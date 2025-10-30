@@ -59,7 +59,6 @@ fn oracle_ajtai_phase_excludes_nc_option_b() {
         w_beta_a_partial,
         w_alpha_a_partial,
         w_beta_r_partial: w_beta_r_partial.clone(),
-        w_beta_r_full: w_beta_r_partial,
         w_eval_r_partial,
         z_witnesses: vec![],
         gamma: K::ONE,

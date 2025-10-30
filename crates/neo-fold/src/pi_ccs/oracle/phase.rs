@@ -3,6 +3,13 @@
 //! This module defines the phase enum and associated types for tracking
 //! whether we're in the row phase (rounds 0..ell_n-1) or Ajtai phase
 //! (rounds ell_n..ell_n+ell_d-1).
+//!
+//! NOTE: The Phase enum is currently unused. The engine directly manages
+//! the phases within GenericCcsOracle::evals_at/fold. This is intentional
+//! to avoid lifetime issues with self-referential structs.
+//!
+//! Future work: If phases are needed, they should OWN their state rather
+//! than borrow, to avoid lifetime complications.
 
 use neo_math::K;
 use p3_field::Field;

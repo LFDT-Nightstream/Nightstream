@@ -281,7 +281,6 @@ fn regression_ajtai_nc_sumcheck_round0_vs_exact_and_hypercube_b3() {
         w_beta_a_partial: w_beta_a_partial.clone(),
         w_alpha_a_partial: w_alpha_a_partial.clone(),
         w_beta_r_partial: w_beta_r_partial.clone(),
-        w_beta_r_full: w_beta_r_partial.clone(),
         w_eval_r_partial,
         z_witnesses: z_refs,
         gamma: ch.gamma,
@@ -296,10 +295,10 @@ fn regression_ajtai_nc_sumcheck_round0_vs_exact_and_hypercube_b3() {
         row_chals: Vec::new(),
         csr_m1: &mats_csr[0],
         csrs: &mats_csr,
+        nc_y_matrices: nc_y.clone(),
+        nc_row_gamma_pows: gamma_pows,
         eval_ajtai_partial: None,
         me_offset: 1,                 // no ME inputs; outputs would begin at 1
-        nc_y_matrices: nc_y.clone(),  // full Ajtai rows for NC
-        nc_row_gamma_pows: gamma_pows,
         nc_state: None,
     };
 
@@ -487,7 +486,6 @@ fn regression_ajtai_nc_nonzero_rprime_b3() {
         w_beta_a_partial: w_beta_a_partial.clone(),
         w_alpha_a_partial: w_alpha_a_partial.clone(),
         w_beta_r_partial: w_beta_r_partial.clone(),
-        w_beta_r_full: w_beta_r_partial.clone(),
         w_eval_r_partial,
         z_witnesses: z_refs,
         gamma: ch.gamma,
@@ -502,10 +500,10 @@ fn regression_ajtai_nc_nonzero_rprime_b3() {
         row_chals: Vec::new(),
         csr_m1: &mats_csr[0],
         csrs: &mats_csr,
-        eval_ajtai_partial: None,
-        me_offset: 1,
         nc_y_matrices: nc_y.clone(),
         nc_row_gamma_pows: gamma_pows,
+        eval_ajtai_partial: None,
+        me_offset: 1,
         nc_state: None,
     };
 

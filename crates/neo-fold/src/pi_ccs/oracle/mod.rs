@@ -24,6 +24,9 @@ pub mod phase;
 pub mod blocks;
 pub mod engine;
 
+#[cfg(test)]
+pub mod tests;
+
 // Re-export main types
 pub use engine::GenericCcsOracle;
 pub use phase::Phase;

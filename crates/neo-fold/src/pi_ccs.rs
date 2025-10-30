@@ -575,18 +575,8 @@ pub fn pi_ccs_verify(
         .map_err(|e| PiCcsError::InvalidStructure(format!("CCS structure invalid for identity-first: {:?}", e)))?;
     
     // Compute same parameters as prover (Section 4.3)
-    // Paper specifies sum-check over {0,1}^{log(dn)} hypercube
-    if s.n == 0 { return Err(PiCcsError::InvalidInput("n=0 not allowed".into())); }
-    let d_pad = neo_math::D.next_power_of_two();
-    let ell_d = d_pad.trailing_zeros() as usize;      // log d (Ajtai dimension)
-    let n_pad = s.n.next_power_of_two().max(2);
-    let ell_n = n_pad.trailing_zeros() as usize;      // log n (row dimension)
-    let ell    = ell_d + ell_n;                       // log(dn) - FULL hypercube as per paper
-    // Per-round degree bound: max(deg(f)+1, 2*b, 2)
-    let d_sc   = core::cmp::max(
-        s.max_degree() as usize + 1,                  // F with eq gating on row bits
-        core::cmp::max(2, 2 * params.b as usize),     // Eval (≤2) vs. Range+eq (≤2b)
-    );
+    // Use shared helper to ensure prover/verifier dimensions match exactly
+    let context::Dims { ell_d, ell_n, ell, d_sc } = context::build_dims_and_policy(params, &s)?;
 
     let ext = params.extension_check(ell as u32, d_sc as u32)
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;

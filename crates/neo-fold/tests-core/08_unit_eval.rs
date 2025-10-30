@@ -124,7 +124,7 @@ fn eval_row_gate_matches_eq_r() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
     
     // Sample univariate at X=0 and X=1 and compare against closed form
@@ -186,7 +186,7 @@ fn eval_ajtai_gate_matches_eq_alpha_and_row_scalar() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: Some(NcState { 
+        nc_state: Some(NcState { 
             y_partials: vec![], 
             gamma_pows: vec![], 
             f_at_rprime: None 
@@ -260,7 +260,7 @@ fn eval_gamma_weight_schedule_reduces_to_sum_of_powers() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: Some(NcState { 
+        nc_state: Some(NcState { 
             y_partials: vec![], 
             gamma_pows: vec![], 
             f_at_rprime: None 
@@ -330,7 +330,7 @@ fn eval_gamma_schedule_many_instances() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: Some(NcState {
+        nc_state: Some(NcState {
             y_partials: vec![],
             gamma_pows: vec![],
             f_at_rprime: None
@@ -387,7 +387,7 @@ fn eval_folding_through_both_phases() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
     
     // Verify we start in row phase
@@ -450,7 +450,7 @@ fn eval_with_nc_f_at_rprime() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: Some(NcState {
+        nc_state: Some(NcState {
             y_partials: vec![],
             gamma_pows: vec![],
             f_at_rprime: Some(f_at_rprime), // Properly initialized!
@@ -514,7 +514,7 @@ fn eval_with_nc_y_matrices_beta_block() {
         me_offset: 1,
         nc_y_matrices: vec![nc_y_mat.clone()],
         nc_row_gamma_pows,
-        nc: Some(NcState {
+        nc_state: Some(NcState {
             y_partials: vec![],
             gamma_pows: vec![],
             f_at_rprime: Some(f_at_rprime),
@@ -590,7 +590,7 @@ fn eval_with_nontrivial_f_polynomial() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
     
     let ys = oracle.evals_at(&[K::ZERO, K::ONE]);
@@ -646,7 +646,7 @@ fn eval_with_larger_dimensions() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
     
     // Single fold to demonstrate mechanism with larger vectors
@@ -708,7 +708,7 @@ fn eval_exact_ajtai_sum_at_x1_row_phase() {
         me_offset: 1,
         nc_y_matrices: vec![nc_y_mat.clone()],
         nc_row_gamma_pows,
-        nc: None,
+        nc_state: None,
     };
     
     // Sample at X=1 to trigger exact Ajtai sum branch
@@ -768,7 +768,7 @@ fn eval_cross_phase_sum_invariant() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
     
     // Evaluate univariate
@@ -853,7 +853,7 @@ fn eval_ajtai_precompute_end_to_end_checks_gamma_and_me_offset() {
         me_offset,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
     
     // Evaluate at X=0 and X=1
@@ -921,7 +921,7 @@ fn eval_round_by_round_sumcheck_invariant() {
         me_offset: 1,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
     
     // Round 0 (row phase)
@@ -1053,7 +1053,7 @@ fn eval_randomized_vs_slow_reference() {
         me_offset,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
     
     // Get oracle output at X=0

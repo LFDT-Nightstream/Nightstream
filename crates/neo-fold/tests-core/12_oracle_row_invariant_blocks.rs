@@ -88,7 +88,7 @@ fn row_invariant_f_block_only() {
         me_offset: 0,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
 
     let mut tr = Poseidon2Transcript::new(b"sumcheck-row-f-only");
@@ -135,7 +135,7 @@ fn row_invariant_eval_block_only() {
         me_offset: 0,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc: None,
+        nc_state: None,
     };
 
     let mut tr = Poseidon2Transcript::new(b"sumcheck-row-eval-only");
@@ -198,7 +198,7 @@ fn row_invariant_nc_block_only() {
         me_offset: 0,
         nc_y_matrices,
         nc_row_gamma_pows,
-        nc: None,
+        nc_state: None,
     };
 
     let mut tr = Poseidon2Transcript::new(b"sumcheck-row-nc-only");

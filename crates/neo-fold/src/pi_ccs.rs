@@ -428,35 +428,30 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         for _ in 0..k_total { nc_row_gamma_pows_vec.push(gcur); gcur *= ch.gamma; }
     }
 
-    let mut oracle = GenericCcsOracle {
-        s: &s,
+    let mut oracle = GenericCcsOracle::new(
+        &s,
         partials_first_inst,
-        w_beta_a_partial: w_beta_a_partial.clone(),
-        w_alpha_a_partial: w_alpha_a_partial.clone(),
-        w_beta_r_partial: w_beta_r_partial.clone(),
-        w_beta_r_full: w_beta_r_partial.clone(),
-        w_eval_r_partial: w_eval_r_partial.clone(),
-        z_witnesses: z_witness_refs,
-        gamma: ch.gamma,
+        w_beta_a_partial.clone(),
+        w_alpha_a_partial.clone(),
+        w_beta_r_partial.clone(),
+        w_eval_r_partial.clone(),
+        eval_row_partial.clone(),
+        z_witness_refs,
+        &mats_csr[0],
+        &mats_csr,
+        nc_y_matrices,
+        nc_row_gamma_pows_vec,
+        ch.gamma,
         k_total,
-        b: params.b,
+        params.b,
         ell_d,
         ell_n,
         d_sc,
-        round_idx: 0,
-        initial_sum_claim: initial_sum,
-        f_at_beta_r: beta_block.f_at_beta_r,
-        nc_sum_beta: K::ZERO,
-        eval_row_partial: eval_row_partial.clone(),
-        row_chals: Vec::new(),
-        csr_m1: &mats_csr[0],
-        csrs: &mats_csr,
-        eval_ajtai_partial: None,
         me_offset,
-        nc_y_matrices,
-        nc_row_gamma_pows: nc_row_gamma_pows_vec,
-        nc: None,
-    };
+        initial_sum,
+        beta_block.f_at_beta_r,
+        beta_block.nc_sum_hypercube,
+    );
 
     // Execute sum-check protocol: reduces T = sum over {0,1}^{log(dn)} to v = Q(α', r')
     let SumcheckOutput { rounds, challenges: r, final_sum: running_sum_sc } =

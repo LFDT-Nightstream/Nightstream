@@ -81,7 +81,7 @@ fn oracle_ajtai_phase_excludes_nc_option_b() {
         me_offset: 0,
         nc_y_matrices: vec![],
         nc_row_gamma_pows: vec![],
-        nc,
+        nc_state: nc,
     };
 
     // Ajtai phase begins immediately (ell_n=0). Evaluate at X=0 and X=1.

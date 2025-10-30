@@ -300,7 +300,7 @@ fn regression_ajtai_nc_sumcheck_round0_vs_exact_and_hypercube_b3() {
         me_offset: 1,                 // no ME inputs; outputs would begin at 1
         nc_y_matrices: nc_y.clone(),  // full Ajtai rows for NC
         nc_row_gamma_pows: gamma_pows,
-        nc: None,
+        nc_state: None,
     };
 
     // Fold only the row rounds with r_i = 0 to get r' = 0^ell_n
@@ -506,7 +506,7 @@ fn regression_ajtai_nc_nonzero_rprime_b3() {
         me_offset: 1,
         nc_y_matrices: nc_y.clone(),
         nc_row_gamma_pows: gamma_pows,
-        nc: None,
+        nc_state: None,
     };
 
     // Fold row rounds with NON-ZERO pattern: [1, 0, ...] (depends on ell_n)

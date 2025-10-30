@@ -59,7 +59,7 @@ pub fn validate_inputs(
 /// that would silently corrupt the γ-exponent schedule in Eval'.
 #[cfg(debug_assertions)]
 pub fn sanity_check_outputs_against_inputs(
-    s: &CcsStructure<F>,
+    _s: &CcsStructure<F>,
     mcs_list: &[McsInstance<Cmt, F>],
     me_inputs: &[MeInstance<Cmt, F, K>],
     out_me: &[MeInstance<Cmt, F, K>],
@@ -75,13 +75,27 @@ pub fn sanity_check_outputs_against_inputs(
         )));
     }
 
-    // Check all outputs have correct m_in
+    // Check all outputs have correct m_in relative to their source
+    // - First |MCS| outputs correspond to mcs_list[i].m_in
+    // - Next |ME| outputs correspond to me_inputs[i].m_in
     for (idx, out) in out_me.iter().enumerate() {
-        if out.m_in != s.m {
-            return Err(PiCcsError::InvalidInput(format!(
-                "out_me[{}].m_in {} != s.m {}",
-                idx, out.m_in, s.m
-            )));
+        if idx < mcs_list.len() {
+            let want = mcs_list[idx].m_in;
+            if out.m_in != want {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "out_me[{}].m_in {} != mcs_list[{}].m_in {}",
+                    idx, out.m_in, idx, want
+                )));
+            }
+        } else {
+            let j = idx - mcs_list.len();
+            let want = me_inputs.get(j).map(|me| me.m_in).unwrap_or(0);
+            if out.m_in != want {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "out_me[{}].m_in {} != me_inputs[{}].m_in {}",
+                    idx, out.m_in, j, want
+                )));
+            }
         }
     }
 
@@ -102,4 +116,3 @@ pub fn sanity_check_outputs_against_inputs(
 ) -> Result<(), PiCcsError> {
     Ok(())
 }
-

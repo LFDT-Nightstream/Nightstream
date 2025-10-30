@@ -191,8 +191,8 @@ fn test_rhs_Q_apr_no_me_inputs_f_only() {
     
     // Expected: eq((α',r'), β)·(F' + NC') + 0
     // where NC' = 0 because y[0] evaluated at α' is in range
-    let eq_beta_r = eq_points(&r_prime, &ch.beta_r);
     let eq_beta_a = eq_points(&alpha_prime, &ch.beta_a);
+    let eq_beta_r = eq_points(&r_prime, &ch.beta_r);
     let eq_aprp_beta = eq_beta_a * eq_beta_r;
     
     let f_prime = y_scalars[0] + y_scalars[1]; // f(m1, m2) = m1 + m2 = 8
@@ -259,8 +259,8 @@ fn test_rhs_Q_apr_with_nc_prime() {
     let gamma = ch.gamma;
     let nc_prime = gamma * nc_1 + gamma * gamma * nc_2;
     
-    let eq_beta_r = eq_points(&r_prime, &ch.beta_r);
     let eq_beta_a = eq_points(&alpha_prime, &ch.beta_a);
+    let eq_beta_r = eq_points(&r_prime, &ch.beta_r);
     let eq_aprp_beta = eq_beta_a * eq_beta_r;
     
     let f_prime = k64_(1) + k64_(0); // f(m1, m2) = m1 + m2 = 1 (from first output's digits)
@@ -918,4 +918,3 @@ fn test_rhs_Q_apr_errors_on_inconsistent_r() {
     let err = rhs_Q_apr(&s, &ch, &r_prime, &alpha_prime, &[], &me_inputs, &out, &params).unwrap_err();
     assert!(format!("{err:?}").contains("same r"), "expected r-consistency error");
 }
-

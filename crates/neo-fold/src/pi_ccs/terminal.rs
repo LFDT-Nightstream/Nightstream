@@ -131,6 +131,7 @@ pub fn rhs_Q_apr(
         }
     }
 
+    // Full β gate (row and Ajtai): eq((α',r'), β) = eq_a(α',β_a)·eq_r(r',β_r)
     let eq_beta_r = eq_points(r_prime, &ch.beta_r)?;
     let eq_beta_a = eq_points(alpha_prime, &ch.beta_a)?;
     let eq_aprp_beta = eq_beta_r * eq_beta_a;

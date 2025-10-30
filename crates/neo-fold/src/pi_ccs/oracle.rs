@@ -7,12 +7,11 @@ use neo_ccs::CcsStructure;
 use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing};
 use crate::pi_ccs::precompute::{MlePartials, pad_to_pow2_k};
+#[cfg(feature = "debug-logs")]
+use crate::pi_ccs::format_ext;
 use crate::pi_ccs::sparse_matrix::Csr;
 use crate::pi_ccs::eq_weights::{HalfTableEq, spmv_csr_t_weighted_fk};
 use crate::sumcheck::RoundOracle;
-
-#[cfg(feature = "debug-logs")]
-use crate::pi_ccs::format_ext;
 
 /// NC state after row rounds: y_{i,1}(r') Ajtai partials & γ weights
 pub struct NcState {
@@ -48,6 +47,8 @@ where
     pub w_beta_a_partial: Vec<K>,   // size 2^ell_d (Ajtai dimension) for β_a
     pub w_alpha_a_partial: Vec<K>,  // size 2^ell_d (Ajtai dimension) for α
     pub w_beta_r_partial: Vec<K>,   // size 2^ell_n (row dimension)
+    // Unfolded row equality weights for NC dynamic stride computation
+    pub w_beta_r_full: Vec<K>,      // original size 2^ell_n
     pub w_eval_r_partial: Vec<K>,   // eq against r_input (row dimension only, Ajtai pre-collapsed)
     // Z witnesses for all k instances (needed for NC in Ajtai phase)
     #[allow(dead_code)]  // Used only if dynamic NC computation is enabled
@@ -61,9 +62,10 @@ where
     pub b: u32,
     pub ell_d: usize,  // log d (Ajtai dimension bits)
     pub ell_n: usize,  // log n (row dimension bits)
-    pub d_sc: usize,
+    pub d_sc: usize,   // Per-round degree bound: max(deg(f), 2b-1)
     pub round_idx: usize,  // track which round we're in (for phase detection)
     // Claimed initial sum for this sum-check instance (for diagnostics)
+    // Equals: F(β_r) + Σ_i γ^i·NC_i(β) + γ^k·Σ_{j,i≥2} γ^{i+(j-1)k-1}·ỹ_{(i,j)}(α)
     #[allow(dead_code)]
     pub initial_sum_claim: K,
     // Precomputed constants for eq(·,β) block (kept for logging/initial_sum only)
@@ -86,6 +88,8 @@ where
     // y_matrices[i] = Z_i · M_1^T, where rows are Ajtai dimension (ρ ∈ [d]),
     // columns are row dimension (folded during row rounds)
     pub nc_y_matrices: Vec<Vec<Vec<K>>>,  // [instance][ρ][row] - folded columnwise
+    // NC gamma weights: nc_row_gamma_pows[i] = γ^{i+1} where i is 0-based index
+    // (corresponds to γ^i with i starting at 1 in the paper)
     #[allow(dead_code)]
     pub nc_row_gamma_pows: Vec<K>,
     // NC after row binding: y_{i,1}(r') Ajtai partials & γ weights
@@ -143,6 +147,7 @@ where
             }
 
             // Precompute γ^{i_off+1} for ME witnesses (i_off = 0..me_count-1)
+            // Semantically: γ^{i-1} where i is absolute instance index (i≥2 for ME instances)
             let me_count = self.z_witnesses.len().saturating_sub(self.me_offset);
             let mut gamma_pow_i = vec![K::ONE; me_count];
             let mut cur = self.gamma;
@@ -188,6 +193,12 @@ where
     /// Total rounds = ell_n (row rounds first) + ell_d (Ajtai rounds second)
     /// Row-first ordering matches paper's two-axis sum-check decomposition
     fn num_rounds(&self) -> usize { self.ell_d + self.ell_n }
+    /// Per-round degree bound for univariate polynomials
+    /// 
+    /// **Paper Reference**: Q has degree ≤ max(deg(f), 2b-1) per variable
+    /// - F contributes deg(f) (typically 2 for R1CS, higher for CCS)
+    /// - NC contributes 2b-1 (range polynomial degree)
+    /// - Eval contributes degree 1 (linear in each variable)
     fn degree_bound(&self) -> usize { self.d_sc }
     
     /// Evaluate Q at sample points in current variable
@@ -197,6 +208,8 @@ where
     /// - **Row phase** (rounds 0..ell_n-1): Process X_r bits, evaluate all terms
     /// - **Ajtai phase** (rounds ell_n..ell): Process X_a bits, fold gates only
     fn evals_at(&mut self, sample_xs: &[K]) -> Vec<K> {
+        // Shape sanity (debug-only): ensure vectors align with declared dimensions
+        debug_assert!(self.w_beta_r_partial.is_empty() || self.w_beta_r_partial.len().is_power_of_two());
         #[cfg(feature = "debug-logs")]
         use crate::pi_ccs::format_ext;
         
@@ -241,11 +254,12 @@ where
             }
 
             let half_rows = self.w_beta_r_partial.len() >> 1;
-            let half_eval = self.eval_row_partial.len() >> 1;
+            let _half_eval = self.eval_row_partial.len() >> 1;
             debug_assert_eq!(self.w_beta_r_partial.len() % 2, 0);
             debug_assert_eq!(self.eval_row_partial.len() % 2, 0);
             
             for (sx, &X) in sample_xs.iter().enumerate() {
+                let dbg_single_one = sample_xs.len() == 1 && X == K::ONE;
                 // (A) F block: Σ_k gate_r(k,X) * f(m_k(X))
                 let mut f_contribution = K::ZERO;
                 for k in 0..half_rows {
@@ -274,73 +288,18 @@ where
                     }
                 }
 
-                // (A2) NC row block: exact Ajtai hypercube sum per pair (matches paper)
-                // IMPORTANT: NC is non-linear in X_r. We must compute Ni at the two
-                // discrete row assignments (bit=0 and bit=1) separately, then combine
-                // them linearly via the gate weights. Interpolating yi and then taking
-                // the product is incorrect.
-                if !self.nc_y_matrices.is_empty() {
-                    let d_ell = 1usize << self.ell_d;
-                    for k in 0..half_rows {
-                        let w0 = self.w_beta_r_partial[2*k];
-                        let w1 = self.w_beta_r_partial[2*k + 1];
-                        let gate0 = (K::ONE - X) * w0;      // weight for bit=0 branch
-                        let gate1 = X * w1;                  // weight for bit=1 branch
-
-                        let mut sum_over_i = K::ZERO;
-                        for (i, y_mat) in self.nc_y_matrices.iter().enumerate() {
-                            let rows_len = y_mat.len();
-
-                            // Preload y at the two discrete row assignments for this pair
-                            let mut y0_at_pair: Vec<K> = Vec::with_capacity(rows_len);
-                            let mut y1_at_pair: Vec<K> = Vec::with_capacity(rows_len);
-                            for rho in 0..rows_len {
-                                debug_assert!(y_mat[rho].len() >= 2*k + 2);
-                                y0_at_pair.push(y_mat[rho][2*k]);
-                                y1_at_pair.push(y_mat[rho][2*k + 1]);
-                            }
-
-                            // Compute Ajtai sums separately for bit=0 and bit=1 branches
-                            let mut ajtai_sum0 = K::ZERO;
-                            let mut ajtai_sum1 = K::ZERO;
-                            for xa_idx in 0..d_ell {
-                                // ẑ_i(X_a, X_r=branch)
-                                let mut zi0 = K::ZERO;
-                                let mut zi1 = K::ZERO;
-                                for (rho, (&y0, &y1)) in y0_at_pair.iter().zip(y1_at_pair.iter()).enumerate() {
-                                    let mut chi_xa_rho = K::ONE;
-                                    for bit_pos in 0..self.ell_d {
-                                        let xa_bit = if (xa_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                        let rho_bit = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                        chi_xa_rho *= xa_bit * rho_bit + (K::ONE - xa_bit) * (K::ONE - rho_bit);
-                                    }
-                                    zi0 += chi_xa_rho * y0;
-                                    zi1 += chi_xa_rho * y1;
-                                }
-                                // Range polynomials at the two discrete branches
-                                // ∏_{t=-(b-1)}^{b-1} (· - t)
-                                let mut N0 = K::ONE;
-                                let mut N1 = K::ONE;
-                                let low  = -((self.b as i64) - 1);
-                                let high =  (self.b as i64) - 1;
-                                for t in low..=high {
-                                    let t_k = K::from(F::from_i64(t));
-                                    N0 *= zi0 - t_k;
-                                    N1 *= zi1 - t_k;
-                                }
-                                let eq_xa_beta = self.w_beta_a_partial[xa_idx];
-                                ajtai_sum0 += eq_xa_beta * N0;
-                                ajtai_sum1 += eq_xa_beta * N1;
-                            }
-                            // Combine branches linearly with gate weights
-                            sum_over_i += self.nc_row_gamma_pows[i] * (gate0 * ajtai_sum0 + gate1 * ajtai_sum1);
-                        }
-                        sample_ys[sx] += sum_over_i;
-                    }
-                }
+                // (A2) NC row block: Ajtai-only mode — exclude NC from row rounds.
+                // Paper-faithful choice: carry NC exclusively in Ajtai rounds.
 
                 // (B) Eval row block: Σ_k gate_eval(k,X) * Geval_k(X)
-                let mut eval_contribution = K::ZERO;
+                // This represents the Eval mass collapsed over Ajtai at α, as a
+                // row-domain polynomial gated by eq_r(X_r, r). Carrying this in
+                // the row phase ensures the sum-check invariant holds across the
+                // row→Ajtai boundary (p_next(0)+p_next(1) = p_prev(r)). The same
+                // Eval block will reappear in Ajtai rounds as a function of X_a,
+                // but that is part of re-expressing the same global Q.
+                let half_eval = self.eval_row_partial.len() >> 1;
+                debug_assert_eq!(self.eval_row_partial.len() % 2, 0);
                 for k in 0..half_eval {
                     let w0 = self.w_eval_r_partial[2*k];
                     let w1 = self.w_eval_r_partial[2*k + 1];
@@ -348,78 +307,79 @@ where
                     let a = self.eval_row_partial[2*k];
                     let b = self.eval_row_partial[2*k + 1];
                     let g_ev = (K::ONE - X) * a + X * b;
-                    let contrib = gate_eval * g_ev;
-                    sample_ys[sx] += contrib;
-                    eval_contribution += contrib;
-                }
-                
-                #[cfg(feature = "debug-logs")]
-                {
-                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                    if dbg_oracle && sx <= 1 && self.round_idx <= 1 {
-                        eprintln!("[row{}][sample{}] Eval contribution: {}, TOTAL: {} (X={})", 
-                                 self.round_idx, sx, format_ext(eval_contribution), 
-                                 format_ext(sample_ys[sx]), format_ext(X));
-                    }
+                    let add = gate_eval * g_ev;
+                    if dbg_single_one { eprintln!("[dbg-eval-row] r{} k={} add={:?}", self.round_idx, k, add); }
+                    sample_ys[sx] += add;
                 }
             }
 
         } else {
-            // ===== AJTAI PHASE =====
-            // After row rounds, only eq_a(X_a,β_a)·eq_r(r',β_r)·F(r') contributes (Option B).
-            // Eval block has been collapsed already over Ajtai at α; NC is excluded in Option B.
+            // ===== AJTAI PHASE ===== (paper-faithful)
+            // After row rounds, evaluate Ajtai univariates for:
+            // - eq_a(X_a,β_a)·eq_r(r',β_r)·F(r')
+            // - eq_a(X_a,β_a)·eq_r(r',β_r)·Σ_i γ^i·NC_i(r',X_a)
+            // - eq_a(X_a,α)·eq_r(r',r_input)·[γ^k·Σ_{j,i≥2} γ^{i+(j-1)k-1}·ỹ'_{(i,j)}(X_a)]
 
-            // Row equality gate after all row folds
-            let wr_scalar = if !self.w_beta_r_partial.is_empty() {
-                self.w_beta_r_partial[0]
-            } else {
-                K::ONE
-            };
+            // Row equality scalar after all row folds: eq_r(r', β_r)
+            let wr_scalar = if !self.w_beta_r_partial.is_empty() { self.w_beta_r_partial[0] } else { K::ONE };
 
             // Ensure F(r') and Ajtai y-partials are computed
             self.ensure_nc_precomputed();
             let half_beta_a = self.w_beta_a_partial.len() >> 1;
             let _half_alpha_a = self.w_alpha_a_partial.len() >> 1;
 
-            // (A) β-block for F: Ajtai-gated F(r') (only if available)
+            // Optional debug accumulation per block
+            let dbg_trace = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+            let mut dbg_f: Vec<K> = if dbg_trace { vec![K::ZERO; sample_xs.len()] } else { Vec::new() };
+            let mut dbg_nc: Vec<K> = if dbg_trace { vec![K::ZERO; sample_xs.len()] } else { Vec::new() };
+            let mut dbg_ev: Vec<K> = if dbg_trace { vec![K::ZERO; sample_xs.len()] } else { Vec::new() };
+
+            // (A) β-block for F: Ajtai-gated F(r')
             if let Some(f_rp) = self.nc.as_ref().and_then(|st| st.f_at_rprime) {
                 for k in 0..half_beta_a {
                     let w0b = self.w_beta_a_partial[2 * k];
                     let w1b = self.w_beta_a_partial[2 * k + 1];
                     for (sx, &X) in sample_xs.iter().enumerate() {
                         let gate_beta = (K::ONE - X) * w0b + X * w1b;
-                        sample_ys[sx] += wr_scalar * gate_beta * f_rp;
+                        let c = wr_scalar * gate_beta * f_rp;
+                        sample_ys[sx] += c;
+                        if dbg_trace { dbg_f[sx] += c; }
                     }
                 }
             }
 
-            // (B) β-block for NC at r' (Ajtai univariate)
+            // (B) β-block for NC at r' (piecewise per branch due to non-linearity)
             if let Some(ref nc) = self.nc {
+                let low  = -((self.b as i64) - 1);
+                let high =  (self.b as i64) - 1;
                 for k in 0..half_beta_a {
                     let w0b = self.w_beta_a_partial[2 * k];
                     let w1b = self.w_beta_a_partial[2 * k + 1];
                     for (sx, &X) in sample_xs.iter().enumerate() {
-                        let gate_beta = (K::ONE - X) * w0b + X * w1b;
-                        let mut nc_sum = K::ZERO;
+                        let mut nc0 = K::ZERO; // Σ_i γ^i N0(y0)
+                        let mut nc1 = K::ZERO; // Σ_i γ^i N1(y1)
                         for (i, y) in nc.y_partials.iter().enumerate() {
                             let y0 = y[2 * k];
                             let y1 = y[2 * k + 1];
-                            let yi = (K::ONE - X) * y0 + X * y1;
-                            // Range polynomial: ∏_{t=-(b-1)}^{b-1} (yi - t)
-                            let mut Ni = K::ONE;
-                            let low  = -((self.b as i64) - 1);
-                            let high =  (self.b as i64) - 1;
+                            let mut N0 = K::ONE;
+                            let mut N1 = K::ONE;
                             for t in low..=high {
-                                Ni *= yi - K::from(F::from_i64(t));
+                                let tk = K::from(F::from_i64(t));
+                                N0 *= y0 - tk;
+                                N1 *= y1 - tk;
                             }
-                            nc_sum += nc.gamma_pows[i] * Ni; // γ^i
+                            nc0 += nc.gamma_pows[i] * N0;
+                            nc1 += nc.gamma_pows[i] * N1;
                         }
-                        sample_ys[sx] += wr_scalar * gate_beta * nc_sum;
+                        // (1 - X)·w0b·Σ_i γ^i·N0 + X·w1b·Σ_i γ^i·N1, scaled by wr_scalar
+                        let c = wr_scalar * ((K::ONE - X) * w0b * nc0 + X * w1b * nc1);
+                        sample_ys[sx] += c;
+                        if dbg_trace { dbg_nc[sx] += c; }
                     }
                 }
             }
 
-            // (C) EVAL(X_a, r') with Ajtai gating at α (used in unit tests and when provided)
+            // (C) Eval Ajtai univariate: eq_a(X_a,α)·eq_r(r',r_input)·Eval_ajtai(X_a)
             let wr_eval_scalar = if !self.w_eval_r_partial.is_empty() { self.w_eval_r_partial[0] } else { K::ONE };
             if let Some(ref eval_vec) = self.eval_ajtai_partial {
                 let half_alpha_a = self.w_alpha_a_partial.len() >> 1;
@@ -432,7 +392,9 @@ where
                         let w1 = self.w_alpha_a_partial[2 * k + 1];
                         let gate_alpha = (K::ONE - X) * w0 + X * w1;
                         let eval_x = a0 + (a1 - a0) * X;
-                        sample_ys[sx] += gate_alpha * wr_eval_scalar * eval_x;
+                        let c = gate_alpha * wr_eval_scalar * eval_x;
+                        sample_ys[sx] += c;
+                        if dbg_trace { dbg_ev[sx] += c; }
                     }
                 }
             }
@@ -440,7 +402,44 @@ where
             #[cfg(feature = "debug-logs")]
             {
                 let ajtai_round = self.round_idx - self.ell_n;
-                eprintln!("[oracle][ajtai{}] Ajtai-gating F(r') and Eval via s_weighted", ajtai_round);
+                eprintln!("[oracle][ajtai{}] Ajtai-gating F(r'), NC, and Eval (paper)", ajtai_round);
+            }
+            #[cfg(feature = "debug-logs")]
+            if dbg_trace && self.round_idx == self.ell_n {
+                // Try to locate indices for X=0 and X=1 and print per-block sums
+                let mut idx0: Option<usize> = None;
+                let mut idx1: Option<usize> = None;
+                for (i, &x) in sample_xs.iter().enumerate() {
+                    if x == K::ZERO { idx0 = Some(i); }
+                    if x == K::ONE  { idx1 = Some(i); }
+                }
+                if let (Some(i0), Some(i1)) = (idx0, idx1) {
+                    if let Some(f_rp) = self.nc.as_ref().and_then(|st| st.f_at_rprime) {
+                        eprintln!("[oracle][ajtai0] wr_scalar={} f_at_r'={} wr*f'={}", 
+                                  format_ext(wr_scalar), format_ext(f_rp), format_ext(wr_scalar * f_rp));
+                    }
+                    let (f0, f1) = (dbg_f[i0], dbg_f[i1]);
+                    let (nc0, nc1) = (dbg_nc[i0], dbg_nc[i1]);
+                    let (ev0, ev1) = (dbg_ev[i0], dbg_ev[i1]);
+                    let s0 = sample_ys[i0];
+                    let s1 = sample_ys[i1];
+                    eprintln!(
+                        "[oracle][ajtai0] block sums p(0): F={:?}, NC={:?}, Eval={:?}, total={:?}",
+                        f0, nc0, ev0, s0
+                    );
+                    eprintln!(
+                        "[oracle][ajtai0] block sums p(1): F={:?}, NC={:?}, Eval={:?}, total={:?}",
+                        f1, nc1, ev1, s1
+                    );
+                    let sum_f = f0 + f1;
+                    let sum_nc = nc0 + nc1;
+                    let sum_ev = ev0 + ev1;
+                    let sum_tot = s0 + s1;
+                    eprintln!(
+                        "[oracle][ajtai0] p(0)+p(1): F={:?}, NC={:?}, Eval={:?}, total={:?}",
+                        sum_f, sum_nc, sum_ev, sum_tot
+                    );
+                }
             }
         }
         
@@ -461,11 +460,11 @@ where
                 eprintln!("[oracle][round{}] s(0)={}, s(1)={}, s(0)+s(1)={}, claim={}",
                     self.round_idx, format_ext(s0), format_ext(s1), format_ext(sum01), format_ext(self.initial_sum_claim));
             } else if self.round_idx < self.ell_n {
-                // In skip-at-one engine, we do not receive X=1. Compute s(1) ad hoc for diagnostics.
+                // In skip-at-one engine, recompute s(1) using the same block structure
                 let X1 = K::ONE;
                 let mut s1 = K::ZERO;
-                // F block at X=1
                 let half_rows = self.w_beta_r_partial.len() >> 1;
+                // F at X=1
                 for k in 0..half_rows {
                     let w0 = self.w_beta_r_partial[2*k];
                     let w1 = self.w_beta_r_partial[2*k + 1];
@@ -478,45 +477,7 @@ where
                     }
                     s1 += gate_r * self.s.f.eval_in_ext::<K>(&m_vals);
                 }
-                // NC row block at X=1 (exact Ajtai sum, branch=1 only)
-                if !self.nc_y_matrices.is_empty() {
-                    for k in 0..half_rows {
-                        let _w0 = self.w_beta_r_partial[2*k];
-                        let w1 = self.w_beta_r_partial[2*k + 1];
-                        let gate1 = X1 * w1; // only branch 1 contributes at X=1
-                        let mut nc_sum = K::ZERO;
-                        for (i, y_mat) in self.nc_y_matrices.iter().enumerate() {
-                            // Branch 1 values only
-                            let rows_len = y_mat.len();
-                            let mut y1_at_pair: Vec<K> = Vec::with_capacity(rows_len);
-                            for rho in 0..rows_len { y1_at_pair.push(y_mat[rho][2*k + 1]); }
-                            let d_ell = 1usize << self.ell_d;
-                            // Ajtai sum for branch 1
-                            let mut ajtai_sum1 = K::ZERO;
-                            for xa_idx in 0..d_ell {
-                                let mut zi1 = K::ZERO;
-                                for (rho, &y1) in y1_at_pair.iter().enumerate() {
-                                    let mut chi_xa_rho = K::ONE;
-                                    for bit_pos in 0..self.ell_d {
-                                        let xa_bit = if (xa_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                        let rho_bit = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                                        chi_xa_rho *= xa_bit * rho_bit + (K::ONE - xa_bit) * (K::ONE - rho_bit);
-                                    }
-                                    zi1 += chi_xa_rho * y1;
-                                }
-                                let mut N1 = K::ONE;
-                                // Range polynomial: ∏_{t=-(b-1)}^{b-1} (· - t)
-                                let low  = -((self.b as i64) - 1);
-                                let high =  (self.b as i64) - 1;
-                                for t in low..=high { N1 *= zi1 - K::from(F::from_i64(t)); }
-                                let eq_xa_beta = self.w_beta_a_partial[xa_idx];
-                                ajtai_sum1 += eq_xa_beta * N1;
-                            }
-                            nc_sum += self.nc_row_gamma_pows[i] * (gate1 * ajtai_sum1);
-                        }
-                        s1 += nc_sum;
-                    }
-                }
+                // NC contribution omitted in row-phase recompute under Ajtai-only mode.
                 // Eval row block at X=1
                 let half_eval = self.eval_row_partial.len() >> 1;
                 for k in 0..half_eval {
@@ -578,21 +539,10 @@ where
             for v in &mut self.partials_first_inst.s_per_j {
                 fold_partial(v, r_i);
             }
-            // Fold NC y_matrices columnwise (over row dimension)
-            if !self.nc_y_matrices.is_empty() {
-                for y_mat in &mut self.nc_y_matrices {
-                    for y_row in y_mat.iter_mut() {
-                        let len2 = y_row.len() >> 1;
-                        for k in 0..len2 {
-                            y_row[k] = (K::ONE - r_i) * y_row[2*k] + r_i * y_row[2*k + 1];
-                        }
-                        y_row.truncate(len2);
-                    }
-                }
-            }
+            // Do not fold NC y_matrices; dynamic stride evaluation uses unfolded rows
 
         } else {
-            // Ajtai phase: fold Ajtai partials (β gates and y-partials for NC)
+            // Ajtai phase: fold Ajtai partials (β gates and Ajtai eval if present)
             let fold_partial = |partial: &mut Vec<K>, r: K| {
                 let n2 = partial.len() >> 1;
                 for k in 0..n2 {
@@ -606,11 +556,9 @@ where
             fold_partial(&mut self.w_beta_a_partial, r_i);
             fold_partial(&mut self.w_alpha_a_partial, r_i);
             
-            // Fold NC Ajtai partials if they exist
+            // Fold NC Ajtai partials and Eval Ajtai partials
             if let Some(ref mut nc) = self.nc {
-                for y in &mut nc.y_partials {
-                    fold_partial(y, r_i);
-                }
+                for y in &mut nc.y_partials { fold_partial(y, r_i); }
             }
             if let Some(ref mut v) = self.eval_ajtai_partial { fold_partial(v, r_i); }
         }

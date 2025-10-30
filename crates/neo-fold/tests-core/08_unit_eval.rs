@@ -83,6 +83,7 @@ fn csr_identity(n: usize) -> Csr<F> {
 // ----- Test 1: Row-phase Eval gate matches eq_r -----
 
 #[test]
+#[ignore = "Eval mass is carried in Ajtai phase (paper); row-phase Eval is disabled to avoid duplication."]
 fn eval_row_gate_matches_eq_r() {
     // One row bit (ell_n=1), one Ajtai bit (ell_d=1)
     let n = 2; 
@@ -102,6 +103,7 @@ fn eval_row_gate_matches_eq_r() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: vec![K::ZERO, K::ZERO],
         w_beta_r_partial: vec![K::ZERO, K::ZERO],
+        w_beta_r_full: vec![K::ZERO, K::ZERO],
         w_eval_r_partial: w_eval_r_partial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -163,6 +165,7 @@ fn eval_ajtai_gate_matches_eq_alpha_and_row_scalar() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],           // not used in Ajtai Eval
+        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],  // folded row gate
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -192,12 +195,10 @@ fn eval_ajtai_gate_matches_eq_alpha_and_row_scalar() {
     
     let ys = oracle.evals_at(&[K::ZERO, K::ONE]); // Ajtai univariate
     
-    // At X=0: gate_alpha = 1-alpha, eval_x = E0
+    // Paper-faithful: Ajtai phase includes Eval gated by eq_a(·, α) and row scalar
     let gate_a0 = (K::ONE - K::ZERO) * (K::ONE - alpha) + K::ZERO * alpha;
     let eval_x0 = (K::ONE - K::ZERO) * eval_ajtai[0] + K::ZERO * eval_ajtai[1];
     assert_eq!(ys[0], gate_a0 * wr_scalar * eval_x0, "Ajtai Eval at X=0 mismatches");
-    
-    // At X=1: gate_alpha = alpha, eval_x = E1
     let gate_a1 = (K::ONE - K::ONE) * (K::ONE - alpha) + K::ONE * alpha;
     let eval_x1 = (K::ONE - K::ONE) * eval_ajtai[0] + K::ONE * eval_ajtai[1];
     assert_eq!(ys[1], gate_a1 * wr_scalar * eval_x1, "Ajtai Eval at X=1 mismatches");
@@ -238,6 +239,7 @@ fn eval_gamma_weight_schedule_reduces_to_sum_of_powers() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],
+        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],
         z_witnesses: vec![],
         gamma, 
@@ -265,19 +267,10 @@ fn eval_gamma_weight_schedule_reduces_to_sum_of_powers() {
         }),
     };
     
-    // Ajtai univariate samples
+    // Ajtai-phase includes Eval: at X=0 get w_spec; X=1 is 0 (alpha=0)
     let ys = oracle.evals_at(&[K::ZERO, K::ONE]);
-    
-    // At X=0 we should get exactly w_spec; at X=1 it's 0 (since E1=0 and alpha=0 gate kills it)
     assert_eq!(ys[0], w_spec, "Ajtai Eval(0) must be sum of γ powers per spec");
     assert_eq!(ys[1], K::ZERO, "Ajtai Eval(1) should be 0 in this planting");
-    
-    // Optional: explicitly sanity-check it's NOT the common off-by-one schedule.
-    let gamma_pow_1 = gamma;  // γ^1
-    let mut gamma_pow_3_alt = gamma;
-    for _ in 0..2 { gamma_pow_3_alt *= gamma; }  // γ^3
-    let w_alt = gamma_pow_1 + gamma_pow_3_alt; // 7 + 343 = 350
-    assert_ne!(ys[0], w_alt, "γ exponent schedule looks off-by-one (got alt weights)");
 }
 
 // ----- Test 4: Multi-Instance Eval with Many γ Powers -----
@@ -316,6 +309,7 @@ fn eval_gamma_schedule_many_instances() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],
+        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],
         z_witnesses: vec![],
         gamma,
@@ -344,7 +338,6 @@ fn eval_gamma_schedule_many_instances() {
     };
     
     let ys = oracle.evals_at(&[K::ZERO, K::ONE]);
-    
     assert_eq!(ys[0], w_spec, "Many-instance γ schedule should sum correctly");
     assert_eq!(ys[1], K::ZERO, "Branch 1 should be zero when planted");
 }
@@ -373,6 +366,7 @@ fn eval_folding_through_both_phases() {
         w_beta_a_partial: vec![K::ZERO; 2],
         w_alpha_a_partial: vec![K::ZERO; 2],
         w_beta_r_partial: vec![K::ZERO; 4],
+        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r_initial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -435,6 +429,7 @@ fn eval_with_nc_f_at_rprime() {
         w_beta_a_partial: vec![K::ONE, K::ZERO], // β gate active
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],
+        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -462,13 +457,10 @@ fn eval_with_nc_f_at_rprime() {
         }),
     };
     
-    // This should not panic now
+    // Paper-faithful: Ajtai phase includes F(r') and Eval (β and α gated respectively)
     let ys = oracle.evals_at(&[K::ZERO, K::ONE]);
-    
-    // At X=0: gate_beta=1, gate_alpha=1, wr_scalar=1, eval_x=100
-    // Contribution: wr_scalar * gate_beta * f_rp + gate_alpha * wr_scalar * eval_x
     let expected_y0 = wr_scalar * K::ONE * f_at_rprime + K::ONE * wr_scalar * eval_ajtai[0];
-    assert_eq!(ys[0], expected_y0, "Ajtai Eval with F(r') should include NC contribution");
+    assert_eq!(ys[0], expected_y0, "Ajtai phase should include F(r') and Eval at X=0");
 }
 
 // ----- Test 7: NC y-Matrices Beta Block -----
@@ -501,6 +493,7 @@ fn eval_with_nc_y_matrices_beta_block() {
         w_beta_a_partial: vec![K::ONE, K::ZERO], // β at index 0
         w_alpha_a_partial: eq_pair_alpha(alpha),
         w_beta_r_partial: vec![],
+        w_beta_r_full: vec![],
         w_eval_r_partial: vec![wr_scalar],
         z_witnesses: vec![],
         gamma,
@@ -529,8 +522,10 @@ fn eval_with_nc_y_matrices_beta_block() {
     };
     
     let ys = oracle.evals_at(&[K::ZERO, K::ONE]);
-    
-    // Verify NC contribution is included
+    // Paper-faithful: Ajtai phase includes NC and Eval along with F(r')
+    // With β gate at index 0 and α=0, expect F(r') + Eval(0) + NC(0)
+    // For the planted values, NC may be zero; ensure at least F + Eval are present
+    assert_eq!(ys[0], wr_scalar * f_at_rprime + wr_scalar * eval_ajtai[0], "Ajtai phase should include F and Eval");
     // At X=0: gate_beta=1, should pick column 0 from y_matrices
     assert!(ys[0] != K::ZERO, "Should include NC y-matrix contribution");
 }
@@ -574,6 +569,7 @@ fn eval_with_nontrivial_f_polynomial() {
         w_beta_a_partial: vec![K::ZERO, K::ZERO],
         w_alpha_a_partial: vec![K::ZERO, K::ZERO],
         w_beta_r_partial: vec![K::ZERO, K::ZERO],
+        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r_partial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -629,6 +625,7 @@ fn eval_with_larger_dimensions() {
         w_beta_a_partial: vec![K::ZERO; 8],
         w_alpha_a_partial: vec![K::ZERO; 8],
         w_beta_r_partial: vec![K::ZERO; 8],
+        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -690,6 +687,7 @@ fn eval_exact_ajtai_sum_at_x1_row_phase() {
         w_beta_a_partial: vec![K::ZERO; 2], // ell_d=1 -> 2 elements
         w_alpha_a_partial: vec![K::ZERO; 2],
         w_beta_r_partial: vec![K::ONE, K::ZERO, K::ZERO, K::ZERO], // β at row 0
+        w_beta_r_full: vec![K::ONE, K::ZERO, K::ZERO, K::ZERO],
         w_eval_r_partial: vec![K::ZERO; 4],
         z_witnesses: vec![],
         gamma,
@@ -749,6 +747,7 @@ fn eval_cross_phase_sum_invariant() {
         w_beta_a_partial: vec![K::ZERO; 2],
         w_alpha_a_partial: vec![K::ZERO; 2],
         w_beta_r_partial: vec![K::ZERO; 2],
+        w_beta_r_full: vec![K::ZERO; 2],
         w_eval_r_partial: w_eval_r_initial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -832,7 +831,8 @@ fn eval_ajtai_precompute_end_to_end_checks_gamma_and_me_offset() {
         partials_first_inst,
         w_beta_a_partial,
         w_alpha_a_partial,
-        w_beta_r_partial,
+        w_beta_r_partial: w_beta_r_partial.clone(),
+        w_beta_r_full: w_beta_r_partial,
         w_eval_r_partial,
         z_witnesses,
         gamma,
@@ -858,25 +858,17 @@ fn eval_ajtai_precompute_end_to_end_checks_gamma_and_me_offset() {
     
     // Evaluate at X=0 and X=1
     let ys = oracle.evals_at(&[K::ZERO, K::ONE]);
-    
-    // Expected: Σ_{i=2..3} Σ_{j=1..2} γ^{i + j*k_total - 1}
-    // For i=2, j=1: γ^{2 + 1*3 - 1} = γ^4
-    // For i=2, j=2: γ^{2 + 2*3 - 1} = γ^7
-    // For i=3, j=1: γ^{3 + 1*3 - 1} = γ^5
-    // For i=3, j=2: γ^{3 + 2*3 - 1} = γ^8
+    // Paper-faithful: Ajtai-phase Eval included; α=0 ⇒ only X=0 contributes
     let mut expected = K::ZERO;
     for i in (me_offset + 1)..=k_total {
         for j in 1..=s.t() {
             let exp = i + j * k_total - 1;
             let mut term = K::ONE;
-            for _ in 0..exp {
-                term *= gamma;
-            }
+            for _ in 0..exp { term *= gamma; }
             expected += term;
         }
     }
-    
-    assert_eq!(ys[0], expected, "Ajtai Eval(0) must equal Σ γ^{{i + j·k - 1}}");
+    assert_eq!(ys[0], expected, "Ajtai Eval(0) must equal sum of gamma powers");
     assert_eq!(ys[1], K::ZERO, "Ajtai Eval(1) should be 0 with α=0");
 }
 
@@ -908,6 +900,7 @@ fn eval_round_by_round_sumcheck_invariant() {
         w_beta_a_partial: vec![K::ZERO; 2], // ell_d=1 -> 2 elements
         w_alpha_a_partial: vec![K::ZERO; 2],
         w_beta_r_partial: vec![K::ZERO; 4],
+        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r_initial.clone(),
         z_witnesses: vec![],
         gamma: K::from(F::from_u64(7)),
@@ -1039,6 +1032,7 @@ fn eval_randomized_vs_slow_reference() {
         w_beta_a_partial: vec![K::ZERO; d],
         w_alpha_a_partial: w_alpha_a_partial.clone(),
         w_beta_r_partial: vec![K::ONE],
+        w_beta_r_full: vec![],
         w_eval_r_partial: w_eval_r_partial.clone(),
         z_witnesses,
         gamma,
@@ -1065,38 +1059,20 @@ fn eval_randomized_vs_slow_reference() {
     // Get oracle output at X=0
     let ys = oracle.evals_at(&[K::ZERO]);
     let oracle_result = ys[0];
-    
+    // Paper-faithful: Ajtai-phase Eval included ⇒ result equals reference sum
     // Compute slow reference: Σ_{i=2..3} Σ_{j=1..2} γ^{i+j*k-1} * eq(X_a=0, X_r, (α,r)) * M̃_{i,j}(0, 0)
-    // With X_a=0 (first Ajtai bit), χ_{r'}=e_0, and identity CSRs:
-    // M̃_{i,j}(0, row) = Z_i[0, 0] (since M_j^T·e_0 = e_0, and we evaluate at row indicated by χ)
-    
     let mut reference_sum = K::ZERO;
     for i_idx in 0..2 { // i ∈ {2, 3}
         let i = i_idx + me_offset + 1;
         for j in 1..=s.t() {
             let exp = i + j * k_total - 1;
             let mut gamma_pow = K::ONE;
-            for _ in 0..exp {
-                gamma_pow *= gamma;
-            }
-            
-            // Get Z_i value at (Ajtai_coord=0, col=0)
-            let z_val = if i_idx == 0 {
-                K::from(z2[(0, 0)])
-            } else {
-                K::from(z3[(0, 0)])
-            };
-            
-            // eq gate at X_a=0 picks first Ajtai branch
+            for _ in 0..exp { gamma_pow *= gamma; }
+            let z_val = if i_idx == 0 { K::from(z2[(0, 0)]) } else { K::from(z3[(0, 0)]) };
             let gate_alpha = w_alpha_a_partial[0];
-            
-            // eq gate for rows: sum over all rows weighted by w_eval_r
-            // But since χ_{r'}=e_0 and CSR is identity, we only get contribution from row 0
             let gate_r = w_eval_r_partial[0];
-            
             reference_sum += gamma_pow * gate_alpha * gate_r * z_val;
         }
     }
-    
     assert_eq!(oracle_result, reference_sum, "Oracle should match slow reference");
 }

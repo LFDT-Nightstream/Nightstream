@@ -1,6 +1,9 @@
 #[path = "01_unit_oracle.rs"]
 mod unit_oracle;
 
+#[path = "02_row_pair_and_nonlinearity.rs"]
+mod row_pair_and_nonlinearity;
+
 mod fixture_gen;
 
 #[path = "03_unit_eq_weights.rs"]
@@ -26,3 +29,12 @@ mod unit_terminal;
 
 #[path = "10_unit_f_block_semantics.rs"]
 mod unit_f_block_semantics;
+
+#[path = "11_oracle_option_b_semantics.rs"]
+mod oracle_option_b_semantics;
+
+#[path = "12_oracle_row_invariant_blocks.rs"]
+mod oracle_row_invariant_blocks;
+
+#[path = "13_export_pi_ccs_json.rs"]
+mod export_pi_ccs_json;

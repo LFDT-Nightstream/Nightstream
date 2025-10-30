@@ -434,6 +434,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         w_beta_a_partial: w_beta_a_partial.clone(),
         w_alpha_a_partial: w_alpha_a_partial.clone(),
         w_beta_r_partial: w_beta_r_partial.clone(),
+        w_beta_r_full: w_beta_r_partial.clone(),
         w_eval_r_partial: w_eval_r_partial.clone(),
         z_witnesses: z_witness_refs,
         gamma: ch.gamma,
@@ -581,9 +582,10 @@ pub fn pi_ccs_verify(
     let n_pad = s.n.next_power_of_two().max(2);
     let ell_n = n_pad.trailing_zeros() as usize;      // log n (row dimension)
     let ell    = ell_d + ell_n;                       // log(dn) - FULL hypercube as per paper
+    // Per-round degree bound: max(deg(f)+1, 2*b, 2)
     let d_sc   = core::cmp::max(
-        s.max_degree() as usize + 1,                  // F with eq gating
-        core::cmp::max(2, 2 * params.b as usize),     // Eval+eq vs. Range+eq
+        s.max_degree() as usize + 1,                  // F with eq gating on row bits
+        core::cmp::max(2, 2 * params.b as usize),     // Eval (≤2) vs. Range+eq (≤2b)
     );
 
     let ext = params.extension_check(ell as u32, d_sc as u32)
@@ -642,7 +644,7 @@ pub fn pi_ccs_verify(
 
     // Use the input ME's shared r (if k>1, must be the same across me_inputs)
     // For k=1 (initial fold), me_inputs is empty
-    let r_input_opt = if !me_inputs.is_empty() {
+    let _r_input_opt = if !me_inputs.is_empty() {
         let r_input = &me_inputs[0].r;
         if !me_inputs.iter().all(|m| m.r == *r_input) {
             return Err(PiCcsError::InvalidInput("ME inputs must share the same r".into()));
@@ -840,145 +842,31 @@ pub fn pi_ccs_verify(
     }
 
     // =========================================================================
-    // STEP 4: VERIFY TERMINAL IDENTITY v ?= Q(α', r')
+    // STEP 4: VERIFY TERMINAL IDENTITY v ?= Q(α', r') (paper-faithful)
     // =========================================================================
-    // Paper Section 4.4, Step 4: Verify evaluation claim
-    //
-    // Original paper formula:
-    // v ?= eq((α',r'), β)·(F' + Σ_i γ^i·N_i')
-    //      + γ^k · Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1}·E_{(i,j)}'
-    //
-    // where E_{(i,j)}' := eq((α',r'), (α,r))·ỹ'_{(i,j)}(α')
-    //
-    // Factored form (implementation):
-    // v ?= eq((α',r'), β)·(F' + Σ_i γ^i·N_i')
-    //      + eq((α',r'), (α,r)) · [γ^k · Σ_{j,i=2}^{t,k} γ^{i+(j-1)k-1}·ỹ'_{(i,j)}(α')]
-    //
-    // This is the core soundness check. The verifier computes Q(α', r') from
-    // public data and checks it matches the sum-check final evaluation.
-    
-    // Unified terminal check shape guards
-    for me in out_me.iter() {
-        if me.y_scalars.len() != s.t() {
-            return Err(PiCcsError::InvalidInput(format!(
-                "output[].y_scalars.len {} != t {}", me.y_scalars.len(), s.t()
-            )));
-        }
-    }
-    
-    // Compute equality polynomials
-    // eq((α',r'), β): checks if sum-check point matches β
-    // eq((α',r'), (α,r)): checks if sum-check point matches input ME challenge
-    let eq_points = |p: &[K], q: &[K]| -> K {
-        if p.len() != q.len() { return K::ZERO; }
-        let mut acc = K::ONE;
-        for i in 0..p.len() {
-            acc *= (K::ONE - p[i]) * (K::ONE - q[i]) + p[i] * q[i];
-        }
-        acc
-    };
-    // Row-first splitting: r' comes first in r, α' comes last
-    let eq_beta_r_prime = eq_points(r_prime, beta_r);
-    let eq_beta_a_prime = eq_points(alpha_prime, beta_a);
-    let eq_aprp_beta = eq_beta_a_prime * eq_beta_r_prime;
-    let eq_aprp_ar = if let Some(r_input) = r_input_opt {
-        eq_points(alpha_prime, &alpha_vec) * eq_points(r_prime, r_input)
-    } else {
-        K::ZERO  // k=1: No input ME, Eval term is zero
-    };
-
-    // Compute F': CCS polynomial evaluated at recomposed values
-    // m_j = Σ_ℓ b^{ℓ-1}·y'_{(1,j),ℓ} (recompose from Ajtai digits)
-    // F' = f(m_1,...,m_t)
-    let me_for_f = out_me.first().ok_or_else(|| PiCcsError::InvalidInput("no ME outputs".into()))?;
-    let mut m_vals = vec![K::ZERO; s.t()];
-    for j in 0..s.t() { m_vals[j] = me_for_f.y_scalars[j]; }
-    let f_prime = s.f.eval_in_ext::<K>(&m_vals);
-    #[cfg(feature = "debug-logs")]
-    {
-        eprintln!("[pi-ccs][verify][beta] poly_arity={} terms_len={}", s.f.arity(), s.f.terms().len());
-        for (ti, term) in s.f.terms().iter().enumerate() {
-            let coeff_k: K = K::from(term.coeff);
-            eprintln!("[pi-ccs][verify][beta] term{}: coeff={} exps={:?}", ti, format_ext(coeff_k), term.exps);
-        }
-        for j in 0..core::cmp::min(s.t(), 8) {
-            eprintln!("[pi-ccs][verify][beta] m_vals[{}] = {}", j, format_ext(m_vals[j]));
-        }
-        eprintln!("[pi-ccs][verify][beta] f_prime(before_guard) = {}", format_ext(f_prime));
-    }
-    // Compute multilinear extension basis at α'
-    let chi_alpha_prime: Vec<K> = neo_ccs::utils::tensor_point::<K>(alpha_prime);
-
-    // Compute N_i': Norm constraint polynomials at α'
-    // For simplicity in current implementation, we set this to zero
-    // (full verification would compute ∏_{j=-b+1}^{b-1} (ỹ'_{(i,1)}(α') - j))
-    let nc_sum_prime = K::ZERO;
-    #[cfg(feature = "debug-logs")]
-    eprintln!("[pi-ccs][verify][beta] nc_prime = 0 (simplified)");
-
-    // Compute Eval': weighted sum of ỹ'_{(i,j)}(α') WITHOUT eq gate
-    // Eval' = Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1}·ỹ'_{(i,j)}(α')
-    // The eq gate and outer γ^k are applied separately below
-    //
-    // IMPORTANT: Use y' from OUTPUTS (at r'), not inputs (at r).
-    // Outputs are ordered: first |MCS| outputs, then |ME inputs| outputs.
-    let mut eval_sum_prime = K::ZERO;
-    let k_total = mcs_list.len() + me_inputs.len();
-    let me_outputs_start = mcs_list.len();
-    #[cfg(feature = "debug-logs")]
-    eprintln!("[pi-ccs][verify] me_inputs_empty={}, k_total={}, t={}, me_outputs_start={} (verify)", 
-        me_inputs.is_empty(), k_total, s.t(), me_outputs_start);
-    for j in 0..s.t() {
-        for (i_off, out) in out_me.iter().skip(me_outputs_start).enumerate() {
-            let y_vec = &out.y[j];
-            let mut y_mle = K::ZERO;
-            for (idx, &val) in y_vec.iter().enumerate() {
-                if idx < chi_alpha_prime.len() { y_mle += val * chi_alpha_prime[idx]; }
-            }
-            // Inner exponent: γ^{i+(j-1)k-1} where i = i_off+2 (ME inputs start at i=2)
-            let exponent = (i_off + 2) + j * k_total - 1;
-            let mut w_pow = K::ONE;
-            for _ in 0..exponent { w_pow *= gamma; }
-            #[cfg(feature = "debug-logs")]
-            if j < 2 && i_off < 2 {
-                eprintln!(
-                    "[pi-ccs][verify] eval-exp j={} i_off={} exp={} gamma^exp={} y_mle={}",
-                    j, i_off, exponent, format_ext(w_pow), format_ext(y_mle)
-                );
-            }
-            eval_sum_prime += w_pow * y_mle;
-        }
-    }
-    
-    // Outer γ^k_total factor (from paper's Eval block)
-    let mut gamma_to_k = K::ONE;
-    for _ in 0..k_total {
-        gamma_to_k *= gamma;
-    }
-
-    // Final check: v ?= Q(α', r')
-    // Q(α',r') = eq((α',r'), β)·(F' + Σ_i γ^i·N_i')
-    //          + eq((α',r'), (α,r)) · [γ^k · Σ_{j,i=2}^{t,k} γ^{i+(j-1)k-1}·ỹ'_{(i,j)}(α')]
-    #[cfg(feature = "debug-logs")]
-    {
-        eprintln!("[pi-ccs][verify] Terminal check components:");
-        eprintln!("  eq((α',r'), β) = {}", format_ext(eq_aprp_beta));
-        eprintln!("  F' = {}", format_ext(f_prime));
-        eprintln!("  Σ γ^i·N_i' = {}", format_ext(nc_sum_prime));
-        eprintln!("  eq((α',r'), (α,r)) = {}", format_ext(eq_aprp_ar));
-        eprintln!("  γ^k = {}", format_ext(gamma_to_k));
-        eprintln!("  Eval' (inner sum) = {}", format_ext(eval_sum_prime));
-        eprintln!("  γ^k · Eval' = {}", format_ext(gamma_to_k * eval_sum_prime));
-    }
-    
-    let rhs = eq_aprp_beta * (f_prime + nc_sum_prime) + eq_aprp_ar * (gamma_to_k * eval_sum_prime);
+    use crate::pi_ccs::terminal::rhs_Q_apr;
+    let rhs = rhs_Q_apr(
+        &s,
+        &crate::pi_ccs::transcript::Challenges {
+            alpha: alpha_vec.clone(),
+            beta_a: beta_a.to_vec().clone(),
+            beta_r: beta_r.to_vec().clone(),
+            gamma,
+        },
+        r_prime,
+        alpha_prime,
+        mcs_list,
+        me_inputs,
+        out_me,
+        params,
+    )?;
     if running_sum != rhs {
-        #[cfg(feature = "debug-logs")]
-        eprintln!(
-            "[pi-ccs] terminal mismatch: running_sum != Q(β, α, r, r')\n  running_sum = {}\n  rhs = {}",
-            format_ext(running_sum), format_ext(rhs)
-        );
-        return Ok(false);
+        // Provide a helpful error rather than returning Ok(false)
+        return Err(PiCcsError::SumcheckError(format!(
+            "terminal mismatch: running_sum != Q(α', r') (running_sum={}, rhs={})",
+            format_ext(running_sum),
+            format_ext(rhs)
+        )));
     }
 
     Ok(true)

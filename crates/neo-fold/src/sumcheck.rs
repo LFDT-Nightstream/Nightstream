@@ -305,12 +305,18 @@ pub fn run_sumcheck_skip_eval_at_one(
         // rather than generating a proof that will definitely fail verification.
         #[cfg(debug_assertions)]
         {
-            let ys_one = oracle.evals_at(&[K::ONE]);
-            if ys_one.len() != 1 || s_i_at_0 + ys_one[0] != running_sum {
-                eprintln!(
-                    "[sumcheck-skip1][round{}][warn] oracle@1 mismatch: s(0)={} oracle(1)={} sum={} expected={}",
-                    i, s_i_at_0, ys_one.get(0).copied().unwrap_or(K::ZERO), s_i_at_0 + ys_one.get(0).copied().unwrap_or(K::ZERO), running_sum
-                );
+            // Strong, same-call strict check: validate p(0)+p(1) directly from oracle outputs
+            // to avoid cross-batch ambiguities.
+            let ys_01 = oracle.evals_at(&[K::ZERO, K::ONE]);
+            if ys_01.len() != 2 || ys_01[0] + ys_01[1] != running_sum {
+                return Err(PiCcsError::SumcheckError(format!(
+                    "[sumcheck-skip1][round{}] strict invariant failed at (0,1): got {}+{}={} expected {}",
+                    i,
+                    ys_01.get(0).copied().unwrap_or(K::ZERO),
+                    ys_01.get(1).copied().unwrap_or(K::ZERO),
+                    ys_01.get(0).copied().unwrap_or(K::ZERO) + ys_01.get(1).copied().unwrap_or(K::ZERO),
+                    running_sum
+                )));
             }
         }
         // Suppress warning about unused 'i' in release builds (used in debug_assertions)

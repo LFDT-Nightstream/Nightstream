@@ -154,7 +154,9 @@ fn pi_ccs_k2_honest_fold() {
         &l,
     );
     
-    assert!(prove_result.is_ok(), "k=2 proving should succeed for valid witnesses: {:?}", prove_result.err());
+    if let Err(e) = &prove_result {
+        panic!("k=2 proving failed with error: {:?}", e);
+    }
     let (me_outputs, proof) = prove_result.unwrap();
     
     assert_eq!(me_outputs.len(), 2, "k=2 should produce exactly 2 ME outputs");

@@ -148,6 +148,9 @@ pub fn run_sumcheck(
                 deg, fmt(p0), fmt(p1), fmt(p0 + p1), fmt(running_sum),
                 round = i
             );
+            if i == 0 {
+                eprintln!("  Initial sum claim: {}", fmt(initial_sum));
+            }
         }
         if p0 + p1 != running_sum {
             return Err(PiCcsError::SumcheckError(format!(
@@ -166,6 +169,14 @@ pub fn run_sumcheck(
         }
         let ch = tr.challenge_fields(b"chal/k", 2);
         let r_i = neo_math::from_complex(ch[0], ch[1]);
+        
+        #[cfg(feature = "debug-logs")]
+        {
+            let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+            if dbg_oracle && i < 2 {
+                eprintln!("[sumcheck][prove] round{}: challenge r_i={:?}", i, r_i);
+            }
+        }
 
         running_sum = poly_eval_k(&coeffs, r_i);
         oracle.fold(r_i);
@@ -215,6 +226,15 @@ pub fn verify_sumcheck_rounds(
         }
         let ch = tr.challenge_fields(b"chal/k", 2);
         let r_i = neo_math::from_complex(ch[0], ch[1]);
+        
+        #[cfg(feature = "debug-logs")]
+        {
+            let dbg = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+            if dbg && round_idx < 2 {
+                eprintln!("[sumcheck][verify] round{}: challenge r_i={:?}", round_idx, r_i);
+            }
+        }
+        
         running_sum = poly_eval_k(coeffs, r_i);
         r.push(r_i);
     }

@@ -194,12 +194,7 @@ pub fn rhs_Q_apr(
             .sum();
 
         // Range polynomial: ∏_{t=-(b-1)}^{b-1} (y_mle - t)
-        let mut Ni = K::ONE;
-        let range_low = -((params.b as i64) - 1);
-        let range_high = (params.b as i64) - 1;
-        for t in range_low..=range_high {
-            Ni *= y_mle - K::from(F::from_i64(t));
-        }
+        let Ni = crate::pi_ccs::nc_core::range_product::<F>(y_mle, params.b);
         nc_prime += gamma_pow * Ni;
         gamma_pow *= ch.gamma;
     }
@@ -238,9 +233,11 @@ pub fn rhs_Q_apr(
                     .map(|(&y, chi)| y * *chi)
                     .sum();
 
-                // Inner γ exponent: γ^{i+(j-1)k-1} with i = 1 + out_index
-                let i_global = i_off + 1;
-                let exponent = i_global + j * k_total - 1;
+                // Weight: γ^{(i-1)+jk} - consistent with prover
+                // i_global = i_off + 1, so i-1 = i_off
+                // This matches the flattened form used in precompute
+                let i_minus_1 = i_off;
+                let exponent = i_minus_1 + j * k_total;
 
                 let w_pow = gamma_pows[exponent];
                 eval_sum_prime += w_pow * y_mle;
@@ -248,17 +245,7 @@ pub fn rhs_Q_apr(
         }
     }
 
-    // Paper: multiply the entire Eval block by γ^k_total (outer factor)
-    let gamma_to_k = if me_inputs.is_empty() {
-        K::ONE // γ^0 when no ME inputs
-    } else {
-        let mut result = K::ONE;
-        for _ in 0..k_total {
-            result *= ch.gamma;
-        }
-        result
-    };
-
-    // Final: Q(α',r') = eq·(F' + NC') + eq·(γ^k · Eval')
-    Ok(eq_aprp_beta * (f_prime + nc_prime) + eq_aprp_ar * (gamma_to_k * eval_sum_prime))
+    // Final: Q(α',r') = eq·(F' + NC') + eq·Eval'
+    // No outer γ^k multiplication - weights already include all factors
+    Ok(eq_aprp_beta * (f_prime + nc_prime) + eq_aprp_ar * eval_sum_prime)
 }

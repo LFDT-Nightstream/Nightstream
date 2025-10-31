@@ -4,8 +4,6 @@ mod unit_oracle;
 #[path = "02_row_pair_and_nonlinearity.rs"]
 mod row_pair_and_nonlinearity;
 
-mod fixture_gen;
-
 #[path = "03_unit_eq_weights.rs"]
 mod unit_eq_weights;
 
@@ -38,3 +36,4 @@ mod oracle_row_invariant_blocks;
 
 #[path = "13_export_pi_ccs_json.rs"]
 mod export_pi_ccs_json;
+

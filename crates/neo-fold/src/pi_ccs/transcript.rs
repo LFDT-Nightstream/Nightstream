@@ -46,22 +46,36 @@ pub fn bind_header_and_instances(
     mcs_list: &[McsInstance<Cmt, F>],
     ell: usize,
     d_sc: usize,
-    slack_bits: i32,
+    _slack_bits: i32,  // Ignored - we compute extension policy internally
 ) -> Result<(), PiCcsError> {
+    // Protocol label for domain separation
     tr.append_message(tr_labels::PI_CCS, b"");
+    
+    // Compute the same extension policy that the verifier uses
+    let ext = params
+        .extension_check(ell as u32, d_sc as u32)
+        .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
+    
     tr.append_message(b"neo/ccs/header/v1", b"");
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[transcript] Prover header: s_supported={}, lambda={}, ell={}, d_sc={}, slack_bits={}, sign={}", 
+        ext.s_supported, params.lambda, ell, d_sc, ext.slack_bits, if ext.slack_bits >= 0 { 1 } else { 0 });
+    
     tr.append_u64s(b"ccs/header", &[
         64,
-        s.n as u64,  // Use dims directly rather than params.s_supported()
+        ext.s_supported as u64,  // Match verifier's field
         params.lambda as u64,
         ell as u64,
         d_sc as u64,
-        slack_bits.unsigned_abs() as u64,
+        ext.slack_bits.unsigned_abs() as u64,  // Use computed slack_bits
     ]);
-    tr.append_message(b"ccs/slack_sign", &[if slack_bits >= 0 { 1 } else { 0 }]);
+    tr.append_message(b"ccs/slack_sign", &[if ext.slack_bits >= 0 { 1 } else { 0 }]);
 
     tr.append_message(b"neo/ccs/instances", b"");
     tr.append_u64s(b"dims", &[s.n as u64, s.m as u64, s.t() as u64]);
+
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[transcript] Binding CCS structure: n={}, m={}, t={}", s.n, s.m, s.t());
 
     for &digest_elem in &digest_ccs_matrices(s) {
         tr.append_fields(b"mat_digest", &[F::from_u64(digest_elem.as_canonical_u64())]);
@@ -138,6 +152,10 @@ pub fn sample_challenges(
     let g = tr.challenge_fields(b"chal/k", 2);
     let gamma = neo_math::from_complex(g[0], g[1]);
 
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[transcript] Sampled challenges: alpha[0]={:?}, beta_a[0]={:?}, gamma={:?}", 
+        alpha.get(0), beta_a.get(0), gamma);
+    
     Ok(Challenges {
         alpha,
         beta_a: beta_a.to_vec(),

@@ -10,14 +10,14 @@
 #![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
-use crate::pi_ccs::precompute::Inst;
+use crate::pi_ccs::precompute::{Inst, pad_to_pow2_k};
 use crate::pi_ccs::eq_weights::{HalfTableEq, spmv_csr_t_weighted_fk};
 use crate::pi_ccs::sparse_matrix::Csr;
 use neo_ccs::{CcsStructure, MeInstance, MatRef, Mat};
 use neo_ajtai::Commitment as Cmt;
 use neo_params::NeoParams;
 use neo_math::{F, K, D};
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
@@ -31,8 +31,11 @@ use rayon::prelude::*;
 /// - First mcs_list.len() outputs come from MCS instances
 /// - Remaining me_inputs.len() outputs come from ME input instances
 /// - All use the same r' from sum-check
+/// 
+/// # Important
+/// - Each y vector is padded to 2^ell_d to match the Ajtai dimension
 pub fn build_me_outputs<L>(
-    tr: &mut Poseidon2Transcript,
+    _tr: &mut Poseidon2Transcript,
     s: &CcsStructure<F>,
     params: &NeoParams,
     mats_csr: &[Csr<F>],
@@ -40,12 +43,14 @@ pub fn build_me_outputs<L>(
     me_inputs: &[MeInstance<Cmt, F, K>],
     me_witnesses: &[Mat<F>],
     r_prime: &[K],
+    ell_d: usize,
+    fold_digest: [u8; 32],
     l: &L,
 ) -> Result<Vec<MeInstance<Cmt, F, K>>, PiCcsError>
 where
     L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
 {
-    let fold_digest = tr.digest32();
+    // fold_digest is now passed in from the caller (captured right after sumcheck)
 
     let w = HalfTableEq::new(r_prime);
     let vjs: Vec<Vec<K>> = mats_csr
@@ -73,7 +78,8 @@ where
         let z_ref = MatRef::from_mat(inst.Z);
         for vj in &vjs {
             let yj = neo_ccs::utils::mat_vec_mul_fk::<F, K>(z_ref.data, z_ref.rows, z_ref.cols, vj);
-            y.push(yj);
+            let yj_padded = pad_to_pow2_k(yj, ell_d)?;
+            y.push(yj_padded);
         }
 
         let y_scalars: Vec<K> = y.iter().map(|yj| recompose(yj)).collect();
@@ -97,7 +103,8 @@ where
         let z_ref = MatRef::from_mat(zi);
         for vj in &vjs {
             let yj = neo_ccs::utils::mat_vec_mul_fk::<F, K>(z_ref.data, z_ref.rows, z_ref.cols, vj);
-            y.push(yj);
+            let yj_padded = pad_to_pow2_k(yj, ell_d)?;
+            y.push(yj_padded);
         }
         let y_scalars: Vec<K> = y.iter().map(|yj| recompose(yj)).collect();
 

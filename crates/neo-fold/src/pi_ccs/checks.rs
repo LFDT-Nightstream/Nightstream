@@ -10,6 +10,7 @@ use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ajtai::Commitment as Cmt;
 use neo_math::{F, K};
 
+
 /// Validate input consistency before starting reduction
 pub fn validate_inputs(
     s: &CcsStructure<F>,

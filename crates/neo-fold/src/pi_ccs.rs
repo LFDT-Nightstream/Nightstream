@@ -57,7 +57,9 @@
 
 #![allow(non_snake_case)] // Allow mathematical notation like X, T, B
 
-use neo_transcript::{Transcript, Poseidon2Transcript, labels as tr_labels};
+use neo_transcript::{Transcript, Poseidon2Transcript};
+#[allow(unused_imports)]
+use neo_transcript::labels as tr_labels;
 use crate::error::PiCcsError;
 use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
 use neo_ajtai::Commitment as Cmt;
@@ -84,6 +86,7 @@ pub mod oracle;          // Sum-check oracle for Q polynomial
 pub mod transcript_replay; // Transcript replay utilities for debugging/testing
 
 // Utility modules
+pub mod nc_core;         // Core NC polynomial evaluation functions
 pub mod nc_constraints;  // Norm/decomposition constraints
 pub mod sparse_matrix;   // CSR sparse matrix operations
 pub mod eq_weights;      // Equality polynomial evaluation
@@ -313,6 +316,11 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     
     #[cfg(feature = "debug-logs")]
     let transcript_start = std::time::Instant::now();
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[pi-ccs][prove] About to bind header. Using s after ensure_identity_first");
+        eprintln!("[pi-ccs][prove] s.n={}, s.m={}, s.t()={}", s.n, s.m, s.t());
+    }
     transcript::bind_header_and_instances(tr, params, &s, mcs_list, ell, d_sc, 0)?;
     transcript::bind_me_inputs(tr, me_inputs)?;
     #[cfg(feature = "debug-logs")]
@@ -330,6 +338,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     let ch = transcript::sample_challenges(tr, ell_d, ell)?;
     #[cfg(feature = "debug-logs")]
     {
+        let digest = {
+            let mut tmp = tr.clone();
+            tmp.digest32()
+        };
+        eprintln!("[pi-ccs][prove] Transcript state after challenge sampling: {:?}", &digest[..4]);
+        
         let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
         if dbg_timing {
             println!("🔧 [TIMING] Challenge sampling: {:.2}ms (α: {}, β: {}, γ: 1)",
@@ -366,6 +380,15 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     let beta_block = precompute::precompute_beta_block(&s, params, &insts, witnesses, me_witnesses, &ch, ell_d, ell_n)?;
     // Precompute Eval polynomial components at (α, r_input)
     let eval_row_partial = precompute::precompute_eval_row_partial(&s, me_witnesses, &ch, k_total, ell_n)?;
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[pi-ccs] eval_row_partial.len: {}", eval_row_partial.len());
+        eprintln!("[pi-ccs] eval_row_partial[0..4]: {:?}", 
+                 &eval_row_partial[0..4.min(eval_row_partial.len())]
+                 .iter()
+                 .map(|x| format_ext(*x))
+                 .collect::<Vec<_>>());
+    }
     // Precompute NC matrices for all k instances
     let nc_y_matrices = precompute::precompute_nc_full_rows(&s, witnesses, me_witnesses, ell_n)?;
     #[cfg(feature = "debug-logs")]
@@ -391,6 +414,16 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 
     #[cfg(feature = "debug-logs")]
     {
+        eprintln!("[pi-ccs][prove] About to start sumcheck with initial_sum={}", format_ext(initial_sum));
+        let digest = {
+            let mut tmp = tr.clone();
+            tmp.digest32()
+        };
+        eprintln!("[pi-ccs][prove] Transcript state before sumcheck: {:?}", &digest[..4]);
+    }
+
+    #[cfg(feature = "debug-logs")]
+    {
         let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
         if dbg_timing {
             println!("🔍 Sum-check starting: {} instances, {} rounds", insts.len(), ell);
@@ -398,6 +431,9 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     }
 
     let sample_xs_generic: Vec<K> = (0..=d_sc as u64).map(|u| K::from(F::from_u64(u))).collect();
+    
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[pi-ccs][prove] d_sc={}, sample_xs_generic.len()={}", d_sc, sample_xs_generic.len());
 
     let w_beta_a = HalfTableEq::new(&ch.beta_a);
     let w_alpha_a = HalfTableEq::new(&ch.alpha);
@@ -414,6 +450,11 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     let w_eval_r_partial = if let Some(ref r_inp_full) = me_inputs.first().map(|me| &me.r) {
         let mut w_eval_r = vec![K::ZERO; d_n_r];
         for i in 0..d_n_r { w_eval_r[i] = HalfTableEq::new(r_inp_full).w(i); }
+        #[cfg(feature = "debug-logs")]
+        {
+            eprintln!("[pi-ccs] Initialized w_eval_r_partial with ME input's r: {:?}", r_inp_full);
+            eprintln!("[pi-ccs] w_eval_r_partial[0..4]: {:?}", &w_eval_r[0..4.min(w_eval_r.len())]);
+        }
         w_eval_r
     } else {
         vec![K::ZERO; d_n_r]
@@ -457,6 +498,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // Execute sum-check protocol: reduces T = sum over {0,1}^{log(dn)} to v = Q(α', r')
     let SumcheckOutput { rounds, challenges: r, final_sum: running_sum_sc } =
         run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs_generic)?;
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        // NOTE: digest32() is mutating! Don't call it for debug logging
+        eprintln!("[pi-ccs][prove] Completed run_sumcheck");
+    }
 
     #[cfg(feature = "debug-logs")]
     {
@@ -476,8 +523,26 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // Paper Section 4.4, Step 3: P sends y'_{(i,j)} = Z_i·M_j^T·r̂' for all i,j
     
     #[cfg(feature = "debug-logs")]
+    {
+        // NOTE: digest32() is mutating! Don't call it for debug logging
+        eprintln!("[pi-ccs][prove] About to call build_me_outputs");
+    }
+    
+    #[cfg(feature = "debug-logs")]
     let me_start = std::time::Instant::now();
-    let out_me = outputs::build_me_outputs(tr, &s, params, &mats_csr, &insts, me_inputs, me_witnesses, r_prime, l)?;
+    
+    // Capture header digest explicitly right after sumcheck, before building outputs
+    let fold_digest = tr.digest32();
+    
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[pi-ccs][prove] Captured header_digest after sumcheck: {:?}", &fold_digest[..4]);
+    
+    let out_me = outputs::build_me_outputs(tr, &s, params, &mats_csr, &insts, me_inputs, me_witnesses, r_prime, ell_d, fold_digest, l)?;
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[pi-ccs][prove] Completed build_me_outputs");
+    }
     #[cfg(feature = "debug-logs")]
     {
         let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
@@ -497,7 +562,9 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     #[cfg(not(feature = "debug-logs"))]
     let _ = (running_sum_sc, alpha_prime);
 
-    let fold_digest = tr.digest32();
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[pi-ccs][prove] initial_sum for proof = {}", format_ext(initial_sum));
+    
     let proof = PiCcsProof { 
         sumcheck_rounds: rounds, 
         header_digest: fold_digest,
@@ -574,59 +641,81 @@ pub fn pi_ccs_verify(
     // Use shared helper to ensure prover/verifier dimensions match exactly
     let context::Dims { ell_d, ell_n, ell, d_sc } = context::build_dims_and_policy(params, &s)?;
 
-    let ext = params.extension_check(ell as u32, d_sc as u32)
-        .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
-    tr.append_message(b"neo/ccs/header/v1", b"");
-    tr.append_u64s(b"ccs/header", &[64, ext.s_supported as u64, params.lambda as u64, ell as u64, d_sc as u64, ext.slack_bits.unsigned_abs() as u64]);
-    tr.append_message(b"ccs/slack_sign", &[if ext.slack_bits >= 0 {1} else {0}]);
+    // Bind header and instances using same functions as prover
+    transcript::bind_header_and_instances(tr, params, &s, mcs_list, ell, d_sc, 0)?;
+    transcript::bind_me_inputs(tr, me_inputs)?;
 
-    // =========================================================================
-    // STEP 1: REPLAY TRANSCRIPT & DERIVE CHALLENGES
-    // =========================================================================
-    // Paper Section 4.4, Step 1: Derive α, β, γ (Fiat-Shamir)
-    // Absorb same instance data as prover to get matching challenges
-    tr.append_message(b"neo/ccs/instances", b"");
-    tr.append_u64s(b"dims", &[s.n as u64, s.m as u64, s.t() as u64]);
+    // Sample challenges using same helper as prover
+    let ch = transcript::sample_challenges(tr, ell_d, ell)?;
+    let alpha_vec = ch.alpha;
+    let beta_a = ch.beta_a;
+    let beta_r = ch.beta_r;
+    let gamma = ch.gamma;
     
-    // Absorb CCS structure (matrices + polynomial)
-    let matrix_digest = digest_ccs_matrices(&s);
-    for &digest_elem in &matrix_digest { 
-        tr.append_fields(b"mat_digest", &[F::from_u64(digest_elem.as_canonical_u64())]); 
-    }
-    absorb_sparse_polynomial(tr, &s.f);
-    
-    // Absorb MCS instances
-    for inst in mcs_list.iter() {
-        tr.append_fields(b"x", &inst.x);
-        tr.append_u64s(b"m_in", &[inst.m_in as u64]);
-        tr.append_fields(b"c_data", &inst.c.data);
-    }
+    // Compute T from public ME inputs for debugging purposes
+    // Note: The actual initial sum includes F(β_r) + NC_sum + T, not just T alone.
+    // The sum-check protocol itself enforces correctness of the full initial sum.
+    #[cfg(feature = "debug-logs")]
+    let t_from_public_inputs: K = {
+        if me_inputs.is_empty() {
+            K::ZERO
+        } else {
+            // χ_α for the Ajtai dimension
+            let chi_alpha: Vec<K> = neo_ccs::utils::tensor_point::<K>(&alpha_vec);
 
-    // Absorb ME inputs (if k>1)
-    tr.append_message(b"neo/ccs/me_inputs", b"");
-    tr.append_u64s(b"me_count", &[me_inputs.len() as u64]);
-    for me in me_inputs.iter() {
-        tr.append_fields(b"c_data_in", &me.c.data);
-        tr.append_u64s(b"m_in_in", &[me.m_in as u64]);
-        for limb in &me.r { tr.append_fields(b"r_in", &limb.as_coeffs()); }
-        for yj in &me.y {
-            for &y_elem in yj {
-                tr.append_fields(b"y_elem", &y_elem.as_coeffs());
+            // total number of instances (MCS + ME)
+            let k_total = mcs_list.len() + me_inputs.len();
+
+            // precompute γ^k
+            let mut gamma_to_k = K::ONE;
+            for _ in 0..k_total {
+                gamma_to_k *= gamma;
             }
-        }
-    }
 
-    // Sample challenges: α ∈ K^{log d}, β ∈ K^{log(dn)}, γ ∈ K
-    tr.append_message(b"neo/ccs/chals/v1", b"");
-    let alpha_vec: Vec<K> = (0..ell_d)
-        .map(|_| { let ch = tr.challenge_fields(b"chal/k", 2); neo_math::from_complex(ch[0], ch[1]) })
-        .collect();
-    let beta: Vec<K> = (0..ell)
-        .map(|_| { let ch = tr.challenge_fields(b"chal/k", 2); neo_math::from_complex(ch[0], ch[1]) })
-        .collect();
-    let (beta_a, beta_r) = beta.split_at(ell_d);
-    let ch_g = tr.challenge_fields(b"chal/k", 2);
-    let gamma: K = neo_math::from_complex(ch_g[0], ch_g[1]);
+            // precompute γ^{i_abs-1} for i_abs = 2..k_total (i.e., over the ME inputs only)
+            let mut gamma_pow_i_abs = Vec::with_capacity(me_inputs.len());
+            {
+                let mut g = gamma; // γ^1 for the first ME input (i_abs = 2)
+                for _ in 0..me_inputs.len() {
+                    gamma_pow_i_abs.push(g);
+                    g *= gamma;
+                }
+            }
+
+            let mut t_sum = K::ZERO;
+            for j in 0..s.t() {
+                for (i_off, me) in me_inputs.iter().enumerate() {
+                    let y_vec = &me.y[j];
+                    // ỹ_{(i,j)}(α) = ⟨y_{(i,j)}, χ_α⟩
+                    let y_mle: K = y_vec
+                        .iter()
+                        .zip(&chi_alpha)
+                        .map(|(&y, chi)| y * *chi)
+                        .sum();
+
+                    // weight γ^{(i_abs-1) + j⋅k_total}
+                    let mut w = gamma_pow_i_abs[i_off];
+                    for _ in 0..j {
+                        w *= gamma_to_k;
+                    }
+                    t_sum += w * y_mle;
+                }
+            }
+            t_sum
+        }
+    };
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        let digest = {
+            let mut tmp = tr.clone();
+            tmp.digest32()
+        };
+        eprintln!("[pi-ccs][verify] Transcript state after challenge sampling: {:?}", &digest[..4]);
+        eprintln!("[pi-ccs][verify] Sampled challenges: alpha[0]={:?}, beta_a[0]={:?}, gamma={:?}", 
+            alpha_vec.get(0), beta_a.get(0), gamma);
+        eprintln!("[pi-ccs][verify] T component from public ME inputs: {}", format_ext(t_from_public_inputs));
+    }
 
     // Use the input ME's shared r (if k>1, must be the same across me_inputs)
     // For k=1 (initial fold), me_inputs is empty
@@ -647,9 +736,10 @@ pub fn pi_ccs_verify(
     // Check each round's polynomial and extract final evaluation point (α', r')
     
     if proof.sumcheck_rounds.len() != ell {
-        #[cfg(feature = "debug-logs")]
-        eprintln!("[pi-ccs][verify] round count mismatch: have {}, expect {}", proof.sumcheck_rounds.len(), ell);
-        return Ok(false);
+        return Err(PiCcsError::SumcheckError(format!(
+            "round count mismatch: have {}, expect {}", 
+            proof.sumcheck_rounds.len(), ell
+        )));
     }
     // Check sum-check rounds using shared helper (derives r and running_sum)
     let d_round = d_sc;
@@ -670,6 +760,8 @@ pub fn pi_ccs_verify(
     #[cfg(feature = "debug-logs")]
     {
         eprintln!("[pi-ccs][verify] d_round={}, claimed_initial={}", d_round, format_ext(claimed_initial));
+        eprintln!("[pi-ccs][verify] Prover's initial sum = {} (includes F + NC + T)", format_ext(claimed_initial));
+        eprintln!("[pi-ccs][verify] T component alone = {} (from public ME inputs)", format_ext(t_from_public_inputs));
         if let Some(round0) = proof.sumcheck_rounds.get(0) {
             use crate::sumcheck::poly_eval_k;
             let p0 = poly_eval_k(round0, K::ZERO);
@@ -679,22 +771,48 @@ pub fn pi_ccs_verify(
         }
     }
     
+    // The sum-check protocol itself should enforce correctness of the full initial sum (F + NC + T).
+    // No special handling for k=1 vs k=2 should be needed.
+    
     // Bind initial_sum BEFORE verifying rounds (verifier side)
     tr.append_fields(b"sumcheck/initial_sum", &claimed_initial.as_coeffs());
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[pi-ccs][verify] About to start sumcheck with initial_sum={}", format_ext(claimed_initial));
+        let digest = {
+            let mut tmp = tr.clone();
+            tmp.digest32()
+        };
+        eprintln!("[pi-ccs][verify] Transcript state before sumcheck: {:?}", &digest[..4]);
+    }
+    
+    #[cfg(feature = "debug-logs")]
+    eprintln!("[pi-ccs][verify] d_round={}, proof.sumcheck_rounds.len()={}", d_round, proof.sumcheck_rounds.len());
+    
     let (r_vec, running_sum, ok_rounds) =
         verify_sumcheck_rounds(tr, d_round, claimed_initial, &proof.sumcheck_rounds);
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        // NOTE: digest32() is mutating! Don't call it for debug logging
+        eprintln!("[pi-ccs][verify] Completed verify_sumcheck_rounds");
+    }
+    
     if !ok_rounds {
-        #[cfg(feature = "debug-logs")]
-        eprintln!("[pi-ccs][verify] sum-check rounds invalid (d_round={})", d_round);
-        return Ok(false);
+        return Err(PiCcsError::SumcheckError(format!(
+            "sum-check rounds invalid (d_round={}, initial_sum={})", 
+            d_round, format_ext(claimed_initial)
+        )));
     }
 
     // Split r_vec into (r', α') - Row-first ordering (row rounds first)
     // First ell_n challenges are row bits, last ell_d challenges are Ajtai bits
     if r_vec.len() != ell {
-        #[cfg(feature = "debug-logs")]
-        eprintln!("[pi-ccs][verify] r_vec length mismatch: have {}, expect {}", r_vec.len(), ell);
-        return Ok(false);
+        return Err(PiCcsError::SumcheckError(format!(
+            "r_vec length mismatch: have {}, expect {}", 
+            r_vec.len(), ell
+        )));
     }
     let (r_prime, alpha_prime) = r_vec.split_at(ell_n);
 
@@ -721,25 +839,36 @@ pub fn pi_ccs_verify(
     // Only apply transcript binding when we have sum-check rounds
     // For trivial cases (ell = 0, no rounds), skip binding checks
     if !proof.sumcheck_rounds.is_empty() {
-        // Derive digest exactly where the prover did (after sum-check rounds)
+        // The prover calls build_me_outputs which internally calls tr.digest32()
+        // We need to get the digest at the same point
+        #[cfg(feature = "debug-logs")]
+        eprintln!("[pi-ccs][verify] About to compute header_digest after sumcheck");
+        
         let digest = tr.digest32();
+        
+        #[cfg(feature = "debug-logs")]
+        eprintln!("[pi-ccs][verify] header_digest computed: {:?}", &digest[..4]);
         // Verify proof header matches transcript state
         if proof.header_digest != digest {
-            #[cfg(feature = "debug-logs")]
-            eprintln!("❌ PI_CCS VERIFY: header digest mismatch (proof={:?}, verifier={:?})",
-                      &proof.header_digest[..4], &digest[..4]);
-            return Ok(false);
+            return Err(PiCcsError::InvalidStructure(format!(
+                "header digest mismatch (proof={:?}, verifier={:?})",
+                &proof.header_digest[..4], &digest[..4]
+            )));
         }
         // Verify all output ME instances are bound to this transcript
         if !out_me.iter().all(|me| me.fold_digest == digest) {
-            #[cfg(feature = "debug-logs")]
-            eprintln!("❌ PI_CCS VERIFY: out_me fold_digest mismatch");
-            return Ok(false);
+            return Err(PiCcsError::InvalidStructure(
+                "output ME instances have mismatched fold_digest".to_string()
+            ));
         }
     }
 
     // Light structural sanity: every output ME must carry r' (row part) only
-    if !out_me.iter().all(|me| me.r == r_prime) { return Ok(false); }
+    if !out_me.iter().all(|me| me.r == r_prime) { 
+        return Err(PiCcsError::InvalidStructure(
+            "output ME instances have incorrect r values (should equal r_prime from sumcheck)".to_string()
+        ));
+    }
     
     // === Verify output ME instances are bound to the correct inputs ===
     // This prevents attacks where unrelated ME outputs pass RLC/DEC algebra
@@ -753,6 +882,9 @@ pub fn pi_ccs_verify(
             out_me.len(), mcs_list.len(), me_inputs.len()
         )));
     }
+    
+    // Expected y vector length - should be padded to 2^ell_d
+    let expected_len = 1usize << ell_d;
     
     // Verify MCS-derived outputs (i=1..mcs_list.len()) match input commitments
     for (i, (out, inp)) in out_me.iter().take(mcs_list.len()).zip(mcs_list.iter()).enumerate() {
@@ -793,11 +925,11 @@ pub fn pi_ccs_verify(
                 "output[{}].y.len {} != t {}", i, out.y.len(), s.t()
             )));
         } // Number of CCS matrices
-        // Guard individual y[j] vector lengths
+        // Guard individual y[j] vector lengths - should be padded to 2^ell_d
         for (j, yj) in out.y.iter().enumerate() {
-            if yj.len() != neo_math::D {
+            if yj.len() != expected_len {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "output[{}].y[{}].len {} != D {}", i, j, yj.len(), neo_math::D
+                    "output[{}].y[{}].len {} != 2^ell_d = {}", i, j, yj.len(), expected_len
                 )));
             }
         }
@@ -821,8 +953,8 @@ pub fn pi_ccs_verify(
             return Err(PiCcsError::InvalidInput(format!("me_output[{}].y.len {} != t {}", idx, out.y.len(), s.t())));
         }
         for (j, yj) in out.y.iter().enumerate() {
-            if yj.len() != neo_math::D {
-                return Err(PiCcsError::InvalidInput(format!("me_output[{}].y[{}].len {} != D {}", idx, j, yj.len(), neo_math::D)));
+            if yj.len() != expected_len {
+                return Err(PiCcsError::InvalidInput(format!("me_output[{}].y[{}].len {} != 2^ell_d = {}", idx, j, yj.len(), expected_len)));
             }
         }
     }

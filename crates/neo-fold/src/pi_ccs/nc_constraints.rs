@@ -48,6 +48,16 @@ where
     F: Field + Send + Sync + Copy,
     K: From<F>,
 {
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[compute_nc_hypercube_sum] Called with:");
+        eprintln!("  witnesses.len() = {}", witnesses.len());
+        eprintln!("  me_witnesses.len() = {}", me_witnesses.len());
+        eprintln!("  gamma = {}", crate::pi_ccs::format_ext(gamma));
+        eprintln!("  beta_a = {:?}", beta_a.iter().map(|b| crate::pi_ccs::format_ext(*b)).collect::<Vec<_>>());
+        eprintln!("  beta_r = {:?}", beta_r.iter().map(|b| crate::pi_ccs::format_ext(*b)).collect::<Vec<_>>());
+        eprintln!("  ell_d = {}, ell_n = {}", ell_d, ell_n);
+    }
     let chi_beta_full: Vec<K> = {
         let mut beta_full = beta_a.to_vec();
         beta_full.extend_from_slice(beta_r);
@@ -62,7 +72,12 @@ where
         
         // For each witness, compute NC_i at this hypercube point X
         let mut gamma_pow_i = gamma;
-        for Zi in witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()) {
+        for (_i_idx, Zi) in witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()).enumerate() {
+            #[cfg(feature = "debug-logs")]
+            if x_idx == 0 {
+                eprintln!("[compute_nc_hypercube_sum] x_idx=0: Instance {}, gamma_pow = {}", 
+                         _i_idx, crate::pi_ccs::format_ext(gamma_pow_i));
+            }
             // Compute y_{i,1}(X) = Z̃_i(X) where X = (X_a, X_r)
             // First, compute M_1^T · χ_X_r
             let x_r_idx = x_idx % (1 << ell_n);
@@ -101,14 +116,16 @@ where
             }
             
             // Apply range polynomial: NC_i = ∏_{t=-(b-1)}^{b-1} (y_mle_x - t)
-            let mut Ni_x = K::ONE;
-            for t in (-(params.b as i64 - 1))..=(params.b as i64 - 1) {
-                Ni_x *= y_mle_x - K::from(F::from_i64(t));
-            }
+            let Ni_x = crate::pi_ccs::nc_core::range_product::<F>(y_mle_x, params.b);
             
             nc_sum_hypercube += eq_x_beta * gamma_pow_i * Ni_x;
             gamma_pow_i *= gamma;
         }
+    }
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[compute_nc_hypercube_sum] Result = {}", crate::pi_ccs::format_ext(nc_sum_hypercube));
     }
     
     nc_sum_hypercube

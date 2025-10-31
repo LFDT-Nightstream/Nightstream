@@ -6,9 +6,9 @@
 //! ## Architecture
 //!
 //! The oracle is split into:
-//! - **Phases**: Row phase (rounds 0..ell_n-1) and Ajtai phase (rounds ell_n..ell_n+ell_d-1)
 //! - **Blocks**: F (constraints), NC (norm constraints), and Eval (evaluation ties)
-//! - **Engine**: Orchestrates the phases and manages state transitions
+//! - **Engine**: Manages the row phase (rounds 0..ell_n-1) and Ajtai phase 
+//!   (rounds ell_n..ell_n+ell_d-1) directly within the oracle implementation
 //!
 //! ## Paper Reference
 //!
@@ -20,7 +20,6 @@
 use neo_math::K;
 
 pub mod gate;
-pub mod phase;
 pub mod blocks;
 pub mod engine;
 
@@ -29,7 +28,6 @@ pub mod tests;
 
 // Re-export main types
 pub use engine::GenericCcsOracle;
-pub use phase::Phase;
 
 // NcState definition (moved from original oracle.rs)
 /// NC state after row rounds: y_{i,1}(r') Ajtai partials & γ weights

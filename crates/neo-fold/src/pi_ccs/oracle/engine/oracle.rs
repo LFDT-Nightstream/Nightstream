@@ -1,7 +1,7 @@
 //! Main oracle delegator implementing RoundOracle trait
 //!
-//! This orchestrates the two-phase sum-check oracle, delegating to
-//! RowPhase and AjtaiPhase as appropriate.
+//! This orchestrates the two-phase sum-check oracle: row phase 
+//! (rounds 0..ell_n-1) and Ajtai phase (rounds ell_n..ell_n+ell_d-1).
 
 use neo_ccs::{CcsStructure, MatRef, utils::mat_vec_mul_fk};
 use neo_math::K;
@@ -92,6 +92,15 @@ where
         f_at_beta_r: K,
         nc_sum_beta: K,
     ) -> Self {
+        #[cfg(feature = "debug-logs")]
+        {
+            eprintln!("[GenericCcsOracle::new] nc_y_matrices.len() = {}", nc_y_matrices.len());
+            eprintln!("[GenericCcsOracle::new] nc_row_gamma_pows = {:?}", 
+                     nc_row_gamma_pows.iter().map(|g| crate::pi_ccs::format_ext(*g)).collect::<Vec<_>>());
+            eprintln!("[GenericCcsOracle::new] k_total = {}", k_total);
+            eprintln!("[GenericCcsOracle::new] nc_sum_beta = {}", crate::pi_ccs::format_ext(nc_sum_beta));
+        }
+        
         Self {
             s,
             gamma,
@@ -129,16 +138,16 @@ where
         let w_r = HalfTableEq::new(&self.row_chals);
         
         #[cfg(feature = "debug-logs")]
-        eprintln!("[enter_ajtai] M1 has {} rows, {} cols", self.csr_m1.rows, self.csr_m1.cols);
+        {
+            let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+            if dbg_oracle {
+                eprintln!("[enter_ajtai] M1: {}×{}, instances: {}", 
+                    self.csr_m1.rows, self.csr_m1.cols, self.z_witnesses.len());
+            }
+        }
         
         // v1 = M_1^T · χ_{r'} ∈ K^m
         let v1 = spmv_csr_t_weighted_fk(self.csr_m1, &w_r);
-        
-        #[cfg(feature = "debug-logs")]
-        {
-            eprintln!("[enter_ajtai] row_chals={:?}", self.row_chals);
-            eprintln!("[enter_ajtai] v1={:?}", v1);
-        }
         
         // For each Z_i, y_{i,1}(r') = Z_i · v1 ∈ K^d, then pad to 2^ell_d
         // Note: Instance 1 is the MCS instance, which only contributes to NC, not Eval
@@ -146,10 +155,6 @@ where
         for (_idx, Zi) in self.z_witnesses.iter().enumerate() {
             let z_ref = MatRef::from_mat(Zi);
             let yi = mat_vec_mul_fk::<F,K>(z_ref.data, z_ref.rows, z_ref.cols, &v1);
-            
-            #[cfg(feature = "debug-logs")]
-            eprintln!("[enter_ajtai] Z[{}] has {} rows, {} cols, yi={:?}", _idx, z_ref.rows, z_ref.cols, yi);
-            
             y_partials.push(pad_to_pow2_k(yi, self.ell_d).expect("pad y_i"));
         }
         
@@ -256,7 +261,7 @@ where
         use crate::pi_ccs::oracle::gate::PairGate;
         use crate::pi_ccs::oracle::blocks::{
             RowBlock, AjtaiBlock,
-            NcRowBlock, FAjtaiBlock,
+            NcRowBlock, NcAjtaiBlock, FAjtaiBlock,
         };
         
         if self.round_idx < self.ell_n {
@@ -265,7 +270,13 @@ where
             {
                 let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
                 if dbg_oracle {
-                    eprintln!("[oracle][row{}] computing row-univariates", self.round_idx);
+                    eprintln!("[oracle][row{}] {} samples", self.round_idx, xs.len());
+                    eprintln!("  - k_total: {}, me_offset: {}, #nc_y_matrices: {}", 
+                        self.k_total, self.me_offset, self.nc_y_matrices.len());
+                    eprintln!("  - F at beta_r: {}", format_ext(self.f_at_beta_r));
+                    eprintln!("  - NC sum beta: {}", format_ext(self.nc_sum_beta));
+                    eprintln!("  - gamma: {}", format_ext(self.gamma));
+                    eprintln!("  - b: {}, ell_d: {}, ell_n: {}", self.b, self.ell_d, self.ell_n);
                 }
             }
             
@@ -289,7 +300,6 @@ where
                     w_beta_a: &self.w_beta_a_partial,
                     ell_d: self.ell_d,
                     b: self.b,
-                    round_idx: self.round_idx,
                     y_matrices: &self.nc_y_matrices,
                     gamma_row_pows: &self.nc_row_gamma_pows,
                     _phantom: core::marker::PhantomData,
@@ -329,6 +339,7 @@ where
                 }
                 
                 // Eval block evaluation
+                let mut eval_contrib = K::ZERO;
                 {
                     let half = g_eval.half;
                     for k in 0..half {
@@ -336,7 +347,29 @@ where
                         let a = self.eval_row_partial[2*k];
                         let b = self.eval_row_partial[2*k+1];
                         let g_ev = (K::ONE - x) * a + x * b;
-                        y += gate * g_ev;
+                        eval_contrib += gate * g_ev;
+                    }
+                    y += eval_contrib;
+                }
+                
+                #[cfg(feature = "debug-logs")]
+                if self.round_idx == 0 && (x == K::ZERO || x == K::ONE) {
+                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                    if dbg_oracle {
+                        eprintln!("    [oracle] Round 0, x={}: Eval contrib = {}, g_eval.half = {}", 
+                                 if x == K::ZERO { "0" } else { "1" }, 
+                                 format_ext(eval_contrib),
+                                 g_eval.half);
+                    }
+                }
+                
+                #[cfg(feature = "debug-logs")]
+                {
+                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                    if dbg_oracle && (x == K::ZERO || x == K::ONE) {
+                        eprintln!("    row_eval_at({:?}) = {}", 
+                            if x == K::ZERO { "0" } else { "1" }, 
+                            format_ext(y));
                     }
                 }
                 
@@ -377,10 +410,11 @@ where
             
             #[cfg(feature = "debug-logs")]
             {
-                let ajtai_round = self.round_idx - self.ell_n;
-                eprintln!("[oracle][ajtai{}] Ajtai-gating F(r'), NC, and Eval", ajtai_round);
-                eprintln!("  Evaluating {} sample points, first few x values: {:?}", 
-                    xs.len(), xs.iter().take(3).collect::<Vec<_>>());
+                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+                if dbg_oracle {
+                    let ajtai_round = self.round_idx - self.ell_n;
+                    eprintln!("[oracle][ajtai{}] {} samples", ajtai_round, xs.len());
+                }
             }
             
             // Evaluate
@@ -392,75 +426,15 @@ where
                     y += f_block.eval_at(x, g_beta, wr_scalar);
                 }
                 
-                // NC contribution - directly compute without creating block
-                if let Some(ref nc_state) = self.nc_state {
-                    let half = g_beta.half;
-                    let low = -((self.b as i64) - 1);
-                    let high = (self.b as i64) - 1;
-                    
-                    #[cfg(feature = "debug-logs")]
-                    {
-                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                        if dbg_oracle {
-                            eprintln!("  NC Ajtai: half={} low={} high={} b={} nc_partials.len()={}", 
-                                half, low, high, self.b, nc_state.y_partials.len());
-                            if !nc_state.y_partials.is_empty() && !nc_state.y_partials[0].is_empty() {
-                                eprintln!("    y_partials[0][0]={:?} gamma_pows[0]={:?}", 
-                                    nc_state.y_partials[0][0], nc_state.gamma_pows[0]);
-                            }
-                        }
-                    }
-                    
-                    for k in 0..half {
-                        let (w0, w1) = g_beta.pair(k);
-                        let mut nc0 = K::ZERO;
-                        let mut nc1 = K::ZERO;
-                        
-                        for (i, y_partial) in nc_state.y_partials.iter().enumerate() {
-                            let y0 = y_partial[2*k];
-                            let y1 = y_partial[2*k+1];
-                            let mut n0 = K::ONE;
-                            let mut n1 = K::ONE;
-                            
-                            #[cfg(feature = "debug-logs")]
-                            {
-                                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                                if dbg_oracle && k == 0 && x == K::ZERO {
-                                    eprintln!("      Instance {}: y0={:?} y1={:?}", i+1, y0, y1);
-                                }
-                            }
-                            
-                            for t in low..=high {
-                                let tk = K::from(F::from_i64(t));
-                                n0 *= y0 - tk;
-                                n1 *= y1 - tk;
-                            }
-                            
-                            #[cfg(feature = "debug-logs")]
-                            {
-                                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                                if dbg_oracle && k == 0 && x == K::ZERO && i == 0 {
-                                    eprintln!("        After product: n0={:?} n1={:?}", n0, n1);
-                                    eprintln!("        gamma_pows[{}]={:?}", i, nc_state.gamma_pows[i]);
-                                }
-                            }
-                            
-                            nc0 += nc_state.gamma_pows[i] * n0;
-                            nc1 += nc_state.gamma_pows[i] * n1;
-                        }
-                        
-                        let contrib = wr_scalar * ((K::ONE - x) * w0 * nc0 + x * w1 * nc1);
-                        y += contrib;
-                        
-                        #[cfg(feature = "debug-logs")]
-                        {
-                            let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                            if dbg_oracle && k == 0 {
-                                eprintln!("    k=0: x={:?} w0={:?} w1={:?} nc0={:?} nc1={:?} contrib={:?}",
-                                    x, w0, w1, nc0, nc1, contrib);
-                            }
-                        }
-                    }
+                // NC contribution
+                if let Some(ref ncstate) = self.nc_state {
+                    let nc_block = NcAjtaiBlock::<F> {
+                        y_partials: &ncstate.y_partials,
+                        gamma_pows: &ncstate.gamma_pows,
+                        b: self.b,
+                        _phantom: core::marker::PhantomData,
+                    };
+                    y += nc_block.eval_at(x, g_beta, wr_scalar);
                 }
                 
                 // Eval contribution - directly compute without creating block
@@ -499,6 +473,14 @@ where
             for v in &mut self.partials_first_inst.s_per_j {
                 fold_partial_in_place(v, r_i);
                 v.truncate(v.len() >> 1);
+            }
+            
+            // Fold NC y_matrices
+            for y_mat in &mut self.nc_y_matrices {
+                for row in y_mat {
+                    fold_partial_in_place(row, r_i);
+                    row.truncate(row.len() >> 1);
+                }
             }
         } else {
             // Ajtai phase folding

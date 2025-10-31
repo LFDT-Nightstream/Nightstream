@@ -58,6 +58,8 @@ proptest = { workspace = true }
 # Additional dev dependencies for tests
 p3-goldilocks = { workspace = true }
 p3-field = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Test configuration: tests-core runs before tests-general
 [[test]]
@@ -68,4 +70,9 @@ harness = true
 [[test]]
 name = "general"
 path = "tests-general/mod.rs"
+harness = true
+
+[[test]]
+name = "unit"
+path = "tests-unit/mod.rs"
 harness = true

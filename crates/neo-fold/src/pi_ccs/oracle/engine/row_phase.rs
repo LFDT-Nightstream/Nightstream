@@ -81,12 +81,7 @@ where
         // Fold blocks
         self.f_block.fold(r);
         self.eval_block.fold(r);
-        // NC row block uses unfolded rows; no fold needed
-        
-        // Update NC block round index if present
-        if let Some(ref mut nc) = self.nc_block {
-            nc.round_idx += 1;
-        }
+        // NC row block: no-op fold, handled by oracle engine
         
         self.round_idx += 1;
     }

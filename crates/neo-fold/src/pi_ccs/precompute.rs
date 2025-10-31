@@ -169,6 +169,11 @@ pub fn precompute_beta_block(
     ell_d: usize,
     ell_n: usize,
 ) -> Result<BetaBlock, PiCcsError> {
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[precompute_beta_block] Called with {} MCS witnesses, {} ME witnesses", 
+                 witnesses.len(), me_witnesses.len());
+    }
     let beta_r_ht = HalfTableEq::new(&ch.beta_r);
     let chi_beta_r: Vec<K> = (0..(1 << ell_n)).map(|i| beta_r_ht.w(i)).collect();
 
@@ -252,9 +257,10 @@ pub fn precompute_eval_row_partial(
             let mj_ref = MatRef::from_mat(&s.matrices[j]);
             let g_ij =
                 neo_ccs::utils::mat_vec_mul_fk::<F, K>(mj_ref.data, mj_ref.rows, mj_ref.cols, &u_i);
-            // Weight: γ^k · γ^{i+(j-1)k-1} = γ^{i-1 + jk} with j starting at 0 here, times γ^k once.
-            let mut w_pow = gamma_to_k * gamma_pow_i[i_off];
-            for _ in 0..j { w_pow *= gamma_to_k; }
+            // Weight: γ^{(i-1)+jk} - consistent with Ajtai phase
+            // No extra γ^k factor here
+            let mut w_pow = gamma_pow_i[i_off];       // γ^{i-1}
+            for _ in 0..j { w_pow *= gamma_to_k; }    // × (γ^k)^j
 
             for r in 0..s.n {
                 G_eval[r] += w_pow * g_ij[r];
@@ -299,6 +305,7 @@ pub fn precompute_nc_full_rows(
 ///
 /// # Paper Reference
 /// Section 4.4: T = Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1} · ỹ_{(i,j)}(α)
+///            = Σ_{j,i} γ^{(i-1)+jk} · ỹ_{(i,j)}(α)  (using consistent exponent)
 pub fn compute_initial_sum_components(
     s: &CcsStructure<F>,
     me_inputs: &[MeInstance<Cmt, F, K>],
@@ -308,11 +315,11 @@ pub fn compute_initial_sum_components(
 ) -> Result<K, PiCcsError> {
     let chi_alpha: Vec<K> = neo_ccs::utils::tensor_point::<K>(&ch.alpha);
 
-    // Outer γ^k factor
+    // γ^k for computing γ^{(i-1)+jk}
     let mut gamma_to_k = K::ONE;
     for _ in 0..k_total { gamma_to_k *= ch.gamma; }
 
-    let mut T_inner = K::ZERO;
+    let mut T = K::ZERO;
     for j in 0..s.t() {
         for (i_offset, me_input) in me_inputs.iter().enumerate() {
             let y_mle = me_input.y[j]
@@ -320,14 +327,14 @@ pub fn compute_initial_sum_components(
                 .zip(&chi_alpha)
                 .fold(K::ZERO, |acc, (&v, &w)| acc + v * w);
 
-            // Weight without outer γ^k: γ^{i+(j-1)k-1} with j in 1..t → here j is 0..t-1 ⇒ γ^{i-1 + jk}
-            // Build γ^{i-1}
+            // Weight: γ^{(i-1)+jk} - consistent with row/Ajtai phase and terminal check
+            // ME inputs start at i=2, so i_offset=0 corresponds to i=2, thus i-1=1
             let mut weight_ij = K::ONE;
-            for _ in 0..(i_offset + 1) { weight_ij *= ch.gamma; }
-            for _ in 0..j { weight_ij *= gamma_to_k; }
-            T_inner += weight_ij * y_mle;
+            for _ in 0..(i_offset + 1) { weight_ij *= ch.gamma; }  // γ^{i-1}
+            for _ in 0..j { weight_ij *= gamma_to_k; }             // × (γ^k)^j
+            T += weight_ij * y_mle;
         }
     }
-    let T = gamma_to_k * T_inner; // apply outer γ^k
+    // No outer γ^k multiplication - the weight already includes all factors
     Ok(beta_block.f_at_beta_r + beta_block.nc_sum_hypercube + T)
 }

@@ -943,6 +943,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "hex",
  "mimalloc",
  "neo-ajtai",
  "neo-ccs",
@@ -960,6 +961,7 @@ dependencies = [
  "rand_chacha",
  "rayon",
  "serde",
+ "serde_json",
  "serial_test",
  "subtle",
  "tracing",
@@ -980,6 +982,7 @@ dependencies = [
  "rand_chacha",
  "rayon",
  "serde",
+ "serde_json",
  "subtle",
  "thiserror 2.0.16",
  "tracing",
@@ -1003,6 +1006,7 @@ dependencies = [
  "rand_chacha",
  "rayon",
  "serde",
+ "serde_json",
  "spartan2",
  "thiserror 2.0.16",
  "tracing",
@@ -1042,25 +1046,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "neo-diag"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "hex",
- "neo-ccs",
- "neo-fold",
- "neo-math",
- "p3-field",
- "serde_json",
-]
-
-[[package]]
 name = "neo-fold"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "blake3",
+ "chrono",
  "criterion",
  "flate2",
  "hex",

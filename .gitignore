@@ -24,6 +24,8 @@ test_bundled.bin
 test_lean.bin
 profile.json.gz
 .DS_Store
-docs/hypernova-concise
-docs/neo-paper
 neo_diagnostics
+new-neo-sage/round0_compare.sage.log
+new-neo-sage/round0_dump.rust.log
+new-neo-sage/round0_full.log
+new-neo-sage/round0_trace.rust.log

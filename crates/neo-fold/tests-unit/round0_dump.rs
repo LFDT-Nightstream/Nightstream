@@ -80,7 +80,24 @@ struct Round0Dump {
 
     // common r from ME inputs (length ℓ_n)
     r: Vec<[String; 2]>,
+
+    // Optional: extension field quadratic rule (u^2 = a + b u)
+    #[serde(skip_serializing_if = "Option::is_none")] 
+    quad_rule: Option<QuadRule>,
+
+    // Optional: sparse polynomial f specification
+    #[serde(skip_serializing_if = "Option::is_none")] 
+    f: Option<SparsePolyDump>,
 }
+
+#[derive(Serialize)]
+struct QuadRule { u2: [String;2] }
+
+#[derive(Serialize)]
+struct SparseTerm { coeff: String, exps: Vec<usize> }
+
+#[derive(Serialize)]
+struct SparsePolyDump { arity: usize, terms: Vec<SparseTerm> }
 
 fn goldilocks_modulus_decimal() -> String {
     // 2^64 - 2^32 + 1
@@ -158,6 +175,22 @@ fn write_round0_dump() {
     let r_pairs: Vec<[String; 2]> = me_input.r.iter().map(|&k| k_to_pair(k)).collect();
     assert_eq!(r_pairs.len(), ell_n, "r must be length ℓ_n");
 
+    // Quadratic rule: compute u^2 in Rust basis (so Sage can match K exactly)
+    let u = neo_math::from_complex(F::ZERO, F::ONE);
+    let uu = u * u;
+    let quad_rule = Some(QuadRule { u2: k_to_pair(uu) });
+
+    // Sparse f dump
+    let f_dump = {
+        let f = &s.f;
+        let mut terms: Vec<SparseTerm> = Vec::new();
+        for term in f.terms() {
+            let exps: Vec<usize> = term.exps.iter().map(|&e| e as usize).collect();
+            terms.push(SparseTerm { coeff: f_to_str(term.coeff), exps });
+        }
+        Some(SparsePolyDump { arity: f.arity(), terms })
+    };
+
     let dump = Round0Dump {
         p: p_dec,
         b,
@@ -173,6 +206,8 @@ fn write_round0_dump() {
         beta_r,
         gamma,
         r: r_pairs,
+        quad_rule,
+        f: f_dump,
     };
 
     // --- 6) Write file ---------------------------------------------------------

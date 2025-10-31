@@ -23,3 +23,6 @@ mod eval_gate_is_folded;
 
 #[path = "round0_dump.rs"]
 mod round0_dump;
+
+#[path = "round0_trace.rs"]
+mod round0_trace;

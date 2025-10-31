@@ -286,7 +286,13 @@ where
     }
     
     fn evals_at(&mut self, xs: &[K]) -> Vec<K> {
-        eprintln!("[oracle][evals_at] round_idx={}, xs_len={}", self.round_idx, xs.len());
+        #[cfg(feature = "debug-logs")]
+        {
+            let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
+            if dbg_oracle {
+                eprintln!("[oracle][evals_at] round_idx={}, xs_len={}", self.round_idx, xs.len());
+            }
+        }
         use crate::pi_ccs::oracle::gate::PairGate;
         use crate::pi_ccs::oracle::blocks::{
             RowBlock, AjtaiBlock,

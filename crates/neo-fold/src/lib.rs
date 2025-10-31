@@ -156,23 +156,24 @@ pub fn fold_ccs_instances(
     let (me_list, pi_ccs_proof) =
         pi_ccs::pi_ccs_prove(&mut tr, params, structure, instances, witnesses, &[], &[], &l)?;
 
-    // Prover-side hardening: optional self-check of Π-CCS and fail-fast toggle.
-    // Always compute the self-check result; fail fast if NEO_PROVER_FAIL_FAST is set.
-    let self_check_result = {
-        let mut tr_check = Poseidon2Transcript::new(b"neo/fold");
-        pi_ccs::pi_ccs_verify(&mut tr_check, params, structure, instances, &[], &me_list, &pi_ccs_proof)
-    };
-    match &self_check_result {
-        Ok(_ok) => {
-            #[cfg(feature = "debug-logs")]
-            eprintln!("[DEBUG] Prover self-check Pi-CCS verify: {}", _ok);
-        }
-        Err(_e) => {
-            #[cfg(feature = "debug-logs")]
-            eprintln!("[DEBUG] Prover self-check Pi-CCS verify error: {}", _e);
-        }
-    }
+
     if std::env::var("NEO_PROVER_FAIL_FAST").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false) {
+            // Prover-side hardening: optional self-check of Π-CCS and fail-fast toggle.
+        // Always compute the self-check result; fail fast if NEO_PROVER_FAIL_FAST is set.
+        let self_check_result = {
+            let mut tr_check = Poseidon2Transcript::new(b"neo/fold");
+            pi_ccs::pi_ccs_verify(&mut tr_check, params, structure, instances, &[], &me_list, &pi_ccs_proof)
+        };
+        match &self_check_result {
+            Ok(_ok) => {
+                #[cfg(feature = "debug-logs")]
+                eprintln!("[DEBUG] Prover self-check Pi-CCS verify: {}", _ok);
+            }
+            Err(_e) => {
+                #[cfg(feature = "debug-logs")]
+                eprintln!("[DEBUG] Prover self-check Pi-CCS verify error: {}", _e);
+            }
+        }
         match self_check_result {
             Ok(true) => { /* proceed */ }
             Ok(false) => {
@@ -189,36 +190,49 @@ pub fn fold_ccs_instances(
     // SECURITY FIX: Removed single-instance fast path that bypassed RLC/DEC
     // All instances must go through the complete pipeline for security
 
-    // 2) Π_RLC: k+1 ME(b,L) → 1 ME(B,L) (only for multiple instances)
-    let (me_b, pi_rlc_proof) = pi_rlc::pi_rlc_prove(&mut tr, params, &me_list)?;
+    // 2) Π_RLC: k+1 ME(b,L) → 1 ME(B,L)
+    // For the initial fold with a single instance, Π_RLC is a no-op.
+    let (me_b, pi_rlc_proof) = if me_list.len() < 2 {
+        // Degenerate RLC: parent equals the only child; provide empty proof metadata
+        let guard = pi_rlc::GuardParams { k: 0, T: 0, b: params.b as u64, B: params.B as u64 };
+        let proof = pi_rlc::PiRlcProof { rho_elems: Vec::new(), guard_params: guard };
+        (me_list[0].clone(), proof)
+    } else {
+        pi_rlc::pi_rlc_prove(&mut tr, params, &me_list)?
+    };
 
-    // 2b) Build the combined witness Z' = Σ rot(ρ_i)·Z_i for the DEC prover
-    if d != neo_math::D {
-        return Err(FoldingError::InvalidInput(format!(
-            "Ajtai ring dimension D={} but witness Z has rows={}", neo_math::D, d
-        )));
-    }
-    // Convert ρ to ring elements
-    let rhos_ring: Vec<neo_math::Rq> = pi_rlc_proof.rho_elems.iter()
-        .map(|coeffs| neo_math::ring::cf_inv(*coeffs))
-        .collect();
-    if rhos_ring.len() != witnesses.len() {
-        return Err(FoldingError::PiRlc(crate::error::PiRlcError::InvalidInput(format!(
-            "rho count {} != witness count {}", rhos_ring.len(), witnesses.len()
-        ))));
-    }
-    // Accumulate Σ rot(ρ_i)·Z_i column-wise
-    let mut z_prime = neo_ccs::Mat::zero(d, m, F::ZERO);
-    for (wit, rho) in witnesses.iter().zip(rhos_ring.iter()) {
-        let s_action = neo_math::SAction::from_ring(*rho);
-        for c in 0..m {
-            let mut col = [F::ZERO; neo_math::D];
-            for r in 0..d { col[r] = wit.Z[(r, c)]; }
-            let rotated = s_action.apply_vec(&col);
-            for r in 0..d { z_prime[(r, c)] += rotated[r]; }
+    // 2b) Build the combined witness Z' for the DEC prover
+    // Degenerate case (k+1=1): parent witness is just the single child's Z
+    let me_b_wit = if me_list.len() < 2 {
+        MeWitness { Z: witnesses[0].Z.clone() }
+    } else {
+        if d != neo_math::D {
+            return Err(FoldingError::InvalidInput(format!(
+                "Ajtai ring dimension D={} but witness Z has rows={}", neo_math::D, d
+            )));
         }
-    }
-    let me_b_wit = MeWitness { Z: z_prime };
+        // Convert ρ to ring elements
+        let rhos_ring: Vec<neo_math::Rq> = pi_rlc_proof.rho_elems.iter()
+            .map(|coeffs| neo_math::ring::cf_inv(*coeffs))
+            .collect();
+        if rhos_ring.len() != witnesses.len() {
+            return Err(FoldingError::PiRlc(crate::error::PiRlcError::InvalidInput(format!(
+                "rho count {} != witness count {}", rhos_ring.len(), witnesses.len()
+            ))));
+        }
+        // Accumulate Σ rot(ρ_i)·Z_i column-wise
+        let mut z_prime = neo_ccs::Mat::zero(d, m, F::ZERO);
+        for (wit, rho) in witnesses.iter().zip(rhos_ring.iter()) {
+            let s_action = neo_math::SAction::from_ring(*rho);
+            for c in 0..m {
+                let mut col = [F::ZERO; neo_math::D];
+                for r in 0..d { col[r] = wit.Z[(r, c)]; }
+                let rotated = s_action.apply_vec(&col);
+                for r in 0..d { z_prime[(r, c)] += rotated[r]; }
+            }
+        }
+        MeWitness { Z: z_prime }
+    };
 
     // 3) Π_DEC: 1 ME(B,L) → k ME(b,L) with verified openings & range assertions
     let (me_out, digit_wits, pi_dec_proof) =
@@ -282,13 +296,16 @@ pub fn verify_folding_proof(
         .map_err(|e| FoldingError::InvalidInput(format!("recombine digits: {e}")))?;
 
     // 3) Π_RLC: verify ρ (transcript), guard, and S-action linear combination for c, X, y
-    let ok_rlc = pi_rlc::pi_rlc_verify(
-        &mut tr, params,
-        &proof.pi_ccs_outputs,  // k+1 inputs (ME(b, L))
-        &me_parent,             // combined output ME(B, L)
-        &proof.pi_rlc_proof,
-    )?;
-    if !ok_rlc { return Ok(false); }
+    // Degenerate case: if only 1 input, RLC is a no-op and verification is skipped.
+    if proof.pi_ccs_outputs.len() >= 2 {
+        let ok_rlc = pi_rlc::pi_rlc_verify(
+            &mut tr, params,
+            &proof.pi_ccs_outputs,  // k+1 inputs (ME(b, L))
+            &me_parent,             // combined output ME(B, L)
+            &proof.pi_rlc_proof,
+        )?;
+        if !ok_rlc { return Ok(false); }
+    }
 
     // 4) Π_DEC: recomposition & range checks from parent → digits
     // SECURITY: Fail closed if AjtaiSModule isn't properly initialized

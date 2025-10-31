@@ -1,0 +1,16 @@
+# Rust build artifacts
+poseidon2-oracle/target/
+poseidon2-oracle/Cargo.lock
+
+# Python/Sage cache
+*.pyc
+__pycache__/
+*.sage.py
+
+# Generated test data
+*.json
+!data/*.json
+
+# Sage temp files
+.sage/
+

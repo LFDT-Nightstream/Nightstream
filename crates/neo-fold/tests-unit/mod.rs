@@ -21,3 +21,5 @@ mod terminal_matches_running_sum;
 #[path = "eval_gate_is_folded.rs"]
 mod eval_gate_is_folded;
 
+#[path = "round0_dump.rs"]
+mod round0_dump;

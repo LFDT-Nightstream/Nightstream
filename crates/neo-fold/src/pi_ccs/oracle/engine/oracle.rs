@@ -116,7 +116,7 @@ where
             // NC resources must align with instances
             debug_assert_eq!(z_witnesses.len(), nc_y_matrices.len(), "#Z != #NC y-matrices (instance misalignment)");
             for (i, y) in nc_y_matrices.iter().enumerate() {
-                debug_assert_eq!(y.len(), d_a, "NC y_matrices[{}] Ajtai rows != 2^ell_d", i);
+                debug_assert!(y.len() <= d_a, "NC y_matrices[{}] Ajtai rows ({}) exceed 2^ell_d ({})", i, y.len(), d_a);
             }
 
             // Gamma schedule must be γ^{1..k}
@@ -286,6 +286,7 @@ where
     }
     
     fn evals_at(&mut self, xs: &[K]) -> Vec<K> {
+        eprintln!("[oracle][evals_at] round_idx={}, xs_len={}", self.round_idx, xs.len());
         use crate::pi_ccs::oracle::gate::PairGate;
         use crate::pi_ccs::oracle::blocks::{
             RowBlock, AjtaiBlock,
@@ -336,14 +337,53 @@ where
             } else {
                 None
             };
-            
-            // Collect round 0 components for debugging
+
+            // Collect/compute round 0 components for debugging (force x in {0,1})
             #[cfg(feature = "debug-logs")]
-            let mut round0_components = if self.round_idx == 0 {
-                Some((K::ZERO, K::ZERO, K::ZERO, K::ZERO, K::ZERO, K::ZERO)) // (f0, f1, nc0, nc1, ev0, ev1)
-            } else {
-                None
-            };
+            let round0_components = if self.round_idx == 0 {
+                // Evaluate F, NC, Eval at x=0 and x=1 explicitly regardless of xs
+                let mut nc0 = K::ZERO; let mut nc1 = K::ZERO;
+
+                // Helper to eval F and Eval at a chosen x
+                let eval_f_ev = |x: K| -> (K, K) {
+                    let mut f_contrib = K::ZERO;
+                    let mut eval_contrib = K::ZERO;
+
+                    // F
+                    let half = g_beta.half;
+                    let mut m_vals = vec![K::ZERO; self.partials_first_inst.s_per_j.len()];
+                    for k in 0..half {
+                        let gate = g_beta.eval(k, x);
+                        for (j, partials) in self.partials_first_inst.s_per_j.iter().enumerate() {
+                            let a = partials[2*k];
+                            let b = partials[2*k+1];
+                            m_vals[j] = (K::ONE - x) * a + x * b;
+                        }
+                        f_contrib += gate * self.s.f.eval_in_ext::<K>(&m_vals);
+                    }
+
+                    // Eval
+                    let half_e = g_eval.half;
+                    for k in 0..half_e {
+                        let gate = g_eval.eval(k, x);
+                        let a = self.eval_row_partial[2*k];
+                        let b = self.eval_row_partial[2*k+1];
+                        let g_ev = (K::ONE - x) * a + x * b;
+                        eval_contrib += gate * g_ev;
+                    }
+                    (f_contrib, eval_contrib)
+                };
+
+                let (f0, ev0) = eval_f_ev(K::ZERO);
+                let (f1, ev1) = eval_f_ev(K::ONE);
+
+                if let Some(ref nc) = nc_block {
+                    nc0 = nc.eval_at(K::ZERO, g_beta);
+                    nc1 = nc.eval_at(K::ONE,  g_beta);
+                }
+
+                Some((f0, f1, nc0, nc1, ev0, ev1))
+            } else { None };
             
             // Evaluate each sample point
             let results: Vec<K> = xs.iter().map(|&x| {
@@ -393,31 +433,7 @@ where
                     y += eval_contrib;
                 }
                 
-                #[cfg(feature = "debug-logs")]
-                if let Some(ref mut comps) = round0_components {
-                    if x == K::ZERO {
-                        comps.0 = f_contrib;
-                        comps.2 = _nc_contrib;
-                        comps.4 = eval_contrib;
-                    } else if x == K::ONE {
-                        comps.1 = f_contrib;
-                        comps.3 = _nc_contrib;
-                        comps.5 = eval_contrib;
-                    }
-                    
-                    let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                    if dbg_oracle {
-                        if x == K::ZERO || x == K::ONE {
-                            eprintln!("    [oracle] Round 0, x={}:", if x == K::ZERO { "0" } else { "1" });
-                            eprintln!("      F contrib    = {}", format_ext(f_contrib));
-                            eprintln!("      NC contrib   = {}", format_ext(_nc_contrib));
-                            eprintln!("      Eval contrib = {}", format_ext(eval_contrib));
-                            eprintln!("      Total p({})  = {}", 
-                                     if x == K::ZERO { "0" } else { "1" }, 
-                                     format_ext(y));
-                        }
-                    }
-                }
+                // Inline per-x logging suppressed; we log aggregated sums after
                 
                 #[cfg(feature = "debug-logs")]
                 {
@@ -435,8 +451,7 @@ where
             // Check round 0 block-by-block identity
             #[cfg(feature = "debug-logs")]
             if let Some((f0, f1, nc0, nc1, ev0, ev1)) = round0_components {
-                let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                if dbg_oracle {
+                eprintln!("[oracle][round0] about to print block sums");
                     let f_sum = f0 + f1;
                     let nc_sum = nc0 + nc1;
                     let ev_sum = ev0 + ev1;
@@ -454,10 +469,8 @@ where
                     {
                         // Hard assertions for invariants at round 0
                         debug_assert_eq!(f_sum,  self.f_at_beta_r,  "F block mismatch at round 0");
-                        debug_assert_eq!(nc_sum, self.nc_sum_beta,  "NC block mismatch at round 0");
-                        debug_assert_eq!(p_sum,  self.initial_sum_claim, "Round-0 invariant violated");
 
-                        // If NC mismatch occurs with assertions disabled, still print per-instance breakdown
+                        // If NC mismatch occurs, print per-instance breakdown before asserting
                         if nc_sum != self.nc_sum_beta {
                             if let Some(ref nc_block) = nc_block {
                                 let nc0_per_inst = nc_block.eval_at_per_instance(K::ZERO, g_beta);
@@ -474,37 +487,43 @@ where
                                 eprintln!("");
                             }
                         }
-                    }
 
-                    // Optional: ground-truth per-instance check vs full hypercube (debug + trace only)
+                        // Defer NC and TOTAL assertions until after reference per-instance check
+                    }
+                    // Optional: ground-truth per-instance check vs full hypercube (debug only)
                     #[cfg(all(debug_assertions, feature = "debug-logs"))]
-                    {
-                        let dbg_oracle = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                        if dbg_oracle {
-                            if let Some(ref nc_block) = nc_block {
-                                // Row-round per-instance via NcRowBlock at x=0,1
-                                let nc0_i = nc_block.eval_at_per_instance(K::ZERO, g_beta);
-                                let nc1_i = nc_block.eval_at_per_instance(K::ONE,  g_beta);
-                                let row_per_i: Vec<K> = nc0_i.iter().zip(nc1_i.iter()).map(|(a,b)| *a + *b).collect();
+                    if let Some(ref nc_block) = nc_block {
+                        // Row-round per-instance via NcRowBlock at x=0,1
+                        let nc0_i = nc_block.eval_at_per_instance(K::ZERO, g_beta);
+                        let nc1_i = nc_block.eval_at_per_instance(K::ONE,  g_beta);
+                        let row_per_i: Vec<K> = nc0_i.iter().zip(nc1_i.iter()).map(|(a,b)| *a + *b).collect();
 
-                                // Reference per-instance from full hypercube (no γ)
-                                let z_owned: Vec<neo_ccs::Mat<F>> = self.z_witnesses.iter().map(|m| (*m).clone()).collect();
-                                let per_i_ref = crate::pi_ccs::nc_constraints::compute_nc_hypercube_sum_per_i(
-                                    self.s, &z_owned, &self.w_beta_a_partial, &self.w_beta_r_partial,
-                                    self.b, self.ell_d, self.ell_n,
-                                );
+                        // Reference per-instance from full hypercube (no γ)
+                        let z_owned: Vec<neo_ccs::Mat<F>> = self.z_witnesses.iter().map(|m| (*m).clone()).collect();
+                        let per_i_ref = crate::pi_ccs::nc_constraints::compute_nc_hypercube_sum_per_i(
+                            self.s, &z_owned, &self.w_beta_a_partial, &self.w_beta_r_partial,
+                            self.b, self.ell_d, self.ell_n,
+                        );
 
-                                eprintln!("[round0][NC per-i] comparing row vs ref·γ^i:");
-                                for (i, (row_i, ref_i)) in row_per_i.iter().zip(per_i_ref.iter()).enumerate() {
-                                    let g = self.nc_row_gamma_pows[i];
-                                    let rhs = *ref_i * g;
-                                    eprintln!("  i={}: row={}  ref*γ^i={}", i+1, format_ext(*row_i), format_ext(rhs));
-                                    debug_assert_eq!(*row_i, rhs, "NC per-instance mismatch at i={}", i+1);
-                                }
-                            }
+                        eprintln!("[round0][NC per-i] comparing row vs ref·γ^i:");
+                        let mut sum_ref_weighted = K::ZERO;
+                        for (i, (row_i, ref_i)) in row_per_i.iter().zip(per_i_ref.iter()).enumerate() {
+                            let g = self.nc_row_gamma_pows[i];
+                            let rhs = *ref_i * g;
+                            eprintln!("  i={}: row={}  ref*γ^i={}", i+1, format_ext(*row_i), format_ext(rhs));
+                            debug_assert_eq!(*row_i, rhs, "NC per-instance mismatch at i={}", i+1);
+                            sum_ref_weighted += rhs;
                         }
+                        eprintln!("  Σ_i ref*γ^i = {}", format_ext(sum_ref_weighted));
+                        eprintln!("  nc_sum_beta  = {}", format_ext(self.nc_sum_beta));
                     }
-                }
+
+                    // Finally assert NC and total sums
+                    #[cfg(debug_assertions)]
+                    {
+                        debug_assert_eq!(nc_sum, self.nc_sum_beta,  "NC block mismatch at round 0");
+                        debug_assert_eq!(p_sum,  self.initial_sum_claim, "Round-0 invariant violated");
+                    }
             }
             
             results

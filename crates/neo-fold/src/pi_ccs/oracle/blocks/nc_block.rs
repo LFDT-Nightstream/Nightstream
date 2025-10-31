@@ -44,36 +44,28 @@ where
     fn eval_at(&self, x: K, w_beta_r: PairGate) -> K {
         if self.y_matrices.is_empty() { return K::ZERO; }
 
-        // We must aggregate across *all* rows with eq_r before applying NC,
-        // because NC is non-linear. See tests: round 0 block sums must match
-        // the hypercube sum computed in precompute.
-        //
-        // For each instance i and for each Ajtai index xa, build:
-        //   y_i(xa; x) = Σ_k wr_k(x) * ((1-x)*<y[:,2k],χ_xa> + x*<y[:,2k+1],χ_xa>)
-        // then sum w_beta_a[xa] * NC(y_i(xa; x)) and finally weight by γ^i.
+        // Correct non-linear handling: apply NC at the per-pair level, then mix with eq_r gate.
+        // For each instance i and each pair k, compute y_pair_x(xa) = (1-x)*<y[:,2k],χ_xa> + x*<y[:,2k+1],χ_xa>,
+        // then accumulate gate(k,x) * Σ_xa w_beta_a[xa] * NC(y_pair_x(xa)).
 
         let d = 1usize << self.ell_d;
         let half = w_beta_r.half;
         let mut total = K::ZERO;
 
         for (i_inst, y_mat) in self.y_matrices.iter().enumerate() {
-            let rows_len = y_mat.len(); // = D (unpadded Ajtai rows)
+            let rows_len = y_mat.len(); // D (unpadded Ajtai rows)
+            let mut sum_over_pairs = K::ZERO;
 
-            // y_agg[xa] will hold y_i(xa; x) after aggregating all row pairs with eq_r gate
-            let mut y_agg = vec![K::ZERO; d];
-
-            // Accumulate row contribution into y_agg **before** NC
             for k in 0..half {
                 let j0 = 2 * k;
                 let j1 = j0 + 1;
-                let wrx = w_beta_r.eval(k, x); // affine in x
+                let gate = w_beta_r.eval(k, x);
 
-                // For each Ajtai index xa compute <y[:,j?], χ_xa>
+                // For this pair, build Ajtai sum of NC over all xa
+                let mut ajtai_sum_pair = K::ZERO;
                 for xa in 0..d {
                     let mut ya0 = K::ZERO;
                     let mut ya1 = K::ZERO;
-
-                    // χ(xa, ρ) against each Ajtai row ρ
                     for rho in 0..rows_len {
                         let mut chi = K::ONE;
                         for bit in 0..self.ell_d {
@@ -84,34 +76,15 @@ where
                         ya0 += chi * y_mat[rho][j0];
                         ya1 += chi * y_mat[rho][j1];
                     }
-
-                    // Interpolate the VALUE first (row-bit variable x), then add with wrx
                     let y_pair_x = (K::ONE - x) * ya0 + x * ya1;
-                    y_agg[xa] += wrx * y_pair_x;
+                    let ni = nc_core::range_product::<F>(y_pair_x, self.b);
+                    ajtai_sum_pair += self.w_beta_a[xa] * ni;
                 }
+
+                sum_over_pairs += gate * ajtai_sum_pair;
             }
 
-            // Now apply NC to the *aggregated* y and mix with eq_a weights
-            let mut ajtai_sum = K::ZERO;
-            for xa in 0..d {
-                let ni = nc_core::range_product::<F>(y_agg[xa], self.b);
-                
-                #[cfg(feature = "debug-logs")]
-                {
-                    let dbg = std::env::var("NEO_ORACLE_TRACE").ok().as_deref() == Some("1");
-                    if dbg && i_inst == 0 && xa < 4 {
-                        eprintln!("[NC block] xa={}: y_agg={}, NC={}, w_beta_a={}", 
-                                xa, 
-                                crate::pi_ccs::format_ext(y_agg[xa]),
-                                crate::pi_ccs::format_ext(ni),
-                                crate::pi_ccs::format_ext(self.w_beta_a[xa]));
-                    }
-                }
-                
-                ajtai_sum += self.w_beta_a[xa] * ni;
-            }
-
-            total += self.gamma_row_pows[i_inst] * ajtai_sum;
+            total += self.gamma_row_pows[i_inst] * sum_over_pairs;
         }
 
         total
@@ -134,13 +107,14 @@ where
 
         for (i_inst, y_mat) in self.y_matrices.iter().enumerate() {
             let rows_len = y_mat.len();
-            let mut y_agg = vec![K::ZERO; d];
+            let mut sum_over_pairs = K::ZERO;
 
             for k in 0..half {
                 let j0 = 2 * k;
                 let j1 = j0 + 1;
-                let wrx = w_beta_r.eval(k, x);
+                let gate = w_beta_r.eval(k, x);
 
+                let mut ajtai_sum_pair = K::ZERO;
                 for xa in 0..d {
                     let mut ya0 = K::ZERO;
                     let mut ya1 = K::ZERO;
@@ -155,17 +129,14 @@ where
                         ya1 += chi * y_mat[rho][j1];
                     }
                     let y_pair_x = (K::ONE - x) * ya0 + x * ya1;
-                    y_agg[xa] += wrx * y_pair_x;
+                    let ni = nc_core::range_product::<F>(y_pair_x, self.b);
+                    ajtai_sum_pair += self.w_beta_a[xa] * ni;
                 }
+
+                sum_over_pairs += gate * ajtai_sum_pair;
             }
 
-            let mut ajtai_sum = K::ZERO;
-            for xa in 0..d {
-                let ni = nc_core::range_product::<F>(y_agg[xa], self.b);
-                ajtai_sum += self.w_beta_a[xa] * ni;
-            }
-
-            out[i_inst] = self.gamma_row_pows[i_inst] * ajtai_sum;
+            out[i_inst] = self.gamma_row_pows[i_inst] * sum_over_pairs;
         }
 
         out

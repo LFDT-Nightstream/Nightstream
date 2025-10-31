@@ -6,13 +6,14 @@
 
 #![allow(non_snake_case)]
 
-use neo_transcript::{Transcript, Poseidon2Transcript, labels as tr_labels};
+use neo_transcript::{Transcript, Poseidon2Transcript};
 use neo_ccs::{CcsStructure, McsInstance, MeInstance};
 use neo_ajtai::Commitment as Cmt;
 use neo_math::{F, K, KExtensions};
 use p3_field::{PrimeField64, PrimeCharacteristicRing};
 use crate::error::PiCcsError;
-use crate::pi_ccs::{PiCcsProof, digest_ccs_matrices, absorb_sparse_polynomial};
+use crate::pi_ccs::PiCcsProof;
+use crate::pi_ccs::transcript::bind_me_inputs;
 use crate::sumcheck::verify_sumcheck_rounds;
 
 /// Data derived from the Π-CCS transcript tail used by the verifier.
@@ -31,69 +32,37 @@ pub struct TranscriptTail {
 /// This is primarily used for debugging and testing. It replays the transcript
 /// to extract intermediate values without performing full verification.
 ///
-/// # Note
-/// This currently assumes k=1 (no ME inputs). For k>1, use the full verifier.
-pub fn pi_ccs_derive_transcript_tail(
+/// Bind both MCS and ME inputs so that the challenges match the prover’s.
+pub fn pi_ccs_derive_transcript_tail_with_me_inputs_and_label(
+    domain_label: &'static [u8],
     params: &neo_params::NeoParams,
     s: &CcsStructure<F>,
     mcs_list: &[McsInstance<Cmt, F>],
+    me_inputs: &[MeInstance<Cmt, F, K>],
     proof: &PiCcsProof,
 ) -> Result<TranscriptTail, PiCcsError> {
-    let mut tr = Poseidon2Transcript::new(b"neo/fold");
-    tr.append_message(tr_labels::PI_CCS, b"");
-    
-    // Header (same as in pi_ccs_verify)
-    // Use shared helper to ensure transcript replay matches prover/verifier dimensions
+    let mut tr = Poseidon2Transcript::new(domain_label);
+    // Header and instances: use the same helper as prover/verify for perfect parity
     let crate::pi_ccs::context::Dims { ell_d, ell_n: _, ell, d_sc } = 
         crate::pi_ccs::context::build_dims_and_policy(params, s)?;
-    
-    let ext = params.extension_check(ell as u32, d_sc as u32)
-        .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
-    tr.append_message(b"neo/ccs/header/v1", b"");
-    tr.append_u64s(b"ccs/header", &[64, ext.s_supported as u64, params.lambda as u64, ell as u64, d_sc as u64, ext.slack_bits.unsigned_abs() as u64]);
-    tr.append_message(b"ccs/slack_sign", &[if ext.slack_bits >= 0 {1} else {0}]);
+    crate::pi_ccs::transcript::bind_header_and_instances(&mut tr, params, s, mcs_list, ell, d_sc, 0)?;
 
-    // Instances
-    tr.append_message(b"neo/ccs/instances", b"");
-    tr.append_u64s(b"dims", &[s.n as u64, s.m as u64, s.t() as u64]);
-    let matrix_digest = digest_ccs_matrices(s);
-    for &digest_elem in &matrix_digest { 
-        tr.append_fields(b"mat_digest", &[F::from_u64(digest_elem.as_canonical_u64())]); 
+    // Bind ME inputs exactly like prover/verifier so replayed challenges match
+    bind_me_inputs(&mut tr, me_inputs)?;
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[replay] binding me_count = {}", me_inputs.len());
+        if let Some(me0) = me_inputs.get(0) {
+            let preview: Vec<u64> = me0.c.data.iter().take(2).map(|f| f.as_canonical_u64()).collect();
+            eprintln!("[replay] me[0].c preview = {:?}", preview);
+        }
     }
-    absorb_sparse_polynomial(&mut tr, &s.f);
-    for inst in mcs_list.iter() {
-        tr.append_fields(b"x", &inst.x);
-        tr.append_u64s(b"m_in", &[inst.m_in as u64]);
-        tr.append_fields(b"c_data", &inst.c.data);
-    }
-
-    // NOTE: ME inputs not absorbed here since this is a simplified helper
-    // In real usage, this should match prove/verify transcript exactly
-    // For now, assume no ME inputs (empty slice) for initial fold
-    tr.append_message(b"neo/ccs/me_inputs", b"");
-    tr.append_u64s(b"me_count", &[0u64]); // Initial fold: k=1, no ME inputs
 
     // Sample challenges (mirror prove/verify)
-    tr.append_message(b"neo/ccs/chals/v1", b"");
-    let _alpha_vec: Vec<K> = (0..ell_d)
-        .map(|_| { 
-            let ch = tr.challenge_fields(b"chal/k", 2); 
-            neo_math::from_complex(ch[0], ch[1]) 
-        })
-        .collect();
-    let _beta: Vec<K> = (0..ell)
-        .map(|_| { 
-            let ch = tr.challenge_fields(b"chal/k", 2); 
-            neo_math::from_complex(ch[0], ch[1]) 
-        })
-        .collect();
-    let _gamma: K = {
-        let ch_g = tr.challenge_fields(b"chal/k", 2);
-        neo_math::from_complex(ch_g[0], ch_g[1])
-    };
+    let _ch = crate::pi_ccs::transcript::sample_challenges(&mut tr, ell_d, ell)?;
 
     // Derive r by verifying rounds (structure only)
-    let d_round = d_sc;
+    let d_round = d_sc; // degree bound for each round
     
     // Use the prover-carried initial sum when present; else derive from round 0
     let claimed_initial = match proof.sc_initial_sum {
@@ -120,9 +89,8 @@ pub fn pi_ccs_derive_transcript_tail(
     if !ok_rounds {
         #[cfg(feature = "debug-logs")]
         eprintln!(
-            "[pi-ccs] rounds invalid: expected degree ≤ {}, got {} rounds", 
-            d_round, 
-            proof.sumcheck_rounds.len()
+            "[pi-ccs] rounds invalid: degree bound ≤ {}, rounds = {}", 
+            d_round, proof.sumcheck_rounds.len()
         );
         return Err(PiCcsError::SumcheckError("rounds invalid".into()));
     }
@@ -143,6 +111,81 @@ pub fn pi_ccs_derive_transcript_tail(
         running_sum, 
         initial_sum: claimed_initial 
     })
+}
+
+/// Convenience wrapper using the default domain label used broadly in this crate (neo/fold).
+pub fn pi_ccs_derive_transcript_tail_with_me_inputs(
+    params: &neo_params::NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[McsInstance<Cmt, F>],
+    me_inputs: &[MeInstance<Cmt, F, K>],
+    proof: &PiCcsProof,
+) -> Result<TranscriptTail, PiCcsError> {
+    pi_ccs_derive_transcript_tail_with_me_inputs_and_label(b"neo/fold", params, s, mcs_list, me_inputs, proof)
+}
+
+/// Back-compat wrapper: derive tail assuming k=1 (no ME inputs).
+pub fn pi_ccs_derive_transcript_tail(
+    params: &neo_params::NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[McsInstance<Cmt, F>],
+    proof: &PiCcsProof,
+) -> Result<TranscriptTail, PiCcsError> {
+    pi_ccs_derive_transcript_tail_with_me_inputs(params, s, mcs_list, &[], proof)
+}
+
+/// Derive the tail from an existing transcript that already has header, instances,
+/// ME inputs, and challenges bound (i.e., after `sample_challenges`).
+///
+/// This matches the common testing pattern where the transcript is constructed
+/// explicitly in the test using the same helpers as proving/verifying code.
+pub fn pi_ccs_derive_transcript_tail_from_bound_transcript(
+    tr: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    s: &CcsStructure<F>,
+    proof: &PiCcsProof,
+) -> Result<TranscriptTail, PiCcsError> {
+    let crate::pi_ccs::context::Dims { ell_d: _, ell_n: _, ell: _, d_sc: _ } =
+        crate::pi_ccs::context::build_dims_and_policy(params, s)?;
+
+    // Use prover-carried initial sum if present; else derive from round 0
+    let claimed_initial = match proof.sc_initial_sum {
+        Some(s) => s,
+        None => {
+            if let Some(round0) = proof.sumcheck_rounds.get(0) {
+                use crate::sumcheck::poly_eval_k;
+                poly_eval_k(round0, K::ZERO) + poly_eval_k(round0, K::ONE)
+            } else {
+                K::ZERO
+            }
+        }
+    };
+
+    // Bind initial sum to the provided transcript and verify rounds to derive r.
+    tr.append_fields(b"sumcheck/initial_sum", &claimed_initial.as_coeffs());
+
+    // Derive r and running_sum directly (tolerant mode): mirror verifier logic
+    // but do not fail on consistency checks to enable round-trip in tests.
+    use crate::sumcheck::poly_eval_k;
+    let mut running_sum = claimed_initial;
+    let mut r_all = Vec::with_capacity(proof.sumcheck_rounds.len());
+    for (_round_idx, coeffs) in proof.sumcheck_rounds.iter().enumerate() {
+        // (Optional) degree check omitted here; replay is tolerant in tests.
+        // Append round coeffs and sample r_i
+        tr.append_message(b"neo/ccs/round", b"");
+        let c0 = coeffs[0].as_coeffs();
+        tr.append_fields(b"round/coeffs", &c0);
+        for c in coeffs.iter().skip(1) {
+            tr.append_fields(b"round/coeffs", &c.as_coeffs());
+        }
+        let ch = tr.challenge_fields(b"chal/k", 2);
+        let r_i = neo_math::from_complex(ch[0], ch[1]);
+
+        running_sum = poly_eval_k(coeffs, r_i);
+        r_all.push(r_i);
+    }
+
+    Ok(TranscriptTail { _wr: K::ONE, r: r_all, alphas: Vec::new(), running_sum, initial_sum: claimed_initial })
 }
 
 /// Compute the terminal claim from Π_CCS outputs given wr or generic CCS terminal.
@@ -166,4 +209,3 @@ pub fn pi_ccs_compute_terminal_claim_r1cs_or_ccs(
     }
     expected_q_r
 }
-

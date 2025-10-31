@@ -68,7 +68,8 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use crate::sumcheck::{run_sumcheck, verify_sumcheck_rounds, SumcheckOutput};
 use crate::pi_ccs::sparse_matrix::{Csr, to_csr};
 use crate::pi_ccs::oracle::GenericCcsOracle;
-use crate::pi_ccs::transcript::{digest_ccs_matrices, absorb_sparse_polynomial};
+use crate::pi_ccs::transcript::Challenges;
+// keep transcript helpers internal; exported via transcript module when needed
 
 // ============================================================================
 // SUBMODULES (Paper-aligned refactoring)
@@ -91,7 +92,14 @@ pub mod sparse_matrix;   // CSR sparse matrix operations
 pub mod eq_weights;      // Equality polynomial evaluation
 
 // Re-export commonly used public items
-pub use transcript_replay::{TranscriptTail, pi_ccs_derive_transcript_tail, pi_ccs_compute_terminal_claim_r1cs_or_ccs};
+pub use transcript_replay::{
+    TranscriptTail,
+    pi_ccs_derive_transcript_tail,
+    pi_ccs_derive_transcript_tail_with_me_inputs,
+    pi_ccs_derive_transcript_tail_with_me_inputs_and_label,
+    pi_ccs_derive_transcript_tail_from_bound_transcript,
+    pi_ccs_compute_terminal_claim_r1cs_or_ccs,
+};
 
 // ============================================================================
 // PROOF STRUCTURE
@@ -130,10 +138,16 @@ fn format_ext_vec(xs: &[K]) -> String {
 pub struct PiCcsProof {
     /// Sum-check protocol rounds (univariate polynomials as coefficients)
     pub sumcheck_rounds: Vec<Vec<K>>,
+    /// Sum-check sampled challenges r_0..r_{ℓ-1} (carried for deterministic replay)
+    pub sumcheck_challenges: Vec<K>,
+    /// Sum-check final running sum Q(α', r')
+    pub sumcheck_final: K,
     /// Extension policy binding digest  
     pub header_digest: [u8; 32],
     /// Sum-check initial claim s(0)+s(1) when the R1CS engine is used; None for generic CCS.
     pub sc_initial_sum: Option<K>,
+    /// Public challenges (α, β=(β_a,β_r), γ) carried for deterministic replay
+    pub challenges_public: Challenges,
 }
 
 
@@ -610,9 +624,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     eprintln!("[pi-ccs][prove] initial_sum for proof = {}", format_ext(initial_sum));
     
     let proof = PiCcsProof { 
-        sumcheck_rounds: rounds, 
+        sumcheck_rounds: rounds,
+        sumcheck_challenges: r,
+        sumcheck_final: running_sum_sc,
         header_digest: fold_digest,
         sc_initial_sum: Some(initial_sum),
+        challenges_public: ch,
     };
     
     // Defensive check: ensure output structure matches inputs

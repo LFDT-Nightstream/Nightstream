@@ -118,6 +118,17 @@ where
             // Apply range polynomial: NC_i = ∏_{t=-(b-1)}^{b-1} (y_mle_x - t)
             let Ni_x = crate::pi_ccs::nc_core::range_product::<F>(y_mle_x, params.b);
             
+            #[cfg(feature = "debug-logs")]
+            {
+                if x_idx < 4 && _i_idx == 0 {
+                    eprintln!("[compute_nc_hypercube_sum] x_idx={}: y_mle_x={}, NC={}, eq_x_beta={}", 
+                             x_idx, 
+                             crate::pi_ccs::format_ext(y_mle_x),
+                             crate::pi_ccs::format_ext(Ni_x),
+                             crate::pi_ccs::format_ext(eq_x_beta));
+                }
+            }
+            
             nc_sum_hypercube += eq_x_beta * gamma_pow_i * Ni_x;
             gamma_pow_i *= gamma;
         }
@@ -129,4 +140,72 @@ where
     }
     
     nc_sum_hypercube
+}
+
+// Debug-only ground-truth: per-instance NC hypercube sums (without γ weighting)
+// Mirrors compute_nc_hypercube_sum but returns a Vec with one entry per instance.
+#[cfg(debug_assertions)]
+pub fn compute_nc_hypercube_sum_per_i<F>(
+    s: &CcsStructure<F>,
+    z_all: &[Mat<F>], // Instances ordered: MCS first, then ME
+
+    beta_a: &[K],
+    beta_r: &[K],
+    b: u32,
+    ell_d: usize,
+    ell_n: usize,
+) -> Vec<K>
+where
+    F: Field + Send + Sync + Copy,
+    K: From<F>,
+{
+    // Build chi over the full (Ajtai+row) domain at β
+    let chi_beta_full: Vec<K> = {
+        let mut beta_full = beta_a.to_vec();
+        beta_full.extend_from_slice(beta_r);
+        neo_ccs::utils::tensor_point::<K>(&beta_full)
+    };
+
+    let mut per_i = vec![K::ZERO; z_all.len()];
+    let dn = (1usize << ell_d) * (1usize << ell_n);
+
+    for x_idx in 0..dn {
+        let eq_x_beta = chi_beta_full[x_idx];
+        let x_r_idx = x_idx % (1 << ell_n);
+        let x_a_idx = x_idx >> ell_n;
+
+        // v1_x = M_1^T · χ_{X_r}
+        let mut v1_x = vec![K::ZERO; s.m];
+        for row in 0..s.n {
+            let mut chi_x_r_row = K::ONE;
+            for bit_pos in 0..ell_n {
+                let xr = if (x_r_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                let rb = if (row     >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                chi_x_r_row *= xr*rb + (K::ONE - xr)*(K::ONE - rb);
+            }
+            for col in 0..s.m {
+                v1_x[col] += K::from(s.matrices[0][(row, col)]) * chi_x_r_row;
+            }
+        }
+
+        for (i, Zi) in z_all.iter().enumerate() {
+            let z_ref = MatRef::from_mat(Zi);
+            let y_i1_x = neo_ccs::utils::mat_vec_mul_fk::<F,K>(z_ref.data, z_ref.rows, z_ref.cols, &v1_x);
+            let mut y_mle_x = K::ZERO;
+            for (rho, &y_rho) in y_i1_x.iter().enumerate() {
+                let mut chi_xa_rho = K::ONE;
+                for bit_pos in 0..ell_d {
+                    let xa = if (x_a_idx >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                    let rb = if (rho     >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
+                    chi_xa_rho *= xa*rb + (K::ONE - xa)*(K::ONE - rb);
+                }
+                y_mle_x += chi_xa_rho * y_rho;
+            }
+
+            let Ni_x = crate::pi_ccs::nc_core::range_product::<F>(y_mle_x, b);
+            per_i[i] += eq_x_beta * Ni_x;
+        }
+    }
+
+    per_i
 }

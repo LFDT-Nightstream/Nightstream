@@ -67,7 +67,6 @@ use neo_math::{F, K, KExtensions};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use crate::sumcheck::{run_sumcheck, verify_sumcheck_rounds, SumcheckOutput};
 use crate::pi_ccs::sparse_matrix::{Csr, to_csr};
-use crate::pi_ccs::eq_weights::{HalfTableEq, RowWeight};
 use crate::pi_ccs::oracle::GenericCcsOracle;
 use crate::pi_ccs::transcript::{digest_ccs_matrices, absorb_sparse_polynomial};
 
@@ -323,6 +322,19 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     }
     transcript::bind_header_and_instances(tr, params, &s, mcs_list, ell, d_sc, 0)?;
     transcript::bind_me_inputs(tr, me_inputs)?;
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[Fold] Current transcript digest after binding: {:?}", tr.clone().digest32());
+        if !me_inputs.is_empty() {
+            eprintln!("[Fold] Using {} ME inputs:", me_inputs.len());
+            for (i, me) in me_inputs.iter().enumerate() {
+                eprintln!("  ME[{}] fold_digest: {:?}", i, &me.fold_digest[..4]);
+                eprintln!("  ME[{}] r[0..2]: {:?}", i, &me.r[..me.r.len().min(2)]);
+            }
+        }
+    }
+    
     #[cfg(feature = "debug-logs")]
     {
         let dbg_timing = std::env::var("NEO_TIMING").ok().as_deref() == Some("1");
@@ -336,6 +348,19 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     let chal_start = std::time::Instant::now();
     // Sample: α ∈ K^{log d}, β = (β_a || β_r) ∈ K^{log(dn)}, γ ∈ K
     let ch = transcript::sample_challenges(tr, ell_d, ell)?;
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[Fold] Sampled challenges:");
+        eprintln!("  γ = {:?}", ch.gamma);
+        if !ch.beta_a.is_empty() {
+            eprintln!("  β_a[0] = {:?}", ch.beta_a[0]);
+        }
+        if !ch.beta_r.is_empty() {
+            eprintln!("  β_r[0] = {:?}", ch.beta_r[0]);
+        }
+    }
+    
     #[cfg(feature = "debug-logs")]
     {
         let digest = {
@@ -399,8 +424,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         println!("🔧 [NC_SUM] nc_sum_hypercube = {}", format_ext(beta_block.nc_sum_hypercube));
     }
 
-    // Compute initial sum T (claimed sum over hypercube)
-    let initial_sum = precompute::compute_initial_sum_components(&s, me_inputs, &ch, k_total, &beta_block)?;
+    // Compute initial sum: F(β_r) + NC_sum + <G_eval, χ_r>
+    let initial_sum = precompute::compute_initial_sum_components(
+        &beta_block,
+        me_inputs.first().map(|me| me.r.as_slice()),
+        &eval_row_partial,
+    )?;
     #[cfg(feature = "debug-logs")]
     {
         println!("🔧 [INITIAL_SUM] Components:");
@@ -435,21 +464,31 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     #[cfg(feature = "debug-logs")]
     eprintln!("[pi-ccs][prove] d_sc={}, sample_xs_generic.len()={}", d_sc, sample_xs_generic.len());
 
-    let w_beta_a = HalfTableEq::new(&ch.beta_a);
-    let w_alpha_a = HalfTableEq::new(&ch.alpha);
-    let w_beta_r = HalfTableEq::new(&ch.beta_r);
+    // Use tensor_point for all multilinear extensions to ensure consistent ordering
+    let w_beta_a_partial = neo_ccs::utils::tensor_point::<K>(&ch.beta_a);
+    let w_alpha_a_partial = neo_ccs::utils::tensor_point::<K>(&ch.alpha);
+    let w_beta_r_partial = neo_ccs::utils::tensor_point::<K>(&ch.beta_r);
     let d_n_a = 1usize << ell_d;
     let d_n_r = 1usize << ell_n;
-    let mut w_beta_a_partial = vec![K::ZERO; d_n_a];
-    for i in 0..d_n_a { w_beta_a_partial[i] = w_beta_a.w(i); }
-    let mut w_alpha_a_partial = vec![K::ZERO; d_n_a];
-    for i in 0..d_n_a { w_alpha_a_partial[i] = w_alpha_a.w(i); }
-    let mut w_beta_r_partial = vec![K::ZERO; d_n_r];
-    for i in 0..d_n_r { w_beta_r_partial[i] = w_beta_r.w(i); }
+    
+    debug_assert_eq!(w_beta_a_partial.len(), d_n_a);
+    debug_assert_eq!(w_alpha_a_partial.len(), d_n_a);
+    debug_assert_eq!(w_beta_r_partial.len(), d_n_r);
+    
+    #[cfg(feature = "debug-logs")]
+    {
+        eprintln!("[pi-ccs] beta_a challenges: {:?}", ch.beta_a.iter().map(|&x| format_ext(x)).collect::<Vec<_>>());
+        eprintln!("[pi-ccs] w_beta_a_partial[0..4]: {:?}", w_beta_a_partial[0..4].iter().map(|&x| format_ext(x)).collect::<Vec<_>>());
+        // Compare with direct computation
+        let beta_full = [&ch.beta_a[..], &ch.beta_r[..]].concat();
+        let chi_beta = neo_ccs::utils::tensor_point::<K>(&beta_full);
+        eprintln!("[pi-ccs] tensor_point(beta_a+beta_r)[0..4]: {:?}", chi_beta[0..4].iter().map(|&x| format_ext(x)).collect::<Vec<_>>());
+    }
 
     let w_eval_r_partial = if let Some(ref r_inp_full) = me_inputs.first().map(|me| &me.r) {
-        let mut w_eval_r = vec![K::ZERO; d_n_r];
-        for i in 0..d_n_r { w_eval_r[i] = HalfTableEq::new(r_inp_full).w(i); }
+        // Use tensor_point for consistency with how it's used elsewhere
+        let w_eval_r = neo_ccs::utils::tensor_point::<K>(r_inp_full);
+        debug_assert_eq!(w_eval_r.len(), d_n_r);
         #[cfg(feature = "debug-logs")]
         {
             eprintln!("[pi-ccs] Initialized w_eval_r_partial with ME input's r: {:?}", r_inp_full);
@@ -467,7 +506,12 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     let mut nc_row_gamma_pows_vec: Vec<K> = Vec::with_capacity(k_total);
     {
         let mut gcur = ch.gamma;
-        for _ in 0..k_total { nc_row_gamma_pows_vec.push(gcur); gcur *= ch.gamma; }
+        for _i in 0..k_total { 
+            nc_row_gamma_pows_vec.push(gcur);
+            #[cfg(feature = "debug-logs")]
+            eprintln!("[γ-power] γ^{} = {}", _i+1, format_ext(gcur));
+            gcur *= ch.gamma; 
+        }
     }
 
     let mut oracle = GenericCcsOracle::new(

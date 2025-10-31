@@ -16,10 +16,9 @@
 
 use crate::error::PiCcsError;
 use crate::pi_ccs::sparse_matrix::{Csr, spmv_csr_ff};
-use crate::pi_ccs::eq_weights::{HalfTableEq, RowWeight};
 use crate::pi_ccs::nc_constraints::compute_nc_hypercube_sum;
 use crate::pi_ccs::transcript::Challenges;
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, MatRef, Mat};
+use neo_ccs::{CcsStructure, McsInstance, McsWitness, MatRef, Mat};
 use neo_ajtai::Commitment as Cmt;
 use neo_params::NeoParams;
 use neo_math::{F, K, D};
@@ -174,8 +173,9 @@ pub fn precompute_beta_block(
         eprintln!("[precompute_beta_block] Called with {} MCS witnesses, {} ME witnesses", 
                  witnesses.len(), me_witnesses.len());
     }
-    let beta_r_ht = HalfTableEq::new(&ch.beta_r);
-    let chi_beta_r: Vec<K> = (0..(1 << ell_n)).map(|i| beta_r_ht.w(i)).collect();
+    // Use tensor_point for consistency with oracle
+    let chi_beta_r = neo_ccs::utils::tensor_point::<K>(&ch.beta_r);
+    debug_assert_eq!(chi_beta_r.len(), 1 << ell_n);
 
     // Compute f_at_beta_r = Σ_row χ_{β_r}(row) · f((M_0·z)[row], (M_1·z)[row], ..., (M_t·z)[row])
     // This is the CORRECT "average of f" form, not "f of averages"
@@ -307,34 +307,27 @@ pub fn precompute_nc_full_rows(
 /// Section 4.4: T = Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1} · ỹ_{(i,j)}(α)
 ///            = Σ_{j,i} γ^{(i-1)+jk} · ỹ_{(i,j)}(α)  (using consistent exponent)
 pub fn compute_initial_sum_components(
-    s: &CcsStructure<F>,
-    me_inputs: &[MeInstance<Cmt, F, K>],
-    ch: &Challenges,
-    k_total: usize,
     beta_block: &BetaBlock,
+    r_inp_opt: Option<&[K]>,
+    eval_row_partial: &[K],
 ) -> Result<K, PiCcsError> {
-    let chi_alpha: Vec<K> = neo_ccs::utils::tensor_point::<K>(&ch.alpha);
+    // T = <G_eval(row), χ_r>, or 0 if no ME inputs (k=1)
+    let t_eval = if let Some(r_inp) = r_inp_opt {
+        // Use the exact same χ_r ordering as the oracle's w_eval_r_partial
+        // to preserve the round-0 invariant p(0)+p(1) == initial_sum.
+        let chi_r = neo_ccs::utils::tensor_point::<K>(r_inp);
+        debug_assert_eq!(eval_row_partial.len(), chi_r.len(),
+            "eval_row_partial must be padded to 2^ell_n");
+        eval_row_partial
+            .iter()
+            .zip(&chi_r)
+            .map(|(&g, &w)| g * w)
+            .fold(K::ZERO, |acc, v| acc + v)
+    } else {
+        // No ME inputs → no Eval contribution
+        K::ZERO
+    };
 
-    // γ^k for computing γ^{(i-1)+jk}
-    let mut gamma_to_k = K::ONE;
-    for _ in 0..k_total { gamma_to_k *= ch.gamma; }
-
-    let mut T = K::ZERO;
-    for j in 0..s.t() {
-        for (i_offset, me_input) in me_inputs.iter().enumerate() {
-            let y_mle = me_input.y[j]
-                .iter()
-                .zip(&chi_alpha)
-                .fold(K::ZERO, |acc, (&v, &w)| acc + v * w);
-
-            // Weight: γ^{(i-1)+jk} - consistent with row/Ajtai phase and terminal check
-            // ME inputs start at i=2, so i_offset=0 corresponds to i=2, thus i-1=1
-            let mut weight_ij = K::ONE;
-            for _ in 0..(i_offset + 1) { weight_ij *= ch.gamma; }  // γ^{i-1}
-            for _ in 0..j { weight_ij *= gamma_to_k; }             // × (γ^k)^j
-            T += weight_ij * y_mle;
-        }
-    }
-    // No outer γ^k multiplication - the weight already includes all factors
-    Ok(beta_block.f_at_beta_r + beta_block.nc_sum_hypercube + T)
+    // No extra γ^k here: weights are baked into eval_row_partial already
+    Ok(beta_block.f_at_beta_r + beta_block.nc_sum_hypercube + t_eval)
 }

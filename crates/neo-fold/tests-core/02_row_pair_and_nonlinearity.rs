@@ -259,7 +259,7 @@ fn regression_ajtai_nc_sumcheck_round0_vs_exact_and_hypercube_b3() {
     let nc_y = precompute::precompute_nc_full_rows(&s, &wit_binding, &[], ell_n).unwrap();
 
     // Initial sum for k=1: in a valid decomposed witness, NC hypercube sum == 0; F(β_r) may be 0 here (zero A/B/C).
-    let initial_sum = compute_initial_sum_components(&s, &[], &ch, 1, &beta_block).unwrap();
+    let initial_sum = compute_initial_sum_components(&beta_block, None, &eval_row_partial).unwrap();
 
     // Equality weights (row & Ajtai)
     use neo_fold::pi_ccs::eq_weights::RowWeight;
@@ -465,7 +465,7 @@ fn regression_ajtai_nc_nonzero_rprime_b3() {
     let eval_row_partial = precompute_eval_row_partial(&s, &[], &ch, 1, ell_n).unwrap();
     let nc_y = precompute::precompute_nc_full_rows(&s, &wit_binding, &[], ell_n).unwrap();
 
-    let initial_sum = compute_initial_sum_components(&s, &[], &ch, 1, &beta_block).unwrap();
+    let initial_sum = compute_initial_sum_components(&beta_block, None, &eval_row_partial).unwrap();
 
     // Equality weights
     use neo_fold::pi_ccs::eq_weights::RowWeight;

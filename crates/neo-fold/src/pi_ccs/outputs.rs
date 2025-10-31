@@ -96,6 +96,13 @@ where
             m_in: inst.m_in,
             fold_digest,
         });
+        
+        #[cfg(feature = "debug-logs")]
+        eprintln!("[ME Creation] Created ME instance from MCS:");
+        #[cfg(feature = "debug-logs")]
+        eprintln!("  fold_digest: {:?}", &fold_digest[..4]);
+        #[cfg(feature = "debug-logs")]
+        eprintln!("  r': {:?}", &r_prime[..r_prime.len().min(2)]);
     }
 
     for (inp, zi) in me_inputs.iter().zip(me_witnesses.iter()) {

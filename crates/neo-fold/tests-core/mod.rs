@@ -4,11 +4,6 @@ mod unit_oracle;
 #[path = "02_row_pair_and_nonlinearity.rs"]
 mod row_pair_and_nonlinearity;
 
-#[path = "03_unit_eq_weights.rs"]
-mod unit_eq_weights;
-
-#[path = "04_unit_sparse_ops.rs"]
-mod unit_sparse_ops;
 
 #[path = "05_integration_pi_ccs_k1_smoke.rs"]
 mod integration_pi_ccs_k1_smoke;

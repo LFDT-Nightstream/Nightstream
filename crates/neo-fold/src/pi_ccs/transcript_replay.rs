@@ -10,7 +10,7 @@ use neo_transcript::{Transcript, Poseidon2Transcript};
 use neo_ccs::{CcsStructure, McsInstance, MeInstance};
 use neo_ajtai::Commitment as Cmt;
 use neo_math::{F, K, KExtensions};
-use p3_field::{PrimeField64, PrimeCharacteristicRing};
+use p3_field::PrimeCharacteristicRing;
 use crate::error::PiCcsError;
 use crate::pi_ccs::PiCcsProof;
 use crate::pi_ccs::transcript::bind_me_inputs;
@@ -51,6 +51,7 @@ pub fn pi_ccs_derive_transcript_tail_with_me_inputs_and_label(
     bind_me_inputs(&mut tr, me_inputs)?;
     #[cfg(feature = "debug-logs")]
     {
+        use p3_field::PrimeField64;
         eprintln!("[replay] binding me_count = {}", me_inputs.len());
         if let Some(me0) = me_inputs.get(0) {
             let preview: Vec<u64> = me0.c.data.iter().take(2).map(|f| f.as_canonical_u64()).collect();

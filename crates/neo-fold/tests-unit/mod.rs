@@ -26,3 +26,9 @@ mod round0_dump;
 
 #[path = "round0_trace.rs"]
 mod round0_trace;
+
+#[path = "round0_engine_totals.rs"]
+mod round0_engine_totals;
+
+#[path = "round0_engine_eval_breakdown.rs"]
+mod round0_engine_eval_breakdown;

@@ -513,6 +513,34 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         vec![K::ZERO; d_n_r]
     };
 
+    // Debug checks to ensure Eval row gate uses χ_r and not χ_{β_r}
+    #[cfg(debug_assertions)]
+    {
+        if w_eval_r_partial.len() == w_beta_r_partial.len() {
+            let same = w_eval_r_partial.iter().zip(&w_beta_r_partial).all(|(a,b)| *a == *b);
+            debug_assert!(
+                !same,
+                "Eval row gate (chi_r) must not equal beta_r gate (chi_beta_r). Check r vs beta_r initialization."
+            );
+        }
+    }
+
+    #[cfg(feature = "debug-logs")]
+    {
+        use crate::pi_ccs::format_ext;
+        // Cross-check round-0 Eval identity: <G_eval, χ_r> vs <G_eval, χ_{β_r}>
+        let dot_eval_r: K = eval_row_partial
+            .iter()
+            .zip(&w_eval_r_partial)
+            .fold(K::ZERO, |acc, (&g, &w)| acc + g * w);
+        let dot_eval_beta: K = eval_row_partial
+            .iter()
+            .zip(&w_beta_r_partial)
+            .fold(K::ZERO, |acc, (&g, &w)| acc + g * w);
+        eprintln!("[pi-ccs][debug] Eval<r>       = {}", format_ext(dot_eval_r));
+        eprintln!("[pi-ccs][debug] Eval<beta_r> = {}", format_ext(dot_eval_beta));
+    }
+
     let z_witness_refs: Vec<&Mat<F>> = witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()).collect();
     let me_offset = witnesses.len();
 

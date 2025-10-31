@@ -6,9 +6,11 @@ authors = { workspace = true }
 license = "Apache-2.0"
 
 [features]
-default = []
+default = ["paper-exact"] # remove this once the rust impl is stable
 # Test-only feature for deterministic shortcuts in small-unit tests
 testing = []
+# Paper-exact, intentionally-inefficient reference implementation for Π-CCS
+paper-exact = []
 # Forward neo-transcript debug logging so tests can enable transcript dumps on stable
 debug-logs = ["neo-transcript/debug-log"]
 # Forward fs-guard so tests can compare prover vs verifier transcript events
@@ -75,4 +77,9 @@ harness = true
 [[test]]
 name = "unit"
 path = "tests-unit/mod.rs"
+harness = true
+
+[[test]]
+name = "paper_exact"
+path = "tests-paper-exact/mod.rs"
 harness = true

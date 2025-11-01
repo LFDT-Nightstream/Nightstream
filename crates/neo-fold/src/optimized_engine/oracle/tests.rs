@@ -1,6 +1,6 @@
 //! Tests for the modular oracle implementation
 
-use crate::pi_ccs::oracle::gate::{gate_pair, pair_to_full_indices, fold_partial_in_place, PairGate};
+use crate::optimized_engine::oracle::gate::{gate_pair, pair_to_full_indices, fold_partial_in_place, PairGate};
 use neo_math::K;
 use p3_goldilocks::Goldilocks as F;
 use p3_field::PrimeCharacteristicRing;

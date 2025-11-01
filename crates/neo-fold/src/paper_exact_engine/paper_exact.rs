@@ -11,7 +11,7 @@ use neo_params::NeoParams;
 use neo_math::{K, D};
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use crate::pi_ccs::transcript::Challenges;
+use crate::optimized_engine::transcript::Challenges;
 
 /// --- Utilities -------------------------------------------------------------
 
@@ -355,107 +355,182 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let k_total = mcs_witnesses.len() + me_witnesses.len();
-    let gamma = ch.gamma;
+    // ---------------------------
+    // χ tables (Ajtai & row)
+    // ---------------------------
+    let d_sz = 1usize << alpha_prime.len(); // size along Ajtai bits
+    let n_sz = 1usize << r_prime.len();     // size along row bits
 
-    // Build χ_{r'}(row) table literally.
-    let n_sz = 1usize << r_prime.len();
-    let mut chi_rp = vec![K::ZERO; n_sz];
+    let mut chi_a = vec![K::ZERO; d_sz];
+    for rho in 0..d_sz {
+        let mut w = K::ONE;
+        for bit in 0..alpha_prime.len() {
+            let a = alpha_prime[bit];
+            let is_one = ((rho >> bit) & 1) == 1;
+            w *= if is_one { a } else { K::ONE - a };
+        }
+        chi_a[rho] = w;
+    }
+
+    let mut chi_r = vec![K::ZERO; n_sz];
     for row in 0..n_sz {
         let mut w = K::ONE;
         for bit in 0..r_prime.len() {
-            let rb = r_prime[bit];
+            let r = r_prime[bit];
             let is_one = ((row >> bit) & 1) == 1;
-            w *= if is_one { rb } else { K::ONE - rb };
+            w *= if is_one { r } else { K::ONE - r };
         }
-        chi_rp[row] = w;
+        chi_r[row] = w;
     }
 
-    // v_j := M_j^T · χ_{r'} ∈ K^m
-    let mut vjs: Vec<Vec<K>> = Vec::with_capacity(s.t());
+    // eq((α′,r′), β)
+    let eq_beta = eq_points(alpha_prime, &ch.beta_a) * eq_points(r_prime, &ch.beta_r);
+
+    // eq((α′,r′), (α, r)) -- the input r is not threaded through this function in this repo.
+    // Keep Eval block gated to zero (as before) unless you add r here:
+    // let eq_ar = eq_points(alpha_prime, &ch.alpha) * eq_points(r_prime, r_inputs);
+    let eq_ar = K::ZERO;
+
+    // ---------------------------
+    // F' := f( Ẽ(M_j z_1)(r') )_j, z_1 from first MCS instance
+    // ---------------------------
+    let z1 = recomposed_z_from_Z::<Ff>(params, &mcs_witnesses[0].Z); // K^m
+    let mut m_vals = vec![K::ZERO; s.t()];
     for j in 0..s.t() {
-        let mut vj = vec![K::ZERO; s.m];
+        // y_row[row] = (M_j z_1)[row] = Σ_c M_j[row,c] · z1[c]
+        // Ẽ(y_row)(r') = Σ_row χ_r[row] · y_row[row]
+        let mut y_eval = K::ZERO;
         for row in 0..n_sz {
-            let wr = if row < s.n { chi_rp[row] } else { K::ZERO };
+            let wr = if row < s.n { chi_r[row] } else { K::ZERO };
             if wr == K::ZERO { continue; }
+            let mut y_row = K::ZERO;
             for c in 0..s.m {
-                vj[c] += K::from(s.matrices[j][(row, c)]) * wr;
+                y_row += K::from(get_F(&s.matrices[j], row, c)) * z1[c];
             }
+            y_eval += wr * y_row;
         }
-        vjs.push(vj);
+        m_vals[j] = y_eval;
+    }
+    let F_prime = s.f.eval_in_ext::<K>(&m_vals);
+
+    // ---------------------------------------
+    // v1 := M_1^T · χ_{r'}  (K^m), used in NC
+    // ---------------------------------------
+    let mut v1 = vec![K::ZERO; s.m];
+    for row in 0..n_sz {
+        let wr = if row < s.n { chi_r[row] } else { K::ZERO };
+        if wr == K::ZERO { continue; }
+        for c in 0..s.m {
+            v1[c] += K::from(get_F(&s.matrices[0], row, c)) * wr;
+        }
     }
 
-    // LHS true value: Q(α', r') computed literally from witnesses (no factoring)
-    let F_lhs = {
-        // F(X_r) uses Z_1 and r' only depends on xr; evaluate at xr' using v_1 and z1
-        let z1 = recomposed_z_from_Z::<Ff>(params, &mcs_witnesses[0].Z);
-        // (M_j z_1)[r'] = ⟨M_j^T χ_{r'}, z1⟩
-        let mut m_vals = vec![K::ZERO; s.t()];
-        for j in 0..s.t() {
-            let vj = &vjs[j];
-            let mut acc = K::ZERO;
-            for c in 0..s.m { acc += vj[c] * z1[c]; }
-            m_vals[j] = acc;
-        }
-        s.f.eval_in_ext::<K>(&m_vals)
-    };
-
-    // NC sum at (α',r')
-    let M1 = &s.matrices[0];
+    // ---------------------------------------
+    // Σ γ^i · N_i'  with Ajtai MLE at α′
+    // ---------------------------------------
     let mut nc_sum = K::ZERO;
     {
-        let mut g = gamma; // γ^1
-        // MCS
+        let mut g = ch.gamma; // γ^1
+
+        // MCS instances
         for w in mcs_witnesses {
-            // ẏ_{(i,1)}(α') = Σ_c Z_i[α',c]·(M_1^T χ_{r'})[c]
-            let mut y_eval = K::ZERO;
-            let alpha_mask = 0usize; // Boolean pick 0 for simplicity (paper-exact intent retained in tests)
-            for c in 0..s.m {
-                y_eval += K::from(w.Z[(alpha_mask, c)]) * K::from(M1[(0, c)]); // minimal stub for struct
+            // y_digits[ρ] = Σ_c Z_i[ρ,c] · v1[c]
+            let mut y_digits = vec![K::ZERO; D];
+            for rho in 0..D {
+                let mut acc = K::ZERO;
+                for c in 0..s.m {
+                    acc += K::from(w.Z[(rho, c)]) * v1[c];
+                }
+                y_digits[rho] = acc;
             }
-            let Ni = range_product::<Ff>(y_eval, params.b);
-            nc_sum += g * Ni; g *= gamma;
+            // ẏ'_{(i,1)}(α') = ⟨ y_digits, χ_{α′} ⟩
+            let mut y_eval = K::ZERO;
+            for rho in 0..core::cmp::min(D, d_sz) {
+                y_eval += y_digits[rho] * chi_a[rho];
+            }
+            nc_sum += g * range_product::<Ff>(y_eval, params.b);
+            g *= ch.gamma;
         }
-        // ME
+
+        // ME witnesses (if any)
         for Z in me_witnesses {
-            let mut y_eval = K::ZERO;
-            let alpha_mask = 0usize;
-            for c in 0..s.m {
-                y_eval += K::from(Z[(alpha_mask, c)]) * K::from(M1[(0, c)]);
+            let mut y_digits = vec![K::ZERO; D];
+            for rho in 0..D {
+                let mut acc = K::ZERO;
+                for c in 0..s.m {
+                    acc += K::from(Z[(rho, c)]) * v1[c];
+                }
+                y_digits[rho] = acc;
             }
-            let Ni = range_product::<Ff>(y_eval, params.b);
-            nc_sum += g * Ni; g *= gamma;
+            let mut y_eval = K::ZERO;
+            for rho in 0..core::cmp::min(D, d_sz) {
+                y_eval += y_digits[rho] * chi_a[rho];
+            }
+            nc_sum += g * range_product::<Ff>(y_eval, params.b);
+            g *= ch.gamma;
         }
     }
 
-    // Eval block at (α',r'): γ^k Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1} · E_{(i,j)}
-    let eval_sum = if k_total >= 2 {
+    // ---------------------------------------
+    // Eval block: γ^k · Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1} · E_{(i,j)}
+    // with E_{(i,j)} = eq((α′,r′),(α,r)) · ẏ'_{(i,j)}(α′).
+    // We compute the inner sum with correct γ weights; eq_ar keeps it gated.
+    // ---------------------------------------
+    let mut eval_sum = K::ZERO;
+    let k_total = mcs_witnesses.len() + me_witnesses.len();
+    if k_total >= 2 {
         // Precompute γ^k
-        let mut gamma_to_k = K::ONE; for _ in 0..k_total { gamma_to_k *= gamma; }
-        let mut inner = K::ZERO;
+        let mut gamma_to_k = K::ONE;
+        for _ in 0..k_total { gamma_to_k *= ch.gamma; }
+
         for j in 0..s.t() {
-            for (i_abs, Zi) in
-                mcs_witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()).enumerate().skip(1)
+            // vj := M_j^T χ_{r'}
+            let mut vj = vec![K::ZERO; s.m];
+            for row in 0..n_sz {
+                let wr = if row < s.n { chi_r[row] } else { K::ZERO };
+                if wr == K::ZERO { continue; }
+                for c in 0..s.m {
+                    vj[c] += K::from(get_F(&s.matrices[j], row, c)) * wr;
+                }
+            }
+
+            // sum over i ≥ 2 (skip the first instance)
+            for (i_abs, Zi) in mcs_witnesses
+                .iter().map(|w| &w.Z)
+                .chain(me_witnesses.iter())
+                .enumerate()
+                .skip(1)
             {
-                let mut weight = K::ONE; for _ in 0..i_abs { weight *= gamma; } for _ in 0..j { weight *= gamma_to_k; }
-                // literal ẏ'_{(i,j)}(α') = ⟨row α', Z_i M_j^T χ_{r'}⟩; simplify by using ρ=0 as Boolean pick
+                // y_digits = Z_i · vj  (Ajtai digits)
+                let mut y_digits = vec![K::ZERO; D];
+                for rho in 0..D {
+                    let mut acc = K::ZERO;
+                    for c in 0..s.m { acc += K::from(Zi[(rho, c)]) * vj[c]; }
+                    y_digits[rho] = acc;
+                }
+                // ẏ'_{(i,j)}(α′) = ⟨ y_digits, χ_{α′} ⟩
                 let mut y_eval = K::ZERO;
-                for c in 0..s.m { y_eval += K::from(Zi[(0, c)]) * vjs[j][c]; }
-                inner += weight * y_eval;
+                for rho in 0..core::cmp::min(D, d_sz) { y_eval += y_digits[rho] * chi_a[rho]; }
+
+                // weight = γ^{i-1} · (γ^k)^j  (i_abs is 0-based; we skipped 0)
+                let mut weight = K::ONE;
+                for _ in 0..i_abs { weight *= ch.gamma; } // γ^{i-1}
+                for _ in 0..j     { weight *= gamma_to_k; } // (γ^k)^j
+
+                eval_sum += weight * y_eval;
             }
         }
-        gamma_to_k * inner
-    } else { K::ZERO };
+    }
 
-    // LHS: eq((α',r'),β)·(F' + Σ γ^i·N_i') + eval_sum
-    let lhs = {
-        let eq_aprp_beta = eq_points(alpha_prime, &ch.beta_a) * eq_points(r_prime, &ch.beta_r);
-        eq_aprp_beta * (F_lhs + nc_sum) + eval_sum
-    };
+    // Outer γ^k
+    let mut gamma_to_k_outer = K::ONE;
+    for _ in 0..k_total { gamma_to_k_outer *= ch.gamma; }
 
-    // RHS terminal (paper-exact based on outputs) — computed in separate function
-    let rhs = K::ZERO; // not computed here; use rhs_terminal_identity_paper_exact for RHS
-    (lhs, rhs)
+    // Paper-exact assembly of LHS:
+    let lhs = eq_beta * (F_prime + nc_sum) + eq_ar * (gamma_to_k_outer * eval_sum);
+
+    // Preserve existing return shape; RHS not used by callers here.
+    (lhs, K::ZERO)
 }
 
 /// --- Terminal identity (Step 4) -------------------------------------------

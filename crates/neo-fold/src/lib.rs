@@ -21,16 +21,18 @@ pub mod verify_linear;
 pub mod sumcheck;
 /// Π_CCS: Sum-check reduction over extension field K (with submodules)
 pub mod pi_ccs;
+/// Optimized engine implementation for Π_CCS
+pub mod optimized_engine;
 /// Paper-exact reference (slow reference for tests)
 #[cfg(feature = "paper-exact")]
-pub mod paper_exact;
+pub mod paper_exact_engine;
 /// Back-compat alias for old module path
 #[cfg(feature = "paper-exact")]
-pub use paper_exact as pi_ccs_paper_exact;
+pub use paper_exact_engine as pi_ccs_paper_exact;
 
 // Re-export pi_ccs submodules at top level for backward compatibility
-pub use pi_ccs::sparse_matrix;
-pub use pi_ccs::eq_weights;
+pub use optimized_engine::sparse_matrix;
+pub use optimized_engine::eq_weights;
 /// Π_RLC: Random linear combination with S-action
 pub mod pi_rlc;
 /// Π_DEC: Verified split opening (TODO: implement real version)

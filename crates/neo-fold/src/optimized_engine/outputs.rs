@@ -10,9 +10,9 @@
 #![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
-use crate::pi_ccs::precompute::{Inst, pad_to_pow2_k};
-use crate::pi_ccs::eq_weights::{HalfTableEq, spmv_csr_t_weighted_fk};
-use crate::pi_ccs::sparse_matrix::Csr;
+use crate::optimized_engine::precompute::{Inst, pad_to_pow2_k};
+use crate::optimized_engine::eq_weights::{HalfTableEq, spmv_csr_t_weighted_fk};
+use crate::optimized_engine::sparse_matrix::Csr;
 use neo_ccs::{CcsStructure, MeInstance, MatRef, Mat};
 use neo_ajtai::Commitment as Cmt;
 use neo_params::NeoParams;

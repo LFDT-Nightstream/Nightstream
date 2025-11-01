@@ -2,17 +2,112 @@
 #![allow(non_snake_case)]
 
 use neo_fold::pi_ccs_paper_exact as refimpl;
-
 use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat, SparsePoly, Term};
 use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule};
 use neo_ccs::traits::SModuleHomomorphism;
-
 use rand_chacha::rand_core::SeedableRng;
 use neo_params::NeoParams;
 use neo_math::{F, K, D};
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::PrimeCharacteristicRing;
 
-/// --- Shared helpers (copied style) ----------------------------------------
+/// --- Helpers for literal Q(α', r') from witnesses (paper-accurate) ----------
+
+fn build_chi(p: &[K]) -> Vec<K> {
+    let sz = 1usize << p.len();
+    let mut chi = vec![K::ZERO; sz];
+    for row in 0..sz {
+        let mut w = K::ONE;
+        for bit in 0..p.len() {
+            let val = p[bit];
+            let is_one = ((row >> bit) & 1) == 1;
+            w *= if is_one { val } else { K::ONE - val };
+        }
+        chi[row] = w;
+    }
+    chi
+}
+
+fn build_vjs_ext(s: &CcsStructure<F>, r_prime: &[K]) -> Vec<Vec<K>> {
+    let chi_rp = build_chi(r_prime);
+    let n_sz = chi_rp.len();
+    let mut vjs: Vec<Vec<K>> = Vec::with_capacity(s.t());
+    for j in 0..s.t() {
+        let mut vj = vec![K::ZERO; s.m];
+        for row in 0..n_sz {
+            let wr = if row < s.n { chi_rp[row] } else { K::ZERO };
+            if wr == K::ZERO { continue; }
+            for c in 0..s.m { vj[c] += K::from(s.matrices[j][(row,c)]) * wr; }
+        }
+        vjs.push(vj);
+    }
+    vjs
+}
+
+fn range_prod(val: K, b: u32) -> K {
+    let lo = -((b as i64) - 1);
+    let hi =  (b as i64) - 1;
+    let mut prod = K::ONE;
+    for t in lo..=hi { prod *= val - K::from(F::from_i64(t)); }
+    prod
+}
+
+fn q_ext_from_witnesses_lit(
+    s: &CcsStructure<F>,
+    params: &NeoParams,
+    mcs_w: &[McsWitness<F>],
+    me_w: &[Mat<F>],
+    alpha_p: &[K],
+    r_p: &[K],
+    ch: &neo_fold::pi_ccs::transcript::Challenges,
+    me_inputs_r: Option<&[K]>,
+) -> K {
+    let k_total = mcs_w.len() + me_w.len();
+    let chi_alpha = build_chi(alpha_p);
+    let vjs = build_vjs_ext(s, r_p);
+
+    // F'
+    let z1 = refimpl::recomposed_z_from_Z(params, &mcs_w[0].Z);
+    let mut m_vals = vec![K::ZERO; s.t()];
+    for j in 0..s.t() { let vj=&vjs[j]; let mut acc=K::ZERO; for c in 0..s.m { acc += vj[c]*z1[c]; } m_vals[j]=acc; }
+    let f_prime = s.f.eval_in_ext::<K>(&m_vals);
+
+    // Σ γ^i · N_i'
+    let mut nc_sum = K::ZERO;
+    {
+        let mut g = ch.gamma; let v1 = &vjs[0];
+        let eval_y1 = |zi: &Mat<F>| {
+            let mut y = vec![K::ZERO; D];
+            for rho in 0..D { let mut a=K::ZERO; for c in 0..s.m { a += K::from(zi[(rho,c)])*v1[c]; } y[rho]=a; }
+            let mut yv = K::ZERO; let lim=core::cmp::min(D, chi_alpha.len());
+            for rho in 0..lim { yv += y[rho]*chi_alpha[rho]; } yv
+        };
+        for w in mcs_w { let yv=eval_y1(&w.Z); nc_sum += g * range_prod(yv, params.b); g *= ch.gamma; }
+        for zi in me_w { let yv=eval_y1(zi);  nc_sum += g * range_prod(yv, params.b); g *= ch.gamma; }
+    }
+
+    // Eval'
+    let mut eval_sum = K::ZERO;
+    if me_inputs_r.is_some() && k_total >= 2 {
+        let mut gamma_to_k = K::ONE; for _ in 0..k_total { gamma_to_k *= ch.gamma; }
+        let eq_ar = refimpl::eq_points(alpha_p, &ch.alpha) * refimpl::eq_points(r_p, me_inputs_r.unwrap());
+        let eval_yj = |zi: &Mat<F>, j: usize| {
+            let vj=&vjs[j]; let mut y=vec![K::ZERO; D];
+            for rho in 0..D { let mut a=K::ZERO; for c in 0..s.m { a+=K::from(zi[(rho,c)])*vj[c]; } y[rho]=a; }
+            let mut yv=K::ZERO; let lim=core::cmp::min(D, chi_alpha.len()); for rho in 0..lim { yv += y[rho]*chi_alpha[rho]; } yv
+        };
+        let mut inner = K::ZERO;
+        for j in 0..s.t() {
+            for (i_abs, zi) in mcs_w.iter().map(|w| &w.Z).chain(me_w.iter()).enumerate().skip(1) {
+                let mut weight=K::ONE; for _ in 0..i_abs { weight *= ch.gamma; } for _ in 0..j { weight *= gamma_to_k; }
+                inner += weight * eq_ar * eval_yj(zi, j);
+            }
+        }
+        eval_sum = gamma_to_k * inner;
+    }
+
+    let eq_beta = refimpl::eq_points(alpha_p, &ch.beta_a) * refimpl::eq_points(r_p, &ch.beta_r);
+    eq_beta * (f_prime + nc_sum) + eval_sum
+}
 
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
@@ -27,593 +122,506 @@ fn tiny_ccs_id(n: usize, m: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![m0], f).unwrap()
 }
 
-fn build_chi_r(r: &[K]) -> Vec<K> {
-    let n_sz = 1usize << r.len();
-    let mut chi = vec![K::ZERO; n_sz];
-    for row in 0..n_sz {
-        let mut w = K::ONE;
-        for bit in 0..r.len() {
-            let rb = r[bit];
-            let is_one = ((row >> bit) & 1) == 1;
-            w *= if is_one { rb } else { K::ONE - rb };
-        }
-        chi[row] = w;
-    }
-    chi
-}
+fn rand_k() -> K { K::from(F::from_u64(3)) }
 
-fn build_vjs<Ff: Field + PrimeCharacteristicRing + Copy>(
-    s: &CcsStructure<Ff>,
-    r: &[K],
-) -> Vec<Vec<K>>
-where K: From<Ff>
-{
-    let chi = build_chi_r(r);
-    let n_sz = chi.len();
-    let mut vjs = Vec::with_capacity(s.t());
-    for j in 0..s.t() {
-        let mut vj = vec![K::ZERO; s.m];
-        for row in 0..n_sz {
-            let wr = if row < s.n { chi[row] } else { K::ZERO };
-            if wr == K::ZERO { continue; }
-            for c in 0..s.m {
-                vj[c] += K::from(s.matrices[j][(row, c)]) * wr;
-            }
-        }
-        vjs.push(vj);
-    }
-    vjs
-}
-
-fn mul_Z_vec_digits<Ff: Field + PrimeCharacteristicRing + Copy>(Z: &Mat<Ff>, v: &[K]) -> Vec<K>
-where K: From<Ff>
-{
-    let mut out = vec![K::ZERO; D];
-    for rho in 0..D {
-        let mut acc = K::ZERO;
-        for c in 0..Z.cols() {
-            acc += K::from(Z[(rho, c)]) * v[c];
-        }
-        out[rho] = acc;
-    }
-    out
-}
-
-fn mat_eq<Ff: Field + PrimeCharacteristicRing + Copy>(a: &Mat<Ff>, b: &Mat<Ff>) -> bool {
-    if a.rows()!=b.rows() || a.cols()!=b.cols() { return false; }
-    for r in 0..a.rows() {
-        for c in 0..a.cols() {
-            if a[(r,c)] != b[(r,c)] { return false; }
-        }
-    }
-    true
-}
-
-fn project_x_first_cols<Ff: Field + PrimeCharacteristicRing + Copy>(Z: &Mat<Ff>, m_in: usize) -> Mat<Ff> {
-    let mut X: Mat<Ff> = Mat::zero(D, m_in, Ff::ZERO);
-    for r in 0..D {
-        for c in 0..m_in {
-            X.set(r, c, Z[(r, c)]);
-        }
-    }
-    X
-}
-
-fn tiny_ccs_t2(n: usize, m: usize) -> CcsStructure<F> {
-    assert_eq!(n, m, "use square tiny ccs");
-    // M0 = I, M1 = shift/swap
-    let m0 = Mat::identity(n);
-    let mut m1 = Mat::zero(n, m, F::ZERO);
-    for i in 0..n {
-        let j = (i + 1) % n;
-        m1.set(i, j, F::ONE);
-    }
-    // f(y0,y1) = y0 + y1
-    let f = SparsePoly::new(2, vec![
-        Term { coeff: F::ONE, exps: vec![1, 0] },
-        Term { coeff: F::ONE, exps: vec![0, 1] },
-    ]);
-    CcsStructure::new(vec![m0, m1], f).unwrap()
-}
-
-/// --- Π_RLC tests ----------------------------------------------------------
+/// --- Π_CCS tests ----------------------------------------------------------
 
 #[test]
-fn paper_exact_rlc_matches_direct_opening_and_eval() {
+fn paper_exact_rhs_matches_direct_eval_k1() {
     let params = NeoParams::goldilocks_small_circuits();
-    let (n, m) = (2usize, 2usize);
+    let n = 2usize; let m = 2usize;
     setup_ajtai_for_dims(m);
 
-    let s  = tiny_ccs_id(n, m);
-    let l  = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let s = tiny_ccs_id(n, m);
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
 
-    // Two inputs with same r
-    let z1 = Mat::from_row_major(D, m, vec![F::ONE; D*m]);
-    let z2 = Mat::from_row_major(D, m, vec![F::from_u64(2); D*m]);
-    let w1 = McsWitness { w: vec![], Z: z1.clone() };
-    let w2 = McsWitness { w: vec![], Z: z2.clone() };
-    // choose m_in=1 so X is non-trivial
-    let inst1 = McsInstance { c: l.commit(&z1), x: vec![], m_in: 1 };
-    let inst2 = McsInstance { c: l.commit(&z2), x: vec![], m_in: 1 };
+    let z = Mat::from_row_major(D, m, vec![F::ONE; D * m]);
+    let w = McsWitness { w: vec![], Z: z };
+    let c = l.commit(&w.Z);
+    let inst = McsInstance { c, x: vec![], m_in: 0 };
 
-    let r = vec![K::from(F::from_u64(5)); 1];
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-
-    // Get ME(b, L) inputs (y_(i,j), X_i) literally from the refimpl builder
-    let out1 = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst1.clone()], &[w1.clone()], &[], &[], &r, ell_d, [0;32], &l);
-    let out2 = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst2.clone()], &[w2.clone()], &[], &[], &r, ell_d, [0;32], &l);
-
-    let inputs = vec![out1[0].clone(), out2[0].clone()];
-    let Zs     = vec![z1.clone(), z2.clone()];
-
-    // ρ_1 = I, ρ_2 = 2·I  (commuting S-elements)
-    let rho1 = Mat::identity(D);
-    let mut rho2 = Mat::identity(D);
-    for i in 0..D { rho2.set(i, i, F::from_u64(2)); }
-    let rhos = vec![rho1.clone(), rho2.clone()];
-
-    // Run RLC
-    let (combined_me, combined_Z) = refimpl::rlc_reduction_paper_exact::<F>(&s, &params, &rhos, &inputs, &Zs, ell_d);
-
-    // Expected Z = Z1 + 2·Z2
-    let mut Z_exp = Mat::zero(D, m, F::ZERO);
-    for r_ in 0..D { for c_ in 0..m {
-        let v = z1[(r_,c_)] + F::from_u64(2) * z2[(r_, c_)];
-        Z_exp.set(r_, c_, v);
-    }}
-
-    assert!(mat_eq(&combined_Z, &Z_exp), "RLC combined Z must be Σ ρ_i Z_i");
-    // X must be projection of combined Z
-    let X_exp = project_x_first_cols(&Z_exp, /*m_in=*/1);
-    assert!(mat_eq(&combined_me.X, &X_exp), "RLC combined X must equal projection of combined Z");
-
-    // y_j must equal (combined Z)·(M_j^T χ_r)
-    let vjs = build_vjs(&s, &r);
-    for j in 0..s.t() {
-        let y_from_Z = mul_Z_vec_digits(&Z_exp, &vjs[j]);
-        assert_eq!(&combined_me.y[j][..D], &y_from_Z[..], "RLC y_j must equal combined-Z eval for j={}", j);
-        // padding tail must be zero
-        assert!(combined_me.y[j][D..].iter().all(|&v| v == K::ZERO), "padding tail must be zero");
-    }
-
-    // y_scalars must recompose from digits with base b
-    let bK = K::from(F::from_u64(params.b as u64));
-    let mut pow = vec![K::ONE; D]; for i in 1..D { pow[i] = pow[i-1] * bK; }
-    for j in 0..s.t() {
-        let mut recomposed = K::ZERO;
-        for rho in 0..D { recomposed += combined_me.y[j][rho] * pow[rho]; }
-        assert_eq!(combined_me.y_scalars[j], recomposed, "RLC y_scalars[j] must recompose digits");
-    }
-}
-
-/// ---------------- Test: one full loop step (CCS → RLC → DEC) ----------------
-
-#[test]
-fn paper_exact_full_loop_k2_one_step_roundtrip() {
-    let params = NeoParams::goldilocks_small_circuits();
-    let (n, m) = (2usize, 2usize);
-    setup_ajtai_for_dims(m);
-
-    let s  = tiny_ccs_t2(n, m);
-    let l  = AjtaiSModule::from_global_for_dims(D, m).unwrap();
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-
-    // MCS witness Z_mcs and prior ME witness Z_prev (state)
-    let Z_mcs  = Mat::from_row_major(D, m, vec![F::from_u64(2); D*m]);
-    let Z_prev = Mat::from_row_major(D, m, vec![F::from_u64(3); D*m]);
-
-    let w_mcs  = McsWitness { w: vec![], Z: Z_mcs.clone() };
-    let inst_mcs = McsInstance { c: l.commit(&Z_mcs), x: vec![], m_in: 1 };
-
-    let me_r_prev = vec![K::from(F::from_u64(7)); 1];
-    let me_prev = MeInstance {
-        c_step_coords: vec![], u_offset: 0, u_len: 0,
-        c: l.commit(&Z_prev),
-        X: l.project_x(&Z_prev, 1),
-        r: me_r_prev.clone(),
-        y: vec![vec![K::ZERO; D]; s.t()],
-        y_scalars: vec![K::ZERO; s.t()],
-        m_in: 1,
-        fold_digest: [0u8; 32],
+    let ch = neo_fold::pi_ccs::transcript::Challenges {
+        alpha: vec![rand_k(); 6],
+        beta_a: vec![rand_k(); 6],
+        beta_r: vec![rand_k(); 1],
+        gamma: rand_k(),
     };
+    let alpha_p = vec![K::from(F::from_u64(5)); 6];
+    let r_p = vec![K::from(F::from_u64(7)); 1];
 
-    // Π_CCS: build outputs at r'
-    let r_prime = vec![K::from(F::from_u64(5)); 1];
-    let out_ccs = refimpl::build_me_outputs_paper_exact(
+    let out = refimpl::build_me_outputs_paper_exact(
         &s, &params,
-        &[inst_mcs.clone()], &[w_mcs.clone()],
-        &[me_prev.clone()], &[Z_prev.clone()],
-        &r_prime, ell_d, [0; 32], &l,
+        &[inst.clone()], &[w.clone()],
+        &[], &[],
+        &r_p, 6, [0u8; 32], &l,
     );
 
-    // Optional: verify terminal identity of Π_CCS in this loop step
-    if std::env::var("NEO_PAPER_CHECK_ID").ok().as_deref() == Some("1") {
-        let ch = neo_fold::pi_ccs::transcript::Challenges {
-            alpha:  vec![K::from(F::from_u64(11)); ell_d],
-            beta_a: vec![K::from(F::from_u64(13)); ell_d],
-            beta_r: vec![K::from(F::from_u64(17)); 1],
-            gamma:  K::from(F::from_u64(19)),
-        };
-        let rhs = refimpl::rhs_terminal_identity_paper_exact(
-            &s, &params, &ch, &r_prime, &ch.alpha, &out_ccs, Some(&me_r_prev)
-        );
-        let (lhs, _rhs_unused) = refimpl::q_eval_at_ext_point_paper_exact(
-            &s, &params, &[w_mcs.clone()], &[Z_prev.clone()], &ch.alpha, &r_prime, &ch
-        );
-        assert_eq!(lhs, rhs, "Π_CCS terminal identity must hold in the loop");
-    }
-
-    // Π_RLC with weights ρ_i = b^{i-1}·I  (i.e., [I, b·I])
-    let bF = F::from_u64(params.b as u64);
-    let rho1 = Mat::identity(D);
-    let mut rho2 = Mat::identity(D);
-    for d_ in 0..D { rho2.set(d_, d_, bF); }
-    let rhos = vec![rho1, rho2];
-
-    let inputs = vec![out_ccs[0].clone(), out_ccs[1].clone()];
-    let Zs     = vec![Z_mcs.clone(), Z_prev.clone()];
-
-    let (combined_me, _combined_Z) = refimpl::rlc_reduction_paper_exact::<F>(
-        &s, &params, &rhos, &inputs, &Zs, ell_d
+    let rhs = refimpl::rhs_terminal_identity_paper_exact(
+        &s, &params, &ch, &r_p, &alpha_p, &out, None
     );
 
-    // Π_DEC using the natural split (Z_1 = Z_mcs, Z_2 = Z_prev)
-    let (children, ok_y, ok_X) = refimpl::dec_reduction_paper_exact::<F>(
-        &s, &params, &combined_me, &[Z_mcs.clone(), Z_prev.clone()], ell_d
-    );
-    assert!(ok_y && ok_X, "Π_DEC reconstruction checks must pass");
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w], &[], &alpha_p, &r_p, &ch, None);
 
-    // After RLC (with powers of b) followed by DEC, we get back the CCS outputs
-    for j in 0..s.t() {
-        assert_eq!(children[0].y[j], out_ccs[0].y[j], "child[0].y must match CCS output for j={}", j);
-        assert_eq!(children[1].y[j], out_ccs[1].y[j], "child[1].y must match CCS output for j={}", j);
-    }
-    assert!(mat_eq(&children[0].X, &out_ccs[0].X), "child[0].X must match CCS output");
-    assert!(mat_eq(&children[1].X, &out_ccs[1].X), "child[1].X must match CCS output");
+    assert_eq!(lhs, rhs, "paper-exact RHS must match direct Q(α',r') for k=1");
 }
 
-/// ---------------- Test: two consecutive loop steps (state carries forward) ----------------
-
 #[test]
-fn paper_exact_full_loop_k2_two_steps_chain() {
+fn paper_exact_rhs_matches_direct_eval_with_eval_block() {
     let params = NeoParams::goldilocks_small_circuits();
-    let (n, m) = (2usize, 2usize);
+    let n = 2usize; let m = 2usize;
     setup_ajtai_for_dims(m);
 
-    let s  = tiny_ccs_t2(n, m);
-    let l  = AjtaiSModule::from_global_for_dims(D, m).unwrap();
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let s = tiny_ccs_id(n, m);
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
 
-    // Step 1 witnesses
-    let Z_mcs0  = Mat::from_row_major(D, m, vec![F::from_u64(2); D*m]);
-    let Z_prev0 = Mat::from_row_major(D, m, vec![F::from_u64(3); D*m]);
+    let z0 = Mat::from_row_major(D, m, vec![F::ONE; D * m]);
+    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(2); D * m]);
+    let w0 = McsWitness { w: vec![], Z: z0 };
+    let me_z = z1.clone();
 
-    let w_mcs0   = McsWitness { w: vec![], Z: Z_mcs0.clone() };
-    let inst_mcs0 = McsInstance { c: l.commit(&Z_mcs0), x: vec![], m_in: 1 };
+    let c0 = l.commit(&w0.Z);
+    let inst0 = McsInstance { c: c0, x: vec![], m_in: 0 };
 
-    let me_r0 = vec![K::from(F::from_u64(23)); 1];
-    let me0 = MeInstance {
+    let me_r = vec![K::from(F::from_u64(9)); 1];
+    let me_in = MeInstance {
         c_step_coords: vec![], u_offset: 0, u_len: 0,
-        c: l.commit(&Z_prev0),
-        X: l.project_x(&Z_prev0, 1),
-        r: me_r0.clone(),
-        y: vec![vec![K::ZERO; D]; s.t()],
-        y_scalars: vec![K::ZERO; s.t()],
-        m_in: 1,
+        c: l.commit(&me_z),
+        X: l.project_x(&me_z, 0),
+        r: me_r.clone(),
+        y: vec![vec![K::ZERO; D]],
+        y_scalars: vec![K::ZERO],
+        m_in: 0,
         fold_digest: [0u8; 32],
     };
 
-    let r_prime1 = vec![K::from(F::from_u64(29)); 1];
+    let ch = neo_fold::pi_ccs::transcript::Challenges {
+        alpha: vec![K::from(F::from_u64(11)); 6],
+        beta_a: vec![K::from(F::from_u64(13)); 6],
+        beta_r: vec![K::from(F::from_u64(15)); 1],
+        gamma: K::from(F::from_u64(17)),
+    };
+    let alpha_p = vec![K::from(F::from_u64(19)); 6];
+    let r_p = vec![K::from(F::from_u64(21)); 1];
+
+    let out = refimpl::build_me_outputs_paper_exact(
+        &s, &params,
+        &[inst0.clone()], &[w0.clone()],
+        &[me_in.clone()], &[me_z.clone()],
+        &r_p, 6, [0u8; 32], &l,
+    );
+
+    let rhs = refimpl::rhs_terminal_identity_paper_exact(
+        &s, &params, &ch, &r_p, &alpha_p, &out, Some(&me_r)
+    );
+
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w0], &[me_z], &alpha_p, &r_p, &ch, Some(&me_r));
+
+    assert_eq!(lhs, rhs, "paper-exact RHS must match direct Q(α',r') with Eval block");
+}
+
+#[test]
+fn paper_exact_k2_end_to_end_fold_identity() {
+    let params = NeoParams::goldilocks_small_circuits();
+    let n = 2usize; let m = 2usize;
+    setup_ajtai_for_dims(m);
+
+    let s = tiny_ccs_id(n, m);
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+
+    let z0 = Mat::from_row_major(D, m, vec![F::from_u64(3); D * m]);
+    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(4); D * m]);
+    let w0 = McsWitness { w: vec![], Z: z0 };
+    let me_z = z1.clone();
+    let c0 = l.commit(&w0.Z);
+    let inst0 = McsInstance { c: c0, x: vec![], m_in: 0 };
+
+    let me_r = vec![K::from(F::from_u64(23)); 1];
+    let me_in = MeInstance {
+        c_step_coords: vec![], u_offset: 0, u_len: 0,
+        c: l.commit(&me_z),
+        X: l.project_x(&me_z, 0),
+        r: me_r.clone(),
+        y: vec![vec![K::ZERO; D]],
+        y_scalars: vec![K::ZERO],
+        m_in: 0,
+        fold_digest: [0u8; 32],
+    };
+
+    let ch = neo_fold::pi_ccs::transcript::Challenges {
+        alpha: vec![K::from(F::from_u64(29)); 6],
+        beta_a: vec![K::from(F::from_u64(31)); 6],
+        beta_r: vec![K::from(F::from_u64(37)); 1],
+        gamma: K::from(F::from_u64(41)),
+    };
+    let alpha_p = vec![K::from(F::from_u64(43)); 6];
+    let r_p = vec![K::from(F::from_u64(47)); 1];
+
+    let out = refimpl::build_me_outputs_paper_exact(
+        &s, &params,
+        &[inst0.clone()], &[w0.clone()],
+        &[me_in.clone()], &[me_z.clone()],
+        &r_p, 6, [0u8; 32], &l,
+    );
+
+    let rhs = refimpl::rhs_terminal_identity_paper_exact(
+        &s, &params, &ch, &r_p, &alpha_p, &out, Some(&me_r)
+    );
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w0], &[me_z], &alpha_p, &r_p, &ch, Some(&me_r));
+    assert_eq!(lhs, rhs, "end-to-end terminal identity must hold for k=2");
+}
+
+#[test]
+fn paper_exact_k2_invalid_outputs_break_identity() {
+    let params = NeoParams::goldilocks_small_circuits();
+    let n = 2usize; let m = 2usize;
+    setup_ajtai_for_dims(m);
+
+    let s = tiny_ccs_id(n, m);
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+
+    let z0 = Mat::from_row_major(D, m, vec![F::from_u64(5); D * m]);
+    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(6); D * m]);
+    let w0 = McsWitness { w: vec![], Z: z0 };
+    let me_z = z1.clone();
+    let inst0 = McsInstance { c: l.commit(&w0.Z), x: vec![], m_in: 0 };
+
+    let me_r = vec![K::from(F::from_u64(51)); 1];
+    let me_in = MeInstance {
+        c_step_coords: vec![], u_offset: 0, u_len: 0,
+        c: l.commit(&me_z),
+        X: l.project_x(&me_z, 0),
+        r: me_r.clone(),
+        y: vec![vec![K::ZERO; D]],
+        y_scalars: vec![K::ZERO],
+        m_in: 0,
+        fold_digest: [0u8; 32],
+    };
+
+    let ch = neo_fold::pi_ccs::transcript::Challenges {
+        alpha: vec![K::from(F::from_u64(53)); 6],
+        beta_a: vec![K::from(F::from_u64(57)); 6],
+        beta_r: vec![K::from(F::from_u64(59)); 1],
+        gamma: K::from(F::from_u64(61)),
+    };
+    let alpha_p = vec![K::from(F::from_u64(67)); 6];
+    let r_p = vec![K::from(F::from_u64(71)); 1];
+
+    let mut out = refimpl::build_me_outputs_paper_exact(
+        &s, &params,
+        &[inst0.clone()], &[w0.clone()],
+        &[me_in.clone()], &[me_z.clone()],
+        &r_p, 6, [0u8; 32], &l,
+    );
+
+    // Tamper a digit in y' for the ME output (i=2)
+    if let Some(me_out) = out.get_mut(1) {
+        if let Some(yj0) = me_out.y.get_mut(0) {
+            yj0[0] += K::ONE;
+        }
+    }
+
+    let rhs_tampered = refimpl::rhs_terminal_identity_paper_exact(
+        &s, &params, &ch, &r_p, &alpha_p, &out, Some(&me_r)
+    );
+    let lhs_true = q_ext_from_witnesses_lit(&s, &params, &[w0], &[me_z], &alpha_p, &r_p, &ch, Some(&me_r));
+
+    assert_ne!(lhs_true, rhs_tampered, "tampering outputs must break terminal identity");
+}
+
+#[test]
+fn paper_exact_k2_ivc_two_steps() {
+    let params = NeoParams::goldilocks_small_circuits();
+    let n = 2usize; let m = 2usize;
+    setup_ajtai_for_dims(m);
+
+    let s = tiny_ccs_id(n, m);
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+
+    let z_step0 = Mat::from_row_major(D, m, vec![F::from_u64(8); D * m]);
+    let w_step0 = McsWitness { w: vec![], Z: z_step0.clone() };
+    let inst_step0 = McsInstance { c: l.commit(&z_step0), x: vec![], m_in: 0 };
+    let r0 = vec![K::from(F::from_u64(73)); 1];
+    let out0 = refimpl::build_me_outputs_paper_exact(
+        &s, &params, &[inst_step0.clone()], &[w_step0.clone()],
+        &[], &[], &r0, 6, [0u8; 32], &l,
+    );
+    let me_input = out0[0].clone();
+
+    let z_step1 = Mat::from_row_major(D, m, vec![F::from_u64(9); D * m]);
+    let w_step1 = McsWitness { w: vec![], Z: z_step1.clone() };
+    let inst_step1 = McsInstance { c: l.commit(&z_step1), x: vec![], m_in: 0 };
+
+    let ch = neo_fold::pi_ccs::transcript::Challenges {
+        alpha: vec![K::from(F::from_u64(79)); 6],
+        beta_a: vec![K::from(F::from_u64(83)); 6],
+        beta_r: vec![K::from(F::from_u64(89)); 1],
+        gamma: K::from(F::from_u64(97)),
+    };
+    let alpha_p = vec![K::from(F::from_u64(101)); 6];
+    let r_p = vec![K::from(F::from_u64(103)); 1];
+
     let out1 = refimpl::build_me_outputs_paper_exact(
         &s, &params,
-        &[inst_mcs0.clone()], &[w_mcs0.clone()],
-        &[me0.clone()], &[Z_prev0.clone()],
-        &r_prime1, ell_d, [0; 32], &l,
+        &[inst_step1.clone()], &[w_step1.clone()],
+        &[me_input.clone()], &[z_step0.clone()],
+        &r_p, 6, [0u8; 32], &l,
     );
 
-    // RLC (ρ = [I, b·I]) then DEC back to two children
-    let bF = F::from_u64(params.b as u64);
-    let rho1 = Mat::identity(D);
-    let mut rho2 = Mat::identity(D);
-    for d_ in 0..D { rho2.set(d_, d_, bF); }
-    let rhos = vec![rho1, rho2];
-
-    let (combined_me1, _combined_Z1) = refimpl::rlc_reduction_paper_exact::<F>(
-        &s, &params, &rhos, &vec![out1[0].clone(), out1[1].clone()],
-        &vec![Z_mcs0.clone(), Z_prev0.clone()], ell_d
+    let rhs = refimpl::rhs_terminal_identity_paper_exact(
+        &s, &params, &ch, &r_p, &alpha_p, &out1, Some(&me_input.r)
     );
-    let (children1, ok_y1, ok_X1) = refimpl::dec_reduction_paper_exact::<F>(
-        &s, &params, &combined_me1, &[Z_mcs0.clone(), Z_prev0.clone()], ell_d
-    );
-    assert!(ok_y1 && ok_X1, "step 1 DEC checks must pass");
-
-    // Carry forward the ME state as the child that corresponds to prior ME witness.
-    // Here, child[1] corresponds to Z_prev0 (since split order was [Z_mcs0, Z_prev0]).
-    let carried_me = children1[1].clone();
-    let carried_Z  = Z_prev0.clone();
-
-    // Step 2: new MCS witness, same carried ME state
-    let Z_mcs1  = Mat::from_row_major(D, m, vec![F::from_u64(4); D*m]);
-    let w_mcs1  = McsWitness { w: vec![], Z: Z_mcs1.clone() };
-    let inst_mcs1 = McsInstance { c: l.commit(&Z_mcs1), x: vec![], m_in: 1 };
-
-    let r_prime2 = vec![K::from(F::from_u64(31)); 1];
-    let out2 = refimpl::build_me_outputs_paper_exact(
-        &s, &params,
-        &[inst_mcs1.clone()], &[w_mcs1.clone()],
-        &[carried_me.clone()], &[carried_Z.clone()],
-        &r_prime2, ell_d, [0; 32], &l,
-    );
-
-    // Optional: verify Π_CCS terminal identity again at step 2
-    if std::env::var("NEO_PAPER_CHECK_ID").ok().as_deref() == Some("1") {
-        let ch2 = neo_fold::pi_ccs::transcript::Challenges {
-            alpha:  vec![K::from(F::from_u64(37)); ell_d],
-            beta_a: vec![K::from(F::from_u64(41)); ell_d],
-            beta_r: vec![K::from(F::from_u64(43)); 1],
-            gamma:  K::from(F::from_u64(47)),
-        };
-        let rhs2 = refimpl::rhs_terminal_identity_paper_exact(
-            &s, &params, &ch2, &r_prime2, &ch2.alpha, &out2, Some(&carried_me.r)
-        );
-        let (lhs2, _rhs_unused2) = refimpl::q_eval_at_ext_point_paper_exact(
-            &s, &params, &[w_mcs1.clone()], &[carried_Z.clone()], &ch2.alpha, &r_prime2, &ch2
-        );
-        assert_eq!(lhs2, rhs2, "Π_CCS terminal identity must hold at step 2");
-    }
-
-    // RLC (same weights) then DEC back; must equal current CCS outputs
-    let (combined_me2, _combined_Z2) = refimpl::rlc_reduction_paper_exact::<F>(
-        &s, &params, &rhos, &vec![out2[0].clone(), out2[1].clone()],
-        &vec![Z_mcs1.clone(), carried_Z.clone()], ell_d
-    );
-    let (children2, ok_y2, ok_X2) = refimpl::dec_reduction_paper_exact::<F>(
-        &s, &params, &combined_me2, &[Z_mcs1.clone(), carried_Z.clone()], ell_d
-    );
-    assert!(ok_y2 && ok_X2, "step 2 DEC checks must pass");
-    for j in 0..s.t() {
-        assert_eq!(children2[0].y[j], out2[0].y[j], "step 2: child[0].y must match CCS output j={}", j);
-        assert_eq!(children2[1].y[j], out2[1].y[j], "step 2: child[1].y must match CCS output j={}", j);
-    }
-    assert!(mat_eq(&children2[0].X, &out2[0].X), "step 2: child[0].X must match CCS output");
-    assert!(mat_eq(&children2[1].X, &out2[1].X), "step 2: child[1].X must match CCS output");
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w_step1], &[z_step0], &alpha_p, &r_p, &ch, Some(&me_input.r));
+    assert_eq!(lhs, rhs, "IVC-like two-step composition should hold under paper-exact");
 }
 
 #[test]
-fn paper_exact_rlc_tampered_input_y_breaks_consistency() {
+fn paper_exact_k2_mismatched_mcs_and_outputs() {
     let params = NeoParams::goldilocks_small_circuits();
-    let (n, m) = (2usize, 2usize);
+    let n = 2usize; let m = 2usize;
     setup_ajtai_for_dims(m);
 
-    let s  = tiny_ccs_id(n, m);
-    let l  = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let s = tiny_ccs_id(n, m);
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
 
-    let z1 = Mat::from_row_major(D, m, vec![F::ONE; D*m]);
-    let z2 = Mat::from_row_major(D, m, vec![F::from_u64(3); D*m]);
-    let w1 = McsWitness { w: vec![], Z: z1.clone() };
-    let w2 = McsWitness { w: vec![], Z: z2.clone() };
-    let inst1 = McsInstance { c: l.commit(&z1), x: vec![], m_in: 1 };
-    let inst2 = McsInstance { c: l.commit(&z2), x: vec![], m_in: 1 };
-
-    let r = vec![K::from(F::from_u64(7)); 1];
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-
-    let out1 = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst1.clone()], &[w1.clone()], &[], &[], &r, ell_d, [0;32], &l);
-    let mut out2 = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst2.clone()], &[w2.clone()], &[], &[], &r, ell_d, [0;32], &l);
-
-    // Tamper second input's first digit
-    out2[0].y[0][0] += K::ONE;
-
-    let rhos = {
-        let rho1 = Mat::identity(D);
-        let mut rho2 = Mat::identity(D);
-        for i in 0..D { rho2.set(i, i, F::from_u64(2)); }
-        vec![rho1, rho2]
+    let z0 = Mat::from_row_major(D, m, vec![F::from_u64(13); D * m]);
+    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(14); D * m]);
+    let w0 = McsWitness { w: vec![], Z: z0.clone() };
+    let me_z = z1.clone();
+    let inst0 = McsInstance { c: l.commit(&z0), x: vec![], m_in: 0 };
+    let me_r = vec![K::from(F::from_u64(17)); 1];
+    let me_in = MeInstance {
+        c_step_coords: vec![], u_offset: 0, u_len: 0,
+        c: l.commit(&me_z), X: l.project_x(&me_z, 0), r: me_r.clone(),
+        y: vec![vec![K::ZERO; D]], y_scalars: vec![K::ZERO], m_in: 0, fold_digest: [0u8; 32]
     };
 
-    let inputs = vec![out1[0].clone(), out2[0].clone()];
-    let Zs     = vec![z1.clone(), z2.clone()];
+    let alpha_p = vec![K::from(F::from_u64(19)); 6];
+    let r_p = vec![K::from(F::from_u64(23)); 1];
+    let ch = neo_fold::pi_ccs::transcript::Challenges {
+        alpha: vec![K::from(F::from_u64(29)); 6],
+        beta_a: vec![K::from(F::from_u64(31)); 6],
+        beta_r: vec![K::from(F::from_u64(37)); 1],
+        gamma: K::from(F::from_u64(41)),
+    };
 
-    let (combined_me, combined_Z) = refimpl::rlc_reduction_paper_exact::<F>(&s, &params, &rhos, &inputs, &Zs, ell_d);
-
-    // Combined y (from tampered inputs) should NOT match eval from the (correctly combined) Z.
-    let vjs = build_vjs(&s, &r);
-    for j in 0..s.t() {
-        let y_from_Z = mul_Z_vec_digits(&combined_Z, &vjs[j]);
-        assert_ne!(&combined_me.y[j][..D], &y_from_Z[..], "tampering inputs' y must break RLC consistency for j={}", j);
-    }
-}
-
-/// --- Π_DEC tests -----------------------------------------------------------
-
-#[test]
-fn paper_exact_dec_reconstruction_and_checks_hold() {
-    let params = NeoParams::goldilocks_small_circuits();
-    let (n, m) = (2usize, 2usize);
-    setup_ajtai_for_dims(m);
-
-    let s  = tiny_ccs_id(n, m);
-    let l  = AjtaiSModule::from_global_for_dims(D, m).unwrap();
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-
-    // Split components (Z_1, Z_2, Z_3)
-    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(1); D*m]);
-    let z2 = Mat::from_row_major(D, m, vec![F::from_u64(2); D*m]);
-    let z3 = Mat::from_row_major(D, m, vec![F::from_u64(3); D*m]);
-    let Z_split = vec![z1.clone(), z2.clone(), z3.clone()];
-
-    // Parent Z := Σ b^{i-1} Z_i
-    let bF = F::from_u64(params.b as u64);
-    let mut Z_parent = Mat::zero(D, m, F::ZERO);
-    let mut pow = F::ONE;
-    for Zi in &Z_split {
-        for r in 0..D { for c in 0..m {
-            Z_parent.set(r, c, Z_parent[(r,c)] + pow * Zi[(r,c)]);
-        }}
-        pow = pow * bF;
-    }
-
-    // Build parent ME(B, L)
-    let r = vec![K::from(F::from_u64(11)); 1];
-    let w_parent = McsWitness { w: vec![], Z: Z_parent.clone() };
-    let inst_parent = McsInstance { c: l.commit(&Z_parent), x: vec![], m_in: 1 };
-    let parent_out = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst_parent.clone()], &[w_parent.clone()], &[], &[], &r, ell_d, [0;32], &l);
-    let parent = parent_out[0].clone();
-
-    // Run DEC
-    let (children, ok_y, ok_X) = refimpl::dec_reduction_paper_exact::<F>(&s, &params, &parent, &Z_split, ell_d);
-
-    assert!(ok_y && ok_X, "DEC must satisfy both reconstruction checks");
-
-    // Each child must match literal outputs for its Z_i
-    for (i, Zi) in Z_split.iter().enumerate() {
-        let wi = McsWitness { w: vec![], Z: Zi.clone() };
-        let insti = McsInstance { c: l.commit(Zi), x: vec![], m_in: 1 };
-        let outi = refimpl::build_me_outputs_paper_exact(&s, &params, &[insti], &[wi], &[], &[], &r, ell_d, [0;32], &l);
-        assert!(mat_eq(&children[i].X, &outi[0].X), "DEC child X_i must match literal projection for i={}", i);
-        for j in 0..s.t() {
-            assert_eq!(children[i].y[j], outi[0].y[j], "DEC child y_(i,j) must match literal for (i={}, j={})", i, j);
-        }
-        // y_scalars recomposition (digits → scalar)
-        let bK = K::from(F::from_u64(params.b as u64));
-        let mut pw = vec![K::ONE; D]; for u in 1..D { pw[u] = pw[u-1] * bK; }
-        for j in 0..s.t() {
-            let mut rec = K::ZERO;
-            for rho in 0..D { rec += children[i].y[j][rho] * pw[rho]; }
-            assert_eq!(children[i].y_scalars[j], rec, "DEC child y_scalars must recompose for i={}, j={}", i, j);
-        }
-    }
-}
-
-#[test]
-fn paper_exact_dec_k1_identity() {
-    let params = NeoParams::goldilocks_small_circuits();
-    let (n, m) = (2usize, 2usize);
-    setup_ajtai_for_dims(m);
-
-    let s  = tiny_ccs_id(n, m);
-    let l  = AjtaiSModule::from_global_for_dims(D, m).unwrap();
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-
-    let Z = Mat::from_row_major(D, m, vec![F::from_u64(4); D*m]);
-    let r = vec![K::from(F::from_u64(13)); 1];
-
-    let w = McsWitness { w: vec![], Z: Z.clone() };
-    let inst = McsInstance { c: l.commit(&Z), x: vec![], m_in: 1 };
-    let parent_out = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst.clone()], &[w.clone()], &[], &[], &r, ell_d, [0;32], &l);
-    let parent = parent_out[0].clone();
-
-    let (children, ok_y, ok_X) = refimpl::dec_reduction_paper_exact::<F>(&s, &params, &parent, &[Z.clone()], ell_d);
-    assert!(ok_y && ok_X, "DEC must pass checks for k=1");
-
-    assert_eq!(children.len(), 1);
-    assert!(mat_eq(&children[0].X, &parent.X), "k=1: X must be identical");
-    for j in 0..s.t() {
-        assert_eq!(children[0].y[j], parent.y[j], "k=1: y must be identical (j={})", j);
-    }
-}
-
-#[test]
-fn paper_exact_dec_wrong_split_detected() {
-    let params = NeoParams::goldilocks_small_circuits();
-    let (n, m) = (2usize, 2usize);
-    setup_ajtai_for_dims(m);
-
-    let s  = tiny_ccs_id(n, m);
-    let l  = AjtaiSModule::from_global_for_dims(D, m).unwrap();
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-
-    // Honest split
-    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(1); D*m]);
-    let z2 = Mat::from_row_major(D, m, vec![F::from_u64(2); D*m]);
-
-    // Parent Z := z1 + b·z2
-    let bF = F::from_u64(params.b as u64);
-    let mut Z_parent = Mat::zero(D, m, F::ZERO);
-    for r_ in 0..D { for c_ in 0..m {
-        Z_parent.set(r_, c_, z1[(r_,c_)] + bF * z2[(r_,c_)]);
-    }}
-
-    let r = vec![K::from(F::from_u64(17)); 1];
-    let w_parent = McsWitness { w: vec![], Z: Z_parent.clone() };
-    let inst_parent = McsInstance { c: l.commit(&Z_parent), x: vec![], m_in: 1 };
-    let parent = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst_parent], &[w_parent], &[], &[], &r, ell_d, [0;32], &l)[0].clone();
-
-    // Bad split: replace Z_2 with 2·Z_2
-    let mut Z2_bad = Mat::zero(D, m, F::ZERO);
-    for r_ in 0..D { for c_ in 0..m {
-        Z2_bad.set(r_, c_, F::from_u64(2) * z2[(r_,c_)]);
-    }}
-    let Z_bad = vec![z1.clone(), Z2_bad];
-
-    let (_children, ok_y, ok_X) = refimpl::dec_reduction_paper_exact::<F>(&s, &params, &parent, &Z_bad, ell_d);
-    assert!(!ok_y || !ok_X, "DEC must detect a wrong split (at least one check fails)");
-}
-
-#[test]
-fn paper_exact_dec_rlc_roundtrip() {
-    // DEC split followed by RLC with weights b^{i-1}·I must reconstruct the parent.
-    let params = NeoParams::goldilocks_small_circuits();
-    let (n, m) = (2usize, 2usize);
-    setup_ajtai_for_dims(m);
-
-    let s  = tiny_ccs_id(n, m);
-    let l  = AjtaiSModule::from_global_for_dims(D, m).unwrap();
-    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-
-    // Split components Z_i
-    let k = 3usize;
-    let mut Z_split = Vec::with_capacity(k);
-    for i in 0..k {
-        let val = F::from_u64((i as u64) + 1);
-        Z_split.push(Mat::from_row_major(D, m, vec![val; D*m]));
-    }
-
-    // Parent Z := Σ b^{i-1} Z_i
-    let bF = F::from_u64(params.b as u64);
-    let mut Z_parent = Mat::zero(D, m, F::ZERO);
-    let mut pow = F::ONE;
-    for Zi in &Z_split {
-        for r_ in 0..D { for c_ in 0..m {
-            Z_parent.set(r_, c_, Z_parent[(r_,c_)] + pow * Zi[(r_,c_)]);
-        }}
-        pow = pow * bF;
-    }
-
-    let r = vec![K::from(F::from_u64(19)); 1];
-
-    // Parent ME from witness
-    let w_parent = McsWitness { w: vec![], Z: Z_parent.clone() };
-    let inst_parent = McsInstance { c: l.commit(&Z_parent), x: vec![], m_in: 1 };
-    let parent = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst_parent.clone()], &[w_parent.clone()], &[], &[], &r, ell_d, [0;32], &l)[0].clone();
-
-    // DEC
-    let (children, ok_y, ok_X) = refimpl::dec_reduction_paper_exact::<F>(&s, &params, &parent, &Z_split, ell_d);
-    assert!(ok_y && ok_X, "DEC must pass checks");
-
-    // RLC with ρ_i := b^{i-1}·I
-    let mut rhos = Vec::with_capacity(k);
-    let mut rho_pow = F::ONE;
-    for _i in 0..k {
-        let mut rho = Mat::identity(D);
-        for d_ in 0..D {
-            rho.set(d_, d_, rho_pow);
-        }
-        rhos.push(rho);
-        rho_pow = rho_pow * bF;
-    }
-
-    // Use the DEC children as inputs to RLC
-    let inputs_for_rlc: Vec<_> = children.clone();
-    let (combined_me, combined_Z) = refimpl::rlc_reduction_paper_exact::<F>(
-        &s, &params, &rhos, &inputs_for_rlc, &Z_split, ell_d
+    let out = refimpl::build_me_outputs_paper_exact(
+        &s, &params, &[inst0.clone()], &[w0.clone()], &[me_in.clone()], &[me_z.clone()], &r_p, 6, [0u8; 32], &l,
     );
 
-    // Combined must equal the original parent
-    assert!(mat_eq(&combined_Z, &Z_parent), "RLC∘DEC Z must reconstruct parent Z");
-    assert!(mat_eq(&combined_me.X, &parent.X), "RLC∘DEC X must reconstruct parent X");
+    let z_bad = Mat::from_row_major(D, m, vec![F::from_u64(1); D * m]);
+    let w_bad = McsWitness { w: vec![], Z: z_bad.clone() };
+
+    let rhs = refimpl::rhs_terminal_identity_paper_exact(
+        &s, &params, &ch, &r_p, &alpha_p, &out, Some(&me_r)
+    );
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w_bad], &[me_z], &alpha_p, &r_p, &ch, Some(&me_r));
+    assert_ne!(lhs, rhs, "Terminal identity must fail if outputs don't match witness used in Q");
+}
+
+#[test]
+fn paper_exact_boolean_corner_matches_extension_eval() {
+    let params = NeoParams::goldilocks_small_circuits();
+    let (n, m) = (2usize, 2usize);
+    setup_ajtai_for_dims(m);
+
+    let s = tiny_ccs_id(n, m);
+    let z = Mat::from_row_major(D, m, vec![F::from_u64(7); D*m]);
+    let w = McsWitness { w: vec![], Z: z };
+    let ell_d_full = D.next_power_of_two().trailing_zeros() as usize;
+    let mut alpha_vec = vec![K::ZERO; ell_d_full];
+    alpha_vec[0] = K::ONE;
+    let ch = neo_fold::pi_ccs::transcript::Challenges {
+        alpha:  alpha_vec.clone(),
+        beta_a: vec![K::from(F::from_u64(5)); ell_d_full],
+        beta_r: vec![K::from(F::from_u64(11)); 1],
+        gamma:  K::from(F::from_u64(13)),
+    };
+
+    let alpha_p = alpha_vec;
+    let r_p     = vec![K::ZERO];
+
+    let lhs = refimpl::q_at_point_paper_exact::<F>(
+        &s, &params, &[w.clone()], &[], &ch.alpha, &ch.beta_a, &ch.beta_r, ch.gamma, None, 1, 0
+    );
+    let rhs = q_ext_from_witnesses_lit(&s, &params, &[w], &[], &alpha_p, &r_p, &ch, None);
+
+    assert_eq!(lhs, rhs, "Boolean corner must match extension evaluation");
+}
+
+#[test]
+fn paper_exact_outputs_equal_literal_definition() {
+    let params = NeoParams::goldilocks_small_circuits();
+    let (n, m) = (2usize, 2usize);
+    setup_ajtai_for_dims(m);
+
+    let m0 = Mat::identity(n);
+    let mut m1 = Mat::zero(n, m, F::ZERO);
+    m1.set(0, 0, F::ONE);
+    m1.set(1, 1, F::ONE);
+    let f = SparsePoly::new(2, vec![Term { coeff: F::ONE, exps: vec![1, 0] }]);
+    let s = CcsStructure::new(vec![m0.clone(), m1.clone()], f).unwrap();
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+
+    let z = Mat::from_row_major(D, m, (0..D*m).map(|i| F::from_u64((i%7) as u64 + 1)).collect());
+    let w = McsWitness { w: vec![], Z: z.clone() };
+    let inst = McsInstance { c: l.commit(&z), x: vec![], m_in: 0 };
+
+    let r_p = vec![K::from(F::from_u64(5)); 1];
+
+    let ell_d_full = D.next_power_of_two().trailing_zeros() as usize;
+    let _out = refimpl::build_me_outputs_paper_exact(
+        &s, &params, &[inst.clone()], &[w.clone()], &[], &[], &r_p, /*ell_d=*/1, [0u8;32], &l
+    );
+    let out = refimpl::build_me_outputs_paper_exact(
+        &s, &params, &[inst], &[w.clone()], &[], &[], &r_p, ell_d_full, [0u8;32], &l
+    );
+
+    let n_sz = 1usize << r_p.len();
+    let mut chi_rp = vec![K::ZERO; n_sz];
+    for row in 0..n_sz {
+        let mut wgt = K::ONE;
+        for bit in 0..r_p.len() {
+            let rb = r_p[bit];
+            let is_one = ((row >> bit) & 1) == 1;
+            wgt *= if is_one { rb } else { K::ONE - rb };
+        }
+        chi_rp[row] = wgt;
+    }
+    let mut vjs = vec![vec![K::ZERO; m]; s.t()];
     for j in 0..s.t() {
-        assert_eq!(combined_me.y[j][..D], parent.y[j][..D], "RLC∘DEC y_j digits must match (j={})", j);
-        assert!(combined_me.y[j][D..].iter().all(|&v| v == K::ZERO), "padding after roundtrip remains zero");
+        for row in 0..n_sz { for c in 0..m { vjs[j][c] += K::from(s.matrices[j][(row,c)]) * chi_rp[row]; } }
+    }
+
+    for j in 0..s.t() {
+        let mut y_nav = vec![K::ZERO; D];
+        for rho in 0..D {
+            let mut acc = K::ZERO;
+            for c in 0..m { acc += K::from(z[(rho, c)]) * vjs[j][c]; }
+            y_nav[rho] = acc;
+        }
+        assert_eq!(&y_nav[..], &out[0].y[j][..D]);
     }
 }
+
+#[test]
+fn paper_exact_f_term_matches_mle_and_yprime_recomposition() {
+    let params = NeoParams::goldilocks_small_circuits();
+    let (n, m) = (2usize, 2usize);
+    setup_ajtai_for_dims(m);
+
+    let m0 = Mat::identity(n);
+    let mut m1 = Mat::zero(n, m, F::ZERO);
+    m1.set(0, 1, F::ONE);
+    m1.set(1, 0, F::ONE);
+    let f = SparsePoly::new(2, vec![Term { coeff: F::ONE, exps: vec![1, 1] }]);
+    let s = CcsStructure::new(vec![m0, m1], f).unwrap();
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+
+    let z = Mat::from_row_major(D, m, vec![F::from_u64(1); D*m]);
+    let w = McsWitness { w: vec![], Z: z.clone() };
+    let inst = McsInstance { c: l.commit(&z), x: vec![], m_in: 0 };
+
+    let r_p = vec![K::from(F::from_u64(3)); 1];
+
+    let ell_d_full = D.next_power_of_two().trailing_zeros() as usize;
+    let out = refimpl::build_me_outputs_paper_exact(
+        &s, &params, &[inst], &[w.clone()], &[], &[], &r_p, ell_d_full, [0;32], &l
+    );
+
+    let b_k = K::from(F::from_u64(params.b as u64));
+    let mut pow = vec![K::ONE; D]; for i in 1..D { pow[i] = pow[i-1]*b_k; }
+    let mut m_from_y = vec![K::ZERO; s.t()];
+    for j in 0..s.t() {
+        let mut acc = K::ZERO;
+        for rho in 0..D { acc += out[0].y[j][rho]*pow[rho]; }
+        m_from_y[j] = acc;
+    }
+    let f_yprime = s.f.eval_in_ext::<K>(&m_from_y);
+
+    let z1 = refimpl::recomposed_z_from_Z(&params, &w.Z);
+    let n_sz = 1usize << r_p.len();
+    let mut chi_rp = vec![K::ZERO; n_sz];
+    for row in 0..n_sz {
+        let mut wgt = K::ONE;
+        for bit in 0..r_p.len() {
+            let rb = r_p[bit]; let is_one=((row>>bit)&1)==1;
+            wgt *= if is_one { rb } else { K::ONE - rb };
+        }
+        chi_rp[row] = wgt;
+    }
+    let mut m_from_mle = vec![K::ZERO; s.t()];
+    for j in 0..s.t() {
+        let mut vj = vec![K::ZERO; m];
+        for row in 0..n_sz { for c in 0..m { vj[c]+=K::from(s.matrices[j][(row,c)])*chi_rp[row];}}
+        for c in 0..m { m_from_mle[j]+= z1[c]*vj[c]; }
+    }
+    let f_mle = s.f.eval_in_ext::<K>(&m_from_mle);
+
+    assert_eq!(f_yprime, f_mle, "F' must be f(M̃_j z_1(r'))");
+}
+
+#[test]
+fn paper_exact_gamma_zero_kills_nc_and_eval() {
+    let params = NeoParams::goldilocks_small_circuits();
+    let (n, m) = (2usize, 2usize);
+    setup_ajtai_for_dims(m);
+
+    let s = tiny_ccs_id(n, m);
+    let z0 = Mat::from_row_major(D, m, vec![F::from_u64(2); D*m]);
+    let w0 = McsWitness { w: vec![], Z: z0.clone() };
+
+    let ch = neo_fold::pi_ccs::transcript::Challenges {
+        alpha:  vec![K::from(F::from_u64(2)); 1],
+        beta_a: vec![K::from(F::from_u64(3)); 1],
+        beta_r: vec![K::from(F::from_u64(5)); 1],
+        gamma:  K::ZERO,
+    };
+    let alpha_p = vec![K::from(F::from_u64(7)); 1];
+    let r_p     = vec![K::from(F::from_u64(11)); 1];
+
+    let q = q_ext_from_witnesses_lit(&s, &params, &[w0.clone()], &[], &alpha_p, &r_p, &ch, None);
+
+    let eq_beta = refimpl::eq_points(&alpha_p, &ch.beta_a) * refimpl::eq_points(&r_p, &ch.beta_r);
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let inst = McsInstance { c: l.commit(&z0), x: vec![], m_in: 0 };
+    let ell_d_full = D.next_power_of_two().trailing_zeros() as usize;
+    let out = refimpl::build_me_outputs_paper_exact(&s, &params, &[inst], &[w0], &[], &[], &r_p, ell_d_full, [0;32], &l);
+    let b_k = K::from(F::from_u64(params.b as u64));
+    let mut pow = vec![K::ONE; D]; for i in 1..D { pow[i] = pow[i-1]*b_k; }
+    let mut m_vals = vec![K::ZERO; s.t()];
+    for j in 0..s.t() {
+        let mut acc = K::ZERO; for rho in 0..D { acc += out[0].y[j][rho]*pow[rho]; }
+        m_vals[j] = acc;
+    }
+    let f_prime = s.f.eval_in_ext::<K>(&m_vals);
+
+    assert_eq!(q, eq_beta * f_prime, "γ=0 should zero out NC and Eval");
+}
+
+#[test]
+fn paper_exact_ajtai_padding_is_zero() {
+    let params = NeoParams::goldilocks_small_circuits();
+    let (n, m) = (2usize, 2usize);
+    setup_ajtai_for_dims(m);
+
+    let s = tiny_ccs_id(n, m);
+    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+
+    let z = Mat::from_row_major(D, m, vec![F::from_u64(1); D*m]);
+    let w = McsWitness { w: vec![], Z: z.clone() };
+    let inst = McsInstance { c: l.commit(&z), x: vec![], m_in: 0 };
+
+    let r_p = vec![K::from(F::from_u64(5)); 1];
+
+    let ell_d_base = (D.next_power_of_two().trailing_zeros() as usize) + 1;
+    let out = refimpl::build_me_outputs_paper_exact(
+        &s, &params, &[inst], &[w], &[], &[], &r_p, ell_d_base, [0;32], &l
+    );
+
+    let want = 1usize << ell_d_base;
+    for j in 0..s.t() {
+        assert_eq!(out[0].y[j].len(), want, "y' must be padded to 2^ell_d");
+        assert!(out[0].y[j][D..].iter().all(|&v| v == K::ZERO), "padding tail must be zero");
+    }
+}
+

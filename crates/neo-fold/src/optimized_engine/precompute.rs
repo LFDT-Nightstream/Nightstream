@@ -15,9 +15,9 @@
 #![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
-use crate::pi_ccs::sparse_matrix::{Csr, spmv_csr_ff};
-use crate::pi_ccs::nc_constraints::compute_nc_hypercube_sum;
-use crate::pi_ccs::transcript::Challenges;
+use crate::optimized_engine::sparse_matrix::{Csr, spmv_csr_ff};
+use crate::optimized_engine::nc_constraints::compute_nc_hypercube_sum;
+use crate::optimized_engine::transcript::Challenges;
 use neo_ccs::{CcsStructure, McsInstance, McsWitness, MatRef, Mat};
 use neo_ajtai::Commitment as Cmt;
 use neo_params::NeoParams;

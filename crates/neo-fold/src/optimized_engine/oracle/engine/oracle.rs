@@ -3,15 +3,17 @@
 //! This orchestrates the two-phase sum-check oracle: row phase 
 //! (rounds 0..ell_n-1) and Ajtai phase (rounds ell_n..ell_n+ell_d-1).
 
+#![allow(non_snake_case)] // Allow mathematical notation like Zi, G_eval
+
 use neo_ccs::{CcsStructure, MatRef, utils::mat_vec_mul_fk};
 use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing};
-use crate::pi_ccs::precompute::{MlePartials, pad_to_pow2_k};
-use crate::pi_ccs::sparse_matrix::Csr;
-use crate::pi_ccs::eq_weights::{HalfTableEq, RowWeight, spmv_csr_t_weighted_fk};
+use crate::optimized_engine::precompute::{MlePartials, pad_to_pow2_k};
+use crate::optimized_engine::sparse_matrix::Csr;
+use crate::optimized_engine::eq_weights::{HalfTableEq, RowWeight, spmv_csr_t_weighted_fk};
 use neo_math::KExtensions; // for K::as_coeffs in diagnostics
 use crate::sumcheck::RoundOracle;
-use crate::pi_ccs::oracle::NcState;
+use crate::optimized_engine::oracle::NcState;
 
 #[cfg(feature = "debug-logs")]
 use crate::pi_ccs::format_ext;
@@ -301,8 +303,8 @@ where
                 eprintln!("[oracle][evals_at] round_idx={}, xs_len={}", self.round_idx, xs.len());
             }
         }
-        use crate::pi_ccs::oracle::gate::PairGate;
-        use crate::pi_ccs::oracle::blocks::{
+        use crate::optimized_engine::oracle::gate::PairGate;
+        use crate::optimized_engine::oracle::blocks::{
             RowBlock, AjtaiBlock,
             NcRowBlock, NcAjtaiBlock, FAjtaiBlock,
         };
@@ -514,7 +516,7 @@ where
 
                         // Reference per-instance from full hypercube (no γ)
                         let z_owned: Vec<neo_ccs::Mat<F>> = self.z_witnesses.iter().map(|m| (*m).clone()).collect();
-                        let per_i_ref = crate::pi_ccs::nc_constraints::compute_nc_hypercube_sum_per_i(
+                        let per_i_ref = crate::optimized_engine::nc_constraints::compute_nc_hypercube_sum_per_i(
                             self.s, &z_owned, &self.w_beta_a_partial, &self.w_beta_r_partial,
                             self.b, self.ell_d, self.ell_n,
                         );
@@ -656,7 +658,7 @@ where
     }
     
     fn fold(&mut self, r_i: K) {
-        use crate::pi_ccs::oracle::gate::fold_partial_in_place;
+        use crate::optimized_engine::oracle::gate::fold_partial_in_place;
         
         if self.round_idx < self.ell_n {
             // Row phase folding

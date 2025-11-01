@@ -6,7 +6,7 @@
 //! - Eval block: Evaluation ties
 
 use neo_math::K;
-use crate::pi_ccs::oracle::gate::PairGate;
+use crate::optimized_engine::oracle::gate::PairGate;
 
 /// Trait for univariate block contributions to Q polynomial
 pub trait UnivariateBlock {

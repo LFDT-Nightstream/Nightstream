@@ -66,33 +66,32 @@ use neo_ajtai::Commitment as Cmt;
 use neo_math::{F, K, KExtensions};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use crate::sumcheck::{run_sumcheck, verify_sumcheck_rounds, SumcheckOutput};
-use crate::pi_ccs::sparse_matrix::{Csr, to_csr};
-use crate::pi_ccs::oracle::GenericCcsOracle;
-use crate::pi_ccs::transcript::Challenges;
-// keep transcript helpers internal; exported via transcript module when needed
+#[allow(unused_imports)]
+use crate::sumcheck::RoundOracle;
+use crate::optimized_engine::sparse_matrix::{Csr, to_csr};
+use crate::optimized_engine::oracle::GenericCcsOracle;
+use crate::optimized_engine::transcript::Challenges;
 
 // ============================================================================
-// SUBMODULES (Paper-aligned refactoring)
+// RE-EXPORTS FROM OPTIMIZED ENGINE
 // ============================================================================
-// Core protocol modules following Section 4.4 structure
-pub mod context;         // Dimensions and security policy
-pub mod transcript;      // Fiat-Shamir binding and challenge sampling  
-pub mod precompute;      // Q polynomial components (F, NC, Eval)
-pub mod checks;          // Input/output validation
-pub mod terminal;        // Verifier terminal check RHS
-pub mod outputs;         // ME instance construction
-pub mod sumcheck_driver; // Oracle construction (placeholder)
-pub mod oracle;          // Sum-check oracle for Q polynomial
-pub mod transcript_replay; // Transcript replay utilities for debugging/testing
-
-// Utility modules
-pub mod nc_core;         // Core NC polynomial evaluation functions
-pub mod nc_constraints;  // Norm/decomposition constraints
-pub mod sparse_matrix;   // CSR sparse matrix operations
-pub mod eq_weights;      // Equality polynomial evaluation
+// Import all modules from the optimized_engine instead of declaring them here
+pub use crate::optimized_engine::context;
+pub use crate::optimized_engine::transcript;
+pub use crate::optimized_engine::precompute;
+pub use crate::optimized_engine::checks;
+pub use crate::optimized_engine::terminal;
+pub use crate::optimized_engine::outputs;
+pub use crate::optimized_engine::sumcheck_driver;
+pub use crate::optimized_engine::oracle;
+pub use crate::optimized_engine::transcript_replay;
+pub use crate::optimized_engine::nc_core;
+pub use crate::optimized_engine::nc_constraints;
+pub use crate::optimized_engine::sparse_matrix;
+pub use crate::optimized_engine::eq_weights;
 
 // Re-export commonly used public items
-pub use transcript_replay::{
+pub use crate::optimized_engine::transcript_replay::{
     TranscriptTail,
     pi_ccs_derive_transcript_tail,
     pi_ccs_derive_transcript_tail_with_me_inputs,
@@ -150,7 +149,23 @@ pub struct PiCcsProof {
     pub challenges_public: Challenges,
 }
 
+// ============================================================================
+// ENV MODE SELECTION
+// ============================================================================
 
+/// Returns true if the environment selects the paper-exact implementation.
+/// Accepted values (case-insensitive):
+/// - NEO_PI_CCS_IMPL = "paper", "paper-exact", or "paper_exact"
+/// - or NEO_PI_CCS_PAPER_EXACT = "1"/"true"
+fn use_paper_exact_mode() -> bool {
+    if let Ok(val) = std::env::var("NEO_PI_CCS_IMPL") {
+        let v = val.to_ascii_lowercase();
+        return v == "paper" || v == "paper-exact" || v == "paper_exact";
+    }
+    std::env::var("NEO_PI_CCS_PAPER_EXACT")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
 
 // ===== MLE Folding DP Helpers =====
 
@@ -374,6 +389,58 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             eprintln!("  β_r[0] = {:?}", ch.beta_r[0]);
         }
     }
+
+    // Optional: switch to paper-exact implementation via environment
+    let use_paper_mode = use_paper_exact_mode();
+    #[cfg(feature = "debug-logs")]
+    if use_paper_mode { eprintln!("[pi-ccs] Using paper-exact oracle via NEO_PI_CCS_IMPL"); }
+
+    #[cfg(all(feature = "paper-exact"))]
+    if use_paper_mode {
+        // Compute initial sum over the full hypercube using the literal Q
+        let r_for_me = me_inputs.first().map(|me| me.r.as_slice());
+        let initial_sum = crate::paper_exact_engine::sum_q_over_hypercube_paper_exact(
+            &s, params, witnesses, me_witnesses, &ch, ell_d, ell_n, r_for_me,
+        );
+
+        // Bind initial sum so the verifier derives the same transcript state
+        tr.append_fields(b"sumcheck/initial_sum", &initial_sum.as_coeffs());
+
+        // Sample nodes 0..=d_sc for interpolation
+        let sample_xs_generic: Vec<K> = (0..=d_sc as u64).map(|u| K::from(F::from_u64(u))).collect();
+
+        // Build paper-exact RoundOracle and run sum-check
+        let mut oracle = crate::paper_exact_engine::oracle::PaperExactOracle::<'_, F>::new(
+            &s, params, witnesses, me_witnesses, ch.clone(), ell_d, ell_n, d_sc, r_for_me,
+        );
+
+        let SumcheckOutput { rounds, challenges: r, final_sum: running_sum_sc } =
+            run_sumcheck(tr, &mut oracle, initial_sum, &sample_xs_generic)?;
+
+        // Extract final random point (α', r') from sum-check
+        if r.len() != ell { return Err(PiCcsError::SumcheckError("bad r length".into())); }
+        let (r_prime, _alpha_prime) = r.split_at(ell_n);
+
+        // STEP 3: outputs (use paper-exact builder in this mode)
+        let fold_digest = tr.digest32();
+        let out_me = crate::paper_exact_engine::build_me_outputs_paper_exact(
+            &s, params, mcs_list, witnesses, me_inputs, me_witnesses, r_prime, ell_d, fold_digest, l,
+        );
+
+        let proof = PiCcsProof { 
+            sumcheck_rounds: rounds,
+            sumcheck_challenges: r.to_vec(),
+            sumcheck_final: running_sum_sc,
+            header_digest: fold_digest,
+            sc_initial_sum: Some(initial_sum),
+            challenges_public: ch,
+        };
+
+        // Defensive check
+        checks::sanity_check_outputs_against_inputs(&s, mcs_list, me_inputs, &out_me)?;
+
+        return Ok((out_me, proof));
+    }
     
     #[cfg(feature = "debug-logs")]
     {
@@ -457,7 +524,7 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 
     // Optional: cross-check claimed initial sum vs. paper-exact hypercube sum
     if std::env::var("NEO_PAPER_CROSSCHECK").ok().as_deref() == Some("1") {
-        let paper_sum = crate::paper_exact::sum_q_over_hypercube_paper_exact(
+        let paper_sum = crate::paper_exact_engine::sum_q_over_hypercube_paper_exact(
             &s, params, witnesses, me_witnesses, &ch, ell_d, ell_n,
             me_inputs.first().map(|me| me.r.as_slice()),
         );
@@ -736,7 +803,38 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     #[cfg(feature = "debug-logs")]
     eprintln!("[pi-ccs][prove] Captured header_digest after sumcheck: {:?}", &fold_digest[..4]);
     
-    let out_me = outputs::build_me_outputs(tr, &s, params, &mats_csr, &insts, me_inputs, me_witnesses, r_prime, ell_d, fold_digest, l)?;
+    // Optional: allow using the paper-exact builder for ME outputs via env
+    // NEO_PI_CCS_IMPL=paper-exact|paper or NEO_PI_CCS_PAPER_EXACT=1
+    let use_paper_exact_outputs = {
+        if let Ok(val) = std::env::var("NEO_PI_CCS_IMPL") {
+            let v = val.to_ascii_lowercase();
+            v == "paper" || v == "paper-exact" || v == "paper_exact"
+        } else {
+            std::env::var("NEO_PI_CCS_PAPER_EXACT")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false)
+        }
+    };
+
+    let out_me = if use_paper_exact_outputs {
+        #[cfg(feature = "paper-exact")]
+        {
+            crate::paper_exact_engine::build_me_outputs_paper_exact(
+                &s, params, mcs_list, witnesses, me_inputs, me_witnesses, r_prime, ell_d, fold_digest, l,
+            )
+        }
+        #[cfg(not(feature = "paper-exact"))]
+        {
+            // Fallback to engine outputs if paper-exact ref is not compiled in
+            outputs::build_me_outputs(
+                tr, &s, params, &mats_csr, &insts, me_inputs, me_witnesses, r_prime, ell_d, fold_digest, l,
+            )?
+        }
+    } else {
+        outputs::build_me_outputs(
+            tr, &s, params, &mats_csr, &insts, me_inputs, me_witnesses, r_prime, ell_d, fold_digest, l,
+        )?
+    };
     
     #[cfg(feature = "debug-logs")]
     {
@@ -768,15 +866,15 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             &s, &ch, r_prime, alpha_prime, mcs_list, me_inputs, &out_me, params,
         )?;
 
-        let paper_out = crate::paper_exact::build_me_outputs_paper_exact(
+        let paper_out = crate::paper_exact_engine::build_me_outputs_paper_exact(
             &s, params, mcs_list, witnesses, me_inputs, me_witnesses, r_prime, ell_d, fold_digest, l,
         );
-        let paper_rhs = crate::paper_exact::rhs_terminal_identity_paper_exact(
+        let paper_rhs = crate::paper_exact_engine::rhs_terminal_identity_paper_exact(
             &s, params, &ch, r_prime, alpha_prime, &paper_out, me_inputs_r_opt,
         );
 
         // Also compute true Q(α', r') from witnesses (paper LHS at ext point)
-        let (paper_q_ext_lhs, _rhs_dummy) = crate::paper_exact::q_eval_at_ext_point_paper_exact(
+        let (paper_q_ext_lhs, _rhs_dummy) = crate::paper_exact_engine::q_eval_at_ext_point_paper_exact(
             &s, params,
             &insts.iter().map(|i| neo_ccs::McsWitness{ w: vec![], Z: i.Z.clone() }).collect::<Vec<_>>(),
             me_witnesses, alpha_prime, r_prime, &ch,

@@ -6,8 +6,8 @@
 use neo_ccs::CcsStructure;
 use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing};
-use crate::pi_ccs::oracle::gate::{PairGate, fold_partial_in_place};
-use crate::pi_ccs::oracle::blocks::{UnivariateBlock, RowBlock, AjtaiBlock};
+use crate::optimized_engine::oracle::gate::{PairGate, fold_partial_in_place};
+use crate::optimized_engine::oracle::blocks::{UnivariateBlock, RowBlock, AjtaiBlock};
 
 /// F block for row phase evaluation
 pub struct FRowBlock<'a, F>

@@ -11,6 +11,7 @@
 #![allow(non_snake_case)]
 
 mod paper_exact;
+pub mod oracle;
 
 pub use paper_exact::{
     // Core equalities & helpers
@@ -34,4 +35,3 @@ pub use paper_exact::{
     rlc_reduction_paper_exact,
     dec_reduction_paper_exact,
 };
-

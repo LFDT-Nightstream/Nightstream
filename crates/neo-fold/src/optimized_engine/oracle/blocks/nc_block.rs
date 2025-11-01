@@ -3,11 +3,13 @@
 //! This module implements the NC terms in the Q polynomial:
 //! NC_i(X) = ∏_{t=-(b-1)}^{b-1} (Ẑ_i(X) - t)
 
+#![allow(non_snake_case)] // Allow mathematical notation like Ni
+
 use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing};
-use crate::pi_ccs::oracle::gate::PairGate;
-use crate::pi_ccs::oracle::blocks::{UnivariateBlock, RowBlock, AjtaiBlock};
-use crate::pi_ccs::nc_core;
+use crate::optimized_engine::oracle::gate::PairGate;
+use crate::optimized_engine::oracle::blocks::{UnivariateBlock, RowBlock, AjtaiBlock};
+use crate::optimized_engine::nc_core;
 
 /// NC block for row phase with exact Ajtai sum computation
 pub struct NcRowBlock<'a, F>

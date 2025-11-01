@@ -13,7 +13,7 @@ use neo_math::{F, K, KExtensions};
 use p3_field::PrimeCharacteristicRing;
 use crate::error::PiCcsError;
 use crate::pi_ccs::PiCcsProof;
-use crate::pi_ccs::transcript::bind_me_inputs;
+use crate::optimized_engine::transcript::bind_me_inputs;
 use crate::sumcheck::verify_sumcheck_rounds;
 
 /// Data derived from the Π-CCS transcript tail used by the verifier.
@@ -43,9 +43,9 @@ pub fn pi_ccs_derive_transcript_tail_with_me_inputs_and_label(
 ) -> Result<TranscriptTail, PiCcsError> {
     let mut tr = Poseidon2Transcript::new(domain_label);
     // Header and instances: use the same helper as prover/verify for perfect parity
-    let crate::pi_ccs::context::Dims { ell_d, ell_n: _, ell, d_sc } = 
-        crate::pi_ccs::context::build_dims_and_policy(params, s)?;
-    crate::pi_ccs::transcript::bind_header_and_instances(&mut tr, params, s, mcs_list, ell, d_sc, 0)?;
+    let crate::optimized_engine::context::Dims { ell_d, ell_n: _, ell, d_sc } = 
+        crate::optimized_engine::context::build_dims_and_policy(params, s)?;
+    crate::optimized_engine::transcript::bind_header_and_instances(&mut tr, params, s, mcs_list, ell, d_sc, 0)?;
 
     // Bind ME inputs exactly like prover/verifier so replayed challenges match
     bind_me_inputs(&mut tr, me_inputs)?;
@@ -60,7 +60,7 @@ pub fn pi_ccs_derive_transcript_tail_with_me_inputs_and_label(
     }
 
     // Sample challenges (mirror prove/verify)
-    let _ch = crate::pi_ccs::transcript::sample_challenges(&mut tr, ell_d, ell)?;
+    let _ch = crate::optimized_engine::transcript::sample_challenges(&mut tr, ell_d, ell)?;
 
     // Derive r by verifying rounds (structure only)
     let d_round = d_sc; // degree bound for each round
@@ -146,8 +146,8 @@ pub fn pi_ccs_derive_transcript_tail_from_bound_transcript(
     s: &CcsStructure<F>,
     proof: &PiCcsProof,
 ) -> Result<TranscriptTail, PiCcsError> {
-    let crate::pi_ccs::context::Dims { ell_d: _, ell_n: _, ell: _, d_sc: _ } =
-        crate::pi_ccs::context::build_dims_and_policy(params, s)?;
+    let crate::optimized_engine::context::Dims { ell_d: _, ell_n: _, ell: _, d_sc: _ } =
+        crate::optimized_engine::context::build_dims_and_policy(params, s)?;
 
     // Use prover-carried initial sum if present; else derive from round 0
     let claimed_initial = match proof.sc_initial_sum {

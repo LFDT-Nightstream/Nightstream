@@ -5,8 +5,8 @@
 use neo_ccs::CcsStructure;
 use neo_math::K;
 use p3_field::Field;
-use crate::pi_ccs::oracle::gate::{PairGate, fold_partial_in_place};
-use crate::pi_ccs::oracle::blocks::{
+use crate::optimized_engine::oracle::gate::{PairGate, fold_partial_in_place};
+use crate::optimized_engine::oracle::blocks::{
     UnivariateBlock, RowBlock,
     FRowBlock, NcRowBlock, EvalRowBlock,
 };

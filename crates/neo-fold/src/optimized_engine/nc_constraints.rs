@@ -1,3 +1,5 @@
+#![allow(non_snake_case)] // Allow mathematical notation like Ni_x, Zi, M1
+
 /// Normalization constraint (NC) computation for CCS reduction
 ///
 /// This module implements the NC_i terms in the Q polynomial:
@@ -14,7 +16,7 @@ use neo_math::K;
 #[cfg(debug_assertions)]
 use neo_ccs::MatRef;
 
-use crate::pi_ccs::{CcsStructure, McsWitness};
+use neo_ccs::{CcsStructure, McsWitness};
 
 /// Compute the full hypercube sum of NC terms: Σ_{X∈{0,1}^{log(dn)}} eq(X,β) · Σ_i γ^i · NC_i(X)
 ///
@@ -83,7 +85,7 @@ where
                     let m = if xr < M1.rows() && c < M1.cols() { K::from(M1[(xr, c)]) } else { K::ZERO };
                     y_val += z * m;
                 }
-                let Ni_x = crate::pi_ccs::nc_core::range_product::<F>(y_val, params.b);
+                let Ni_x = crate::optimized_engine::nc_core::range_product::<F>(y_val, params.b);
                 per_i[i] += eq_x_beta * Ni_x;
             }
         }
@@ -156,7 +158,7 @@ where
                     y_mle_x += chi_xa_rho * y_rho;
                 }
 
-                let Ni_x = crate::pi_ccs::nc_core::range_product::<F>(y_mle_x, b);
+                let Ni_x = crate::optimized_engine::nc_core::range_product::<F>(y_mle_x, b);
                 per_i[i] += eq_x_beta * Ni_x;
             }
         }

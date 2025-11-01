@@ -30,7 +30,7 @@
 #![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
-use crate::pi_ccs::transcript::Challenges;
+use crate::optimized_engine::transcript::Challenges;
 use neo_ccs::{CcsStructure, McsInstance, MeInstance};
 use neo_ajtai::Commitment as Cmt;
 use neo_math::{F, K};
@@ -194,7 +194,7 @@ pub fn rhs_Q_apr(
             .sum();
 
         // Range polynomial: ∏_{t=-(b-1)}^{b-1} (y_mle - t)
-        let Ni = crate::pi_ccs::nc_core::range_product::<F>(y_mle, params.b);
+        let Ni = crate::optimized_engine::nc_core::range_product::<F>(y_mle, params.b);
         nc_prime += gamma_pow * Ni;
         gamma_pow *= ch.gamma;
     }

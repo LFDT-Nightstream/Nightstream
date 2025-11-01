@@ -8,6 +8,7 @@ use rand_chacha::rand_core::SeedableRng;
 use neo_params::NeoParams;
 use neo_math::{F, K, D};
 use p3_field::PrimeCharacteristicRing;
+// Note: engine-vs-paper tests live in tests-paper-vs-engine/mod.rs
 
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
@@ -578,3 +579,5 @@ fn paper_exact_ajtai_padding_is_zero() {
         assert!(out[0].y[j][D..].iter().all(|&v| v == K::ZERO), "padding tail must be zero");
     }
 }
+
+// Engine-vs-paper tests moved to tests-paper-vs-engine/mod.rs

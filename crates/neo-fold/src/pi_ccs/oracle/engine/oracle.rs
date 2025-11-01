@@ -240,9 +240,9 @@ where
                         z_ref.data, z_ref.rows, z_ref.cols, &vjs[j]
                     );
                     
-                    // weight = γ^{i_abs-1} * (γ^k)^j
+                    // weight = γ^{i_abs-1} * (γ^k)^(j+1)  // j is 0-based here
                     let mut w_pow = gamma_pow_i_abs[i_off];
-                    for _ in 0..j {
+                    for _ in 0..=j { // include baseline γ^k
                         w_pow *= gamma_to_k;
                     }
                     

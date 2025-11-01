@@ -190,9 +190,6 @@ pub fn fold_ccs_instances(
         }
     }
 
-    // SECURITY FIX: Removed single-instance fast path that bypassed RLC/DEC
-    // All instances must go through the complete pipeline for security
-
     // 2) Π_RLC: k+1 ME(b,L) → 1 ME(B,L)
     // For the initial fold with a single instance, Π_RLC is a no-op.
     let (me_b, pi_rlc_proof) = if me_list.len() < 2 {

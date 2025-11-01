@@ -83,3 +83,8 @@ harness = true
 name = "paper_exact"
 path = "tests-paper-exact/mod.rs"
 harness = true
+
+[[test]]
+name = "paper_vs_engine"
+path = "tests-paper-vs-engine/mod.rs"
+harness = true

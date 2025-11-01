@@ -257,10 +257,11 @@ pub fn precompute_eval_row_partial(
             let mj_ref = MatRef::from_mat(&s.matrices[j]);
             let g_ij =
                 neo_ccs::utils::mat_vec_mul_fk::<F, K>(mj_ref.data, mj_ref.rows, mj_ref.cols, &u_i);
-            // Weight: γ^{(i-1)+jk} - consistent with Ajtai phase
-            // No extra γ^k factor here
+            // Weight: γ^{(i-1) + j*k} in the paper with j starting at 1.
+            // Our loop uses j starting at 0, so incorporate one extra γ^k factor.
+            // Final: γ^{(i-1)} * (γ^k)^(j+1)
             let mut w_pow = gamma_pow_i[i_off];       // γ^{i-1}
-            for _ in 0..j { w_pow *= gamma_to_k; }    // × (γ^k)^j
+            for _ in 0..=j { w_pow *= gamma_to_k; }   // × (γ^k)^(j+1)
 
             for r in 0..s.n {
                 G_eval[r] += w_pow * g_ij[r];

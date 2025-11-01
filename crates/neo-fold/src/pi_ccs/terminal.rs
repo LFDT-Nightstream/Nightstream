@@ -233,11 +233,10 @@ pub fn rhs_Q_apr(
                     .map(|(&y, chi)| y * *chi)
                     .sum();
 
-                // Weight: γ^{(i-1)+jk} - consistent with prover
-                // i_global = i_off + 1, so i-1 = i_off
-                // This matches the flattened form used in precompute
+                // Weight: paper-exact overall uses γ^{(i-1)} · (γ^k)^{j+1}
+                // Folded form: exponent = (i-1) + (j+1)*k_total with j starting at 0 here.
                 let i_minus_1 = i_off;
-                let exponent = i_minus_1 + j * k_total;
+                let exponent = i_minus_1 + (j + 1) * k_total;
 
                 let w_pow = gamma_pows[exponent];
                 eval_sum_prime += w_pow * y_mle;
@@ -245,7 +244,6 @@ pub fn rhs_Q_apr(
         }
     }
 
-    // Final: Q(α',r') = eq·(F' + NC') + eq·Eval'
-    // No outer γ^k multiplication - weights already include all factors
+    // Final: Q(α',r') = eq·(F' + NC') + eq·Eval' (weights include γ^k effect)
     Ok(eq_aprp_beta * (f_prime + nc_prime) + eq_aprp_ar * eval_sum_prime)
 }

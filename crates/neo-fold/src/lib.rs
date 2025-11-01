@@ -21,9 +21,12 @@ pub mod verify_linear;
 pub mod sumcheck;
 /// Π_CCS: Sum-check reduction over extension field K (with submodules)
 pub mod pi_ccs;
-/// Paper-exact Π-CCS (slow reference for tests)
+/// Paper-exact reference (slow reference for tests)
 #[cfg(feature = "paper-exact")]
-pub mod pi_ccs_paper_exact;
+pub mod paper_exact;
+/// Back-compat alias for old module path
+#[cfg(feature = "paper-exact")]
+pub use paper_exact as pi_ccs_paper_exact;
 
 // Re-export pi_ccs submodules at top level for backward compatibility
 pub use pi_ccs::sparse_matrix;

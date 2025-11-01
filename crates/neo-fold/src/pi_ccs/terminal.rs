@@ -245,5 +245,15 @@ pub fn rhs_Q_apr(
     }
 
     // Final: Q(α',r') = eq·(F' + NC') + eq·Eval' (weights include γ^k effect)
+    #[cfg(feature = "debug-logs")]
+    {
+        use crate::pi_ccs::format_ext;
+        eprintln!("[terminal] eq_beta = {}", format_ext(eq_aprp_beta));
+        eprintln!("[terminal] eq_ar   = {}", format_ext(eq_aprp_ar));
+        eprintln!("[terminal] F'      = {}", format_ext(f_prime));
+        eprintln!("[terminal] NC'     = {}", format_ext(nc_prime));
+        eprintln!("[terminal] Eval'   = {}", format_ext(eval_sum_prime));
+        eprintln!("[terminal] RHS     = {}", format_ext(eq_aprp_beta * (f_prime + nc_prime) + eq_aprp_ar * eval_sum_prime));
+    }
     Ok(eq_aprp_beta * (f_prime + nc_prime) + eq_aprp_ar * eval_sum_prime)
 }

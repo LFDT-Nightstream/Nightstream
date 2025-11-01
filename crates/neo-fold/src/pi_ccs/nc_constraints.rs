@@ -7,9 +7,12 @@
 /// 1. Decomposition correctness: Z = Decomp_b(z)
 /// 2. Digit range bounds: ||Z||_∞ < b
 
-use neo_ccs::{Mat, MatRef};
+use neo_ccs::Mat;
 use p3_field::{Field, PrimeCharacteristicRing};
 use neo_math::K;
+
+#[cfg(debug_assertions)]
+use neo_ccs::MatRef;
 
 use crate::pi_ccs::{CcsStructure, McsWitness};
 
@@ -61,6 +64,7 @@ where
     // Build equality tables and compute per-instance contributions explicitly, then sum with γ^i
     let w_beta_a_table = neo_ccs::utils::tensor_point::<K>(beta_a);
     let w_beta_r_table = neo_ccs::utils::tensor_point::<K>(beta_r);
+    let M1 = &s.matrices[0];
 
     let mut per_i = vec![K::ZERO; witnesses.len() + me_witnesses.len()];
     let d_rows = 1usize << ell_d;
@@ -70,34 +74,16 @@ where
         for xr in 0..n_rows {
             let eq_x_beta = w_beta_a_table[xa] * w_beta_r_table[xr];
 
-            // v1_x = M_1^T · χ_{X_r}
-            let mut v1_x = vec![K::ZERO; s.m];
-            for row in 0..s.n {
-                let mut chi_x_r_row = K::ONE;
-                for bit_pos in 0..ell_n {
-                    let xrb = if (xr >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                    let rb = if (row     >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                    chi_x_r_row *= xrb*rb + (K::ONE - xrb)*(K::ONE - rb);
-                }
-                for col in 0..s.m {
-                    v1_x[col] += K::from(s.matrices[0][(row, col)]) * chi_x_r_row;
-                }
-            }
-
+            // For Boolean X=(xa,xr), ẑ_r is a one-hot row selector at xr.
+            // Then Ẽ(Z_i M_1^T ẑ_r)(X_a) reduces to Σ_c Z_i[xa,c] · M_1[xr,c].
             for (i, Zi) in witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()).enumerate() {
-                let z_ref = MatRef::from_mat(Zi);
-                let y_i1_x = neo_ccs::utils::mat_vec_mul_fk::<F,K>(z_ref.data, z_ref.rows, z_ref.cols, &v1_x);
-                let mut y_mle_x = K::ZERO;
-                for (rho, &y_rho) in y_i1_x.iter().enumerate() {
-                    let mut chi_xa_rho = K::ONE;
-                    for bit_pos in 0..ell_d {
-                        let xab = if (xa   >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                        let rb   = if (rho >> bit_pos) & 1 == 1 { K::ONE } else { K::ZERO };
-                        chi_xa_rho *= xab*rb + (K::ONE - xab)*(K::ONE - rb);
-                    }
-                    y_mle_x += chi_xa_rho * y_rho;
+                let mut y_val = K::ZERO;
+                for c in 0..s.m {
+                    let z = if xa < Zi.rows() && c < Zi.cols() { K::from(Zi[(xa, c)]) } else { K::ZERO };
+                    let m = if xr < M1.rows() && c < M1.cols() { K::from(M1[(xr, c)]) } else { K::ZERO };
+                    y_val += z * m;
                 }
-                let Ni_x = crate::pi_ccs::nc_core::range_product::<F>(y_mle_x, params.b);
+                let Ni_x = crate::pi_ccs::nc_core::range_product::<F>(y_val, params.b);
                 per_i[i] += eq_x_beta * Ni_x;
             }
         }

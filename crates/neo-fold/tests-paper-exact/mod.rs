@@ -10,6 +10,108 @@ use neo_math::{F, K, D};
 use p3_field::PrimeCharacteristicRing;
 // Note: engine-vs-paper tests live in tests-paper-vs-engine/mod.rs
 
+// Include additional paper-exact tests (RLC/DEC) from sibling file
+mod paper_ccs_tests;
+
+// --- Helpers for literal Q(α', r') from witnesses (paper-accurate) ----------
+
+fn build_chi(p: &[K]) -> Vec<K> {
+    let sz = 1usize << p.len();
+    let mut chi = vec![K::ZERO; sz];
+    for row in 0..sz {
+        let mut w = K::ONE;
+        for bit in 0..p.len() {
+            let val = p[bit];
+            let is_one = ((row >> bit) & 1) == 1;
+            w *= if is_one { val } else { K::ONE - val };
+        }
+        chi[row] = w;
+    }
+    chi
+}
+
+fn build_vjs_ext(s: &CcsStructure<F>, r_prime: &[K]) -> Vec<Vec<K>> {
+    let chi_rp = build_chi(r_prime);
+    let n_sz = chi_rp.len();
+    let mut vjs: Vec<Vec<K>> = Vec::with_capacity(s.t());
+    for j in 0..s.t() {
+        let mut vj = vec![K::ZERO; s.m];
+        for row in 0..n_sz {
+            let wr = if row < s.n { chi_rp[row] } else { K::ZERO };
+            if wr == K::ZERO { continue; }
+            for c in 0..s.m { vj[c] += K::from(s.matrices[j][(row,c)]) * wr; }
+        }
+        vjs.push(vj);
+    }
+    vjs
+}
+
+fn range_prod(val: K, b: u32) -> K {
+    let lo = -((b as i64) - 1);
+    let hi =  (b as i64) - 1;
+    let mut prod = K::ONE;
+    for t in lo..=hi { prod *= val - K::from(F::from_i64(t)); }
+    prod
+}
+
+fn q_ext_from_witnesses_lit(
+    s: &CcsStructure<F>,
+    params: &NeoParams,
+    mcs_w: &[McsWitness<F>],
+    me_w: &[Mat<F>],
+    alpha_p: &[K],
+    r_p: &[K],
+    ch: &neo_fold::pi_ccs::transcript::Challenges,
+    me_inputs_r: Option<&[K]>,
+) -> K {
+    let k_total = mcs_w.len() + me_w.len();
+    let chi_alpha = build_chi(alpha_p);
+    let vjs = build_vjs_ext(s, r_p);
+
+    // F'
+    let z1 = refimpl::recomposed_z_from_Z(params, &mcs_w[0].Z);
+    let mut m_vals = vec![K::ZERO; s.t()];
+    for j in 0..s.t() { let vj=&vjs[j]; let mut acc=K::ZERO; for c in 0..s.m { acc += vj[c]*z1[c]; } m_vals[j]=acc; }
+    let f_prime = s.f.eval_in_ext::<K>(&m_vals);
+
+    // Σ γ^i · N_i'
+    let mut nc_sum = K::ZERO;
+    {
+        let mut g = ch.gamma; let v1 = &vjs[0];
+        let eval_y1 = |zi: &Mat<F>| {
+            let mut y = vec![K::ZERO; D];
+            for rho in 0..D { let mut a=K::ZERO; for c in 0..s.m { a += K::from(zi[(rho,c)])*v1[c]; } y[rho]=a; }
+            let mut yv = K::ZERO; let lim=core::cmp::min(D, chi_alpha.len());
+            for rho in 0..lim { yv += y[rho]*chi_alpha[rho]; } yv
+        };
+        for w in mcs_w { let yv=eval_y1(&w.Z); nc_sum += g * range_prod(yv, params.b); g *= ch.gamma; }
+        for zi in me_w { let yv=eval_y1(zi);  nc_sum += g * range_prod(yv, params.b); g *= ch.gamma; }
+    }
+
+    // Eval'
+    let mut eval_sum = K::ZERO;
+    if me_inputs_r.is_some() && k_total >= 2 {
+        let mut gamma_to_k = K::ONE; for _ in 0..k_total { gamma_to_k *= ch.gamma; }
+        let eq_ar = refimpl::eq_points(alpha_p, &ch.alpha) * refimpl::eq_points(r_p, me_inputs_r.unwrap());
+        let eval_yj = |zi: &Mat<F>, j: usize| {
+            let vj=&vjs[j]; let mut y=vec![K::ZERO; D];
+            for rho in 0..D { let mut a=K::ZERO; for c in 0..s.m { a+=K::from(zi[(rho,c)])*vj[c]; } y[rho]=a; }
+            let mut yv=K::ZERO; let lim=core::cmp::min(D, chi_alpha.len()); for rho in 0..lim { yv += y[rho]*chi_alpha[rho]; } yv
+        };
+        let mut inner = K::ZERO;
+        for j in 0..s.t() {
+            for (i_abs, zi) in mcs_w.iter().map(|w| &w.Z).chain(me_w.iter()).enumerate().skip(1) {
+                let mut weight=K::ONE; for _ in 0..i_abs { weight *= ch.gamma; } for _ in 0..j { weight *= gamma_to_k; }
+                inner += weight * eq_ar * eval_yj(zi, j);
+            }
+        }
+        eval_sum = gamma_to_k * inner;
+    }
+
+    let eq_beta = refimpl::eq_points(alpha_p, &ch.beta_a) * refimpl::eq_points(r_p, &ch.beta_r);
+    eq_beta * (f_prime + nc_sum) + eval_sum
+}
+
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
     let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
@@ -65,10 +167,8 @@ fn paper_exact_rhs_matches_direct_eval_k1() {
         &s, &params, &ch, &r_p, &alpha_p, &out, None
     );
 
-    // LHS direct Q(α', r') from witnesses
-    let lhs = refimpl::q_eval_at_ext_point_paper_exact(
-        &s, &params, &[w], &[], &ch, &alpha_p, &r_p, None
-    );
+    // LHS direct Q(α', r') from witnesses (literal)
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w], &[], &alpha_p, &r_p, &ch, None);
 
     assert_eq!(lhs, rhs, "paper-exact RHS must match direct Q(α',r') for k=1");
 }
@@ -129,9 +229,7 @@ fn paper_exact_rhs_matches_direct_eval_with_eval_block() {
     );
 
     // LHS direct Q(α', r') from witnesses (Eval block present)
-    let lhs = refimpl::q_eval_at_ext_point_paper_exact(
-        &s, &params, &[w0], &[me_z], &ch, &alpha_p, &r_p, Some(&me_r)
-    );
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w0], &[me_z], &alpha_p, &r_p, &ch, Some(&me_r));
 
     assert_eq!(lhs, rhs, "paper-exact RHS must match direct Q(α',r') with Eval block");
 }
@@ -190,9 +288,7 @@ fn paper_exact_k2_end_to_end_fold_identity() {
         &s, &params, &ch, &r_p, &alpha_p, &out, Some(&me_r)
     );
     // True Q(α', r') from witnesses
-    let lhs = refimpl::q_eval_at_ext_point_paper_exact(
-        &s, &params, &[w0], &[me_z], &ch, &alpha_p, &r_p, Some(&me_r)
-    );
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w0], &[me_z], &alpha_p, &r_p, &ch, Some(&me_r));
     assert_eq!(lhs, rhs, "end-to-end terminal identity must hold for k=2");
 }
 
@@ -250,9 +346,7 @@ fn paper_exact_k2_invalid_outputs_break_identity() {
     let rhs_tampered = refimpl::rhs_terminal_identity_paper_exact(
         &s, &params, &ch, &r_p, &alpha_p, &out, Some(&me_r)
     );
-    let lhs_true = refimpl::q_eval_at_ext_point_paper_exact(
-        &s, &params, &[w0], &[me_z], &ch, &alpha_p, &r_p, Some(&me_r)
-    );
+    let lhs_true = q_ext_from_witnesses_lit(&s, &params, &[w0], &[me_z], &alpha_p, &r_p, &ch, Some(&me_r));
 
     assert_ne!(lhs_true, rhs_tampered, "tampering outputs must break terminal identity");
 }
@@ -302,9 +396,7 @@ fn paper_exact_k2_ivc_two_steps() {
     let rhs = refimpl::rhs_terminal_identity_paper_exact(
         &s, &params, &ch, &r_p, &alpha_p, &out1, Some(&me_input.r)
     );
-    let lhs = refimpl::q_eval_at_ext_point_paper_exact(
-        &s, &params, &[w_step1], &[z_step0], &ch, &alpha_p, &r_p, Some(&me_input.r)
-    );
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w_step1], &[z_step0], &alpha_p, &r_p, &ch, Some(&me_input.r));
     assert_eq!(lhs, rhs, "IVC-like two-step composition should hold under paper-exact");
 }
 
@@ -353,9 +445,7 @@ fn paper_exact_k2_mismatched_mcs_and_outputs() {
     let rhs = refimpl::rhs_terminal_identity_paper_exact(
         &s, &params, &ch, &r_p, &alpha_p, &out, Some(&me_r)
     );
-    let lhs = refimpl::q_eval_at_ext_point_paper_exact(
-        &s, &params, &[w_bad], &[me_z], &ch, &alpha_p, &r_p, Some(&me_r)
-    );
+    let lhs = q_ext_from_witnesses_lit(&s, &params, &[w_bad], &[me_z], &alpha_p, &r_p, &ch, Some(&me_r));
     assert_ne!(lhs, rhs, "Terminal identity must fail if outputs don't match witness used in Q");
 }
 
@@ -386,9 +476,7 @@ fn paper_exact_boolean_corner_matches_extension_eval() {
     let lhs = refimpl::q_at_point_paper_exact::<F>(
         &s, &params, &[w.clone()], &[], &ch.alpha, &ch.beta_a, &ch.beta_r, ch.gamma, None, 1, 0
     );
-    let rhs = refimpl::q_eval_at_ext_point_paper_exact::<F>(
-        &s, &params, &[w], &[], &ch, &alpha_p, &r_p, None
-    );
+    let rhs = q_ext_from_witnesses_lit(&s, &params, &[w], &[], &alpha_p, &r_p, &ch, None);
 
     assert_eq!(lhs, rhs, "Boolean corner must match extension evaluation");
 }
@@ -530,9 +618,7 @@ fn paper_exact_gamma_zero_kills_nc_and_eval() {
     let alpha_p = vec![K::from(F::from_u64(7)); 1];
     let r_p     = vec![K::from(F::from_u64(11)); 1];
 
-    let q = refimpl::q_eval_at_ext_point_paper_exact::<F>(
-        &s, &params, &[w0.clone()], &[], &ch, &alpha_p, &r_p, None
-    );
+    let q = q_ext_from_witnesses_lit(&s, &params, &[w0.clone()], &[], &alpha_p, &r_p, &ch, None);
 
     // eq_beta * F'
     let eq_beta = refimpl::eq_points(&alpha_p, &ch.beta_a) * refimpl::eq_points(&r_p, &ch.beta_r);

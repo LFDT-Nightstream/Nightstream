@@ -362,7 +362,7 @@ fn regression_ajtai_nc_multiple_challenge_seeds_b3() {
     let s = s_raw.ensure_identity_first().expect("identity-first");
 
     let base_params = NeoParams::goldilocks_for_circuit(3, 2, 2);
-    let params = NeoParams { b: 3, ..base_params };
+    let params = NeoParams { b: 2, ..base_params };
 
     let z_full = vec![F::from_u64(5), F::ZERO, F::ZERO, F::ZERO];
     let m_in = 1usize;

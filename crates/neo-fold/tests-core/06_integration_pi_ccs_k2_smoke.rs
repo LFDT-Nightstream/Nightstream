@@ -283,8 +283,9 @@ fn pi_ccs_k2_detects_invalid_witness_full_pipeline() {
         &params, &ccs, &[mcs_ok, mcs_bad], &digits_out, &folding_proof
     );
 
-    // NOTE: Current Π pipeline is a reduction stack; rejection of invalid MCS inputs
-    // is guaranteed under composition with subsequent steps and the bridge SNARK.
-    // Enable this once end-to-end composition guards are finalized.
-    let _ = verify_result;
+    assert!(verify_result.is_err(), "verify_folding_proof should reject due to invalid witness");
+
+    assert!(!verify_result.is_ok(), "verify_folding_proof should reject due to invalid witness");
+    let is_valid = verify_result.unwrap();
+    assert!(!is_valid, "verify_folding_proof should reject due to invalid witness");
 }

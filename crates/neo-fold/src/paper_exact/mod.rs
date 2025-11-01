@@ -1,8 +1,7 @@
-//! Paper-exact, intentionally-inefficient Π-CCS reference implementation.
+//! Paper-exact reference implementations (CCS, RLC, DEC).
 //!
-//! This module mirrors the equations in docs/neo-paper/04-folding-ccs.md §4.4
-//! as literally as possible. All computations are done with direct loops over
-//! the Boolean hypercube and with dense matrix operations.
+//! This module mirrors the equations in docs/neo-paper §§4.4–4.6 as literally as possible.
+//! All computations are done with direct loops over the Boolean hypercube and dense matrices.
 //!
 //! Goals
 //! - Clarity and 1:1 parity with the paper formulas.
@@ -30,4 +29,9 @@ pub use paper_exact::{
 
     // Utilities
     recomposed_z_from_Z,
+
+    // Paper-exact RLC/DEC
+    rlc_reduction_paper_exact,
+    dec_reduction_paper_exact,
 };
+

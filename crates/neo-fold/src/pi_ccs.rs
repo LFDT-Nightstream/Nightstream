@@ -455,6 +455,119 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // Bind initial sum to transcript (for verifier)
     tr.append_fields(b"sumcheck/initial_sum", &initial_sum.as_coeffs());
 
+    // Optional: cross-check claimed initial sum vs. paper-exact hypercube sum
+    if std::env::var("NEO_PAPER_CROSSCHECK").ok().as_deref() == Some("1") {
+        let paper_sum = crate::paper_exact::sum_q_over_hypercube_paper_exact(
+            &s, params, witnesses, me_witnesses, &ch, ell_d, ell_n,
+            me_inputs.first().map(|me| me.r.as_slice()),
+        );
+        let fmt_k = |x: K| { let c = x.as_coeffs(); format!("{} + {}·u", c[0], c[1]) };
+        eprintln!("🔬 [crosscheck] initial_sum(engine) = {}", fmt_k(initial_sum));
+        eprintln!("🔬 [crosscheck] hypercube_sum(paper) = {}", fmt_k(paper_sum));
+
+        // Per-block breakdown: F_beta and NC_sum
+        let chi_beta_r = neo_ccs::utils::tensor_point::<K>(&ch.beta_r);
+        let mut f_beta_paper = K::ZERO;
+        {
+            let mut m_vals = vec![K::ZERO; s.t()];
+            for row in 0..s.n {
+                for j in 0..s.t() { m_vals[j] = K::from(insts[0].mz[j][row]); }
+                let f_row = s.f.eval_in_ext::<K>(&m_vals);
+                f_beta_paper += chi_beta_r[row] * f_row;
+            }
+        }
+        let f_beta_engine = beta_block.f_at_beta_r;
+        let nc_engine = beta_block.nc_sum_hypercube;
+        let nc_paper = paper_sum - f_beta_paper; // no Eval term for k=1
+
+        eprintln!("🔬 [crosscheck] F_beta(engine) = {}", fmt_k(f_beta_engine));
+        eprintln!("🔬 [crosscheck] F_beta(paper)  = {}", fmt_k(f_beta_paper));
+        eprintln!("🔬 [crosscheck] NC_sum(engine) = {}", fmt_k(nc_engine));
+        eprintln!("🔬 [crosscheck] NC_sum(paper)  = {}", fmt_k(nc_paper));
+
+        // Optional NC sampling probe: compare direct dot vs precomputed y_matrices at a few (xa,xr)
+        if std::env::var("NEO_PAPER_NC_PROBE").ok().as_deref() == Some("1") {
+            let d = neo_math::D;
+            let d_pad = 1usize << ell_d;
+            let n_pad = 1usize << ell_n;
+            let mut xa_samples = vec![0usize, 1usize];
+            if d > 0 { xa_samples.push(d - 1); }
+            if d < d_pad { xa_samples.push(d); }
+            if d_pad > 0 { xa_samples.push(d_pad - 1); }
+            xa_samples.retain(|&x| x < d_pad);
+            xa_samples.sort(); xa_samples.dedup();
+
+            let mut xr_samples = vec![0usize, 1usize];
+            if s.n > 0 { xr_samples.push(s.n - 1); }
+            if s.n < n_pad { xr_samples.push(s.n); }
+            if n_pad > 0 { xr_samples.push(n_pad - 1); }
+            xr_samples.retain(|&x| x < n_pad);
+            xr_samples.sort(); xr_samples.dedup();
+
+            let w_beta_a = neo_ccs::utils::tensor_point::<K>(&ch.beta_a);
+            let w_beta_r = neo_ccs::utils::tensor_point::<K>(&ch.beta_r);
+            let m1 = &s.matrices[0];
+
+            eprintln!("[NC-probe] sampling (xa,xr) across instances (showing first 2)");
+            for &xa in &xa_samples {
+                for &xr in &xr_samples {
+                    let eq_a = w_beta_a[xa];
+                    let eq_r = w_beta_r[xr];
+                    eprintln!("[NC-probe] xa={}, xr={}, eq_a={}, eq_r={}", xa, xr, format_ext(eq_a), format_ext(eq_r));
+
+                    // Iterate first two instances (if available)
+                    let mut idx = 0usize;
+                    for Zi in witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()) {
+                        if idx >= 2 { break; }
+                        // Direct dot: y = sum_c Z[xa,c] * M1[xr,c] (with zero padding)
+                        let mut y_direct = K::ZERO;
+                        if xa < Zi.rows() && xr < m1.rows() {
+                            for c in 0..s.m {
+                                if c < Zi.cols() && c < m1.cols() {
+                                    y_direct += K::from(Zi[(xa, c)]) * K::from(m1[(xr, c)]);
+                                }
+                            }
+                        }
+                        // From precomputed y_matrices (Ajtai rows × rows)
+                        let y_from_mat = if xa < nc_y_matrices[idx].len() && xr < nc_y_matrices[idx][xa].len() {
+                            nc_y_matrices[idx][xa][xr]
+                        } else { K::ZERO };
+
+                        let nc_val = crate::pi_ccs::nc_core::range_product::<F>(y_direct, params.b);
+                        let weighted = eq_a * eq_r * nc_val;
+                        eprintln!(
+                            "  i={} y(dot)={} y(mat)={} NC(y)={} eq·NC={}",
+                            idx + 1, format_ext(y_direct), format_ext(y_from_mat), format_ext(nc_val), format_ext(weighted)
+                        );
+                        idx += 1;
+                    }
+                }
+            }
+        }
+
+        // Panic-on-drift toggle: stop immediately on mismatch to reduce log noise
+        if std::env::var("NEO_PAPER_PANIC_ON_DRIFT").ok().as_deref() == Some("1") {
+            if initial_sum != paper_sum {
+                panic!(
+                    "[PAPER-DRIFT] initial_sum diverged: engine={} paper={}",
+                    fmt_k(initial_sum), fmt_k(paper_sum)
+                );
+            }
+            if f_beta_engine != f_beta_paper {
+                panic!(
+                    "[PAPER-DRIFT] F_beta mismatch: engine={} paper={}",
+                    fmt_k(f_beta_engine), fmt_k(f_beta_paper)
+                );
+            }
+            if nc_engine != nc_paper {
+                panic!(
+                    "[PAPER-DRIFT] NC_sum mismatch: engine={} paper={}",
+                    fmt_k(nc_engine), fmt_k(nc_paper)
+                );
+            }
+        }
+    }
+
     #[cfg(feature = "debug-logs")]
     {
         eprintln!("[pi-ccs][prove] About to start sumcheck with initial_sum={}", format_ext(initial_sum));
@@ -644,6 +757,68 @@ pub fn pi_ccs_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         let rhs_dbg = rhs_Q_apr(&s, &ch, r_prime, alpha_prime, mcs_list, me_inputs, &out_me, params)?;
         eprintln!("[pi-ccs][prove] running_sum_sc={}, rhs_dbg={}", 
                   format_ext(running_sum_sc), format_ext(rhs_dbg));
+    }
+
+    // Optional cross-check against paper-exact reference implementation for drift debugging
+    if std::env::var("NEO_PAPER_CROSSCHECK").ok().as_deref() == Some("1") {
+        // Compute engine RHS (paper-faithful terminal) and paper-exact RHS using literal definitions
+        let me_inputs_r_opt: Option<&[K]> = me_inputs.first().map(|me| me.r.as_slice());
+
+        let engine_rhs = crate::pi_ccs::terminal::rhs_Q_apr(
+            &s, &ch, r_prime, alpha_prime, mcs_list, me_inputs, &out_me, params,
+        )?;
+
+        let paper_out = crate::paper_exact::build_me_outputs_paper_exact(
+            &s, params, mcs_list, witnesses, me_inputs, me_witnesses, r_prime, ell_d, fold_digest, l,
+        );
+        let paper_rhs = crate::paper_exact::rhs_terminal_identity_paper_exact(
+            &s, params, &ch, r_prime, alpha_prime, &paper_out, me_inputs_r_opt,
+        );
+
+        // Also compute true Q(α', r') from witnesses (paper LHS at ext point)
+        let (paper_q_ext_lhs, _rhs_dummy) = crate::paper_exact::q_eval_at_ext_point_paper_exact(
+            &s, params,
+            &insts.iter().map(|i| neo_ccs::McsWitness{ w: vec![], Z: i.Z.clone() }).collect::<Vec<_>>(),
+            me_witnesses, alpha_prime, r_prime, &ch,
+        );
+
+        let fmt_k = |x: K| {
+            let c = x.as_coeffs();
+            format!("{} + {}·u", c[0], c[1])
+        };
+
+        eprintln!("🔬 [crosscheck] running_sum_sc = {}", fmt_k(running_sum_sc));
+        eprintln!("🔬 [crosscheck] engine_rhs     = {}", fmt_k(engine_rhs));
+        eprintln!("🔬 [crosscheck] paper_rhs      = {}", fmt_k(paper_rhs));
+        eprintln!("🔬 [crosscheck] paper_Q(α',r') = {}", fmt_k(paper_q_ext_lhs));
+
+        // Quick sanity on outputs count/shape parity
+        if paper_out.len() != out_me.len() {
+            eprintln!("🔬 [crosscheck] outputs count differ: engine={}, paper={}", out_me.len(), paper_out.len());
+        } else if let (Some(e0), Some(p0)) = (out_me.get(0), paper_out.get(0)) {
+            let t_e = e0.y.len();
+            let t_p = p0.y.len();
+            eprintln!("🔬 [crosscheck] outputs t (engine,paper) = ({},{})", t_e, t_p);
+            if t_e == t_p && t_e > 0 {
+                eprintln!("🔬 [crosscheck] y[0] len (engine,paper) = ({},{})", e0.y[0].len(), p0.y[0].len());
+            }
+        }
+
+        // Panic-on-drift toggle at terminal: any mismatch stops immediately
+        if std::env::var("NEO_PAPER_PANIC_ON_DRIFT").ok().as_deref() == Some("1") {
+            if engine_rhs != paper_rhs {
+                panic!(
+                    "[PAPER-DRIFT] terminal RHS mismatch: engine_rhs={} paper_rhs={}",
+                    fmt_k(engine_rhs), fmt_k(paper_rhs)
+                );
+            }
+            if running_sum_sc != engine_rhs {
+                panic!(
+                    "[PAPER-DRIFT] running_sum != Q(α',r'): running_sum={} rhs={}",
+                    fmt_k(running_sum_sc), fmt_k(engine_rhs)
+                );
+            }
+        }
     }
     #[cfg(not(feature = "debug-logs"))]
     let _ = (running_sum_sc, alpha_prime);

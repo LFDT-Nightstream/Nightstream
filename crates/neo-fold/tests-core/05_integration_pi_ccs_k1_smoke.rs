@@ -260,7 +260,7 @@ fn pi_ccs_k1_simple_addition_circuit() {
 }
 
 #[test]
-#[ignore]
+#[ignore="TODO: validate that the verify fails when the witness is invalid"]
 #[allow(non_snake_case)]
 fn pi_ccs_k1_detects_invalid_witness() {
     let rows: usize = 4;

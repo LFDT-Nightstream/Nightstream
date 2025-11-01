@@ -8,7 +8,8 @@ use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing};
 use crate::pi_ccs::precompute::{MlePartials, pad_to_pow2_k};
 use crate::pi_ccs::sparse_matrix::Csr;
-use crate::pi_ccs::eq_weights::{HalfTableEq, spmv_csr_t_weighted_fk};
+use crate::pi_ccs::eq_weights::{HalfTableEq, RowWeight, spmv_csr_t_weighted_fk};
+use neo_math::KExtensions; // for K::as_coeffs in diagnostics
 use crate::sumcheck::RoundOracle;
 use crate::pi_ccs::oracle::NcState;
 
@@ -220,7 +221,14 @@ where
             }
             
             // Precompute γ^{i_abs-1} for ME witnesses (i_abs starts at me_offset+1)
-            debug_assert!(self.me_offset == 1, "code assumes ME witnesses start at instance 2, but me_offset={}", self.me_offset);
+            // Allow multiple leading MCS instances: ME witnesses begin at index `me_offset`.
+            // In chained IVC, we may have me_offset > 1 (e.g., folding prev+current MCS).
+            debug_assert!(
+                self.me_offset >= 1 && self.me_offset <= self.z_witnesses.len(),
+                "invalid me_offset: expected 1..=#z_witnesses, got {} (z_witnesses={})",
+                self.me_offset,
+                self.z_witnesses.len()
+            );
             let me_count = self.z_witnesses.len().saturating_sub(self.me_offset);
             let mut gamma_pow_i_abs = vec![K::ONE; me_count];
             {
@@ -540,16 +548,51 @@ where
                 self.enter_ajtai_phase();
             }
             
-            let wr_scalar = if !self.w_beta_r_partial.is_empty() { 
-                self.w_beta_r_partial[0] 
-            } else { 
-                K::ONE 
+            // Compute row-equality scalars for Ajtai phase by contracting
+            // χ_{β_r} and χ_{r'} tables: eq_r(r', β_r) = ⟨χ_{β_r}, χ_{r'}⟩.
+            // Similarly for Eval gate with r_input when present.
+            let (wr_scalar, wr_eval_scalar) = {
+                let w_r = HalfTableEq::new(&self.row_chals);
+                let rows = 1usize << self.ell_n;
+
+                // wr_scalar: prefer full contraction when sizes match; accept scalar fallback
+                let wr_scalar = if self.w_beta_r_partial.is_empty() {
+                    K::ONE
+                } else if self.w_beta_r_partial.len() == rows {
+                    let mut s = K::ZERO;
+                    for row in 0..rows { s += self.w_beta_r_partial[row] * w_r.w(row); }
+                    s
+                } else if self.w_beta_r_partial.len() == 1 {
+                    self.w_beta_r_partial[0]
+                } else {
+                    K::ONE
+                };
+
+                // wr_eval_scalar: contraction when sizes match; scalar fallback; else zero (no ME inputs)
+                let wr_eval_scalar = if self.w_eval_r_partial.is_empty() {
+                    K::ZERO
+                } else if self.w_eval_r_partial.len() == rows {
+                    let mut s = K::ZERO;
+                    for row in 0..rows { s += self.w_eval_r_partial[row] * w_r.w(row); }
+                    s
+                } else if self.w_eval_r_partial.len() == 1 {
+                    self.w_eval_r_partial[0]
+                } else {
+                    K::ZERO
+                };
+
+                (wr_scalar, wr_eval_scalar)
             };
-            let wr_eval_scalar = if !self.w_eval_r_partial.is_empty() { 
-                self.w_eval_r_partial[0] 
-            } else { 
-                K::ONE 
-            };
+
+            // Optional diagnostics: show Ajtai row-equality scalars vs expectations
+            if std::env::var("NEO_PAPER_CROSSCHECK").ok().as_deref() == Some("1") {
+                let fmt = |v: K| { let c = v.as_coeffs(); format!("{} + {}·u", c[0], c[1]) };
+                eprintln!(
+                    "[ajtai-gates] eq_r(r',β_r)={}  eq_r(r',r_in)={}  (w_beta_r_len={}, w_eval_r_len={}, rows={})",
+                    fmt(wr_scalar), fmt(wr_eval_scalar),
+                    self.w_beta_r_partial.len(), self.w_eval_r_partial.len(), 1usize << self.ell_n
+                );
+            }
             
             // Create gates
             let g_beta = PairGate::new(&self.w_beta_a_partial);

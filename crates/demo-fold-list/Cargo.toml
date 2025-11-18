@@ -1,0 +1,19 @@
+[package]
+name = "demo-fold-list"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "demo-fold-list"
+path = "src/main.rs"
+
+[dependencies]
+neo-fold = { path = "../neo-fold" }
+neo-ccs = { path = "../neo-ccs" }
+neo-math = { path = "../neo-math" }
+neo-params = { path = "../neo-params" }
+neo-ajtai = { path = "../neo-ajtai" }
+p3-field.workspace = true
+rand_chacha.workspace = true

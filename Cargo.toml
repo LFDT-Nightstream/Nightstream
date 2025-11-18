@@ -8,6 +8,8 @@ members = [
   "crates/neo-ccs",
   "crates/neo-reductions",
   "crates/neo-fold",
+  # Binary crates
+  "crates/demo-fold-list",
 ]
 resolver = "2"
 

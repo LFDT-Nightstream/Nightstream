@@ -508,6 +508,9 @@ where
 
     // Optional: app-level claims recorded per step (not enforced here yet)
     step_claims: Vec<Vec<OutputClaim<F>>>,
+
+    /// Current threaded state y (if any). Length is determined by `NeoStep::state_len()`.
+    curr_state: Option<Vec<F>>,
 }
 
 impl<L> FoldingSession<L>
@@ -528,7 +531,14 @@ where
             mcss: vec![],
             acc0: None,
             step_claims: vec![],
+            curr_state: None,
         }
+    }
+
+    /// Set an explicit initial state y₀ for the IVC (optional).
+    /// If not set, y₀ defaults to all zeros of length `state_len()`.
+    pub fn set_initial_state(&mut self, y0: Vec<F>) {
+        self.curr_state = Some(y0);
     }
 
     /// Inject an explicit initial Accumulator (k = acc.me.len()). This enables k>1 multi-folding.
@@ -552,9 +562,24 @@ where
         stepper: &mut S,
         inputs: &S::ExternalInputs,
     ) -> Result<(), PiCcsError> {
-        let y_prev = vec![F::ZERO; stepper.state_len()];
+        // 1) Decide previous state y_prev
+        let state_len = stepper.state_len();
+        let y_prev = self
+            .curr_state
+            .clone()
+            .unwrap_or_else(|| vec![F::ZERO; state_len]);
+
+        // 2) Let the app synthesize CCS + witness given y_prev
         let StepArtifacts { ccs, witness: z, spec, public_app_inputs: _ } =
             stepper.synthesize_step(self.mcss.len(), &y_prev, inputs);
+
+        // Safety: require state_len to match StepSpec
+        if spec.y_len != state_len {
+            return Err(PiCcsError::InvalidInput(format!(
+                "StepSpec.y_len ({}) must equal stepper.state_len() ({})",
+                spec.y_len, state_len
+            )));
+        }
 
         // Identity-first normalization
         let s_norm = ccs
@@ -572,43 +597,43 @@ where
             return Err(PiCcsError::InvalidInput("m_in exceeds witness length".into()));
         }
 
-        // Build MCS instance + witness
-        // Extract x from z using StepSpec indices (fail fast on mismatches)
+        // 3) Build MCS instance + witness as before
         let x_indices = indices_from_spec(&spec);
-        
-        // Validate that StepSpec provides exactly m_in indices
+
         if x_indices.len() != spec.m_in {
             return Err(PiCcsError::InvalidInput(format!(
                 "StepSpec produced {} public-input indices, expected m_in={}",
-                x_indices.len(), spec.m_in
+                x_indices.len(),
+                spec.m_in
             )));
         }
-        
-        // Validate uniqueness (no duplicate indices)
+
+        // Validate uniqueness
         {
             use std::collections::BTreeSet;
             if x_indices.iter().copied().collect::<BTreeSet<_>>().len() != x_indices.len() {
                 return Err(PiCcsError::InvalidInput(
-                    "StepSpec indices contain duplicates".into()
+                    "StepSpec indices contain duplicates".into(),
                 ));
             }
         }
-        
-        // Validate range (all indices within bounds)
+
+        // Validate range
         if let Some(&idx) = x_indices.iter().find(|&&i| i >= z.len()) {
             return Err(PiCcsError::InvalidInput(format!(
                 "StepSpec index {} out of bounds (witness length {})",
-                idx, z.len()
+                idx,
+                z.len()
             )));
         }
-        
+
         let x: Vec<F> = x_indices.iter().map(|&i| z[i]).collect();
-        
+
         let Z = decompose_z_to_Z(&self.params, &z);
         let c = self.l.commit(&Z);
         let m_in = spec.m_in;
-        
-        // w is the private witness (everything that's not public input)
+
+        // w is the private witness (suffix)
         let w = z[m_in..].to_vec();
 
         let mcs_inst = McsInstance { c, x, m_in };
@@ -616,6 +641,26 @@ where
 
         self.mcss.push((mcs_inst, mcs_wit));
         self.step_claims.push(vec![]);
+
+        // 4) Update current state y from the witness coordinates
+        if spec.y_len > 0 {
+            if spec.y_len > spec.y_step_indices.len() {
+                return Err(PiCcsError::InvalidInput(
+                    "StepSpec: y_len exceeds y_step_indices.len()".into(),
+                ));
+            }
+            let mut new_state = Vec::with_capacity(spec.y_len);
+            for &idx in spec.y_step_indices.iter().take(spec.y_len) {
+                if idx >= z.len() {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "StepSpec y_step_index {} out of bounds for witness of length {}",
+                        idx, z.len()
+                    )));
+                }
+                new_state.push(z[idx]);
+            }
+            self.curr_state = Some(new_state);
+        }
 
         Ok(())
     }

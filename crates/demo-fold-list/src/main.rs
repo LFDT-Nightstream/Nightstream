@@ -31,7 +31,7 @@ fn setup_ajtai_for_dims(m: usize) {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
+
     // Check if verify-only mode is requested
     if args.len() > 1 && args[1] == "--verify" {
         verify_only_mode();
@@ -86,8 +86,6 @@ fn main() {
             F::from_u64(numbers[3]),
         ];
 
-        let start = std::time::Instant::now();
-
         session
             .prove_step(
                 &mut circuit,
@@ -104,9 +102,6 @@ fn main() {
 
         println!("Sum of this step ({}): {}", step_count, step_sum);
         println!("Running sum: {} ( {prev_sum} + {step_sum} )", total_sum);
-        println!("Computed new step in {} ms", start.elapsed().as_millis());
-
-        // TODO: what can be print here for the "current step proof"?
 
         println!("--------------------------------------------------------------------------------------------------------------------");
 
@@ -391,10 +386,13 @@ fn verify_only_mode() {
     println!("====================================================================================================================");
 
     let filename = "proof.bin";
-    
+
     // Check if proof file exists
     if !std::path::Path::new(filename).exists() {
-        eprintln!("No proof file '{}' found. Run the program without --verify to generate a proof first.", filename);
+        eprintln!(
+            "No proof file '{}' found. Run the program without --verify to generate a proof first.",
+            filename
+        );
         return;
     }
 
@@ -421,15 +419,12 @@ fn verify_only_mode() {
     let l = AjtaiSModule::from_global_for_dims(D, loaded.ccs.m).expect("AjtaiSModule init");
 
     // Create a fresh session for verification using the loaded params
-    let verify_session = FoldingSession::new(
-        FoldingMode::Optimized,
-        loaded.params.clone(),
-        l.clone(),
-    );
+    let verify_session =
+        FoldingSession::new(FoldingMode::Optimized, loaded.params.clone(), l.clone());
 
     println!("Verifying cryptographic proof...");
     let start = std::time::Instant::now();
-    
+
     let proof_ok = verify_session
         .verify(&loaded.ccs, &loaded.mcss_public, &loaded.run)
         .expect("verify should run");
@@ -480,6 +475,6 @@ fn verify_only_mode() {
             "✗ Claimed output {} is NOT consistent with the proof.",
             claimed_sum
         );
-        println!("  The proof shows the actual sum is: {}", final_state.as_canonical_u64());
+        println!("  The proof shows the actual sum is: {}", final_state);
     }
 }

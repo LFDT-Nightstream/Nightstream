@@ -25,6 +25,7 @@ use crate::pi_ccs::{self as ccs, FoldingMode, PiCcsProof};
 
 /// One fold step’s artifacts.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FoldStep {
     /// Π_CCS outputs (k ME(b,L) instances)
     pub ccs_out: Vec<MeInstance<Cmt, F, K>>,
@@ -42,6 +43,7 @@ pub struct FoldStep {
 
 /// Entire multi-fold run.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FoldRun {
     pub steps: Vec<FoldStep>,
     /// Alias to the last step's children (final outputs)

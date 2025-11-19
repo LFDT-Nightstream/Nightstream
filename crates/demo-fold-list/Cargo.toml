@@ -10,10 +10,12 @@ name = "demo-fold-list"
 path = "src/main.rs"
 
 [dependencies]
-neo-fold = { path = "../neo-fold" }
+neo-fold = { path = "../neo-fold", features = ["serde"] }
 neo-ccs = { path = "../neo-ccs" }
-neo-math = { path = "../neo-math" }
+neo-math = { path = "../neo-math", features = ["serde"] }
 neo-params = { path = "../neo-params" }
 neo-ajtai = { path = "../neo-ajtai" }
 p3-field.workspace = true
 rand_chacha.workspace = true
+serde = { workspace = true, features = ["derive"] }
+bincode = { workspace = true }

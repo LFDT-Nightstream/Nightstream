@@ -1,6 +1,8 @@
-use neo_ajtai::{set_global_pp, AjtaiSModule};
+use neo_ajtai::{set_global_pp, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::matrix::Mat;
 use neo_ccs::r1cs::r1cs_to_ccs;
+use neo_ccs::relations::{CcsStructure, McsInstance};
+use neo_fold::folding::FoldRun;
 use neo_fold::{
     pi_ccs::FoldingMode,
     session::{FoldingSession, NeoStep, StepArtifacts, StepSpec},
@@ -9,7 +11,16 @@ use neo_math::{D, F};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng as _;
+use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
+
+#[derive(Serialize, Deserialize)]
+struct SavedProof {
+    params: NeoParams,
+    ccs: CcsStructure<F>,
+    mcss_public: Vec<McsInstance<Cmt, F>>,
+    run: FoldRun,
+}
 
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(420);
@@ -115,10 +126,26 @@ fn main() {
 
                             println!("Final proof took: {} ms", finalize_duration.as_millis());
 
-                            // TODO: can we serialize the proof, and save it to a file?
-                            // or at least print it
-
                             let mcss_public = session.mcss_public();
+
+                            let saved_proof = SavedProof {
+                                params: params,
+                                ccs: step_ccs.clone(),
+                                mcss_public: mcss_public.clone(),
+                                run: run.clone(),
+                            };
+
+                            let filename = "proof.bin";
+                            match bincode::serialize(&saved_proof) {
+                                Ok(bytes) => {
+                                    if let Err(e) = std::fs::write(filename, bytes) {
+                                        eprintln!("Failed to write proof to file: {}", e);
+                                    } else {
+                                        println!("Proof saved to {}", filename);
+                                    }
+                                }
+                                Err(e) => eprintln!("Failed to serialize proof: {}", e),
+                            }
 
                             // TODO: why is this not true? It seems to have only the sum of the last step
                             //

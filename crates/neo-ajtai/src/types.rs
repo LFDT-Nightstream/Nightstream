@@ -13,7 +13,7 @@ pub struct PP<RqEl> {
 }
 
 /// Commitment c ∈ F_q^{d×κ}, stored as column-major flat matrix (κ columns, each length d).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commitment {
     pub d: usize,
     pub kappa: usize,

@@ -52,7 +52,8 @@ fn main() {
 
     let mut circuit = StepCircuit {};
 
-    let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
+    // NOTE: clone params here so we can also store them into SavedProof later.
+    let mut session = FoldingSession::new(FoldingMode::Optimized, params.clone(), l.clone());
 
     loop {
         let numbers = match collect_four_numbers() {
@@ -82,7 +83,6 @@ fn main() {
             .prove_step(
                 &mut circuit,
                 &Input {
-                    running_sum: F::from_u64(total_sum),
                     new_values: f_inputs,
                 },
             )
@@ -127,9 +127,13 @@ fn main() {
                             println!("Final proof took: {} ms", finalize_duration.as_millis());
 
                             let mcss_public = session.mcss_public();
+                            // Sanity-check: final public state equals the running sum.
+                            let last = mcss_public.last().expect("at least one step");
+                            assert_eq!(last.x[1], F::from_u64(total_sum));
 
+                            // Save proof to disk.
                             let saved_proof = SavedProof {
-                                params: params,
+                                params: params.clone(),
                                 ccs: step_ccs.clone(),
                                 mcss_public: mcss_public.clone(),
                                 run: run.clone(),
@@ -147,19 +151,89 @@ fn main() {
                                 Err(e) => eprintln!("Failed to serialize proof: {}", e),
                             }
 
-                            // TODO: why is this not true? It seems to have only the sum of the last step
-                            //
-                            // assert_eq!(mcss_public[0].x[2], F::from_u64(total_sum));
+                            // ---------------------------------------------------------------------------------
+                            // Verification phase: reload proof from disk and check both:
+                            //  1) cryptographic validity of the proof, and
+                            //  2) user-supplied claimed output against the final state in the proof.
+                            // ---------------------------------------------------------------------------------
+                            println!("Reloading proof from '{}' for verification...", filename);
 
-                            // TODO: ideally, here we would prompt the user for a number to verify the proof with?
-                            //
-                            // at least, my expectation is that the proof can only be verified with a constant number
+                            let loaded_bytes = match std::fs::read(filename) {
+                                Ok(b) => b,
+                                Err(e) => {
+                                    eprintln!("Failed to read proof from file: {}", e);
+                                    return;
+                                }
+                            };
 
-                            let ok = session
-                                .verify(&step_ccs, &mcss_public, &run)
+                            let loaded: SavedProof = match bincode::deserialize(&loaded_bytes) {
+                                Ok(p) => p,
+                                Err(e) => {
+                                    eprintln!("Failed to deserialize proof: {}", e);
+                                    return;
+                                }
+                            };
+
+                            // Create a fresh session for verification using the loaded params.
+                            let verify_session = FoldingSession::new(
+                                FoldingMode::Optimized,
+                                loaded.params.clone(),
+                                l.clone(),
+                            );
+
+                            let proof_ok = verify_session
+                                .verify(&loaded.ccs, &loaded.mcss_public, &loaded.run)
                                 .expect("verify should run");
 
-                            assert!(ok, "verification failed");
+                            if !proof_ok {
+                                eprintln!(
+                                    "Cryptographic verification of the loaded proof FAILED."
+                                );
+                                return;
+                            }
+
+                            println!(
+                                "Cryptographic verification of the loaded proof succeeded."
+                            );
+
+                            // Ask the user for a claimed final output and check it against the proof.
+                            println!(
+                                "Enter a claimed final sum to check against the proof:"
+                            );
+                            print!("> ");
+                            io::stdout().flush().unwrap();
+
+                            let mut line = String::new();
+                            if let Err(e) = io::stdin().read_line(&mut line) {
+                                eprintln!("Error reading claimed sum: {}", e);
+                                return;
+                            }
+                            let line = line.trim();
+                            let claimed_sum: u64 = match line.parse() {
+                                Ok(v) => v,
+                                Err(_) => {
+                                    eprintln!("Invalid number '{}'", line);
+                                    return;
+                                }
+                            };
+
+                            let final_state = loaded
+                                .mcss_public
+                                .last()
+                                .expect("at least one step in loaded proof")
+                                .x[1];
+
+                            if final_state == F::from_u64(claimed_sum) {
+                                println!(
+                                    "Claimed output {} is CONSISTENT with the proof.",
+                                    claimed_sum
+                                );
+                            } else {
+                                println!(
+                                    "Claimed output {} is NOT consistent with the proof.",
+                                    claimed_sum
+                                );
+                            }
 
                             return;
                         }
@@ -225,11 +299,6 @@ struct StepCircuit {}
 
 #[derive(Clone)]
 struct Input {
-    // TODO: this shouldn't be an input, I think
-    // but for some reason it's not y_prev
-    //
-    // I'm also not sure it's even enforced.
-    running_sum: F,
     new_values: [F; 4],
 }
 
@@ -237,37 +306,43 @@ impl NeoStep for StepCircuit {
     type ExternalInputs = Input;
 
     fn state_len(&self) -> usize {
-        self.step_spec().y_len
+        1 // single scalar state: running_sum
     }
 
     fn step_spec(&self) -> StepSpec {
         StepSpec {
             y_len: 1,
             const1_index: 0,
-            y_step_indices: vec![1, 2],
+            // y_step_indices[0] = index in z that holds the *next* state y_{i+1}.
+            // We'll place y_{i+1} at z[1].
+            y_step_indices: vec![1],
             app_input_indices: Some(vec![]),
-            m_in: 3,
+            // Public inputs are prefix of z: [1, y_next].
+            m_in: 2,
         }
     }
 
     fn synthesize_step(
         &mut self,
         _step_idx: usize,
-        _y_prev: &[F],
+        y_prev: &[F],
         inputs: &Self::ExternalInputs,
     ) -> StepArtifacts {
-        let new_sum = inputs.running_sum + inputs.new_values.iter().copied().sum::<F>();
+        assert_eq!(y_prev.len(), 1);
+        let old_sum = y_prev[0];
+        let step_sum = inputs.new_values.iter().copied().sum::<F>();
+        let new_sum = old_sum + step_sum;
 
         StepArtifacts {
-            ccs: step_ccs(),
+            ccs: step_ccs(), // updated below
             witness: vec![
-                F::from_u64(1),       // constant 1
-                inputs.running_sum,   // x1 (previous step state)
-                new_sum,              // x2 (new running sum)
-                inputs.new_values[0], // x3 (input 1)
-                inputs.new_values[1], // x4 (input 2)
-                inputs.new_values[2], // x5 (input 3)
-                inputs.new_values[3], // x6 (input 4)
+                F::from_u64(1),       // z[0] = 1 (const)
+                new_sum,              // z[1] = y_{i+1} (next state, public)
+                old_sum,              // z[2] = y_i (previous state, private)
+                inputs.new_values[0], // z[3..6] = batch inputs
+                inputs.new_values[1],
+                inputs.new_values[2],
+                inputs.new_values[3],
             ],
             public_app_inputs: vec![],
             spec: self.step_spec().clone(),
@@ -275,44 +350,29 @@ impl NeoStep for StepCircuit {
     }
 }
 
-/// Creates R1CS matrices for the constraint: x1 + x3 + x4 + x5 + x6 = x2
-/// Variables: [1, x1, x2, x3, x4, x5, x6] where:
-/// - x1 = previous step state
-/// - x2 = new running sum (output)
-/// - x3, x4, x5, x6 = the 4 input numbers
-/// Padded to make square matrices (n = m = 7)
+/// z = [1, new, old, v0, v1, v2, v3]
+/// Enforce: old + v0 + v1 + v2 + v3 = new
 fn step_ccs() -> neo_ccs::relations::CcsStructure<F> {
-    // 7 variables: [1, x1, x2, x3, x4, x5, x6]
-    // 1 real constraint: x1 + x3 + x4 + x5 + x6 - x2 = 0
-    // 6 padding constraints: 0 = 0 (to make n = m = 7)
-    // R1CS form: A*z ∘ B*z = C*z where ∘ is element-wise product
+    let n = 7; // constraints
+    let m = 7; // variables
 
-    let n = 7; // 7 constraints (1 real + 6 padding)
-    let m = 7; // 7 variables
-
-    // Matrix A: coefficients for left side of multiplication
+    // A*z = old + v0 + v1 + v2 + v3 = z[2] + z[3] + z[4] + z[5] + z[6]
     let mut a_data = vec![F::ZERO; n * m];
-    // Real constraint row 0: [0, 1, 0, 1, 1, 1, 1] (x1 + x3 + x4 + x5 + x6)
-    a_data[0 * m + 1] = F::ONE; // x1 (previous state)
-    a_data[0 * m + 3] = F::ONE; // x3 (input 1)
-    a_data[0 * m + 4] = F::ONE; // x4 (input 2)
-    a_data[0 * m + 5] = F::ONE; // x5 (input 3)
-    a_data[0 * m + 6] = F::ONE; // x6 (input 4)
-                                // Padding constraints rows 1-6: all zeros (already initialized)
+    a_data[0 * m + 2] = F::ONE; // old
+    a_data[0 * m + 3] = F::ONE; // v0
+    a_data[0 * m + 4] = F::ONE; // v1
+    a_data[0 * m + 5] = F::ONE; // v2
+    a_data[0 * m + 6] = F::ONE; // v3
     let a = Mat::from_row_major(n, m, a_data);
 
-    // Matrix B: coefficients for right side of multiplication
+    // B*z = 1 (just multiply by constant 1)
     let mut b_data = vec![F::ZERO; n * m];
-    // Real constraint row 0: [1, 0, 0, 0, 0, 0, 0] (multiply by 1)
-    b_data[0 * m + 0] = F::ONE; // constant 1
-                                // Padding constraints rows 1-6: all zeros (already initialized)
+    b_data[0 * m + 0] = F::ONE; // constant 1 at index 0
     let b = Mat::from_row_major(n, m, b_data);
 
-    // Matrix C: coefficients for result
+    // C*z = new = z[1]
     let mut c_data = vec![F::ZERO; n * m];
-    // Real constraint row 0: [0, 0, 1, 0, 0, 0, 0] (equals x2)
-    c_data[0 * m + 2] = F::ONE; // x2 (new running sum)
-                                // Padding constraints rows 1-6: all zeros (already initialized)
+    c_data[0 * m + 1] = F::ONE; // new at index 1
     let c = Mat::from_row_major(n, m, c_data);
 
     let s0 = r1cs_to_ccs(a, b, c);

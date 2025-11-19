@@ -51,6 +51,7 @@ pub use common::{
 
 /// Proof structure for the Π_CCS protocol
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PiCcsProof {
     /// Sumcheck rounds (each round is a vector of polynomial coefficients)
     pub sumcheck_rounds: Vec<Vec<K>>,

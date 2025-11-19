@@ -16,6 +16,7 @@ use p3_field::{Field, PrimeCharacteristicRing};
 
 /// Challenges sampled in Step 1 of the protocol
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Challenges {
     /// α ∈ K^{log d} - for Ajtai dimension
     pub alpha: Vec<K>,

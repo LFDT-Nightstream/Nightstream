@@ -374,6 +374,7 @@ dependencies = [
 name = "demo-fold-list"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "neo-ajtai",
  "neo-ccs",
  "neo-fold",
@@ -381,6 +382,7 @@ dependencies = [
  "neo-params",
  "p3-field",
  "rand_chacha",
+ "serde",
 ]
 
 [[package]]

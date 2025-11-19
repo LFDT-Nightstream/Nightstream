@@ -13,7 +13,7 @@ use std::io::{self, Write};
 
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(420);
-    let pp = neo_ajtai::setup(&mut rng, D, 128, m).expect("Ajtai setup should succeed");
+    let pp = neo_ajtai::setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
     let _ = set_global_pp(pp);
 }
 
@@ -84,10 +84,17 @@ fn main() {
 
         println!("Sum of this step ({}): {}", step_count, step_sum);
         println!("Running sum: {} ( {prev_sum} + {step_sum} )", total_sum);
-        println!("Computed proof in {} ms", start.elapsed().as_millis());
+        println!("Computed new step in {} ms", start.elapsed().as_millis());
+
+        let mcss_public = session.mcss_public();
+        if let Some(last) = mcss_public.last() {
+            println!("Step {} public x: {:?}", step_count, last.x);
+            println!("Step {} commitment c: {:?}", step_count, last.c.data);
+        }
 
         // TODO: what can be print here for the "current step proof"?
-        println!("....................................................................................................................");
+
+        println!("--------------------------------------------------------------------------------------------------------------------");
 
         loop {
             print!("Add another batch of elements? (y/n): ");

@@ -12,6 +12,7 @@ use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng as _;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::io::{self, Write};
 
 #[derive(Serialize, Deserialize)]
@@ -29,6 +30,14 @@ fn setup_ajtai_for_dims(m: usize) {
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    
+    // Check if verify-only mode is requested
+    if args.len() > 1 && args[1] == "--verify" {
+        verify_only_mode();
+        return;
+    }
+
     println!("====================================================================================================================");
     println!(
         "This program computes a proof for the computation of the sum of an arbitrary sized list of numbers."
@@ -374,4 +383,103 @@ fn step_ccs() -> neo_ccs::relations::CcsStructure<F> {
 
     s0.ensure_identity_first()
         .expect("ensure_identity_first should succeed")
+}
+
+fn verify_only_mode() {
+    println!("====================================================================================================================");
+    println!("VERIFY-ONLY MODE: Loading existing proof for verification");
+    println!("====================================================================================================================");
+
+    let filename = "proof.bin";
+    
+    // Check if proof file exists
+    if !std::path::Path::new(filename).exists() {
+        eprintln!("No proof file '{}' found. Run the program without --verify to generate a proof first.", filename);
+        return;
+    }
+
+    println!("Loading proof from '{}'...", filename);
+
+    let loaded_bytes = match std::fs::read(filename) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Failed to read proof from file: {}", e);
+            return;
+        }
+    };
+
+    let loaded: SavedProof = match bincode::deserialize(&loaded_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to deserialize proof: {}", e);
+            return;
+        }
+    };
+
+    // Setup Ajtai for the loaded proof's dimensions
+    setup_ajtai_for_dims(loaded.ccs.m);
+    let l = AjtaiSModule::from_global_for_dims(D, loaded.ccs.m).expect("AjtaiSModule init");
+
+    // Create a fresh session for verification using the loaded params
+    let verify_session = FoldingSession::new(
+        FoldingMode::Optimized,
+        loaded.params.clone(),
+        l.clone(),
+    );
+
+    println!("Verifying cryptographic proof...");
+    let start = std::time::Instant::now();
+    
+    let proof_ok = verify_session
+        .verify(&loaded.ccs, &loaded.mcss_public, &loaded.run)
+        .expect("verify should run");
+
+    let verify_duration = start.elapsed();
+    println!("Verification took: {} ms", verify_duration.as_millis());
+
+    if !proof_ok {
+        eprintln!("Cryptographic verification of the loaded proof FAILED.");
+        return;
+    }
+
+    println!("Cryptographic verification of the loaded proof succeeded.");
+    println!("====================================================================================================================");
+
+    // Ask the user for a claimed final output and check it against the proof
+    println!("Enter a claimed final sum to check against the proof:");
+    print!("> ");
+    io::stdout().flush().unwrap();
+
+    let mut line = String::new();
+    if let Err(e) = io::stdin().read_line(&mut line) {
+        eprintln!("Error reading claimed sum: {}", e);
+        return;
+    }
+    let line = line.trim();
+    let claimed_sum: u64 = match line.parse() {
+        Ok(v) => v,
+        Err(_) => {
+            eprintln!("Invalid number '{}'", line);
+            return;
+        }
+    };
+
+    let final_state = loaded
+        .mcss_public
+        .last()
+        .expect("at least one step in loaded proof")
+        .x[1];
+
+    if final_state == F::from_u64(claimed_sum) {
+        println!(
+            "✓ Claimed output {} is CONSISTENT with the proof.",
+            claimed_sum
+        );
+    } else {
+        println!(
+            "✗ Claimed output {} is NOT consistent with the proof.",
+            claimed_sum
+        );
+        println!("  The proof shows the actual sum is: {}", final_state.as_canonical_u64());
+    }
 }

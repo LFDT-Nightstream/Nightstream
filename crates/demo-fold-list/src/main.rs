@@ -151,6 +151,8 @@ fn main() {
                                         eprintln!("Failed to write proof to file: {}", e);
                                     } else {
                                         println!("Proof saved to {}", filename);
+                                        println!("💡 TIP: You can re-run this program with '--verify' to load and verify the saved proof:");
+                                        println!("   cargo run --bin demo-fold-list -- --verify");
                                     }
                                 }
                                 Err(e) => eprintln!("Failed to serialize proof: {}", e),

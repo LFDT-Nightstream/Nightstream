@@ -120,9 +120,7 @@ fn main() {
 
                             let mcss_public = session.mcss_public();
 
-                            // TODO: why is this not true? It seems to have only the sum of the last step
-                            //
-                            // assert_eq!(mcss_public[0].x[2], F::from_u64(total_sum));
+                            assert_eq!(mcss_public.last().unwrap().x[2], F::from_u64(total_sum));
 
                             // TODO: ideally, here we would prompt the user for a number to verify the proof with?
                             //

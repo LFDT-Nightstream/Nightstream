@@ -32,7 +32,6 @@ fn setup_ajtai_for_dims(m: usize) {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    // Check if verify-only mode is requested
     if args.len() > 1 && args[1] == "--verify" {
         verify_only_mode();
         return;
@@ -40,11 +39,17 @@ fn main() {
 
     println!("====================================================================================================================");
     println!(
-        "This program computes a proof for the computation of the sum of an arbitrary sized list of numbers."
+        "This program computes a proof for the computation of the sum of an arbitrary sized list of numbers (Goldilocks field elements)."
     );
-    println!("The circuit works on batches of 4 numbers at a time. Since a circuit is finite, there has to be a fixed step. But with folding, it can be extended to lists of arbitrary sizes.");
+    println!("The circuit works on batches of 4 numbers at a time. Since a circuit is finite, there has to be a fixed step.");
+    println!("But with folding, it can be extended to lists of arbitrary sizes.");
+
     println!(
-        "If the list size is not a multiple of 4, the last step has to be completed with zeros."
+        "\nNOTE: If the list size is not a multiple of 4, the last step has to be completed with zeros."
+    );
+
+    println!(
+        "\nDISCLAIMER: This is a *folding* demo. In a production application the circuit would also have to compute an incremental commitment to the list."
     );
     println!("====================================================================================================================");
 
@@ -103,7 +108,7 @@ fn main() {
         println!("Sum of this step ({}): {}", step_count, step_sum);
         println!("Running sum: {} ( {prev_sum} + {step_sum} )", total_sum);
 
-        println!("--------------------------------------------------------------------------------------------------------------------");
+        println!("....................................................................................................................");
 
         loop {
             print!("Add another batch of elements? (y/n): ");
@@ -181,7 +186,6 @@ fn main() {
                                 }
                             };
 
-                            // Create a fresh session for verification using the loaded params.
                             let verify_session = FoldingSession::new(
                                 FoldingMode::Optimized,
                                 loaded.params.clone(),
@@ -199,7 +203,6 @@ fn main() {
 
                             println!("Cryptographic verification of the loaded proof succeeded.");
 
-                            // Ask the user for a claimed final output and check it against the proof.
                             println!("Enter a claimed final sum to check against the proof:");
                             print!("> ");
                             io::stdout().flush().unwrap();
@@ -291,7 +294,7 @@ fn collect_four_numbers() -> Result<[u64; 4], bool> {
         }
     }
 
-    println!("....................................................................................................................");
+    println!("--------------------------------------------------------------------------------------------------------------------");
 
     Ok(numbers)
 }
@@ -325,7 +328,7 @@ impl NeoStep for StepCircuit {
 
     fn synthesize_step(
         &mut self,
-        _step_idx: usize,
+        step_idx: usize,
         y_prev: &[F],
         inputs: &Self::ExternalInputs,
     ) -> StepArtifacts {
@@ -334,17 +337,21 @@ impl NeoStep for StepCircuit {
         let step_sum = inputs.new_values.iter().copied().sum::<F>();
         let new_sum = old_sum + step_sum;
 
+        let witness = vec![
+            F::from_u64(1),       // z[0] = 1 (const)
+            new_sum,              // z[1] = y_{i+1} (next state, public)
+            old_sum,              // z[2] = y_i (previous state, private)
+            inputs.new_values[0], // z[3..6] = batch inputs
+            inputs.new_values[1],
+            inputs.new_values[2],
+            inputs.new_values[3],
+        ];
+
+        println!("r1cs witness[step={step_idx}]: {:?}", witness);
+
         StepArtifacts {
             ccs: step_ccs(), // updated below
-            witness: vec![
-                F::from_u64(1),       // z[0] = 1 (const)
-                new_sum,              // z[1] = y_{i+1} (next state, public)
-                old_sum,              // z[2] = y_i (previous state, private)
-                inputs.new_values[0], // z[3..6] = batch inputs
-                inputs.new_values[1],
-                inputs.new_values[2],
-                inputs.new_values[3],
-            ],
+            witness,
             public_app_inputs: vec![],
             spec: self.step_spec().clone(),
         }

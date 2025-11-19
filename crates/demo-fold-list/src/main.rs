@@ -97,12 +97,6 @@ fn main() {
         println!("Running sum: {} ( {prev_sum} + {step_sum} )", total_sum);
         println!("Computed new step in {} ms", start.elapsed().as_millis());
 
-        let mcss_public = session.mcss_public();
-        if let Some(last) = mcss_public.last() {
-            println!("Step {} public x: {:?}", step_count, last.x);
-            println!("Step {} commitment c: {:?}", step_count, last.c.data);
-        }
-
         // TODO: what can be print here for the "current step proof"?
 
         println!("--------------------------------------------------------------------------------------------------------------------");
@@ -193,20 +187,14 @@ fn main() {
                                 .expect("verify should run");
 
                             if !proof_ok {
-                                eprintln!(
-                                    "Cryptographic verification of the loaded proof FAILED."
-                                );
+                                eprintln!("Cryptographic verification of the loaded proof FAILED.");
                                 return;
                             }
 
-                            println!(
-                                "Cryptographic verification of the loaded proof succeeded."
-                            );
+                            println!("Cryptographic verification of the loaded proof succeeded.");
 
                             // Ask the user for a claimed final output and check it against the proof.
-                            println!(
-                                "Enter a claimed final sum to check against the proof:"
-                            );
+                            println!("Enter a claimed final sum to check against the proof:");
                             print!("> ");
                             io::stdout().flush().unwrap();
 

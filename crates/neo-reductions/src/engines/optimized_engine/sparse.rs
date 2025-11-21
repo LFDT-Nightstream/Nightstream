@@ -11,6 +11,7 @@ use p3_field::{Field, PrimeCharacteristicRing};
 
 /// Compressed Sparse Row format (row-major iteration).
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct CsrMat<Ff> {
     pub nrows: usize,
     pub ncols: usize,
@@ -30,6 +31,7 @@ pub struct CscMat<Ff> {
     pub vals: Vec<Ff>,
 }
 
+#[allow(dead_code)]
 impl<Ff: Field + PrimeCharacteristicRing + Copy> CsrMat<Ff> {
     /// Build CSR from a dense row-major Mat<Ff>, skipping exact zeros.
     pub fn from_dense_row_major(a: &Mat<Ff>) -> Self {

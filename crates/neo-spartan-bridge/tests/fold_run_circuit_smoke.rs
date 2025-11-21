@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(unused_imports)]
 
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ajtai::Commitment as Cmt;
@@ -183,30 +184,6 @@ fn setup_ajtai_for_dims(m: usize) {
     let _ = set_global_pp(pp);
 }
 
-fn compute_params_digest_local(params: &NeoParams) -> [u8; 32] {
-    use blake3::Hasher;
-    let mut hasher = Hasher::new();
-    hasher.update(&params.q.to_le_bytes());
-    hasher.update(&params.b.to_le_bytes());
-    hasher.update(&params.k_rho.to_le_bytes());
-    let hash = hasher.finalize();
-    let mut digest = [0u8; 32];
-    digest.copy_from_slice(hash.as_bytes());
-    digest
-}
-
-fn compute_ccs_digest_local(ccs: &neo_ccs::CcsStructure<F>) -> [u8; 32] {
-    use blake3::Hasher;
-    let mut hasher = Hasher::new();
-    hasher.update(&ccs.m.to_le_bytes());
-    hasher.update(&ccs.n.to_le_bytes());
-    hasher.update(&ccs.t().to_le_bytes());
-    let hash = hasher.finalize();
-    let mut digest = [0u8; 32];
-    digest.copy_from_slice(hash.as_bytes());
-    digest
-}
-
 /// Non-trivial regression test: build the three-step k=3 optimized
 /// FoldRun from `session_multifold_r1cs_paper_exact_nontrivial` and
 /// prove/verify it end-to-end with Spartan2. This exercises:
@@ -280,7 +257,7 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
     };
     let initial_accumulator = acc.me.clone();
 
-    let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone())
+    let mut session = FoldingSession::new(FoldingMode::PaperExact, params, l.clone())
         .with_initial_accumulator(acc, &ccs)
         .expect("with_initial_accumulator");
 

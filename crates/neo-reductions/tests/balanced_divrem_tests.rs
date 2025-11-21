@@ -130,6 +130,7 @@ fn test_split_b_matrix_k_simple() {
     let k = 12usize;
     
     // Create a simple 2x2 matrix with small values
+    #[allow(non_snake_case)]
     let Z = Mat::from_row_major(2, 2, vec![
         F::from_u64(4),
         F::from_u64(2),

@@ -198,6 +198,7 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
 /// 
 /// ⚠️  FOR TESTING ONLY - NOT CONSTANT TIME ⚠️
 #[allow(non_snake_case)]
+#[allow(dead_code)]
 pub fn commit_spec(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d; 
     let m = pp.m;

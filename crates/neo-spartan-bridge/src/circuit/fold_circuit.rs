@@ -714,9 +714,8 @@ impl FoldRunCircuit {
     /// Equality polynomial eq_points over K, using the same formula as the
     /// native `eq_points`: ∏_i [(1-p_i)*(1-q_i) + p_i*q_i].
     ///
-    /// The value is computed natively from `p_vals`/`q_vals` and lifted into K;
-    /// the circuit treats it as a derived witness scalar.
-    #[allow(dead_code)]
+    /// This version constrains `eq` in terms of the K variables `p` and `q`,
+    /// while using `p_vals`/`q_vals` as native hints for intermediate K ops.
     fn eq_points<CS: ConstraintSystem<CircuitF>>(
         &self,
         cs: &mut CS,
@@ -726,7 +725,9 @@ impl FoldRunCircuit {
         p_vals: &[neo_math::K],
         q_vals: &[neo_math::K],
         label: &str,
-    ) -> Result<KNumVar> {
+    ) -> Result<(KNumVar, neo_math::K)> {
+        use neo_math::K as NeoK;
+
         if p.len() != q.len() || p_vals.len() != q_vals.len() || p.len() != p_vals.len() {
             return Err(SpartanBridgeError::InvalidInput(format!(
                 "eq_points length mismatch at step {}: p_vars={}, q_vars={}, p_vals={}, q_vals={}",
@@ -738,20 +739,135 @@ impl FoldRunCircuit {
             )));
         }
 
-        // Native eq value.
-        let mut acc_native = neo_math::K::ONE;
-        for (&pi, &qi) in p_vals.iter().zip(q_vals.iter()) {
-            let term = (neo_math::K::ONE - pi) * (neo_math::K::ONE - qi) + pi * qi;
-            acc_native *= term;
+        // eq over empty vectors is 1.
+        if p.is_empty() {
+            let one_var = helpers::k_one(
+                cs,
+                &format!("step_{}_{}_eq_one", step_idx, label),
+            )?;
+            return Ok((one_var, NeoK::ONE));
         }
 
-        let acc_var = helpers::alloc_k_from_neo(
+        // Canonical K-constant 1, shared across all coordinates.
+        let one_var = helpers::k_one(
             cs,
-            acc_native,
-            &format!("step_{}_{}_eq", step_idx, label),
+            &format!("step_{}_{}_one_const", step_idx, label),
         )?;
 
-        Ok(acc_var)
+        // acc = 1 in K.
+        let mut acc_var = one_var.clone();
+        let mut acc_native = NeoK::ONE;
+
+        for i in 0..p.len() {
+            let pi_var = &p[i];
+            let qi_var = &q[i];
+            let pi_val = p_vals[i];
+            let qi_val = q_vals[i];
+
+            // 1 - p_i
+            let one_minus_pi_val = NeoK::ONE - pi_val;
+            let one_minus_pi_hint = KNum::<CircuitF>::from_neo_k(one_minus_pi_val);
+            let one_minus_pi = alloc_k(
+                cs,
+                Some(one_minus_pi_hint),
+                &format!("step_{}_{}_one_minus_p_{}", step_idx, label, i),
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
+
+            // Enforce (1 - p_i) + p_i = 1 in K.
+            let sum_p_val = one_minus_pi_val + pi_val; // native 1
+            let sum_p_hint = KNum::<CircuitF>::from_neo_k(sum_p_val);
+            let sum_p = k_add_raw(
+                cs,
+                &one_minus_pi,
+                pi_var,
+                Some(sum_p_hint),
+                &format!("step_{}_{}_one_minus_p_sum_{}", step_idx, label, i),
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
+            helpers::enforce_k_eq(
+                cs,
+                &sum_p,
+                &one_var,
+                &format!("step_{}_{}_one_minus_p_check_{}", step_idx, label, i),
+            );
+
+            // 1 - q_i
+            let one_minus_qi_val = NeoK::ONE - qi_val;
+            let one_minus_qi_hint = KNum::<CircuitF>::from_neo_k(one_minus_qi_val);
+            let one_minus_qi = alloc_k(
+                cs,
+                Some(one_minus_qi_hint),
+                &format!("step_{}_{}_one_minus_q_{}", step_idx, label, i),
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
+
+            let sum_q_val = one_minus_qi_val + qi_val; // native 1
+            let sum_q_hint = KNum::<CircuitF>::from_neo_k(sum_q_val);
+            let sum_q = k_add_raw(
+                cs,
+                &one_minus_qi,
+                qi_var,
+                Some(sum_q_hint),
+                &format!("step_{}_{}_one_minus_q_sum_{}", step_idx, label, i),
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
+            helpers::enforce_k_eq(
+                cs,
+                &sum_q,
+                &one_var,
+                &format!("step_{}_{}_one_minus_q_check_{}", step_idx, label, i),
+            );
+
+            // (1 - p_i)*(1 - q_i)
+            let (prod1_var, prod1_val) = helpers::k_mul_with_hint(
+                cs,
+                &one_minus_pi,
+                one_minus_pi_val,
+                &one_minus_qi,
+                one_minus_qi_val,
+                self.delta,
+                &format!("step_{}_{}_prod1_{}", step_idx, label, i),
+            )?;
+
+            // p_i * q_i
+            let (pq_var, pq_val) = helpers::k_mul_with_hint(
+                cs,
+                pi_var,
+                pi_val,
+                qi_var,
+                qi_val,
+                self.delta,
+                &format!("step_{}_{}_pq_{}", step_idx, label, i),
+            )?;
+
+            // term_i = (1-p_i)*(1-q_i) + p_i*q_i
+            let term_val = prod1_val + pq_val;
+            let term_hint = KNum::<CircuitF>::from_neo_k(term_val);
+            let term_var = k_add_raw(
+                cs,
+                &prod1_var,
+                &pq_var,
+                Some(term_hint),
+                &format!("step_{}_{}_term_{}", step_idx, label, i),
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
+
+            // acc *= term_i
+            let (new_acc_var, new_acc_native) = helpers::k_mul_with_hint(
+                cs,
+                &acc_var,
+                acc_native,
+                &term_var,
+                term_val,
+                self.delta,
+                &format!("step_{}_{}_eq_acc_step_{}", step_idx, label, i),
+            )?;
+            acc_var = new_acc_var;
+            acc_native = new_acc_native;
+        }
+
+        Ok((acc_var, acc_native))
     }
 
     /// Recompose a single Ajtai y-row in base-b into a K element:
@@ -1142,50 +1258,119 @@ impl FoldRunCircuit {
 
         // --- Scalar equality polynomials eq((α',r'),β) and eq((α',r'),(α,r)) ---
         //
-        // These are still computed natively in K from the challenge values
-        // and then lifted into the circuit as K scalars.
+        // Computed in-circuit over K using eq_points, with native K values only
+        // used as hints for k_mul_with_hint.
 
-        // eq((α',r'), β) = eq(α', β_a) * eq(r', β_r), in K.
-        let eq_points_native = |p: &[NeoK], q: &[NeoK]| -> NeoK {
-            if p.len() != q.len() {
-                return NeoK::ZERO;
-            }
-            let mut acc = NeoK::ONE;
-            for (&pi, &qi) in p.iter().zip(q.iter()) {
-                let term = (NeoK::ONE - pi) * (NeoK::ONE - qi) + pi * qi;
-                acc *= term;
-            }
-                acc
-        };
+        // Allocate β_a and β_r as K variables.
+        let mut beta_a_vars = Vec::with_capacity(challenges.beta_a.len());
+        for (i, &k) in challenges.beta_a.iter().enumerate() {
+            beta_a_vars.push(helpers::alloc_k_from_neo(
+                cs,
+                k,
+                &format!("step_{}_beta_a_{}", step_idx, i),
+            )?);
+        }
+        let mut beta_r_vars = Vec::with_capacity(challenges.beta_r.len());
+        for (i, &k) in challenges.beta_r.iter().enumerate() {
+            beta_r_vars.push(helpers::alloc_k_from_neo(
+                cs,
+                k,
+                &format!("step_{}_beta_r_{}", step_idx, i),
+            )?);
+        }
 
-        let eq_aprp_beta_native = if challenges.alpha_prime.is_empty() && challenges.r_prime.is_empty() {
-            NeoK::ONE
-        } else {
-            let e1 = eq_points_native(&challenges.alpha_prime, &challenges.beta_a);
-            let e2 = eq_points_native(&challenges.r_prime, &challenges.beta_r);
-            e1 * e2
-        };
-
-        // eq((α',r'),(α,r)) if we have ME inputs; else 0 (Eval' block vanishes).
-        let eq_aprp_ar_native = if let Some(first_input) = me_inputs.first() {
-            let e1 = eq_points_native(&challenges.alpha_prime, &challenges.alpha);
-            let e2 = eq_points_native(&challenges.r_prime, &first_input.r);
-            e1 * e2
-        } else {
-            NeoK::ZERO
-        };
-
-        // Lift eq scalars into KNumVars.
-        let eq_aprp_beta = helpers::alloc_k_from_neo(
+        // eq((α',r'), β) = eq(α', β_a) * eq(r', β_r) in K.
+        let (eq_alpha_prime_beta_a, eq_alpha_prime_beta_a_native) = self.eq_points(
             cs,
-            eq_aprp_beta_native,
+            step_idx,
+            &alpha_prime_vars,
+            &beta_a_vars,
+            &challenges.alpha_prime,
+            &challenges.beta_a,
+            "eq_alpha_prime_beta_a",
+        )?;
+
+        let (eq_r_prime_beta_r, eq_r_prime_beta_r_native) = self.eq_points(
+            cs,
+            step_idx,
+            &r_prime_vars,
+            &beta_r_vars,
+            &challenges.r_prime,
+            &challenges.beta_r,
+            "eq_r_prime_beta_r",
+        )?;
+
+        let (eq_aprp_beta, eq_aprp_beta_native) = helpers::k_mul_with_hint(
+            cs,
+            &eq_alpha_prime_beta_a,
+            eq_alpha_prime_beta_a_native,
+            &eq_r_prime_beta_r,
+            eq_r_prime_beta_r_native,
+            self.delta,
             &format!("step_{}_eq_aprp_beta", step_idx),
         )?;
-        let eq_aprp_ar = helpers::alloc_k_from_neo(
-            cs,
-            eq_aprp_ar_native,
-            &format!("step_{}_eq_aprp_ar", step_idx),
-        )?;
+
+        // eq((α',r'),(α,r)) if we have ME inputs; else 0 (Eval' block vanishes).
+        let (eq_aprp_ar, eq_aprp_ar_native) = if let Some(first_input) = me_inputs.first() {
+            // Allocate α as K variables (fresh vars; labels disambiguated from
+            // the α used in the initial-sum gadget).
+            let mut alpha_vars = Vec::with_capacity(challenges.alpha.len());
+            for (i, &k) in challenges.alpha.iter().enumerate() {
+                alpha_vars.push(helpers::alloc_k_from_neo(
+                    cs,
+                    k,
+                    &format!("step_{}_alpha_eq_{}", step_idx, i),
+                )?);
+            }
+
+            // Allocate r (from the first ME input) as K variables.
+            let mut r_vars = Vec::with_capacity(first_input.r.len());
+            for (i, &k) in first_input.r.iter().enumerate() {
+                r_vars.push(helpers::alloc_k_from_neo(
+                    cs,
+                    k,
+                    &format!("step_{}_r_{}", step_idx, i),
+                )?);
+            }
+
+            let (eq_alpha_prime_alpha, eq_alpha_prime_alpha_native) = self.eq_points(
+                cs,
+                step_idx,
+                &alpha_prime_vars,
+                &alpha_vars,
+                &challenges.alpha_prime,
+                &challenges.alpha,
+                "eq_alpha_prime_alpha",
+            )?;
+
+            let (eq_r_prime_r, eq_r_prime_r_native) = self.eq_points(
+                cs,
+                step_idx,
+                &r_prime_vars,
+                &r_vars,
+                &challenges.r_prime,
+                &first_input.r,
+                "eq_r_prime_r",
+            )?;
+
+            helpers::k_mul_with_hint(
+                cs,
+                &eq_alpha_prime_alpha,
+                eq_alpha_prime_alpha_native,
+                &eq_r_prime_r,
+                eq_r_prime_r_native,
+                self.delta,
+                &format!("step_{}_eq_aprp_ar", step_idx),
+            )?
+        } else {
+            // No ME inputs ⇒ Eval' block vanishes; force eq((α',r'),(α,r)) = 0 so
+            // that the whole Eval' contribution is zero.
+            let zero_var = helpers::k_zero(
+                cs,
+                &format!("step_{}_eq_aprp_ar_zero", step_idx),
+            )?;
+            (zero_var, NeoK::ZERO)
+        };
 
         // --- Allocate γ and precompute γ^k_total in K ---
         let gamma_val = challenges.gamma;

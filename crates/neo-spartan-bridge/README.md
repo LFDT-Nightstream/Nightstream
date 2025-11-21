@@ -2,10 +2,7 @@
 
 Experimental integration layer between Neo folding (Π-CCS / `FoldRun`) and the Spartan2 SNARK.
 
-> **Status:** WIP / non-production. The crate compiles gadgets and a circuit skeleton, but:
-> - Only **sumcheck round invariants** are partially wired.
-> - Terminal identity, RLC/DEC equalities, and accumulator chaining are **not enforced yet**.
-> - Spartan2 is **not yet called**; no real SNARK proofs are produced.
+> **Status:** WIP / non-production. The crate now builds a concrete `FoldRun` circuit and produces real Spartan2 proofs, but some cross-step accumulator constraints and commitment-level checks are still TODO (see “Remaining work”).
 
 ---
 
@@ -28,124 +25,121 @@ The crate is split into:
 1. **`circuit/`** – R1CS circuit for a `FoldRun`:
    - `FoldRunInstance` – public IO container (digests, accumulator claim, Π-CCS challenge data).
    - `FoldRunWitness` – private witness (FoldRun, Π-CCS proofs, Z, ρ, DEC digits).
-   - `FoldRunCircuit` – synthesizes bellpepper constraints for all steps.
+   - `FoldRunCircuit` – synthesizes bellpepper constraints for all steps and implements `SpartanCircuitTrait<GoldilocksP3MerkleMleEngine>`.
 
 2. **`gadgets/`** – small reusable gadgets:
    - `k_field` – K-field (degree-2 extension) as 2 limbs over the base field.
-   - `pi_ccs` – sumcheck-related helpers and base-b recomposition.
-   - `common` – experimental eq / MLE / range-product helpers (not yet used in the main circuit).
+   - `pi_ccs` – sumcheck-related helpers and legacy base-b recomposition.
+   - `common` – experimental helpers (any unsafe/`cs.get()`-based gadgets are gated behind `unsafe-gadgets` and unused in the main circuit).
 
-3. **`api/`** – high-level `prove_fold_run` / `verify_fold_run` API **stubs**. At the moment, they only build instances and do not call Spartan2.
+3. **`api/`** – high-level `prove_fold_run` / `verify_fold_run` API:
+   - Builds a `FoldRunCircuit` and uses Spartan2’s `R1CSSNARK` over `GoldilocksP3MerkleMleEngine` to produce and verify proofs.
+   - Public IO is the tuple of `(params_digest, ccs_digest, mcs_digest)` encoded as field limbs.
 
-4. **`engine/`** – experimental hooks for Z-polynomial layout. This is **not wired into Spartan2** yet and can be treated as a design sketch (gated behind `experimental-engine` feature).
-
----
-
-## Key Design Principles
-
-### 1. Π-CCS Challenges as Data
-
-The circuit **does not mint Π-CCS challenges**. Challenges (`α, β_a, β_r, γ, r', …`) come from the outer Neo transcript and are passed as inputs to the circuit (ultimately as public IO). The circuit verifies algebraic relationships given those challenges.
-
-### 2. Spartan PCS is a Black Box
-
-Spartan's PCS (Hash-MLE now, other PCS later) only commits to the *entire witness vector*. The bridge does **not**:
-
-- Create separate Ajtai commitments inside Spartan.
-- Use Spartan's PCS to encode Π-CCS's own commitments.
-
-All Π-CCS/Π-RLC/Π-DEC logic is enforced as plain R1CS constraints over the base field.
-
-### 3. One Spartan Proof per FoldRun
-
-The intended end state is a **single** Spartan SNARK for the whole folding schedule:
-
-- Inputs: digests and the initial/final accumulator.
-- Witness: full `FoldRun`, Π-CCS proofs, Z/ρ/DEC witnesses.
-- Constraints: sumcheck, terminal identity, RLC, DEC, and chaining.
-
-At present, the circuit only contains the structure and partial sumcheck checks.
+4. **`engine/`** – experimental hooks for Z-polynomial layout. This is **not required** for Spartan2 integration and is gated behind the `experimental-engine` feature.
 
 ---
 
 ## Current Implementation
 
-### ✅ Implemented
+### Π‑CCS side
 
-- **K-field gadgets** (`gadgets/k_field.rs`):
-  - 2-limb representation `K = c0 + c1 * u` over a base `F`.
-  - Addition and multiplication gadgets: `k_add`, `k_mul`, `k_scalar_mul` (no `cs.get()` calls).
-  - Lifting base-field elements to `K`: `k_lift_from_f`.
-  - Conversion from `neo_math::K` via canonical `u64` (`from_neo_k`).
+- **Initial sum T (`claimed_initial_sum`)**
+  - `FoldRunCircuit::verify_initial_sum_binding` allocates `α` and `γ` as K variables, lifts ME input `y`-tables into K, and calls `claimed_initial_sum_gadget`.
+  - `claimed_initial_sum_gadget` mirrors `claimed_initial_sum_from_inputs` in `neo_reductions`:
+    - Same Ajtai MLE χ_α construction and bit ordering.
+    - Same γ-weight schedule and outer γ^k factor.
+  - The circuit enforces `proof.sc_initial_sum == T_gadget` whenever the proof supplies `sc_initial_sum`.
 
-- **Π-CCS sumcheck gadgets** (`gadgets/pi_ccs.rs`):
-  - `sumcheck_round_gadget`: enforces `p(0) + p(1) = claimed_sum`.
-  - `sumcheck_eval_gadget`: evaluates `p(challenge)` via Horner's method and **returns KNumVar** (no pre-allocated witness).
-  - `base_b_recompose_k`: `Σ b^ℓ · y[ℓ]` in `K`.
+- **Sumcheck rounds**
+  - `verify_sumcheck_rounds`:
+    - Allocates round polynomials in K from native coefficients.
+    - Uses `sumcheck_round_gadget` for each round to enforce `p(0)+p(1) = claimed_sum`.
+    - Uses `sumcheck_eval_gadget` to set the next `claimed_sum = p(challenge)`.
+    - At the end, enforces the in-circuit running sum equals `proof.sumcheck_final`.
 
-- **Circuit skeleton** (`circuit/`):
-  - `FoldRunInstance` / `FoldRunWitness` structs.
-  - `FoldRunCircuit<F>` with:
-    - Per-step hook `verify_fold_step`.
-    - `verify_sumcheck_rounds` that uses **real proof values** (`proof.initial_sum`, `proof.sumcheck_final`) and derives next sums via gadget return values.
-    - Implementations for `verify_rlc` / `verify_dec` that enforce X/y/r linear relations matching the public `rlc_public` / `verify_dec_public` helpers (commitment checks are still left to the outer Ajtai verifier).
-    - A minimal `verify_accumulator_chaining` that ties the public final accumulator to the `FoldRun`'s final outputs (full cross-step chaining is still TODO).
-  - Public input allocation is temporarily disabled (commented out) to avoid meaningless zero-valued inputs.
+- **Equality polynomials `eq((α′,r′),·)`**
+  - `FoldRunCircuit::eq_points` implements the equality polynomial over K:
+    - For vectors `p, q`, computes `∏_i [1 - (p_i + q_i) + 2 p_i q_i]`.
+    - Uses one K multiplication per coordinate (`p_i * q_i`) and only linear operations otherwise.
+    - Anchors the constant `1` via `k_one` and uses native `neo_math::K` hints for all K multiplications.
+  - `verify_terminal_identity` uses this gadget to compute:
+    - `eq((α′,r′), β) = eq(α′, β_a) * eq(r′, β_r)`,
+    - `eq((α′,r′),(α,r)) = eq(α′, α) * eq(r′, r)`, when ME inputs exist.
 
-- **Digests & API shape** (`api.rs`):
-  - `compute_params_digest`, `compute_ccs_digest` using BLAKE3.
-  - `SpartanProof` type and `prove_fold_run` / `verify_fold_run` signatures (no real Spartan calls yet, no generic `BridgeEngine`).
+- **Terminal identity RHS**
+  - Implemented directly in `FoldRunCircuit::verify_terminal_identity`:
+    - Recomputes `F′` from the first ME output’s Ajtai digits via an in-circuit base‑b recomposition with native K hints.
+    - Computes range products `N′_i` over K (Ajtai norm constraints) using a K-valued range gadget.
+    - Builds χ_{α′} and evaluates the linearized CCS views to obtain `Eval′`.
+    - Assembles
+      - `v = eq((α′,r′),β) · (F′ + Σ γ^i N′_i) + γ^k · eq((α′,r′),(α,r)) · Eval′`,
+      - and enforces `v == proof.sumcheck_final` in K.
+  - The older stubbed `terminal_identity_rhs_gadget` in `gadgets/pi_ccs.rs` has been removed to avoid unsound usage.
 
-### ❌ Not Implemented / TODO
+### RLC / DEC / chaining
 
-- **Terminal identity gadget**:
-  - `terminal_identity_rhs_gadget` is a stub returning zero.
-  - Needs to re-express the paper's Step-4 RHS using `KNumVar` and the common gadgets.
+- **RLC / DEC equalities**
+  - `verify_rlc` and `verify_dec` enforce:
+    - Correct random linear combination of `X`, `y`, and `r` across children.
+    - Correct base‑b decomposition of vectors into Ajtai digits, consistent with the native Π‑RLC/Π‑DEC reductions.
+  - Commitment consistency (`c` values) is intentionally left to the outer Ajtai verifier for now; the Spartan circuit only enforces algebraic relations on `X, y, r`.
 
-- **Accumulator chaining**:
-  - `verify_accumulator_chaining` currently only enforces that the public final accumulator matches the `FoldRun`'s final outputs.
-  - It should be extended to connect step-0 inputs to the initial accumulator, intermediate DEC children to the next step's inputs, and the last outputs to the final accumulator.
+- **Accumulator chaining**
+  - `verify_accumulator_chaining` ties:
+    - The public final accumulator in `FoldRunInstance` to the last fold step’s outputs.
+  - A full cross-step chaining (from initial accumulator through all DEC children to the final accumulator) is still TODO (see below).
 
-- **eq / MLE gadgets**:
-  - `eq_gadget` and `mle_eval_gadget` rely on `cs.get()` and are **gated behind `unsafe-gadgets` feature**.
-  - They are currently unused; they will be rewritten or removed when terminal identity is implemented.
+### Spartan2 integration
 
-- **Spartan2 integration**:
-  - `prove_fold_run` / `verify_fold_run` do not call Spartan2 yet.
-  - No `SpartanCircuit` implementation exists for `FoldRunCircuit` yet.
-  - `engine.rs` and `BridgeEngine` are experimental and gated behind `experimental-engine` feature (not tied into `spartan2::traits::Engine`).
+- `api::prove_fold_run`:
+  - Enforces host-side degree bounds on Π‑CCS sumcheck polynomials.
+  - Builds `FoldRunInstance` + `FoldRunWitness` and extracts per-step challenges.
+  - Constructs `FoldRunCircuit` and runs:
+    - `R1CSSNARK::setup`,
+    - `R1CSSNARK::prep_prove`,
+    - `R1CSSNARK::prove`,
+  - Serializes `(vk, snark)` into `SpartanProof::proof_data`.
+
+- `api::verify_fold_run`:
+  - Recomputes `(params_digest, ccs_digest)` and checks them against the proof’s instance.
+  - Reconstructs the expected public IO (digest limbs).
+  - Deserializes `(vk, snark)` and runs Spartan verification.
+  - Checks Spartan’s returned public IO matches the instance digests.
 
 ---
 
-## Recommended Next Steps
+## Remaining Work
 
-In order of priority:
+Depending on how much of the folding stack we want Spartan to attest to, the main missing pieces are:
 
-1. **Unit test the sumcheck-only circuit (no Spartan):**
-   - Write tests that:
-     - Construct a tiny synthetic `PiCcsProof` with 1–2 rounds, consistent coefficients, challenges, and sums.
-     - Build a `FoldRunCircuit` with one step, plug in that proof as the witness, and check that a `TestConstraintSystem` is satisfied.
+- **Stronger accumulator chaining**
+  - Extend `verify_accumulator_chaining` so that:
+    - Step 0 inputs are tied to the initial accumulator,
+    - Each step’s DEC children are tied to the next step’s ME inputs,
+    - The final outputs match the public final accumulator (already enforced).
 
-2. **Integrate Spartan2 with a thin wrapper:**
-   - Define a `FoldRunSpartanCircuit<E>` that wraps `FoldRunCircuit<E::Scalar>` and implements `spartan2::traits::circuit::SpartanCircuit<E>`.
-   - Call `R1CSSNARK<E>::setup / prep_prove / prove / verify` in `api.rs` to produce and verify real Spartan proofs.
+- **Commitment-level consistency (optional)**
+  - If we want Spartan to attest to Ajtai commitments as well:
+    - Add linear constraints on `c` in `verify_rlc` / `verify_dec` mirroring the native RLC/DEC commitment relations.
+    - Optionally expose a commitment to the final accumulator as part of the public IO.
 
-3. **Extend constraints gradually:**
-   - Implement the terminal identity gadget and cross-check against the native Neo implementation (`rhs_terminal_identity_paper_exact`).
-   - Add RLC and DEC equalities for a single step.
-   - Add accumulator chaining across steps and connect the initial/final accumulator to meaningful public IO.
+- **Public IO / statement design**
+  - Decide whether the Spartan statement should:
+    - encode only digests (current approach),
+    - also encode original R1CS public IO,
+    - or include final accumulator commitments.
 
-4. **Revisit engine / PCS modularity:**
-   - Once a basic Spartan pipeline is working, reintroduce a clean `ZPolyLayout` abstraction tied to Spartan's `Engine` (not a separate `BridgeEngine`).
-   - Use that to make the integration robust to future PCS changes.
+- **Dead-code cleanups**
+  - `gadgets/pi_ccs.rs::base_b_recompose_k` is now legacy (the circuit recomposes Ajtai rows inline with K hints) and can be removed or clearly marked as such.
 
 ---
 
 ## Safety and Caveats
 
-- This crate is **experimental** and should not be used as a security boundary.
-- Many pieces (terminal identity, RLC/DEC, chaining, Spartan integration) are still TODO.
-- Any gadget that uses `cs.get()` is gated behind the `unsafe-gadgets` feature and must not be used in real proofs.
+- This crate is **experimental** and should not yet be treated as a hardened verification layer.
+- Commitment correctness is still delegated to the outer Ajtai verifier; Spartan currently checks the Π‑CCS algebra and the folding of evaluation views.
+- Any gadget that uses `cs.get()` remains gated behind the `unsafe-gadgets` feature and must not be used in production circuits.
 
 ---
 

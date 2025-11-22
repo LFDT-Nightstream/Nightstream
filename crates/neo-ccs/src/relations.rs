@@ -58,7 +58,7 @@ impl<F: Field> CcsStructure<F> {
         if self.n != self.m { return Ok(self.clone()); }
         let is_id0 = self
             .matrices
-            .get(0)
+            .first()
             .map(|m0| m0.is_identity())
             .unwrap_or(false);
         if is_id0 { return Ok(self.clone()); }

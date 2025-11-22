@@ -111,10 +111,10 @@ impl SAction {
         }
         
         // Allow zero-padded tails; enforce zeros beyond D
-        if y.len() > D {
-            if y[D..].iter().any(|&v| v != K::ZERO) {
-                return Err(SActionError::DimMismatch { expected: D, got: y.len() });
-            }
+        if y.len() > D
+            && y[D..].iter().any(|&v| v != K::ZERO)
+        {
+            return Err(SActionError::DimMismatch { expected: D, got: y.len() });
         }
         
         let process_len = y.len().min(D);

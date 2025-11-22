@@ -97,7 +97,7 @@ fn test_session_multifold_k3_three_steps_r1cs_paper_exact_nontrivial() {
         witnesses: vec![Z1, Z2],
     };
     
-    let mut session = FoldingSession::new(FoldingMode::PaperExact, params.clone(), l.clone())
+    let mut session = FoldingSession::new(FoldingMode::PaperExact, params, l.clone())
         .with_initial_accumulator(acc, &ccs)
         .expect("with_initial_accumulator");
     

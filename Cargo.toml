@@ -83,3 +83,33 @@ rust-version = "1.88"
 uninlined_format_args = "allow"
 # Allow functions with more than 7 arguments (cryptographic functions often need many params)
 too_many_arguments = "allow"
+# Allow range loops with indices (simple for i in 0..D is more performant for fixed-size arrays)
+needless_range_loop = "allow"
+# Allow vec! even when array could be used (vec! is sometimes clearer for mutable collections)
+useless_vec = "allow"
+# Allow manual += operations (sometimes clearer in mathematical contexts)
+assign_op_pattern = "allow"
+# Allow identity operations in test code (makes formulas clearer, e.g., 1*1 + 2*1)
+identity_op = "allow"
+# Allow empty lines after doc comments (useful for visual separation of sections)
+empty_line_after_doc_comments = "allow"
+# Allow .get(0) instead of .first() (sometimes .get() is more consistent with other indices)
+get_first = "allow"
+# Allow complex types in cryptographic code (proof systems have inherently complex types)
+type_complexity = "allow"
+# Allow manual loops instead of copy_from_slice (loops can be clearer for small copies)
+manual_memcpy = "allow"
+# Allow let binding before return (can improve debugging and readability)
+let_and_return = "allow"
+# Allow cloning Copy types (sometimes needed for API compatibility)
+clone_on_copy = "allow"
+# Allow redundant closures (sometimes clearer than function pointers)
+redundant_closure = "allow"
+# Allow abs() as cast pattern (traditional and clear)
+cast_abs_to_unsigned = "allow"
+# Allow first().is_some() pattern (can be clearer than !is_empty())
+unnecessary_first_then_check = "allow"
+# Allow unnecessary casts (sometimes needed for clarity or future-proofing)
+unnecessary_cast = "allow"
+# Allow uppercase acronyms like SNARK, CCS (standard in cryptography)
+upper_case_acronyms = "allow"

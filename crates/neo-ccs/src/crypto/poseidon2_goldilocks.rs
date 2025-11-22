@@ -49,7 +49,7 @@ pub static PERM: Lazy<Poseidon2Goldilocks<{ WIDTH }>> = Lazy::new(|| {
 /// - Optimal performance (no recomputation of round constants)
 /// - Thread-safe lazy initialization
 pub fn permutation() -> &'static Poseidon2Goldilocks<{ WIDTH }> {
-    &*PERM
+    &PERM
 }
 
 /// Standard sponge construction with proper padding.
@@ -69,13 +69,13 @@ pub fn poseidon2_hash(input: &[Goldilocks]) -> [Goldilocks; DIGEST_LEN] {
     // Absorb phase: XOR input into state at rate, permute after each chunk
     for chunk in input.chunks(RATE) {
         for (i, &x) in chunk.iter().enumerate() {
-            state[i] = state[i] + x;
+            state[i] += x;
         }
         state = perm.permute(state);
     }
     
     // Padding: Add 1 to first position and final permute
-    state[0] = state[0] + Goldilocks::ONE;
+    state[0] += Goldilocks::ONE;
     state = perm.permute(state);
 
     // Squeeze phase: Extract first DIGEST_LEN elements as output
@@ -113,7 +113,7 @@ pub fn poseidon2_hash_bytes(input: &[u8]) -> [Goldilocks; DIGEST_LEN] {
 pub fn poseidon2_hash_packed_bytes(input: &[u8]) -> [Goldilocks; DIGEST_LEN] {
     use core::mem::size_of;
     const LIMB: usize = size_of::<u64>();
-    let mut felts = Vec::with_capacity((input.len() + LIMB - 1) / LIMB + 1);
+    let mut felts = Vec::with_capacity(input.len().div_ceil(LIMB) + 1);
 
     // Pack 8 bytes per field element (little-endian)
     for chunk in input.chunks(LIMB) {

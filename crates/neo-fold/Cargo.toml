@@ -64,8 +64,17 @@ p3-goldilocks = { workspace = true }
 p3-field = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+neo-ccs = { path = "../neo-ccs" }
+neo-ajtai = { path = "../neo-ajtai" }
+neo-params = { path = "../neo-params" }
+neo-math = { path = "../neo-math" }
+rand_chacha = { workspace = true }
 
 # Starstream integration tests
+[[test]]
+name = "test_perf_fibonacci"
+path = "perf-tests/fibonacci.rs"
+
 [[test]]
 name = "test_starstream_tx_valid_paper_exact"
 path = "starstream-tests/test_starstream_tx_valid_paper_exact.rs"

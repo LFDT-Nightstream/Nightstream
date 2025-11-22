@@ -91,12 +91,12 @@ fn test_session_single_fold_with_crosscheck() {
     };
     
     session
-        .prove_step_from_io(&input)
-        .expect("prove should succeed");
+        .add_step_from_io(&input)
+        .expect("add_step should succeed");
 
     let run = session
-        .finalize(&ccs)
-        .expect("finalize should produce a FoldRun");
+        .fold_and_prove(&ccs)
+        .expect("fold_and_prove should produce a FoldRun");
 
     // Verify
     let public_mcss = session.mcss_public();

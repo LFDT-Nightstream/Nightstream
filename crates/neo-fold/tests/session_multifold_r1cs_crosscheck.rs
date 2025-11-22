@@ -76,24 +76,24 @@ fn test_session_multifold_k3_three_steps_r1cs_crosscheck() {
         let x: Vec<F> = vec![F::ZERO, F::ZERO];
         let w: Vec<F> = vec![F::ZERO, F::ZERO];
         let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
-        session.prove_step_from_io(&input).expect("prove_step 1");
+        session.add_step_from_io(&input).expect("add_step 1");
     }
     
     {
         let x: Vec<F> = vec![F::ZERO, F::ZERO];
         let w: Vec<F> = vec![F::ZERO, F::ZERO];
         let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
-        session.prove_step_from_io(&input).expect("prove_step 2");
+        session.add_step_from_io(&input).expect("add_step 2");
     }
     
     {
         let x: Vec<F> = vec![F::ZERO, F::ZERO];
         let w: Vec<F> = vec![F::ZERO, F::ZERO];
         let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
-        session.prove_step_from_io(&input).expect("prove_step 3");
+        session.add_step_from_io(&input).expect("add_step 3");
     }
     
-    let run = session.finalize(&ccs).expect("finalize should produce a FoldRun");
+    let run = session.fold_and_prove(&ccs).expect("fold_and_prove should produce a FoldRun");
     
     // Test has k=3 fold fan-in, but params.k_rho=12 (DEC produces 12 children, not 3)
     assert_eq!(run.steps.len(), 3, "should have three fold steps");

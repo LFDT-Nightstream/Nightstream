@@ -277,6 +277,7 @@ pub fn k_scalar_mul<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use bellpepper_core::test_cs::TestConstraintSystem;

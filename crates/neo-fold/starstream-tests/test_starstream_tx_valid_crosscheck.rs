@@ -218,12 +218,12 @@ fn test_starstream_tx_valid_crosscheck() {
     
     // Execute all steps
     for _ in 0..export.steps.len() {
-        session.prove_step(&mut circuit, &NoInputs)
-            .expect("prove_step should succeed with crosscheck");
+        session.add_step(&mut circuit, &NoInputs)
+            .expect("add_step should succeed with crosscheck");
     }
     
-    let run = session.finalize(&step_ccs)
-        .expect("finalize should produce a FoldRun");
+    let run = session.fold_and_prove(&step_ccs)
+        .expect("fold_and_prove should produce a FoldRun");
     
     assert_eq!(run.steps.len(), export.steps.len(), "should have correct number of steps");
     

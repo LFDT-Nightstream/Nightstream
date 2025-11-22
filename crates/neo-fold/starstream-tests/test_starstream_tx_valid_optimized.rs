@@ -204,13 +204,13 @@ fn test_starstream_tx_valid_optimized() {
     
     // Execute all steps
     for _ in 0..export.steps.len() {
-        session.prove_step(&mut circuit, &NoInputs)
-            .expect("prove_step should succeed with optimized");
+        session.add_step(&mut circuit, &NoInputs)
+            .expect("add_step should succeed with optimized");
     }
     
     let start = Instant::now();
-    let run = session.finalize(&step_ccs)
-        .expect("finalize should produce a FoldRun");
+    let run = session.fold_and_prove(&step_ccs)
+        .expect("fold_and_prove should produce a FoldRun");
     let finalize_duration = start.elapsed();
     
     println!("Proof generation time (finalize): {:?}", finalize_duration);

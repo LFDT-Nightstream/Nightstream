@@ -224,11 +224,11 @@ fn test_starstream_tx_optimized_invalid() {
     let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
     
     for _ in 0..export.steps.len() {
-        session.prove_step(&mut circuit, &NoInputs)
-            .expect("prove_step should succeed (failure comes at finalize)");
+        session.add_step(&mut circuit, &NoInputs)
+            .expect("add_step should succeed (failure comes at fold_and_prove)");
     }
     
-    let result = session.finalize(&baseline_ccs);
+    let result = session.fold_and_prove(&baseline_ccs);
     
     assert!(
         result.is_err(),

@@ -13,6 +13,7 @@ use neo_math::s_action::SAction;
 /// 
 /// This is the same implementation as in commit.rs but exposed for test usage
 #[inline]
+#[allow(dead_code)]
 pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
     let last = cur[D - 1];
     next[0] = Fq::ZERO;
@@ -37,6 +38,7 @@ pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
 /// - Deduplicates equal `a_ij` by hashing `cf(a_ij)` (O(1) average).
 /// - Precomputes all rotation columns per unique ring element via `rot_step`.
 /// - Builds rows in parallel with Rayon.
+#[allow(dead_code)]
 pub fn rows_for_coords(
     pp: &PP<RqEl>, 
     z_len: usize, 
@@ -128,6 +130,7 @@ pub fn rows_for_coords(
 /// 
 /// This is the streaming version of `rows_for_coords` that computes only one row
 /// to avoid materializing the entire row matrix in memory.
+#[allow(dead_code)]
 pub fn compute_single_ajtai_row(
     pp: &PP<RqEl>,
     coord_idx: usize,
@@ -180,6 +183,7 @@ pub fn compute_single_ajtai_row(
 
 /// Fill `cols` with the d rotation columns of rot(a): cols[t] = cf(a * X^t).
 #[inline]
+#[allow(dead_code)]
 fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
     let mut col = cf(a);
     let mut nxt = [Fq::ZERO; D];
@@ -198,6 +202,7 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
 /// 
 /// ⚠️  FOR TESTING ONLY - NOT CONSTANT TIME ⚠️
 #[allow(non_snake_case)]
+#[allow(dead_code)]
 pub fn commit_spec(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d; 
     let m = pp.m;

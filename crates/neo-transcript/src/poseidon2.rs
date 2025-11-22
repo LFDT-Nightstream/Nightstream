@@ -1,4 +1,4 @@
-use p3_goldilocks::Goldilocks;
+use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_symmetric::Permutation;
 use neo_math::F;
@@ -11,6 +11,7 @@ const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w16-r8";
 pub struct Poseidon2Transcript {
     st: [Goldilocks; p2::WIDTH],
     absorbed: usize,
+    perm: &'static Poseidon2Goldilocks<{ p2::WIDTH }>,
     #[cfg(feature = "debug-log")]
     log: Vec<crate::debug::Event>,
 }
@@ -24,10 +25,51 @@ impl Poseidon2Transcript {
         self.st[self.absorbed] = x;
         self.absorbed += 1;
     }
+    
+    #[inline]
+    fn absorb_slice(&mut self, inputs: &[F]) {
+        let mut src_idx = 0;
+        let len = inputs.len();
+        
+        // 1. Fill remaining buffer
+        while self.absorbed < p2::RATE && src_idx < len {
+            self.st[self.absorbed] = inputs[src_idx];
+            self.absorbed += 1;
+            src_idx += 1;
+        }
+        
+        if self.absorbed == p2::RATE {
+            self.permute();
+        }
+        
+        // 2. Process full chunks
+        while len - src_idx >= p2::RATE {
+             // Manually unroll for p2::RATE = 8
+             // We use assignment (overwrite) to match absorb_elem behavior
+             self.st[0] = inputs[src_idx];
+             self.st[1] = inputs[src_idx+1];
+             self.st[2] = inputs[src_idx+2];
+             self.st[3] = inputs[src_idx+3];
+             self.st[4] = inputs[src_idx+4];
+             self.st[5] = inputs[src_idx+5];
+             self.st[6] = inputs[src_idx+6];
+             self.st[7] = inputs[src_idx+7];
+             
+             self.permute();
+             src_idx += p2::RATE;
+        }
+        
+        // 3. Buffer remaining
+        while src_idx < len {
+             self.st[self.absorbed] = inputs[src_idx];
+             self.absorbed += 1;
+             src_idx += 1;
+        }
+    }
 
     #[inline]
     fn permute(&mut self) {
-        self.st = p2::permutation().permute(self.st);
+        self.st = self.perm.permute(self.st);
         self.absorbed = 0;
     }
 
@@ -40,6 +82,7 @@ impl Transcript for Poseidon2Transcript {
         let mut tr = Self {
             st: [Goldilocks::ZERO; p2::WIDTH],
             absorbed: 0,
+            perm: p2::permutation(),
             #[cfg(feature = "debug-log")]
             log: Vec::new(),
         };
@@ -60,7 +103,7 @@ impl Transcript for Poseidon2Transcript {
     fn append_fields(&mut self, label: &'static [u8], fs: &[F]) {
         for &b in label { self.absorb_elem(Goldilocks::from_u64(b as u64)); }
         self.absorb_elem(Goldilocks::from_u64(fs.len() as u64));
-        for &x in fs { self.absorb_elem(Goldilocks::from_u64(x.as_canonical_u64())); }
+        self.absorb_slice(fs);
         #[cfg(feature = "debug-log")]
         self.log.push(crate::debug::Event::new("append_fields", label, fs.len(), &self.st));
         #[cfg(feature = "fs-guard")]

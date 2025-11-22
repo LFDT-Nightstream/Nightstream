@@ -11,7 +11,7 @@ workspace = true
 [features]
 default = []
 # Enable verbose logging for debugging
-debug-logs = []
+debug-logs = ["neo-reductions/debug-logs"]
 # Experimental engine abstraction (not wired to Spartan2 yet)
 experimental-engine = []
 # Unsafe gadgets that use cs.get() (TestConstraintSystem only)

@@ -286,13 +286,13 @@ fn test_starstream_tx_valid_paper_exact() {
     
     // Execute all steps
     for _ in 0..export.steps.len() {
-        session.prove_step(&mut circuit, &NoInputs)
-            .expect("prove_step should succeed with paper-exact");
+        session.add_step(&mut circuit, &NoInputs)
+            .expect("add_step should succeed with paper-exact");
     }
     
     let start = Instant::now();
-    let run = session.finalize(&baseline_ccs)
-        .expect("finalize should produce a FoldRun");
+    let run = session.fold_and_prove(&baseline_ccs)
+        .expect("fold_and_prove should produce a FoldRun");
     let finalize_duration = start.elapsed();
     
     println!("Proof generation time (finalize): {:?}", finalize_duration);

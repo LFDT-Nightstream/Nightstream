@@ -155,7 +155,7 @@ fn sparse_thresh() -> f32 {
 
 /// Cache of sparse matrix formats to avoid rebuilding on every eval_q_ext call.
 #[derive(Clone)]
-struct SparseCache<Ff> {
+pub struct SparseCache<Ff> {
     // For each j: None (identity), or Some(CSC)
     csc: Vec<Option<CscMat<Ff>>>,
     // Density per matrix (nnz / (n*m))

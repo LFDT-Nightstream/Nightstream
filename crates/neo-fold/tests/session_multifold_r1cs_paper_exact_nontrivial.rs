@@ -97,7 +97,7 @@ fn test_session_multifold_k3_three_steps_r1cs_paper_exact_nontrivial() {
         witnesses: vec![Z1, Z2],
     };
     
-    let mut session = FoldingSession::new(FoldingMode::PaperExact, params.clone(), l.clone())
+    let mut session = FoldingSession::new(FoldingMode::PaperExact, params, l.clone())
         .with_initial_accumulator(acc, &ccs)
         .expect("with_initial_accumulator");
     
@@ -106,7 +106,7 @@ fn test_session_multifold_k3_three_steps_r1cs_paper_exact_nontrivial() {
         let x: Vec<F> = vec![F::ONE, F::ONE, F::ONE];
         let w: Vec<F> = vec![F::from_u64(2), F::from_u64(2)];
         let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
-        session.prove_step_from_io(&input).expect("prove_step 1");
+        session.add_step_from_io(&input).expect("add_step 1");
     }
     
     // Step 2: x = [1,0,1], w = [1,0]
@@ -114,7 +114,7 @@ fn test_session_multifold_k3_three_steps_r1cs_paper_exact_nontrivial() {
         let x: Vec<F> = vec![F::ONE, F::ZERO, F::ONE];
         let w: Vec<F> = vec![F::ONE, F::ZERO];
         let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
-        session.prove_step_from_io(&input).expect("prove_step 2");
+        session.add_step_from_io(&input).expect("add_step 2");
     }
     
     // Step 3: x = [0,1,1], w = [1,1]
@@ -122,10 +122,10 @@ fn test_session_multifold_k3_three_steps_r1cs_paper_exact_nontrivial() {
         let x: Vec<F> = vec![F::ZERO, F::ONE, F::ONE];
         let w: Vec<F> = vec![F::ONE, F::ONE];
         let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
-        session.prove_step_from_io(&input).expect("prove_step 3");
+        session.add_step_from_io(&input).expect("add_step 3");
     }
     
-    let run = session.finalize(&ccs).expect("finalize should produce a FoldRun");
+    let run = session.fold_and_prove(&ccs).expect("fold_and_prove should produce a FoldRun");
     
     assert_eq!(run.steps.len(), 3, "should have three fold steps");
     

@@ -58,7 +58,7 @@ impl<F: Field> CcsStructure<F> {
         if self.n != self.m { return Ok(self.clone()); }
         let is_id0 = self
             .matrices
-            .get(0)
+            .first()
             .map(|m0| m0.is_identity())
             .unwrap_or(false);
         if is_id0 { return Ok(self.clone()); }
@@ -68,6 +68,57 @@ impl<F: Field> CcsStructure<F> {
         // Shift polynomial variables by inserting a dummy variable at the front
         let f = self.f.insert_var_at_front();
         Ok(CcsStructure { matrices, f, n: self.n, m: self.m })
+    }
+
+    /// **STRICT** validation: Assert that M₀ = I_n for Ajtai/NC pipeline.
+    /// 
+    /// The Ajtai norm constraint (NC) layer assumes the first matrix is the identity
+    /// for digit-range checks. If this invariant is violated, the sumcheck will fail
+    /// with a mysterious error later. This function fails fast with a clear error message.
+    /// 
+    /// # Errors
+    /// - Returns error if n ≠ m (non-square CCS cannot have square identity)
+    /// - Returns error if matrices list is empty
+    /// - Returns error if M₀ is not the identity matrix I_n
+    /// 
+    /// # Example
+    /// ```ignore
+    /// // Before using CCS in Ajtai/NC pipeline:
+    /// ccs.assert_m0_is_identity_for_nc()?;
+    /// ```
+    pub fn assert_m0_is_identity_for_nc(&self) -> Result<(), RelationError>
+    where
+        F: p3_field::PrimeCharacteristicRing + Copy + Eq,
+    {
+        // Check 1: Square CCS required for identity to even make sense
+        if self.n != self.m {
+            return Err(RelationError::Message(format!(
+                "Ajtai NC requires square CCS (n_constraints == n_vars), got {}×{}. \
+                 You may need to pad your R1CS to square dimensions.",
+                self.n, self.m
+            )));
+        }
+
+        // Check 2: Must have at least one matrix
+        if self.matrices.is_empty() {
+            return Err(RelationError::Message(
+                "Ajtai NC expects at least one matrix (M₀) in CCS".into()
+            ));
+        }
+
+        // Check 3: M₀ must be the identity matrix
+        if !self.matrices[0].is_identity() {
+            return Err(RelationError::Message(
+                "Ajtai NC requires M₀ = I_n (identity matrix). \
+                 Your CCS has a non-identity first matrix. \
+                 This usually happens with rectangular R1CS or when r1cs_to_ccs \
+                 doesn't produce identity-first form. \
+                 Try: (1) ensure n==m in R1CS, or (2) call ensure_identity_first() \
+                 before this check.".into()
+            ));
+        }
+
+        Ok(())
     }
 }
 

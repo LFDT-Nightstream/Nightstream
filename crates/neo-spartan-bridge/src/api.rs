@@ -6,6 +6,8 @@
 //!
 //! **STATUS**: Stubs only. No Spartan2 integration yet.
 
+#![allow(unused_imports)]
+
 use crate::circuit::{FoldRunCircuit, FoldRunWitness, FoldRunInstance};
 use crate::circuit::fold_circuit::CircuitPolyTerm;
 use crate::error::{Result, SpartanBridgeError};
@@ -118,7 +120,8 @@ pub fn prove_fold_run(
                     "[spartan-bridge]   native claimed_initial_sum T = {}",
                     format_ext(T_native)
                 );
-                // Host-side recomputation of T using the in-circuit formula for cross-checking.
+                // Host-side recomputation of T using the same formula as
+                // `claimed_initial_sum_from_inputs` (including the outer γ^k).
                 let T_bridge_host: NeoK = {
                     use core::cmp::min;
 
@@ -140,18 +143,18 @@ pub fn prove_fold_run(
                             chi_a[rho] = w;
                         }
 
-                        // γ^k
-                        let mut gamma_to_k = NeoK::ONE;
-                        for _ in 0..k_total {
-                            gamma_to_k *= proof.challenges_public.gamma;
-                        }
-
                         // Number of matrices t: use y-table length from ME inputs.
                         let t = if me_inputs.is_empty() {
                             0
                         } else {
                             me_inputs[0].y.len()
                         };
+
+                        // γ^k
+                        let mut gamma_to_k = NeoK::ONE;
+                        for _ in 0..k_total {
+                            gamma_to_k *= proof.challenges_public.gamma;
+                        }
 
                         let mut inner = NeoK::ZERO;
                         for j in 0..t {
@@ -177,7 +180,8 @@ pub fn prove_fold_run(
                             }
                         }
 
-                        inner
+                        // Match paper-exact engine: T = γ^k · inner.
+                        gamma_to_k * inner
                     }
                 };
                 eprintln!(
@@ -239,6 +243,7 @@ pub fn prove_fold_run(
             let coeff_circ = CircuitF::from(term.coeff.as_canonical_u64());
             CircuitPolyTerm {
                 coeff: coeff_circ,
+                coeff_native: term.coeff,
                 exps: term.exps.iter().map(|e| *e as u32).collect(),
             }
         })

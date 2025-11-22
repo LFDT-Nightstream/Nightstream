@@ -1,18 +1,14 @@
-//! Π-CCS specific circuit gadgets
+//! Π-CCS circuit gadgets used by the FoldRun circuit.
 //!
-//! This module implements the core Π-CCS verification logic:
-//! - Terminal identity check (Step 4 RHS from the paper)
+//! Currently this module exposes:
 //! - Sumcheck round verification
-//! - Base-b recomposition
+//! - Sumcheck evaluation via Horner’s method
+//! - A base-b recomposition helper (legacy; no longer used by the main circuit)
 
-use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use crate::gadgets::k_field::{KNum, KNumVar, k_add, k_mul};
 use neo_math::K as NeoK;
-
-// These imports are only used in the unsafe terminal_identity_rhs_gadget stub
-#[cfg(feature = "unsafe-gadgets")]
-use crate::gadgets::common::{eq_gadget, mle_eval_gadget};
 
 /// Recompose K-field digits in base b: Σ b^ℓ * y[ℓ]
 ///
@@ -75,53 +71,6 @@ pub fn base_b_recompose_k<F: PrimeField, CS: ConstraintSystem<F>>(
     }
 
     Ok(result)
-}
-
-/// Verify Π-CCS terminal identity (Step 4 RHS from the paper)
-///
-/// This computes the right-hand side of the terminal identity:
-/// v = eq((α',r'), β) * (F' + Σ γ^i N'_i) + eq((α',r'), (α,r)) * (γ^k * Eval')
-///
-/// Where:
-/// - F' is computed from the first ME output's y-vector
-/// - N'_i are range terms from Ajtai digits
-/// - Eval' is the weighted sum of MLE evaluations
-///
-/// Inputs are witness values; this gadget enforces the computation.
-pub fn terminal_identity_rhs_gadget<F: PrimeField, CS: ConstraintSystem<F>>(
-    cs: &mut CS,
-    // Challenge points
-    _alpha_prime_bits: &[Variable],
-    _r_prime: &[KNumVar],
-    _beta: &[KNumVar],
-    _alpha_bits: &[Variable],
-    _r: &[KNumVar],
-    
-    // Challenge scalars
-    _gamma: &KNumVar,
-    
-    // ME output y-vectors (for computing F', N', Eval')
-    _me_y_tables: &[Vec<KNumVar>],  // me_y_tables[i][j] is y_{(i,j)}
-    
-    // Other parameters
-    _b: u32,
-    _delta: F,
-    label: &str,
-) -> Result<KNumVar, SynthesisError> {
-    // TODO: This is a complex gadget that would need the full CCS structure
-    // For now, this is a placeholder showing the structure
-    
-    // 1. Compute eq((α',r'), β) - concatenate points and compute eq
-    // 2. Compute F' from first ME's y-vector using base-b recomposition
-    // 3. Compute N'_i range terms using range_product_gadget
-    // 4. Compute Eval' using mle_eval_gadget on the y-tables
-    // 5. Combine with γ powers to get final RHS
-    
-    // Placeholder: return zero for now
-    let zero_c0 = cs.alloc(|| format!("{}_zero_c0", label), || Ok(F::ZERO))?;
-    let zero_c1 = cs.alloc(|| format!("{}_zero_c1", label), || Ok(F::ZERO))?;
-    
-    Ok(KNumVar { c0: zero_c0, c1: zero_c1 })
 }
 
 /// Verify a single sumcheck round: p(0) + p(1) = claimed_sum
@@ -356,4 +305,3 @@ pub fn sumcheck_eval_gadget<F: PrimeField, CS: ConstraintSystem<F>>(
 
     Ok(result)
 }
-

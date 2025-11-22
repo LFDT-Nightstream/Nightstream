@@ -174,7 +174,7 @@ fn nc_sum_engine_matches_paper_nc_when_m1_not_identity() {
     }
 
     // Paper NC component extracted as paper_total - F_beta
-    let nc_paper = paper_total - f_beta;
+    let _nc_paper = paper_total - f_beta;
 
     // Engine NC: since optimized_engine now uses paper-exact code, this test is obsolete
     // Stub out the comparison
@@ -238,7 +238,7 @@ fn nc_sum_engine_vs_paper_drift_with_custom_m1_and_Z() {
         f_beta += chi_beta_r[row] * K::from(dot);
     }
 
-    let nc_paper = paper_total - f_beta;
+    let _nc_paper = paper_total - f_beta;
     
     // Engine NC: since optimized_engine now uses paper-exact code, this test is obsolete
     // Stub out the comparison

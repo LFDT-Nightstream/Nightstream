@@ -103,3 +103,8 @@ name = "test_starstream_tx_invalid_crosscheck"
 path = "starstream-tests/test_starstream_tx_invalid_crosscheck.rs"
 required-features = ["paper-exact"]
 
+[[test]]
+name = "test_poseidon2_single_step"
+path = "poseidon2-tests/test_ic_single_step.rs"
+required-features = []
+

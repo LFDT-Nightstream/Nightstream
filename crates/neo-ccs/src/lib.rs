@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(deprecated)]
 //! CCS frontend for Neo: structures, relations (MCS/ME), and row-wise checks.
 //!
 //! Implements the MUST and SHOULD in the Neo spec, matching the paper's §4.1 relations
@@ -44,51 +43,3 @@ pub use relations::{
 };
 pub use traits::SModuleHomomorphism;
 pub use utils::{tensor_point, mat_vec_mul_fk, mat_vec_mul_ff, validate_power_of_two, direct_sum, direct_sum_mixed};
-
-// ===== DEPRECATED LEGACY BRIDGE TYPES =====
-// These are kept temporarily for bridge compatibility but are NOT audit-ready.
-// They will be removed in a future version once the bridge is modernized.
-/// Legacy Matrix Evaluation instance - for bridge compatibility only
-/// 
-/// ⚠️ **DEPRECATED & NOT AUDIT-READY**: Use `relations::MeInstance<C, F, K>` instead.
-/// This type exists only to keep the spartan-bridge compiling during modernization.
-#[deprecated(since = "0.1.0", note = "Use relations::MeInstance<C, F, K> instead")]
-#[allow(deprecated)]
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct MEInstance {
-    /// Ajtai commitment coordinates c ∈ F_q^{d×κ}
-    pub c_coords: Vec<neo_math::F>, 
-    /// ME outputs y_j = ⟨M_j^T r^b, Z⟩ for each matrix j
-    pub y_outputs: Vec<neo_math::F>, 
-    /// Public random point r^b from sum-check 
-    pub r_point: Vec<neo_math::F>, 
-    /// Base parameter for range constraints
-    pub base_b: u64,
-    /// Transcript header digest for binding to neo-fold
-    pub header_digest: [u8; 32],
-    /// **PATTERN A**: Pre-commitment coordinates for linear link constraints
-    /// c_step_coords[i] are the coordinates of the pre-commitment (with ρ=0 for EV part)
-    /// Used to enforce: c_full[i] - c_step_coords[i] = ⟨L_i, U⟩ where U = ρ·y_step
-    pub c_step_coords: Vec<neo_math::F>,
-    /// Pattern A: Offset where ρ-dependent part starts in witness vector (unused in Pattern B)
-    pub u_offset: usize,
-    /// Pattern A: Length of the ρ-dependent part (unused in Pattern B)
-    pub u_len: usize,
-}
-
-/// Legacy Matrix Evaluation witness - for bridge compatibility only
-/// 
-/// ⚠️ **DEPRECATED & NOT AUDIT-READY**: Use `relations::MeWitness<F>` instead.
-/// This type exists only to keep the spartan-bridge compiling during modernization.
-#[deprecated(since = "0.1.0", note = "Use relations::MeWitness<F> instead")]
-#[allow(deprecated)]
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct MEWitness {
-    /// Witness digits Z in base b: |Z|_∞ < b
-    pub z_digits: Vec<i64>, 
-    /// Weight vectors v_j = M_j^T r^b for computing ⟨v_j, Z⟩ = y_j
-    pub weight_vectors: Vec<Vec<neo_math::F>>, 
-    /// Optional Ajtai linear map rows L for c = L(Z) verification
-    pub ajtai_rows: Option<Vec<Vec<neo_math::F>>>, 
-}
-

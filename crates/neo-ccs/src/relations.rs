@@ -144,7 +144,7 @@ pub struct McsWitness<F> {
 }
 
 /// ME instance: (c, X, r, {y_j}). See Def. 18.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[allow(non_snake_case)]
 pub struct MeInstance<C, F, K> {
     /// Commitment to Z.

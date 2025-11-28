@@ -3,7 +3,7 @@
 CCS frontend and relation objects used by reductions.
 
 ## Surface
-- Types: `CcsShape`, `MCSInstance/Witness`, `MEInstance/Witness`.
+- Types: `CcsStructure`, `McsInstance/Witness`, `MeInstance/Witness`.
 - Loader for {M_j} and CCS polynomial f; public inputs `x ⊂ z`.
 - Consistency checks: `c = L(Z)`, `y_j = Z M_j^T r^b`, `X = L_x(Z)`.
 - Relaxed CCS knobs: slack `u` and factor `e` (defaults `u=0, e=1`).

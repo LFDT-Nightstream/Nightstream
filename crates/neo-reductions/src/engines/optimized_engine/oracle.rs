@@ -143,6 +143,47 @@ fn eq_points_bool_mask(mask: usize, points: &[K]) -> K {
     prod
 }
 
+/// Non-zero entries of χ_r when the tail row bits (positions > fixed) are Boolean.
+#[inline]
+fn chi_support_with_tail_boolean(r_prime: &[K], fixed: usize, n_eff: usize) -> (Vec<usize>, Vec<K>) {
+    debug_assert!(fixed + 1 <= r_prime.len(), "fixed out of bounds");
+
+    let support_sz = 1usize << (fixed + 1);
+    let mut rows = Vec::with_capacity(support_sz);
+    let mut weights = Vec::with_capacity(support_sz);
+
+    let mut tail_mask = 0usize;
+    for i in (fixed + 1)..r_prime.len() {
+        debug_assert!(
+            r_prime[i] == K::ZERO || r_prime[i] == K::ONE,
+            "row tail bits must be Boolean during row phase"
+        );
+        if r_prime[i] == K::ONE {
+            tail_mask |= 1usize << i;
+        }
+    }
+
+    for mask in 0..support_sz {
+        let mut row_idx = tail_mask;
+        let mut w = K::ONE;
+        for bit in 0..=fixed {
+            let is_one = ((mask >> bit) & 1) == 1;
+            if is_one {
+                row_idx |= 1usize << bit;
+                w *= r_prime[bit];
+            } else {
+                w *= K::ONE - r_prime[bit];
+            }
+        }
+        if row_idx < n_eff {
+            rows.push(row_idx);
+            weights.push(w);
+        }
+    }
+
+    (rows, weights)
+}
+
 /// Get sparse threshold from environment or use default.
 /// Set NEO_SPARSE_THRESH to tune (e.g., 0.02 or 0.10).
 fn sparse_thresh() -> f32 {
@@ -202,6 +243,14 @@ where
     // Witnesses in the same order as the engine: all MCS first, then ME
     pub mcs_witnesses: &'a [McsWitness<F>],
     pub me_witnesses: &'a [Mat<F>],
+    // Precomputed witness weighting for F-term (independent of r')
+    pub z1: Vec<K>,
+    // Cached witness list for iteration order (MCS then ME)
+    pub all_witnesses: Vec<&'a Mat<F>>,
+    // Gamma power tables reused across evaluations
+    pub gamma_pow_i: Vec<K>,
+    pub gamma_k_pow_j: Vec<K>,
+    pub gamma_to_k: K,
     // Challenges (α, β, γ)
     pub ch: Challenges,
     // Shared dims and degree bound for sumcheck
@@ -239,11 +288,52 @@ where
             !mcs_witnesses.is_empty(),
             "need at least one MCS instance for F-term"
         );
+
+        let all_witnesses: Vec<&Mat<F>> = mcs_witnesses
+            .iter()
+            .map(|w| &w.Z)
+            .chain(me_witnesses.iter())
+            .collect();
+
+        // Precompute z1 = Σ_ρ b^{ρ} · Z_1[ρ,·], independent of r'
+        let bF = F::from_u64(params.b as u64);
+        let mut pow_b_f = vec![F::ONE; D];
+        for i in 1..D { pow_b_f[i] = pow_b_f[i - 1] * bF; }
+        let pow_b_k: Vec<K> = pow_b_f.iter().copied().map(K::from).collect();
+
+        let mut z1 = vec![K::ZERO; s.m];
+        for c in 0..s.m {
+            for rho in 0..D {
+                z1[c] += K::from(mcs_witnesses[0].Z[(rho, c)]) * pow_b_k[rho];
+            }
+        }
+
+        let k_total = all_witnesses.len();
+        let t_mats = s.t();
+
+        let mut gamma_pow_i = vec![K::ONE; k_total];
+        for i in 1..k_total {
+            gamma_pow_i[i] = gamma_pow_i[i - 1] * ch.gamma;
+        }
+
+        let mut gamma_to_k = K::ONE;
+        for _ in 0..k_total { gamma_to_k *= ch.gamma; }
+
+        let mut gamma_k_pow_j = vec![K::ONE; t_mats];
+        for j in 1..t_mats {
+            gamma_k_pow_j[j] = gamma_k_pow_j[j - 1] * gamma_to_k;
+        }
+
         Self {
             s,
             params,
             mcs_witnesses,
             me_witnesses,
+            z1,
+            all_witnesses,
+            gamma_pow_i,
+            gamma_k_pow_j,
+            gamma_to_k,
             ch,
             ell_d,
             ell_n,
@@ -277,122 +367,173 @@ where
 
     /// Precompute all data that depends only on r' (not on α') for row phase optimization.
     /// This eliminates redundant v_j recomputation across all boolean α' assignments.
-    fn precompute_for_r(&self, r_prime: &[K]) -> RPrecomp {
+    ///
+    /// `fixed_row_bits` is `Some(fixed)` during the row phase (positions ≥ fixed are Boolean),
+    /// and `None` during the Ajtai phase (full dense evaluation).
+    fn precompute_for_r(&self, r_prime: &[K], fixed_row_bits: Option<usize>) -> RPrecomp {
         let k_total = self.mcs_witnesses.len() + self.me_witnesses.len();
         let t = self.s.t();
-        
-        // Build χ_r table
-        let n_sz = 1usize << r_prime.len();
-        let mut chi_r = vec![K::ZERO; n_sz];
-        for row in 0..n_sz {
-            let mut w = K::ONE;
-            for bit in 0..r_prime.len() {
-                let r = r_prime[bit];
-                let is_one = ((row >> bit) & 1) == 1;
-                w *= if is_one { r } else { K::ONE - r };
-            }
-            chi_r[row] = w;
-        }
-        
+
         // Compute eq(r', β_r) and eq(r', r_inputs)
         let eq_beta_r = Self::eq_points(r_prime, &self.ch.beta_r);
         let eq_r_inputs = match self.r_inputs {
             Some(ref r_in) => Self::eq_points(r_prime, r_in),
             None => K::ZERO,
         };
-        
-        // Compute all v_j = M_j^T · χ_r' once
+
+        // Guard against oversized chi_r table when n_sz > self.s.n
+        let n_sz = 1usize << r_prime.len();
         let n_eff = core::cmp::min(self.s.n, n_sz);
+
+        // Optional sparse representation when row tail bits are Boolean
+        let support_rows = fixed_row_bits.map(|fixed| chi_support_with_tail_boolean(r_prime, fixed, n_eff));
+        let support_ref = support_rows.as_ref();
+
+        // Dense χ_r fallback (Ajtai phase)
+        let chi_r_dense: Option<Vec<K>> = if support_rows.is_none() {
+            let mut chi = vec![K::ZERO; n_eff];
+            for row in 0..n_eff {
+                let mut w = K::ONE;
+                for bit in 0..r_prime.len() {
+                    let r = r_prime[bit];
+                    let is_one = ((row >> bit) & 1) == 1;
+                    w *= if is_one { r } else { K::ONE - r };
+                }
+                chi[row] = w;
+            }
+            Some(chi)
+        } else {
+            None
+        };
+
         let sparse_threshold = sparse_thresh();
-        
+
+        // Compute all v_j = M_j^T · χ_r' once
         let vjs: Vec<Vec<K>> = (0..t)
             .into_par_iter()
             .map(|j| {
                 if j == 0 {
                     let mut v1 = vec![K::ZERO; self.s.m];
-                    let cap = core::cmp::min(self.s.m, n_eff);
-                    v1[..cap].copy_from_slice(&chi_r[..cap]);
+                    if let Some((rows, weights)) = support_ref {
+                        for (&row, &w) in rows.iter().zip(weights.iter()) {
+                            if row < self.s.m {
+                                v1[row] = w;
+                            }
+                        }
+                    } else if let Some(ref chi_r) = chi_r_dense {
+                        let cap = core::cmp::min(self.s.m, n_eff);
+                        v1[..cap].copy_from_slice(&chi_r[..cap]);
+                    }
                     return v1;
                 }
-                
+
                 let mut vj = vec![K::ZERO; self.s.m];
-                let use_sparse = self
-                    .sparse
-                    .as_ref()
-                    .and_then(|sc| sc.density.get(j).copied())
-                    .map(|d| d < sparse_threshold)
-                    .unwrap_or(false);
-                
-                if use_sparse {
-                    if let Some(ref sc) = self.sparse {
-                        if let Some(ref csc) = sc.csc[j] {
-                            csc.add_mul_transpose_into::<K>(&chi_r, &mut vj, n_eff);
+
+                if let Some((rows, weights)) = support_ref {
+                    let mat = &self.s.matrices[j];
+                    for (&row, &w) in rows.iter().zip(weights.iter()) {
+                        for c in 0..self.s.m {
+                            vj[c] += K::from(Self::get_F(mat, row, c)) * w;
                         }
                     }
-                } else {
-                    for row in 0..n_eff {
-                        let wr = chi_r[row];
-                        if wr == K::ZERO { continue; }
-                        for c in 0..self.s.m {
-                            vj[c] += K::from(Self::get_F(&self.s.matrices[j], row, c)) * wr;
+                } else if let Some(ref chi_r) = chi_r_dense {
+                    let use_sparse = self
+                        .sparse
+                        .as_ref()
+                        .and_then(|sc| sc.density.get(j).copied())
+                        .map(|d| d < sparse_threshold)
+                        .unwrap_or(false);
+
+                    if use_sparse {
+                        if let Some(ref sc) = self.sparse {
+                            if let Some(ref csc) = sc.csc[j] {
+                                csc.add_mul_transpose_into::<K>(chi_r, &mut vj, n_eff);
+                            }
+                        }
+                    } else {
+                        for row in 0..n_eff {
+                            let wr = chi_r[row];
+                            if wr == K::ZERO { continue; }
+                            for c in 0..self.s.m {
+                                vj[c] += K::from(Self::get_F(&self.s.matrices[j], row, c)) * wr;
+                            }
                         }
                     }
                 }
                 vj
             })
             .collect();
-        
+
         // Compute F' = f(z_1 · v_j) - independent of α'
-        let bF = F::from_u64(self.params.b as u64);
-        let mut pow_b_f = vec![F::ONE; D];
-        for i in 1..D { pow_b_f[i] = pow_b_f[i - 1] * bF; }
-        let pow_b_k: Vec<K> = pow_b_f.iter().copied().map(K::from).collect();
-        
-        let mut z1 = vec![K::ZERO; self.s.m];
-        for c in 0..self.s.m {
-            for rho in 0..D { 
-                z1[c] += K::from(self.mcs_witnesses[0].Z[(rho, c)]) * pow_b_k[rho]; 
-            }
-        }
-        
         let mut m_vals = vec![K::ZERO; t];
         for j in 0..t {
             let mut acc = K::ZERO;
             for c in 0..self.s.m {
-                acc += z1[c] * vjs[j][c];
+                acc += self.z1[c] * vjs[j][c];
             }
             m_vals[j] = acc;
         }
         let f_prime = self.s.f.eval_in_ext::<K>(&m_vals);
-        
+
         // Precompute Y[i][j][ρ] = (Z_i · v_j)[ρ] for all instances and matrices
         let mut y_nc = vec![[K::ZERO; D]; k_total];
-        let mut y_eval = vec![vec![[K::ZERO; D]; t]; k_total];
-        
-        let all_witnesses: Vec<&Mat<F>> = self.mcs_witnesses
-            .iter()
-            .map(|w| &w.Z)
-            .chain(self.me_witnesses.iter())
-            .collect();
-        
-        for (idx, Zi) in all_witnesses.iter().enumerate() {
-            // NC uses v_1 (j=0)
-            for rho in 0..D {
-                let mut acc = K::ZERO;
-                for c in 0..self.s.m {
-                    acc += K::from(Zi[(rho, c)]) * vjs[0][c];
+        let mut y_eval = if k_total >= 2 {
+            vec![vec![[K::ZERO; D]; t]; k_total]
+        } else {
+            Vec::new()
+        };
+
+        if let Some((rows, weights)) = support_ref {
+            for (idx, Zi) in self.all_witnesses.iter().enumerate() {
+                // NC uses the sparse v_1 (identity matrix)
+                for rho in 0..D {
+                    let mut acc = K::ZERO;
+                    for (&row, &w) in rows.iter().zip(weights.iter()) {
+                        if row < self.s.m {
+                            acc += K::from(Zi[(rho, row)]) * w;
+                        }
+                    }
+                    y_nc[idx][rho] = acc;
                 }
-                y_nc[idx][rho] = acc;
+
+                if k_total >= 2 {
+                    for j in 0..t {
+                        for rho in 0..D {
+                            let mut acc = K::ZERO;
+                            for (&row, &w) in rows.iter().zip(weights.iter()) {
+                                let mut row_acc = K::ZERO;
+                                for c in 0..self.s.m {
+                                    row_acc += K::from(Zi[(rho, c)]) * K::from(Self::get_F(&self.s.matrices[j], row, c));
+                                }
+                                acc += w * row_acc;
+                            }
+                            y_eval[idx][j][rho] = acc;
+                        }
+                    }
+                }
             }
-            
-            // Eval uses all v_j
-            for j in 0..t {
+        } else {
+            for (idx, Zi) in self.all_witnesses.iter().enumerate() {
+                // NC uses v_1 (j=0)
                 for rho in 0..D {
                     let mut acc = K::ZERO;
                     for c in 0..self.s.m {
-                        acc += K::from(Zi[(rho, c)]) * vjs[j][c];
+                        acc += K::from(Zi[(rho, c)]) * vjs[0][c];
                     }
-                    y_eval[idx][j][rho] = acc;
+                    y_nc[idx][rho] = acc;
+                }
+
+                if k_total >= 2 {
+                    // Eval uses all v_j
+                    for j in 0..t {
+                        for rho in 0..D {
+                            let mut acc = K::ZERO;
+                            for c in 0..self.s.m {
+                                acc += K::from(Zi[(rho, c)]) * vjs[j][c];
+                            }
+                            y_eval[idx][j][rho] = acc;
+                        }
+                    }
                 }
             }
         }
@@ -444,27 +585,15 @@ where
         // Eval block: for boolean α', y[i][j] = Y_eval[i][j][alpha_mask]
         let mut eval_inner_sum = K::ZERO;
         if k_total >= 2 && eq_ar != K::ZERO {
-            let mut gamma_to_k = K::ONE;
-            for _ in 0..k_total { gamma_to_k *= self.ch.gamma; }
-            
-            let mut gamma_pow_i = vec![K::ONE; k_total];
-            for i in 1..k_total {
-                gamma_pow_i[i] = gamma_pow_i[i - 1] * self.ch.gamma;
-            }
-            
-            let mut gamma_k_pow_j = vec![K::ONE; t];
-            for j in 1..t {
-                gamma_k_pow_j[j] = gamma_k_pow_j[j - 1] * gamma_to_k;
-            }
-            
             for j in 0..t {
+                let gamma_k = self.gamma_k_pow_j[j];
                 for i_abs in 1..k_total {
                     let y_val = pre.y_eval[i_abs][j][rho];
-                    eval_inner_sum += gamma_pow_i[i_abs] * gamma_k_pow_j[j] * y_val;
+                    eval_inner_sum += self.gamma_pow_i[i_abs] * gamma_k * y_val;
                 }
             }
             
-            eval_inner_sum = eq_ar * (gamma_to_k * eval_inner_sum);
+            eval_inner_sum = eq_ar * (self.gamma_to_k * eval_inner_sum);
         }
         
         eq_beta * (pre.f_prime + nc_sum) + eval_inner_sum
@@ -696,7 +825,7 @@ where
                         }
                         
                         // Precompute for this r_vec once
-                        let pre = self.precompute_for_r(&r_vec);
+                        let pre = self.precompute_for_r(&r_vec, Some(fixed));
                         
                         // Sum over all α' using precomputed tables (no redundant work!)
                         (0..d_sz)
@@ -716,7 +845,7 @@ where
                     }
 
                     // Precompute for this r_vec once
-                    let pre = self.precompute_for_r(&r_vec);
+                    let pre = self.precompute_for_r(&r_vec, Some(fixed));
                     
                     // Sum over all α' using precomputed tables
                     for alpha_mask in 0..d_sz {
@@ -738,7 +867,7 @@ where
         let r_vec = &self.row_chals;
 
         // r'-only precomp reused across all x
-        let pre = self.precompute_for_r(r_vec);
+        let pre = self.precompute_for_r(r_vec, None);
 
         let k_total = self.mcs_witnesses.len() + self.me_witnesses.len();
         let t_mats = self.s.t();
@@ -759,16 +888,9 @@ where
         }
 
         // Gamma powers (independent of x)
-        let mut gamma_pow_i = vec![K::ONE; k_total];
-        for i in 1..k_total {
-            gamma_pow_i[i] = gamma_pow_i[i - 1] * self.ch.gamma;
-        }
-
-        let mut gamma_to_k = K::ONE;
-        for _ in 0..k_total { gamma_to_k *= self.ch.gamma; }
-
-        let mut gamma_k_pow_j = vec![K::ONE; t_mats];
-        for jj in 1..t_mats { gamma_k_pow_j[jj] = gamma_k_pow_j[jj - 1] * gamma_to_k; }
+        let gamma_pow_i = &self.gamma_pow_i;
+        let gamma_k_pow_j = &self.gamma_k_pow_j;
+        let gamma_to_k = self.gamma_to_k;
 
         let prefix = &self.ajtai_chals[..j];
 
@@ -849,4 +971,3 @@ where
         self.round_idx += 1;
     }
 }
-

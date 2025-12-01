@@ -156,6 +156,34 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy> CscMat<Ff> {
             y[c] = acc;
         }
     }
+
+    /// y += A * x (x: ncols, y: nrows)
+    /// Only updates rows < n_eff.
+    pub fn add_mul_into<Kf>(&self, x: &[Kf], y: &mut [Kf], n_eff: usize)
+    where
+        Kf: Copy + core::ops::AddAssign + core::ops::Mul<Output = Kf> + From<Ff>,
+    {
+        debug_assert!(n_eff <= self.nrows, "n_eff must be <= nrows");
+        debug_assert!(n_eff <= y.len(), "n_eff must be <= y.len()");
+        debug_assert_eq!(x.len(), self.ncols);
+
+        for c in 0..self.ncols {
+            let xc = x[c];
+            // if xc is zero, we can skip the column
+            // but we don't have a cheap zero check for generic Kf usually, 
+            // so we just proceed.
+            
+            let s = self.col_ptr[c];
+            let e = self.col_ptr[c + 1];
+
+            for k in s..e {
+                let r = self.row_idx[k];
+                if r < n_eff {
+                    y[r] += Kf::from(self.vals[k]) * xc;
+                }
+            }
+        }
+    }
 }
 
 

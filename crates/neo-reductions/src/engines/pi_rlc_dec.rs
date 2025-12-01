@@ -58,9 +58,7 @@ impl RlcDecOps for OptimizedRlcDec {
     where
         Comb: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
     {
-        // For now, delegate to paper-exact implementation
-        // TODO: Add optimized implementation
-        let (mut out, Z) = super::paper_exact_engine::rlc_reduction_paper_exact(
+        let (mut out, Z) = super::optimized_engine::rlc_reduction_paper_exact(
             s, params, rhos, me_inputs, Zs, ell_d,
         );
         let inputs_c: Vec<Cmt> = me_inputs.iter().map(|m| m.c.clone()).collect();
@@ -80,9 +78,7 @@ impl RlcDecOps for OptimizedRlcDec {
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        // For now, delegate to paper-exact implementation
-        // TODO: Add optimized implementation
-        let (mut children, ok_y, ok_X) = super::paper_exact_engine::dec_reduction_paper_exact(
+        let (mut children, ok_y, ok_X) = super::optimized_engine::dec_reduction_paper_exact(
             s, params, parent, Z_split, ell_d,
         );
         // Patch children commitments and check c relation

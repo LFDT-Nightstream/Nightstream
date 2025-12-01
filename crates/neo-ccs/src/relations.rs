@@ -2,7 +2,7 @@ use p3_field::Field;
 
 use crate::{
     error::{CcsError, RelationError},
-    matrix::{Mat, MatRef},
+    matrix::{Mat, MatRef, CsrMatrix},
     poly::SparsePoly,
     traits::SModuleHomomorphism,
     utils::{tensor_point, mat_vec_mul_ff, mat_vec_mul_fk},
@@ -19,6 +19,9 @@ pub struct CcsStructure<F> {
     pub n: usize,
     /// m (cols)
     pub m: usize,
+    /// Precomputed sparse matrices (CSR format) for efficient multiplication
+    #[serde(skip)]
+    pub sparse_matrices: Vec<CsrMatrix<F>>,
 }
 
 impl<F: Field> CcsStructure<F> {
@@ -39,7 +42,14 @@ impl<F: Field> CcsStructure<F> {
         if f.arity() != t {
             return Err(RelationError::PolyArity { poly_arity: f.arity(), t });
         }
-        Ok(Self { matrices, f, n, m })
+        
+        // Precompute sparse matrices (CSR)
+        // Note: We store them as Mat<F> here but ideally we should store CsrMatrix.
+        // However, CsrMatrix is in crate::matrix::CsrMatrix.
+        // Let's use CsrMatrix if possible.
+        let sparse_matrices = matrices.iter().map(|m| m.to_csr()).collect();
+        
+        Ok(Self { matrices, f, n, m, sparse_matrices })
     }
 
     /// Number of matrices (arity of `f`).
@@ -66,8 +76,13 @@ impl<F: Field> CcsStructure<F> {
         let mut matrices = self.matrices.clone();
         matrices.insert(0, Mat::<F>::identity(self.n));
         // Shift polynomial variables by inserting a dummy variable at the front
+        // Shift polynomial variables by inserting a dummy variable at the front
         let f = self.f.insert_var_at_front();
-        Ok(CcsStructure { matrices, f, n: self.n, m: self.m })
+        
+        // Recompute sparse matrices
+        let sparse_matrices = matrices.iter().map(|m| m.to_csr()).collect();
+        
+        Ok(CcsStructure { matrices, f, n: self.n, m: self.m, sparse_matrices })
     }
 
     /// **STRICT** validation: Assert that M₀ = I_n for Ajtai/NC pipeline.

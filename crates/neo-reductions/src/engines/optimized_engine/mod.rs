@@ -10,7 +10,6 @@ use p3_field::PrimeCharacteristicRing;
 
 // Common types and utility functions shared across engines
 mod common;
-mod sparse;
 
 pub mod oracle;
 pub mod prove;

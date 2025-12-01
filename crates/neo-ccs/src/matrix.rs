@@ -111,7 +111,7 @@ where
 /// TRUE Compressed Sparse Row (CSR) format - only stores non-zeros!
 /// Specialized for neo_math::F for simplicity and performance
 #[derive(Clone, Debug)]
-pub struct CsrMatrix {
+pub struct CsrMatrix<F> {
     /// Number of rows in the matrix
     pub rows: usize,
     /// Number of columns in the matrix  
@@ -121,13 +121,13 @@ pub struct CsrMatrix {
     /// Column indices of non-zeros
     pub col_indices: Vec<usize>,
     /// Non-zero values (same length as col_indices) 
-    pub values: Vec<neo_math::F>,
+    pub values: Vec<F>,
 }
 
-impl CsrMatrix {
+impl<F: PrimeCharacteristicRing + Copy + Eq> CsrMatrix<F> {
     /// Convert dense matrix to CSR format - HUGE memory and performance win for sparse matrices
-    pub fn from_dense(dense: &Mat<neo_math::F>) -> Self {
-        let zero = &neo_math::F::ZERO;
+    pub fn from_dense(dense: &Mat<F>) -> Self {
+        let zero = &F::ZERO;
         let mut row_ptrs = vec![0; dense.rows + 1];
         let mut col_indices = Vec::new();
         let mut values = Vec::new();
@@ -163,38 +163,50 @@ impl CsrMatrix {
     /// TRUE O(nnz) sparse matrix-vector multiply: v = M^T * r
     /// Simple, working version - no features, no complexity
     #[inline]
-    pub fn spmv_transpose(&self, r_pairs: &[(neo_math::F, neo_math::F)]) -> (Vec<neo_math::F>, Vec<neo_math::F>) {
-        // SECURITY: Ensure r_pairs length matches matrix rows to prevent panics
-        debug_assert_eq!(r_pairs.len(), self.rows, 
-            "r_pairs length ({}) must equal matrix rows ({})", 
-            r_pairs.len(), self.rows);
+    pub fn spmv_transpose(&self, r: &[F]) -> Vec<F> {
+        debug_assert_eq!(r.len(), self.rows, "r length must equal matrix rows");
+        let mut v = vec![F::ZERO; self.cols];
         
-        let mut v_re = vec![neo_math::F::ZERO; self.cols];
-        let mut v_im = vec![neo_math::F::ZERO; self.cols];
-        
-        // CRITICAL: Only iterate actual non-zeros - THIS IS THE HUGE WIN!
         for row in 0..self.rows {
-            let (r_re, r_im) = r_pairs[row];
+            let r_val = r[row];
+            if r_val == F::ZERO { continue; }
+            
             let start = self.row_ptrs[row];
             let end = self.row_ptrs[row + 1];
             
-            // Process only non-zero elements in this row - skips all zeros!
             for idx in start..end {
                 let col = self.col_indices[idx];
                 let a = self.values[idx];
-                
-                // Simple accumulation - no features, just working code
-                v_re[col] += a * r_re;
-                v_im[col] += a * r_im;
+                v[col] += a * r_val;
             }
         }
+        v
+    }
+
+    /// TRUE O(nnz) sparse matrix-vector multiply: v = M * r
+    #[inline]
+    pub fn spmv(&self, r: &[F]) -> Vec<F> {
+        debug_assert_eq!(r.len(), self.cols, "r length must equal matrix cols");
+        let mut v = vec![F::ZERO; self.rows];
         
-        (v_re, v_im)
+        for row in 0..self.rows {
+            let start = self.row_ptrs[row];
+            let end = self.row_ptrs[row + 1];
+            
+            let mut acc = F::ZERO;
+            for idx in start..end {
+                let col = self.col_indices[idx];
+                let a = self.values[idx];
+                acc += a * r[col];
+            }
+            v[row] = acc;
+        }
+        v
     }
     
     /// Get non-zero elements in a row (TRUE sparse - no scanning!)
     #[inline]
-    pub fn row_nz(&self, row: usize) -> (&[usize], &[neo_math::F]) {
+    pub fn row_nz(&self, row: usize) -> (&[usize], &[F]) {
         let start = self.row_ptrs[row];
         let end = self.row_ptrs[row + 1];
         (&self.col_indices[start..end], &self.values[start..end])
@@ -214,9 +226,9 @@ impl CsrMatrix {
 }
 
 // Sparse matrix operations for performance optimization
-impl Mat<neo_math::F> {
+impl<F: PrimeCharacteristicRing + Copy + Eq> Mat<F> {
     /// Convert to CSR format for REAL sparse operations
-    pub fn to_csr(&self) -> CsrMatrix {
+    pub fn to_csr(&self) -> CsrMatrix<F> {
         CsrMatrix::from_dense(self)
     }
     
@@ -225,25 +237,24 @@ impl Mat<neo_math::F> {
     /// 
     /// WARNING: This is O(m) per row! Use to_csr() for real performance.
     #[inline]
-    pub fn row_nz<'a>(&'a self, row: usize) -> impl Iterator<Item=(usize, &'a neo_math::F)> + 'a {
-        let zero = &neo_math::F::ZERO;
+    pub fn row_nz<'a>(&'a self, row: usize) -> impl Iterator<Item=(usize, &'a F)> + 'a {
         self.row(row)
             .iter()
             .enumerate()
-              .filter(move |(_, val)| *val != zero)
+              .filter(move |(_, val)| **val != F::ZERO)
     }
     
     /// Count non-zeros in a specific row (useful for allocation sizing)
     #[inline] 
     pub fn row_nnz(&self, row: usize) -> usize {
-        let zero = &neo_math::F::ZERO;
+        let zero = &F::ZERO;
         self.row(row).iter().filter(|val| *val != zero).count()
     }
     
     /// Total non-zeros in the matrix
     #[inline]
     pub fn nnz(&self) -> usize {
-        let zero = &neo_math::F::ZERO;
+        let zero = &F::ZERO;
         self.data.iter().filter(|val| *val != zero).count()
     }
 }

@@ -8,16 +8,17 @@
 
 #![allow(non_snake_case)]
 
-use neo_math::{K, D};
-use p3_field::{Field, PrimeCharacteristicRing};
+use neo_math::{K, D, KExtensions, Fq};
+use p3_field::*;
+use p3_field::PrimeField64;
 use rayon::prelude::*;
-use std::sync::Arc;
 
 use crate::sumcheck::RoundOracle;
 use neo_ccs::{CcsStructure, McsWitness, Mat};
 
 use super::common::Challenges;
-use super::sparse::CscMat;
+use smallvec::SmallVec;
+// Removed FromU64 trait
 
 #[inline]
 fn eq_lin(a: K, b: K) -> K {
@@ -272,50 +273,6 @@ fn chi_support_with_tail_boolean(r_prime: &[K], fixed: usize, n_eff: usize) -> (
     (rows, weights)
 }
 
-/// Get sparse threshold from environment or use default.
-/// Set NEO_SPARSE_THRESH to tune (e.g., 0.02 or 0.10).
-fn sparse_thresh() -> f32 {
-    std::env::var("NEO_SPARSE_THRESH")
-        .ok()
-        .and_then(|s| s.parse::<f32>().ok())
-        .filter(|v| *v > 0.0 && *v < 1.0)
-        .unwrap_or(0.05)
-}
-
-/// Cache of sparse matrix formats to avoid rebuilding on every eval_q_ext call.
-#[derive(Clone)]
-pub struct SparseCache<Ff> {
-    // For each j: None (identity), or Some(CSC)
-    csc: Vec<Option<CscMat<Ff>>>,
-    // Density per matrix (nnz / (n*m))
-    density: Vec<f32>,
-}
-
-impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
-    fn build(s: &CcsStructure<Ff>) -> Self {
-        let t = s.t();
-        
-        // Parallelize sparse matrix building - happens once at setup, fully independent per matrix
-        let (csc, density): (Vec<Option<CscMat<Ff>>>, Vec<f32>) = (0..t)
-            .into_par_iter()
-            .map(|j| {
-                let mat = &s.matrices[j];
-                let mut nnz = 0usize;
-                for r in 0..mat.rows() {
-                    for c in 0..mat.cols() {
-                        if mat[(r, c)] != Ff::ZERO {
-                            nnz += 1;
-                        }
-                    }
-                }
-                let d = (nnz as f32) / ((mat.rows() * mat.cols()) as f32);
-                (Some(CscMat::from_dense_row_major(mat)), d)
-            })
-            .unzip();
-
-        Self { csc, density }
-    }
-}
 
 pub struct OptimizedOracle<'a, F>
 where
@@ -353,14 +310,13 @@ where
     pub ajtai_chals: Vec<K>,
     // Input ME r (if any) for Eval gating
     pub r_inputs: Option<Vec<K>>,
-    // Cached sparse formats for efficient matrix-vector products
-    pub sparse: Option<Arc<SparseCache<F>>>,
 
     // Folded dense vectors for row phase optimization
     // U[j][row] = (M_j * z1)[row]
     pub current_U: Vec<Vec<K>>,
-    // W[i][j][row] = (M_j * Z_i^T)[row] (as [K; D] for rho)
-    pub current_W: Vec<Vec<Vec<[K; D]>>>,
+    // W[j][row][rho * k_total + i]
+    // Flattened inner vector for cache locality: for fixed rho, all i are contiguous.
+    pub current_W: Vec<Vec<Vec<K>>>,
     
     // Folded eq(r, beta_r)
     pub current_eq_beta: Vec<K>,
@@ -370,7 +326,7 @@ where
 
 impl<'a, F> OptimizedOracle<'a, F>
 where
-    F: Field + PrimeCharacteristicRing + Copy + Send + Sync + 'static,
+    F: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync + 'static,
     K: From<F>,
 {
 
@@ -464,7 +420,6 @@ where
             row_chals: Vec::with_capacity(ell_n),
             ajtai_chals: Vec::with_capacity(ell_d),
             r_inputs: r_inputs.map(|r| r.to_vec()),
-            sparse: Some(Arc::new(SparseCache::build(s))),
             current_U: Vec::new(),
             current_W: Vec::new(),
             current_eq_beta: Vec::new(),
@@ -497,7 +452,7 @@ where
         acc
     }
 
-    fn init_folded_vectors(&mut self) {
+        fn init_folded_vectors(&mut self) {
         let n_eff = 1usize << self.ell_n;
         let n_rows = core::cmp::min(self.s.n, n_eff);
         
@@ -505,87 +460,77 @@ where
         debug_assert!(n_rows <= n_eff);
         let t = self.s.t();
         let k_total = self.mcs_witnesses.len() + self.me_witnesses.len();
+        let m = self.s.m;
         
-        let sparse_threshold = sparse_thresh();
+        // 1. Prepare RHS matrix (dense, m x W)
+        let width = 2 + k_total * D;
+        let mut rhs = vec![F::ZERO; m * width];
+        
+        // Fill z1 columns (0 and 1)
+        for c in 0..m {
+            let coeffs = self.z1[c].as_coeffs();
+            rhs[c * width + 0] = F::from_u64(coeffs[0].as_canonical_u64());
+            rhs[c * width + 1] = F::from_u64(coeffs[1].as_canonical_u64());
+        }
+        
+        // Fill Z columns
+        for i in 0..k_total {
+            let Zi = self.all_witnesses[i];
+            let base_col = 2 + i * D;
+            for rho in 0..D {
+                let col_idx = base_col + rho;
+                for c in 0..m {
+                    rhs[c * width + col_idx] = Self::get_F(Zi, rho, c);
+                }
+            }
+        }
 
-        // Parallelize initialization of U and W
-        let (U, W): (Vec<Vec<K>>, Vec<Vec<Vec<[K; D]>>>) = (0..t).into_par_iter().map(|j| {
+        // Parallelize SpMM over matrices M_j
+        let (U, W): (Vec<Vec<K>>, Vec<Vec<Vec<K>>>) = (0..t).into_par_iter().map(|j| {
+            let csr = &self.s.sparse_matrices[j];
             let mut u_j = vec![K::ZERO; n_eff];
-            let mut w_j = vec![vec![[K::ZERO; D]; n_eff]; k_total];
+            let mut w_j = vec![vec![K::ZERO; D * k_total]; n_eff];
             
-            // Optimization: allocate buffers once per (i, j) loop and reuse across rho
-            let mut z_row = vec![K::ZERO; self.s.m];
-            let mut tmp_col = vec![K::ZERO; n_rows];
-            
-            let use_sparse = self.sparse.as_ref()
-                .and_then(|sc| sc.density.get(j).copied())
-                .map(|d| d < sparse_threshold)
-                .unwrap_or(false);
-
-            if use_sparse {
-                if let Some(ref sc) = self.sparse {
-                    if let Some(ref csc) = sc.csc[j] {
-                        // u_j += M_j * z1
-                        csc.add_mul_into(&self.z1, &mut u_j, n_rows);
-                        
-                        // w_j[i] += M_j * Z_i^T
-                        for i in 0..k_total {
-                            let Zi = self.all_witnesses[i];
-                            for rho in 0..D {
-                                // Extract row rho of Z_i into z_row
-                                for c in 0..self.s.m {
-                                    z_row[c] = K::from(Zi[(rho, c)]);
-                                }
-                                
-                                // tmp_col = M_j * z_row
-                                tmp_col.fill(K::ZERO);
-                                csc.add_mul_into(&z_row, &mut tmp_col, n_rows);
-                                
-                                // Accumulate into w_j
-                                for r in 0..n_rows {
-                                    w_j[i][r][rho] += tmp_col[r];
-                                }
-                            }
-                        }
+            // SpMM: Res = M_j * RHS
+            for r in 0..csr.rows {
+                if r >= n_rows { break; }
+                
+                let start_idx = csr.row_ptrs[r];
+                let end_idx = csr.row_ptrs[r + 1];
+                
+                let mut row_acc: SmallVec<[F; 64]> = smallvec::smallvec![F::ZERO; width];
+                
+                for idx in start_idx..end_idx {
+                    let c = csr.col_indices[idx];
+                    let val = csr.values[idx];
+                    
+                    let rhs_row_start = c * width;
+                    for k in 0..width {
+                        row_acc[k] += val * rhs[rhs_row_start + k];
                     }
                 }
-            } else {
-                // Dense fallback
-                let mat = &self.s.matrices[j];
-                for r in 0..n_rows {
-                    for c in 0..self.s.m {
-                        let val = K::from(Self::get_F(mat, r, c));
-                        if val == K::ZERO { continue; }
-                        
-                        u_j[r] += val * self.z1[c];
-                        
-                        for i in 0..k_total {
-                            let Zi = self.all_witnesses[i];
-                            for rho in 0..D {
-                                w_j[i][r][rho] += val * K::from(Zi[(rho, c)]);
-                            }
-                        }
+                
+                let re = Fq::from_u64(row_acc[0].as_canonical_u64());
+                let im = Fq::from_u64(row_acc[1].as_canonical_u64());
+                u_j[r] = K::from_coeffs([re, im]);
+                
+                for i in 0..k_total {
+                    for rho in 0..D {
+                        let rhs_col = 2 + i * D + rho;
+                        let w_idx = rho * k_total + i;
+                        // Direct access, no conversion needed as row_acc is F and K::from takes F
+                        w_j[r][w_idx] = K::from(row_acc[rhs_col]);
                     }
                 }
             }
-            
             (u_j, w_j)
         }).unzip();
         
         debug_assert_eq!(U[0].len(), n_eff, "U length mismatch");
         self.current_U = U;
-        
-        // Transpose W from [j][i] to [i][j]
-        let mut W_transposed = vec![vec![vec![[K::ZERO; D]; n_eff]; t]; k_total];
-        for j in 0..t {
-            for i in 0..k_total {
-                W_transposed[i][j] = W[j][i].clone();
-            }
-        }
-        self.current_W = W_transposed;
+        self.current_W = W;
 
         // Initialize eq vectors
-        // eq(r, beta_r)
         self.current_eq_beta = vec![K::ZERO; n_eff];
         for r in 0..n_eff {
             let mut w = K::ONE;
@@ -597,7 +542,6 @@ where
             self.current_eq_beta[r] = w;
         }
 
-        // eq(r, r_inputs)
         if let Some(ref r_in) = self.r_inputs {
             self.current_eq_r_inputs = vec![K::ZERO; n_eff];
             for r in 0..n_eff {
@@ -609,8 +553,6 @@ where
                 }
                 self.current_eq_r_inputs[r] = w;
             }
-        } else {
-            self.current_eq_r_inputs = Vec::new(); // Empty if not used
         }
     }
 
@@ -683,7 +625,6 @@ where
             None
         };
 
-        let sparse_threshold = sparse_thresh();
 
         // Compute all v_j = M_j^T · χ_r' once
         (0..t)
@@ -712,18 +653,29 @@ where
                         }
                     }
                 } else if let Some(ref chi_r) = chi_r_dense {
-                    let use_sparse = self
-                        .sparse
-                        .as_ref()
-                        .and_then(|sc| sc.density.get(j).copied())
-                        .map(|d| d < sparse_threshold)
-                        .unwrap_or(false);
+                    let use_sparse = true;
 
                     if use_sparse {
-                        if let Some(ref sc) = self.sparse {
-                            if let Some(ref csc) = sc.csc[j] {
-                                csc.add_mul_transpose_into::<K>(chi_r, vj, n_eff);
-                            }
+                        // Use precomputed CSR from CcsStructure
+                        let csr = &self.s.sparse_matrices[j];
+                        
+                        // vj = M_j^T * chi_r
+                        // chi_r is Vec<K>, split into re/im
+                        let mut chi_re = vec![F::ZERO; n_eff];
+                        let mut chi_im = vec![F::ZERO; n_eff];
+                        for (r, val) in chi_r.iter().enumerate().take(n_eff) {
+                            let coeffs = val.as_coeffs();
+                            chi_re[r] = F::from_u64(coeffs[0].as_canonical_u64());
+                            chi_im[r] = F::from_u64(coeffs[1].as_canonical_u64());
+                        }
+                        
+                        let v_re = csr.spmv_transpose(&chi_re[..csr.rows]);
+                        let v_im = csr.spmv_transpose(&chi_im[..csr.rows]);
+                        
+                        for c in 0..self.s.m {
+                            let re = Fq::from_u64(v_re[c].as_canonical_u64());
+                            let im = Fq::from_u64(v_im[c].as_canonical_u64());
+                            vj[c] += K::from_coeffs([re, im]);
                         }
                     } else {
                         // Dense fallback - no M_0 identity assumption
@@ -917,7 +869,6 @@ where
         let n_eff = core::cmp::min(self.s.n, n_sz);
         
         // Heuristic: use sparse (CSC) if matrix density < threshold (tunable via env)
-        let sparse_threshold = sparse_thresh();
         
         // Parallelize v_j computation - each matrix-vector product is independent
         let vjs: Vec<Vec<K>> = (0..t)
@@ -932,18 +883,27 @@ where
                 
                 let mut vj = vec![K::ZERO; self.s.m];
                 
-                let use_sparse = self
-                    .sparse
-                    .as_ref()
-                    .and_then(|sc| sc.density.get(j).copied())
-                    .map(|d| d < sparse_threshold)
-                    .unwrap_or(false);
+                let use_sparse = true;
                 
                 if use_sparse {
-                    if let Some(ref sc) = self.sparse {
-                        if let Some(ref csc) = sc.csc[j] {
-                            csc.add_mul_transpose_into::<K>(&chi_r, &mut vj, n_eff);
-                        }
+                     // vj = M_j^T * chi_r
+                    let csr = &self.s.sparse_matrices[j];
+                    
+                    let mut chi_re = vec![F::ZERO; n_eff];
+                    let mut chi_im = vec![F::ZERO; n_eff];
+                    for (r, val) in chi_r.iter().enumerate().take(n_eff) {
+                        let coeffs = val.as_coeffs();
+                            chi_re[r] = F::from_u64(coeffs[0].as_canonical_u64());
+                            chi_im[r] = F::from_u64(coeffs[1].as_canonical_u64());
+                    }
+                    
+                    let v_re = csr.spmv_transpose(&chi_re[..csr.rows]);
+                    let v_im = csr.spmv_transpose(&chi_im[..csr.rows]);
+                    
+                    for c in 0..self.s.m {
+                        let re = Fq::from_u64(v_re[c].as_canonical_u64());
+                        let im = Fq::from_u64(v_im[c].as_canonical_u64());
+                        vj[c] += K::from_coeffs([re, im]);
                     }
                 } else {
                     for row in 0..n_eff {
@@ -974,7 +934,7 @@ where
         }
 
         // F' using precomputed vjs
-        let mut m_vals = vec![K::ZERO; t];
+        let mut m_vals: SmallVec<[K; 16]> = SmallVec::from_elem(K::ZERO, t);
         for j in 0..t {
             let mut acc = K::ZERO;
             for c in 0..self.s.m {
@@ -1071,6 +1031,7 @@ where
     /// Compute the univariate round polynomial values at given xs for a row-bit round
     /// by summing Q over the remaining Boolean variables, with the current variable set to x.
     fn fold_state(&mut self, r: K) {
+
         let n_curr = self.current_U[0].len();
         debug_assert!(n_curr.is_power_of_two(), "n_curr must be power of 2");
         debug_assert!(n_curr >= 2, "n_curr must be >= 2");
@@ -1088,17 +1049,16 @@ where
         });
         
         // Fold W
-        self.current_W.par_iter_mut().for_each(|w_i| {
-            w_i.par_iter_mut().for_each(|w_ij| {
-                for k in 0..n_next {
-                    let even = w_ij[2 * k];
-                    let odd = w_ij[2 * k + 1];
-                    for rho in 0..D {
-                        w_ij[k][rho] = even[rho] + r * (odd[rho] - even[rho]);
-                    }
+        self.current_W.par_iter_mut().for_each(|w_j| {
+            for k in 0..n_next {
+                let odd = std::mem::take(&mut w_j[2*k+1]);
+                let mut even = std::mem::take(&mut w_j[2*k]);
+                for (e, o) in even.iter_mut().zip(odd.iter()) {
+                    *e = *e + r * (*o - *e);
                 }
-                w_ij.truncate(n_next);
-            });
+                w_j[k] = even;
+            }
+            w_j.truncate(n_next);
         });
 
         // Fold eq_beta
@@ -1120,6 +1080,7 @@ where
             }
             self.current_eq_r_inputs.truncate(n_next);
         }
+
     }
 
     /// Compute the univariate round polynomial values at given xs for a row-bit round
@@ -1159,13 +1120,18 @@ where
         for _ in 0..k_total { gamma_to_k *= self.ch.gamma; }
         for j in 1..t { gamma_k_pow_j[j] = gamma_k_pow_j[j-1] * gamma_to_k; }
         
-        xs.par_iter().map(|&x| {
+        if self.round_idx == 0 {
+
+        }
+        
+
+        let res: Vec<K> = xs.par_iter().map(|&x| {
             let eq_bx = eq_lin(x, beta_j);
             let eq_rx = r_in_j.map(|r| eq_lin(x, r)).unwrap_or(K::ZERO);
             
             let sum: K = (0..n_next).into_par_iter().map(|k| {
                 // Fold U -> m_vals
-                let mut m_vals = vec![K::ZERO; t];
+                let mut m_vals: SmallVec<[K; 16]> = SmallVec::from_elem(K::ZERO, t);
                 for j in 0..t {
                     let even = self.current_U[j][2*k];
                     let odd = self.current_U[j][2*k+1];
@@ -1186,9 +1152,12 @@ where
                     // NC part
                     let mut nc_val = K::ZERO;
                     let mut g = self.ch.gamma;
+                    let offset_base = rho * k_total;
+                    
                     for i in 0..k_total {
-                        let even = self.current_W[i][0][2*k][rho];
-                        let odd = self.current_W[i][0][2*k+1][rho];
+                        let offset = offset_base + i;
+                        let even = self.current_W[0][2*k][offset];
+                        let odd = self.current_W[0][2*k+1][offset];
                         let val = even + x * (odd - even);
                         
                         let Ni = self.range_product_cached(val);
@@ -1204,8 +1173,9 @@ where
                         for j in 0..t {
                             let gk = gamma_k_pow_j[j];
                             for i in 1..k_total {
-                                let even = self.current_W[i][j][2*k][rho];
-                                let odd = self.current_W[i][j][2*k+1][rho];
+                                let offset = offset_base + i;
+                                let even = self.current_W[j][2*k][offset];
+                                let odd = self.current_W[j][2*k+1][offset];
                                 let val = even + x * (odd - even);
                                 
                                 eval_val += gamma_pow_i[i] * gk * val;
@@ -1225,12 +1195,16 @@ where
             }).sum();
             
             sum
-        }).collect()
+        }).collect();
+        
+
+        res
     }
 
     /// Compute the univariate round polynomial for an Ajtai-bit round.
     /// DP version: removes the 2^{free_a}·D work per x and keeps outputs bit-identical.
     fn evals_ajtai_phase(&self, xs: &[K]) -> Vec<K> {
+
         let j = self.round_idx - self.ell_n;
         debug_assert!(j < self.ell_d, "ajtai phase after all Ajtai bits");
 
@@ -1254,16 +1228,20 @@ where
             }
             p.f_prime = self.s.f.eval_in_ext::<K>(&p.m_vals);
             
-            // NC term: y_nc[i][rho] = current_W[i][0][0][rho] (j=0 is identity/NC)
+            // NC term: y_nc[i][rho] = current_W[0][0][rho * k_total + i] (j=0 is identity/NC)
             for i in 0..k_total {
-                p.y_nc[i] = self.current_W[i][0][0];
+                for rho in 0..D {
+                    p.y_nc[i][rho] = self.current_W[0][0][rho * k_total + i];
+                }
             }
             
-            // Eval term: y_eval[i][j][rho] = current_W[i][j][0][rho]
+            // Eval term: y_eval[i][j][rho] = current_W[j][0][rho * k_total + i]
             if need_eval {
                 for i in 0..k_total {
                     for j_idx in 0..t {
-                        p.y_eval[i][j_idx] = self.current_W[i][j_idx][0];
+                        for rho in 0..D {
+                            p.y_eval[i][j_idx][rho] = self.current_W[j_idx][0][rho * k_total + i];
+                        }
                     }
                 }
             }
@@ -1307,8 +1285,8 @@ where
         let gamma_to_k = self.gamma_to_k;
 
         let prefix = &self.ajtai_chals[..j];
-
-        xs.par_iter().map(|&x| {
+        
+        let res: Vec<K> = xs.par_iter().map(|&x| {
             // eq((α',r'), β) factor across α' = (prefix, x, tail)
             let eq_beta_px = eq_beta_pref * eq_lin(x, self.ch.beta_a[j]);
             let eq_beta = pre.eq_beta_r * eq_beta_px;
@@ -1356,13 +1334,16 @@ where
             }
 
             out
-        }).collect()
+        }).collect();
+        
+
+        res
     }
 }
 
 impl<'a, F> RoundOracle for OptimizedOracle<'a, F>
 where
-    F: Field + PrimeCharacteristicRing + Copy + Send + Sync + 'static,
+    F: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync + 'static,
     K: From<F>,
 {
     fn num_rounds(&self) -> usize { self.num_rounds_total() }

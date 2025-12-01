@@ -96,9 +96,33 @@ where
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
     tr.append_message(tr_labels::PI_CCS, b"");
-    let s = s_in
-        .ensure_identity_first()
-        .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+    
+    // Optimization: Avoid cloning if already normalized (M0 = I)
+    // Check efficiently using sparse matrices if available
+    let is_normalized = if s_in.n == s_in.m && !s_in.matrices.is_empty() {
+        if !s_in.sparse_matrices.is_empty() {
+            let m0 = &s_in.sparse_matrices[0];
+            // Fast check: nnz == n, row_ptrs = 0..n, cols = 0..n, vals = 1
+            m0.values.len() == s_in.n &&
+            m0.row_ptrs.len() == s_in.n + 1 &&
+            m0.row_ptrs.iter().enumerate().all(|(i, &v)| i == v) &&
+            m0.col_indices.iter().enumerate().all(|(i, &v)| i == v) &&
+            m0.values.iter().all(|&v| v == F::ONE)
+        } else {
+            // Fallback to dense check (might be slow)
+            s_in.matrices[0].is_identity()
+        }
+    } else {
+        false
+    };
+
+    let s_cow = if is_normalized {
+        std::borrow::Cow::Borrowed(s_in)
+    } else {
+        std::borrow::Cow::Owned(s_in.ensure_identity_first()
+            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?)
+    };
+    let s = &*s_cow;
     let utils::Dims { ell_d, .. } = utils::build_dims_and_policy(params, &s)?;
 
     // Infer initial k from initial accumulator
@@ -160,12 +184,15 @@ where
         // Note: DEC uses params.k_rho (decomposition exponent), NOT k_fold (runtime folding count)
         let k_dec = params.k_rho as usize;
         let Z_split = ccs::split_b_matrix_k(&Z_mix, k_dec, params.b)?;
+
         // Commitments for children via L(Z_i)
         let child_cs: Vec<Cmt> = Z_split.iter().map(|Zi| l.commit(Zi)).collect();
+
         let (children, ok_y, ok_X, ok_c) = ccs::dec_children_with_commit(
             mode.clone(),
             &s, params, &parent_pub, &Z_split, ell_d, &child_cs, mixers.combine_b_pows,
         );
+        
         // Enforce y/X/commitment equality in all modes by default.
         if !(ok_y && ok_X && ok_c) {
             return Err(PiCcsError::ProtocolError(format!(

@@ -277,26 +277,45 @@ pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");
 
-    let mut C = Commitment::zeros(d, kappa);
+    use rayon::prelude::*;
 
-    // Heap-allocated scratch for columns of rot(a_ij) to avoid stack overflow
-    // 54×54×8 ≈ 23 KiB per allocation, hoisted outside inner loop for reuse
-    let mut cols = vec![[Fq::ZERO; D]; D].into_boxed_slice();
-
-    for i in 0..kappa {
-        let acc_i = C.col_mut(i);
-        for j in 0..m {
-            precompute_rot_columns(pp.m_rows[i][j], &mut cols);
-            let base = j * d;
-            // Constant schedule: always loop over all t
-            for t in 0..d {
-                let mask = Z[base + t];
-                let col_t = &cols[t];
-                for r in 0..d {
-                    acc_i[r] += col_t[r] * mask;
+    // Parallelize over columns j
+    // Each thread maintains its own Commitment accumulator and scratch buffer
+    let (final_c, _) = (0..m).into_par_iter()
+        .fold(
+            || (Commitment::zeros(d, kappa), vec![[Fq::ZERO; D]; D]),
+            |(mut acc_c, mut cols), j| {
+                let base = j * d;
+                
+                // For each Ajtai row i
+                for i in 0..kappa {
+                    // Precompute rotation columns for a_ij
+                    // We reuse the same scratch buffer 'cols'
+                    precompute_rot_columns(pp.m_rows[i][j], &mut cols);
+                    
+                    let acc_i = acc_c.col_mut(i);
+                    // Constant schedule: always loop over all t
+                    for t in 0..d {
+                        let mask = Z[base + t];
+                        let col_t = &cols[t];
+                        for r in 0..d {
+                            acc_i[r] += col_t[r] * mask;
+                        }
+                    }
                 }
+                (acc_c, cols)
             }
-        }
-    }
-    C
+        )
+        .reduce(
+            || (Commitment::zeros(d, kappa), Vec::new()),
+            |(mut a_c, _), (b_c, _)| {
+                // Sum commitments
+                for (x, y) in a_c.data.iter_mut().zip(b_c.data.iter()) {
+                    *x += *y;
+                }
+                (a_c, Vec::new())
+            }
+        );
+
+    final_c
 }

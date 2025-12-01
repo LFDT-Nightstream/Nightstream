@@ -845,6 +845,7 @@ dependencies = [
  "serde",
  "serde_cbor",
  "serde_json",
+ "smallvec",
  "thiserror 2.0.17",
 ]
 

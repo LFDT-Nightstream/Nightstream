@@ -5,7 +5,7 @@
 #![allow(non_snake_case)]
 
 use neo_transcript::{Transcript, Poseidon2Transcript, labels as tr_labels};
-use neo_ccs::{CcsStructure, McsInstance, MeInstance, MatRef, SparsePoly};
+use neo_ccs::{CcsStructure, McsInstance, MeInstance, SparsePoly};
 use neo_ajtai::Commitment as Cmt;
 use neo_params::NeoParams;
 use neo_math::{F, K, D, KExtensions};
@@ -194,16 +194,21 @@ fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<Gold
 
     poseidon2.permute_mut(&mut state);
 
-    for (j, matrix) in s.matrices.iter().enumerate() {
+    // Use sparse matrices for efficiency
+    for (j, matrix) in s.sparse_matrices.iter().enumerate() {
         absorbed = 0;
         state[absorbed] = Goldilocks::from_u64(j as u64);
         absorbed += 1;
 
-        let mat_ref = MatRef::from_mat(matrix);
-
+        // Iterate non-zero elements efficiently using CSR format
+        // CSR: row_ptrs[i]..row_ptrs[i+1] are elements of row i
         for row in 0..s.n {
-            let row_slice = mat_ref.row(row);
-            for (col, &val) in row_slice.iter().enumerate() {
+            let start = matrix.row_ptrs[row];
+            let end = matrix.row_ptrs[row + 1];
+            for k in start..end {
+                let col = matrix.col_indices[k];
+                let val = matrix.values[k];
+
                 if val != F::ZERO {
                     if absorbed + 3 > 15 {
                         poseidon2.permute_mut(&mut state);

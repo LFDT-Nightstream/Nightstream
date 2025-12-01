@@ -11,8 +11,8 @@
 use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
 use neo_ajtai::Commitment as Cmt;
 use neo_params::NeoParams;
-use neo_math::{K, D};
-use p3_field::{Field, PrimeCharacteristicRing};
+use neo_math::{K, D, KExtensions, Fq};
+use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
 /// Challenges sampled in Step 1 of the protocol
 #[derive(Debug, Clone)]
@@ -1140,7 +1140,7 @@ pub fn dec_reduction_paper_exact<Ff>(
     ell_d: usize,
 ) -> (Vec<MeInstance<Cmt, Ff, K>>, bool, bool)
 where
-    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync + PrimeField64,
     K: From<Ff>,
 {
     assert!(!Z_split.is_empty(), "Π_DEC(paper-exact): need at least one digit witness");
@@ -1150,9 +1150,8 @@ where
     let k = Z_split.len();
     let m_in = parent.m_in;
 
-    // Build χ_r and v_j = M_j^T · χ_r
-    let n_sz = parent.r.len();
-    let n_sz = 1usize << n_sz; // 2^{ℓ_n}
+    // Build χ_r
+    let n_sz = 1usize << parent.r.len();
     let mut chi_r = vec![K::ZERO; n_sz];
     for row in 0..n_sz {
         let mut w = K::ONE;
@@ -1163,16 +1162,46 @@ where
         }
         chi_r[row] = w;
     }
-    let mut vjs: Vec<Vec<K>> = Vec::with_capacity(s.t());
-    for j in 0..s.t() {
-        let mut vj = vec![K::ZERO; s.m];
-        for row in 0..n_sz {
-            let wr = if row < s.n { chi_r[row] } else { K::ZERO };
-            if wr == K::ZERO { continue; }
-            for c in 0..s.m { vj[c] += K::from(get_F(&s.matrices[j], row, c)) * wr; }
+
+    // Optimize v_j computation using sparse matrices
+    // v_j = M_j^T · χ_r
+    // We need to convert chi_r to Ff components if we want to use spmv_transpose from CsrMatrix,
+    // but CsrMatrix usually works on Ff. chi_r is K.
+    // K is an extension of Ff. We can split chi_r into coeffs (re, im) and run spmv twice.
+    // Or we can implement a K-based spmv.
+    // Let's look at how `init_folded_vectors` did it. It used `spmv` on Ff vectors.
+    // Here we need M^T * vector. `CsrMatrix` has `spmv_transpose`.
+    
+    // Parallelize v_j computation
+    use rayon::prelude::*;
+    let vjs: Vec<Vec<K>> = (0..s.t()).into_par_iter().map(|j| {
+        let csr = &s.sparse_matrices[j];
+        // Split chi_r into real/imag parts (assuming K is degree 2 extension for now, or generic)
+        // The code generally assumes K is degree 2 (GoldilocksExt).
+        // If K is generic, we iterate coeffs.
+        // Let's assume K has 2 coeffs for now as per other code.
+        
+        let mut chi_re = vec![Ff::ZERO; n_sz];
+        let mut chi_im = vec![Ff::ZERO; n_sz];
+        for (r, val) in chi_r.iter().enumerate() {
+            let coeffs = val.as_coeffs();
+            // Use from_u64 for safety/speed as optimized before
+            chi_re[r] = Ff::from_u64(coeffs[0].as_canonical_u64());
+            chi_im[r] = Ff::from_u64(coeffs[1].as_canonical_u64());
         }
-        vjs.push(vj);
-    }
+        
+        // M^T * chi
+        let v_re = csr.spmv_transpose(&chi_re[..csr.rows]);
+        let v_im = csr.spmv_transpose(&chi_im[..csr.rows]);
+        
+        let mut vj = vec![K::ZERO; s.m];
+        for c in 0..s.m {
+             let re = Fq::from_u64(v_re[c].as_canonical_u64());
+             let im = Fq::from_u64(v_im[c].as_canonical_u64());
+             vj[c] = K::from_coeffs([re, im]);
+        }
+        vj
+    }).collect();
 
     // base-b powers in K and F
     let bF = Ff::from_u64(params.b as u64);
@@ -1185,25 +1214,41 @@ where
         X
     };
 
-    // Build children
-    let mut children: Vec<MeInstance<Cmt, Ff, K>> = Vec::with_capacity(k);
-    for i in 0..k {
+    // Build children (parallelize over k)
+    let children: Vec<MeInstance<Cmt, Ff, K>> = (0..k).into_par_iter().map(|i| {
         let Xi = project_x(&Z_split[i]);
         let mut y_i: Vec<Vec<K>> = Vec::with_capacity(s.t());
+        
+        // This inner loop over t is small (t=4 usually), maybe not worth parallelizing further
+        // unless m is huge. m is ~2^14.
+        // Z_i is D x m. v_j is m.
+        // y_(i,j) = Z_i * v_j.
+        // This is a dense matrix-vector mult: (D x m) * (m x 1) -> D x 1.
+        // D is small (e.g. 4). m is large.
+        // We can optimize this dot product.
+        
         for j in 0..s.t() {
-            // y_(i,j) = Z_i · v_j ∈ K^d (then pad)
             let mut yij = vec![K::ZERO; d];
             for rho in 0..d {
                 let mut acc = K::ZERO;
-                for c in 0..s.m { acc += K::from(get_F(&Z_split[i], rho, c)) * vjs[j][c]; }
+                // Vectorized dot product would be nice here.
+                // For now, just standard loop but ensure it's tight.
+                // Mat is usually a flat vector or vec of vecs.
+                // get_F checks bounds. Direct access is faster.
+                // Assuming Z_split[i] is Mat, we can iterate.
+                // But Mat might not expose slice.
+                // Let's stick to get_F but maybe optimize if Mat exposes buffer.
+                // For now, the main win is sparse v_j.
+                for c in 0..s.m { 
+                    acc += K::from(get_F(&Z_split[i], rho, c)) * vjs[j][c]; 
+                }
                 yij[rho] = acc;
             }
-            // pad to 2^{ℓ_d}
             let mut yij_pad = yij; yij_pad.resize(d_pad, K::ZERO);
             y_i.push(yij_pad);
         }
 
-        // y_scalars for child i: base-b recomposition of first D digits of each y_j
+        // y_scalars
         let mut pow_b_f = vec![Ff::ONE; D];
         for t in 1..D { pow_b_f[t] = pow_b_f[t-1] * bF; }
         let pow_b_k: Vec<K> = pow_b_f.iter().copied().map(K::from).collect();
@@ -1213,17 +1258,17 @@ where
             acc
         }).collect();
 
-        children.push(MeInstance::<Cmt, Ff, K> {
+        MeInstance::<Cmt, Ff, K> {
             c_step_coords: vec![], u_offset: 0, u_len: 0,
-            c: parent.c.clone(),            // NOTE: caller can replace with L(Z_i)
+            c: parent.c.clone(),
             X: Xi,
             r: parent.r.clone(),
             y: y_i,
             y_scalars: y_scalars_i,
             m_in,
             fold_digest: parent.fold_digest,
-        });
-    }
+        }
+    }).collect();
 
     // Verify: y_j ?= Σ b^i · y_(i,j)
     let mut ok_y = true;
@@ -1264,7 +1309,7 @@ pub fn dec_reduction_paper_exact_with_commit_check<Ff, Comb>(
     combine_b_pows: Comb,
 ) -> (Vec<MeInstance<Cmt, Ff, K>>, bool, bool, bool)
 where
-    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync + PrimeField64,
     K: From<Ff>,
     Comb: Fn(&[Cmt], u32) -> Cmt,
 {

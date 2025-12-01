@@ -740,10 +740,30 @@ where
         tr: &mut Poseidon2Transcript,
         s: &CcsStructure<F>,
     ) -> Result<FoldRun, PiCcsError> {
-        // Normalize CCS
-        let s_norm = s
-            .ensure_identity_first()
-            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+        
+        // Optimization: Avoid cloning if already normalized (M0 = I)
+        let is_normalized = if s.n == s.m && !s.matrices.is_empty() {
+            if !s.sparse_matrices.is_empty() {
+                let m0 = &s.sparse_matrices[0];
+                m0.values.len() == s.n &&
+                m0.row_ptrs.len() == s.n + 1 &&
+                m0.row_ptrs.iter().enumerate().all(|(i, &v)| i == v) &&
+                m0.col_indices.iter().enumerate().all(|(i, &v)| i == v) &&
+                m0.values.iter().all(|&v| v == F::ONE)
+            } else {
+                s.matrices[0].is_identity()
+            }
+        } else {
+            false
+        };
+
+        let s_cow = if is_normalized {
+            std::borrow::Cow::Borrowed(s)
+        } else {
+            std::borrow::Cow::Owned(s.ensure_identity_first()
+                .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?)
+        };
+        let s_norm = &*s_cow;
 
         // STRICT validation: Ajtai/NC requires M₀ = I_n (fail fast instead of mysterious sumcheck errors)
         s_norm
@@ -778,14 +798,12 @@ where
             None => (vec![], vec![]), // k=1
         };
 
-        let mcss: Vec<(McsInstance<Cmt, F>, McsWitness<F>)> = self.mcss.clone();
-
         folding::fold_many_prove(
             self.mode.clone(),
             tr,
             &self.params,
             &s_norm,
-            &mcss,
+            &self.mcss,
             &seed_me,
             &seed_me_wit,
             &self.l,

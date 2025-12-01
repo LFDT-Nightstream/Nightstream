@@ -58,6 +58,15 @@ impl<F: Field> CcsStructure<F> {
     /// Maximum degree of the CCS polynomial.
     pub fn max_degree(&self) -> u32 { self.f.max_degree() }
 
+    /// Re-populate sparse matrices from dense matrices (e.g. after deserialization).
+    pub fn hydrate_sparse_matrices(&mut self) 
+    where F: p3_field::PrimeCharacteristicRing + Copy + Eq
+    {
+        if self.sparse_matrices.is_empty() && !self.matrices.is_empty() {
+            self.sparse_matrices = self.matrices.iter().map(|m| m.to_csr()).collect();
+        }
+    }
+
     /// Ensure the first matrix is the identity I_n, as assumed by paper's NC semantics.
     /// If not, insert I_n at index 0 and shift the polynomial arity/variables accordingly.
     pub fn ensure_identity_first(&self) -> Result<Self, RelationError>
@@ -71,11 +80,20 @@ impl<F: Field> CcsStructure<F> {
             .first()
             .map(|m0| m0.is_identity())
             .unwrap_or(false);
-        if is_id0 { return Ok(self.clone()); }
+            
+        if is_id0 { 
+            // If already normalized but missing sparse matrices (e.g. deserialized), hydrate them.
+            if self.sparse_matrices.is_empty() {
+                let mut s = self.clone();
+                s.hydrate_sparse_matrices();
+                return Ok(s);
+            }
+            return Ok(self.clone()); 
+        }
+        
         // Insert identity at position 0
         let mut matrices = self.matrices.clone();
         matrices.insert(0, Mat::<F>::identity(self.n));
-        // Shift polynomial variables by inserting a dummy variable at the front
         // Shift polynomial variables by inserting a dummy variable at the front
         let f = self.f.insert_var_at_front();
         

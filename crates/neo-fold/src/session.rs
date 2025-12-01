@@ -757,7 +757,7 @@ where
             false
         };
 
-        let s_cow = if is_normalized {
+        let s_cow = if is_normalized && !s.sparse_matrices.is_empty() {
             std::borrow::Cow::Borrowed(s)
         } else {
             std::borrow::Cow::Owned(s.ensure_identity_first()

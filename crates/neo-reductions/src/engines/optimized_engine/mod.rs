@@ -134,6 +134,7 @@ pub use verify::paper_exact_verify as pi_ccs_verify;
 
 /// Wrapper for simple case (k=1, no ME inputs)
 pub use prove::optimized_prove_simple as pi_ccs_prove_simple;
+pub use prove::build_me_outputs_optimized;
 
 // Re-export the paper-exact oracle
 #[cfg(feature = "paper-exact")]

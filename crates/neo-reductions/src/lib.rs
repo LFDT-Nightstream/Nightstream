@@ -17,6 +17,7 @@ pub use engines::pi_rlc_dec;
 // Re-export engine modules for convenience
 pub use engines::optimized_engine;
 pub use engines::paper_exact_engine;
+pub use engines::mojo_gpu_engine;
 
 // Re-exports for convenience
 pub use api as pi_ccs; // main public API

@@ -31,6 +31,8 @@ use crate::folding::{self, CommitMixers, FoldRun};
 use crate::pi_ccs::FoldingMode;
 use crate::PiCcsError;
 use neo_reductions::engines::utils;
+#[cfg(feature = "mojo")]
+use neo_reductions::engines::mojo_gpu_engine::linops::{LinOps, CpuLinOps};
 
 /// Optional application-level "output claim".
 /// (Not consumed by Π-CCS core yet; kept for API parity / future use.)
@@ -305,12 +307,24 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
     let mut vjs: Vec<Vec<K>> = Vec::with_capacity(t);
     for j in 0..t {
         let mut vj = vec![K::ZERO; s.m];
-        // Only rows < s.n contribute (others are zero rows)
-        for row in 0..s.n {
-            let wr = chi_r[row];
-            if wr == K::ZERO { continue; }
-            for c in 0..s.m {
-                vj[c] += K::from(s.matrices[j][(row, c)]) * wr;
+        // v_j = M_j^T * chi_r
+        #[cfg(feature = "mojo")]
+        {
+            let backend = CpuLinOps;
+            // Slice chi_r to n (rows of M_j)
+            let n = s.n;
+            let chi_r_sliced = if chi_r.len() > n { &chi_r[0..n] } else { &chi_r };
+            backend.gemv_transpose_FK(&s.matrices[j], chi_r_sliced, &mut vj);
+        }
+        #[cfg(not(feature = "mojo"))]
+        {
+            // Only rows < s.n contribute (others are zero rows)
+            for row in 0..s.n {
+                let wr = chi_r[row];
+                if wr == K::ZERO { continue; }
+                for c in 0..s.m {
+                    vj[c] += K::from(s.matrices[j][(row, c)]) * wr;
+                }
             }
         }
         vjs.push(vj);
@@ -326,13 +340,22 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
     let mut y_scalars: Vec<K> = Vec::with_capacity(t);
     for j in 0..t {
         let mut yj = vec![K::ZERO; d_pad];
-        // first D digits
-        for rho in 0..d {
-            let mut acc = K::ZERO;
-            for c in 0..s.m {
-                acc += K::from(Z[(rho, c)]) * vjs[j][c];
+        // first D digits: y_j = Z * v_j
+        #[cfg(feature = "mojo")]
+        {
+            let backend = CpuLinOps;
+            backend.gemv_FK(&Z, &vjs[j], &mut yj[0..d]);
+        }
+        #[cfg(not(feature = "mojo"))]
+        {
+            // first D digits
+            for rho in 0..d {
+                let mut acc = K::ZERO;
+                for c in 0..s.m {
+                    acc += K::from(Z[(rho, c)]) * vjs[j][c];
+                }
+                yj[rho] = acc;
             }
-            yj[rho] = acc;
         }
         // higher positions remain zero
 
@@ -437,12 +460,24 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
     let mut vjs: Vec<Vec<K>> = Vec::with_capacity(t);
     for j in 0..t {
         let mut vj = vec![K::ZERO; s.m];
-        // Only rows < s.n contribute (others are zero rows)
-        for row in 0..s.n {
-            let wr = chi_r[row];
-            if wr == K::ZERO { continue; }
-            for c in 0..s.m {
-                vj[c] += K::from(s.matrices[j][(row, c)]) * wr;
+        // v_j = M_j^T * chi_r
+        #[cfg(feature = "mojo")]
+        {
+            let backend = CpuLinOps;
+            // Slice chi_r to n (rows of M_j)
+            let n = s.n;
+            let chi_r_sliced = if chi_r.len() > n { &chi_r[0..n] } else { &chi_r };
+            backend.gemv_transpose_FK(&s.matrices[j], chi_r_sliced, &mut vj);
+        }
+        #[cfg(not(feature = "mojo"))]
+        {
+            // Only rows < s.n contribute (others are zero rows)
+            for row in 0..s.n {
+                let wr = chi_r[row];
+                if wr == K::ZERO { continue; }
+                for c in 0..s.m {
+                    vj[c] += K::from(s.matrices[j][(row, c)]) * wr;
+                }
             }
         }
         vjs.push(vj);
@@ -458,13 +493,22 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
     let mut y_scalars: Vec<K> = Vec::with_capacity(t);
     for j in 0..t {
         let mut yj = vec![K::ZERO; d_pad];
-        // first D digits
-        for rho in 0..d {
-            let mut acc = K::ZERO;
-            for c in 0..s.m {
-                acc += K::from(Z[(rho, c)]) * vjs[j][c];
+        // first D digits: y_j = Z * v_j
+        #[cfg(feature = "mojo")]
+        {
+            let backend = CpuLinOps;
+            backend.gemv_FK(&Z, &vjs[j], &mut yj[0..d]);
+        }
+        #[cfg(not(feature = "mojo"))]
+        {
+            // first D digits
+            for rho in 0..d {
+                let mut acc = K::ZERO;
+                for c in 0..s.m {
+                    acc += K::from(Z[(rho, c)]) * vjs[j][c];
+                }
+                yj[rho] = acc;
             }
-            yj[rho] = acc;
         }
         // higher positions remain zero
 

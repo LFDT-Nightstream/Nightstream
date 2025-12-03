@@ -13,6 +13,8 @@ pub mod utils;
 pub mod optimized_engine;
 pub mod pi_rlc_dec;
 pub mod pi_ccs;
+pub mod mojo_gpu_engine;
+pub use mojo_gpu_engine::engine::MojoGpuEngine;
 
 #[cfg(feature = "paper-exact")]
 pub mod paper_exact_engine;

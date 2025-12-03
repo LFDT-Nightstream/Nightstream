@@ -36,6 +36,7 @@ pub use crate::common::{
 #[derive(Clone, Debug)]
 pub enum FoldingMode {
     Optimized,
+    Mojo,
     #[cfg(feature = "paper-exact")]
     PaperExact,
     #[cfg(feature = "paper-exact")]
@@ -62,6 +63,9 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 
     match mode {
         FoldingMode::Optimized => OptimizedEngine.prove(
+            tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log,
+        ),
+        FoldingMode::Mojo => crate::engines::MojoGpuEngine.prove(
             tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log,
         ),
         #[cfg(feature = "paper-exact")]
@@ -142,6 +146,9 @@ where
         FoldingMode::Optimized => OptimizedRlcDec::rlc_with_commit(
             s, params, rhos, me_inputs, Zs, ell_d, mix_commits,
         ),
+        FoldingMode::Mojo => crate::engines::MojoGpuEngine::rlc_with_commit(
+            s, params, rhos, me_inputs, Zs, ell_d, mix_commits,
+        ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => {
             // Use the paper-exact RLC that actually mixes commitments.
@@ -179,6 +186,9 @@ where
     
     match mode {
         FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit(
+            s, params, parent, Z_split, ell_d, child_commitments, combine_b_pows,
+        ),
+        FoldingMode::Mojo => crate::engines::MojoGpuEngine::dec_children_with_commit(
             s, params, parent, Z_split, ell_d, child_commitments, combine_b_pows,
         ),
         #[cfg(feature = "paper-exact")]

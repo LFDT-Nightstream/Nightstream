@@ -102,7 +102,7 @@ where
     /// Matches §4.4 exactly with:
     ///   Q = eq((α′,r′),β)·(F' + Σ γ^i N_i') + γ^k Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1} · E_{(i,j)}
     /// and E_{(i,j)} = eq((α′,r′),(α,r)) · ẏ'_{(i,j)}(α′).
-    fn eval_q_ext(&self, alpha_prime: &[K], r_prime: &[K]) -> K {
+    pub fn eval_q_ext(&self, alpha_prime: &[K], r_prime: &[K]) -> K {
         use core::cmp::min;
 
         // Build χ tables for α′ and r′

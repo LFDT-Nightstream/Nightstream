@@ -2,7 +2,7 @@ use core::ops::{Index, IndexMut};
 use p3_field::PrimeCharacteristicRing;
 
 /// A dense row-major matrix over a field-like type `T`.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Mat<T> {
     rows: usize,
     cols: usize,

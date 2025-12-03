@@ -14,6 +14,8 @@ default = ["paper-exact"] # remove this once the rust impl is stable
 testing = []
 # Paper-exact, intentionally-inefficient reference implementation for Π-CCS
 paper-exact = []
+# Mojo GPU engine support
+mojo = []
 # Forward neo-transcript debug logging so tests can enable transcript dumps on stable
 debug-logs = ["neo-transcript/debug-log", "neo-reductions/debug-logs"]
 # Forward fs-guard so tests can compare prover vs verifier transcript events
@@ -107,4 +109,8 @@ required-features = ["paper-exact"]
 name = "test_poseidon2_single_step"
 path = "poseidon2-tests/test_ic_single_step.rs"
 required-features = []
+
+[[test]]
+name = "test_starstream_tx_valid_mojo"
+path = "starstream-tests/test_starstream_tx_valid_mojo.rs"
 

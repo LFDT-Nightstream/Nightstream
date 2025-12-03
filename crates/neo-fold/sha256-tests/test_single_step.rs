@@ -1,17 +1,12 @@
 #![allow(non_snake_case)]
-#![allow(unused_imports)]
 
 use std::time::Instant;
 
-use bellpepper::gadgets::{
-    boolean::{AllocatedBit, Boolean},
-    Assignment as _,
-};
+use bellpepper::gadgets::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::{
-    num::{AllocatedNum, Num},
-    Circuit, Comparable, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable,
+    Circuit, Comparable, ConstraintSystem, Index, LinearCombination, SynthesisError,
 };
-use ff::{Field, PrimeField};
+use ff::PrimeField;
 use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
 use neo_fold::{
@@ -24,7 +19,6 @@ use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use serde::{Deserialize, Serialize};
 
-#[macro_use]
 extern crate ff;
 
 #[derive(Serialize, Deserialize, Clone)]

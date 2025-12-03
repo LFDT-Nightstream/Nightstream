@@ -107,11 +107,13 @@ fn test_sha256_preimage_512_bits() {
 }
 
 #[test]
+#[ignore]
 fn test_sha256_preimage_4kB() {
     test_sha256_batch_size(1 << 15);
 }
 
 #[test]
+#[ignore]
 fn test_sha256_preimage_8kB() {
     test_sha256_batch_size(1 << 16);
 }

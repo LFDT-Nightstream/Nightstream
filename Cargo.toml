@@ -52,6 +52,9 @@ blake3 = "1.5"
 criterion = { version = "0.6", features = ["html_reports"] }
 proptest = "1.7"
 
+# For sha256 test
+bellpepper = "0.4.1"
+
 [profile.dev]
 opt-level = 1
 incremental = true

@@ -69,6 +69,9 @@ neo-ajtai = { path = "../neo-ajtai" }
 neo-params = { path = "../neo-params" }
 neo-math = { path = "../neo-math" }
 rand_chacha = { workspace = true }
+bellpepper = { workspace = true }
+bellpepper-core = { workspace = true }
+ff = { workspace = true, features = ["derive"] }
 
 # Starstream integration tests
 [[test]]
@@ -106,5 +109,10 @@ required-features = ["paper-exact"]
 [[test]]
 name = "test_poseidon2_single_step"
 path = "poseidon2-tests/test_ic_single_step.rs"
+required-features = []
+
+[[test]]
+name = "test_sha256_single_step"
+path = "sha256-tests/test_single_step.rs"
 required-features = []
 

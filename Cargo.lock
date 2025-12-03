@@ -764,10 +764,13 @@ dependencies = [
 name = "neo-fold"
 version = "0.1.0"
 dependencies = [
+ "bellpepper",
+ "bellpepper-core",
  "bincode",
  "blake3",
  "chrono",
  "criterion",
+ "ff",
  "flate2",
  "hex",
  "neo-ajtai",

@@ -8,9 +8,9 @@
 //! NOTE: eq_gadget and mle_eval_gadget currently use cs.get() which is unsafe for production.
 //! They are gated behind #[cfg(feature = "unsafe-gadgets")] until rewritten.
 
+use crate::gadgets::k_field::KNumVar;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
-use crate::gadgets::k_field::KNumVar;
 
 #[cfg(feature = "unsafe-gadgets")]
 use bellpepper_core::Variable;
@@ -157,15 +157,15 @@ pub fn mle_eval_gadget<F: PrimeField, CS: ConstraintSystem<F>>(
 
     // Allocate χ_α table (in F, then lift to K)
     let mut chi_table = Vec::with_capacity(expected_len);
-    
+
     for rho in 0..expected_len {
         // Compute χ_α[ρ] = ∏_i ((1 - α_i)(1 - ρ_i) + α_i * ρ_i)
         let mut chi = CS::one();
-        
+
         for (i, alpha_i) in alpha_bits.iter().enumerate() {
             let rho_i = (rho >> i) & 1;
             let rho_i_f = F::from(rho_i as u64);
-            
+
             // term = (1 - α_i)(1 - ρ_i) + α_i * ρ_i
             let term = cs.alloc(
                 || format!("{}_chi_term_rho{}_bit{}", label, rho, i),
@@ -176,7 +176,7 @@ pub fn mle_eval_gadget<F: PrimeField, CS: ConstraintSystem<F>>(
                     Ok(one_minus_alpha * one_minus_rho + alpha_val * rho_i_f)
                 },
             )?;
-            
+
             // Enforce term constraint (similar to eq_gadget)
             // term = 1 - α_i - ρ_i + 2*α_i*ρ_i
             let alpha_rho = cs.alloc(
@@ -186,21 +186,21 @@ pub fn mle_eval_gadget<F: PrimeField, CS: ConstraintSystem<F>>(
                     Ok(alpha_val * rho_i_f)
                 },
             )?;
-            
+
             cs.enforce(
                 || format!("{}_alpha_rho_constraint_rho{}_bit{}", label, rho, i),
                 |lc| lc + *alpha_i,
                 |lc| lc + (rho_i_f, CS::one()),
                 |lc| lc + alpha_rho,
             );
-            
+
             cs.enforce(
                 || format!("{}_term_constraint_rho{}_bit{}", label, rho, i),
                 |lc| lc + CS::one() - *alpha_i - (rho_i_f, CS::one()) + (F::from(2u64), alpha_rho),
                 |lc| lc + CS::one(),
                 |lc| lc + term,
             );
-            
+
             // chi *= term
             let chi_next = cs.alloc(
                 || format!("{}_chi_rho{}_step{}", label, rho, i + 1),
@@ -210,17 +210,17 @@ pub fn mle_eval_gadget<F: PrimeField, CS: ConstraintSystem<F>>(
                     Ok(chi_val * term_val)
                 },
             )?;
-            
+
             cs.enforce(
                 || format!("{}_chi_mul_rho{}_step{}", label, rho, i + 1),
                 |lc| lc + chi,
                 |lc| lc + term,
                 |lc| lc + chi_next,
             );
-            
+
             chi = chi_next;
         }
-        
+
         chi_table.push(chi);
     }
 
@@ -228,34 +228,36 @@ pub fn mle_eval_gadget<F: PrimeField, CS: ConstraintSystem<F>>(
     // Start with zero in K
     let zero_c0 = cs.alloc(|| format!("{}_sum_init_c0", label), || Ok(F::ZERO))?;
     let zero_c1 = cs.alloc(|| format!("{}_sum_init_c1", label), || Ok(F::ZERO))?;
-    
+
     cs.enforce(
         || format!("{}_zero_c0_constraint", label),
         |lc| lc + zero_c0,
         |lc| lc + CS::one(),
         |lc| lc,
     );
-    
+
     cs.enforce(
         || format!("{}_zero_c1_constraint", label),
         |lc| lc + zero_c1,
         |lc| lc + CS::one(),
         |lc| lc,
     );
-    
-    let mut sum = KNumVar { c0: zero_c0, c1: zero_c1 };
+
+    let mut sum = KNumVar {
+        c0: zero_c0,
+        c1: zero_c1,
+    };
 
     for (rho, (y_rho, chi_rho)) in y_table.iter().zip(chi_table.iter()).enumerate() {
         // chi_rho is in F, lift to K
         let chi_k = k_lift_from_f(cs, *chi_rho, &format!("{}_chi_lift_{}", label, rho))?;
-        
+
         // term = y[rho] * χ[rho] (in K)
         let term = k_mul(cs, y_rho, &chi_k, delta, None, &format!("{}_term_{}", label, rho))?;
-        
+
         // sum += term
         sum = k_add(cs, &sum, &term, None, &format!("{}_add_{}", label, rho))?;
     }
 
     Ok(sum)
 }
-

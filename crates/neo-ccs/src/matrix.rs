@@ -18,37 +18,51 @@ impl<T: Clone> Mat<T> {
 
     /// Zero-initialized matrix (caller provides zero element).
     pub fn zero(rows: usize, cols: usize, zero: T) -> Self {
-        Self { rows, cols, data: vec![zero; rows * cols] }
+        Self {
+            rows,
+            cols,
+            data: vec![zero; rows * cols],
+        }
     }
 
     /// Rows.
-    pub fn rows(&self) -> usize { self.rows }
+    pub fn rows(&self) -> usize {
+        self.rows
+    }
 
     /// Cols.
-    pub fn cols(&self) -> usize { self.cols }
+    pub fn cols(&self) -> usize {
+        self.cols
+    }
 
     /// Underlying row-major slice.
-    pub fn as_slice(&self) -> &[T] { &self.data }
+    pub fn as_slice(&self) -> &[T] {
+        &self.data
+    }
 
     /// Mutable slice.
-    pub fn as_mut_slice(&mut self) -> &mut [T] { &mut self.data }
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        &mut self.data
+    }
 
     /// Row i as a slice.
     pub fn row(&self, i: usize) -> &[T] {
         let start = i * self.cols;
-        &self.data[start .. start + self.cols]
+        &self.data[start..start + self.cols]
     }
 
     /// Row i as a mutable slice.
     pub fn row_mut(&mut self, i: usize) -> &mut [T] {
         let start = i * self.cols;
-        &mut self.data[start .. start + self.cols]
+        &mut self.data[start..start + self.cols]
     }
 
     /// Append `k` zero rows to the matrix in-place.
     /// The caller must provide the zero element for the field type.
     pub fn append_zero_rows(&mut self, k: usize, zero: T) {
-        if k == 0 { return; }
+        if k == 0 {
+            return;
+        }
         let extra = k * self.cols;
         self.data.resize(self.data.len() + extra, zero);
         self.rows += k;
@@ -70,19 +84,27 @@ where
     /// Construct an identity matrix I_n over field F.
     pub fn identity(n: usize) -> Self {
         let mut m = Mat::zero(n, n, F::ZERO);
-        for i in 0..n { m.set(i, i, F::ONE); }
+        for i in 0..n {
+            m.set(i, i, F::ONE);
+        }
         m
     }
 
     /// Check whether this matrix is exactly the identity matrix (I_n).
     pub fn is_identity(&self) -> bool {
-        if self.rows != self.cols { return false; }
+        if self.rows != self.cols {
+            return false;
+        }
         for r in 0..self.rows {
             for c in 0..self.cols {
                 let v = self[(r, c)];
                 if r == c {
-                    if v != F::ONE { return false; }
-                } else if v != F::ZERO { return false; }
+                    if v != F::ONE {
+                        return false;
+                    }
+                } else if v != F::ZERO {
+                    return false;
+                }
             }
         }
         true
@@ -102,7 +124,9 @@ where
                     return false;
                 }
             }
-            if ones != 1 { return false; }
+            if ones != 1 {
+                return false;
+            }
         }
         true
     }
@@ -120,7 +144,7 @@ pub struct CsrMatrix {
     pub row_ptrs: Vec<usize>,
     /// Column indices of non-zeros
     pub col_indices: Vec<usize>,
-    /// Non-zero values (same length as col_indices) 
+    /// Non-zero values (same length as col_indices)
     pub values: Vec<neo_math::F>,
 }
 
@@ -131,7 +155,7 @@ impl CsrMatrix {
         let mut row_ptrs = vec![0; dense.rows + 1];
         let mut col_indices = Vec::new();
         let mut values = Vec::new();
-        
+
         for row in 0..dense.rows {
             row_ptrs[row] = col_indices.len();
             for col in 0..dense.cols {
@@ -143,14 +167,16 @@ impl CsrMatrix {
             }
         }
         row_ptrs[dense.rows] = col_indices.len();
-        
+
         #[cfg(feature = "neo-logs")]
         tracing::info!(
-            "CSR conversion: {}×{} → {} non-zeros ({:.1}% density)", 
-            dense.rows, dense.cols, values.len(), 
+            "CSR conversion: {}×{} → {} non-zeros ({:.1}% density)",
+            dense.rows,
+            dense.cols,
+            values.len(),
             100.0 * values.len() as f64 / (dense.rows * dense.cols) as f64
         );
-        
+
         Self {
             rows: dense.rows,
             cols: dense.cols,
@@ -159,39 +185,43 @@ impl CsrMatrix {
             values,
         }
     }
-    
+
     /// TRUE O(nnz) sparse matrix-vector multiply: v = M^T * r
     /// Simple, working version - no features, no complexity
     #[inline]
     pub fn spmv_transpose(&self, r_pairs: &[(neo_math::F, neo_math::F)]) -> (Vec<neo_math::F>, Vec<neo_math::F>) {
         // SECURITY: Ensure r_pairs length matches matrix rows to prevent panics
-        debug_assert_eq!(r_pairs.len(), self.rows, 
-            "r_pairs length ({}) must equal matrix rows ({})", 
-            r_pairs.len(), self.rows);
-        
+        debug_assert_eq!(
+            r_pairs.len(),
+            self.rows,
+            "r_pairs length ({}) must equal matrix rows ({})",
+            r_pairs.len(),
+            self.rows
+        );
+
         let mut v_re = vec![neo_math::F::ZERO; self.cols];
         let mut v_im = vec![neo_math::F::ZERO; self.cols];
-        
+
         // CRITICAL: Only iterate actual non-zeros - THIS IS THE HUGE WIN!
         for row in 0..self.rows {
             let (r_re, r_im) = r_pairs[row];
             let start = self.row_ptrs[row];
             let end = self.row_ptrs[row + 1];
-            
+
             // Process only non-zero elements in this row - skips all zeros!
             for idx in start..end {
                 let col = self.col_indices[idx];
                 let a = self.values[idx];
-                
+
                 // Simple accumulation - no features, just working code
                 v_re[col] += a * r_re;
                 v_im[col] += a * r_im;
             }
         }
-        
+
         (v_re, v_im)
     }
-    
+
     /// Get non-zero elements in a row (TRUE sparse - no scanning!)
     #[inline]
     pub fn row_nz(&self, row: usize) -> (&[usize], &[neo_math::F]) {
@@ -199,13 +229,13 @@ impl CsrMatrix {
         let end = self.row_ptrs[row + 1];
         (&self.col_indices[start..end], &self.values[start..end])
     }
-    
+
     /// Number of non-zeros in matrix
     #[inline]
     pub fn nnz(&self) -> usize {
         self.values.len()
     }
-    
+
     /// Number of non-zeros in specific row
     #[inline]
     pub fn row_nnz(&self, row: usize) -> usize {
@@ -219,27 +249,27 @@ impl Mat<neo_math::F> {
     pub fn to_csr(&self) -> CsrMatrix {
         CsrMatrix::from_dense(self)
     }
-    
+
     /// Iterator over non-zero elements in a specific row.
     /// Returns (column_index, value) pairs for elements that are not zero.
-    /// 
+    ///
     /// WARNING: This is O(m) per row! Use to_csr() for real performance.
     #[inline]
-    pub fn row_nz<'a>(&'a self, row: usize) -> impl Iterator<Item=(usize, &'a neo_math::F)> + 'a {
+    pub fn row_nz<'a>(&'a self, row: usize) -> impl Iterator<Item = (usize, &'a neo_math::F)> + 'a {
         let zero = &neo_math::F::ZERO;
         self.row(row)
             .iter()
             .enumerate()
-              .filter(move |(_, val)| *val != zero)
+            .filter(move |(_, val)| *val != zero)
     }
-    
+
     /// Count non-zeros in a specific row (useful for allocation sizing)
-    #[inline] 
+    #[inline]
     pub fn row_nnz(&self, row: usize) -> usize {
         let zero = &neo_math::F::ZERO;
         self.row(row).iter().filter(|val| *val != zero).count()
     }
-    
+
     /// Total non-zeros in the matrix
     #[inline]
     pub fn nnz(&self) -> usize {
@@ -276,13 +306,17 @@ pub struct MatRef<'a, T> {
 impl<'a, T> MatRef<'a, T> {
     /// Make a `MatRef` from a full matrix.
     pub fn from_mat(m: &'a Mat<T>) -> Self {
-        Self { rows: m.rows, cols: m.cols, data: &m.data }
+        Self {
+            rows: m.rows,
+            cols: m.cols,
+            data: &m.data,
+        }
     }
 
     /// Get a row slice.
     pub fn row(&self, i: usize) -> &'a [T] {
         let start = i * self.cols;
-        &self.data[start .. start + self.cols]
+        &self.data[start..start + self.cols]
     }
 }
 

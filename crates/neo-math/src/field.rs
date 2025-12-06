@@ -2,8 +2,8 @@
 //! MUST: implement F_q and K with conjugation/inversion; constant-time basic ops.
 //! SHOULD: expose roots-of-unity hooks sized for ring ops.
 
-use p3_field::Field;
 use p3_field::extension::BinomialExtensionField;
+use p3_field::Field;
 use p3_goldilocks::Goldilocks;
 
 /// Goldilocks base field F_q, q = 2^64 - 2^32 + 1.
@@ -34,9 +34,13 @@ pub trait KExtensions {
     /// Construct from coefficients [real, imag]
     fn from_coeffs(coefs: [Fq; 2]) -> Self;
     /// Real part (convenience)  
-    fn real(&self) -> Fq { self.as_coeffs()[0] }
+    fn real(&self) -> Fq {
+        self.as_coeffs()[0]
+    }
     /// Imaginary part (convenience)
-    fn imag(&self) -> Fq { self.as_coeffs()[1] }
+    fn imag(&self) -> Fq {
+        self.as_coeffs()[1]
+    }
     /// Extract limbs as u64 tuple (c0, c1) for circuit gadgets
     fn to_limbs_u64(&self) -> (u64, u64) {
         use p3_field::PrimeField64;
@@ -46,13 +50,26 @@ pub trait KExtensions {
 }
 
 impl KExtensions for K {
-    #[inline] fn conj(self) -> Self { self.conjugate() }
-    #[inline] fn inv(self) -> Self { self.inverse() }
-    #[inline] fn as_coeffs(&self) -> [Fq; 2] { [self.real(), self.imag()] }
-    #[inline] fn from_coeffs(coefs: [Fq; 2]) -> Self {
+    #[inline]
+    fn conj(self) -> Self {
+        self.conjugate()
+    }
+    #[inline]
+    fn inv(self) -> Self {
+        self.inverse()
+    }
+    #[inline]
+    fn as_coeffs(&self) -> [Fq; 2] {
+        [self.real(), self.imag()]
+    }
+    #[inline]
+    fn from_coeffs(coefs: [Fq; 2]) -> Self {
         new_k_from_coeffs(coefs)
     }
 }
 
 /// Create extension field element from real/imaginary parts  
-#[inline] pub fn from_complex(real: Fq, imag: Fq) -> K { K::from_coeffs([real, imag]) }
+#[inline]
+pub fn from_complex(real: Fq, imag: Fq) -> K {
+    K::from_coeffs([real, imag])
+}

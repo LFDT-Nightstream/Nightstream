@@ -1,12 +1,11 @@
-use p3_goldilocks::Goldilocks as Fq;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use rand::{RngCore, CryptoRng};
-use crate::types::{PP, Commitment};
 use crate::error::{AjtaiError, AjtaiResult};
-
+use crate::types::{Commitment, PP};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_goldilocks::Goldilocks as Fq;
+use rand::{CryptoRng, RngCore};
 
 /// Bring in ring & S-action APIs from neo-math.
-use neo_math::ring::{Rq as RqEl, cf_inv as cf_unmap, cf, D, ETA};
+use neo_math::ring::{cf, cf_inv as cf_unmap, Rq as RqEl, D, ETA};
 use neo_math::s_action::SAction;
 
 // Compile-time guards: this file's rot_step assumes Φ₈₁ (η=81 ⇒ D=54)
@@ -20,12 +19,14 @@ fn sample_uniform_fq<R: RngCore + CryptoRng>(rng: &mut R) -> Fq {
     const Q: u64 = <Fq as PrimeField64>::ORDER_U64; // 2^64 - 2^32 + 1
     loop {
         let x = rng.next_u64();
-        if x < Q { return Fq::from_u64(x); }
+        if x < Q {
+            return Fq::from_u64(x);
+        }
     }
 }
 
 /// Rotation "one-step" for Φ₈₁(X) = X^54 + X^27 + 1
-/// 
+///
 /// Turns column t into column t+1 in O(d) (no ring multiply).
 /// For Φ₈₁, the step is: next[0] = -v_{d-1}, next[27] = v_{26} - v_{d-1},
 /// next[k] = v_{k-1} for k ∈ {1,...,d-1}\{27}.
@@ -36,8 +37,8 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
     next[0] = Fq::ZERO;
     next[1..D].copy_from_slice(&cur[..(D - 1)]);
     // cyclotomic corrections for X^54 ≡ -X^27 - 1
-    next[0] -= last;        // -1 * last
-    next[27] -= last;       // -X^27 * last
+    next[0] -= last; // -1 * last
+    next[27] -= last; // -X^27 * last
 }
 
 /// Rotation step for internal use by commit implementations
@@ -62,7 +63,9 @@ pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
 pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usize) -> AjtaiResult<PP<RqEl>> {
     // Ensure d matches the fixed ring dimension from neo-math
     if d != neo_math::ring::D {
-        return Err(AjtaiError::InvalidDimensions("d parameter must match ring dimension D".to_string()));
+        return Err(AjtaiError::InvalidDimensions(
+            "d parameter must match ring dimension D".to_string(),
+        ));
     }
     let mut rows = Vec::with_capacity(kappa);
     for _ in 0..kappa {
@@ -79,11 +82,15 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
         }
         rows.push(row);
     }
-    Ok(PP { kappa, m, d, m_rows: rows })
+    Ok(PP {
+        kappa,
+        m,
+        d,
+        m_rows: rows,
+    })
 }
 
 // Variable-time optimization removed for security and simplicity
-
 
 /// MUST: Commit(pp, Z) = cf(M · cf^{-1}(Z)) as c ∈ F_q^{d×κ}.  S-homomorphic over S by construction.
 /// Uses constant-time dense computation for all inputs (audit-ready).
@@ -91,19 +98,20 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
 #[allow(non_snake_case)]
 pub fn try_commit(pp: &PP<RqEl>, Z: &[Fq]) -> AjtaiResult<Commitment> {
     // Z is d×m (column-major by (col*d + row)), output c is d×kappa (column-major)
-    let d = pp.d; let m = pp.m;
-    if Z.len() != d*m {
-        return Err(AjtaiError::SizeMismatch { 
-            expected: d*m, 
-            actual: Z.len() 
+    let d = pp.d;
+    let m = pp.m;
+    if Z.len() != d * m {
+        return Err(AjtaiError::SizeMismatch {
+            expected: d * m,
+            actual: Z.len(),
         });
     }
-    
+
     // 🚀 PERFORMANCE OPTIMIZATION: Use precomputed rotations for large m
     // For small m, masked CT is faster due to lower setup cost
     // For large m, precomputed CT amortizes the rotation computation cost
     const PRECOMP_THRESHOLD: usize = 256; // Threshold tuned for D=54: precomp pays off when m*D > 16k
-    
+
     if m >= PRECOMP_THRESHOLD {
         Ok(commit_precomp_ct(pp, Z))
     } else {
@@ -129,26 +137,41 @@ pub fn verify_open(pp: &PP<RqEl>, c: &Commitment, Z: &[Fq]) -> bool {
 #[allow(non_snake_case)]
 pub fn verify_split_open(pp: &PP<RqEl>, c: &Commitment, b: u32, c_is: &[Commitment], Z_is: &[Vec<Fq>]) -> bool {
     let k = c_is.len();
-    if k != Z_is.len() { return false; }
+    if k != Z_is.len() {
+        return false;
+    }
     // Check shapes
-    for ci in c_is { if ci.d != c.d || ci.kappa != c.kappa { return false; } }
+    for ci in c_is {
+        if ci.d != c.d || ci.kappa != c.kappa {
+            return false;
+        }
+    }
     // Recompose commitment
     let mut acc = Commitment::zeros(c.d, c.kappa);
     let mut pow = Fq::ONE;
     let b_f = Fq::from_u64(b as u64);
     #[allow(clippy::needless_range_loop)]
     for i in 0..k {
-        for (a, &x) in acc.data.iter_mut().zip(&c_is[i].data) { *a += x * pow; }
+        for (a, &x) in acc.data.iter_mut().zip(&c_is[i].data) {
+            *a += x * pow;
+        }
         pow *= b_f;
     }
-    if &acc != c { return false; }
+    if &acc != c {
+        return false;
+    }
     // Recompose Z and check commit again
-    let d = pp.d; let m = pp.m;
-    let mut Z = vec![Fq::ZERO; d*m];
+    let d = pp.d;
+    let m = pp.m;
+    let mut Z = vec![Fq::ZERO; d * m];
     let mut pow = Fq::ONE;
     for Zi in Z_is {
-        if Zi.len() != d*m { return false; }
-        for (a, &x) in Z.iter_mut().zip(Zi) { *a += x * pow; }
+        if Zi.len() != d * m {
+            return false;
+        }
+        for (a, &x) in Z.iter_mut().zip(Zi) {
+            *a += x * pow;
+        }
         pow *= b_f;
     }
     &commit(pp, &Z) == c
@@ -157,10 +180,11 @@ pub fn verify_split_open(pp: &PP<RqEl>, c: &Commitment, b: u32, c_is: &[Commitme
 /// S-homomorphism: ρ·L(Z) = L(ρ·Z).  We expose helpers for left-multiplying commitments.
 /// Since we don't have direct access to SMatrix, we use SAction to operate on the commitment data.
 pub fn s_mul(rho_ring: &RqEl, c: &Commitment) -> Commitment {
-    let d = c.d; let kappa = c.kappa;
+    let d = c.d;
+    let kappa = c.kappa;
     let mut out = Commitment::zeros(d, kappa);
     let s_action = SAction::from_ring(*rho_ring);
-    
+
     for col in 0..kappa {
         let src: [Fq; neo_math::ring::D] = c.col(col).try_into().expect("column length should be d");
         let dst_result = s_action.apply_vec(&src);
@@ -175,15 +199,15 @@ pub fn s_lincomb(rhos: &[RqEl], cs: &[Commitment]) -> AjtaiResult<Commitment> {
         return Err(AjtaiError::EmptyInput);
     }
     if rhos.len() != cs.len() {
-        return Err(AjtaiError::SizeMismatch { 
-            expected: rhos.len(), 
-            actual: cs.len() 
+        return Err(AjtaiError::SizeMismatch {
+            expected: rhos.len(),
+            actual: cs.len(),
         });
     }
     if cs.is_empty() {
         return Err(AjtaiError::EmptyInput);
     }
-    
+
     let mut acc = Commitment::zeros(cs[0].d, cs[0].kappa);
     for (rho, c) in rhos.iter().zip(cs) {
         let term = s_mul(rho, c);
@@ -206,12 +230,14 @@ pub fn s_lincomb(rhos: &[RqEl], cs: &[Commitment]) -> AjtaiResult<Commitment> {
 /// - No secret-dependent memory accesses
 /// - Identical execution flow regardless of Z values (sparsity, magnitude)
 /// - Assumes underlying field arithmetic is constant-time (true for Goldilocks)
-/// 
+///
 /// This implements the identity cf(a·b) = rot(a)·cf(b) = Σ(t=0 to d-1) b_t · col_t(rot(a))
 #[allow(non_snake_case)]
 pub fn commit_masked_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
-    let d = pp.d; let m = pp.m; let kappa = pp.kappa;
-    
+    let d = pp.d;
+    let m = pp.m;
+    let kappa = pp.kappa;
+
     // CRITICAL SECURITY: Runtime dimension checks to prevent binding bugs
     assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");
@@ -229,8 +255,8 @@ pub fn commit_masked_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
             // Loop over all base-digits t (constant-time)
             let base = j * d;
             for t in 0..d {
-                let mask = Z[base + t];        // any Fq digit (0, ±1, small, or general)
-                // acc += mask * col   (branch-free masked add)
+                let mask = Z[base + t]; // any Fq digit (0, ±1, small, or general)
+                                        // acc += mask * col   (branch-free masked add)
                 for r in 0..d {
                     // single FMA-like op on the field
                     acc_i[r] += col[r] * mask;
@@ -260,19 +286,21 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
 ///
 /// Space/time trade: uses a stack-allocated `[[Fq; D]; D]` scratch per (i,j) to
 /// remove per-step rot_step(), keeping the same constant-time masked adds.
-/// 
+///
 /// **Constant-Time Guarantees:**
 /// - Fixed iteration counts (no secret-dependent branching)  
 /// - No secret-dependent memory accesses
 /// - Identical execution flow regardless of Z values (sparsity, magnitude)
 /// - Assumes underlying field arithmetic is constant-time (true for Goldilocks)
-/// 
+///
 /// This implements the same identity cf(a·b) = rot(a)·cf(b) = Σ(t=0 to d-1) b_t · col_t(rot(a))
 /// but precomputes all rotation columns once per (i,j) pair for better cache locality.
 #[allow(non_snake_case)]
 pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
-    let d = pp.d; let m = pp.m; let kappa = pp.kappa;
-    
+    let d = pp.d;
+    let m = pp.m;
+    let kappa = pp.kappa;
+
     // CRITICAL SECURITY: Runtime dimension checks to prevent binding bugs
     assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
     assert_eq!(Z.len(), d * m, "Z must be d×m");

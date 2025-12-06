@@ -11,7 +11,7 @@ use rand::SeedableRng;
 use p3_field::PrimeCharacteristicRing;
 
 // Constants
-const N_STEPS: usize = 1_000;
+const N_STEPS: usize = 10_000;
 
 struct FibonacciStep {
     n_vars: usize,

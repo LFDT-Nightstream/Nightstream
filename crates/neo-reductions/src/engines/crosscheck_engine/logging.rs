@@ -16,8 +16,12 @@ pub fn log_per_round_header(total_rounds: usize) {
 }
 
 pub fn log_per_round_progress(round_idx: usize, total_rounds: usize, num_evals: usize) {
-    eprintln!("  Round {}/{}: Checking {} evaluation points...", 
-             round_idx + 1, total_rounds, num_evals);
+    eprintln!(
+        "  Round {}/{}: Checking {} evaluation points...",
+        round_idx + 1,
+        total_rounds,
+        num_evals
+    );
 }
 
 pub fn log_per_round_success(total_rounds: usize) {
@@ -72,7 +76,10 @@ pub fn log_terminal_comparison(running_sum_prover: K, rhs_opt: K, lhs_exact: K) 
     eprintln!("╔════════════════════════════════════════════════════════════════════════════╗");
     eprintln!("║                           COMPARISON                                       ║");
     eprintln!("╚════════════════════════════════════════════════════════════════════════════╝");
-    eprintln!("  Sumcheck final value (from optimized proof): {:?}", running_sum_prover);
+    eprintln!(
+        "  Sumcheck final value (from optimized proof): {:?}",
+        running_sum_prover
+    );
     eprintln!("  Optimized Q(α', r'):                         {:?}", rhs_opt);
     eprintln!("  Paper-exact Q(α', r'):                       {:?}", lhs_exact);
     eprintln!("  Match: {}", rhs_opt == lhs_exact && rhs_opt == running_sum_prover);
@@ -101,8 +108,14 @@ pub fn log_terminal_mismatch(rhs_opt: K, lhs_exact: K, running_sum_prover: K) {
     eprintln!();
     eprintln!("Comparisons:");
     eprintln!("  Optimized terminal == Paper-exact:   {}", rhs_opt == lhs_exact);
-    eprintln!("  Optimized terminal == Sumcheck final: {}", rhs_opt == running_sum_prover);
-    eprintln!("  Paper-exact == Sumcheck final:        {}", lhs_exact == running_sum_prover);
+    eprintln!(
+        "  Optimized terminal == Sumcheck final: {}",
+        rhs_opt == running_sum_prover
+    );
+    eprintln!(
+        "  Paper-exact == Sumcheck final:        {}",
+        lhs_exact == running_sum_prover
+    );
     eprintln!();
     eprintln!("Expected: All three should match.");
     eprintln!("Actual:   Mismatch detected!");
@@ -131,7 +144,7 @@ pub fn log_outputs_length_mismatch(paper_len: usize, optimized_len: usize) {
 }
 
 pub fn log_outputs_metadata_mismatch(
-    idx: usize, 
+    idx: usize,
     total_len: usize,
     mismatches: &[String],
     m_in_match: bool,
@@ -144,7 +157,10 @@ pub fn log_outputs_metadata_mismatch(
     mcs_list_len: usize,
 ) {
     eprintln!("\n╔═══════════════════════════════════════════════════════════════════════════╗");
-    eprintln!("║              CROSSCHECK: Output Metadata Mismatch at Index {}            ║", idx);
+    eprintln!(
+        "║              CROSSCHECK: Output Metadata Mismatch at Index {}            ║",
+        idx
+    );
     eprintln!("╚═══════════════════════════════════════════════════════════════════════════╝");
     eprintln!();
     eprintln!("Output instance {}/{}", idx + 1, total_len);
@@ -167,11 +183,12 @@ pub fn log_outputs_metadata_mismatch(
     eprintln!();
     eprintln!("Additional context:");
     eprintln!("  fold_digest (first 8 bytes): {:?}", &fold_digest[..8]);
-    eprintln!("  Instance is from: {}", 
-        if idx < mcs_list_len { 
-            format!("MCS instance {}", idx) 
-        } else { 
-            format!("ME input {}", idx - mcs_list_len) 
+    eprintln!(
+        "  Instance is from: {}",
+        if idx < mcs_list_len {
+            format!("MCS instance {}", idx)
+        } else {
+            format!("ME input {}", idx - mcs_list_len)
         }
     );
     eprintln!();
@@ -188,7 +205,15 @@ pub fn log_outputs_y_row_length_mismatch(idx: usize, j: usize, paper_len: usize,
     eprintln!();
 }
 
-pub fn log_outputs_y_row_content_mismatch(idx: usize, j: usize, match_count: usize, total_len: usize, first_mismatch_idx: usize, paper_val: &K, opt_val: &K) {
+pub fn log_outputs_y_row_content_mismatch(
+    idx: usize,
+    j: usize,
+    match_count: usize,
+    total_len: usize,
+    first_mismatch_idx: usize,
+    paper_val: &K,
+    opt_val: &K,
+) {
     eprintln!("\n╔═══════════════════════════════════════════════════════════════════════════╗");
     eprintln!("║              CROSSCHECK: y Row Content Mismatch                           ║");
     eprintln!("╚═══════════════════════════════════════════════════════════════════════════╝");
@@ -217,7 +242,13 @@ pub fn log_outputs_y_scalars_mismatch(idx: usize, match_count: usize, total_len:
     eprintln!();
 }
 
-pub fn log_outputs_x_dimension_mismatch(idx: usize, paper_rows: usize, paper_cols: usize, opt_rows: usize, opt_cols: usize) {
+pub fn log_outputs_x_dimension_mismatch(
+    idx: usize,
+    paper_rows: usize,
+    paper_cols: usize,
+    opt_rows: usize,
+    opt_cols: usize,
+) {
     eprintln!("\n╔═══════════════════════════════════════════════════════════════════════════╗");
     eprintln!("║              CROSSCHECK: X Matrix Dimension Mismatch                      ║");
     eprintln!("╚═══════════════════════════════════════════════════════════════════════════╝");

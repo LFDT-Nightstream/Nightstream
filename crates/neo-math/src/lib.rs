@@ -7,8 +7,8 @@
 //! **Normative language:** "MUST", "SHOULD" are used as in BCP‑14 (RFC 2119 / RFC 8174).
 //! Violations of **MUST** return errors; **SHOULD** are surfaced as warnings (or errors in strict mode).
 
-pub mod norms;
 pub mod field;
+pub mod norms;
 pub mod ring;
 pub mod s_action;
 
@@ -19,14 +19,14 @@ pub enum SActionError {
     DimMismatch { expected: usize, got: usize },
 }
 
-pub use field::{Fq, K, KExtensions, from_complex};
-pub use ring::{ETA, D, Rq, cf, cf_inv};
+pub use field::{from_complex, Fq, KExtensions, K};
+pub use ring::{cf, cf_inv, Rq, D, ETA};
 pub use s_action::SAction;
 
 // Import trait for field operations - removed unused import
 
 // Backward compatibility exports for existing crates
-pub use Fq as F;  // Field type alias
+pub use Fq as F; // Field type alias
 
 // Legacy modules removed as part of codebase cleanup
 // Use neo_fold::transcript::FoldTranscript for transcript functionality

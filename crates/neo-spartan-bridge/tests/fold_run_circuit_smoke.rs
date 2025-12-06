@@ -3,23 +3,23 @@
 
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ajtai::Commitment as Cmt;
+use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
+use neo_ccs::r1cs_to_ccs;
 use neo_ccs::{Mat, MeInstance};
 use neo_fold::folding::{FoldRun, FoldStep};
-use neo_math::{F, K, D};
-use neo_spartan_bridge::circuit::{FoldRunCircuit, FoldRunInstance, FoldRunWitness};
-use neo_spartan_bridge::circuit::witness::PiCcsChallenges;
-use neo_spartan_bridge::CircuitF;
-use neo_reductions::PiCcsProof;
-use p3_field::PrimeCharacteristicRing;
-use neo_fold::session::{FoldingSession, Accumulator, me_from_z_balanced, ProveInput};
 use neo_fold::pi_ccs::FoldingMode;
-use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule};
+use neo_fold::session::{me_from_z_balanced, Accumulator, FoldingSession, ProveInput};
+use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_ccs::r1cs_to_ccs;
-use rand_chacha::rand_core::SeedableRng;
 use neo_reductions::engines::utils as reductions_utils;
+use neo_reductions::PiCcsProof;
 use neo_spartan_bridge::circuit::fold_circuit::CircuitPolyTerm;
+use neo_spartan_bridge::circuit::witness::PiCcsChallenges;
+use neo_spartan_bridge::circuit::{FoldRunCircuit, FoldRunInstance, FoldRunWitness};
+use neo_spartan_bridge::CircuitF;
 use neo_spartan_bridge::{prove_fold_run, verify_fold_run};
+use p3_field::PrimeCharacteristicRing;
+use rand_chacha::rand_core::SeedableRng;
 
 fn dummy_me_instance() -> MeInstance<Cmt, F, K> {
     // Dummy Ajtai commitment with zeros
@@ -147,7 +147,9 @@ fn fold_run_circuit_trivial_satisfied() {
     let circuit = FoldRunCircuit::new(instance, Some(witness), delta, base_b, poly_f);
 
     let mut cs = TestConstraintSystem::<CircuitF>::new();
-    circuit.synthesize(&mut cs).expect("circuit synthesis should succeed");
+    circuit
+        .synthesize(&mut cs)
+        .expect("circuit synthesis should succeed");
     assert!(
         cs.is_satisfied(),
         "trivial FoldRunCircuit instance should have a satisfied constraint system"
@@ -171,7 +173,9 @@ fn fold_run_circuit_initial_sum_mismatch_unsatisfied() {
     let circuit = FoldRunCircuit::new(instance, Some(witness), delta, base_b, poly_f);
 
     let mut cs = TestConstraintSystem::<CircuitF>::new();
-    circuit.synthesize(&mut cs).expect("circuit synthesis should succeed");
+    circuit
+        .synthesize(&mut cs)
+        .expect("circuit synthesis should succeed");
     assert!(
         !cs.is_satisfied(),
         "tampering sc_initial_sum should break the initial-sum binding constraint"
@@ -228,8 +232,8 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
 
     let ccs = r1cs_to_ccs(A, B, C);
 
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n_constraints)
-        .expect("goldilocks_auto_r1cs_ccs should find valid params");
+    let params =
+        NeoParams::goldilocks_auto_r1cs_ccs(n_constraints).expect("goldilocks_auto_r1cs_ccs should find valid params");
 
     setup_ajtai_for_dims(n_vars);
     let l = AjtaiSModule::from_global_for_dims(D, n_vars).expect("AjtaiSModule init");
@@ -246,10 +250,8 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
     // Seed 2: x=[1,0,1], w=[1,0]
     let z_seed_2: Vec<F> = vec![F::ONE, F::ZERO, F::ONE, F::ONE, F::ZERO];
 
-    let (me1, Z1) = me_from_z_balanced(&params, &ccs, &l, &z_seed_1, &r, m_in)
-        .expect("seed1 ME ok");
-    let (me2, Z2) = me_from_z_balanced(&params, &ccs, &l, &z_seed_2, &r, m_in)
-        .expect("seed2 ME ok");
+    let (me1, Z1) = me_from_z_balanced(&params, &ccs, &l, &z_seed_1, &r, m_in).expect("seed1 ME ok");
+    let (me2, Z2) = me_from_z_balanced(&params, &ccs, &l, &z_seed_2, &r, m_in).expect("seed2 ME ok");
 
     let acc = Accumulator {
         me: vec![me1, me2],
@@ -265,7 +267,12 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
     {
         let x: Vec<F> = vec![F::ONE, F::ONE, F::ONE];
         let w: Vec<F> = vec![F::from_u64(2), F::from_u64(2)];
-        let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
+        let input = ProveInput {
+            ccs: &ccs,
+            public_input: &x,
+            witness: &w,
+            output_claims: &[],
+        };
         session.add_step_from_io(&input).expect("add_step 1");
     }
 
@@ -273,7 +280,12 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
     {
         let x: Vec<F> = vec![F::ONE, F::ZERO, F::ONE];
         let w: Vec<F> = vec![F::ONE, F::ZERO];
-        let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
+        let input = ProveInput {
+            ccs: &ccs,
+            public_input: &x,
+            witness: &w,
+            output_claims: &[],
+        };
         session.add_step_from_io(&input).expect("add_step 2");
     }
 
@@ -281,39 +293,34 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
     {
         let x: Vec<F> = vec![F::ZERO, F::ONE, F::ONE];
         let w: Vec<F> = vec![F::ONE, F::ONE];
-        let input = ProveInput { ccs: &ccs, public_input: &x, witness: &w, output_claims: &[] };
+        let input = ProveInput {
+            ccs: &ccs,
+            public_input: &x,
+            witness: &w,
+            output_claims: &[],
+        };
         session.add_step_from_io(&input).expect("add_step 3");
     }
 
-    let run = session.fold_and_prove(&ccs).expect("fold_and_prove should produce a FoldRun");
+    let run = session
+        .fold_and_prove(&ccs)
+        .expect("fold_and_prove should produce a FoldRun");
 
     // Sanity: the native paper-exact verifier should accept this run.
     let mcss_public = session.mcss_public();
-    let ok = session.verify(&ccs, &mcss_public, &run).expect("verify should run");
+    let ok = session
+        .verify(&ccs, &mcss_public, &run)
+        .expect("verify should run");
     assert!(ok, "paper-exact verification should pass");
 
     // --- Build FoldRunWitness for the Spartan bridge (Π-CCS proofs + RLC data) ---
     let steps_len = run.steps.len();
-    let pi_ccs_proofs: Vec<PiCcsProof> = run
-        .steps
-        .iter()
-        .map(|s| s.ccs_proof.clone())
-        .collect();
-    let rlc_rhos: Vec<Vec<Mat<F>>> = run
-        .steps
-        .iter()
-        .map(|s| s.rlc_rhos.clone())
-        .collect();
+    let pi_ccs_proofs: Vec<PiCcsProof> = run.steps.iter().map(|s| s.ccs_proof.clone()).collect();
+    let rlc_rhos: Vec<Vec<Mat<F>>> = run.steps.iter().map(|s| s.rlc_rhos.clone()).collect();
     let witnesses: Vec<Vec<Mat<F>>> = vec![Vec::new(); steps_len];
     let dec_children_z: Vec<Vec<Mat<F>>> = vec![Vec::new(); steps_len];
 
-    let witness = FoldRunWitness::from_fold_run(
-        run.clone(),
-        pi_ccs_proofs,
-        witnesses,
-        rlc_rhos,
-        dec_children_z,
-    );
+    let witness = FoldRunWitness::from_fold_run(run.clone(), pi_ccs_proofs, witnesses, rlc_rhos, dec_children_z);
 
     // Optional: directly synthesize the FoldRun circuit into a TestConstraintSystem
     // to inspect which constraint (if any) is unsatisfied before wrapping it in Spartan2.
@@ -393,13 +400,7 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
             .collect();
 
         let delta = CircuitF::from(7u64);
-        let circuit = FoldRunCircuit::new(
-            instance.clone(),
-            Some(witness.clone()),
-            delta,
-            params.b,
-            poly_f,
-        );
+        let circuit = FoldRunCircuit::new(instance.clone(), Some(witness.clone()), delta, params.b, poly_f);
 
         let mut cs = TestConstraintSystem::<CircuitF>::new();
         circuit
@@ -414,15 +415,9 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
     }
 
     // --- End-to-end Spartan2 proof and verification for this FoldRun ---
-    let spartan_proof =
-        prove_fold_run(&params, &ccs, &initial_accumulator, &run, witness)
-            .expect("Spartan prove_fold_run should succeed");
+    let spartan_proof = prove_fold_run(&params, &ccs, &initial_accumulator, &run, witness)
+        .expect("Spartan prove_fold_run should succeed");
 
-    let ok_spartan =
-        verify_fold_run(&params, &ccs, &spartan_proof)
-            .expect("Spartan verify_fold_run should run");
-    assert!(
-        ok_spartan,
-        "Spartan2 verification should accept the optimized FoldRun"
-    );
+    let ok_spartan = verify_fold_run(&params, &ccs, &spartan_proof).expect("Spartan verify_fold_run should run");
+    assert!(ok_spartan, "Spartan2 verification should accept the optimized FoldRun");
 }

@@ -7,11 +7,11 @@
 
 #![allow(non_snake_case)]
 
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
 use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
+use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
-use neo_math::{F, K};
 
 use crate::error::PiCcsError;
 
@@ -63,9 +63,7 @@ impl PiCcsEngine for OptimizedEngine {
         me_witnesses: &[Mat<F>],
         log: &L,
     ) -> Result<(Vec<MeInstance<Cmt, F, K>>, PiCcsProof), PiCcsError> {
-        super::optimized_engine::pi_ccs_prove(
-            tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log,
-        )
+        super::optimized_engine::pi_ccs_prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
     }
 
     fn verify(
@@ -101,7 +99,14 @@ impl PiCcsEngine for PaperExactEngine {
         log: &L,
     ) -> Result<(Vec<MeInstance<Cmt, F, K>>, PiCcsProof), PiCcsError> {
         super::paper_exact_engine::paper_exact_prove(
-            tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log,
+            tr,
+            params,
+            s,
+            mcs_list,
+            mcs_witnesses,
+            me_inputs,
+            me_witnesses,
+            log,
         )
     }
 
@@ -160,4 +165,3 @@ impl<I: PiCcsEngine, R: PiCcsEngine> PiCcsEngine for CrossCheckEngine<I, R> {
         super::crosscheck_engine::crosscheck_verify(&self.inner, tr, params, s, mcs_list, me_inputs, me_outputs, proof)
     }
 }
-

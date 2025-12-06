@@ -1,16 +1,16 @@
 #![allow(non_snake_case)]
 
-use neo_spartan_bridge::circuit::{FoldRunCircuit, FoldRunInstance, FoldRunWitness};
-use neo_spartan_bridge::CircuitF;
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ajtai::Commitment as Cmt;
+use neo_ccs::poly::{SparsePoly, Term as PolyTerm};
+use neo_ccs::relations::CcsStructure;
 use neo_ccs::{Mat, MeInstance};
 use neo_fold::folding::FoldRun;
-use neo_math::{F as NeoF, K as NeoK, D};
+use neo_math::{D, F as NeoF, K as NeoK};
 use neo_reductions::PiCcsProof;
-use neo_ccs::relations::CcsStructure;
-use neo_ccs::poly::{SparsePoly, Term as PolyTerm};
 use neo_spartan_bridge::circuit::witness::PiCcsChallenges;
+use neo_spartan_bridge::circuit::{FoldRunCircuit, FoldRunInstance, FoldRunWitness};
+use neo_spartan_bridge::CircuitF;
 use p3_field::PrimeCharacteristicRing;
 
 /// Build a tiny CCS structure with t=1 (one matrix, zero polynomial).
@@ -75,11 +75,8 @@ fn claimed_initial_sum_gadget_matches_paper_exact_for_tiny_instance() {
     };
 
     // Native T from the paper-exact engine.
-    let T_native = neo_reductions::paper_exact_engine::claimed_initial_sum_from_inputs(
-        &ccs,
-        &native_challenges,
-        &me_inputs,
-    );
+    let T_native =
+        neo_reductions::paper_exact_engine::claimed_initial_sum_from_inputs(&ccs, &native_challenges, &me_inputs);
 
     // Bridge-side Π-CCS challenges (circuit view).
     let pi_ccs_challenges = PiCcsChallenges {

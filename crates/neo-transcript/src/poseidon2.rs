@@ -1,9 +1,9 @@
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_symmetric::Permutation;
-use neo_math::F;
 use crate::{Transcript, TranscriptProtocol};
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
+use neo_math::F;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+use p3_symmetric::Permutation;
 
 const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w16-r8";
 
@@ -25,45 +25,45 @@ impl Poseidon2Transcript {
         self.st[self.absorbed] = x;
         self.absorbed += 1;
     }
-    
+
     #[inline]
     fn absorb_slice(&mut self, inputs: &[F]) {
         let mut src_idx = 0;
         let len = inputs.len();
-        
+
         // 1. Fill remaining buffer
         while self.absorbed < p2::RATE && src_idx < len {
             self.st[self.absorbed] = inputs[src_idx];
             self.absorbed += 1;
             src_idx += 1;
         }
-        
+
         if self.absorbed == p2::RATE {
             self.permute();
         }
-        
+
         // 2. Process full chunks
         while len - src_idx >= p2::RATE {
-             // Manually unroll for p2::RATE = 8
-             // We use assignment (overwrite) to match absorb_elem behavior
-             self.st[0] = inputs[src_idx];
-             self.st[1] = inputs[src_idx+1];
-             self.st[2] = inputs[src_idx+2];
-             self.st[3] = inputs[src_idx+3];
-             self.st[4] = inputs[src_idx+4];
-             self.st[5] = inputs[src_idx+5];
-             self.st[6] = inputs[src_idx+6];
-             self.st[7] = inputs[src_idx+7];
-             
-             self.permute();
-             src_idx += p2::RATE;
+            // Manually unroll for p2::RATE = 8
+            // We use assignment (overwrite) to match absorb_elem behavior
+            self.st[0] = inputs[src_idx];
+            self.st[1] = inputs[src_idx + 1];
+            self.st[2] = inputs[src_idx + 2];
+            self.st[3] = inputs[src_idx + 3];
+            self.st[4] = inputs[src_idx + 4];
+            self.st[5] = inputs[src_idx + 5];
+            self.st[6] = inputs[src_idx + 6];
+            self.st[7] = inputs[src_idx + 7];
+
+            self.permute();
+            src_idx += p2::RATE;
         }
-        
+
         // 3. Buffer remaining
         while src_idx < len {
-             self.st[self.absorbed] = inputs[src_idx];
-             self.absorbed += 1;
-             src_idx += 1;
+            self.st[self.absorbed] = inputs[src_idx];
+            self.absorbed += 1;
+            src_idx += 1;
         }
     }
 
@@ -74,7 +74,9 @@ impl Poseidon2Transcript {
     }
 
     /// Export current internal state (for RNG binding).
-    pub fn state(&self) -> [Goldilocks; p2::WIDTH] { self.st }
+    pub fn state(&self) -> [Goldilocks; p2::WIDTH] {
+        self.st
+    }
 }
 
 impl Transcript for Poseidon2Transcript {
@@ -91,21 +93,29 @@ impl Transcript for Poseidon2Transcript {
     }
 
     fn append_message(&mut self, label: &'static [u8], msg: &[u8]) {
-        for &b in label { self.absorb_elem(Goldilocks::from_u64(b as u64)); }
+        for &b in label {
+            self.absorb_elem(Goldilocks::from_u64(b as u64));
+        }
         self.absorb_elem(Goldilocks::from_u64(msg.len() as u64));
-        for &b in msg { self.absorb_elem(Goldilocks::from_u64(b as u64)); }
+        for &b in msg {
+            self.absorb_elem(Goldilocks::from_u64(b as u64));
+        }
         #[cfg(feature = "debug-log")]
-        self.log.push(crate::debug::Event::new("append_message", label, msg.len(), &self.st));
+        self.log
+            .push(crate::debug::Event::new("append_message", label, msg.len(), &self.st));
         #[cfg(feature = "fs-guard")]
         crate::fs_guard::record(crate::debug::Event::new("append_message", label, msg.len(), &self.st));
     }
 
     fn append_fields(&mut self, label: &'static [u8], fs: &[F]) {
-        for &b in label { self.absorb_elem(Goldilocks::from_u64(b as u64)); }
+        for &b in label {
+            self.absorb_elem(Goldilocks::from_u64(b as u64));
+        }
         self.absorb_elem(Goldilocks::from_u64(fs.len() as u64));
         self.absorb_slice(fs);
         #[cfg(feature = "debug-log")]
-        self.log.push(crate::debug::Event::new("append_fields", label, fs.len(), &self.st));
+        self.log
+            .push(crate::debug::Event::new("append_fields", label, fs.len(), &self.st));
         #[cfg(feature = "fs-guard")]
         crate::fs_guard::record(crate::debug::Event::new("append_fields", label, fs.len(), &self.st));
     }
@@ -117,12 +127,15 @@ impl Transcript for Poseidon2Transcript {
             // Domain gate before squeezing to avoid state reuse issues.
             self.absorb_elem(Goldilocks::ONE);
             self.permute();
-            for i in 0..4 { // 4 limbs = 32 bytes per squeeze
+            for i in 0..4 {
+                // 4 limbs = 32 bytes per squeeze
                 let limb = self.st[i].as_canonical_u64().to_le_bytes();
                 let take = (out.len() - produced).min(8);
                 out[produced..produced + take].copy_from_slice(&limb[..take]);
                 produced += take;
-                if produced >= out.len() { break; }
+                if produced >= out.len() {
+                    break;
+                }
             }
         }
         #[cfg(feature = "debug-log")]
@@ -158,9 +171,12 @@ impl Transcript for Poseidon2Transcript {
         self.absorb_elem(Goldilocks::ONE);
         self.permute();
         let mut out = [0u8; 32];
-        for i in 0..4 { out[i*8..(i+1)*8].copy_from_slice(&self.st[i].as_canonical_u64().to_le_bytes()); }
+        for i in 0..4 {
+            out[i * 8..(i + 1) * 8].copy_from_slice(&self.st[i].as_canonical_u64().to_le_bytes());
+        }
         #[cfg(feature = "debug-log")]
-        self.log.push(crate::debug::Event::new("digest32", b"", 0, &self.st));
+        self.log
+            .push(crate::debug::Event::new("digest32", b"", 0, &self.st));
         #[cfg(feature = "debug-log")]
         if std::env::var("NEO_TRANSCRIPT_DUMP").ok().as_deref() == Some("1") {
             self.dump_and_clear("digest32");
@@ -174,9 +190,10 @@ impl Transcript for Poseidon2Transcript {
 impl TranscriptProtocol for Poseidon2Transcript {
     fn absorb_ccs_header(&mut self, n: usize, m: usize, t: usize) {
         self.append_message(crate::labels::CCS_HEADER, &[]);
-        self.append_fields(crate::labels::CCS_DIMS, &[
-            F::from_u64(n as u64), F::from_u64(m as u64), F::from_u64(t as u64)
-        ]);
+        self.append_fields(
+            crate::labels::CCS_DIMS,
+            &[F::from_u64(n as u64), F::from_u64(m as u64), F::from_u64(t as u64)],
+        );
     }
     fn absorb_poly_sparse(&mut self, label: &'static [u8], terms: &[(F, Vec<u32>)]) {
         self.append_message(crate::labels::POLY_SPARSE, label);
@@ -205,20 +222,29 @@ impl Poseidon2Transcript {
             self.absorb_elem(Goldilocks::ONE);
             self.permute();
             let x = F::from_u64(self.st[0].as_canonical_u64());
-            if x != F::ZERO { return x; }
+            if x != F::ZERO {
+                return x;
+            }
         }
     }
     pub fn append_u64s(&mut self, label: &'static [u8], us: &[u64]) {
-        for &b in label { self.absorb_elem(Goldilocks::from_u64(b as u64)); }
+        for &b in label {
+            self.absorb_elem(Goldilocks::from_u64(b as u64));
+        }
         self.absorb_elem(Goldilocks::from_u64(us.len() as u64));
-        for &u in us { self.absorb_elem(Goldilocks::from_u64(u)); }
+        for &u in us {
+            self.absorb_elem(Goldilocks::from_u64(u));
+        }
         #[cfg(feature = "debug-log")]
-        self.log.push(crate::debug::Event::new("append_u64s", label, us.len(), &self.st));
+        self.log
+            .push(crate::debug::Event::new("append_u64s", label, us.len(), &self.st));
     }
 
     pub fn append_bytes_packed(&mut self, label: &'static [u8], bytes: &[u8]) {
         // Pack 8-bytes per field + absorb length at end for framing
-        for &b in label { self.absorb_elem(Goldilocks::from_u64(b as u64)); }
+        for &b in label {
+            self.absorb_elem(Goldilocks::from_u64(b as u64));
+        }
         // store byte len for framing
         self.absorb_elem(Goldilocks::from_u64(bytes.len() as u64));
         for chunk in bytes.chunks(8) {
@@ -227,7 +253,12 @@ impl Poseidon2Transcript {
             self.absorb_elem(Goldilocks::from_u64(u64::from_le_bytes(buf)));
         }
         #[cfg(feature = "debug-log")]
-        self.log.push(crate::debug::Event::new("append_bytes_packed", label, bytes.len(), &self.st));
+        self.log.push(crate::debug::Event::new(
+            "append_bytes_packed",
+            label,
+            bytes.len(),
+            &self.st,
+        ));
     }
 
     pub fn challenge_fields(&mut self, label: &'static [u8], n: usize) -> Vec<F> {

@@ -1,4 +1,4 @@
-use neo_ajtai::{setup, set_global_pp, get_global_pp_for_dims, decomp_b, commit, DecompStyle};
+use neo_ajtai::{commit, decomp_b, get_global_pp_for_dims, set_global_pp, setup, DecompStyle};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 use rand::SeedableRng;
@@ -8,7 +8,7 @@ fn ajtai_pp_registry_handles_multiple_m() {
     let d = neo_math::D;
     let b = 2;
 
-    // m = 3 case  
+    // m = 3 case
     let w3: Vec<F> = vec![F::ONE, F::ZERO, F::ONE];
     let mut rng = rand::rngs::StdRng::from_seed([7u8; 32]);
     let pp3 = setup(&mut rng, d, 16, w3.len()).expect("setup 3");
@@ -20,12 +20,7 @@ fn ajtai_pp_registry_handles_multiple_m() {
     let _c3 = commit(&pp3_ref, &z3); // must succeed
 
     // m = 4 case in the SAME process
-    let w4: Vec<F> = vec![
-        F::ONE,
-        F::ZERO,
-        F::ONE,
-        F::ONE,
-    ];
+    let w4: Vec<F> = vec![F::ONE, F::ZERO, F::ONE, F::ONE];
     // new PP for (d,4)
     let pp4 = setup(&mut rng, d, 16, w4.len()).expect("setup 4");
     set_global_pp(pp4).expect("register 4");

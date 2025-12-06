@@ -21,10 +21,9 @@ pub enum SpartanBridgeError {
 
     #[error("Field conversion error: {0}")]
     FieldError(String),
-    
+
     #[error("Bellpepper synthesis error: {0:?}")]
     BellpepperError(#[from] bellpepper_core::SynthesisError),
 }
 
 pub type Result<T> = std::result::Result<T, SpartanBridgeError>;
-

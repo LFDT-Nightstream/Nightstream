@@ -15,7 +15,7 @@
 //!       Use `extension_check()` *there* with the preset's q, s, λ.
 //!
 //! ## Cryptographic Primitives
-//! 
+//!
 //! This crate also provides the canonical Poseidon2 configuration used throughout Neo.
 //! All hash operations (transcripts, digests) MUST use this single source of truth.
 
@@ -90,16 +90,36 @@ impl NeoParams {
         s: u32,
         lambda: u32,
     ) -> Result<Self, ParamsError> {
-        if q == 0 { return Err(ParamsError::Invalid("q must be nonzero")); }
-        if eta == 0 { return Err(ParamsError::Invalid("eta must be > 0")); }
-        if d == 0  { return Err(ParamsError::Invalid("d must be > 0")); }
-        if kappa == 0 { return Err(ParamsError::Invalid("kappa must be > 0")); }
-        if m == 0 { return Err(ParamsError::Invalid("m must be > 0")); }
-        if b < 2 { return Err(ParamsError::Invalid("b must be >= 2")); }
-        if k_rho == 0 { return Err(ParamsError::Invalid("k_rho must be > 0")); }
-        if T == 0 { return Err(ParamsError::Invalid("T must be > 0")); }
-        if s != 2 { return Err(ParamsError::UnsupportedExtension { required: s }); } // v1 policy
-        if lambda == 0 { return Err(ParamsError::Invalid("lambda must be > 0")); }
+        if q == 0 {
+            return Err(ParamsError::Invalid("q must be nonzero"));
+        }
+        if eta == 0 {
+            return Err(ParamsError::Invalid("eta must be > 0"));
+        }
+        if d == 0 {
+            return Err(ParamsError::Invalid("d must be > 0"));
+        }
+        if kappa == 0 {
+            return Err(ParamsError::Invalid("kappa must be > 0"));
+        }
+        if m == 0 {
+            return Err(ParamsError::Invalid("m must be > 0"));
+        }
+        if b < 2 {
+            return Err(ParamsError::Invalid("b must be >= 2"));
+        }
+        if k_rho == 0 {
+            return Err(ParamsError::Invalid("k_rho must be > 0"));
+        }
+        if T == 0 {
+            return Err(ParamsError::Invalid("T must be > 0"));
+        }
+        if s != 2 {
+            return Err(ParamsError::UnsupportedExtension { required: s });
+        } // v1 policy
+        if lambda == 0 {
+            return Err(ParamsError::Invalid("lambda must be > 0"));
+        }
 
         let B = pow_u64_checked(b as u64, k_rho)?;
         // Enforce (k_rho+1)·T·(b-1) < B   [Π_RLC bound]
@@ -108,7 +128,19 @@ impl NeoParams {
             return Err(ParamsError::GuardInequality);
         }
 
-        Ok(Self { q, eta, d, kappa, m, b, k_rho, B, T, s, lambda })
+        Ok(Self {
+            q,
+            eta,
+            d,
+            kappa,
+            m,
+            b,
+            k_rho,
+            B,
+            T,
+            s,
+            lambda,
+        })
     }
 
     /// Goldilocks (~127-bit), Section 6.2: η=81, d=54, κ=16, m=2^24, b=2, k_rho=12, B=4096, T≈216, s=2.
@@ -133,7 +165,6 @@ impl NeoParams {
         // new() computes/validates B and guard; unwrap() is safe for a known-good preset.
         Self::new(q, eta, d, kappa, m, b, k_rho, T, s, lambda).unwrap()
     }
-
 
     /// Auto-pick params for an R1CS instance reduced to CCS (Goldilocks preset).
     ///
@@ -161,7 +192,11 @@ impl NeoParams {
 
         // Compute (ℓ, d_sc) specialized for R1CS→CCS
         // pad rows to power of two (min 2)
-        let padded_rows = if n_rows == 0 { 2 } else { n_rows.next_power_of_two().max(2) };
+        let padded_rows = if n_rows == 0 {
+            2
+        } else {
+            n_rows.next_power_of_two().max(2)
+        };
         // ℓ = ceil(log2(d * padded_rows))
         let prod: u128 = (p.d as u128) * (padded_rows as u128);
         let ell: u32 = ceil_log2_u128(prod);
@@ -188,7 +223,11 @@ impl NeoParams {
 
     #[inline]
     fn bitlen_u128(x: u128) -> u32 {
-        if x == 0 { 0 } else { 128 - x.leading_zeros() }
+        if x == 0 {
+            0
+        } else {
+            128 - x.leading_zeros()
+        }
     }
 
     /// Exact check for s=2: q^2 ≥ 2^λ · (ell·d_sc).
@@ -206,7 +245,7 @@ impl NeoParams {
     /// Critical for soundness: bit-length methods can accept cases that actually need s=3!
     pub fn s_min(&self, ell: u32, d_sc: u32) -> u32 {
         let ld = (ell as u128) * (d_sc as u128);
-        
+
         // Check s=1 exactly: q ≥ 2^λ · (ℓ·d_sc)
         if let Some(pow2) = 1u128.checked_shl(self.lambda) {
             if let Some(rhs) = pow2.checked_mul(ld) {
@@ -215,12 +254,12 @@ impl NeoParams {
                 }
             }
         }
-        
-        // Check s=2 exactly: q^2 ≥ 2^λ · (ℓ·d_sc)  
+
+        // Check s=2 exactly: q^2 ≥ 2^λ · (ℓ·d_sc)
         match self.s2_feasible(ell, d_sc) {
-            Some(true) => 2,   // s=2 is sufficient
-            Some(false) => 3,  // s=2 insufficient, need s≥3
-            None => 3,         // overflow on RHS ⇒ requires s ≥ 3
+            Some(true) => 2,  // s=2 is sufficient
+            Some(false) => 3, // s=2 insufficient, need s≥3
+            None => 3,        // overflow on RHS ⇒ requires s ≥ 3
         }
     }
 
@@ -231,16 +270,17 @@ impl NeoParams {
         if s_min > 2 {
             return Err(ParamsError::UnsupportedExtension { required: s_min });
         }
-        
+
         // Exact slack for s=2: compute floor(log₂(q²/(2^λ·ℓd))) without floating point
         let q = self.q as u128;
         let q2 = q * q; // q^2 cannot overflow u128 for 64-bit q
         let ld = (ell as u128).checked_mul(d_sc as u128).unwrap();
-        
-        let rhs = 1u128.checked_shl(self.lambda)
+
+        let rhs = 1u128
+            .checked_shl(self.lambda)
             .and_then(|p| p.checked_mul(ld))
             .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
-        
+
         let slack_bits = if q2 < rhs {
             // This case should not happen if s_min=2, but handle gracefully
             -1
@@ -249,13 +289,13 @@ impl NeoParams {
             let mut slack = Self::bitlen_u128(q2) as i32 - Self::bitlen_u128(rhs) as i32;
             // Adjust if the division has no fractional part
             if let Some(shifted) = rhs.checked_shl(slack as u32) {
-                if q2 < shifted { 
-                    slack -= 1; 
+                if q2 < shifted {
+                    slack -= 1;
                 }
             }
             slack
         };
-        
+
         Ok(ExtensionSummary {
             s_min,
             s_supported: 2,
@@ -269,18 +309,29 @@ impl NeoParams {
 /// ceil(log2(x)) for u128, with ceil_log2(0) = 0 and ceil_log2(1) = 0.
 #[inline]
 fn ceil_log2_u128(x: u128) -> u32 {
-    if x <= 1 { 0 } else { 128u32 - (x - 1).leading_zeros() }
+    if x <= 1 {
+        0
+    } else {
+        128u32 - (x - 1).leading_zeros()
+    }
 }
 
 fn pow_u64_checked(base: u64, mut exp: u32) -> Result<u64, ParamsError> {
     let mut acc: u128 = 1;
     let mut b: u128 = base as u128;
     while exp > 0 {
-        if (exp & 1) == 1 { acc = acc.checked_mul(b).ok_or(ParamsError::Invalid("B overflow"))?; }
+        if (exp & 1) == 1 {
+            acc = acc
+                .checked_mul(b)
+                .ok_or(ParamsError::Invalid("B overflow"))?;
+        }
         exp >>= 1;
-        if exp > 0 { b = b.checked_mul(b).ok_or(ParamsError::Invalid("B overflow"))?; }
+        if exp > 0 {
+            b = b.checked_mul(b).ok_or(ParamsError::Invalid("B overflow"))?;
+        }
     }
-    acc.try_into().map_err(|_| ParamsError::Invalid("B overflow"))
+    acc.try_into()
+        .map_err(|_| ParamsError::Invalid("B overflow"))
 }
 
 impl fmt::Display for NeoParams {
@@ -314,7 +365,8 @@ mod tests {
         let (ell, d_sc) = (32u32, 8u32);
         // With λ=128 in this synthetic setting, s_min may be ≥2; check monotonicity only.
         let s1 = p.s_min(ell, d_sc);
-        let mut tighter = p; tighter.lambda = 192;
+        let mut tighter = p;
+        tighter.lambda = 192;
         let s2 = tighter.s_min(ell, d_sc);
         assert!(s2 >= s1);
     }

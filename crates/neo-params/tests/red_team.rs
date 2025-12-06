@@ -5,14 +5,14 @@ use neo_params::{NeoParams, ParamsError};
 fn guard_rejects_tight_or_overflowing_profiles() {
     // Tight inequality: lhs == B should be rejected.
     // Choose b=2,k=12 => B=4096; pick T so (k+1)T(b-1)=4096
-    let (b, k, d, eta, kappa, m, s, lambda) = (2u32, 12u32, 54u32, 81u32, 16u32, 1u64<<20, 2u32, 128u32);
+    let (b, k, d, eta, kappa, m, s, lambda) = (2u32, 12u32, 54u32, 81u32, 16u32, 1u64 << 20, 2u32, 128u32);
     let q = 0xFFFF_FFFF_0000_0001u64;
     let t = 316u32; // makes lhs > B (exact would be 4096/13≈315.076, so 316 > bound)
     let err = NeoParams::new(q, eta, d, kappa, m, b, k, t, s, lambda).unwrap_err();
     assert!(matches!(err, ParamsError::GuardInequality));
     println!("✅ RED TEAM: Guard correctly rejects tight inequality");
 
-    // Overflow in B=b^k must be rejected (checked u128 → u64 downcast)  
+    // Overflow in B=b^k must be rejected (checked u128 → u64 downcast)
     // Pick b so b^k won't fit into u64: e.g., b=256, k=9 → 2^72 (large but avoids compile-time overflow)
     let large_b = 256u32;
     let large_k = 9u32; // 256^9 is much larger than u64::MAX
@@ -24,7 +24,7 @@ fn guard_rejects_tight_or_overflowing_profiles() {
 #[test]
 fn extension_policy_rejects_when_s_min_gt_2() {
     let p = NeoParams::goldilocks_127(); // s=2 compatible
-    // Force s_min > 2 by tightening λ and picking large (ℓ·d_sc)
+                                         // Force s_min > 2 by tightening λ and picking large (ℓ·d_sc)
     let mut p2 = p;
     p2.lambda = 320; // very tight target
     let (ell, d_sc) = (64u32, 16u32);
@@ -33,7 +33,7 @@ fn extension_policy_rejects_when_s_min_gt_2() {
         ParamsError::UnsupportedExtension { required } => {
             assert!(required > 2);
             println!("✅ RED TEAM: Extension policy correctly rejects s_min={required} > 2");
-        },
+        }
         _ => panic!("expected UnsupportedExtension"),
     }
 }
@@ -41,15 +41,15 @@ fn extension_policy_rejects_when_s_min_gt_2() {
 #[test]
 fn s_min_and_slack_bits_behave() {
     let p = NeoParams::goldilocks_127(); // s=2 compatible
-    
+
     // Test that s_min calculation doesn't panic and returns reasonable values
     let s_min1 = p.s_min(1, 1);
     let s_min2 = p.s_min(8, 8);
-    
+
     // Both should be reasonable (not zero, not huge)
     assert!(s_min1 > 0 && s_min1 < 10);
     assert!(s_min2 > 0 && s_min2 < 10);
-    
+
     // Test extension_check error handling
     match p.extension_check(64, 64) {
         Ok(summary) => {
@@ -64,30 +64,61 @@ fn s_min_and_slack_bits_behave() {
 
 #[test]
 fn parameter_boundary_conditions() {
-    let base_params = (0xFFFF_FFFF_0000_0001u64, 81u32, 54u32, 16u32, 1u64<<20, 2u32, 12u32, 216u32, 2u32, 128u32);
+    let base_params = (
+        0xFFFF_FFFF_0000_0001u64,
+        81u32,
+        54u32,
+        16u32,
+        1u64 << 20,
+        2u32,
+        12u32,
+        216u32,
+        2u32,
+        128u32,
+    );
     let (q, eta, d, kappa, m, b, k, t, s, lambda) = base_params;
 
     // Test zero/invalid parameters are rejected
-    assert!(matches!(NeoParams::new(0, eta, d, kappa, m, b, k, t, s, lambda).unwrap_err(), 
-                    ParamsError::Invalid("q must be nonzero")));
-    assert!(matches!(NeoParams::new(q, 0, d, kappa, m, b, k, t, s, lambda).unwrap_err(), 
-                    ParamsError::Invalid("eta must be > 0")));
-    assert!(matches!(NeoParams::new(q, eta, 0, kappa, m, b, k, t, s, lambda).unwrap_err(), 
-                    ParamsError::Invalid("d must be > 0")));
-    assert!(matches!(NeoParams::new(q, eta, d, 0, m, b, k, t, s, lambda).unwrap_err(), 
-                    ParamsError::Invalid("kappa must be > 0")));
-    assert!(matches!(NeoParams::new(q, eta, d, kappa, 0, b, k, t, s, lambda).unwrap_err(), 
-                    ParamsError::Invalid("m must be > 0")));
-    assert!(matches!(NeoParams::new(q, eta, d, kappa, m, 1, k, t, s, lambda).unwrap_err(), 
-                    ParamsError::Invalid("b must be >= 2")));
-    assert!(matches!(NeoParams::new(q, eta, d, kappa, m, b, 0, t, s, lambda).unwrap_err(), 
-                    ParamsError::Invalid("k_rho must be > 0")));
-    assert!(matches!(NeoParams::new(q, eta, d, kappa, m, b, k, 0, s, lambda).unwrap_err(), 
-                    ParamsError::Invalid("T must be > 0")));
-    assert!(matches!(NeoParams::new(q, eta, d, kappa, m, b, k, t, 3, lambda).unwrap_err(), 
-                    ParamsError::UnsupportedExtension { required: 3 }));
-    assert!(matches!(NeoParams::new(q, eta, d, kappa, m, b, k, t, s, 0).unwrap_err(), 
-                    ParamsError::Invalid("lambda must be > 0")));
+    assert!(matches!(
+        NeoParams::new(0, eta, d, kappa, m, b, k, t, s, lambda).unwrap_err(),
+        ParamsError::Invalid("q must be nonzero")
+    ));
+    assert!(matches!(
+        NeoParams::new(q, 0, d, kappa, m, b, k, t, s, lambda).unwrap_err(),
+        ParamsError::Invalid("eta must be > 0")
+    ));
+    assert!(matches!(
+        NeoParams::new(q, eta, 0, kappa, m, b, k, t, s, lambda).unwrap_err(),
+        ParamsError::Invalid("d must be > 0")
+    ));
+    assert!(matches!(
+        NeoParams::new(q, eta, d, 0, m, b, k, t, s, lambda).unwrap_err(),
+        ParamsError::Invalid("kappa must be > 0")
+    ));
+    assert!(matches!(
+        NeoParams::new(q, eta, d, kappa, 0, b, k, t, s, lambda).unwrap_err(),
+        ParamsError::Invalid("m must be > 0")
+    ));
+    assert!(matches!(
+        NeoParams::new(q, eta, d, kappa, m, 1, k, t, s, lambda).unwrap_err(),
+        ParamsError::Invalid("b must be >= 2")
+    ));
+    assert!(matches!(
+        NeoParams::new(q, eta, d, kappa, m, b, 0, t, s, lambda).unwrap_err(),
+        ParamsError::Invalid("k_rho must be > 0")
+    ));
+    assert!(matches!(
+        NeoParams::new(q, eta, d, kappa, m, b, k, 0, s, lambda).unwrap_err(),
+        ParamsError::Invalid("T must be > 0")
+    ));
+    assert!(matches!(
+        NeoParams::new(q, eta, d, kappa, m, b, k, t, 3, lambda).unwrap_err(),
+        ParamsError::UnsupportedExtension { required: 3 }
+    ));
+    assert!(matches!(
+        NeoParams::new(q, eta, d, kappa, m, b, k, t, s, 0).unwrap_err(),
+        ParamsError::Invalid("lambda must be > 0")
+    ));
 
     println!("✅ RED TEAM: All parameter boundary conditions correctly enforced");
 }
@@ -95,38 +126,47 @@ fn parameter_boundary_conditions() {
 #[test]
 fn goldilocks_preset_security_invariants() {
     let p = NeoParams::goldilocks_127();
-    
+
     // Verify the guard inequality is satisfied with margin
     let lhs = (p.k_rho as u128 + 1) * (p.T as u128) * ((p.b as u128) - 1);
     let rhs = p.B as u128;
     assert!(lhs < rhs, "Guard inequality must hold: {lhs} < {rhs}");
-    
+
     // Verify reasonable margin exists (not too tight)
     let margin = rhs - lhs;
     let margin_ratio = (margin as f64) / (rhs as f64);
-    assert!(margin_ratio > 0.1, "Security margin should be > 10%, got {:.1}%", margin_ratio * 100.0);
-    
+    assert!(
+        margin_ratio > 0.1,
+        "Security margin should be > 10%, got {:.1}%",
+        margin_ratio * 100.0
+    );
+
     // Verify field parameters
     assert_eq!(p.q, 0xFFFF_FFFF_0000_0001); // Goldilocks prime
     assert_eq!(p.s, 2); // Extension degree
     assert_eq!(p.lambda, 127); // Security level (~127-bit for s=2 compatibility)
-    
+
     println!("✅ RED TEAM: Goldilocks preset satisfies all security invariants");
-    println!("   Guard margin: {:.1}% ({} out of {})", margin_ratio * 100.0, margin, rhs);
+    println!(
+        "   Guard margin: {:.1}% ({} out of {})",
+        margin_ratio * 100.0,
+        margin,
+        rhs
+    );
 }
 
 /// Test parameter boundary conditions for overflow cases
-#[test] 
+#[test]
 fn parameter_overflow_boundary_test() {
     use neo_params::{NeoParams, ParamsError};
-    
+
     const GOLDILOCKS_MODULUS: u64 = 0xFFFF_FFFF_0000_0001; // 2^64 - 2^32 + 1
-    
+
     // Test with lambda=128 which should force overflow and require s_min >= 3
     let high_lambda_params = NeoParams {
         q: GOLDILOCKS_MODULUS,
         eta: 81,
-        d: 54, 
+        d: 54,
         kappa: 3,
         m: 4,
         lambda: 128, // Very high security parameter
@@ -136,19 +176,19 @@ fn parameter_overflow_boundary_test() {
         b: 2,
         B: 1024,
     };
-    
+
     // With lambda=128 and any reasonable ell, d_sc, this should overflow and return s_min >= 3
     let result = high_lambda_params.extension_check(1, 1);
     match result {
         Err(ParamsError::UnsupportedExtension { required }) => {
             assert!(required >= 3, "Expected s_min >= 3 for overflow case, got {required}");
             println!("✅ Overflow case correctly requires s_min >= 3 (got {required})");
-        },
+        }
         Ok(_) => panic!("Expected overflow case to fail with UnsupportedExtension"),
         Err(e) => panic!("Unexpected error type: {e:?}"),
     }
-    
-    // Test boundary case where s=1 fails but s=2 might succeed  
+
+    // Test boundary case where s=1 fails but s=2 might succeed
     let boundary_params = NeoParams {
         q: GOLDILOCKS_MODULUS,
         eta: 81,
@@ -157,28 +197,28 @@ fn parameter_overflow_boundary_test() {
         m: 4,
         lambda: 127, // Challenging security parameter
         s: 2,
-        k_rho: 1, 
+        k_rho: 1,
         T: 256,
         b: 2,
         B: 1024,
     };
-    
+
     // Test with challenging values - higher ell and d_sc should make s=1 fail
-    let result_s1 = boundary_params.extension_check(1000, 256); // High ell and d_sc 
+    let result_s1 = boundary_params.extension_check(1000, 256); // High ell and d_sc
     assert!(result_s1.is_err(), "s=1 should fail for challenging parameters");
-    
+
     let result_s2 = boundary_params.extension_check(100, 128); // Less challenging
-    // s=2 might succeed or fail depending on exact values, but shouldn't panic
+                                                               // s=2 might succeed or fail depending on exact values, but shouldn't panic
     match result_s2 {
         Ok(slack) => {
             println!("✅ s=2 succeeds with slack: {slack:?}");
-        },
+        }
         Err(ParamsError::UnsupportedExtension { required }) => {
             println!("✅ s=2 fails, requires s_min = {required}");
             assert!(required > 2, "Required s_min should be > 2");
-        },
+        }
         Err(e) => panic!("Unexpected error: {e:?}"),
     }
-    
+
     println!("✅ Parameter boundary conditions handled correctly");
 }

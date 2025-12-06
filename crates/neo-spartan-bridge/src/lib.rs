@@ -17,11 +17,11 @@
 
 #![allow(non_snake_case)]
 
-pub mod error;
-pub mod engine;
-pub mod gadgets;
-pub mod circuit;
 pub mod api;
+pub mod circuit;
+pub mod engine;
+pub mod error;
+pub mod gadgets;
 
 // Re-export commonly used types
 pub use error::SpartanBridgeError;
@@ -32,7 +32,6 @@ pub type CircuitF = spartan2::provider::goldi::F;
 
 // Engine is experimental and gated
 #[cfg(feature = "experimental-engine")]
-pub use engine::{BridgeEngine, ZPolyLayout, HashMleEngine};
+pub use engine::{BridgeEngine, HashMleEngine, ZPolyLayout};
 
 pub use api::{prove_fold_run, verify_fold_run};
-

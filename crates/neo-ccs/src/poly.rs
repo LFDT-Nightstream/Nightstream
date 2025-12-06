@@ -11,17 +11,24 @@ pub struct SparsePoly<F> {
 
 impl<F> SparsePoly<F> {
     /// Construct with explicit arity and terms.
-    pub fn new(t: usize, terms: Vec<Term<F>>) -> Self { Self { t, terms } }
+    pub fn new(t: usize, terms: Vec<Term<F>>) -> Self {
+        Self { t, terms }
+    }
 
     /// Number of variables.
-    pub fn arity(&self) -> usize { self.t }
+    pub fn arity(&self) -> usize {
+        self.t
+    }
 
     /// Terms.
-    pub fn terms(&self) -> &[Term<F>] { &self.terms }
-    
+    pub fn terms(&self) -> &[Term<F>] {
+        &self.terms
+    }
+
     /// Maximum degree of the polynomial (highest sum of exponents in any term).
     pub fn max_degree(&self) -> u32 {
-        self.terms.iter()
+        self.terms
+            .iter()
             .map(|term| term.exps.iter().sum::<u32>())
             .max()
             .unwrap_or(0)
@@ -39,9 +46,15 @@ impl<F> SparsePoly<F> {
             let mut exps = Vec::with_capacity(new_t);
             exps.push(0u32);
             exps.extend(term.exps.iter().copied());
-            new_terms.push(Term { coeff: term.coeff.clone(), exps });
+            new_terms.push(Term {
+                coeff: term.coeff.clone(),
+                exps,
+            });
         }
-        SparsePoly { t: new_t, terms: new_terms }
+        SparsePoly {
+            t: new_t,
+            terms: new_terms,
+        }
     }
 }
 
@@ -63,7 +76,9 @@ impl<F: Field> SparsePoly<F> {
             debug_assert_eq!(term.exps.len(), self.t);
             let mut m = term.coeff;
             for (xi, &pow) in x.iter().zip(term.exps.iter()) {
-                if pow == 0 { continue; }
+                if pow == 0 {
+                    continue;
+                }
                 let mut p = *xi;
                 let mut e = pow - 1;
                 // fast-ish pow for small exponents
@@ -77,7 +92,7 @@ impl<F: Field> SparsePoly<F> {
         }
         acc
     }
-    
+
     /// Evaluate with inputs in an extension field K (coeffs in base F).
     pub fn eval_in_ext<K: Field + From<F>>(&self, x: &[K]) -> K {
         assert_eq!(x.len(), self.t);
@@ -85,9 +100,13 @@ impl<F: Field> SparsePoly<F> {
         for term in &self.terms {
             let mut m = K::from(term.coeff);
             for (xi, &pow) in x.iter().zip(term.exps.iter()) {
-                if pow == 0 { continue; }
+                if pow == 0 {
+                    continue;
+                }
                 let mut p = *xi;
-                for _ in 1..pow { p *= *xi; } // small exponents in CCS polynomials
+                for _ in 1..pow {
+                    p *= *xi;
+                } // small exponents in CCS polynomials
                 m *= p;
             }
             acc += m;

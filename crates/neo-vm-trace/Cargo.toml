@@ -1,0 +1,28 @@
+[package]
+name = "neo-vm-trace"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+description = "VM tracing interfaces for Neo folding scheme"
+
+[features]
+default = []
+test-utils = []
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = "1.0"
+neo-vm-trace = { path = ".", features = ["test-utils"] }
+neo-ccs = { path = "../neo-ccs" }
+neo-math = { path = "../neo-math" }
+neo-ajtai = { path = "../neo-ajtai" }
+p3-goldilocks = { workspace = true }
+p3-field = { workspace = true }
+rand = { workspace = true }
+
+
+

@@ -62,11 +62,11 @@ pub enum RelationError {
 
     /// Polynomial arity does not match t.
     #[error("polynomial arity mismatch: poly arity {poly_arity} vs t={t}")]
-    PolyArity { 
-        /// Polynomial arity 
-        poly_arity: usize, 
+    PolyArity {
+        /// Polynomial arity
+        poly_arity: usize,
         /// Expected number of matrices
-        t: usize 
+        t: usize,
     },
 
     /// General string error message

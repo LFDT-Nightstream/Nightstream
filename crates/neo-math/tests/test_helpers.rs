@@ -2,7 +2,7 @@
 //! This module contains constants and functions that are only needed for testing.
 
 use neo_math::{Fq, Rq};
-use p3_field::{TwoAdicField, PrimeField64};
+use p3_field::{PrimeField64, TwoAdicField};
 use p3_goldilocks::Goldilocks;
 
 /// Goldilocks modulus for test assertions
@@ -39,8 +39,9 @@ pub fn inf_norm(a: &Rq) -> u128 {
     for &c in a.0.iter() {
         let x = <Fq as PrimeField64>::as_canonical_u64(&c) as u128;
         let centered = if x <= half { x } else { p - x };
-        if centered > m { m = centered; }
+        if centered > m {
+            m = centered;
+        }
     }
     m
 }
-

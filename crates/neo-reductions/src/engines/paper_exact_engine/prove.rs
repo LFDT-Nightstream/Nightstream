@@ -6,17 +6,17 @@
 
 #![allow(non_snake_case)]
 
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
-use neo_ajtai::Commitment as Cmt;
-use neo_params::NeoParams;
-use neo_transcript::Poseidon2Transcript;
-use neo_math::{F, K};
-use neo_transcript::Transcript;
-use neo_math::KExtensions;
-use p3_field::PrimeCharacteristicRing;
-use crate::sumcheck::RoundOracle;
 use crate::error::PiCcsError;
 use crate::optimized_engine::PiCcsProof;
+use crate::sumcheck::RoundOracle;
+use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
+use neo_math::KExtensions;
+use neo_math::{F, K};
+use neo_params::NeoParams;
+use neo_transcript::Poseidon2Transcript;
+use neo_transcript::Transcript;
+use p3_field::PrimeCharacteristicRing;
 
 /// Paper-exact prove implementation.
 ///
@@ -35,9 +35,7 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 ) -> Result<(Vec<MeInstance<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     // Dims + transcript binding
     let dims = crate::engines::utils::build_dims_and_policy(params, s)?;
-    crate::engines::utils::bind_header_and_instances(
-        tr, params, s, mcs_list, dims.ell, dims.d_sc, 0,
-    )?;
+    crate::engines::utils::bind_header_and_instances(tr, params, s, mcs_list, dims.ell, dims.d_sc, 0)?;
     crate::engines::utils::bind_me_inputs(tr, me_inputs)?;
 
     // Sample challenges
@@ -48,7 +46,9 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         if me.r.len() != dims.ell_n {
             return Err(PiCcsError::InvalidInput(format!(
                 "ME input r length mismatch at accumulator #{}: expected ell_n = {}, got {}",
-                idx, dims.ell_n, me.r.len()
+                idx,
+                dims.ell_n,
+                me.r.len()
             )));
         }
     }
@@ -56,24 +56,25 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // Initial sum: use the public T computed from ME inputs and α
     // (not the full hypercube sum Q, which includes MCS/NC terms).
     // This ensures invalid witnesses fail the first sumcheck invariant.
-    let initial_sum = crate::paper_exact_engine::claimed_initial_sum_from_inputs(
-        s,
-        &ch,
-        me_inputs,
-    );
-    
+    let initial_sum = crate::paper_exact_engine::claimed_initial_sum_from_inputs(s, &ch, me_inputs);
+
     #[cfg(feature = "debug-logs")]
     {
         eprintln!("\n========== PAPER-EXACT PROVE ==========");
-        eprintln!("[prove] k_total = {} (mcs_witnesses={}, me_witnesses={}, me_inputs={})", 
-            mcs_witnesses.len() + me_witnesses.len(), 
+        eprintln!(
+            "[prove] k_total = {} (mcs_witnesses={}, me_witnesses={}, me_inputs={})",
+            mcs_witnesses.len() + me_witnesses.len(),
             mcs_witnesses.len(),
             me_witnesses.len(),
-            me_inputs.len());
-        eprintln!("[prove] dims: ell_d={}, ell_n={}, d_sc={}", dims.ell_d, dims.ell_n, dims.d_sc);
+            me_inputs.len()
+        );
+        eprintln!(
+            "[prove] dims: ell_d={}, ell_n={}, d_sc={}",
+            dims.ell_d, dims.ell_n, dims.d_sc
+        );
         eprintln!("[prove] gamma = {:?}", ch.gamma);
         eprintln!("[prove] initial_sum (public T) = {:?}", initial_sum);
-        
+
         // For debugging: compute the full hypercube sum to compare
         let full_sum = crate::paper_exact_engine::sum_q_over_hypercube_paper_exact(
             s,
@@ -124,7 +125,7 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         let deg = oracle.degree_bound();
         let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
         let ys = oracle.evals_at(&xs);
-        
+
         #[cfg(feature = "debug-logs")]
         if round_idx == 0 {
             eprintln!("\n[prove] === Round 0 ===");
@@ -139,7 +140,7 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
                 eprintln!("[prove] OK: p(0) + p(1) == running_sum");
             }
         }
-        
+
         if ys[0] + ys[1] != running_sum {
             #[cfg(feature = "debug-logs")]
             {
@@ -148,9 +149,10 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
                 eprintln!("[prove] running_sum = {:?}", running_sum);
                 eprintln!("[prove] difference = {:?}", (ys[0] + ys[1]) - running_sum);
             }
-            return Err(PiCcsError::SumcheckError(
-                format!("round {} invariant failed: p(0)+p(1) ≠ running_sum (paper-exact)", round_idx),
-            ));
+            return Err(PiCcsError::SumcheckError(format!(
+                "round {} invariant failed: p(0)+p(1) ≠ running_sum (paper-exact)",
+                round_idx
+            )));
         }
         // Interpolation may return coefficients in an unspecified order.
         // We MUST store them in low→high order (c0, c1, ..., cn) so that
@@ -160,17 +162,22 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 
         // If evaluating at 0/1 doesn't recreate ys, flip the order.
         // After this normalization, `coeffs` is guaranteed low→high.
-        let ok_at_01 =
-            crate::sumcheck::poly_eval_k(&coeffs, K::ZERO) == ys[0] &&
-            crate::sumcheck::poly_eval_k(&coeffs, K::ONE)  == ys[1];
+        let ok_at_01 = crate::sumcheck::poly_eval_k(&coeffs, K::ZERO) == ys[0]
+            && crate::sumcheck::poly_eval_k(&coeffs, K::ONE) == ys[1];
         if !ok_at_01 {
             coeffs.reverse();
         }
-        
-        debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ZERO), ys[0],
-            "interpolate_univariate returned coefficients in unexpected order (x=0)");
-        debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ONE), ys[1],
-            "interpolate_univariate returned coefficients in unexpected order (x=1)");
+
+        debug_assert_eq!(
+            crate::sumcheck::poly_eval_k(&coeffs, K::ZERO),
+            ys[0],
+            "interpolate_univariate returned coefficients in unexpected order (x=0)"
+        );
+        debug_assert_eq!(
+            crate::sumcheck::poly_eval_k(&coeffs, K::ONE),
+            ys[1],
+            "interpolate_univariate returned coefficients in unexpected order (x=1)"
+        );
 
         for &c in &coeffs {
             tr.append_fields(b"sumcheck/round/coeff", &c.as_coeffs());
@@ -179,10 +186,10 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         let c1 = tr.challenge_field(b"sumcheck/challenge/1");
         let r_i = neo_math::from_complex(c0, c1);
         sumcheck_chals.push(r_i);
-        
+
         // Evaluate at challenge using poly_eval_k (low→high) for consistency.
         running_sum = crate::sumcheck::poly_eval_k(&coeffs, r_i);
-        
+
         oracle.fold(r_i);
         sumcheck_rounds.push(coeffs);
     }
@@ -211,4 +218,3 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 
     Ok((out_me, proof))
 }
-

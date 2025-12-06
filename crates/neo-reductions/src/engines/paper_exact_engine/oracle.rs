@@ -9,12 +9,12 @@
 
 #![allow(non_snake_case)]
 
-use neo_math::{K, D};
+use neo_math::{D, K};
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use crate::sumcheck::RoundOracle;
 use crate::optimized_engine::Challenges;
-use neo_ccs::{CcsStructure, McsWitness, Mat};
+use crate::sumcheck::RoundOracle;
+use neo_ccs::{CcsStructure, Mat, McsWitness};
 
 #[cfg(feature = "paper-exact")]
 pub struct PaperExactOracle<'a, F>
@@ -59,10 +59,7 @@ where
         d_sc: usize,
         r_inputs: Option<&[K]>,
     ) -> Self {
-        assert!(
-            !mcs_witnesses.is_empty(),
-            "need at least one MCS instance for F-term"
-        );
+        assert!(!mcs_witnesses.is_empty(), "need at least one MCS instance for F-term");
         Self {
             s,
             params,
@@ -80,7 +77,9 @@ where
     }
 
     #[inline]
-    fn num_rounds_total(&self) -> usize { self.ell_n + self.ell_d }
+    fn num_rounds_total(&self) -> usize {
+        self.ell_n + self.ell_d
+    }
 
     #[inline]
     fn eq_points(p: &[K], q: &[K]) -> K {
@@ -95,7 +94,11 @@ where
 
     #[inline]
     fn get_F(a: &Mat<F>, row: usize, col: usize) -> F {
-        if row < a.rows() && col < a.cols() { a[(row, col)] } else { F::ZERO }
+        if row < a.rows() && col < a.cols() {
+            a[(row, col)]
+        } else {
+            F::ZERO
+        }
     }
 
     /// Evaluate the literal Q at extension point (α′, r′), including Eval block.
@@ -132,12 +135,10 @@ where
         }
 
         // eq((α′,r′), β) and eq((α′,r′),(α,r))
-        let eq_beta = Self::eq_points(alpha_prime, &self.ch.beta_a)
-                    * Self::eq_points(r_prime,     &self.ch.beta_r);
+        let eq_beta = Self::eq_points(alpha_prime, &self.ch.beta_a) * Self::eq_points(r_prime, &self.ch.beta_r);
 
         let eq_ar = match self.r_inputs {
-            Some(ref r_in) => Self::eq_points(alpha_prime, &self.ch.alpha)
-                            * Self::eq_points(r_prime, r_in),
+            Some(ref r_in) => Self::eq_points(alpha_prime, &self.ch.alpha) * Self::eq_points(r_prime, r_in),
             None => K::ZERO,
         };
 
@@ -149,11 +150,15 @@ where
             // base-b powers in K for recomposition of digits
             let bF = F::from_u64(self.params.b as u64);
             let mut pow_b_f = vec![F::ONE; D];
-            for i in 1..D { pow_b_f[i] = pow_b_f[i - 1] * bF; }
+            for i in 1..D {
+                pow_b_f[i] = pow_b_f[i - 1] * bF;
+            }
             let pow_b_k: Vec<K> = pow_b_f.iter().copied().map(K::from).collect();
             for c in 0..self.s.m {
                 let mut acc = K::ZERO;
-                for rho in 0..D { acc += K::from(self.mcs_witnesses[0].Z[(rho, c)]) * pow_b_k[rho]; }
+                for rho in 0..D {
+                    acc += K::from(self.mcs_witnesses[0].Z[(rho, c)]) * pow_b_k[rho];
+                }
                 z1[c] = acc;
             }
         }
@@ -164,7 +169,9 @@ where
             let mut y_eval = K::ZERO;
             for row in 0..n_sz {
                 let wr = if row < self.s.n { chi_r[row] } else { K::ZERO };
-                if wr == K::ZERO { continue; }
+                if wr == K::ZERO {
+                    continue;
+                }
                 let mut y_row = K::ZERO;
                 for c in 0..self.s.m {
                     y_row += K::from(Self::get_F(&self.s.matrices[j], row, c)) * z1[c];
@@ -181,7 +188,9 @@ where
         let mut v1 = vec![K::ZERO; self.s.m];
         for row in 0..n_sz {
             let wr = if row < self.s.n { chi_r[row] } else { K::ZERO };
-            if wr == K::ZERO { continue; }
+            if wr == K::ZERO {
+                continue;
+            }
             for c in 0..self.s.m {
                 v1[c] += K::from(Self::get_F(&self.s.matrices[0], row, c)) * wr;
             }
@@ -193,22 +202,28 @@ where
         let mut nc_sum = K::ZERO;
         {
             let mut g = self.ch.gamma; // γ^1
-            // MCS instances
+                                       // MCS instances
             for w in self.mcs_witnesses {
                 let mut y_digits = vec![K::ZERO; D];
                 for rho in 0..D {
                     let mut acc = K::ZERO;
-                    for c in 0..self.s.m { acc += K::from(w.Z[(rho, c)]) * v1[c]; }
+                    for c in 0..self.s.m {
+                        acc += K::from(w.Z[(rho, c)]) * v1[c];
+                    }
                     y_digits[rho] = acc;
                 }
                 let mut y_eval = K::ZERO;
-                for rho in 0..min(D, d_sz) { y_eval += y_digits[rho] * chi_a[rho]; }
+                for rho in 0..min(D, d_sz) {
+                    y_eval += y_digits[rho] * chi_a[rho];
+                }
 
                 // Range product ∏_{t=-(b-1)}^{b-1} (y_eval - t)
                 let lo = -((self.params.b as i64) - 1);
-                let hi =  (self.params.b as i64) - 1;
+                let hi = (self.params.b as i64) - 1;
                 let mut prod = K::ONE;
-                for t in lo..=hi { prod *= y_eval - K::from(F::from_i64(t)); }
+                for t in lo..=hi {
+                    prod *= y_eval - K::from(F::from_i64(t));
+                }
 
                 nc_sum += g * prod;
                 g *= self.ch.gamma;
@@ -218,16 +233,22 @@ where
                 let mut y_digits = vec![K::ZERO; D];
                 for rho in 0..D {
                     let mut acc = K::ZERO;
-                    for c in 0..self.s.m { acc += K::from(Z[(rho, c)]) * v1[c]; }
+                    for c in 0..self.s.m {
+                        acc += K::from(Z[(rho, c)]) * v1[c];
+                    }
                     y_digits[rho] = acc;
                 }
                 let mut y_eval = K::ZERO;
-                for rho in 0..min(D, d_sz) { y_eval += y_digits[rho] * chi_a[rho]; }
+                for rho in 0..min(D, d_sz) {
+                    y_eval += y_digits[rho] * chi_a[rho];
+                }
 
                 let lo = -((self.params.b as i64) - 1);
-                let hi =  (self.params.b as i64) - 1;
+                let hi = (self.params.b as i64) - 1;
                 let mut prod = K::ONE;
-                for t in lo..=hi { prod *= y_eval - K::from(F::from_i64(t)); }
+                for t in lo..=hi {
+                    prod *= y_eval - K::from(F::from_i64(t));
+                }
 
                 nc_sum += g * prod;
                 g *= self.ch.gamma;
@@ -243,14 +264,18 @@ where
         if k_total >= 2 && eq_ar != K::ZERO {
             // γ^k
             let mut gamma_to_k = K::ONE;
-            for _ in 0..k_total { gamma_to_k *= self.ch.gamma; }
+            for _ in 0..k_total {
+                gamma_to_k *= self.ch.gamma;
+            }
 
             for j in 0..self.s.t() {
                 // vj := M_j^T · χ_{r'}
                 let mut vj = vec![K::ZERO; self.s.m];
                 for row in 0..n_sz {
                     let wr = if row < self.s.n { chi_r[row] } else { K::ZERO };
-                    if wr == K::ZERO { continue; }
+                    if wr == K::ZERO {
+                        continue;
+                    }
                     for c in 0..self.s.m {
                         vj[c] += K::from(Self::get_F(&self.s.matrices[j], row, c)) * wr;
                     }
@@ -258,7 +283,9 @@ where
 
                 // i starts from the second instance (skip index 0)
                 for (i_abs, Zi) in self
-                    .mcs_witnesses.iter().map(|w| &w.Z)
+                    .mcs_witnesses
+                    .iter()
+                    .map(|w| &w.Z)
                     .chain(self.me_witnesses.iter())
                     .enumerate()
                     .skip(1)
@@ -267,17 +294,25 @@ where
                     let mut y_digits = vec![K::ZERO; D];
                     for rho in 0..D {
                         let mut acc = K::ZERO;
-                        for c in 0..self.s.m { acc += K::from(Zi[(rho, c)]) * vj[c]; }
+                        for c in 0..self.s.m {
+                            acc += K::from(Zi[(rho, c)]) * vj[c];
+                        }
                         y_digits[rho] = acc;
                     }
                     // ẏ'_{(i,j)}(α′) = ⟨ y_digits, χ_{α′} ⟩
                     let mut y_eval = K::ZERO;
-                    for rho in 0..min(D, d_sz) { y_eval += y_digits[rho] * chi_a[rho]; }
+                    for rho in 0..min(D, d_sz) {
+                        y_eval += y_digits[rho] * chi_a[rho];
+                    }
 
                     // inner weight = γ^{i-1} · (γ^k)^j  (0-based j)
                     let mut weight = K::ONE;
-                    for _ in 0..i_abs { weight *= self.ch.gamma; }      // γ^{i-1}
-                    for _ in 0..j     { weight *= gamma_to_k; }         // (γ^k)^j
+                    for _ in 0..i_abs {
+                        weight *= self.ch.gamma;
+                    } // γ^{i-1}
+                    for _ in 0..j {
+                        weight *= gamma_to_k;
+                    } // (γ^k)^j
 
                     eval_inner_sum += weight * y_eval;
                 }
@@ -313,27 +348,31 @@ where
             alphas_bool.push(a);
         }
 
-        xs.iter().map(|&x| {
-            let mut sum_x = K::ZERO;
-            for r_tail in 0..tail_sz {
-                let mut r_vec = vec![K::ZERO; self.ell_n];
-                // prefix fixed
-                for i in 0..fixed { r_vec[i] = self.row_chals[i]; }
-                // current variable
-                r_vec[fixed] = x;
-                // remaining bits as boolean mask
-                for k in 0..free_rows {
-                    let bit = ((r_tail >> k) & 1) == 1;
-                    r_vec[fixed + 1 + k] = if bit { K::ONE } else { K::ZERO };
-                }
+        xs.iter()
+            .map(|&x| {
+                let mut sum_x = K::ZERO;
+                for r_tail in 0..tail_sz {
+                    let mut r_vec = vec![K::ZERO; self.ell_n];
+                    // prefix fixed
+                    for i in 0..fixed {
+                        r_vec[i] = self.row_chals[i];
+                    }
+                    // current variable
+                    r_vec[fixed] = x;
+                    // remaining bits as boolean mask
+                    for k in 0..free_rows {
+                        let bit = ((r_tail >> k) & 1) == 1;
+                        r_vec[fixed + 1 + k] = if bit { K::ONE } else { K::ZERO };
+                    }
 
-                // sum over all Ajtai boolean assignments
-                for a in alphas_bool.iter() {
-                    sum_x += self.eval_q_ext(a, &r_vec);
+                    // sum over all Ajtai boolean assignments
+                    for a in alphas_bool.iter() {
+                        sum_x += self.eval_q_ext(a, &r_vec);
+                    }
                 }
-            }
-            sum_x
-        }).collect()
+                sum_x
+            })
+            .collect()
     }
 
     /// Compute the univariate round polynomial values at given xs for an Ajtai-bit round
@@ -348,23 +387,27 @@ where
         // Fixed row vector is the fully collected row_chals
         let r_vec = self.row_chals.clone();
 
-        xs.iter().map(|&x| {
-            let mut sum_x = K::ZERO;
-            for a_tail in 0..tail_sz {
-                let mut a_vec = vec![K::ZERO; self.ell_d];
-                // prefix fixed
-                for i in 0..j { a_vec[i] = self.ajtai_chals[i]; }
-                // current var
-                a_vec[j] = x;
-                // remaining bits (Boolean)
-                for k in 0..free_a {
-                    let bit = ((a_tail >> k) & 1) == 1;
-                    a_vec[j + 1 + k] = if bit { K::ONE } else { K::ZERO };
+        xs.iter()
+            .map(|&x| {
+                let mut sum_x = K::ZERO;
+                for a_tail in 0..tail_sz {
+                    let mut a_vec = vec![K::ZERO; self.ell_d];
+                    // prefix fixed
+                    for i in 0..j {
+                        a_vec[i] = self.ajtai_chals[i];
+                    }
+                    // current var
+                    a_vec[j] = x;
+                    // remaining bits (Boolean)
+                    for k in 0..free_a {
+                        let bit = ((a_tail >> k) & 1) == 1;
+                        a_vec[j + 1 + k] = if bit { K::ONE } else { K::ZERO };
+                    }
+                    sum_x += self.eval_q_ext(&a_vec, &r_vec);
                 }
-                sum_x += self.eval_q_ext(&a_vec, &r_vec);
-            }
-            sum_x
-        }).collect()
+                sum_x
+            })
+            .collect()
     }
 }
 
@@ -374,8 +417,12 @@ where
     F: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<F>,
 {
-    fn num_rounds(&self) -> usize { self.num_rounds_total() }
-    fn degree_bound(&self) -> usize { self.d_sc }
+    fn num_rounds(&self) -> usize {
+        self.num_rounds_total()
+    }
+    fn degree_bound(&self) -> usize {
+        self.d_sc
+    }
 
     fn evals_at(&mut self, xs: &[K]) -> Vec<K> {
         if self.round_idx < self.ell_n {

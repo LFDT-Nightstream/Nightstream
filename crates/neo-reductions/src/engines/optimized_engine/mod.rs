@@ -5,7 +5,7 @@
 
 #![allow(non_snake_case)]
 
-use neo_math::{K, KExtensions};
+use neo_math::{KExtensions, K};
 use p3_field::PrimeCharacteristicRing;
 
 // Common types and utility functions shared across engines
@@ -21,32 +21,34 @@ pub use common::Challenges;
 
 // Re-export core functions for building proofs and cross-checking
 pub use common::{
-    // Core equalities & helpers
-    eq_points, chi_row_at_bool_point, chi_ajtai_at_bool_point,
+    // Step 3 outputs
+    build_me_outputs_paper_exact,
 
-    // Q(X) and sums
-    q_at_point_paper_exact,
-    sum_q_over_hypercube_paper_exact,
-    q_eval_at_ext_point_paper_exact,
-    q_eval_at_ext_point_paper_exact_with_inputs,
+    chi_ajtai_at_bool_point,
 
-    // Terminal identity (verifier RHS)
-    rhs_terminal_identity_paper_exact,
-
+    chi_row_at_bool_point,
     // Public claimed sum for sumcheck
     claimed_initial_sum_from_inputs,
 
-    // Step 3 outputs
-    build_me_outputs_paper_exact,
+    dec_reduction_paper_exact,
+    dec_reduction_paper_exact_with_commit_check,
+    // Core equalities & helpers
+    eq_points,
+    // Q(X) and sums
+    q_at_point_paper_exact,
+    q_eval_at_ext_point_paper_exact,
+    q_eval_at_ext_point_paper_exact_with_inputs,
 
     // Utilities
     recomposed_z_from_Z,
 
+    // Terminal identity (verifier RHS)
+    rhs_terminal_identity_paper_exact,
+
     // Paper-exact RLC/DEC
     rlc_reduction_paper_exact,
     rlc_reduction_paper_exact_with_commit_mix,
-    dec_reduction_paper_exact,
-    dec_reduction_paper_exact_with_commit_check,
+    sum_q_over_hypercube_paper_exact,
 };
 
 /// Proof structure for the Π_CCS protocol
@@ -54,22 +56,22 @@ pub use common::{
 pub struct PiCcsProof {
     /// Sumcheck rounds (each round is a vector of polynomial coefficients)
     pub sumcheck_rounds: Vec<Vec<K>>,
-    
+
     /// Initial sum over the Boolean hypercube (optional, can be derived from round 0)
     pub sc_initial_sum: Option<K>,
-    
+
     /// Sumcheck challenges (r' || α' from the sumcheck protocol)
     pub sumcheck_challenges: Vec<K>,
-    
+
     /// Public challenges (α, β, γ)
     pub challenges_public: Challenges,
-    
+
     /// Final running sum after all sumcheck rounds
     pub sumcheck_final: K,
-    
+
     /// Header digest for binding
     pub header_digest: Vec<u8>,
-    
+
     /// Additional proof data (if needed)
     pub _extra: Option<Vec<u8>>,
 }
@@ -107,7 +109,9 @@ pub(crate) fn interpolate_univariate(xs: &[K], ys: &[K]) -> Vec<K> {
         numer[0] = K::ONE; // degree 0 poly = 1
         let mut cur_deg = 0usize;
         for j in 0..n {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             // Multiply numer by (x - x_j)
             let xj = xs[j];
             let mut next = vec![K::ZERO; n];
@@ -122,9 +126,15 @@ pub(crate) fn interpolate_univariate(xs: &[K], ys: &[K]) -> Vec<K> {
         }
         // Denominator: prod_{j≠i} (x_i - x_j)
         let mut denom = K::ONE;
-        for j in 0..n { if i != j { denom *= xs[i] - xs[j]; } }
+        for j in 0..n {
+            if i != j {
+                denom *= xs[i] - xs[j];
+            }
+        }
         let scale = ys[i] * denom.inv();
-        for d in 0..=cur_deg { coeffs[d] += scale * numer[d]; }
+        for d in 0..=cur_deg {
+            coeffs[d] += scale * numer[d];
+        }
     }
     coeffs
 }
@@ -139,4 +149,3 @@ pub use prove::optimized_prove_simple as pi_ccs_prove_simple;
 // Re-export the paper-exact oracle
 #[cfg(feature = "paper-exact")]
 pub use oracle::OptimizedOracle as GenericCcsOracle;
-

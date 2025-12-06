@@ -12,9 +12,9 @@
 
 #![cfg(feature = "experimental-engine")]
 
-use std::fmt::Debug;
 use ff::PrimeField;
 use p3_goldilocks::Goldilocks;
+use std::fmt::Debug;
 
 /// Strategy for building the Z polynomial in Spartan.
 ///
@@ -32,11 +32,7 @@ pub trait ZPolyLayout<E: BridgeEngine>: Clone + Debug + Send + Sync {
     fn build_z(witness: &[E::Scalar], instance: &[E::Scalar]) -> Vec<E::Scalar>;
 
     /// Evaluate Z at a point given evaluation of W and gate bit
-    fn eval_z(
-        gate: E::Scalar,
-        eval_w: E::Scalar,
-        eval_x: E::Scalar,
-    ) -> E::Scalar;
+    fn eval_z(gate: E::Scalar, eval_w: E::Scalar, eval_x: E::Scalar) -> E::Scalar;
 }
 
 /// BridgeEngine: Configuration for Z-polynomial layout (experimental)
@@ -64,7 +60,11 @@ pub struct HashMleZLayout;
 impl ZPolyLayout<HashMleEngine> for HashMleZLayout {
     fn num_rounds_y(num_vars: usize) -> usize {
         // Hash-MLE specific: log2(num_vars) + 1
-        if num_vars == 0 { 0 } else { num_vars.next_power_of_two().trailing_zeros() as usize + 1 }
+        if num_vars == 0 {
+            0
+        } else {
+            num_vars.next_power_of_two().trailing_zeros() as usize + 1
+        }
     }
 
     fn build_z(witness: &[GoldilocksScalar], instance: &[GoldilocksScalar]) -> Vec<GoldilocksScalar> {
@@ -75,11 +75,7 @@ impl ZPolyLayout<HashMleEngine> for HashMleZLayout {
         z
     }
 
-    fn eval_z(
-        gate: GoldilocksScalar,
-        eval_w: GoldilocksScalar,
-        eval_x: GoldilocksScalar,
-    ) -> GoldilocksScalar {
+    fn eval_z(gate: GoldilocksScalar, eval_w: GoldilocksScalar, eval_x: GoldilocksScalar) -> GoldilocksScalar {
         // Hash-MLE eval: gate * eval_w + (1 - gate) * eval_x
         gate * eval_w + (GoldilocksScalar::ONE - gate) * eval_x
     }

@@ -5,10 +5,10 @@
 
 #![allow(non_snake_case)]
 
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
 use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
+use neo_math::{D, K};
 use neo_params::NeoParams;
-use neo_math::{K, D};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 use crate::optimized_engine::Challenges;
@@ -31,13 +31,21 @@ pub fn eq_points(p: &[K], q: &[K]) -> K {
 /// χ_x(row) = 1 if row's bits equal x's bits; else 0.
 #[inline]
 pub fn chi_row_at_bool_point(row: usize, xr_mask: usize, _ell_n: usize) -> K {
-    if row == xr_mask { K::ONE } else { K::ZERO }
+    if row == xr_mask {
+        K::ONE
+    } else {
+        K::ZERO
+    }
 }
 
 /// χ_{x}(ρ) in the Ajtai dimension (Boolean x).
 #[inline]
 pub fn chi_ajtai_at_bool_point(rho: usize, xa_mask: usize, _ell_d: usize) -> K {
-    if rho == xa_mask { K::ONE } else { K::ZERO }
+    if rho == xa_mask {
+        K::ONE
+    } else {
+        K::ZERO
+    }
 }
 
 /// Convert base-b digits Z (d×m, row-major) back to `z ∈ F^m`, then lift to K.
@@ -74,7 +82,7 @@ where
     K: From<Ff>,
 {
     let lo = -((b as i64) - 1);
-    let hi =  (b as i64) - 1;
+    let hi = (b as i64) - 1;
     let mut prod = K::ONE;
     for t in lo..=hi {
         prod *= val - K::from(Ff::from_i64(t));
@@ -87,7 +95,11 @@ where
 /// - For Z   ∈ F^{d×m}: if rho ≥ d or col ≥ m → 0.
 #[inline]
 fn get_F<Ff: Field + PrimeCharacteristicRing + Copy>(a: &Mat<Ff>, row: usize, col: usize) -> Ff {
-    if row < a.rows() && col < a.cols() { a[(row, col)] } else { Ff::ZERO }
+    if row < a.rows() && col < a.cols() {
+        a[(row, col)]
+    } else {
+        Ff::ZERO
+    }
 }
 
 /// --- Core, literal formulas from the paper --------------------------------
@@ -96,12 +108,7 @@ fn get_F<Ff: Field + PrimeCharacteristicRing + Copy>(a: &Mat<Ff>, row: usize, co
 ///   F(X_[log n]) = f( Ẽ(M_1 z_1)(X_r), …, Ẽ(M_t z_1)(X_r) )
 ///
 /// Since X_r ∈ {0,1}^{ℓ_n}, Ẽ(v)(X_r) = v[xr] (row selection).
-fn F_at_bool_row<Ff>(
-    s: &CcsStructure<Ff>,
-    params: &NeoParams,
-    Z1: &Mat<Ff>,
-    xr_mask: usize,
-) -> K
+fn F_at_bool_row<Ff>(s: &CcsStructure<Ff>, params: &NeoParams, Z1: &Mat<Ff>, xr_mask: usize) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
@@ -127,13 +134,7 @@ where
 /// where ẑ_r is χ_{X_r} (here a one-hot row selector since X_r is Boolean),
 /// and Ẽ(·)(X_a) reduces to picking the Ajtai row `xa`.
 #[inline]
-fn NC_i_at_bool_point<Ff>(
-    s: &CcsStructure<Ff>,
-    Z_i: &Mat<Ff>,
-    xa_mask: usize,
-    xr_mask: usize,
-    b: u32,
-) -> K
+fn NC_i_at_bool_point<Ff>(s: &CcsStructure<Ff>, Z_i: &Mat<Ff>, xa_mask: usize, xr_mask: usize, b: u32) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
@@ -248,7 +249,7 @@ where
     let mut nc_sum = K::ZERO;
     {
         let mut g = gamma; // γ^1
-        // MCS instances
+                           // MCS instances
         for w in mcs_witnesses {
             let ni = NC_i_at_bool_point::<Ff>(s, &w.Z, xa_mask, xr_mask, params.b);
             nc_sum += g * ni;
@@ -278,19 +279,25 @@ where
         // Instances are ordered: all MCS first, then ME. The paper uses i∈[2..k].
         // That means we skip the very first instance (i=1).
         for j in 0..s.t() {
-            for (i_abs, Zi) in
-                mcs_witnesses.iter().map(|w| &w.Z).chain(me_witnesses.iter()).enumerate().skip(1)
+            for (i_abs, Zi) in mcs_witnesses
+                .iter()
+                .map(|w| &w.Z)
+                .chain(me_witnesses.iter())
+                .enumerate()
+                .skip(1)
             {
                 // Inner weight: γ^{i-1} * (γ^k)^j (0-based j)
                 let mut weight = K::ONE;
                 // γ^{i-1}
-                for _ in 0..i_abs { weight *= gamma; }
+                for _ in 0..i_abs {
+                    weight *= gamma;
+                }
                 // (γ^k)^j
-                for _ in 0..j { weight *= gamma_to_k; }
+                for _ in 0..j {
+                    weight *= gamma_to_k;
+                }
 
-                let e_ij = Eval_ij_at_bool_point::<Ff>(
-                    s, Zi, &s.matrices[j], xa_mask, xr_mask, alpha, r_for_me
-                );
+                let e_ij = Eval_ij_at_bool_point::<Ff>(s, Zi, &s.matrices[j], xa_mask, xr_mask, alpha, r_for_me);
                 inner += weight * e_ij;
             }
         }
@@ -326,9 +333,17 @@ where
     for xa in 0..d_sz {
         for xr in 0..n_sz {
             total += q_at_point_paper_exact(
-                s, params, mcs_witnesses, me_witnesses,
-                &ch.alpha, &ch.beta_a, &ch.beta_r, ch.gamma, r_for_me,
-                xa, xr
+                s,
+                params,
+                mcs_witnesses,
+                me_witnesses,
+                &ch.alpha,
+                &ch.beta_a,
+                &ch.beta_r,
+                ch.gamma,
+                r_for_me,
+                xa,
+                xr,
             );
         }
     }
@@ -386,19 +401,23 @@ where
     K: From<Ff>,
 {
     let detailed_log = std::env::var("NEO_CROSSCHECK_DETAIL").is_ok();
-    
+
     if detailed_log {
-        eprintln!("  [Paper-exact] k_total = {} (mcs_witnesses={}, me_witnesses={})", 
-            mcs_witnesses.len() + me_witnesses.len(), mcs_witnesses.len(), me_witnesses.len());
+        eprintln!(
+            "  [Paper-exact] k_total = {} (mcs_witnesses={}, me_witnesses={})",
+            mcs_witnesses.len() + me_witnesses.len(),
+            mcs_witnesses.len(),
+            me_witnesses.len()
+        );
         eprintln!("  [Paper-exact] gamma = {:?}", ch.gamma);
         eprintln!("  [Paper-exact] r_inputs present = {}", r_inputs.is_some());
     }
-    
+
     // ---------------------------
     // χ tables (Ajtai & row)
     // ---------------------------
     let d_sz = 1usize << alpha_prime.len(); // size along Ajtai bits
-    let n_sz = 1usize << r_prime.len();     // size along row bits
+    let n_sz = 1usize << r_prime.len(); // size along row bits
 
     let mut chi_a = vec![K::ZERO; d_sz];
     for rho in 0..d_sz {
@@ -451,7 +470,9 @@ where
         let mut y_eval = K::ZERO;
         for row in 0..n_sz {
             let wr = if row < s.n { chi_r[row] } else { K::ZERO };
-            if wr == K::ZERO { continue; }
+            if wr == K::ZERO {
+                continue;
+            }
             let mut y_row = K::ZERO;
             for c in 0..s.m {
                 y_row += K::from(get_F(&s.matrices[j], row, c)) * z1[c];
@@ -472,7 +493,9 @@ where
     let mut v1 = vec![K::ZERO; s.m];
     for row in 0..n_sz {
         let wr = if row < s.n { chi_r[row] } else { K::ZERO };
-        if wr == K::ZERO { continue; }
+        if wr == K::ZERO {
+            continue;
+        }
         for c in 0..s.m {
             v1[c] += K::from(get_F(&s.matrices[0], row, c)) * wr;
         }
@@ -538,14 +561,18 @@ where
     if k_total >= 2 {
         // Precompute γ^k
         let mut gamma_to_k = K::ONE;
-        for _ in 0..k_total { gamma_to_k *= ch.gamma; }
+        for _ in 0..k_total {
+            gamma_to_k *= ch.gamma;
+        }
 
         for j in 0..s.t() {
             // vj := M_j^T χ_{r'}
             let mut vj = vec![K::ZERO; s.m];
             for row in 0..n_sz {
                 let wr = if row < s.n { chi_r[row] } else { K::ZERO };
-                if wr == K::ZERO { continue; }
+                if wr == K::ZERO {
+                    continue;
+                }
                 for c in 0..s.m {
                     vj[c] += K::from(get_F(&s.matrices[j], row, c)) * wr;
                 }
@@ -553,7 +580,8 @@ where
 
             // sum over i ≥ 2 (skip the first instance)
             for (i_abs, Zi) in mcs_witnesses
-                .iter().map(|w| &w.Z)
+                .iter()
+                .map(|w| &w.Z)
                 .chain(me_witnesses.iter())
                 .enumerate()
                 .skip(1)
@@ -562,17 +590,25 @@ where
                 let mut y_digits = vec![K::ZERO; D];
                 for rho in 0..D {
                     let mut acc = K::ZERO;
-                    for c in 0..s.m { acc += K::from(Zi[(rho, c)]) * vj[c]; }
+                    for c in 0..s.m {
+                        acc += K::from(Zi[(rho, c)]) * vj[c];
+                    }
                     y_digits[rho] = acc;
                 }
                 // ẏ'_{(i,j)}(α′) = ⟨ y_digits, χ_{α′} ⟩
                 let mut y_eval = K::ZERO;
-                for rho in 0..core::cmp::min(D, d_sz) { y_eval += y_digits[rho] * chi_a[rho]; }
+                for rho in 0..core::cmp::min(D, d_sz) {
+                    y_eval += y_digits[rho] * chi_a[rho];
+                }
 
                 // weight = γ^{i-1} · (γ^k)^j  (i_abs is 0-based; we skipped 0)
                 let mut weight = K::ONE;
-                for _ in 0..i_abs { weight *= ch.gamma; } // γ^{i-1}
-                for _ in 0..j     { weight *= gamma_to_k; } // (γ^k)^j
+                for _ in 0..i_abs {
+                    weight *= ch.gamma;
+                } // γ^{i-1}
+                for _ in 0..j {
+                    weight *= gamma_to_k;
+                } // (γ^k)^j
 
                 eval_sum += weight * y_eval;
             }
@@ -580,19 +616,30 @@ where
     }
 
     if detailed_log {
-        eprintln!("  [Paper-exact] Eval' (weighted ME evaluations, before outer γ^k) = {:?}", eval_sum);
+        eprintln!(
+            "  [Paper-exact] Eval' (weighted ME evaluations, before outer γ^k) = {:?}",
+            eval_sum
+        );
     }
 
     // Paper-exact assembly of LHS:
     // Q(α', r') = eq((α',r'), β)·(F' + NC') + γ^k · eq((α',r'), (α,r)) · Eval'.
     let mut gamma_to_k_outer = K::ONE;
-    for _ in 0..k_total { gamma_to_k_outer *= ch.gamma; }
+    for _ in 0..k_total {
+        gamma_to_k_outer *= ch.gamma;
+    }
     let lhs = eq_beta * (F_prime + nc_sum) + eq_ar * (gamma_to_k_outer * eval_sum);
 
     if detailed_log {
         eprintln!("  [Paper-exact] Final assembly:");
-        eprintln!("                eq((α',r'), β) * (F' + NC') = {:?}", eq_beta * (F_prime + nc_sum));
-        eprintln!("              + eq((α',r'), (α,r)) * (γ^k * Eval') = {:?}", eq_ar * (gamma_to_k_outer * eval_sum));
+        eprintln!(
+            "                eq((α',r'), β) * (F' + NC') = {:?}",
+            eq_beta * (F_prime + nc_sum)
+        );
+        eprintln!(
+            "              + eq((α',r'), (α,r)) * (γ^k * Eval') = {:?}",
+            eq_ar * (gamma_to_k_outer * eval_sum)
+        );
         eprintln!("              = Q(α', r') = {:?}", lhs);
     }
 
@@ -616,7 +663,7 @@ where
 pub fn rhs_terminal_identity_paper_exact<Ff>(
     s: &CcsStructure<Ff>,
     params: &NeoParams,
-    ch: &Challenges,          // contains (α, β, γ)
+    ch: &Challenges, // contains (α, β, γ)
     r_prime: &[K],
     alpha_prime: &[K],
     out_me: &[MeInstance<Cmt, Ff, K>], // outputs y' (i ∈ [k], j ∈ [t])
@@ -632,7 +679,7 @@ where
     // eq((α',r'), β) = eq(α', β_a) * eq(r', β_r)
     let eq_aprp_beta = {
         let e1 = eq_points(alpha_prime, &ch.beta_a);
-        let e2 = eq_points(r_prime,     &ch.beta_r);
+        let e2 = eq_points(r_prime, &ch.beta_r);
         e1 * e2
     };
 
@@ -705,7 +752,9 @@ where
     if me_inputs_r_opt.is_some() && k_total >= 2 {
         // Precompute γ^k
         let mut gamma_to_k = K::ONE;
-        for _ in 0..k_total { gamma_to_k *= ch.gamma; }
+        for _ in 0..k_total {
+            gamma_to_k *= ch.gamma;
+        }
 
         for j in 0..s.t() {
             for (i_abs, out) in out_me.iter().enumerate().skip(1) {
@@ -719,8 +768,12 @@ where
 
                 // Inner weight: γ^{i-1} * (γ^k)^j (0-based i_abs, 0-based j)
                 let mut weight = K::ONE;
-                for _ in 0..i_abs { weight *= ch.gamma; } // γ^{i-1}
-                for _ in 0..j     { weight *= gamma_to_k; } // (γ^k)^j
+                for _ in 0..i_abs {
+                    weight *= ch.gamma;
+                } // γ^{i-1}
+                for _ in 0..j {
+                    weight *= gamma_to_k;
+                } // (γ^k)^j
 
                 eval_sum += weight * y_eval;
             }
@@ -730,7 +783,9 @@ where
     // Assemble RHS exactly like the paper:
     // v = eq((α',r'), β)·(F' + Σ γ^i N_i') + γ^k · eq((α',r'), (α,r)) · Eval'.
     let mut gamma_to_k_outer = K::ONE;
-    for _ in 0..k_total { gamma_to_k_outer *= ch.gamma; }
+    for _ in 0..k_total {
+        gamma_to_k_outer *= ch.gamma;
+    }
     eq_aprp_beta * (F_prime + nc_prime_sum) + eq_aprp_ar * (gamma_to_k_outer * eval_sum)
 }
 
@@ -752,31 +807,35 @@ where
     K: From<Ff>,
 {
     use core::cmp::min;
-    
+
     #[cfg(feature = "debug-logs")]
     {
         eprintln!("\n[claimed_initial_sum] === Computing T ===");
         eprintln!("[claimed_initial_sum] me_inputs.len() = {}", me_inputs.len());
     }
-    
+
     let k_total = 1 + me_inputs.len(); // first slot is the MCS instance
-    
+
     #[cfg(feature = "debug-logs")]
-    eprintln!("[claimed_initial_sum] k_total = {} (= 1 MCS + {} ME)", k_total, me_inputs.len());
-    
+    eprintln!(
+        "[claimed_initial_sum] k_total = {} (= 1 MCS + {} ME)",
+        k_total,
+        me_inputs.len()
+    );
+
     if k_total < 2 {
         #[cfg(feature = "debug-logs")]
         eprintln!("[claimed_initial_sum] k < 2, returning ZERO (no Eval block)");
         return K::ZERO; // no Eval block when k=1
     }
-    
+
     #[cfg(feature = "debug-logs")]
     {
         eprintln!("[claimed_initial_sum] s.t() = {} (number of matrices)", s.t());
         eprintln!("[claimed_initial_sum] ch.alpha.len() = {}", ch.alpha.len());
         eprintln!("[claimed_initial_sum] ch.gamma = {:?}", ch.gamma);
     }
-    
+
     // Build χ_{α} over the Ajtai domain
     let d_sz = 1usize << ch.alpha.len();
     let mut chi_a = vec![K::ZERO; d_sz];
@@ -788,16 +847,16 @@ where
         }
         chi_a[rho] = w;
     }
-    
+
     // γ^k
     let mut gamma_to_k = K::ONE;
     for _ in 0..k_total {
         gamma_to_k *= ch.gamma;
     }
-    
+
     #[cfg(feature = "debug-logs")]
     eprintln!("[claimed_initial_sum] gamma_to_k (γ^{}) = {:?}", k_total, gamma_to_k);
-    
+
     // Inner weighted sum over (j, i>=2)
     let mut inner = K::ZERO;
     for j in 0..s.t() {
@@ -805,7 +864,7 @@ where
             // me_inputs[idx] corresponds to instance i = idx + 2 in the paper
             // (i=1 is the MCS instance, not in me_inputs)
             let i = idx + 2;
-            
+
             // ẏ_{(i,j)}(α) = ⟨ y_{(i,j)}, χ_{α} ⟩
             let yj = &out.y[j];
             let mut y_eval = K::ZERO;
@@ -813,7 +872,7 @@ where
             for rho in 0..limit {
                 y_eval += yj[rho] * chi_a[rho];
             }
-            
+
             // Paper formula: γ^{i+(j-1)k-1} = γ^{i-1+(j-1)k} = γ^{i-1} · (γ^k)^{j-1}
             // But we're using 0-based j, so for paper's j=1: we have loop j=0
             let mut weight = K::ONE;
@@ -825,25 +884,35 @@ where
             for _ in 0..j {
                 weight *= gamma_to_k;
             }
-            
+
             #[cfg(feature = "debug-logs")]
             if idx < 2 && j < 2 {
-                eprintln!("[claimed_initial_sum]   ME[{}] (i={}), j={}: y_eval={:?}, weight={:?}, contrib={:?}", 
-                    idx, i, j, y_eval, weight, weight * y_eval);
+                eprintln!(
+                    "[claimed_initial_sum]   ME[{}] (i={}), j={}: y_eval={:?}, weight={:?}, contrib={:?}",
+                    idx,
+                    i,
+                    j,
+                    y_eval,
+                    weight,
+                    weight * y_eval
+                );
             }
-            
+
             inner += weight * y_eval;
         }
     }
-    
+
     // Paper-exact: T = γ^k · inner, matching T = γ^k Σ γ^{i+(j-1)k-1} ẏ_{(i,j)}(α).
     #[cfg(feature = "debug-logs")]
     {
-        eprintln!("[claimed_initial_sum] inner sum (Eval' weighted, before outer γ^k) = {:?}", inner);
+        eprintln!(
+            "[claimed_initial_sum] inner sum (Eval' weighted, before outer γ^k) = {:?}",
+            inner
+        );
         eprintln!("[claimed_initial_sum] T = γ^k * inner = {:?}", gamma_to_k * inner);
         eprintln!("[claimed_initial_sum] === Done ===\n");
     }
-    
+
     let result = gamma_to_k * inner;
     result
 }
@@ -896,7 +965,9 @@ where
         let mut vj = vec![K::ZERO; s.m];
         for row in 0..n_sz {
             let wr = if row < s.n { chi_rp[row] } else { K::ZERO };
-            if wr == K::ZERO { continue; }
+            if wr == K::ZERO {
+                continue;
+            }
             for c in 0..s.m {
                 vj[c] += K::from(get_F(&s.matrices[j], row, c)) * wr;
             }
@@ -913,7 +984,9 @@ where
 
     let base_f = K::from(Ff::from_u64(params.b as u64));
     let mut pow_cache = vec![K::ONE; D];
-    for i in 1..D { pow_cache[i] = pow_cache[i - 1] * base_f; }
+    for i in 1..D {
+        pow_cache[i] = pow_cache[i - 1] * base_f;
+    }
     let recompose = |y: &[K]| -> K {
         let mut acc = K::ZERO;
         for (rho, &v) in y.iter().enumerate().take(D) {
@@ -944,7 +1017,9 @@ where
         let y_scalars: Vec<K> = y.iter().map(|yj| recompose(yj)).collect();
 
         out.push(MeInstance {
-            c_step_coords: vec![], u_offset: 0, u_len: 0,
+            c_step_coords: vec![],
+            u_offset: 0,
+            u_len: 0,
             c: inst.c.clone(),
             X,
             r: r_prime.to_vec(),
@@ -972,7 +1047,9 @@ where
         let y_scalars: Vec<K> = y.iter().map(|yj| recompose(yj)).collect();
 
         out.push(MeInstance {
-            c_step_coords: vec![], u_offset: 0, u_len: 0,
+            c_step_coords: vec![],
+            u_offset: 0,
+            u_len: 0,
             c: inp.c.clone(),
             X: inp.X.clone(),
             r: r_prime.to_vec(),
@@ -1012,7 +1089,7 @@ where
     assert!(!me_inputs.is_empty(), "Π_RLC(paper-exact): need at least one input");
     let k1 = me_inputs.len();
     assert_eq!(rhos.len(), k1, "Π_RLC: |rhos| must equal |inputs|");
-    assert_eq!(Zs.len(),   k1, "Π_RLC: |Zs| must equal |inputs|");
+    assert_eq!(Zs.len(), k1, "Π_RLC: |Zs| must equal |inputs|");
 
     let d = D;
     let d_pad = 1usize << ell_d;
@@ -1021,13 +1098,17 @@ where
 
     // Helper: acc += rho * A (left multiply)
     let left_mul_acc = |acc: &mut Mat<Ff>, rho: &Mat<Ff>, a: &Mat<Ff>| {
-        debug_assert_eq!(rho.rows(), d); debug_assert_eq!(rho.cols(), d);
-        debug_assert_eq!(a.rows(), d);   debug_assert_eq!(acc.rows(), d);
+        debug_assert_eq!(rho.rows(), d);
+        debug_assert_eq!(rho.cols(), d);
+        debug_assert_eq!(a.rows(), d);
+        debug_assert_eq!(acc.rows(), d);
         debug_assert_eq!(a.cols(), acc.cols());
         for rr in 0..d {
             for cc in 0..a.cols() {
                 let mut sum = Ff::ZERO;
-                for kk in 0..d { sum += get_F(rho, rr, kk) * get_F(a, kk, cc); }
+                for kk in 0..d {
+                    sum += get_F(rho, rr, kk) * get_F(a, kk, cc);
+                }
                 acc[(rr, cc)] += sum;
             }
         }
@@ -1035,7 +1116,9 @@ where
 
     // X := Σ ρ_i X_i
     let mut X = Mat::zero(d, m_in, Ff::ZERO);
-    for i in 0..k1 { left_mul_acc(&mut X, &rhos[i], &me_inputs[i].X); }
+    for i in 0..k1 {
+        left_mul_acc(&mut X, &rhos[i], &me_inputs[i].X);
+    }
 
     // y_j := Σ ρ_i y_(i,j) (apply ρ to the first D digits; keep padding to 2^{ell_d})
     let mut y: Vec<Vec<K>> = Vec::with_capacity(s.t());
@@ -1052,7 +1135,9 @@ where
                 }
                 term[rr] = acc_rr;
             }
-            for t in 0..d_pad { yj_acc[t] += term[t]; }
+            for t in 0..d_pad {
+                yj_acc[t] += term[t];
+            }
         }
         y.push(yj_acc);
     }
@@ -1060,21 +1145,32 @@ where
     // y_scalars: base-b recomposition of the first D digits of each y_j
     let bF = Ff::from_u64(params.b as u64);
     let mut pow_b = vec![Ff::ONE; D];
-    for i in 1..D { pow_b[i] = pow_b[i - 1] * bF; }
+    for i in 1..D {
+        pow_b[i] = pow_b[i - 1] * bF;
+    }
     let pow_b_k: Vec<K> = pow_b.iter().copied().map(K::from).collect();
-    let y_scalars: Vec<K> = y.iter().map(|row| {
-        let mut acc = K::ZERO;
-        for (idx, &v) in row.iter().enumerate().take(D) { acc += v * pow_b_k[idx]; }
-        acc
-    }).collect();
+    let y_scalars: Vec<K> = y
+        .iter()
+        .map(|row| {
+            let mut acc = K::ZERO;
+            for (idx, &v) in row.iter().enumerate().take(D) {
+                acc += v * pow_b_k[idx];
+            }
+            acc
+        })
+        .collect();
 
     // Z := Σ ρ_i Z_i
     let mut Z = Mat::zero(d, s.m, Ff::ZERO);
-    for i in 0..k1 { left_mul_acc(&mut Z, &rhos[i], &Zs[i]); }
+    for i in 0..k1 {
+        left_mul_acc(&mut Z, &rhos[i], &Zs[i]);
+    }
 
     let out = MeInstance::<Cmt, Ff, K> {
-        c_step_coords: vec![], u_offset: 0, u_len: 0,
-        c: me_inputs[0].c.clone(),   // NOTE: caller can replace with true Σ ρ_i·c_i
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
+        c: me_inputs[0].c.clone(), // NOTE: caller can replace with true Σ ρ_i·c_i
         X,
         r,
         y,
@@ -1131,7 +1227,10 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    assert!(!Z_split.is_empty(), "Π_DEC(paper-exact): need at least one digit witness");
+    assert!(
+        !Z_split.is_empty(),
+        "Π_DEC(paper-exact): need at least one digit witness"
+    );
 
     let d = D;
     let d_pad = 1usize << ell_d;
@@ -1156,8 +1255,12 @@ where
         let mut vj = vec![K::ZERO; s.m];
         for row in 0..n_sz {
             let wr = if row < s.n { chi_r[row] } else { K::ZERO };
-            if wr == K::ZERO { continue; }
-            for c in 0..s.m { vj[c] += K::from(get_F(&s.matrices[j], row, c)) * wr; }
+            if wr == K::ZERO {
+                continue;
+            }
+            for c in 0..s.m {
+                vj[c] += K::from(get_F(&s.matrices[j], row, c)) * wr;
+            }
         }
         vjs.push(vj);
     }
@@ -1169,7 +1272,11 @@ where
     // Helper: project first m_in columns from Z
     let project_x = |Z: &Mat<Ff>| {
         let mut X = Mat::zero(d, m_in, Ff::ZERO);
-        for r in 0..d { for c in 0..m_in { X[(r, c)] = get_F(Z, r, c); } }
+        for r in 0..d {
+            for c in 0..m_in {
+                X[(r, c)] = get_F(Z, r, c);
+            }
+        }
         X
     };
 
@@ -1183,27 +1290,39 @@ where
             let mut yij = vec![K::ZERO; d];
             for rho in 0..d {
                 let mut acc = K::ZERO;
-                for c in 0..s.m { acc += K::from(get_F(&Z_split[i], rho, c)) * vjs[j][c]; }
+                for c in 0..s.m {
+                    acc += K::from(get_F(&Z_split[i], rho, c)) * vjs[j][c];
+                }
                 yij[rho] = acc;
             }
             // pad to 2^{ℓ_d}
-            let mut yij_pad = yij; yij_pad.resize(d_pad, K::ZERO);
+            let mut yij_pad = yij;
+            yij_pad.resize(d_pad, K::ZERO);
             y_i.push(yij_pad);
         }
 
         // y_scalars for child i: base-b recomposition of first D digits of each y_j
         let mut pow_b_f = vec![Ff::ONE; D];
-        for t in 1..D { pow_b_f[t] = pow_b_f[t-1] * bF; }
+        for t in 1..D {
+            pow_b_f[t] = pow_b_f[t - 1] * bF;
+        }
         let pow_b_k: Vec<K> = pow_b_f.iter().copied().map(K::from).collect();
-        let y_scalars_i: Vec<K> = y_i.iter().map(|row| {
-            let mut acc = K::ZERO;
-            for (idx, &v) in row.iter().enumerate().take(D) { acc += v * pow_b_k[idx]; }
-            acc
-        }).collect();
+        let y_scalars_i: Vec<K> = y_i
+            .iter()
+            .map(|row| {
+                let mut acc = K::ZERO;
+                for (idx, &v) in row.iter().enumerate().take(D) {
+                    acc += v * pow_b_k[idx];
+                }
+                acc
+            })
+            .collect();
 
         children.push(MeInstance::<Cmt, Ff, K> {
-            c_step_coords: vec![], u_offset: 0, u_len: 0,
-            c: parent.c.clone(),            // NOTE: caller can replace with L(Z_i)
+            c_step_coords: vec![],
+            u_offset: 0,
+            u_len: 0,
+            c: parent.c.clone(), // NOTE: caller can replace with L(Z_i)
             X: Xi,
             r: parent.r.clone(),
             y: y_i,
@@ -1219,10 +1338,15 @@ where
         let mut lhs = vec![K::ZERO; d_pad];
         let mut pow = K::ONE;
         for i in 0..k {
-            for t in 0..d_pad { lhs[t] += pow * children[i].y[j][t]; }
+            for t in 0..d_pad {
+                lhs[t] += pow * children[i].y[j][t];
+            }
             pow *= bK;
         }
-        if lhs != parent.y[j] { ok_y = false; break; }
+        if lhs != parent.y[j] {
+            ok_y = false;
+            break;
+        }
     }
 
     // Verify: X ?= Σ b^i · X_i
@@ -1230,10 +1354,16 @@ where
     let mut lhs_X = Mat::zero(d, m_in, Ff::ZERO);
     let mut pow = Ff::ONE;
     for i in 0..k {
-        for r in 0..d { for c in 0..m_in { lhs_X[(r, c)] += pow * children[i].X[(r, c)]; } }
+        for r in 0..d {
+            for c in 0..m_in {
+                lhs_X[(r, c)] += pow * children[i].X[(r, c)];
+            }
+        }
         pow *= bF;
     }
-    if lhs_X.as_slice() != parent.X.as_slice() { ok_X = false; }
+    if lhs_X.as_slice() != parent.X.as_slice() {
+        ok_X = false;
+    }
 
     (children, ok_y, ok_X)
 }
@@ -1256,9 +1386,7 @@ where
     K: From<Ff>,
     Comb: Fn(&[Cmt], u32) -> Cmt,
 {
-    let (mut children, ok_y, ok_X) = dec_reduction_paper_exact::<Ff>(
-        s, params, parent, Z_split, ell_d,
-    );
+    let (mut children, ok_y, ok_X) = dec_reduction_paper_exact::<Ff>(s, params, parent, Z_split, ell_d);
 
     assert_eq!(
         children.len(),

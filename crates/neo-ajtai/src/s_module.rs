@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::sync::{OnceLock, RwLock};
-use std::sync::Arc;
-use neo_math::Fq;
-use neo_math::ring::Rq as RqEl;
+use crate::{commit as ajtai_commit, AjtaiError, Commitment, PP};
 use neo_ccs::{traits::SModuleHomomorphism, Mat};
-use crate::{PP, Commitment, commit as ajtai_commit, AjtaiError};
+use neo_math::ring::Rq as RqEl;
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::{OnceLock, RwLock};
 
 type Key = (usize, usize); // (d, m)
 type PPRef = Arc<PP<RqEl>>;
@@ -33,14 +33,21 @@ pub fn get_global_pp() -> Result<PPRef, AjtaiError> {
     let mut it = r.values();
     match (it.next(), it.next()) {
         (Some(pp), None) => Ok(pp.clone()),
-        (None, _) => Err(AjtaiError::InvalidInput("Ajtai PP not initialized (call set_global_pp())".to_string())),
-        _ => Err(AjtaiError::InvalidInput("Multiple Ajtai PPs present; use get_global_pp_for_dims()".to_string())),
+        (None, _) => Err(AjtaiError::InvalidInput(
+            "Ajtai PP not initialized (call set_global_pp())".to_string(),
+        )),
+        _ => Err(AjtaiError::InvalidInput(
+            "Multiple Ajtai PPs present; use get_global_pp_for_dims()".to_string(),
+        )),
     }
 }
 
 /// True if a PP for (d,m) is available.
 pub fn has_global_pp_for_dims(d: usize, m: usize) -> bool {
-    registry().read().map(|r| r.contains_key(&(d, m))).unwrap_or(false)
+    registry()
+        .read()
+        .map(|r| r.contains_key(&(d, m)))
+        .unwrap_or(false)
 }
 
 /// Get the Ajtai PP for a specific (d,m).
@@ -50,51 +57,73 @@ pub fn get_global_pp_for_dims(d: usize, m: usize) -> Result<PPRef, AjtaiError> {
         .map_err(|_| AjtaiError::Internal("PP registry poisoned".to_string()))?
         .get(&(d, m))
         .cloned()
-        .ok_or(AjtaiError::InvalidInput("Ajtai PP not initialized for requested (d,m)".to_string()))
+        .ok_or(AjtaiError::InvalidInput(
+            "Ajtai PP not initialized for requested (d,m)".to_string(),
+        ))
 }
 
 /// Get the Ajtai PP using `z_len = d*m`.
 pub fn get_global_pp_for_z_len(z_len: usize) -> Result<PPRef, AjtaiError> {
     let d = neo_math::D;
-    if z_len % d != 0 { return Err(AjtaiError::InvalidInput("z_len not multiple of D".to_string())); }
+    if z_len % d != 0 {
+        return Err(AjtaiError::InvalidInput("z_len not multiple of D".to_string()));
+    }
     get_global_pp_for_dims(d, z_len / d)
 }
 
 /// Concrete S-module homomorphism backed by Ajtai PP
 #[derive(Clone)]
-pub struct AjtaiSModule { pub pp: PPRef }
+pub struct AjtaiSModule {
+    pub pp: PPRef,
+}
 
 impl AjtaiSModule {
-    pub fn new(pp: PPRef) -> Self { Self { pp } }
+    pub fn new(pp: PPRef) -> Self {
+        Self { pp }
+    }
     /// Legacy: pick the sole PP if only one exists.
     pub fn from_global() -> Result<Self, AjtaiError> {
         Ok(Self { pp: get_global_pp()? })
     }
     /// New: pick PP that matches (d,m).
     pub fn from_global_for_dims(d: usize, m: usize) -> Result<Self, AjtaiError> {
-        Ok(Self { pp: get_global_pp_for_dims(d, m)? })
+        Ok(Self {
+            pp: get_global_pp_for_dims(d, m)?,
+        })
     }
     /// New: pick PP that matches `z_len = d*m`.
     pub fn from_global_for_z_len(z_len: usize) -> Result<Self, AjtaiError> {
-        Ok(Self { pp: get_global_pp_for_z_len(z_len)? })
+        Ok(Self {
+            pp: get_global_pp_for_z_len(z_len)?,
+        })
     }
 }
 
 impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
     fn commit(&self, z: &Mat<Fq>) -> Commitment {
-        let d = self.pp.d; let m = self.pp.m;
+        let d = self.pp.d;
+        let m = self.pp.m;
         assert_eq!(z.rows(), d, "AjtaiSModule.commit: Z.rows != d");
         assert_eq!(z.cols(), m, "AjtaiSModule.commit: Z.cols != m");
         // Mat is row-major; Ajtai commit expects column-major (d×m)
         let mut col_major = vec![Fq::ZERO; d * m];
-        for c in 0..m { for r in 0..d { col_major[c*d + r] = z[(r,c)]; } }
+        for c in 0..m {
+            for r in 0..d {
+                col_major[c * d + r] = z[(r, c)];
+            }
+        }
         ajtai_commit(&self.pp, &col_major)
     }
 
     fn project_x(&self, z: &Mat<Fq>, min: usize) -> Mat<Fq> {
-        let rows = z.rows(); let cols = min.min(z.cols());
-        let mut data = Vec::with_capacity(rows*cols);
-        for r in 0..rows { for c in 0..cols { data.push(z[(r,c)]); } }
+        let rows = z.rows();
+        let cols = min.min(z.cols());
+        let mut data = Vec::with_capacity(rows * cols);
+        for r in 0..rows {
+            for c in 0..cols {
+                data.push(z[(r, c)]);
+            }
+        }
         Mat::from_row_major(rows, cols, data)
     }
 }

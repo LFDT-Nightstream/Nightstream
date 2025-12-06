@@ -2,11 +2,11 @@
 //! MUST: cf/cf^{-1}, ||a||_∞, rot(a) S-action on vectors/matrices; constant-time schoolbook mul.
 //! SHOULD: fast-mul hook (API-level; can be swapped to NTT later).
 
-use crate::{Fq};
 use crate::norms::{NeoMathError, Norms};
+use crate::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_matrix::dense::DenseMatrix;
-use std::ops::{Add, Sub, Mul};
+use std::ops::{Add, Mul, Sub};
 
 /// Cyclotomic parameter eta and derived dimension d = deg(Phi_eta).
 pub const ETA: usize = 81;
@@ -18,11 +18,20 @@ pub const D: usize = 54;
 pub struct Rq(pub [Fq; D]);
 
 impl Rq {
-    #[inline] pub fn zero() -> Self { Self([Fq::ZERO; D]) }
-    #[inline] pub fn one() -> Self { let mut c=[Fq::ZERO;D]; c[0]=Fq::ONE; Self(c) }
+    #[inline]
+    pub fn zero() -> Self {
+        Self([Fq::ZERO; D])
+    }
+    #[inline]
+    pub fn one() -> Self {
+        let mut c = [Fq::ZERO; D];
+        c[0] = Fq::ONE;
+        Self(c)
+    }
 
     /// MUST: constant-time coefficient-wise add.
-    #[inline] pub fn add(&self, rhs: &Self) -> Self {
+    #[inline]
+    pub fn add(&self, rhs: &Self) -> Self {
         let mut out = [Fq::ZERO; D];
         for (out_elem, (&a, &b)) in out.iter_mut().zip(self.0.iter().zip(rhs.0.iter())) {
             *out_elem = a + b;
@@ -31,7 +40,8 @@ impl Rq {
     }
 
     /// MUST: constant-time coefficient-wise sub.
-    #[inline] pub fn sub(&self, rhs: &Self) -> Self {
+    #[inline]
+    pub fn sub(&self, rhs: &Self) -> Self {
         let mut out = [Fq::ZERO; D];
         for (out_elem, (&a, &b)) in out.iter_mut().zip(self.0.iter().zip(rhs.0.iter())) {
             *out_elem = a - b;
@@ -42,11 +52,11 @@ impl Rq {
     /// MUST: constant-time schoolbook mul with reduction mod Phi_{81}(X) = X^54 + X^27 + 1.
     /// No branches on secret data; loops run fixed D and 2D-1 iterations.
     pub fn mul(&self, rhs: &Self) -> Self {
-        let mut tmp = [Fq::ZERO; 2*D - 1];
+        let mut tmp = [Fq::ZERO; 2 * D - 1];
         for i in 0..D {
             let ai = self.0[i];
             for j in 0..D {
-                tmp[i+j] += ai * rhs.0[j];
+                tmp[i + j] += ai * rhs.0[j];
             }
         }
         reduce_mod_phi_81(&mut tmp);
@@ -57,8 +67,10 @@ impl Rq {
 
     /// Multiply by monomial X^j mod Phi_81 (fast rotation)
     pub fn mul_by_monomial(&self, j: usize) -> Self {
-        if j == 0 { return *self; }
-        
+        if j == 0 {
+            return *self;
+        }
+
         let mut out = [Fq::ZERO; D];
         for i in 0..D {
             let new_deg = i + j;
@@ -67,8 +79,8 @@ impl Rq {
             } else if new_deg < D + 27 {
                 // X^new_deg = X^(new_deg-54) * X^54 = X^(new_deg-54) * (-X^27 - 1)
                 let reduced_deg = new_deg - D;
-                out[reduced_deg] -= self.0[i];        // -X^(new_deg-54)
-                out[reduced_deg + 27] -= self.0[i];   // -X^(new_deg-54+27) = -X^(new_deg-27)
+                out[reduced_deg] -= self.0[i]; // -X^(new_deg-54)
+                out[reduced_deg + 27] -= self.0[i]; // -X^(new_deg-54+27) = -X^(new_deg-27)
             } else {
                 // new_deg >= D + 27, so new_deg - 27 >= D
                 // X^new_deg = -X^(new_deg-27) - X^(new_deg-54)
@@ -81,7 +93,7 @@ impl Rq {
                     // deg1 = new_deg - 27, need to reduce X^deg1 further
                     let deg1_red = deg1 - D;
                     if deg1_red < D {
-                        out[deg1_red] += self.0[i];      // -(-X^(deg1_red)) = +X^(deg1_red)
+                        out[deg1_red] += self.0[i]; // -(-X^(deg1_red)) = +X^(deg1_red)
                         if deg1_red + 27 < D {
                             out[deg1_red + 27] += self.0[i];
                         }
@@ -95,10 +107,13 @@ impl Rq {
     }
 
     /// SHOULD: placeholder "fast" multiply; currently calls `mul`.
-    #[inline] pub fn mul_fast(&self, rhs: &Self) -> Self { self.mul(rhs) }
+    #[inline]
+    pub fn mul_fast(&self, rhs: &Self) -> Self {
+        self.mul(rhs)
+    }
 
     // Direct field-based methods (replacing ModInt backward compatibility)
-    
+
     /// Create ring element from field coefficients
     pub fn from_field_coeffs(coeffs: Vec<Fq>) -> Self {
         let mut ring_coeffs = [Fq::ZERO; D];
@@ -159,29 +174,29 @@ impl Rq {
 }
 
 /// Reduce polynomial in-place modulo Φ₈₁(X) = X^54 + X^27 + 1.
-/// 
+///
 /// **Internal implementation detail** - not part of the public API.
-/// 
+///
 /// **Precondition**: `coeffs` holds coefficients for degrees 0..(2*D-2) with D=54.
-/// 
-/// Implements the cyclotomic reduction X^i ≡ -X^(i-54) - X^(i-27) for i≥54 
+///
+/// Implements the cyclotomic reduction X^i ≡ -X^(i-54) - X^(i-27) for i≥54
 /// in a single downward pass, avoiding double-counting corner cases.
 ///
 /// This is specific to η=81, giving the 54th cyclotomic polynomial
 /// Φ₈₁(X) = X^54 + X^27 + 1 = ∏(X - ζ₈₁^k) where gcd(k,81)=1.
-pub(crate) fn reduce_mod_phi_81(coeffs: &mut [Fq; 2*D - 1]) {
-    for i in (D..(2*D - 1)).rev() {
+pub(crate) fn reduce_mod_phi_81(coeffs: &mut [Fq; 2 * D - 1]) {
+    for i in (D..(2 * D - 1)).rev() {
         let t = coeffs[i];
         coeffs[i] = Fq::ZERO;
-        coeffs[i - D] -= t;        // X^i = X^(i-54) * X^54 = X^(i-54) * (-X^27 - 1)
+        coeffs[i - D] -= t; // X^i = X^(i-54) * X^54 = X^(i-54) * (-X^27 - 1)
         let idx_27 = i - 27;
         if idx_27 < D {
-            coeffs[idx_27] -= t;   // -X^(i-27)
+            coeffs[idx_27] -= t; // -X^(i-27)
         } else {
             // idx_27 >= D, need recursive reduction
-            coeffs[idx_27 - D] += t;      // -(-X^(idx_27-54)) = +X^(idx_27-54)
+            coeffs[idx_27 - D] += t; // -(-X^(idx_27-54)) = +X^(idx_27-54)
             if idx_27 - 27 < D {
-                coeffs[idx_27 - 27] += t;  // -(-X^(idx_27-27)) = +X^(idx_27-27)
+                coeffs[idx_27 - 27] += t; // -(-X^(idx_27-27)) = +X^(idx_27-27)
             }
         }
     }
@@ -191,15 +206,21 @@ pub(crate) fn reduce_mod_phi_81(coeffs: &mut [Fq; 2*D - 1]) {
 /// Exposes the internal reduction function for testing cyclotomic properties
 /// Available for both unit tests and integration tests
 #[doc(hidden)]
-pub fn test_reduce_mod_phi_81(coeffs: &mut [Fq; 2*D - 1]) {
+pub fn test_reduce_mod_phi_81(coeffs: &mut [Fq; 2 * D - 1]) {
     reduce_mod_phi_81(coeffs);
 }
 
 /// MUST: coefficient embedding cf : R_q → F_q^d (just the coefficients).
-#[inline] pub fn cf(a: Rq) -> [Fq; D] { a.0 }
+#[inline]
+pub fn cf(a: Rq) -> [Fq; D] {
+    a.0
+}
 
 /// MUST: inverse map cf^{-1} : F_q^d → R_q.
-#[inline] pub fn cf_inv(v: [Fq; D]) -> Rq { Rq(v) }
+#[inline]
+pub fn cf_inv(v: [Fq; D]) -> Rq {
+    Rq(v)
+}
 
 /// MUST: infinity norm ||a||_∞ := max_i |cf(a)_i| over centered reps.
 /// (Uses u128 modulus; audit-friendly explicit modulus in `field`.)
@@ -210,7 +231,9 @@ pub fn inf_norm(a: &Rq) -> u128 {
     for &c in a.0.iter() {
         let x = c.as_canonical_u64() as u128;
         let centered = if x <= half { x } else { p - x };
-        if centered > m { m = centered; }
+        if centered > m {
+            m = centered;
+        }
     }
     m
 }

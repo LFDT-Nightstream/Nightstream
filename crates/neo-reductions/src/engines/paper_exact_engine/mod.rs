@@ -10,38 +10,40 @@
 
 #![allow(non_snake_case)]
 
-mod paper_exact;
 pub mod oracle;
+mod paper_exact;
 pub mod prove;
 pub mod verify;
 
 pub use paper_exact::{
-    // Core equalities & helpers
-    eq_points, chi_row_at_bool_point, chi_ajtai_at_bool_point,
+    // Step 3 outputs
+    build_me_outputs_paper_exact,
 
-    // Q(X) and sums
-    q_at_point_paper_exact,
-    sum_q_over_hypercube_paper_exact,
-    q_eval_at_ext_point_paper_exact,
-    q_eval_at_ext_point_paper_exact_with_inputs,
+    chi_ajtai_at_bool_point,
 
-    // Terminal identity (verifier RHS)
-    rhs_terminal_identity_paper_exact,
-
+    chi_row_at_bool_point,
     // Public claimed sum for sumcheck
     claimed_initial_sum_from_inputs,
 
-    // Step 3 outputs
-    build_me_outputs_paper_exact,
+    dec_reduction_paper_exact,
+    dec_reduction_paper_exact_with_commit_check,
+    // Core equalities & helpers
+    eq_points,
+    // Q(X) and sums
+    q_at_point_paper_exact,
+    q_eval_at_ext_point_paper_exact,
+    q_eval_at_ext_point_paper_exact_with_inputs,
 
     // Utilities
     recomposed_z_from_Z,
 
+    // Terminal identity (verifier RHS)
+    rhs_terminal_identity_paper_exact,
+
     // Paper-exact RLC/DEC
     rlc_reduction_paper_exact,
     rlc_reduction_paper_exact_with_commit_mix,
-    dec_reduction_paper_exact,
-    dec_reduction_paper_exact_with_commit_check,
+    sum_q_over_hypercube_paper_exact,
 };
 
 pub use prove::paper_exact_prove;

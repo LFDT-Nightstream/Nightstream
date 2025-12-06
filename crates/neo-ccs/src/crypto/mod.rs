@@ -14,10 +14,9 @@
 //! This approach is cryptographically sound, efficient, and avoids complex in-circuit hashing.
 //!
 //! ## Configuration
-//! 
+//!
 //! All Poseidon2 parameters (WIDTH, CAPACITY, RATE, etc.) are defined in `neo-params`
 //! as the single source of truth. This module provides the implementation.
 
 // Production Poseidon2 off-circuit hasher over Goldilocks (p3 0.3.0 API)
 pub mod poseidon2_goldilocks;
-

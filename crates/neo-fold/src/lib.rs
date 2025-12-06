@@ -7,19 +7,8 @@
 
 // Re-export everything from neo-reductions
 pub use neo_reductions::{
-    optimized_engine,
-    paper_exact_engine,
-    error,
-    pi_ccs,
-    pi_ccs_paper_exact,
-    PiCcsProof,
-    Challenges,
-    pi_ccs_prove,
-    pi_ccs_prove_simple,
-    pi_ccs_verify,
-    GenericCcsOracle,
-    PiCcsError,
-    sumcheck,
+    error, optimized_engine, paper_exact_engine, pi_ccs, pi_ccs_paper_exact, pi_ccs_prove, pi_ccs_prove_simple,
+    pi_ccs_verify, sumcheck, Challenges, GenericCcsOracle, PiCcsError, PiCcsProof,
 };
 
 // Public folding coordinator (engine-agnostic orchestrator)
@@ -27,3 +16,6 @@ pub mod folding;
 
 // Ergonomic per-step session API layered on top of the coordinator
 pub mod session;
+
+// Shard-level folding (CPU + Memory Sidecar)
+pub mod shard;

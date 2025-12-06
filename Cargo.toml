@@ -9,6 +9,8 @@ members = [
   "crates/neo-reductions",
   "crates/neo-fold",
   "crates/neo-spartan-bridge",
+  "crates/neo-vm-trace",
+  "crates/neo-memory",
 ]
 resolver = "2"
 

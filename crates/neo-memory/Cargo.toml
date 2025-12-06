@@ -1,0 +1,25 @@
+[package]
+name = "neo-memory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+description = "Memory and Lookup arguments (Twist/Shout) for Neo"
+
+[features]
+default = []
+debug-logs = ["neo-reductions/debug-logs"]
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+neo-math = { path = "../neo-math" }
+neo-ajtai = { path = "../neo-ajtai" }
+neo-ccs = { path = "../neo-ccs" }
+neo-params = { path = "../neo-params" }
+neo-vm-trace = { path = "../neo-vm-trace" }
+neo-transcript = { path = "../neo-transcript" }
+neo-reductions = { path = "../neo-reductions" }
+p3-field = { workspace = true }
+p3-matrix = { workspace = true }
+p3-goldilocks = { workspace = true } # Added

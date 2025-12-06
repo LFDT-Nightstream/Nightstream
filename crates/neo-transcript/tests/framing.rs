@@ -12,4 +12,3 @@ fn framing_distinguishes_splits() {
 
     assert_ne!(d1, d2, "framing must distinguish different label/byte splits");
 }
-

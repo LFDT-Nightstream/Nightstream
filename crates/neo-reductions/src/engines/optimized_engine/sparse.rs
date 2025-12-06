@@ -157,5 +157,3 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy> CscMat<Ff> {
         }
     }
 }
-
-

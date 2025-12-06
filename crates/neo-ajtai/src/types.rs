@@ -1,5 +1,5 @@
-use p3_goldilocks::Goldilocks as Fq;
 use p3_field::PrimeCharacteristicRing;
+use p3_goldilocks::Goldilocks as Fq;
 use serde::{Deserialize, Serialize};
 
 /// Public parameters for Ajtai: M ∈ R_q^{κ×m}, stored row-major.
@@ -23,24 +23,28 @@ pub struct Commitment {
 
 impl Commitment {
     pub fn zeros(d: usize, kappa: usize) -> Self {
-        Self { d, kappa, data: vec![Fq::ZERO; d * kappa] }
+        Self {
+            d,
+            kappa,
+            data: vec![Fq::ZERO; d * kappa],
+        }
     }
-    
-    #[inline] 
-    pub fn col(&self, c: usize) -> &[Fq] { 
-        &self.data[c*self.d .. (c+1)*self.d] 
+
+    #[inline]
+    pub fn col(&self, c: usize) -> &[Fq] {
+        &self.data[c * self.d..(c + 1) * self.d]
     }
-    
-    #[inline] 
-    pub fn col_mut(&mut self, c: usize) -> &mut [Fq] { 
-        &mut self.data[c*self.d .. (c+1)*self.d] 
+
+    #[inline]
+    pub fn col_mut(&mut self, c: usize) -> &mut [Fq] {
+        &mut self.data[c * self.d..(c + 1) * self.d]
     }
 
     pub fn add_inplace(&mut self, rhs: &Commitment) {
         debug_assert_eq!(self.d, rhs.d);
         debug_assert_eq!(self.kappa, rhs.kappa);
-        for (a,b) in self.data.iter_mut().zip(rhs.data.iter()) { 
-            *a += *b; 
+        for (a, b) in self.data.iter_mut().zip(rhs.data.iter()) {
+            *a += *b;
         }
     }
 }

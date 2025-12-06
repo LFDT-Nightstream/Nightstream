@@ -18,21 +18,25 @@
 
 #![forbid(unsafe_code)]
 
+mod commit;
+mod decomp;
 mod error;
+pub mod prg;
 mod types;
 pub mod util;
-mod decomp;
-mod commit;
-pub mod prg;
 
 pub mod s_module;
 
+pub use commit::{
+    commit, commit_masked_ct, commit_precomp_ct, s_lincomb, s_mul, setup, try_commit, verify_open, verify_split_open,
+};
+pub use decomp::{assert_range_b, decomp_b, split_b, DecompStyle};
 pub use error::{AjtaiError, AjtaiResult};
 pub use types::{Commitment, PP};
-pub use decomp::{decomp_b, split_b, assert_range_b, DecompStyle};
-pub use commit::{setup, commit, try_commit, verify_open, verify_split_open, s_mul, s_lincomb, commit_masked_ct, commit_precomp_ct};
 
 #[cfg(feature = "testing")]
 pub use commit::rot_step;
 
-pub use s_module::{AjtaiSModule, set_global_pp, get_global_pp, get_global_pp_for_dims, has_global_pp_for_dims, get_global_pp_for_z_len};
+pub use s_module::{
+    get_global_pp, get_global_pp_for_dims, get_global_pp_for_z_len, has_global_pp_for_dims, set_global_pp, AjtaiSModule,
+};

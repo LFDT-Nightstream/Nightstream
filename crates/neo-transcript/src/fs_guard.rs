@@ -24,9 +24,10 @@ pub fn take() -> Vec<crate::debug::Event> {
 }
 
 /// Return the first mismatch (index, spec, actual)
-pub fn first_mismatch<'a>(spec: &'a [crate::debug::Event], actual: &'a [crate::debug::Event])
-    -> Option<(usize, &'a crate::debug::Event, &'a crate::debug::Event)>
-{
+pub fn first_mismatch<'a>(
+    spec: &'a [crate::debug::Event],
+    actual: &'a [crate::debug::Event],
+) -> Option<(usize, &'a crate::debug::Event, &'a crate::debug::Event)> {
     let n = core::cmp::min(spec.len(), actual.len());
     for i in 0..n {
         let a = &spec[i];
@@ -37,10 +38,19 @@ pub fn first_mismatch<'a>(spec: &'a [crate::debug::Event], actual: &'a [crate::d
     }
     if spec.len() != actual.len() {
         let i = n;
-        let a = spec.get(i).unwrap_or(&crate::debug::Event{ op: "∅", label: b"", len: 0, st_prefix: [0;4]});
-        let b = actual.get(i).unwrap_or(&crate::debug::Event{ op: "∅", label: b"", len: 0, st_prefix: [0;4]});
+        let a = spec.get(i).unwrap_or(&crate::debug::Event {
+            op: "∅",
+            label: b"",
+            len: 0,
+            st_prefix: [0; 4],
+        });
+        let b = actual.get(i).unwrap_or(&crate::debug::Event {
+            op: "∅",
+            label: b"",
+            len: 0,
+            st_prefix: [0; 4],
+        });
         return Some((i, a, b));
     }
     None
 }
-

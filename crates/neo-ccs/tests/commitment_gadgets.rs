@@ -1,11 +1,13 @@
 //! Commitment gadgets (opening + lincomb) tests
 
-use neo_ccs::gadgets::commitment_opening::{commitment_opening_from_rows_ccs, commitment_lincomb_ccs};
 use neo_ccs::check_ccs_rowwise_zero;
+use neo_ccs::gadgets::commitment_opening::{commitment_lincomb_ccs, commitment_opening_from_rows_ccs};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-fn fe(x: u64) -> F { F::from_u64(x) }
+fn fe(x: u64) -> F {
+    F::from_u64(x)
+}
 
 #[test]
 fn commitment_opening_happy_and_tamper() {
@@ -25,7 +27,9 @@ fn commitment_opening_happy_and_tamper() {
     let mut c_coords = Vec::with_capacity(l);
     for i in 0..l {
         let mut acc = F::ZERO;
-        for j in 0..msg_len { acc += rows[i][j] * z[j]; }
+        for j in 0..msg_len {
+            acc += rows[i][j] * z[j];
+        }
         c_coords.push(acc);
     }
 
@@ -45,7 +49,7 @@ fn commitment_opening_happy_and_tamper() {
 
     // tamper Z (witness)
     let mut witness_bad = witness.clone();
-    let last = witness_bad.len()-1;
+    let last = witness_bad.len() - 1;
     witness_bad[last] = witness_bad[last] + fe(1);
     assert!(check_ccs_rowwise_zero(&ccs, &c_coords, &witness_bad).is_err());
 }
@@ -57,7 +61,7 @@ fn commitment_lincomb_happy_and_tamper() {
     let c_prev = vec![fe(1), fe(2), fe(3), fe(4)];
     let c_step = vec![fe(5), fe(6), fe(7), fe(8)];
     let u: Vec<F> = c_step.iter().map(|&x| rho * x).collect();
-    let c_next: Vec<F> = c_prev.iter().zip(&u).map(|(a,b)| *a + *b).collect();
+    let c_next: Vec<F> = c_prev.iter().zip(&u).map(|(a, b)| *a + *b).collect();
 
     let ccs = commitment_lincomb_ccs(len);
 
@@ -91,10 +95,7 @@ fn commitment_opening_zero_case() {
     // Test with all-zero Z
     let msg_len = 3;
     let z = vec![fe(0), fe(0), fe(0)];
-    let rows = vec![
-        vec![fe(1), fe(2), fe(3)],
-        vec![fe(4), fe(5), fe(6)],
-    ];
+    let rows = vec![vec![fe(1), fe(2), fe(3)], vec![fe(4), fe(5), fe(6)]];
 
     // c_coords should all be zero
     let c_coords = vec![fe(0), fe(0)];
@@ -113,7 +114,7 @@ fn commitment_lincomb_zero_case() {
     let rho = fe(0);
     let c_prev = vec![fe(10), fe(20), fe(30)];
     let c_step = vec![fe(1), fe(2), fe(3)];
-    
+
     // With rho=0, u should be all zeros and c_next = c_prev
     let u = vec![fe(0), fe(0), fe(0)];
     let c_next = c_prev.clone();

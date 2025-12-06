@@ -1,4 +1,4 @@
-use neo_math::{Rq, Fq, D, SAction, cf, cf_inv};
+use neo_math::{cf, cf_inv, Fq, Rq, SAction, D};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]

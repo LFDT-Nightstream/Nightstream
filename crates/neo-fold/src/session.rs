@@ -18,12 +18,12 @@
 
 #![allow(non_snake_case)]
 
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
+use neo_ajtai::{decomp_b, s_lincomb, s_mul, Commitment as Cmt, DecompStyle};
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_ajtai::{Commitment as Cmt, s_lincomb, s_mul, decomp_b, DecompStyle};
-use neo_params::NeoParams;
-use neo_math::{F, D, K};
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 use neo_math::ring::Rq as RqEl;
+use neo_math::{D, F, K};
+use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -44,9 +44,9 @@ pub struct OutputClaim<Ff> {
 /// We'll compute the commitment and split (x | w) for you.
 #[derive(Clone, Debug)]
 pub struct ProveInput<'a> {
-    pub ccs: &'a CcsStructure<F>,   // the circuit (must match witness length)
-    pub public_input: &'a [F],      // x
-    pub witness: &'a [F],           // w
+    pub ccs: &'a CcsStructure<F>,            // the circuit (must match witness length)
+    pub public_input: &'a [F],               // x
+    pub witness: &'a [F],                    // w
     pub output_claims: &'a [OutputClaim<F>], // optional; recorded but not enforced here
 }
 
@@ -87,12 +87,7 @@ pub trait NeoStep {
     fn step_spec(&self) -> StepSpec;
 
     /// Produce the CCS structure and a concrete witness for this step.
-    fn synthesize_step(
-        &mut self,
-        step_idx: usize,
-        y_prev: &[F],
-        inputs: &Self::ExternalInputs,
-    ) -> StepArtifacts;
+    fn synthesize_step(&mut self, step_idx: usize, y_prev: &[F], inputs: &Self::ExternalInputs) -> StepArtifacts;
 }
 
 /// Decompose z ∈ F^m into base-b digits Z ∈ F^{D×m} (balanced, for correct modular recomposition).
@@ -102,10 +97,10 @@ pub trait NeoStep {
 fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
     let d = D;
     let m = z.len();
-    
+
     // Column-major digits of length d for each column, balanced so recomposition equals z mod p
     let digits_col_major = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    
+
     // Convert to row-major Mat<F> of shape d×m
     let mut row_major = vec![F::ZERO; d * m];
     for c in 0..m {
@@ -117,30 +112,27 @@ fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
 }
 
 /// Convert a rotation matrix rot(a) to the ring element a for S-action.
-/// 
+///
 /// The first column of rot(a) contains cf(a) (coefficient form of the ring element a).
 /// We extract those coefficients and use cf_inv to recover the ring element.
 fn rot_matrix_to_rq(mat: &Mat<F>) -> RqEl {
     use neo_math::ring::cf_inv;
-    
+
     debug_assert_eq!(mat.rows(), D);
     debug_assert_eq!(mat.cols(), D);
-    
+
     // Extract the first column which contains cf(a)
     let mut coeffs = [F::ZERO; D];
     for i in 0..D {
         coeffs[i] = mat[(i, 0)];
     }
-    
+
     // Convert coefficient array to ring element
     cf_inv(coeffs)
 }
 
 /// Default Ajtai mixers (hidden internally).
-fn default_mixers() -> CommitMixers<
-    fn(&[Mat<F>], &[Cmt]) -> Cmt,
-    fn(&[Cmt], u32) -> Cmt
-> {
+fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt> {
     fn mix_rhos_commits(rhos: &[Mat<F>], cs: &[Cmt]) -> Cmt {
         let rq_els: Vec<RqEl> = rhos.iter().map(rot_matrix_to_rq).collect();
         s_lincomb(&rq_els, cs).expect("s_lincomb should succeed")
@@ -156,7 +148,10 @@ fn default_mixers() -> CommitMixers<
         }
         acc
     }
-    CommitMixers { mix_rhos_commits, combine_b_pows }
+    CommitMixers {
+        mix_rhos_commits,
+        combine_b_pows,
+    }
 }
 
 /// An *Accumulator* is the k ME(b, L) claims carried between steps.
@@ -171,7 +166,9 @@ impl Accumulator {
     /// Sanity checks: dimensions, common r, consistent m_in, witness shape, and y-vector padding.
     pub fn check(&self, params: &NeoParams, s: &CcsStructure<F>) -> Result<(), PiCcsError> {
         if self.me.len() != self.witnesses.len() {
-            return Err(PiCcsError::InvalidInput("Accumulator: me.len() != witnesses.len()".into()));
+            return Err(PiCcsError::InvalidInput(
+                "Accumulator: me.len() != witnesses.len()".into(),
+            ));
         }
         if self.me.is_empty() {
             return Ok(());
@@ -185,35 +182,53 @@ impl Accumulator {
         let r0 = &self.me[0].r;
         if r0.len() != ell_n {
             return Err(PiCcsError::InvalidInput(format!(
-                "Accumulator: r length mismatch (expected ell_n={}, got {})", ell_n, r0.len()
+                "Accumulator: r length mismatch (expected ell_n={}, got {})",
+                ell_n,
+                r0.len()
             )));
         }
         let m_in0 = self.me[0].m_in;
         for (i, (m, Z)) in self.me.iter().zip(self.witnesses.iter()).enumerate() {
             if m.r.len() != ell_n {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Accumulator[{}]: r length mismatch (expected ell_n={}, got {})", i, ell_n, m.r.len()
+                    "Accumulator[{}]: r length mismatch (expected ell_n={}, got {})",
+                    i,
+                    ell_n,
+                    m.r.len()
                 )));
             }
             if m.r != *r0 {
-                return Err(PiCcsError::InvalidInput("Accumulator: all ME inputs must share the same r".into()));
+                return Err(PiCcsError::InvalidInput(
+                    "Accumulator: all ME inputs must share the same r".into(),
+                ));
             }
             if m.m_in != m_in0 {
-                return Err(PiCcsError::InvalidInput("Accumulator: all ME inputs must share the same m_in".into()));
+                return Err(PiCcsError::InvalidInput(
+                    "Accumulator: all ME inputs must share the same m_in".into(),
+                ));
             }
             if Z.rows() != D || Z.cols() != s.m {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Accumulator[{}]: Z has shape {}x{}, expected {}x{}", i, Z.rows(), Z.cols(), D, s.m
+                    "Accumulator[{}]: Z has shape {}x{}, expected {}x{}",
+                    i,
+                    Z.rows(),
+                    Z.cols(),
+                    D,
+                    s.m
                 )));
             }
             if m.X.rows() != D || m.X.cols() != m.m_in {
-                return Err(PiCcsError::InvalidInput("Accumulator: X dimension mismatch with m_in".into()));
+                return Err(PiCcsError::InvalidInput(
+                    "Accumulator: X dimension mismatch with m_in".into(),
+                ));
             }
             // Validate y-vector shape: t rows, each padded to 2^{ell_d}
             if m.y.len() != s.t() || !m.y.iter().all(|row| row.len() == want_pad) {
                 return Err(PiCcsError::InvalidInput(format!(
                     "Accumulator[{}]: y shape invalid; expected t={} rows padded to 2^{{ell_d}}={}",
-                    i, s.t(), want_pad
+                    i,
+                    s.t(),
+                    want_pad
                 )));
             }
         }
@@ -244,7 +259,7 @@ fn indices_from_spec(spec: &StepSpec) -> Vec<usize> {
 /// consistency with the protocol engine (which expects padded y-vectors).
 pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
     params: &NeoParams,
-    s: &CcsStructure<F>,  // should be identity-first
+    s: &CcsStructure<F>, // should be identity-first
     l: &Lm,
     z: &[F],
     r: &[K],
@@ -252,7 +267,9 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
 ) -> Result<(MeInstance<Cmt, F, K>, Mat<F>), PiCcsError> {
     if z.len() != s.m {
         return Err(PiCcsError::InvalidInput(format!(
-            "me_from_z_balanced: z length {} != CCS.m {}", z.len(), s.m
+            "me_from_z_balanced: z length {} != CCS.m {}",
+            z.len(),
+            s.m
         )));
     }
     if m_in > s.m {
@@ -262,7 +279,9 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
     let dims = utils::build_dims_and_policy(params, s)?;
     if r.len() != dims.ell_n {
         return Err(PiCcsError::InvalidInput(format!(
-            "me_from_z_balanced: r length {} != ell_n {}", r.len(), dims.ell_n
+            "me_from_z_balanced: r length {} != ell_n {}",
+            r.len(),
+            dims.ell_n
         )));
     }
     let d_pad = 1usize << dims.ell_d;
@@ -308,7 +327,9 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
         // Only rows < s.n contribute (others are zero rows)
         for row in 0..s.n {
             let wr = chi_r[row];
-            if wr == K::ZERO { continue; }
+            if wr == K::ZERO {
+                continue;
+            }
             for c in 0..s.m {
                 vj[c] += K::from(s.matrices[j][(row, c)]) * wr;
             }
@@ -319,7 +340,9 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
     // y rows padded to 2^{ell_d}; y_scalars = base-b recomposition of first D digits
     let bF = F::from_u64(params.b as u64);
     let mut pow_b_f = vec![F::ONE; d];
-    for t in 1..d { pow_b_f[t] = pow_b_f[t - 1] * bF; }
+    for t in 1..d {
+        pow_b_f[t] = pow_b_f[t - 1] * bF;
+    }
     let pow_b_k: Vec<K> = pow_b_f.iter().copied().map(K::from).collect();
 
     let mut y: Vec<Vec<K>> = Vec::with_capacity(t);
@@ -337,13 +360,17 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
         // higher positions remain zero
 
         let mut scalar = K::ZERO;
-        for rho in 0..d { scalar += yj[rho] * pow_b_k[rho]; }
+        for rho in 0..d {
+            scalar += yj[rho] * pow_b_k[rho];
+        }
         y.push(yj);
         y_scalars.push(scalar);
     }
 
     let me = MeInstance::<Cmt, F, K> {
-        c_step_coords: vec![], u_offset: 0, u_len: 0,
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c,
         X,
         r: r.to_vec(),
@@ -363,7 +390,7 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
 /// as specified by StepSpec indices.
 pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
     params: &NeoParams,
-    s: &CcsStructure<F>,  // should be identity-first
+    s: &CcsStructure<F>, // should be identity-first
     l: &Lm,
     z: &[F],
     r: &[K],
@@ -371,14 +398,18 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
 ) -> Result<(MeInstance<Cmt, F, K>, Mat<F>), PiCcsError> {
     if z.len() != s.m {
         return Err(PiCcsError::InvalidInput(format!(
-            "me_from_z_balanced_select: z length {} != CCS.m {}", z.len(), s.m
+            "me_from_z_balanced_select: z length {} != CCS.m {}",
+            z.len(),
+            s.m
         )));
     }
 
     let dims = utils::build_dims_and_policy(params, s)?;
     if r.len() != dims.ell_n {
         return Err(PiCcsError::InvalidInput(format!(
-            "me_from_z_balanced_select: r length {} != ell_n {}", r.len(), dims.ell_n
+            "me_from_z_balanced_select: r length {} != ell_n {}",
+            r.len(),
+            dims.ell_n
         )));
     }
     let d_pad = 1usize << dims.ell_d;
@@ -402,7 +433,9 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
     for (j, &col) in x_col_indices.iter().enumerate() {
         if col >= Z.cols() {
             return Err(PiCcsError::InvalidInput(format!(
-                "X column index {} out of range (Z has {} cols)", col, Z.cols()
+                "X column index {} out of range (Z has {} cols)",
+                col,
+                Z.cols()
             )));
         }
         for rho in 0..d {
@@ -440,7 +473,9 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
         // Only rows < s.n contribute (others are zero rows)
         for row in 0..s.n {
             let wr = chi_r[row];
-            if wr == K::ZERO { continue; }
+            if wr == K::ZERO {
+                continue;
+            }
             for c in 0..s.m {
                 vj[c] += K::from(s.matrices[j][(row, c)]) * wr;
             }
@@ -451,7 +486,9 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
     // y rows padded to 2^{ell_d}; y_scalars = base-b recomposition of first D digits
     let bF = F::from_u64(params.b as u64);
     let mut pow_b_f = vec![F::ONE; d];
-    for t in 1..d { pow_b_f[t] = pow_b_f[t - 1] * bF; }
+    for t in 1..d {
+        pow_b_f[t] = pow_b_f[t - 1] * bF;
+    }
     let pow_b_k: Vec<K> = pow_b_f.iter().copied().map(K::from).collect();
 
     let mut y: Vec<Vec<K>> = Vec::with_capacity(t);
@@ -469,13 +506,17 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
         // higher positions remain zero
 
         let mut scalar = K::ZERO;
-        for rho in 0..d { scalar += yj[rho] * pow_b_k[rho]; }
+        for rho in 0..d {
+            scalar += yj[rho] * pow_b_k[rho];
+        }
         y.push(yj);
         y_scalars.push(scalar);
     }
 
     let me = MeInstance::<Cmt, F, K> {
-        c_step_coords: vec![], u_offset: 0, u_len: 0,
+        c_step_coords: vec![],
+        u_offset: 0,
+        u_len: 0,
         c,
         X,
         r: r.to_vec(),
@@ -518,11 +559,7 @@ where
     L: SModuleHomomorphism<F, Cmt> + Clone,
 {
     /// Create a new session with default Ajtai mixers and no initial accumulator (k=1 simple flow).
-    pub fn new(
-        mode: FoldingMode,
-        params: NeoParams,
-        l: L,
-    ) -> Self {
+    pub fn new(mode: FoldingMode, params: NeoParams, l: L) -> Self {
         Self {
             mode,
             params,
@@ -564,11 +601,7 @@ where
 
     /// Add one step using the `NeoStep` synthesis adapter.
     /// This accumulates the step instance and witness without performing any folding.
-    pub fn add_step<S: NeoStep>(
-        &mut self,
-        stepper: &mut S,
-        inputs: &S::ExternalInputs,
-    ) -> Result<(), PiCcsError> {
+    pub fn add_step<S: NeoStep>(&mut self, stepper: &mut S, inputs: &S::ExternalInputs) -> Result<(), PiCcsError> {
         // 1) Decide previous state y_prev
         let state_len = stepper.state_len();
         let y_prev = self
@@ -577,8 +610,12 @@ where
             .unwrap_or_else(|| vec![F::ZERO; state_len]);
 
         // 2) Let the app synthesize CCS + witness given y_prev
-        let StepArtifacts { ccs, witness: z, spec, public_app_inputs: _ } =
-            stepper.synthesize_step(self.mcss.len(), &y_prev, inputs);
+        let StepArtifacts {
+            ccs,
+            witness: z,
+            spec,
+            public_app_inputs: _,
+        } = stepper.synthesize_step(self.mcss.len(), &y_prev, inputs);
 
         // Safety: require state_len to match StepSpec
         if spec.y_len != state_len {
@@ -602,7 +639,8 @@ where
         if z.len() != s_norm.m {
             return Err(PiCcsError::InvalidInput(format!(
                 "step witness length {} != CCS.m {}",
-                z.len(), s_norm.m
+                z.len(),
+                s_norm.m
             )));
         }
         if spec.m_in > z.len() {
@@ -611,7 +649,7 @@ where
 
         // 3) Build MCS instance + witness as before
         let x_indices = indices_from_spec(&spec);
-        
+
         if x_indices.len() != spec.m_in {
             return Err(PiCcsError::InvalidInput(format!(
                 "StepSpec produced {} public-input indices, expected m_in={}",
@@ -619,17 +657,15 @@ where
                 spec.m_in
             )));
         }
-        
+
         // Validate uniqueness
         {
             use std::collections::BTreeSet;
             if x_indices.iter().copied().collect::<BTreeSet<_>>().len() != x_indices.len() {
-                return Err(PiCcsError::InvalidInput(
-                    "StepSpec indices contain duplicates".into(),
-                ));
+                return Err(PiCcsError::InvalidInput("StepSpec indices contain duplicates".into()));
             }
         }
-        
+
         // Validate range
         if let Some(&idx) = x_indices.iter().find(|&&i| i >= z.len()) {
             return Err(PiCcsError::InvalidInput(format!(
@@ -638,13 +674,13 @@ where
                 z.len()
             )));
         }
-        
+
         let x: Vec<F> = x_indices.iter().map(|&i| z[i]).collect();
-        
+
         let Z = decompose_z_to_Z(&self.params, &z);
         let c = self.l.commit(&Z);
         let m_in = spec.m_in;
-        
+
         // w is the private witness (suffix)
         let w = z[m_in..].to_vec();
 
@@ -666,7 +702,8 @@ where
                 if idx >= z.len() {
                     return Err(PiCcsError::InvalidInput(format!(
                         "StepSpec y_step_index {} out of bounds for witness of length {}",
-                        idx, z.len()
+                        idx,
+                        z.len()
                     )));
                 }
                 new_state.push(z[idx]);
@@ -680,10 +717,7 @@ where
     /// Add one step directly from (x, w) without implementing `NeoStep`.
     /// We compute the commitment and split (x | w) for you.
     /// This accumulates the step instance and witness without performing any folding.
-    pub fn add_step_from_io(
-        &mut self,
-        input: &ProveInput<'_>,
-    ) -> Result<(), PiCcsError> {
+    pub fn add_step_from_io(&mut self, input: &ProveInput<'_>) -> Result<(), PiCcsError> {
         // Normalize CCS to identity-first
         let s_norm = input
             .ccs
@@ -713,8 +747,15 @@ where
         let c = self.l.commit(&Z);
 
         // Produce MCS instance + witness
-        let mcs_inst = McsInstance { c, x: input.public_input.to_vec(), m_in };
-        let mcs_wit = McsWitness { w: input.witness.to_vec(), Z };
+        let mcs_inst = McsInstance {
+            c,
+            x: input.public_input.to_vec(),
+            m_in,
+        };
+        let mcs_wit = McsWitness {
+            w: input.witness.to_vec(),
+            Z,
+        };
 
         self.mcss.push((mcs_inst, mcs_wit));
         self.step_claims.push(input.output_claims.to_vec());
@@ -725,10 +766,7 @@ where
     /// Fold and prove: run folding over all collected steps and return a `FoldRun`.
     /// This is where the actual cryptographic work happens (Π_CCS → RLC → DEC for each step).
     /// This method manages the transcript internally for ease of use.
-    pub fn fold_and_prove(
-        &mut self,
-        s: &CcsStructure<F>,
-    ) -> Result<FoldRun, PiCcsError> {
+    pub fn fold_and_prove(&mut self, s: &CcsStructure<F>) -> Result<FoldRun, PiCcsError> {
         let mut tr = Poseidon2Transcript::new(b"neo.fold/session");
         self.fold_and_prove_with_transcript(&mut tr, s)
     }
@@ -751,15 +789,9 @@ where
             .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
 
         // Determine canonical m_in from steps and ensure they all match (needed for RLC).
-        let m_in_steps = self
-            .mcss
-            .first()
-            .map(|(inst, _)| inst.m_in)
-            .unwrap_or(0);
+        let m_in_steps = self.mcss.first().map(|(inst, _)| inst.m_in).unwrap_or(0);
         if !self.mcss.iter().all(|(inst, _)| inst.m_in == m_in_steps) {
-            return Err(PiCcsError::InvalidInput(
-                "all steps must share the same m_in".into(),
-            ));
+            return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
         }
 
         // Validate or default the accumulator: None → k=1 simple case (no ME inputs).
@@ -821,9 +853,7 @@ where
         // m_in consistency across public MCS
         let m_in_steps = mcss_public.first().map(|inst| inst.m_in).unwrap_or(0);
         if !mcss_public.iter().all(|inst| inst.m_in == m_in_steps) {
-            return Err(PiCcsError::InvalidInput(
-                "all steps must share the same m_in".into(),
-            ));
+            return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
         }
 
         // Validate (or empty) initial accumulator to mirror finalize()

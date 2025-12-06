@@ -5,10 +5,10 @@
 
 #![allow(non_snake_case)]
 
-use neo_ccs::{CcsStructure, MeInstance, Mat};
 use neo_ajtai::Commitment as Cmt;
-use neo_params::NeoParams;
+use neo_ccs::{CcsStructure, Mat, MeInstance};
 use neo_math::{F, K};
+use neo_params::NeoParams;
 
 /// Trait for RLC/DEC algebraic operations over ME instances.
 pub trait RlcDecOps {
@@ -60,9 +60,7 @@ impl RlcDecOps for OptimizedRlcDec {
     {
         // For now, delegate to paper-exact implementation
         // TODO: Add optimized implementation
-        let (mut out, Z) = super::paper_exact_engine::rlc_reduction_paper_exact(
-            s, params, rhos, me_inputs, Zs, ell_d,
-        );
+        let (mut out, Z) = super::paper_exact_engine::rlc_reduction_paper_exact(s, params, rhos, me_inputs, Zs, ell_d);
         let inputs_c: Vec<Cmt> = me_inputs.iter().map(|m| m.c.clone()).collect();
         out.c = mix_commits(rhos, &inputs_c);
         (out, Z)
@@ -82,9 +80,8 @@ impl RlcDecOps for OptimizedRlcDec {
     {
         // For now, delegate to paper-exact implementation
         // TODO: Add optimized implementation
-        let (mut children, ok_y, ok_X) = super::paper_exact_engine::dec_reduction_paper_exact(
-            s, params, parent, Z_split, ell_d,
-        );
+        let (mut children, ok_y, ok_X) =
+            super::paper_exact_engine::dec_reduction_paper_exact(s, params, parent, Z_split, ell_d);
         // Patch children commitments and check c relation
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();
@@ -113,9 +110,7 @@ impl RlcDecOps for PaperExactRlcDec {
     where
         Comb: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
     {
-        let (mut out, Z) = super::paper_exact_engine::rlc_reduction_paper_exact(
-            s, params, rhos, me_inputs, Zs, ell_d,
-        );
+        let (mut out, Z) = super::paper_exact_engine::rlc_reduction_paper_exact(s, params, rhos, me_inputs, Zs, ell_d);
         let inputs_c: Vec<Cmt> = me_inputs.iter().map(|m| m.c.clone()).collect();
         out.c = mix_commits(rhos, &inputs_c);
         (out, Z)
@@ -133,9 +128,8 @@ impl RlcDecOps for PaperExactRlcDec {
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        let (mut children, ok_y, ok_X) = super::paper_exact_engine::dec_reduction_paper_exact(
-            s, params, parent, Z_split, ell_d,
-        );
+        let (mut children, ok_y, ok_X) =
+            super::paper_exact_engine::dec_reduction_paper_exact(s, params, parent, Z_split, ell_d);
         // Patch children commitments and check c relation
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();

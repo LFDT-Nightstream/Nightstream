@@ -1,0 +1,34 @@
+# rustfmt configuration for neo/halo3 workspace
+# Based on observed codebase conventions (stable options only)
+
+# Maximum line width - code stays around 100 chars
+max_width = 120
+
+# Standard 4-space indentation
+tab_spaces = 4
+hard_tabs = false
+
+# Use Rust 2021 edition formatting
+edition = "2021"
+
+# Keep imports organized
+reorder_imports = true
+reorder_modules = true
+
+# General formatting heuristics
+use_small_heuristics = "Default"
+
+# Unix-style line endings
+newline_style = "Unix"
+
+# Function call/definition formatting (stable)
+fn_params_layout = "Tall"
+
+# Chain formatting width
+chain_width = 60
+
+# Match blocks - no trailing commas after closing braces (matches current style)
+match_block_trailing_comma = false
+
+# Array/struct width thresholds
+struct_variant_width = 35

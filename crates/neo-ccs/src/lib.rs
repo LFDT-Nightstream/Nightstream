@@ -6,10 +6,10 @@
 //! (MCS & ME), the row-wise CCS check, and the consistency equalities used by Π_CCS/Π_RLC/Π_DEC.
 
 // Audit-ready core modules
-/// Error types for CCS operations.
-pub mod error;
 /// Production cryptographic primitives (Poseidon2 implementation).
 pub mod crypto;
+/// Error types for CCS operations.
+pub mod error;
 /// Cryptographic gadgets for CCS circuits.
 pub mod gadgets;
 /// Matrix types and operations.
@@ -29,7 +29,7 @@ pub mod utils;
 
 // Re-export core types
 pub use error::{CcsError, DimMismatch, RelationError};
-pub use matrix::{Mat, MatRef, CsrMatrix};
+pub use matrix::{CsrMatrix, Mat, MatRef};
 pub use poly::{SparsePoly, Term};
 pub use r1cs::r1cs_to_ccs;
 
@@ -37,9 +37,8 @@ pub use r1cs::r1cs_to_ccs;
 pub use utils::direct_sum_transcript_mixed;
 // Main CCS types and functions (audit-ready)
 pub use relations::{
-    CcsStructure, McsInstance, McsWitness, MeInstance, MeWitness,
-    check_mcs_opening, check_me_consistency, check_ccs_rowwise_zero,
-    check_ccs_rowwise_relaxed,
+    check_ccs_rowwise_relaxed, check_ccs_rowwise_zero, check_mcs_opening, check_me_consistency, CcsStructure,
+    McsInstance, McsWitness, MeInstance, MeWitness,
 };
 pub use traits::SModuleHomomorphism;
-pub use utils::{tensor_point, mat_vec_mul_fk, mat_vec_mul_ff, validate_power_of_two, direct_sum, direct_sum_mixed};
+pub use utils::{direct_sum, direct_sum_mixed, mat_vec_mul_ff, mat_vec_mul_fk, tensor_point, validate_power_of_two};

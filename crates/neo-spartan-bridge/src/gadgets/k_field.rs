@@ -8,9 +8,7 @@
 //! - Multiplication: (a0, a1) * (b0, b1) = (a0*b0 + a1*b1*δ, a0*b1 + a1*b0)
 //! - Lifting from F to K: x -> (x, 0)
 
-use bellpepper_core::{
-    ConstraintSystem, SynthesisError, Variable,
-};
+use bellpepper_core::{ConstraintSystem, SynthesisError, Variable};
 use ff::PrimeField;
 use neo_math::K as NeoK;
 
@@ -44,7 +42,7 @@ impl<F: PrimeField> KNum<F> {
     pub fn from_neo_k(k: NeoK) -> Self {
         use neo_math::KExtensions;
         use p3_field::PrimeField64;
-        
+
         // Extract actual base field coefficients (not arbitrary limbs)
         let coeffs = k.as_coeffs(); // Returns [Fq; 2]
         Self {
@@ -62,11 +60,21 @@ pub fn alloc_k<F: PrimeField, CS: ConstraintSystem<F>>(
 ) -> Result<KNumVar, SynthesisError> {
     let c0 = cs.alloc(
         || format!("{}_c0", label),
-        || value.as_ref().map(|v| v.c0).ok_or(SynthesisError::AssignmentMissing),
+        || {
+            value
+                .as_ref()
+                .map(|v| v.c0)
+                .ok_or(SynthesisError::AssignmentMissing)
+        },
     )?;
     let c1 = cs.alloc(
         || format!("{}_c1", label),
-        || value.as_ref().map(|v| v.c1).ok_or(SynthesisError::AssignmentMissing),
+        || {
+            value
+                .as_ref()
+                .map(|v| v.c1)
+                .ok_or(SynthesisError::AssignmentMissing)
+        },
     )?;
     Ok(KNumVar { c0, c1 })
 }
@@ -79,11 +87,8 @@ pub fn k_lift_from_f<F: PrimeField, CS: ConstraintSystem<F>>(
     label: &str,
 ) -> Result<KNumVar, SynthesisError> {
     // c0 = f_var, c1 = 0 (witness variable, not public input)
-    let c1 = cs.alloc(
-        || format!("{}_c1_zero", label),
-        || Ok(F::ZERO),
-    )?;
-    
+    let c1 = cs.alloc(|| format!("{}_c1_zero", label), || Ok(F::ZERO))?;
+
     // Enforce c1 = 0
     cs.enforce(
         || format!("{}_c1_is_zero", label),
@@ -96,7 +101,7 @@ pub fn k_lift_from_f<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 /// K-field addition: (a0, a1) + (b0, b1) = (a0+b0, a1+b1)
-/// 
+///
 /// value_hint: Optional precomputed result for witness generation
 pub fn k_add<F: PrimeField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -107,10 +112,7 @@ pub fn k_add<F: PrimeField, CS: ConstraintSystem<F>>(
 ) -> Result<KNumVar, SynthesisError> {
     // c0 = a.c0 + b.c0
     let c0_val = value_hint.as_ref().map(|v| v.c0);
-    let c0 = cs.alloc(
-        || format!("{}_sum_c0", label),
-        || Ok(c0_val.unwrap_or(F::ZERO)),
-    )?;
+    let c0 = cs.alloc(|| format!("{}_sum_c0", label), || Ok(c0_val.unwrap_or(F::ZERO)))?;
 
     // Enforce c0 = a.c0 + b.c0
     cs.enforce(
@@ -122,10 +124,7 @@ pub fn k_add<F: PrimeField, CS: ConstraintSystem<F>>(
 
     // c1 = a.c1 + b.c1
     let c1_val = value_hint.as_ref().map(|v| v.c1);
-    let c1 = cs.alloc(
-        || format!("{}_sum_c1", label),
-        || Ok(c1_val.unwrap_or(F::ZERO)),
-    )?;
+    let c1 = cs.alloc(|| format!("{}_sum_c1", label), || Ok(c1_val.unwrap_or(F::ZERO)))?;
 
     // Enforce c1 = a.c1 + b.c1
     cs.enforce(
@@ -155,37 +154,19 @@ pub fn k_mul<F: PrimeField, CS: ConstraintSystem<F>>(
     // Allocate result components using hint
     let c0_val = value_hint.as_ref().map(|v| v.c0);
     let c1_val = value_hint.as_ref().map(|v| v.c1);
-    
-    let c0 = cs.alloc(
-        || format!("{}_prod_c0", label),
-        || Ok(c0_val.unwrap_or(F::ZERO)),
-    )?;
-    
-    let c1 = cs.alloc(
-        || format!("{}_prod_c1", label),
-        || Ok(c1_val.unwrap_or(F::ZERO)),
-    )?;
+
+    let c0 = cs.alloc(|| format!("{}_prod_c0", label), || Ok(c0_val.unwrap_or(F::ZERO)))?;
+
+    let c1 = cs.alloc(|| format!("{}_prod_c1", label), || Ok(c1_val.unwrap_or(F::ZERO)))?;
 
     // Allocate intermediate products (witness only, no hint needed)
-    let a0_b0 = cs.alloc(
-        || format!("{}_a0b0", label),
-        || Ok(F::ZERO),
-    )?;
+    let a0_b0 = cs.alloc(|| format!("{}_a0b0", label), || Ok(F::ZERO))?;
 
-    let a1_b1 = cs.alloc(
-        || format!("{}_a1b1", label),
-        || Ok(F::ZERO),
-    )?;
+    let a1_b1 = cs.alloc(|| format!("{}_a1b1", label), || Ok(F::ZERO))?;
 
-    let a0_b1 = cs.alloc(
-        || format!("{}_a0b1", label),
-        || Ok(F::ZERO),
-    )?;
+    let a0_b1 = cs.alloc(|| format!("{}_a0b1", label), || Ok(F::ZERO))?;
 
-    let a1_b0 = cs.alloc(
-        || format!("{}_a1b0", label),
-        || Ok(F::ZERO),
-    )?;
+    let a1_b0 = cs.alloc(|| format!("{}_a1b0", label), || Ok(F::ZERO))?;
 
     // Enforce intermediate products
     cs.enforce(
@@ -247,10 +228,7 @@ pub fn k_scalar_mul<F: PrimeField, CS: ConstraintSystem<F>>(
 ) -> Result<KNumVar, SynthesisError> {
     // c0 = k * a.c0
     let c0_val = value_hint.as_ref().map(|v| v.c0);
-    let c0 = cs.alloc(
-        || format!("{}_scaled_c0", label),
-        || Ok(c0_val.unwrap_or(F::ZERO)),
-    )?;
+    let c0 = cs.alloc(|| format!("{}_scaled_c0", label), || Ok(c0_val.unwrap_or(F::ZERO)))?;
 
     cs.enforce(
         || format!("{}_c0_constraint", label),
@@ -261,10 +239,7 @@ pub fn k_scalar_mul<F: PrimeField, CS: ConstraintSystem<F>>(
 
     // c1 = k * a.c1
     let c1_val = value_hint.as_ref().map(|v| v.c1);
-    let c1 = cs.alloc(
-        || format!("{}_scaled_c1", label),
-        || Ok(c1_val.unwrap_or(F::ZERO)),
-    )?;
+    let c1 = cs.alloc(|| format!("{}_scaled_c1", label), || Ok(c1_val.unwrap_or(F::ZERO)))?;
 
     cs.enforce(
         || format!("{}_c1_constraint", label),

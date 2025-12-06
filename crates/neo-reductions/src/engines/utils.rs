@@ -1,18 +1,18 @@
 //! Minimal protocol utilities for paper-exact implementation
-//! 
+//!
 //! Contains only the essential functions needed by prove and verify.
 
 #![allow(non_snake_case)]
 
-use neo_transcript::{Transcript, Poseidon2Transcript, labels as tr_labels};
-use neo_ccs::{CcsStructure, McsInstance, MeInstance, MatRef, SparsePoly};
+use crate::error::PiCcsError;
 use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsStructure, MatRef, McsInstance, MeInstance, SparsePoly};
+use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
-use neo_math::{F, K, D, KExtensions};
-use p3_field::{Field, PrimeField64, PrimeCharacteristicRing};
+use neo_transcript::{labels as tr_labels, Poseidon2Transcript, Transcript};
+use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
-use crate::error::PiCcsError;
 
 /// Computed dimensions for the CCS reduction
 #[derive(Debug, Clone, Copy)]
@@ -26,20 +26,17 @@ pub struct Dims {
 pub use crate::optimized_engine::Challenges;
 
 /// Build dimensions and validate extension field security policy
-pub fn build_dims_and_policy(
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-) -> Result<Dims, PiCcsError> {
+pub fn build_dims_and_policy(params: &NeoParams, s: &CcsStructure<F>) -> Result<Dims, PiCcsError> {
     if s.n == 0 {
         return Err(PiCcsError::InvalidInput("n=0 not allowed".into()));
     }
 
     let d_pad = D.next_power_of_two();
     let ell_d = d_pad.trailing_zeros() as usize;
-    
+
     let n_pad = s.n.next_power_of_two().max(2);
     let ell_n = n_pad.trailing_zeros() as usize;
-    
+
     let ell = ell_d + ell_n;
 
     let d_sc = core::cmp::max(
@@ -47,16 +44,23 @@ pub fn build_dims_and_policy(
         core::cmp::max(2, 2 * (params.b as usize) + 2),
     );
 
-    let ext = params.extension_check(ell as u32, d_sc as u32)
+    let ext = params
+        .extension_check(ell as u32, d_sc as u32)
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
 
     if ext.slack_bits < 0 {
         return Err(PiCcsError::ExtensionPolicyFailed(format!(
-            "Insufficient security slack: {} bits", ext.slack_bits
+            "Insufficient security slack: {} bits",
+            ext.slack_bits
         )));
     }
 
-    Ok(Dims { ell_d, ell_n, ell, d_sc })
+    Ok(Dims {
+        ell_d,
+        ell_n,
+        ell,
+        d_sc,
+    })
 }
 
 /// Bind header and MCS instances to transcript
@@ -70,21 +74,24 @@ pub fn bind_header_and_instances(
     _slack_bits: i32,
 ) -> Result<(), PiCcsError> {
     tr.append_message(tr_labels::PI_CCS, b"");
-    
+
     let ext = params
         .extension_check(ell as u32, d_sc as u32)
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
-    
+
     tr.append_message(b"neo/ccs/header/v1", b"");
-    
-    tr.append_u64s(b"ccs/header", &[
-        64,
-        ext.s_supported as u64,
-        params.lambda as u64,
-        ell as u64,
-        d_sc as u64,
-        ext.slack_bits.unsigned_abs() as u64,
-    ]);
+
+    tr.append_u64s(
+        b"ccs/header",
+        &[
+            64,
+            ext.s_supported as u64,
+            params.lambda as u64,
+            ell as u64,
+            d_sc as u64,
+            ext.slack_bits.unsigned_abs() as u64,
+        ],
+    );
     tr.append_message(b"ccs/slack_sign", &[if ext.slack_bits >= 0 { 1 } else { 0 }]);
 
     tr.append_message(b"neo/ccs/instances", b"");
@@ -106,10 +113,7 @@ pub fn bind_header_and_instances(
 }
 
 /// Bind ME inputs to transcript
-pub fn bind_me_inputs(
-    tr: &mut Poseidon2Transcript,
-    me_inputs: &[MeInstance<Cmt, F, K>],
-) -> Result<(), PiCcsError> {
+pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[MeInstance<Cmt, F, K>]) -> Result<(), PiCcsError> {
     tr.append_message(b"neo/ccs/me_inputs", b"");
     tr.append_u64s(b"me_count", &[me_inputs.len() as u64]);
 
@@ -130,11 +134,7 @@ pub fn bind_me_inputs(
 }
 
 /// Sample challenges α, β, γ from transcript
-pub fn sample_challenges(
-    tr: &mut Poseidon2Transcript,
-    ell_d: usize,
-    ell: usize,
-) -> Result<Challenges, PiCcsError> {
+pub fn sample_challenges(tr: &mut Poseidon2Transcript, ell_d: usize, ell: usize) -> Result<Challenges, PiCcsError> {
     tr.append_message(b"neo/ccs/chals/v1", b"");
 
     let alpha: Vec<K> = (0..ell_d)
@@ -155,7 +155,7 @@ pub fn sample_challenges(
 
     let g = tr.challenge_fields(b"chal/k", 2);
     let gamma = neo_math::from_complex(g[0], g[1]);
-    
+
     Ok(Challenges {
         alpha,
         beta_a: beta_a.to_vec(),
@@ -165,7 +165,7 @@ pub fn sample_challenges(
 }
 
 fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<Goldilocks> {
-    use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
+    use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 
     const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;
     let mut rng = ChaCha8Rng::seed_from_u64(CCS_DIGEST_SEED);
@@ -238,4 +238,3 @@ fn absorb_sparse_polynomial(tr: &mut Poseidon2Transcript, f: &SparsePoly<F>) {
         tr.append_u64s(b"exps", &exps);
     }
 }
-

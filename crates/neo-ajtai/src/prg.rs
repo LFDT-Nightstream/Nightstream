@@ -3,9 +3,9 @@
 //! Deterministically expands a public seed into Ajtai rows using the unified
 //! Poseidon2(Goldilocks, w=16, r=8, cap=8) sponge. Host-only utility for now.
 
+use neo_ccs::crypto::poseidon2_goldilocks as p2;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use neo_ccs::crypto::poseidon2_goldilocks as p2;
 use p3_field::PrimeField64;
 
 /// Expand a single Ajtai row deterministically from a seed and row index.
@@ -28,7 +28,9 @@ pub fn expand_row_v2(seed: &[u8; 32], row_idx: u64, len: usize) -> Vec<F> {
         bytes.extend_from_slice(&ctr.to_le_bytes());
         let digest = p2::poseidon2_hash_packed_bytes(&bytes);
         for g in digest.iter() {
-            if out.len() >= len { break; }
+            if out.len() >= len {
+                break;
+            }
             out.push(F::from_u64(g.as_canonical_u64()));
         }
         ctr = ctr.wrapping_add(1);

@@ -5,7 +5,7 @@ use crate::{
     matrix::{Mat, MatRef},
     poly::SparsePoly,
     traits::SModuleHomomorphism,
-    utils::{tensor_point, mat_vec_mul_ff, mat_vec_mul_fk},
+    utils::{mat_vec_mul_ff, mat_vec_mul_fk, tensor_point},
 };
 
 /// CCS structure: matrices {M_j} and a sparse polynomial `f` in `t` variables.
@@ -24,7 +24,9 @@ pub struct CcsStructure<F> {
 impl<F: Field> CcsStructure<F> {
     /// Create a CCS structure; validates matrix shapes & polynomial arity.
     pub fn new(matrices: Vec<Mat<F>>, f: SparsePoly<F>) -> Result<Self, RelationError> {
-        if matrices.is_empty() { return Err(RelationError::InvalidStructure); }
+        if matrices.is_empty() {
+            return Err(RelationError::InvalidStructure);
+        }
         let n = matrices[0].rows();
         let m = matrices[0].cols();
         for mj in matrices.iter() {
@@ -37,16 +39,23 @@ impl<F: Field> CcsStructure<F> {
         }
         let t = matrices.len();
         if f.arity() != t {
-            return Err(RelationError::PolyArity { poly_arity: f.arity(), t });
+            return Err(RelationError::PolyArity {
+                poly_arity: f.arity(),
+                t,
+            });
         }
         Ok(Self { matrices, f, n, m })
     }
 
     /// Number of matrices (arity of `f`).
-    pub fn t(&self) -> usize { self.matrices.len() }
-    
+    pub fn t(&self) -> usize {
+        self.matrices.len()
+    }
+
     /// Maximum degree of the CCS polynomial.
-    pub fn max_degree(&self) -> u32 { self.f.max_degree() }
+    pub fn max_degree(&self) -> u32 {
+        self.f.max_degree()
+    }
 
     /// Ensure the first matrix is the identity I_n, as assumed by paper's NC semantics.
     /// If not, insert I_n at index 0 and shift the polynomial arity/variables accordingly.
@@ -55,32 +64,41 @@ impl<F: Field> CcsStructure<F> {
         F: p3_field::PrimeCharacteristicRing + Copy + Eq + Clone,
     {
         // If not square, we cannot insert a true identity; leave structure unchanged.
-        if self.n != self.m { return Ok(self.clone()); }
+        if self.n != self.m {
+            return Ok(self.clone());
+        }
         let is_id0 = self
             .matrices
             .first()
             .map(|m0| m0.is_identity())
             .unwrap_or(false);
-        if is_id0 { return Ok(self.clone()); }
+        if is_id0 {
+            return Ok(self.clone());
+        }
         // Insert identity at position 0
         let mut matrices = self.matrices.clone();
         matrices.insert(0, Mat::<F>::identity(self.n));
         // Shift polynomial variables by inserting a dummy variable at the front
         let f = self.f.insert_var_at_front();
-        Ok(CcsStructure { matrices, f, n: self.n, m: self.m })
+        Ok(CcsStructure {
+            matrices,
+            f,
+            n: self.n,
+            m: self.m,
+        })
     }
 
     /// **STRICT** validation: Assert that M₀ = I_n for Ajtai/NC pipeline.
-    /// 
+    ///
     /// The Ajtai norm constraint (NC) layer assumes the first matrix is the identity
     /// for digit-range checks. If this invariant is violated, the sumcheck will fail
     /// with a mysterious error later. This function fails fast with a clear error message.
-    /// 
+    ///
     /// # Errors
     /// - Returns error if n ≠ m (non-square CCS cannot have square identity)
     /// - Returns error if matrices list is empty
     /// - Returns error if M₀ is not the identity matrix I_n
-    /// 
+    ///
     /// # Example
     /// ```ignore
     /// // Before using CCS in Ajtai/NC pipeline:
@@ -102,7 +120,7 @@ impl<F: Field> CcsStructure<F> {
         // Check 2: Must have at least one matrix
         if self.matrices.is_empty() {
             return Err(RelationError::Message(
-                "Ajtai NC expects at least one matrix (M₀) in CCS".into()
+                "Ajtai NC expects at least one matrix (M₀) in CCS".into(),
             ));
         }
 
@@ -114,7 +132,8 @@ impl<F: Field> CcsStructure<F> {
                  This usually happens with rectangular R1CS or when r1cs_to_ccs \
                  doesn't produce identity-first form. \
                  Try: (1) ensure n==m in R1CS, or (2) call ensure_identity_first() \
-                 before this check.".into()
+                 before this check."
+                    .into(),
             ));
         }
 
@@ -180,7 +199,7 @@ pub struct MeWitness<F> {
     pub Z: Mat<F>,
 }
 
-/// Check `c == L(Z)` for MCS. 
+/// Check `c == L(Z)` for MCS.
 /// Note: The critical Z == Decomp_b(z) check is now handled in the folding pipeline
 /// where both neo-ccs and neo-ajtai dependencies are available.
 pub fn check_mcs_opening<F: Field, C, L: SModuleHomomorphism<F, C>>(
@@ -188,12 +207,13 @@ pub fn check_mcs_opening<F: Field, C, L: SModuleHomomorphism<F, C>>(
     inst: &McsInstance<C, F>,
     wit: &McsWitness<F>,
 ) -> Result<Vec<F>, CcsError>
-where C: PartialEq
+where
+    C: PartialEq,
 {
     // shape sanity
     let m = inst.m_in + wit.w.len();
     if wit.Z.cols() != m {
-        return Err(CcsError::Dim{
+        return Err(CcsError::Dim {
             context: "Z (cols) vs m_in + |w|",
             expected: (wit.Z.rows(), m),
             got: (wit.Z.rows(), wit.Z.cols()),
@@ -201,7 +221,11 @@ where C: PartialEq
     }
     // z = x || w
     if inst.x.len() != inst.m_in {
-        return Err(CcsError::Len{ context: "x (public)", expected: inst.m_in, got: inst.x.len()});
+        return Err(CcsError::Len {
+            context: "x (public)",
+            expected: inst.m_in,
+            got: inst.x.len(),
+        });
     }
     let mut z = inst.x.clone();
     z.extend_from_slice(&wit.w);
@@ -222,7 +246,8 @@ pub fn check_me_consistency<F: Field, K: Field + From<F>, C, L: SModuleHomomorph
     inst: &MeInstance<C, F, K>,
     wit: &MeWitness<F>,
 ) -> Result<(), CcsError>
-where C: PartialEq
+where
+    C: PartialEq,
 {
     // X = L_x(Z)
     let x_star = l.project_x(&wit.Z, inst.m_in);
@@ -250,7 +275,13 @@ where C: PartialEq
     let rb = tensor_point::<K>(&inst.r); // K^n
 
     // for each j: v := M_j^T r^b ∈ K^m; then y_j = Z v ∈ K^d
-    if inst.y.len() != s.t() { return Err(CcsError::Len{ context: "|y|", expected: s.t(), got: inst.y.len() }); }
+    if inst.y.len() != s.t() {
+        return Err(CcsError::Len {
+            context: "|y|",
+            expected: s.t(),
+            got: inst.y.len(),
+        });
+    }
 
     for (j, mj) in s.matrices.iter().enumerate() {
         // v = M_j^T r^b  →  v[c] = Σ_r M_j[r,c] * rb[r]
@@ -281,15 +312,16 @@ where C: PartialEq
 ///
 /// This matches Def. 17's condition `f(Mg_1 z, …, Mg_t z) ∈ ZS_n` by simply
 /// checking that for each row i, `f((M_1 z)[i], …, (M_t z)[i]) == 0`.
-pub fn check_ccs_rowwise_zero<F: Field>(
-    s: &CcsStructure<F>,
-    x: &[F],
-    w: &[F],
-) -> Result<(), CcsError> {
+pub fn check_ccs_rowwise_zero<F: Field>(s: &CcsStructure<F>, x: &[F], w: &[F]) -> Result<(), CcsError> {
     if x.len() + w.len() != s.m {
-        return Err(CcsError::Len{ context: "z = x||w length", expected: s.m, got: x.len()+w.len() });
+        return Err(CcsError::Len {
+            context: "z = x||w length",
+            expected: s.m,
+            got: x.len() + w.len(),
+        });
     }
-    let mut z = x.to_vec(); z.extend_from_slice(w);
+    let mut z = x.to_vec();
+    z.extend_from_slice(w);
 
     // Compute M_j z for every j
     let mut mz: Vec<Vec<F>> = Vec::with_capacity(s.t());
@@ -301,9 +333,13 @@ pub fn check_ccs_rowwise_zero<F: Field>(
     // Row-wise: for each i, evaluate f( (M_1 z)[i], ..., (M_t z)[i] ) == 0
     for i in 0..s.n {
         let mut point = Vec::with_capacity(s.t());
-        for j in 0..s.t() { point.push(mz[j][i]); }
+        for j in 0..s.t() {
+            point.push(mz[j][i]);
+        }
         let val = s.f.eval(&point);
-        if val != F::ZERO { return Err(CcsError::RowFail{ row: i }); }
+        if val != F::ZERO {
+            return Err(CcsError::RowFail { row: i });
+        }
     }
     Ok(())
 }
@@ -322,18 +358,29 @@ pub fn check_ccs_rowwise_relaxed<F: Field>(
     let zero_u: Vec<F>;
     let u = match u {
         Some(u) => {
-            if u.len() != s.n { return Err(CcsError::Len{ context: "u (slack)", expected: s.n, got: u.len() }); }
+            if u.len() != s.n {
+                return Err(CcsError::Len {
+                    context: "u (slack)",
+                    expected: s.n,
+                    got: u.len(),
+                });
+            }
             u
-        },
+        }
         None => {
             zero_u = vec![F::ZERO; s.n];
             &zero_u
         }
     };
     if x.len() + w.len() != s.m {
-        return Err(CcsError::Len{ context: "z = x||w length", expected: s.m, got: x.len()+w.len() });
+        return Err(CcsError::Len {
+            context: "z = x||w length",
+            expected: s.m,
+            got: x.len() + w.len(),
+        });
     }
-    let mut z = x.to_vec(); z.extend_from_slice(w);
+    let mut z = x.to_vec();
+    z.extend_from_slice(w);
 
     // M_j z for every j
     let mut mz: Vec<Vec<F>> = Vec::with_capacity(s.t());
@@ -345,9 +392,13 @@ pub fn check_ccs_rowwise_relaxed<F: Field>(
     // Row-wise: f( (M_1 z)[i], ..., (M_t z)[i] ) == e * u[i]
     for i in 0..s.n {
         let mut point = Vec::with_capacity(s.t());
-        for j in 0..s.t() { point.push(mz[j][i]); }
+        for j in 0..s.t() {
+            point.push(mz[j][i]);
+        }
         let val = s.f.eval(&point);
-        if val != e * u[i] { return Err(CcsError::RowFail{ row: i }); }
+        if val != e * u[i] {
+            return Err(CcsError::RowFail { row: i });
+        }
     }
     Ok(())
 }

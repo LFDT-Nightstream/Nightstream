@@ -7,4 +7,4 @@
 mod crosscheck;
 mod logging;
 
-pub use crosscheck::{CrossCheckEngine, CrosscheckCfg, crosscheck_prove, crosscheck_verify};
+pub use crosscheck::{crosscheck_prove, crosscheck_verify, CrossCheckEngine, CrosscheckCfg};

@@ -8,31 +8,27 @@
 
 #![allow(unused_imports)]
 
-use crate::circuit::{FoldRunCircuit, FoldRunWitness, FoldRunInstance};
 use crate::circuit::fold_circuit::CircuitPolyTerm;
+use crate::circuit::{FoldRunCircuit, FoldRunInstance, FoldRunWitness};
 use crate::error::{Result, SpartanBridgeError};
 use crate::CircuitF;
-use neo_fold::folding::FoldRun;
-use neo_params::NeoParams;
-use neo_ccs::{CcsStructure, MeInstance};
-use neo_math::{F as NeoF, K as NeoK};
 use neo_ajtai::Commitment as Cmt;
-use neo_reductions::paper_exact_engine::claimed_initial_sum_from_inputs;
+use neo_ccs::{CcsStructure, MeInstance};
+use neo_fold::folding::FoldRun;
+use neo_math::{F as NeoF, K as NeoK};
+use neo_params::NeoParams;
 use neo_reductions::common::format_ext;
+use neo_reductions::paper_exact_engine::claimed_initial_sum_from_inputs;
 use p3_field::PrimeCharacteristicRing;
 
-use spartan2::{
-    spartan::R1CSSNARK,
-    traits::snark::R1CSSNARKTrait,
-    provider::GoldilocksP3MerkleMleEngine,
-};
+use spartan2::{provider::GoldilocksP3MerkleMleEngine, spartan::R1CSSNARK, traits::snark::R1CSSNARKTrait};
 
 /// Proof output from Spartan2
 #[derive(Clone, Debug)]
 pub struct SpartanProof {
     /// The actual Spartan proof bytes
     pub proof_data: Vec<u8>,
-    
+
     /// Public instance (for verification)
     pub instance: FoldRunInstance,
 }
@@ -60,7 +56,7 @@ pub fn prove_fold_run(
     let params_digest = compute_params_digest(params);
     let ccs_digest = compute_ccs_digest(ccs);
     let mcs_digest = [0u8; 32]; // Would hash the MCS instances
-    
+
     // 2. Extract challenges from FoldRun's Π-CCS proofs
     let pi_ccs_challenges = extract_challenges_from_fold_run(fold_run, params, ccs)?;
     #[cfg(feature = "debug-logs")]
@@ -102,10 +98,7 @@ pub fn prove_fold_run(
                     .map_err(SpartanBridgeError::NeoError)?;
                 let ell_n = dims.ell_n;
                 let ell = dims.ell;
-                eprintln!(
-                    "[spartan-bridge]   dims.ell_n = {}, dims.ell = {}",
-                    ell_n, ell
-                );
+                eprintln!("[spartan-bridge]   dims.ell_n = {}, dims.ell = {}", ell_n, ell);
 
                 // The ME inputs for this step as seen by the native verifier:
                 let me_inputs: Vec<MeInstance<Cmt, NeoF, NeoK>> = if step_idx == 0 {
@@ -114,8 +107,7 @@ pub fn prove_fold_run(
                     fold_run.steps[step_idx - 1].dec_children.clone()
                 };
 
-                let T_native =
-                    claimed_initial_sum_from_inputs::<NeoF>(ccs, &proof.challenges_public, &me_inputs);
+                let T_native = claimed_initial_sum_from_inputs::<NeoF>(ccs, &proof.challenges_public, &me_inputs);
                 eprintln!(
                     "[spartan-bridge]   native claimed_initial_sum T = {}",
                     format_ext(T_native)
@@ -144,11 +136,7 @@ pub fn prove_fold_run(
                         }
 
                         // Number of matrices t: use y-table length from ME inputs.
-                        let t = if me_inputs.is_empty() {
-                            0
-                        } else {
-                            me_inputs[0].y.len()
-                        };
+                        let t = if me_inputs.is_empty() { 0 } else { me_inputs[0].y.len() };
 
                         // γ^k
                         let mut gamma_to_k = NeoK::ONE;
@@ -189,17 +177,15 @@ pub fn prove_fold_run(
                     format_ext(T_bridge_host)
                 );
                 if let Some(sc0) = proof.sc_initial_sum {
-                    eprintln!(
-                        "[spartan-bridge]   proof.sc_initial_sum = {}",
-                        format_ext(sc0)
-                    );
+                    eprintln!("[spartan-bridge]   proof.sc_initial_sum = {}", format_ext(sc0));
                 } else {
                     eprintln!("[spartan-bridge]   proof.sc_initial_sum = <None>");
                 }
 
                 // Compute native RHS terminal identity for debugging
                 let rhs_native = neo_reductions::paper_exact_engine::rhs_terminal_identity_paper_exact(
-                    &ccs.ensure_identity_first().map_err(|e| SpartanBridgeError::InvalidInput(format!("Identity check failed: {:?}", e)))?,
+                    &ccs.ensure_identity_first()
+                        .map_err(|e| SpartanBridgeError::InvalidInput(format!("Identity check failed: {:?}", e)))?,
                     params,
                     &proof.challenges_public,
                     &ch.r_prime,
@@ -220,7 +206,7 @@ pub fn prove_fold_run(
             }
         }
     }
-    
+
     // 3. Build instance with the actual initial accumulator used by the
     // folding engine (ME(b, L)^k inputs to the first Π-CCS step).
     let initial_accumulator = initial_accumulator.to_vec();
@@ -232,7 +218,7 @@ pub fn prove_fold_run(
         initial_accumulator,
         pi_ccs_challenges,
     );
-    
+
     // 4. Extract CCS polynomial f into circuit-friendly representation
     let poly_f: Vec<CircuitPolyTerm> = ccs
         .f
@@ -248,41 +234,31 @@ pub fn prove_fold_run(
             }
         })
         .collect();
-    
+
     // 5. Create circuit
-    let delta = CircuitF::from(7u64);  // Goldilocks K delta
-    let circuit = FoldRunCircuit::new(
-        instance.clone(),
-        Some(witness),
-        delta,
-        params.b,
-        poly_f,
-    );
-    
+    let delta = CircuitF::from(7u64); // Goldilocks K delta
+    let circuit = FoldRunCircuit::new(instance.clone(), Some(witness), delta, params.b, poly_f);
+
     // 6. Run Spartan2 setup → prep → prove using the Goldilocks Hash-MLE engine.
     type E = GoldilocksP3MerkleMleEngine;
     type SNARK = R1CSSNARK<E>;
 
     // Setup: derive prover/verifier keys from the circuit shape.
-    let (pk, vk) = SNARK::setup(circuit.clone()).map_err(|e| {
-        SpartanBridgeError::ProvingError(format!("Spartan2 setup failed: {e}"))
-    })?;
+    let (pk, vk) = SNARK::setup(circuit.clone())
+        .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 setup failed: {e}")))?;
 
     // Preprocess: build preprocessed state (witness commitments, etc.).
-    let prep = SNARK::prep_prove(&pk, circuit.clone(), true).map_err(|e| {
-        SpartanBridgeError::ProvingError(format!("Spartan2 prep_prove failed: {e}"))
-    })?;
+    let prep = SNARK::prep_prove(&pk, circuit.clone(), true)
+        .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 prep_prove failed: {e}")))?;
 
     // Prove: produce the SNARK proof object.
-    let snark = SNARK::prove(&pk, circuit, &prep, true).map_err(|e| {
-        SpartanBridgeError::ProvingError(format!("Spartan2 prove failed: {e}"))
-    })?;
+    let snark = SNARK::prove(&pk, circuit, &prep, true)
+        .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 prove failed: {e}")))?;
 
     // Pack verifier key + SNARK into proof bytes.
     let packed = (vk, snark);
-    let proof_data = bincode::serialize(&packed).map_err(|e| {
-        SpartanBridgeError::ProvingError(format!("Spartan2 proof serialization failed: {e}"))
-    })?;
+    let proof_data = bincode::serialize(&packed)
+        .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 proof serialization failed: {e}")))?;
 
     Ok(SpartanProof { proof_data, instance })
 }
@@ -294,27 +270,19 @@ pub fn prove_fold_run(
 /// - Recomputes expected public IO from the instance digests.
 /// - Deserializes the Spartan2 verifier key and SNARK.
 /// - Runs Spartan2 verification and checks the returned public IO matches.
-pub fn verify_fold_run(
-    params: &NeoParams,
-    ccs: &CcsStructure<NeoF>,
-    proof: &SpartanProof,
-) -> Result<bool> {
+pub fn verify_fold_run(params: &NeoParams, ccs: &CcsStructure<NeoF>, proof: &SpartanProof) -> Result<bool> {
     // 1. Verify digests match
     let params_digest = compute_params_digest(params);
     let ccs_digest = compute_ccs_digest(ccs);
-    
+
     if proof.instance.params_digest != params_digest {
-        return Err(SpartanBridgeError::VerificationError(
-            "Params digest mismatch".into()
-        ));
+        return Err(SpartanBridgeError::VerificationError("Params digest mismatch".into()));
     }
-    
+
     if proof.instance.ccs_digest != ccs_digest {
-        return Err(SpartanBridgeError::VerificationError(
-            "CCS digest mismatch".into()
-        ));
+        return Err(SpartanBridgeError::VerificationError("CCS digest mismatch".into()));
     }
-    
+
     // 2. Recompute expected public IO from instance digests (must mirror
     // `FoldRunCircuit::public_values` / `allocate_public_inputs`).
     fn append_digest(out: &mut Vec<CircuitF>, digest: &[u8; 32]) {
@@ -336,16 +304,13 @@ pub fn verify_fold_run(
     type SNARK = R1CSSNARK<E>;
     type VK<E> = spartan2::spartan::SpartanVerifierKey<E>;
 
-    let (vk, snark): (VK<E>, SNARK) = bincode::deserialize(&proof.proof_data).map_err(|e| {
-        SpartanBridgeError::VerificationError(format!(
-            "Spartan2 proof deserialization failed: {e}"
-        ))
-    })?;
+    let (vk, snark): (VK<E>, SNARK) = bincode::deserialize(&proof.proof_data)
+        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 proof deserialization failed: {e}")))?;
 
     // 4. Run Spartan2 verification.
-    let io = snark.verify(&vk).map_err(|e| {
-        SpartanBridgeError::VerificationError(format!("Spartan2 verification failed: {e}"))
-    })?;
+    let io = snark
+        .verify(&vk)
+        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 verification failed: {e}")))?;
 
     // 5. Check that the public IO returned by Spartan matches the expected
     // digest limbs encoded in the FoldRun instance.
@@ -401,8 +366,8 @@ fn extract_challenges_from_fold_run(
         .ensure_identity_first()
         .map_err(|e| SpartanBridgeError::InvalidInput(format!("identity-first required: {e:?}")))?;
 
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params, &s_norm)
-        .map_err(SpartanBridgeError::NeoError)?;
+    let dims =
+        neo_reductions::engines::utils::build_dims_and_policy(params, &s_norm).map_err(SpartanBridgeError::NeoError)?;
     let ell_n = dims.ell_n;
     let ell = dims.ell;
 

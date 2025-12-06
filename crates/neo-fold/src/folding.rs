@@ -7,14 +7,14 @@
 
 #![allow(non_snake_case)]
 
-use neo_transcript::{Poseidon2Transcript, Transcript};
 use neo_transcript::labels as tr_labels;
+use neo_transcript::{Poseidon2Transcript, Transcript};
 
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
 use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 
-use neo_params::NeoParams;
 use neo_math::{F, K};
+use neo_params::NeoParams;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::PiCcsError;
@@ -63,7 +63,9 @@ where
 
 /// Plan: number of folds = number of MCS instances.
 #[inline]
-pub fn plan_num_folds(mcs_count: usize) -> usize { mcs_count }
+pub fn plan_num_folds(mcs_count: usize) -> usize {
+    mcs_count
+}
 
 // ---------------------------------------------------------------------------
 // Prover orchestration
@@ -116,11 +118,13 @@ where
         // Recompute k for this iteration based on current accumulator size
         // k = |accumulator| + 1 (new MCS instance)
         let k = accumulator.len() + 1;
-        
+
         // --- Π_CCS via facade (chooses engine by `mode`)
         let (ccs_out, ccs_proof) = ccs::prove(
             mode.clone(),
-            tr, params, &s,
+            tr,
+            params,
+            &s,
             core::slice::from_ref(mcs_i),
             core::slice::from_ref(wit_i),
             &accumulator,
@@ -130,7 +134,8 @@ where
 
         if ccs_out.len() != k {
             return Err(PiCcsError::ProtocolError(format!(
-                "Π_CCS returned {} outputs; expected k={k}", ccs_out.len()
+                "Π_CCS returned {} outputs; expected k={k}",
+                ccs_out.len()
             )));
         }
 
@@ -144,13 +149,19 @@ where
         // Paper ΠRLC: V samples p_1,...,p_{k_rho+1} ← C where k_rho = params.k_rho
         let ring = ccs::RotRing::goldilocks();
         let rhos = ccs::sample_rot_rhos(tr, params, &ring)?;
-        
+
         // Use only the first k rhos for the actual RLC (k = runtime folding count)
         let rhos_for_rlc = &rhos[..k];
         // Compute parent via RLC and combined witness Z_mix = Σ ρ_i·Z_i
         let (parent_pub, Z_mix) = ccs::rlc_with_commit(
             mode.clone(),
-            &s, params, rhos_for_rlc, &ccs_out, &outs_Z, ell_d, mixers.mix_rhos_commits,
+            &s,
+            params,
+            rhos_for_rlc,
+            &ccs_out,
+            &outs_Z,
+            ell_d,
+            mixers.mix_rhos_commits,
         );
 
         // NOTE: y-vectors are already correctly computed by rlc_with_commit via the S-module action.
@@ -164,12 +175,19 @@ where
         let child_cs: Vec<Cmt> = Z_split.iter().map(|Zi| l.commit(Zi)).collect();
         let (children, ok_y, ok_X, ok_c) = ccs::dec_children_with_commit(
             mode.clone(),
-            &s, params, &parent_pub, &Z_split, ell_d, &child_cs, mixers.combine_b_pows,
+            &s,
+            params,
+            &parent_pub,
+            &Z_split,
+            ell_d,
+            &child_cs,
+            mixers.combine_b_pows,
         );
         // Enforce y/X/commitment equality in all modes by default.
         if !(ok_y && ok_X && ok_c) {
             return Err(PiCcsError::ProtocolError(format!(
-                "DEC public check failed (y={}, X={}, c={})", ok_y, ok_X, ok_c
+                "DEC public check failed (y={}, X={}, c={})",
+                ok_y, ok_X, ok_c
             )));
         }
 
@@ -229,7 +247,9 @@ where
         // 1) Verify Π_CCS via facade (engine-agnostic)
         let ok_ccs = ccs::verify(
             mode.clone(),
-            tr, params, &s,
+            tr,
+            params,
+            &s,
             core::slice::from_ref(&mcss[i]),
             &accumulator,
             &step.ccs_out,
@@ -253,23 +273,37 @@ where
         let rhos_from_tr = ccs::sample_rot_rhos(tr, params, &ring)?;
         let k = step.rlc_rhos.len();
         if rhos_from_tr.len() < k {
-            return Err(PiCcsError::ProtocolError(
-                format!("Insufficient RLC rhos sampled: got {}, need {}", rhos_from_tr.len(), k)
-            ));
+            return Err(PiCcsError::ProtocolError(format!(
+                "Insufficient RLC rhos sampled: got {}, need {}",
+                rhos_from_tr.len(),
+                k
+            )));
         }
         // Check that the first k rhos match (these are the ones used for RLC)
-        for (j, (sampled, stored)) in rhos_from_tr[..k].iter().zip(step.rlc_rhos.iter()).enumerate() {
+        for (j, (sampled, stored)) in rhos_from_tr[..k]
+            .iter()
+            .zip(step.rlc_rhos.iter())
+            .enumerate()
+        {
             if sampled.as_slice() != stored.as_slice() {
-                return Err(PiCcsError::ProtocolError(
-                    format!("RLC ρ #{} mismatch: transcript vs proof", j)
-                ));
+                return Err(PiCcsError::ProtocolError(format!(
+                    "RLC ρ #{} mismatch: transcript vs proof",
+                    j
+                )));
             }
         }
 
         // 2) Verify RLC publicly: recompute parent from (stored rhos, ccs_out)
         // Use the rhos from the proof (already committed to via parent_pub)
-        let parent_pub = ccs::rlc_public(&s, params, &step.rlc_rhos, &step.ccs_out, mixers.mix_rhos_commits, ell_d);
-        
+        let parent_pub = ccs::rlc_public(
+            &s,
+            params,
+            &step.rlc_rhos,
+            &step.ccs_out,
+            mixers.mix_rhos_commits,
+            ell_d,
+        );
+
         // Check X, c, r (Π_DEC will validate y)
         if parent_pub.X.as_slice() != step.rlc_parent.X.as_slice() {
             return Err(PiCcsError::ProtocolError("RLC X mismatch".into()));
@@ -282,7 +316,14 @@ where
         }
 
         // 3) Verify DEC publicly (X, y, c)
-        if !ccs::verify_dec_public(&s, params, &step.rlc_parent, &step.dec_children, mixers.combine_b_pows, ell_d) {
+        if !ccs::verify_dec_public(
+            &s,
+            params,
+            &step.rlc_parent,
+            &step.dec_children,
+            mixers.combine_b_pows,
+            ell_d,
+        ) {
             return Err(PiCcsError::ProtocolError("DEC public check failed".into()));
         }
 

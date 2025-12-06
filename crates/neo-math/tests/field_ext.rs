@@ -1,7 +1,7 @@
 mod test_helpers;
-use test_helpers::{GOLDILOCKS_MODULUS, TWO_ADICITY, two_adic_generator};
-use neo_math::{Fq, K, KExtensions};
+use neo_math::{Fq, KExtensions, K};
 use p3_field::PrimeCharacteristicRing;
+use test_helpers::{two_adic_generator, GOLDILOCKS_MODULUS, TWO_ADICITY};
 
 #[test]
 fn goldilocks_two_adicity_is_32() {
@@ -9,7 +9,9 @@ fn goldilocks_two_adicity_is_32() {
     let g = two_adic_generator(32);
     // g has order 2^32 ⇒ g^(2^32) = 1 and g^(2^31) != 1.
     let mut x = g;
-    for _ in 0..32 { x = x.square(); }
+    for _ in 0..32 {
+        x = x.square();
+    }
     assert_eq!(x, Fq::ONE);
 }
 
@@ -24,8 +26,15 @@ fn nonresidue_7_is_non_square_mod_q() {
 }
 
 fn modexp(mut b: u128, mut e: u128, m: u128) -> u128 {
-    let mut acc = 1u128; b %= m;
-    while e > 0 { if (e & 1) == 1 { acc = acc * b % m; } b = b * b % m; e >>= 1; }
+    let mut acc = 1u128;
+    b %= m;
+    while e > 0 {
+        if (e & 1) == 1 {
+            acc = acc * b % m;
+        }
+        b = b * b % m;
+        e >>= 1;
+    }
     acc
 }
 

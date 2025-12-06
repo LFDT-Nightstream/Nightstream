@@ -9,27 +9,27 @@
 
 #![allow(non_snake_case)]
 
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
 use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
+use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
-use neo_math::{F, K, D};
 use p3_field::PrimeCharacteristicRing;
 
-use crate::error::PiCcsError;
 use crate::engines::PiCcsEngine;
+use crate::error::PiCcsError;
 
 // Re-export types that are part of the public API
 pub use crate::engines::optimized_engine::PiCcsProof;
 
 // Re-export common utilities for convenience (single import path for users)
 pub use crate::common::{
-    split_b_matrix_k,
-    sample_rot_rhos,       // Paper-compliant ΠRLC sampler (Section 4.5)
-    RotRing,               // Ring metadata for rotation matrix sampling
     compute_y_from_Z_and_r,
-    left_mul_acc,
     format_ext,
+    left_mul_acc,
+    sample_rot_rhos, // Paper-compliant ΠRLC sampler (Section 4.5)
+    split_b_matrix_k,
+    RotRing, // Ring metadata for rotation matrix sampling
 };
 
 /// Folding mode selector for engine dispatch.
@@ -61,13 +61,13 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     use crate::engines::OptimizedEngine;
 
     match mode {
-        FoldingMode::Optimized => OptimizedEngine.prove(
-            tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log,
-        ),
+        FoldingMode::Optimized => {
+            OptimizedEngine.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
+        }
         #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::PaperExactEngine.prove(
-            tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log,
-        ),
+        FoldingMode::PaperExact => {
+            crate::engines::PaperExactEngine.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
+        }
         #[cfg(feature = "paper-exact")]
         FoldingMode::OptimizedWithCrosscheck(cfg) => crate::engines::CrossCheckEngine {
             inner: OptimizedEngine,
@@ -89,17 +89,7 @@ pub fn prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     log: &L,
 ) -> Result<(Vec<MeInstance<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     // Delegate to the selected engine with empty ME inputs/witnesses.
-    prove(
-        mode,
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        &[],
-        &[],
-        log,
-    )
+    prove(mode, tr, params, s, mcs_list, mcs_witnesses, &[], &[], log)
 }
 
 /// Verify Π_CCS proof. Uses the optimized verifier path.
@@ -137,25 +127,27 @@ where
     Comb: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
 {
     use crate::engines::pi_rlc_dec::{OptimizedRlcDec, RlcDecOps};
-    
+
     match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::rlc_with_commit(
-            s, params, rhos, me_inputs, Zs, ell_d, mix_commits,
-        ),
+        FoldingMode::Optimized => OptimizedRlcDec::rlc_with_commit(s, params, rhos, me_inputs, Zs, ell_d, mix_commits),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => {
             // Use the paper-exact RLC that actually mixes commitments.
             crate::engines::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
-                s, params, rhos, me_inputs, Zs, ell_d, mix_commits,
+                s,
+                params,
+                rhos,
+                me_inputs,
+                Zs,
+                ell_d,
+                mix_commits,
             )
         }
         #[cfg(feature = "paper-exact")]
         FoldingMode::OptimizedWithCrosscheck(_) => {
             // For cross-checking, use paper-exact to verify against optimized
             // In practice, RLC/DEC are simple algebraic operations, so we just use optimized
-            OptimizedRlcDec::rlc_with_commit(
-                s, params, rhos, me_inputs, Zs, ell_d, mix_commits,
-            )
+            OptimizedRlcDec::rlc_with_commit(s, params, rhos, me_inputs, Zs, ell_d, mix_commits)
         }
     }
 }
@@ -176,16 +168,28 @@ where
     Comb: Fn(&[Cmt], u32) -> Cmt,
 {
     use crate::engines::pi_rlc_dec::{OptimizedRlcDec, RlcDecOps};
-    
+
     match mode {
         FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit(
-            s, params, parent, Z_split, ell_d, child_commitments, combine_b_pows,
+            s,
+            params,
+            parent,
+            Z_split,
+            ell_d,
+            child_commitments,
+            combine_b_pows,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => {
             // Use the paper-exact DEC that checks commitment equality against Σ b^i · c_i
             crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-                s, params, parent, Z_split, ell_d, child_commitments, combine_b_pows,
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                combine_b_pows,
             )
         }
         #[cfg(feature = "paper-exact")]
@@ -193,7 +197,13 @@ where
             // For cross-checking, use paper-exact to verify against optimized
             // In practice, RLC/DEC are simple algebraic operations, so we just use optimized
             OptimizedRlcDec::dec_children_with_commit(
-                s, params, parent, Z_split, ell_d, child_commitments, combine_b_pows,
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                combine_b_pows,
             )
         }
     }
@@ -204,7 +214,7 @@ where
 // ---------------------------------------------------------------------------
 
 /// RLC (public): Recompute parent = Σ ρ_i · instance_i (X, y; commitment via mixer).
-/// 
+///
 /// This is the witness-free version used by verifiers to check the prover's claimed parent.
 pub fn rlc_public<MR>(
     s: &CcsStructure<F>,
@@ -230,10 +240,10 @@ where
     for (rho, inst) in rhos.iter().zip(inputs.iter()) {
         let mut term = Mat::zero(d, m_in, F::ZERO);
         left_mul_acc(&mut term, rho, &inst.X);
-        for r in 0..d { 
-            for c in 0..m_in { 
-                X[(r, c)] += term[(r, c)]; 
-            } 
+        for r in 0..d {
+            for c in 0..m_in {
+                X[(r, c)] += term[(r, c)];
+            }
         }
     }
 
@@ -257,23 +267,20 @@ where
     let bK = K::from(F::from_u64(params.b as u64));
     let mut y_scalars = Vec::with_capacity(s.t());
     for j in 0..s.t() {
-        let mut sc = K::ZERO; 
+        let mut sc = K::ZERO;
         let mut pow = K::ONE;
-        for rho in 0..D { 
-            sc += pow * y[j][rho]; 
-            pow *= bK; 
+        for rho in 0..D {
+            sc += pow * y[j][rho];
+            pow *= bK;
         }
         y_scalars.push(sc);
     }
 
-    let c = mix_rhos_commits(
-        rhos,
-        &inputs.iter().map(|m| m.c.clone()).collect::<Vec<_>>()
-    );
+    let c = mix_rhos_commits(rhos, &inputs.iter().map(|m| m.c.clone()).collect::<Vec<_>>());
 
     MeInstance {
-        c_step_coords: vec![], 
-        u_offset: 0, 
+        c_step_coords: vec![],
+        u_offset: 0,
         u_len: 0,
         c,
         X,
@@ -320,11 +327,11 @@ where
         }
         pow *= F::from_u64(params.b as u64);
     }
-    for r in 0..D { 
+    for r in 0..D {
         for c in 0..parent.m_in {
             if lhs_X[(r, c)] != parent.X[(r, c)] {
                 eprintln!("verify_dec_public failed: X check mismatch at ({}, {})", r, c);
-                return false; 
+                return false;
             }
         }
     }
@@ -336,27 +343,23 @@ where
         let mut lhs = vec![K::ZERO; d_pad];
         let mut p = K::ONE;
         for i in 0..k {
-            for t in 0..d_pad { 
-                lhs[t] += p * children[i].y[j][t]; 
+            for t in 0..d_pad {
+                lhs[t] += p * children[i].y[j][t];
             }
             p *= bK;
         }
         if lhs != parent.y[j] {
             eprintln!("verify_dec_public failed: y check mismatch at j={}", j);
-            return false; 
+            return false;
         }
     }
 
     // c
-    let want_c = combine_b_pows(
-        &children.iter().map(|c| c.c.clone()).collect::<Vec<_>>(), 
-        params.b
-    );
+    let want_c = combine_b_pows(&children.iter().map(|c| c.c.clone()).collect::<Vec<_>>(), params.b);
     if want_c != parent.c {
         eprintln!("verify_dec_public failed: commitment check mismatch");
         return false;
     }
-    
+
     true
 }
-

@@ -6,15 +6,15 @@
 
 #![allow(non_snake_case)]
 
-use neo_ccs::{CcsStructure, McsInstance, McsWitness, MeInstance, Mat};
-use neo_ajtai::Commitment as Cmt;
-use neo_params::NeoParams;
-use neo_transcript::Poseidon2Transcript;
-use neo_math::{F, K};
-use p3_field::PrimeCharacteristicRing;
-use crate::error::PiCcsError;
 use crate::engines::optimized_engine::PiCcsProof;
 use crate::engines::PiCcsEngine;
+use crate::error::PiCcsError;
+use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
+use neo_math::{F, K};
+use neo_params::NeoParams;
+use neo_transcript::Poseidon2Transcript;
+use p3_field::PrimeCharacteristicRing;
 
 use super::logging::*;
 
@@ -71,8 +71,7 @@ where
     L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
 {
     // 1) Run optimized path
-    let (out_me_opt, proof) = inner
-        .prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)?;
+    let (out_me_opt, proof) = inner.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)?;
 
     // 2) Use the prover-recorded challenges as the single source of truth.
     //    This avoids tiny transcript replays from drifting and ensures that
@@ -110,13 +109,13 @@ where
         #[cfg(feature = "paper-exact")]
         {
             use crate::sumcheck::RoundOracle;
-            
+
             let detailed_log = std::env::var("NEO_CROSSCHECK_DETAIL").is_ok();
-            
+
             if detailed_log {
                 log_per_round_header(proof.sumcheck_rounds.len());
             }
-            
+
             let mut paper_oracle = crate::engines::paper_exact_engine::oracle::PaperExactOracle::new(
                 s,
                 params,
@@ -129,38 +128,41 @@ where
                 me_inputs.first().map(|mi| mi.r.as_slice()),
             );
 
-            for (round_idx, (opt_coeffs, &challenge)) in proof.sumcheck_rounds.iter()
+            for (round_idx, (opt_coeffs, &challenge)) in proof
+                .sumcheck_rounds
+                .iter()
                 .zip(proof.sumcheck_challenges.iter())
                 .enumerate()
             {
                 let deg = paper_oracle.degree_bound();
                 let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
                 let paper_evals = paper_oracle.evals_at(&xs);
-                
+
                 if detailed_log {
                     log_per_round_progress(round_idx, proof.sumcheck_rounds.len(), paper_evals.len());
                 }
-                
+
                 for (i, (&x, &expected)) in xs.iter().zip(paper_evals.iter()).enumerate() {
                     let actual = crate::sumcheck::poly_eval_k(opt_coeffs, x);
                     if actual != expected {
                         log_per_round_mismatch(round_idx, proof.sumcheck_rounds.len(), i, actual, expected);
                         if cfg.fail_fast {
-                            return Err(PiCcsError::ProtocolError(
-                                format!("crosscheck: round {} polynomial mismatch at x={}", round_idx, i),
-                            ));
+                            return Err(PiCcsError::ProtocolError(format!(
+                                "crosscheck: round {} polynomial mismatch at x={}",
+                                round_idx, i
+                            )));
                         }
                     }
+                }
+
+                paper_oracle.fold(challenge);
             }
-            
-            paper_oracle.fold(challenge);
-        }
-            
+
             if detailed_log {
                 log_per_round_success(proof.sumcheck_rounds.len());
             }
         }
-        
+
         #[cfg(not(feature = "paper-exact"))]
         {
             log_paper_exact_feature_warning();
@@ -169,24 +171,30 @@ where
 
     if cfg.terminal {
         let detailed_log = std::env::var("NEO_CROSSCHECK_DETAIL").is_ok();
-        
+
         if detailed_log {
             log_terminal_header();
         }
-        
+
         let running_sum_prover = if let Some(initial) = proof.sc_initial_sum {
             let mut running = initial;
-            for (coeffs, &ri) in proof.sumcheck_rounds.iter().zip(proof.sumcheck_challenges.iter()) {
+            for (coeffs, &ri) in proof
+                .sumcheck_rounds
+                .iter()
+                .zip(proof.sumcheck_challenges.iter())
+            {
                 running = crate::sumcheck::poly_eval_k(coeffs, ri);
             }
             running
         } else {
             use crate::sumcheck::poly_eval_k;
-            proof.sumcheck_rounds.get(0)
+            proof
+                .sumcheck_rounds
+                .get(0)
                 .map(|p0| poly_eval_k(p0, K::ZERO) + poly_eval_k(p0, K::ONE))
                 .unwrap_or(K::ZERO)
         };
-        
+
         if detailed_log {
             log_terminal_optimized_header();
         }
@@ -206,7 +214,7 @@ where
         if detailed_log {
             log_terminal_paper_exact_header();
         }
-        
+
         let r_inputs = me_inputs.get(0).map(|mi| mi.r.as_slice());
         let (lhs_exact, _rhs_unused) = crate::engines::paper_exact_engine::q_eval_at_ext_point_paper_exact_with_inputs(
             s,
@@ -253,34 +261,37 @@ where
 
         if out_me_ref.len() != out_me_opt.len() {
             log_outputs_length_mismatch(out_me_ref.len(), out_me_opt.len());
-            return Err(PiCcsError::ProtocolError(
-                "crosscheck: outputs length mismatch".into(),
-            ));
+            return Err(PiCcsError::ProtocolError("crosscheck: outputs length mismatch".into()));
         }
-        
+
         for (idx, (a, b)) in out_me_ref.iter().zip(out_me_opt.iter()).enumerate() {
             let mut mismatches = Vec::new();
-            
+
             if a.m_in != b.m_in {
                 mismatches.push(format!("m_in: paper={}, optimized={}", a.m_in, b.m_in));
             }
-            
+
             if a.r != b.r {
                 let r_match_count = a.r.iter().zip(b.r.iter()).filter(|(x, y)| x == y).count();
                 mismatches.push(format!(
                     "r: length paper={}, optimized={}, matching elements={}/{}",
-                    a.r.len(), b.r.len(), r_match_count, a.r.len().min(b.r.len())
+                    a.r.len(),
+                    b.r.len(),
+                    r_match_count,
+                    a.r.len().min(b.r.len())
                 ));
                 if a.r.len() == b.r.len() && !a.r.is_empty() {
                     mismatches.push(format!("  first paper r[0]={:?}", a.r.get(0)));
                     mismatches.push(format!("  first opt   r[0]={:?}", b.r.get(0)));
                 }
             }
-            
+
             if a.c.data != b.c.data {
                 mismatches.push(format!(
                     "c.data: paper len={}, opt len={}, data_match={}",
-                    a.c.data.len(), b.c.data.len(), a.c.data == b.c.data
+                    a.c.data.len(),
+                    b.c.data.len(),
+                    a.c.data == b.c.data
                 ));
                 // Show first few elements for debugging
                 let show_len = 4.min(a.c.data.len()).min(b.c.data.len());
@@ -289,7 +300,7 @@ where
                     mismatches.push(format!("  opt   c.data[0..{}]={:?}", show_len, &b.c.data[..show_len]));
                 }
             }
-            
+
             if !mismatches.is_empty() {
                 log_outputs_metadata_mismatch(
                     idx,
@@ -304,18 +315,20 @@ where
                     &fold_digest,
                     mcs_list.len(),
                 );
-                
-                return Err(PiCcsError::ProtocolError(
-                    format!("crosscheck: output metadata mismatch at index {}", idx),
-                ));
+
+                return Err(PiCcsError::ProtocolError(format!(
+                    "crosscheck: output metadata mismatch at index {}",
+                    idx
+                )));
             }
-            
+
             for (j, (ya, yb)) in a.y.iter().zip(b.y.iter()).enumerate() {
                 if ya.len() != yb.len() {
                     log_outputs_y_row_length_mismatch(idx, j, ya.len(), yb.len());
-                    return Err(PiCcsError::ProtocolError(
-                        format!("crosscheck: y row {} length mismatch at instance {}", j, idx),
-                    ));
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "crosscheck: y row {} length mismatch at instance {}",
+                        j, idx
+                    )));
                 }
                 if ya != yb {
                     let match_count = ya.iter().zip(yb.iter()).filter(|(x, y)| x == y).count();
@@ -329,15 +342,24 @@ where
                     if let Some((k, a_val, b_val)) = first_mismatch_info {
                         log_outputs_y_row_content_mismatch(idx, j, match_count, ya.len(), k, a_val, b_val);
                     }
-                    return Err(PiCcsError::ProtocolError(
-                        format!("crosscheck: y row {} content mismatch at instance {}", j, idx),
-                    ));
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "crosscheck: y row {} content mismatch at instance {}",
+                        j, idx
+                    )));
                 }
             }
-            
+
             if a.y_scalars != b.y_scalars {
-                let match_count = a.y_scalars.iter().zip(b.y_scalars.iter()).filter(|(x, y)| x == y).count();
-                let mismatches: Vec<(usize, K, K)> = a.y_scalars.iter().zip(b.y_scalars.iter())
+                let match_count = a
+                    .y_scalars
+                    .iter()
+                    .zip(b.y_scalars.iter())
+                    .filter(|(x, y)| x == y)
+                    .count();
+                let mismatches: Vec<(usize, K, K)> = a
+                    .y_scalars
+                    .iter()
+                    .zip(b.y_scalars.iter())
                     .enumerate()
                     .filter_map(|(k, (a_val, b_val))| {
                         if a_val != b_val {
@@ -348,27 +370,28 @@ where
                     })
                     .collect();
                 log_outputs_y_scalars_mismatch(idx, match_count, a.y_scalars.len(), &mismatches);
-                return Err(PiCcsError::ProtocolError(
-                    format!("crosscheck: y_scalars mismatch at instance {}", idx),
-                ));
+                return Err(PiCcsError::ProtocolError(format!(
+                    "crosscheck: y_scalars mismatch at instance {}",
+                    idx
+                )));
             }
-            
+
             // X matrix equality (dense, small D)
             if a.X.rows() != b.X.rows() || a.X.cols() != b.X.cols() {
                 log_outputs_x_dimension_mismatch(idx, a.X.rows(), a.X.cols(), b.X.rows(), b.X.cols());
-                return Err(PiCcsError::ProtocolError(
-                    format!("crosscheck: X dims mismatch at instance {}", idx),
-                ));
+                return Err(PiCcsError::ProtocolError(format!(
+                    "crosscheck: X dims mismatch at instance {}",
+                    idx
+                )));
             }
             for r in 0..a.X.rows() {
                 for c in 0..a.X.cols() {
                     if a.X[(r, c)] != b.X[(r, c)] {
                         log_outputs_x_element_mismatch(idx, r, c, &a.X[(r, c)], &b.X[(r, c)]);
-                        return Err(PiCcsError::ProtocolError(
-                            format!(
-                                "crosscheck: X mismatch at ({},{}) in instance {}", r, c, idx
-                            ),
-                        ));
+                        return Err(PiCcsError::ProtocolError(format!(
+                            "crosscheck: X mismatch at ({},{}) in instance {}",
+                            r, c, idx
+                        )));
                     }
                 }
             }

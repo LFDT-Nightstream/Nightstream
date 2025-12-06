@@ -6,10 +6,10 @@
 #![allow(non_snake_case)]
 
 // Public modules
-pub mod error;
+pub mod api; // public API for Π_CCS folding and RLC/DEC operations
+pub mod common; // shared utilities and helper functions
 pub mod engines; // internal engine trait + wrappers (includes optimized_engine, paper_exact_engine, crosscheck_engine)
-pub mod api;     // public API for Π_CCS folding and RLC/DEC operations
-pub mod common;  // shared utilities and helper functions
+pub mod error;
 pub mod sumcheck;
 // Re-export RLC/DEC from engines for a stable path
 pub use engines::pi_rlc_dec;
@@ -24,18 +24,9 @@ pub use engines::paper_exact_engine as pi_ccs_paper_exact;
 
 // Re-export commonly used types
 pub use engines::optimized_engine::{
-    PiCcsProof,
-    Challenges,
-    pi_ccs_prove,
-    pi_ccs_prove_simple,
-    pi_ccs_verify,
-    GenericCcsOracle,
+    pi_ccs_prove, pi_ccs_prove_simple, pi_ccs_verify, Challenges, GenericCcsOracle, PiCcsProof,
 };
 pub use error::PiCcsError;
 
 // Re-export common utilities
-pub use common::{
-    split_b_matrix_k,
-    sample_rot_rhos,
-    RotRing,
-};
+pub use common::{sample_rot_rhos, split_b_matrix_k, RotRing};

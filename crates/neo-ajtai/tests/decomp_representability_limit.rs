@@ -13,8 +13,8 @@
 
 #![allow(non_snake_case)]
 use neo_ajtai::{decomp_b, DecompStyle};
-use p3_goldilocks::Goldilocks as Fq;
 use p3_field::PrimeCharacteristicRing;
+use p3_goldilocks::Goldilocks as Fq;
 
 /// Test that decomposition round-trips correctly for all representable values.
 ///
@@ -38,14 +38,14 @@ use p3_field::PrimeCharacteristicRing;
 fn decomp_recomp_roundtrip_limit_base2() {
     let d = 54; // D from neo_math::ring
     let b = 2u32; // Base-2 decomposition (standard in Neo)
-    
+
     // The theoretical limit: b^d
     // For b=2, d=54: limit = 2^54 = 18_014_398_509_481_984
     let theoretical_limit = 1u64 << 54;
-    
+
     println!("Testing decomposition round-trip with b={}, d={}", b, d);
     println!("Theoretical representability limit: 2^{} = {}", d, theoretical_limit);
-    
+
     // Test strategy: sample points across the range
     let test_ranges = vec![
         // Well within safe range
@@ -57,28 +57,28 @@ fn decomp_recomp_roundtrip_limit_base2() {
         // Well beyond 2^54
         ((1u64 << 56), (1u64 << 56) + 1000, "beyond 2^54 at 2^56"),
     ];
-    
+
     let mut first_mismatch: Option<u64> = None;
-    
+
     for (start, end, label) in test_ranges {
         println!("\nTesting range: {} ({} to {})", label, start, end);
-        
+
         for x_u in start..end {
             let x = Fq::from_u64(x_u);
-            
+
             // Decompose using NonNegative style (matches the recomposed_z_from_Z logic)
             let digits = decomp_b(&[x], b, d, DecompStyle::NonNegative);
-            
+
             // Recompose using the same logic as recomposed_z_from_Z in the engine
             let mut pow = Fq::ONE;
             let mut acc = Fq::ZERO;
             let bFq = Fq::from_u64(b as u64);
-            
+
             for &digit in &digits[0..d] {
                 acc += digit * pow;
                 pow *= bFq;
             }
-            
+
             if acc != x && first_mismatch.is_none() {
                 first_mismatch = Some(x_u);
                 println!("  MISMATCH at x = {} (0x{:x})", x_u, x_u);
@@ -88,7 +88,7 @@ fn decomp_recomp_roundtrip_limit_base2() {
             }
         }
     }
-    
+
     match first_mismatch {
         Some(x_u) => {
             println!("\n=== REPRESENTABILITY LIMIT DETECTED ===");
@@ -99,14 +99,17 @@ fn decomp_recomp_roundtrip_limit_base2() {
             println!("  b^D = 2^{} = {} (representability limit)", d, theoretical_limit);
             println!("  q = 2^64 - 2^32 + 1 ≈ 2^64 (Goldilocks modulus)");
             println!("\nIMPACT:");
-            println!("  - Multiplication constraints fail when intermediate values >= 2^{}", d);
-            println!("  - Example: x*x constraint fails when x >= 2^{}", d/2);
-            println!("  - Poseidon2 (x^7) fails when x >= 2^{}", d/7);
+            println!(
+                "  - Multiplication constraints fail when intermediate values >= 2^{}",
+                d
+            );
+            println!("  - Example: x*x constraint fails when x >= 2^{}", d / 2);
+            println!("  - Poseidon2 (x^7) fails when x >= 2^{}", d / 7);
             println!("\nFIX:");
             println!("  - Increase D so that b^D >= q");
             println!("  - For b=2, need D >= 64 to represent all Goldilocks elements");
             println!("  - Or increase b and adjust D accordingly");
-            
+
             panic!(
                 "Decomposition representability limit confirmed: values >= 2^{} cannot round-trip",
                 d
@@ -131,31 +134,31 @@ fn decomp_recomp_roundtrip_limit_base2() {
 fn multiplication_constraint_fails_for_large_values() {
     let d = 54;
     let b = 2u32;
-    
+
     // Choose x such that x*x >= 2^54
     // With x = 2^27, we have x*x = 2^54 exactly
     let x_u = 1u64 << 27; // 2^27 = 134_217_728
     let x = Fq::from_u64(x_u);
     let y_expected = x * x; // Correct field multiplication
-    
+
     println!("Testing multiplication constraint: y = x*x");
     println!("  x = 2^27 = {}", x_u);
     println!("  y_expected (x*x in field) = {:?}", y_expected);
-    
+
     // Decompose and recompose y (simulating what the CCS engine does)
     let y_digits = decomp_b(&[y_expected], b, d, DecompStyle::NonNegative);
-    
+
     let mut pow = Fq::ONE;
     let mut y_recomposed = Fq::ZERO;
     let bFq = Fq::from_u64(b as u64);
-    
+
     for &digit in &y_digits[0..d] {
         y_recomposed += digit * pow;
         pow *= bFq;
     }
-    
+
     println!("  y_recomposed (from decomp) = {:?}", y_recomposed);
-    
+
     if y_recomposed != y_expected {
         println!("\nERROR: Recomposed value doesn't match!");
         println!("  This is why CCS F(constraints) != 0 in the sumcheck");
@@ -172,46 +175,46 @@ fn multiplication_constraint_fails_for_large_values() {
 fn diagnostic_representability_report() {
     let d = 54; // D from neo_math::ring
     let b = 2u32; // Base-2 decomposition (standard in Neo)
-    
+
     let theoretical_limit = 1u64 << 54;
-    
+
     println!("\n=== DECOMPOSITION REPRESENTABILITY DIAGNOSTIC ===");
     println!("Parameters: b={}, d={}", b, d);
     println!("Theoretical limit: b^d = 2^{} = {}", d, theoretical_limit);
     println!("Field modulus (Goldilocks): q = 2^64 - 2^32 + 1 ≈ 2^64");
-    
+
     // Quick check: test a value just below and at the limit
     let test_below = theoretical_limit - 1;
     let test_at = theoretical_limit;
-    
+
     let check_roundtrip = |x_u: u64| -> bool {
         let x = Fq::from_u64(x_u);
         let digits = decomp_b(&[x], b, d, DecompStyle::NonNegative);
-        
+
         let mut pow = Fq::ONE;
         let mut acc = Fq::ZERO;
         let bFq = Fq::from_u64(b as u64);
-        
+
         for &digit in &digits[0..d] {
             acc += digit * pow;
             pow *= bFq;
         }
-        
+
         acc == x
     };
-    
+
     let below_ok = check_roundtrip(test_below);
     let at_ok = check_roundtrip(test_at);
-    
+
     println!("\nRound-trip test results:");
     println!("  x = 2^{} - 1: {}", d, if below_ok { "✓ OK" } else { "✗ FAIL" });
     println!("  x = 2^{}:     {}", d, if at_ok { "✓ OK" } else { "✗ FAIL" });
-    
+
     if !at_ok {
         println!("\nWARNING: Representability limit detected at 2^{}", d);
         println!("IMPACT:");
         println!("  - Values >= 2^{} cannot be faithfully represented", d);
-        println!("  - Multiplication x*x fails when x >= 2^{}", d/2);
+        println!("  - Multiplication x*x fails when x >= 2^{}", d / 2);
         println!("  - This causes CCS constraint violations in the prover");
         println!("\nRECOMMENDED FIX:");
         println!("  - Increase D from {} to at least 64 (for Goldilocks)", d);
@@ -230,39 +233,42 @@ fn diagnostic_representability_report() {
 fn addition_constraint_works_for_moderately_large_values() {
     let d = 54;
     let b = 2u32;
-    
+
     // Test values that would cause multiplication to fail
     let test_values = vec![
-        1u64 << 26,  // 2^26
-        1u64 << 27,  // 2^27 (x*x hits 2^54)
-        1u64 << 28,  // 2^28 (x*x exceeds 2^54)
+        1u64 << 26, // 2^26
+        1u64 << 27, // 2^27 (x*x hits 2^54)
+        1u64 << 28, // 2^28 (x*x exceeds 2^54)
     ];
-    
+
     for x_u in test_values {
         let x = Fq::from_u64(x_u);
         let sum_expected = x + x; // Correct field addition
-        
+
         // Decompose and recompose the sum
         let sum_digits = decomp_b(&[sum_expected], b, d, DecompStyle::NonNegative);
-        
+
         let mut pow = Fq::ONE;
         let mut sum_recomposed = Fq::ZERO;
         let bFq = Fq::from_u64(b as u64);
-        
+
         for &digit in &sum_digits[0..d] {
             sum_recomposed += digit * pow;
             pow *= bFq;
         }
-        
-        println!("x = 2^{}: sum round-trip OK? {}", 
-                 x_u.trailing_zeros(), 
-                 sum_recomposed == sum_expected);
-        
-        assert_eq!(sum_recomposed, sum_expected, 
-                   "Addition should round-trip even when multiplication fails");
+
+        println!(
+            "x = 2^{}: sum round-trip OK? {}",
+            x_u.trailing_zeros(),
+            sum_recomposed == sum_expected
+        );
+
+        assert_eq!(
+            sum_recomposed, sum_expected,
+            "Addition should round-trip even when multiplication fails"
+        );
     }
-    
+
     println!("\nAddition constraints work because x+x grows linearly,");
     println!("while x*x grows quadratically and hits 2^54 much sooner.");
 }
-

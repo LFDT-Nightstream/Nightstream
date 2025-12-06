@@ -1,10 +1,12 @@
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "debug-log")]
+mod debug;
+#[cfg(feature = "fs-guard")]
+pub mod fs_guard;
 pub mod labels;
 mod poseidon2;
 mod rng;
-#[cfg(feature = "debug-log")] mod debug;
-#[cfg(feature = "fs-guard")] pub mod fs_guard;
 
 use neo_math::F;
 
@@ -27,4 +29,4 @@ pub trait TranscriptProtocol {
 }
 
 pub use poseidon2::Poseidon2Transcript;
-pub use rng::{TranscriptRngBuilder, TranscriptRng};
+pub use rng::{TranscriptRng, TranscriptRngBuilder};

@@ -1,10 +1,10 @@
 // crates/neo-ajtai/tests/red_team.rs
 #![allow(non_snake_case)] // Allow Z, Z_bad, etc. for matrix notation consistency
-use neo_ajtai::{setup, commit, verify_open, verify_split_open, decomp_b, DecompStyle, Commitment, PP};
+use neo_ajtai::{commit, decomp_b, setup, verify_open, verify_split_open, Commitment, DecompStyle, PP};
 use neo_math::ring::D;
-use p3_goldilocks::Goldilocks as Fq;
 use p3_field::PrimeCharacteristicRing;
-use rand::{SeedableRng, Rng};
+use p3_goldilocks::Goldilocks as Fq;
+use rand::{Rng, SeedableRng};
 use std::convert::TryInto;
 
 #[test]
@@ -15,7 +15,9 @@ fn ajtai_opening_rejects_one_digit_flip() {
 
     // make a small "witness" z (base-field entries)
     let mut z = vec![Fq::ZERO; m];
-    for x in &mut z { *x = Fq::from_u64(rng.random::<u16>() as u64); }
+    for x in &mut z {
+        *x = Fq::from_u64(rng.random::<u16>() as u64);
+    }
 
     // decompose to Z (d×m), col-major for commit()
     let Z = decomp_b(&z, 2, D, DecompStyle::Balanced);
@@ -25,7 +27,10 @@ fn ajtai_opening_rejects_one_digit_flip() {
     let mut Z_bad = Z.clone();
     Z_bad[0] += Fq::ONE;
 
-    assert!(!verify_open(&pp, &c, &Z_bad), "Ajtai opening MUST fail on any digit tamper");
+    assert!(
+        !verify_open(&pp, &c, &Z_bad),
+        "Ajtai opening MUST fail on any digit tamper"
+    );
 }
 
 #[test]
@@ -35,7 +40,9 @@ fn ajtai_verify_split_open_rejects_tampered_ci() {
     let pp: PP<neo_math::ring::Rq> = setup(&mut rng, D, 8, m).expect("Setup should succeed");
 
     // random z, decompose at base b=2, split into k slices
-    let z = (0..m).map(|_| Fq::from_u64(rng.random::<u16>() as u64)).collect::<Vec<_>>();
+    let z = (0..m)
+        .map(|_| Fq::from_u64(rng.random::<u16>() as u64))
+        .collect::<Vec<_>>();
     let Z = decomp_b(&z, 2, D, DecompStyle::Balanced);
     let c = commit(&pp, &Z);
 
@@ -48,7 +55,10 @@ fn ajtai_verify_split_open_rejects_tampered_ci() {
 
     // red-team: flip one limb in c_0
     cis[0].data[0] += Fq::ONE;
-    assert!(!verify_split_open(&pp, &c, 2, &cis, &Zis), "Split opening MUST reject tampered c_i");
+    assert!(
+        !verify_split_open(&pp, &c, 2, &cis, &Zis),
+        "Split opening MUST reject tampered c_i"
+    );
 }
 
 #[test]
@@ -67,8 +77,12 @@ fn ajtai_s_linearity_positive_control() {
     let c2 = commit(&pp, &Z2);
 
     // choose two random ring elements via random coeffs → SAction
-    let mut coeffs1 = [Fq::ZERO; D]; let mut coeffs2 = [Fq::ZERO; D];
-    for i in 0..D { coeffs1[i] = Fq::from_u64(rng.random::<u8>() as u64); coeffs2[i] = Fq::from_u64(rng.random::<u8>() as u64); }
+    let mut coeffs1 = [Fq::ZERO; D];
+    let mut coeffs2 = [Fq::ZERO; D];
+    for i in 0..D {
+        coeffs1[i] = Fq::from_u64(rng.random::<u8>() as u64);
+        coeffs2[i] = Fq::from_u64(rng.random::<u8>() as u64);
+    }
     let rho1 = neo_math::cf_inv(coeffs1);
     let rho2 = neo_math::cf_inv(coeffs2);
 
@@ -79,13 +93,17 @@ fn ajtai_s_linearity_positive_control() {
     };
     // For a ground-truth check, recompute via linearity on Z then commit
     // Z' = ρ1·Z1 + ρ2·Z2 (apply S-action to each column of Z col-major)
-    let s1 = SAction::from_ring(rho1); let s2 = SAction::from_ring(rho2);
-    let mut Z_lin = vec![Fq::ZERO; D*m];
+    let s1 = SAction::from_ring(rho1);
+    let s2 = SAction::from_ring(rho2);
+    let mut Z_lin = vec![Fq::ZERO; D * m];
     for col in 0..m {
-        let z1_col: [Fq; D] = Z1[col*D..(col+1)*D].try_into().unwrap();
-        let z2_col: [Fq; D] = Z2[col*D..(col+1)*D].try_into().unwrap();
-        let a = s1.apply_vec(&z1_col); let b = s2.apply_vec(&z2_col);
-        for r in 0..D { Z_lin[col*D + r] = a[r] + b[r]; }
+        let z1_col: [Fq; D] = Z1[col * D..(col + 1) * D].try_into().unwrap();
+        let z2_col: [Fq; D] = Z2[col * D..(col + 1) * D].try_into().unwrap();
+        let a = s1.apply_vec(&z1_col);
+        let b = s2.apply_vec(&z2_col);
+        for r in 0..D {
+            Z_lin[col * D + r] = a[r] + b[r];
+        }
     }
     let rhs = commit(&pp, &Z_lin);
     assert_eq!(lhs, rhs, "S-linearity must hold (positive control)");

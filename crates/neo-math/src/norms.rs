@@ -22,10 +22,18 @@ pub(crate) struct Norms {
 
 #[allow(dead_code)]
 impl Norms {
-    #[inline] pub fn must(self, ok: bool, msg: &'static str) -> Result<(), NeoMathError> {
-        if !ok { return Err(NeoMathError::Must(msg)); } Ok(())
+    #[inline]
+    pub fn must(self, ok: bool, msg: &'static str) -> Result<(), NeoMathError> {
+        if !ok {
+            return Err(NeoMathError::Must(msg));
+        }
+        Ok(())
     }
-    #[inline] pub fn should(self, ok: bool, msg: &'static str) -> Result<(), NeoMathError> {
-        if !ok && self.strict_should { return Err(NeoMathError::Should(msg)); } Ok(())
+    #[inline]
+    pub fn should(self, ok: bool, msg: &'static str) -> Result<(), NeoMathError> {
+        if !ok && self.strict_should {
+            return Err(NeoMathError::Should(msg));
+        }
+        Ok(())
     }
 }

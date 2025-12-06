@@ -6,10 +6,9 @@
 //! 3. DEC equalities
 //! 4. Accumulator chaining between steps
 
-pub mod fold_circuit_helpers;
 pub mod fold_circuit;
+pub mod fold_circuit_helpers;
 pub mod witness;
 
 pub use fold_circuit::FoldRunCircuit;
-pub use witness::{FoldRunWitness, FoldRunInstance};
-
+pub use witness::{FoldRunInstance, FoldRunWitness};

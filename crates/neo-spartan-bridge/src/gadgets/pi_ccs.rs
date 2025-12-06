@@ -5,9 +5,9 @@
 //! - Sumcheck evaluation via Horner’s method
 //! - A base-b recomposition helper (legacy; no longer used by the main circuit)
 
+use crate::gadgets::k_field::{k_add, k_mul, KNum, KNumVar};
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
-use crate::gadgets::k_field::{KNum, KNumVar, k_add, k_mul};
 use neo_math::K as NeoK;
 
 /// Recompose K-field digits in base b: Σ b^ℓ * y[ℓ]
@@ -28,30 +28,27 @@ pub fn base_b_recompose_k<F: PrimeField, CS: ConstraintSystem<F>>(
 
     // Start with y[0]
     let mut result = y_digits[0].clone();
-    
+
     // Compute powers of b in F
     let b_f = F::from(b as u64);
     let mut b_power = b_f;
 
     for (ell, y_ell) in y_digits.iter().enumerate().skip(1) {
         // Lift b^ell to K as (b^ell, 0)
-        let b_pow_c0 = cs.alloc(
-            || format!("{}_b_pow_{}_c0", label, ell),
-            || Ok(b_power),
-        )?;
-        
+        let b_pow_c0 = cs.alloc(|| format!("{}_b_pow_{}_c0", label, ell), || Ok(b_power))?;
+
         cs.enforce(
             || format!("{}_b_pow_{}_c0_constraint", label, ell),
             |lc| lc + (b_power, CS::one()),
             |lc| lc + CS::one(),
             |lc| lc + b_pow_c0,
         );
-        
+
         let b_pow_k = KNumVar {
             c0: b_pow_c0,
             c1: cs.alloc(|| format!("{}_b_pow_{}_c1_zero", label, ell), || Ok(F::ZERO))?,
         };
-        
+
         // Enforce c1 = 0
         cs.enforce(
             || format!("{}_b_pow_{}_c1_zero_constraint", label, ell),
@@ -62,10 +59,10 @@ pub fn base_b_recompose_k<F: PrimeField, CS: ConstraintSystem<F>>(
 
         // term = b^ell * y[ell]
         let term = k_mul(cs, &b_pow_k, y_ell, delta, None, &format!("{}_term_{}", label, ell))?;
-        
+
         // result += term
         result = k_add(cs, &result, &term, None, &format!("{}_add_{}", label, ell))?;
-        
+
         // Update b_power for next iteration
         b_power = b_power * b_f;
     }
@@ -102,25 +99,13 @@ pub fn sumcheck_round_gadget<F: PrimeField, CS: ConstraintSystem<F>>(
     for (i, c_i) in coeffs.iter().enumerate().skip(1) {
         p1_val += coeff_values[i];
         let hint = KNum::<F>::from_neo_k(p1_val);
-        p_at_1 = k_add(
-            cs,
-            &p_at_1,
-            c_i,
-            Some(hint),
-            &format!("{}_p1_add_{}", label, i),
-        )?;
+        p_at_1 = k_add(cs, &p_at_1, c_i, Some(hint), &format!("{}_p1_add_{}", label, i))?;
     }
 
     // sum = p(0) + p(1) with native hint as well.
     let sum_val = coeff_values[0] + p1_val;
     let sum_hint = KNum::<F>::from_neo_k(sum_val);
-    let sum = k_add(
-        cs,
-        &p_at_0,
-        &p_at_1,
-        Some(sum_hint),
-        &format!("{}_sum", label),
-    )?;
+    let sum = k_add(cs, &p_at_0, &p_at_1, Some(sum_hint), &format!("{}_sum", label))?;
 
     // Enforce sum == claimed_sum
     // sum.c0 == claimed_sum.c0
@@ -158,15 +143,9 @@ fn k_mul_with_hint<F: PrimeField, CS: ConstraintSystem<F>>(
     label: &str,
 ) -> Result<KNumVar, SynthesisError> {
     // Allocate result components with known product hint.
-    let c0 = cs.alloc(
-        || format!("{}_prod_c0", label),
-        || Ok(prod_hint.c0),
-    )?;
+    let c0 = cs.alloc(|| format!("{}_prod_c0", label), || Ok(prod_hint.c0))?;
 
-    let c1 = cs.alloc(
-        || format!("{}_prod_c1", label),
-        || Ok(prod_hint.c1),
-    )?;
+    let c1 = cs.alloc(|| format!("{}_prod_c1", label), || Ok(prod_hint.c1))?;
 
     // Intermediate products in the base field, derived from operand hints.
     let a0b0_val = a_hint.c0 * b_hint.c0;
@@ -174,25 +153,13 @@ fn k_mul_with_hint<F: PrimeField, CS: ConstraintSystem<F>>(
     let a0b1_val = a_hint.c0 * b_hint.c1;
     let a1b0_val = a_hint.c1 * b_hint.c0;
 
-    let a0_b0 = cs.alloc(
-        || format!("{}_a0b0", label),
-        || Ok(a0b0_val),
-    )?;
+    let a0_b0 = cs.alloc(|| format!("{}_a0b0", label), || Ok(a0b0_val))?;
 
-    let a1_b1 = cs.alloc(
-        || format!("{}_a1b1", label),
-        || Ok(a1b1_val),
-    )?;
+    let a1_b1 = cs.alloc(|| format!("{}_a1b1", label), || Ok(a1b1_val))?;
 
-    let a0_b1 = cs.alloc(
-        || format!("{}_a0b1", label),
-        || Ok(a0b1_val),
-    )?;
+    let a0_b1 = cs.alloc(|| format!("{}_a0b1", label), || Ok(a0b1_val))?;
 
-    let a1_b0 = cs.alloc(
-        || format!("{}_a1b0", label),
-        || Ok(a1b0_val),
-    )?;
+    let a1_b0 = cs.alloc(|| format!("{}_a1b0", label), || Ok(a1b0_val))?;
 
     // Enforce intermediate products.
     cs.enforce(

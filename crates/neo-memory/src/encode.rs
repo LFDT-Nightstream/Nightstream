@@ -24,6 +24,7 @@
 //! - `d*ell + 1`:            val(j) = observed lookup values
 
 use crate::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
+#[cfg(debug_assertions)]
 use crate::shout::{check_shout_semantics, split_lut_mats};
 use crate::witness::{LutInstance, LutWitness, MemInstance, MemWitness};
 use neo_ajtai::{decomp_b, DecompStyle};

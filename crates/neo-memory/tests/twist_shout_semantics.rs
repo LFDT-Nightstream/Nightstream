@@ -462,8 +462,14 @@ fn test_shout_semantic_check_passes_for_valid_lookups() {
 }
 
 #[test]
-#[should_panic(expected = "Lookup mismatch")]
+#[cfg_attr(debug_assertions, should_panic(expected = "Lookup mismatch"))]
+#[allow(unreachable_code)]
 fn test_shout_detects_bad_lookup_value() {
+    // This test only panics in debug mode because the semantic check
+    // is under #[cfg(debug_assertions)] in encode_lut_for_shout.
+    // In release mode, we skip the test entirely.
+    #[cfg(not(debug_assertions))]
+    return;
     let params = test_params();
 
     // Create a lookup table

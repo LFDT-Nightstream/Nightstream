@@ -5,7 +5,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
 
-const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w16-r8";
+const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w8-r4";
 
 #[derive(Clone)]
 pub struct Poseidon2Transcript {
@@ -44,16 +44,12 @@ impl Poseidon2Transcript {
 
         // 2. Process full chunks
         while len - src_idx >= p2::RATE {
-            // Manually unroll for p2::RATE = 8
+            // Manually unroll for p2::RATE = 4
             // We use assignment (overwrite) to match absorb_elem behavior
             self.st[0] = inputs[src_idx];
             self.st[1] = inputs[src_idx + 1];
             self.st[2] = inputs[src_idx + 2];
             self.st[3] = inputs[src_idx + 3];
-            self.st[4] = inputs[src_idx + 4];
-            self.st[5] = inputs[src_idx + 5];
-            self.st[6] = inputs[src_idx + 6];
-            self.st[7] = inputs[src_idx + 7];
 
             self.permute();
             src_idx += p2::RATE;

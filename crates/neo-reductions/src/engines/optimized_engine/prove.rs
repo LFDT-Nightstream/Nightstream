@@ -232,3 +232,197 @@ pub fn optimized_prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 ) -> Result<(Vec<MeInstance<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     optimized_prove(tr, params, s, mcs_list, mcs_witnesses, &[], &[], log)
 }
+
+// ============================================================================
+// Route A: Split CCS prover for batched sum-check
+// ============================================================================
+
+/// Prepared CCS context for Route A batched sum-check.
+///
+/// Contains all setup data needed for the CCS oracle, allowing the caller
+/// to run time-rounds in a batched sum-check with Twist/Shout.
+pub struct CcsBatchContext<'a, F>
+where
+    F: p3_field::Field + p3_field::PrimeCharacteristicRing + Copy + Send + Sync,
+    K: From<F>,
+{
+    /// The CCS oracle (owns mutable state for folding)
+    pub oracle: super::oracle::OptimizedOracle<'a, F>,
+    /// Public challenges
+    pub challenges: super::common::Challenges,
+    /// Dimensions
+    pub ell_n: usize,
+    pub ell_d: usize,
+    pub d_sc: usize,
+    /// Initial sum (claimed sum for CCS)
+    pub initial_sum: K,
+}
+
+/// Prepare CCS for Route A batched sum-check.
+///
+/// This function performs CCS setup without running sum-check rounds:
+/// 1. Build dimensions and bind header
+/// 2. Sample challenges (α, β, γ)
+/// 3. Create the CCS oracle
+/// 4. Compute initial sum
+///
+/// The caller can then use `context.oracle` in a batched sum-check with Twist/Shout.
+/// After the batched sum-check completes, call `finalize_ccs_proof` to build ME outputs.
+///
+/// # Returns
+/// - `CcsBatchContext` containing the oracle and all data needed for finalization
+pub fn prepare_ccs_for_batch<'a>(
+    tr: &mut Poseidon2Transcript,
+    params: &'a NeoParams,
+    s: &'a CcsStructure<F>,
+    mcs_witnesses: &'a [McsWitness<F>],
+    me_inputs: &[MeInstance<Cmt, F, K>],
+    me_witnesses: &'a [neo_ccs::Mat<F>],
+) -> Result<CcsBatchContext<'a, F>, PiCcsError> {
+    // Dims + transcript binding
+    let dims = utils::build_dims_and_policy(params, s)?;
+
+    // Note: We skip bind_header_and_instances here as the caller may need to
+    // bind additional Twist/Shout commitments first. The caller is responsible
+    // for proper transcript binding order.
+
+    // Sample challenges
+    let ch = utils::sample_challenges(tr, dims.ell_d, dims.ell)?;
+
+    // Validate ME input r (if provided)
+    for (idx, me) in me_inputs.iter().enumerate() {
+        if me.r.len() != dims.ell_n {
+            return Err(PiCcsError::InvalidInput(format!(
+                "ME input r length mismatch at accumulator #{}: expected ell_n = {}, got {}",
+                idx,
+                dims.ell_n,
+                me.r.len()
+            )));
+        }
+    }
+
+    // Initial sum: use the public T computed from ME inputs and α
+    let initial_sum = crate::paper_exact_engine::claimed_initial_sum_from_inputs(s, &ch, me_inputs);
+
+    // Create the oracle
+    let oracle = super::oracle::OptimizedOracle::new(
+        s,
+        params,
+        mcs_witnesses,
+        me_witnesses,
+        ch.clone(),
+        dims.ell_d,
+        dims.ell_n,
+        dims.d_sc,
+        me_inputs.first().map(|mi| mi.r.as_slice()),
+    );
+
+    Ok(CcsBatchContext {
+        oracle,
+        challenges: ch,
+        ell_n: dims.ell_n,
+        ell_d: dims.ell_d,
+        d_sc: dims.d_sc,
+        initial_sum,
+    })
+}
+
+/// Finalize CCS proof after batched sum-check.
+///
+/// This function completes the CCS proof after time-rounds have been executed
+/// via batched sum-check:
+/// 1. Run remaining Ajtai rounds (if not already done in batch)
+/// 2. Build ME outputs using the time-round challenges (r_prime)
+/// 3. Construct the proof structure
+///
+/// # Arguments
+/// - `tr`: Transcript (should be in same state as after batched sum-check)
+/// - `context`: The batch context from `prepare_ccs_for_batch`
+/// - `time_challenges`: Challenges from the batched sum-check (length = ell_n)
+/// - `time_rounds`: Round polynomials from the batched sum-check for CCS
+/// - `running_sum`: The running sum after time-rounds
+/// - Additional arguments for ME output construction
+pub fn finalize_ccs_after_batch<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[McsInstance<Cmt, F>],
+    mcs_witnesses: &[McsWitness<F>],
+    me_inputs: &[MeInstance<Cmt, F, K>],
+    me_witnesses: &[neo_ccs::Mat<F>],
+    mut context: CcsBatchContext<'_, F>,
+    time_challenges: &[K],
+    time_rounds: Vec<Vec<K>>,
+    running_sum: K,
+    log: &L,
+) -> Result<(Vec<MeInstance<Cmt, F, K>>, super::PiCcsProof), PiCcsError> {
+    // Validate time challenges length
+    if time_challenges.len() != context.ell_n {
+        return Err(PiCcsError::InvalidInput(format!(
+            "time_challenges length mismatch: expected {}, got {}",
+            context.ell_n,
+            time_challenges.len()
+        )));
+    }
+
+    // The oracle should already have time-rounds folded in.
+    // Now run remaining Ajtai rounds.
+    let mut sumcheck_rounds = time_rounds;
+    let mut sumcheck_chals: Vec<K> = time_challenges.to_vec();
+    let mut current_sum = running_sum;
+
+    // Continue with Ajtai rounds
+    for _round_idx in 0..context.ell_d {
+        let deg = context.oracle.degree_bound();
+        let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
+        let ys = context.oracle.evals_at(&xs);
+
+        // Check invariant
+        if ys[0] + ys[1] != current_sum {
+            return Err(PiCcsError::ProtocolError(
+                "Ajtai round sumcheck invariant failed".into(),
+            ));
+        }
+
+        // Interpolate to coefficients
+        let coeffs = super::interpolate_univariate(&xs, &ys);
+
+        // Append to transcript and get challenge
+        for c in coeffs.iter() {
+            tr.append_fields(b"sumcheck/round", &c.as_coeffs());
+        }
+        let c0 = tr.challenge_field(b"sumcheck/challenge/0");
+        let c1 = tr.challenge_field(b"sumcheck/challenge/1");
+        let r_i = neo_math::from_complex(c0, c1);
+        sumcheck_chals.push(r_i);
+
+        // Fold oracle
+        current_sum = crate::sumcheck::poly_eval_k(&coeffs, r_i);
+        context.oracle.fold(r_i);
+        sumcheck_rounds.push(coeffs);
+    }
+
+    // Build ME outputs
+    let fold_digest = tr.digest32();
+    let (r_prime, _alpha_prime) = sumcheck_chals.split_at(context.ell_n);
+    let out_me = crate::paper_exact_engine::build_me_outputs_paper_exact(
+        s,
+        params,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        r_prime,
+        context.ell_d,
+        fold_digest,
+        log,
+    );
+
+    let mut proof = super::PiCcsProof::new(sumcheck_rounds, Some(context.initial_sum));
+    proof.sumcheck_challenges = sumcheck_chals;
+    proof.challenges_public = context.challenges;
+    proof.sumcheck_final = current_sum;
+    proof.header_digest = fold_digest.to_vec();
+
+    Ok((out_me, proof))
+}

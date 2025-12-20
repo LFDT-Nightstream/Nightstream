@@ -8,6 +8,7 @@ use p3_goldilocks::Goldilocks;
 fn split_lut_mats_orders_fields() {
     // With index-bit addressing: d=3, ell=1 (since n_side=2)
     // Total matrices = d*ell + has_lookup + val = 3*1 + 2 = 5
+    // Note: table_at_addr is NOT committed in address-domain architecture
     let inst: LutInstance<(), Goldilocks> = LutInstance {
         comms: vec![(); 5],
         k: 8,
@@ -27,7 +28,7 @@ fn split_lut_mats_orders_fields() {
     let parts = split_lut_mats(&inst, &wit);
     // With ell=1, d=3: we have d*ell = 3 bit columns
     assert_eq!(parts.addr_bit_mats.len(), 3);
-    // Plus has_lookup and val columns
+    // Plus has_lookup and val columns (no table_at_addr in address-domain architecture)
     assert_eq!(parts.has_lookup_mat.cols(), 1);
     assert_eq!(parts.val_mat.cols(), 1);
 }

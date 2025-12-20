@@ -31,7 +31,6 @@ use neo_memory::{shout, twist};
 use neo_params::NeoParams;
 use neo_reductions::api;
 use neo_reductions::api::FoldingMode;
-use neo_transcript::{Poseidon2Transcript, Transcript};
 use neo_vm_trace::{trace_program, Shout, ShoutId, StepMeta, Twist, TwistId, VmCpu, VmTrace};
 
 // ============================================================================
@@ -291,7 +290,7 @@ fn twist_shout_trace_to_witness_smoke() {
     let commit = |m: &neo_ccs::matrix::Mat<F>| dummy.commit(m);
 
     // Encode memory for Twist
-    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], t, &commit);
+    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], t, &commit, None, 0);
 
     // Create the LUT table struct
     let table = LutTable {
@@ -303,12 +302,13 @@ fn twist_shout_trace_to_witness_smoke() {
     };
 
     // Encode lookup for Shout
-    let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, l, &commit);
+    let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, l, &commit, None, 0);
 
     // Sanity: matrix counts
-    // Twist: 2*d + 5 = 2*2 + 5 = 9 matrices (ra_0, ra_1, wa_0, wa_1, inc, has_read, has_write, wv, rv)
+    // Twist: 2*d*ell + 5 matrices (Route A layout)
+    // (ra_bits[d*ell], wa_bits[d*ell], has_read, has_write, wv, rv, inc_at_write_addr)
     // Note: The d here is the address decomposition dimension from PlainMemLayout, not params.d
-    let expected_mem_mats = 2 * mem_layouts[&1u32].d + 5;
+    let expected_mem_mats = 2 * mem_layouts[&1u32].d * mem_inst.ell + 5;
     assert_eq!(
         mem_wit.mats.len(),
         expected_mem_mats,
@@ -317,8 +317,9 @@ fn twist_shout_trace_to_witness_smoke() {
         mem_wit.mats.len()
     );
 
-    // Shout: d matrices (one for each dimension of the one-hot address encoding)
-    let expected_lut_mats = table.d * lut_inst.ell + 2; // address bits + has_lookup + val
+    // Shout: d*ell + 2 matrices (address bits + has_lookup + val)
+    // Note: table_at_addr is NOT committed in address-domain architecture
+    let expected_lut_mats = table.d * lut_inst.ell + 2;
     assert_eq!(
         lut_wit.mats.len(),
         expected_lut_mats,
@@ -331,51 +332,6 @@ fn twist_shout_trace_to_witness_smoke() {
     twist::check_twist_semantics(&params, &mem_inst, &mem_wit).expect("Twist semantic check should pass");
 
     shout::check_shout_semantics(&params, &lut_inst, &lut_wit, &l.val).expect("Shout semantic check should pass");
-
-    // 6) Optional: Run sum-check wiring (even with stubbed ME outputs)
-    // This tests that the sum-check machinery doesn't panic, though
-    // full verification requires ME instance checking.
-    let mut tr = Poseidon2Transcript::new(b"t&s-smoke");
-
-    // Compute ell_cycle - must be large enough to cover steps
-    let max_steps = mem_inst.steps.max(lut_inst.steps);
-    let ell_cycle = max_steps.next_power_of_two().max(1).trailing_zeros() as usize;
-    // For isolation testing, m_in = 0 (no CPU integration)
-    let m_in = 0;
-
-    // Run Shout prove (None = no external r_cycle, isolation test)
-    let shout_result = shout::prove::<DummyCommit, Cmt, F, KElem>(
-        FoldingMode::PaperExact,
-        &mut tr,
-        &params,
-        &lut_inst,
-        &lut_wit,
-        &dummy,
-        ell_cycle,
-        m_in,
-        None, // No external r_cycle - testing in isolation
-        None, // No external r_addr - testing in isolation
-    );
-    assert!(shout_result.is_ok(), "Shout prove should not panic");
-
-    // Run Twist prove (None = no external r_cycle, isolation test)
-    let twist_result = twist::prove::<DummyCommit, Cmt, F, KElem>(
-        FoldingMode::PaperExact,
-        &mut tr,
-        &params,
-        &mem_inst,
-        &mem_wit,
-        &dummy,
-        ell_cycle,
-        m_in,
-        None, // No external r_cycle - testing in isolation
-        None, // No external r_addr - testing in isolation
-    );
-    assert!(
-        twist_result.is_ok(),
-        "Twist prove should not panic: {:?}",
-        twist_result.err()
-    );
 
     println!("✓ twist_shout_trace_to_witness_smoke passed all checks");
 }
@@ -511,7 +467,7 @@ fn twist_shout_sidecar_shapes_and_rlc() {
     let initial_mem: HashMap<(u32, u64), F> = HashMap::new();
     let plain_mem = build_plain_mem_traces::<F>(&trace, &mem_layouts, &initial_mem);
     let t = &plain_mem[&1u32];
-    let (_mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], t, &commit);
+    let (_mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], t, &commit, None, 0);
 
     let mut table_sizes = HashMap::new();
     table_sizes.insert(0u32, (4usize, 2usize));
@@ -524,7 +480,7 @@ fn twist_shout_sidecar_shapes_and_rlc() {
         n_side: 2,
         content: vec![F::from_u64(10), F::from_u64(20), F::from_u64(30), F::from_u64(40)],
     };
-    let (_lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, l, &commit);
+    let (_lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, l, &commit, None, 0);
 
     // CCS structure used only for dimensions/padding
     let target_cols = mem_wit.mats.iter().map(|m| m.cols()).max().unwrap_or(1);

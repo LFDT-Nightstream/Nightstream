@@ -146,6 +146,8 @@ pub use verify::paper_exact_verify as pi_ccs_verify;
 /// Wrapper for simple case (k=1, no ME inputs)
 pub use prove::optimized_prove_simple as pi_ccs_prove_simple;
 
-// Re-export the paper-exact oracle
-#[cfg(feature = "paper-exact")]
-pub use oracle::OptimizedOracle as GenericCcsOracle;
+// Route A: Split CCS prover for batched sum-check with Twist/Shout
+pub use prove::{finalize_ccs_after_batch, prepare_ccs_for_batch, CcsBatchContext};
+
+// Re-export the oracle for Route A integration
+pub use oracle::OptimizedOracle as CcsOracle;

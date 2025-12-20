@@ -371,7 +371,7 @@ pub fn sample_rot_rhos_n(
     let T = expansion_factor_T(ring.alphabet);
     let b = params.b as u128;
     let k_rho = params.k_rho;
-    
+
     // Compute b^{k_rho} carefully to avoid overflow
     let b_pow_k: u128 = if k_rho >= 64 {
         // For k_rho >= 64 with b=2, b^k would overflow u128
@@ -381,13 +381,13 @@ pub fn sample_rot_rhos_n(
             k_rho
         )));
     } else {
-        (b as u128).checked_pow(k_rho).ok_or_else(|| {
-            PiCcsError::InvalidInput(format!("b^k_rho overflow: b={}, k_rho={}", b, k_rho))
-        })?
+        (b as u128)
+            .checked_pow(k_rho)
+            .ok_or_else(|| PiCcsError::InvalidInput(format!("b^k_rho overflow: b={}, k_rho={}", b, k_rho)))?
     };
-    
+
     let lhs = (count as u128) * T * (b.saturating_sub(1));
-    
+
     if lhs >= b_pow_k {
         return Err(PiCcsError::InvalidInput(format!(
             "ΠRLC norm bound violated: count·T·(b-1) = {}·{}·{} = {} must be < b^{{k_rho}} = {} (Section 4.3)\n\

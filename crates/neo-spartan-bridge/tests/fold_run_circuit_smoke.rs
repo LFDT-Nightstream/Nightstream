@@ -105,9 +105,7 @@ fn build_trivial_fold_run_and_instance() -> (FoldRunInstance, FoldRunWitness) {
     };
 
     // FoldRun with one step (final outputs computed from steps).
-    let run = FoldRun {
-        steps: vec![step],
-    };
+    let run = FoldRun { steps: vec![step] };
 
     // Public instance: empty initial accumulator, final accumulator = DEC children,
     // and zero-valued Π-CCS challenges for the single step.

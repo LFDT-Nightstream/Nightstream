@@ -1,9 +1,13 @@
+pub mod addr;
+pub mod ajtai;
+pub mod bit_ops;
 pub mod builder;
 pub mod encode;
 pub mod mle;
 pub mod plain;
 pub mod r1cs_adapter;
 pub mod shout;
+pub mod ts_common;
 pub mod twist;
 pub mod twist_oracle;
 pub mod witness;

@@ -1,13 +1,15 @@
 use crate::encode::{encode_lut_for_shout, encode_mem_for_twist};
-use crate::plain::{build_plain_lut_traces, build_plain_mem_traces, LutTable, PlainMemLayout, PlainLutTrace, PlainMemTrace};
+use crate::plain::{
+    build_plain_lut_traces, build_plain_mem_traces, LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace,
+};
 use crate::witness::StepWitnessBundle;
 use neo_vm_trace::VmTrace;
 
 use neo_ccs::matrix::Mat;
 use neo_ccs::relations::{McsInstance, McsWitness};
 use neo_params::NeoParams;
-use p3_goldilocks::Goldilocks;
 use p3_field::PrimeCharacteristicRing;
+use p3_goldilocks::Goldilocks;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -30,6 +32,14 @@ pub enum ShardBuildError {
 
 pub trait Program {}
 
+/// Build shard witness with optional CCS width alignment.
+///
+/// # Parameters
+/// * `ccs_m` - The CCS witness width (`s.m`). If `None`, uses legacy mode (NOT RECOMMENDED).
+/// * `m_in` - The number of public input columns for CCS-aligned encoding.
+///
+/// When `ccs_m` is provided, all memory/LUT witnesses are encoded at exactly `ccs_m` columns
+/// with data embedded at offset `m_in`, ensuring proper alignment with Neo's ME relation.
 pub fn build_shard_witness<V, Cmt, L, K, A, Tw, Sh>(
     vm: V,
     twist: Tw,
@@ -42,6 +52,8 @@ pub fn build_shard_witness<V, Cmt, L, K, A, Tw, Sh>(
     params: &NeoParams,
     commit: &L,
     cpu_arith: &A,
+    ccs_m: Option<usize>,
+    m_in: usize,
 ) -> Result<Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardBuildError>
 where
     V: neo_vm_trace::VmCpu<u64, u64>,
@@ -93,9 +105,9 @@ where
         // Build per-step memory witnesses
         let mut mem_instances = Vec::new();
         for (mem_id, plain) in &plain_mem {
-            let layout = mem_layouts
-                .get(mem_id)
-                .ok_or_else(|| ShardBuildError::MissingLayout(format!("missing PlainMemLayout for twist_id {}", mem_id)))?;
+            let layout = mem_layouts.get(mem_id).ok_or_else(|| {
+                ShardBuildError::MissingLayout(format!("missing PlainMemLayout for twist_id {}", mem_id))
+            })?;
             let mut state = mem_states
                 .get(mem_id)
                 .cloned()
@@ -113,7 +125,7 @@ where
                 inc: plain.inc.iter().map(|row| vec![row[step_idx]]).collect(),
             };
 
-            let (inst, wit) = encode_mem_for_twist(params, layout, &single_plain, commit);
+            let (inst, wit) = encode_mem_for_twist(params, layout, &single_plain, commit, ccs_m, m_in);
             mem_instances.push((inst, wit));
 
             // Advance memory state for the next step
@@ -139,7 +151,7 @@ where
                 val: vec![plain.val[step_idx]],
             };
 
-            let (inst, wit) = encode_lut_for_shout(params, table, &single_plain, commit);
+            let (inst, wit) = encode_lut_for_shout(params, table, &single_plain, commit, ccs_m, m_in);
             lut_instances.push((inst, wit));
         }
 

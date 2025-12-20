@@ -285,3 +285,259 @@ pub fn verify_sumcheck_rounds<Tr: Transcript>(
 
     (challenges, running_sum, true)
 }
+
+// ============================================================================
+// Batched Sum-Check (Shared Challenges)
+// ============================================================================
+//
+// For Route A soundness: run multiple sum-checks with shared transcript-derived
+// challenges. This enables r-alignment across CCS and Twist/Shout while maintaining
+// sum-check soundness (challenges unpredictable to prover).
+
+/// A claim participating in batched sum-check.
+///
+/// Each claim has an oracle, degree bound, and claimed sum. During batched sum-check,
+/// all oracles receive the same transcript-derived challenges.
+pub struct BatchedClaim<'a> {
+    /// The oracle for this claim
+    pub oracle: &'a mut dyn RoundOracle,
+    /// Claimed sum for this protocol
+    pub claimed_sum: K,
+    /// Label for this claim (for transcript domain separation)
+    pub label: &'static [u8],
+}
+
+/// Result of batched sum-check for a single claim
+#[derive(Debug, Clone)]
+pub struct BatchedClaimResult {
+    /// Round polynomials (coefficients per round)
+    pub round_polys: Vec<Vec<K>>,
+    /// Final oracle value after all rounds
+    pub final_value: K,
+}
+
+/// Run batched sum-check prover with shared transcript-derived challenges.
+///
+/// This is the SOUND version of sum-check that fixes the fixed-challenge issue.
+/// All oracles in `claims` receive the same challenges derived from the transcript,
+/// ensuring:
+/// 1. Challenges are unpredictable when the prover produces round polynomials
+/// 2. The resulting `r` is shared across all protocols (enables r-alignment for RLC)
+///
+/// # Arguments
+/// - `tr`: Transcript for Fiat-Shamir
+/// - `claims`: Vector of claims participating in the batched sum-check
+///
+/// # Returns
+/// - Shared challenges (the `r` vector for ME claims)
+/// - Per-claim results (round polynomials and final values)
+pub fn run_batched_sumcheck_prover<Tr: Transcript>(
+    tr: &mut Tr,
+    claims: &mut [BatchedClaim<'_>],
+) -> Result<(Vec<K>, Vec<BatchedClaimResult>), SumcheckError> {
+    if claims.is_empty() {
+        return Ok((vec![], vec![]));
+    }
+
+    // All oracles must have the same number of rounds (they operate over the same domain)
+    let num_rounds = claims[0].oracle.num_rounds();
+    for (i, claim) in claims.iter().enumerate() {
+        if claim.oracle.num_rounds() != num_rounds {
+            panic!(
+                "Batched sum-check: claim {} has {} rounds, expected {} (all must match)",
+                i,
+                claim.oracle.num_rounds(),
+                num_rounds
+            );
+        }
+    }
+
+    let mut shared_challenges = Vec::with_capacity(num_rounds);
+    let mut per_claim_results: Vec<BatchedClaimResult> = claims
+        .iter()
+        .map(|_| BatchedClaimResult {
+            round_polys: Vec::with_capacity(num_rounds),
+            final_value: K::ZERO,
+        })
+        .collect();
+
+    // Track running sums per claim
+    let mut running_sums: Vec<K> = claims.iter().map(|c| c.claimed_sum).collect();
+
+    #[cfg(feature = "debug-logs")]
+    eprintln!(
+        "BATCHED SUMCHECK PROVER: {} claims, {} rounds",
+        claims.len(),
+        num_rounds
+    );
+
+    for round_idx in 0..num_rounds {
+        tr.append_message(b"batched/round_idx", &(round_idx as u64).to_le_bytes());
+
+        // 1. Collect round polynomials from ALL claims
+        let mut all_round_polys: Vec<Vec<K>> = Vec::with_capacity(claims.len());
+
+        for (claim_idx, claim) in claims.iter_mut().enumerate() {
+            let deg = claim.oracle.degree_bound();
+            let xs: Vec<K> = (0..=deg).map(|t| K::from(Fq::from_u64(t as u64))).collect();
+            let ys = claim.oracle.evals_at(&xs);
+
+            // Check invariant: p(0) + p(1) = running_sum
+            let sum_at_01 = ys[0] + ys[1];
+            if sum_at_01 != running_sums[claim_idx] {
+                return Err(SumcheckError::Invariant {
+                    round: round_idx,
+                    expected: running_sums[claim_idx],
+                    actual: sum_at_01,
+                });
+            }
+
+            // Interpolate to get polynomial coefficients
+            let coeffs = interpolate_from_evals(&xs, &ys);
+            all_round_polys.push(coeffs);
+        }
+
+        // 2. Append ALL round polynomials to transcript (domain separated by claim)
+        for (claim_idx, (claim, coeffs)) in claims.iter().zip(all_round_polys.iter()).enumerate() {
+            tr.append_message(b"batched/claim_label", claim.label);
+            tr.append_message(b"batched/claim_idx", &(claim_idx as u64).to_le_bytes());
+            for &coeff in coeffs.iter() {
+                tr.append_fields(b"batched/round/coeff", &coeff.as_coeffs());
+            }
+        }
+
+        // 3. Derive ONE shared challenge from transcript
+        let c = tr.challenge_field(b"batched/challenge/0");
+        let d = tr.challenge_field(b"batched/challenge/1");
+        let shared_challenge = from_complex(c, d);
+        shared_challenges.push(shared_challenge);
+
+        #[cfg(feature = "debug-logs")]
+        if round_idx < 3 {
+            eprintln!(
+                "BATCHED Round {}: shared_challenge={}",
+                round_idx,
+                format_k(&shared_challenge)
+            );
+        }
+
+        // 4. Fold ALL oracles with the shared challenge and update running sums
+        for (claim_idx, (claim, coeffs)) in claims.iter_mut().zip(all_round_polys.iter()).enumerate() {
+            running_sums[claim_idx] = poly_eval_k(coeffs, shared_challenge);
+            claim.oracle.fold(shared_challenge);
+            per_claim_results[claim_idx]
+                .round_polys
+                .push(coeffs.clone());
+        }
+    }
+
+    // Store final values
+    for (claim_idx, result) in per_claim_results.iter_mut().enumerate() {
+        result.final_value = running_sums[claim_idx];
+    }
+
+    Ok((shared_challenges, per_claim_results))
+}
+
+/// Verify batched sum-check rounds with shared challenges.
+///
+/// # Arguments
+/// - `tr`: Transcript (must be in same state as prover's)
+/// - `per_claim_rounds`: Round polynomials per claim
+/// - `per_claim_sums`: Claimed sums per claim
+/// - `per_claim_labels`: Labels per claim (for transcript domain separation)
+/// - `degree_bounds`: Degree bounds per claim
+///
+/// # Returns
+/// - Shared challenges
+/// - Final values per claim
+/// - Whether verification passed
+pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
+    tr: &mut Tr,
+    per_claim_rounds: &[Vec<Vec<K>>],
+    per_claim_sums: &[K],
+    per_claim_labels: &[&[u8]],
+    degree_bounds: &[usize],
+) -> (Vec<K>, Vec<K>, bool) {
+    let num_claims = per_claim_rounds.len();
+    if num_claims == 0 {
+        return (vec![], vec![], true);
+    }
+
+    // All claims must have the same number of rounds
+    let num_rounds = per_claim_rounds[0].len();
+    for (i, rounds) in per_claim_rounds.iter().enumerate() {
+        if rounds.len() != num_rounds {
+            eprintln!(
+                "Batched verify: claim {} has {} rounds, expected {}",
+                i,
+                rounds.len(),
+                num_rounds
+            );
+            return (vec![], vec![], false);
+        }
+    }
+
+    let mut shared_challenges = Vec::with_capacity(num_rounds);
+    let mut running_sums = per_claim_sums.to_vec();
+
+    for round_idx in 0..num_rounds {
+        tr.append_message(b"batched/round_idx", &(round_idx as u64).to_le_bytes());
+
+        // Verify each claim's round polynomial
+        for (claim_idx, rounds) in per_claim_rounds.iter().enumerate() {
+            let round_poly = &rounds[round_idx];
+            let degree_bound = degree_bounds[claim_idx];
+
+            // Check degree bound
+            if round_poly.len() > degree_bound + 1 {
+                eprintln!(
+                    "Claim {} round {} failed: degree check. len={}, degree_bound={}",
+                    claim_idx,
+                    round_idx,
+                    round_poly.len(),
+                    degree_bound
+                );
+                return (shared_challenges, running_sums, false);
+            }
+
+            // Check invariant: p(0) + p(1) = running_sum
+            let eval_0 = poly_eval_k(round_poly, K::ZERO);
+            let eval_1 = poly_eval_k(round_poly, K::ONE);
+
+            if eval_0 + eval_1 != running_sums[claim_idx] {
+                eprintln!(
+                    "Claim {} round {} failed: invariant. sum={:?}, running_sum={:?}",
+                    claim_idx,
+                    round_idx,
+                    eval_0 + eval_1,
+                    running_sums[claim_idx]
+                );
+                return (shared_challenges, running_sums, false);
+            }
+        }
+
+        // Append ALL round polynomials to transcript (same order as prover)
+        for (claim_idx, rounds) in per_claim_rounds.iter().enumerate() {
+            let round_poly = &rounds[round_idx];
+            tr.append_message(b"batched/claim_label", per_claim_labels[claim_idx]);
+            tr.append_message(b"batched/claim_idx", &(claim_idx as u64).to_le_bytes());
+            for &coeff in round_poly.iter() {
+                tr.append_fields(b"batched/round/coeff", &coeff.as_coeffs());
+            }
+        }
+
+        // Derive shared challenge (must match prover)
+        let c = tr.challenge_field(b"batched/challenge/0");
+        let d = tr.challenge_field(b"batched/challenge/1");
+        let shared_challenge = from_complex(c, d);
+        shared_challenges.push(shared_challenge);
+
+        // Update running sums
+        for (claim_idx, rounds) in per_claim_rounds.iter().enumerate() {
+            running_sums[claim_idx] = poly_eval_k(&rounds[round_idx], shared_challenge);
+        }
+    }
+
+    (shared_challenges, running_sums, true)
+}

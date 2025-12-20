@@ -1,336 +1,221 @@
-//! Twist argument for read/write memory correctness.
+//! Twist argument for read/write memory correctness (Route A).
 //!
-//! This module implements the Twist protocol with **index-bit addressing**:
-//! instead of committing O(n_side) one-hot columns per dimension, we commit
-//! O(log n_side) bit columns and prove consistency via the IDX→OH adapter.
+//! This module intentionally supports only Route A integration inside
+//! `neo-fold::shard`. The legacy fixed-challenge APIs were removed.
 //!
-//! ## Protocol Overview (Corrected Ordering)
+//! Current Route A semantics: per-chunk Twist with a virtual `Val` (via sparse
+//! increments + LT-based val-eval) and read/write zero-checks.
 //!
-//! 1. Sample r_addr (random address point) and r_cycle (random cycle point)
-//! 2. Build Val(r_addr, t) from init_vals and Inc
-//! 3. **Read Check**: Prove rv(t) = Val(r_addr, t) when ra_t = r_addr
-//! 4. **Write Check**: Prove Inc(r_addr, t) = (wv - Val) when wa_t = r_addr
-//! 5. **ValEval Check**: Prove Val(r_addr, r_cycle) consistency
-//! 6. **Bitness Check**: Prove all address bit columns are binary
-//! 7. Generate ME claims for folding
-//!
-//! ## Witness Layout (Index-Bit Addressing)
-//!
-//! The matrices in `MemWitness.mats` are ordered as:
-//! - `0 .. d*ell`:           Read address bits
-//! - `d*ell .. 2*d*ell`:     Write address bits
-//! - `2*d*ell`:              Inc(k, j) flattened
-//! - `2*d*ell + 1`:          has_read(j)
-//! - `2*d*ell + 2`:          has_write(j)
-//! - `2*d*ell + 3`:          wv(j)
-//! - `2*d*ell + 4`:          rv(j)
+//! `init_vals` are provided per chunk. Cross-chunk rollover is enforced by the
+//! Route A integration in `neo-fold::shard` (not by this per-chunk argument).
 
+use crate::ajtai::decode_vector as ajtai_decode_vector;
+use crate::ts_common as ts;
+use crate::twist_oracle::{
+    build_eq_table, build_val_table_pre_write, IndexAdapterOracle, LazyBitnessOracle, ProductRoundOracle,
+    TwistReadCheck2DOracle, TwistWriteCheck2DOracle,
+};
 use crate::witness::{MemInstance, MemWitness};
 use neo_ajtai::Commitment as AjtaiCmt;
 use neo_ccs::matrix::Mat;
-use neo_ccs::relations::MeInstance;
+use neo_math::{F as BaseField, K as KElem};
 use neo_params::NeoParams;
-use neo_reductions::api::FoldingMode;
 use neo_reductions::error::PiCcsError;
-use neo_transcript::{Poseidon2Transcript, Transcript, TranscriptProtocol};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField};
 use serde::{Deserialize, Serialize};
 
-use crate::mle::mle_eval;
-#[cfg(feature = "debug-logs")]
-use crate::twist_oracle::build_val_at_r_addr;
-use crate::twist_oracle::{
-    build_inc_at_r_addr, BitnessOracle, TwistReadCheckOracle, TwistValEvalOracle, TwistWriteCheckOracle,
-};
-use neo_ccs::traits::SModuleHomomorphism;
-#[cfg(feature = "debug-logs")]
-use neo_math::KExtensions;
-use neo_math::{from_complex, F as BaseField, K as KElem};
-use neo_reductions::sumcheck::run_sumcheck_prover;
-
 // ============================================================================
-// Ajtai Decoding Helpers
+// Input validation
 // ============================================================================
 
-/// Decode an Ajtai-encoded matrix back to the original vector.
-pub fn ajtai_decode_vector<F: PrimeField>(params: &NeoParams, mat: &Mat<F>) -> Vec<F> {
-    let d = mat.rows();
-    let m = mat.cols();
-    assert_eq!(
-        d, params.d as usize,
-        "Ajtai d mismatch: mat has {} rows, params.d = {}",
-        d, params.d
-    );
-
-    let b = F::from_u64(params.b as u64);
-
-    // Precompute b^0, b^1, ..., b^{d-1}
-    let mut pow = vec![F::ONE; d];
-    for i in 1..d {
-        pow[i] = pow[i - 1] * b;
+fn validate_index_bit_addressing<Cmt, F: PrimeCharacteristicRing + PartialEq>(
+    inst: &MemInstance<Cmt, F>,
+) -> Result<(), PiCcsError> {
+    crate::addr::validate_pow2_bit_addressing("Twist", inst.n_side, inst.d, inst.ell, inst.k)?;
+    if inst.init_vals.len() != inst.k {
+        return Err(PiCcsError::InvalidInput(format!(
+            "Twist: init_vals.len()={} must equal k={}",
+            inst.init_vals.len(),
+            inst.k
+        )));
     }
 
-    let mut out = Vec::with_capacity(m);
-    for col in 0..m {
-        let mut acc = F::ZERO;
-        for row in 0..d {
-            acc += mat[(row, col)] * pow[row];
-        }
-        out.push(acc);
-    }
-    out
-}
-
-/// Decode Inc matrix to flattened form: inc_flat[cell * steps + j] = Inc(cell, j)
-pub fn decode_inc_flat<F: PrimeField>(
-    params: &NeoParams,
-    _inst: &MemInstance<impl Clone, F>,
-    inc_mat: &Mat<F>,
-) -> Vec<F> {
-    ajtai_decode_vector(params, inc_mat)
+    Ok(())
 }
 
 // ============================================================================
-// Helper utilities
-// ============================================================================
-
-fn sample_ext_point(tr: &mut Poseidon2Transcript, label: &'static [u8], len: usize) -> Vec<KElem> {
-    let mut out = Vec::with_capacity(len);
-    for i in 0..len {
-        tr.append_message(label, &i.to_le_bytes());
-        let c0 = tr.challenge_field(b"twist/coord/0");
-        let c1 = tr.challenge_field(b"twist/coord/1");
-        out.push(from_complex(c0, c1));
-    }
-    out
-}
-
-fn sample_base_addr_point(tr: &mut Poseidon2Transcript, label: &'static [u8], len: usize) -> Vec<KElem> {
-    let mut out = Vec::with_capacity(len);
-    for i in 0..len {
-        tr.append_message(label, &i.to_le_bytes());
-        let c0 = tr.challenge_field(b"twist/coord/0");
-        out.push(from_complex(c0, BaseField::ZERO));
-    }
-    out
-}
-
-/// Pad a vector to the given length with zeros.
-pub fn pad_to_pow2<T: Clone + Default>(v: &[T], pow2_len: usize) -> Vec<T> {
-    let mut out = v.to_vec();
-    out.resize(pow2_len, T::default());
-    out
-}
-
-/// Pad a K-vector to the given length.
-pub fn pad_cycle_k(v: &[KElem], pow2_cycle: usize) -> Vec<KElem> {
-    let mut out = v.to_vec();
-    out.resize(pow2_cycle, KElem::ZERO);
-    out
-}
-
-// ============================================================================
-// Commitment Absorption (for Fiat-Shamir soundness)
+// Transcript binding
 // ============================================================================
 
 /// Absorb all Twist commitments into the transcript.
 ///
-/// **MUST be called BEFORE deriving any random challenge that will be used
-/// for opening these commitments** (e.g., the canonical `r_cycle` from CPU folding).
-///
-/// This ensures Fiat-Shamir soundness: the prover cannot choose commitments
-/// after seeing the evaluation point.
+/// Must be called before sampling any challenge used to open these commitments.
 pub fn absorb_commitments<F>(tr: &mut Poseidon2Transcript, inst: &MemInstance<AjtaiCmt, F>) {
-    tr.append_message(b"twist/absorb_commitments", &(inst.comms.len() as u64).to_le_bytes());
-    for (i, comm) in inst.comms.iter().enumerate() {
-        tr.append_message(b"twist/comm_idx", &(i as u64).to_le_bytes());
-        // Absorb the commitment's field elements
-        tr.absorb_commit_coords(&comm.data);
-    }
+    ts::absorb_ajtai_commitments(tr, b"twist/absorb_commitments", b"twist/comm_idx", &inst.comms);
 }
 
 // ============================================================================
-// Proof Structure
+// Proof metadata (Route A)
 // ============================================================================
 
-/// Proof for the Twist memory argument.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BatchedAddrProof<F> {
+    /// claimed_sums[0] = read_addr_claim_sum
+    /// claimed_sums[1] = write_addr_claim_sum
+    pub claimed_sums: Vec<F>,
+    pub round_polys: Vec<Vec<Vec<F>>>,
+    pub r_addr: Vec<F>,
+}
+
+impl<F: Default> Default for BatchedAddrProof<F> {
+    fn default() -> Self {
+        Self {
+            claimed_sums: Vec::new(),
+            round_polys: Vec::new(),
+            r_addr: Vec::new(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TwistProof<F> {
-    /// Sum-check round messages for read-check
-    pub read_check_rounds: Vec<Vec<F>>,
-    /// Sum-check round messages for write-check
-    pub write_check_rounds: Vec<Vec<F>>,
-    /// Sum-check round messages for Val-evaluation
-    pub val_eval_rounds: Vec<Vec<F>>,
-    /// Sum-check round messages for bitness checks
-    pub bitness_rounds: Vec<Vec<F>>,
-    /// Claimed sum for read-check (should be 0)
-    pub read_claim: F,
-    /// Claimed sum for write-check
-    pub write_claim: F,
-    /// Claimed sum for val-eval
-    pub val_claim: F,
+    pub me_claim_count: usize,
+    pub addr_batch: BatchedAddrProof<F>,
+    pub val_eval: Option<TwistValEvalProof<F>>,
 }
 
 impl<F: Default> Default for TwistProof<F> {
     fn default() -> Self {
         Self {
-            read_check_rounds: Vec::new(),
-            write_check_rounds: Vec::new(),
-            val_eval_rounds: Vec::new(),
-            bitness_rounds: Vec::new(),
-            read_claim: F::default(),
-            write_claim: F::default(),
-            val_claim: F::default(),
+            me_claim_count: 0,
+            addr_batch: BatchedAddrProof::default(),
+            val_eval: None,
         }
     }
 }
 
-/// Decomposed witness matrices from MemWitness (index-bit layout).
-#[derive(Clone, Debug)]
-pub struct TwistWitnessParts<'a, F> {
-    /// Read address bit matrices: d*ell matrices
-    pub ra_bit_mats: &'a [Mat<F>],
-    /// Write address bit matrices: d*ell matrices
-    pub wa_bit_mats: &'a [Mat<F>],
-    /// Increment matrix: Inc(k, j) flattened
-    pub inc_mat: &'a Mat<F>,
-    /// Has-read flags
-    pub has_read_mat: &'a Mat<F>,
-    /// Has-write flags
-    pub has_write_mat: &'a Mat<F>,
-    /// Write values
-    pub wv_mat: &'a Mat<F>,
-    /// Read values
-    pub rv_mat: &'a Mat<F>,
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TwistValEvalProof<F> {
+    /// V = Val(r_addr, r_time) (pre-write).
+    pub claimed_val: F,
+    /// Σ_t Inc(r_addr, t) · LT(t, r_time) (init term excluded).
+    pub claimed_inc_sum_lt: F,
+    /// Sum-check rounds for the LT-weighted claim (ell_n rounds, cycle/time variables).
+    pub rounds_lt: Vec<Vec<F>>,
+
+    /// Σ_t Inc(r_addr, t) (total increment over the whole chunk).
+    pub claimed_inc_sum_total: F,
+    /// Sum-check rounds for the total-increment claim (ell_n rounds, cycle/time variables).
+    pub rounds_total: Vec<Vec<F>>,
+
+    /// Challenge point for this sum-check (cycle/time variables).
+    pub r_val: Vec<F>,
 }
 
-/// Split the MemWitness matrices into named parts (index-bit layout).
+// ============================================================================
+// Witness layout helpers
+// ============================================================================
+
+#[derive(Clone, Debug)]
+pub struct TwistWitnessParts<'a, F> {
+    pub ra_bit_mats: &'a [Mat<F>],
+    pub wa_bit_mats: &'a [Mat<F>],
+    pub has_read_mat: &'a Mat<F>,
+    pub has_write_mat: &'a Mat<F>,
+    pub wv_mat: &'a Mat<F>,
+    pub rv_mat: &'a Mat<F>,
+    pub inc_at_write_addr_mat: &'a Mat<F>,
+}
+
+/// Layout: `[ra_bits (d*ell), wa_bits (d*ell), has_read, has_write, wv, rv, inc_at_write_addr]`.
 pub fn split_mem_mats<'a, F: Clone>(
     inst: &MemInstance<impl Clone, F>,
     wit: &'a MemWitness<F>,
 ) -> TwistWitnessParts<'a, F> {
-    let d = inst.d;
-    let ell = inst.ell;
-    let total_addr_bits = d * ell;
-    let expected_len = 2 * total_addr_bits + 5;
-
+    let ell_addr = inst.d * inst.ell;
+    let expected = 2 * ell_addr + 5;
     assert_eq!(
         wit.mats.len(),
-        expected_len,
-        "MemWitness has {} matrices, expected {} (d={}, ell={})",
+        expected,
+        "MemWitness has {} matrices, expected {} (2*d*ell={} + has_read + has_write + wv + rv + inc_at_write_addr)",
         wit.mats.len(),
-        expected_len,
-        d,
-        ell
+        expected,
+        2 * ell_addr
     );
 
     TwistWitnessParts {
-        ra_bit_mats: &wit.mats[0..total_addr_bits],
-        wa_bit_mats: &wit.mats[total_addr_bits..2 * total_addr_bits],
-        inc_mat: &wit.mats[2 * total_addr_bits],
-        has_read_mat: &wit.mats[2 * total_addr_bits + 1],
-        has_write_mat: &wit.mats[2 * total_addr_bits + 2],
-        wv_mat: &wit.mats[2 * total_addr_bits + 3],
-        rv_mat: &wit.mats[2 * total_addr_bits + 4],
+        ra_bit_mats: &wit.mats[..ell_addr],
+        wa_bit_mats: &wit.mats[ell_addr..2 * ell_addr],
+        has_read_mat: &wit.mats[2 * ell_addr],
+        has_write_mat: &wit.mats[2 * ell_addr + 1],
+        wv_mat: &wit.mats[2 * ell_addr + 2],
+        rv_mat: &wit.mats[2 * ell_addr + 3],
+        inc_at_write_addr_mat: &wit.mats[2 * ell_addr + 4],
     }
 }
 
 // ============================================================================
-// Semantic Checker (Debug)
+// Semantic checker (debug/tests)
 // ============================================================================
 
-/// Check Twist semantics without cryptographic proofs.
 pub fn check_twist_semantics<F: PrimeField>(
     params: &NeoParams,
     inst: &MemInstance<impl Clone, F>,
     wit: &MemWitness<F>,
 ) -> Result<(), PiCcsError> {
-    let parts = split_mem_mats(inst, wit);
-    let k = inst.k;
-    let steps = inst.steps;
-    let ell = inst.ell;
-    let d = inst.d;
+    validate_index_bit_addressing(inst)?;
 
-    // Decode data columns
+    let parts = split_mem_mats(inst, wit);
+    let steps = inst.steps;
+    let k = inst.k;
+
     let has_read = ajtai_decode_vector(params, parts.has_read_mat);
     let has_write = ajtai_decode_vector(params, parts.has_write_mat);
     let wv = ajtai_decode_vector(params, parts.wv_mat);
     let rv = ajtai_decode_vector(params, parts.rv_mat);
-    let inc_flat = ajtai_decode_vector(params, parts.inc_mat);
+    let inc_at_write_addr = ajtai_decode_vector(params, parts.inc_at_write_addr_mat);
 
-    // Decode addresses from bit columns (optimized: decode each column once)
-    let decode_addr_from_bits = |bit_mats: &[Mat<F>]| -> Vec<u64> {
-        // Pre-decode all bit columns once (avoid O(d * ell * steps) decode calls)
-        let decoded: Vec<Vec<F>> = bit_mats.iter().map(|m| ajtai_decode_vector(params, m)).collect();
-
-        let mut addrs = vec![0u64; steps];
-        for dim in 0..d {
-            let base = dim * ell;
-            let stride = (inst.n_side as u64).pow(dim as u32);
-            for b in 0..ell {
-                let col = &decoded[base + b];
-                let bit_weight = 1u64 << b;
-                for j in 0..steps.min(col.len()) {
-                    if col[j] == F::ONE {
-                        addrs[j] += bit_weight * stride;
-                    }
-                }
-            }
-        }
-        addrs
-    };
-
-    let read_addrs = decode_addr_from_bits(parts.ra_bit_mats);
-    let write_addrs = decode_addr_from_bits(parts.wa_bit_mats);
-
-    // Check bitness
+    // Bitness of address bits.
     for mat in parts.ra_bit_mats.iter().chain(parts.wa_bit_mats.iter()) {
         let v = ajtai_decode_vector(params, mat);
         for (j, &x) in v.iter().enumerate() {
             if x != F::ZERO && x != F::ONE {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Non-binary value in address bit column at step {j}: {x:?}"
+                    "Twist: non-binary value in address bit column at step {j}: {x:?}"
                 )));
             }
         }
     }
 
-    // Validate init_vals
-    let init_vals_len = inst.init_vals.len();
-    if init_vals_len != k {
-        return Err(PiCcsError::InvalidInput(format!(
-            "init_vals length mismatch: inst.k={k}, init_vals.len()={init_vals_len}"
-        )));
-    }
+    // Decode addresses.
+    let read_addrs = ts::decode_addrs_from_bits(params, parts.ra_bit_mats, inst.d, inst.ell, inst.n_side, steps);
+    let write_addrs = ts::decode_addrs_from_bits(params, parts.wa_bit_mats, inst.d, inst.ell, inst.n_side, steps);
 
-    // Simulate memory
-    let mut val = inst.init_vals.clone();
-
+    // Route A prototype: per-chunk init values are provided in the instance.
+    let mut mem = inst.init_vals.clone();
     for j in 0..steps {
-        // Check read correctness
         if has_read[j] == F::ONE {
             let addr = read_addrs[j] as usize;
-            if addr < k && rv[j] != val[addr] {
+            if addr < k && rv[j] != mem[addr] {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Read mismatch at step {j}: rv={:?}, Val[{addr}]={:?}",
-                    rv[j], val[addr]
+                    "Twist: read mismatch at step {j}: rv={:?}, mem[{addr}]={:?}",
+                    rv[j], mem[addr]
                 )));
             }
         }
 
-        // Check write correctness and update memory
         if has_write[j] == F::ONE {
             let addr = write_addrs[j] as usize;
             if addr < k {
-                let expected_inc = wv[j] - val[addr];
-                let actual_inc = inc_flat[addr * steps + j];
-                if actual_inc != expected_inc {
+                let expected_inc = wv[j] - mem[addr];
+                if inc_at_write_addr[j] != expected_inc {
                     return Err(PiCcsError::InvalidInput(format!(
-                        "Inc mismatch at step {j}, cell {addr}: got {actual_inc:?}, expected {expected_inc:?}"
+                        "Twist: inc mismatch at step {j}, addr {addr}: got {:?}, expected {:?}",
+                        inc_at_write_addr[j], expected_inc
                     )));
                 }
-                val[addr] = wv[j];
+                mem[addr] = wv[j];
             }
         }
     }
@@ -339,754 +224,302 @@ pub fn check_twist_semantics<F: PrimeField>(
 }
 
 // ============================================================================
-// Prover
+// Route A decoded columns (time-domain only).
 // ============================================================================
 
-/// Prove memory correctness using the Twist argument with index-bit addressing.
-///
-/// Returns ME instances that reduce the Twist claim to commitments openings,
-/// which can then be folded using Neo's standard RLC→DEC pipeline.
-///
-/// # Parameters
-/// - `ell_cycle`: The log₂ of the cycle domain size (must match `ell_n` from the ME structure)
-/// - `m_in`: The number of public input columns (must match the ME structure for X shape)
-/// - `external_r_cycle`: If provided, use this as `r_cycle` instead of sampling from transcript.
-///   This is used for r-alignment when merging CPU and memory ME claims via RLC.
-///   **Soundness requirement**: When using external `r_cycle`, the caller must ensure
-///   it was derived AFTER all Twist commitments were absorbed into the transcript.
-pub fn prove<L, Cmt, F, K>(
-    _mode: FoldingMode,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    inst: &MemInstance<Cmt, F>,
-    wit: &MemWitness<F>,
-    _l: &L,
-    ell_cycle: usize,
-    m_in: usize,
-    external_r_cycle: Option<&[KElem]>,
-    external_r_addr: Option<&[KElem]>,
-) -> Result<(Vec<MeInstance<Cmt, F, K>>, Vec<Mat<F>>, TwistProof<KElem>), PiCcsError>
-where
-    F: PrimeField + Into<KElem> + Copy,
-    K: From<KElem> + Clone,
-    Cmt: Clone,
-{
-    let parts = split_mem_mats(inst, wit);
+#[derive(Clone, Debug)]
+pub struct TwistDecodedCols {
+    pub ra_bits: Vec<Vec<KElem>>,
+    pub wa_bits: Vec<Vec<KElem>>,
+    pub has_read: Vec<KElem>,
+    pub has_write: Vec<KElem>,
+    pub wv: Vec<KElem>,
+    pub rv: Vec<KElem>,
+    pub inc_at_write_addr: Vec<KElem>,
+    pub pre_write: Vec<KElem>,
+}
 
-    // Debug check
+/// Compute Val(r_addr, t) on all Boolean t in the padded time domain.
+///
+/// Semantics: "pre-write" value at time t.
+/// Update order matches `check_twist_semantics`: read sees pre-write, then write updates.
+///
+/// Inputs are decoded K-vectors (length pow2_cycle).
+pub fn compute_val_at_r_addr_pre_write(
+    wa_bits: &[Vec<KElem>],      // len = ell_addr, each len = pow2_cycle
+    has_write: &[KElem],         // len = pow2_cycle
+    inc_at_write_addr: &[KElem], // len = pow2_cycle
+    r_addr: &[KElem],            // len = ell_addr
+    init_at_r_addr: KElem,
+) -> Vec<KElem> {
+    let pow2_cycle = has_write.len();
+    assert_eq!(
+        inc_at_write_addr.len(),
+        pow2_cycle,
+        "inc_at_write_addr length must match has_write"
+    );
+
+    // inc_at_r_addr[t] = has_write[t] * eq(wa_bits(t), r_addr) * inc_at_write_addr[t]
+    let inc_at_r_addr =
+        crate::twist_oracle::build_inc_at_r_addr_sparse(wa_bits, has_write, inc_at_write_addr, r_addr, pow2_cycle);
+
+    // Prefix-sum (pre-write): val[t] = init + Σ_{u < t} inc[u]
+    let mut out = vec![KElem::ZERO; pow2_cycle];
+    let mut acc = init_at_r_addr;
+    for t in 0..pow2_cycle {
+        out[t] = acc;
+        acc += inc_at_r_addr[t];
+    }
+    out
+}
+
+/// Decode committed Twist columns into K-extension vectors padded to 2^ell_cycle.
+pub fn decode_twist_cols<Cmt: Clone>(
+    params: &NeoParams,
+    inst: &MemInstance<Cmt, BaseField>,
+    wit: &MemWitness<BaseField>,
+    ell_cycle: usize,
+) -> Result<TwistDecodedCols, PiCcsError> {
+    validate_index_bit_addressing(inst)?;
+
     #[cfg(debug_assertions)]
     check_twist_semantics(params, inst, wit)?;
 
-    let k = inst.k;
-    let d = inst.d;
-    let ell = inst.ell;
-    let steps = inst.steps;
-    let total_addr_bits = d * ell;
-
-    // Use the provided ell_cycle (should match ell_n from the ME structure)
+    let ell_addr = inst.d * inst.ell;
     let pow2_cycle = 1usize << ell_cycle;
-    if steps > pow2_cycle {
+    if inst.steps > pow2_cycle {
         return Err(PiCcsError::InvalidInput(format!(
-            "Twist: steps={steps} exceeds 2^ell_cycle={pow2_cycle} (ell_cycle={ell_cycle})"
+            "Twist(Route A): steps={} exceeds 2^ell_cycle={pow2_cycle}",
+            inst.steps
         )));
     }
 
-    // =========================================================================
-    // Phase 1: Sample random points (or use external r_cycle for r-alignment)
-    // =========================================================================
-
-    // r_addr has total_addr_bits components (for the bit-decomposed address)
-    let r_addr: Vec<KElem> = match external_r_addr {
-        Some(ext_r) => {
-            if ext_r.len() != total_addr_bits {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Twist: external_r_addr.len()={} != total_addr_bits={}",
-                    ext_r.len(),
-                    total_addr_bits
-                )));
-            }
-            ext_r.to_vec()
-        }
-        None => sample_base_addr_point(tr, b"twist/r_addr", total_addr_bits),
-    };
-    
-    // Use external r_cycle if provided (for r-alignment with CPU), otherwise sample
-    let r_cycle: Vec<KElem> = match external_r_cycle {
-        Some(ext_r) => {
-            if ext_r.len() != ell_cycle {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Twist: external_r_cycle.len()={} != ell_cycle={}", ext_r.len(), ell_cycle
-                )));
-            }
-            ext_r.to_vec()
-        }
-        None => sample_ext_point(tr, b"twist/r_cycle", ell_cycle),
-    };
-
-    // =========================================================================
-    // Phase 2: Decode witness and build tables
-    // =========================================================================
-
-    // Decode bit columns to K
-    let decode_bits_to_k = |mats: &[Mat<F>]| -> Vec<Vec<KElem>> {
-        mats.iter()
-            .map(|m| {
-                let v = ajtai_decode_vector(params, m);
-                let mut out: Vec<KElem> = v.iter().map(|&x| x.into()).collect();
-                out.resize(pow2_cycle, KElem::ZERO);
-                out
-            })
-            .collect()
-    };
-
-    let ra_bits: Vec<Vec<KElem>> = decode_bits_to_k(parts.ra_bit_mats);
-    let wa_bits: Vec<Vec<KElem>> = decode_bits_to_k(parts.wa_bit_mats);
-
-    // Decode scalar columns
-    let rv_vec: Vec<KElem> = {
-        let v = ajtai_decode_vector(params, parts.rv_mat);
-        pad_cycle_k(&v.iter().map(|&x| x.into()).collect::<Vec<_>>(), pow2_cycle)
-    };
-    let wv_vec: Vec<KElem> = {
-        let v = ajtai_decode_vector(params, parts.wv_mat);
-        pad_cycle_k(&v.iter().map(|&x| x.into()).collect::<Vec<_>>(), pow2_cycle)
-    };
-    let has_read_vec: Vec<KElem> = {
-        let v = ajtai_decode_vector(params, parts.has_read_mat);
-        pad_cycle_k(&v.iter().map(|&x| x.into()).collect::<Vec<_>>(), pow2_cycle)
-    };
-    let has_write_vec: Vec<KElem> = {
-        let v = ajtai_decode_vector(params, parts.has_write_mat);
-        pad_cycle_k(&v.iter().map(|&x| x.into()).collect::<Vec<_>>(), pow2_cycle)
-    };
-
-    let inc_flat = ajtai_decode_vector(params, parts.inc_mat);
-
-    // =========================================================================
-    // Compute Val(addr_t, t) - the actual memory value at each read address
-    // =========================================================================
-    // This is needed for the read-check: we must use the memory value at the
-    // ACTUAL read address, not at a random address r_addr.
-
-    // Decode scalar columns in base field for memory simulation
-    let has_read_f = ajtai_decode_vector(params, parts.has_read_mat);
-    let has_write_f = ajtai_decode_vector(params, parts.has_write_mat);
-    let wv_f = ajtai_decode_vector(params, parts.wv_mat);
-
-    // Decode addresses from bit columns (optimized: decode each column once)
-    let decode_addr_from_bits = |bit_mats: &[Mat<F>]| -> Vec<usize> {
-        // Pre-decode all bit columns once (avoid O(d * ell * steps) decode calls)
-        let decoded: Vec<Vec<F>> = bit_mats.iter().map(|m| ajtai_decode_vector(params, m)).collect();
-
-        let mut addrs = vec![0usize; steps];
-        for dim in 0..d {
-            let base = dim * ell;
-            let stride = inst.n_side.pow(dim as u32);
-            for b in 0..ell {
-                let col = &decoded[base + b];
-                let bit_weight = 1usize << b;
-                for j in 0..steps.min(col.len()) {
-                    if col[j] == F::ONE {
-                        addrs[j] += bit_weight * stride;
-                    }
-                }
-            }
-        }
-        addrs
-    };
-
-    let read_addrs = decode_addr_from_bits(parts.ra_bit_mats);
-    let write_addrs = decode_addr_from_bits(parts.wa_bit_mats);
-
-    // Simulate memory to compute:
-    // - Val(read_addr_t, t) - the value at the actual read address
-    // - Val(write_addr_t, t) - the value at the actual write address (before the write)
-    // - Inc(write_addr_t, t) - the increment at the actual write address
-    let mut mem = inst.init_vals.clone();
-    let mut val_at_read_addr_f = vec![F::ZERO; steps];
-    let mut val_at_write_addr_f = vec![F::ZERO; steps];
-    let mut inc_at_write_addr_f = vec![F::ZERO; steps];
-
-    for j in 0..steps {
-        // Record value BEFORE any write at this step (for reads)
-        if has_read_f[j] == F::ONE {
-            let addr = read_addrs[j];
-            if addr < k {
-                val_at_read_addr_f[j] = mem[addr];
-            }
-        }
-
-        // Record value at write address BEFORE the write, and compute increment
-        if has_write_f[j] == F::ONE {
-            let addr = write_addrs[j];
-            if addr < k {
-                val_at_write_addr_f[j] = mem[addr];
-                inc_at_write_addr_f[j] = wv_f[j] - mem[addr]; // Inc = new_val - old_val
-                mem[addr] = wv_f[j]; // Apply the write
-            }
-        }
+    let pow2_addr = 1usize
+        .checked_shl(ell_addr as u32)
+        .ok_or_else(|| PiCcsError::InvalidInput("Twist(Route A): 2^ell_addr overflow".into()))?;
+    if pow2_addr != inst.k || pow2_addr != inst.init_vals.len() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "Twist(Route A): expected 2^(d*ell) == k == init_vals.len(), got 2^(d*ell)={pow2_addr}, k={}, init_vals.len()={}",
+            inst.k,
+            inst.init_vals.len()
+        )));
     }
 
-    // Convert to K and pad to pow2_cycle
-    let val_at_read_addr: Vec<KElem> = pad_cycle_k(
-        &val_at_read_addr_f
-            .iter()
-            .map(|&x| x.into())
-            .collect::<Vec<_>>(),
-        pow2_cycle,
-    );
-    let val_at_write_addr: Vec<KElem> = pad_cycle_k(
-        &val_at_write_addr_f
-            .iter()
-            .map(|&x| x.into())
-            .collect::<Vec<_>>(),
-        pow2_cycle,
-    );
-    let inc_at_write_addr: Vec<KElem> = pad_cycle_k(
-        &inc_at_write_addr_f
-            .iter()
-            .map(|&x| x.into())
-            .collect::<Vec<_>>(),
-        pow2_cycle,
-    );
+    let parts = split_mem_mats(inst, wit);
 
-    #[cfg(feature = "debug-logs")]
-    {
-        use p3_field::PrimeField64;
-        let format_k = |k: &KElem| -> String {
-            let coeffs = k.as_coeffs();
-            format!("K[{}, {}]", coeffs[0].as_canonical_u64(), coeffs[1].as_canonical_u64())
-        };
-        eprintln!("=== TWIST PROVE DEBUG ===");
-        eprintln!("k={}, d={}, ell={}, steps={}", k, d, ell, steps);
-        eprintln!(
-            "total_addr_bits={}, pow2_cycle={}, ell_cycle={}",
-            total_addr_bits, pow2_cycle, ell_cycle
-        );
-        eprintln!("ra_bits.len()={}, wa_bits.len()={}", ra_bits.len(), wa_bits.len());
-        if !ra_bits.is_empty() {
-            eprintln!("ra_bits[0].len()={}", ra_bits[0].len());
-            eprintln!(
-                "ra_bits[0][0..4]: [{}]",
-                ra_bits[0]
-                    .iter()
-                    .take(4)
-                    .map(|v| format_k(v))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-        }
-        eprintln!(
-            "rv_vec.len()={}, rv_vec[0..4]: [{}]",
-            rv_vec.len(),
-            rv_vec
-                .iter()
-                .take(4)
-                .map(|v| format_k(v))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-        eprintln!(
-            "has_read_vec.len()={}, has_read_vec[0..4]: [{}]",
-            has_read_vec.len(),
-            has_read_vec
-                .iter()
-                .take(4)
-                .map(|v| format_k(v))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-        eprintln!("inc_flat.len()={}", inc_flat.len());
-        eprintln!(
-            "r_addr[0..min(4,len)]: [{}]",
-            r_addr
-                .iter()
-                .take(4)
-                .map(|v| format_k(v))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-        eprintln!(
-            "r_cycle[0..min(4,len)]: [{}]",
-            r_cycle
-                .iter()
-                .take(4)
-                .map(|v| format_k(v))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
+    // Decode committed columns (time-domain vectors, padded to pow2_cycle).
+    let ra_bits = ts::decode_mats_to_k_padded(params, parts.ra_bit_mats, pow2_cycle);
+    let wa_bits = ts::decode_mats_to_k_padded(params, parts.wa_bit_mats, pow2_cycle);
+    let has_read = ts::decode_mat_to_k_padded(params, parts.has_read_mat, pow2_cycle);
+    let has_write = ts::decode_mat_to_k_padded(params, parts.has_write_mat, pow2_cycle);
+    let wv = ts::decode_mat_to_k_padded(params, parts.wv_mat, pow2_cycle);
+    let rv = ts::decode_mat_to_k_padded(params, parts.rv_mat, pow2_cycle);
+    let inc_at_write_addr = ts::decode_mat_to_k_padded(params, parts.inc_at_write_addr_mat, pow2_cycle);
 
-    // Build Inc at the random address point (for val-eval check)
-    let inc_at_r_addr: Vec<KElem> = build_inc_at_r_addr(&inc_flat, k, steps, pow2_cycle, &r_addr);
-
-    #[cfg(feature = "debug-logs")]
-    {
-        use p3_field::PrimeField64;
-        let format_k = |k: &KElem| -> String {
-            let coeffs = k.as_coeffs();
-            format!("K[{}, {}]", coeffs[0].as_canonical_u64(), coeffs[1].as_canonical_u64())
-        };
-        // Build val_at_r_addr only for debugging (no longer used in protocol)
-        let val_at_r_addr: Vec<KElem> = build_val_at_r_addr(&inc_flat, &inst.init_vals, k, steps, pow2_cycle, &r_addr);
-        eprintln!(
-            "val_at_r_addr[0..4]: [{}]",
-            val_at_r_addr
-                .iter()
-                .take(4)
-                .map(|v| format_k(v))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-        eprintln!(
-            "val_at_read_addr[0..4]: [{}]",
-            val_at_read_addr
-                .iter()
-                .take(4)
-                .map(|v| format_k(v))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-        eprintln!(
-            "inc_at_r_addr[0..4]: [{}]",
-            inc_at_r_addr
-                .iter()
-                .take(4)
-                .map(|v| format_k(v))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-
-        // Verify semantic correctness: for each step with has_read, rv should equal val_at_read_addr
-        eprintln!("--- Checking read semantics (using val_at_read_addr) ---");
-        for t in 0..steps.min(4) {
-            let hr = &has_read_vec[t];
-            let rv = &rv_vec[t];
-            let val = &val_at_read_addr[t];
-            let diff = *val - *rv;
-            eprintln!(
-                "  t={}: has_read={}, rv={}, val_at_read_addr={}, diff={}",
-                t,
-                format_k(hr),
-                format_k(rv),
-                format_k(val),
-                format_k(&diff)
-            );
-        }
-    }
-
-    // =========================================================================
-    // Phase 3: Read Check Sum-Check
-    // =========================================================================
-    // Proves: Σ_t eq(r_cycle, t) * has_read(t) * (Val(addr_t, t) - rv(t)) = 0
-    // Note: We use val_at_read_addr (the actual memory value at the read address),
-    // NOT val_at_r_addr (the memory value at a random address).
-
-    let mut read_oracle = TwistReadCheckOracle::new(
-        &ra_bits,
-        val_at_read_addr.clone(), // <- Val(addr_t, t), not Val(r_addr, t)
-        rv_vec.clone(),
-        has_read_vec.clone(),
-        &r_cycle,
-        &r_addr,
-    );
-    let (read_check_rounds, _read_chals) = run_sumcheck_prover(tr, &mut read_oracle, KElem::ZERO)
-        .map_err(|e| PiCcsError::SumcheckError(format!("read-check: {e}")))?;
-
-    // =========================================================================
-    // Phase 4: Write Check Sum-Check
-    // =========================================================================
-    // Proves: Σ_t eq(r_cycle, t) * has_write(t) * (wv(t) - Val(addr_t, t) - Inc(addr_t, t)) = 0
-    // Note: We use val_at_write_addr and inc_at_write_addr (values at the actual write address),
-    // NOT val_at_r_addr and inc_at_r_addr (values at a random address).
-
-    let expected_write: KElem = KElem::ZERO;
-
-    let mut write_oracle = TwistWriteCheckOracle::new(
-        &wa_bits,
-        wv_vec.clone(),
-        val_at_write_addr.clone(), // <- Val(addr_t, t), not Val(r_addr, t)
-        inc_at_write_addr.clone(), // <- Inc(addr_t, t), not Inc(r_addr, t)
-        has_write_vec.clone(),
-        &r_cycle,
-        &r_addr,
-    );
-    let (write_check_rounds, write_chals) = run_sumcheck_prover(tr, &mut write_oracle, expected_write)
-        .map_err(|e| PiCcsError::SumcheckError(format!("write-check: {e}")))?;
-
-    // =========================================================================
-    // Phase 5: ValEval Sum-Check
-    // =========================================================================
-    // Proves: Val(r_addr, r_cycle) = Σ_t Inc(r_addr, t) * LT(t, r_cycle)
-
-    let lt_table = crate::twist_oracle::build_lt_table(&r_cycle);
-    let expected_val: KElem = inc_at_r_addr
+    let pre_write: Vec<KElem> = wv
         .iter()
-        .zip(lt_table.iter())
-        .map(|(v, lt)| *v * *lt)
-        .sum();
+        .zip(inc_at_write_addr.iter())
+        .map(|(w, inc)| *w - *inc)
+        .collect();
 
-    let mut val_oracle = TwistValEvalOracle::new(&inc_flat, k, steps, &r_addr, &r_cycle);
-    let (val_eval_rounds, val_chals) = run_sumcheck_prover(tr, &mut val_oracle, expected_val)
-        .map_err(|e| PiCcsError::SumcheckError(format!("val-eval: {e}")))?;
-
-    // =========================================================================
-    // Phase 6: Bitness Checks
-    // =========================================================================
-    let r_bitness = sample_ext_point(tr, b"twist/bitness", ell_cycle);
-    let mut bitness_rounds = Vec::new();
-
-    for bits in ra_bits.iter().chain(wa_bits.iter()) {
-        let mut oracle = BitnessOracle::new(bits.clone(), &r_bitness);
-        let (rounds, _) = run_sumcheck_prover(tr, &mut oracle, KElem::ZERO)
-            .map_err(|e| PiCcsError::SumcheckError(format!("bitness: {e}")))?;
-        bitness_rounds.extend(rounds);
-    }
-
-    // =========================================================================
-    // Phase 7: Generate ME Claims
-    // =========================================================================
-    // Each sum-check reduces to evaluations of the committed polynomials at
-    // the challenge points. We create ME instances for these openings.
-
-    let mut me_instances: Vec<MeInstance<Cmt, F, K>> = Vec::new();
-    let mut me_witnesses: Vec<Mat<F>> = Vec::new();
-
-    // Use r_cycle as the evaluation point for ME claims (for r-alignment with CPU)
-    // This ensures all ME claims (CPU + memory) share the same `r` for RLC merge.
-    let eval_point_cycle = r_cycle.clone();
-
-    // Y padding length for the ME relation (padded to next power of two over D rows)
-    let d = params.d as usize;
-    let y_pad = d.next_power_of_two();
-
-    // Convenience: create an ME instance + witness for a committed column
-    let mut mk_me = |comm: &Cmt, _mat: &Mat<F>, r: &[KElem], value: KElem| -> MeInstance<Cmt, F, K> {
-        // y vector: place the value in the first row and pad
-        let mut y_vec = vec![K::from(value); 1];
-        y_vec.resize(y_pad, K::from(KElem::ZERO));
-
-        // y_scalars: base-b recomposition over the first D digits; here it matches `value`
-        let y_scalar = K::from(value);
-
-        // Fold digest bound to transcript without mutating the main prover transcript
-        let fold_digest = {
-            let mut fork = tr.fork(b"twist/me_digest");
-            fork.digest32()
-        };
-
-        MeInstance {
-            c: comm.clone(),
-            // X is present but irrelevant for Twist; fill with zeros to match ME structure shape
-            X: Mat::zero(d, m_in, F::ZERO),
-            r: r.iter().map(|&x| K::from(x)).collect(),
-            y: vec![y_vec],
-            y_scalars: vec![y_scalar],
-            m_in,
-            fold_digest,
-            c_step_coords: vec![],
-            u_offset: 0,
-            u_len: 0,
-        }
-    };
-
-    // Helper to evaluate a column at a point and record witness
-    let eval_and_push =
-        |me_instances: &mut Vec<MeInstance<Cmt, F, K>>,
-         me_witnesses: &mut Vec<Mat<F>>,
-         comm: &Cmt,
-         mat: &Mat<F>,
-         r: &[KElem],
-         mk_me: &mut dyn FnMut(&Cmt, &Mat<F>, &[KElem], KElem) -> MeInstance<Cmt, F, K>| {
-            let v = ajtai_decode_vector(params, mat);
-            let v_k: Vec<KElem> = v.iter().map(|&x| x.into()).collect();
-            let mut padded = v_k;
-            padded.resize(1 << r.len(), KElem::ZERO);
-            let y_eval: KElem = mle_eval(&padded, r);
-            me_instances.push(mk_me(comm, mat, r, y_eval));
-            me_witnesses.push(mat.clone());
-        };
-
-    // ME claims for read address bits (evaluated at r_cycle from read-check)
-    for (i, mat) in parts.ra_bit_mats.iter().enumerate() {
-        eval_and_push(
-            &mut me_instances,
-            &mut me_witnesses,
-            &inst.comms[i],
-            mat,
-            &eval_point_cycle,
-            &mut mk_me,
-        );
-    }
-
-    // ME claims for write address bits
-    let wa_offset = total_addr_bits;
-    for (i, mat) in parts.wa_bit_mats.iter().enumerate() {
-        eval_and_push(
-            &mut me_instances,
-            &mut me_witnesses,
-            &inst.comms[wa_offset + i],
-            mat,
-            &eval_point_cycle,
-            &mut mk_me,
-        );
-    }
-
-    // ME claims for data columns
-    let data_offset = 2 * total_addr_bits;
-    // Inc
-    eval_and_push(
-        &mut me_instances,
-        &mut me_witnesses,
-        &inst.comms[data_offset],
-        parts.inc_mat,
-        &eval_point_cycle,
-        &mut mk_me,
-    );
-    // has_read
-    eval_and_push(
-        &mut me_instances,
-        &mut me_witnesses,
-        &inst.comms[data_offset + 1],
-        parts.has_read_mat,
-        &eval_point_cycle,
-        &mut mk_me,
-    );
-    // has_write
-    eval_and_push(
-        &mut me_instances,
-        &mut me_witnesses,
-        &inst.comms[data_offset + 2],
-        parts.has_write_mat,
-        &eval_point_cycle,
-        &mut mk_me,
-    );
-    // wv
-    eval_and_push(
-        &mut me_instances,
-        &mut me_witnesses,
-        &inst.comms[data_offset + 3],
-        parts.wv_mat,
-        &eval_point_cycle,
-        &mut mk_me,
-    );
-    // rv
-    eval_and_push(
-        &mut me_instances,
-        &mut me_witnesses,
-        &inst.comms[data_offset + 4],
-        parts.rv_mat,
-        &eval_point_cycle,
-        &mut mk_me,
-    );
-
-    let proof = TwistProof {
-        read_check_rounds,
-        write_check_rounds,
-        val_eval_rounds,
-        bitness_rounds,
-        read_claim: KElem::ZERO, // Read check should sum to 0
-        write_claim: expected_write,
-        val_claim: expected_val,
-    };
-
-    let _ = (write_chals, val_chals); // Suppress unused warnings
-
-    Ok((me_instances, me_witnesses, proof))
+    Ok(TwistDecodedCols {
+        ra_bits,
+        wa_bits,
+        has_read,
+        has_write,
+        wv,
+        rv,
+        inc_at_write_addr,
+        pre_write,
+    })
 }
 
 // ============================================================================
-// Verifier
+// Route A oracles (Shout-style, time-domain only)
 // ============================================================================
 
-/// Verify memory correctness using the Twist argument.
-///
-/// This function verifies the sum-check proofs and validates that the provided
-/// ME claims are consistent with the instance and transcript.
-///
-/// # Arguments
-/// - `mode`: Folding mode
-/// - `tr`: Transcript for Fiat-Shamir
-/// - `params`: Neo parameters
-/// - `inst`: Memory instance (public data)
-/// - `proof`: Twist proof containing sum-check rounds
-/// - `prover_me_claims`: ME claims from the prover's proof (to be validated)
-/// - `_l`: S-module homomorphism (unused but kept for API consistency)
-/// - `ell_cycle`: The log₂ of the cycle domain size (must match `ell_n` from the ME structure)
-/// - `external_r_cycle`: If provided, expect ME claims to use this as `r` (for r-alignment).
-///
-/// # Returns
-/// On success, returns `Ok(())`. The ME claims from `prover_me_claims` should be
-/// used by the caller after this function returns successfully.
-pub fn verify<L, Cmt, F, K>(
-    _mode: FoldingMode,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    inst: &MemInstance<Cmt, F>,
-    proof: &TwistProof<KElem>,
-    prover_me_claims: &[MeInstance<Cmt, F, K>],
-    _l: &L,
-    ell_cycle: usize,
-    external_r_cycle: Option<&[KElem]>,
-    external_r_addr: Option<&[KElem]>,
-) -> Result<(), PiCcsError>
-where
-    F: PrimeField,
-    K: From<KElem> + Clone + PartialEq,
-    L: SModuleHomomorphism<F, Cmt>,
-    Cmt: Clone + PartialEq,
-{
-    let d = inst.d;
-    let ell = inst.ell;
-    let steps = inst.steps;
-    let total_addr_bits = d * ell;
+pub struct RouteATwistOraclesV1 {
+    pub read_value: ProductRoundOracle,
+    pub read_value_claim: KElem,
+    pub read_adapter: IndexAdapterOracle,
+    pub read_adapter_claim: KElem,
 
-    // Use the provided ell_cycle (should match ell_n from the ME structure)
-    let pow2_cycle = 1usize << ell_cycle;
-    if steps > pow2_cycle {
+    pub write_value: ProductRoundOracle,
+    pub write_value_claim: KElem,
+    pub write_adapter: IndexAdapterOracle,
+    pub write_adapter_claim: KElem,
+
+    pub bitness: Vec<LazyBitnessOracle>,
+    pub ell_addr: usize,
+}
+
+pub fn build_route_a_twist_oracles_v1<Cmt: Clone>(
+    inst: &MemInstance<Cmt, BaseField>,
+    decoded: &TwistDecodedCols,
+    r_cycle: &[KElem],
+    r_addr_read: &[KElem],
+    r_addr_write: &[KElem],
+) -> Result<RouteATwistOraclesV1, PiCcsError> {
+    validate_index_bit_addressing(inst)?;
+    let ell_addr = inst.d * inst.ell;
+    if r_addr_read.len() != ell_addr || r_addr_write.len() != ell_addr {
         return Err(PiCcsError::InvalidInput(format!(
-            "Twist verify: steps={steps} exceeds 2^ell_cycle={pow2_cycle} (ell_cycle={ell_cycle})"
+            "Twist(Route A): r_addr len mismatch (read={}, write={}, expected ell_addr={})",
+            r_addr_read.len(),
+            r_addr_write.len(),
+            ell_addr
         )));
     }
 
-    // Sample exactly the same random points as prover, in the same order.
-    // Note: The prover samples r_addr; r_cycle may be external (for r-alignment).
-    match external_r_addr {
-        Some(ext_r) => {
-            if ext_r.len() != total_addr_bits {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Twist verify: external_r_addr.len()={} != total_addr_bits={}",
-                    ext_r.len(),
-                    total_addr_bits
-                )));
-            }
-        }
-        None => {
-            let _ = sample_base_addr_point(tr, b"twist/r_addr", total_addr_bits);
-        }
-    }
-    
-    // Use external r_cycle if provided (for r-alignment with CPU), otherwise sample
-    let r_cycle: Vec<KElem> = match external_r_cycle {
-        Some(ext_r) => {
-            if ext_r.len() != ell_cycle {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Twist verify: external_r_cycle.len()={} != ell_cycle={}", ext_r.len(), ell_cycle
-                )));
-            }
-            ext_r.to_vec()
-        }
-        None => sample_ext_point(tr, b"twist/r_cycle", ell_cycle),
-    };
-
-    // Verify read-check sum-check using claimed sum from proof
-    let read_degree = 3 + total_addr_bits; // eq_cycle, has_read, diff, bit_eq_factors
-    let (read_chals, read_final, read_ok) =
-        neo_reductions::sumcheck::verify_sumcheck_rounds(tr, read_degree, proof.read_claim, &proof.read_check_rounds);
-    if !read_ok {
-        return Err(PiCcsError::SumcheckError("read-check verification failed".into()));
-    }
-
-    // Verify write-check sum-check using claimed sum from proof
-    let write_degree = 3 + total_addr_bits;
-    let (write_chals, write_final, write_ok) = neo_reductions::sumcheck::verify_sumcheck_rounds(
-        tr,
-        write_degree,
-        proof.write_claim,
-        &proof.write_check_rounds,
-    );
-    if !write_ok {
-        return Err(PiCcsError::SumcheckError("write-check verification failed".into()));
-    }
-
-    // Verify val-eval sum-check using claimed sum from proof
-    let val_degree = 2;
-    let (val_chals, val_final, val_ok) =
-        neo_reductions::sumcheck::verify_sumcheck_rounds(tr, val_degree, proof.val_claim, &proof.val_eval_rounds);
-    if !val_ok {
-        return Err(PiCcsError::SumcheckError("val-eval verification failed".into()));
-    }
-
-    // Verify bitness checks
-    let r_bitness = sample_ext_point(tr, b"twist/bitness", ell_cycle);
-    for chunk in proof.bitness_rounds.chunks(ell_cycle) {
-        if chunk.len() != ell_cycle {
-            continue;
-        }
-        let (_, _, ok) = neo_reductions::sumcheck::verify_sumcheck_rounds(tr, 3, KElem::ZERO, chunk);
-        if !ok {
-            return Err(PiCcsError::SumcheckError("bitness verification failed".into()));
-        }
-    }
-
-    // Validate prover's ME claims against expected structure
-    // The expected number of ME claims matches the prover's commitment count minus Inc
-    // Layout: [ra_bits (d*ell), wa_bits (d*ell), has_read, has_write, wv, rv]
-    // Note: Inc is NOT included as an ME claim (see prover comment)
-    let expected_me_count = 2 * total_addr_bits + 5; // ra_bits + wa_bits + Inc + 4 data columns
-    if prover_me_claims.len() != expected_me_count {
+    let expected_pow2_cycle = 1usize << r_cycle.len();
+    if decoded.has_read.len() != expected_pow2_cycle || decoded.has_write.len() != expected_pow2_cycle {
         return Err(PiCcsError::InvalidInput(format!(
-            "Twist ME claims count mismatch: expected {}, got {}",
-            expected_me_count,
-            prover_me_claims.len()
+            "Twist(Route A): decoded column length mismatch with r_cycle (expected {}, got has_read={}, has_write={})",
+            expected_pow2_cycle,
+            decoded.has_read.len(),
+            decoded.has_write.len()
         )));
     }
 
-    // The evaluation point for ME claims is r_cycle (for r-alignment with CPU)
-    let expected_eval_point: Vec<K> = r_cycle.iter().map(|&x| K::from(x)).collect();
-    let _ = read_chals; // Suppress warning
-
-    // Verify each ME claim has the correct commitment and evaluation point
-    // Commitment mapping:
-    // - inst.comms[0..d*ell]: ra_bits -> me_claims[0..d*ell]
-    // - inst.comms[d*ell..2*d*ell]: wa_bits -> me_claims[d*ell..2*d*ell]
-    // - inst.comms[2*d*ell]: Inc -> me_claims[2*d*ell]
-    // - inst.comms[2*d*ell+1]: has_read -> me_claims[2*d*ell+1]
-    // - inst.comms[2*d*ell+2]: has_write -> me_claims[2*d*ell+2]
-    // - inst.comms[2*d*ell+3]: wv -> me_claims[2*d*ell+3]
-    // - inst.comms[2*d*ell+4]: rv -> me_claims[2*d*ell+4]
-    let data_offset = 2 * total_addr_bits;
-
-    for (i, me) in prover_me_claims.iter().enumerate() {
-        // Determine which commitment this ME claim should reference
-        let comm_idx = if i < data_offset {
-            i // Address bits: direct mapping
-        } else {
-            data_offset + (i - data_offset)
-        };
-
-        if comm_idx >= inst.comms.len() {
-            return Err(PiCcsError::InvalidInput(format!(
-                "ME claim {i} references commitment {comm_idx} but only {} exist",
-                inst.comms.len()
-            )));
-        }
-
-        // Check commitment matches
-        if me.c != inst.comms[comm_idx] {
-            return Err(PiCcsError::InvalidInput(format!(
-                "ME claim {i} commitment mismatch (expected comm[{comm_idx}])"
-            )));
-        }
-
-        // Check evaluation point matches
-        if me.r != expected_eval_point {
-            return Err(PiCcsError::InvalidInput(format!(
-                "ME claim {i} evaluation point mismatch"
-            )));
-        }
+    let chi_cycle = build_eq_table(r_cycle);
+    if chi_cycle.len() != decoded.has_read.len() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "Twist(Route A): chi_cycle.len()={} != domain={}",
+            chi_cycle.len(),
+            decoded.has_read.len()
+        )));
     }
 
-    let _ = (
-        r_bitness,
-        read_final,
-        write_final,
-        val_final,
-        write_chals,
-        val_chals,
-        params,
-        pow2_cycle,
+    let read_value = ProductRoundOracle::new(vec![chi_cycle.clone(), decoded.has_read.clone(), decoded.rv.clone()], 3);
+    let read_value_claim = read_value.sum_over_hypercube();
+
+    let read_adapter = IndexAdapterOracle::new_with_gate(&decoded.ra_bits, &decoded.has_read, r_cycle, r_addr_read);
+    let read_adapter_claim = read_adapter.compute_claim();
+
+    let write_value = ProductRoundOracle::new(
+        vec![chi_cycle.clone(), decoded.has_write.clone(), decoded.pre_write.clone()],
+        3,
+    );
+    let write_value_claim = write_value.sum_over_hypercube();
+
+    let write_adapter = IndexAdapterOracle::new_with_gate(&decoded.wa_bits, &decoded.has_write, r_cycle, r_addr_write);
+    let write_adapter_claim = write_adapter.compute_claim();
+
+    // Bitness for ra_bits + wa_bits + has_read + has_write, χ_{r_cycle}-weighted.
+    let mut bitness = Vec::with_capacity(2 * ell_addr + 2);
+    for bits in decoded
+        .ra_bits
+        .iter()
+        .cloned()
+        .chain(decoded.wa_bits.iter().cloned())
+    {
+        bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, bits));
+    }
+    bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, decoded.has_read.clone()));
+    bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, decoded.has_write.clone()));
+
+    Ok(RouteATwistOraclesV1 {
+        read_value,
+        read_value_claim,
+        read_adapter,
+        read_adapter_claim,
+        write_value,
+        write_value_claim,
+        write_adapter,
+        write_adapter_claim,
+        bitness,
+        ell_addr,
+    })
+}
+
+// ============================================================================
+// Route A oracles v2 (Twist-ready): read/write check + bitness.
+// ============================================================================
+
+pub struct RouteATwistOraclesV2 {
+    pub read_check: TwistReadCheck2DOracle,
+    pub write_check: TwistWriteCheck2DOracle,
+    pub bitness: Vec<LazyBitnessOracle>,
+    pub ell_addr: usize,
+}
+
+pub fn build_route_a_twist_oracles_v2<Cmt: Clone>(
+    inst: &MemInstance<Cmt, BaseField>,
+    decoded: &TwistDecodedCols,
+    r_cycle: &[KElem],
+) -> Result<RouteATwistOraclesV2, PiCcsError> {
+    validate_index_bit_addressing(inst)?;
+    let ell_addr = inst.d * inst.ell;
+    let pow2_addr = 1usize
+        .checked_shl(ell_addr as u32)
+        .ok_or_else(|| PiCcsError::InvalidInput("Twist(Route A): 2^ell_addr overflow".into()))?;
+
+    let expected_pow2_cycle = 1usize << r_cycle.len();
+    if decoded.has_read.len() != expected_pow2_cycle
+        || decoded.has_write.len() != expected_pow2_cycle
+        || decoded.rv.len() != expected_pow2_cycle
+        || decoded.wv.len() != expected_pow2_cycle
+        || decoded.inc_at_write_addr.len() != expected_pow2_cycle
+    {
+        return Err(PiCcsError::InvalidInput(format!(
+            "Twist(Route A): decoded column length mismatch with r_cycle (expected {}, got has_read={}, has_write={}, rv={}, wv={}, inc_at_write_addr={})",
+            expected_pow2_cycle,
+            decoded.has_read.len(),
+            decoded.has_write.len(),
+            decoded.rv.len(),
+            decoded.wv.len(),
+            decoded.inc_at_write_addr.len()
+        )));
+    }
+
+    let init_table_k: Vec<KElem> = inst.init_vals.iter().map(|&v| v.into()).collect();
+    let pow2_time = expected_pow2_cycle;
+    let val_table_pre_write = build_val_table_pre_write(
+        &init_table_k,
+        &decoded.has_write,
+        &decoded.wa_bits,
+        &decoded.wv,
+        pow2_time,
+        pow2_addr,
     );
 
-    Ok(())
+    let read_check = TwistReadCheck2DOracle::new(
+        r_cycle,
+        &decoded.has_read,
+        &decoded.ra_bits,
+        &decoded.rv,
+        &val_table_pre_write,
+        pow2_time,
+        pow2_addr,
+    );
+    let write_check = TwistWriteCheck2DOracle::new(
+        r_cycle,
+        &decoded.has_write,
+        &decoded.wa_bits,
+        &decoded.wv,
+        &decoded.inc_at_write_addr,
+        &val_table_pre_write,
+        pow2_time,
+        pow2_addr,
+    );
+
+    // Bitness for ra_bits + wa_bits + has_read + has_write, χ_{r_cycle}-weighted.
+    let mut bitness = Vec::with_capacity(2 * ell_addr + 2);
+    for bits in decoded
+        .ra_bits
+        .iter()
+        .cloned()
+        .chain(decoded.wa_bits.iter().cloned())
+    {
+        bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, bits));
+    }
+    bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, decoded.has_read.clone()));
+    bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, decoded.has_write.clone()));
+
+    Ok(RouteATwistOraclesV2 {
+        read_check,
+        write_check,
+        bitness,
+        ell_addr,
+    })
 }

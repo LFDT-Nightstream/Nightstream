@@ -2064,7 +2064,9 @@ impl FoldRunCircuit {
         witness: &FoldRunWitness,
     ) -> Result<()> {
         let final_public = &self.instance.final_accumulator;
-        let final_witness = witness.fold_run.compute_final_outputs(&self.instance.initial_accumulator);
+        let final_witness = witness
+            .fold_run
+            .compute_final_outputs(&self.instance.initial_accumulator);
 
         if final_public.len() != final_witness.len() {
             return Err(SpartanBridgeError::InvalidInput(

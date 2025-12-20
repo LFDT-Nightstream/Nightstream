@@ -303,7 +303,7 @@ where
         let ring = ccs::RotRing::goldilocks();
         let k = step.rlc_rhos.len();
         let rhos_from_tr = ccs::sample_rot_rhos_n(tr, params, &ring, k)?;
-        
+
         // Check that all k rhos match exactly
         for (j, (sampled, stored)) in rhos_from_tr.iter().zip(step.rlc_rhos.iter()).enumerate() {
             if sampled.as_slice() != stored.as_slice() {

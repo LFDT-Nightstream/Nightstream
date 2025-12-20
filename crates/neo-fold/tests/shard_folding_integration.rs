@@ -21,6 +21,7 @@
 //! 1. CPU-only folding (test_shard_cpu_only_folding)
 //! 2. Memory sidecar in isolation (test_twist_shout_sidecar_proving)
 //! 3. Full CPU + Memory with final merge (test_full_cpu_memory_integration)
+//! 4. Route A Twist-only happy path + adversarial cases (test_twist_only_route_a_*)
 
 #![allow(non_snake_case)]
 
@@ -34,10 +35,13 @@ use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_fold::folding::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify, MemOrLutProof, ShardProof};
+use neo_fold::PiCcsError;
 use neo_math::{D, F, K};
 use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
-use neo_memory::plain::{build_plain_lut_traces, build_plain_mem_traces, LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
+use neo_memory::plain::{
+    build_plain_lut_traces, build_plain_mem_traces, LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace,
+};
 use neo_memory::witness::StepWitnessBundle;
 use neo_memory::{shout, twist};
 use neo_params::NeoParams;
@@ -68,6 +72,517 @@ impl SModuleHomomorphism<F, Cmt> for DummyCommit {
         }
         out
     }
+}
+
+// ============================================================================
+// Twist-only Route A checks (pre-time address proofs)
+// ============================================================================
+
+#[cfg(feature = "paper-exact")]
+struct TwistOnlyHarness {
+    params: NeoParams,
+    ccs: CcsStructure<F>,
+    l: DummyCommit,
+    mixers: CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>,
+    steps: Vec<StepWitnessBundle<Cmt, F, K>>,
+    acc_init: Vec<MeInstance<Cmt, F, K>>,
+    acc_wit_init: Vec<Mat<F>>,
+}
+
+#[cfg(feature = "paper-exact")]
+impl TwistOnlyHarness {
+    fn new() -> Self {
+        let n = 4usize;
+        let ccs = create_identity_ccs(n);
+        let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+        // Small twist-only test: bump k_rho to clear the norm bound when folding memory ME claims.
+        params.k_rho = 16;
+        let l = DummyCommit::default();
+        let mixers = default_mixers();
+
+        let dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
+        let ell_n = dims.ell_n;
+        let m_in = 2;
+
+        let r: Vec<K> = vec![K::from(F::from_u64(7)); ell_n];
+
+        let mut acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
+        let mut acc_wit_init: Vec<Mat<F>> = Vec::new();
+        for _ in 0..params.k_rho {
+            let (me, Z) = create_seed_me(&params, &ccs, &l, &r, m_in);
+            acc_init.push(me);
+            acc_wit_init.push(Z);
+        }
+
+        let (mcs, mcs_wit) = create_trivial_mcs(&params, &ccs, &l, m_in);
+
+        // Build a 1-step Twist trace: read addr 0 (init[0]), write addr 1 (new value 12).
+        let layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+        let init_vals = vec![F::from_u64(5), F::from_u64(9)];
+        let write_val = F::from_u64(12);
+        let mut inc = vec![vec![F::ZERO; 1]; layout.k];
+        inc[1][0] = write_val - init_vals[1];
+        let mem_trace = PlainMemTrace {
+            init_vals: init_vals.clone(),
+            steps: 1,
+            has_read: vec![F::ONE],
+            has_write: vec![F::ONE],
+            read_addr: vec![0],
+            write_addr: vec![1],
+            read_val: vec![init_vals[0]],
+            write_val: vec![write_val],
+            inc,
+        };
+        let commit_fn = |mat: &Mat<F>| l.commit(mat);
+        let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &layout, &mem_trace, &commit_fn, Some(ccs.m), m_in);
+
+        let steps = vec![StepWitnessBundle {
+            mcs: (mcs, mcs_wit),
+            lut_instances: vec![],
+            mem_instances: vec![(mem_inst, mem_wit)],
+            _phantom: PhantomData,
+        }];
+
+        Self {
+            params,
+            ccs,
+            l,
+            mixers,
+            steps,
+            acc_init,
+            acc_wit_init,
+        }
+    }
+
+    fn prove(&self) -> Result<ShardProof, PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"twist-only");
+        fold_shard_prove(
+            FoldingMode::PaperExact,
+            &mut tr,
+            &self.params,
+            &self.ccs,
+            &self.steps,
+            &self.acc_init,
+            &self.acc_wit_init,
+            &self.l,
+            self.mixers,
+        )
+    }
+
+    fn verify(&self, proof: &ShardProof) -> Result<(), PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"twist-only");
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr,
+            &self.params,
+            &self.ccs,
+            &self.steps,
+            &self.acc_init,
+            proof,
+            &self.l,
+            self.mixers,
+        )
+    }
+
+    fn twist_claim_indices(&self) -> (usize, usize, usize, usize) {
+        let inst = &self.steps[0].mem_instances[0].0;
+        let ell_addr = inst.d * inst.ell;
+        // Order: ra_bits[..ell_addr], wa_bits[..ell_addr], has_read, has_write, wv, rv, inc_at_write_addr
+        let ra_idx = 0;
+        let has_read_idx = 2 * ell_addr;
+        let rv_idx = 2 * ell_addr + 3;
+        let inc_idx = 2 * ell_addr + 4;
+        (ra_idx, has_read_idx, rv_idx, inc_idx)
+    }
+}
+
+// ============================================================================
+// Twist rollover across consecutive steps
+// ============================================================================
+
+#[cfg(feature = "paper-exact")]
+struct TwistRolloverHarness {
+    params: NeoParams,
+    ccs: CcsStructure<F>,
+    l: DummyCommit,
+    mixers: CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>,
+    steps: Vec<StepWitnessBundle<Cmt, F, K>>,
+    acc_init: Vec<MeInstance<Cmt, F, K>>,
+    acc_wit_init: Vec<Mat<F>>,
+}
+
+#[cfg(feature = "paper-exact")]
+impl TwistRolloverHarness {
+    fn new() -> Self {
+        let n = 4usize;
+        let ccs = create_identity_ccs(n);
+        let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+        // Keep k_rho comfortably above the norm bound for folding memory ME claims.
+        params.k_rho = 16;
+        let l = DummyCommit::default();
+        let mixers = default_mixers();
+
+        let dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
+        let ell_n = dims.ell_n;
+        let m_in = 2;
+
+        let r: Vec<K> = vec![K::from(F::from_u64(7)); ell_n];
+
+        let mut acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
+        let mut acc_wit_init: Vec<Mat<F>> = Vec::new();
+        for _ in 0..params.k_rho {
+            let (me, Z) = create_seed_me(&params, &ccs, &l, &r, m_in);
+            acc_init.push(me);
+            acc_wit_init.push(Z);
+        }
+
+        let (mcs0, mcs_wit0) = create_trivial_mcs(&params, &ccs, &l, m_in);
+        let (mcs1, mcs_wit1) = create_trivial_mcs(&params, &ccs, &l, m_in);
+
+        let layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+
+        // Step 0: write addr 1 := 12 (starting from init [5, 9]).
+        let init0 = vec![F::from_u64(5), F::from_u64(9)];
+        let write_val0 = F::from_u64(12);
+        let mut inc0 = vec![vec![F::ZERO; 1]; layout.k];
+        inc0[1][0] = write_val0 - init0[1];
+        let mem_trace0 = PlainMemTrace {
+            init_vals: init0.clone(),
+            steps: 1,
+            has_read: vec![F::ZERO],
+            has_write: vec![F::ONE],
+            read_addr: vec![0],
+            write_addr: vec![1],
+            read_val: vec![init0[0]],
+            write_val: vec![write_val0],
+            inc: inc0,
+        };
+
+        let commit_fn = |mat: &Mat<F>| l.commit(mat);
+        let (mem_inst0, mem_wit0) = encode_mem_for_twist(&params, &layout, &mem_trace0, &commit_fn, Some(ccs.m), m_in);
+
+        // Step 1: no-ops, with init equal to the end of step 0.
+        let init1 = vec![init0[0], write_val0];
+        let mem_trace1 = PlainMemTrace {
+            init_vals: init1.clone(),
+            steps: 1,
+            has_read: vec![F::ZERO],
+            has_write: vec![F::ZERO],
+            read_addr: vec![0],
+            write_addr: vec![0],
+            read_val: vec![F::ZERO],
+            write_val: vec![F::ZERO],
+            inc: vec![vec![F::ZERO; 1]; layout.k],
+        };
+        let (mem_inst1, mem_wit1) = encode_mem_for_twist(&params, &layout, &mem_trace1, &commit_fn, Some(ccs.m), m_in);
+
+        let steps = vec![
+            StepWitnessBundle {
+                mcs: (mcs0, mcs_wit0),
+                lut_instances: vec![],
+                mem_instances: vec![(mem_inst0, mem_wit0)],
+                _phantom: PhantomData,
+            },
+            StepWitnessBundle {
+                mcs: (mcs1, mcs_wit1),
+                lut_instances: vec![],
+                mem_instances: vec![(mem_inst1, mem_wit1)],
+                _phantom: PhantomData,
+            },
+        ];
+
+        Self {
+            params,
+            ccs,
+            l,
+            mixers,
+            steps,
+            acc_init,
+            acc_wit_init,
+        }
+    }
+
+    fn prove(&self) -> Result<ShardProof, PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"twist-rollover");
+        fold_shard_prove(
+            FoldingMode::PaperExact,
+            &mut tr,
+            &self.params,
+            &self.ccs,
+            &self.steps,
+            &self.acc_init,
+            &self.acc_wit_init,
+            &self.l,
+            self.mixers,
+        )
+    }
+
+    fn verify_with(
+        &self,
+        steps: &[StepWitnessBundle<Cmt, F, K>],
+        proof: &ShardProof,
+    ) -> Result<(), PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"twist-rollover");
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr,
+            &self.params,
+            &self.ccs,
+            steps,
+            &self.acc_init,
+            proof,
+            &self.l,
+            self.mixers,
+        )
+    }
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_rollover_two_steps_prove_verify() {
+    let ctx = TwistRolloverHarness::new();
+    let proof = ctx.prove().expect("prove should succeed");
+    ctx.verify_with(&ctx.steps, &proof).expect("verify should succeed");
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_rollover_mutated_next_init_vals_fails() {
+    let ctx = TwistRolloverHarness::new();
+    let mut proof = ctx.prove().expect("prove should succeed");
+    let mut steps = ctx.steps.clone();
+
+    // Mutate step 1 init table (public input), without touching commitments.
+    for v in steps[1].mem_instances[0].0.init_vals.iter_mut() {
+        *v += F::ONE;
+    }
+
+    // Patch step 1's `claimed_val` so step-local checks still pass; rollover must still fail.
+    let mem_proof = proof
+        .steps
+        .get_mut(1)
+        .and_then(|step| step.mem.proofs.get_mut(0))
+        .expect("one mem proof");
+    let twist_proof = match mem_proof {
+        MemOrLutProof::Twist(p) => p,
+        _ => panic!("expected Twist proof"),
+    };
+    let val_eval = twist_proof.val_eval.as_mut().expect("val_eval present");
+    let r_addr = &twist_proof.addr_batch.r_addr;
+    let init_k: Vec<K> = steps[1].mem_instances[0].0.init_vals.iter().map(|&v| v.into()).collect();
+    let init_at_r_addr = neo_memory::twist_oracle::table_mle_eval(&init_k, r_addr);
+    val_eval.claimed_val = init_at_r_addr + val_eval.claimed_inc_sum_lt;
+
+    assert!(
+        ctx.verify_with(&steps, &proof).is_err(),
+        "verification should fail on rollover mismatch"
+    );
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_prove_verify() {
+    let ctx = TwistOnlyHarness::new();
+    let proof = ctx.prove().expect("prove should succeed");
+    ctx.verify(&proof).expect("verify should succeed");
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_shared_r_addr_in_proof() {
+    let ctx = TwistOnlyHarness::new();
+    let proof = ctx.prove().expect("prove should succeed");
+
+    let inst = &ctx.steps[0].mem_instances[0].0;
+    let ell_addr = inst.d * inst.ell;
+
+    let step_proof = proof.steps.first().expect("one step");
+    let twist_proof = match step_proof.mem.proofs.first().expect("one mem proof") {
+        MemOrLutProof::Twist(p) => p,
+        _ => panic!("expected Twist proof"),
+    };
+
+    assert_eq!(twist_proof.addr_batch.r_addr.len(), ell_addr);
+    assert_eq!(twist_proof.addr_batch.claimed_sums.len(), 2);
+    assert_eq!(twist_proof.addr_batch.round_polys.len(), 2);
+    assert_eq!(twist_proof.addr_batch.round_polys[0].len(), ell_addr);
+    assert_eq!(twist_proof.addr_batch.round_polys[1].len(), ell_addr);
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_mutated_rv_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut proof = ctx.prove().expect("prove should succeed");
+    let (_, _, rv_idx, _) = ctx.twist_claim_indices();
+    proof.steps[0].mem.me_claims_time[rv_idx].y_scalars[0] += K::ONE;
+    assert!(
+        ctx.verify(&proof).is_err(),
+        "verification should fail when rv opening is corrupted"
+    );
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_mutated_addr_bit_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut proof = ctx.prove().expect("prove should succeed");
+    let (ra_idx, _, _, _) = ctx.twist_claim_indices();
+    let bit = &mut proof.steps[0].mem.me_claims_time[ra_idx].y_scalars[0];
+    *bit = K::ONE - *bit; // flip bitness
+    assert!(
+        ctx.verify(&proof).is_err(),
+        "verification should fail when address bit opening is corrupted"
+    );
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_mutated_inc_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut proof = ctx.prove().expect("prove should succeed");
+    let (_, _, _, inc_idx) = ctx.twist_claim_indices();
+    proof.steps[0].mem.me_claims_time[inc_idx].y_scalars[0] += K::ONE;
+    assert!(
+        ctx.verify(&proof).is_err(),
+        "verification should fail when inc_at_write_addr opening is corrupted"
+    );
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_wrong_rv_witness_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut steps = ctx.steps.clone();
+
+    let t0 = steps[0].mcs.0.m_in; // per-step traces are embedded starting at m_in
+    let (mem_inst, mem_wit) = &mut steps[0].mem_instances[0];
+    let ell_addr = mem_inst.d * mem_inst.ell;
+    let rv_mat_idx = 2 * ell_addr + 3;
+
+    let rv_mat = &mut mem_wit.mats[rv_mat_idx];
+    let mut decoded = neo_memory::ajtai::decode_vector(&ctx.params, rv_mat);
+    decoded[t0] += F::ONE;
+    *rv_mat = neo_memory::encode::ajtai_encode_vector(&ctx.params, &decoded);
+
+    let mut tr_prove = Poseidon2Transcript::new(b"twist-only-wrong-rv-witness");
+    let result = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &ctx.params,
+        &ctx.ccs,
+        &steps,
+        &ctx.acc_init,
+        &ctx.acc_wit_init,
+        &ctx.l,
+        ctx.mixers,
+    );
+
+    assert!(result.is_err(), "invalid Twist read witness must fail proving");
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_wrong_inc_witness_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut steps = ctx.steps.clone();
+
+    let t0 = steps[0].mcs.0.m_in; // per-step traces are embedded starting at m_in
+    let (mem_inst, mem_wit) = &mut steps[0].mem_instances[0];
+    let ell_addr = mem_inst.d * mem_inst.ell;
+    let inc_mat_idx = 2 * ell_addr + 4;
+
+    let inc_mat = &mut mem_wit.mats[inc_mat_idx];
+    let mut decoded = neo_memory::ajtai::decode_vector(&ctx.params, inc_mat);
+    decoded[t0] += F::ONE;
+    *inc_mat = neo_memory::encode::ajtai_encode_vector(&ctx.params, &decoded);
+
+    let mut tr_prove = Poseidon2Transcript::new(b"twist-only-wrong-inc-witness");
+    let result = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &ctx.params,
+        &ctx.ccs,
+        &steps,
+        &ctx.acc_init,
+        &ctx.acc_wit_init,
+        &ctx.l,
+        ctx.mixers,
+    );
+
+    assert!(result.is_err(), "invalid Twist inc witness must fail proving");
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_mutated_r_addr_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut proof = ctx.prove().expect("prove should succeed");
+
+    let mem_proof = proof
+        .steps
+        .get_mut(0)
+        .and_then(|step| step.mem.proofs.get_mut(0))
+        .expect("one mem proof");
+    let twist_proof = match mem_proof {
+        MemOrLutProof::Twist(p) => p,
+        _ => panic!("expected Twist proof"),
+    };
+    twist_proof.addr_batch.r_addr[0] += K::ONE;
+
+    assert!(
+        ctx.verify(&proof).is_err(),
+        "verification should fail when r_addr is corrupted"
+    );
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_nonbinary_flag_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut proof = ctx.prove().expect("prove should succeed");
+    let (_, has_read_idx, _, _) = ctx.twist_claim_indices();
+    proof.steps[0].mem.me_claims_time[has_read_idx].y_scalars[0] = K::from(F::from_u64(2));
+    assert!(
+        ctx.verify(&proof).is_err(),
+        "verification should fail when has_read flag is non-binary"
+    );
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_mutated_val_eval_claim_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut proof = ctx.prove().expect("prove should succeed");
+
+    let mem_proof = proof
+        .steps
+        .get_mut(0)
+        .and_then(|step| step.mem.proofs.get_mut(0))
+        .expect("one mem proof");
+    let twist_proof = match mem_proof {
+        MemOrLutProof::Twist(p) => p,
+        _ => panic!("expected Twist proof"),
+    };
+    let val_eval = twist_proof.val_eval.as_mut().expect("Phase 2 requires val_eval");
+    val_eval.claimed_inc_sum_lt += K::ONE;
+
+    assert!(
+        ctx.verify(&proof).is_err(),
+        "verification should fail when val_eval claimed_inc_sum_lt is corrupted"
+    );
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_only_route_a_mutated_val_lane_opening_fails() {
+    let ctx = TwistOnlyHarness::new();
+    let mut proof = ctx.prove().expect("prove should succeed");
+    proof.steps[0].mem.me_claims_val[0].y_scalars[0] += K::ONE;
+    assert!(
+        ctx.verify(&proof).is_err(),
+        "verification should fail when r_val ME opening is corrupted"
+    );
 }
 
 fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt> {
@@ -319,8 +834,7 @@ fn test_shard_cpu_only_folding() {
 
     let mut tr_verify = Poseidon2Transcript::new(b"shard-cpu-only");
 
-    let _shard_mcss_public: Vec<McsInstance<Cmt, F>> =
-        steps.iter().map(|s| s.mcs.0.clone()).collect();
+    let _shard_mcss_public: Vec<McsInstance<Cmt, F>> = steps.iter().map(|s| s.mcs.0.clone()).collect();
 
     fold_shard_verify(
         FoldingMode::PaperExact,
@@ -336,8 +850,16 @@ fn test_shard_cpu_only_folding() {
     .expect("fold_shard_verify should succeed");
 
     assert_eq!(proof.steps.len(), 2, "Should have 2 fold steps");
-    assert!(proof.steps.iter().all(|s| s.mem.proofs.is_empty()), "No memory sidecar proofs");
-    assert!(proof.steps.iter().all(|s| s.mem.me_claims.is_empty()), "No memory ME claims");
+    assert!(
+        proof.steps.iter().all(|s| s.mem.proofs.is_empty()),
+        "No memory sidecar proofs"
+    );
+    assert!(
+        proof.steps
+            .iter()
+            .all(|s| s.mem.me_claims_time.is_empty() && s.mem.me_claims_val.is_empty()),
+        "No memory ME claims"
+    );
 
     let final_children = proof.compute_final_children(&acc_init);
     assert_eq!(final_children.len(), params.k_rho as usize);
@@ -402,10 +924,10 @@ fn test_twist_shout_sidecar_proving() {
 
     // Encode for Twist (memory)
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layout, plain_mem, &commit_fn);
+    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layout, plain_mem, &commit_fn, None, 0);
 
     // Encode for Shout (lookup)
-    let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &lut_table, plain_lut, &commit_fn);
+    let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &lut_table, plain_lut, &commit_fn, None, 0);
 
     println!("Memory witness matrices: {}", mem_wit.mats.len());
     println!("LUT witness matrices: {}", lut_wit.mats.len());
@@ -413,130 +935,13 @@ fn test_twist_shout_sidecar_proving() {
     // =========================================================================
     // Verify Semantic Checks Pass
     // =========================================================================
-    twist::check_twist_semantics(&params, &mem_inst, &mem_wit)
-        .expect("Twist semantic check should pass");
+    twist::check_twist_semantics(&params, &mem_inst, &mem_wit).expect("Twist semantic check should pass");
 
     shout::check_shout_semantics(&params, &lut_inst, &lut_wit, &plain_lut.val)
         .expect("Shout semantic check should pass");
 
-    // =========================================================================
-    // Run Twist/Shout Provers
-    // =========================================================================
-    let mut tr = Poseidon2Transcript::new(b"twist-shout-test");
-
-    // Compute ell_cycle - must be large enough to cover steps
-    // Use max of mem_inst.steps and lut_inst.steps
-    let max_steps = mem_inst.steps.max(lut_inst.steps);
-    let ell_cycle = max_steps.next_power_of_two().max(1).trailing_zeros() as usize;
-    // For isolation testing, m_in = 0 (no CPU integration)
-    let m_in = 0;
-
-    // Shout prove (None = no external r_cycle, isolation test)
-    let (shout_me_claims, shout_wits, shout_proof) = shout::prove::<DummyCommit, Cmt, F, K>(
-        FoldingMode::PaperExact,
-        &mut tr,
-        &params,
-        &lut_inst,
-        &lut_wit,
-        &l,
-        ell_cycle,
-        m_in,
-        None, // No external r_cycle - testing in isolation
-        None, // No external r_addr - testing in isolation
-    )
-    .expect("Shout prove should succeed");
-
-    println!("Shout produced {} ME claims", shout_me_claims.len());
-    println!("Shout produced {} witnesses", shout_wits.len());
-
-    // Twist prove (None = no external r_cycle, isolation test)
-    let (twist_me_claims, twist_wits, twist_proof) = twist::prove::<DummyCommit, Cmt, F, K>(
-        FoldingMode::PaperExact,
-        &mut tr,
-        &params,
-        &mem_inst,
-        &mem_wit,
-        &l,
-        ell_cycle,
-        m_in,
-        None, // No external r_cycle - testing in isolation
-        None, // No external r_addr - testing in isolation
-    )
-    .expect("Twist prove should succeed");
-
-    println!("Twist produced {} ME claims", twist_me_claims.len());
-    println!("Twist produced {} witnesses", twist_wits.len());
-
-    // =========================================================================
-    // Verify Proofs
-    // =========================================================================
-    let mut tr_verify = Poseidon2Transcript::new(b"twist-shout-test");
-
-    shout::verify(
-        FoldingMode::PaperExact,
-        &mut tr_verify,
-        &params,
-        &lut_inst,
-        &shout_proof,
-        &shout_me_claims,
-        &l,
-        ell_cycle,
-        None, // No external r_cycle - testing in isolation
-        None, // No external r_addr - testing in isolation
-    )
-    .expect("Shout verify should succeed");
-
-    twist::verify(
-        FoldingMode::PaperExact,
-        &mut tr_verify,
-        &params,
-        &mem_inst,
-        &twist_proof,
-        &twist_me_claims,
-        &l,
-        ell_cycle,
-        None, // No external r_cycle - testing in isolation
-        None, // No external r_addr - testing in isolation
-    )
-    .expect("Twist verify should succeed");
-
-    // =========================================================================
-    // Validate ME Claims Structure
-    // =========================================================================
-    // All Shout ME claims should have the same r
-    if !shout_me_claims.is_empty() {
-        let r0 = &shout_me_claims[0].r;
-        for (i, me) in shout_me_claims.iter().enumerate().skip(1) {
-            assert_eq!(&me.r, r0, "Shout ME claim {} has different r than claim 0", i);
-        }
-    }
-
-    // All Twist ME claims should have the same r
-    if !twist_me_claims.is_empty() {
-        let r0 = &twist_me_claims[0].r;
-        for (i, me) in twist_me_claims.iter().enumerate().skip(1) {
-            assert_eq!(&me.r, r0, "Twist ME claim {} has different r than claim 0", i);
-        }
-    }
-
-    // Note: Shout and Twist ME claims have DIFFERENT r values!
-    // This is why merge doesn't work yet - requires r-alignment.
-    if !shout_me_claims.is_empty() && !twist_me_claims.is_empty() {
-        let shout_r = &shout_me_claims[0].r;
-        let twist_r = &twist_me_claims[0].r;
-        // They're expected to be different - this documents the current limitation
-        println!("Shout r length: {}", shout_r.len());
-        println!("Twist r length: {}", twist_r.len());
-        // Don't assert equality - they're supposed to be different under current design
-    }
-
-    println!("✓ test_twist_shout_sidecar_proving passed!");
-    println!("  - Shout ME claims: {}", shout_me_claims.len());
-    println!("  - Twist ME claims: {}", twist_me_claims.len());
-    println!("  - Total memory ME claims: {}", shout_me_claims.len() + twist_me_claims.len());
-    println!("");
-    println!("  NOTE: In isolation mode (external_r_cycle=None), Twist/Shout sample their own r.");
-    println!("  For full integration, see test_full_cpu_memory_merge_with_r_alignment.");
+    // The secure integration path is Route A in `neo_fold::shard`; this test is now semantic-only.
+    println!("✓ test_twist_shout_sidecar_proving passed (semantic-only)");
 }
 
 // ============================================================================
@@ -628,7 +1033,8 @@ fn test_full_cpu_memory_integration() {
             write_val: vec![plain_mem.write_val[idx]],
             inc: plain_mem.inc.iter().map(|row| vec![row[idx]]).collect(),
         };
-        let (mem_inst_step, mem_wit_step) = encode_mem_for_twist(&params, &mem_layout, &single_plain_mem, &commit_fn);
+        let (mem_inst_step, mem_wit_step) =
+            encode_mem_for_twist(&params, &mem_layout, &single_plain_mem, &commit_fn, None, 0);
 
         if plain_mem.has_write[idx] == F::ONE {
             let addr = plain_mem.write_addr[idx] as usize;
@@ -642,7 +1048,8 @@ fn test_full_cpu_memory_integration() {
             addr: vec![plain_lut.addr[idx]],
             val: vec![plain_lut.val[idx]],
         };
-        let (lut_inst_step, lut_wit_step) = encode_lut_for_shout(&params, &lut_table, &single_plain_lut, &commit_fn);
+        let (lut_inst_step, lut_wit_step) =
+            encode_lut_for_shout(&params, &lut_table, &single_plain_lut, &commit_fn, None, 0);
 
         steps.push(StepWitnessBundle {
             mcs,
@@ -689,7 +1096,10 @@ fn test_full_cpu_memory_integration() {
             .expect("fold_shard_verify should succeed");
 
             assert_eq!(proof.steps.len(), 2, "Should have 2 fold steps");
-            assert!(proof.steps.iter().any(|s| !s.mem.proofs.is_empty()), "Should have memory sidecar proofs");
+            assert!(
+                proof.steps.iter().any(|s| !s.mem.proofs.is_empty()),
+                "Should have memory sidecar proofs"
+            );
 
             let final_children = proof.compute_final_children(&acc_init);
             assert_eq!(final_children.len(), params.k_rho as usize);
@@ -698,11 +1108,19 @@ fn test_full_cpu_memory_integration() {
             println!("  - Fold steps: {}", proof.steps.len());
             println!(
                 "  - Memory proofs: {}",
-                proof.steps.iter().map(|s| s.mem.proofs.len()).sum::<usize>()
+                proof
+                    .steps
+                    .iter()
+                    .map(|s| s.mem.proofs.len())
+                    .sum::<usize>()
             );
             println!(
                 "  - Memory ME claims: {}",
-                proof.steps.iter().map(|s| s.mem.me_claims.len()).sum::<usize>()
+                proof
+                    .steps
+                    .iter()
+                    .map(|s| s.mem.me_claims_time.len() + s.mem.me_claims_val.len())
+                    .sum::<usize>()
             );
             println!("  - Final children: {}", final_children.len());
         }

@@ -6,10 +6,11 @@
 //! Note: With index-bit addressing, we now commit bit-decomposed addresses instead of one-hot vectors.
 
 use neo_ccs::matrix::Mat;
+use neo_memory::ajtai::decode_vector as ajtai_decode_vector;
 use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
 use neo_memory::plain::{build_plain_lut_traces, build_plain_mem_traces, LutTable, PlainMemLayout};
 use neo_memory::shout::check_shout_semantics;
-use neo_memory::twist::{ajtai_decode_vector, check_twist_semantics};
+use neo_memory::twist::check_twist_semantics;
 use neo_params::NeoParams;
 use neo_vm_trace::{ShoutEvent, ShoutId, StepTrace, TwistEvent, TwistId, TwistOpKind, VmTrace};
 use p3_field::PrimeCharacteristicRing;
@@ -209,7 +210,8 @@ fn test_twist_semantic_check_passes_for_valid_trace() {
     let plain_trace = plain_traces.get(&0).expect("Missing memory trace");
 
     // Encode to Ajtai (now with index-bit addressing)
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit);
+    // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
+    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit, None, 0);
 
     // Check semantics using the new API
     let result = check_twist_semantics(&params, &inst, &wit);
@@ -269,14 +271,15 @@ fn test_twist_detects_bad_read_value() {
     let plain_traces = build_plain_mem_traces::<Goldilocks>(&trace, &layouts, &initial_mem);
     let plain_trace = plain_traces.get(&0).unwrap();
 
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit);
+    // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
+    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit, None, 0);
 
     let result = check_twist_semantics(&params, &inst, &wit);
 
     assert!(result.is_err(), "Should detect bad read value");
     let err_msg = format!("{:?}", result.err().unwrap());
     assert!(
-        err_msg.contains("Read mismatch"),
+        err_msg.contains("read mismatch"),
         "Error should mention read mismatch: {}",
         err_msg
     );
@@ -320,7 +323,8 @@ fn test_twist_with_initial_memory() {
     let plain_traces = build_plain_mem_traces::<Goldilocks>(&trace, &layouts, &initial_mem);
     let plain_trace = plain_traces.get(&0).unwrap();
 
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit);
+    // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
+    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit, None, 0);
 
     let result = check_twist_semantics(&params, &inst, &wit);
 
@@ -453,7 +457,8 @@ fn test_shout_semantic_check_passes_for_valid_lookups() {
     let plain_trace = plain_traces.get(&0).unwrap();
 
     // Encode to Ajtai (now with index-bit addressing)
-    let (inst, wit) = encode_lut_for_shout(&params, &table, plain_trace, &dummy_commit);
+    // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
+    let (inst, wit) = encode_lut_for_shout(&params, &table, plain_trace, &dummy_commit, None, 0);
 
     // Check semantics using the new API
     let result = check_shout_semantics(&params, &inst, &wit, &plain_trace.val);
@@ -462,7 +467,7 @@ fn test_shout_semantic_check_passes_for_valid_lookups() {
 }
 
 #[test]
-#[cfg_attr(debug_assertions, should_panic(expected = "Lookup mismatch"))]
+#[cfg_attr(debug_assertions, should_panic(expected = "lookup mismatch"))]
 #[allow(unreachable_code)]
 fn test_shout_detects_bad_lookup_value() {
     // This test only panics in debug mode because the semantic check
@@ -516,5 +521,6 @@ fn test_shout_detects_bad_lookup_value() {
 
     // In debug mode, encoding now runs the semantic checker and will panic on bad values.
     // This is correct behavior - fail fast during encoding rather than later.
-    let (_inst, _wit) = encode_lut_for_shout(&params, &table, plain_trace, &dummy_commit);
+    // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
+    let (_inst, _wit) = encode_lut_for_shout(&params, &table, plain_trace, &dummy_commit, None, 0);
 }

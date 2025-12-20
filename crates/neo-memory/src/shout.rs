@@ -1,321 +1,209 @@
-//! Shout argument for read-only lookup table correctness.
+//! Shout argument for read-only lookup table correctness (Route A).
 //!
-//! This module implements the Shout protocol with **index-bit addressing**:
-//! instead of committing O(n_side) one-hot columns per dimension, we commit
-//! O(log n_side) bit columns and prove consistency via the IDX→OH adapter.
-//!
-//! ## Protocol Overview
-//!
-//! 1. Sample r_addr and r_cycle
-//! 2. **Index Adapter**: Prove bit columns encode valid addresses
-//! 3. **Lookup Check**: Prove lookup values match table at those addresses
-//! 4. **Bitness Check**: Prove all address bit columns are binary
-//! 5. Generate ME claims for folding
-//!
-//! ## Witness Layout (Index-Bit Addressing)
-//!
-//! The matrices in `LutWitness.mats` are ordered as:
-//! - `0 .. d*ell`: Lookup address bits (masked by has_lookup)
+//! This module is intentionally minimal: the only supported integration is Route A
+//! inside `neo-fold::shard`, which proves Shout constraints via shared-challenge
+//! batched sum-check and terminal checks bound to ME openings.
 
-use crate::twist::ajtai_decode_vector;
+use crate::ajtai::decode_vector as ajtai_decode_vector;
+use crate::ts_common as ts;
+use crate::twist_oracle::{
+    build_eq_table, AddressLookupOracle, IndexAdapterOracle, LazyBitnessOracle, ProductRoundOracle,
+};
 use crate::witness::{LutInstance, LutWitness};
 use neo_ajtai::Commitment as AjtaiCmt;
 use neo_ccs::matrix::Mat;
-use neo_ccs::relations::MeInstance;
+use neo_math::{F as BaseField, K as KElem};
 use neo_params::NeoParams;
-use neo_reductions::api::FoldingMode;
 use neo_reductions::error::PiCcsError;
-use neo_transcript::{Poseidon2Transcript, Transcript, TranscriptProtocol};
-use p3_field::{PrimeCharacteristicRing, PrimeField};
+use neo_transcript::Poseidon2Transcript;
+use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
 
-use crate::mle::{build_chi_table, mle_eval};
-use crate::twist_oracle::{BitnessOracle, IndexAdapterOracle, ShoutLookupOracle};
-use neo_ccs::traits::SModuleHomomorphism;
-use neo_math::{from_complex, F as BaseField, K as KElem};
-use neo_reductions::sumcheck::run_sumcheck_prover;
+// ============================================================================
+// Input validation
+// ============================================================================
+
+fn validate_index_bit_addressing<Cmt, F>(inst: &LutInstance<Cmt, F>) -> Result<(), PiCcsError> {
+    crate::addr::validate_pow2_bit_addressing("Shout", inst.n_side, inst.d, inst.ell, inst.k)?;
+    if inst.table.len() != inst.k {
+        return Err(PiCcsError::InvalidInput(format!(
+            "Shout: table.len()={} must equal k={} for bit addressing",
+            inst.table.len(),
+            inst.k
+        )));
+    }
+
+    Ok(())
+}
 
 // ============================================================================
-// Commitment Absorption (for Fiat-Shamir soundness)
+// Transcript binding
 // ============================================================================
 
 /// Absorb all Shout commitments into the transcript.
 ///
-/// **MUST be called BEFORE deriving any random challenge that will be used
-/// for opening these commitments** (e.g., the canonical `r_cycle` from CPU folding).
-///
-/// This ensures Fiat-Shamir soundness: the prover cannot choose commitments
-/// after seeing the evaluation point.
+/// Must be called before sampling any challenge used to open these commitments.
 pub fn absorb_commitments<F>(tr: &mut Poseidon2Transcript, inst: &LutInstance<AjtaiCmt, F>) {
-    tr.append_message(b"shout/absorb_commitments", &(inst.comms.len() as u64).to_le_bytes());
-    for (i, comm) in inst.comms.iter().enumerate() {
-        tr.append_message(b"shout/comm_idx", &(i as u64).to_le_bytes());
-        // Absorb the commitment's field elements
-        tr.absorb_commit_coords(&comm.data);
-    }
+    ts::absorb_ajtai_commitments(tr, b"shout/absorb_commitments", b"shout/comm_idx", &inst.comms);
 }
 
-/// Proof for the Shout lookup argument.
+// ============================================================================
+// Proof metadata (Route A)
+// ============================================================================
+
+/// Route A Shout proof metadata.
+///
+/// In Route A, the time-domain rounds are carried by the shard’s `BatchedTimeProof`.
+/// Shout contributes only the address-domain sum-check metadata.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShoutProof<F> {
-    /// Sum-check round messages for index adapter
-    pub adapter_rounds: Vec<Vec<F>>,
-    /// Sum-check round messages for lookup check
-    pub lookup_check_rounds: Vec<Vec<F>>,
-    /// Sum-check round messages for bitness checks
-    pub bitness_rounds: Vec<Vec<F>>,
-    /// Claimed sum for adapter sum-check (for verifier)
-    pub adapter_claim: F,
-    /// Claimed sum for lookup sum-check (for verifier)
-    pub lookup_claim: F,
+    /// Claimed sum for the address-domain sum-check.
+    pub addr_claim_sum: F,
+    /// Address-domain sum-check rounds (ell_addr rounds).
+    pub addr_rounds: Vec<Vec<F>>,
+    /// Address-domain challenge point r_addr ∈ K^{ell_addr}.
+    pub addr_r: Vec<F>,
+    pub me_claim_count: usize,
 }
 
 impl<F: Default> Default for ShoutProof<F> {
     fn default() -> Self {
         Self {
-            adapter_rounds: Vec::new(),
-            lookup_check_rounds: Vec::new(),
-            bitness_rounds: Vec::new(),
-            adapter_claim: F::default(),
-            lookup_claim: F::default(),
+            addr_claim_sum: F::default(),
+            addr_rounds: Vec::new(),
+            addr_r: Vec::new(),
+            me_claim_count: 0,
         }
     }
 }
 
-/// Decomposed witness matrices from LutWitness.
+// ============================================================================
+// Witness layout helpers
+// ============================================================================
+
 #[derive(Clone, Debug)]
 pub struct ShoutWitnessParts<'a, F> {
-    /// Address bit matrices: d*ell matrices
     pub addr_bit_mats: &'a [Mat<F>],
-    /// has_lookup(j) flag column
     pub has_lookup_mat: &'a Mat<F>,
-    /// Observed lookup return value val(j)
     pub val_mat: &'a Mat<F>,
 }
 
-/// Split the LutWitness matrices into named parts.
-///
-/// Layout: [addr_bits (d*ell), has_lookup, val]
+/// Layout: `[addr_bits (d*ell), has_lookup, val]`.
 pub fn split_lut_mats<'a, F: Clone>(
     inst: &LutInstance<impl Clone, F>,
     wit: &'a LutWitness<F>,
 ) -> ShoutWitnessParts<'a, F> {
-    let d = inst.d;
-    let ell = inst.ell;
-    let addr_bits_count = d * ell;
-    let expected = addr_bits_count + 2; // + has_lookup + val
-
+    let ell_addr = inst.d * inst.ell;
+    let expected = ell_addr + 2;
     assert_eq!(
         wit.mats.len(),
         expected,
         "LutWitness has {} matrices, expected {} (d*ell={} + has_lookup + val)",
         wit.mats.len(),
         expected,
-        addr_bits_count
+        ell_addr
     );
-
     ShoutWitnessParts {
-        addr_bit_mats: &wit.mats[..addr_bits_count],
-        has_lookup_mat: &wit.mats[addr_bits_count],
-        val_mat: &wit.mats[addr_bits_count + 1],
+        addr_bit_mats: &wit.mats[..ell_addr],
+        has_lookup_mat: &wit.mats[ell_addr],
+        val_mat: &wit.mats[ell_addr + 1],
     }
 }
 
 // ============================================================================
-// Helper Functions
+// Decoded columns (Route A helpers)
 // ============================================================================
 
-fn sample_ext_point(tr: &mut Poseidon2Transcript, label: &'static [u8], len: usize) -> Vec<KElem> {
-    let mut out = Vec::with_capacity(len);
-    for i in 0..len {
-        tr.append_message(label, &i.to_le_bytes());
-        let c0 = tr.challenge_field(b"shout/coord/0");
-        let c1 = tr.challenge_field(b"shout/coord/1");
-        out.push(from_complex(c0, c1));
-    }
-    out
+#[derive(Clone, Debug)]
+pub struct ShoutDecodedCols {
+    pub addr_bits: Vec<Vec<KElem>>,
+    pub has_lookup: Vec<KElem>,
+    pub val: Vec<KElem>,
 }
 
-fn sample_base_addr_point(tr: &mut Poseidon2Transcript, label: &'static [u8], len: usize) -> Vec<KElem> {
-    let mut out = Vec::with_capacity(len);
-    for i in 0..len {
-        tr.append_message(label, &i.to_le_bytes());
-        let c0 = tr.challenge_field(b"shout/coord/0");
-        out.push(from_complex(c0, BaseField::ZERO));
-    }
-    out
-}
-
-/// Decode has_lookup flags from address bits.
-/// A step has a lookup if any bit in any dimension is set.
-///
-/// Note: This is kept for backward compatibility but the preferred approach
-/// is to use the committed has_lookup column directly.
-#[allow(dead_code)]
-fn decode_has_lookup<F: PrimeField>(params: &NeoParams, addr_bit_mats: &[Mat<F>], steps: usize) -> Vec<F> {
-    let mut has_lookup = vec![F::ZERO; steps];
-
-    for mat in addr_bit_mats {
-        let bits = ajtai_decode_vector(params, mat);
-        for (j, &b) in bits.iter().enumerate().take(steps) {
-            if b != F::ZERO {
-                has_lookup[j] = F::ONE;
-            }
-        }
-    }
-
-    has_lookup
-}
-
-/// Decode addresses from bit columns.
-///
-/// This function pre-decodes all bit columns once to avoid O(d * ell * steps)
-/// Ajtai decode calls. Instead, we do O(d * ell) decodes upfront.
-fn decode_addrs_from_bits<F: PrimeField>(
+pub fn decode_shout_cols<Cmt: Clone>(
     params: &NeoParams,
-    addr_bit_mats: &[Mat<F>],
-    d: usize,
-    ell: usize,
-    n_side: usize,
-    steps: usize,
-) -> Vec<u64> {
-    // Pre-decode all bit columns once (avoid O(d * ell * steps) decode calls)
-    let decoded: Vec<Vec<F>> = addr_bit_mats
-        .iter()
-        .map(|m| ajtai_decode_vector(params, m))
-        .collect();
+    inst: &LutInstance<Cmt, BaseField>,
+    wit: &LutWitness<BaseField>,
+    ell_cycle: usize,
+) -> Result<ShoutDecodedCols, PiCcsError> {
+    validate_index_bit_addressing(inst)?;
+    let parts = split_lut_mats(inst, wit);
 
-    let mut addrs = vec![0u64; steps];
-
-    for dim in 0..d {
-        let base = dim * ell;
-        let stride = (n_side as u64).pow(dim as u32);
-        for b in 0..ell {
-            let col_idx = base + b;
-            if col_idx < decoded.len() {
-                let col = &decoded[col_idx];
-                let bit_weight = 1u64 << b;
-                for j in 0..steps.min(col.len()) {
-                    if col[j] == F::ONE {
-                        addrs[j] += bit_weight * stride;
-                    }
-                }
-            }
-        }
+    let pow2_cycle = 1usize << ell_cycle;
+    if inst.steps > pow2_cycle {
+        return Err(PiCcsError::InvalidInput(format!(
+            "Shout(Route A): steps={} exceeds 2^ell_cycle={pow2_cycle}",
+            inst.steps
+        )));
     }
 
-    addrs
+    let addr_bits = ts::decode_mats_to_k_padded(params, parts.addr_bit_mats, pow2_cycle);
+    let has_lookup = ts::decode_mat_to_k_padded(params, parts.has_lookup_mat, pow2_cycle);
+    let val = ts::decode_mat_to_k_padded(params, parts.val_mat, pow2_cycle);
+
+    Ok(ShoutDecodedCols {
+        addr_bits,
+        has_lookup,
+        val,
+    })
 }
 
 // ============================================================================
-// Semantic Checker (Debug)
+// Semantic checker (debug/tests)
 // ============================================================================
 
-/// Check Shout semantics without cryptographic proofs.
-///
-/// This validates that the committed witness is consistent:
-/// - Address bit columns are binary
-/// - has_lookup column is binary
-/// - When has_lookup=1, the committed val matches Table[addr]
-///
-/// ## Address/Table Mapping
-///
-/// The address bits encode a flattened index into the table:
-/// - For d dimensions with n_side elements each, the total address space is n_side^d
-/// - The table must have exactly k = n_side^d entries (or be padded to that size)
-/// - The first ell_table = ceil(log2(table.len())) bits of r_addr are used for table lookup
-/// - This means table indices and address bit encodings must use the same bijection
 pub fn check_shout_semantics<F: PrimeField>(
     params: &NeoParams,
     inst: &LutInstance<impl Clone, F>,
     wit: &LutWitness<F>,
     expected_vals: &[F],
 ) -> Result<(), PiCcsError> {
-    // Validate address space / table size relationship
-    let expected_k = inst.n_side.pow(inst.d as u32);
-    let k = inst.k;
-    let n_side = inst.n_side;
-    let d_dim = inst.d;
-    if k != expected_k {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout: k={k} does not match n_side^d = {n_side}^{d_dim} = {expected_k}. \
-             Table size must equal the address space for index-bit addressing."
-        )));
-    }
+    validate_index_bit_addressing(inst)?;
 
-    let table_len = inst.table.len();
-    if table_len != k {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout: table.len()={table_len} does not match k={k}. \
-             Table must be exactly k entries."
-        )));
-    }
     let parts = split_lut_mats(inst, wit);
     let steps = inst.steps;
-    let d = inst.d;
-    let ell = inst.ell;
-    let n_side = inst.n_side;
 
-    // Check bitness of address columns
-    for mat in parts.addr_bit_mats {
+    // Bitness: addr bits + has_lookup.
+    for mat in parts
+        .addr_bit_mats
+        .iter()
+        .chain(core::iter::once(parts.has_lookup_mat))
+    {
         let v = ajtai_decode_vector(params, mat);
         for (j, &x) in v.iter().enumerate() {
             if x != F::ZERO && x != F::ONE {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Non-binary value in address bit column at step {}: {:?}",
-                    j, x
+                    "Shout: non-binary value at step {j}: {x:?}"
                 )));
             }
         }
     }
 
-    // Decode has_lookup from committed column
-    let has_lookup_vec = ajtai_decode_vector(params, parts.has_lookup_mat);
-    for (j, &x) in has_lookup_vec.iter().enumerate() {
-        if x != F::ZERO && x != F::ONE {
-            return Err(PiCcsError::InvalidInput(format!(
-                "Non-binary value in has_lookup at step {}: {:?}",
-                j, x
-            )));
-        }
-    }
+    let has_lookup = ajtai_decode_vector(params, parts.has_lookup_mat);
+    let val = ajtai_decode_vector(params, parts.val_mat);
+    let addrs = ts::decode_addrs_from_bits(params, parts.addr_bit_mats, inst.d, inst.ell, inst.n_side, steps);
 
-    // Decode val from committed column
-    let val_vec = ajtai_decode_vector(params, parts.val_mat);
-
-    // Decode addresses
-    let addrs = decode_addrs_from_bits(params, parts.addr_bit_mats, d, ell, n_side, steps);
-
-    // Check lookup correctness
     for j in 0..steps {
-        if has_lookup_vec[j] == F::ONE {
+        if has_lookup[j] == F::ONE {
             let addr = addrs[j] as usize;
-
             if addr >= inst.table.len() {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Lookup at step {} has out-of-range address: {} >= {}",
-                    j,
-                    addr,
+                    "Shout: out-of-range lookup at step {j}: addr={addr} >= table.len()={}",
                     inst.table.len()
                 )));
             }
-
             let table_val = inst.table[addr];
-            let committed_val = val_vec[j];
-
-            // Check committed val matches table
-            if table_val != committed_val {
+            if val[j] != table_val {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Lookup mismatch at step {}: Table[{}] = {:?}, but committed val = {:?}",
-                    j, addr, table_val, committed_val
+                    "Shout: lookup mismatch at step {j}: Table[{addr}]={table_val:?}, committed val={:?}",
+                    val[j]
                 )));
             }
-
-            // Also check against expected_vals if provided
-            if j < expected_vals.len() && committed_val != expected_vals[j] {
+            if j < expected_vals.len() && val[j] != expected_vals[j] {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Lookup value mismatch at step {}: committed {:?}, expected {:?}",
-                    j, committed_val, expected_vals[j]
+                    "Shout: expected value mismatch at step {j}: committed={:?}, expected={:?}",
+                    val[j], expected_vals[j]
                 )));
             }
         }
@@ -325,457 +213,83 @@ pub fn check_shout_semantics<F: PrimeField>(
 }
 
 // ============================================================================
-// Prover
+// Route A oracles
 // ============================================================================
 
-/// Prove lookup correctness using the Shout argument with index-bit addressing.
-///
-/// ## Address/Table Mapping Invariant
-///
-/// The index-bit encoding assumes a bijection between:
-/// - The d-dimensional address `(a_0, a_1, ..., a_{d-1})` with each `a_i < n_side`
-/// - The flattened table index `idx = Σ_i a_i * n_side^i`
-///
-/// This means:
-/// - The table must have exactly `k = n_side^d` entries
-/// - The first `ell_table = ceil(log2(k))` bits of `r_addr` correspond to the table index
-/// - All `d * ell` address bits participate in the eq(bits, r_addr) computation
-///
-/// # Parameters
-/// - `ell_cycle`: The log₂ of the cycle domain size (must match `ell_n` from the ME structure)
-/// - `m_in`: The number of public input columns (must match the ME structure for X shape)
-/// - `external_r_cycle`: If provided, use this as `r_cycle` instead of sampling from transcript.
-///   This is used for r-alignment when merging CPU and memory ME claims via RLC.
-///   **Soundness requirement**: When using external `r_cycle`, the caller must ensure
-///   it was derived AFTER all Shout commitments were absorbed into the transcript.
-pub fn prove<L, Cmt, F, K>(
-    _mode: FoldingMode,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    inst: &LutInstance<Cmt, F>,
-    wit: &LutWitness<F>,
-    _l: &L,
-    ell_cycle: usize,
-    m_in: usize,
-    external_r_cycle: Option<&[KElem]>,
-    external_r_addr: Option<&[KElem]>,
-) -> Result<(Vec<MeInstance<Cmt, F, K>>, Vec<Mat<F>>, ShoutProof<KElem>), PiCcsError>
-where
-    F: PrimeField + Into<KElem> + Copy,
-    K: From<KElem> + Clone,
-    Cmt: Clone,
-{
-    let parts = split_lut_mats(inst, wit);
+/// Route A Shout oracles (time-domain only).
+pub struct RouteAShoutOracles {
+    /// Value oracle: `χ_{r_cycle}(t) * has_lookup(t) * val(t)`.
+    pub value: ProductRoundOracle,
+    /// Claimed sum for the value oracle.
+    pub value_claim: KElem,
+    /// Adapter oracle: `χ_{r_cycle}(t) * has_lookup(t) * eq(addr_bits(t), r_addr)`.
+    pub adapter: IndexAdapterOracle,
+    /// Claimed sum for the adapter oracle.
+    pub adapter_claim: KElem,
+    /// Bitness checks for address bits + has_lookup (time-domain), χ_{r_cycle}-weighted.
+    pub bitness: Vec<LazyBitnessOracle>,
+    /// Number of address bits (`d*ell`).
+    pub ell_addr: usize,
+}
 
-    let d = inst.d;
-    let ell = inst.ell;
-    let n_side = inst.n_side;
-    let steps = inst.steps;
-    let total_addr_bits = d * ell;
+pub fn build_shout_addr_oracle<Cmt: Clone>(
+    inst: &LutInstance<Cmt, BaseField>,
+    decoded: &ShoutDecodedCols,
+    r_cycle: &[KElem],
+) -> Result<(AddressLookupOracle, KElem), PiCcsError> {
+    let ell_addr = inst.d * inst.ell;
+    let table_k: Vec<KElem> = inst.table.iter().map(|&v| v.into()).collect();
+    let (oracle, addr_claim_sum) =
+        AddressLookupOracle::new(&decoded.addr_bits, &decoded.has_lookup, &table_k, r_cycle, ell_addr);
+    Ok((oracle, addr_claim_sum))
+}
 
-    // Validate address/table mapping invariant
-    let expected_k = n_side.pow(d as u32);
-    debug_assert_eq!(
-        inst.k, expected_k,
-        "Shout: k={} must equal n_side^d = {}^{} = {} for index-bit addressing",
-        inst.k, n_side, d, expected_k
-    );
-    debug_assert_eq!(
-        inst.table.len(),
-        inst.k,
-        "Shout: table.len()={} must equal k={}",
-        inst.table.len(),
-        inst.k
-    );
-
-    // Use the provided ell_cycle (should match ell_n from the ME structure)
-    let pow2_cycle = 1usize << ell_cycle;
-    if steps > pow2_cycle {
+pub fn build_route_a_shout_oracles<Cmt: Clone>(
+    inst: &LutInstance<Cmt, BaseField>,
+    decoded: &ShoutDecodedCols,
+    r_cycle: &[KElem],
+    r_addr: &[KElem],
+) -> Result<RouteAShoutOracles, PiCcsError> {
+    validate_index_bit_addressing(inst)?;
+    let ell_addr = inst.d * inst.ell;
+    if r_addr.len() != ell_addr {
         return Err(PiCcsError::InvalidInput(format!(
-            "Shout: steps={steps} exceeds 2^ell_cycle={pow2_cycle} (ell_cycle={ell_cycle})"
+            "Shout(Route A): r_addr.len()={} != ell_addr={}",
+            r_addr.len(),
+            ell_addr
         )));
     }
 
-    // =========================================================================
-    // Phase 1: Sample random points (or use external r_cycle for r-alignment)
-    // =========================================================================
-    
-    // Use external r_cycle if provided (for r-alignment with CPU), otherwise sample
-    let r_cycle: Vec<KElem> = match external_r_cycle {
-        Some(ext_r) => {
-            if ext_r.len() != ell_cycle {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Shout: external_r_cycle.len()={} != ell_cycle={}", ext_r.len(), ell_cycle
-                )));
-            }
-            ext_r.to_vec()
-        }
-        None => sample_ext_point(tr, b"shout/r_cycle", ell_cycle),
-    };
-    let r_addr: Vec<KElem> = match external_r_addr {
-        Some(ext_r) => {
-            if ext_r.len() != total_addr_bits {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Shout: external_r_addr.len()={} != total_addr_bits={}",
-                    ext_r.len(),
-                    total_addr_bits
-                )));
-            }
-            ext_r.to_vec()
-        }
-        None => sample_base_addr_point(tr, b"shout/r_addr", total_addr_bits),
-    };
+    let chi_cycle = build_eq_table(r_cycle);
+    if chi_cycle.len() != decoded.has_lookup.len() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "Shout(Route A): chi_cycle.len()={} != has_lookup.len()={}",
+            chi_cycle.len(),
+            decoded.has_lookup.len()
+        )));
+    }
 
-    // =========================================================================
-    // Phase 2: Decode witness from committed columns
-    // =========================================================================
-
-    // Decode bit columns to K
-    let addr_bits: Vec<Vec<KElem>> = parts
-        .addr_bit_mats
-        .iter()
-        .map(|m| {
-            let v = ajtai_decode_vector(params, m);
-            let mut out: Vec<KElem> = v.iter().map(|&x| x.into()).collect();
-            out.resize(pow2_cycle, KElem::ZERO);
-            out
-        })
-        .collect();
-
-    // Decode has_lookup from committed column (not inferred from bits)
-    let has_lookup_vec_f = ajtai_decode_vector(params, parts.has_lookup_mat);
-    let has_lookup: Vec<KElem> = {
-        let mut v: Vec<KElem> = has_lookup_vec_f.iter().map(|&x| x.into()).collect();
-        v.resize(pow2_cycle, KElem::ZERO);
-        v
-    };
-
-    // Decode val from committed column (the VM's observed lookup values)
-    let val_vec_f = ajtai_decode_vector(params, parts.val_mat);
-    let val_vec: Vec<KElem> = {
-        let mut v: Vec<KElem> = val_vec_f.iter().map(|&x| x.into()).collect();
-        v.resize(pow2_cycle, KElem::ZERO);
-        v
-    };
-
-    // =========================================================================
-    // Phase 3: Index Adapter Sum-Check
-    // =========================================================================
-    // Proves: Σ_t eq(r_cycle, t) * eq(addr_bits_t, r_addr) = adapter_claim
-
-    let mut adapter_oracle = IndexAdapterOracle::new(&addr_bits, &r_cycle, &r_addr);
-    // The expected sum is the MLE evaluation of the conceptual one-hot matrix
-    // at (r_cycle, r_addr)
-    let chi_cycle = build_chi_table(&r_cycle);
-    let eq_addr_at_bits = crate::twist_oracle::compute_eq_from_bits(&addr_bits, &r_addr);
-    let adapter_claim: KElem = chi_cycle
-        .iter()
-        .zip(eq_addr_at_bits.iter())
-        .map(|(c, e)| *c * *e)
-        .sum();
-
-    let (adapter_rounds, adapter_chals) = run_sumcheck_prover(tr, &mut adapter_oracle, adapter_claim)
-        .map_err(|e| PiCcsError::SumcheckError(format!("shout adapter: {e}")))?;
-
-    // =========================================================================
-    // Phase 4: Lookup Check Sum-Check
-    // =========================================================================
-    // Proves: Σ_t eq(r_cycle, t) * has_lookup(t) * eq(addr_bits_t, r_addr) * (val(t) - Table(r_addr)) = 0
-    // This enforces that whenever has_lookup=1, the committed val equals Table[r_addr]
-
-    // Compute Table(r_addr) by MLE evaluation (scalar)
-    let table_at_r_addr: KElem = {
-        let table_k: Vec<KElem> = inst.table.iter().map(|&x| x.into()).collect();
-        let table_size = inst.table.len().next_power_of_two();
-        let mut padded = table_k;
-        padded.resize(table_size, KElem::ZERO);
-
-        let ell_table = table_size.trailing_zeros() as usize;
-        if r_addr.len() >= ell_table {
-            mle_eval(&padded, &r_addr[..ell_table])
-        } else {
-            KElem::ZERO
-        }
-    };
-
-    let mut lookup_oracle = ShoutLookupOracle::new(
-        &addr_bits,
-        has_lookup.clone(),
-        val_vec.clone(),
-        table_at_r_addr,
-        &r_cycle,
-        &r_addr,
+    let value = ProductRoundOracle::new(
+        vec![chi_cycle.clone(), decoded.has_lookup.clone(), decoded.val.clone()],
+        3,
     );
+    let value_claim = value.sum_over_hypercube();
 
-    // Expected sum: Σ_t χ_cycle(t)·has_lookup(t)·eq(addr_bits_t, r_addr)·(val(t)−Table(r_addr))
-    let eq_addr_at_bits = crate::twist_oracle::compute_eq_from_bits(&addr_bits, &r_addr);
-    let lookup_claim: KElem = chi_cycle
-        .iter()
-        .zip(has_lookup.iter())
-        .zip(val_vec.iter())
-        .zip(eq_addr_at_bits.iter())
-        .map(|(((chi, hl), v), eq_addr)| *chi * *hl * (*v - table_at_r_addr) * *eq_addr)
-        .sum();
+    let adapter = IndexAdapterOracle::new_with_gate(&decoded.addr_bits, &decoded.has_lookup, r_cycle, r_addr);
+    let adapter_claim = adapter.compute_claim();
 
-    let (lookup_check_rounds, lookup_chals) = run_sumcheck_prover(tr, &mut lookup_oracle, lookup_claim)
-        .map_err(|e| PiCcsError::SumcheckError(format!("shout lookup: {e}")))?;
-
-    // =========================================================================
-    // Phase 5: Bitness Checks
-    // =========================================================================
-    let r_bitness = sample_ext_point(tr, b"shout/bitness", ell_cycle);
-    let mut bitness_rounds = Vec::new();
-
-    for bits in &addr_bits {
-        let mut oracle = BitnessOracle::new(bits.clone(), &r_bitness);
-        let (rounds, _) = run_sumcheck_prover(tr, &mut oracle, KElem::ZERO)
-            .map_err(|e| PiCcsError::SumcheckError(format!("shout bitness: {e}")))?;
-        bitness_rounds.extend(rounds);
+    let mut bitness = Vec::with_capacity(ell_addr + 1);
+    for col in decoded.addr_bits.iter().cloned() {
+        bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, col));
     }
+    bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, decoded.has_lookup.clone()));
 
-    // =========================================================================
-    // Phase 6: Generate ME Claims
-    // =========================================================================
-    let mut me_instances: Vec<MeInstance<Cmt, F, K>> = Vec::new();
-    let mut me_witnesses: Vec<Mat<F>> = Vec::new();
-
-    let d = params.d as usize;
-    let y_pad = d.next_power_of_two();
-
-    // Helper to create ME instance
-    let create_me = |comm: &Cmt, decoded: &[KElem], r: &[KElem]| -> MeInstance<Cmt, F, K> {
-        let mut padded = decoded.to_vec();
-        padded.resize(pow2_cycle, KElem::ZERO);
-        let y_eval: KElem = mle_eval(&padded, r);
-
-        // y vector: first row holds y_eval, padded to the expected d-domain length
-        let mut y_vec = vec![K::from(y_eval); 1];
-        y_vec.resize(y_pad, K::from(KElem::ZERO));
-
-        let fold_digest = {
-            let mut fork = tr.fork(b"shout/me_digest");
-            fork.digest32()
-        };
-
-        MeInstance {
-            c: comm.clone(),
-            // X is present but irrelevant for Shout; fill with zeros to match ME structure shape
-            X: Mat::zero(params.d as usize, m_in, F::ZERO),
-            r: r.iter().map(|&x| K::from(x)).collect(),
-            y: vec![y_vec],
-            y_scalars: vec![K::from(y_eval)],
-            m_in,
-            fold_digest,
-            c_step_coords: vec![],
-            u_offset: 0,
-            u_len: 0,
-        }
-    };
-
-    // Use r_cycle as the evaluation point for ME claims (for r-alignment with CPU)
-    // This ensures all ME claims (CPU + memory) share the same `r` for RLC merge.
-    let eval_point = &r_cycle;
-
-    // ME claims for address bits
-    for (i, bits) in addr_bits.iter().enumerate() {
-        me_instances.push(create_me(&inst.comms[i], bits, eval_point));
-        me_witnesses.push(parts.addr_bit_mats[i].clone());
-    }
-
-    // ME claim for has_lookup
-    let has_lookup_idx = total_addr_bits;
-    me_instances.push(create_me(&inst.comms[has_lookup_idx], &has_lookup, eval_point));
-    me_witnesses.push(parts.has_lookup_mat.clone());
-
-    // ME claim for val
-    let val_idx = total_addr_bits + 1;
-    me_instances.push(create_me(&inst.comms[val_idx], &val_vec, eval_point));
-    me_witnesses.push(parts.val_mat.clone());
-
-    let _ = adapter_chals; // Suppress warning
-    let _ = lookup_chals; // Suppress warning
-
-    let proof = ShoutProof {
-        adapter_rounds,
-        lookup_check_rounds,
-        bitness_rounds,
+    Ok(RouteAShoutOracles {
+        value,
+        value_claim,
+        adapter,
         adapter_claim,
-        lookup_claim,
-    };
-
-    Ok((me_instances, me_witnesses, proof))
-}
-
-// ============================================================================
-// Verifier
-// ============================================================================
-
-/// Verify lookup correctness using the Shout argument.
-///
-/// This function verifies the sum-check proofs and validates that the provided
-/// ME claims are consistent with the instance and transcript.
-///
-/// # Arguments
-/// - `mode`: Folding mode
-/// - `tr`: Transcript for Fiat-Shamir
-/// - `params`: Neo parameters
-/// - `inst`: Lookup instance (public data)
-/// - `proof`: Shout proof containing sum-check rounds
-/// - `prover_me_claims`: ME claims from the prover's proof (to be validated)
-/// - `_l`: S-module homomorphism (unused but kept for API consistency)
-/// - `ell_cycle`: The log₂ of the cycle domain size (must match `ell_n` from the ME structure)
-/// - `external_r_cycle`: If provided, expect ME claims to use this as `r` (for r-alignment).
-///
-/// # Returns
-/// On success, returns `Ok(())`. The ME claims from `prover_me_claims` should be
-/// used by the caller after this function returns successfully.
-pub fn verify<L, Cmt, F, K>(
-    _mode: FoldingMode,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    inst: &LutInstance<Cmt, F>,
-    proof: &ShoutProof<KElem>,
-    prover_me_claims: &[MeInstance<Cmt, F, K>],
-    _l: &L,
-    ell_cycle: usize,
-    external_r_cycle: Option<&[KElem]>,
-    external_r_addr: Option<&[KElem]>,
-) -> Result<(), PiCcsError>
-where
-    F: PrimeField,
-    K: From<KElem> + Clone + PartialEq,
-    L: SModuleHomomorphism<F, Cmt>,
-    Cmt: Clone + PartialEq,
-{
-    let d = inst.d;
-    let ell = inst.ell;
-    let steps = inst.steps;
-    let total_addr_bits = d * ell;
-
-    // Use the provided ell_cycle (should match ell_n from the ME structure)
-    let pow2_cycle = 1usize << ell_cycle;
-    if steps > pow2_cycle {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout verify: steps={steps} exceeds 2^ell_cycle={pow2_cycle} (ell_cycle={ell_cycle})"
-        )));
-    }
-
-    // Sample the same random points
-    let r_cycle = match external_r_cycle {
-        Some(ext_r) => {
-            if ext_r.len() != ell_cycle {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Shout verify: external_r_cycle.len()={} != ell_cycle={}", ext_r.len(), ell_cycle
-                )));
-            }
-            ext_r.to_vec()
-        }
-        None => sample_ext_point(tr, b"shout/r_cycle", ell_cycle),
-    };
-    let r_addr = match external_r_addr {
-        Some(ext_r) => {
-            if ext_r.len() != total_addr_bits {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Shout verify: external_r_addr.len()={} != total_addr_bits={}",
-                    ext_r.len(),
-                    total_addr_bits
-                )));
-                }
-            ext_r.to_vec()
-        }
-        None => sample_base_addr_point(tr, b"shout/r_addr", total_addr_bits),
-    };
-
-    // Verify adapter sum-check using claimed sum from proof
-    let adapter_degree = 1 + total_addr_bits;
-    let (adapter_chals, adapter_final, adapter_ok) = neo_reductions::sumcheck::verify_sumcheck_rounds(
-        tr,
-        adapter_degree,
-        proof.adapter_claim,
-        &proof.adapter_rounds,
-    );
-    if !adapter_ok {
-        return Err(PiCcsError::SumcheckError("shout adapter verification failed".into()));
-    }
-
-    // Verify lookup sum-check using claimed sum from proof
-    // Degree = eq_cycle (1) + has_lookup (1) + delta (1) + bit_eq_factors (total_addr_bits)
-    let lookup_degree = 3 + total_addr_bits;
-    let (lookup_chals, lookup_final, lookup_ok) = neo_reductions::sumcheck::verify_sumcheck_rounds(
-        tr,
-        lookup_degree,
-        proof.lookup_claim,
-        &proof.lookup_check_rounds,
-    );
-    if !lookup_ok {
-        return Err(PiCcsError::SumcheckError("shout lookup verification failed".into()));
-    }
-
-    // Verify bitness checks
-    let r_bitness = sample_ext_point(tr, b"shout/bitness", ell_cycle);
-    for chunk in proof.bitness_rounds.chunks(ell_cycle) {
-        if chunk.len() != ell_cycle {
-            continue;
-        }
-        let (_, _, ok) = neo_reductions::sumcheck::verify_sumcheck_rounds(tr, 3, KElem::ZERO, chunk);
-        if !ok {
-            return Err(PiCcsError::SumcheckError("shout bitness verification failed".into()));
-        }
-    }
-
-    // Validate prover's ME claims against expected structure
-    // Layout: [addr_bits (d*ell), has_lookup, val]
-    let expected_me_count = total_addr_bits + 2; // addr_bits + has_lookup + val
-    let actual_me_count = prover_me_claims.len();
-    if actual_me_count != expected_me_count {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout ME claims count mismatch: expected {expected_me_count}, got {actual_me_count}"
-        )));
-    }
-
-    // The evaluation point for ME claims:
-    // - If external_r_cycle is provided (r-alignment mode), use that
-    // - Otherwise, use r_cycle sampled from transcript
-    let expected_eval_point: Vec<K> = match external_r_cycle {
-        Some(ext_r) => ext_r.iter().map(|&x| K::from(x)).collect(),
-        None => r_cycle.iter().map(|&x| K::from(x)).collect(),
-    };
-    let _ = adapter_chals; // Suppress warning
-
-    // Verify each ME claim has the correct commitment and evaluation point
-    let comms_len = inst.comms.len();
-    for (i, me) in prover_me_claims.iter().enumerate() {
-        if i >= comms_len {
-            return Err(PiCcsError::InvalidInput(format!(
-                "ME claim {i} references commitment {i} but only {comms_len} exist"
-            )));
-        }
-
-        // Check commitment matches (direct 1:1 mapping for Shout)
-        if me.c != inst.comms[i] {
-            return Err(PiCcsError::InvalidInput(format!(
-                "Shout ME claim {i} commitment mismatch"
-            )));
-        }
-
-        // Check evaluation point matches
-        if me.r != expected_eval_point {
-            return Err(PiCcsError::InvalidInput(format!(
-                "Shout ME claim {i} evaluation point mismatch"
-            )));
-        }
-    }
-
-    let _ = (
-        r_cycle,
-        r_addr,
-        r_bitness,
-        adapter_final,
-        lookup_final,
-        lookup_chals,
-        params,
-        pow2_cycle,
-    );
-
-    Ok(())
+        bitness,
+        ell_addr,
+    })
 }

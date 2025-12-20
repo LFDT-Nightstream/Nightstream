@@ -3,8 +3,14 @@
 use std::marker::PhantomData;
 
 use neo_ajtai::Commitment as Cmt;
-use neo_ccs::{matrix::Mat, poly::SparsePoly, relations::CcsStructure, relations::McsInstance, relations::McsWitness};
 use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::{
+    matrix::Mat,
+    poly::SparsePoly,
+    relations::{CcsStructure, McsInstance, McsWitness, MeInstance},
+};
+use neo_fold::folding::CommitMixers;
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, K};
 use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
 use neo_memory::plain::{PlainLutTrace, PlainMemLayout, PlainMemTrace};
@@ -13,10 +19,10 @@ use neo_params::NeoParams;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::engines::utils;
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
-use neo_fold::folding::CommitMixers;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
+
+type Mixers = CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>;
 
 /// Dummy commit that produces zero commitments.
 #[derive(Clone, Copy, Default)]
@@ -60,21 +66,37 @@ fn build_add_ccs_mcs(
     lhs1: F,
     out: F,
 ) -> (CcsStructure<F>, McsInstance<Cmt, F>, McsWitness<F>) {
-    // CCS with n=1, m=4, constraint: const_one + x1 + x2 - x3 = 0.
+    // CCS with n=m=4, constraint: const_one + x1 + x2 - x3 = 0 (in row 0).
+    // Rows 1..3 are dummy constraints (all zeros) to keep a small but square instance.
+    //
+    // We require square CCS so `ensure_identity_first()` can insert M₀ = I_n, which is
+    // assumed by the Ajtai/NC pipeline and by Route A's witness-free terminal checks.
     // Columns: [const_one (public input), lhs0, lhs1, out]
-    let mut m0 = Mat::zero(1, 4, F::ZERO);
+    let mut m0 = Mat::zero(4, 4, F::ZERO);
     m0[(0, 0)] = F::ONE; // picks const_one (public input)
-    let mut m1 = Mat::zero(1, 4, F::ZERO);
+    let mut m1 = Mat::zero(4, 4, F::ZERO);
     m1[(0, 1)] = F::ONE; // picks lhs0
-    let mut m2 = Mat::zero(1, 4, F::ZERO);
+    let mut m2 = Mat::zero(4, 4, F::ZERO);
     m2[(0, 2)] = F::ONE; // picks lhs1
-    let mut m3 = Mat::zero(1, 4, F::ZERO);
+    let mut m3 = Mat::zero(4, 4, F::ZERO);
     m3[(0, 3)] = F::ONE; // picks out
 
-    let term_const = neo_ccs::poly::Term { coeff: F::ONE, exps: vec![1, 0, 0, 0] };
-    let term_x1 = neo_ccs::poly::Term { coeff: F::ONE, exps: vec![0, 1, 0, 0] };
-    let term_x2 = neo_ccs::poly::Term { coeff: F::ONE, exps: vec![0, 0, 1, 0] };
-    let term_neg_out = neo_ccs::poly::Term { coeff: F::ZERO - F::ONE, exps: vec![0, 0, 0, 1] };
+    let term_const = neo_ccs::poly::Term {
+        coeff: F::ONE,
+        exps: vec![1, 0, 0, 0],
+    };
+    let term_x1 = neo_ccs::poly::Term {
+        coeff: F::ONE,
+        exps: vec![0, 1, 0, 0],
+    };
+    let term_x2 = neo_ccs::poly::Term {
+        coeff: F::ONE,
+        exps: vec![0, 0, 1, 0],
+    };
+    let term_neg_out = neo_ccs::poly::Term {
+        coeff: F::ZERO - F::ONE,
+        exps: vec![0, 0, 0, 1],
+    };
     let f = SparsePoly::new(4, vec![term_const, term_x1, term_x2, term_neg_out]);
 
     let s = CcsStructure::new(vec![m0, m1, m2, m3], f).expect("CCS");
@@ -90,7 +112,7 @@ fn build_add_ccs_mcs(
     (s, inst, wit)
 }
 
-fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt> {
+fn default_mixers() -> Mixers {
     fn mix_rhos_commits(_rhos: &[Mat<F>], _cs: &[Cmt]) -> Cmt {
         Cmt::zeros(D, 1)
     }
@@ -103,8 +125,16 @@ fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32
     }
 }
 
-#[test]
-fn full_folding_integration_single_chunk() {
+fn build_single_chunk_inputs() -> (
+    NeoParams,
+    CcsStructure<F>,
+    StepWitnessBundle<Cmt, F, K>,
+    Vec<MeInstance<Cmt, F, K>>,
+    Vec<Mat<F>>,
+    DummyCommit,
+    Mixers,
+    F,
+) {
     let m = 4usize; // const_one (public), lhs0, lhs1, out
     let base_params = NeoParams::goldilocks_auto_r1cs_ccs(m).expect("params");
     let params = NeoParams::new(
@@ -131,10 +161,9 @@ fn full_folding_integration_single_chunk() {
 
     // Build CCS (single chunk) enforcing out = write_val + lookup_val
     let (ccs, mcs_inst, mcs_wit) = build_add_ccs_mcs(&params, &l, const_one, lookup_val, write_val, out_val);
-    let dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
-    let _ell_n = dims.ell_n;
+    let _dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
 
-    let acc_init: Vec<neo_ccs::relations::MeInstance<Cmt, F, K>> = Vec::new();
+    let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
     // Plain memory trace for one step
@@ -170,8 +199,10 @@ fn full_folding_integration_single_chunk() {
 
     // Encode memory/lookup for this chunk
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layout, &plain_mem, &commit_fn);
-    let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &lut_table, &plain_lut, &commit_fn);
+    let (mem_inst, mem_wit) =
+        encode_mem_for_twist(&params, &mem_layout, &plain_mem, &commit_fn, Some(ccs.m), mcs_inst.m_in);
+    let (lut_inst, lut_wit) =
+        encode_lut_for_shout(&params, &lut_table, &plain_lut, &commit_fn, Some(ccs.m), mcs_inst.m_in);
 
     let step_bundle = StepWitnessBundle {
         mcs: (mcs_inst.clone(), mcs_wit.clone()),
@@ -179,6 +210,13 @@ fn full_folding_integration_single_chunk() {
         mem_instances: vec![(mem_inst.clone(), mem_wit)],
         _phantom: PhantomData::<K>,
     };
+
+    (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, out_val)
+}
+
+#[test]
+fn full_folding_integration_single_chunk() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, out_val) = build_single_chunk_inputs();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold");
     let proof = fold_shard_prove(
@@ -210,14 +248,16 @@ fn full_folding_integration_single_chunk() {
 
     // Print a short summary so it's clear what was enforced.
     let step0 = &proof.steps[0];
-    let mem_me = step0.mem.me_claims.len();
+    let mem_me_time = step0.mem.me_claims_time.len();
+    let mem_me_val = step0.mem.me_claims_val.len();
     let ccs_me = step0.fold.ccs_out.len();
-    let total_me = mem_me + ccs_me;
+    let total_me = mem_me_time + ccs_me;
     let children = step0.fold.dec_children.len();
     println!("Full folding step:");
     println!("  CCS ME count: {}", ccs_me);
-    println!("  Twist+Shout ME count: {}", mem_me);
-    println!("  Total ME into RLC: {}", total_me);
+    println!("  Twist+Shout ME count (r_time lane): {}", mem_me_time);
+    println!("  Twist ME count (r_val lane): {}", mem_me_val);
+    println!("  Total ME into RLC (r_time lane): {}", total_me);
     println!("  Children after DEC: {}", children);
     println!("  Lookup enforced: key 0 -> val 1 from table [1, 2]");
     println!("  Memory enforced: write addr 0 := 1 (inc +1)");
@@ -229,8 +269,134 @@ fn full_folding_integration_single_chunk() {
     let final_children = proof.compute_final_children(&acc_init);
     if let Some(first) = final_children.first() {
         let r_len = first.r.len();
-        let y0_prefix: Vec<K> = first.y.get(0).map(|row| row.iter().take(2).cloned().collect()).unwrap_or_default();
+        let y0_prefix: Vec<K> = first
+            .y
+            .get(0)
+            .map(|row| row.iter().take(2).cloned().collect())
+            .unwrap_or_default();
         let y_scalars_prefix: Vec<K> = first.y_scalars.iter().take(2).cloned().collect();
-        println!("  First child: r_len={}, y[0][..2]={:?}, y_scalars[..2]={:?}", r_len, y0_prefix, y_scalars_prefix);
+        println!(
+            "  First child: r_len={}, y[0][..2]={:?}, y_scalars[..2]={:?}",
+            r_len, y0_prefix, y_scalars_prefix
+        );
     }
+}
+
+#[test]
+fn tamper_batched_claimed_sum_fails() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-claim");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    // Claim 0 is ccs/time; claim 1 is the first Shout time claim in this fixture.
+    proof.steps[0].batched_time.claimed_sums[1] += K::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-tamper-claim");
+    let result = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &[step_bundle],
+        &acc_init,
+        &proof,
+        &l,
+        mixers,
+    );
+
+    assert!(result.is_err(), "tampered claimed sum must fail verification");
+}
+
+#[test]
+fn tamper_me_opening_fails() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-me");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    // Mutate a memory ME opening used in terminal checks.
+    proof.steps[0].mem.me_claims_time[0].y_scalars[0] += K::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-tamper-me");
+    let result = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &[step_bundle],
+        &acc_init,
+        &proof,
+        &l,
+        mixers,
+    );
+
+    assert!(result.is_err(), "tampered ME opening must fail verification");
+}
+
+#[test]
+fn wrong_shout_lookup_value_witness_fails() {
+    let (params, ccs, mut step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+
+    // Corrupt the Shout `val` column at the active lookup step.
+    let lut_inst = &step_bundle.lut_instances[0].0;
+    let ell_addr = lut_inst.d * lut_inst.ell;
+    let val_mat_idx = ell_addr + 1;
+    let t0 = 0usize; // m_in=0 in this fixture
+
+    let val_mat = &mut step_bundle.lut_instances[0].1.mats[val_mat_idx];
+    let mut decoded = neo_memory::ajtai::decode_vector(&params, val_mat);
+    decoded[t0] += F::ONE;
+    *val_mat = neo_memory::encode::ajtai_encode_vector(&params, &decoded);
+
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-wrong-shout-witness");
+    let proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed (even with invalid lookup witness)");
+
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-wrong-shout-witness");
+    let result = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &[step_bundle],
+        &acc_init,
+        &proof,
+        &l,
+        mixers,
+    );
+
+    assert!(result.is_err(), "invalid Shout lookup witness must fail verification");
 }

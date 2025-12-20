@@ -100,9 +100,7 @@ fn claimed_initial_sum_gadget_matches_paper_exact_for_tiny_instance() {
     };
 
     // Witness: empty FoldRun (we only care about step 0 inputs for T).
-    let fold_run = FoldRun {
-        steps: Vec::new(),
-    };
+    let fold_run = FoldRun { steps: Vec::new() };
     let witness = FoldRunWitness {
         fold_run,
         pi_ccs_proofs: Vec::new(),

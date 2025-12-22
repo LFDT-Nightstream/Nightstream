@@ -1,6 +1,8 @@
 # Twist and Shout Summary
 
-The paper “Twist and Shout” presents **two sum-check–only memory/lookup arguments**:
+**Authors:** Srinath Setty and Justin Thaler
+
+The paper "Twist and Shout" presents **two sum-check–only memory/lookup arguments**:
 
 * **Shout**: a fast argument for **read-only memory / lookups**. In the paper's read-only memory formulation the table contents are public, and the protocol either:
   (i) assumes the table is *MLE-structured* so the verifier can evaluate (\tilde{\mathrm{Val}}(r)) in (O(\log K)), or

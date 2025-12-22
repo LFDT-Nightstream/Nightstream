@@ -1,5 +1,7 @@
 # Neo Summary
 
+**Authors:** Wilson Nguyen (Stanford University) and Srinath Setty (Microsoft Research)
+
 Neo is a lattice-based folding scheme for **CCS (Customizable Constraint Systems)** over **(small) prime fields**, built around (1) a **pay‑per‑bit Ajtai-style matrix commitment** and (2) a **HyperNova-style “CCS → evaluation claims” folding loop**, adapted to the lattice / low‑norm setting. It is designed so that *all foldable sub-arguments* reduce to the same intermediate relation (**ME**) and can be folded together—this is exactly why Neo can also fold **Shout/Twist**-style memory and lookup arguments (they are sum-check based and can be reduced to ME claims).
 
 Below is a “developer-grade” summary of Neo with the key definitions and formulas you need to implement it (and to understand how Twist & Shout fits into the same folding interface).

@@ -88,6 +88,20 @@ impl<Cmt, L> CpuArithmetization<Goldilocks, Cmt> for R1csCpu<Goldilocks, Cmt, L>
 where
     L: SModuleHomomorphism<Goldilocks, Cmt>,
 {
+    fn build_ccs_chunks(
+        &self,
+        trace: &VmTrace<u64, u64>,
+        chunk_size: usize,
+    ) -> Result<Vec<(McsInstance<Cmt, Goldilocks>, McsWitness<Goldilocks>)>, Self::Error> {
+        if chunk_size != 1 {
+            return Err(format!(
+                "R1csCpu does not support chunk_size={} (expected 1)",
+                chunk_size
+            ));
+        }
+        self.build_ccs_steps(trace)
+    }
+
     fn build_ccs_steps(
         &self,
         trace: &VmTrace<u64, u64>,

@@ -5,6 +5,7 @@
 //! batched sum-check and terminal checks bound to ME openings.
 
 use crate::ajtai::decode_vector as ajtai_decode_vector;
+use crate::sumcheck_proof::BatchedAddrProof;
 use crate::ts_common as ts;
 use crate::twist_oracle::{
     build_eq_table, AddressLookupOracle, IndexAdapterOracle, LazyBitnessOracle, ProductRoundOracle,
@@ -57,22 +58,14 @@ pub fn absorb_commitments<F>(tr: &mut Poseidon2Transcript, inst: &LutInstance<Aj
 /// Shout contributes only the address-domain sum-check metadata.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShoutProof<F> {
-    /// Claimed sum for the address-domain sum-check.
-    pub addr_claim_sum: F,
-    /// Address-domain sum-check rounds (ell_addr rounds).
-    pub addr_rounds: Vec<Vec<F>>,
-    /// Address-domain challenge point r_addr ∈ K^{ell_addr}.
-    pub addr_r: Vec<F>,
-    pub me_claim_count: usize,
+    /// Address-domain sum-check metadata for Route A (single-claim batch).
+    pub addr_pre: BatchedAddrProof<F>,
 }
 
 impl<F: Default> Default for ShoutProof<F> {
     fn default() -> Self {
         Self {
-            addr_claim_sum: F::default(),
-            addr_rounds: Vec::new(),
-            addr_r: Vec::new(),
-            me_claim_count: 0,
+            addr_pre: BatchedAddrProof::default(),
         }
     }
 }

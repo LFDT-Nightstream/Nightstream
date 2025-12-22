@@ -239,23 +239,12 @@ fn twist_shout_trace_to_witness_smoke() {
         "write_val mismatch"
     );
 
-    // inc (cell-major): inc[cell][step]
-    // inc[0] = [0, 0, 0, 10]  (cell 0 written at step 3)
-    // inc[1] = [30, 0, 10, 0] (cell 1 written at steps 0, 2)
-    // inc[2] = [0, 0, 0, 0]
-    // inc[3] = [0, 0, 0, 0]
+    // inc_at_write_addr (step-major): delta applied at the write address in that step.
     assert_eq!(
-        t.inc[0],
-        vec![F::ZERO, F::ZERO, F::ZERO, F::from_u64(10)],
-        "inc[0] mismatch"
+        t.inc_at_write_addr,
+        vec![F::from_u64(30), F::ZERO, F::from_u64(10), F::from_u64(10)],
+        "inc_at_write_addr mismatch"
     );
-    assert_eq!(
-        t.inc[1],
-        vec![F::from_u64(30), F::ZERO, F::from_u64(10), F::ZERO],
-        "inc[1] mismatch"
-    );
-    assert_eq!(t.inc[2], vec![F::ZERO; 4], "inc[2] should be all zeros");
-    assert_eq!(t.inc[3], vec![F::ZERO; 4], "inc[3] should be all zeros");
 
     // Build Shout (ShoutId=0) plain trace
     let mut table_sizes = HashMap::new();
@@ -290,7 +279,8 @@ fn twist_shout_trace_to_witness_smoke() {
     let commit = |m: &neo_ccs::matrix::Mat<F>| dummy.commit(m);
 
     // Encode memory for Twist
-    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], t, &commit, None, 0);
+    let mem_init = neo_memory::MemInit::Zero;
+    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], &mem_init, t, &commit, None, 0);
 
     // Create the LUT table struct
     let table = LutTable {
@@ -467,7 +457,8 @@ fn twist_shout_sidecar_shapes_and_rlc() {
     let initial_mem: HashMap<(u32, u64), F> = HashMap::new();
     let plain_mem = build_plain_mem_traces::<F>(&trace, &mem_layouts, &initial_mem);
     let t = &plain_mem[&1u32];
-    let (_mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], t, &commit, None, 0);
+    let mem_init = neo_memory::MemInit::Zero;
+    let (_mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], &mem_init, t, &commit, None, 0);
 
     let mut table_sizes = HashMap::new();
     table_sizes.insert(0u32, (4usize, 2usize));

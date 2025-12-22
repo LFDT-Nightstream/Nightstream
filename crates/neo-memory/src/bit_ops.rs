@@ -22,3 +22,32 @@ pub fn eq_bits_prod(bits_open: &[K], u: &[K]) -> Result<K, PiCcsError> {
     }
     Ok(acc)
 }
+
+pub fn eq_bits_prod_table(bit_cols: &[Vec<K>], r_addr: &[K]) -> Result<Vec<K>, PiCcsError> {
+    if bit_cols.len() != r_addr.len() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "eq_bits_prod_table: length mismatch (bit_cols={}, r_addr={})",
+            bit_cols.len(),
+            r_addr.len()
+        )));
+    }
+    let n = bit_cols.first().map(|c| c.len()).unwrap_or(0);
+    for (idx, col) in bit_cols.iter().enumerate() {
+        if col.len() != n {
+            return Err(PiCcsError::InvalidInput(format!(
+                "eq_bits_prod_table: inconsistent column length at idx {} (got {}, expected {})",
+                idx,
+                col.len(),
+                n
+            )));
+        }
+    }
+
+    let mut result = vec![K::ONE; n];
+    for (col, &r) in bit_cols.iter().zip(r_addr.iter()) {
+        for (i, &b) in col.iter().enumerate() {
+            result[i] *= eq_bit_affine(b, r);
+        }
+    }
+    Ok(result)
+}

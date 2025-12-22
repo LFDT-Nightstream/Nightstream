@@ -11,7 +11,6 @@ pub struct PlainMemLayout {
 
 #[derive(Clone, Debug)]
 pub struct PlainMemTrace<F> {
-    pub init_vals: Vec<F>,
     pub steps: usize,
     pub has_read: Vec<F>,
     pub has_write: Vec<F>,
@@ -19,7 +18,7 @@ pub struct PlainMemTrace<F> {
     pub write_addr: Vec<u64>,
     pub read_val: Vec<F>,
     pub write_val: Vec<F>,
-    pub inc: Vec<Vec<F>>,
+    pub inc_at_write_addr: Vec<F>,
 }
 
 #[derive(Clone, Debug)]
@@ -48,7 +47,6 @@ pub fn build_plain_mem_traces<F: PrimeField64>(
 
     for (mem_id, layout) in layouts {
         let mut t = PlainMemTrace {
-            init_vals: vec![F::ZERO; layout.k],
             steps: steps_len,
             has_read: vec![F::ZERO; steps_len],
             has_write: vec![F::ZERO; steps_len],
@@ -56,16 +54,16 @@ pub fn build_plain_mem_traces<F: PrimeField64>(
             write_addr: vec![0; steps_len],
             read_val: vec![F::ZERO; steps_len],
             write_val: vec![F::ZERO; steps_len],
-            inc: vec![vec![F::ZERO; steps_len]; layout.k],
+            inc_at_write_addr: vec![F::ZERO; steps_len],
         };
 
-        for k in 0..layout.k {
-            if let Some(val) = initial_mem.get(&(*mem_id, k as u64)) {
-                t.init_vals[k] = *val;
+        // Track only non-zero cells to avoid materializing a dense `k`-vector.
+        let mut current_mem: HashMap<u64, F> = HashMap::new();
+        for ((init_mem_id, addr), &val) in initial_mem.iter() {
+            if init_mem_id == mem_id && val != F::ZERO {
+                current_mem.insert(*addr, val);
             }
         }
-
-        let mut current_mem = t.init_vals.clone();
 
         for (j, step) in trace.steps.iter().enumerate() {
             // Using the TwistEvent structure (renamed from MemEvent)
@@ -98,18 +96,17 @@ pub fn build_plain_mem_traces<F: PrimeField64>(
                             t.write_addr[j] = event.addr;
                             t.write_val[j] = F::from_u64(event.value);
 
-                            // Safe cast for portability
-                            let addr_idx = usize::try_from(event.addr).unwrap_or(usize::MAX);
-                            if addr_idx < layout.k {
-                                let old_val = current_mem[addr_idx];
+                            // Write increment at the write address: wv - prev.
+                            let addr = event.addr;
+                            if (addr as usize) < layout.k {
+                                let old_val = current_mem.get(&addr).copied().unwrap_or(F::ZERO);
                                 let new_val = F::from_u64(event.value);
-                                let diff = new_val - old_val;
-                                t.inc[addr_idx][j] = diff;
-                                current_mem[addr_idx] = new_val;
-                            } else {
-                                // Write outside tracked memory range.
-                                // This is expected for large memories where we only track a subset
-                                // or if k is just the tracked region size.
+                                t.inc_at_write_addr[j] = new_val - old_val;
+                                if new_val == F::ZERO {
+                                    current_mem.remove(&addr);
+                                } else {
+                                    current_mem.insert(addr, new_val);
+                                }
                             }
                         }
                     }

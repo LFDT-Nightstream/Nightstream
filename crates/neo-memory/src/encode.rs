@@ -35,6 +35,7 @@
 //! The lookup check uses an address-domain sum-check where Tablẽ(r_addr) is
 //! computed directly from the public table by the verifier.
 
+use crate::mem_init::MemInit;
 use crate::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
 #[cfg(debug_assertions)]
 use crate::shout::{check_shout_semantics, split_lut_mats};
@@ -96,22 +97,6 @@ pub fn get_ell(n_side: usize) -> usize {
 /// Compute Inc(addr_t, t) for each step t.
 ///
 /// Returns the increment value applied to the address at step t.
-fn compute_inc_at_addresses(inc: &[Vec<Goldilocks>], addrs: &[u64], k: usize, num_steps: usize) -> Vec<Goldilocks> {
-    let mut result = Vec::with_capacity(num_steps);
-
-    for j in 0..num_steps {
-        let addr = addrs[j] as usize;
-        if addr < k {
-            result.push(inc[addr][j]);
-        } else {
-            // Address outside tracked range
-            result.push(Goldilocks::ZERO);
-        }
-    }
-
-    result
-}
-
 /// Ajtai-encode a vector using base-b balanced decomposition.
 pub fn ajtai_encode_vector(params: &NeoParams, v: &[Goldilocks]) -> Mat<Goldilocks> {
     let d = params.d as usize;
@@ -151,6 +136,7 @@ pub fn ajtai_encode_vector(params: &NeoParams, v: &[Goldilocks]) -> Mat<Goldiloc
 pub fn encode_mem_for_twist<C, L>(
     params: &NeoParams,
     layout: &PlainMemLayout,
+    init: &MemInit<Goldilocks>,
     trace: &PlainMemTrace<Goldilocks>,
     commit: &L,
     ccs_m: Option<usize>,
@@ -257,8 +243,7 @@ where
     mats.push(rv_mat);
 
     // 7. inc_at_write_addr(j) = Inc(write_addr_j, j) - the increment at the write address
-    let inc_at_write_addr = compute_inc_at_addresses(&trace.inc, &trace.write_addr, layout.k, num_steps);
-    let inc_at_write_addr_mat = encode_at_ccs_width(&inc_at_write_addr);
+    let inc_at_write_addr_mat = encode_at_ccs_width(&trace.inc_at_write_addr);
     comms.push(commit(&inc_at_write_addr_mat));
     mats.push(inc_at_write_addr_mat);
 
@@ -279,7 +264,7 @@ where
             n_side: layout.n_side,
             steps: num_steps,
             ell,
-            init_vals: trace.init_vals.clone(),
+            init: init.clone(),
             _phantom: PhantomData,
         },
         MemWitness { mats },

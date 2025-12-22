@@ -23,6 +23,9 @@ pub mod session;
 // Memory sidecar helpers (Route A integration plumbing)
 pub mod memory_sidecar;
 
+// Finalization hooks for shard obligations
+pub mod finalize;
+
 // Shard-level folding (CPU + Memory Sidecar)
 pub mod shard;
 

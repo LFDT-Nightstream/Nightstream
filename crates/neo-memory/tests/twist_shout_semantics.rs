@@ -211,7 +211,8 @@ fn test_twist_semantic_check_passes_for_valid_trace() {
 
     // Encode to Ajtai (now with index-bit addressing)
     // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit, None, 0);
+    let mem_init = neo_memory::MemInit::Zero;
+    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, None, 0);
 
     // Check semantics using the new API
     let result = check_twist_semantics(&params, &inst, &wit);
@@ -271,8 +272,10 @@ fn test_twist_detects_bad_read_value() {
     let plain_traces = build_plain_mem_traces::<Goldilocks>(&trace, &layouts, &initial_mem);
     let plain_trace = plain_traces.get(&0).unwrap();
 
-    // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit, None, 0);
+    // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test.
+    // Keep init consistent with `initial_mem` so the failure is specifically the bad read value.
+    let mem_init = neo_memory::MemInit::Zero;
+    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, None, 0);
 
     let result = check_twist_semantics(&params, &inst, &wit);
 
@@ -324,11 +327,12 @@ fn test_twist_with_initial_memory() {
     let plain_trace = plain_traces.get(&0).unwrap();
 
     // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], plain_trace, &dummy_commit, None, 0);
+    let mem_init = neo_memory::MemInit::Sparse(vec![(0, Goldilocks::from_u64(123))]);
+    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, None, 0);
 
     let result = check_twist_semantics(&params, &inst, &wit);
 
-    // With init_vals properly propagated, this should now pass!
+    // With MemInit properly propagated, this should now pass!
     assert!(
         result.is_ok(),
         "Twist semantic check should pass with initial memory: {:?}",

@@ -1,22 +1,24 @@
 use crate::memory_sidecar::claim_plan::RouteATimeClaimPlan;
-use crate::memory_sidecar::sumcheck_ds::{
-    run_batched_sumcheck_prover_ds, run_sumcheck_prover_ds, verify_batched_sumcheck_rounds_ds,
-    verify_sumcheck_rounds_ds,
+use crate::memory_sidecar::helpers::{
+    check_bitness_terminal, emit_twist_val_lane_openings, me_identity_open, me_identity_opens,
 };
+use crate::memory_sidecar::sumcheck_ds::{run_batched_sumcheck_prover_ds, verify_batched_sumcheck_rounds_ds};
+use crate::memory_sidecar::transcript::{bind_batched_claim_sums, bind_twist_val_eval_claim_sums, digest_fields};
 use crate::memory_sidecar::utils::RoundOraclePrefix;
 use crate::shard_proof_types::{MemOrLutProof, MemSidecarProof, ShoutProofK, TwistProofK};
 use crate::PiCcsError;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, Mat, MeInstance};
-use neo_math::{KExtensions, F, K};
+use neo_math::{F, K};
 use neo_memory::bit_ops::eq_bits_prod;
 use neo_memory::mle::{eq_points, lt_eval};
 use neo_memory::ts_common as ts;
 use neo_memory::twist_oracle::{
-    table_mle_eval, LazyBitnessOracle, TwistTotalIncOracleSparse, TwistValEvalOracleSparse,
+    table_mle_eval, LazyBitnessOracle, TwistReadCheckAddrOracle, TwistTotalIncOracleSparse, TwistValEvalOracleSparse,
+    TwistWriteCheckAddrOracle,
 };
-use neo_memory::witness::StepWitnessBundle;
-use neo_memory::{shout, twist};
+use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle, StepWitnessBundle};
+use neo_memory::{eval_init_at_r_addr, shout, twist, BatchedAddrProof, MemInit};
 use neo_params::NeoParams;
 use neo_reductions::sumcheck::{BatchedClaim, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -26,18 +28,14 @@ use p3_field::PrimeCharacteristicRing;
 // Transcript binding
 // ============================================================================
 
-pub fn absorb_step_memory_commitments(tr: &mut Poseidon2Transcript, step: &StepWitnessBundle<Cmt, F, K>) {
-    fn digest_fields(label: &'static [u8], fs: &[F]) -> [u8; 32] {
-        let mut h = Poseidon2Transcript::new(b"memory/public_digest");
-        h.append_message(b"digest/label", label);
-        h.append_message(b"digest/len", &(fs.len() as u64).to_le_bytes());
-        h.append_fields(b"digest/fields", fs);
-        h.digest32()
-    }
-
+fn absorb_step_memory_commitments_impl<'a, LI, MI>(tr: &mut Poseidon2Transcript, mut lut_insts: LI, mut mem_insts: MI)
+where
+    LI: ExactSizeIterator<Item = &'a LutInstance<Cmt, F>>,
+    MI: ExactSizeIterator<Item = &'a MemInstance<Cmt, F>>,
+{
     tr.append_message(b"step/absorb_memory_start", &[]);
-    tr.append_message(b"step/lut_count", &(step.lut_instances.len() as u64).to_le_bytes());
-    for (i, (inst, _)) in step.lut_instances.iter().enumerate() {
+    tr.append_message(b"step/lut_count", &(lut_insts.len() as u64).to_le_bytes());
+    for (i, inst) in lut_insts.by_ref().enumerate() {
         // Bind public LUT parameters before any challenges.
         tr.append_message(b"step/lut_idx", &(i as u64).to_le_bytes());
         tr.append_message(b"shout/k", &(inst.k as u64).to_le_bytes());
@@ -49,8 +47,8 @@ pub fn absorb_step_memory_commitments(tr: &mut Poseidon2Transcript, step: &StepW
         tr.append_message(b"shout/table_digest", &table_digest);
         shout::absorb_commitments(tr, inst);
     }
-    tr.append_message(b"step/mem_count", &(step.mem_instances.len() as u64).to_le_bytes());
-    for (i, (inst, _)) in step.mem_instances.iter().enumerate() {
+    tr.append_message(b"step/mem_count", &(mem_insts.len() as u64).to_le_bytes());
+    for (i, inst) in mem_insts.by_ref().enumerate() {
         // Bind public memory parameters before any challenges.
         tr.append_message(b"step/mem_idx", &(i as u64).to_le_bytes());
         tr.append_message(b"twist/k", &(inst.k as u64).to_le_bytes());
@@ -58,35 +56,36 @@ pub fn absorb_step_memory_commitments(tr: &mut Poseidon2Transcript, step: &StepW
         tr.append_message(b"twist/n_side", &(inst.n_side as u64).to_le_bytes());
         tr.append_message(b"twist/steps", &(inst.steps as u64).to_le_bytes());
         tr.append_message(b"twist/ell", &(inst.ell as u64).to_le_bytes());
-        let init_vals_digest = digest_fields(b"twist/init_vals", &inst.init_vals);
-        tr.append_message(b"twist/init_vals_digest", &init_vals_digest);
+        let init_digest = match &inst.init {
+            MemInit::Zero => digest_fields(b"twist/init/zero", &[]),
+            MemInit::Sparse(pairs) => {
+                let mut fs = Vec::with_capacity(2 * pairs.len());
+                for (addr, val) in pairs.iter() {
+                    fs.push(F::from_u64(*addr));
+                    fs.push(*val);
+                }
+                digest_fields(b"twist/init/sparse", &fs)
+            }
+        };
+        tr.append_message(b"twist/init_digest", &init_digest);
         twist::absorb_commitments(tr, inst);
     }
     tr.append_message(b"step/absorb_memory_done", &[]);
 }
 
-fn bind_batched_claim_sums(
-    tr: &mut Poseidon2Transcript,
-    prefix: &'static [u8],
-    claimed_sums: &[K],
-    labels: &[&'static [u8]],
-) {
-    debug_assert_eq!(claimed_sums.len(), labels.len());
-    tr.append_message(prefix, &(claimed_sums.len() as u64).to_le_bytes());
-    for (i, (sum, label)) in claimed_sums.iter().zip(labels.iter()).enumerate() {
-        tr.append_message(b"addr_batch/label", label);
-        tr.append_message(b"addr_batch/idx", &(i as u64).to_le_bytes());
-        tr.append_fields(b"addr_batch/claimed_sum", &sum.as_coeffs());
-    }
+pub fn absorb_step_memory_commitments(tr: &mut Poseidon2Transcript, step: &StepInstanceBundle<Cmt, F, K>) {
+    absorb_step_memory_commitments_impl(tr, step.lut_insts.iter(), step.mem_insts.iter());
 }
 
-fn bind_twist_val_eval_claim_sums(tr: &mut Poseidon2Transcript, claims: &[(u8, K)]) {
-    tr.append_message(b"twist/val_eval/claimed_sums_len", &(claims.len() as u64).to_le_bytes());
-    for (i, (kind, sum)) in claims.iter().enumerate() {
-        tr.append_message(b"twist/val_eval/claim_idx", &(i as u64).to_le_bytes());
-        tr.append_message(b"twist/val_eval/claim_kind", &[*kind]);
-        tr.append_fields(b"twist/val_eval/claimed_sum", &sum.as_coeffs());
-    }
+pub(crate) fn absorb_step_memory_commitments_witness(
+    tr: &mut Poseidon2Transcript,
+    step: &StepWitnessBundle<Cmt, F, K>,
+) {
+    absorb_step_memory_commitments_impl(
+        tr,
+        step.lut_instances.iter().map(|(inst, _)| inst),
+        step.mem_instances.iter().map(|(inst, _)| inst),
+    );
 }
 
 // ============================================================================
@@ -95,7 +94,7 @@ fn bind_twist_val_eval_claim_sums(tr: &mut Poseidon2Transcript, claims: &[(u8, K
 
 pub struct RouteAMemoryOracles {
     pub shout: Vec<shout::RouteAShoutOracles>,
-    pub twist: Vec<twist::RouteATwistOraclesV3>,
+    pub twist: Vec<twist::RouteATwistOracles>,
 }
 
 pub trait TimeBatchedClaims {
@@ -111,9 +110,7 @@ pub trait TimeBatchedClaims {
 }
 
 pub struct ShoutAddrPreProverData {
-    pub addr_claim_sum: K,
-    pub addr_rounds: Vec<Vec<K>>,
-    pub r_addr: Vec<K>,
+    pub addr_pre: BatchedAddrProof<K>,
     pub decoded: shout::ShoutDecodedCols,
     pub table_k: Vec<K>,
 }
@@ -126,8 +123,11 @@ pub struct ShoutAddrPreVerifyData {
 }
 
 pub struct TwistAddrPreProverData {
-    pub addr_batch: twist::BatchedAddrProof<K>,
+    pub addr_pre: BatchedAddrProof<K>,
+    pub decoded: twist::TwistDecodedCols,
+    /// Time-lane claimed sum for the read-check oracle (output of addr-pre).
     pub read_check_claim_sum: K,
+    /// Time-lane claimed sum for the write-check oracle (output of addr-pre).
     pub write_check_claim_sum: K,
 }
 
@@ -151,179 +151,94 @@ pub fn decode_twist_pre_time(
 
 pub fn prove_twist_addr_pre_time(
     tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
-    twist_decoded: &[twist::TwistDecodedCols],
+    ell_n: usize,
     r_cycle: &[K],
 ) -> Result<Vec<TwistAddrPreProverData>, PiCcsError> {
-    if twist_decoded.len() != step.mem_instances.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "twist pre-time decoded count mismatch (expected {}, got {})",
-            step.mem_instances.len(),
-            twist_decoded.len()
-        )));
-    }
-
     let mut out = Vec::with_capacity(step.mem_instances.len());
-    for (i_mem, ((mem_inst, _mem_wit), decoded)) in step
-        .mem_instances
-        .iter()
-        .zip(twist_decoded.iter())
-        .enumerate()
-    {
-        let mut addr_oracles = twist::build_route_a_twist_addr_oracles_v3(mem_inst, decoded, r_cycle)?;
 
-        let labels: [&[u8]; 2] = [
-            b"twist/read_check/addr_pre".as_slice(),
-            b"twist/write_check/addr_pre".as_slice(),
-        ];
+    for (idx, (mem_inst, mem_wit)) in step.mem_instances.iter().enumerate() {
+        let decoded = twist::decode_twist_cols(params, mem_inst, mem_wit, ell_n)?;
+
+        // Materialize the initial memory table as a dense vector in K for the addr-pre oracle.
+        // This is the current Route A implementation and scales as O(k).
+        let mut init_k = vec![K::ZERO; mem_inst.k];
+        match &mem_inst.init {
+            MemInit::Zero => {}
+            MemInit::Sparse(pairs) => {
+                for (addr, val) in pairs.iter() {
+                    let idx = (*addr as usize)
+                        .checked_add(0)
+                        .ok_or_else(|| PiCcsError::InvalidInput("Twist: init address overflow".into()))?;
+                    if idx >= init_k.len() {
+                        return Err(PiCcsError::InvalidInput(format!(
+                            "Twist: init address out of range: addr={} >= k={}",
+                            addr, mem_inst.k
+                        )));
+                    }
+                    init_k[idx] = (*val).into();
+                }
+            }
+        }
+
+        let mut read_addr_oracle = TwistReadCheckAddrOracle::new(
+            init_k.clone(),
+            r_cycle,
+            decoded.has_read.clone(),
+            decoded.rv.clone(),
+            &decoded.ra_bits,
+            decoded.has_write.clone(),
+            &decoded.wa_bits,
+            decoded.inc_at_write_addr.clone(),
+        );
+        let mut write_addr_oracle = TwistWriteCheckAddrOracle::new(
+            init_k,
+            r_cycle,
+            decoded.has_write.clone(),
+            decoded.wv.clone(),
+            &decoded.wa_bits,
+            decoded.inc_at_write_addr.clone(),
+        );
+
+        let labels: [&[u8]; 2] = [b"twist/read_addr_pre".as_slice(), b"twist/write_addr_pre".as_slice()];
         let claimed_sums = vec![K::ZERO, K::ZERO];
-        tr.append_message(b"twist/addr_pre_time/claim_idx", &(i_mem as u64).to_le_bytes());
+        tr.append_message(b"twist/addr_pre_time/claim_idx", &(idx as u64).to_le_bytes());
         bind_batched_claim_sums(tr, b"twist/addr_pre_time/claimed_sums", &claimed_sums, &labels);
 
         let mut claims = [
             BatchedClaim {
-                oracle: &mut addr_oracles.read_addr,
+                oracle: &mut read_addr_oracle,
                 claimed_sum: K::ZERO,
                 label: labels[0],
             },
             BatchedClaim {
-                oracle: &mut addr_oracles.write_addr,
+                oracle: &mut write_addr_oracle,
                 claimed_sum: K::ZERO,
                 label: labels[1],
             },
         ];
 
-        let (r_addr, per_claim_results) =
-            run_batched_sumcheck_prover_ds(tr, b"twist/addr_pre_time", i_mem, &mut claims)?;
-
-        if r_addr.len() != addr_oracles.ell_addr {
-            return Err(PiCcsError::ProtocolError(format!(
-                "twist addr pre-time r_addr.len()={}, expected ell_addr={}",
-                r_addr.len(),
-                addr_oracles.ell_addr
-            )));
-        }
+        let (r_addr, per_claim_results) = run_batched_sumcheck_prover_ds(tr, b"twist/addr_pre_time", idx, &mut claims)?;
         if per_claim_results.len() != 2 {
             return Err(PiCcsError::ProtocolError(format!(
-                "twist addr pre-time per-claim results len()={}, expected 2",
+                "twist addr-pre per-claim results len()={}, expected 2",
                 per_claim_results.len()
             )));
         }
 
-        let read_check_claim_sum = per_claim_results[0].final_value;
-        let write_check_claim_sum = per_claim_results[1].final_value;
-
         out.push(TwistAddrPreProverData {
-            addr_batch: twist::BatchedAddrProof {
+            addr_pre: BatchedAddrProof {
                 claimed_sums,
                 round_polys: vec![
                     per_claim_results[0].round_polys.clone(),
                     per_claim_results[1].round_polys.clone(),
                 ],
-                r_addr,
+                r_addr: r_addr.clone(),
             },
-            read_check_claim_sum,
-            write_check_claim_sum,
-        });
-    }
-
-    Ok(out)
-}
-
-pub fn verify_twist_addr_pre_time(
-    tr: &mut Poseidon2Transcript,
-    step: &StepWitnessBundle<Cmt, F, K>,
-    mem_proof: &MemSidecarProof<Cmt, F, K>,
-) -> Result<Vec<TwistAddrPreVerifyData>, PiCcsError> {
-    let expected_proofs = step.lut_instances.len() + step.mem_instances.len();
-    if mem_proof.proofs.len() != expected_proofs {
-        return Err(PiCcsError::InvalidInput(format!(
-            "mem proof count mismatch (expected {}, got {})",
-            expected_proofs,
-            mem_proof.proofs.len()
-        )));
-    }
-
-    let proof_mem_offset = step.lut_instances.len();
-    let mut out = Vec::with_capacity(step.mem_instances.len());
-
-    for (i_mem, (inst, _)) in step.mem_instances.iter().enumerate() {
-        let twist_proof = match &mem_proof.proofs[proof_mem_offset + i_mem] {
-            MemOrLutProof::Twist(p) => p,
-            _ => return Err(PiCcsError::InvalidInput("expected Twist proof".into())),
-        };
-
-        let ell_addr = inst.d * inst.ell;
-        let addr_batch = &twist_proof.addr_batch;
-
-        if addr_batch.claimed_sums.len() != 2 {
-            return Err(PiCcsError::InvalidInput(format!(
-                "twist addr_batch claimed_sums.len()={}, expected 2",
-                addr_batch.claimed_sums.len()
-            )));
-        }
-        if addr_batch.claimed_sums[0] != K::ZERO || addr_batch.claimed_sums[1] != K::ZERO {
-            return Err(PiCcsError::ProtocolError(
-                "twist addr_batch claimed_sums must be [0, 0] (addr-pre)".into(),
-            ));
-        }
-        if addr_batch.round_polys.len() != 2 {
-            return Err(PiCcsError::InvalidInput(format!(
-                "twist addr_batch round_polys.len()={}, expected 2",
-                addr_batch.round_polys.len()
-            )));
-        }
-        if addr_batch.r_addr.len() != ell_addr {
-            return Err(PiCcsError::InvalidInput(format!(
-                "twist addr_batch r_addr.len()={}, expected ell_addr={}",
-                addr_batch.r_addr.len(),
-                ell_addr
-            )));
-        }
-
-        let labels: [&[u8]; 2] = [
-            b"twist/read_check/addr_pre".as_slice(),
-            b"twist/write_check/addr_pre".as_slice(),
-        ];
-        tr.append_message(b"twist/addr_pre_time/claim_idx", &(i_mem as u64).to_le_bytes());
-        bind_batched_claim_sums(
-            tr,
-            b"twist/addr_pre_time/claimed_sums",
-            &addr_batch.claimed_sums,
-            &labels,
-        );
-
-        let degree_bounds = vec![2usize, 2usize];
-        let (r_addr, finals, ok) = verify_batched_sumcheck_rounds_ds(
-            tr,
-            b"twist/addr_pre_time",
-            i_mem,
-            &addr_batch.round_polys,
-            &addr_batch.claimed_sums,
-            &labels,
-            &degree_bounds,
-        );
-        if !ok {
-            return Err(PiCcsError::SumcheckError(
-                "twist addr-pre batched sumcheck invalid".into(),
-            ));
-        }
-        if r_addr != addr_batch.r_addr {
-            return Err(PiCcsError::ProtocolError(
-                "twist addr_batch r_addr mismatch: transcript-derived vs proof".into(),
-            ));
-        }
-        if finals.len() != 2 {
-            return Err(PiCcsError::ProtocolError(format!(
-                "twist addr-pre finals.len()={}, expected 2",
-                finals.len()
-            )));
-        }
-
-        out.push(TwistAddrPreVerifyData {
-            r_addr,
-            read_check_claim_sum: finals[0],
-            write_check_claim_sum: finals[1],
+            decoded,
+            read_check_claim_sum: per_claim_results[0].final_value,
+            write_check_claim_sum: per_claim_results[1].final_value,
         });
     }
 
@@ -344,17 +259,32 @@ pub fn prove_shout_addr_pre_time(
         let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
         let (mut addr_oracle, addr_claim_sum) = shout::build_shout_addr_oracle(lut_inst, &decoded, r_cycle, &table_k)?;
 
-        // Bind claimed sum before deriving address challenges.
-        tr.append_message(b"shout/addr_claim_idx", &(idx as u64).to_le_bytes());
-        tr.append_fields(b"shout/addr_claim_sum", &addr_claim_sum.as_coeffs());
+        let labels: [&[u8]; 1] = [b"shout/addr_pre".as_slice()];
+        let claimed_sums = vec![addr_claim_sum];
+        tr.append_message(b"shout/addr_pre_time/claim_idx", &(idx as u64).to_le_bytes());
+        bind_batched_claim_sums(tr, b"shout/addr_pre_time/claimed_sums", &claimed_sums, &labels);
 
-        let (addr_rounds, r_addr) =
-            run_sumcheck_prover_ds(tr, b"shout/addr_pre_time", idx, &mut addr_oracle, addr_claim_sum)?;
+        let mut claims = [BatchedClaim {
+            oracle: &mut addr_oracle,
+            claimed_sum: addr_claim_sum,
+            label: labels[0],
+        }];
+
+        let (r_addr, per_claim_results) = run_batched_sumcheck_prover_ds(tr, b"shout/addr_pre_time", idx, &mut claims)?;
+
+        if per_claim_results.len() != 1 {
+            return Err(PiCcsError::ProtocolError(format!(
+                "shout addr pre-time per-claim results len()={}, expected 1",
+                per_claim_results.len()
+            )));
+        }
 
         out.push(ShoutAddrPreProverData {
-            addr_claim_sum,
-            addr_rounds,
-            r_addr,
+            addr_pre: BatchedAddrProof {
+                claimed_sums,
+                round_polys: vec![per_claim_results[0].round_polys.clone()],
+                r_addr,
+            },
             decoded,
             table_k,
         });
@@ -365,12 +295,12 @@ pub fn prove_shout_addr_pre_time(
 
 pub fn verify_shout_addr_pre_time(
     tr: &mut Poseidon2Transcript,
-    step: &StepWitnessBundle<Cmt, F, K>,
+    step: &StepInstanceBundle<Cmt, F, K>,
     mem_proof: &MemSidecarProof<Cmt, F, K>,
 ) -> Result<Vec<ShoutAddrPreVerifyData>, PiCcsError> {
-    let mut out = Vec::with_capacity(step.lut_instances.len());
+    let mut out = Vec::with_capacity(step.lut_insts.len());
 
-    for (idx, (lut_inst, _)) in step.lut_instances.iter().enumerate() {
+    for (idx, lut_inst) in step.lut_insts.iter().enumerate() {
         let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
         let proof = match mem_proof.proofs.get(idx) {
             Some(MemOrLutProof::Shout(p)) => p,
@@ -378,46 +308,175 @@ pub fn verify_shout_addr_pre_time(
         };
 
         let ell_addr = lut_inst.d * lut_inst.ell;
-        if proof.addr_rounds.len() != ell_addr {
+        if proof.addr_pre.claimed_sums.len() != 1 {
             return Err(PiCcsError::InvalidInput(format!(
-                "shout addr_rounds.len()={}, expected ell_addr={}",
-                proof.addr_rounds.len(),
+                "shout addr_pre claimed_sums.len()={}, expected 1",
+                proof.addr_pre.claimed_sums.len()
+            )));
+        }
+        if proof.addr_pre.round_polys.len() != 1 {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shout addr_pre round_polys.len()={}, expected 1",
+                proof.addr_pre.round_polys.len()
+            )));
+        }
+        if proof.addr_pre.r_addr.len() != ell_addr {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shout addr_pre r_addr.len()={}, expected ell_addr={}",
+                proof.addr_pre.r_addr.len(),
                 ell_addr
             )));
         }
-        if proof.addr_r.len() != ell_addr {
+        if proof
+            .addr_pre
+            .round_polys
+            .first()
+            .map(|rounds| rounds.len())
+            .unwrap_or(0)
+            != ell_addr
+        {
             return Err(PiCcsError::InvalidInput(format!(
-                "shout addr_r.len()={}, expected ell_addr={}",
-                proof.addr_r.len(),
+                "shout addr_pre round_polys[0].len()={}, expected ell_addr={}",
+                proof
+                    .addr_pre
+                    .round_polys
+                    .first()
+                    .map(|rounds| rounds.len())
+                    .unwrap_or(0),
                 ell_addr
             )));
         }
 
-        tr.append_message(b"shout/addr_claim_idx", &(idx as u64).to_le_bytes());
-        tr.append_fields(b"shout/addr_claim_sum", &proof.addr_claim_sum.as_coeffs());
+        let labels: [&[u8]; 1] = [b"shout/addr_pre".as_slice()];
+        tr.append_message(b"shout/addr_pre_time/claim_idx", &(idx as u64).to_le_bytes());
+        bind_batched_claim_sums(
+            tr,
+            b"shout/addr_pre_time/claimed_sums",
+            &proof.addr_pre.claimed_sums,
+            &labels,
+        );
 
-        let (r_addr, addr_final, ok) = verify_sumcheck_rounds_ds(
+        let degree_bounds = vec![2usize];
+        let (r_addr, finals, ok) = verify_batched_sumcheck_rounds_ds(
             tr,
             b"shout/addr_pre_time",
             idx,
-            2,
-            proof.addr_claim_sum,
-            &proof.addr_rounds,
+            &proof.addr_pre.round_polys,
+            &proof.addr_pre.claimed_sums,
+            &labels,
+            &degree_bounds,
         );
         if !ok {
-            return Err(PiCcsError::SumcheckError("shout addr sumcheck invalid".into()));
-        }
-        if r_addr != proof.addr_r {
-            return Err(PiCcsError::ProtocolError(
-                "shout addr_r mismatch: transcript-derived vs proof".into(),
+            return Err(PiCcsError::SumcheckError(
+                "shout addr-pre batched sumcheck invalid".into(),
             ));
         }
+        if r_addr != proof.addr_pre.r_addr {
+            return Err(PiCcsError::ProtocolError(
+                "shout addr_pre r_addr mismatch: transcript-derived vs proof".into(),
+            ));
+        }
+        if finals.len() != 1 {
+            return Err(PiCcsError::ProtocolError(format!(
+                "shout addr-pre finals.len()={}, expected 1",
+                finals.len()
+            )));
+        }
+        let addr_claim_sum = proof.addr_pre.claimed_sums[0];
+        let addr_final = finals[0];
 
         out.push(ShoutAddrPreVerifyData {
-            addr_claim_sum: proof.addr_claim_sum,
+            addr_claim_sum,
             addr_final,
             r_addr,
             table_k,
+        });
+    }
+
+    Ok(out)
+}
+
+pub fn verify_twist_addr_pre_time(
+    tr: &mut Poseidon2Transcript,
+    step: &StepInstanceBundle<Cmt, F, K>,
+    mem_proof: &MemSidecarProof<Cmt, F, K>,
+) -> Result<Vec<TwistAddrPreVerifyData>, PiCcsError> {
+    let mut out = Vec::with_capacity(step.mem_insts.len());
+    let proof_offset = step.lut_insts.len();
+
+    for (idx, mem_inst) in step.mem_insts.iter().enumerate() {
+        let proof = match mem_proof.proofs.get(proof_offset + idx) {
+            Some(MemOrLutProof::Twist(p)) => p,
+            _ => return Err(PiCcsError::InvalidInput("expected Twist proof".into())),
+        };
+
+        if proof.addr_pre.claimed_sums.len() != 2 {
+            return Err(PiCcsError::InvalidInput(format!(
+                "twist addr_pre claimed_sums.len()={}, expected 2",
+                proof.addr_pre.claimed_sums.len()
+            )));
+        }
+        if proof.addr_pre.round_polys.len() != 2 {
+            return Err(PiCcsError::InvalidInput(format!(
+                "twist addr_pre round_polys.len()={}, expected 2",
+                proof.addr_pre.round_polys.len()
+            )));
+        }
+        if proof.addr_pre.claimed_sums[0] != K::ZERO || proof.addr_pre.claimed_sums[1] != K::ZERO {
+            return Err(PiCcsError::ProtocolError(
+                "twist addr_pre claimed_sums mismatch (expected both 0)".into(),
+            ));
+        }
+
+        let labels: [&[u8]; 2] = [b"twist/read_addr_pre".as_slice(), b"twist/write_addr_pre".as_slice()];
+        let degree_bounds = vec![2usize, 2usize];
+        tr.append_message(b"twist/addr_pre_time/claim_idx", &(idx as u64).to_le_bytes());
+        bind_batched_claim_sums(
+            tr,
+            b"twist/addr_pre_time/claimed_sums",
+            &proof.addr_pre.claimed_sums,
+            &labels,
+        );
+
+        let (r_addr, finals, ok) = verify_batched_sumcheck_rounds_ds(
+            tr,
+            b"twist/addr_pre_time",
+            idx,
+            &proof.addr_pre.round_polys,
+            &proof.addr_pre.claimed_sums,
+            &labels,
+            &degree_bounds,
+        );
+        if !ok {
+            return Err(PiCcsError::SumcheckError(
+                "twist addr-pre batched sumcheck invalid".into(),
+            ));
+        }
+        if r_addr != proof.addr_pre.r_addr {
+            return Err(PiCcsError::ProtocolError(
+                "twist addr_pre r_addr mismatch: transcript-derived vs proof".into(),
+            ));
+        }
+
+        let ell_addr = mem_inst.d * mem_inst.ell;
+        if r_addr.len() != ell_addr {
+            return Err(PiCcsError::InvalidInput(format!(
+                "twist addr_pre r_addr.len()={}, expected ell_addr={}",
+                r_addr.len(),
+                ell_addr
+            )));
+        }
+        if finals.len() != 2 {
+            return Err(PiCcsError::ProtocolError(format!(
+                "twist addr-pre finals.len()={}, expected 2",
+                finals.len()
+            )));
+        }
+
+        out.push(TwistAddrPreVerifyData {
+            r_addr,
+            read_check_claim_sum: finals[0],
+            write_check_claim_sum: finals[1],
         });
     }
 
@@ -431,7 +490,6 @@ pub fn build_route_a_memory_oracles(
     r_cycle: &[K],
     shout_pre: &[ShoutAddrPreProverData],
     twist_pre: &[TwistAddrPreProverData],
-    twist_decoded: &[twist::TwistDecodedCols],
 ) -> Result<RouteAMemoryOracles, PiCcsError> {
     if shout_pre.len() != step.lut_instances.len() {
         return Err(PiCcsError::InvalidInput(format!(
@@ -442,21 +500,7 @@ pub fn build_route_a_memory_oracles(
     }
     if twist_pre.len() != step.mem_instances.len() {
         return Err(PiCcsError::InvalidInput(format!(
-            "twist pre-time count mismatch (expected {}, got {})",
-            step.mem_instances.len(),
-            twist_pre.len()
-        )));
-    }
-    if twist_decoded.len() != step.mem_instances.len() {
-        return Err(PiCcsError::InvalidInput(format!(
             "twist pre-time decoded count mismatch (expected {}, got {})",
-            step.mem_instances.len(),
-            twist_decoded.len()
-        )));
-    }
-    if twist_pre.len() != step.mem_instances.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "twist pre-time addr batch count mismatch (expected {}, got {})",
             step.mem_instances.len(),
             twist_pre.len()
         )));
@@ -468,24 +512,19 @@ pub fn build_route_a_memory_oracles(
             lut_inst,
             &pre.decoded,
             r_cycle,
-            &pre.r_addr,
+            &pre.addr_pre.r_addr,
         )?);
     }
 
     let mut twist_oracles = Vec::with_capacity(step.mem_instances.len());
-    for (((mem_inst, _mem_wit), decoded), pre) in step
-        .mem_instances
-        .iter()
-        .zip(twist_decoded.iter())
-        .zip(twist_pre.iter())
-    {
-        twist_oracles.push(twist::build_route_a_twist_oracles_v3(
+    for ((mem_inst, _mem_wit), pre) in step.mem_instances.iter().zip(twist_pre.iter()) {
+        let init_at_r_addr = eval_init_at_r_addr(&mem_inst.init, mem_inst.k, &pre.addr_pre.r_addr)?;
+        twist_oracles.push(twist::build_route_a_twist_oracles(
             mem_inst,
-            decoded,
+            &pre.decoded,
             r_cycle,
-            &pre.addr_batch.r_addr,
-            pre.read_check_claim_sum,
-            pre.write_check_claim_sum,
+            &pre.addr_pre.r_addr,
+            init_at_r_addr,
         )?);
     }
 
@@ -617,79 +656,76 @@ pub fn append_route_a_shout_time_claims<'a>(
     }
 }
 
-pub struct RouteATwistTimeClaimsGuardV2<'a> {
+pub struct RouteATwistTimeClaimsGuard<'a> {
     pub read_check_prefixes: Vec<RoundOraclePrefix<'a>>,
     pub write_check_prefixes: Vec<RoundOraclePrefix<'a>>,
-    pub read_check_claim_sums: Vec<K>,
-    pub write_check_claim_sums: Vec<K>,
+    pub read_check_claims: Vec<K>,
+    pub write_check_claims: Vec<K>,
     pub bitness: Vec<Vec<LazyBitnessOracle>>,
 }
 
-pub fn build_route_a_twist_time_claims_guard_v2<'a>(
-    twist_oracles: &'a mut [twist::RouteATwistOraclesV3],
+pub fn build_route_a_twist_time_claims_guard<'a>(
+    twist_oracles: &'a mut [twist::RouteATwistOracles],
     ell_n: usize,
-) -> RouteATwistTimeClaimsGuardV2<'a> {
+    read_check_claims: Vec<K>,
+    write_check_claims: Vec<K>,
+) -> RouteATwistTimeClaimsGuard<'a> {
     let mut read_check_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(twist_oracles.len());
     let mut write_check_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(twist_oracles.len());
-    let mut read_check_claim_sums: Vec<K> = Vec::with_capacity(twist_oracles.len());
-    let mut write_check_claim_sums: Vec<K> = Vec::with_capacity(twist_oracles.len());
     let mut bitness: Vec<Vec<LazyBitnessOracle>> = Vec::with_capacity(twist_oracles.len());
 
     for o in twist_oracles.iter_mut() {
         bitness.push(core::mem::take(&mut o.bitness));
-        read_check_claim_sums.push(o.read_check_claim_sum);
-        write_check_claim_sums.push(o.write_check_claim_sum);
         read_check_prefixes.push(RoundOraclePrefix::new(&mut o.read_check, ell_n));
         write_check_prefixes.push(RoundOraclePrefix::new(&mut o.write_check, ell_n));
     }
 
-    RouteATwistTimeClaimsGuardV2 {
+    RouteATwistTimeClaimsGuard {
         read_check_prefixes,
         write_check_prefixes,
-        read_check_claim_sums,
-        write_check_claim_sums,
+        read_check_claims,
+        write_check_claims,
         bitness,
     }
 }
 
-pub fn append_route_a_twist_time_claims_v2<'a>(
-    guard: &'a mut RouteATwistTimeClaimsGuardV2<'_>,
+pub fn append_route_a_twist_time_claims<'a>(
+    guard: &'a mut RouteATwistTimeClaimsGuard<'_>,
     claimed_sums: &mut Vec<K>,
     degree_bounds: &mut Vec<usize>,
     labels: &mut Vec<&'static [u8]>,
     claim_is_dynamic: &mut Vec<bool>,
     claims: &mut Vec<BatchedClaim<'a>>,
 ) {
-    for (((read_check_time, write_check_time), (read_check_sum, write_check_sum)), bitness_vec) in guard
+    for (((read_check_time, write_check_time), bitness_vec), (read_claim, write_claim)) in guard
         .read_check_prefixes
         .iter_mut()
         .zip(guard.write_check_prefixes.iter_mut())
+        .zip(guard.bitness.iter_mut())
         .zip(
             guard
-                .read_check_claim_sums
+                .read_check_claims
                 .iter()
-                .zip(guard.write_check_claim_sums.iter()),
+                .zip(guard.write_check_claims.iter()),
         )
-        .zip(guard.bitness.iter_mut())
     {
-        // Route A Twist v3: addr-pre sumcheck outputs the time-lane claimed sum.
-        claimed_sums.push(*read_check_sum);
+        claimed_sums.push(*read_claim);
         degree_bounds.push(read_check_time.degree_bound());
         labels.push(b"twist/read_check");
         claim_is_dynamic.push(true);
         claims.push(BatchedClaim {
             oracle: read_check_time,
-            claimed_sum: *read_check_sum,
+            claimed_sum: *read_claim,
             label: b"twist/read_check",
         });
 
-        claimed_sums.push(*write_check_sum);
+        claimed_sums.push(*write_claim);
         degree_bounds.push(write_check_time.degree_bound());
         labels.push(b"twist/write_check");
         claim_is_dynamic.push(true);
         claims.push(BatchedClaim {
             oracle: write_check_time,
-            claimed_sum: *write_check_sum,
+            claimed_sum: *write_claim,
             label: b"twist/write_check",
         });
 
@@ -712,21 +748,24 @@ pub fn append_route_a_twist_time_claims_v2<'a>(
     }
 }
 
-pub struct TwistRouteAProtocolV2<'a> {
-    guard: RouteATwistTimeClaimsGuardV2<'a>,
+pub struct TwistRouteAProtocol<'a> {
+    guard: RouteATwistTimeClaimsGuard<'a>,
 }
 
-pub type TwistRouteAProtocol<'a> = TwistRouteAProtocolV2<'a>;
-
-impl<'a> TwistRouteAProtocolV2<'a> {
-    pub fn new(twist_oracles: &'a mut [twist::RouteATwistOraclesV3], ell_n: usize) -> Self {
+impl<'a> TwistRouteAProtocol<'a> {
+    pub fn new(
+        twist_oracles: &'a mut [twist::RouteATwistOracles],
+        ell_n: usize,
+        read_check_claims: Vec<K>,
+        write_check_claims: Vec<K>,
+    ) -> Self {
         Self {
-            guard: build_route_a_twist_time_claims_guard_v2(twist_oracles, ell_n),
+            guard: build_route_a_twist_time_claims_guard(twist_oracles, ell_n, read_check_claims, write_check_claims),
         }
     }
 }
 
-impl<'o> TimeBatchedClaims for TwistRouteAProtocolV2<'o> {
+impl<'o> TimeBatchedClaims for TwistRouteAProtocol<'o> {
     fn append_time_claims<'a>(
         &'a mut self,
         _ell_n: usize,
@@ -736,7 +775,7 @@ impl<'o> TimeBatchedClaims for TwistRouteAProtocolV2<'o> {
         claim_is_dynamic: &mut Vec<bool>,
         claims: &mut Vec<BatchedClaim<'a>>,
     ) {
-        append_route_a_twist_time_claims_v2(
+        append_route_a_twist_time_claims(
             &mut self.guard,
             claimed_sums,
             degree_bounds,
@@ -758,13 +797,23 @@ pub fn finalize_route_a_memory_prover(
     params: &NeoParams,
     s: &CcsStructure<F>,
     step: &StepWitnessBundle<Cmt, F, K>,
+    prev_step: Option<&StepWitnessBundle<Cmt, F, K>>,
+    prev_twist_decoded: Option<&[twist::TwistDecodedCols]>,
     oracles: &mut RouteAMemoryOracles,
     shout_pre: &[ShoutAddrPreProverData],
     twist_pre: &[TwistAddrPreProverData],
-    twist_decoded: &[twist::TwistDecodedCols],
     r_time: &[K],
     m_in: usize,
+    step_idx: usize,
 ) -> Result<RouteAMemoryProverOutput, PiCcsError> {
+    let has_prev = prev_step.is_some();
+    if has_prev != prev_twist_decoded.is_some() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "Twist rollover decoded cache mismatch: prev_step.is_some()={} but prev_twist_decoded.is_some()={}",
+            has_prev,
+            prev_twist_decoded.is_some()
+        )));
+    }
     if shout_pre.len() != step.lut_instances.len() {
         return Err(PiCcsError::InvalidInput(format!(
             "shout pre-time count mismatch (expected {}, got {})",
@@ -772,16 +821,9 @@ pub fn finalize_route_a_memory_prover(
             shout_pre.len()
         )));
     }
-    if twist_decoded.len() != step.mem_instances.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "twist pre-time decoded count mismatch (expected {}, got {})",
-            step.mem_instances.len(),
-            twist_decoded.len()
-        )));
-    }
     if twist_pre.len() != step.mem_instances.len() {
         return Err(PiCcsError::InvalidInput(format!(
-            "twist pre-time addr batch count mismatch (expected {}, got {})",
+            "twist pre-time count mismatch (expected {}, got {})",
             step.mem_instances.len(),
             twist_pre.len()
         )));
@@ -794,6 +836,46 @@ pub fn finalize_route_a_memory_prover(
         )));
     }
 
+    for (idx, (lut_inst, lut_wit)) in step.lut_instances.iter().enumerate() {
+        if lut_inst.comms.len() != lut_wit.mats.len() {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Shout: comms.len()={} != mats.len()={} (lut_idx={})",
+                lut_inst.comms.len(),
+                lut_wit.mats.len(),
+                idx
+            )));
+        }
+    }
+    for (idx, (mem_inst, mem_wit)) in step.mem_instances.iter().enumerate() {
+        if mem_inst.comms.len() != mem_wit.mats.len() {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Twist: comms.len()={} != mats.len()={} (mem_idx={})",
+                mem_inst.comms.len(),
+                mem_wit.mats.len(),
+                idx
+            )));
+        }
+    }
+    if let Some(prev) = prev_step {
+        if prev.mem_instances.len() != step.mem_instances.len() {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Twist rollover requires stable mem instance count: prev has {}, current has {}",
+                prev.mem_instances.len(),
+                step.mem_instances.len()
+            )));
+        }
+        for (idx, (mem_inst, mem_wit)) in prev.mem_instances.iter().enumerate() {
+            if mem_inst.comms.len() != mem_wit.mats.len() {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "Twist(prev): comms.len()={} != mats.len()={} (mem_idx={})",
+                    mem_inst.comms.len(),
+                    mem_wit.mats.len(),
+                    idx
+                )));
+            }
+        }
+    }
+
     let mut me_claims_time: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let mut me_wits_time: Vec<Mat<F>> = Vec::new();
 
@@ -801,41 +883,32 @@ pub fn finalize_route_a_memory_prover(
     let mut me_wits_val: Vec<Mat<F>> = Vec::new();
     let mut proofs: Vec<MemOrLutProof> = Vec::new();
 
-    let twist_addr_proofs: Vec<twist::BatchedAddrProof<K>> = twist_pre.iter().map(|p| p.addr_batch.clone()).collect();
-
     // --------------------------------------------------------------------
     // Phase 2: Twist val-eval sum-check (batched across mem instances).
     // --------------------------------------------------------------------
     let mut twist_val_eval_proofs: Vec<twist::TwistValEvalProof<K>> = Vec::new();
     let mut r_val: Vec<K> = Vec::new();
     if !step.mem_instances.is_empty() {
+        let plan = crate::memory_sidecar::claim_plan::TwistValEvalClaimPlan::build(
+            step.mem_instances.iter().map(|(inst, _)| inst),
+            has_prev,
+        );
         let n_mem = step.mem_instances.len();
-        let claim_count = 2 * n_mem;
+        let claims_per_mem = plan.claims_per_mem;
+        let claim_count = plan.claim_count;
 
         let mut val_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(claim_count);
         let mut bind_claims: Vec<(u8, K)> = Vec::with_capacity(claim_count);
         let mut claimed_sums: Vec<K> = Vec::with_capacity(claim_count);
-        let mut labels: Vec<&'static [u8]> = Vec::with_capacity(claim_count);
 
         let mut claimed_inc_sums_lt: Vec<K> = Vec::with_capacity(n_mem);
         let mut claimed_inc_sums_total: Vec<K> = Vec::with_capacity(n_mem);
-        let mut claimed_vals: Vec<K> = Vec::with_capacity(n_mem);
+        let mut claimed_prev_inc_sums_total: Vec<Option<K>> = Vec::with_capacity(n_mem);
 
-        if twist_addr_proofs.len() != step.mem_instances.len() {
-            return Err(PiCcsError::ProtocolError(format!(
-                "twist addr proof count mismatch (expected {}, got {})",
-                step.mem_instances.len(),
-                twist_addr_proofs.len()
-            )));
-        }
-
-        for (i_mem, ((mem_inst, _mem_wit), decoded)) in step
-            .mem_instances
-            .iter()
-            .zip(twist_decoded.iter())
-            .enumerate()
-        {
-            let r_addr = &twist_addr_proofs[i_mem].r_addr;
+        let mut claim_idx = 0usize;
+        for (i_mem, ((mem_inst, _mem_wit), pre)) in step.mem_instances.iter().zip(twist_pre.iter()).enumerate() {
+            let decoded = &pre.decoded;
+            let r_addr = &pre.addr_pre.r_addr;
             let (oracle_lt, claimed_inc_sum_lt) = TwistValEvalOracleSparse::new(
                 &decoded.wa_bits,
                 decoded.has_write.clone(),
@@ -850,35 +923,63 @@ pub fn finalize_route_a_memory_prover(
                 r_addr,
             );
 
-            let init_table_k: Vec<K> = mem_inst.init_vals.iter().map(|&v| v.into()).collect();
-            let init_at_r_addr = table_mle_eval(&init_table_k, r_addr);
-            let claimed_val = init_at_r_addr + claimed_inc_sum_lt;
-
             val_oracles.push(Box::new(oracle_lt));
-            bind_claims.push((0u8, claimed_inc_sum_lt));
+            bind_claims.push((plan.bind_tags[claim_idx], claimed_inc_sum_lt));
             claimed_sums.push(claimed_inc_sum_lt);
-            labels.push(b"twist/val_eval_lt");
+            claim_idx += 1;
 
             val_oracles.push(Box::new(oracle_total));
-            bind_claims.push((1u8, claimed_inc_sum_total));
+            bind_claims.push((plan.bind_tags[claim_idx], claimed_inc_sum_total));
             claimed_sums.push(claimed_inc_sum_total);
-            labels.push(b"twist/val_eval_total");
+            claim_idx += 1;
 
             claimed_inc_sums_lt.push(claimed_inc_sum_lt);
             claimed_inc_sums_total.push(claimed_inc_sum_total);
-            claimed_vals.push(claimed_val);
+
+            if let Some(prev) = prev_step {
+                let (prev_inst, _prev_wit) = prev
+                    .mem_instances
+                    .get(i_mem)
+                    .ok_or_else(|| PiCcsError::ProtocolError("missing prev mem instance".into()))?;
+                if prev_inst.d != mem_inst.d || prev_inst.ell != mem_inst.ell || prev_inst.k != mem_inst.k {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "Twist rollover requires stable geometry at mem_idx={}: prev (k={}, d={}, ell={}) vs cur (k={}, d={}, ell={})",
+                        i_mem, prev_inst.k, prev_inst.d, prev_inst.ell, mem_inst.k, mem_inst.d, mem_inst.ell
+                    )));
+                }
+                let prev_decoded = prev_twist_decoded
+                    .ok_or_else(|| PiCcsError::ProtocolError("missing prev Twist decoded cols".into()))?
+                    .get(i_mem)
+                    .ok_or_else(|| PiCcsError::ProtocolError("missing prev Twist decoded cols at mem_idx".into()))?;
+                let (oracle_prev_total, claimed_prev_total) = TwistTotalIncOracleSparse::new(
+                    &prev_decoded.wa_bits,
+                    prev_decoded.has_write.clone(),
+                    prev_decoded.inc_at_write_addr.clone(),
+                    r_addr,
+                );
+
+                val_oracles.push(Box::new(oracle_prev_total));
+                bind_claims.push((plan.bind_tags[claim_idx], claimed_prev_total));
+                claimed_sums.push(claimed_prev_total);
+                claim_idx += 1;
+
+                claimed_prev_inc_sums_total.push(Some(claimed_prev_total));
+            } else {
+                claimed_prev_inc_sums_total.push(None);
+            }
         }
 
         tr.append_message(
             b"twist/val_eval/batch_start",
             &(step.mem_instances.len() as u64).to_le_bytes(),
         );
+        tr.append_message(b"twist/val_eval/step_idx", &(step_idx as u64).to_le_bytes());
         bind_twist_val_eval_claim_sums(tr, &bind_claims);
 
         let mut claims: Vec<BatchedClaim<'_>> = val_oracles
             .iter_mut()
             .zip(claimed_sums.iter())
-            .zip(labels.iter())
+            .zip(plan.labels.iter())
             .map(|((oracle, sum), label)| BatchedClaim {
                 oracle: oracle.as_mut(),
                 claimed_sum: *sum,
@@ -887,7 +988,7 @@ pub fn finalize_route_a_memory_prover(
             .collect();
 
         let (r_val_out, per_claim_results) =
-            run_batched_sumcheck_prover_ds(tr, b"twist/val_eval_batch", 0, claims.as_mut_slice())?;
+            run_batched_sumcheck_prover_ds(tr, b"twist/val_eval_batch", step_idx, claims.as_mut_slice())?;
 
         if per_claim_results.len() != claim_count {
             return Err(PiCcsError::ProtocolError(format!(
@@ -906,13 +1007,14 @@ pub fn finalize_route_a_memory_prover(
         r_val = r_val_out;
 
         for i in 0..n_mem {
+            let base = claims_per_mem * i;
             twist_val_eval_proofs.push(twist::TwistValEvalProof {
-                claimed_val: claimed_vals[i],
                 claimed_inc_sum_lt: claimed_inc_sums_lt[i],
-                rounds_lt: per_claim_results[2 * i].round_polys.clone(),
+                rounds_lt: per_claim_results[base].round_polys.clone(),
                 claimed_inc_sum_total: claimed_inc_sums_total[i],
-                rounds_total: per_claim_results[2 * i + 1].round_polys.clone(),
-                r_val: r_val.clone(),
+                rounds_total: per_claim_results[base + 1].round_polys.clone(),
+                claimed_prev_inc_sum_total: claimed_prev_inc_sums_total[i],
+                rounds_prev_total: has_prev.then(|| per_claim_results[base + 2].round_polys.clone()),
             });
         }
 
@@ -921,10 +1023,7 @@ pub fn finalize_route_a_memory_prover(
 
     for ((lut_inst, lut_wit), pre) in step.lut_instances.iter().zip(shout_pre.iter()) {
         let mut proof = ShoutProofK::default();
-        proof.me_claim_count = lut_wit.mats.len();
-        proof.addr_claim_sum = pre.addr_claim_sum;
-        proof.addr_rounds = pre.addr_rounds.clone();
-        proof.addr_r = pre.r_addr.clone();
+        proof.addr_pre = pre.addr_pre.clone();
 
         me_claims_time.extend(ts::emit_me_claims_for_mats(
             tr,
@@ -942,11 +1041,11 @@ pub fn finalize_route_a_memory_prover(
 
     for (idx, (mem_inst, mem_wit)) in step.mem_instances.iter().enumerate() {
         let mut proof = TwistProofK::default();
-        proof.me_claim_count = mem_wit.mats.len();
-        proof.addr_batch = twist_addr_proofs
+        proof.addr_pre = twist_pre
             .get(idx)
-            .cloned()
-            .ok_or_else(|| PiCcsError::ProtocolError("missing Twist addr continuation proof".into()))?;
+            .ok_or_else(|| PiCcsError::InvalidInput(format!("missing Twist pre-time data at index {}", idx)))?
+            .addr_pre
+            .clone();
         proof.val_eval = twist_val_eval_proofs.get(idx).cloned();
 
         me_claims_time.extend(ts::emit_me_claims_for_mats(
@@ -964,58 +1063,34 @@ pub fn finalize_route_a_memory_prover(
         // Emit only the columns needed to verify Twist's val-eval terminal check at r_val:
         // wa_bits, has_write, inc_at_write_addr.
         if !r_val.is_empty() {
-            let parts = twist::split_mem_mats(mem_inst, mem_wit);
-            let ell_addr = mem_inst.d * mem_inst.ell;
-
-            for (b, mat) in parts.wa_bit_mats.iter().enumerate() {
-                let comm = mem_inst
-                    .comms
-                    .get(ell_addr + b)
-                    .ok_or_else(|| PiCcsError::InvalidInput("Twist: comms shorter than wa_bit_mats".into()))?;
-                me_claims_val.push(ts::mk_me_opening_with_ccs(
+            emit_twist_val_lane_openings(
+                tr,
+                params,
+                s,
+                mem_inst,
+                mem_wit,
+                &r_val,
+                m_in,
+                &mut me_claims_val,
+                &mut me_wits_val,
+            )?;
+            if let Some(prev) = prev_step {
+                let (prev_inst, prev_wit) = prev
+                    .mem_instances
+                    .get(idx)
+                    .ok_or_else(|| PiCcsError::ProtocolError("missing prev mem instance".into()))?;
+                emit_twist_val_lane_openings(
                     tr,
-                    b"twist/me_digest_val",
                     params,
                     s,
-                    comm,
-                    mat,
+                    prev_inst,
+                    prev_wit,
                     &r_val,
                     m_in,
-                )?);
-                me_wits_val.push((*mat).clone());
+                    &mut me_claims_val,
+                    &mut me_wits_val,
+                )?;
             }
-
-            let comm_has_write = mem_inst
-                .comms
-                .get(2 * ell_addr + 1)
-                .ok_or_else(|| PiCcsError::InvalidInput("Twist: comms shorter than has_write".into()))?;
-            me_claims_val.push(ts::mk_me_opening_with_ccs(
-                tr,
-                b"twist/me_digest_val",
-                params,
-                s,
-                comm_has_write,
-                parts.has_write_mat,
-                &r_val,
-                m_in,
-            )?);
-            me_wits_val.push(parts.has_write_mat.clone());
-
-            let comm_inc_at_write_addr = mem_inst
-                .comms
-                .get(2 * ell_addr + 4)
-                .ok_or_else(|| PiCcsError::InvalidInput("Twist: comms shorter than inc_at_write_addr".into()))?;
-            me_claims_val.push(ts::mk_me_opening_with_ccs(
-                tr,
-                b"twist/me_digest_val",
-                params,
-                s,
-                comm_inc_at_write_addr,
-                parts.inc_at_write_addr_mat,
-                &r_val,
-                m_in,
-            )?);
-            me_wits_val.push(parts.inc_at_write_addr_mat.clone());
         }
 
         proofs.push(MemOrLutProof::Twist(proof));
@@ -1036,61 +1111,18 @@ pub fn finalize_route_a_memory_prover(
 // Verifier helpers
 // ============================================================================
 
-pub fn append_expected_batched_time_metadata_for_memory(
-    step: &StepWitnessBundle<Cmt, F, K>,
-    expected_degree_bounds: &mut Vec<usize>,
-    expected_labels: &mut Vec<&[u8]>,
-    claim_is_dynamic: &mut Vec<bool>,
-) {
-    for (lut_inst, _lut_wit) in &step.lut_instances {
-        let ell_addr = lut_inst.d * lut_inst.ell;
-
-        expected_degree_bounds.push(3);
-        expected_labels.push(b"shout/value");
-        claim_is_dynamic.push(true);
-
-        expected_degree_bounds.push(2 + ell_addr);
-        expected_labels.push(b"shout/adapter");
-        claim_is_dynamic.push(true);
-
-        for _ in 0..(ell_addr + 1) {
-            expected_degree_bounds.push(3);
-            expected_labels.push(b"shout/bitness");
-            claim_is_dynamic.push(false);
-        }
-    }
-
-    for (mem_inst, _mem_wit) in &step.mem_instances {
-        let ell_addr = mem_inst.d * mem_inst.ell;
-
-        expected_degree_bounds.push(3 + ell_addr);
-        expected_labels.push(b"twist/read_check");
-        claim_is_dynamic.push(true);
-
-        expected_degree_bounds.push(3 + ell_addr);
-        expected_labels.push(b"twist/write_check");
-        claim_is_dynamic.push(true);
-
-        let bitness_count = 2 * ell_addr + 2;
-        for _ in 0..bitness_count {
-            expected_degree_bounds.push(3);
-            expected_labels.push(b"twist/bitness");
-            claim_is_dynamic.push(false);
-        }
-    }
-}
-
 pub struct RouteAMemoryVerifyOutput<C> {
     pub collected_me_time: Vec<MeInstance<C, F, K>>,
     pub collected_me_val: Vec<MeInstance<C, F, K>>,
     pub claim_idx_end: usize,
-    pub twist_rollover: Vec<(Vec<K>, K)>,
+    pub twist_total_inc_sums: Vec<K>,
 }
 
 pub fn verify_route_a_memory_step(
     tr: &mut Poseidon2Transcript,
     _params: &NeoParams,
-    step: &StepWitnessBundle<Cmt, F, K>,
+    step: &StepInstanceBundle<Cmt, F, K>,
+    prev_step: Option<&StepInstanceBundle<Cmt, F, K>>,
     r_time: &[K],
     r_cycle: &[K],
     batched_final_values: &[K],
@@ -1099,8 +1131,27 @@ pub fn verify_route_a_memory_step(
     mem_proof: &MemSidecarProof<Cmt, F, K>,
     shout_pre: &[ShoutAddrPreVerifyData],
     twist_pre: &[TwistAddrPreVerifyData],
+    step_idx: usize,
 ) -> Result<RouteAMemoryVerifyOutput<Cmt>, PiCcsError> {
     let chi_cycle_at_r_time = eq_points(r_time, r_cycle);
+    let has_prev = prev_step.is_some();
+    if let Some(prev) = prev_step {
+        if prev.mem_insts.len() != step.mem_insts.len() {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Twist rollover requires stable mem instance count: prev has {}, current has {}",
+                prev.mem_insts.len(),
+                step.mem_insts.len()
+            )));
+        }
+        for (idx, (prev_inst, inst)) in prev.mem_insts.iter().zip(step.mem_insts.iter()).enumerate() {
+            if prev_inst.d != inst.d || prev_inst.ell != inst.ell || prev_inst.k != inst.k {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "Twist rollover requires stable geometry at mem_idx={}: prev (k={}, d={}, ell={}) vs cur (k={}, d={}, ell={})",
+                    idx, prev_inst.k, prev_inst.d, prev_inst.ell, inst.k, inst.d, inst.ell
+                )));
+            }
+        }
+    }
 
     let proofs_mem = &mem_proof.proofs;
     let mut me_time_offset = 0usize;
@@ -1123,7 +1174,7 @@ pub fn verify_route_a_memory_step(
         )));
     }
 
-    let expected_proofs = step.lut_instances.len() + step.mem_instances.len();
+    let expected_proofs = step.lut_insts.len() + step.mem_insts.len();
     if proofs_mem.len() != expected_proofs {
         return Err(PiCcsError::InvalidInput(format!(
             "mem proof count mismatch (expected {}, got {})",
@@ -1131,22 +1182,22 @@ pub fn verify_route_a_memory_step(
             proofs_mem.len()
         )));
     }
-    if shout_pre.len() != step.lut_instances.len() {
+    if shout_pre.len() != step.lut_insts.len() {
         return Err(PiCcsError::InvalidInput(format!(
             "shout pre-time count mismatch (expected {}, got {})",
-            step.lut_instances.len(),
+            step.lut_insts.len(),
             shout_pre.len()
         )));
     }
 
     // Shout instances first.
-    for (proof_idx, (inst, _)) in step.lut_instances.iter().enumerate() {
-        let shout_proof = match &proofs_mem[proof_idx] {
+    for (proof_idx, inst) in step.lut_insts.iter().enumerate() {
+        let _shout_proof = match &proofs_mem[proof_idx] {
             MemOrLutProof::Shout(proof) => proof,
             _ => return Err(PiCcsError::InvalidInput("expected Shout proof".into())),
         };
 
-        let shout_me_count = shout_proof.me_claim_count;
+        let shout_me_count = inst.comms.len();
         let me_slice = mem_proof
             .me_claims_time
             .get(me_time_offset..me_time_offset + shout_me_count)
@@ -1160,10 +1211,19 @@ pub fn verify_route_a_memory_step(
             })?;
         me_time_offset += shout_me_count;
 
-        let ell_addr = inst.d * inst.ell;
-        if shout_me_count < ell_addr + 2 {
+        if me_slice.len() != inst.comms.len() {
             return Err(PiCcsError::InvalidInput(format!(
-                "Shout me_claim_count={} too small (need at least {} for addr_bits+has_lookup+val)",
+                "Shout: ME claim count {} != comms.len() {}",
+                me_slice.len(),
+                inst.comms.len()
+            )));
+        }
+
+        let layout = inst.shout_layout();
+        let ell_addr = layout.ell_addr;
+        if shout_me_count != ell_addr + 2 {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Shout comms.len()={}, expected {} (= d*ell + 2)",
                 shout_me_count,
                 ell_addr + 2
             )));
@@ -1187,50 +1247,37 @@ pub fn verify_route_a_memory_step(
         let adapter_claim = batched_claimed_sums[shout_claims.adapter];
         let adapter_final = batched_final_values[shout_claims.adapter];
 
-        for j in 0..ell_addr {
-            let b_open = *me_slice[j]
-                .y_scalars
-                .get(0)
-                .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
-            let expected_eval = chi_cycle_at_r_time * b_open * (b_open - K::ONE);
+        let addr_bits_open = me_identity_opens(me_slice, ell_addr)?;
+        for (j, b_open) in addr_bits_open.iter().enumerate() {
             let bitness_idx = shout_claims
                 .bitness_addr_bits
                 .start
                 .checked_add(j)
                 .ok_or_else(|| PiCcsError::ProtocolError("bitness index overflow".into()))?;
-            if expected_eval != batched_final_values[bitness_idx] {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "shout bitness final value mismatch at addr_bit {}",
-                    j
-                )));
-            }
+            check_bitness_terminal(
+                chi_cycle_at_r_time,
+                *b_open,
+                batched_final_values[bitness_idx],
+                "shout bitness addr_bits",
+            )?;
         }
-        let has_lookup_open = *me_slice[ell_addr]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
-        {
-            let expected_eval = chi_cycle_at_r_time * has_lookup_open * (has_lookup_open - K::ONE);
-            if expected_eval != batched_final_values[shout_claims.bitness_has_lookup] {
-                return Err(PiCcsError::ProtocolError(
-                    "shout bitness final value mismatch at has_lookup".into(),
-                ));
-            }
-        }
+        let has_lookup_open = me_identity_open(
+            me_slice
+                .get(layout.has_lookup)
+                .ok_or_else(|| PiCcsError::InvalidInput("Shout: missing has_lookup ME claim".into()))?,
+        )?;
+        check_bitness_terminal(
+            chi_cycle_at_r_time,
+            has_lookup_open,
+            batched_final_values[shout_claims.bitness_has_lookup],
+            "shout bitness has_lookup",
+        )?;
 
-        let addr_bits_open: Vec<K> = me_slice[..ell_addr]
-            .iter()
-            .map(|me| {
-                me.y_scalars
-                    .get(0)
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))
-            })
-            .collect::<Result<_, _>>()?;
-        let val_open = *me_slice[ell_addr + 1]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
+        let val_open = me_identity_open(
+            me_slice
+                .get(layout.val)
+                .ok_or_else(|| PiCcsError::InvalidInput("Shout: missing val ME claim".into()))?,
+        )?;
 
         let expected_value_final = chi_cycle_at_r_time * has_lookup_open * val_open;
         if expected_value_final != value_final {
@@ -1264,7 +1311,7 @@ pub fn verify_route_a_memory_step(
                     j
                 )));
             }
-            if j < inst.comms.len() && me.c != inst.comms[j] {
+            if me.c != inst.comms[j] {
                 return Err(PiCcsError::ProtocolError(format!(
                     "Shout ME[{}] commitment mismatch",
                     j
@@ -1276,20 +1323,26 @@ pub fn verify_route_a_memory_step(
     }
 
     // Twist instances next.
-    let proof_mem_offset = step.lut_instances.len();
+    let proof_mem_offset = step.lut_insts.len();
 
     // --------------------------------------------------------------------
-    // Phase 2: Verify Twist time checks at addr-pre `r_addr`.
+    // Twist time checks at shard-global `r_addr`.
     // --------------------------------------------------------------------
-    let mut twist_r_addrs: Vec<Vec<K>> = Vec::with_capacity(step.mem_instances.len());
+    if twist_pre.len() != step.mem_insts.len() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "twist pre-time count mismatch (expected {}, got {})",
+            step.mem_insts.len(),
+            twist_pre.len()
+        )));
+    }
 
-    for (i_mem, (inst, _)) in step.mem_instances.iter().enumerate() {
+    for (i_mem, inst) in step.mem_insts.iter().enumerate() {
         let twist_proof = match &proofs_mem[proof_mem_offset + i_mem] {
             MemOrLutProof::Twist(proof) => proof,
             _ => return Err(PiCcsError::InvalidInput("expected Twist proof".into())),
         };
 
-        let twist_me_count = twist_proof.me_claim_count;
+        let twist_me_count = inst.comms.len();
         let me_slice = mem_proof
             .me_claims_time
             .get(me_time_offset..me_time_offset + twist_me_count)
@@ -1303,10 +1356,19 @@ pub fn verify_route_a_memory_step(
             })?;
         me_time_offset += twist_me_count;
 
-        let ell_addr = inst.d * inst.ell;
-        if twist_me_count < 2 * ell_addr + 5 {
+        if me_slice.len() != inst.comms.len() {
             return Err(PiCcsError::InvalidInput(format!(
-                "Twist me_claim_count={} too small (need at least {} for current layout)",
+                "Twist: ME claim count {} != comms.len() {}",
+                me_slice.len(),
+                inst.comms.len()
+            )));
+        }
+
+        let layout = inst.twist_layout();
+        let ell_addr = layout.ell_addr;
+        if twist_me_count != 2 * ell_addr + 5 {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Twist comms.len()={}, expected {} (= 2*d*ell + 5)",
                 twist_me_count,
                 2 * ell_addr + 5
             )));
@@ -1315,10 +1377,11 @@ pub fn verify_route_a_memory_step(
         let pre = twist_pre
             .get(i_mem)
             .ok_or_else(|| PiCcsError::InvalidInput(format!("missing Twist pre-time data at index {}", i_mem)))?;
-        if pre.r_addr.len() != ell_addr {
+        let r_addr = &pre.r_addr;
+        if r_addr.len() != ell_addr {
             return Err(PiCcsError::InvalidInput(format!(
                 "Twist pre-time r_addr.len()={}, expected ell_addr={}",
-                pre.r_addr.len(),
+                r_addr.len(),
                 ell_addr
             )));
         }
@@ -1337,45 +1400,39 @@ pub fn verify_route_a_memory_step(
         let write_check_claim = batched_claimed_sums[twist_claims.write_check];
         let write_check_final = batched_final_values[twist_claims.write_check];
 
-        let ra_bits_open: Vec<K> = me_slice[..ell_addr]
-            .iter()
-            .map(|me| {
-                me.y_scalars
-                    .get(0)
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))
-            })
-            .collect::<Result<_, _>>()?;
-        let wa_bits_open: Vec<K> = me_slice[ell_addr..2 * ell_addr]
-            .iter()
-            .map(|me| {
-                me.y_scalars
-                    .get(0)
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))
-            })
-            .collect::<Result<_, _>>()?;
+        let ra_bits_open = me_identity_opens(me_slice, ell_addr)?;
+        let wa_bits_open = me_identity_opens(
+            me_slice
+                .get(layout.wa_bits.clone())
+                .ok_or_else(|| PiCcsError::InvalidInput("Twist: missing wa_bits ME claims".into()))?,
+            ell_addr,
+        )?;
 
-        let has_read_open = *me_slice[2 * ell_addr + 0]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
-        let has_write_open = *me_slice[2 * ell_addr + 1]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
-        let wv_open = *me_slice[2 * ell_addr + 2]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
-        let rv_open = *me_slice[2 * ell_addr + 3]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
-        let inc_write_open = *me_slice[2 * ell_addr + 4]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
+        let has_read_open = me_identity_open(
+            me_slice
+                .get(layout.has_read)
+                .ok_or_else(|| PiCcsError::InvalidInput("Twist: missing has_read ME claim".into()))?,
+        )?;
+        let has_write_open = me_identity_open(
+            me_slice
+                .get(layout.has_write)
+                .ok_or_else(|| PiCcsError::InvalidInput("Twist: missing has_write ME claim".into()))?,
+        )?;
+        let wv_open = me_identity_open(
+            me_slice
+                .get(layout.wv)
+                .ok_or_else(|| PiCcsError::InvalidInput("Twist: missing wv ME claim".into()))?,
+        )?;
+        let rv_open = me_identity_open(
+            me_slice
+                .get(layout.rv)
+                .ok_or_else(|| PiCcsError::InvalidInput("Twist: missing rv ME claim".into()))?,
+        )?;
+        let inc_write_open = me_identity_open(
+            me_slice
+                .get(layout.inc_at_write_addr)
+                .ok_or_else(|| PiCcsError::InvalidInput("Twist: missing inc_at_write_addr ME claim".into()))?,
+        )?;
 
         // Bitness terminal checks (ra_bits then wa_bits then has_read then has_write).
         for (j, col_open) in ra_bits_open
@@ -1384,7 +1441,6 @@ pub fn verify_route_a_memory_step(
             .chain([has_read_open, has_write_open].iter())
             .enumerate()
         {
-            let expected_eval = chi_cycle_at_r_time * *col_open * (*col_open - K::ONE);
             let bitness_idx = if j < twist_claims.ell_addr {
                 twist_claims
                     .bitness_ra_bits
@@ -1402,27 +1458,22 @@ pub fn verify_route_a_memory_step(
             } else {
                 twist_claims.bitness_has_write
             };
-            if expected_eval != batched_final_values[bitness_idx] {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "twist/bitness terminal value mismatch at chunk {}",
-                    j
-                )));
-            }
+            check_bitness_terminal(
+                chi_cycle_at_r_time,
+                *col_open,
+                batched_final_values[bitness_idx],
+                "twist bitness",
+            )?;
         }
 
         if read_check_claim != pre.read_check_claim_sum {
             return Err(PiCcsError::ProtocolError(
-                "twist/read_check claimed sum mismatch (addr-pre vs batched-time)".into(),
+                "twist/read_check claimed sum mismatch (vs addr-pre)".into(),
             ));
         }
         if write_check_claim != pre.write_check_claim_sum {
             return Err(PiCcsError::ProtocolError(
-                "twist/write_check claimed sum mismatch (addr-pre vs batched-time)".into(),
-            ));
-        }
-        if twist_proof.addr_batch.r_addr != pre.r_addr {
-            return Err(PiCcsError::ProtocolError(
-                "twist addr_batch r_addr mismatch (proof vs addr-pre)".into(),
+                "twist/write_check claimed sum mismatch (vs addr-pre)".into(),
             ));
         }
 
@@ -1431,19 +1482,14 @@ pub fn verify_route_a_memory_step(
             .as_ref()
             .ok_or_else(|| PiCcsError::InvalidInput("Twist(Route A): missing val_eval proof".into()))?;
 
-        // Verify claimed_val = init(r_addr) + claimed_inc_sum.
-        let init_table_k: Vec<K> = inst.init_vals.iter().map(|&v| v.into()).collect();
-        let init_at_r_addr = table_mle_eval(&init_table_k, &pre.r_addr);
-        if val_eval.claimed_val != init_at_r_addr + val_eval.claimed_inc_sum_lt {
-            return Err(PiCcsError::ProtocolError("twist claimed_val mismatch".into()));
-        }
+        let init_at_r_addr = eval_init_at_r_addr(&inst.init, inst.k, r_addr)?;
+        let claimed_val = init_at_r_addr + val_eval.claimed_inc_sum_lt;
 
-        let read_eq_addr = eq_bits_prod(&ra_bits_open, &pre.r_addr)?;
-        let write_eq_addr = eq_bits_prod(&wa_bits_open, &pre.r_addr)?;
+        let read_eq_addr = eq_bits_prod(&ra_bits_open, r_addr)?;
+        let write_eq_addr = eq_bits_prod(&wa_bits_open, r_addr)?;
 
         // Terminal checks for read_check / write_check at (r_time, r_addr).
-        let expected_read_check_final =
-            chi_cycle_at_r_time * has_read_open * (val_eval.claimed_val - rv_open) * read_eq_addr;
+        let expected_read_check_final = chi_cycle_at_r_time * has_read_open * (claimed_val - rv_open) * read_eq_addr;
         if expected_read_check_final != read_check_final {
             return Err(PiCcsError::ProtocolError(
                 "twist/read_check terminal value mismatch".into(),
@@ -1451,7 +1497,7 @@ pub fn verify_route_a_memory_step(
         }
 
         let expected_write_check_final =
-            chi_cycle_at_r_time * has_write_open * (wv_open - val_eval.claimed_val - inc_write_open) * write_eq_addr;
+            chi_cycle_at_r_time * has_write_open * (wv_open - claimed_val - inc_write_open) * write_eq_addr;
         if expected_write_check_final != write_check_final {
             return Err(PiCcsError::ProtocolError(
                 "twist/write_check terminal value mismatch".into(),
@@ -1466,7 +1512,7 @@ pub fn verify_route_a_memory_step(
                     j
                 )));
             }
-            if j < inst.comms.len() && me.c != inst.comms[j] {
+            if me.c != inst.comms[j] {
                 return Err(PiCcsError::ProtocolError(format!(
                     "Twist ME[{}] commitment mismatch",
                     j
@@ -1475,7 +1521,6 @@ pub fn verify_route_a_memory_step(
         }
 
         collected_me_time.extend_from_slice(me_slice);
-        twist_r_addrs.push(pre.r_addr.clone());
     }
 
     // --------------------------------------------------------------------
@@ -1483,17 +1528,16 @@ pub fn verify_route_a_memory_step(
     // --------------------------------------------------------------------
     let mut r_val: Vec<K> = Vec::new();
     let mut val_eval_finals: Vec<K> = Vec::new();
-    if !step.mem_instances.is_empty() {
-        let n_mem = step.mem_instances.len();
-        let claim_count = 2 * n_mem;
+    if !step.mem_insts.is_empty() {
+        let plan = crate::memory_sidecar::claim_plan::TwistValEvalClaimPlan::build(step.mem_insts.iter(), has_prev);
+        let claim_count = plan.claim_count;
 
         let mut per_claim_rounds: Vec<Vec<Vec<K>>> = Vec::with_capacity(claim_count);
         let mut per_claim_sums: Vec<K> = Vec::with_capacity(claim_count);
         let mut bind_claims: Vec<(u8, K)> = Vec::with_capacity(claim_count);
-        let mut labels: Vec<&[u8]> = Vec::with_capacity(claim_count);
-        let mut degree_bounds: Vec<usize> = Vec::with_capacity(claim_count);
+        let mut claim_idx = 0usize;
 
-        for (i_mem, (inst, _wit)) in step.mem_instances.iter().enumerate() {
+        for (i_mem, _inst) in step.mem_insts.iter().enumerate() {
             let twist_proof = match &proofs_mem[proof_mem_offset + i_mem] {
                 MemOrLutProof::Twist(proof) => proof,
                 _ => return Err(PiCcsError::InvalidInput("expected Twist proof".into())),
@@ -1505,31 +1549,48 @@ pub fn verify_route_a_memory_step(
 
             per_claim_rounds.push(val.rounds_lt.clone());
             per_claim_sums.push(val.claimed_inc_sum_lt);
-            bind_claims.push((0u8, val.claimed_inc_sum_lt));
-            labels.push(b"twist/val_eval_lt".as_slice());
-            degree_bounds.push((inst.d * inst.ell) + 3);
+            bind_claims.push((plan.bind_tags[claim_idx], val.claimed_inc_sum_lt));
+            claim_idx += 1;
 
             per_claim_rounds.push(val.rounds_total.clone());
             per_claim_sums.push(val.claimed_inc_sum_total);
-            bind_claims.push((1u8, val.claimed_inc_sum_total));
-            labels.push(b"twist/val_eval_total".as_slice());
-            degree_bounds.push((inst.d * inst.ell) + 2);
+            bind_claims.push((plan.bind_tags[claim_idx], val.claimed_inc_sum_total));
+            claim_idx += 1;
+
+            if has_prev {
+                let prev_total = val.claimed_prev_inc_sum_total.ok_or_else(|| {
+                    PiCcsError::InvalidInput("Twist(Route A): missing claimed_prev_inc_sum_total".into())
+                })?;
+                let prev_rounds = val
+                    .rounds_prev_total
+                    .clone()
+                    .ok_or_else(|| PiCcsError::InvalidInput("Twist(Route A): missing rounds_prev_total".into()))?;
+                per_claim_rounds.push(prev_rounds);
+                per_claim_sums.push(prev_total);
+                bind_claims.push((plan.bind_tags[claim_idx], prev_total));
+                claim_idx += 1;
+            } else if val.claimed_prev_inc_sum_total.is_some() || val.rounds_prev_total.is_some() {
+                return Err(PiCcsError::InvalidInput(
+                    "Twist(Route A): rollover fields present but prev_step is None".into(),
+                ));
+            }
         }
 
         tr.append_message(
             b"twist/val_eval/batch_start",
-            &(step.mem_instances.len() as u64).to_le_bytes(),
+            &(step.mem_insts.len() as u64).to_le_bytes(),
         );
+        tr.append_message(b"twist/val_eval/step_idx", &(step_idx as u64).to_le_bytes());
         bind_twist_val_eval_claim_sums(tr, &bind_claims);
 
         let (r_val_out, finals_out, ok) = verify_batched_sumcheck_rounds_ds(
             tr,
             b"twist/val_eval_batch",
-            0,
+            step_idx,
             &per_claim_rounds,
             &per_claim_sums,
-            &labels,
-            &degree_bounds,
+            &plan.labels,
+            &plan.degree_bounds,
         );
         if !ok {
             return Err(PiCcsError::SumcheckError(
@@ -1557,13 +1618,13 @@ pub fn verify_route_a_memory_step(
     }
 
     // Verify val-eval terminal identity against ME openings at r_val.
-    let mut twist_rollover: Vec<(Vec<K>, K)> = Vec::with_capacity(step.mem_instances.len());
-    let lt = if step.mem_instances.is_empty() {
+    let mut twist_total_inc_sums: Vec<K> = Vec::with_capacity(step.mem_insts.len());
+    let lt = if step.mem_insts.is_empty() {
         K::ZERO
     } else {
         lt_eval(&r_val, r_time)
     };
-    for (i_mem, (inst, _)) in step.mem_instances.iter().enumerate() {
+    for (i_mem, inst) in step.mem_insts.iter().enumerate() {
         let twist_proof = match &proofs_mem[proof_mem_offset + i_mem] {
             MemOrLutProof::Twist(proof) => proof,
             _ => return Err(PiCcsError::InvalidInput("expected Twist proof".into())),
@@ -1572,82 +1633,92 @@ pub fn verify_route_a_memory_step(
             .val_eval
             .as_ref()
             .ok_or_else(|| PiCcsError::InvalidInput("Twist(Route A): missing val_eval proof".into()))?;
-        if val_eval.r_val != r_val {
-            return Err(PiCcsError::ProtocolError(
-                "twist val-eval r_val mismatch: proof vs transcript-derived".into(),
-            ));
-        }
-
-        let ell_addr = inst.d * inst.ell;
-        let val_me_count = ell_addr + 2;
-        let me_val_slice = mem_proof
+        let layout = inst.twist_layout();
+        let ell_addr = layout.ell_addr;
+        let val_me_count = layout.val_lane_len();
+        let me_cur_slice = mem_proof
             .me_claims_val
             .get(me_val_offset..me_val_offset + val_me_count)
             .ok_or_else(|| {
                 PiCcsError::InvalidInput(format!(
-                    "Not enough ME claims for Twist val lane: need {} at offset {}, have {}",
+                    "Not enough ME claims for Twist val lane (current): need {} at offset {}, have {}",
                     val_me_count,
                     me_val_offset,
                     mem_proof.me_claims_val.len()
                 ))
             })?;
         me_val_offset += val_me_count;
+        let me_prev_slice = if has_prev {
+            let slice = mem_proof
+                .me_claims_val
+                .get(me_val_offset..me_val_offset + val_me_count)
+                .ok_or_else(|| {
+                    PiCcsError::InvalidInput(format!(
+                        "Not enough ME claims for Twist val lane (prev): need {} at offset {}, have {}",
+                        val_me_count,
+                        me_val_offset,
+                        mem_proof.me_claims_val.len()
+                    ))
+                })?;
+            me_val_offset += val_me_count;
+            Some(slice)
+        } else {
+            None
+        };
 
         // Layout: wa_bits (ell_addr), has_write, inc_at_write_addr.
-        let wa_bits_val_open: Vec<K> = me_val_slice[..ell_addr]
-            .iter()
-            .map(|me| {
-                me.y_scalars
-                    .get(0)
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))
-            })
-            .collect::<Result<_, _>>()?;
-        let has_write_val_open = *me_val_slice[ell_addr]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
-        let inc_at_write_addr_val_open = *me_val_slice[ell_addr + 1]
-            .y_scalars
-            .get(0)
-            .ok_or_else(|| PiCcsError::ProtocolError("ME.y_scalars missing identity-first entry".into()))?;
+        let wa_bits_val_open = me_identity_opens(me_cur_slice, ell_addr)?;
+        let has_write_val_open = me_identity_open(
+            me_cur_slice
+                .get(ell_addr)
+                .ok_or_else(|| PiCcsError::InvalidInput("Twist(val): missing has_write ME claim".into()))?,
+        )?;
+        let inc_at_write_addr_val_open = me_identity_open(
+            me_cur_slice
+                .get(ell_addr + 1)
+                .ok_or_else(|| PiCcsError::InvalidInput("Twist(val): missing inc_at_write_addr ME claim".into()))?,
+        )?;
 
-        let eq_wa_val = eq_bits_prod(&wa_bits_val_open, &twist_r_addrs[i_mem])?;
+        let r_addr = twist_pre
+            .get(i_mem)
+            .ok_or_else(|| PiCcsError::InvalidInput(format!("missing Twist pre-time data at index {}", i_mem)))?
+            .r_addr
+            .as_slice();
+        let eq_wa_val = eq_bits_prod(&wa_bits_val_open, r_addr)?;
         let inc_at_r_addr_val = has_write_val_open * inc_at_write_addr_val_open * eq_wa_val;
         let expected_lt_final = inc_at_r_addr_val * lt;
-        if expected_lt_final != val_eval_finals[2 * i_mem] {
+        let claims_per_mem = if has_prev { 3 } else { 2 };
+        let base = claims_per_mem * i_mem;
+        if expected_lt_final != val_eval_finals[base] {
             return Err(PiCcsError::ProtocolError(
                 "twist/val_eval_lt terminal value mismatch".into(),
             ));
         }
         let expected_total_final = inc_at_r_addr_val;
-        if expected_total_final != val_eval_finals[2 * i_mem + 1] {
+        if expected_total_final != val_eval_finals[base + 1] {
             return Err(PiCcsError::ProtocolError(
                 "twist/val_eval_total terminal value mismatch".into(),
             ));
         }
 
-        let init_table_k: Vec<K> = inst.init_vals.iter().map(|&v| v.into()).collect();
-        let init_at_r_addr = table_mle_eval(&init_table_k, &twist_r_addrs[i_mem]);
-        let end_at_r_addr = init_at_r_addr + val_eval.claimed_inc_sum_total;
-        twist_rollover.push((twist_r_addrs[i_mem].clone(), end_at_r_addr));
+        twist_total_inc_sums.push(val_eval.claimed_inc_sum_total);
 
         // Enforce r/commitment alignment for the r_val ME claims.
-        for (j, me) in me_val_slice.iter().enumerate() {
+        for (j, me) in me_cur_slice.iter().enumerate() {
             if me.r != r_val {
                 return Err(PiCcsError::ProtocolError(format!("Twist(val) ME[{}] r != r_val", j)));
             }
             let want_comm = if j < ell_addr {
                 inst.comms
-                    .get(ell_addr + j)
+                    .get(layout.wa_bits.start + j)
                     .ok_or_else(|| PiCcsError::InvalidInput("Twist(val): comms too short".into()))?
             } else if j == ell_addr {
                 inst.comms
-                    .get(2 * ell_addr + 1)
+                    .get(layout.has_write)
                     .ok_or_else(|| PiCcsError::InvalidInput("Twist(val): comms too short".into()))?
             } else {
                 inst.comms
-                    .get(2 * ell_addr + 4)
+                    .get(layout.inc_at_write_addr)
                     .ok_or_else(|| PiCcsError::InvalidInput("Twist(val): comms too short".into()))?
             };
             if me.c != *want_comm {
@@ -1658,7 +1729,79 @@ pub fn verify_route_a_memory_step(
             }
         }
 
-        collected_me_val.extend_from_slice(me_val_slice);
+        collected_me_val.extend_from_slice(me_cur_slice);
+
+        if let Some(prev_slice) = me_prev_slice {
+            let prev =
+                prev_step.ok_or_else(|| PiCcsError::ProtocolError("prev_step missing with has_prev=true".into()))?;
+            let prev_inst = prev
+                .mem_insts
+                .get(i_mem)
+                .ok_or_else(|| PiCcsError::ProtocolError("missing prev mem instance".into()))?;
+
+            // Terminal check for prev-total: uses previous-step openings at current r_val.
+            let wa_bits_prev_open = me_identity_opens(prev_slice, ell_addr)?;
+            let has_write_prev_open = me_identity_open(
+                prev_slice
+                    .get(ell_addr)
+                    .ok_or_else(|| PiCcsError::InvalidInput("Twist(val/prev): missing has_write ME claim".into()))?,
+            )?;
+            let inc_prev_open = me_identity_open(prev_slice.get(ell_addr + 1).ok_or_else(|| {
+                PiCcsError::InvalidInput("Twist(val/prev): missing inc_at_write_addr ME claim".into())
+            })?)?;
+            let eq_wa_prev = eq_bits_prod(&wa_bits_prev_open, r_addr)?;
+            let inc_at_r_addr_prev = has_write_prev_open * inc_prev_open * eq_wa_prev;
+            if inc_at_r_addr_prev != val_eval_finals[base + 2] {
+                return Err(PiCcsError::ProtocolError(
+                    "twist/rollover_prev_total terminal value mismatch".into(),
+                ));
+            }
+
+            // Enforce rollover equation: Init_i(r_addr) == Init_{i-1}(r_addr) + PrevTotal(i).
+            let claimed_prev_total = val_eval
+                .claimed_prev_inc_sum_total
+                .ok_or_else(|| PiCcsError::ProtocolError("twist rollover missing claimed_prev_inc_sum_total".into()))?;
+            let init_prev_at_r_addr = eval_init_at_r_addr(&prev_inst.init, prev_inst.k, r_addr)?;
+            let init_cur_at_r_addr = eval_init_at_r_addr(&inst.init, inst.k, r_addr)?;
+            if init_cur_at_r_addr != init_prev_at_r_addr + claimed_prev_total {
+                return Err(PiCcsError::ProtocolError("twist rollover init check failed".into()));
+            }
+
+            // Enforce r/commitment alignment for the previous-step r_val ME claims.
+            let layout = prev_inst.twist_layout();
+            for (j, me) in prev_slice.iter().enumerate() {
+                if me.r != r_val {
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "Twist(val/prev) ME[{}] r != r_val",
+                        j
+                    )));
+                }
+                let want_comm = if j < ell_addr {
+                    prev_inst
+                        .comms
+                        .get(layout.wa_bits.start + j)
+                        .ok_or_else(|| PiCcsError::InvalidInput("Twist(val/prev): comms too short".into()))?
+                } else if j == ell_addr {
+                    prev_inst
+                        .comms
+                        .get(layout.has_write)
+                        .ok_or_else(|| PiCcsError::InvalidInput("Twist(val/prev): comms too short".into()))?
+                } else {
+                    prev_inst
+                        .comms
+                        .get(layout.inc_at_write_addr)
+                        .ok_or_else(|| PiCcsError::InvalidInput("Twist(val/prev): comms too short".into()))?
+                };
+                if me.c != *want_comm {
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "Twist(val/prev) ME[{}] commitment mismatch",
+                        j
+                    )));
+                }
+            }
+
+            collected_me_val.extend_from_slice(prev_slice);
+        }
     }
 
     if me_time_offset != mem_proof.me_claims_time.len() {
@@ -1680,6 +1823,6 @@ pub fn verify_route_a_memory_step(
         collected_me_time,
         collected_me_val,
         claim_idx_end: claim_plan.claim_idx_end,
-        twist_rollover,
+        twist_total_inc_sums,
     })
 }

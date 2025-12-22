@@ -3,18 +3,22 @@
 //! This module intentionally supports only Route A integration inside
 //! `neo-fold::shard`. The legacy fixed-challenge APIs were removed.
 //!
-//! Current Route A semantics: per-chunk Twist with a virtual `Val` (via sparse
-//! increments + LT-based val-eval) and read/write zero-checks.
+//! In Route A:
+//! - Twist first runs an **address-domain** batched sumcheck ("addr-pre") to bind `r_addr`
+//!   and produce the **time-lane claimed sums** for the read/write checks.
+//! - Then the shard runs a shared-challenge **time-domain** batched sumcheck (shared with CCS/Shout),
+//!   ending at `r_time`, which yields the `r_time`-lane ME openings.
+//! - Finally, Twist runs a separate val-eval sumcheck to obtain `Val(r_addr, r_time)` and a fresh `r_val`,
+//!   producing the val-lane ME obligations needed to check the terminal identity.
 //!
-//! `init_vals` are provided per chunk. Cross-chunk rollover is enforced by the
-//! Route A integration in `neo-fold::shard` (not by this per-chunk argument).
+//! The initial memory state is provided via [`crate::mem_init::MemInit`].
 
 use crate::ajtai::decode_vector as ajtai_decode_vector;
+use crate::bit_ops::eq_bits_prod_table;
+use crate::mem_init::MemInit;
+use crate::sumcheck_proof::BatchedAddrProof;
 use crate::ts_common as ts;
-use crate::twist_oracle::{
-    compute_eq_from_bits, table_mle_eval, LazyBitnessOracle, TwistReadCheckAddrOracle, TwistReadCheckOracle,
-    TwistWriteCheckAddrOracle, TwistWriteCheckOracle,
-};
+use crate::twist_oracle::{LazyBitnessOracle, TwistReadCheckOracle, TwistWriteCheckOracle};
 use crate::witness::{MemInstance, MemWitness};
 use neo_ajtai::Commitment as AjtaiCmt;
 use neo_ccs::matrix::Mat;
@@ -33,13 +37,7 @@ fn validate_index_bit_addressing<Cmt, F: PrimeCharacteristicRing + PartialEq>(
     inst: &MemInstance<Cmt, F>,
 ) -> Result<(), PiCcsError> {
     crate::addr::validate_pow2_bit_addressing("Twist", inst.n_side, inst.d, inst.ell, inst.k)?;
-    if inst.init_vals.len() != inst.k {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Twist: init_vals.len()={} must equal k={}",
-            inst.init_vals.len(),
-            inst.k
-        )));
-    }
+    inst.init.validate(inst.k)?;
 
     Ok(())
 }
@@ -60,36 +58,16 @@ pub fn absorb_commitments<F>(tr: &mut Poseidon2Transcript, inst: &MemInstance<Aj
 // ============================================================================
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BatchedAddrProof<F> {
-    /// claimed_sums[0] = read_addr_claim_sum
-    /// claimed_sums[1] = write_addr_claim_sum
-    pub claimed_sums: Vec<F>,
-    pub round_polys: Vec<Vec<Vec<F>>>,
-    pub r_addr: Vec<F>,
-}
-
-impl<F: Default> Default for BatchedAddrProof<F> {
-    fn default() -> Self {
-        Self {
-            claimed_sums: Vec::new(),
-            round_polys: Vec::new(),
-            r_addr: Vec::new(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TwistProof<F> {
-    pub me_claim_count: usize,
-    pub addr_batch: BatchedAddrProof<F>,
+    /// Address-domain sum-check metadata for Route A (two-claim batch: read/write).
+    pub addr_pre: BatchedAddrProof<F>,
     pub val_eval: Option<TwistValEvalProof<F>>,
 }
 
 impl<F: Default> Default for TwistProof<F> {
     fn default() -> Self {
         Self {
-            me_claim_count: 0,
-            addr_batch: BatchedAddrProof::default(),
+            addr_pre: BatchedAddrProof::default(),
             val_eval: None,
         }
     }
@@ -97,8 +75,6 @@ impl<F: Default> Default for TwistProof<F> {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TwistValEvalProof<F> {
-    /// V = Val(r_addr, r_time) (pre-write).
-    pub claimed_val: F,
     /// Σ_t Inc(r_addr, t) · LT(t, r_time) (init term excluded).
     pub claimed_inc_sum_lt: F,
     /// Sum-check rounds for the LT-weighted claim (ell_n rounds, cycle/time variables).
@@ -109,8 +85,13 @@ pub struct TwistValEvalProof<F> {
     /// Sum-check rounds for the total-increment claim (ell_n rounds, cycle/time variables).
     pub rounds_total: Vec<Vec<F>>,
 
-    /// Challenge point for this sum-check (cycle/time variables).
-    pub r_val: Vec<F>,
+    /// Optional rollover claim for linking consecutive chunks (Route A):
+    /// Σ_t Inc_prev(r_addr_current, t) (total increment over the *previous* chunk, evaluated at the *current* r_addr).
+    ///
+    /// Present iff the prover links this step to a previous step.
+    pub claimed_prev_inc_sum_total: Option<F>,
+    /// Sum-check rounds for the rollover total-increment claim (ell_n rounds).
+    pub rounds_prev_total: Option<Vec<Vec<F>>>,
 }
 
 // ============================================================================
@@ -192,30 +173,48 @@ pub fn check_twist_semantics<F: PrimeField>(
     let read_addrs = ts::decode_addrs_from_bits(params, parts.ra_bit_mats, inst.d, inst.ell, inst.n_side, steps);
     let write_addrs = ts::decode_addrs_from_bits(params, parts.wa_bit_mats, inst.d, inst.ell, inst.n_side, steps);
 
-    // Route A prototype: per-chunk init values are provided in the instance.
-    let mut mem = inst.init_vals.clone();
+    // Route A: initial state comes from the instance init policy.
+    let mut mem: std::collections::HashMap<u64, F> = std::collections::HashMap::new();
+    match &inst.init {
+        MemInit::Zero => {}
+        MemInit::Sparse(pairs) => {
+            for (addr, val) in pairs.iter() {
+                if *val != F::ZERO {
+                    mem.insert(*addr, *val);
+                }
+            }
+        }
+    }
     for j in 0..steps {
         if has_read[j] == F::ONE {
             let addr = read_addrs[j] as usize;
-            if addr < k && rv[j] != mem[addr] {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Twist: read mismatch at step {j}: rv={:?}, mem[{addr}]={:?}",
-                    rv[j], mem[addr]
-                )));
+            if addr < k {
+                let cur = mem.get(&(addr as u64)).copied().unwrap_or(F::ZERO);
+                if rv[j] != cur {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "Twist: read mismatch at step {j}: rv={:?}, mem[{addr}]={:?}",
+                        rv[j], cur
+                    )));
+                }
             }
         }
 
         if has_write[j] == F::ONE {
             let addr = write_addrs[j] as usize;
             if addr < k {
-                let expected_inc = wv[j] - mem[addr];
+                let old = mem.get(&(addr as u64)).copied().unwrap_or(F::ZERO);
+                let expected_inc = wv[j] - old;
                 if inc_at_write_addr[j] != expected_inc {
                     return Err(PiCcsError::InvalidInput(format!(
                         "Twist: inc mismatch at step {j}, addr {addr}: got {:?}, expected {:?}",
                         inc_at_write_addr[j], expected_inc
                     )));
                 }
-                mem[addr] = wv[j];
+                if wv[j] == F::ZERO {
+                    mem.remove(&(addr as u64));
+                } else {
+                    mem.insert(addr as u64, wv[j]);
+                }
             }
         }
     }
@@ -296,11 +295,10 @@ pub fn decode_twist_cols<Cmt: Clone>(
     let pow2_addr = 1usize
         .checked_shl(ell_addr as u32)
         .ok_or_else(|| PiCcsError::InvalidInput("Twist(Route A): 2^ell_addr overflow".into()))?;
-    if pow2_addr != inst.k || pow2_addr != inst.init_vals.len() {
+    if pow2_addr != inst.k {
         return Err(PiCcsError::InvalidInput(format!(
-            "Twist(Route A): expected 2^(d*ell) == k == init_vals.len(), got 2^(d*ell)={pow2_addr}, k={}, init_vals.len()={}",
-            inst.k,
-            inst.init_vals.len()
+            "Twist(Route A): expected 2^(d*ell) == k, got 2^(d*ell)={pow2_addr}, k={}",
+            inst.k
         )));
     }
 
@@ -327,97 +325,23 @@ pub fn decode_twist_cols<Cmt: Clone>(
 }
 
 // ============================================================================
-// Route A oracles v3 (Phase 2): addr-pre + time-only checks (no time×addr table).
+// Route A oracles: addr-pre + time-only checks (no time×addr table).
 // ============================================================================
 
-pub struct RouteATwistOraclesV3 {
+pub struct RouteATwistOracles {
     pub read_check: TwistReadCheckOracle,
-    pub read_check_claim_sum: KElem,
     pub write_check: TwistWriteCheckOracle,
-    pub write_check_claim_sum: KElem,
     pub bitness: Vec<LazyBitnessOracle>,
     pub ell_addr: usize,
 }
 
-pub struct RouteATwistAddrOraclesV3 {
-    pub read_addr: TwistReadCheckAddrOracle,
-    pub write_addr: TwistWriteCheckAddrOracle,
-    pub ell_addr: usize,
-}
-
-pub fn build_route_a_twist_addr_oracles_v3<Cmt: Clone>(
-    inst: &MemInstance<Cmt, BaseField>,
-    decoded: &TwistDecodedCols,
-    r_cycle: &[KElem],
-) -> Result<RouteATwistAddrOraclesV3, PiCcsError> {
-    validate_index_bit_addressing(inst)?;
-    let ell_addr = inst.d * inst.ell;
-    let pow2_addr = 1usize
-        .checked_shl(ell_addr as u32)
-        .ok_or_else(|| PiCcsError::InvalidInput("Twist(Route A): 2^ell_addr overflow".into()))?;
-
-    let expected_pow2_time = 1usize << r_cycle.len();
-    if decoded.has_read.len() != expected_pow2_time
-        || decoded.has_write.len() != expected_pow2_time
-        || decoded.rv.len() != expected_pow2_time
-        || decoded.wv.len() != expected_pow2_time
-        || decoded.inc_at_write_addr.len() != expected_pow2_time
-    {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Twist(Route A): decoded column length mismatch with r_cycle (expected {}, got has_read={}, has_write={}, rv={}, wv={}, inc_at_write_addr={})",
-            expected_pow2_time,
-            decoded.has_read.len(),
-            decoded.has_write.len(),
-            decoded.rv.len(),
-            decoded.wv.len(),
-            decoded.inc_at_write_addr.len()
-        )));
-    }
-
-    let init_table_k: Vec<KElem> = inst.init_vals.iter().map(|&v| v.into()).collect();
-    if init_table_k.len() != pow2_addr {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Twist(Route A): init table length mismatch (got {}, expected pow2_addr={})",
-            init_table_k.len(),
-            pow2_addr
-        )));
-    }
-
-    let read_addr = TwistReadCheckAddrOracle::new(
-        init_table_k.clone(),
-        r_cycle,
-        decoded.has_read.clone(),
-        decoded.rv.clone(),
-        &decoded.ra_bits,
-        decoded.has_write.clone(),
-        &decoded.wa_bits,
-        decoded.inc_at_write_addr.clone(),
-    );
-
-    let write_addr = TwistWriteCheckAddrOracle::new(
-        init_table_k,
-        r_cycle,
-        decoded.has_write.clone(),
-        decoded.wv.clone(),
-        &decoded.wa_bits,
-        decoded.inc_at_write_addr.clone(),
-    );
-
-    Ok(RouteATwistAddrOraclesV3 {
-        read_addr,
-        write_addr,
-        ell_addr,
-    })
-}
-
-pub fn build_route_a_twist_oracles_v3<Cmt: Clone>(
+pub fn build_route_a_twist_oracles<Cmt: Clone>(
     inst: &MemInstance<Cmt, BaseField>,
     decoded: &TwistDecodedCols,
     r_cycle: &[KElem],
     r_addr: &[KElem],
-    read_check_claim_sum: KElem,
-    write_check_claim_sum: KElem,
-) -> Result<RouteATwistOraclesV3, PiCcsError> {
+    init_at_r_addr: KElem,
+) -> Result<RouteATwistOracles, PiCcsError> {
     validate_index_bit_addressing(inst)?;
     let ell_addr = inst.d * inst.ell;
     if r_addr.len() != ell_addr {
@@ -447,9 +371,7 @@ pub fn build_route_a_twist_oracles_v3<Cmt: Clone>(
     }
 
     // Compute Val_pre(r_addr, t) for all boolean time indices t.
-    let init_table_k: Vec<KElem> = inst.init_vals.iter().map(|&v| v.into()).collect();
-    let init_at_r_addr = table_mle_eval(&init_table_k, r_addr);
-    let eq_wa = compute_eq_from_bits(&decoded.wa_bits, r_addr);
+    let eq_wa = eq_bits_prod_table(&decoded.wa_bits, r_addr)?;
     let mut cur = init_at_r_addr;
     let mut val_pre_at_r_addr: Vec<KElem> = Vec::with_capacity(expected_pow2_time);
     for t in 0..expected_pow2_time {
@@ -488,11 +410,9 @@ pub fn build_route_a_twist_oracles_v3<Cmt: Clone>(
     bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, decoded.has_read.clone()));
     bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, decoded.has_write.clone()));
 
-    Ok(RouteATwistOraclesV3 {
+    Ok(RouteATwistOracles {
         read_check,
-        read_check_claim_sum,
         write_check,
-        write_check_claim_sum,
         bitness,
         ell_addr,
     })

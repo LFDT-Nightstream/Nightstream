@@ -31,4 +31,11 @@ fn split_lut_mats_orders_fields() {
     // Plus has_lookup and val columns (no table_at_addr in address-domain architecture)
     assert_eq!(parts.has_lookup_mat.cols(), 1);
     assert_eq!(parts.val_mat.cols(), 1);
+
+    let layout = inst.shout_layout();
+    assert_eq!(layout.ell_addr, 3);
+    assert_eq!(layout.expected_len(), 5);
+    assert_eq!(layout.addr_bits, 0..3);
+    assert_eq!(layout.has_lookup, 3);
+    assert_eq!(layout.val, 4);
 }

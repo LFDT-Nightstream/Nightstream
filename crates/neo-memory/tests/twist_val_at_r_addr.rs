@@ -2,7 +2,7 @@
 
 use neo_math::K;
 use neo_memory::twist::compute_val_at_r_addr_pre_write;
-use neo_memory::twist_oracle::{build_eq_table, LazyReadCheckOracle, LazyWriteCheckOracle};
+use neo_memory::twist_oracle::{build_eq_table, TwistReadCheckOracle, TwistWriteCheckOracle};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
@@ -98,15 +98,14 @@ fn read_write_check_oracles_have_zero_claim_on_single_address_trace() {
 
     let val_at_r_addr = compute_val_at_r_addr_pre_write(&wa_bits, &has_write, &inc_at_write_addr, &r_addr, K::ZERO);
 
-    let read_check =
-        LazyReadCheckOracle::new_with_cycle(&r_cycle, &ra_bits, val_at_r_addr.clone(), rv, has_read, &r_addr);
-    let write_check = LazyWriteCheckOracle::new_with_cycle(
-        &r_cycle,
+    let read_check = TwistReadCheckOracle::new(&ra_bits, val_at_r_addr.clone(), rv, has_read, &r_cycle, &r_addr);
+    let write_check = TwistWriteCheckOracle::new(
         &wa_bits,
         wv,
         val_at_r_addr,
         inc_at_write_addr,
         has_write,
+        &r_cycle,
         &r_addr,
     );
 
@@ -142,19 +141,19 @@ fn corrupting_rv_or_inc_breaks_read_or_write_check_claim() {
     // Corrupt one read value and confirm read_check claim becomes non-zero.
     rv[1] += K::ONE;
     let val_at_r_addr = compute_val_at_r_addr_pre_write(&wa_bits, &has_write, &inc_at_write_addr, &r_addr, K::ZERO);
-    let read_check = LazyReadCheckOracle::new_with_cycle(&r_cycle, &ra_bits, val_at_r_addr, rv, has_read, &r_addr);
+    let read_check = TwistReadCheckOracle::new(&ra_bits, val_at_r_addr, rv, has_read, &r_cycle, &r_addr);
     assert_ne!(read_check.compute_claim(), K::ZERO);
 
     // Corrupt one increment and confirm write_check claim becomes non-zero.
     inc_at_write_addr[0] += K::ONE;
     let val_at_r_addr = compute_val_at_r_addr_pre_write(&wa_bits, &has_write, &inc_at_write_addr, &r_addr, K::ZERO);
-    let write_check = LazyWriteCheckOracle::new_with_cycle(
-        &r_cycle,
+    let write_check = TwistWriteCheckOracle::new(
         &wa_bits,
         wv,
         val_at_r_addr,
         inc_at_write_addr,
         has_write,
+        &r_cycle,
         &r_addr,
     );
     assert_ne!(write_check.compute_claim(), K::ZERO);

@@ -10,11 +10,13 @@ use neo_ccs::{
     relations::{CcsStructure, McsInstance, McsWitness, MeInstance},
 };
 use neo_fold::folding::CommitMixers;
-use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify, fold_shard_verify_and_finalize, ShardObligations};
+use neo_fold::{finalize::ObligationFinalizer, PiCcsError};
 use neo_math::{D, K};
 use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
 use neo_memory::plain::{PlainLutTrace, PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::StepWitnessBundle;
+use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
+use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::engines::utils;
@@ -169,7 +171,6 @@ fn build_single_chunk_inputs() -> (
     // Plain memory trace for one step
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
     let plain_mem = PlainMemTrace {
-        init_vals: vec![F::ZERO; mem_layout.k],
         steps: 1,
         // One write to addr 0 with value 1 (no reads).
         has_read: vec![F::ZERO],
@@ -178,9 +179,9 @@ fn build_single_chunk_inputs() -> (
         write_addr: vec![0],
         read_val: vec![F::ZERO],
         write_val: vec![F::from_u64(1)],
-        // inc tracks per-address delta; only addr 0 changes by +1 in this step.
-        inc: vec![vec![F::from_u64(1)], vec![F::ZERO]],
+        inc_at_write_addr: vec![F::from_u64(1)],
     };
+    let mem_init = MemInit::Zero;
 
     // Plain lookup trace for one step
     let plain_lut = PlainLutTrace {
@@ -199,8 +200,15 @@ fn build_single_chunk_inputs() -> (
 
     // Encode memory/lookup for this chunk
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) =
-        encode_mem_for_twist(&params, &mem_layout, &plain_mem, &commit_fn, Some(ccs.m), mcs_inst.m_in);
+    let (mem_inst, mem_wit) = encode_mem_for_twist(
+        &params,
+        &mem_layout,
+        &mem_init,
+        &plain_mem,
+        &commit_fn,
+        Some(ccs.m),
+        mcs_inst.m_in,
+    );
     let (lut_inst, lut_wit) =
         encode_lut_for_shout(&params, &lut_table, &plain_lut, &commit_fn, Some(ccs.m), mcs_inst.m_in);
 
@@ -233,12 +241,13 @@ fn full_folding_integration_single_chunk() {
     .expect("prove should succeed");
 
     let mut tr_verify = Poseidon2Transcript::new(b"full-fold");
-    fold_shard_verify(
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    let _outputs = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
         &params,
         &ccs,
-        &[step_bundle],
+        &steps_public,
         &acc_init,
         &proof,
         &l,
@@ -266,7 +275,7 @@ fn full_folding_integration_single_chunk() {
     println!("  Program output (CCS out) = {}", out_val.as_canonical_u64());
 
     // Show a small, deterministic slice of the folded output.
-    let final_children = proof.compute_final_children(&acc_init);
+    let final_children = proof.compute_final_main_children(&acc_init);
     if let Some(first) = final_children.first() {
         let r_len = first.r.len();
         let y0_prefix: Vec<K> = first
@@ -280,6 +289,96 @@ fn full_folding_integration_single_chunk() {
             r_len, y0_prefix, y_scalars_prefix
         );
     }
+}
+
+#[test]
+fn full_folding_integration_multi_step_chunk() {
+    let (params, ccs, step_bundle_1, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+
+    let (mcs_inst, mcs_wit) = step_bundle_1.mcs.clone();
+
+    // 4-step RW memory trace (k=2) with alternating write/read.
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+
+    let plain_mem = PlainMemTrace {
+        steps: 4,
+        has_read: vec![F::ZERO, F::ONE, F::ZERO, F::ONE],
+        has_write: vec![F::ONE, F::ZERO, F::ONE, F::ZERO],
+        read_addr: vec![0, 0, 0, 1],
+        write_addr: vec![0, 0, 1, 0],
+        read_val: vec![F::ZERO, F::ONE, F::ZERO, F::from_u64(2)],
+        write_val: vec![F::ONE, F::ZERO, F::from_u64(2), F::ZERO],
+        inc_at_write_addr: vec![F::ONE, F::ZERO, F::from_u64(2), F::ZERO],
+    };
+    let mem_init = MemInit::Zero;
+
+    // 4-step RO lookup trace (k=2) with lookups at steps 0 and 2.
+    let lut_table = neo_memory::plain::LutTable {
+        table_id: 0,
+        k: 2,
+        d: 1,
+        n_side: 2,
+        content: vec![F::ONE, F::from_u64(2)],
+    };
+    let plain_lut = PlainLutTrace {
+        has_lookup: vec![F::ONE, F::ZERO, F::ONE, F::ZERO],
+        addr: vec![0, 0, 1, 0],
+        val: vec![F::ONE, F::ZERO, F::from_u64(2), F::ZERO],
+    };
+
+    let commit_fn = |mat: &Mat<F>| l.commit(mat);
+    let (mem_inst, mem_wit) = encode_mem_for_twist(
+        &params,
+        &mem_layout,
+        &mem_init,
+        &plain_mem,
+        &commit_fn,
+        Some(ccs.m),
+        mcs_inst.m_in,
+    );
+    let (lut_inst, lut_wit) =
+        encode_lut_for_shout(&params, &lut_table, &plain_lut, &commit_fn, Some(ccs.m), mcs_inst.m_in);
+
+    let step_bundle = StepWitnessBundle {
+        mcs: (mcs_inst, mcs_wit),
+        lut_instances: vec![(lut_inst, lut_wit)],
+        mem_instances: vec![(mem_inst, mem_wit)],
+        _phantom: PhantomData,
+    };
+
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-multi-step-chunk");
+    let proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-multi-step-chunk");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    let outputs = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &steps_public,
+        &acc_init,
+        &proof,
+        &l,
+        mixers,
+    )
+    .expect("verify should succeed");
+
+    assert!(
+        !outputs.obligations.val.is_empty(),
+        "expected Twist val-lane obligations for multi-step chunk"
+    );
 }
 
 #[test]
@@ -304,12 +403,13 @@ fn tamper_batched_claimed_sum_fails() {
     proof.steps[0].batched_time.claimed_sums[1] += K::ONE;
 
     let mut tr_verify = Poseidon2Transcript::new(b"full-fold-tamper-claim");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
     let result = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
         &params,
         &ccs,
-        &[step_bundle],
+        &steps_public,
         &acc_init,
         &proof,
         &l,
@@ -341,12 +441,13 @@ fn tamper_me_opening_fails() {
     proof.steps[0].mem.me_claims_time[0].y_scalars[0] += K::ONE;
 
     let mut tr_verify = Poseidon2Transcript::new(b"full-fold-tamper-me");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
     let result = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
         &params,
         &ccs,
-        &[step_bundle],
+        &steps_public,
         &acc_init,
         &proof,
         &l,
@@ -354,6 +455,197 @@ fn tamper_me_opening_fails() {
     );
 
     assert!(result.is_err(), "tampered ME opening must fail verification");
+}
+
+#[test]
+fn tamper_shout_addr_pre_round_poly_fails() {
+    use neo_fold::shard::MemOrLutProof;
+
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-shout-addr-pre");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    let mem0 = proof.steps.get_mut(0).expect("one step");
+    let shout0 = mem0.mem.proofs.get_mut(0).expect("one Shout proof");
+    let shout_proof = match shout0 {
+        MemOrLutProof::Shout(p) => p,
+        _ => panic!("expected Shout proof"),
+    };
+
+    shout_proof.addr_pre.round_polys[0][0][0] += K::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-tamper-shout-addr-pre");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    let result = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &steps_public,
+        &acc_init,
+        &proof,
+        &l,
+        mixers,
+    );
+
+    assert!(
+        result.is_err(),
+        "tampered Shout addr-pre round poly must fail verification"
+    );
+}
+
+#[test]
+fn tamper_twist_val_eval_round_poly_fails() {
+    use neo_fold::shard::MemOrLutProof;
+
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-twist-val-eval-rounds");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    let mem0 = proof.steps.get_mut(0).expect("one step");
+    let twist0 = mem0.mem.proofs.get_mut(1).expect("one Twist proof");
+    let twist_proof = match twist0 {
+        MemOrLutProof::Twist(p) => p,
+        _ => panic!("expected Twist proof"),
+    };
+    let val_eval = twist_proof.val_eval.as_mut().expect("val_eval present");
+
+    val_eval.rounds_lt[0][0] += K::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-tamper-twist-val-eval-rounds");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    let result = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &steps_public,
+        &acc_init,
+        &proof,
+        &l,
+        mixers,
+    );
+
+    assert!(
+        result.is_err(),
+        "tampered Twist val-eval round poly must fail verification"
+    );
+}
+
+#[test]
+fn missing_val_fold_fails() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-missing-val-fold");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    assert!(
+        proof.steps[0].val_fold.is_some(),
+        "fixture should produce val_fold when Twist is present"
+    );
+    proof.steps[0].val_fold = None;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-missing-val-fold");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    let result = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &steps_public,
+        &acc_init,
+        &proof,
+        &l,
+        mixers,
+    );
+
+    assert!(result.is_err(), "missing val_fold must fail verification");
+}
+
+#[test]
+fn verify_and_finalize_receives_val_lane() {
+    struct RequireValLane;
+
+    impl ObligationFinalizer<Cmt, F, K> for RequireValLane {
+        type Error = PiCcsError;
+
+        fn finalize(&mut self, obligations: &ShardObligations<Cmt, F, K>) -> Result<(), Self::Error> {
+            if obligations.val.is_empty() {
+                return Err(PiCcsError::ProtocolError(
+                    "expected non-empty val-lane obligations for Twist".into(),
+                ));
+            }
+            Ok(())
+        }
+    }
+
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-finalizer");
+    let proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-finalizer");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    let mut fin = RequireValLane;
+    fold_shard_verify_and_finalize(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &steps_public,
+        &acc_init,
+        &proof,
+        &l,
+        mixers,
+        &mut fin,
+    )
+    .expect("verify_and_finalize should succeed");
 }
 
 #[test]
@@ -386,12 +678,13 @@ fn wrong_shout_lookup_value_witness_fails() {
     .expect("prove should succeed (even with invalid lookup witness)");
 
     let mut tr_verify = Poseidon2Transcript::new(b"full-fold-wrong-shout-witness");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
     let result = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
         &params,
         &ccs,
-        &[step_bundle],
+        &steps_public,
         &acc_init,
         &proof,
         &l,

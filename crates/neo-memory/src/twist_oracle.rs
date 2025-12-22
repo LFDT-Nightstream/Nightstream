@@ -13,7 +13,7 @@
 //! - `IndexAdapterOracle`: Proves eq(bits_t, r_addr) consistency (IDX→OH bridge)
 //! - `BitnessOracle`: Proves bit columns are binary
 
-use crate::bit_ops::eq_bit_affine;
+use crate::bit_ops::{eq_bit_affine, eq_bits_prod_table};
 use crate::mle::{eq_points, lt_eval};
 #[cfg(feature = "debug-logs")]
 use neo_math::KExtensions;
@@ -185,15 +185,7 @@ pub fn build_bit_eq_factors(bit_cols: &[Vec<K>], r_addr: &[K]) -> Vec<Vec<K>> {
 /// Compute eq(bits_t, r_addr) for each step t.
 /// This is the product of all bit-eq factors.
 pub fn compute_eq_from_bits(bit_cols: &[Vec<K>], r_addr: &[K]) -> Vec<K> {
-    let n = bit_cols.first().map(|c| c.len()).unwrap_or(0);
-    let mut result = vec![K::ONE; n];
-
-    for (col, &r) in bit_cols.iter().zip(r_addr.iter()) {
-        for (i, &b) in col.iter().enumerate() {
-            result[i] *= eq_bit_affine(b, r);
-        }
-    }
-    result
+    eq_bits_prod_table(bit_cols, r_addr).expect("compute_eq_from_bits: invalid input")
 }
 
 fn build_cycle_gate_diff_bits_oracle(
@@ -210,19 +202,6 @@ fn build_cycle_gate_diff_bits_oracle(
     let bit_eq_factors = build_bit_eq_factors(bit_cols, r_addr);
     let mut factors = Vec::with_capacity(3 + bit_eq_factors.len());
     factors.push(eq_cycle);
-    factors.push(gate);
-    factors.push(diff);
-    factors.extend(bit_eq_factors);
-
-    let degree_bound = factors.len();
-    ProductRoundOracle::new(factors, degree_bound)
-}
-
-fn build_gate_diff_bits_oracle(gate: Vec<K>, diff: Vec<K>, bit_cols: &[Vec<K>], r_addr: &[K]) -> ProductRoundOracle {
-    assert_eq!(diff.len(), gate.len(), "diff length must match gate");
-
-    let bit_eq_factors = build_bit_eq_factors(bit_cols, r_addr);
-    let mut factors = Vec::with_capacity(2 + bit_eq_factors.len());
     factors.push(gate);
     factors.push(diff);
     factors.extend(bit_eq_factors);
@@ -257,17 +236,6 @@ fn build_cycle_bits_oracle(r_cycle: &[K], bit_cols: &[Vec<K>], r_addr: &[K]) -> 
     ProductRoundOracle::new(factors, degree_bound)
 }
 
-fn build_gate_bits_oracle(gate: Vec<K>, bit_cols: &[Vec<K>], r_addr: &[K]) -> ProductRoundOracle {
-    let bit_eq_factors = build_bit_eq_factors(bit_cols, r_addr);
-
-    let mut factors = Vec::with_capacity(1 + bit_eq_factors.len());
-    factors.push(gate);
-    factors.extend(bit_eq_factors);
-
-    let degree_bound = factors.len();
-    ProductRoundOracle::new(factors, degree_bound)
-}
-
 fn build_bitness_oracle(col: Vec<K>) -> ProductRoundOracle {
     let col_minus_one: Vec<K> = col.iter().map(|&c| c - K::ONE).collect();
     ProductRoundOracle::new(vec![col, col_minus_one], 2)
@@ -278,25 +246,6 @@ fn build_cycle_bitness_oracle(r_cycle: &[K], col: Vec<K>) -> ProductRoundOracle 
     assert_eq!(eq_cycle.len(), col.len(), "eq_cycle length must match domain");
     let col_minus_one: Vec<K> = col.iter().map(|&c| c - K::ONE).collect();
     ProductRoundOracle::new(vec![eq_cycle, col, col_minus_one], 3)
-}
-
-fn table_at_addr_from_bits(addr_bits: &[Vec<K>], table: &[K], n: usize) -> Vec<K> {
-    for col in addr_bits {
-        assert_eq!(col.len(), n, "addr_bits column length must match domain");
-    }
-
-    let ell = addr_bits.len();
-    let mut out = Vec::with_capacity(n);
-    for t in 0..n {
-        let mut addr = 0usize;
-        for b in 0..ell {
-            if addr_bits[b][t] == K::ONE {
-                addr |= 1 << b;
-            }
-        }
-        out.push(table.get(addr).copied().unwrap_or(K::ZERO));
-    }
-    out
 }
 
 // ============================================================================
@@ -654,6 +603,10 @@ impl TwistReadCheckOracle {
     pub fn current_value(&self) -> Option<K> {
         self.core.value()
     }
+
+    pub fn compute_claim(&self) -> K {
+        self.core.sum_over_hypercube()
+    }
 }
 
 impl_round_oracle_via_core!(TwistReadCheckOracle);
@@ -714,6 +667,10 @@ impl TwistWriteCheckOracle {
 
     pub fn current_value(&self) -> Option<K> {
         self.core.value()
+    }
+
+    pub fn compute_claim(&self) -> K {
+        self.core.sum_over_hypercube()
     }
 }
 
@@ -1545,116 +1502,8 @@ fn log2_pow2(n: usize) -> usize {
 }
 
 // ============================================================================
-// Lazy Oracles for Route A
+// Route A helpers
 // ============================================================================
-
-/// Lazy read-check oracle for Route A batched sum-check.
-///
-/// This includes an `eq_cycle` factor (χ_{r_cycle}(t)) so the sum-check proves a
-/// random linear combination of per-step constraints:
-/// `Σ_t χ_{r_cycle}(t) * has_read(t) * (Val - rv)(t) * eq(ra_bits_t, r_addr) = 0`.
-///
-/// For a valid witness, this sum is exactly 0 because `rv(t) = Val(ra_t, t)` at each step.
-pub struct LazyReadCheckOracle {
-    core: ProductRoundOracle,
-}
-
-impl LazyReadCheckOracle {
-    /// Create a read-check oracle weighted by `χ_{r_cycle}`.
-    ///
-    /// # Arguments
-    /// - `r_cycle`: Random point for the cycle/time dimension
-    /// - `ra_bits`: d*ell bit columns for read addresses (flattened)
-    /// - `val_at_read_addr`: Val(ra_t, t) for each step
-    /// - `rv`: Read values observed by VM
-    /// - `has_read`: Read flags
-    /// - `r_addr`: Random point for address dimension
-    pub fn new_with_cycle(
-        r_cycle: &[K],
-        ra_bits: &[Vec<K>],
-        val_at_read_addr: Vec<K>,
-        rv: Vec<K>,
-        has_read: Vec<K>,
-        r_addr: &[K],
-    ) -> Self {
-        let n = val_at_read_addr.len();
-        assert_eq!(rv.len(), n, "rv length must match val_at_read_addr");
-        assert_eq!(has_read.len(), n, "has_read length must match");
-        assert_eq!(ra_bits.len(), r_addr.len(), "ra_bits count must match r_addr length");
-
-        // (Val(ra_t, t) - rv(t))
-        let diff: Vec<K> = val_at_read_addr
-            .iter()
-            .zip(rv.iter())
-            .map(|(v, r)| *v - *r)
-            .collect();
-        let core = build_cycle_gate_diff_bits_oracle(r_cycle, has_read, diff, ra_bits, r_addr);
-
-        Self { core }
-    }
-
-    /// Get the computed sum (claim) after oracle construction.
-    /// For valid witnesses, this should be 0.
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    /// Return the current folded value after all rounds have been folded.
-    ///
-    /// This is `Some(f(r))` once the oracle has been fully folded by calling
-    /// `fold(r_i)` for each round challenge `r_i`.
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-}
-
-impl_round_oracle_via_core!(LazyReadCheckOracle);
-
-/// Lazy write-check oracle for Route A batched sum-check.
-///
-/// Proves a χ_{r_cycle}-weighted random linear combination of write constraints:
-/// `Σ_t χ_{r_cycle}(t) * has_write(t) * eq(wa_bits_t, r_addr) * (wv(t) - Val(wa_t, t) - Inc(wa_t, t)) = 0`.
-pub struct LazyWriteCheckOracle {
-    core: ProductRoundOracle,
-}
-
-impl LazyWriteCheckOracle {
-    pub fn new_with_cycle(
-        r_cycle: &[K],
-        wa_bits: &[Vec<K>],
-        wv: Vec<K>,
-        val_at_write_addr: Vec<K>,
-        inc_at_write_addr: Vec<K>,
-        has_write: Vec<K>,
-        r_addr: &[K],
-    ) -> Self {
-        let n = wv.len();
-        assert_eq!(val_at_write_addr.len(), n);
-        assert_eq!(inc_at_write_addr.len(), n);
-        assert_eq!(has_write.len(), n);
-        assert_eq!(wa_bits.len(), r_addr.len());
-
-        // diff = wv - Val - Inc (should be 0 at write addresses)
-        let diff: Vec<K> = (0..n)
-            .map(|t| wv[t] - val_at_write_addr[t] - inc_at_write_addr[t])
-            .collect();
-
-        let core = build_cycle_gate_diff_bits_oracle(r_cycle, has_write, diff, wa_bits, r_addr);
-
-        Self { core }
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    /// Return the current folded value after all rounds have been folded.
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-}
-
-impl_round_oracle_via_core!(LazyWriteCheckOracle);
 
 /// Lazy bitness oracle for Route A batched sum-check.
 ///
@@ -1686,101 +1535,3 @@ impl LazyBitnessOracle {
 }
 
 impl_round_oracle_via_core!(LazyBitnessOracle);
-
-/// Container for all lazy Twist oracles (Route A).
-pub struct LazyTwistOracles {
-    pub read_check: LazyReadCheckOracle,
-    pub write_check: LazyWriteCheckOracle,
-    pub bitness: Vec<LazyBitnessOracle>,
-    pub r_addr: Vec<K>,
-}
-
-// ============================================================================
-// Lazy Shout Oracles for Route A
-// ============================================================================
-
-/// Lazy lookup oracle for Route A batched sum-check.
-///
-/// Proves: `Σ_t has_lookup(t) * (val(t) - Table(addr_t)) * eq(addr_bits_t, r_addr) = 0`
-///
-/// No `eq_cycle` factor - challenges emerge from sum-check.
-pub struct LazyLookupOracle {
-    core: ProductRoundOracle,
-}
-
-impl LazyLookupOracle {
-    /// Create a lazy lookup oracle.
-    ///
-    /// # Arguments
-    /// - `addr_bits`: Address bit columns
-    /// - `has_lookup`: Lookup indicator flags
-    /// - `val`: Lookup values (what the VM observed)
-    /// - `table`: The lookup table
-    /// - `r_addr`: Random point for address dimension
-    pub fn new(addr_bits: &[Vec<K>], has_lookup: Vec<K>, val: Vec<K>, table: &[K], r_addr: &[K]) -> Self {
-        let n = val.len();
-        assert_eq!(has_lookup.len(), n);
-        assert_eq!(addr_bits.len(), r_addr.len());
-
-        let table_at_addr = table_at_addr_from_bits(addr_bits, table, n);
-
-        // diff = val - Table(addr) (should be 0 at lookup addresses)
-        let diff: Vec<K> = val
-            .iter()
-            .zip(table_at_addr.iter())
-            .map(|(v, t)| *v - *t)
-            .collect();
-
-        let core = build_gate_diff_bits_oracle(has_lookup, diff, addr_bits, r_addr);
-
-        Self { core }
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    /// Return the current folded value after all rounds have been folded.
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-}
-
-impl_round_oracle_via_core!(LazyLookupOracle);
-
-/// Lazy adapter oracle for Route A.
-///
-/// Proves: `Σ_t has_lookup(t) * eq(addr_bits_t, r_addr) = adapter_claim`
-///
-/// This computes the "weight" contribution for the address-domain lookup check.
-pub struct LazyAdapterOracle {
-    core: ProductRoundOracle,
-}
-
-impl LazyAdapterOracle {
-    pub fn new(addr_bits: &[Vec<K>], has_lookup: Vec<K>, r_addr: &[K]) -> Self {
-        let core = build_gate_bits_oracle(has_lookup, addr_bits, r_addr);
-
-        Self { core }
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    /// Return the current folded value after all rounds have been folded.
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-}
-
-impl_round_oracle_via_core!(LazyAdapterOracle);
-
-/// Container for all lazy Shout oracles (Route A).
-pub struct LazyShoutOracles {
-    pub lookup: LazyLookupOracle,
-    pub adapter: LazyAdapterOracle,
-    pub bitness: Vec<LazyBitnessOracle>,
-    /// Cached data for finalization
-    pub r_addr: Vec<K>,
-}

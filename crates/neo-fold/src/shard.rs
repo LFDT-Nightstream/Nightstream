@@ -19,17 +19,14 @@
 
 #![allow(non_snake_case)]
 
+use crate::finalize::ObligationFinalizer;
 use crate::folding::{CommitMixers, FoldStep};
-use crate::memory_sidecar::memory::TimeBatchedClaims;
-use crate::memory_sidecar::sumcheck_ds::{
-    run_batched_sumcheck_prover_ds, run_sumcheck_prover_ds, verify_batched_sumcheck_rounds_ds,
-    verify_sumcheck_rounds_ds,
-};
+use crate::memory_sidecar::sumcheck_ds::{run_sumcheck_prover_ds, verify_sumcheck_rounds_ds};
 use crate::memory_sidecar::utils::RoundOraclePrefix;
 use crate::pi_ccs::{self as ccs, FoldingMode};
 pub use crate::shard_proof_types::{
-    BatchedTimeProof, MemOrLutProof, MemSidecarProof, RlcDecProof, ShardFoldOutputs, ShardFoldWitnesses, ShardProof,
-    ShoutProofK, StepProof, TwistProofK,
+    BatchedTimeProof, MemOrLutProof, MemSidecarProof, RlcDecProof, ShardFoldOutputs, ShardFoldWitnesses,
+    ShardObligations, ShardProof, ShoutProofK, StepProof, TwistProofK,
 };
 use crate::PiCcsError;
 use neo_ajtai::Commitment as Cmt;
@@ -37,14 +34,13 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, MeInstance};
 use neo_math::{KExtensions, D, F, K};
 use neo_memory::ts_common as ts;
-use neo_memory::twist_oracle::table_mle_eval;
-use neo_memory::witness::StepWitnessBundle;
+use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils;
 use neo_reductions::paper_exact_engine::{
     build_me_outputs_paper_exact, claimed_initial_sum_from_inputs, rhs_terminal_identity_paper_exact,
 };
-use neo_reductions::sumcheck::{poly_eval_k, BatchedClaim, RoundOracle};
+use neo_reductions::sumcheck::{poly_eval_k, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -53,31 +49,6 @@ use p3_field::PrimeCharacteristicRing;
 // ============================================================================
 
 pub use crate::memory_sidecar::memory::absorb_step_memory_commitments;
-
-fn digest_fields(label: &'static [u8], fs: &[F]) -> [u8; 32] {
-    let mut h = Poseidon2Transcript::new(b"memory/public_digest");
-    h.append_message(b"digest/label", label);
-    h.append_message(b"digest/len", &(fs.len() as u64).to_le_bytes());
-    h.append_fields(b"digest/fields", fs);
-    h.digest32()
-}
-
-fn absorb_twist_rollover_lookahead(
-    tr: &mut Poseidon2Transcript,
-    step_idx: usize,
-    next_step: &StepWitnessBundle<Cmt, F, K>,
-) {
-    tr.append_message(b"twist/rollover/lookahead", &(step_idx as u64).to_le_bytes());
-    tr.append_message(
-        b"twist/rollover/mem_count",
-        &(next_step.mem_instances.len() as u64).to_le_bytes(),
-    );
-    for (mem_idx, (next_inst, _)) in next_step.mem_instances.iter().enumerate() {
-        tr.append_message(b"twist/rollover/mem_idx", &(mem_idx as u64).to_le_bytes());
-        let digest = digest_fields(b"twist/rollover/init_vals", &next_inst.init_vals);
-        tr.append_message(b"twist/rollover/init_vals_digest", &digest);
-    }
-}
 
 pub fn normalize_me_claims(
     me_claims: &mut [MeInstance<Cmt, F, K>],
@@ -127,30 +98,6 @@ pub fn normalize_me_claims(
         me.y_scalars.resize(t, K::ZERO);
     }
     Ok(())
-}
-
-fn bind_batched_dynamic_claims(
-    tr: &mut Poseidon2Transcript,
-    claimed_sums: &[K],
-    labels: &[&[u8]],
-    claim_is_dynamic: &[bool],
-) {
-    debug_assert_eq!(claimed_sums.len(), labels.len());
-    debug_assert_eq!(claimed_sums.len(), claim_is_dynamic.len());
-
-    for (idx, ((sum, label), dyn_ok)) in claimed_sums
-        .iter()
-        .zip(labels.iter())
-        .zip(claim_is_dynamic.iter())
-        .enumerate()
-    {
-        if !*dyn_ok {
-            continue;
-        }
-        tr.append_message(b"batched/claim_label", label);
-        tr.append_message(b"batched/claim_idx", &(idx as u64).to_le_bytes());
-        tr.append_fields(b"batched/claimed_sum", &sum.as_coeffs());
-    }
 }
 
 fn validate_me_batch_invariants(batch: &[MeInstance<Cmt, F, K>], context: &str) -> Result<(), PiCcsError> {
@@ -239,6 +186,153 @@ fn validate_me_batch_invariants(batch: &[MeInstance<Cmt, F, K>], context: &str) 
     Ok(())
 }
 
+fn pad_mats_to_ccs_width(mats: &[Mat<F>], target_cols: usize) -> Result<Vec<Mat<F>>, PiCcsError> {
+    mats.iter()
+        .map(|m| ts::pad_mat_to_ccs_width(m, target_cols))
+        .collect()
+}
+
+fn prove_rlc_dec_lane<L, MR, MB>(
+    mode: &FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    ring: &ccs::RotRing,
+    ell_d: usize,
+    k_dec: usize,
+    lane_label: &'static str,
+    step_idx: usize,
+    me_inputs: &[MeInstance<Cmt, F, K>],
+    wit_inputs: &[Mat<F>],
+    l: &L,
+    mixers: CommitMixers<MR, MB>,
+) -> Result<(RlcDecProof, Vec<Mat<F>>), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Cmt>,
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    let rlc_rhos = ccs::sample_rot_rhos_n(tr, params, ring, me_inputs.len())?;
+    let (rlc_parent, Z_mix) = ccs::rlc_with_commit(
+        mode.clone(),
+        s,
+        params,
+        &rlc_rhos,
+        me_inputs,
+        wit_inputs,
+        ell_d,
+        mixers.mix_rhos_commits,
+    );
+
+    let Z_split = ccs::split_b_matrix_k(&Z_mix, k_dec, params.b)?;
+    let child_cs: Vec<Cmt> = Z_split.iter().map(|Zi| l.commit(Zi)).collect();
+    let (dec_children, ok_y, ok_X, ok_c) = ccs::dec_children_with_commit(
+        mode.clone(),
+        s,
+        params,
+        &rlc_parent,
+        &Z_split,
+        ell_d,
+        &child_cs,
+        mixers.combine_b_pows,
+    );
+    if !(ok_y && ok_X && ok_c) {
+        return Err(PiCcsError::ProtocolError(format!(
+            "{} public check failed at step {} (y={}, X={}, c={})",
+            lane_label, step_idx, ok_y, ok_X, ok_c
+        )));
+    }
+
+    Ok((
+        RlcDecProof {
+            rlc_rhos,
+            rlc_parent,
+            dec_children,
+        },
+        Z_split,
+    ))
+}
+
+#[derive(Clone, Copy, Debug)]
+enum RlcLane {
+    Main,
+    Val,
+}
+
+fn verify_rlc_dec_lane<MR, MB>(
+    lane: RlcLane,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    ring: &ccs::RotRing,
+    ell_d: usize,
+    mixers: CommitMixers<MR, MB>,
+    step_idx: usize,
+    rlc_inputs: &[MeInstance<Cmt, F, K>],
+    rlc_rhos: &[Mat<F>],
+    rlc_parent: &MeInstance<Cmt, F, K>,
+    dec_children: &[MeInstance<Cmt, F, K>],
+) -> Result<(), PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    if rlc_rhos.len() != rlc_inputs.len() {
+        let prefix = match lane {
+            RlcLane::Main => "",
+            RlcLane::Val => "val-lane ",
+        };
+        return Err(PiCcsError::InvalidInput(format!(
+            "step {}: {}RLC ρ count mismatch (expected {}, got {})",
+            step_idx,
+            prefix,
+            rlc_inputs.len(),
+            rlc_rhos.len()
+        )));
+    }
+
+    let rhos_from_tr = ccs::sample_rot_rhos_n(tr, params, ring, rlc_inputs.len())?;
+    for (j, (sampled, stored)) in rhos_from_tr.iter().zip(rlc_rhos.iter()).enumerate() {
+        if sampled.as_slice() != stored.as_slice() {
+            return Err(PiCcsError::ProtocolError(match lane {
+                RlcLane::Main => format!("RLC ρ #{} mismatch: transcript vs proof", j),
+                RlcLane::Val => format!("step {}: val-lane RLC ρ #{} mismatch: transcript vs proof", step_idx, j),
+            }));
+        }
+    }
+
+    let parent_pub = ccs::rlc_public(s, params, rlc_rhos, rlc_inputs, mixers.mix_rhos_commits, ell_d);
+
+    let prefix = match lane {
+        RlcLane::Main => "",
+        RlcLane::Val => "val-lane ",
+    };
+    if parent_pub.X.as_slice() != rlc_parent.X.as_slice() {
+        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC X mismatch")));
+    }
+    if parent_pub.c != rlc_parent.c {
+        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC commitment mismatch")));
+    }
+    if parent_pub.r != rlc_parent.r {
+        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC r mismatch")));
+    }
+    if parent_pub.y != rlc_parent.y {
+        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC y mismatch")));
+    }
+    if parent_pub.y_scalars != rlc_parent.y_scalars {
+        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC y_scalars mismatch")));
+    }
+
+    if !ccs::verify_dec_public(s, params, rlc_parent, dec_children, mixers.combine_b_pows, ell_d) {
+        return Err(PiCcsError::ProtocolError(match lane {
+            RlcLane::Main => "DEC public check failed".into(),
+            RlcLane::Val => "val-lane DEC public check failed".into(),
+        }));
+    }
+
+    Ok(())
+}
+
 // ============================================================================
 // Shard Proving
 // ============================================================================
@@ -281,15 +375,10 @@ where
 
     let mut step_proofs = Vec::with_capacity(steps.len());
     let mut val_lane_wits: Vec<Mat<F>> = Vec::new();
+    let mut prev_twist_decoded: Option<Vec<neo_memory::twist::TwistDecodedCols>> = None;
 
     for (idx, step) in steps.iter().enumerate() {
-        absorb_step_memory_commitments(tr, step);
-        if idx + 1 < steps.len() {
-            let next_step = steps
-                .get(idx + 1)
-                .ok_or_else(|| PiCcsError::ProtocolError("missing next step".into()))?;
-            absorb_twist_rollover_lookahead(tr, idx, next_step);
-        }
+        crate::memory_sidecar::memory::absorb_step_memory_commitments_witness(tr, step);
 
         let (mcs_inst, mcs_wit) = &step.mcs;
 
@@ -364,110 +453,29 @@ where
         };
 
         let shout_pre = crate::memory_sidecar::memory::prove_shout_addr_pre_time(tr, params, step, ell_n, &r_cycle)?;
-        let twist_decoded = crate::memory_sidecar::memory::decode_twist_pre_time(params, step, ell_n)?;
-        let twist_pre = crate::memory_sidecar::memory::prove_twist_addr_pre_time(tr, step, &twist_decoded, &r_cycle)?;
+        let twist_pre = crate::memory_sidecar::memory::prove_twist_addr_pre_time(tr, params, step, ell_n, &r_cycle)?;
+        let twist_read_claims: Vec<K> = twist_pre.iter().map(|p| p.read_check_claim_sum).collect();
+        let twist_write_claims: Vec<K> = twist_pre.iter().map(|p| p.write_check_claim_sum).collect();
         let mut mem_oracles = crate::memory_sidecar::memory::build_route_a_memory_oracles(
-            params,
-            step,
-            ell_n,
-            &r_cycle,
-            &shout_pre,
-            &twist_pre,
-            &twist_decoded,
+            params, step, ell_n, &r_cycle, &shout_pre, &twist_pre,
         )?;
 
-        // Run the batched time/row sumcheck in a tight scope to satisfy Rust borrow rules.
-        let (r_time, per_claim_results, batched_time) = {
-            let mut claimed_sums: Vec<K> = Vec::new();
-            let mut degree_bounds: Vec<usize> = Vec::new();
-            let mut labels: Vec<&'static [u8]> = Vec::new();
-            let mut claim_is_dynamic: Vec<bool> = Vec::new();
-            let mut claims: Vec<BatchedClaim<'_>> = Vec::new();
-
-            // CCS claim (time/row rounds only)
-            let mut ccs_time = RoundOraclePrefix::new(ccs_oracle.as_mut(), ell_n);
-            claimed_sums.push(ccs_initial_sum);
-            degree_bounds.push(ccs_time.degree_bound());
-            labels.push(b"ccs/time");
-            // Keep CCS/time claimed sum in the dynamic-claim registry for transcript consistency.
-            claim_is_dynamic.push(true);
-            claims.push(BatchedClaim {
-                oracle: &mut ccs_time,
-                claimed_sum: ccs_initial_sum,
-                label: b"ccs/time",
-            });
-
-            let mut shout_protocol =
-                crate::memory_sidecar::memory::ShoutRouteAProtocol::new(&mut mem_oracles.shout, ell_n);
-            shout_protocol.append_time_claims(
-                ell_n,
-                &mut claimed_sums,
-                &mut degree_bounds,
-                &mut labels,
-                &mut claim_is_dynamic,
-                &mut claims,
-            );
-
-            let mut twist_protocol =
-                crate::memory_sidecar::memory::TwistRouteAProtocol::new(&mut mem_oracles.twist, ell_n);
-            twist_protocol.append_time_claims(
-                ell_n,
-                &mut claimed_sums,
-                &mut degree_bounds,
-                &mut labels,
-                &mut claim_is_dynamic,
-                &mut claims,
-            );
-
-            #[cfg(debug_assertions)]
-            {
-                let mut exp_degree_bounds: Vec<usize> = Vec::new();
-                let mut exp_labels: Vec<&[u8]> = Vec::new();
-                let mut exp_dynamic: Vec<bool> = Vec::new();
-
-                exp_degree_bounds.push(d_sc);
-                exp_labels.push(b"ccs/time" as &[u8]);
-                exp_dynamic.push(true);
-
-                crate::memory_sidecar::memory::append_expected_batched_time_metadata_for_memory(
-                    step,
-                    &mut exp_degree_bounds,
-                    &mut exp_labels,
-                    &mut exp_dynamic,
-                );
-
-                debug_assert_eq!(degree_bounds, exp_degree_bounds, "batched time degree bounds drift");
-                debug_assert_eq!(labels.len(), exp_labels.len(), "batched time labels length drift");
-                for (i, (got, exp)) in labels.iter().zip(exp_labels.iter()).enumerate() {
-                    debug_assert_eq!(*got, *exp, "batched time label drift at claim {}", i);
-                }
-                debug_assert_eq!(claim_is_dynamic, exp_dynamic, "batched time dynamic-flag drift");
-            }
-
-            // Run batched sum-check prover (shared r_time challenges)
-            bind_batched_dynamic_claims(tr, &claimed_sums, &labels, &claim_is_dynamic);
-            let (r_time, per_claim_results) =
-                run_batched_sumcheck_prover_ds(tr, b"shard/batched_time", idx, claims.as_mut_slice())?;
-
-            if r_time.len() != ell_n {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "batched sumcheck returned r_time.len()={}, expected ell_n={ell_n}",
-                    r_time.len()
-                )));
-            }
-
-            let batched_time = BatchedTimeProof {
-                claimed_sums: claimed_sums.clone(),
-                degree_bounds: degree_bounds.clone(),
-                labels: labels.clone(),
-                round_polys: per_claim_results
-                    .iter()
-                    .map(|r| r.round_polys.clone())
-                    .collect(),
-            };
-
-            Ok::<_, PiCcsError>((r_time, per_claim_results, batched_time))
-        }?;
+        let crate::memory_sidecar::route_a_time::RouteABatchedTimeProverOutput {
+            r_time,
+            per_claim_results,
+            proof: batched_time,
+        } = crate::memory_sidecar::route_a_time::prove_route_a_batched_time(
+            tr,
+            idx,
+            ell_n,
+            d_sc,
+            ccs_initial_sum,
+            ccs_oracle.as_mut(),
+            &mut mem_oracles,
+            step,
+            twist_read_claims,
+            twist_write_claims,
+        )?;
 
         // Finish CCS Ajtai rounds alone, continuing from the CCS oracle state after ell_n folds.
         let ccs_time_rounds = per_claim_results
@@ -528,18 +536,23 @@ where
         outs_Z.extend(accumulator_wit.iter().cloned());
 
         // Memory sidecar: emit ME claims at the shared r_time (no fixed-challenge sumcheck).
+        let prev_step = (idx > 0).then(|| &steps[idx - 1]);
+        let prev_twist_decoded_ref = prev_twist_decoded.as_deref();
         let mut mem_out = crate::memory_sidecar::memory::finalize_route_a_memory_prover(
             tr,
             params,
             &s,
             step,
+            prev_step,
+            prev_twist_decoded_ref,
             &mut mem_oracles,
             &shout_pre,
             &twist_pre,
-            &twist_decoded,
             &r_time,
             mcs_inst.m_in,
+            idx,
         )?;
+        prev_twist_decoded = Some(twist_pre.into_iter().map(|p| p.decoded).collect());
 
         normalize_me_claims(&mut mem_out.mem.me_claims_time, ell_n, ell_d, s.t())?;
         normalize_me_claims(&mut mem_out.mem.me_claims_val, ell_n, ell_d, s.t())?;
@@ -549,42 +562,28 @@ where
         rlc_inputs.extend(mem_out.mem.me_claims_time.clone());
 
         let mut rlc_wits = outs_Z.clone();
-        for w in mem_out.me_wits_time.iter() {
-            rlc_wits.push(ts::pad_mat_to_ccs_width(w, s.m)?);
-        }
+        rlc_wits.extend(pad_mats_to_ccs_width(&mem_out.me_wits_time, s.m)?);
 
-        // RLC
-        let rhos = ccs::sample_rot_rhos_n(tr, params, &ring, rlc_inputs.len())?;
-        let (parent_pub, Z_mix) = ccs::rlc_with_commit(
-            mode.clone(),
-            &s,
+        let (main_fold, Z_split) = prove_rlc_dec_lane(
+            &mode,
+            tr,
             params,
-            &rhos,
+            &s,
+            &ring,
+            ell_d,
+            k_dec,
+            "DEC",
+            idx,
             &rlc_inputs,
             &rlc_wits,
-            ell_d,
-            mixers.mix_rhos_commits,
-        );
-
-        // DEC
-        let Z_split = ccs::split_b_matrix_k(&Z_mix, k_dec, params.b)?;
-        let child_cs: Vec<Cmt> = Z_split.iter().map(|Zi| l.commit(Zi)).collect();
-        let (children, ok_y, ok_X, ok_c) = ccs::dec_children_with_commit(
-            mode.clone(),
-            &s,
-            params,
-            &parent_pub,
-            &Z_split,
-            ell_d,
-            &child_cs,
-            mixers.combine_b_pows,
-        );
-        if !(ok_y && ok_X && ok_c) {
-            return Err(PiCcsError::ProtocolError(format!(
-                "DEC public check failed at step {} (y={}, X={}, c={})",
-                idx, ok_y, ok_X, ok_c
-            )));
-        }
+            l,
+            mixers,
+        )?;
+        let RlcDecProof {
+            rlc_rhos: rhos,
+            rlc_parent: parent_pub,
+            dec_children: children,
+        } = main_fold;
 
         // --------------------------------------------------------------------
         // Phase 2: Second folding lane for Twist val-eval ME claims at r_val.
@@ -602,52 +601,28 @@ where
             }
 
             tr.append_message(b"fold/val_lane_start", &(idx as u64).to_le_bytes());
-
-            let val_rhos = ccs::sample_rot_rhos_n(tr, params, &ring, mem_out.mem.me_claims_val.len())?;
-            let mut val_wits: Vec<Mat<F>> = Vec::with_capacity(mem_out.me_wits_val.len());
-            for w in mem_out.me_wits_val.iter() {
-                val_wits.push(ts::pad_mat_to_ccs_width(w, s.m)?);
-            }
-
-            let (val_parent_pub, Z_mix) = ccs::rlc_with_commit(
-                mode.clone(),
-                &s,
+            let val_wits = pad_mats_to_ccs_width(&mem_out.me_wits_val, s.m)?;
+            let (val_fold, mut Z_split_val) = prove_rlc_dec_lane(
+                &mode,
+                tr,
                 params,
-                &val_rhos,
+                &s,
+                &ring,
+                ell_d,
+                k_dec,
+                "DEC(val)",
+                idx,
                 &mem_out.mem.me_claims_val,
                 &val_wits,
-                ell_d,
-                mixers.mix_rhos_commits,
-            );
-
-            let mut Z_split = ccs::split_b_matrix_k(&Z_mix, k_dec, params.b)?;
-            let child_cs: Vec<Cmt> = Z_split.iter().map(|Zi| l.commit(Zi)).collect();
-            let (val_children, ok_y, ok_X, ok_c) = ccs::dec_children_with_commit(
-                mode.clone(),
-                &s,
-                params,
-                &val_parent_pub,
-                &Z_split,
-                ell_d,
-                &child_cs,
-                mixers.combine_b_pows,
-            );
-            if !(ok_y && ok_X && ok_c) {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "DEC(val) public check failed at step {} (y={}, X={}, c={})",
-                    idx, ok_y, ok_X, ok_c
-                )));
-            }
+                l,
+                mixers,
+            )?;
 
             if collect_val_lane_wits {
-                val_lane_wits.extend(Z_split.drain(..));
+                val_lane_wits.extend(Z_split_val.drain(..));
             }
 
-            Some(RlcDecProof {
-                rlc_rhos: val_rhos,
-                rlc_parent: val_parent_pub,
-                dec_children: val_children,
-            })
+            Some(val_fold)
         };
 
         accumulator = children.clone();
@@ -712,18 +687,18 @@ where
     let (proof, final_main_wits, val_lane_wits) =
         fold_shard_prove_impl(true, mode, tr, params, s_me, steps, acc_init, acc_wit_init, l, mixers)?;
     let outputs = proof.compute_fold_outputs(acc_init);
-    if outputs.final_main_acc.len() != final_main_wits.len() {
+    if outputs.obligations.main.len() != final_main_wits.len() {
         return Err(PiCcsError::ProtocolError(format!(
             "final main witness count mismatch (have {}, need {})",
             final_main_wits.len(),
-            outputs.final_main_acc.len()
+            outputs.obligations.main.len()
         )));
     }
-    if outputs.val_lane_obligations.len() != val_lane_wits.len() {
+    if outputs.obligations.val.len() != val_lane_wits.len() {
         return Err(PiCcsError::ProtocolError(format!(
             "val-lane witness count mismatch (have {}, need {})",
             val_lane_wits.len(),
-            outputs.val_lane_obligations.len()
+            outputs.obligations.val.len()
         )));
     }
     Ok((
@@ -745,26 +720,7 @@ pub fn fold_shard_verify<L, MR, MB>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s_me: &CcsStructure<F>,
-    steps: &[StepWitnessBundle<Cmt, F, K>],
-    acc_init: &[MeInstance<Cmt, F, K>],
-    proof: &ShardProof,
-    _l: &L,
-    mixers: CommitMixers<MR, MB>,
-) -> Result<(), PiCcsError>
-where
-    L: SModuleHomomorphism<F, Cmt>,
-    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
-    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
-{
-    fold_shard_verify_with_outputs(_mode, tr, params, s_me, steps, acc_init, proof, _l, mixers).map(|_| ())
-}
-
-pub fn fold_shard_verify_with_outputs<L, MR, MB>(
-    _mode: FoldingMode,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s_me: &CcsStructure<F>,
-    steps: &[StepWitnessBundle<Cmt, F, K>],
+    steps: &[StepInstanceBundle<Cmt, F, K>],
     acc_init: &[MeInstance<Cmt, F, K>],
     proof: &ShardProof,
     _l: &L,
@@ -802,14 +758,8 @@ where
 
     for (idx, (step, step_proof)) in steps.iter().zip(proof.steps.iter()).enumerate() {
         absorb_step_memory_commitments(tr, step);
-        if idx + 1 < steps.len() {
-            let next_step = steps
-                .get(idx + 1)
-                .ok_or_else(|| PiCcsError::ProtocolError("missing next step".into()))?;
-            absorb_twist_rollover_lookahead(tr, idx, next_step);
-        }
 
-        let (mcs_inst, _mcs_wit) = &step.mcs;
+        let mcs_inst = &step.mcs_inst;
 
         // --------------------------------------------------------------------
         // Route A: Verify shared-challenge batched sum-check (time/row rounds),
@@ -837,128 +787,18 @@ where
         let r_cycle: Vec<K> =
             ts::sample_ext_point(tr, b"route_a/r_cycle", b"route_a/cycle/0", b"route_a/cycle/1", ell_n);
 
-        // Expected batched claims metadata (do not trust proof for degree bounds/labels).
-        //
-        // Claimed sums are mostly fixed (0) except CCS/time (=public T).
-        let mut expected_degree_bounds: Vec<usize> = Vec::new();
-        let mut expected_labels: Vec<&[u8]> = Vec::new();
-        let mut claim_is_dynamic: Vec<bool> = Vec::new();
-
-        expected_degree_bounds.push(d_sc);
-        expected_labels.push(b"ccs/time");
-        claim_is_dynamic.push(true); // fixed to public T below
-        crate::memory_sidecar::memory::append_expected_batched_time_metadata_for_memory(
-            step,
-            &mut expected_degree_bounds,
-            &mut expected_labels,
-            &mut claim_is_dynamic,
-        );
-
-        let expected_claims = claim_is_dynamic.len();
-        if step_proof.batched_time.round_polys.len() != expected_claims {
-            return Err(PiCcsError::InvalidInput(format!(
-                "step {}: batched_time claim count mismatch (expected {}, got {})",
-                idx,
-                expected_claims,
-                step_proof.batched_time.round_polys.len()
-            )));
-        }
-        if step_proof.batched_time.claimed_sums.len() != expected_claims {
-            return Err(PiCcsError::InvalidInput(format!(
-                "step {}: batched_time claimed_sums.len() mismatch (expected {}, got {})",
-                idx,
-                expected_claims,
-                step_proof.batched_time.claimed_sums.len()
-            )));
-        }
-        if step_proof.batched_time.claimed_sums.is_empty() || step_proof.batched_time.claimed_sums[0] != claimed_initial
-        {
-            return Err(PiCcsError::ProtocolError(format!(
-                "step {}: batched_time claimed_sums[0] (CCS/time) != public initial sum",
-                idx
-            )));
-        }
-        for (i, (&sum, &dyn_ok)) in step_proof
-            .batched_time
-            .claimed_sums
-            .iter()
-            .zip(claim_is_dynamic.iter())
-            .enumerate()
-        {
-            if i == 0 {
-                continue;
-            }
-            if !dyn_ok && sum != K::ZERO {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "step {}: batched_time claimed_sums[{}] must be 0 (label {:?})",
-                    idx, i, expected_labels[i]
-                )));
-            }
-        }
-        if step_proof.batched_time.degree_bounds != expected_degree_bounds {
-            return Err(PiCcsError::ProtocolError(format!(
-                "step {}: batched_time degree_bounds mismatch",
-                idx
-            )));
-        }
-        if step_proof.batched_time.labels.len() != expected_labels.len() {
-            return Err(PiCcsError::ProtocolError(format!(
-                "step {}: batched_time labels length mismatch",
-                idx
-            )));
-        }
-        for (i, (got, exp)) in step_proof
-            .batched_time
-            .labels
-            .iter()
-            .zip(expected_labels.iter())
-            .enumerate()
-        {
-            if (*got as &[u8]) != *exp {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "step {}: batched_time label mismatch at claim {}",
-                    idx, i
-                )));
-            }
-        }
-
         let shout_pre = crate::memory_sidecar::memory::verify_shout_addr_pre_time(tr, step, &step_proof.mem)?;
         let twist_pre = crate::memory_sidecar::memory::verify_twist_addr_pre_time(tr, step, &step_proof.mem)?;
-        // Verify the batched time/row sumcheck rounds (derives shared r_time).
-        bind_batched_dynamic_claims(
-            tr,
-            &step_proof.batched_time.claimed_sums,
-            &expected_labels,
-            &claim_is_dynamic,
-        );
-        let (r_time, final_values, ok) = verify_batched_sumcheck_rounds_ds(
-            tr,
-            b"shard/batched_time",
-            idx,
-            &step_proof.batched_time.round_polys,
-            &step_proof.batched_time.claimed_sums,
-            &expected_labels,
-            &expected_degree_bounds,
-        );
-        if !ok {
-            return Err(PiCcsError::SumcheckError(
-                "batched time sumcheck verification failed".into(),
-            ));
-        }
-        if r_time.len() != ell_n {
-            return Err(PiCcsError::ProtocolError(format!(
-                "step {}: r_time length mismatch (got {}, expected ell_n={})",
+        let crate::memory_sidecar::route_a_time::RouteABatchedTimeVerifyOutput { r_time, final_values } =
+            crate::memory_sidecar::route_a_time::verify_route_a_batched_time(
+                tr,
                 idx,
-                r_time.len(),
-                ell_n
-            )));
-        }
-        if final_values.len() != expected_claims {
-            return Err(PiCcsError::ProtocolError(format!(
-                "step {}: batched final_values length mismatch",
-                idx
-            )));
-        }
+                ell_n,
+                d_sc,
+                claimed_initial,
+                step,
+                &step_proof.batched_time,
+            )?;
 
         // CCS proof structure consistency with batched time proof.
         let want_rounds_total = ell_n + ell_d;
@@ -1081,10 +921,12 @@ where
         }
 
         // Verify mem proofs and collect ME claims.
+        let prev_step = (idx > 0).then(|| &steps[idx - 1]);
         let mem_out = crate::memory_sidecar::memory::verify_route_a_memory_step(
             tr,
             params,
             step,
+            prev_step,
             &r_time,
             &r_cycle,
             &final_values,
@@ -1093,76 +935,14 @@ where
             &step_proof.mem,
             &shout_pre,
             &twist_pre,
+            idx,
         )?;
         let crate::memory_sidecar::memory::RouteAMemoryVerifyOutput {
             collected_me_time,
             collected_me_val,
             claim_idx_end: claim_idx,
-            twist_rollover,
+            twist_total_inc_sums: _twist_total_inc_sums,
         } = mem_out;
-
-        // Enforce Twist rollover between consecutive steps:
-        // init_{i+1}(r_addr) == end_i(r_addr) for each memory instance.
-        if idx + 1 < steps.len() {
-            let next_step = steps
-                .get(idx + 1)
-                .ok_or_else(|| PiCcsError::ProtocolError("missing next step".into()))?;
-            if next_step.mem_instances.len() != step.mem_instances.len() {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "step {}: Twist rollover requires identical mem instance count in next step (current {}, next {})",
-                    idx,
-                    step.mem_instances.len(),
-                    next_step.mem_instances.len()
-                )));
-            }
-            if twist_rollover.len() != step.mem_instances.len() {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "step {}: Twist rollover output len()={}, expected {}",
-                    idx,
-                    twist_rollover.len(),
-                    step.mem_instances.len()
-                )));
-            }
-
-            for (i_mem, ((inst, _), (next_inst, _))) in step
-                .mem_instances
-                .iter()
-                .zip(next_step.mem_instances.iter())
-                .enumerate()
-            {
-                if next_inst.k != inst.k
-                    || next_inst.d != inst.d
-                    || next_inst.ell != inst.ell
-                    || next_inst.n_side != inst.n_side
-                {
-                    return Err(PiCcsError::InvalidInput(format!(
-                        "step {}: Twist rollover shape mismatch at mem {} (current k/d/ell/n_side = {}/{}/{}/{}, next = {}/{}/{}/{})",
-                        idx,
-                        i_mem,
-                        inst.k,
-                        inst.d,
-                        inst.ell,
-                        inst.n_side,
-                        next_inst.k,
-                        next_inst.d,
-                        next_inst.ell,
-                        next_inst.n_side
-                    )));
-                }
-
-                let (r_addr, end_at_r_addr) = twist_rollover
-                    .get(i_mem)
-                    .ok_or_else(|| PiCcsError::ProtocolError("missing Twist rollover entry".into()))?;
-                let next_init_k: Vec<K> = next_inst.init_vals.iter().map(|&v| v.into()).collect();
-                let init_next_at_r = table_mle_eval(&next_init_k, r_addr);
-                if init_next_at_r != *end_at_r_addr {
-                    return Err(PiCcsError::ProtocolError(format!(
-                        "step {}: Twist rollover mismatch at mem {}",
-                        idx, i_mem
-                    )));
-                }
-            }
-        }
 
         if claim_idx != final_values.len() {
             return Err(PiCcsError::ProtocolError(format!(
@@ -1188,69 +968,22 @@ where
             }
         }
 
-        // Sample rhos and check (after memory proofs, matching prover order)
         let mut rlc_inputs = step_proof.fold.ccs_out.clone();
         rlc_inputs.extend_from_slice(&collected_me_time);
-
-        if step_proof.fold.rlc_rhos.len() != rlc_inputs.len() {
-            return Err(PiCcsError::InvalidInput(format!(
-                "step {}: RLC ρ count mismatch (expected {}, got {})",
-                idx,
-                rlc_inputs.len(),
-                step_proof.fold.rlc_rhos.len()
-            )));
-        }
-
-        let rhos_from_tr = ccs::sample_rot_rhos_n(tr, params, &ring, rlc_inputs.len())?;
-        for (j, (sampled, stored)) in rhos_from_tr
-            .iter()
-            .zip(step_proof.fold.rlc_rhos.iter())
-            .enumerate()
-        {
-            if sampled.as_slice() != stored.as_slice() {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "RLC ρ #{} mismatch: transcript vs proof",
-                    j
-                )));
-            }
-        }
-
-        // Recompute RLC parent
-        let parent_pub = ccs::rlc_public(
-            &s,
+        verify_rlc_dec_lane(
+            RlcLane::Main,
+            tr,
             params,
-            &step_proof.fold.rlc_rhos,
-            &rlc_inputs,
-            mixers.mix_rhos_commits,
+            &s,
+            &ring,
             ell_d,
-        );
-
-        if parent_pub.X.as_slice() != step_proof.fold.rlc_parent.X.as_slice() {
-            return Err(PiCcsError::ProtocolError("RLC X mismatch".into()));
-        }
-        if parent_pub.c != step_proof.fold.rlc_parent.c {
-            return Err(PiCcsError::ProtocolError("RLC commitment mismatch".into()));
-        }
-        if parent_pub.r != step_proof.fold.rlc_parent.r {
-            return Err(PiCcsError::ProtocolError("RLC r mismatch".into()));
-        }
-        if parent_pub.y != step_proof.fold.rlc_parent.y {
-            return Err(PiCcsError::ProtocolError("RLC y mismatch".into()));
-        }
-        if parent_pub.y_scalars != step_proof.fold.rlc_parent.y_scalars {
-            return Err(PiCcsError::ProtocolError("RLC y_scalars mismatch".into()));
-        }
-
-        if !ccs::verify_dec_public(
-            &s,
-            params,
+            mixers,
+            idx,
+            &rlc_inputs,
+            &step_proof.fold.rlc_rhos,
             &step_proof.fold.rlc_parent,
             &step_proof.fold.dec_children,
-            mixers.combine_b_pows,
-            ell_d,
-        ) {
-            return Err(PiCcsError::ProtocolError("DEC public check failed".into()));
-        }
+        )?;
 
         accumulator = step_proof.fold.dec_children.clone();
 
@@ -1271,65 +1004,20 @@ where
             }
             (false, Some(val_fold)) => {
                 tr.append_message(b"fold/val_lane_start", &(idx as u64).to_le_bytes());
-
-                if val_fold.rlc_rhos.len() != collected_me_val.len() {
-                    return Err(PiCcsError::InvalidInput(format!(
-                        "step {}: val-lane RLC ρ count mismatch (expected {}, got {})",
-                        idx,
-                        collected_me_val.len(),
-                        val_fold.rlc_rhos.len()
-                    )));
-                }
-
-                let rhos_from_tr = ccs::sample_rot_rhos_n(tr, params, &ring, collected_me_val.len())?;
-                for (j, (sampled, stored)) in rhos_from_tr
-                    .iter()
-                    .zip(val_fold.rlc_rhos.iter())
-                    .enumerate()
-                {
-                    if sampled.as_slice() != stored.as_slice() {
-                        return Err(PiCcsError::ProtocolError(format!(
-                            "step {}: val-lane RLC ρ #{} mismatch: transcript vs proof",
-                            idx, j
-                        )));
-                    }
-                }
-
-                let parent_pub = ccs::rlc_public(
-                    &s,
+                verify_rlc_dec_lane(
+                    RlcLane::Val,
+                    tr,
                     params,
-                    &val_fold.rlc_rhos,
-                    &collected_me_val,
-                    mixers.mix_rhos_commits,
+                    &s,
+                    &ring,
                     ell_d,
-                );
-
-                if parent_pub.X.as_slice() != val_fold.rlc_parent.X.as_slice() {
-                    return Err(PiCcsError::ProtocolError("val-lane RLC X mismatch".into()));
-                }
-                if parent_pub.c != val_fold.rlc_parent.c {
-                    return Err(PiCcsError::ProtocolError("val-lane RLC commitment mismatch".into()));
-                }
-                if parent_pub.r != val_fold.rlc_parent.r {
-                    return Err(PiCcsError::ProtocolError("val-lane RLC r mismatch".into()));
-                }
-                if parent_pub.y != val_fold.rlc_parent.y {
-                    return Err(PiCcsError::ProtocolError("val-lane RLC y mismatch".into()));
-                }
-                if parent_pub.y_scalars != val_fold.rlc_parent.y_scalars {
-                    return Err(PiCcsError::ProtocolError("val-lane RLC y_scalars mismatch".into()));
-                }
-
-                if !ccs::verify_dec_public(
-                    &s,
-                    params,
+                    mixers,
+                    idx,
+                    &collected_me_val,
+                    &val_fold.rlc_rhos,
                     &val_fold.rlc_parent,
                     &val_fold.dec_children,
-                    mixers.combine_b_pows,
-                    ell_d,
-                ) {
-                    return Err(PiCcsError::ProtocolError("val-lane DEC public check failed".into()));
-                }
+                )?;
 
                 val_lane_obligations.extend_from_slice(&val_fold.dec_children);
             }
@@ -1339,7 +1027,32 @@ where
     }
 
     Ok(ShardFoldOutputs {
-        final_main_acc: accumulator,
-        val_lane_obligations,
+        obligations: ShardObligations {
+            main: accumulator,
+            val: val_lane_obligations,
+        },
     })
+}
+
+pub fn fold_shard_verify_and_finalize<L, MR, MB, Fin>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    l: &L,
+    mixers: CommitMixers<MR, MB>,
+    finalizer: &mut Fin,
+) -> Result<(), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Cmt>,
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+    Fin: ObligationFinalizer<Cmt, F, K, Error = PiCcsError>,
+{
+    let outputs = fold_shard_verify(mode, tr, params, s_me, steps, acc_init, proof, l, mixers)?;
+    finalizer.finalize(&outputs.obligations)?;
+    Ok(())
 }

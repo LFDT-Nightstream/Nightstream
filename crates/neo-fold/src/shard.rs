@@ -20,18 +20,17 @@
 #![allow(non_snake_case)]
 
 use crate::finalize::ObligationFinalizer;
-use crate::folding::{CommitMixers, FoldStep};
 use crate::memory_sidecar::sumcheck_ds::{run_sumcheck_prover_ds, verify_sumcheck_rounds_ds};
 use crate::memory_sidecar::utils::RoundOraclePrefix;
 use crate::pi_ccs::{self as ccs, FoldingMode};
 pub use crate::shard_proof_types::{
-    BatchedTimeProof, MemOrLutProof, MemSidecarProof, RlcDecProof, ShardFoldOutputs, ShardFoldWitnesses,
+    BatchedTimeProof, FoldStep, MemOrLutProof, MemSidecarProof, RlcDecProof, ShardFoldOutputs, ShardFoldWitnesses,
     ShardObligations, ShardProof, ShoutProofK, StepProof, TwistProofK,
 };
 use crate::PiCcsError;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_ccs::{CcsStructure, Mat, MeInstance};
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 use neo_math::{KExtensions, D, F, K};
 use neo_memory::ts_common as ts;
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
@@ -49,6 +48,37 @@ use p3_field::PrimeCharacteristicRing;
 // ============================================================================
 
 pub use crate::memory_sidecar::memory::absorb_step_memory_commitments;
+
+/// Commitment mixers so the coordinator stays scheme-agnostic.
+/// - `mix_rhos_commits(ρ, cs)` returns Σ ρ_i · c_i  (S-action).
+/// - `combine_b_pows(cs, b)` returns Σ \bar b^{i-1} c_i  (DEC check).
+#[derive(Clone, Copy)]
+pub struct CommitMixers<MR, MB>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
+    MB: Fn(&[Cmt], u32) -> Cmt,
+{
+    pub mix_rhos_commits: MR,
+    pub combine_b_pows: MB,
+}
+
+pub fn step_witness_from_mcs(mcs: (McsInstance<Cmt, F>, McsWitness<F>)) -> StepWitnessBundle<Cmt, F, K> {
+    StepWitnessBundle {
+        mcs,
+        lut_instances: Vec::new(),
+        mem_instances: Vec::new(),
+        _phantom: core::marker::PhantomData,
+    }
+}
+
+pub fn step_instance_from_mcs(mcs_inst: McsInstance<Cmt, F>) -> StepInstanceBundle<Cmt, F, K> {
+    StepInstanceBundle {
+        mcs_inst,
+        lut_insts: Vec::new(),
+        mem_insts: Vec::new(),
+        _phantom: core::marker::PhantomData,
+    }
+}
 
 pub fn normalize_me_claims(
     me_claims: &mut [MeInstance<Cmt, F, K>],

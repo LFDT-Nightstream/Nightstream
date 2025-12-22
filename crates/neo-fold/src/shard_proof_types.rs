@@ -1,10 +1,25 @@
-use crate::folding::FoldStep;
+use crate::PiCcsProof;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{matrix::Mat, MeInstance};
 use neo_math::{F, K};
 
 pub type TwistProofK = neo_memory::twist::TwistProof<K>;
 pub type ShoutProofK = neo_memory::shout::ShoutProof<K>;
+
+/// One fold step’s artifacts (Π_CCS → Π_RLC → Π_DEC).
+#[derive(Clone, Debug)]
+pub struct FoldStep {
+    /// Π_CCS outputs (k ME(b,L) instances)
+    pub ccs_out: Vec<MeInstance<Cmt, F, K>>,
+    /// Π_CCS proof (engine-agnostic re-export)
+    pub ccs_proof: PiCcsProof,
+    /// RLC mixing matrices ρ_i ∈ S ⊆ F^{D×D}
+    pub rlc_rhos: Vec<Mat<F>>,
+    /// The combined parent after RLC: ME(B,L) with B=b^k
+    pub rlc_parent: MeInstance<Cmt, F, K>,
+    /// DEC children: k ME(b,L) after decomposition of the parent
+    pub dec_children: Vec<MeInstance<Cmt, F, K>>,
+}
 
 #[derive(Clone, Debug)]
 #[must_use]
@@ -123,6 +138,11 @@ impl ShardProof {
     /// Returns the final main accumulator only (does not include Twist `r_val` obligations).
     pub fn compute_final_main_children(&self, acc_init: &[MeInstance<Cmt, F, K>]) -> Vec<MeInstance<Cmt, F, K>> {
         self.compute_fold_outputs(acc_init).obligations.main
+    }
+
+    /// Legacy alias for CCS-only codepaths: compute the final main accumulator.
+    pub fn compute_final_outputs(&self, acc_init: &[MeInstance<Cmt, F, K>]) -> Vec<MeInstance<Cmt, F, K>> {
+        self.compute_final_main_children(acc_init)
     }
 
     #[deprecated(

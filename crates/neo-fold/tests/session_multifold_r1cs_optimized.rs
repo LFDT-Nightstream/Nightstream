@@ -94,7 +94,7 @@ fn test_session_multifold_k3_three_steps_r1cs_optimized() {
     assert_eq!(run.steps.len(), 3, "should have three fold steps");
     for (i, step) in run.steps.iter().enumerate() {
         assert_eq!(
-            step.dec_children.len(),
+            step.fold.dec_children.len(),
             params.k_rho as usize,
             "step {} should have k_rho={} DEC children",
             i,
@@ -102,7 +102,7 @@ fn test_session_multifold_k3_three_steps_r1cs_optimized() {
         );
     }
     // Final outputs are the dec_children of the last step
-    let final_outputs = &run.steps.last().unwrap().dec_children;
+    let final_outputs = &run.steps.last().unwrap().fold.dec_children;
     assert_eq!(
         final_outputs.len(),
         params.k_rho as usize,

@@ -14,7 +14,7 @@
 //! - If you want k>1, pass an explicit Accumulator via `with_initial_accumulator(...)`.
 //!
 //! This file contains only ergonomics. The formal pipeline Π_CCS → Π_RLC → Π_DEC
-//! lives in `fold_many_prove/verify` (engine-agnostic).
+//! lives in `shard::fold_shard_prove/verify` (Route A integration).
 
 #![allow(non_snake_case)]
 
@@ -27,8 +27,8 @@ use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
-use crate::folding::{self, CommitMixers, FoldRun};
 use crate::pi_ccs::FoldingMode;
+use crate::shard::{self, CommitMixers, ShardProof as FoldRun};
 use crate::PiCcsError;
 use neo_reductions::engines::utils;
 
@@ -810,14 +810,19 @@ where
             None => (vec![], vec![]), // k=1
         };
 
-        let mcss: Vec<(McsInstance<Cmt, F>, McsWitness<F>)> = self.mcss.clone();
+        let steps: Vec<_> = self
+            .mcss
+            .clone()
+            .into_iter()
+            .map(shard::step_witness_from_mcs)
+            .collect();
 
-        folding::fold_many_prove(
+        shard::fold_shard_prove(
             self.mode.clone(),
             tr,
             &self.params,
             &s_norm,
-            &mcss,
+            &steps,
             &seed_me,
             &seed_me_wit,
             &self.l,
@@ -872,17 +877,24 @@ where
             None => (vec![], vec![]), // k=1
         };
 
-        // fold_many_verify returns the verified final accumulator on success
-        let _verified_final = folding::fold_many_verify(
+        let steps_public: Vec<_> = mcss_public
+            .iter()
+            .cloned()
+            .map(shard::step_instance_from_mcs)
+            .collect();
+
+        let outputs = shard::fold_shard_verify(
             self.mode.clone(),
             tr,
             &self.params,
             &s_norm,
-            mcss_public,
+            &steps_public,
             &seed_me,
             run,
+            &self.l,
             self.mixers,
         )?;
+        debug_assert!(outputs.obligations.val.is_empty());
         Ok(true)
     }
 }

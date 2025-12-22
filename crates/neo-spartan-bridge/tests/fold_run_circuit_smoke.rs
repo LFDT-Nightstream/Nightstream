@@ -8,6 +8,7 @@ use neo_ccs::r1cs_to_ccs;
 use neo_ccs::{Mat, MeInstance};
 use neo_fold::folding::{FoldRun, FoldStep};
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::{BatchedTimeProof, MemSidecarProof, StepProof};
 use neo_fold::session::{me_from_z_balanced, Accumulator, FoldingSession, ProveInput};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
@@ -105,7 +106,23 @@ fn build_trivial_fold_run_and_instance() -> (FoldRunInstance, FoldRunWitness) {
     };
 
     // FoldRun with one step (final outputs computed from steps).
-    let run = FoldRun { steps: vec![step] };
+    let run = FoldRun {
+        steps: vec![StepProof {
+            fold: step,
+            mem: MemSidecarProof {
+                me_claims_time: Vec::new(),
+                me_claims_val: Vec::new(),
+                proofs: Vec::new(),
+            },
+            batched_time: BatchedTimeProof {
+                claimed_sums: Vec::new(),
+                degree_bounds: Vec::new(),
+                labels: Vec::new(),
+                round_polys: Vec::new(),
+            },
+            val_fold: None,
+        }],
+    };
 
     // Public instance: empty initial accumulator, final accumulator = DEC children,
     // and zero-valued Π-CCS challenges for the single step.
@@ -313,8 +330,8 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
 
     // --- Build FoldRunWitness for the Spartan bridge (Π-CCS proofs + RLC data) ---
     let steps_len = run.steps.len();
-    let pi_ccs_proofs: Vec<PiCcsProof> = run.steps.iter().map(|s| s.ccs_proof.clone()).collect();
-    let rlc_rhos: Vec<Vec<Mat<F>>> = run.steps.iter().map(|s| s.rlc_rhos.clone()).collect();
+    let pi_ccs_proofs: Vec<PiCcsProof> = run.steps.iter().map(|s| s.fold.ccs_proof.clone()).collect();
+    let rlc_rhos: Vec<Vec<Mat<F>>> = run.steps.iter().map(|s| s.fold.rlc_rhos.clone()).collect();
     let witnesses: Vec<Vec<Mat<F>>> = vec![Vec::new(); steps_len];
     let dec_children_z: Vec<Vec<Mat<F>>> = vec![Vec::new(); steps_len];
 
@@ -334,7 +351,7 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
 
         let mut pi_ccs_challenges = Vec::with_capacity(run.steps.len());
         for (step_idx, step) in run.steps.iter().enumerate() {
-            let proof = &step.ccs_proof;
+            let proof = &step.fold.ccs_proof;
 
             assert_eq!(
                 proof.sumcheck_rounds.len(),
@@ -377,7 +394,7 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
             ccs_digest: [0u8; 32],
             mcs_digest: [0u8; 32],
             initial_accumulator: initial_accumulator.clone(),
-            final_accumulator: run.final_outputs.clone(),
+            final_accumulator: run.compute_final_outputs(&initial_accumulator),
             pi_ccs_challenges,
         };
 

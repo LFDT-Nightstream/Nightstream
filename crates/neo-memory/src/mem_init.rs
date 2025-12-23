@@ -38,7 +38,12 @@ impl<F: PrimeCharacteristicRing> MemInit<F> {
                         }
                     }
                     prev = Some(*addr);
-                    if (*addr as usize) >= k {
+                    let addr_usize = usize::try_from(*addr).map_err(|_| {
+                        PiCcsError::InvalidInput(format!(
+                            "MemInit::Sparse address doesn't fit usize: addr={addr}"
+                        ))
+                    })?;
+                    if addr_usize >= k {
                         return Err(PiCcsError::InvalidInput(format!(
                             "MemInit::Sparse address out of range: addr={} >= k={}",
                             addr, k

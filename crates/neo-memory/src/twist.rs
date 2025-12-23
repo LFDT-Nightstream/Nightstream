@@ -8,13 +8,12 @@
 //!   and produce the **time-lane claimed sums** for the read/write checks.
 //! - Then the shard runs a shared-challenge **time-domain** batched sumcheck (shared with CCS/Shout),
 //!   ending at `r_time`, which yields the `r_time`-lane ME openings.
-//! - Finally, Twist runs a separate val-eval sumcheck to obtain `Val(r_addr, r_time)` and a fresh `r_val`,
+//! - Finally, Twist runs a separate val-eval sum-check to obtain `Val(r_addr, r_time)` and a fresh `r_val`,
 //!   producing the val-lane ME obligations needed to check the terminal identity.
 //!
 //! The initial memory state is provided via [`crate::mem_init::MemInit`].
 
 use crate::ajtai::decode_vector as ajtai_decode_vector;
-use crate::bit_ops::eq_bits_prod_table;
 use crate::mem_init::MemInit;
 use crate::sumcheck_proof::BatchedAddrProof;
 use crate::ts_common as ts;
@@ -371,13 +370,13 @@ pub fn build_route_a_twist_oracles<Cmt: Clone>(
     }
 
     // Compute Val_pre(r_addr, t) for all boolean time indices t.
-    let eq_wa = eq_bits_prod_table(&decoded.wa_bits, r_addr)?;
-    let mut cur = init_at_r_addr;
-    let mut val_pre_at_r_addr: Vec<KElem> = Vec::with_capacity(expected_pow2_time);
-    for t in 0..expected_pow2_time {
-        val_pre_at_r_addr.push(cur);
-        cur += decoded.has_write[t] * decoded.inc_at_write_addr[t] * eq_wa[t];
-    }
+    let val_pre_at_r_addr = compute_val_at_r_addr_pre_write(
+        &decoded.wa_bits,
+        &decoded.has_write,
+        &decoded.inc_at_write_addr,
+        r_addr,
+        init_at_r_addr,
+    );
 
     let read_check = TwistReadCheckOracle::new(
         &decoded.ra_bits,

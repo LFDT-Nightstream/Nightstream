@@ -522,7 +522,12 @@ where
         let twist_read_claims: Vec<K> = twist_pre.iter().map(|p| p.read_check_claim_sum).collect();
         let twist_write_claims: Vec<K> = twist_pre.iter().map(|p| p.write_check_claim_sum).collect();
         let mut mem_oracles = crate::memory_sidecar::memory::build_route_a_memory_oracles(
-            params, step, ell_n, &r_cycle, &shout_pre, &twist_pre,
+            params,
+            step,
+            ell_n,
+            &r_cycle,
+            &shout_pre,
+            &twist_pre,
         )?;
 
         let crate::memory_sidecar::route_a_time::RouteABatchedTimeProverOutput {
@@ -603,21 +608,21 @@ where
         // Memory sidecar: emit ME claims at the shared r_time (no fixed-challenge sumcheck).
         let prev_step = (idx > 0).then(|| &steps[idx - 1]);
         let prev_twist_decoded_ref = prev_twist_decoded.as_deref();
-        let mut mem_out = crate::memory_sidecar::memory::finalize_route_a_memory_prover(
-            tr,
-            params,
-            &s,
-            step,
-            prev_step,
-            prev_twist_decoded_ref,
-            &mut mem_oracles,
-            &shout_pre,
-            &twist_pre,
-            &r_time,
-            mcs_inst.m_in,
-            idx,
-        )?;
-        prev_twist_decoded = Some(twist_pre.into_iter().map(|p| p.decoded).collect());
+	        let mut mem_out = crate::memory_sidecar::memory::finalize_route_a_memory_prover(
+	            tr,
+	            params,
+	            &s,
+	            step,
+	            prev_step,
+	            prev_twist_decoded_ref,
+	            &mut mem_oracles,
+	            &shout_pre,
+	            &twist_pre,
+	            &r_time,
+	            mcs_inst.m_in,
+	            idx,
+	        )?;
+	        prev_twist_decoded = Some(twist_pre.into_iter().map(|p| p.decoded).collect());
 
         normalize_me_claims(&mut mem_out.mem.me_claims_time, ell_n, ell_d, s.t())?;
         normalize_me_claims(&mut mem_out.mem.me_claims_val, ell_n, ell_d, s.t())?;
@@ -1030,21 +1035,21 @@ where
 
         // Verify mem proofs and collect ME claims.
         let prev_step = (idx > 0).then(|| &steps[idx - 1]);
-        let mem_out = crate::memory_sidecar::memory::verify_route_a_memory_step(
-            tr,
-            params,
-            step,
-            prev_step,
-            &r_time,
-            &r_cycle,
-            &final_values,
-            &step_proof.batched_time.claimed_sums,
-            1, // claim 0 is CCS/time
-            &step_proof.mem,
-            &shout_pre,
-            &twist_pre,
-            idx,
-        )?;
+	        let mem_out = crate::memory_sidecar::memory::verify_route_a_memory_step(
+	            tr,
+	            params,
+	            step,
+	            prev_step,
+	            &r_time,
+	            &r_cycle,
+	            &final_values,
+	            &step_proof.batched_time.claimed_sums,
+	            1, // claim 0 is CCS/time
+	            &step_proof.mem,
+	            &shout_pre,
+	            &twist_pre,
+	            idx,
+	        )?;
         let crate::memory_sidecar::memory::RouteAMemoryVerifyOutput {
             collected_me_time,
             collected_me_val,

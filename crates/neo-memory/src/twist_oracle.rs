@@ -712,21 +712,6 @@ fn addrs_from_bits(bit_cols: &[Vec<K>]) -> Vec<usize> {
     out
 }
 
-fn fold_table_in_place(table: &mut Vec<K>, r: K) {
-    let len = table.len();
-    debug_assert!(len.is_power_of_two());
-    if len <= 1 {
-        return;
-    }
-    let half = len / 2;
-    for i in 0..half {
-        let f0 = table[2 * i];
-        let f1 = table[2 * i + 1];
-        table[i] = f0 + (f1 - f0) * r;
-    }
-    table.truncate(half);
-}
-
 fn update_prefix_weights_in_place(weights: &mut [K], addrs: &[usize], bit_idx: usize, r: K) {
     let r0 = K::ONE - r;
     for (w, &a) in weights.iter_mut().zip(addrs.iter()) {
@@ -745,10 +730,16 @@ fn update_prefix_weights_in_place(weights: &mut [K], addrs: &[usize], bit_idx: u
 ///
 /// The sum-check binds `addr = r_addr` and returns the time-lane claimed sum:
 ///   Σ_t χ_{r_cycle}(t)·has_read(t)·eq(r_addr, ra_bits(t))·(Val_pre(r_addr,t) - rv(t)).
+///
+/// This implementation avoids allocating an O(k) dense table by maintaining the
+/// folded initial state in sparse form and simulating only the touched indices
+/// per round.
 pub struct TwistReadCheckAddrOracle {
     ell_addr: usize,
     bit_idx: usize,
     degree_bound: usize,
+
+    mem_scratch: std::collections::HashMap<usize, K>,
 
     eq_cycle: Vec<K>,
     has_read: Vec<K>,
@@ -760,7 +751,9 @@ pub struct TwistReadCheckAddrOracle {
     ra_addrs: Vec<usize>,
     wa_addrs: Vec<usize>,
 
-    init_fold: Vec<K>,
+    init_addrs: Vec<usize>,
+    init_vals: Vec<K>,
+    init_prefix_w: Vec<K>,
     ra_prefix_w: Vec<K>,
     wa_prefix_w: Vec<K>,
 }
@@ -768,7 +761,7 @@ pub struct TwistReadCheckAddrOracle {
 impl TwistReadCheckAddrOracle {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        init: Vec<K>,
+        init_sparse: Vec<(usize, K)>,
         r_cycle: &[K],
         has_read: Vec<K>,
         rv: Vec<K>,
@@ -790,7 +783,9 @@ impl TwistReadCheckAddrOracle {
         let ell_addr = ra_bits.len();
         assert_eq!(wa_bits.len(), ell_addr, "wa_bits/ra_bits length mismatch");
         let pow2_addr = 1usize << ell_addr;
-        assert_eq!(init.len(), pow2_addr, "init length must match address domain");
+        for (addr, _) in init_sparse.iter() {
+            assert!(*addr < pow2_addr, "init address out of range");
+        }
 
         for col in ra_bits {
             assert_eq!(col.len(), pow2_time, "ra_bits column length mismatch");
@@ -803,10 +798,13 @@ impl TwistReadCheckAddrOracle {
         let ra_addrs = addrs_from_bits(ra_bits);
         let wa_addrs = addrs_from_bits(wa_bits);
 
+        let (init_addrs, init_vals): (Vec<usize>, Vec<K>) = init_sparse.into_iter().unzip();
+
         Self {
             ell_addr,
             bit_idx: 0,
             degree_bound: 2,
+            mem_scratch: std::collections::HashMap::with_capacity(init_addrs.len()),
             eq_cycle,
             has_read,
             rv,
@@ -814,7 +812,9 @@ impl TwistReadCheckAddrOracle {
             inc_at_write_addr,
             ra_addrs,
             wa_addrs,
-            init_fold: init,
+            init_prefix_w: vec![K::ONE; init_addrs.len()],
+            init_addrs,
+            init_vals,
             ra_prefix_w: vec![K::ONE; pow2_time],
             wa_prefix_w: vec![K::ONE; pow2_time],
         }
@@ -825,25 +825,47 @@ impl RoundOracle for TwistReadCheckAddrOracle {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
         if self.num_rounds() == 0 {
             // Constant polynomial; return value for all points.
-            let mut ys = vec![K::ZERO; points.len()];
-            let mut mem = self.init_fold.clone();
+            let mut mem = K::ZERO;
+            for ((&val, &w), _addr) in self
+                .init_vals
+                .iter()
+                .zip(self.init_prefix_w.iter())
+                .zip(self.init_addrs.iter())
+            {
+                mem += val * w;
+            }
+
+            let mut sum = K::ZERO;
             for t in 0..self.eq_cycle.len() {
-                let val = mem[0];
-                let diff = val - self.rv[t];
-                ys[0] += self.eq_cycle[t] * self.has_read[t] * self.ra_prefix_w[t] * diff;
+                let diff = mem - self.rv[t];
+                sum += self.eq_cycle[t] * self.has_read[t] * self.ra_prefix_w[t] * diff;
 
                 let has_w = self.has_write[t];
                 if has_w != K::ZERO {
-                    mem[0] += self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                    mem += self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
                 }
             }
-            let val = ys[0];
-            return vec![val; points.len()];
+            return vec![sum; points.len()];
         }
 
         let bit_idx = self.bit_idx;
         let mut ys = vec![K::ZERO; points.len()];
-        let mut mem = self.init_fold.clone();
+
+        // Build initial folded table sparsely from init entries at this bit_idx.
+        self.mem_scratch.clear();
+        let mem = &mut self.mem_scratch;
+        for ((&addr, &val), &w) in self
+            .init_addrs
+            .iter()
+            .zip(self.init_vals.iter())
+            .zip(self.init_prefix_w.iter())
+        {
+            let idx = addr >> bit_idx;
+            let contrib = val * w;
+            if contrib != K::ZERO {
+                *mem.entry(idx).or_insert(K::ZERO) += contrib;
+            }
+        }
 
         for t in 0..self.eq_cycle.len() {
             let eq_t = self.eq_cycle[t];
@@ -853,8 +875,8 @@ impl RoundOracle for TwistReadCheckAddrOracle {
                 let base = ra >> (bit_idx + 1);
                 let idx0 = base * 2;
                 let idx1 = idx0 + 1;
-                let v0 = mem[idx0];
-                let v1 = mem[idx1];
+                let v0 = mem.get(&idx0).copied().unwrap_or(K::ZERO);
+                let v1 = mem.get(&idx1).copied().unwrap_or(K::ZERO);
                 let dv = v1 - v0;
                 let rv_t = self.rv[t];
                 let prefix = self.ra_prefix_w[t];
@@ -863,8 +885,7 @@ impl RoundOracle for TwistReadCheckAddrOracle {
                 for (i, &x) in points.iter().enumerate() {
                     let val_x = v0 + dv * x;
                     let addr_factor = if bit == 1 { x } else { K::ONE - x };
-                    let term = eq_t * gate * prefix * addr_factor * (val_x - rv_t);
-                    ys[i] += term;
+                    ys[i] += eq_t * gate * prefix * addr_factor * (val_x - rv_t);
                 }
             }
 
@@ -872,7 +893,10 @@ impl RoundOracle for TwistReadCheckAddrOracle {
             if has_w != K::ZERO {
                 let wa = self.wa_addrs[t];
                 let idx = wa >> bit_idx;
-                mem[idx] += self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                let delta = self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                if delta != K::ZERO {
+                    *mem.entry(idx).or_insert(K::ZERO) += delta;
+                }
             }
         }
 
@@ -891,7 +915,7 @@ impl RoundOracle for TwistReadCheckAddrOracle {
         if self.num_rounds() == 0 {
             return;
         }
-        fold_table_in_place(&mut self.init_fold, r);
+        update_prefix_weights_in_place(&mut self.init_prefix_w, &self.init_addrs, self.bit_idx, r);
         update_prefix_weights_in_place(&mut self.ra_prefix_w, &self.ra_addrs, self.bit_idx, r);
         update_prefix_weights_in_place(&mut self.wa_prefix_w, &self.wa_addrs, self.bit_idx, r);
         self.bit_idx += 1;
@@ -910,6 +934,8 @@ pub struct TwistWriteCheckAddrOracle {
     bit_idx: usize,
     degree_bound: usize,
 
+    mem_scratch: std::collections::HashMap<usize, K>,
+
     eq_cycle: Vec<K>,
     has_write: Vec<K>,
     wv: Vec<K>,
@@ -917,14 +943,16 @@ pub struct TwistWriteCheckAddrOracle {
 
     wa_addrs: Vec<usize>,
 
-    init_fold: Vec<K>,
+    init_addrs: Vec<usize>,
+    init_vals: Vec<K>,
+    init_prefix_w: Vec<K>,
     wa_prefix_w: Vec<K>,
 }
 
 impl TwistWriteCheckAddrOracle {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        init: Vec<K>,
+        init_sparse: Vec<(usize, K)>,
         r_cycle: &[K],
         has_write: Vec<K>,
         wv: Vec<K>,
@@ -942,7 +970,9 @@ impl TwistWriteCheckAddrOracle {
 
         let ell_addr = wa_bits.len();
         let pow2_addr = 1usize << ell_addr;
-        assert_eq!(init.len(), pow2_addr, "init length must match address domain");
+        for (addr, _) in init_sparse.iter() {
+            assert!(*addr < pow2_addr, "init address out of range");
+        }
         for col in wa_bits {
             assert_eq!(col.len(), pow2_time, "wa_bits column length mismatch");
         }
@@ -950,16 +980,21 @@ impl TwistWriteCheckAddrOracle {
         let eq_cycle = build_eq_table(r_cycle);
         let wa_addrs = addrs_from_bits(wa_bits);
 
+        let (init_addrs, init_vals): (Vec<usize>, Vec<K>) = init_sparse.into_iter().unzip();
+
         Self {
             ell_addr,
             bit_idx: 0,
             degree_bound: 2,
+            mem_scratch: std::collections::HashMap::with_capacity(init_addrs.len()),
             eq_cycle,
             has_write,
             wv,
             inc_at_write_addr,
             wa_addrs,
-            init_fold: init,
+            init_prefix_w: vec![K::ONE; init_addrs.len()],
+            init_addrs,
+            init_vals,
             wa_prefix_w: vec![K::ONE; pow2_time],
         }
     }
@@ -968,16 +1003,19 @@ impl TwistWriteCheckAddrOracle {
 impl RoundOracle for TwistWriteCheckAddrOracle {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
         if self.num_rounds() == 0 {
-            let mut mem = self.init_fold.clone();
+            let mut mem = K::ZERO;
+            for (&val, &w) in self.init_vals.iter().zip(self.init_prefix_w.iter()) {
+                mem += val * w;
+            }
+
             let mut sum = K::ZERO;
             for t in 0..self.eq_cycle.len() {
-                let val = mem[0];
-                let delta = self.wv[t] - val - self.inc_at_write_addr[t];
+                let delta = self.wv[t] - mem - self.inc_at_write_addr[t];
                 sum += self.eq_cycle[t] * self.has_write[t] * self.wa_prefix_w[t] * delta;
 
                 let has_w = self.has_write[t];
                 if has_w != K::ZERO {
-                    mem[0] += self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                    mem += self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
                 }
             }
             return vec![sum; points.len()];
@@ -985,7 +1023,21 @@ impl RoundOracle for TwistWriteCheckAddrOracle {
 
         let bit_idx = self.bit_idx;
         let mut ys = vec![K::ZERO; points.len()];
-        let mut mem = self.init_fold.clone();
+
+        self.mem_scratch.clear();
+        let mem = &mut self.mem_scratch;
+        for ((&addr, &val), &w) in self
+            .init_addrs
+            .iter()
+            .zip(self.init_vals.iter())
+            .zip(self.init_prefix_w.iter())
+        {
+            let idx = addr >> bit_idx;
+            let contrib = val * w;
+            if contrib != K::ZERO {
+                *mem.entry(idx).or_insert(K::ZERO) += contrib;
+            }
+        }
 
         for t in 0..self.eq_cycle.len() {
             let eq_t = self.eq_cycle[t];
@@ -995,8 +1047,8 @@ impl RoundOracle for TwistWriteCheckAddrOracle {
                 let base = wa >> (bit_idx + 1);
                 let idx0 = base * 2;
                 let idx1 = idx0 + 1;
-                let v0 = mem[idx0];
-                let v1 = mem[idx1];
+                let v0 = mem.get(&idx0).copied().unwrap_or(K::ZERO);
+                let v1 = mem.get(&idx1).copied().unwrap_or(K::ZERO);
                 let dv = v1 - v0;
                 let wv_t = self.wv[t];
                 let inc_t = self.inc_at_write_addr[t];
@@ -1006,8 +1058,7 @@ impl RoundOracle for TwistWriteCheckAddrOracle {
                 for (i, &x) in points.iter().enumerate() {
                     let val_x = v0 + dv * x;
                     let addr_factor = if bit == 1 { x } else { K::ONE - x };
-                    let term = eq_t * gate * prefix * addr_factor * (wv_t - val_x - inc_t);
-                    ys[i] += term;
+                    ys[i] += eq_t * gate * prefix * addr_factor * (wv_t - val_x - inc_t);
                 }
             }
 
@@ -1015,7 +1066,10 @@ impl RoundOracle for TwistWriteCheckAddrOracle {
             if has_w != K::ZERO {
                 let wa = self.wa_addrs[t];
                 let idx = wa >> bit_idx;
-                mem[idx] += self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                let delta = self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                if delta != K::ZERO {
+                    *mem.entry(idx).or_insert(K::ZERO) += delta;
+                }
             }
         }
 
@@ -1034,7 +1088,7 @@ impl RoundOracle for TwistWriteCheckAddrOracle {
         if self.num_rounds() == 0 {
             return;
         }
-        fold_table_in_place(&mut self.init_fold, r);
+        update_prefix_weights_in_place(&mut self.init_prefix_w, &self.init_addrs, self.bit_idx, r);
         update_prefix_weights_in_place(&mut self.wa_prefix_w, &self.wa_addrs, self.bit_idx, r);
         self.bit_idx += 1;
     }

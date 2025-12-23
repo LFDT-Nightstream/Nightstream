@@ -34,6 +34,8 @@ use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{check_me_consistency, CcsStructure, McsInstance, McsWitness, MeInstance, MeWitness};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::memory_sidecar::claim_plan::RouteATimeClaimPlan;
+use neo_fold::memory_sidecar::memory::{ShoutAddrPreVerifyData, TwistAddrPreVerifyData, verify_route_a_memory_step};
 use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{
     fold_shard_prove, fold_shard_prove_with_witnesses, fold_shard_verify, MemOrLutProof, ShardFoldOutputs, ShardProof,
@@ -495,6 +497,71 @@ fn test_twist_only_route_a_wrong_inc_witness_fails() {
     );
 
     assert!(result.is_err(), "invalid Twist inc witness must fail proving");
+}
+
+#[test]
+#[cfg(feature = "paper-exact")]
+fn test_twist_route_a_time_claimed_sum_must_match_addr_pre_final() {
+    let ctx = TwistOnlyHarness::new();
+    let proof = ctx.prove().expect("prove should succeed");
+    assert!(ctx.verify(&proof).is_ok(), "sanity: proof should verify");
+
+    let step = StepInstanceBundle::from(&ctx.steps[0]);
+    let step_proof = &proof.steps[0];
+
+    let claim_plan = RouteATimeClaimPlan::build(&step, 1).expect("claim plan");
+    let twist_claims = claim_plan.twist.first().expect("missing Twist claim schedule");
+
+    let (r_addr, read_check_claim_sum, write_check_claim_sum) = match &step_proof.mem.proofs[0] {
+        MemOrLutProof::Twist(p) => (
+            p.addr_pre.r_addr.clone(),
+            step_proof.batched_time.claimed_sums[twist_claims.read_check],
+            step_proof.batched_time.claimed_sums[twist_claims.write_check],
+        ),
+        _ => panic!("expected Twist proof at index 0"),
+    };
+
+    let shout_pre: Vec<ShoutAddrPreVerifyData> = Vec::new();
+    let twist_pre = vec![TwistAddrPreVerifyData {
+        r_addr,
+        read_check_claim_sum,
+        write_check_claim_sum,
+    }];
+
+    let mut bad_claimed_sums = step_proof.batched_time.claimed_sums.clone();
+    bad_claimed_sums[twist_claims.read_check] += K::ONE;
+    let dummy_final_values = vec![K::ZERO; step_proof.batched_time.claimed_sums.len()];
+
+    let r_time = &step_proof.fold.ccs_out[0].r;
+    let r_cycle = r_time.clone(); // any point with correct length suffices for this negative test
+    let mut tr = Poseidon2Transcript::new(b"twist-only-claim-sum-mismatch");
+
+    let err = match verify_route_a_memory_step(
+        &mut tr,
+        &ctx.params,
+        &step,
+        None,
+        r_time,
+        &r_cycle,
+        &dummy_final_values,
+        &bad_claimed_sums,
+        1, // claim 0 is CCS/time
+        &step_proof.mem,
+        &shout_pre,
+        &twist_pre,
+        0,
+    ) {
+        Ok(_) => panic!("mismatched twist claimed sums must fail"),
+        Err(e) => e,
+    };
+
+    match err {
+        PiCcsError::ProtocolError(msg) => assert!(
+            msg.contains("twist read_check claimed sum != addr-pre final"),
+            "unexpected ProtocolError: {msg}"
+        ),
+        other => panic!("expected ProtocolError, got {other:?}"),
+    }
 }
 
 #[test]

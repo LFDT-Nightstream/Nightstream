@@ -9,8 +9,8 @@ use neo_ccs::{
     poly::SparsePoly,
     relations::{CcsStructure, McsInstance, McsWitness, MeInstance},
 };
-use neo_fold::folding::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify, fold_shard_verify_and_finalize, ShardObligations};
+use neo_fold::shard::CommitMixers;
 use neo_fold::{finalize::ObligationFinalizer, PiCcsError};
 use neo_math::{D, K};
 use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
@@ -250,7 +250,6 @@ fn full_folding_integration_single_chunk() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     )
     .expect("verify should succeed");
@@ -370,7 +369,6 @@ fn full_folding_integration_multi_step_chunk() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     )
     .expect("verify should succeed");
@@ -412,7 +410,6 @@ fn tamper_batched_claimed_sum_fails() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     );
 
@@ -450,7 +447,6 @@ fn tamper_me_opening_fails() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     );
 
@@ -496,7 +492,6 @@ fn tamper_shout_addr_pre_round_poly_fails() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     );
 
@@ -546,7 +541,6 @@ fn tamper_twist_val_eval_round_poly_fails() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     );
 
@@ -590,7 +584,6 @@ fn missing_val_fold_fails() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     );
 
@@ -641,7 +634,6 @@ fn verify_and_finalize_receives_val_lane() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
         &mut fin,
     )
@@ -687,7 +679,6 @@ fn wrong_shout_lookup_value_witness_fails() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     );
 

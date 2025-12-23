@@ -14,7 +14,7 @@ use crate::error::{Result, SpartanBridgeError};
 use crate::CircuitF;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, MeInstance};
-use neo_fold::folding::FoldRun;
+use neo_fold::shard::ShardProof as FoldRun;
 use neo_math::{F as NeoF, K as NeoK};
 use neo_params::NeoParams;
 use neo_reductions::common::format_ext;
@@ -76,8 +76,8 @@ pub fn prove_fold_run(
             eprintln!("\n[spartan-bridge] === Step {} ===", step_idx);
             eprintln!(
                 "[spartan-bridge]   ccs_out.len() = {}, dec_children.len() = {}",
-                step.ccs_out.len(),
-                step.dec_children.len()
+                step.fold.ccs_out.len(),
+                step.fold.dec_children.len()
             );
             eprintln!(
                 "[spartan-bridge]   sumcheck_rounds = {}, sumcheck_challenges = {}",
@@ -93,7 +93,7 @@ pub fn prove_fold_run(
 
             // Compute scalar T and RHS using the native paper-exact utilities
             // for comparison.
-            if !step.ccs_out.is_empty() {
+            if !step.fold.ccs_out.is_empty() {
                 let dims = neo_reductions::engines::utils::build_dims_and_policy(params, ccs)
                     .map_err(SpartanBridgeError::NeoError)?;
                 let ell_n = dims.ell_n;
@@ -104,7 +104,7 @@ pub fn prove_fold_run(
                 let me_inputs: Vec<MeInstance<Cmt, NeoF, NeoK>> = if step_idx == 0 {
                     initial_accumulator.to_vec()
                 } else {
-                    fold_run.steps[step_idx - 1].dec_children.clone()
+                    fold_run.steps[step_idx - 1].fold.dec_children.clone()
                 };
 
                 let T_native = claimed_initial_sum_from_inputs::<NeoF>(ccs, &proof.challenges_public, &me_inputs);
@@ -190,11 +190,11 @@ pub fn prove_fold_run(
                     &proof.challenges_public,
                     &ch.r_prime,
                     &ch.alpha_prime,
-                    &step.ccs_out,
+                    &step.fold.ccs_out,
                     if step_idx == 0 {
                         Some(&initial_accumulator[0].r)
                     } else {
-                        Some(&fold_run.steps[step_idx - 1].dec_children[0].r)
+                        Some(&fold_run.steps[step_idx - 1].fold.dec_children[0].r)
                     },
                 );
                 eprintln!("[spartan-bridge]   rhs_native(α′,r′) = {}", format_ext(rhs_native));
@@ -373,7 +373,7 @@ fn extract_challenges_from_fold_run(
 
     let mut out = Vec::with_capacity(fold_run.steps.len());
     for (step_idx, step) in fold_run.steps.iter().enumerate() {
-        let proof = &step.ccs_proof;
+        let proof = &step.fold.ccs_proof;
 
         if proof.sumcheck_rounds.len() != ell {
             return Err(SpartanBridgeError::InvalidInput(format!(

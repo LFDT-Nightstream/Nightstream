@@ -1,31 +1,25 @@
-//! Shard-level folding: CPU (CCS) + Memory sidecar (Twist/Shout).
+//! Shard-level folding: CPU (Π_CCS) + memory sidecar (Twist/Shout) via Route A.
 //!
-//! Architecture (per integration-summary.md):
+//! High-level flow (per step):
+//! 1. Bind CCS header + carried ME inputs.
+//! 2. Prove/verify a *batched* time/row sum-check that shares `r_time` across CCS + Twist/Shout time oracles.
+//! 3. Finish CCS Ajtai rounds using the CCS oracle state after the batched rounds.
+//! 4. Finalize the memory sidecar at the shared `r_time` (and optionally produce Twist `r_val` claims).
+//! 5. Fold all `r_time` ME claims (CCS outputs + memory claims) via Π_RLC → Π_DEC into `k_rho` children.
+//! 6. If Twist produces `r_val` ME claims, fold them in a separate Π_RLC → Π_DEC lane.
 //!
-//! At each folding step, aggregate:
-//! 1. (k) running ME instances
-//! 2. fresh ME instances from Π_CCS
-//! 3. fresh ME instances from Π_Twist and Π_Shout
-//! 4. fresh ME instances from Index→OneHot adapter
-//!
-//! Then: (all ME claims) → Π_RLC → Π_DEC → k_rho children
-//!
-//! CURRENT IMPLEMENTATION (simplified):
-//! - CPU folding runs first (Π_CCS → Π_RLC → Π_DEC per step)
-//! - Memory sidecar proved after CPU folding
-//! - Final merge combines CPU output + memory ME via Π_RLC → Π_DEC
-//!
-//! TODO: True per-step integration requires per-step memory instances.
+//! Notes:
+//! - CCS-only folding is supported by passing steps with empty LUT/MEM vectors.
+//! - Index→OneHot adapter is integrated via the Shout address-domain proving flow.
 
 #![allow(non_snake_case)]
 
 use crate::finalize::ObligationFinalizer;
-use crate::folding::{CommitMixers, FoldStep};
 use crate::memory_sidecar::sumcheck_ds::{run_sumcheck_prover_ds, verify_sumcheck_rounds_ds};
 use crate::memory_sidecar::utils::RoundOraclePrefix;
 use crate::pi_ccs::{self as ccs, FoldingMode};
 pub use crate::shard_proof_types::{
-    BatchedTimeProof, MemOrLutProof, MemSidecarProof, RlcDecProof, ShardFoldOutputs, ShardFoldWitnesses,
+    BatchedTimeProof, FoldStep, MemOrLutProof, MemSidecarProof, RlcDecProof, ShardFoldOutputs, ShardFoldWitnesses,
     ShardObligations, ShardProof, ShoutProofK, StepProof, TwistProofK,
 };
 use crate::PiCcsError;
@@ -38,7 +32,7 @@ use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils;
 use neo_reductions::paper_exact_engine::{
-    build_me_outputs_paper_exact, claimed_initial_sum_from_inputs, rhs_terminal_identity_paper_exact,
+    build_me_outputs_paper_exact, claimed_initial_sum_from_inputs,
 };
 use neo_reductions::sumcheck::{poly_eval_k, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -49,6 +43,19 @@ use p3_field::PrimeCharacteristicRing;
 // ============================================================================
 
 pub use crate::memory_sidecar::memory::absorb_step_memory_commitments;
+
+/// Commitment mixers so the coordinator stays scheme-agnostic.
+/// - `mix_rhos_commits(ρ, cs)` returns Σ ρ_i · c_i  (S-action).
+/// - `combine_b_pows(cs, b)` returns Σ \bar b^{i-1} c_i  (DEC check).
+#[derive(Clone, Copy)]
+pub struct CommitMixers<MR, MB>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
+    MB: Fn(&[Cmt], u32) -> Cmt,
+{
+    pub mix_rhos_commits: MR,
+    pub combine_b_pows: MB,
+}
 
 pub fn normalize_me_claims(
     me_claims: &mut [MeInstance<Cmt, F, K>],
@@ -192,15 +199,66 @@ fn pad_mats_to_ccs_width(mats: &[Mat<F>], target_cols: usize) -> Result<Vec<Mat<
         .collect()
 }
 
+#[derive(Clone, Copy, Debug)]
+enum RlcLane {
+    Main,
+    Val,
+}
+
+fn bind_rlc_inputs(
+    tr: &mut Poseidon2Transcript,
+    lane: RlcLane,
+    step_idx: usize,
+    me_inputs: &[MeInstance<Cmt, F, K>],
+) -> Result<(), PiCcsError> {
+    let lane_scope: &'static [u8] = match lane {
+        RlcLane::Main => b"main",
+        RlcLane::Val => b"val",
+    };
+
+    tr.append_message(b"fold/rlc_inputs/v1", lane_scope);
+    tr.append_u64s(b"step_idx", &[step_idx as u64]);
+    tr.append_u64s(b"me_count", &[me_inputs.len() as u64]);
+
+    for me in me_inputs {
+        tr.append_fields(b"c_data", &me.c.data);
+        tr.append_u64s(b"m_in", &[me.m_in as u64]);
+        tr.append_message(b"me_fold_digest", &me.fold_digest);
+
+        for limb in &me.r {
+            tr.append_fields(b"r_limb", &limb.as_coeffs());
+        }
+
+        tr.append_fields(b"X", me.X.as_slice());
+
+        for yj in &me.y {
+            for &y_elem in yj {
+                tr.append_fields(b"y_elem", &y_elem.as_coeffs());
+            }
+        }
+
+        for ysc in &me.y_scalars {
+            tr.append_fields(b"y_scalar", &ysc.as_coeffs());
+        }
+
+        tr.append_u64s(b"c_step_coords_len", &[me.c_step_coords.len() as u64]);
+        tr.append_fields(b"c_step_coords", &me.c_step_coords);
+        tr.append_u64s(b"u_offset", &[me.u_offset as u64]);
+        tr.append_u64s(b"u_len", &[me.u_len as u64]);
+    }
+
+    Ok(())
+}
+
 fn prove_rlc_dec_lane<L, MR, MB>(
     mode: &FoldingMode,
+    lane: RlcLane,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s: &CcsStructure<F>,
     ring: &ccs::RotRing,
     ell_d: usize,
     k_dec: usize,
-    lane_label: &'static str,
     step_idx: usize,
     me_inputs: &[MeInstance<Cmt, F, K>],
     wit_inputs: &[Mat<F>],
@@ -212,6 +270,7 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
+    bind_rlc_inputs(tr, lane, step_idx, me_inputs)?;
     let rlc_rhos = ccs::sample_rot_rhos_n(tr, params, ring, me_inputs.len())?;
     let (rlc_parent, Z_mix) = ccs::rlc_with_commit(
         mode.clone(),
@@ -237,6 +296,10 @@ where
         mixers.combine_b_pows,
     );
     if !(ok_y && ok_X && ok_c) {
+        let lane_label = match lane {
+            RlcLane::Main => "DEC",
+            RlcLane::Val => "DEC(val)",
+        };
         return Err(PiCcsError::ProtocolError(format!(
             "{} public check failed at step {} (y={}, X={}, c={})",
             lane_label, step_idx, ok_y, ok_X, ok_c
@@ -251,12 +314,6 @@ where
         },
         Z_split,
     ))
-}
-
-#[derive(Clone, Copy, Debug)]
-enum RlcLane {
-    Main,
-    Val,
 }
 
 fn verify_rlc_dec_lane<MR, MB>(
@@ -277,6 +334,8 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
+    bind_rlc_inputs(tr, lane, step_idx, rlc_inputs)?;
+
     if rlc_rhos.len() != rlc_inputs.len() {
         let prefix = match lane {
             RlcLane::Main => "",
@@ -295,7 +354,7 @@ where
     for (j, (sampled, stored)) in rhos_from_tr.iter().zip(rlc_rhos.iter()).enumerate() {
         if sampled.as_slice() != stored.as_slice() {
             return Err(PiCcsError::ProtocolError(match lane {
-                RlcLane::Main => format!("RLC ρ #{} mismatch: transcript vs proof", j),
+                RlcLane::Main => format!("step {}: RLC ρ #{} mismatch: transcript vs proof", step_idx, j),
                 RlcLane::Val => format!("step {}: val-lane RLC ρ #{} mismatch: transcript vs proof", step_idx, j),
             }));
         }
@@ -308,25 +367,31 @@ where
         RlcLane::Val => "val-lane ",
     };
     if parent_pub.X.as_slice() != rlc_parent.X.as_slice() {
-        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC X mismatch")));
+        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC X mismatch", step_idx)));
     }
     if parent_pub.c != rlc_parent.c {
-        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC commitment mismatch")));
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: {prefix}RLC commitment mismatch",
+            step_idx
+        )));
     }
     if parent_pub.r != rlc_parent.r {
-        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC r mismatch")));
+        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC r mismatch", step_idx)));
     }
     if parent_pub.y != rlc_parent.y {
-        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC y mismatch")));
+        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC y mismatch", step_idx)));
     }
     if parent_pub.y_scalars != rlc_parent.y_scalars {
-        return Err(PiCcsError::ProtocolError(format!("{prefix}RLC y_scalars mismatch")));
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: {prefix}RLC y_scalars mismatch",
+            step_idx
+        )));
     }
 
     if !ccs::verify_dec_public(s, params, rlc_parent, dec_children, mixers.combine_b_pows, ell_d) {
         return Err(PiCcsError::ProtocolError(match lane {
-            RlcLane::Main => "DEC public check failed".into(),
-            RlcLane::Val => "val-lane DEC public check failed".into(),
+            RlcLane::Main => format!("step {}: DEC public check failed", step_idx),
+            RlcLane::Val => format!("step {}: val-lane DEC public check failed", step_idx),
         }));
     }
 
@@ -557,22 +622,26 @@ where
         normalize_me_claims(&mut mem_out.mem.me_claims_time, ell_n, ell_d, s.t())?;
         normalize_me_claims(&mut mem_out.mem.me_claims_val, ell_n, ell_d, s.t())?;
 
+        validate_me_batch_invariants(&ccs_out, "prove step ccs outputs")?;
+        validate_me_batch_invariants(&mem_out.mem.me_claims_time, "prove step memory outputs")?;
+
         // Build RLC inputs: CCS outputs + memory ME
         let mut rlc_inputs = ccs_out.clone();
         rlc_inputs.extend(mem_out.mem.me_claims_time.clone());
+        validate_me_batch_invariants(&rlc_inputs, "prove step RLC inputs (ccs_out + mem_time)")?;
 
         let mut rlc_wits = outs_Z.clone();
         rlc_wits.extend(pad_mats_to_ccs_width(&mem_out.me_wits_time, s.m)?);
 
         let (main_fold, Z_split) = prove_rlc_dec_lane(
             &mode,
+            RlcLane::Main,
             tr,
             params,
             &s,
             &ring,
             ell_d,
             k_dec,
-            "DEC",
             idx,
             &rlc_inputs,
             &rlc_wits,
@@ -604,13 +673,13 @@ where
             let val_wits = pad_mats_to_ccs_width(&mem_out.me_wits_val, s.m)?;
             let (val_fold, mut Z_split_val) = prove_rlc_dec_lane(
                 &mode,
+                RlcLane::Val,
                 tr,
                 params,
                 &s,
                 &ring,
                 ell_d,
                 k_dec,
-                "DEC(val)",
                 idx,
                 &mem_out.mem.me_claims_val,
                 &val_wits,
@@ -715,19 +784,17 @@ where
 // Shard Verification
 // ============================================================================
 
-pub fn fold_shard_verify<L, MR, MB>(
-    _mode: FoldingMode,
+pub fn fold_shard_verify<MR, MB>(
+    mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s_me: &CcsStructure<F>,
     steps: &[StepInstanceBundle<Cmt, F, K>],
     acc_init: &[MeInstance<Cmt, F, K>],
     proof: &ShardProof,
-    _l: &L,
     mixers: CommitMixers<MR, MB>,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
-    L: SModuleHomomorphism<F, Cmt>,
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
@@ -770,9 +837,28 @@ where
         utils::bind_header_and_instances(tr, params, &s, core::slice::from_ref(mcs_inst), ell, d_sc, 0)?;
         utils::bind_me_inputs(tr, &accumulator)?;
         let ch = utils::sample_challenges(tr, ell_d, ell)?;
+        let expected_ch = &step_proof.fold.ccs_proof.challenges_public;
+        if expected_ch.alpha != ch.alpha
+            || expected_ch.beta_a != ch.beta_a
+            || expected_ch.beta_r != ch.beta_r
+            || expected_ch.gamma != ch.gamma
+        {
+            return Err(PiCcsError::ProtocolError(format!(
+                "step {}: Π_CCS challenges_public mismatch",
+                idx
+            )));
+        }
 
-        // Public initial sum T for CCS sumcheck.
-        let claimed_initial = claimed_initial_sum_from_inputs(&s, &ch, &accumulator);
+        // Public initial sum T for CCS sumcheck (engine-selected).
+        let claimed_initial = match &mode {
+            FoldingMode::Optimized => crate::optimized_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator),
+            #[cfg(feature = "paper-exact")]
+            FoldingMode::PaperExact => crate::paper_exact_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator),
+            #[cfg(feature = "paper-exact")]
+            FoldingMode::OptimizedWithCrosscheck(_) => {
+                crate::optimized_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator)
+            }
+        };
         if let Some(x) = step_proof.fold.ccs_proof.sc_initial_sum {
             if x != claimed_initial {
                 return Err(PiCcsError::SumcheckError(
@@ -901,16 +987,38 @@ where
             }
         }
 
-        // Paper-exact RHS assembly for CCS terminal identity.
-        let rhs = rhs_terminal_identity_paper_exact(
-            &s,
-            params,
-            &ch,
-            &r_time,
-            &ajtai_chals,
-            &step_proof.fold.ccs_out,
-            accumulator.first().map(|mi| mi.r.as_slice()),
-        );
+        // Engine-selected RHS assembly for CCS terminal identity.
+        let rhs = match &mode {
+            FoldingMode::Optimized => crate::optimized_engine::rhs_terminal_identity_paper_exact(
+                &s,
+                params,
+                &ch,
+                &r_time,
+                &ajtai_chals,
+                &step_proof.fold.ccs_out,
+                accumulator.first().map(|mi| mi.r.as_slice()),
+            ),
+            #[cfg(feature = "paper-exact")]
+            FoldingMode::PaperExact => crate::paper_exact_engine::rhs_terminal_identity_paper_exact(
+                &s,
+                params,
+                &ch,
+                &r_time,
+                &ajtai_chals,
+                &step_proof.fold.ccs_out,
+                accumulator.first().map(|mi| mi.r.as_slice()),
+            ),
+            #[cfg(feature = "paper-exact")]
+            FoldingMode::OptimizedWithCrosscheck(_) => crate::optimized_engine::rhs_terminal_identity_paper_exact(
+                &s,
+                params,
+                &ch,
+                &r_time,
+                &ajtai_chals,
+                &step_proof.fold.ccs_out,
+                accumulator.first().map(|mi| mi.r.as_slice()),
+            ),
+        };
         if running_sum != rhs {
             return Err(PiCcsError::SumcheckError("Π_CCS terminal identity check failed".into()));
         }
@@ -970,6 +1078,7 @@ where
 
         let mut rlc_inputs = step_proof.fold.ccs_out.clone();
         rlc_inputs.extend_from_slice(&collected_me_time);
+        validate_me_batch_invariants(&rlc_inputs, "verify step RLC inputs (ccs_out + mem_time)")?;
         verify_rlc_dec_lane(
             RlcLane::Main,
             tr,
@@ -1034,7 +1143,7 @@ where
     })
 }
 
-pub fn fold_shard_verify_and_finalize<L, MR, MB, Fin>(
+pub fn fold_shard_verify_and_finalize<MR, MB, Fin>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -1042,17 +1151,15 @@ pub fn fold_shard_verify_and_finalize<L, MR, MB, Fin>(
     steps: &[StepInstanceBundle<Cmt, F, K>],
     acc_init: &[MeInstance<Cmt, F, K>],
     proof: &ShardProof,
-    l: &L,
     mixers: CommitMixers<MR, MB>,
     finalizer: &mut Fin,
 ) -> Result<(), PiCcsError>
 where
-    L: SModuleHomomorphism<F, Cmt>,
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
     Fin: ObligationFinalizer<Cmt, F, K, Error = PiCcsError>,
 {
-    let outputs = fold_shard_verify(mode, tr, params, s_me, steps, acc_init, proof, l, mixers)?;
+    let outputs = fold_shard_verify(mode, tr, params, s_me, steps, acc_init, proof, mixers)?;
     finalizer.finalize(&outputs.obligations)?;
     Ok(())
 }

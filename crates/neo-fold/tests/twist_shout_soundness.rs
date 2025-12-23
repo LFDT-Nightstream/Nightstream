@@ -9,8 +9,8 @@ use neo_ccs::{
     poly::SparsePoly,
     relations::{CcsStructure, McsInstance, McsWitness, MeInstance},
 };
-use neo_fold::folding::CommitMixers;
 use neo_fold::memory_sidecar::claim_plan::RouteATimeClaimPlan;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, K};
 use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
@@ -237,7 +237,6 @@ fn tamper_batched_time_round_poly_fails() {
             &steps_public,
             &acc_init,
             &proof,
-            &l,
             mixers,
         )
         .is_err(),
@@ -276,11 +275,211 @@ fn tamper_ccs_header_digest_fails() {
             &steps_public,
             &acc_init,
             &proof,
-            &l,
             mixers,
         )
         .is_err(),
         "tampered CCS header digest must fail verification"
+    );
+}
+
+#[test]
+fn tamper_ccs_challenges_public_fails() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"soundness/tamper-ccs-challenges-public");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    proof.steps[0].fold.ccs_proof.challenges_public.gamma += K::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"soundness/tamper-ccs-challenges-public");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    assert!(
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr_verify,
+            &params,
+            &ccs,
+            &steps_public,
+            &acc_init,
+            &proof,
+            mixers,
+        )
+        .is_err(),
+        "tampered CCS challenges_public must fail verification"
+    );
+}
+
+#[test]
+fn tamper_rlc_inputs_changes_rho_fails() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers) = build_single_chunk_inputs();
+
+    let ccs_only_step: StepWitnessBundle<Cmt, F, K> = StepWitnessBundle::from(step_bundle.mcs.clone());
+
+    let mut tr_prove = Poseidon2Transcript::new(b"soundness/tamper-rlc-inputs-changes-rho");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[ccs_only_step.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    proof.steps[0].fold.ccs_out[0].c.data[0] += F::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"soundness/tamper-rlc-inputs-changes-rho");
+    let steps_public = [StepInstanceBundle::from(&ccs_only_step)];
+    assert!(
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr_verify,
+            &params,
+            &ccs,
+            &steps_public,
+            &acc_init,
+            &proof,
+            mixers,
+        )
+        .is_err(),
+        "tampered RLC inputs must fail rho transcript binding"
+    );
+}
+
+#[test]
+fn tamper_rlc_rho_fails() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"soundness/tamper-rlc-rho");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    proof.steps[0].fold.rlc_rhos[0][(0, 0)] += F::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"soundness/tamper-rlc-rho");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    assert!(
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr_verify,
+            &params,
+            &ccs,
+            &steps_public,
+            &acc_init,
+            &proof,
+            mixers,
+        )
+        .is_err(),
+        "tampered RLC rho must fail verification"
+    );
+}
+
+#[test]
+fn tamper_rlc_parent_y_scalars_fails() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"soundness/tamper-rlc-parent-y-scalars");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    assert!(
+        !proof.steps[0].fold.rlc_parent.y_scalars.is_empty(),
+        "fixture should produce a non-empty y_scalars table"
+    );
+    proof.steps[0].fold.rlc_parent.y_scalars[0] += K::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"soundness/tamper-rlc-parent-y-scalars");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    assert!(
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr_verify,
+            &params,
+            &ccs,
+            &steps_public,
+            &acc_init,
+            &proof,
+            mixers,
+        )
+        .is_err(),
+        "tampered RLC parent y_scalars must fail verification"
+    );
+}
+
+#[test]
+fn tamper_dec_child_y_fails() {
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers) = build_single_chunk_inputs();
+
+    let mut tr_prove = Poseidon2Transcript::new(b"soundness/tamper-dec-child-y");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
+
+    let child0 = proof
+        .steps
+        .get_mut(0)
+        .and_then(|s| s.fold.dec_children.get_mut(0))
+        .expect("fixture should produce at least one DEC child");
+    child0.y[0][0] += K::ONE;
+
+    let mut tr_verify = Poseidon2Transcript::new(b"soundness/tamper-dec-child-y");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    assert!(
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr_verify,
+            &params,
+            &ccs,
+            &steps_public,
+            &acc_init,
+            &proof,
+            mixers,
+        )
+        .is_err(),
+        "tampered DEC child y must fail verification"
     );
 }
 
@@ -315,7 +514,6 @@ fn tamper_batched_time_label_fails() {
             &steps_public,
             &acc_init,
             &proof,
-            &l,
             mixers,
         )
         .is_err(),
@@ -354,7 +552,6 @@ fn tamper_batched_time_degree_bound_fails() {
             &steps_public,
             &acc_init,
             &proof,
-            &l,
             mixers,
         )
         .is_err(),
@@ -402,7 +599,6 @@ fn tamper_batched_time_static_claim_sum_nonzero_fails() {
             &steps_public,
             &acc_init,
             &proof,
-            &l,
             mixers,
         )
         .is_err(),

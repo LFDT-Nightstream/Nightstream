@@ -6,7 +6,7 @@
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{Mat, MeInstance};
-use neo_fold::folding::FoldRun;
+use neo_fold::shard::ShardProof as FoldRun;
 use neo_math::{F, K};
 use neo_reductions::PiCcsProof;
 

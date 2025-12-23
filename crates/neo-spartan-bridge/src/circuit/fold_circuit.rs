@@ -15,7 +15,7 @@ use crate::gadgets::pi_ccs::{sumcheck_eval_gadget, sumcheck_round_gadget};
 use crate::CircuitF;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use neo_ccs::Mat;
-use neo_fold::folding::FoldStep;
+use neo_fold::shard::FoldStep;
 use neo_math::F as NeoF;
 use p3_field::PrimeCharacteristicRing;
 
@@ -91,7 +91,7 @@ impl FoldRunCircuit {
 
         // Verify each fold step
         for (step_idx, step) in witness.fold_run.steps.iter().enumerate() {
-            self.verify_fold_step(cs, step_idx, step, witness)?;
+            self.verify_fold_step(cs, step_idx, &step.fold, witness)?;
         }
 
         // Verify accumulator chaining across all steps
@@ -134,7 +134,7 @@ impl FoldRunCircuit {
         &self,
         cs: &mut CS,
         step_idx: usize,
-        step: &neo_fold::folding::FoldStep,
+        step: &FoldStep,
         witness: &FoldRunWitness,
     ) -> Result<()> {
         // Get the Π-CCS proof and challenges for this step
@@ -297,7 +297,7 @@ impl FoldRunCircuit {
         let me_inputs = if step_idx == 0 {
             &self.instance.initial_accumulator
         } else {
-            &witness.fold_run.steps[step_idx - 1].dec_children
+            &witness.fold_run.steps[step_idx - 1].fold.dec_children
         };
 
         // 3. Allocate the ME inputs' y-tables as KNumVar arrays so they can
@@ -1062,7 +1062,7 @@ impl FoldRunCircuit {
         let me_inputs = if step_idx == 0 {
             &self.instance.initial_accumulator
         } else {
-            &witness.fold_run.steps[step_idx - 1].dec_children
+            &witness.fold_run.steps[step_idx - 1].fold.dec_children
         };
 
         // Outputs y' for this step.

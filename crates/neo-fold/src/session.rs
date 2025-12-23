@@ -14,7 +14,7 @@
 //! - If you want k>1, pass an explicit Accumulator via `with_initial_accumulator(...)`.
 //!
 //! This file contains only ergonomics. The formal pipeline Π_CCS → Π_RLC → Π_DEC
-//! lives in `fold_many_prove/verify` (engine-agnostic).
+//! lives in `shard::fold_shard_prove/verify` (Route A integration).
 
 #![allow(non_snake_case)]
 
@@ -23,12 +23,13 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
+use neo_memory::witness::StepWitnessBundle;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
-use crate::folding::{self, CommitMixers, FoldRun};
 use crate::pi_ccs::FoldingMode;
+use crate::shard::{self, CommitMixers, ShardProof as FoldRun};
 use crate::PiCcsError;
 use neo_reductions::engines::utils;
 
@@ -541,8 +542,8 @@ where
     l: L,
     mixers: CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>,
 
-    // Collected MCS steps (instance + witness), in order
-    mcss: Vec<(McsInstance<Cmt, F>, McsWitness<F>)>,
+    // Collected per-step bundles (CCS-only steps have empty LUT/MEM vectors)
+    steps: Vec<StepWitnessBundle<Cmt, F, K>>,
 
     // Optional initial accumulated ME(b, L)^k inputs (k = me.len()).
     acc0: Option<Accumulator>,
@@ -565,7 +566,7 @@ where
             params,
             l,
             mixers: default_mixers(),
-            mcss: vec![],
+            steps: vec![],
             acc0: None,
             step_claims: vec![],
             curr_state: None,
@@ -596,7 +597,7 @@ where
 
     /// Access the accumulated public MCS instances (for verification APIs).
     pub fn mcss_public(&self) -> Vec<McsInstance<Cmt, F>> {
-        self.mcss.iter().map(|(i, _)| i.clone()).collect()
+        self.steps.iter().map(|step| step.mcs.0.clone()).collect()
     }
 
     /// Add one step using the `NeoStep` synthesis adapter.
@@ -615,7 +616,7 @@ where
             witness: z,
             spec,
             public_app_inputs: _,
-        } = stepper.synthesize_step(self.mcss.len(), &y_prev, inputs);
+        } = stepper.synthesize_step(self.steps.len(), &y_prev, inputs);
 
         // Safety: require state_len to match StepSpec
         if spec.y_len != state_len {
@@ -687,7 +688,7 @@ where
         let mcs_inst = McsInstance { c, x, m_in };
         let mcs_wit = McsWitness { w, Z };
 
-        self.mcss.push((mcs_inst, mcs_wit));
+        self.steps.push((mcs_inst, mcs_wit).into());
         self.step_claims.push(vec![]);
 
         // 4) Update current state y from the witness coordinates
@@ -757,7 +758,7 @@ where
             Z,
         };
 
-        self.mcss.push((mcs_inst, mcs_wit));
+        self.steps.push((mcs_inst, mcs_wit).into());
         self.step_claims.push(input.output_claims.to_vec());
 
         Ok(())
@@ -789,13 +790,13 @@ where
             .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
 
         // Determine canonical m_in from steps and ensure they all match (needed for RLC).
-        let m_in_steps = self.mcss.first().map(|(inst, _)| inst.m_in).unwrap_or(0);
-        if !self.mcss.iter().all(|(inst, _)| inst.m_in == m_in_steps) {
+        let m_in_steps = self.steps.first().map(|step| step.mcs.0.m_in).unwrap_or(0);
+        if !self.steps.iter().all(|step| step.mcs.0.m_in == m_in_steps) {
             return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
         }
 
         // Validate or default the accumulator: None → k=1 simple case (no ME inputs).
-        let (seed_me, seed_me_wit) = match &self.acc0 {
+        let (seed_me, seed_me_wit): (&[MeInstance<Cmt, F, K>], &[Mat<F>]) = match &self.acc0 {
             Some(acc) => {
                 acc.check(&self.params, &s_norm)?;
                 // Also ensure accumulator m_in matches steps' m_in to avoid X-mixing shape issues.
@@ -805,21 +806,19 @@ where
                         "initial Accumulator.m_in must match steps' m_in".into(),
                     ));
                 }
-                (acc.me.clone(), acc.witnesses.clone())
+                (&acc.me, &acc.witnesses)
             }
-            None => (vec![], vec![]), // k=1
+            None => (&[], &[]), // k=1
         };
 
-        let mcss: Vec<(McsInstance<Cmt, F>, McsWitness<F>)> = self.mcss.clone();
-
-        folding::fold_many_prove(
+        shard::fold_shard_prove(
             self.mode.clone(),
             tr,
             &self.params,
             &s_norm,
-            &mcss,
-            &seed_me,
-            &seed_me_wit,
+            &self.steps,
+            seed_me,
+            seed_me_wit,
             &self.l,
             self.mixers,
         )
@@ -857,7 +856,7 @@ where
         }
 
         // Validate (or empty) initial accumulator to mirror finalize()
-        let (seed_me, _seed_me_wit) = match &self.acc0 {
+        let seed_me: &[MeInstance<Cmt, F, K>] = match &self.acc0 {
             Some(acc) => {
                 acc.check(&self.params, &s_norm)?;
                 let acc_m_in = acc.me.first().map(|m| m.m_in).unwrap_or(m_in_steps);
@@ -867,22 +866,24 @@ where
                     ));
                 }
                 // ME inputs are already well-formed (checked by acc.check())
-                (acc.me.clone(), acc.witnesses.clone())
+                &acc.me
             }
-            None => (vec![], vec![]), // k=1
+            None => &[], // k=1
         };
 
-        // fold_many_verify returns the verified final accumulator on success
-        let _verified_final = folding::fold_many_verify(
-            self.mode.clone(),
-            tr,
-            &self.params,
-            &s_norm,
-            mcss_public,
-            &seed_me,
-            run,
-            self.mixers,
-        )?;
+        let steps_public: Vec<_> = mcss_public
+            .iter()
+            .cloned()
+            .map(Into::into)
+            .collect();
+
+        let outputs =
+            shard::fold_shard_verify(self.mode.clone(), tr, &self.params, &s_norm, &steps_public, seed_me, run, self.mixers)?;
+        if !outputs.obligations.val.is_empty() {
+            return Err(PiCcsError::ProtocolError(
+                "CCS-only session verification produced unexpected val-lane obligations".into(),
+            ));
+        }
         Ok(true)
     }
 }

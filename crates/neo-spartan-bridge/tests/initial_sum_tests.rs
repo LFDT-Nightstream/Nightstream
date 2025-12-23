@@ -5,7 +5,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::poly::{SparsePoly, Term as PolyTerm};
 use neo_ccs::relations::CcsStructure;
 use neo_ccs::{Mat, MeInstance};
-use neo_fold::folding::FoldRun;
+use neo_fold::shard::ShardProof as FoldRun;
 use neo_math::{D, F as NeoF, K as NeoK};
 use neo_reductions::PiCcsProof;
 use neo_spartan_bridge::circuit::witness::PiCcsChallenges;

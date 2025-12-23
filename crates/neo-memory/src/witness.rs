@@ -129,6 +129,17 @@ pub struct StepWitnessBundle<Cmt, F, K> {
     pub _phantom: PhantomData<K>,
 }
 
+impl<Cmt, F, K> From<(McsInstance<Cmt, F>, McsWitness<F>)> for StepWitnessBundle<Cmt, F, K> {
+    fn from(mcs: (McsInstance<Cmt, F>, McsWitness<F>)) -> Self {
+        Self {
+            mcs,
+            lut_instances: Vec::new(),
+            mem_instances: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
 /// Per-step bundle that carries *only public instances* (no witnesses).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StepInstanceBundle<Cmt, F, K> {
@@ -137,6 +148,17 @@ pub struct StepInstanceBundle<Cmt, F, K> {
     pub mem_insts: Vec<MemInstance<Cmt, F>>,
     #[serde(skip)]
     pub _phantom: PhantomData<K>,
+}
+
+impl<Cmt, F, K> From<McsInstance<Cmt, F>> for StepInstanceBundle<Cmt, F, K> {
+    fn from(mcs_inst: McsInstance<Cmt, F>) -> Self {
+        Self {
+            mcs_inst,
+            lut_insts: Vec::new(),
+            mem_insts: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<Cmt: Clone, F: Clone, K> From<&StepWitnessBundle<Cmt, F, K>> for StepInstanceBundle<Cmt, F, K> {

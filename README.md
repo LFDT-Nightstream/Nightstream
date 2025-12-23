@@ -1,103 +1,271 @@
-# Nightstream — Lattice‑based Folding
+# Nightstream — Lattice‑based Folding with Twist/Shout Memory
 
-[![GitHub License](https://img.shields.io/github/license/nicarq/halo3)](LICENSE)
-[![OpenSSF Best Practices](https://bestpractices.coreinfrastructure.org/projects/00000/badge)](https://bestpractices.coreinfrastructure.org/projects/00000)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nicarq/halo3/badge)](https://scorecard.dev/viewer/?uri=github.com/nicarq/halo3)
+[![GitHub License](https://img.shields.io/github/license/nicarq/nightstream)](LICENSE)
 
-Nightstream is an end‑to‑end **post‑quantum** proving system that couples a lattice‑based folding scheme with a **Hash‑MLE** polynomial commitment SNARK. It targets circuits expressed as **Customizable Constraint Systems (CCS)** over Goldilocks field, supports efficient recursion, and avoids elliptic curves, pairings, and FRI. The design is informed by recent folding systems (e.g., Nova/HyperNova) and adapts them to a lattice setting with a practical Hash‑MLE backend.
+Nightstream is a **post‑quantum** proving system built around a lattice-based folding scheme for **CCS** plus sum-check–based memory arguments (Twist/Shout). It supports shard-level folding and emits **final ME obligations** (main + value lanes) intended to be checked by an outer finalization layer.
 
-Nightstream is an implementation of the protocol introduced in the Neo paper "Lattice‑based folding scheme for CCS over small fields" (Nguyen & Setty, 2025); see References & Background → Academic Foundation.
+- **Twist** for read/write memory
+- **Shout** for read‑only lookups
 
-> **🚧 Status**: Research prototype with end‑to‑end **prove/verify** and IVC/NIVC demos. Security guards and canonical transcript/public‑IO binding are implemented. Lean proofs (VK registry) shipped; sparse weights and memory reductions are in progress.
+It targets CCS over the **Goldilocks** field; uses a degree‑2 extension for sum-check soundness where required, and is designed for zkVM-style workloads via **shard-level folding**.
+
+Nightstream implements the protocol from the Neo paper "Lattice‑based folding scheme for CCS over small fields" (Nguyen & Setty, 2025), extended with Twist & Shout memory arguments.
+
+> **🚧 Status**: Research prototype. Shard folding loop and Twist/Shout integration (including two-lane obligations) are implemented. Verifier returns `ShardObligations { main, val }`; both must be enforced by the final layer. Not production-ready.
 
 ---
 
-## Why Nightstream?
+## What Works Today
 
-* **🔒 Post‑quantum security**: **Hash‑MLE** polynomial commitment scheme (currently) using only hash functions and multilinear extension evaluations
-* **⚡ Optimized for modern fields**: CCS over Goldilocks provides excellent prover performance with **degree‑2 extension field** for sum‑check soundness
-* **🎯 Simple API**: Clean two‑function interface (`neo::prove` and `neo::verify`) hides complexity while maintaining full functionality  
-* **🔐 Cryptographic hygiene**: Unified **Poseidon2** transcript across folding and Hash‑MLE phases with anti‑replay protection
+- ✅ Shard prove/verify loop with shared transcript binding
+- ✅ Twist/Shout integrated per chunk, including two-lane obligations
+- ✅ End-to-end integration tests proving and verifying shards
+- ⚠️ Final obligation finalizer (outer SNARK / recursion layer) is WIP
+- ⚠️ No audit; research-grade performance/side-channel posture
+
+**Obligations** = ME (single-point evaluation) claims emitted by shard verification that must be checked by the final proof layer.
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-* **Rust** ≥ 1.88 (MSRV; CI uses stable channel)
-* Sufficient RAM for demo proofs (~2GB recommended)
-* `git` and a C compiler (gcc or clang) for the mimalloc allocator
+* **Rust** (stable, or use `rust-toolchain.toml` if present)
+* `git`
+* C compiler (only if enabling allocators like mimalloc)
 
-### One-line demo
+### Build & Smoke Test
+
 ```bash
-# Option A: run the benchmarked demo
-cargo run -p neo --example fib_benchmark --release
+cargo build --release
 
-# Option B: use the CLI to generate and verify a Fibonacci proof
-cargo run -p neo-cli -- gen -n 32 --release              # writes fib_proof.bin
-cargo run -p neo-cli -- verify -f fib_proof.bin --release
+# Canonical smoke test: shard prove/verify with Twist/Shout
+cargo test -p neo-fold full_folding_integration --release -- --nocapture
+
+# Full workspace tests
+cargo test --workspace --release
 ```
 
-### Build & test everything
+### Focused Test Runs
+
 ```bash
-cargo build --release                           # Build all crates
-cargo test --workspace                          # Run comprehensive test suite
-cargo run -p neo --example fib_benchmark --release # Demo end-to-end Fibonacci proof
+cargo test -p neo-fold --release
+cargo test -p neo-memory --release
+cargo test -p neo-reductions --release
+```
+
+### Paper-exact Reference Mode
+
+```bash
+cargo test -p neo-reductions --features paper-exact --release
 ```
 
 ---
 
-## Simple API Usage
+## Architecture Overview
+
+Nightstream implements **shard-level folding** where each step processes one CCS chunk together with its matching Twist/Shout instances, all sharing sum-check challenges.
+
+### Per-Step Folding Flow
+
+**Diagram key:**
+- `r_time`: shared evaluation point used to batch/align per-step checks across CCS/Twist/Shout
+- `r_val`: Twist-only point used by the value-evaluation subprotocol; tracked separately
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                                  Step i                                   │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│   ┌─────────────────┐                                                     │
+│   │  k running ME   │  ◄── Accumulator carried from step i-1              │
+│   └────────┬────────┘                                                     │
+│            │                                                              │
+│            │      ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│            │      │    Π_CCS     │  │   Π_Twist    │  │   Π_Shout    │    │
+│            │      │  (CPU chunk) │  │ (R/W memory) │  │  (lookups)   │    │
+│            │      └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │
+│            │             │                 │                 │            │
+│            │             └────────────┬────┴─────────────────┘            │
+│            │                          │                                   │
+│            │                          ▼                                   │
+│            │             ┌────────────────────────┐                       │
+│            │             │  Batched sum-check     │                       │
+│            │             │  (shared r_time)       │                       │
+│            │             └────────────┬───────────┘                       │
+│            │                          │                                   │
+│            │                          ▼                                   │
+│            │             ┌────────────────────────┐                       │
+│            │             │   Fresh ME claims      │                       │
+│            │             │ (CCS+Twist+Shout+IDX)  │                       │
+│            │             └────────────┬───────────┘                       │
+│            │                          │                                   │
+│            └──────────────────────────┤                                   │
+│                                       ▼                                   │
+│                    ┌──────────────────────────────────┐                   │
+│                    │ Main lane: Π_RLC → Π_DEC         │                   │
+│                    │ fold all ME@r_time → k children  │                   │
+│                    └─────────────────┬────────────────┘                   │
+│                                      │                                    │
+│            ┌─────────────────────────┴─────────────────────────┐          │
+│            │                                                   │          │
+│            ▼                                                   ▼          │
+│   ┌─────────────────┐                                ┌─────────────────┐  │
+│   │  k ME children  │                                │   Value lane    │  │
+│   │  (to step i+1)  │                                │ (Twist @ r_val) │  │
+│   └────────┬────────┘                                └────────┬────────┘  │
+│            │                                                  │           │
+└────────────┼──────────────────────────────────────────────────┼───────────┘
+             │                                                  │
+             ▼                                                  ▼
+    (next step i+1)                                   ┌─────────────────────┐
+                                                      │  value-lane         │
+                                                      │  obligations        │
+                                                      │  must be enforced   │
+                                                      └─────────────────────┘
+```
+
+### Unified Folding Interface
+
+All arguments reduce to the same **ME(b, L)** relation:
+
+```
+Π_CCS   : MCS(b, L)  ⟿  ME(b, L)^t_ccs
+Π_Twist : TWI(b, L)  ⟿  ME(b, L)^t_twi
+Π_Shout : SHO(b, L)  ⟿  ME(b, L)^t_sho
+```
+
+At each step:
+```
+(k running ME + fresh CCS ME + Twist ME + Shout ME) → Π_RLC → ME^agg → Π_DEC → ME(b, L)^k
+```
+
+---
+
+## Two-Lane Folding
+
+Twist's val-eval subprotocol requires a separate evaluation point `r_val`, creating two parallel folding lanes:
+
+| Lane | Evaluation Point | Contents |
+|------|-----------------|----------|
+| **Main** | `r_time` | CCS + Shout + Twist read/write checks |
+| **Value** | `r_val` | Twist value-evaluation claims |
+
+Both lanes produce ME obligations that must be verified by the final proof layer.
+
+### Why Two Lanes?
+
+- Most claims are enforced at a single shared evaluation point `r_time` (sampled once per step via Fiat–Shamir)
+- Twist also needs a separate evaluation point `r_val` for its value-reconstruction subprotocol (fresh sum-check challenges)
+- Because Neo's ME is a single-point evaluation relation, `ME@r_time` and `ME@r_val` cannot be mixed in the same `Π_RLC` call
+
+**Result**: each step can emit:
+- **Main obligations**: ME children at `r_time` (carried to the next step)
+- **Value-lane obligations**: ME children at `r_val` (must be carried forward to the final checker)
+
+---
+
+## Developer Onboarding
+
+### 1. Read the Protocol + Implementation Overview
+
+| Doc | Purpose |
+|-----|---------|
+| [`docs/neo-ai-summary.md`](docs/neo-ai-summary.md) | Developer-grade Neo protocol overview |
+| [`docs/system-architecture.md`](docs/system-architecture.md) | IVC architecture + emission policies |
+| [`docs/neo-with-twist-and-shout/integration-summary.md`](docs/neo-with-twist-and-shout/integration-summary.md) | Twist/Shout integration strategy (why two lanes) |
+
+### 2. Run Tests
+
+```bash
+cargo test --workspace --release
+
+# See full shard folding with Twist/Shout in action:
+cargo test -p neo-fold full_folding_integration --release -- --nocapture
+
+# Twist/Shout witness building:
+cargo test -p neo-fold twist_shout_integration --release -- --nocapture
+```
+
+### 3. Where to Start in the Code
+
+**Shard folding loop** — [`crates/neo-fold/src/shard.rs`](crates/neo-fold/src/shard.rs)
+- Look for `fold_shard_prove_impl(...)` and `fold_shard_verify(...)`
+- This is where:
+  - Per-step inputs are bound into the transcript
+  - Π_CCS is executed
+  - Twist/Shout proofs are produced/checked
+  - Π_RLC → Π_DEC runs for the main lane, and (when needed) for the value lane
+
+**Memory sidecar (Twist/Shout integration)** — [`crates/neo-fold/src/memory_sidecar/memory.rs`](crates/neo-fold/src/memory_sidecar/memory.rs)
+- Bridge layer that:
+  - Runs the memory/lookup sum-checks
+  - Emits ME claims/witnesses at `r_time`
+  - Runs Twist's value-eval sum-check and emits value-lane ME claims at `r_val`
+
+**Trace → per-step witnesses** — [`crates/neo-memory/src/builder.rs`](crates/neo-memory/src/builder.rs)
+- `build_shard_witness(...)` splits a VM trace into chunks and produces:
+  - An MCS witness chunk
+  - Matching Twist/Shout witnesses for that same chunk
+
+**Twist/Shout encoders and invariants**
+- [`crates/neo-memory/src/encode.rs`](crates/neo-memory/src/encode.rs) — bit-address encoding, layout decisions
+- [`crates/neo-memory/src/twist.rs`](crates/neo-memory/src/twist.rs), [`shout.rs`](crates/neo-memory/src/shout.rs) — semantics checks, decoding
+- [`crates/neo-memory/src/twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs) — sum-check oracles
+
+---
+
+## Core Concepts (Paper → Code)
+
+| Concept | Meaning | Code Entry Points |
+|---------|---------|-------------------|
+| **Shard** | Trace segment processed chunk-by-chunk | [`crates/neo-fold/src/shard.rs`](crates/neo-fold/src/shard.rs) |
+| **Folding step** | Unit consumed per iteration of the loop | `StepWitnessBundle` in [`neo_memory::witness`](crates/neo-memory/src/witness.rs) |
+| **CCS** | Customizable Constraint System | `neo_ccs::relations::CcsStructure` |
+| **MCS** | Matrix Constraint System (CCS + commitment) | `neo_ccs::relations::{McsInstance, McsWitness}` |
+| **ME** | Universal foldable claim (single-point eval) | `neo_ccs::relations::MeInstance` |
+| **Π_CCS** | CCS/MCS → ME claims via sum-check | [`neo_reductions::engines::*`](crates/neo-reductions/src/engines/) |
+| **Π_RLC / Π_DEC** | Aggregate then decompose (norm control) | [`crates/neo-fold/src/shard.rs`](crates/neo-fold/src/shard.rs) |
+| **Twist** | R/W memory argument (sparse increments) | [`crates/neo-memory/src/twist.rs`](crates/neo-memory/src/twist.rs), [`twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs) |
+| **Shout** | Read-only lookup argument | [`crates/neo-memory/src/shout.rs`](crates/neo-memory/src/shout.rs) |
+| **IDX** | Index-to-virtual-one-hot adapter (proved via sum-check over bit-columns) | `IndexAdapterOracle` in [`twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs) |
+| **Two-lane folding** | Needed for Twist's second eval point `r_val` | `val_fold` in [`shard.rs`](crates/neo-fold/src/shard.rs) |
+
+### Key Structs
 
 ```rust
-use neo::{prove, verify, ProveInput, CcsStructure, NeoParams, F};
-use anyhow::Result;
+// One folding chunk worth of witness:
+neo_memory::witness::StepWitnessBundle {
+    mcs: (McsInstance, McsWitness),      // CPU chunk
+    lut_instances: Vec<(LutInstance, LutWitness)>,  // Shout per chunk
+    mem_instances: Vec<(MemInstance, MemWitness)>,  // Twist per chunk
+}
 
-fn main() -> Result<()> {
-    // 1) Define your CCS constraint system and witness
-    let ccs: CcsStructure<F> = build_your_circuit(); // Your constraint system
-    let witness: Vec<F> = generate_witness();         // Satisfying witness  
-    let public_input: Vec<F> = vec![];                // Usually empty
-    let params = NeoParams::goldilocks_autotuned_s2(3, 2, 2); // Auto-tuned params
-
-    // 2) Generate proof
-    let proof = prove(ProveInput::new(
-        &params,
-        &ccs,
-        &public_input,
-        &witness,
-        &[],  // output_claims (optional public outputs)
-    ))?;
-    
-    println!("✅ Proof generated! Size: {} bytes", proof.size());
-
-    // 3) Verify proof  
-    let is_valid = verify(&ccs, &public_input, &proof)?;
-    println!("🔍 Verification result: {}", if is_valid { "PASSED" } else { "FAILED" });
-    
-    Ok(())
+// Final obligations after shard verification:
+neo_fold::shard::ShardObligations {
+    main: Vec<MeInstance>,  // ME claims at r_time
+    val: Vec<MeInstance>,   // ME claims at r_val (Twist only)
 }
 ```
 
 ---
 
-## Architecture & Pipeline
+## Glossary
 
-Nightstream implements a four-stage proving pipeline:
-
-### 1. **Ajtai Commitment (Module-SIS)**
-The witness undergoes base-`b` decomposition and lattice commitment, establishing the linear algebra foundation for subsequent reductions.
-
-### 2. **Folding Pipeline: Π_CCS → Π_RLC → Π_DEC**
-* **Π_CCS**: Reduces CCS satisfaction to multilinear evaluation (**ME**) claims over extension field `K = F²`
-* **Π_RLC**: Folds multiple ME instances via random linear combination with transcript-bound soundness
-* **Π_DEC**: Decomposes folded witness into base-`b` digits with verified range constraints
-
-### 3. **Bridge to Spartan2**  
-The final ME claim converts to Spartan2 R1CS format with **Hash-MLE** polynomial commitments and unified **Poseidon2** transcripts.
-
-### 4. **SNARK Generation**
-Spartan2 produces constant-size proofs with logarithmic verification time and post-quantum security guarantees.
+| Term | Definition |
+|------|------------|
+| **CCS** | Customizable Constraint System — generalized arithmetization |
+| **MCS** | Matrix Constraint System — CCS with commitment columns |
+| **ME** | Matrix Evaluation — universal foldable single-point claim |
+| **MLE** | Multilinear Extension — polynomial representation of vectors |
+| **Π_RLC** | Random Linear Combination protocol — aggregates multiple ME claims |
+| **Π_DEC** | Decomposition protocol — splits aggregated ME back into children (norm control) |
+| **Obligation** | ME claim emitted by shard verification that must be enforced by the final layer |
+| `r_time` | Shared evaluation point for main-lane claims (CCS + Shout + Twist read/write) |
+| `r_val` | Separate evaluation point for Twist's value-eval subprotocol |
+| **Main lane** | Folding lane for claims at `r_time` |
+| **Value lane** | Folding lane for Twist value-eval claims at `r_val` |
+| **Hash-MLE** | Merkle-tree based polynomial commitment used for final Spartan layer (no trusted setup) |
 
 ---
 
@@ -105,196 +273,239 @@ Spartan2 produces constant-size proofs with logarithmic verification time and po
 
 ```
 crates/
-  neo/                  # 🎯 Main API: prove() and verify() functions + IVC/NIVC
-  neo-ajtai/            # 🔐 Lattice (Ajtai) commitments over module-SIS  
-  neo-ccs/              # ⚙️  Customizable Constraint Systems, matrices, utilities
-  neo-fold/             # 🔄 Folding pipeline: CCS→RLC→DEC reductions + transcripts
-  neo-spartan-bridge/   # 🌉 ME → Spartan2 R1CS conversion with Hash-MLE PCS
-  neo-math/             # 🧮 Field arithmetic, rings, polynomial operations
-  neo-challenge/        # 🎲 Challenge generation and strong sets
-  neo-params/           # ⚙️  Parameter management and security validation
-  neo-transcript/       # 📝 Poseidon2 transcript for Fiat-Shamir
-  neo-cli/              # 🔧 Command-line interface
-  neo-tests/            # ✅ Integration tests
-  neo-redteam-tests/    # 🔴 Security and attack tests
-  neo-quickcheck-tests/ # ⚡ Property-based tests
+  neo-ajtai/           # Ajtai (lattice) commitments; module-SIS binding
+  neo-ccs/             # CCS/MCS/ME relations, matrices, arithmetization
+  neo-fold/            # Shard folding loop, proof types, transcript plumbing
+  neo-reductions/      # Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact)
+  neo-memory/          # Twist/Shout traces, encoding, MLE utilities, oracles
+  neo-vm-trace/        # VM tracing traits (CPU, Twist, Shout) + trace capture
+  neo-spartan-bridge/  # ME → Spartan2-style R1CS bridge using hash-MLE (WIP)
+  neo-math/            # Field/ring utilities, extension field, norms
+  neo-params/          # Parameter bundles + Poseidon2 config
+  neo-transcript/      # Poseidon2 transcript (Fiat–Shamir)
 
-crates/neo/examples/
-  fib_benchmark.rs      # 📊 Fibonacci SNARK benchmark (various sizes)
-  fib_folding_nivc.rs   # 🔄 Fibonacci with IVC folding
-  incrementer_folding.rs # 🔢 Simple incrementer IVC example
-  nivc_demo.rs          # 🎯 Non-uniform IVC (NIVC) demo
+docs/
+  neo-paper/                       # Paper text (reference)
+  neo-with-twist-and-shout/        # Twist/Shout integration docs
+  neo-ai-summary.md                # Implementation-facing overview
+  system-architecture.md           # End-to-end architecture notes
 ```
 
 ---
 
-## Examples
+## End-to-End: Trace → Witness → Fold
 
-### Fibonacci Benchmark
-```bash
-cargo run -p neo --example fib_benchmark --release
+### Step 1: Build Per-Chunk Witnesses
+
+Use the encoding functions in `neo-memory`. The following is **pseudocode** illustrating the pattern; see the [actual test code](crates/neo-fold/tests/full_folding_integration.rs) for working examples:
+
+```rust
+// Pseudocode — see full_folding_integration.rs for working code
+use neo_memory::encode::{encode_mem_for_twist, encode_lut_for_shout};
+use neo_memory::witness::StepWitnessBundle;
+
+// For each chunk, build:
+let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &layout, &init, &trace, &commit_fn, None, 0);
+let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, &trace, &commit_fn, None, 0);
+
+let step = StepWitnessBundle {
+    mcs: (mcs_inst, mcs_wit),
+    lut_instances: vec![(lut_inst, lut_wit)],
+    mem_instances: vec![(mem_inst, mem_wit)],
+    _phantom: PhantomData,
+};
 ```
 
-This benchmarks Nightstream SNARK proving for Fibonacci sequences of various sizes, demonstrating efficient sparse matrix construction. Still needs some more work to be standarized.
+**Reference test**: [`crates/neo-fold/tests/full_folding_integration.rs`](crates/neo-fold/tests/full_folding_integration.rs) — `full_folding_integration_single_chunk`
 
-**What you'll see:**
-- Sparse CCS constraint system generation
-- Witness generation and validation
-- Nightstream SNARK proof generation with detailed timing breakdown
-- Proof verification
-- Performance metrics and proof size
+### Step 2: Prove a Shard
 
-### Fibonacci with IVC Folding
-```bash
-cargo run -p neo --example fib_folding_nivc --release
+```rust
+// Pseudocode — see full_folding_integration.rs for working code
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify, ShardObligations};
+use neo_transcript::Poseidon2Transcript;
+
+let mut tr = Poseidon2Transcript::new(b"nightstream/shard");
+let proof = fold_shard_prove(
+    FoldingMode::Optimized,
+    &mut tr,
+    &params,
+    &ccs,
+    &steps,           // Vec<StepWitnessBundle>
+    &acc_init,        // Initial ME accumulator
+    &acc_wit_init,    // Initial witnesses
+    &l,               // Commitment scheme
+    mixers,
+)?;
 ```
 
-Demonstrates incrementally verifiable computation (IVC) with Fibonacci steps, using Nova-style folding.
+### Step 3: Verify and Handle Obligations
 
-### Incrementer Example
-```bash
-cargo run -p neo --example incrementer_folding --release
+```rust
+// Pseudocode — see full_folding_integration.rs for working code
+let mut tr_v = Poseidon2Transcript::new(b"nightstream/shard");
+let outputs = fold_shard_verify(
+    FoldingMode::Optimized,
+    &mut tr_v,
+    &params,
+    &ccs,
+    &step_instances,
+    &acc_init,
+    &proof,
+    mixers,
+)?;
+
+// Handle both obligation lanes:
+let main_obligations: &[MeInstance] = &outputs.obligations.main;
+let val_obligations: &[MeInstance] = &outputs.obligations.val;
+
+// Pass to final SNARK layer or ObligationFinalizer
 ```
 
-Simple state machine example showing NIVC (non-uniform IVC) API: state transitions with proof-carrying computation.
+---
 
-### NIVC Multi-Lane Demo
-```bash
-cargo run -p neo --example nivc_demo --release
+## Memory Arguments: Twist & Shout
+
+### Twist (Read/Write Memory)
+
+Twist models memory as a recurrence via sparse updates:
+```
+Val_{t+1} = Val_t + Inc_t
 ```
 
-Shows heterogeneous step types in non-uniform IVC, demonstrating multiple computation types in a single proof chain.
+**What's committed per chunk:**
+- Address bit-columns for reads/writes
+- `has_read`, `has_write` flags
+- `rv`, `wv` (read/write values)
+- `inc_at_write_addr` (write delta)
+
+**What stays virtual:**
+- Full memory vector `Val_t` (never committed, computed via sum-check)
+
+**Code:**
+- Encoding: [`neo_memory::encode::encode_mem_for_twist`](crates/neo-memory/src/encode.rs)
+- Oracles: [`neo_memory::twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs)
+- Semantics: [`neo_memory::twist::check_twist_semantics`](crates/neo-memory/src/twist.rs)
+
+### Shout (Read-Only Lookups)
+
+Shout proves that when `has_lookup[t] = 1`, the committed `val[t]` matches `table[addr[t]]`.
+
+**What's committed per chunk:**
+- Address bit-columns (masked by `has_lookup`)
+- `has_lookup` flag
+- `val`
+
+**Code:**
+- Encoding: [`neo_memory::encode::encode_lut_for_shout`](crates/neo-memory/src/encode.rs)
+- Oracles: [`neo_memory::shout.rs`](crates/neo-memory/src/shout.rs)
+
+### Address Encoding & IDX Adapter
+
+Addresses use compact **bit-decomposition** instead of one-hot vectors:
+- Each address is `d` components in base `n_side`
+- Each component commits `ell = ceil(log2(n_side))` bit-columns
+- Address width: `d * ell` columns instead of `d * n_side` (~32× reduction)
+
+The **IDX adapter** implements an index-to-virtual-one-hot bridge: it provides a **virtual one-hot oracle** backed by committed bit-columns. Twist/Shout protocols query conceptual one-hot MLE evaluations, and the adapter proves these are consistent with the compact index-bit representation via sum-check. This shifts work from commitments to foldable sum-check proofs.
+
+**Code:** `neo_memory::encode::get_ell`, `IndexAdapterOracle` in [`twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs)
+
+---
+
+## Development Notes
+
+### Folding Engines
+
+| Mode | Description |
+|------|-------------|
+| `FoldingMode::Optimized` | Optimized implementation (default in tests/integration) |
+| `FoldingMode::PaperExact` | Reference implementation (feature-gated) |
+| `FoldingMode::OptimizedWithCrosscheck` | Debug comparison mode |
+
+### Debugging Tips
+
+- Start with `chunk_size = 1` to shrink state
+- If RLC alignment errors occur, check:
+  - `validate_me_batch_invariants` in `shard.rs`
+  - The `r` points in emitted ME claims (must match per lane)
+
+### Key Tests
+
+```bash
+# Full shard prove/verify with Twist/Shout:
+cargo test -p neo-fold full_folding_integration --release -- --nocapture
+
+# Twist/Shout witness building:
+cargo test -p neo-fold twist_shout_trace_to_witness_smoke --release -- --nocapture
+
+# Session API (IVC-style):
+cargo test -p neo-fold test_session_multifold --release -- --nocapture
+
+# Shard folding integration:
+cargo test -p neo-fold shard_folding_integration --release -- --nocapture
+
+# Twist/Shout soundness tests:
+cargo test -p neo-fold twist_shout_soundness --release -- --nocapture
+```
 
 ---
 
 ## Security & Correctness
 
 ### ✅ Implemented Safeguards
-* **Parameter validation**: Enforces RLC soundness inequality `(k+1)·T·(b-1) < B` before proving
-* **Fail-fast CCS checks**: Early witness validation with clear error reporting
-* **Transcript binding**: Anti-replay protection via canonical public-IO headers
-* **Constant-time verification**: Prevents timing side-channels in proof validation
-* **Cryptographically secure RNG**: Production builds use `OsRng`; debug builds use deterministic seeds for reproducibility
 
-### ⚠️ Current Limitations
-* WIP
+* **Parameter validation**: Validates the RLC soundness bound for the chosen parameters
+* **Transcript binding**: Poseidon2 domain separation across all phases
+* **ME claim alignment**: Validates `r`-point consistency before Π_RLC
+* **Two-lane obligation tracking**: Value-lane ME claims tracked in `ShardObligations`
 
 ### 🔬 Security Posture
-> **Research software warning**: This implementation demonstrates the Neo protocol but requires independent security review before production deployment. Do not use it.
 
----
+> **Research software warning**: This demonstrates the protocol and transcript-binding structure but has not undergone independent review. Do not deploy without a full audit and complete final verification layer.
 
-## Performance Profile
+**Specific caveats:**
 
-| Metric | Current Implementation | Target (Post-Optimization) |
-|--------|----------------------|---------------------------|
-| **Proof Size** | ~500kb | Unoptimized |
-| **Prover Time** | ~25ms (per folding) | TBD |
-| **Verifier Time** | ~7ms | ~1-10ms |
-| **Memory Usage** | TBD | TBD |
-
-### Optimization Roadmap
-- [ ] **Sparse weight vectors** in bridge (currently quadratic in `d·m`)
-- [x] **Compact public IO** encoding (canonical, padded-before-digest)
-- [x] **Parallel proving** optimizations (CSR SpMV, Ajtai rows)
-- [ ] **Memory efficiency** improvements (ongoing)
-
----
-
-## Development & Testing
-
-### Running Tests
-```bash
-# All tests with extra guards and verbose debugging
-NEO_PI_CCS_PREFLIGHT=1 NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --features "testing,neo_dev_only,debug-logs,fs-guard,redteam,quickcheck"
-
-# Core functionality
-cargo test -p neo-fold -- --nocapture
-cargo test -p neo-spartan-bridge -- --nocapture
-cargo test -p neo-ccs -- --nocapture
-
-# Security validation  
-cargo test -p neo-ajtai red_team -- --nocapture
-cargo test -p neo-fold security_validation -- --nocapture
-
-# End-to-end integration
-cargo test --workspace
-```
-
-### Parameter Validation (Optional)
-```bash
-# Validate lattice security parameters
-sage sage_params.sage
-```
+* No audit / formal verification
+* Potential side-channel issues (Rust big-int / norm computations, etc.)
+* Parameter selection not hardened for production
+* Transcript domain separation is implemented but still research-grade
+* Final obligation verification layer is WIP
 
 ---
 
 ## Roadmap
 
-### Near Term (Next Release)
-- [ ] **Explicit parameter threading** (remove global PP state) — *Still uses `OnceLock` registry; concurrent proving limited*
-- [~] **Sparse bridge representation** (reduce memory footprint) — *CSR SpMV implemented; weight vector optimization ongoing*
-- [x] **Typed public-IO validation** (bind verifier parameters to proof) — *Context digest binding complete*
-- [ ] **Comprehensive benchmarks** (end-to-end and per-phase) — *Only example benchmarks; no criterion suite yet*
-- [ ] **Lookup arguments** (table constraints for range checks, bitwise ops) — *Planned for CCS extension*
+### Near Term
+- [ ] Complete Spartan2 final SNARK layer using hash-MLE (obligation finalization)
+- [ ] Add criterion benchmarks
+- [ ] Sparse weight optimizations in bridge
 
-### Medium Term  
-- [x] **Recursive proof composition** (proof-carrying state) — *IVC/NIVC fully functional*
-- [~] **Additional circuit examples** (Merkle trees, VDF gadgets) — *Have: Fibonacci, incrementer; Need: Merkle, VDF*
-- [~] **Performance optimizations** (parallel operations, memory efficiency) — *Rayon parallelization done; memory work ongoing*
-- [ ] **GPU acceleration exploration** (Mojo for matmul/MSM) — *Exploratory: GPU-accelerated matrix operations*
-- [~] **Security audit preparation** (hardened parameter sets) — *Track B security tests in progress; not audit-ready*
+### Medium Term
+- [ ] GPU acceleration exploration
+- [ ] Security audit preparation
 
 ### Long Term
-- [ ] **Production deployment tools** (parameter generation, key management)
-- [ ] **Higher-level circuit DSL** (user-friendly constraint specification)
-- [ ] **Integration libraries** (blockchain, application frameworks)
+- [ ] Production deployment tools
+- [ ] zkVM integration (RISC-V/WASM)
+
+---
+
+## References
+
+* **Neo**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields](https://eprint.iacr.org/2025/294)" (ePrint 2025/294)
+* **Twist/Shout integration**: [`docs/neo-with-twist-and-shout/`](docs/neo-with-twist-and-shout/)
+* **Spartan**: Srinath Setty, "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020) — Nightstream uses hash-MLE for the final Spartan layer for the time being (expected to be upgraded soon)
+* **Nova/HyperNova**: Recursive arguments from folding schemes
+* **Plonky3**: Goldilocks field, Poseidon2 used by Nightstream
 
 ---
 
 ## Contributing
 
-We welcome contributions to Nightstream! Please:
-
 * **Add tests** for behavioral changes
-* **Run formatting**: `cargo fmt` and `cargo clippy`  
-* **Keep logs informative** but concise (parameter hashes, guard values, sizes)
+* **Run formatting**: `cargo fmt` and `cargo clippy`
 * **Update documentation** for API changes
-
-### Development Setup
-```bash
-git clone <repo-url>
-cd halo3
-cargo build --workspace
-cargo test --workspace
-```
-
----
-
-## References & Background
-
-### Academic Foundation
-* **Neo Protocol**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields and pay-per-bit commitments](https://eprint.iacr.org/2025/294)" (ePrint 2025/294)
-  - Introduces the pay-per-bit Ajtai commitment scheme this implementation uses
-  - Adapts HyperNova folding to lattice setting with Goldilocks field support
-  - Post-quantum secure using lattices
-* **Spartan**: Srinath Setty, "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020)
-  - Sum-check based zkSNARK providing our final proof compression layer
-  - Linear-time polynomial IOP with succinct verification
-* **Nova**: Recursive arguments from folding schemes ([project page](https://github.com/Microsoft/Nova))
-* **HyperNova**: CCS extensions and improved ergonomics
-* **Plonky3**: Modular STARK/PLONK framework ([Succinct Labs](https://github.com/succinctlabs/plonky3))
-  - Provides Goldilocks field implementation with SIMD optimizations (AVX2, AVX-512, NEON)
-  - Poseidon2 hash function for Fiat-Shamir transcripts
-  - Challenger/symmetric crypto primitives used throughout Nightstream
-* **Sum-check Protocol**: Multilinear evaluation verification ([primer](https://xn--2-umb.com/24/sumcheck/))
-* **Sum-check Optimizations**: Bagad et al., "[Speeding Up Sum-Check Proving](https://eprint.iacr.org/2025/1117)" (ePrint 2025/1117)
-
-### Related Work & Implementation
-* **[Spartan2](https://github.com/microsoft/Spartan2)**: Generic Spartan implementation supporting multiple polynomial commitment schemes (elliptic curve, hash-based, and lattice-based including Greyhound). Nightstream uses Spartan2's Hash-MLE backend with P3 integration for the final proof compression.
-* **[Plonky3](https://github.com/succinctlabs/plonky3)**: Nightstream builds on Plonky3's field arithmetic (`p3-goldilocks`), Poseidon2 implementation (`p3-poseidon2`, `p3-symmetric`), and challenger/transcript primitives (`p3-challenger`) for consistent cryptographic operations across the stack.
-* **[Merlin](https://github.com/dalek-cryptography/merlin)**: Composable proof transcripts for public-coin arguments. Nightstream's transcript API design (`neo-transcript`) draws inspiration from Merlin's domain separation, message framing, and challenge generation patterns, adapted for Poseidon2-based Fiat-Shamir transforms.
-* **Understanding folding SNARKs**: Start with [Nova's overview](https://github.com/Microsoft/Nova) for conceptual background on folding schemes, then review the [Neo paper](https://eprint.iacr.org/2025/294) for lattice-specific adaptations.
 
 ---
 
@@ -304,12 +515,9 @@ cargo test --workspace
 - [Security Policy](SECURITY.md)
 - [Contributing Guide](CONTRIBUTING.md)
 - [Maintainers](MAINTAINERS.md)
-- [Adopters](ADOPTERS.md) — please add verifiable references when your usage becomes public.
-
-> **Note:** Update the OpenSSF Best Practices badge once a project ID is issued (replace `00000` with the assigned identifier).
 
 ---
 
 ## License
 
-Licensed under the terms of the [Apache License, Version 2.0](LICENSE).
+Licensed under the [Apache License, Version 2.0](LICENSE).

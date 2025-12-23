@@ -93,9 +93,9 @@ pub fn prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     prove(mode, tr, params, s, mcs_list, mcs_witnesses, &[], &[], log)
 }
 
-/// Verify Π_CCS proof. Uses the optimized verifier path.
+/// Verify Π_CCS proof using the selected engine mode.
 pub fn verify(
-    _mode: FoldingMode,
+    mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s: &CcsStructure<F>,
@@ -104,8 +104,18 @@ pub fn verify(
     me_outputs: &[MeInstance<Cmt, F, K>],
     proof: &PiCcsProof,
 ) -> Result<bool, PiCcsError> {
-    // Cross-checking is a prover-side aid; verification remains optimized.
-    crate::engines::OptimizedEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)
+    match mode {
+        FoldingMode::Optimized => crate::engines::OptimizedEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof),
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::PaperExact => crate::engines::PaperExactEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof),
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::OptimizedWithCrosscheck(cfg) => crate::engines::CrossCheckEngine {
+            inner: crate::engines::OptimizedEngine,
+            ref_oracle: crate::engines::PaperExactEngine,
+            cfg,
+        }
+        .verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof),
+    }
 }
 
 // ---------------------------------------------------------------------------

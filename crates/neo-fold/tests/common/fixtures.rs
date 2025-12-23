@@ -7,11 +7,11 @@ use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::folding::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{
     fold_shard_prove, fold_shard_verify, fold_shard_verify_and_finalize, ShardFoldOutputs, ShardProof,
 };
+use neo_fold::shard::CommitMixers;
 use neo_fold::{finalize::ObligationFinalizer, PiCcsError};
 use neo_math::{D, F, K};
 use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
@@ -298,7 +298,6 @@ pub fn verify(
         &fx.steps_instance,
         &fx.acc_init,
         proof,
-        &fx.l,
         fx.mixers,
     )
 }
@@ -321,7 +320,6 @@ where
         &fx.steps_instance,
         &fx.acc_init,
         proof,
-        &fx.l,
         fx.mixers,
         finalizer,
     )

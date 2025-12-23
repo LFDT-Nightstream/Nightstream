@@ -1,7 +1,8 @@
-//! Paper-exact verify implementation for PiCcsEngine.
+//! Optimized-engine verifier implementation for Π_CCS.
 //!
-//! This module contains the verify logic for the paper-exact engine,
-//! which validates the sumcheck proof using paper-exact RHS assembly.
+//! Note: The current verifier is intentionally paper-exact (reference RHS assembly)
+//! even when the prover runs the optimized engine. This keeps verification semantics
+//! stable while allowing prover backends to evolve independently.
 
 #![allow(non_snake_case)]
 

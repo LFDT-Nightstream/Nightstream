@@ -33,8 +33,8 @@ use neo_ccs::matrix::Mat;
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{check_me_consistency, CcsStructure, McsInstance, McsWitness, MeInstance, MeWitness};
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_fold::folding::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{
     fold_shard_prove, fold_shard_prove_with_witnesses, fold_shard_verify, MemOrLutProof, ShardFoldOutputs, ShardProof,
 };
@@ -182,7 +182,6 @@ impl TwistOnlyHarness {
             &steps_public,
             &self.acc_init,
             proof,
-            &self.l,
             self.mixers,
         )
     }
@@ -328,7 +327,6 @@ impl TwistRolloverHarness {
             &steps_public,
             &self.acc_init,
             proof,
-            &self.l,
             self.mixers,
         )
     }
@@ -599,7 +597,6 @@ fn test_twist_only_route_a_exports_val_lane_obligations() {
         &steps_public,
         &ctx.acc_init,
         &proof,
-        &ctx.l,
         ctx.mixers,
     )
     .expect("verify should succeed");
@@ -925,7 +922,6 @@ fn test_shard_cpu_only_folding() {
         &steps_public,
         &acc_init,
         &proof,
-        &l,
         mixers,
     )
     .expect("fold_shard_verify should succeed");
@@ -1166,7 +1162,6 @@ fn test_full_cpu_memory_integration() {
                 &steps_public,
                 &acc_init,
                 &proof,
-                &l,
                 mixers,
             )
             .expect("fold_shard_verify should succeed");

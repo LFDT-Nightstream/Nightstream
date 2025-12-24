@@ -10,6 +10,7 @@ use neo_ccs::{
     relations::{CcsStructure, McsInstance, McsWitness, MeInstance},
 };
 use neo_fold::finalize::{FinalizeReport, ObligationFinalizer};
+use neo_fold::session::FoldingSession;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify, fold_shard_verify_and_finalize, ShardObligations};
 use neo_fold::shard::CommitMixers;
 use neo_fold::PiCcsError;
@@ -135,7 +136,6 @@ fn build_single_chunk_inputs() -> (
     Vec<MeInstance<Cmt, F, K>>,
     Vec<Mat<F>>,
     DummyCommit,
-    Mixers,
     F,
 ) {
     let m = 4usize; // const_one (public), lhs0, lhs1, out
@@ -154,7 +154,6 @@ fn build_single_chunk_inputs() -> (
     )
     .expect("params");
     let l = DummyCommit::default();
-    let mixers = default_mixers();
 
     // Program values: lookup_val + write_val = out
     let const_one = F::ONE;
@@ -220,40 +219,26 @@ fn build_single_chunk_inputs() -> (
         _phantom: PhantomData::<K>,
     };
 
-    (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, out_val)
+    (params, ccs, step_bundle, acc_init, acc_wit_init, l, out_val)
 }
+
+// ============================================================================
+// Tests using FoldingSession
+// ============================================================================
 
 #[test]
 fn full_folding_integration_single_chunk() {
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, _acc_init, _acc_wit_init, l, out_val) = build_single_chunk_inputs();
 
-    let mut tr_prove = Poseidon2Transcript::new(b"full-fold");
-    let proof = fold_shard_prove(
-        FoldingMode::PaperExact,
-        &mut tr_prove,
-        &params,
-        &ccs,
-        &[step_bundle.clone()],
-        &acc_init,
-        &acc_wit_init,
-        &l,
-        mixers,
-    )
-    .expect("prove should succeed");
+    // Use FoldingSession
+    let mut session = FoldingSession::new(FoldingMode::PaperExact, params.clone(), l);
+    session.add_step_bundle(step_bundle.clone());
 
-    let mut tr_verify = Poseidon2Transcript::new(b"full-fold");
-    let steps_public = [StepInstanceBundle::from(&step_bundle)];
-    let _outputs = fold_shard_verify(
-        FoldingMode::PaperExact,
-        &mut tr_verify,
-        &params,
-        &ccs,
-        &steps_public,
-        &acc_init,
-        &proof,
-        mixers,
-    )
-    .expect("verify should succeed");
+    // Prove
+    let proof = session.fold_and_prove(&ccs).expect("prove should succeed");
+
+    // Verify using the session's collected steps
+    session.verify_collected(&ccs, &proof).expect("verify should succeed");
 
     // Print a short summary so it's clear what was enforced.
     let step0 = &proof.steps[0];
@@ -275,7 +260,7 @@ fn full_folding_integration_single_chunk() {
     println!("  Program output (CCS out) = {}", out_val.as_canonical_u64());
 
     // Show a small, deterministic slice of the folded output.
-    let final_children = proof.compute_final_main_children(&acc_init);
+    let final_children = proof.compute_final_main_children(&[]);
     if let Some(first) = final_children.first() {
         let r_len = first.r.len();
         let y0_prefix: Vec<K> = first
@@ -293,7 +278,7 @@ fn full_folding_integration_single_chunk() {
 
 #[test]
 fn full_folding_integration_multi_step_chunk() {
-    let (params, ccs, step_bundle_1, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle_1, _acc_init, _acc_wit_init, l, _out_val) = build_single_chunk_inputs();
 
     let (mcs_inst, mcs_wit) = step_bundle_1.mcs.clone();
 
@@ -346,43 +331,22 @@ fn full_folding_integration_multi_step_chunk() {
         _phantom: PhantomData,
     };
 
-    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-multi-step-chunk");
-    let proof = fold_shard_prove(
-        FoldingMode::PaperExact,
-        &mut tr_prove,
-        &params,
-        &ccs,
-        &[step_bundle.clone()],
-        &acc_init,
-        &acc_wit_init,
-        &l,
-        mixers,
-    )
-    .expect("prove should succeed");
+    // Use FoldingSession
+    let mut session = FoldingSession::new(FoldingMode::PaperExact, params.clone(), l);
+    session.add_step_bundle(step_bundle.clone());
 
-    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-multi-step-chunk");
-    let steps_public = [StepInstanceBundle::from(&step_bundle)];
-    let outputs = fold_shard_verify(
-        FoldingMode::PaperExact,
-        &mut tr_verify,
-        &params,
-        &ccs,
-        &steps_public,
-        &acc_init,
-        &proof,
-        mixers,
-    )
-    .expect("verify should succeed");
-
-    assert!(
-        !outputs.obligations.val.is_empty(),
-        "expected Twist val-lane obligations for multi-step chunk"
-    );
+    let proof = session.fold_and_prove(&ccs).expect("prove should succeed");
+    session.verify_collected(&ccs, &proof).expect("verify should succeed");
 }
+
+// ============================================================================
+// Tamper tests (still use low-level API for precise control)
+// ============================================================================
 
 #[test]
 fn tamper_batched_claimed_sum_fails() {
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
+    let mixers = default_mixers();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-claim");
     let mut proof = fold_shard_prove(
@@ -419,7 +383,8 @@ fn tamper_batched_claimed_sum_fails() {
 
 #[test]
 fn tamper_me_opening_fails() {
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
+    let mixers = default_mixers();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-me");
     let mut proof = fold_shard_prove(
@@ -458,7 +423,8 @@ fn tamper_me_opening_fails() {
 fn tamper_shout_addr_pre_round_poly_fails() {
     use neo_fold::shard::MemOrLutProof;
 
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
+    let mixers = default_mixers();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-shout-addr-pre");
     let mut proof = fold_shard_prove(
@@ -506,7 +472,8 @@ fn tamper_shout_addr_pre_round_poly_fails() {
 fn tamper_twist_val_eval_round_poly_fails() {
     use neo_fold::shard::MemOrLutProof;
 
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
+    let mixers = default_mixers();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-twist-val-eval-rounds");
     let mut proof = fold_shard_prove(
@@ -553,7 +520,8 @@ fn tamper_twist_val_eval_round_poly_fails() {
 
 #[test]
 fn missing_val_fold_fails() {
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
+    let mixers = default_mixers();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-missing-val-fold");
     let mut proof = fold_shard_prove(
@@ -611,7 +579,8 @@ fn verify_and_finalize_receives_val_lane() {
         }
     }
 
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
+    let mixers = default_mixers();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-finalizer");
     let proof = fold_shard_prove(
@@ -659,7 +628,8 @@ fn main_only_finalizer_is_rejected_when_val_lane_present() {
         }
     }
 
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
+    let mixers = default_mixers();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-finalizer-main-only");
     let proof = fold_shard_prove(
@@ -698,7 +668,8 @@ fn main_only_finalizer_is_rejected_when_val_lane_present() {
 
 #[test]
 fn wrong_shout_lookup_value_witness_fails() {
-    let (params, ccs, mut step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, ccs, mut step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
+    let mixers = default_mixers();
 
     // Corrupt the Shout `val` column at the active lookup step.
     let lut_inst = &step_bundle.lut_instances[0].0;

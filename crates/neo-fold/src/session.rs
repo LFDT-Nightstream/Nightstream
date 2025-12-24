@@ -764,6 +764,34 @@ where
         Ok(())
     }
 
+    /// Add a pre-built step bundle directly.
+    ///
+    /// This is the low-level API for when you have already constructed a `StepWitnessBundle`
+    /// with memory (Twist) and/or lookup (Shout) instances.
+    ///
+    /// Use this method when your proof requires Twist/Shout arguments in addition to CCS.
+    pub fn add_step_bundle(&mut self, bundle: StepWitnessBundle<Cmt, F, K>) {
+        self.steps.push(bundle);
+        self.step_claims.push(vec![]);
+    }
+
+    /// Add multiple pre-built step bundles at once.
+    pub fn add_step_bundles(&mut self, bundles: impl IntoIterator<Item = StepWitnessBundle<Cmt, F, K>>) {
+        for bundle in bundles {
+            self.add_step_bundle(bundle);
+        }
+    }
+
+    /// Check if any steps have Twist (memory) instances.
+    pub fn has_twist_instances(&self) -> bool {
+        self.steps.iter().any(|s| !s.mem_instances.is_empty())
+    }
+
+    /// Check if any steps have Shout (lookup) instances.
+    pub fn has_shout_instances(&self) -> bool {
+        self.steps.iter().any(|s| !s.lut_instances.is_empty())
+    }
+
     /// Fold and prove: run folding over all collected steps and return a `FoldRun`.
     /// This is where the actual cryptographic work happens (Π_CCS → RLC → DEC for each step).
     /// This method manages the transcript internally for ease of use.
@@ -836,6 +864,13 @@ where
         self.verify_with_transcript(&mut tr, s, mcss_public, run)
     }
 
+    /// Verify a finished run using the internally collected steps.
+    /// Convenient when you don't want to manually extract the public MCS list.
+    pub fn verify_collected(&self, s: &CcsStructure<F>, run: &FoldRun) -> Result<bool, PiCcsError> {
+        let mcss_public = self.mcss_public();
+        self.verify(s, &mcss_public, run)
+    }
+
     /// Verify with a caller-provided transcript (advanced users).
     pub fn verify_with_transcript(
         &self,
@@ -871,15 +906,16 @@ where
             None => &[], // k=1
         };
 
-        let steps_public: Vec<_> = mcss_public
-            .iter()
-            .cloned()
-            .map(Into::into)
-            .collect();
+        // Build steps_public from the internal bundles to include mem/lut instances
+        let steps_public: Vec<_> = self.steps.iter().map(|bundle| bundle.into()).collect();
 
         let outputs =
             shard::fold_shard_verify(self.mode.clone(), tr, &self.params, &s_norm, &steps_public, seed_me, run, self.mixers)?;
-        if !outputs.obligations.val.is_empty() {
+        
+        // For CCS-only sessions (no Twist/Shout), val-lane obligations should be empty
+        // For Twist+Shout sessions, val-lane obligations are expected and valid
+        let has_twist_or_shout = self.has_twist_instances() || self.has_shout_instances();
+        if !has_twist_or_shout && !outputs.obligations.val.is_empty() {
             return Err(PiCcsError::ProtocolError(
                 "CCS-only session verification produced unexpected val-lane obligations".into(),
             ));

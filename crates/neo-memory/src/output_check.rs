@@ -430,13 +430,6 @@ pub struct OutputBindingProof {
     pub output_sc: OutputSumcheckProof,
 }
 
-#[derive(Clone, Debug)]
-pub struct OutputBindingWitness {
-    pub wa_bits: Vec<Vec<K>>,
-    pub has_write: Vec<K>,
-    pub inc_at_write_addr: Vec<K>,
-}
-
 // ============================================================================
 // Core Verification Logic (shared by all verifiers)
 // ============================================================================

@@ -9,12 +9,13 @@
 //! Prefer the shard/session wrappers which wire Route-A `r_time` into output binding automatically:
 //!
 //! ```ignore
-//! let proof = neo_fold::shard::fold_shard_prove_with_output_binding(..., &ob_cfg, &twist_data)?;
+//! let proof = neo_fold::shard::fold_shard_prove_with_output_binding(..., &ob_cfg, &final_memory_state)?;
 //! neo_fold::shard::fold_shard_verify_with_output_binding(..., &proof, ..., &ob_cfg)?;
 //! ```
 
 use neo_math::{F, K};
-use neo_memory::output_check::{OutputBindingWitness, OutputCheckError, ProgramIO};
+use neo_memory::bit_ops::eq_bit_affine;
+use neo_memory::output_check::{OutputCheckError, ProgramIO};
 use p3_field::PrimeCharacteristicRing;
 
 /// Configuration for output binding.
@@ -41,19 +42,6 @@ impl OutputBindingConfig {
         self.mem_idx = mem_idx;
         self
     }
-}
-
-/// Data needed from Twist witness for output binding.
-#[derive(Clone, Debug)]
-pub struct TwistOutputData {
-    /// Final memory state (values at all addresses after execution).
-    pub final_memory_state: Vec<F>,
-    /// Twist witness for output binding proof.
-    pub witness: OutputBindingWitness,
-}
-
-fn eq_bit_affine(bit: K, u: K) -> K {
-    bit * u + (K::ONE - bit) * (K::ONE - u)
 }
 
 pub(crate) fn val_init_from_mem_init(

@@ -965,7 +965,7 @@ where
         tr: &mut Poseidon2Transcript,
         s: &CcsStructure<F>,
         ob_cfg: &crate::output_binding::OutputBindingConfig,
-        twist_data: &crate::output_binding::TwistOutputData,
+        final_memory_state: &[F],
     ) -> Result<FoldRun, PiCcsError> {
         let s_norm = s
             .ensure_identity_first()
@@ -1010,7 +1010,7 @@ where
             &self.l,
             self.mixers,
             ob_cfg,
-            twist_data,
+            final_memory_state,
         )
     }
 

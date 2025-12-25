@@ -7,12 +7,12 @@ use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::output_binding::{OutputBindingConfig, TwistOutputData};
+use neo_fold::output_binding::OutputBindingConfig;
 use neo_fold::shard::{fold_shard_prove_with_output_binding, fold_shard_verify_with_output_binding, CommitMixers};
 use neo_fold::PiCcsError;
 use neo_math::{D, F, K};
 use neo_memory::encode::encode_mem_for_twist;
-use neo_memory::output_check::{OutputBindingWitness, ProgramIO};
+use neo_memory::output_check::ProgramIO;
 use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
@@ -111,23 +111,9 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
     let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
         steps_witness.iter().map(StepInstanceBundle::from).collect();
 
-    // Output binding witness for the inc-total sumcheck: pad time domain to 4.
-    let twist_witness = OutputBindingWitness {
-        wa_bits: vec![
-            vec![K::ZERO, K::ZERO, K::ZERO, K::ZERO], // bit 0 of addr=2 is 0
-            vec![K::ONE, K::ZERO, K::ZERO, K::ZERO],  // bit 1 of addr=2 is 1 (at t=0 write)
-        ],
-        has_write: vec![K::ONE, K::ZERO, K::ZERO, K::ZERO],
-        inc_at_write_addr: vec![K::from(F::from_u64(7)), K::ZERO, K::ZERO, K::ZERO],
-    };
     let final_memory_state = vec![F::ZERO, F::ZERO, F::from_u64(7), F::ZERO];
 
     let ob_cfg_ok = OutputBindingConfig::new(2, ProgramIO::new().with_output(2, F::from_u64(7)));
-    let twist_data = TwistOutputData {
-        final_memory_state,
-        witness: twist_witness,
-    };
-
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
@@ -143,7 +129,7 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg_ok,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify_ok = Poseidon2Transcript::new(b"output-binding-e2e");

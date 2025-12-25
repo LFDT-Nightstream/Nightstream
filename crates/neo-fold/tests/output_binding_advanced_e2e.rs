@@ -20,12 +20,12 @@ use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::output_binding::{OutputBindingConfig, TwistOutputData, OB_INC_TOTAL_LABEL};
+use neo_fold::output_binding::{OutputBindingConfig, OB_INC_TOTAL_LABEL};
 use neo_fold::shard::{fold_shard_prove_with_output_binding, fold_shard_verify_with_output_binding, CommitMixers};
 use neo_fold::PiCcsError;
 use neo_math::{D, F, K};
 use neo_memory::encode::encode_mem_for_twist;
-use neo_memory::output_check::{OutputBindingWitness, ProgramIO};
+use neo_memory::output_check::ProgramIO;
 use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
@@ -86,7 +86,7 @@ fn build_test_fixture(
     NeoParams,
     CcsStructure<F>,
     Vec<StepWitnessBundle<Cmt, F, K>>,
-    TwistOutputData,
+    Vec<F>,
 ) {
     let k = 1usize << num_bits;
     let n = 4usize; // Minimal CCS size
@@ -166,41 +166,7 @@ fn build_test_fixture(
         _phantom: PhantomData,
     }];
 
-    // Build output binding witness
-    let pow2_time = actual_steps.next_power_of_two().max(4);
-    let mut wa_bits: Vec<Vec<K>> = (0..num_bits).map(|_| vec![K::ZERO; pow2_time]).collect();
-    let mut has_write_k = vec![K::ZERO; pow2_time];
-    let mut inc_k = vec![K::ZERO; pow2_time];
-
-    let mut state_for_inc = vec![F::ZERO; k];
-    for (i, &(is_write, addr, value)) in memory_ops.iter().enumerate() {
-        if is_write {
-            for b in 0..num_bits {
-                wa_bits[b][i] = if (addr >> b) & 1 == 1 { K::ONE } else { K::ZERO };
-            }
-            has_write_k[i] = K::ONE;
-            let old = state_for_inc.get(addr as usize).copied().unwrap_or(F::ZERO);
-            let inc_val = F::from_u64(value) - old;
-            // Handle potential underflow by wrapping
-            inc_k[i] = K::from(inc_val);
-            if (addr as usize) < k {
-                state_for_inc[addr as usize] = F::from_u64(value);
-            }
-        }
-    }
-
-    let twist_witness = OutputBindingWitness {
-        wa_bits,
-        has_write: has_write_k,
-        inc_at_write_addr: inc_k,
-    };
-
-    let twist_data = TwistOutputData {
-        final_memory_state: current_state,
-        witness: twist_witness,
-    };
-
-    (params, ccs, steps_witness, twist_data)
+    (params, ccs, steps_witness, current_state)
 }
 
 // ============================================================================
@@ -216,7 +182,7 @@ fn test_multi_step_sequential_writes() -> Result<(), PiCcsError> {
         (true, 2, 30),
         (true, 3, 40),
     ];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 4, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 4, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -247,7 +213,7 @@ fn test_multi_step_sequential_writes() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"multi_step_seq");
@@ -275,7 +241,7 @@ fn test_multi_step_same_address_rewrites() -> Result<(), PiCcsError> {
         (true, 1, 50),  // addr 1 = 50
         (true, 1, 100), // addr 1 = 100
     ];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 4, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 4, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -302,7 +268,7 @@ fn test_multi_step_same_address_rewrites() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"same_addr_rewrite");
@@ -328,7 +294,7 @@ fn test_multi_step_same_address_rewrites() -> Result<(), PiCcsError> {
 #[test]
 fn test_tampered_output_proof_in_shard_fails() -> Result<(), PiCcsError> {
     let memory_ops: Vec<(bool, u64, u64)> = vec![(true, 2, 42)];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 1, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 1, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -354,7 +320,7 @@ fn test_tampered_output_proof_in_shard_fails() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     // Tamper with the output proof
@@ -425,7 +391,7 @@ fn test_fixed_challenge_style_inc_total_forgery_is_rejected() -> Result<(), PiCc
     // Use empty I/O so the output sumcheck final check is insensitive to `inc_total_claim`.
     // This isolates the inc_total sumcheck binding (the historical vulnerability).
     let memory_ops: Vec<(bool, u64, u64)> = vec![(true, 2, 10), (true, 3, 25)];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 2, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 2, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -448,7 +414,7 @@ fn test_fixed_challenge_style_inc_total_forgery_is_rejected() -> Result<(), PiCc
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     // Sanity: honest proof verifies.
@@ -540,7 +506,7 @@ fn test_fixed_challenge_style_inc_total_forgery_is_rejected() -> Result<(), PiCc
 #[test]
 fn test_wrong_output_claim_in_shard_fails() -> Result<(), PiCcsError> {
     let memory_ops: Vec<(bool, u64, u64)> = vec![(true, 2, 42)];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 1, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 1, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -570,7 +536,7 @@ fn test_wrong_output_claim_in_shard_fails() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg_prove,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"wrong_claim_shard");
@@ -593,7 +559,7 @@ fn test_wrong_output_claim_in_shard_fails() -> Result<(), PiCcsError> {
 #[test]
 fn test_wrong_address_claim_fails() -> Result<(), PiCcsError> {
     let memory_ops: Vec<(bool, u64, u64)> = vec![(true, 2, 42)];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 1, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 1, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -623,7 +589,7 @@ fn test_wrong_address_claim_fails() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg_prove,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"wrong_addr_shard");
@@ -654,7 +620,7 @@ fn test_sparse_multi_address_e2e() -> Result<(), PiCcsError> {
         (true, 0, 111),
         (true, 3, 222),
     ];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 2, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 2, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -682,7 +648,7 @@ fn test_sparse_multi_address_e2e() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"sparse_e2e");
@@ -708,7 +674,7 @@ fn test_sparse_multi_address_e2e() -> Result<(), PiCcsError> {
 #[test]
 fn test_missing_output_proof_fails() -> Result<(), PiCcsError> {
     let memory_ops: Vec<(bool, u64, u64)> = vec![(true, 2, 42)];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 1, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 1, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -734,7 +700,7 @@ fn test_missing_output_proof_fails() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     // Remove the output proof entirely
@@ -774,7 +740,7 @@ fn test_claim_subset_of_writes_succeeds() -> Result<(), PiCcsError> {
         (true, 2, 30),
         (true, 3, 40),
     ];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 4, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 4, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -803,7 +769,7 @@ fn test_claim_subset_of_writes_succeeds() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"subset_claims");
@@ -833,7 +799,7 @@ fn test_min_and_max_addresses() -> Result<(), PiCcsError> {
         (true, 0, 100),
         (true, 3, 200),
     ];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 2, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 2, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -861,7 +827,7 @@ fn test_min_and_max_addresses() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"boundary_addrs");
@@ -892,7 +858,7 @@ fn test_larger_address_space_3_bits() -> Result<(), PiCcsError> {
         (true, 4, 20),
         (true, 7, 30),
     ];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(3, 3, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(3, 3, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -921,7 +887,7 @@ fn test_larger_address_space_3_bits() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"larger_addr_3bit");
@@ -948,7 +914,7 @@ fn test_larger_address_space_3_bits() -> Result<(), PiCcsError> {
 fn test_empty_claims_e2e() -> Result<(), PiCcsError> {
     // Write to memory but claim nothing
     let memory_ops: Vec<(bool, u64, u64)> = vec![(true, 2, 42)];
-    let (params, ccs, steps_witness, twist_data) = build_test_fixture(2, 1, memory_ops);
+    let (params, ccs, steps_witness, final_memory_state) = build_test_fixture(2, 1, memory_ops);
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
@@ -972,7 +938,7 @@ fn test_empty_claims_e2e() -> Result<(), PiCcsError> {
         &l,
         mixers,
         &ob_cfg,
-        &twist_data,
+        &final_memory_state,
     )?;
 
     let mut tr_verify = Poseidon2Transcript::new(b"empty_claims_e2e");

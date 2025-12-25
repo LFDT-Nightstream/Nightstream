@@ -54,8 +54,8 @@ pub use mem_init::*;
 pub use mle::*;
 pub use output_check::{
     generate_output_sumcheck_proof, generate_output_sumcheck_proof_and_challenges, verify_output_sumcheck,
-    verify_output_sumcheck_rounds_get_state, OutputBindingProof, OutputBindingWitness, OutputCheckError, OutputSumcheckParams,
-    OutputSumcheckProof, OutputSumcheckProver, OutputSumcheckState, ProgramIO,
+    verify_output_sumcheck_rounds_get_state, OutputBindingProof, OutputCheckError, OutputSumcheckParams, OutputSumcheckProof,
+    OutputSumcheckProver, OutputSumcheckState, ProgramIO,
 };
 pub use plain::*;
 pub use r1cs_adapter::*;

@@ -258,6 +258,244 @@ pub(crate) fn extend_ccs_with_cpu_bus_copyouts(s: &CcsStructure<F>, bus: &CpuBus
     CcsStructure::new(matrices, f).map_err(|e| PiCcsError::InvalidInput(format!("invalid CCS after bus extension: {e:?}")))
 }
 
+fn active_matrix_indices(s: &CcsStructure<F>) -> Vec<usize> {
+    let t = s.matrices.len();
+    let mut active = vec![false; t];
+    for term in s.f.terms() {
+        for (j, &exp) in term.exps.iter().enumerate() {
+            if exp != 0 {
+                active[j] = true;
+            }
+        }
+    }
+    active
+        .iter()
+        .enumerate()
+        .filter_map(|(j, &is_active)| is_active.then_some(j))
+        .collect()
+}
+
+struct BusColLabel {
+    col_id: usize,
+    label: String,
+}
+
+fn required_bus_cols_for_step_witness<Cmt: Clone, KK: Clone>(step: &StepWitnessBundle<Cmt, F, KK>) -> Vec<BusColLabel> {
+    let mut out = Vec::<BusColLabel>::new();
+    let mut col_id = 0usize;
+
+    for (lut_idx, (inst, _)) in step.lut_instances.iter().enumerate() {
+        let ell_addr = inst.d * inst.ell;
+        for b in 0..ell_addr {
+            out.push(BusColLabel {
+                col_id: col_id + b,
+                label: format!("shout[{lut_idx}].addr_bits[{b}]"),
+            });
+        }
+        out.push(BusColLabel {
+            col_id: col_id + ell_addr,
+            label: format!("shout[{lut_idx}].has_lookup"),
+        });
+        out.push(BusColLabel {
+            col_id: col_id + ell_addr + 1,
+            label: format!("shout[{lut_idx}].val"),
+        });
+        col_id += ell_addr + 2;
+    }
+
+    for (mem_idx, (inst, _)) in step.mem_instances.iter().enumerate() {
+        let ell_addr = inst.d * inst.ell;
+        for b in 0..ell_addr {
+            out.push(BusColLabel {
+                col_id: col_id + b,
+                label: format!("twist[{mem_idx}].ra_bits[{b}]"),
+            });
+        }
+        for b in 0..ell_addr {
+            out.push(BusColLabel {
+                col_id: col_id + ell_addr + b,
+                label: format!("twist[{mem_idx}].wa_bits[{b}]"),
+            });
+        }
+        out.push(BusColLabel {
+            col_id: col_id + 2 * ell_addr + 0,
+            label: format!("twist[{mem_idx}].has_read"),
+        });
+        out.push(BusColLabel {
+            col_id: col_id + 2 * ell_addr + 1,
+            label: format!("twist[{mem_idx}].has_write"),
+        });
+        out.push(BusColLabel {
+            col_id: col_id + 2 * ell_addr + 2,
+            label: format!("twist[{mem_idx}].wv"),
+        });
+        out.push(BusColLabel {
+            col_id: col_id + 2 * ell_addr + 3,
+            label: format!("twist[{mem_idx}].rv"),
+        });
+        // NOTE: inc_at_write_addr is intentionally NOT required here:
+        // it is semantically checked by Twist itself, and many CPU circuits will not constrain it.
+
+        col_id += 2 * ell_addr + 5;
+    }
+
+    out
+}
+
+fn required_bus_cols_for_step_instance<Cmt: Clone, KK: Clone>(step: &StepInstanceBundle<Cmt, F, KK>) -> Vec<BusColLabel> {
+    let mut out = Vec::<BusColLabel>::new();
+    let mut col_id = 0usize;
+
+    for (lut_idx, inst) in step.lut_insts.iter().enumerate() {
+        let ell_addr = inst.d * inst.ell;
+        for b in 0..ell_addr {
+            out.push(BusColLabel {
+                col_id: col_id + b,
+                label: format!("shout[{lut_idx}].addr_bits[{b}]"),
+            });
+        }
+        out.push(BusColLabel {
+            col_id: col_id + ell_addr,
+            label: format!("shout[{lut_idx}].has_lookup"),
+        });
+        out.push(BusColLabel {
+            col_id: col_id + ell_addr + 1,
+            label: format!("shout[{lut_idx}].val"),
+        });
+        col_id += ell_addr + 2;
+    }
+
+    for (mem_idx, inst) in step.mem_insts.iter().enumerate() {
+        let ell_addr = inst.d * inst.ell;
+        for b in 0..ell_addr {
+            out.push(BusColLabel {
+                col_id: col_id + b,
+                label: format!("twist[{mem_idx}].ra_bits[{b}]"),
+            });
+        }
+        for b in 0..ell_addr {
+            out.push(BusColLabel {
+                col_id: col_id + ell_addr + b,
+                label: format!("twist[{mem_idx}].wa_bits[{b}]"),
+            });
+        }
+        out.push(BusColLabel {
+            col_id: col_id + 2 * ell_addr + 0,
+            label: format!("twist[{mem_idx}].has_read"),
+        });
+        out.push(BusColLabel {
+            col_id: col_id + 2 * ell_addr + 1,
+            label: format!("twist[{mem_idx}].has_write"),
+        });
+        out.push(BusColLabel {
+            col_id: col_id + 2 * ell_addr + 2,
+            label: format!("twist[{mem_idx}].wv"),
+        });
+        out.push(BusColLabel {
+            col_id: col_id + 2 * ell_addr + 3,
+            label: format!("twist[{mem_idx}].rv"),
+        });
+        // NOTE: inc_at_write_addr intentionally not required (see witness-step version).
+
+        col_id += 2 * ell_addr + 5;
+    }
+
+    out
+}
+
+fn ensure_ccs_references_bus_cols(
+    s: &CcsStructure<F>,
+    bus: &CpuBusSpec,
+    required_cols: &[BusColLabel],
+) -> Result<(), PiCcsError> {
+    if bus.bus_cols == 0 {
+        return Ok(());
+    }
+
+    let active = active_matrix_indices(s);
+    if active.is_empty() {
+        // If the CCS polynomial does not depend on any matrix (e.g. f == 0), the CCS imposes
+        // no constraints at all. In that case this check is not meaningful, so we skip it.
+        return Ok(());
+    }
+
+    let mut missing: Vec<&BusColLabel> = Vec::new();
+    for col in required_cols {
+        if col.col_id >= bus.bus_cols {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus internal error: required col_id {} out of range (bus_cols={})",
+                col.col_id, bus.bus_cols
+            )));
+        }
+        let z_idx = bus.bus_cell_index(col.col_id, 0);
+        if z_idx >= s.m {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus internal error: bus z index {} out of range (m={})",
+                z_idx, s.m
+            )));
+        }
+
+        let mut found = false;
+        'active_mats: for &mj in &active {
+            let mat = &s.matrices[mj];
+            for r in 0..mat.rows() {
+                if mat[(r, z_idx)] != F::ZERO {
+                    found = true;
+                    break 'active_mats;
+                }
+            }
+        }
+        if !found {
+            missing.push(col);
+        }
+    }
+
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    let mut examples: Vec<String> = missing
+        .iter()
+        .take(8)
+        .map(|c| format!("col_id {} ({})", c.col_id, c.label))
+        .collect();
+    if missing.len() > examples.len() {
+        examples.push(format!("... ({} more)", missing.len() - examples.len()));
+    }
+
+    Err(PiCcsError::InvalidInput(format!(
+        "shared_cpu_bus=true but CPU CCS does not reference required bus columns in any active constraint matrix.\n\
+         This makes the bus a dead witness: CPU semantics can fork from Twist/Shout semantics.\n\
+         Fix: make CPU semantics use the bus coordinates directly, or add equality constraints tying any shadow columns to the bus.\n\
+         Missing examples: {}",
+        examples.join(", ")
+    )))
+}
+
+pub(crate) fn ensure_ccs_binds_shared_bus_for_witness_steps<Cmt: Clone, KK: Clone>(
+    s: &CcsStructure<F>,
+    bus: &CpuBusSpec,
+    steps: &[StepWitnessBundle<Cmt, F, KK>],
+) -> Result<(), PiCcsError> {
+    if steps.is_empty() || bus.bus_cols == 0 {
+        return Ok(());
+    }
+    let required = required_bus_cols_for_step_witness(&steps[0]);
+    ensure_ccs_references_bus_cols(s, bus, &required)
+}
+
+pub(crate) fn ensure_ccs_binds_shared_bus_for_instance_steps<Cmt: Clone, KK: Clone>(
+    s: &CcsStructure<F>,
+    bus: &CpuBusSpec,
+    steps: &[StepInstanceBundle<Cmt, F, KK>],
+) -> Result<(), PiCcsError> {
+    if steps.is_empty() || bus.bus_cols == 0 {
+        return Ok(());
+    }
+    let required = required_bus_cols_for_step_instance(&steps[0]);
+    ensure_ccs_references_bus_cols(s, bus, &required)
+}
+
 pub(crate) fn decode_cpu_z_to_k(params: &NeoParams, Z: &Mat<F>) -> Vec<K> {
     ajtai_decode_vector(params, Z).into_iter().map(Into::into).collect()
 }

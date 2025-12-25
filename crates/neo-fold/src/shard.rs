@@ -425,6 +425,7 @@ where
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
     let (s, cpu_bus) = if shared_cpu_bus {
         let bus = crate::memory_sidecar::cpu_bus::infer_cpu_bus_spec_for_witness_steps(&s0, steps)?;
+        crate::memory_sidecar::cpu_bus::ensure_ccs_binds_shared_bus_for_witness_steps(&s0, &bus, steps)?;
         let s = crate::memory_sidecar::cpu_bus::extend_ccs_with_cpu_bus_copyouts(&s0, &bus)?;
         (s, Some(bus))
     } else {
@@ -940,6 +941,7 @@ where
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
     let s = if shared_cpu_bus {
         let bus = crate::memory_sidecar::cpu_bus::infer_cpu_bus_spec_for_instance_steps(&s0, steps)?;
+        crate::memory_sidecar::cpu_bus::ensure_ccs_binds_shared_bus_for_instance_steps(&s0, &bus, steps)?;
         crate::memory_sidecar::cpu_bus::extend_ccs_with_cpu_bus_copyouts(&s0, &bus)?
     } else {
         s0

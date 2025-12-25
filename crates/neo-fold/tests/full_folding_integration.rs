@@ -63,7 +63,7 @@ fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
     Mat::from_row_major(d, m, row_major)
 }
 
-fn build_add_ccs(m: usize) -> CcsStructure<F> {
+fn build_add_ccs(m: usize, chunk_size: usize, bus_base: usize, bus_cols: usize) -> CcsStructure<F> {
     // A tiny “CPU” relation: const_one + lhs0 + lhs1 - out = 0 enforced only on row 0.
     //
     // We keep `n == m` so `ensure_identity_first()` can insert M₀ = I_n, which Route A relies on.
@@ -76,6 +76,45 @@ fn build_add_ccs(m: usize) -> CcsStructure<F> {
     m2[(0, 2)] = F::ONE;
     let mut m3 = Mat::zero(m, m, F::ZERO);
     m3[(0, 3)] = F::ONE;
+
+    // ---------------------------------------------------------------------
+    // Shared-bus linkage guard (test-only)
+    // ---------------------------------------------------------------------
+    //
+    // The folding layer enforces that, in shared-bus mode, the CPU CCS must reference
+    // the bus columns (otherwise the bus is "dead witness" and CPU semantics can fork
+    // from Twist/Shout semantics).
+    //
+    // These integration tests are intentionally using a tiny dummy CCS; to keep the CCS
+    // semantics unchanged while still referencing the bus, we add the same bus terms to
+    // M1 and subtract them from M2, so they cancel in:
+    //
+    //   f(M0z, M1z, M2z, M3z) = (M0z) + (M1z) + (M2z) - (M3z)
+    //
+    // We only need to reference the `j=0` cells for each bus column because the shared-bus
+    // linkage check is column-based (col_id space), not row-by-row over the chunk.
+    //
+    // NOTE: We intentionally do NOT force any semantic relationship between CPU core values
+    // and the bus in this test helper.
+    if bus_cols > 0 {
+        let bus_region_len = bus_cols * chunk_size;
+        assert!(
+            bus_base + bus_region_len <= m,
+            "bus region out of bounds (bus_base={}, bus_cols={}, chunk_size={}, m={})",
+            bus_base,
+            bus_cols,
+            chunk_size,
+            m
+        );
+
+        // Exclude the Twist `inc_at_write_addr` column (last bus col) from this linkage stub.
+        let required_bus_cols = bus_cols.saturating_sub(1);
+        for col_id in 0..required_bus_cols {
+            let z_idx = bus_base + col_id * chunk_size;
+            m1[(0, z_idx)] = m1[(0, z_idx)] + F::ONE;
+            m2[(0, z_idx)] = m2[(0, z_idx)] - F::ONE;
+        }
+    }
 
     let term_const = neo_ccs::poly::Term {
         coeff: F::ONE,
@@ -256,9 +295,6 @@ fn build_single_chunk_inputs() -> (
     let out_val = const_one + write_val + lookup_val;
 
     // Build CCS (single chunk) enforcing out = write_val + lookup_val (bus vars are extra).
-    let ccs = build_add_ccs(m);
-    let _dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
-
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
@@ -320,6 +356,12 @@ fn build_single_chunk_inputs() -> (
     let bus_cols = (lut_inst.d * lut_inst.ell + 2) + (2 * mem_inst.d * mem_inst.ell + 5);
     let chunk_size = plain_mem.steps;
     let bus_base = m - bus_cols * chunk_size;
+
+    // Build CCS (single chunk) enforcing out = const_one + lookup_val + write_val,
+    // and also referencing the shared-bus columns (without changing CCS semantics).
+    let ccs = build_add_ccs(m, chunk_size, bus_base, bus_cols);
+    let _dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
+
     let mut z = vec![F::ZERO; m];
     z[0] = const_one;
     z[1] = lookup_val;
@@ -408,9 +450,8 @@ fn full_folding_integration_single_chunk() {
 
 #[test]
 fn full_folding_integration_multi_step_chunk() {
-    let (params, ccs, step_bundle_1, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
-
-    let m = step_bundle_1.mcs.1.w.len();
+    let (params, _ccs_single, _step_bundle_1, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let m = TEST_M;
 
     // 4-step RW memory trace (k=2) with alternating write/read.
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
@@ -467,6 +508,10 @@ fn full_folding_integration_multi_step_chunk() {
     let bus_cols = (lut_inst.d * lut_inst.ell + 2) + (2 * mem_inst.d * mem_inst.ell + 5);
     let chunk_size = plain_mem.steps;
     let bus_base = m - bus_cols * chunk_size;
+
+    // CCS must be built for this chunk_size/bus_base so it references the correct bus indices.
+    let ccs = build_add_ccs(m, chunk_size, bus_base, bus_cols);
+
     let mut z = vec![F::ZERO; m];
     // Satisfy the add CCS constraint on row 0 with a trivial assignment.
     z[0] = F::ZERO;

@@ -470,9 +470,11 @@ where
                 .checked_shl(cfg.num_bits as u32)
                 .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^num_bits overflow".into()))?;
             if final_memory_state.len() != expected_k {
-                return Err(PiCcsError::InvalidInput(
-                    "final_memory_state length != 2^num_bits".into(),
-                ));
+                return Err(PiCcsError::InvalidInput(format!(
+                    "output binding: final_memory_state.len()={} != 2^num_bits={}",
+                    final_memory_state.len(),
+                    expected_k
+                )));
             }
             let mem_inst = &step.mem_instances[cfg.mem_idx].0;
             if mem_inst.k != expected_k {
@@ -481,10 +483,10 @@ where
                     expected_k, mem_inst.k
                 )));
             }
-            let ell_addr = mem_inst.d * mem_inst.ell;
+            let ell_addr = mem_inst.twist_layout().ell_addr;
             if ell_addr != cfg.num_bits {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "output binding: cfg.num_bits={}, but mem_inst.d*mem_inst.ell={}",
+                    "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
                     cfg.num_bits, ell_addr
                 )));
             }
@@ -595,9 +597,45 @@ where
                 .ok_or_else(|| PiCcsError::InvalidInput("output binding mem_idx out of range".into()))?
                 .decoded;
             if decoded.wa_bits.len() != cfg.num_bits {
-                return Err(PiCcsError::InvalidInput(
-                    "Twist decoded wa_bits len != output binding num_bits".into(),
-                ));
+                return Err(PiCcsError::InvalidInput(format!(
+                    "output binding: Twist decoded wa_bits len {} != num_bits {}",
+                    decoded.wa_bits.len(),
+                    cfg.num_bits
+                )));
+            }
+            if r_prime.len() != cfg.num_bits {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "output binding: r_prime.len()={} != num_bits={}",
+                    r_prime.len(),
+                    cfg.num_bits
+                )));
+            }
+
+            let expected_pow2_time = 1usize
+                .checked_shl(ell_n as u32)
+                .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^ell_n overflow".into()))?;
+            if decoded.has_write.len() != expected_pow2_time {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "output binding: decoded.has_write.len()={} != 2^ell_n={}",
+                    decoded.has_write.len(),
+                    expected_pow2_time
+                )));
+            }
+            if decoded.inc_at_write_addr.len() != expected_pow2_time {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "output binding: decoded.inc_at_write_addr.len()={} != 2^ell_n={}",
+                    decoded.inc_at_write_addr.len(),
+                    expected_pow2_time
+                )));
+            }
+            for (b, col) in decoded.wa_bits.iter().enumerate() {
+                if col.len() != expected_pow2_time {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "output binding: decoded.wa_bits[{b}].len()={} != 2^ell_n={}",
+                        col.len(),
+                        expected_pow2_time
+                    )));
+                }
             }
 
             use neo_memory::twist_oracle::TwistTotalIncOracleSparse;

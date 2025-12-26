@@ -41,6 +41,7 @@ pub mod plain;
 pub mod r1cs_adapter;
 pub mod riscv_ccs;
 pub mod riscv_lookups;
+pub mod riscv_shout_oracle;
 pub mod shout;
 pub mod sumcheck_proof;
 pub mod ts_common;

@@ -42,6 +42,22 @@ pub struct OutputClaim<Ff> {
     pub expected: Ff,
 }
 
+/// Policy for how [`FoldingSession`] integrates Twist/Shout instances.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SidecarLinkPolicy {
+    /// Default, recommended: convert legacy Twist/Shout commitments into CPU-linked mode
+    /// during proving, and require CPU-linked instances during verification.
+    AutoCpuLink,
+    /// Assume the caller has already constructed CPU-linked instances
+    /// (`cpu_opening_base` set, independent commitments cleared).
+    AssumeCpuLinked,
+    /// Do not CPU-link Twist/Shout at all; prove/verify using independent commitments.
+    ///
+    /// Useful for demos/tests and incremental adoption. It does not prevent CPU↔sidecar
+    /// "forking" unless your CPU constraints already bind the same data.
+    NoLinking,
+}
+
 /// Direct inputs for a single step when you don't want to implement `NeoStep`.
 /// We'll compute the commitment and split (x | w) for you.
 #[derive(Clone, Debug)]
@@ -50,6 +66,112 @@ pub struct ProveInput<'a> {
     pub public_input: &'a [F],               // x
     pub witness: &'a [F],                    // w
     pub output_claims: &'a [OutputClaim<F>], // optional; recorded but not enforced here
+}
+
+/// Helper used by [`FoldingSession::add_step_from_io_with_sidecars`] to attach
+/// Twist/Shout instances from plain traces while reusing the session's commitment key.
+///
+/// This is an ergonomic middle ground between:
+/// - `add_step_from_io` (CCS-only), and
+/// - `add_step_bundle` (fully manual bundle construction).
+pub struct SidecarBuilder<'a, L>
+where
+    L: SModuleHomomorphism<F, Cmt>,
+{
+    params: &'a NeoParams,
+    l: &'a L,
+    ccs_m: usize,
+    m_in: usize,
+
+    pub lut_instances: Vec<(neo_memory::witness::LutInstance<Cmt, F>, neo_memory::witness::LutWitness<F>)>,
+    pub mem_instances: Vec<(neo_memory::witness::MemInstance<Cmt, F>, neo_memory::witness::MemWitness<F>)>,
+}
+
+impl<'a, L> SidecarBuilder<'a, L>
+where
+    L: SModuleHomomorphism<F, Cmt>,
+{
+    /// Attach a Twist memory instance from a plain memory trace.
+    ///
+    /// Automatically chooses "embed-at-ccs-width" mode when `m_in + steps <= ccs.m`,
+    /// otherwise falls back to legacy (steps-width) encoding to avoid `embed_vec` panics.
+    pub fn add_twist(
+        &mut self,
+        layout: &neo_memory::plain::PlainMemLayout,
+        init: &neo_memory::MemInit<F>,
+        trace: &neo_memory::plain::PlainMemTrace<F>,
+    ) {
+        let commit = |m: &Mat<F>| self.l.commit(m);
+        let can_embed = self
+            .m_in
+            .checked_add(trace.steps)
+            .map(|need| need <= self.ccs_m)
+            .unwrap_or(false);
+        let ccs_m = can_embed.then_some(self.ccs_m);
+
+        let (inst, wit) = neo_memory::encode::encode_mem_for_twist(
+            self.params,
+            layout,
+            init,
+            trace,
+            &commit,
+            ccs_m,
+            self.m_in,
+        );
+        self.mem_instances.push((inst, wit));
+    }
+
+    /// Attach a Shout lookup instance from a plain lookup trace and an explicit table.
+    ///
+    /// Automatically chooses "embed-at-ccs-width" mode when `m_in + steps <= ccs.m`,
+    /// otherwise falls back to legacy (steps-width) encoding to avoid `embed_vec` panics.
+    pub fn add_shout(
+        &mut self,
+        table: &neo_memory::plain::LutTable<F>,
+        trace: &neo_memory::plain::PlainLutTrace<F>,
+    ) {
+        let commit = |m: &Mat<F>| self.l.commit(m);
+        let steps = trace.has_lookup.len();
+        let can_embed = self
+            .m_in
+            .checked_add(steps)
+            .map(|need| need <= self.ccs_m)
+            .unwrap_or(false);
+        let ccs_m = can_embed.then_some(self.ccs_m);
+
+        let (inst, wit) = neo_memory::encode::encode_lut_for_shout(self.params, table, trace, &commit, ccs_m, self.m_in);
+        self.lut_instances.push((inst, wit));
+    }
+
+    /// Attach a RISC-V implicit-table Shout instance from a plain lookup trace.
+    ///
+    /// This is a convenience wrapper around `neo_memory::encode::encode_riscv_lut_for_shout`.
+    pub fn add_riscv_shout(
+        &mut self,
+        opcode: neo_memory::riscv_lookups::RiscvOpcode,
+        xlen: usize,
+        trace: &neo_memory::plain::PlainLutTrace<F>,
+    ) {
+        let commit = |m: &Mat<F>| self.l.commit(m);
+        let steps = trace.has_lookup.len();
+        let can_embed = self
+            .m_in
+            .checked_add(steps)
+            .map(|need| need <= self.ccs_m)
+            .unwrap_or(false);
+        let ccs_m = can_embed.then_some(self.ccs_m);
+
+        let (inst, wit) = neo_memory::encode::encode_riscv_lut_for_shout(
+            self.params,
+            opcode,
+            xlen,
+            trace,
+            &commit,
+            ccs_m,
+            self.m_in,
+        );
+        self.lut_instances.push((inst, wit));
+    }
 }
 
 /// Where special coordinates live inside the step witness `z`.
@@ -542,6 +664,7 @@ where
     params: NeoParams,
     l: L,
     mixers: CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>,
+    sidecar_link_policy: SidecarLinkPolicy,
 
     // Collected per-step bundles (CCS-only steps have empty LUT/MEM vectors)
     steps: Vec<StepWitnessBundle<Cmt, F, K>>,
@@ -567,11 +690,23 @@ where
             params,
             l,
             mixers: default_mixers(),
+            sidecar_link_policy: SidecarLinkPolicy::AutoCpuLink,
             steps: vec![],
             acc0: None,
             step_claims: vec![],
             curr_state: None,
         }
+    }
+
+    /// Configure how this session links Twist/Shout instances to the CPU witness/CCS.
+    pub fn set_sidecar_link_policy(&mut self, policy: SidecarLinkPolicy) {
+        self.sidecar_link_policy = policy;
+    }
+
+    /// Builder-style setter for [`SidecarLinkPolicy`].
+    pub fn with_sidecar_link_policy(mut self, policy: SidecarLinkPolicy) -> Self {
+        self.sidecar_link_policy = policy;
+        self
     }
 
     /// Set an explicit initial state y₀ for the IVC (optional).
@@ -765,6 +900,75 @@ where
         Ok(())
     }
 
+    /// Add one step from (x, w) and attach Twist/Shout sidecars from plain traces.
+    ///
+    /// The session computes the CPU commitment and MCS instance/witness for you, then the
+    /// provided closure can append any number of memory (Twist) and lookup (Shout) instances.
+    pub fn add_step_from_io_with_sidecars(
+        &mut self,
+        input: &ProveInput<'_>,
+        f: impl FnOnce(&mut SidecarBuilder<'_, L>) -> Result<(), PiCcsError>,
+    ) -> Result<(), PiCcsError> {
+        // Normalize CCS to identity-first
+        let s_norm = input
+            .ccs
+            .ensure_identity_first()
+            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+
+        // STRICT validation: Ajtai/NC requires M₀ = I_n (fail fast instead of mysterious sumcheck errors)
+        s_norm
+            .assert_m0_is_identity_for_nc()
+            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
+
+        let m_in = input.public_input.len();
+        if m_in + input.witness.len() != s_norm.m {
+            return Err(PiCcsError::InvalidInput(format!(
+                "len(x) + len(w) = {} but CCS.m = {}",
+                m_in + input.witness.len(),
+                s_norm.m
+            )));
+        }
+
+        // Build z = [x | w], compute Z and commitment c
+        let mut z = Vec::with_capacity(s_norm.m);
+        z.extend_from_slice(input.public_input);
+        z.extend_from_slice(input.witness);
+
+        let Z = decompose_z_to_Z(&self.params, &z);
+        let c = self.l.commit(&Z);
+
+        // Produce MCS instance + witness
+        let mcs_inst = McsInstance {
+            c,
+            x: input.public_input.to_vec(),
+            m_in,
+        };
+        let mcs_wit = McsWitness {
+            w: input.witness.to_vec(),
+            Z,
+        };
+
+        // Attach sidecars
+        let mut sc = SidecarBuilder {
+            params: &self.params,
+            l: &self.l,
+            ccs_m: s_norm.m,
+            m_in,
+            lut_instances: vec![],
+            mem_instances: vec![],
+        };
+        f(&mut sc)?;
+
+        let mut bundle: StepWitnessBundle<Cmt, F, K> = (mcs_inst, mcs_wit).into();
+        bundle.lut_instances = sc.lut_instances;
+        bundle.mem_instances = sc.mem_instances;
+
+        self.steps.push(bundle);
+        self.step_claims.push(input.output_claims.to_vec());
+
+        Ok(())
+    }
+
     /// Add a pre-built step bundle directly.
     ///
     /// This is the low-level API for when you have already constructed a `StepWitnessBundle`
@@ -885,10 +1089,18 @@ where
                     self.steps.iter().map(StepInstanceBundle::from).collect();
                 cpu_link::ensure_ccs_has_cpu_bus_copyouts_for_cpu_linked_steps(&s, &steps_public)
             }
-            Some(false) | None => {
-                // Legacy witness bundles: deterministically convert them to CPU-linked mode.
-                cpu_link::make_steps_cpu_linked(&self.params, &self.l, s, &mut self.steps)
-            }
+            Some(false) | None => match self.sidecar_link_policy {
+                SidecarLinkPolicy::AutoCpuLink => {
+                    // Legacy witness bundles: deterministically convert them to CPU-linked mode.
+                    cpu_link::make_steps_cpu_linked(&self.params, &self.l, s, &mut self.steps)
+                }
+                SidecarLinkPolicy::AssumeCpuLinked => Err(PiCcsError::InvalidInput(
+                    "session is configured for CPU-linked Twist/Shout (AssumeCpuLinked), but steps are legacy; \
+use SidecarLinkPolicy::AutoCpuLink to convert or SidecarLinkPolicy::NoLinking to keep independent commitments"
+                        .into(),
+                )),
+                SidecarLinkPolicy::NoLinking => Ok(s),
+            },
         }
     }
 
@@ -1014,6 +1226,17 @@ where
         )
     }
 
+    /// Fold and prove with output binding, managing the transcript internally.
+    pub fn fold_and_prove_with_output_binding_simple(
+        &mut self,
+        s: &CcsStructure<F>,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+        final_memory_state: &[F],
+    ) -> Result<FoldRun, PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold/session");
+        self.fold_and_prove_with_output_binding(&mut tr, s, ob_cfg, final_memory_state)
+    }
+
     /// Verify a finished run against the public MCS list.
     /// This method manages the transcript internally for ease of use.
     pub fn verify(
@@ -1056,15 +1279,21 @@ where
         let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
             self.steps.iter().map(|bundle| bundle.into()).collect();
 
-        // Shared CPU bus (default): require CPU-linked instances when Twist/Shout are present.
-        if self.has_twist_instances() || self.has_shout_instances() {
+        // Shared CPU bus (default): require CPU-linked instances when Twist/Shout are present
+        // unless explicitly disabled via `SidecarLinkPolicy::NoLinking`.
+        let require_cpu_linked = matches!(
+            self.sidecar_link_policy,
+            SidecarLinkPolicy::AutoCpuLink | SidecarLinkPolicy::AssumeCpuLinked
+        );
+        if require_cpu_linked && (self.has_twist_instances() || self.has_shout_instances()) {
             let any_cpu_linked = steps_public.iter().any(|step| {
                 step.lut_insts.iter().any(|inst| inst.cpu_opening_base.is_some())
                     || step.mem_insts.iter().any(|inst| inst.cpu_opening_base.is_some())
             });
             if !any_cpu_linked {
                 return Err(PiCcsError::InvalidInput(
-                    "session verify requires CPU-linked Twist/Shout instances (cpu_opening_base must be set); build proof via FoldingSession::fold_and_prove".into(),
+                    "session verify requires CPU-linked Twist/Shout instances (cpu_opening_base must be set); build proof via FoldingSession::fold_and_prove, or opt into SidecarLinkPolicy::NoLinking for legacy proofs"
+                        .into(),
                 ));
             }
         }
@@ -1102,6 +1331,29 @@ where
         Ok(true)
     }
 
+    /// Verify with output binding, managing the transcript internally.
+    pub fn verify_with_output_binding_simple(
+        &self,
+        s: &CcsStructure<F>,
+        mcss_public: &[neo_ccs::McsInstance<Cmt, F>],
+        run: &FoldRun,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+    ) -> Result<bool, PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold/session");
+        self.verify_with_output_binding(&mut tr, s, mcss_public, run, ob_cfg)
+    }
+
+    /// Verify with output binding using the internally collected steps (and public MCS list).
+    pub fn verify_with_output_binding_collected_simple(
+        &self,
+        s: &CcsStructure<F>,
+        run: &FoldRun,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+    ) -> Result<bool, PiCcsError> {
+        let mcss_public = self.mcss_public();
+        self.verify_with_output_binding_simple(s, &mcss_public, run, ob_cfg)
+    }
+
     pub fn verify_with_output_binding(
         &self,
         tr: &mut Poseidon2Transcript,
@@ -1122,14 +1374,19 @@ where
         let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
             self.steps.iter().map(|bundle| bundle.into()).collect();
 
-        if self.has_twist_instances() || self.has_shout_instances() {
+        let require_cpu_linked = matches!(
+            self.sidecar_link_policy,
+            SidecarLinkPolicy::AutoCpuLink | SidecarLinkPolicy::AssumeCpuLinked
+        );
+        if require_cpu_linked && (self.has_twist_instances() || self.has_shout_instances()) {
             let any_cpu_linked = steps_public.iter().any(|step| {
                 step.lut_insts.iter().any(|inst| inst.cpu_opening_base.is_some())
                     || step.mem_insts.iter().any(|inst| inst.cpu_opening_base.is_some())
             });
             if !any_cpu_linked {
                 return Err(PiCcsError::InvalidInput(
-                    "session verify requires CPU-linked Twist/Shout instances (cpu_opening_base must be set); build proof via FoldingSession::fold_and_prove".into(),
+                    "session verify requires CPU-linked Twist/Shout instances (cpu_opening_base must be set); build proof via FoldingSession::fold_and_prove, or opt into SidecarLinkPolicy::NoLinking for legacy proofs"
+                        .into(),
                 ));
             }
         }

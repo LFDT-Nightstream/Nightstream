@@ -5,6 +5,19 @@ use std::marker::PhantomData;
 use std::ops::Range;
 
 use crate::mem_init::MemInit;
+use crate::riscv_lookups::RiscvOpcode;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum LutTableSpec {
+    /// A "virtual" lookup table defined by the RISC-V opcode semantics over
+    /// an interleaved operand address space.
+    ///
+    /// Addressing convention:
+    /// - `n_side = 2`, `ell = 1`
+    /// - `d = 2*xlen` (one bit per dimension)
+    /// - Address bits are little-endian and correspond to `interleave_bits(rs1, rs2)`.
+    RiscvOpcode { opcode: RiscvOpcode, xlen: usize },
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemInstance<C, F> {
@@ -94,6 +107,9 @@ pub struct LutInstance<C, F> {
     pub steps: usize,
     /// Bits per address dimension: ell = ceil(log2(n_side))
     pub ell: usize,
+    /// Optional virtual table descriptor (when the full table is not materialized).
+    #[serde(default)]
+    pub table_spec: Option<LutTableSpec>,
     pub table: Vec<F>,
     #[serde(skip)]
     pub _phantom: PhantomData<F>,

@@ -13,12 +13,14 @@ use neo_ccs::{CcsStructure, Mat, MeInstance};
 use neo_math::{F, K};
 use neo_memory::bit_ops::eq_bits_prod;
 use neo_memory::mle::{eq_points, lt_eval};
+use neo_memory::riscv_lookups::{evaluate_opcode_mle, RiscvShoutTables};
+use neo_memory::riscv_shout_oracle::RiscvAddressLookupOracleSparse;
 use neo_memory::ts_common as ts;
 use neo_memory::twist_oracle::{
     table_mle_eval, LazyBitnessOracle, TwistReadCheckAddrOracle, TwistTotalIncOracleSparse, TwistValEvalOracleSparse,
     TwistWriteCheckAddrOracle,
 };
-use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle, StepWitnessBundle};
+use neo_memory::witness::{LutInstance, LutTableSpec, MemInstance, StepInstanceBundle, StepWitnessBundle};
 use neo_memory::{eval_init_at_r_addr, shout, twist, BatchedAddrProof, MemInit};
 use neo_params::NeoParams;
 use neo_reductions::sumcheck::{BatchedClaim, RoundOracle};
@@ -53,6 +55,19 @@ where
         }
         let table_digest = digest_fields(b"shout/table", &inst.table);
         tr.append_message(b"shout/table_digest", &table_digest);
+        tr.append_message(
+            b"shout/table_spec/present",
+            if inst.table_spec.is_some() { &[1] } else { &[0] },
+        );
+        if let Some(spec) = &inst.table_spec {
+            match spec {
+                LutTableSpec::RiscvOpcode { opcode, xlen } => {
+                    let shout_id = RiscvShoutTables::new(*xlen).opcode_to_id(*opcode);
+                    tr.append_message(b"shout/table_spec/riscv/shout_id", &(shout_id.0 as u64).to_le_bytes());
+                    tr.append_message(b"shout/table_spec/riscv/xlen", &(*xlen as u64).to_le_bytes());
+                }
+            }
+        }
         // In CPU-linked mode, Shout columns are interpreted as living in the CPU witness namespace,
         // so we bind only metadata here (no per-column commitments).
         if inst.cpu_opening_base.is_none() {
@@ -135,14 +150,13 @@ pub trait TimeBatchedClaims {
 pub struct ShoutAddrPreProverData {
     pub addr_pre: BatchedAddrProof<K>,
     pub decoded: shout::ShoutDecodedCols,
-    pub table_k: Vec<K>,
 }
 
 pub struct ShoutAddrPreVerifyData {
     pub addr_claim_sum: K,
     pub addr_final: K,
     pub r_addr: Vec<K>,
-    pub table_k: Vec<K>,
+    pub table_eval: K,
 }
 
 pub struct TwistAddrPreProverData {
@@ -585,8 +599,18 @@ pub fn prove_shout_addr_pre_time(
         } else {
             shout::decode_shout_cols(params, lut_inst, lut_wit, ell_n)?
         };
-        let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
-        let (mut addr_oracle, addr_claim_sum) = shout::build_shout_addr_oracle(lut_inst, &decoded, r_cycle, &table_k)?;
+        let (mut addr_oracle, addr_claim_sum): (Box<dyn RoundOracle>, K) = match &lut_inst.table_spec {
+            Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
+                let (oracle, claimed_sum) =
+                    RiscvAddressLookupOracleSparse::new(*opcode, *xlen, &decoded.addr_bits, &decoded.has_lookup, r_cycle)?;
+                (Box::new(oracle), claimed_sum)
+            }
+            None => {
+                let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
+                let (oracle, claimed_sum) = shout::build_shout_addr_oracle(lut_inst, &decoded, r_cycle, &table_k)?;
+                (Box::new(oracle), claimed_sum)
+            }
+        };
 
         let labels: [&[u8]; 1] = [b"shout/addr_pre".as_slice()];
         let claimed_sums = vec![addr_claim_sum];
@@ -594,7 +618,7 @@ pub fn prove_shout_addr_pre_time(
         bind_batched_claim_sums(tr, b"shout/addr_pre_time/claimed_sums", &claimed_sums, &labels);
 
         let mut claims = [BatchedClaim {
-            oracle: &mut addr_oracle,
+            oracle: addr_oracle.as_mut(),
             claimed_sum: addr_claim_sum,
             label: labels[0],
         }];
@@ -615,7 +639,6 @@ pub fn prove_shout_addr_pre_time(
                 r_addr,
             },
             decoded,
-            table_k,
         });
     }
 
@@ -630,7 +653,6 @@ pub fn verify_shout_addr_pre_time(
     let mut out = Vec::with_capacity(step.lut_insts.len());
 
     for (idx, lut_inst) in step.lut_insts.iter().enumerate() {
-        let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
         let proof = match mem_proof.proofs.get(idx) {
             Some(MemOrLutProof::Shout(p)) => p,
             _ => return Err(PiCcsError::InvalidInput("expected Shout proof".into())),
@@ -713,12 +735,19 @@ pub fn verify_shout_addr_pre_time(
         }
         let addr_claim_sum = proof.addr_pre.claimed_sums[0];
         let addr_final = finals[0];
+        let table_eval = match &lut_inst.table_spec {
+            Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => evaluate_opcode_mle(*opcode, &r_addr, *xlen),
+            None => {
+                let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
+                table_mle_eval(&table_k, &r_addr)
+            }
+        };
 
         out.push(ShoutAddrPreVerifyData {
             addr_claim_sum,
             addr_final,
             r_addr,
-            table_k,
+            table_eval,
         });
     }
 
@@ -1994,7 +2023,7 @@ pub fn verify_route_a_memory_step(
             ));
         }
 
-        let table_eval = table_mle_eval(&pre.table_k, &pre.r_addr);
+        let table_eval = pre.table_eval;
         let expected_addr_final = table_eval * adapter_claim;
         if expected_addr_final != pre.addr_final {
             return Err(PiCcsError::ProtocolError("shout addr terminal value mismatch".into()));
@@ -2582,7 +2611,7 @@ fn verify_route_a_memory_step_cpu_linked(
             ));
         }
 
-        let table_eval = table_mle_eval(&pre.table_k, &pre.r_addr);
+        let table_eval = pre.table_eval;
         let expected_addr_final = table_eval * adapter_claim;
         if expected_addr_final != pre.addr_final {
             return Err(PiCcsError::ProtocolError("shout addr terminal value mismatch".into()));

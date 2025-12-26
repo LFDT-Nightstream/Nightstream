@@ -17,6 +17,7 @@ fn split_lut_mats_orders_fields() {
         n_side: 2,
         steps: 16,
         ell: 1, // log2(2) = 1
+        table_spec: None,
         table: vec![Goldilocks::ZERO; 8],
         _phantom: std::marker::PhantomData,
     };

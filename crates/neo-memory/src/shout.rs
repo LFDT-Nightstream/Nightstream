@@ -10,7 +10,8 @@ use crate::ts_common as ts;
 use crate::twist_oracle::{
     build_eq_table, AddressLookupOracle, IndexAdapterOracle, LazyBitnessOracle, ProductRoundOracle,
 };
-use crate::witness::{LutInstance, LutWitness};
+use crate::riscv_lookups::{compute_op, uninterleave_bits};
+use crate::witness::{LutInstance, LutTableSpec, LutWitness};
 use neo_ajtai::Commitment as AjtaiCmt;
 use neo_ccs::matrix::Mat;
 use neo_math::{F as BaseField, K as KElem};
@@ -167,13 +168,24 @@ pub fn check_shout_semantics<F: PrimeField>(
     for j in 0..steps {
         if has_lookup[j] == F::ONE {
             let addr = addrs[j] as usize;
-            if addr >= inst.table.len() {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Shout: out-of-range lookup at step {j}: addr={addr} >= table.len()={}",
-                    inst.table.len()
-                )));
-            }
-            let table_val = inst.table[addr];
+            let table_val = match &inst.table_spec {
+                Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
+                    let (rs1, rs2) = uninterleave_bits(addrs[j] as u128);
+                    // NOTE: For RV64 this currently truncates keys to 64 bits at trace time.
+                    // This mode is intended for RV32 (xlen=32) until RV64 key encoding is fixed.
+                    let out = compute_op(*opcode, rs1, rs2, *xlen);
+                    F::from_u64(out)
+                }
+                None => {
+                    if addr >= inst.table.len() {
+                        return Err(PiCcsError::InvalidInput(format!(
+                            "Shout: out-of-range lookup at step {j}: addr={addr} >= table.len()={}",
+                            inst.table.len()
+                        )));
+                    }
+                    inst.table[addr]
+                }
+            };
             if val[j] != table_val {
                 return Err(PiCcsError::InvalidInput(format!(
                     "Shout: lookup mismatch at step {j}: Table[{addr}]={table_val:?}, committed val={:?}",
@@ -218,6 +230,11 @@ pub fn build_shout_addr_oracle<Cmt: Clone>(
     r_cycle: &[KElem],
     table_k: &[KElem],
 ) -> Result<(AddressLookupOracle, KElem), PiCcsError> {
+    if inst.table_spec.is_some() {
+        return Err(PiCcsError::InvalidInput(
+            "Shout: build_shout_addr_oracle requires an explicit table (table_spec must be None)".into(),
+        ));
+    }
     let ell_addr = inst.d * inst.ell;
     if table_k.len() != inst.table.len() {
         return Err(PiCcsError::InvalidInput(format!(

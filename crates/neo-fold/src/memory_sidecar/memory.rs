@@ -11,13 +11,16 @@ use neo_ccs::{CcsStructure, MeInstance};
 use neo_math::{F, K};
 use neo_memory::bit_ops::eq_bits_prod;
 use neo_memory::mle::{eq_points, lt_eval};
+use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::ts_common as ts;
 use neo_memory::twist_oracle::{
-    table_mle_eval, LazyBitnessOracle, TwistReadCheckAddrOracle, TwistTotalIncOracleSparse, TwistValEvalOracleSparse,
-    TwistWriteCheckAddrOracle,
+    table_mle_eval, AddressLookupOracle, IndexAdapterOracleSparseTime, LazyBitnessOracleSparseTime,
+    ShoutValueOracleSparse, TwistReadCheckAddrOracleSparseTime, TwistReadCheckOracleSparseTime,
+    TwistTotalIncOracleSparseTime, TwistValEvalOracleSparseTime, TwistWriteCheckAddrOracleSparseTime,
+    TwistWriteCheckOracleSparseTime,
 };
 use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle, StepWitnessBundle};
-use neo_memory::{eval_init_at_r_addr, shout, twist, BatchedAddrProof, MemInit};
+use neo_memory::{eval_init_at_r_addr, twist, BatchedAddrProof, MemInit};
 use neo_params::NeoParams;
 use neo_reductions::sumcheck::{BatchedClaim, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -90,9 +93,41 @@ pub(crate) fn absorb_step_memory_witness(tr: &mut Poseidon2Transcript, step: &St
 // Prover helpers
 // ============================================================================
 
+pub(crate) struct ShoutDecodedColsSparse {
+    pub addr_bits: Vec<SparseIdxVec<K>>,
+    pub has_lookup: SparseIdxVec<K>,
+    pub val: SparseIdxVec<K>,
+}
+
+pub(crate) struct TwistDecodedColsSparse {
+    pub ra_bits: Vec<SparseIdxVec<K>>,
+    pub wa_bits: Vec<SparseIdxVec<K>>,
+    pub has_read: SparseIdxVec<K>,
+    pub has_write: SparseIdxVec<K>,
+    pub wv: SparseIdxVec<K>,
+    pub rv: SparseIdxVec<K>,
+    pub inc_at_write_addr: SparseIdxVec<K>,
+}
+
+pub struct RouteAShoutTimeOracles {
+    pub value: Box<dyn RoundOracle>,
+    pub value_claim: K,
+    pub adapter: Box<dyn RoundOracle>,
+    pub adapter_claim: K,
+    pub bitness: Vec<Box<dyn RoundOracle>>,
+    pub ell_addr: usize,
+}
+
+pub struct RouteATwistTimeOracles {
+    pub read_check: Box<dyn RoundOracle>,
+    pub write_check: Box<dyn RoundOracle>,
+    pub bitness: Vec<Box<dyn RoundOracle>>,
+    pub ell_addr: usize,
+}
+
 pub struct RouteAMemoryOracles {
-    pub shout: Vec<shout::RouteAShoutOracles>,
-    pub twist: Vec<twist::RouteATwistOracles>,
+    pub shout: Vec<RouteAShoutTimeOracles>,
+    pub twist: Vec<RouteATwistTimeOracles>,
 }
 
 pub trait TimeBatchedClaims {
@@ -107,10 +142,9 @@ pub trait TimeBatchedClaims {
     );
 }
 
-pub struct ShoutAddrPreProverData {
+pub(crate) struct ShoutAddrPreProverData {
     pub addr_pre: BatchedAddrProof<K>,
-    pub decoded: shout::ShoutDecodedCols,
-    pub table_k: Vec<K>,
+    pub decoded: ShoutDecodedColsSparse,
 }
 
 pub struct ShoutAddrPreVerifyData {
@@ -120,9 +154,9 @@ pub struct ShoutAddrPreVerifyData {
     pub table_k: Vec<K>,
 }
 
-pub struct TwistAddrPreProverData {
+pub(crate) struct TwistAddrPreProverData {
     pub addr_pre: BatchedAddrProof<K>,
-    pub decoded: twist::TwistDecodedCols,
+    pub decoded: TwistDecodedColsSparse,
     /// Time-lane claimed sum for the read-check oracle (output of addr-pre).
     pub read_check_claim_sum: K,
     /// Time-lane claimed sum for the write-check oracle (output of addr-pre).
@@ -148,108 +182,104 @@ pub(crate) fn prove_twist_addr_pre_time(
     }
     let mut out = Vec::with_capacity(step.mem_instances.len());
 
-    let cpu_z_k = cpu_bus.map(|_| crate::memory_sidecar::cpu_bus::decode_cpu_z_to_k(params, &step.mcs.1.Z));
+    let bus = cpu_bus.ok_or_else(|| {
+        PiCcsError::InvalidInput("prove_twist_addr_pre_time requires shared_cpu_bus".into())
+    })?;
+    let cpu_z_k = crate::memory_sidecar::cpu_bus::decode_cpu_z_to_k(params, &step.mcs.1.Z);
     // Canonical bus order: all Shout instances first, then all Twist instances.
     let mut cpu_bus_col = 0usize;
-    if cpu_bus.is_some() {
-        for (lut_inst, _) in &step.lut_instances {
-            cpu_bus_col = cpu_bus_col
-                .checked_add(crate::memory_sidecar::cpu_bus::shout_bus_cols(lut_inst))
-                .ok_or_else(|| PiCcsError::InvalidInput("bus column offset overflow".into()))?;
-        }
+    for (lut_inst, _) in &step.lut_instances {
+        cpu_bus_col = cpu_bus_col
+            .checked_add(crate::memory_sidecar::cpu_bus::shout_bus_cols(lut_inst))
+            .ok_or_else(|| PiCcsError::InvalidInput("bus column offset overflow".into()))?;
     }
 
-    for (idx, (mem_inst, mem_wit)) in step.mem_instances.iter().enumerate() {
-        let decoded = if let Some(bus) = cpu_bus {
-            neo_memory::addr::validate_twist_bit_addressing(mem_inst)?;
-            let pow2_cycle = 1usize << ell_n;
-            if mem_inst.steps > pow2_cycle {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Twist(Route A): steps={} exceeds 2^ell_cycle={pow2_cycle}",
-                    mem_inst.steps
-                )));
-            }
-            let z = cpu_z_k.as_ref().ok_or_else(|| {
-                PiCcsError::InvalidInput("shared bus requested but CPU witness is missing".into())
-            })?;
+    for (idx, (mem_inst, _mem_wit)) in step.mem_instances.iter().enumerate() {
+        neo_memory::addr::validate_twist_bit_addressing(mem_inst)?;
+        let pow2_cycle = 1usize << ell_n;
+        if mem_inst.steps > pow2_cycle {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Twist(Route A): steps={} exceeds 2^ell_cycle={pow2_cycle}",
+                mem_inst.steps
+            )));
+        }
 
-            let ell_addr = mem_inst.d * mem_inst.ell;
-            let mut ra_bits = Vec::with_capacity(ell_addr);
-            for _ in 0..ell_addr {
-                ra_bits.push(crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
-                    z,
-                    bus,
-                    cpu_bus_col,
-                    mem_inst.steps,
-                    pow2_cycle,
-                )?);
-                cpu_bus_col += 1;
-            }
+        let z = &cpu_z_k;
 
-            let mut wa_bits = Vec::with_capacity(ell_addr);
-            for _ in 0..ell_addr {
-                wa_bits.push(crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
-                    z,
-                    bus,
-                    cpu_bus_col,
-                    mem_inst.steps,
-                    pow2_cycle,
-                )?);
-                cpu_bus_col += 1;
-            }
+        let ell_addr = mem_inst.d * mem_inst.ell;
+        let mut ra_bits = Vec::with_capacity(ell_addr);
+        for _ in 0..ell_addr {
+            ra_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+                z,
+                bus,
+                cpu_bus_col,
+                mem_inst.steps,
+                pow2_cycle,
+            )?);
+            cpu_bus_col += 1;
+        }
 
-            let has_read = crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
+        let mut wa_bits = Vec::with_capacity(ell_addr);
+        for _ in 0..ell_addr {
+            wa_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
                 z,
                 bus,
                 cpu_bus_col,
                 mem_inst.steps,
                 pow2_cycle,
-            )?;
+            )?);
             cpu_bus_col += 1;
-            let has_write = crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
-                z,
-                bus,
-                cpu_bus_col,
-                mem_inst.steps,
-                pow2_cycle,
-            )?;
-            cpu_bus_col += 1;
-            let wv = crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
-                z,
-                bus,
-                cpu_bus_col,
-                mem_inst.steps,
-                pow2_cycle,
-            )?;
-            cpu_bus_col += 1;
-            let rv = crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
-                z,
-                bus,
-                cpu_bus_col,
-                mem_inst.steps,
-                pow2_cycle,
-            )?;
-            cpu_bus_col += 1;
-            let inc_at_write_addr = crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
-                z,
-                bus,
-                cpu_bus_col,
-                mem_inst.steps,
-                pow2_cycle,
-            )?;
-            cpu_bus_col += 1;
+        }
 
-            twist::TwistDecodedCols {
-                ra_bits,
-                wa_bits,
-                has_read,
-                has_write,
-                wv,
-                rv,
-                inc_at_write_addr,
-            }
-        } else {
-            twist::decode_twist_cols(params, mem_inst, mem_wit, ell_n)?
+        let has_read = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+            z,
+            bus,
+            cpu_bus_col,
+            mem_inst.steps,
+            pow2_cycle,
+        )?;
+        cpu_bus_col += 1;
+        let has_write = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+            z,
+            bus,
+            cpu_bus_col,
+            mem_inst.steps,
+            pow2_cycle,
+        )?;
+        cpu_bus_col += 1;
+        let wv = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+            z,
+            bus,
+            cpu_bus_col,
+            mem_inst.steps,
+            pow2_cycle,
+        )?;
+        cpu_bus_col += 1;
+        let rv = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+            z,
+            bus,
+            cpu_bus_col,
+            mem_inst.steps,
+            pow2_cycle,
+        )?;
+        cpu_bus_col += 1;
+        let inc_at_write_addr = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+            z,
+            bus,
+            cpu_bus_col,
+            mem_inst.steps,
+            pow2_cycle,
+        )?;
+        cpu_bus_col += 1;
+
+        let decoded = TwistDecodedColsSparse {
+            ra_bits,
+            wa_bits,
+            has_read,
+            has_write,
+            wv,
+            rv,
+            inc_at_write_addr,
         };
 
         let init_sparse: Vec<(usize, K)> = match &mem_inst.init {
@@ -273,7 +303,7 @@ pub(crate) fn prove_twist_addr_pre_time(
                 .collect::<Result<_, _>>()?,
         };
 
-        let mut read_addr_oracle = TwistReadCheckAddrOracle::new(
+        let mut read_addr_oracle = TwistReadCheckAddrOracleSparseTime::new(
             init_sparse.clone(),
             r_cycle,
             decoded.has_read.clone(),
@@ -283,7 +313,7 @@ pub(crate) fn prove_twist_addr_pre_time(
             &decoded.wa_bits,
             decoded.inc_at_write_addr.clone(),
         );
-        let mut write_addr_oracle = TwistWriteCheckAddrOracle::new(
+        let mut write_addr_oracle = TwistWriteCheckAddrOracleSparseTime::new(
             init_sparse,
             r_cycle,
             decoded.has_write.clone(),
@@ -349,64 +379,62 @@ pub(crate) fn prove_shout_addr_pre_time(
     }
     let mut out = Vec::with_capacity(step.lut_instances.len());
 
-    let cpu_z_k = cpu_bus.map(|_| crate::memory_sidecar::cpu_bus::decode_cpu_z_to_k(params, &step.mcs.1.Z));
+    let bus = cpu_bus.ok_or_else(|| {
+        PiCcsError::InvalidInput("prove_shout_addr_pre_time requires shared_cpu_bus".into())
+    })?;
+    let cpu_z_k = crate::memory_sidecar::cpu_bus::decode_cpu_z_to_k(params, &step.mcs.1.Z);
     let mut cpu_bus_col = 0usize;
 
-    for (idx, (lut_inst, lut_wit)) in step.lut_instances.iter().enumerate() {
-        let decoded = if let Some(bus) = cpu_bus {
-            neo_memory::addr::validate_shout_bit_addressing(lut_inst)?;
-            let pow2_cycle = 1usize << ell_n;
-            if lut_inst.steps > pow2_cycle {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Shout(Route A): steps={} exceeds 2^ell_cycle={pow2_cycle}",
-                    lut_inst.steps
-                )));
-            }
+    for (idx, (lut_inst, _lut_wit)) in step.lut_instances.iter().enumerate() {
+        neo_memory::addr::validate_shout_bit_addressing(lut_inst)?;
+        let pow2_cycle = 1usize << ell_n;
+        if lut_inst.steps > pow2_cycle {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Shout(Route A): steps={} exceeds 2^ell_cycle={pow2_cycle}",
+                lut_inst.steps
+            )));
+        }
 
-            let z = cpu_z_k.as_ref().ok_or_else(|| {
-                PiCcsError::InvalidInput("shared bus requested but CPU witness is missing".into())
-            })?;
-            let ell_addr = lut_inst.d * lut_inst.ell;
+        let z = &cpu_z_k;
+        let ell_addr = lut_inst.d * lut_inst.ell;
 
-            let mut addr_bits = Vec::with_capacity(ell_addr);
-            for _ in 0..ell_addr {
-                addr_bits.push(crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
-                    z,
-                    bus,
-                    cpu_bus_col,
-                    lut_inst.steps,
-                    pow2_cycle,
-                )?);
-                cpu_bus_col += 1;
-            }
-
-            let has_lookup = crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
+        let mut addr_bits = Vec::with_capacity(ell_addr);
+        for _ in 0..ell_addr {
+            addr_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
                 z,
                 bus,
                 cpu_bus_col,
                 lut_inst.steps,
                 pow2_cycle,
-            )?;
+            )?);
             cpu_bus_col += 1;
-            let val = crate::memory_sidecar::cpu_bus::build_time_vec_from_bus_col(
-                z,
-                bus,
-                cpu_bus_col,
-                lut_inst.steps,
-                pow2_cycle,
-            )?;
-            cpu_bus_col += 1;
+        }
 
-            shout::ShoutDecodedCols {
-                addr_bits,
-                has_lookup,
-                val,
-            }
-        } else {
-            shout::decode_shout_cols(params, lut_inst, lut_wit, ell_n)?
+        let has_lookup = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+            z,
+            bus,
+            cpu_bus_col,
+            lut_inst.steps,
+            pow2_cycle,
+        )?;
+        cpu_bus_col += 1;
+        let val = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+            z,
+            bus,
+            cpu_bus_col,
+            lut_inst.steps,
+            pow2_cycle,
+        )?;
+        cpu_bus_col += 1;
+
+        let decoded = ShoutDecodedColsSparse {
+            addr_bits,
+            has_lookup,
+            val,
         };
         let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
-        let (mut addr_oracle, addr_claim_sum) = shout::build_shout_addr_oracle(lut_inst, &decoded, r_cycle, &table_k)?;
+        let (mut addr_oracle, addr_claim_sum) =
+            AddressLookupOracle::new(&decoded.addr_bits, &decoded.has_lookup, &table_k, r_cycle, ell_addr);
 
         let labels: [&[u8]; 1] = [b"shout/addr_pre".as_slice()];
         let claimed_sums = vec![addr_claim_sum];
@@ -435,7 +463,6 @@ pub(crate) fn prove_shout_addr_pre_time(
                 r_addr,
             },
             decoded,
-            table_k,
         });
     }
 
@@ -632,7 +659,7 @@ pub fn verify_twist_addr_pre_time(
     Ok(out)
 }
 
-pub fn build_route_a_memory_oracles(
+pub(crate) fn build_route_a_memory_oracles(
     _params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
     _ell_n: usize,
@@ -657,24 +684,101 @@ pub fn build_route_a_memory_oracles(
 
     let mut shout_oracles = Vec::with_capacity(step.lut_instances.len());
     for ((lut_inst, _lut_wit), pre) in step.lut_instances.iter().zip(shout_pre.iter()) {
-        shout_oracles.push(shout::build_route_a_shout_oracles(
-            lut_inst,
-            &pre.decoded,
+        let ell_addr = lut_inst.d * lut_inst.ell;
+        if pre.addr_pre.r_addr.len() != ell_addr {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Shout(Route A): r_addr.len()={} != ell_addr={}",
+                pre.addr_pre.r_addr.len(),
+                ell_addr
+            )));
+        }
+
+        let (value_oracle, value_claim) =
+            ShoutValueOracleSparse::new(r_cycle, pre.decoded.has_lookup.clone(), pre.decoded.val.clone());
+        let (adapter_oracle, adapter_claim) = IndexAdapterOracleSparseTime::new_with_gate(
             r_cycle,
+            pre.decoded.has_lookup.clone(),
+            pre.decoded.addr_bits.clone(),
             &pre.addr_pre.r_addr,
-        )?);
+        );
+
+        let mut bitness: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(ell_addr + 1);
+        for col in pre.decoded.addr_bits.iter().cloned() {
+            bitness.push(Box::new(LazyBitnessOracleSparseTime::new_with_cycle(r_cycle, col)));
+        }
+        bitness.push(Box::new(LazyBitnessOracleSparseTime::new_with_cycle(
+            r_cycle,
+            pre.decoded.has_lookup.clone(),
+        )));
+
+        shout_oracles.push(RouteAShoutTimeOracles {
+            value: Box::new(value_oracle),
+            value_claim,
+            adapter: Box::new(adapter_oracle),
+            adapter_claim,
+            bitness,
+            ell_addr,
+        });
     }
 
     let mut twist_oracles = Vec::with_capacity(step.mem_instances.len());
     for ((mem_inst, _mem_wit), pre) in step.mem_instances.iter().zip(twist_pre.iter()) {
         let init_at_r_addr = eval_init_at_r_addr(&mem_inst.init, mem_inst.k, &pre.addr_pre.r_addr)?;
-        twist_oracles.push(twist::build_route_a_twist_oracles(
-            mem_inst,
-            &pre.decoded,
+        let ell_addr = mem_inst.d * mem_inst.ell;
+        if pre.addr_pre.r_addr.len() != ell_addr {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Twist(Route A): r_addr.len()={} != ell_addr={}",
+                pre.addr_pre.r_addr.len(),
+                ell_addr
+            )));
+        }
+
+        let read_check = TwistReadCheckOracleSparseTime::new(
             r_cycle,
+            pre.decoded.has_read.clone(),
+            pre.decoded.rv.clone(),
+            pre.decoded.ra_bits.clone(),
+            pre.decoded.has_write.clone(),
+            pre.decoded.inc_at_write_addr.clone(),
+            pre.decoded.wa_bits.clone(),
             &pre.addr_pre.r_addr,
             init_at_r_addr,
-        )?);
+        );
+        let write_check = TwistWriteCheckOracleSparseTime::new(
+            r_cycle,
+            pre.decoded.has_write.clone(),
+            pre.decoded.wv.clone(),
+            pre.decoded.inc_at_write_addr.clone(),
+            pre.decoded.wa_bits.clone(),
+            &pre.addr_pre.r_addr,
+            init_at_r_addr,
+        );
+
+        let mut bitness: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(2 * ell_addr + 2);
+        for bits in pre
+            .decoded
+            .ra_bits
+            .iter()
+            .cloned()
+            .chain(pre.decoded.wa_bits.iter().cloned())
+        {
+            bitness.push(Box::new(LazyBitnessOracleSparseTime::new_with_cycle(r_cycle, bits)));
+        }
+        bitness.push(Box::new(LazyBitnessOracleSparseTime::new_with_cycle(
+            r_cycle,
+            pre.decoded.has_read.clone(),
+        )));
+        bitness.push(Box::new(LazyBitnessOracleSparseTime::new_with_cycle(
+            r_cycle,
+            pre.decoded.has_write.clone(),
+        )));
+
+        twist_oracles.push(RouteATwistTimeOracles {
+            read_check: Box::new(read_check),
+            write_check: Box::new(write_check),
+            bitness,
+            ell_addr,
+        });
     }
 
     Ok(RouteAMemoryOracles {
@@ -688,25 +792,25 @@ pub struct RouteAShoutTimeClaimsGuard<'a> {
     pub adapter_prefixes: Vec<RoundOraclePrefix<'a>>,
     pub value_claims: Vec<K>,
     pub adapter_claims: Vec<K>,
-    pub bitness: Vec<Vec<LazyBitnessOracle>>,
+    pub bitness: Vec<Vec<Box<dyn RoundOracle>>>,
 }
 
 pub fn build_route_a_shout_time_claims_guard<'a>(
-    shout_oracles: &'a mut [shout::RouteAShoutOracles],
+    shout_oracles: &'a mut [RouteAShoutTimeOracles],
     ell_n: usize,
 ) -> RouteAShoutTimeClaimsGuard<'a> {
     let mut value_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(shout_oracles.len());
     let mut adapter_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(shout_oracles.len());
     let mut value_claims: Vec<K> = Vec::with_capacity(shout_oracles.len());
     let mut adapter_claims: Vec<K> = Vec::with_capacity(shout_oracles.len());
-    let mut bitness: Vec<Vec<LazyBitnessOracle>> = Vec::with_capacity(shout_oracles.len());
+    let mut bitness: Vec<Vec<Box<dyn RoundOracle>>> = Vec::with_capacity(shout_oracles.len());
 
     for o in shout_oracles.iter_mut() {
         bitness.push(core::mem::take(&mut o.bitness));
         value_claims.push(o.value_claim);
         adapter_claims.push(o.adapter_claim);
-        value_prefixes.push(RoundOraclePrefix::new(&mut o.value, ell_n));
-        adapter_prefixes.push(RoundOraclePrefix::new(&mut o.adapter, ell_n));
+        value_prefixes.push(RoundOraclePrefix::new(o.value.as_mut(), ell_n));
+        adapter_prefixes.push(RoundOraclePrefix::new(o.adapter.as_mut(), ell_n));
     }
 
     RouteAShoutTimeClaimsGuard {
@@ -723,7 +827,7 @@ pub struct ShoutRouteAProtocol<'a> {
 }
 
 impl<'a> ShoutRouteAProtocol<'a> {
-    pub fn new(shout_oracles: &'a mut [shout::RouteAShoutOracles], ell_n: usize) -> Self {
+    pub fn new(shout_oracles: &'a mut [RouteAShoutTimeOracles], ell_n: usize) -> Self {
         Self {
             guard: build_route_a_shout_time_claims_guard(shout_oracles, ell_n),
         }
@@ -787,17 +891,12 @@ pub fn append_route_a_shout_time_claims<'a>(
         });
 
         for bit_oracle in bitness_vec.iter_mut() {
-            debug_assert_eq!(
-                bit_oracle.compute_claim(),
-                K::ZERO,
-                "lazy shout bitness claim should be 0"
-            );
             claimed_sums.push(K::ZERO);
             degree_bounds.push(bit_oracle.degree_bound());
             labels.push(b"shout/bitness");
             claim_is_dynamic.push(false);
             claims.push(BatchedClaim {
-                oracle: bit_oracle,
+                oracle: bit_oracle.as_mut(),
                 claimed_sum: K::ZERO,
                 label: b"shout/bitness",
             });
@@ -810,18 +909,18 @@ pub struct RouteATwistTimeClaimsGuard<'a> {
     pub write_check_prefixes: Vec<RoundOraclePrefix<'a>>,
     pub read_check_claims: Vec<K>,
     pub write_check_claims: Vec<K>,
-    pub bitness: Vec<Vec<LazyBitnessOracle>>,
+    pub bitness: Vec<Vec<Box<dyn RoundOracle>>>,
 }
 
 pub fn build_route_a_twist_time_claims_guard<'a>(
-    twist_oracles: &'a mut [twist::RouteATwistOracles],
+    twist_oracles: &'a mut [RouteATwistTimeOracles],
     ell_n: usize,
     read_check_claims: Vec<K>,
     write_check_claims: Vec<K>,
 ) -> RouteATwistTimeClaimsGuard<'a> {
     let mut read_check_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(twist_oracles.len());
     let mut write_check_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(twist_oracles.len());
-    let mut bitness: Vec<Vec<LazyBitnessOracle>> = Vec::with_capacity(twist_oracles.len());
+    let mut bitness: Vec<Vec<Box<dyn RoundOracle>>> = Vec::with_capacity(twist_oracles.len());
 
     if read_check_claims.len() != twist_oracles.len() {
         panic!(
@@ -840,8 +939,8 @@ pub fn build_route_a_twist_time_claims_guard<'a>(
 
     for o in twist_oracles.iter_mut() {
         bitness.push(core::mem::take(&mut o.bitness));
-        read_check_prefixes.push(RoundOraclePrefix::new(&mut o.read_check, ell_n));
-        write_check_prefixes.push(RoundOraclePrefix::new(&mut o.write_check, ell_n));
+        read_check_prefixes.push(RoundOraclePrefix::new(o.read_check.as_mut(), ell_n));
+        write_check_prefixes.push(RoundOraclePrefix::new(o.write_check.as_mut(), ell_n));
     }
 
     RouteATwistTimeClaimsGuard {
@@ -894,17 +993,12 @@ pub fn append_route_a_twist_time_claims<'a>(
         });
 
         for bit_oracle in bitness_vec.iter_mut() {
-            debug_assert_eq!(
-                bit_oracle.compute_claim(),
-                K::ZERO,
-                "lazy twist bitness claim should be 0"
-            );
             claimed_sums.push(K::ZERO);
             degree_bounds.push(bit_oracle.degree_bound());
             labels.push(b"twist/bitness");
             claim_is_dynamic.push(false);
             claims.push(BatchedClaim {
-                oracle: bit_oracle,
+                oracle: bit_oracle.as_mut(),
                 claimed_sum: K::ZERO,
                 label: b"twist/bitness",
             });
@@ -918,7 +1012,7 @@ pub struct TwistRouteAProtocol<'a> {
 
 impl<'a> TwistRouteAProtocol<'a> {
     pub fn new(
-        twist_oracles: &'a mut [twist::RouteATwistOracles],
+        twist_oracles: &'a mut [RouteATwistTimeOracles],
         ell_n: usize,
         read_check_claims: Vec<K>,
         write_check_claims: Vec<K>,
@@ -950,13 +1044,13 @@ impl<'o> TimeBatchedClaims for TwistRouteAProtocol<'o> {
     }
 }
 
-pub fn finalize_route_a_memory_prover(
+pub(crate) fn finalize_route_a_memory_prover(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s: &CcsStructure<F>,
     step: &StepWitnessBundle<Cmt, F, K>,
     prev_step: Option<&StepWitnessBundle<Cmt, F, K>>,
-    prev_twist_decoded: Option<&[twist::TwistDecodedCols]>,
+    prev_twist_decoded: Option<&[TwistDecodedColsSparse]>,
     oracles: &mut RouteAMemoryOracles,
     shout_pre: &[ShoutAddrPreProverData],
     twist_pre: &[TwistAddrPreProverData],
@@ -1056,15 +1150,15 @@ pub fn finalize_route_a_memory_prover(
                 .ok_or_else(|| PiCcsError::ProtocolError("missing Twist pre-time data".into()))?;
             let decoded = &pre.decoded;
             let r_addr = &pre.addr_pre.r_addr;
-            let (oracle_lt, claimed_inc_sum_lt) = TwistValEvalOracleSparse::new(
-                &decoded.wa_bits,
+            let (oracle_lt, claimed_inc_sum_lt) = TwistValEvalOracleSparseTime::new(
+                decoded.wa_bits.clone(),
                 decoded.has_write.clone(),
                 decoded.inc_at_write_addr.clone(),
                 r_addr,
                 r_time,
             );
-            let (oracle_total, claimed_inc_sum_total) = TwistTotalIncOracleSparse::new(
-                &decoded.wa_bits,
+            let (oracle_total, claimed_inc_sum_total) = TwistTotalIncOracleSparseTime::new(
+                decoded.wa_bits.clone(),
                 decoded.has_write.clone(),
                 decoded.inc_at_write_addr.clone(),
                 r_addr,
@@ -1098,8 +1192,8 @@ pub fn finalize_route_a_memory_prover(
                     .ok_or_else(|| PiCcsError::ProtocolError("missing prev Twist decoded cols".into()))?
                     .get(i_mem)
                     .ok_or_else(|| PiCcsError::ProtocolError("missing prev Twist decoded cols at mem_idx".into()))?;
-                let (oracle_prev_total, claimed_prev_total) = TwistTotalIncOracleSparse::new(
-                    &prev_decoded.wa_bits,
+                let (oracle_prev_total, claimed_prev_total) = TwistTotalIncOracleSparseTime::new(
+                    prev_decoded.wa_bits.clone(),
                     prev_decoded.has_write.clone(),
                     prev_decoded.inc_at_write_addr.clone(),
                     r_addr,

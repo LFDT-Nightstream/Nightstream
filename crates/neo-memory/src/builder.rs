@@ -327,6 +327,11 @@ where
     if chunk_size == 0 {
         return Err(ShardBuildError::InvalidChunkSize("chunk_size must be >= 1".into()));
     }
+    if chunk_size != 1 {
+        return Err(ShardBuildError::InvalidChunkSize(format!(
+            "shared_cpu_bus currently supports chunk_size=1 (got {chunk_size})"
+        )));
+    }
 
     // 1) Run VM and collect full trace for this shard.
     let trace = neo_vm_trace::trace_program(vm, twist, shout, max_steps)

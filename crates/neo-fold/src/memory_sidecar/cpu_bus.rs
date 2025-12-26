@@ -3,6 +3,7 @@ use neo_ccs::poly::SparsePoly;
 use neo_ccs::{CcsStructure, Mat};
 use neo_math::{F, K};
 use neo_memory::ajtai::decode_vector as ajtai_decode_vector;
+use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -690,13 +691,13 @@ pub(crate) fn decode_cpu_z_to_k(params: &NeoParams, Z: &Mat<F>) -> Vec<K> {
     ajtai_decode_vector(params, Z).into_iter().map(Into::into).collect()
 }
 
-pub(crate) fn build_time_vec_from_bus_col(
+pub(crate) fn build_time_sparse_from_bus_col(
     z: &[K],
     bus: &CpuBusSpec,
     col_id: usize,
     steps_len: usize,
     pow2_cycle: usize,
-) -> Result<Vec<K>, PiCcsError> {
+) -> Result<SparseIdxVec<K>, PiCcsError> {
     if col_id >= bus.bus_cols {
         return Err(PiCcsError::InvalidInput(format!(
             "bus col_id out of range: {col_id} >= {}",
@@ -709,10 +710,10 @@ pub(crate) fn build_time_vec_from_bus_col(
             bus.chunk_size
         )));
     }
-    let mut out = vec![K::ZERO; pow2_cycle];
+    let mut entries: Vec<(usize, K)> = Vec::new();
     for j in 0..bus.chunk_size {
         let t = bus.time_row_index(j);
-        if t >= out.len() {
+        if t >= pow2_cycle {
             return Err(PiCcsError::InvalidInput(format!(
                 "bus time index out of range: t={t} >= pow2_cycle={pow2_cycle}"
             )));
@@ -725,7 +726,9 @@ pub(crate) fn build_time_vec_from_bus_col(
             .get(idx)
             .copied()
             .ok_or_else(|| PiCcsError::InvalidInput(format!("CPU witness too short for bus idx={idx}")))?;
-        out[t] = v;
+        if v != K::ZERO {
+            entries.push((t, v));
+        }
     }
-    Ok(out)
+    Ok(SparseIdxVec::from_entries(pow2_cycle, entries))
 }

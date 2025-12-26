@@ -441,7 +441,7 @@ where
 
     let mut step_proofs = Vec::with_capacity(steps.len());
     let mut val_lane_wits: Vec<Mat<F>> = Vec::new();
-    let mut prev_twist_decoded: Option<Vec<neo_memory::twist::TwistDecodedCols>> = None;
+    let mut prev_twist_decoded: Option<Vec<crate::memory_sidecar::memory::TwistDecodedColsSparse>> = None;
 
     for (idx, step) in steps.iter().enumerate() {
         crate::memory_sidecar::memory::absorb_step_memory_witness(tr, step);

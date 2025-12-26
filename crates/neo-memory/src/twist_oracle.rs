@@ -6,21 +6,21 @@
 //!
 //! ## Key Oracles
 //!
-//! - `ProductRoundOracle`: Generic multilinear product sumcheck
-//! - `TwistReadCheckOracle`: Proves rv(t) = Val(ra_t, t) via bit-factors
-//! - `TwistWriteCheckOracle`: Proves Inc(k, t) = wa(k, t) * (wv - Val(k, t))
-//! - `TwistValEvalOracle`: Proves Val(r_addr, r_cycle) = Σ Inc * LT
-//! - `IndexAdapterOracle`: Proves eq(bits_t, r_addr) consistency (IDX→OH bridge)
-//! - `BitnessOracle`: Proves bit columns are binary
+//! - `ProductRoundOracle`: Generic multilinear product sumcheck (used for address-domain checks)
+//! - `AddressLookupOracle`: Shout address-domain lookup sumcheck
+//! - `IndexAdapterOracleSparseTime`: Sparse-in-time IDX→OH adapter (time-domain)
+//! - `LazyBitnessOracleSparseTime`: Sparse-in-time bitness checks (time-domain)
+//! - `TwistReadCheckOracleSparseTime` / `TwistWriteCheckOracleSparseTime`: Twist time-lane checks (time-domain)
+//! - `TwistValEvalOracleSparseTime` / `TwistTotalIncOracleSparseTime`: Twist val reconstruction (time-domain)
 
-use crate::bit_ops::{eq_bit_affine, eq_bits_prod_table};
-use crate::mle::{eq_points, lt_eval};
+use crate::bit_ops::eq_bit_affine;
+use crate::mle::lt_eval;
 use crate::sparse_time::SparseIdxVec;
 #[cfg(feature = "debug-logs")]
 use neo_math::KExtensions;
 use neo_math::K;
 use neo_reductions::sumcheck::RoundOracle;
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::PrimeCharacteristicRing;
 
 macro_rules! impl_round_oracle_via_core {
     ($ty:ty) => {
@@ -310,524 +310,844 @@ impl RoundOracle for ShoutValueOracleSparse {
     }
 }
 
-// ============================================================================
-// Bit-Factor Helpers (for index-bit addressing)
-// ============================================================================
-
-/// Build eq(bit_column, r_bit) factor from a single bit column.
-///
-/// For each step t: eq(b_t, r) = b_t * r + (1 - b_t) * (1 - r)
-///                             = b_t * (2r - 1) + (1 - r)
-fn build_single_bit_factor(bit_col: &[K], r_bit: K) -> Vec<K> {
-    bit_col.iter().map(|&b| eq_bit_affine(b, r_bit)).collect()
+#[inline]
+fn interp(f0: K, f1: K, x: K) -> K {
+    f0 + (f1 - f0) * x
 }
 
-/// Build all eq factors for address bits against r_addr.
-///
-/// Returns a vector of factors, one per bit column.
-/// The product of all these factors gives eq(addr_t, r_addr) for each t.
-pub fn build_bit_eq_factors(bit_cols: &[Vec<K>], r_addr: &[K]) -> Vec<Vec<K>> {
-    assert_eq!(
-        bit_cols.len(),
-        r_addr.len(),
-        "bit columns count must match r_addr length"
-    );
-    bit_cols
-        .iter()
-        .zip(r_addr.iter())
-        .map(|(col, &r)| build_single_bit_factor(col, r))
-        .collect()
+fn fill_time_point(out: &mut [K], prefix: &[K], bit_idx: usize, bit_value: K, pair_idx: usize) {
+    debug_assert!(bit_idx < out.len(), "bit_idx out of range");
+    debug_assert_eq!(prefix.len(), bit_idx, "prefix length mismatch");
+
+    out[..bit_idx].copy_from_slice(prefix);
+    out[bit_idx] = bit_value;
+
+    let mut shift = 0usize;
+    for b in (bit_idx + 1)..out.len() {
+        let bit = (pair_idx >> shift) & 1;
+        out[b] = if bit == 1 { K::ONE } else { K::ZERO };
+        shift += 1;
+    }
 }
 
-/// Compute eq(bits_t, r_addr) for each step t.
-/// This is the product of all bit-eq factors.
-pub fn compute_eq_from_bits(bit_cols: &[Vec<K>], r_addr: &[K]) -> Vec<K> {
-    eq_bits_prod_table(bit_cols, r_addr).expect("compute_eq_from_bits: invalid input")
+fn lt_eval_at_bool_index(idx: usize, point: &[K]) -> K {
+    let mut suffix = K::ONE;
+    let mut acc = K::ZERO;
+    for i in (0..point.len()).rev() {
+        let bit = (idx >> i) & 1;
+        if bit == 0 {
+            acc += point[i] * suffix;
+            suffix *= K::ONE - point[i];
+        } else {
+            suffix *= point[i];
+        }
+    }
+    acc
 }
 
-fn build_cycle_gate_diff_bits_oracle(
-    r_cycle: &[K],
-    gate: Vec<K>,
-    diff: Vec<K>,
-    bit_cols: &[Vec<K>],
+fn val_pre_from_inc_terms(init_at_r_addr: K, inc_terms: &[(usize, K)], t_point: &[K]) -> K {
+    let mut acc = init_at_r_addr;
+    for &(u, inc_u) in inc_terms.iter() {
+        acc += inc_u * lt_eval_at_bool_index(u, t_point);
+    }
+    acc
+}
+
+fn build_inc_terms_at_r_addr(
+    wa_bits: &[SparseIdxVec<K>],
+    has_write: &SparseIdxVec<K>,
+    inc_at_write_addr: &SparseIdxVec<K>,
     r_addr: &[K],
-) -> ProductRoundOracle {
-    let eq_cycle = build_eq_table(r_cycle);
-    assert_eq!(eq_cycle.len(), gate.len(), "eq_cycle length must match gate");
-    assert_eq!(diff.len(), gate.len(), "diff length must match gate");
+) -> Vec<(usize, K)> {
+    let mut out: Vec<(usize, K)> = Vec::new();
+    for &(t, has_w) in has_write.entries() {
+        let inc_t = inc_at_write_addr.get(t);
+        if has_w == K::ZERO || inc_t == K::ZERO {
+            continue;
+        }
 
-    let bit_eq_factors = build_bit_eq_factors(bit_cols, r_addr);
-    let mut factors = Vec::with_capacity(3 + bit_eq_factors.len());
-    factors.push(eq_cycle);
-    factors.push(gate);
-    factors.push(diff);
-    factors.extend(bit_eq_factors);
+        let mut eq_addr = K::ONE;
+        for (b, col) in wa_bits.iter().enumerate() {
+            let bit = col.get(t);
+            eq_addr *= eq_bit_affine(bit, r_addr[b]);
+        }
 
-    let degree_bound = factors.len();
-    ProductRoundOracle::new(factors, degree_bound)
-}
-
-fn build_cycle_gate_bits_oracle(r_cycle: &[K], gate: Vec<K>, bit_cols: &[Vec<K>], r_addr: &[K]) -> ProductRoundOracle {
-    let eq_cycle = build_eq_table(r_cycle);
-    assert_eq!(eq_cycle.len(), gate.len(), "eq_cycle length must match gate");
-
-    let bit_eq_factors = build_bit_eq_factors(bit_cols, r_addr);
-    let mut factors = Vec::with_capacity(2 + bit_eq_factors.len());
-    factors.push(eq_cycle);
-    factors.push(gate);
-    factors.extend(bit_eq_factors);
-
-    let degree_bound = factors.len();
-    ProductRoundOracle::new(factors, degree_bound)
-}
-
-fn build_cycle_bits_oracle(r_cycle: &[K], bit_cols: &[Vec<K>], r_addr: &[K]) -> ProductRoundOracle {
-    let eq_cycle = build_eq_table(r_cycle);
-    let bit_eq_factors = build_bit_eq_factors(bit_cols, r_addr);
-
-    let mut factors = Vec::with_capacity(1 + bit_eq_factors.len());
-    factors.push(eq_cycle);
-    factors.extend(bit_eq_factors);
-
-    let degree_bound = factors.len();
-    ProductRoundOracle::new(factors, degree_bound)
-}
-
-fn build_bitness_oracle(col: Vec<K>) -> ProductRoundOracle {
-    let col_minus_one: Vec<K> = col.iter().map(|&c| c - K::ONE).collect();
-    ProductRoundOracle::new(vec![col, col_minus_one], 2)
-}
-
-fn build_cycle_bitness_oracle(r_cycle: &[K], col: Vec<K>) -> ProductRoundOracle {
-    let eq_cycle = build_eq_table(r_cycle);
-    assert_eq!(eq_cycle.len(), col.len(), "eq_cycle length must match domain");
-    let col_minus_one: Vec<K> = col.iter().map(|&c| c - K::ONE).collect();
-    ProductRoundOracle::new(vec![eq_cycle, col, col_minus_one], 3)
+        let inc_at_r_addr = has_w * inc_t * eq_addr;
+        if inc_at_r_addr != K::ZERO {
+            out.push((t, inc_at_r_addr));
+        }
+    }
+    out
 }
 
 // ============================================================================
-// Val-Evaluation Oracle (unchanged from original)
+// Sparse-in-time Route A oracles (Track A, shared CPU bus)
 // ============================================================================
 
-/// Val-evaluation oracle:
-/// Proves V(r_addr, r_cycle) = Σ_{j'} Inc(r_addr, j') · LT(j', r_cycle)
-pub struct TwistValEvalOracle {
-    core: ProductRoundOracle,
+/// Sparse Route A oracle for Shout adapter:
+///   Σ_t χ_{r_cycle}(t) · has_lookup(t) · Π_b eq(addr_bits_b(t), r_addr_b)
+pub struct IndexAdapterOracleSparseTime {
+    bit_idx: usize,
+    r_cycle: Vec<K>,
+    prefix_eq: K,
+    has_lookup: SparseIdxVec<K>,
+    addr_bits: Vec<SparseIdxVec<K>>,
+    r_addr: Vec<K>,
+    degree_bound: usize,
+    challenges: Vec<K>,
 }
 
-impl TwistValEvalOracle {
-    pub fn new<F: Field + Copy + Into<K>>(inc: &[F], k: usize, steps: usize, r_addr: &[K], r_cycle: &[K]) -> Self {
-        let pow2_addr = 1usize << r_addr.len();
-        let pow2_cycle = 1usize << r_cycle.len();
-        let (inc_table, lt_table) = val_tables_from_inc(inc, k, steps, pow2_addr, pow2_cycle, r_addr, r_cycle);
-        let core = ProductRoundOracle::new(vec![inc_table, lt_table], 2);
-        Self { core }
-    }
+impl IndexAdapterOracleSparseTime {
+    pub fn new_with_gate(
+        r_cycle: &[K],
+        has_lookup: SparseIdxVec<K>,
+        addr_bits: Vec<SparseIdxVec<K>>,
+        r_addr: &[K],
+    ) -> (Self, K) {
+        let ell_n = r_cycle.len();
+        let ell_addr = addr_bits.len();
+        debug_assert_eq!(has_lookup.len(), 1usize << ell_n);
+        debug_assert_eq!(r_addr.len(), ell_addr);
+        for (b, col) in addr_bits.iter().enumerate() {
+            debug_assert_eq!(
+                col.len(),
+                1usize << ell_n,
+                "addr_bits[{b}] length must match time domain"
+            );
+        }
 
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
+        let mut claim = K::ZERO;
+        for &(t, gate) in has_lookup.entries() {
+            let mut eq_addr = K::ONE;
+            for (b, col) in addr_bits.iter().enumerate() {
+                eq_addr *= eq_bit_affine(col.get(t), r_addr[b]);
+            }
+            claim += chi_at_bool_index(r_cycle, t) * gate * eq_addr;
+        }
 
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    pub fn challenges(&self) -> &[K] {
-        self.core.challenges()
+        (
+            Self {
+                bit_idx: 0,
+                r_cycle: r_cycle.to_vec(),
+                prefix_eq: K::ONE,
+                has_lookup,
+                addr_bits,
+                r_addr: r_addr.to_vec(),
+                degree_bound: 2 + ell_addr,
+                challenges: Vec::with_capacity(ell_n),
+            },
+            claim,
+        )
     }
 }
 
-impl_round_oracle_via_core!(TwistValEvalOracle);
+impl RoundOracle for IndexAdapterOracleSparseTime {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.has_lookup.len() == 1 {
+            let mut eq_addr = K::ONE;
+            for (b, col) in self.addr_bits.iter().enumerate() {
+                eq_addr *= eq_bit_affine(col.singleton_value(), self.r_addr[b]);
+            }
+            let v = self.prefix_eq * self.has_lookup.singleton_value() * eq_addr;
+            return vec![v; points.len()];
+        }
+
+        let pairs = gather_pairs_from_sparse(self.has_lookup.entries());
+        let mut ys = vec![K::ZERO; points.len()];
+        for &pair in pairs.iter() {
+            let child0 = 2 * pair;
+            let child1 = child0 + 1;
+
+            let gate0 = self.has_lookup.get(child0);
+            let gate1 = self.has_lookup.get(child1);
+            if gate0 == K::ZERO && gate1 == K::ZERO {
+                continue;
+            }
+
+            let (chi0, chi1) = chi_cycle_children(&self.r_cycle, self.bit_idx, self.prefix_eq, pair);
+
+            // Per-bit eq factors at the children (after any time folding).
+            let mut eq0s: Vec<K> = Vec::with_capacity(self.addr_bits.len());
+            let mut d_eqs: Vec<K> = Vec::with_capacity(self.addr_bits.len());
+            for (b, col) in self.addr_bits.iter().enumerate() {
+                let e0 = eq_bit_affine(col.get(child0), self.r_addr[b]);
+                let e1 = eq_bit_affine(col.get(child1), self.r_addr[b]);
+                eq0s.push(e0);
+                d_eqs.push(e1 - e0);
+            }
+
+            for (i, &x) in points.iter().enumerate() {
+                let chi_x = interp(chi0, chi1, x);
+                let gate_x = interp(gate0, gate1, x);
+                let mut prod = chi_x * gate_x;
+                for (e0, de) in eq0s.iter().zip(d_eqs.iter()) {
+                    prod *= *e0 + *de * x;
+                }
+                ys[i] += prod;
+            }
+        }
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.r_cycle.len().saturating_sub(self.bit_idx)
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.num_rounds() == 0 {
+            return;
+        }
+        self.prefix_eq *= eq_single(r, self.r_cycle[self.bit_idx]);
+        self.has_lookup.fold_round_in_place(r);
+        for col in self.addr_bits.iter_mut() {
+            col.fold_round_in_place(r);
+        }
+        self.challenges.push(r);
+        self.bit_idx += 1;
+    }
+}
+
+/// Sparse Route A oracle for χ_{r_cycle}-weighted bitness:
+///   Σ_t χ_{r_cycle}(t) · col(t) · (col(t) - 1)
+pub struct LazyBitnessOracleSparseTime {
+    bit_idx: usize,
+    r_cycle: Vec<K>,
+    prefix_eq: K,
+    col: SparseIdxVec<K>,
+    degree_bound: usize,
+    challenges: Vec<K>,
+}
+
+impl LazyBitnessOracleSparseTime {
+    pub fn new_with_cycle(r_cycle: &[K], col: SparseIdxVec<K>) -> Self {
+        let ell_n = r_cycle.len();
+        debug_assert_eq!(col.len(), 1usize << ell_n);
+        Self {
+            bit_idx: 0,
+            r_cycle: r_cycle.to_vec(),
+            prefix_eq: K::ONE,
+            col,
+            degree_bound: 3,
+            challenges: Vec::with_capacity(ell_n),
+        }
+    }
+}
+
+impl RoundOracle for LazyBitnessOracleSparseTime {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.col.len() == 1 {
+            let b = self.col.singleton_value();
+            let v = self.prefix_eq * b * (b - K::ONE);
+            return vec![v; points.len()];
+        }
+
+        let pairs = gather_pairs_from_sparse(self.col.entries());
+        let mut ys = vec![K::ZERO; points.len()];
+        for &pair in pairs.iter() {
+            let child0 = 2 * pair;
+            let child1 = child0 + 1;
+
+            let b0 = self.col.get(child0);
+            let b1 = self.col.get(child1);
+            if b0 == K::ZERO && b1 == K::ZERO {
+                continue;
+            }
+
+            let (chi0, chi1) = chi_cycle_children(&self.r_cycle, self.bit_idx, self.prefix_eq, pair);
+
+            for (i, &x) in points.iter().enumerate() {
+                let chi_x = interp(chi0, chi1, x);
+                let b_x = interp(b0, b1, x);
+                ys[i] += chi_x * b_x * (b_x - K::ONE);
+            }
+        }
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.r_cycle.len().saturating_sub(self.bit_idx)
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.num_rounds() == 0 {
+            return;
+        }
+        self.prefix_eq *= eq_single(r, self.r_cycle[self.bit_idx]);
+        self.col.fold_round_in_place(r);
+        self.challenges.push(r);
+        self.bit_idx += 1;
+    }
+}
+
+/// Sparse Route A oracle for Twist read-check (time rounds only).
+pub struct TwistReadCheckOracleSparseTime {
+    bit_idx: usize,
+    r_cycle: Vec<K>,
+    prefix_eq: K,
+    degree_bound: usize,
+
+    r_addr: Vec<K>,
+    ra_bits: Vec<SparseIdxVec<K>>,
+    has_read: SparseIdxVec<K>,
+    rv: SparseIdxVec<K>,
+
+    init_at_r_addr: K,
+    inc_terms_at_r_addr: Vec<(usize, K)>,
+
+    t_child0: Vec<K>,
+    t_child1: Vec<K>,
+    challenges: Vec<K>,
+}
+
+impl TwistReadCheckOracleSparseTime {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        r_cycle: &[K],
+        has_read: SparseIdxVec<K>,
+        rv: SparseIdxVec<K>,
+        ra_bits: Vec<SparseIdxVec<K>>,
+        // Write stream (for Val_pre).
+        has_write: SparseIdxVec<K>,
+        inc_at_write_addr: SparseIdxVec<K>,
+        wa_bits: Vec<SparseIdxVec<K>>,
+        r_addr: &[K],
+        init_at_r_addr: K,
+    ) -> Self {
+        let ell_n = r_cycle.len();
+        let ell_addr = r_addr.len();
+        debug_assert_eq!(has_read.len(), 1usize << ell_n);
+        debug_assert_eq!(rv.len(), 1usize << ell_n);
+        debug_assert_eq!(has_write.len(), 1usize << ell_n);
+        debug_assert_eq!(inc_at_write_addr.len(), 1usize << ell_n);
+        debug_assert_eq!(ra_bits.len(), ell_addr);
+        debug_assert_eq!(wa_bits.len(), ell_addr);
+
+        let inc_terms_at_r_addr = build_inc_terms_at_r_addr(&wa_bits, &has_write, &inc_at_write_addr, r_addr);
+
+        Self {
+            bit_idx: 0,
+            r_cycle: r_cycle.to_vec(),
+            prefix_eq: K::ONE,
+            degree_bound: 3 + ell_addr,
+            r_addr: r_addr.to_vec(),
+            ra_bits,
+            has_read,
+            rv,
+            init_at_r_addr,
+            inc_terms_at_r_addr,
+            t_child0: vec![K::ZERO; ell_n],
+            t_child1: vec![K::ZERO; ell_n],
+            challenges: Vec::with_capacity(ell_n),
+        }
+    }
+}
+
+impl RoundOracle for TwistReadCheckOracleSparseTime {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.has_read.len() == 1 {
+            let mut eq_addr = K::ONE;
+            for (b, col) in self.ra_bits.iter().enumerate() {
+                eq_addr *= eq_bit_affine(col.singleton_value(), self.r_addr[b]);
+            }
+            let t_point = self.challenges.as_slice();
+            let val_pre = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, t_point);
+            let diff = val_pre - self.rv.singleton_value();
+            let v = self.prefix_eq * self.has_read.singleton_value() * diff * eq_addr;
+            return vec![v; points.len()];
+        }
+
+        let pairs = gather_pairs_from_sparse(self.has_read.entries());
+        let mut ys = vec![K::ZERO; points.len()];
+        for &pair in pairs.iter() {
+            let child0 = 2 * pair;
+            let child1 = child0 + 1;
+
+            let gate0 = self.has_read.get(child0);
+            let gate1 = self.has_read.get(child1);
+            if gate0 == K::ZERO && gate1 == K::ZERO {
+                continue;
+            }
+
+            fill_time_point(&mut self.t_child0, &self.challenges, self.bit_idx, K::ZERO, pair);
+            fill_time_point(&mut self.t_child1, &self.challenges, self.bit_idx, K::ONE, pair);
+            let val_pre0 = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, &self.t_child0);
+            let val_pre1 = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, &self.t_child1);
+
+            let diff0 = val_pre0 - self.rv.get(child0);
+            let diff1 = val_pre1 - self.rv.get(child1);
+
+            let (chi0, chi1) = chi_cycle_children(&self.r_cycle, self.bit_idx, self.prefix_eq, pair);
+
+            let mut eq0s: Vec<K> = Vec::with_capacity(self.ra_bits.len());
+            let mut d_eqs: Vec<K> = Vec::with_capacity(self.ra_bits.len());
+            for (b, col) in self.ra_bits.iter().enumerate() {
+                let e0 = eq_bit_affine(col.get(child0), self.r_addr[b]);
+                let e1 = eq_bit_affine(col.get(child1), self.r_addr[b]);
+                eq0s.push(e0);
+                d_eqs.push(e1 - e0);
+            }
+
+            for (i, &x) in points.iter().enumerate() {
+                let chi_x = interp(chi0, chi1, x);
+                let gate_x = interp(gate0, gate1, x);
+                let diff_x = interp(diff0, diff1, x);
+                let mut prod = chi_x * gate_x * diff_x;
+                for (e0, de) in eq0s.iter().zip(d_eqs.iter()) {
+                    prod *= *e0 + *de * x;
+                }
+                ys[i] += prod;
+            }
+        }
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.r_cycle.len().saturating_sub(self.bit_idx)
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.num_rounds() == 0 {
+            return;
+        }
+        self.prefix_eq *= eq_single(r, self.r_cycle[self.bit_idx]);
+        self.has_read.fold_round_in_place(r);
+        self.rv.fold_round_in_place(r);
+        for col in self.ra_bits.iter_mut() {
+            col.fold_round_in_place(r);
+        }
+        self.challenges.push(r);
+        self.bit_idx += 1;
+    }
+}
+
+/// Sparse Route A oracle for Twist write-check (time rounds only).
+pub struct TwistWriteCheckOracleSparseTime {
+    bit_idx: usize,
+    r_cycle: Vec<K>,
+    prefix_eq: K,
+    degree_bound: usize,
+
+    r_addr: Vec<K>,
+    wa_bits: Vec<SparseIdxVec<K>>,
+    has_write: SparseIdxVec<K>,
+    wv: SparseIdxVec<K>,
+    inc_at_write_addr: SparseIdxVec<K>,
+
+    init_at_r_addr: K,
+    inc_terms_at_r_addr: Vec<(usize, K)>,
+
+    t_child0: Vec<K>,
+    t_child1: Vec<K>,
+    challenges: Vec<K>,
+}
+
+impl TwistWriteCheckOracleSparseTime {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        r_cycle: &[K],
+        has_write: SparseIdxVec<K>,
+        wv: SparseIdxVec<K>,
+        inc_at_write_addr: SparseIdxVec<K>,
+        wa_bits: Vec<SparseIdxVec<K>>,
+        r_addr: &[K],
+        init_at_r_addr: K,
+    ) -> Self {
+        let ell_n = r_cycle.len();
+        let ell_addr = r_addr.len();
+        debug_assert_eq!(has_write.len(), 1usize << ell_n);
+        debug_assert_eq!(wv.len(), 1usize << ell_n);
+        debug_assert_eq!(inc_at_write_addr.len(), 1usize << ell_n);
+        debug_assert_eq!(wa_bits.len(), ell_addr);
+
+        let inc_terms_at_r_addr = build_inc_terms_at_r_addr(&wa_bits, &has_write, &inc_at_write_addr, r_addr);
+
+        Self {
+            bit_idx: 0,
+            r_cycle: r_cycle.to_vec(),
+            prefix_eq: K::ONE,
+            degree_bound: 3 + ell_addr,
+            r_addr: r_addr.to_vec(),
+            wa_bits,
+            has_write,
+            wv,
+            inc_at_write_addr,
+            init_at_r_addr,
+            inc_terms_at_r_addr,
+            t_child0: vec![K::ZERO; ell_n],
+            t_child1: vec![K::ZERO; ell_n],
+            challenges: Vec::with_capacity(ell_n),
+        }
+    }
+}
+
+impl RoundOracle for TwistWriteCheckOracleSparseTime {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.has_write.len() == 1 {
+            let mut eq_addr = K::ONE;
+            for (b, col) in self.wa_bits.iter().enumerate() {
+                eq_addr *= eq_bit_affine(col.singleton_value(), self.r_addr[b]);
+            }
+            let t_point = self.challenges.as_slice();
+            let val_pre = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, t_point);
+            let delta = self.wv.singleton_value() - val_pre - self.inc_at_write_addr.singleton_value();
+            let v = self.prefix_eq * self.has_write.singleton_value() * delta * eq_addr;
+            return vec![v; points.len()];
+        }
+
+        let pairs = gather_pairs_from_sparse(self.has_write.entries());
+        let mut ys = vec![K::ZERO; points.len()];
+        for &pair in pairs.iter() {
+            let child0 = 2 * pair;
+            let child1 = child0 + 1;
+
+            let gate0 = self.has_write.get(child0);
+            let gate1 = self.has_write.get(child1);
+            if gate0 == K::ZERO && gate1 == K::ZERO {
+                continue;
+            }
+
+            fill_time_point(&mut self.t_child0, &self.challenges, self.bit_idx, K::ZERO, pair);
+            fill_time_point(&mut self.t_child1, &self.challenges, self.bit_idx, K::ONE, pair);
+            let val_pre0 = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, &self.t_child0);
+            let val_pre1 = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, &self.t_child1);
+
+            let delta0 = self.wv.get(child0) - val_pre0 - self.inc_at_write_addr.get(child0);
+            let delta1 = self.wv.get(child1) - val_pre1 - self.inc_at_write_addr.get(child1);
+
+            let (chi0, chi1) = chi_cycle_children(&self.r_cycle, self.bit_idx, self.prefix_eq, pair);
+
+            let mut eq0s: Vec<K> = Vec::with_capacity(self.wa_bits.len());
+            let mut d_eqs: Vec<K> = Vec::with_capacity(self.wa_bits.len());
+            for (b, col) in self.wa_bits.iter().enumerate() {
+                let e0 = eq_bit_affine(col.get(child0), self.r_addr[b]);
+                let e1 = eq_bit_affine(col.get(child1), self.r_addr[b]);
+                eq0s.push(e0);
+                d_eqs.push(e1 - e0);
+            }
+
+            for (i, &x) in points.iter().enumerate() {
+                let chi_x = interp(chi0, chi1, x);
+                let gate_x = interp(gate0, gate1, x);
+                let delta_x = interp(delta0, delta1, x);
+                let mut prod = chi_x * gate_x * delta_x;
+                for (e0, de) in eq0s.iter().zip(d_eqs.iter()) {
+                    prod *= *e0 + *de * x;
+                }
+                ys[i] += prod;
+            }
+        }
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.r_cycle.len().saturating_sub(self.bit_idx)
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.num_rounds() == 0 {
+            return;
+        }
+        self.prefix_eq *= eq_single(r, self.r_cycle[self.bit_idx]);
+        self.has_write.fold_round_in_place(r);
+        self.wv.fold_round_in_place(r);
+        self.inc_at_write_addr.fold_round_in_place(r);
+        for col in self.wa_bits.iter_mut() {
+            col.fold_round_in_place(r);
+        }
+        self.challenges.push(r);
+        self.bit_idx += 1;
+    }
+}
+
+/// Sparse time-domain val-evaluation oracle:
+///   Σ_t has_write(t) · inc(t) · LT(t, r_time) · Π_b eq(wa_bit_b(t), r_addr_b)
+pub struct TwistValEvalOracleSparseTime {
+    bit_idx: usize,
+    degree_bound: usize,
+
+    r_time: Vec<K>,
+    r_addr: Vec<K>,
+
+    wa_bits: Vec<SparseIdxVec<K>>,
+    has_write: SparseIdxVec<K>,
+    inc_at_write_addr: SparseIdxVec<K>,
+
+    t_child0: Vec<K>,
+    t_child1: Vec<K>,
+    challenges: Vec<K>,
+}
+
+impl TwistValEvalOracleSparseTime {
+    pub fn new(
+        wa_bits: Vec<SparseIdxVec<K>>,
+        has_write: SparseIdxVec<K>,
+        inc_at_write_addr: SparseIdxVec<K>,
+        r_addr: &[K],
+        r_time: &[K],
+    ) -> (Self, K) {
+        let ell_n = r_time.len();
+        let ell_addr = r_addr.len();
+        debug_assert_eq!(has_write.len(), 1usize << ell_n);
+        debug_assert_eq!(inc_at_write_addr.len(), 1usize << ell_n);
+        debug_assert_eq!(wa_bits.len(), ell_addr);
+        for (b, col) in wa_bits.iter().enumerate() {
+            debug_assert_eq!(
+                col.len(),
+                1usize << ell_n,
+                "wa_bits[{b}] length must match time domain"
+            );
+        }
+
+        let mut claim = K::ZERO;
+        for &(t, gate) in has_write.entries() {
+            let inc_t = inc_at_write_addr.get(t);
+            if gate == K::ZERO || inc_t == K::ZERO {
+                continue;
+            }
+            let lt_t = lt_eval_at_bool_index(t, r_time);
+            let mut eq_addr = K::ONE;
+            for (b, col) in wa_bits.iter().enumerate() {
+                eq_addr *= eq_bit_affine(col.get(t), r_addr[b]);
+            }
+            claim += gate * inc_t * lt_t * eq_addr;
+        }
+
+        (
+            Self {
+                bit_idx: 0,
+                degree_bound: 3 + ell_addr,
+                r_time: r_time.to_vec(),
+                r_addr: r_addr.to_vec(),
+                wa_bits,
+                has_write,
+                inc_at_write_addr,
+                t_child0: vec![K::ZERO; ell_n],
+                t_child1: vec![K::ZERO; ell_n],
+                challenges: Vec::with_capacity(ell_n),
+            },
+            claim,
+        )
+    }
+}
+
+impl RoundOracle for TwistValEvalOracleSparseTime {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.has_write.len() == 1 {
+            let mut eq_addr = K::ONE;
+            for (b, col) in self.wa_bits.iter().enumerate() {
+                eq_addr *= eq_bit_affine(col.singleton_value(), self.r_addr[b]);
+            }
+            let lt = lt_eval(&self.challenges, &self.r_time);
+            let v = self.has_write.singleton_value() * self.inc_at_write_addr.singleton_value() * eq_addr * lt;
+            return vec![v; points.len()];
+        }
+
+        let pairs = gather_pairs_from_sparse(self.has_write.entries());
+        let mut ys = vec![K::ZERO; points.len()];
+        for &pair in pairs.iter() {
+            let child0 = 2 * pair;
+            let child1 = child0 + 1;
+
+            let gate0 = self.has_write.get(child0);
+            let gate1 = self.has_write.get(child1);
+            if gate0 == K::ZERO && gate1 == K::ZERO {
+                continue;
+            }
+            let inc0 = self.inc_at_write_addr.get(child0);
+            let inc1 = self.inc_at_write_addr.get(child1);
+
+            fill_time_point(&mut self.t_child0, &self.challenges, self.bit_idx, K::ZERO, pair);
+            fill_time_point(&mut self.t_child1, &self.challenges, self.bit_idx, K::ONE, pair);
+            let lt0 = lt_eval(&self.t_child0, &self.r_time);
+            let lt1 = lt_eval(&self.t_child1, &self.r_time);
+
+            let mut eq0s: Vec<K> = Vec::with_capacity(self.wa_bits.len());
+            let mut d_eqs: Vec<K> = Vec::with_capacity(self.wa_bits.len());
+            for (b, col) in self.wa_bits.iter().enumerate() {
+                let e0 = eq_bit_affine(col.get(child0), self.r_addr[b]);
+                let e1 = eq_bit_affine(col.get(child1), self.r_addr[b]);
+                eq0s.push(e0);
+                d_eqs.push(e1 - e0);
+            }
+
+            for (i, &x) in points.iter().enumerate() {
+                let gate_x = interp(gate0, gate1, x);
+                let inc_x = interp(inc0, inc1, x);
+                let lt_x = interp(lt0, lt1, x);
+                let mut prod = gate_x * inc_x * lt_x;
+                for (e0, de) in eq0s.iter().zip(d_eqs.iter()) {
+                    prod *= *e0 + *de * x;
+                }
+                ys[i] += prod;
+            }
+        }
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.r_time.len().saturating_sub(self.bit_idx)
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.num_rounds() == 0 {
+            return;
+        }
+        self.has_write.fold_round_in_place(r);
+        self.inc_at_write_addr.fold_round_in_place(r);
+        for col in self.wa_bits.iter_mut() {
+            col.fold_round_in_place(r);
+        }
+        self.challenges.push(r);
+        self.bit_idx += 1;
+    }
+}
+
+/// Sparse time-domain total-increment oracle:
+///   Σ_t has_write(t) · inc(t) · Π_b eq(wa_bit_b(t), r_addr_b)
+pub struct TwistTotalIncOracleSparseTime {
+    degree_bound: usize,
+
+    r_addr: Vec<K>,
+    wa_bits: Vec<SparseIdxVec<K>>,
+    has_write: SparseIdxVec<K>,
+    inc_at_write_addr: SparseIdxVec<K>,
+}
+
+impl TwistTotalIncOracleSparseTime {
+    pub fn new(
+        wa_bits: Vec<SparseIdxVec<K>>,
+        has_write: SparseIdxVec<K>,
+        inc_at_write_addr: SparseIdxVec<K>,
+        r_addr: &[K],
+    ) -> (Self, K) {
+        let ell_n = log2_pow2(has_write.len());
+        let ell_addr = r_addr.len();
+        debug_assert_eq!(inc_at_write_addr.len(), 1usize << ell_n);
+        debug_assert_eq!(wa_bits.len(), ell_addr);
+        for (b, col) in wa_bits.iter().enumerate() {
+            debug_assert_eq!(
+                col.len(),
+                1usize << ell_n,
+                "wa_bits[{b}] length must match time domain"
+            );
+        }
+
+        let mut claim = K::ZERO;
+        for &(t, gate) in has_write.entries() {
+            let inc_t = inc_at_write_addr.get(t);
+            if gate == K::ZERO || inc_t == K::ZERO {
+                continue;
+            }
+            let mut eq_addr = K::ONE;
+            for (b, col) in wa_bits.iter().enumerate() {
+                eq_addr *= eq_bit_affine(col.get(t), r_addr[b]);
+            }
+            claim += gate * inc_t * eq_addr;
+        }
+
+        (
+            Self {
+                degree_bound: 2 + ell_addr,
+                r_addr: r_addr.to_vec(),
+                wa_bits,
+                has_write,
+                inc_at_write_addr,
+            },
+            claim,
+        )
+    }
+}
+
+impl RoundOracle for TwistTotalIncOracleSparseTime {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.has_write.len() == 1 {
+            let mut eq_addr = K::ONE;
+            for (b, col) in self.wa_bits.iter().enumerate() {
+                eq_addr *= eq_bit_affine(col.singleton_value(), self.r_addr[b]);
+            }
+            let v = self.has_write.singleton_value() * self.inc_at_write_addr.singleton_value() * eq_addr;
+            return vec![v; points.len()];
+        }
+
+        let pairs = gather_pairs_from_sparse(self.has_write.entries());
+        let mut ys = vec![K::ZERO; points.len()];
+        for &pair in pairs.iter() {
+            let child0 = 2 * pair;
+            let child1 = child0 + 1;
+
+            let gate0 = self.has_write.get(child0);
+            let gate1 = self.has_write.get(child1);
+            if gate0 == K::ZERO && gate1 == K::ZERO {
+                continue;
+            }
+            let inc0 = self.inc_at_write_addr.get(child0);
+            let inc1 = self.inc_at_write_addr.get(child1);
+
+            let mut eq0s: Vec<K> = Vec::with_capacity(self.wa_bits.len());
+            let mut d_eqs: Vec<K> = Vec::with_capacity(self.wa_bits.len());
+            for (b, col) in self.wa_bits.iter().enumerate() {
+                let e0 = eq_bit_affine(col.get(child0), self.r_addr[b]);
+                let e1 = eq_bit_affine(col.get(child1), self.r_addr[b]);
+                eq0s.push(e0);
+                d_eqs.push(e1 - e0);
+            }
+
+            for (i, &x) in points.iter().enumerate() {
+                let gate_x = interp(gate0, gate1, x);
+                let inc_x = interp(inc0, inc1, x);
+                let mut prod = gate_x * inc_x;
+                for (e0, de) in eq0s.iter().zip(d_eqs.iter()) {
+                    prod *= *e0 + *de * x;
+                }
+                ys[i] += prod;
+            }
+        }
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        log2_pow2(self.has_write.len())
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.has_write.len() == 1 {
+            return;
+        }
+        self.has_write.fold_round_in_place(r);
+        self.inc_at_write_addr.fold_round_in_place(r);
+        for col in self.wa_bits.iter_mut() {
+            col.fold_round_in_place(r);
+        }
+    }
+}
 
 // ============================================================================
 // Val-Evaluation Oracle (SPARSE version)
 // ============================================================================
-
-/// Val-evaluation oracle using SPARSE Inc representation.
-///
-/// Proves: Val(r_addr, r_cycle) = init(r_addr) + Σ_t Inc(r_addr, t) · LT(t, r_cycle)
-///
-/// where Inc(r_addr, t) is computed from the sparse representation:
-/// ```text
-/// Inc(r_addr, t) = has_write(t) * eq(wa_bits(t), r_addr) * inc_at_write_addr(t)
-/// ```
-///
-/// This oracle computes the Inc contribution (without the init term).
-/// The verifier reconstructs Val = init_at_r_addr + inc_contribution.
-///
-/// ## Advantages over TwistValEvalOracle:
-/// - Does not require the full k × steps Inc matrix
-/// - Uses only committed sparse columns
-/// - All data at consistent column offsets
-/// - No X pollution or width mismatch issues
-pub struct TwistValEvalOracleSparse {
-    core: ProductRoundOracle,
-}
-
-impl TwistValEvalOracleSparse {
-    /// Create a new sparse val-eval oracle.
-    ///
-    /// # Arguments
-    /// - `wa_bits`: Write address bit columns (d*ell total, each length pow2_cycle)
-    /// - `has_write`: Has-write flag column
-    /// - `inc_at_write_addr`: Increment at write address column
-    /// - `r_addr`: Random point for address dimension (d*ell bits)
-    /// - `r_cycle`: Random point for cycle dimension
-    ///
-    /// # Returns
-    /// - The oracle for sum-check
-    /// - The Inc contribution (= Σ_t Inc(r_addr, t) · LT(t, r_cycle))
-    pub fn new(
-        wa_bits: &[Vec<K>],
-        has_write: Vec<K>,
-        inc_at_write_addr: Vec<K>,
-        r_addr: &[K],
-        r_cycle: &[K],
-    ) -> (Self, K) {
-        let pow2_cycle = 1usize << r_cycle.len();
-
-        assert_eq!(wa_bits.len(), r_addr.len(), "wa_bits count must match r_addr length");
-        assert_eq!(has_write.len(), pow2_cycle, "has_write length must match cycle domain");
-        assert_eq!(
-            inc_at_write_addr.len(),
-            pow2_cycle,
-            "inc_at_write_addr length must match cycle domain"
-        );
-
-        // Build LT(t, r_cycle) table: 1 if t < r_cycle, 0 otherwise (lexicographic)
-        let lt_table = build_lt_table(r_cycle);
-
-        // Build bit-eq factors for eq(wa_bits(t), r_addr).
-        // Each factor is multilinear in the time variables, so the product is a
-        // valid (higher-degree) sum-check target whose terminal evaluation is
-        // verifier-computable from openings at r_val.
-        let bit_eq_factors = build_bit_eq_factors(wa_bits, r_addr);
-
-        // Sum-check oracle over:
-        //   has_write(t) * inc_at_write_addr(t) * eq(wa_bits(t), r_addr) * LT(t, r_cycle)
-        //
-        // Degree bound equals the number of multilinear factors in the product.
-        let mut factors = Vec::with_capacity(3 + bit_eq_factors.len());
-        factors.push(has_write);
-        factors.push(inc_at_write_addr);
-        factors.push(lt_table);
-        factors.extend(bit_eq_factors);
-
-        let degree_bound = factors.len();
-        let core = ProductRoundOracle::new(factors, degree_bound);
-        let inc_contribution = core.sum_over_hypercube();
-
-        (Self { core }, inc_contribution)
-    }
-
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    pub fn challenges(&self) -> &[K] {
-        self.core.challenges()
-    }
-}
-
-impl_round_oracle_via_core!(TwistValEvalOracleSparse);
-
-// ============================================================================
-// Total-Increment Oracle (SPARSE version)
-// ============================================================================
-
-/// Total-increment oracle using SPARSE Inc representation.
-///
-/// Proves:
-/// ```text
-/// Σ_t Inc(r_addr, t)
-/// ```
-///
-/// where:
-/// ```text
-/// Inc(r_addr, t) = has_write(t) * eq(wa_bits(t), r_addr) * inc_at_write_addr(t)
-/// ```
-///
-/// This is used to cryptographically link consecutive chunks by showing that the
-/// end-of-chunk value at a random address point equals the next chunk's init at
-/// that same point.
-pub struct TwistTotalIncOracleSparse {
-    core: ProductRoundOracle,
-}
-
-impl TwistTotalIncOracleSparse {
-    /// Create a new sparse total-inc oracle.
-    ///
-    /// # Returns
-    /// - The oracle for sum-check over the time variables
-    /// - The claimed total increment (= Σ_t Inc(r_addr, t))
-    pub fn new(wa_bits: &[Vec<K>], has_write: Vec<K>, inc_at_write_addr: Vec<K>, r_addr: &[K]) -> (Self, K) {
-        let pow2_cycle = has_write.len();
-
-        assert_eq!(wa_bits.len(), r_addr.len(), "wa_bits count must match r_addr length");
-        assert_eq!(
-            inc_at_write_addr.len(),
-            pow2_cycle,
-            "inc_at_write_addr length must match cycle domain"
-        );
-
-        let bit_eq_factors = build_bit_eq_factors(wa_bits, r_addr);
-
-        // Sum-check oracle over:
-        //   has_write(t) * inc_at_write_addr(t) * eq(wa_bits(t), r_addr)
-        let mut factors = Vec::with_capacity(2 + bit_eq_factors.len());
-        factors.push(has_write);
-        factors.push(inc_at_write_addr);
-        factors.extend(bit_eq_factors);
-
-        let degree_bound = factors.len();
-        let core = ProductRoundOracle::new(factors, degree_bound);
-        let claimed_sum = core.sum_over_hypercube();
-
-        (Self { core }, claimed_sum)
-    }
-
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    pub fn challenges(&self) -> &[K] {
-        self.core.challenges()
-    }
-}
-
-impl_round_oracle_via_core!(TwistTotalIncOracleSparse);
-
-// ============================================================================
-// Bit-Aware Read Check Oracle
-// ============================================================================
-
-/// Read-check oracle using bit-decomposed addresses:
-///
-/// Proves: Σ_t eq(r_cycle, t) * has_read(t) * eq(ra_bits_t, r_addr) * (Val(ra_t, t) - rv(t)) = 0
-///
-/// **Important**: The val_at_read_addr parameter contains Val(ra_t, t) - the memory value
-/// at the **actual** read address ra_t for each step, NOT Val(r_addr, t) at the random point.
-/// This is sound because:
-/// - For steps where ra_t ≠ r_addr: eq(ra_bits_t, r_addr) = 0, so the term vanishes
-/// - For steps where ra_t = r_addr: val_at_read_addr[t] = Val(ra_t, t) = Val(r_addr, t)
-///
-/// This design avoids needing to compute Val(r_addr, t) for all steps, which would
-/// require expensive MLE evaluations.
-pub struct TwistReadCheckOracle {
-    core: ProductRoundOracle,
-}
-
-impl TwistReadCheckOracle {
-    /// Create a read-check oracle with bit-decomposed addresses.
-    ///
-    /// # Arguments
-    /// - `ra_bits`: d*ell bit columns for read addresses (flattened)
-    /// - `val_at_read_addr`: Val(ra_t, t) - memory value at actual read address for each step
-    /// - `rv`: Read values (what the VM observed)
-    /// - `has_read`: Read flags
-    /// - `r_cycle`: Random point for cycle dimension
-    /// - `r_addr`: Random point for address dimension (ell_total = d*ell bits)
-    pub fn new(
-        ra_bits: &[Vec<K>],
-        val_at_read_addr: Vec<K>,
-        rv: Vec<K>,
-        has_read: Vec<K>,
-        r_cycle: &[K],
-        r_addr: &[K],
-    ) -> Self {
-        let pow2_cycle = 1usize << r_cycle.len();
-        let n = val_at_read_addr.len();
-        assert_eq!(n, pow2_cycle, "val_at_read_addr length must match cycle domain");
-        assert_eq!(rv.len(), pow2_cycle, "rv length must match cycle domain");
-        assert_eq!(has_read.len(), pow2_cycle, "has_read length must match cycle domain");
-        assert_eq!(ra_bits.len(), r_addr.len(), "ra_bits count must match r_addr length");
-
-        // (Val(ra_t, t) - rv(t)) - value at actual read address minus observed read value.
-        // Note: val_at_read_addr contains Val(ra_t, t), the memory value at the actual read
-        // address, NOT Val(r_addr, t) at the random challenge point.
-        let diff: Vec<K> = val_at_read_addr
-            .iter()
-            .zip(rv.iter())
-            .map(|(v, r)| *v - *r)
-            .collect();
-
-        #[cfg(feature = "debug-logs")]
-        {
-            use p3_field::PrimeField64;
-            let format_k = |k: &K| -> String {
-                let coeffs = k.as_coeffs();
-                format!("K[{}, {}]", coeffs[0].as_canonical_u64(), coeffs[1].as_canonical_u64())
-            };
-            eprintln!("TwistReadCheckOracle::new()");
-            eprintln!(
-                "  pow2_cycle={}, r_cycle.len()={}, r_addr.len()={}",
-                pow2_cycle,
-                r_cycle.len(),
-                r_addr.len()
-            );
-            eprintln!("  ra_bits.len()={}", ra_bits.len());
-
-            let eq_cycle = build_eq_table(r_cycle);
-            // Show first few values of each input
-            eprintln!(
-                "  val_at_read_addr[0..4]: [{}]",
-                val_at_read_addr
-                    .iter()
-                    .take(4)
-                    .map(|v| format_k(v))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-            eprintln!(
-                "  rv[0..4]: [{}]",
-                rv.iter()
-                    .take(4)
-                    .map(|v| format_k(v))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-            eprintln!(
-                "  has_read[0..4]: [{}]",
-                has_read
-                    .iter()
-                    .take(4)
-                    .map(|v| format_k(v))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-            eprintln!(
-                "  diff[0..4]: [{}]",
-                diff.iter()
-                    .take(4)
-                    .map(|v| format_k(v))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-            eprintln!(
-                "  eq_cycle[0..4]: [{}]",
-                eq_cycle
-                    .iter()
-                    .take(4)
-                    .map(|v| format_k(v))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-
-            // Compute expected sum manually
-            let mut manual_sum = K::ZERO;
-            let eq_from_bits = compute_eq_from_bits(ra_bits, r_addr);
-            for t in 0..pow2_cycle {
-                let term = eq_cycle[t] * has_read[t] * diff[t] * eq_from_bits[t];
-                manual_sum += term;
-            }
-            eprintln!("  Manual sum (should be 0): {}", format_k(&manual_sum));
-
-            // Debug: show non-zero contributions
-            let mut nonzero_count = 0;
-            for t in 0..pow2_cycle.min(8) {
-                let eq_from_bits_t = eq_from_bits[t];
-                let term = eq_cycle[t] * has_read[t] * diff[t] * eq_from_bits_t;
-                if term != K::ZERO || has_read[t] != K::ZERO {
-                    eprintln!(
-                        "    t={}: eq_cycle={}, has_read={}, diff={}, eq_bits={}, term={}",
-                        t,
-                        format_k(&eq_cycle[t]),
-                        format_k(&has_read[t]),
-                        format_k(&diff[t]),
-                        format_k(&eq_from_bits_t),
-                        format_k(&term)
-                    );
-                    nonzero_count += 1;
-                }
-            }
-            if nonzero_count == 0 {
-                eprintln!("    (all terms zero in first 8 steps)");
-            }
-        }
-
-        let core = build_cycle_gate_diff_bits_oracle(r_cycle, has_read, diff, ra_bits, r_addr);
-        Self { core }
-    }
-
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-}
-
-impl_round_oracle_via_core!(TwistReadCheckOracle);
-
-// ============================================================================
-// Bit-Aware Write Check Oracle
-// ============================================================================
-
-/// Write-check oracle using bit-decomposed addresses:
-///
-/// Proves (time-lane after `r_addr` is bound):
-/// `Σ_t χ_{r_cycle}(t) * has_write(t) * eq(wa_bits(t), r_addr) * (wv(t) - Val_pre(r_addr,t) - inc_at_write_addr(t)) = 0`.
-///
-/// Here:
-/// - `val_at_r_addr[t]` is `Val_pre(r_addr, t)` (the value at the random address point),
-/// - `inc_at_write_addr[t]` is the committed increment for the write at time `t` (unweighted).
-pub struct TwistWriteCheckOracle {
-    core: ProductRoundOracle,
-}
-
-impl TwistWriteCheckOracle {
-    /// Create a write-check oracle with bit-decomposed addresses.
-    pub fn new(
-        wa_bits: &[Vec<K>],
-        wv: Vec<K>,
-        val_at_r_addr: Vec<K>,
-        inc_at_write_addr: Vec<K>,
-        has_write: Vec<K>,
-        r_cycle: &[K],
-        r_addr: &[K],
-    ) -> Self {
-        let pow2_cycle = 1usize << r_cycle.len();
-        let n = val_at_r_addr.len();
-        assert_eq!(n, pow2_cycle, "val_at_r_addr length must match cycle domain");
-        assert_eq!(wv.len(), pow2_cycle, "wv length must match cycle domain");
-        assert_eq!(has_write.len(), pow2_cycle, "has_write length must match cycle domain");
-        assert_eq!(wa_bits.len(), r_addr.len(), "wa_bits count must match r_addr length");
-        assert_eq!(
-            inc_at_write_addr.len(),
-            pow2_cycle,
-            "inc_at_write_addr length must match cycle domain"
-        );
-
-        // delta(t) = (wv - Val) - Inc
-        let delta: Vec<K> = wv
-            .iter()
-            .zip(val_at_r_addr.iter())
-            .zip(inc_at_write_addr.iter())
-            .map(|((w, v), inc)| *w - *v - *inc)
-            .collect();
-        let core = build_cycle_gate_diff_bits_oracle(r_cycle, has_write, delta, wa_bits, r_addr);
-        Self { core }
-    }
-
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-}
-
-impl_round_oracle_via_core!(TwistWriteCheckOracle);
 
 // ============================================================================
 // Address-Lane Oracles (addr rounds first, time summed)
@@ -852,19 +1172,6 @@ impl_round_oracle_via_core!(TwistWriteCheckOracle);
 // Variable order is little-endian address bits (bit 0 first), matching the
 // rest of the module.
 
-fn addrs_from_bits(bit_cols: &[Vec<K>]) -> Vec<usize> {
-    let n = bit_cols.first().map(|c| c.len()).unwrap_or(0);
-    let mut out = vec![0usize; n];
-    for (b, col) in bit_cols.iter().enumerate() {
-        for (t, &v) in col.iter().enumerate() {
-            if v == K::ONE {
-                out[t] |= 1usize << b;
-            }
-        }
-    }
-    out
-}
-
 fn update_prefix_weights_in_place(weights: &mut [K], addrs: &[usize], bit_idx: usize, r: K) {
     let r0 = K::ONE - r;
     for (w, &a) in weights.iter_mut().zip(addrs.iter()) {
@@ -876,52 +1183,90 @@ fn update_prefix_weights_in_place(weights: &mut [K], addrs: &[usize], bit_idx: u
     }
 }
 
-/// Address-lane prefix oracle for the Twist read-check.
+// ============================================================================
+// Address-lane oracles (Track A sparse-in-time variants)
+// ============================================================================
+
+fn addr_from_sparse_bits_at_time(bit_cols: &[SparseIdxVec<K>], t: usize) -> usize {
+    let mut out = 0usize;
+    for (b, col) in bit_cols.iter().enumerate() {
+        if col.get(t) == K::ONE {
+            out |= 1usize << b;
+        }
+    }
+    out
+}
+
+fn merge_sparse_time_indices(a: &[(usize, K)], b: &[(usize, K)]) -> Vec<usize> {
+    let mut out = Vec::with_capacity(a.len() + b.len());
+    let mut i = 0usize;
+    let mut j = 0usize;
+    while i < a.len() || j < b.len() {
+        let next = match (a.get(i), b.get(j)) {
+            (Some(&(ai, _)), Some(&(bj, _))) => {
+                if ai <= bj {
+                    i += 1;
+                    ai
+                } else {
+                    j += 1;
+                    bj
+                }
+            }
+            (Some(&(ai, _)), None) => {
+                i += 1;
+                ai
+            }
+            (None, Some(&(bj, _))) => {
+                j += 1;
+                bj
+            }
+            (None, None) => break,
+        };
+        if out.last().copied() != Some(next) {
+            out.push(next);
+        }
+    }
+    out
+}
+
+/// Sparse-in-time address-lane prefix oracle for the Twist read-check.
 ///
-/// Sums over time internally, and runs sum-check over address bits:
-///   H(addr) = Σ_t χ_{r_cycle}(t)·has_read(t)·eq(addr, ra_bits(t))·(Val_pre(addr,t) - rv(t)).
-///
-/// The sum-check binds `addr = r_addr` and returns the time-lane claimed sum:
-///   Σ_t χ_{r_cycle}(t)·has_read(t)·eq(r_addr, ra_bits(t))·(Val_pre(r_addr,t) - rv(t)).
-///
-/// This implementation avoids allocating an O(k) dense table by maintaining the
-/// folded initial state in sparse form and simulating only the touched indices
-/// per round.
-pub struct TwistReadCheckAddrOracle {
+/// Same proof semantics as `TwistReadCheckAddrOracle`, but internal time iteration scales with
+/// activity (`nnz(has_read) + nnz(has_write)`), not `T = 2^ell_n`.
+pub struct TwistReadCheckAddrOracleSparseTime {
     ell_addr: usize,
     bit_idx: usize,
     degree_bound: usize,
 
     mem_scratch: std::collections::HashMap<usize, K>,
 
+    // Per-event (sparse time list) arrays, sorted by time index.
     eq_cycle: Vec<K>,
     has_read: Vec<K>,
     rv: Vec<K>,
-
     has_write: Vec<K>,
     inc_at_write_addr: Vec<K>,
-
     ra_addrs: Vec<usize>,
     wa_addrs: Vec<usize>,
+    ra_prefix_w: Vec<K>,
+    wa_prefix_w: Vec<K>,
 
     init_addrs: Vec<usize>,
     init_vals: Vec<K>,
     init_prefix_w: Vec<K>,
-    ra_prefix_w: Vec<K>,
-    wa_prefix_w: Vec<K>,
 }
 
-impl TwistReadCheckAddrOracle {
+impl TwistReadCheckAddrOracleSparseTime {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         init_sparse: Vec<(usize, K)>,
         r_cycle: &[K],
-        has_read: Vec<K>,
-        rv: Vec<K>,
-        ra_bits: &[Vec<K>],
-        has_write: Vec<K>,
-        wa_bits: &[Vec<K>],
-        inc_at_write_addr: Vec<K>,
+        has_read: SparseIdxVec<K>,
+        rv: SparseIdxVec<K>,
+        ra_bits: &[SparseIdxVec<K>],
+        has_write: SparseIdxVec<K>,
+        wa_bits: &[SparseIdxVec<K>],
+        inc_at_write_addr: SparseIdxVec<K>,
     ) -> Self {
         let pow2_time = 1usize << r_cycle.len();
         assert_eq!(has_read.len(), pow2_time, "has_read length must match time domain");
@@ -939,63 +1284,76 @@ impl TwistReadCheckAddrOracle {
         for (addr, _) in init_sparse.iter() {
             assert!(*addr < pow2_addr, "init address out of range");
         }
-
-        for col in ra_bits {
-            assert_eq!(col.len(), pow2_time, "ra_bits column length mismatch");
+        for (b, col) in ra_bits.iter().enumerate() {
+            assert_eq!(col.len(), pow2_time, "ra_bits[{b}] length mismatch");
         }
-        for col in wa_bits {
-            assert_eq!(col.len(), pow2_time, "wa_bits column length mismatch");
+        for (b, col) in wa_bits.iter().enumerate() {
+            assert_eq!(col.len(), pow2_time, "wa_bits[{b}] length mismatch");
         }
 
-        let eq_cycle = build_eq_table(r_cycle);
-        let ra_addrs = addrs_from_bits(ra_bits);
-        let wa_addrs = addrs_from_bits(wa_bits);
+        let times = merge_sparse_time_indices(has_read.entries(), has_write.entries());
+        let mut eq_cycle_out = Vec::with_capacity(times.len());
+        let mut has_read_out = Vec::with_capacity(times.len());
+        let mut rv_out = Vec::with_capacity(times.len());
+        let mut has_write_out = Vec::with_capacity(times.len());
+        let mut inc_out = Vec::with_capacity(times.len());
+        let mut ra_addrs = Vec::with_capacity(times.len());
+        let mut wa_addrs = Vec::with_capacity(times.len());
+
+        for &t in times.iter() {
+            eq_cycle_out.push(chi_at_bool_index(r_cycle, t));
+            let hr = has_read.get(t);
+            let hw = has_write.get(t);
+            has_read_out.push(hr);
+            rv_out.push(rv.get(t));
+            has_write_out.push(hw);
+            inc_out.push(inc_at_write_addr.get(t));
+
+            ra_addrs.push(if hr != K::ZERO { addr_from_sparse_bits_at_time(ra_bits, t) } else { 0 });
+            wa_addrs.push(if hw != K::ZERO { addr_from_sparse_bits_at_time(wa_bits, t) } else { 0 });
+        }
 
         let (init_addrs, init_vals): (Vec<usize>, Vec<K>) = init_sparse.into_iter().unzip();
-
         Self {
             ell_addr,
             bit_idx: 0,
             degree_bound: 2,
             mem_scratch: std::collections::HashMap::with_capacity(init_addrs.len()),
-            eq_cycle,
-            has_read,
-            rv,
-            has_write,
-            inc_at_write_addr,
+            eq_cycle: eq_cycle_out,
+            has_read: has_read_out,
+            rv: rv_out,
+            has_write: has_write_out,
+            inc_at_write_addr: inc_out,
             ra_addrs,
             wa_addrs,
+            ra_prefix_w: vec![K::ONE; times.len()],
+            wa_prefix_w: vec![K::ONE; times.len()],
             init_prefix_w: vec![K::ONE; init_addrs.len()],
             init_addrs,
             init_vals,
-            ra_prefix_w: vec![K::ONE; pow2_time],
-            wa_prefix_w: vec![K::ONE; pow2_time],
         }
     }
 }
 
-impl RoundOracle for TwistReadCheckAddrOracle {
+impl RoundOracle for TwistReadCheckAddrOracleSparseTime {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
         if self.num_rounds() == 0 {
-            // Constant polynomial; return value for all points.
             let mut mem = K::ZERO;
-            for ((&val, &w), _addr) in self
-                .init_vals
-                .iter()
-                .zip(self.init_prefix_w.iter())
-                .zip(self.init_addrs.iter())
-            {
+            for (&val, &w) in self.init_vals.iter().zip(self.init_prefix_w.iter()) {
                 mem += val * w;
             }
 
             let mut sum = K::ZERO;
-            for t in 0..self.eq_cycle.len() {
-                let diff = mem - self.rv[t];
-                sum += self.eq_cycle[t] * self.has_read[t] * self.ra_prefix_w[t] * diff;
+            for i in 0..self.eq_cycle.len() {
+                let eq_t = self.eq_cycle[i];
+                let gate_r = self.has_read[i];
+                if gate_r != K::ZERO {
+                    sum += eq_t * gate_r * self.ra_prefix_w[i] * (mem - self.rv[i]);
+                }
 
-                let has_w = self.has_write[t];
-                if has_w != K::ZERO {
-                    mem += self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                let gate_w = self.has_write[i];
+                if gate_w != K::ZERO {
+                    mem += self.inc_at_write_addr[i] * gate_w * self.wa_prefix_w[i];
                 }
             }
             return vec![sum; points.len()];
@@ -1004,7 +1362,6 @@ impl RoundOracle for TwistReadCheckAddrOracle {
         let bit_idx = self.bit_idx;
         let mut ys = vec![K::ZERO; points.len()];
 
-        // Build initial folded table sparsely from init entries at this bit_idx.
         self.mem_scratch.clear();
         let mem = &mut self.mem_scratch;
         for ((&addr, &val), &w) in self
@@ -1020,33 +1377,34 @@ impl RoundOracle for TwistReadCheckAddrOracle {
             }
         }
 
-        for t in 0..self.eq_cycle.len() {
-            let eq_t = self.eq_cycle[t];
-            let gate = self.has_read[t];
-            if gate != K::ZERO {
-                let ra = self.ra_addrs[t];
+        for i in 0..self.eq_cycle.len() {
+            let eq_t = self.eq_cycle[i];
+
+            let gate_r = self.has_read[i];
+            if gate_r != K::ZERO {
+                let ra = self.ra_addrs[i];
                 let base = ra >> (bit_idx + 1);
                 let idx0 = base * 2;
                 let idx1 = idx0 + 1;
                 let v0 = mem.get(&idx0).copied().unwrap_or(K::ZERO);
                 let v1 = mem.get(&idx1).copied().unwrap_or(K::ZERO);
                 let dv = v1 - v0;
-                let rv_t = self.rv[t];
-                let prefix = self.ra_prefix_w[t];
+                let rv_t = self.rv[i];
+                let prefix = self.ra_prefix_w[i];
                 let bit = (ra >> bit_idx) & 1;
 
-                for (i, &x) in points.iter().enumerate() {
+                for (j, &x) in points.iter().enumerate() {
                     let val_x = v0 + dv * x;
                     let addr_factor = if bit == 1 { x } else { K::ONE - x };
-                    ys[i] += eq_t * gate * prefix * addr_factor * (val_x - rv_t);
+                    ys[j] += eq_t * gate_r * prefix * addr_factor * (val_x - rv_t);
                 }
             }
 
-            let has_w = self.has_write[t];
-            if has_w != K::ZERO {
-                let wa = self.wa_addrs[t];
+            let gate_w = self.has_write[i];
+            if gate_w != K::ZERO {
+                let wa = self.wa_addrs[i];
                 let idx = wa >> bit_idx;
-                let delta = self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                let delta = self.inc_at_write_addr[i] * gate_w * self.wa_prefix_w[i];
                 if delta != K::ZERO {
                     *mem.entry(idx).or_insert(K::ZERO) += delta;
                 }
@@ -1075,14 +1433,8 @@ impl RoundOracle for TwistReadCheckAddrOracle {
     }
 }
 
-/// Address-lane prefix oracle for the Twist write-check.
-///
-/// Sums over time internally, and runs sum-check over address bits:
-///   H(addr) = Σ_t χ_{r_cycle}(t)·has_write(t)·eq(addr, wa_bits(t))·(wv(t) - Val_pre(addr,t) - inc(t)).
-///
-/// The sum-check binds `addr = r_addr` and returns the time-lane claimed sum:
-///   Σ_t χ_{r_cycle}(t)·has_write(t)·eq(r_addr, wa_bits(t))·(wv(t) - Val_pre(r_addr,t) - inc(t)).
-pub struct TwistWriteCheckAddrOracle {
+/// Sparse-in-time address-lane prefix oracle for the Twist write-check.
+pub struct TwistWriteCheckAddrOracleSparseTime {
     ell_addr: usize,
     bit_idx: usize,
     degree_bound: usize,
@@ -1093,24 +1445,23 @@ pub struct TwistWriteCheckAddrOracle {
     has_write: Vec<K>,
     wv: Vec<K>,
     inc_at_write_addr: Vec<K>,
-
     wa_addrs: Vec<usize>,
+    wa_prefix_w: Vec<K>,
 
     init_addrs: Vec<usize>,
     init_vals: Vec<K>,
     init_prefix_w: Vec<K>,
-    wa_prefix_w: Vec<K>,
 }
 
-impl TwistWriteCheckAddrOracle {
+impl TwistWriteCheckAddrOracleSparseTime {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         init_sparse: Vec<(usize, K)>,
         r_cycle: &[K],
-        has_write: Vec<K>,
-        wv: Vec<K>,
-        wa_bits: &[Vec<K>],
-        inc_at_write_addr: Vec<K>,
+        has_write: SparseIdxVec<K>,
+        wv: SparseIdxVec<K>,
+        wa_bits: &[SparseIdxVec<K>],
+        inc_at_write_addr: SparseIdxVec<K>,
     ) -> Self {
         let pow2_time = 1usize << r_cycle.len();
         assert_eq!(has_write.len(), pow2_time, "has_write length must match time domain");
@@ -1126,34 +1477,46 @@ impl TwistWriteCheckAddrOracle {
         for (addr, _) in init_sparse.iter() {
             assert!(*addr < pow2_addr, "init address out of range");
         }
-        for col in wa_bits {
-            assert_eq!(col.len(), pow2_time, "wa_bits column length mismatch");
+        for (b, col) in wa_bits.iter().enumerate() {
+            assert_eq!(col.len(), pow2_time, "wa_bits[{b}] length mismatch");
         }
 
-        let eq_cycle = build_eq_table(r_cycle);
-        let wa_addrs = addrs_from_bits(wa_bits);
+        let times: Vec<usize> = has_write.entries().iter().map(|(t, _)| *t).collect();
+        let mut eq_cycle_out = Vec::with_capacity(times.len());
+        let mut has_write_out = Vec::with_capacity(times.len());
+        let mut wv_out = Vec::with_capacity(times.len());
+        let mut inc_out = Vec::with_capacity(times.len());
+        let mut wa_addrs = Vec::with_capacity(times.len());
+
+        for &t in times.iter() {
+            eq_cycle_out.push(chi_at_bool_index(r_cycle, t));
+            let hw = has_write.get(t);
+            has_write_out.push(hw);
+            wv_out.push(wv.get(t));
+            inc_out.push(inc_at_write_addr.get(t));
+            wa_addrs.push(addr_from_sparse_bits_at_time(wa_bits, t));
+        }
 
         let (init_addrs, init_vals): (Vec<usize>, Vec<K>) = init_sparse.into_iter().unzip();
-
         Self {
             ell_addr,
             bit_idx: 0,
             degree_bound: 2,
             mem_scratch: std::collections::HashMap::with_capacity(init_addrs.len()),
-            eq_cycle,
-            has_write,
-            wv,
-            inc_at_write_addr,
+            eq_cycle: eq_cycle_out,
+            has_write: has_write_out,
+            wv: wv_out,
+            inc_at_write_addr: inc_out,
             wa_addrs,
             init_prefix_w: vec![K::ONE; init_addrs.len()],
             init_addrs,
             init_vals,
-            wa_prefix_w: vec![K::ONE; pow2_time],
+            wa_prefix_w: vec![K::ONE; times.len()],
         }
     }
 }
 
-impl RoundOracle for TwistWriteCheckAddrOracle {
+impl RoundOracle for TwistWriteCheckAddrOracleSparseTime {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
         if self.num_rounds() == 0 {
             let mut mem = K::ZERO;
@@ -1162,13 +1525,13 @@ impl RoundOracle for TwistWriteCheckAddrOracle {
             }
 
             let mut sum = K::ZERO;
-            for t in 0..self.eq_cycle.len() {
-                let delta = self.wv[t] - mem - self.inc_at_write_addr[t];
-                sum += self.eq_cycle[t] * self.has_write[t] * self.wa_prefix_w[t] * delta;
+            for i in 0..self.eq_cycle.len() {
+                let delta = self.wv[i] - mem - self.inc_at_write_addr[i];
+                sum += self.eq_cycle[i] * self.has_write[i] * self.wa_prefix_w[i] * delta;
 
-                let has_w = self.has_write[t];
-                if has_w != K::ZERO {
-                    mem += self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                let gate_w = self.has_write[i];
+                if gate_w != K::ZERO {
+                    mem += self.inc_at_write_addr[i] * gate_w * self.wa_prefix_w[i];
                 }
             }
             return vec![sum; points.len()];
@@ -1192,34 +1555,34 @@ impl RoundOracle for TwistWriteCheckAddrOracle {
             }
         }
 
-        for t in 0..self.eq_cycle.len() {
-            let eq_t = self.eq_cycle[t];
-            let gate = self.has_write[t];
+        for i in 0..self.eq_cycle.len() {
+            let eq_t = self.eq_cycle[i];
+            let gate = self.has_write[i];
             if gate != K::ZERO {
-                let wa = self.wa_addrs[t];
+                let wa = self.wa_addrs[i];
                 let base = wa >> (bit_idx + 1);
                 let idx0 = base * 2;
                 let idx1 = idx0 + 1;
                 let v0 = mem.get(&idx0).copied().unwrap_or(K::ZERO);
                 let v1 = mem.get(&idx1).copied().unwrap_or(K::ZERO);
                 let dv = v1 - v0;
-                let wv_t = self.wv[t];
-                let inc_t = self.inc_at_write_addr[t];
-                let prefix = self.wa_prefix_w[t];
+                let wv_t = self.wv[i];
+                let inc_t = self.inc_at_write_addr[i];
+                let prefix = self.wa_prefix_w[i];
                 let bit = (wa >> bit_idx) & 1;
 
-                for (i, &x) in points.iter().enumerate() {
+                for (j, &x) in points.iter().enumerate() {
                     let val_x = v0 + dv * x;
                     let addr_factor = if bit == 1 { x } else { K::ONE - x };
-                    ys[i] += eq_t * gate * prefix * addr_factor * (wv_t - val_x - inc_t);
+                    ys[j] += eq_t * gate * prefix * addr_factor * (wv_t - val_x - inc_t);
                 }
             }
 
-            let has_w = self.has_write[t];
-            if has_w != K::ZERO {
-                let wa = self.wa_addrs[t];
+            let gate_w = self.has_write[i];
+            if gate_w != K::ZERO {
+                let wa = self.wa_addrs[i];
                 let idx = wa >> bit_idx;
-                let delta = self.inc_at_write_addr[t] * has_w * self.wa_prefix_w[t];
+                let delta = self.inc_at_write_addr[i] * gate_w * self.wa_prefix_w[i];
                 if delta != K::ZERO {
                     *mem.entry(idx).or_insert(K::ZERO) += delta;
                 }
@@ -1248,91 +1611,6 @@ impl RoundOracle for TwistWriteCheckAddrOracle {
 }
 
 // ============================================================================
-// Index Adapter Oracle (IDX→OH Bridge)
-// ============================================================================
-
-/// Index adapter oracle: proves consistency between committed bit columns
-/// and the conceptual one-hot MLE evaluations.
-///
-/// Without `has_lookup`: Proves Σ_t eq(r_cycle, t) * eq(bits_t, r_addr) = claimed_value
-/// With `has_lookup`: Proves Σ_t eq(r_cycle, t) * has_lookup(t) * eq(bits_t, r_addr) = claimed_value
-///
-/// The `has_lookup` gated version is REQUIRED for Shout to be sound: the adapter must
-/// prove the same weight polynomial that the lookup sum-check uses, otherwise non-lookup
-/// steps with addr bits = 0 would contribute spurious weight at address 0.
-pub struct IndexAdapterOracle {
-    core: ProductRoundOracle,
-}
-
-impl IndexAdapterOracle {
-    /// Create an ungated adapter oracle (for Twist use).
-    /// Proves: Σ_t eq(r_cycle, t) * eq(bits_t, r_addr) = claimed_value
-    pub fn new(bits: &[Vec<K>], r_cycle: &[K], r_addr: &[K]) -> Self {
-        let pow2_cycle = 1usize << r_cycle.len();
-        assert_eq!(bits.len(), r_addr.len(), "bits count must match r_addr length");
-        for col in bits {
-            assert_eq!(col.len(), pow2_cycle, "bit column length must match cycle domain");
-        }
-        let core = build_cycle_bits_oracle(r_cycle, bits, r_addr);
-        Self { core }
-    }
-
-    /// Create a gated adapter oracle (for Shout use).
-    /// Proves: Σ_t eq(r_cycle, t) * has_lookup(t) * eq(bits_t, r_addr) = claimed_value
-    ///
-    /// This matches the weight polynomial used by AddressLookupOracle, ensuring
-    /// the adapter proves the same quantity that the lookup check verifies against.
-    pub fn new_with_gate(bits: &[Vec<K>], has_lookup: &[K], r_cycle: &[K], r_addr: &[K]) -> Self {
-        let pow2_cycle = 1usize << r_cycle.len();
-        assert_eq!(bits.len(), r_addr.len(), "bits count must match r_addr length");
-        assert_eq!(
-            has_lookup.len(),
-            pow2_cycle,
-            "has_lookup length must match cycle domain"
-        );
-        for col in bits {
-            assert_eq!(col.len(), pow2_cycle, "bit column length must match cycle domain");
-        }
-        let core = build_cycle_gate_bits_oracle(r_cycle, has_lookup.to_vec(), bits, r_addr);
-        Self { core }
-    }
-
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    pub fn challenges(&self) -> &[K] {
-        self.core.challenges()
-    }
-}
-
-impl_round_oracle_via_core!(IndexAdapterOracle);
-
-// ============================================================================
-// Bitness Oracle (proves bit columns are binary)
-// ============================================================================
-
-/// Bitness oracle: proves that a column contains only 0/1 values.
-///
-/// Proves: Σ_t eq(r_cycle, t) * b(t) * (b(t) - 1) = 0
-pub struct BitnessOracle {
-    core: ProductRoundOracle,
-}
-
-impl BitnessOracle {
-    pub fn new(bit_col: Vec<K>, r_cycle: &[K]) -> Self {
-        let core = build_cycle_bitness_oracle(r_cycle, bit_col);
-        Self { core }
-    }
-}
-
-impl_round_oracle_via_core!(BitnessOracle);
-
-// ============================================================================
 // Address-Domain Lookup Oracle (New Architecture)
 // ============================================================================
 
@@ -1356,32 +1634,26 @@ pub struct AddressLookupOracle {
 }
 
 impl AddressLookupOracle {
-    /// Create a new address-domain lookup oracle.
+    /// Create a new address-domain lookup oracle from sparse-in-time columns.
     ///
-    /// # Parameters
-    /// - `addr_bits`: Address bit columns (ell_addr total, each length pow2_cycle)
-    /// - `has_lookup`: Indicator column (1 when a lookup occurs at that step)
-    /// - `table`: The full lookup table (length = table_size)
-    /// - `r_cycle`: Random challenge point for the cycle dimension
-    /// - `ell_addr`: Number of address bits (determines sum-check domain size)
-    ///
-    /// # Returns
-    /// - The oracle
-    /// - The claimed sum (= val̃(r_cycle), to be checked against ME opening)
-    ///
-    /// # How it works
-    /// 1. Build weight table: weight[addr] = Σ_{t: addr(t)=addr AND has_lookup(t)=1} eq(r_cycle, t)
-    /// 2. The polynomial P(a) = Table(a) · weight(a) is degree 2 per variable
-    /// 3. Sum-check proves: Σ_a P(a) = claimed_sum
-    /// 4. Final check: S_final = Tablẽ(r_addr) · weight̃(r_addr)
-    ///    where weight̃(r_addr) = Ã(r_cycle, r_addr) (the adapter evaluation)
-    pub fn new(addr_bits: &[Vec<K>], has_lookup: &[K], table: &[K], r_cycle: &[K], ell_addr: usize) -> (Self, K) {
+    /// Track A: proof statement/verifier semantics are unchanged; only time iteration is sparse.
+    pub fn new(
+        addr_bits: &[SparseIdxVec<K>],
+        has_lookup: &SparseIdxVec<K>,
+        table: &[K],
+        r_cycle: &[K],
+        ell_addr: usize,
+    ) -> (Self, K) {
         let pow2_cycle = 1usize << r_cycle.len();
         let pow2_addr = 1usize << ell_addr;
 
         assert_eq!(addr_bits.len(), ell_addr, "addr_bits count must match ell_addr");
-        for col in addr_bits {
-            assert_eq!(col.len(), pow2_cycle, "bit column length must match cycle domain");
+        for (b, col) in addr_bits.iter().enumerate() {
+            assert_eq!(
+                col.len(),
+                pow2_cycle,
+                "addr_bits[{b}] length must match cycle domain"
+            );
         }
         assert_eq!(
             has_lookup.len(),
@@ -1389,54 +1661,35 @@ impl AddressLookupOracle {
             "has_lookup length must match cycle domain"
         );
 
-        // Build eq(r_cycle, ·) table for time domain
-        let eq_cycle_table = build_eq_table(r_cycle);
-
-        // Build weight table: weight[addr] = Σ_{t: addr(t)=addr} has_lookup(t) · eq(r_cycle, t)
-        // This represents Ã(r_cycle, a) on the Boolean address hypercube
-        //
-        // SECURITY FIX: Use scalar multiplication `has_lookup[t] * weight_t` instead of
-        // conditional branching `if has_lookup[t] != K::ONE`. This allows has_lookup to be
-        // any field element (the bitness sum-check proves it's binary), and correctly
-        // handles the scalar case for extension field evaluations during sum-check.
+        let mut claimed_sum = K::ZERO;
         let mut weight_table = vec![K::ZERO; pow2_addr];
-        let mut claimed_sum = K::ZERO; // Will also compute Σ_a Table(a) · weight(a)
 
-        for t in 0..pow2_cycle {
-            // Gate by has_lookup as a scalar (not a boolean check)
-            // Bitness is proven separately, so has_lookup ∈ {0, 1} on hypercube
-            let gate = has_lookup[t];
+        for &(t, gate) in has_lookup.entries() {
             if gate == K::ZERO {
-                continue; // Skip zeros for efficiency (but scalar multiplication would also work)
+                continue;
+            }
+            let weight_t = chi_at_bool_index(r_cycle, t) * gate;
+            if weight_t == K::ZERO {
+                continue;
             }
 
-            // Decode address from bit columns at time t
-            let mut addr_t: usize = 0;
-            for b in 0..ell_addr {
-                if addr_bits[b][t] == K::ONE {
-                    addr_t |= 1 << b;
+            let mut addr_t = 0usize;
+            for (b, col) in addr_bits.iter().enumerate() {
+                if col.get(t) == K::ONE {
+                    addr_t |= 1usize << b;
                 }
             }
-
-            // Add gated eq(r_cycle, t) weight to this address bucket
-            let weight_t = eq_cycle_table[t] * gate;
             if addr_t < pow2_addr {
                 weight_table[addr_t] += weight_t;
             }
         }
 
-        // Compute claimed sum = Σ_a Table(a) · weight(a)
-        // This should equal val̃(r_cycle) for correct lookups
         for addr in 0..pow2_addr.min(table.len()) {
             claimed_sum += table[addr] * weight_table[addr];
         }
 
-        // Convert table to K and pad to pow2_addr
-        let mut table_k: Vec<K> = table.iter().map(|&t| t).collect();
+        let mut table_k: Vec<K> = table.iter().copied().collect();
         table_k.resize(pow2_addr, K::ZERO);
-
-        // P(a) = Table(a) · weight(a) - product of two multilinear functions
-        // Degree = 2 per variable (1 from each factor)
         let core = ProductRoundOracle::new(vec![table_k, weight_table], 2);
 
         (Self { core }, claimed_sum)
@@ -1471,235 +1724,6 @@ pub fn table_mle_eval(table: &[K], r_addr: &[K]) -> K {
     result
 }
 
-/// Compute adapter evaluation Ã(r_cycle, r_addr) from committed bit columns.
-///
-/// Ã(r_cycle, r_addr) = Σ_t eq(r_cycle, t) · Π_j eq(r_addr_j, bit_j(t))
-///
-/// For correct bit columns (has_lookup masking), this equals the sum-check
-/// final value of the adapter oracle.
-pub fn adapter_eval_from_bits(addr_bits: &[Vec<K>], has_lookup: &[K], r_cycle: &[K], r_addr: &[K]) -> K {
-    let pow2_cycle = 1usize << r_cycle.len();
-    let ell_addr = addr_bits.len();
-
-    assert_eq!(ell_addr, r_addr.len(), "addr_bits count must match r_addr length");
-
-    let eq_cycle_table = build_eq_table(r_cycle);
-
-    let mut result = K::ZERO;
-    for t in 0..pow2_cycle {
-        // Weight from cycle eq polynomial
-        let mut weight = eq_cycle_table[t] * has_lookup[t];
-
-        // Multiply by eq(r_addr_j, bit_j(t)) for each address bit
-        for j in 0..ell_addr {
-            let bit_jt = addr_bits[j][t];
-            let r_j = r_addr[j];
-            weight *= eq_bit_affine(bit_jt, r_j);
-        }
-
-        result += weight;
-    }
-    result
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/// Build Val tables used by the Val-evaluation oracle.
-///
-/// **Optimization**: Uses sparse chi computation O(k * ℓ) instead of O(2^ℓ).
-pub fn val_tables_from_inc<F: Field + Copy + Into<K>>(
-    inc: &[F],
-    k: usize,
-    steps: usize,
-    pow2_addr: usize,
-    pow2_cycle: usize,
-    r_addr: &[K],
-    r_cycle: &[K],
-) -> (Vec<K>, Vec<K>) {
-    let ell_k = log2_pow2(pow2_addr);
-    let ell_t = log2_pow2(pow2_cycle);
-    assert_eq!(ell_k, r_addr.len(), "r_addr length mismatch");
-    assert_eq!(ell_t, r_cycle.len(), "r_cycle length mismatch");
-
-    // Sparse computation: only compute chi for cells 0..k, not full 2^ℓ
-    let mut inc_at_addr = vec![K::ZERO; pow2_cycle];
-    for cell in 0..k.min(pow2_addr) {
-        // O(ℓ) per cell instead of O(2^ℓ) total
-        let weight = crate::mle::chi_at_index(r_addr, cell);
-        if weight == K::ZERO {
-            continue;
-        }
-        // Note: j is used to compute idx = cell * steps + j, so index loop is clearer
-        #[allow(clippy::needless_range_loop)]
-        for j in 0..steps.min(pow2_cycle) {
-            let idx = cell * steps + j;
-            if idx < inc.len() {
-                let inc_k: K = inc[idx].into();
-                inc_at_addr[j] += inc_k * weight;
-            }
-        }
-    }
-
-    let lt_table = build_lt_table(r_cycle);
-    (inc_at_addr, lt_table)
-}
-
-/// Build Inc(r_addr, t) table from flattened inc matrix.
-/// Returns a vector of length pow2_cycle with Inc evaluated at r_addr for each timestep.
-///
-/// **Optimization**: Uses sparse chi computation O(k * ℓ) instead of O(2^ℓ) where ℓ = |r_addr|.
-/// This is critical for scalability with large address spaces.
-pub fn build_inc_at_r_addr<F: Field + Copy + Into<K>>(
-    inc_flat: &[F],
-    k: usize,
-    steps: usize,
-    pow2_cycle: usize,
-    r_addr: &[K],
-) -> Vec<K> {
-    let mut result = vec![K::ZERO; pow2_cycle];
-
-    // Sparse computation: only compute chi for cells 0..k, not the full 2^ℓ address space
-    for cell in 0..k {
-        // O(ℓ) per cell instead of O(2^ℓ) total
-        let weight = crate::mle::chi_at_index(r_addr, cell);
-        if weight == K::ZERO {
-            continue;
-        }
-        // Note: j is used to compute idx = cell * steps + j, so index loop is clearer
-        #[allow(clippy::needless_range_loop)]
-        for j in 0..steps.min(pow2_cycle) {
-            let idx = cell * steps + j;
-            if idx < inc_flat.len() {
-                result[j] += F::into(inc_flat[idx]) * weight;
-            }
-        }
-    }
-    result
-}
-
-/// Build Inc(r_addr, t) table using SPARSE representation.
-///
-/// This is a soundness-critical function that computes Inc(r_addr, t) from:
-/// - `wa_bits[b][t]`: write address bit b at step t
-/// - `has_write[t]`: whether step t has a write
-/// - `inc_at_write_addr[t]`: the increment value at step t (if writing)
-///
-/// The formula is:
-/// ```text
-/// Inc(r_addr, t) = has_write(t) * eq(wa_bits(t), r_addr) * inc_at_write_addr(t)
-/// ```
-///
-/// where `eq(wa_bits(t), r_addr) = Π_b eq(wa_bits[b][t], r_addr[b])`.
-///
-/// This sparse representation is equivalent to the full Inc matrix but:
-/// - Avoids committing a k × steps matrix (which caused X pollution and width issues)
-/// - Uses only O(steps) data instead of O(k × steps)
-/// - Correctly aligns all data at the same column offset
-pub fn build_inc_at_r_addr_sparse(
-    wa_bits: &[Vec<K>],
-    has_write: &[K],
-    inc_at_write_addr: &[K],
-    r_addr: &[K],
-    pow2_cycle: usize,
-) -> Vec<K> {
-    assert_eq!(wa_bits.len(), r_addr.len(), "wa_bits count must match r_addr length");
-    assert_eq!(has_write.len(), pow2_cycle, "has_write length must match pow2_cycle");
-    assert_eq!(
-        inc_at_write_addr.len(),
-        pow2_cycle,
-        "inc_at_write_addr length must match pow2_cycle"
-    );
-    for (b, wa_bit) in wa_bits.iter().enumerate() {
-        assert_eq!(wa_bit.len(), pow2_cycle, "wa_bits[{b}] length must match pow2_cycle");
-    }
-
-    let mut result = vec![K::ZERO; pow2_cycle];
-
-    for t in 0..pow2_cycle {
-        // Skip if no write at this step
-        if has_write[t] == K::ZERO {
-            continue;
-        }
-
-        // Compute eq(wa_bits(t), r_addr) = Π_b eq(wa_bits[b][t], r_addr[b])
-        // Using the formula: eq(b, u) = b*(2u-1) + (1-u) for binary b
-        // Since we've proven bitness, wa_bits[b][t] ∈ {0, 1}
-        let mut eq_addr = K::ONE;
-        for (b, wa_bit) in wa_bits.iter().enumerate() {
-            let bit = wa_bit[t];
-            let u = r_addr[b];
-            eq_addr *= eq_bit_affine(bit, u);
-        }
-
-        // Inc(r_addr, t) = has_write(t) * eq(wa_bits(t), r_addr) * inc_at_write_addr(t)
-        result[t] = has_write[t] * eq_addr * inc_at_write_addr[t];
-    }
-
-    result
-}
-
-/// Build Val(r_addr, t) table: prefix sums of Inc(r_addr, t) starting from init_vals.
-///
-/// **Optimization**: Uses sparse chi computation O(k * ℓ) instead of O(2^ℓ).
-pub fn build_val_at_r_addr<F: Field + Copy + Into<K>>(
-    inc_flat: &[F],
-    init_vals: &[F],
-    k: usize,
-    steps: usize,
-    pow2_cycle: usize,
-    r_addr: &[K],
-) -> Vec<K> {
-    // Compute initial value at r_addr using sparse chi computation
-    let mut init_at_r_addr = K::ZERO;
-    for (cell, &init_val) in init_vals.iter().enumerate().take(k) {
-        // O(ℓ) per cell instead of building full chi table
-        let weight = crate::mle::chi_at_index(r_addr, cell);
-        init_at_r_addr += F::into(init_val) * weight;
-    }
-
-    // Build Inc(r_addr, t) - already uses sparse computation
-    let inc_at_r_addr = build_inc_at_r_addr(inc_flat, k, steps, pow2_cycle, r_addr);
-
-    // Val(r_addr, t) = init + Σ_{t' < t} Inc(r_addr, t')
-    let mut result = vec![K::ZERO; pow2_cycle];
-    let mut acc = init_at_r_addr;
-    for j in 0..pow2_cycle {
-        result[j] = acc;
-        if j < steps {
-            acc += inc_at_r_addr[j];
-        }
-    }
-    result
-}
-
-pub fn build_eq_table(target: &[K]) -> Vec<K> {
-    let ell = target.len();
-    let mut out = Vec::with_capacity(1usize << ell);
-    for mask in 0..(1usize << ell) {
-        let bits = mask_to_bits(mask, ell);
-        out.push(eq_points(&bits, target));
-    }
-    out
-}
-
-pub(crate) fn build_lt_table(r_cycle: &[K]) -> Vec<K> {
-    let ell = r_cycle.len();
-    let mut out = Vec::with_capacity(1usize << ell);
-    for mask in 0..(1usize << ell) {
-        let bits = mask_to_bits(mask, ell);
-        out.push(lt_eval(&bits, r_cycle));
-    }
-    out
-}
-
-fn mask_to_bits(mask: usize, ell: usize) -> Vec<K> {
-    (0..ell)
-        .map(|i| if (mask >> i) & 1 == 1 { K::ONE } else { K::ZERO })
-        .collect()
-}
-
 fn log2_pow2(n: usize) -> usize {
     if n == 0 {
         return 0;
@@ -1707,38 +1731,3 @@ fn log2_pow2(n: usize) -> usize {
     debug_assert!(n.is_power_of_two(), "expected power of two, got {n}");
     n.trailing_zeros() as usize
 }
-
-// ============================================================================
-// Route A helpers
-// ============================================================================
-
-/// Lazy bitness oracle for Route A batched sum-check.
-///
-/// Proves: `Σ_t χ_{r_cycle}(t) * col(t) * (col(t) - 1) = 0` (i.e., col is binary)
-/// via a random linear combination over `t`.
-pub struct LazyBitnessOracle {
-    core: ProductRoundOracle,
-}
-
-impl LazyBitnessOracle {
-    pub fn new(col: Vec<K>) -> Self {
-        let core = build_bitness_oracle(col);
-        Self { core }
-    }
-
-    pub fn new_with_cycle(r_cycle: &[K], col: Vec<K>) -> Self {
-        let core = build_cycle_bitness_oracle(r_cycle, col);
-        Self { core }
-    }
-
-    pub fn compute_claim(&self) -> K {
-        self.core.sum_over_hypercube()
-    }
-
-    /// Return the current folded value after all rounds have been folded.
-    pub fn current_value(&self) -> Option<K> {
-        self.core.value()
-    }
-}
-
-impl_round_oracle_via_core!(LazyBitnessOracle);

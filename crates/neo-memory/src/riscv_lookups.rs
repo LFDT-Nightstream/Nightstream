@@ -88,6 +88,7 @@
 
 use neo_vm_trace::{Shout, ShoutId, Twist, TwistId};
 use p3_field::Field;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 // ============================================================================
@@ -139,7 +140,7 @@ pub fn uninterleave_bits(index: u128) -> (u64, u64) {
 ///
 /// Based on Jolt's instruction semantics (MIT/Apache-2.0 license).
 /// Credit: <https://github.com/a16z/jolt>
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RiscvOpcode {
     // === Bitwise Operations (interleaved index) ===
     /// Bitwise AND: rd = rs1 & rs2
@@ -843,6 +844,73 @@ pub fn evaluate_or_mle<F: Field>(r: &[F]) -> F {
     result
 }
 
+/// Evaluate the MLE of EQ (equality predicate) at a random point.
+///
+/// Returns 1 on Boolean points iff `x == y`, else 0.
+pub fn evaluate_eq_mle<F: Field>(r: &[F]) -> F {
+    debug_assert!(r.len() % 2 == 0);
+    let xlen = r.len() / 2;
+
+    let mut result = F::ONE;
+    for i in 0..xlen {
+        let x_i = r[2 * i];
+        let y_i = r[2 * i + 1];
+        // eq(x_i, y_i) = x_i y_i + (1-x_i)(1-y_i)
+        result *= x_i * y_i + (F::ONE - x_i) * (F::ONE - y_i);
+    }
+    result
+}
+
+/// Evaluate the MLE of NEQ (inequality predicate) at a random point.
+pub fn evaluate_neq_mle<F: Field>(r: &[F]) -> F {
+    F::ONE - evaluate_eq_mle(r)
+}
+
+/// Evaluate the MLE of SLTU (unsigned less-than predicate) at a random point.
+///
+/// Returns 1 on Boolean points iff `x < y` as unsigned `xlen`-bit integers.
+pub fn evaluate_sltu_mle<F: Field>(r: &[F]) -> F {
+    debug_assert!(r.len() % 2 == 0);
+    let xlen = r.len() / 2;
+
+    // Interpret r as interleaved bits (x_0,y_0,x_1,y_1,...) with LSB-first.
+    // To compare numbers, scan from MSB → LSB.
+    let mut lt = F::ZERO;
+    let mut eq_prefix = F::ONE;
+    for bit in (0..xlen).rev() {
+        let x_i = r[2 * bit];
+        let y_i = r[2 * bit + 1];
+        lt += (F::ONE - x_i) * y_i * eq_prefix;
+        eq_prefix *= x_i * y_i + (F::ONE - x_i) * (F::ONE - y_i);
+    }
+    lt
+}
+
+/// Evaluate the MLE of SLT (signed less-than predicate) at a random point.
+///
+/// Returns 1 on Boolean points iff `x < y` as signed two's-complement `xlen`-bit integers.
+pub fn evaluate_slt_mle<F: Field>(r: &[F]) -> F {
+    debug_assert!(r.len() % 2 == 0);
+    let xlen = r.len() / 2;
+    debug_assert!(xlen > 0);
+
+    // Sign bits (MSB) for our LSB-first encoding.
+    let x_sign = r[2 * (xlen - 1)];
+    let y_sign = r[2 * (xlen - 1) + 1];
+
+    // Unsigned less-than over the full bitstring (including sign bit), then adjust by sign bits.
+    let mut lt = F::ZERO;
+    let mut eq_prefix = F::ONE;
+    for bit in (0..xlen).rev() {
+        let x_i = r[2 * bit];
+        let y_i = r[2 * bit + 1];
+        lt += (F::ONE - x_i) * y_i * eq_prefix;
+        eq_prefix *= x_i * y_i + (F::ONE - x_i) * (F::ONE - y_i);
+    }
+
+    x_sign - y_sign + lt
+}
+
 /// Evaluate the MLE of ADD at a random point.
 ///
 /// For ADD, we use the decomposition: result = x + y (mod 2^xlen)
@@ -887,6 +955,39 @@ pub fn evaluate_add_mle<F: Field>(r: &[F]) -> F {
         // In multilinear: xy + xc + yc - 2xyc
         carry =
             x_i * y_i + x_i * carry + y_i * carry - x_i * y_i * carry * F::from_u64(2);
+    }
+
+    result
+}
+
+/// Evaluate the MLE of SUB at a random point.
+///
+/// Computes `x - y (mod 2^xlen)` using ripple-carry addition of `x + (~y + 1)`.
+pub fn evaluate_sub_mle<F: Field>(r: &[F]) -> F {
+    debug_assert!(r.len() % 2 == 0);
+    let xlen = r.len() / 2;
+
+    let mut result = F::ZERO;
+    // Initial carry-in of 1 accounts for the "+ 1" in two's complement (~y + 1).
+    let mut carry = F::ONE;
+
+    for i in 0..xlen {
+        let x_i = r[2 * i];
+        let y_i = r[2 * i + 1];
+        let y_comp = F::ONE - y_i;
+        let coeff = F::from_u64(1u64 << i);
+
+        // sum_bit = x_i ⊕ y_comp ⊕ carry
+        let sum_bit = x_i + y_comp + carry
+            - x_i * y_comp * F::from_u64(2)
+            - x_i * carry * F::from_u64(2)
+            - y_comp * carry * F::from_u64(2)
+            + x_i * y_comp * carry * F::from_u64(4);
+
+        result += coeff * sum_bit;
+
+        // carry = majority(x_i, y_comp, carry) in multilinear form.
+        carry = x_i * y_comp + x_i * carry + y_comp * carry - x_i * y_comp * carry * F::from_u64(2);
     }
 
     result
@@ -968,10 +1069,20 @@ pub fn evaluate_opcode_mle<F: Field>(op: RiscvOpcode, r: &[F], xlen: usize) -> F
         RiscvOpcode::Xor => evaluate_xor_mle(r),
         RiscvOpcode::Or => evaluate_or_mle(r),
         RiscvOpcode::Add => evaluate_add_mle(r),
-        // For shift and other opcodes, use the naive MLE evaluation
-        // Note: Jolt's virtual table approach (evaluate_srl_mle, evaluate_sra_mle)
-        // uses a different encoding that doesn't match our standard tables.
-        _ => evaluate_mle_naive(op, r, xlen),
+        RiscvOpcode::Sub => evaluate_sub_mle(r),
+        RiscvOpcode::Eq => evaluate_eq_mle(r),
+        RiscvOpcode::Neq => evaluate_neq_mle(r),
+        RiscvOpcode::Slt => evaluate_slt_mle(r),
+        RiscvOpcode::Sltu => evaluate_sltu_mle(r),
+        // For shift and other opcodes, use the naive MLE evaluation when available.
+        // Note: naive evaluation is O(2^{2*xlen}) and intentionally limited to tiny xlen.
+        _ => {
+            if xlen <= 8 {
+                evaluate_mle_naive(op, r, xlen)
+            } else {
+                panic!("evaluate_opcode_mle: closed-form MLE not implemented for opcode {op:?} at xlen={xlen}");
+            }
+        }
     }
 }
 
@@ -1227,7 +1338,7 @@ impl RiscvShoutTables {
     }
 
     /// Get the opcode for a given ShoutId.
-    fn id_to_opcode(&self, id: ShoutId) -> Option<RiscvOpcode> {
+    pub fn id_to_opcode(&self, id: ShoutId) -> Option<RiscvOpcode> {
         match id.0 {
             0 => Some(RiscvOpcode::And),
             1 => Some(RiscvOpcode::Xor),

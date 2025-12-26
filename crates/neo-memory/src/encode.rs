@@ -39,7 +39,8 @@ use crate::mem_init::MemInit;
 use crate::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
 #[cfg(debug_assertions)]
 use crate::shout::{check_shout_semantics, split_lut_mats};
-use crate::witness::{LutInstance, LutWitness, MemInstance, MemWitness};
+use crate::riscv_lookups::RiscvOpcode;
+use crate::witness::{LutInstance, LutTableSpec, LutWitness, MemInstance, MemWitness};
 use neo_ajtai::{decomp_b, DecompStyle};
 use neo_ccs::matrix::Mat;
 use neo_params::NeoParams;
@@ -367,6 +368,7 @@ where
         n_side: table.n_side,
         steps: num_steps,
         ell,
+        table_spec: None,
         table: table.content.clone(),
         _phantom: PhantomData,
     };
@@ -385,12 +387,131 @@ where
             n_side: inst.n_side,
             steps: inst.steps,
             ell: inst.ell,
+            table_spec: inst.table_spec.clone(),
             table: inst.table.clone(),
             _phantom: PhantomData,
         };
         let _ = split_lut_mats(&check_inst, &wit); // Will panic if layout is wrong
         check_shout_semantics(params, &check_inst, &wit, &trace.val)
             .expect("Shout semantic check failed during encoding");
+    }
+
+    (inst, wit)
+}
+
+/// Encode a RISC-V Shout trace using an *implicit* (virtual) opcode table.
+///
+/// This mode is intended for large opcode tables (e.g., RV32 `ADD`) where
+/// materializing the full table is infeasible. The table is defined by
+/// `(opcode, xlen)` and evaluated inside the Shout address-domain protocol.
+///
+/// Addressing:
+/// - `n_side = 2`, `ell = 1`
+/// - `d = 2*xlen` (one bit per dimension)
+/// - `addr` in `trace` must be `interleave_bits(rs1, rs2)` (LSB-first)
+pub fn encode_riscv_lut_for_shout<C, L>(
+    params: &NeoParams,
+    opcode: RiscvOpcode,
+    xlen: usize,
+    trace: &PlainLutTrace<Goldilocks>,
+    commit: &L,
+    ccs_m: Option<usize>,
+    m_in: usize,
+) -> (LutInstance<C, Goldilocks>, LutWitness<Goldilocks>)
+where
+    L: Fn(&Mat<Goldilocks>) -> C,
+{
+    // NOTE: RV64 currently truncates Shout keys to 64 bits at trace time.
+    // Keep this helper RV32-only until the RV64 key encoding is fixed.
+    assert!(xlen == 32, "encode_riscv_lut_for_shout currently supports xlen=32 only");
+
+    let mut comms = Vec::new();
+    let mut mats = Vec::new();
+
+    let num_steps = trace.has_lookup.len();
+    let n_side = 2usize;
+    let dim_d = xlen
+        .checked_mul(2)
+        .expect("encode_riscv_lut_for_shout: 2*xlen overflow");
+    let ell = 1usize;
+
+    // Use CCS width if provided, otherwise fall back to legacy mode
+    let target_width = ccs_m.unwrap_or(num_steps);
+    let data_offset = m_in;
+
+    let encode_at_ccs_width = |col: &[Goldilocks]| -> Mat<Goldilocks> {
+        if ccs_m.is_some() {
+            let embedded = embed_vec(target_width, data_offset, col);
+            ajtai_encode_vector(params, &embedded)
+        } else {
+            ajtai_encode_vector(params, col)
+        }
+    };
+
+    // Decompose address bits (masked by has_lookup). With n_side=2, ell=1, this
+    // emits one bit-column per dimension: bit `dim_idx` of `addr`.
+    let build_masked_addr_bits = |addrs: &[u64], flags: &[Goldilocks], dim_idx: usize| -> Vec<Goldilocks> {
+        let divisor = (n_side as u64)
+            .checked_pow(dim_idx as u32)
+            .expect("Address dimension overflow");
+        let mut col = vec![Goldilocks::ZERO; num_steps];
+        for (j, (&addr, &flag)) in addrs.iter().zip(flags.iter()).enumerate() {
+            if flag == Goldilocks::ONE {
+                let comp = (addr / divisor) as usize % n_side;
+                if (comp & 1) == 1 {
+                    col[j] = Goldilocks::ONE;
+                }
+            }
+        }
+        col
+    };
+
+    for dim in 0..dim_d {
+        let col = build_masked_addr_bits(&trace.addr, &trace.has_lookup, dim);
+        let mat = encode_at_ccs_width(&col);
+        comms.push(commit(&mat));
+        mats.push(mat);
+    }
+
+    let has_lookup_mat = encode_at_ccs_width(&trace.has_lookup);
+    comms.push(commit(&has_lookup_mat));
+    mats.push(has_lookup_mat);
+
+    let val_mat = encode_at_ccs_width(&trace.val);
+    comms.push(commit(&val_mat));
+    mats.push(val_mat);
+
+    let inst = LutInstance {
+        comms,
+        cpu_opening_base: None,
+        k: 0, // not used in implicit-table mode
+        d: dim_d,
+        n_side,
+        steps: num_steps,
+        ell,
+        table_spec: Some(LutTableSpec::RiscvOpcode { opcode, xlen }),
+        table: Vec::new(),
+        _phantom: PhantomData,
+    };
+    let wit = LutWitness { mats };
+
+    #[cfg(debug_assertions)]
+    {
+        let check_inst = LutInstance::<(), Goldilocks> {
+            comms: vec![(); inst.comms.len()],
+            cpu_opening_base: None,
+            k: inst.k,
+            d: inst.d,
+            n_side: inst.n_side,
+            steps: inst.steps,
+            ell: inst.ell,
+            table_spec: inst.table_spec.clone(),
+            table: inst.table.clone(),
+            _phantom: PhantomData,
+        };
+        let _ = split_lut_mats(&check_inst, &wit);
+        check_shout_semantics(params, &check_inst, &wit, &trace.val)
+            .expect("Shout semantic check failed during RISC-V implicit encoding");
     }
 
     (inst, wit)

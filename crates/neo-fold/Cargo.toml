@@ -39,3 +39,15 @@ criterion = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 neo-vm-trace = { path = "../neo-vm-trace" }
+
+[[test]]
+name = "test_riscv_program_full_prove_verify"
+path = "riscv-tests/test_riscv_program_full_prove_verify.rs"
+
+[[test]]
+name = "test_riscv_elf_twist_shout_output_binding"
+path = "riscv-tests/test_riscv_elf_twist_shout_output_binding.rs"
+
+[[test]]
+name = "test_riscv_toolchain_elf_fibonacci_twist_shout_output_binding"
+path = "riscv-tests/test_riscv_toolchain_elf_fibonacci_twist_shout_output_binding.rs"

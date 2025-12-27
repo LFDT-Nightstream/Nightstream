@@ -3,7 +3,7 @@
 use neo_math::D;
 use neo_params::NeoParams;
 use neo_reductions::PiCcsError;
-use neo_reductions::{sample_rot_rhos, RotRing};
+use neo_reductions::{sample_rot_rhos_n, RotRing};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 
 #[test]
@@ -36,7 +36,7 @@ fn test_sample_rot_rhos_succeeds_with_valid_params() {
 
     // Should sample params.k_rho+1 = 13 rhos (k_rho=12 for Goldilocks_127)
     // Bound: (12+1)·216·1 = 2808 < 4096 = 2^12 ✓
-    let result = sample_rot_rhos(&mut tr, &params, &ring);
+    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
 
     assert!(result.is_ok(), "Sampling should succeed with valid params");
     let rhos = result.unwrap();
@@ -63,7 +63,7 @@ fn test_rot_rhos_are_different() {
     let mut tr = Poseidon2Transcript::new(b"test/rot_rhos_distinct");
 
     // Should sample params.k_rho+1 = 13 rhos
-    let rhos = sample_rot_rhos(&mut tr, &params, &ring).unwrap();
+    let rhos = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1).unwrap();
     let count = rhos.len();
 
     // Check that ρ_i ≠ ρ_j for all distinct i,j
@@ -82,10 +82,10 @@ fn test_rot_rhos_deterministic() {
     let ring = RotRing::goldilocks();
 
     let mut tr1 = Poseidon2Transcript::new(b"test/deterministic");
-    let rhos1 = sample_rot_rhos(&mut tr1, &params, &ring).unwrap();
+    let rhos1 = sample_rot_rhos_n(&mut tr1, &params, &ring, (params.k_rho as usize) + 1).unwrap();
 
     let mut tr2 = Poseidon2Transcript::new(b"test/deterministic");
-    let rhos2 = sample_rot_rhos(&mut tr2, &params, &ring).unwrap();
+    let rhos2 = sample_rot_rhos_n(&mut tr2, &params, &ring, (params.k_rho as usize) + 1).unwrap();
 
     // Should be identical
     let count = rhos1.len();
@@ -114,7 +114,7 @@ fn test_rlc_bound_violation_detected() {
 
     // With k=12 (from Goldilocks_127), b=2, T=216:
     // (12+1)·216·1 = 2808 < 4096 = 2^12 ✓ (should pass)
-    let result = sample_rot_rhos(&mut tr, &params, &ring);
+    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
     assert!(result.is_ok(), "Goldilocks_127 params should satisfy the ΠRLC bound");
 }
 
@@ -145,7 +145,7 @@ fn test_strong_sampling_set_check() {
     let ring = TestRing::bad_alphabet();
     let mut tr = Poseidon2Transcript::new(b"test/bad_alphabet");
 
-    let result = sample_rot_rhos(&mut tr, &params, &ring);
+    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
     assert!(result.is_err(), "Should reject alphabet with Δ_A >= b_inv");
 
     if let Err(PiCcsError::InvalidInput(msg)) = result {

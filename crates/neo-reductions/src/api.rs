@@ -27,7 +27,6 @@ pub use crate::common::{
     compute_y_from_Z_and_r,
     format_ext,
     left_mul_acc,
-    sample_rot_rhos,   // Legacy: samples k_rho+1 rhos
     sample_rot_rhos_n, // Dynamic: samples N rhos with norm bound check
     split_b_matrix_k,
     RotRing, // Ring metadata for rotation matrix sampling

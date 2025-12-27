@@ -34,7 +34,7 @@
 
 use std::marker::PhantomData;
 
-use neo_ajtai::{decomp_b, Commitment as Cmt, DecompStyle};
+use neo_ajtai::Commitment as Cmt;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
@@ -112,19 +112,6 @@ fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32
         mix_rhos_commits,
         combine_b_pows,
     }
-}
-
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
 }
 
 
@@ -246,7 +233,7 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
     z_cpu[bus_base + 5] = F::ZERO; // rv = 0 (CORRECT value from zero-init memory)
     z_cpu[bus_base + 6] = F::ZERO; // inc = 0
 
-    let Z_cpu = decompose_z_to_Z(&params, &z_cpu);
+    let Z_cpu = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z_cpu);
     let c_cpu = l.commit(&Z_cpu);
 
     let mcs = (
@@ -283,7 +270,6 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
 
     let mem_inst = MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -451,7 +437,7 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
     // Let's use sparse init with the pre-written value.
     let mem_init = MemInit::Sparse(vec![(0, real_write_val)]);
 
-    let Z_fake = decompose_z_to_Z(&params, &z_fake);
+    let Z_fake = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z_fake);
     let c_fake = l.commit(&Z_fake);
 
     let mcs = (
@@ -480,7 +466,6 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
 
     let mem_inst = MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -632,7 +617,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
     z_cpu[twist_bus_start + 5] = F::ZERO; // rv
     z_cpu[twist_bus_start + 6] = F::ZERO; // inc
 
-    let Z_cpu = decompose_z_to_Z(&params, &z_cpu);
+    let Z_cpu = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z_cpu);
     let c_cpu = l.commit(&Z_cpu);
 
     let mcs = (
@@ -663,7 +648,6 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
 
     let lut_inst = LutInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
@@ -690,7 +674,6 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
     };
     let mem_inst = MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,

@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use neo_ajtai::{decomp_b, Commitment as Cmt, DecompStyle};
+use neo_ajtai::Commitment as Cmt;
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness};
 use neo_ccs::traits::SModuleHomomorphism;
@@ -78,19 +78,6 @@ fn create_identity_ccs(n: usize) -> CcsStructure<F> {
     let mat = Mat::identity(n);
     let f = SparsePoly::new(1, vec![]);
     CcsStructure::new(vec![mat], f).expect("CCS")
-}
-
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
 }
 
 fn write_bits_le(out: &mut [F], mut x: u64, ell: usize) {
@@ -256,7 +243,6 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
 
     let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -269,7 +255,6 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
 
     let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
@@ -295,7 +280,7 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
         &mem_trace,
         seed,
     );
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
     let x = z[..m_in].to_vec();
     let w = z[m_in..].to_vec();

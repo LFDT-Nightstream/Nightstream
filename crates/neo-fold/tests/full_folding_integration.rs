@@ -50,19 +50,6 @@ impl SModuleHomomorphism<F, Cmt> for DummyCommit {
     }
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = neo_ajtai::decomp_b(z, params.b, d, neo_ajtai::DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
-}
-
 fn build_add_ccs(m: usize, chunk_size: usize, bus_base: usize, shout_ell_addr: usize, twist_ell_addr: usize) -> CcsStructure<F> {
     // A tiny R1CS CCS:
     //
@@ -201,7 +188,7 @@ fn build_mcs_from_z(
     m_in: usize,
     z: Vec<F>,
 ) -> (McsInstance<Cmt, F>, McsWitness<F>) {
-    let Z = decompose_z_to_Z(params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
     let c = l.commit(&Z);
     let x = z[..m_in].to_vec();
     let w = z[m_in..].to_vec();
@@ -389,7 +376,6 @@ fn build_single_chunk_inputs() -> (
     // Shared-bus mode: instances are metadata-only; access rows live in the CPU witness.
     let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -401,7 +387,6 @@ fn build_single_chunk_inputs() -> (
     let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
@@ -550,7 +535,6 @@ fn full_folding_integration_multi_step_chunk() {
 
     let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -562,7 +546,6 @@ fn full_folding_integration_multi_step_chunk() {
     let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
@@ -961,7 +944,7 @@ fn wrong_shout_lookup_value_witness_fails() {
     let shout_val_col_id = 2usize;
     let mut z = neo_memory::ajtai::decode_vector(&params, &step_bundle.mcs.1.Z);
     z[bus_base + shout_val_col_id] += F::ONE;
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
     step_bundle.mcs.0.c = c;
     step_bundle.mcs.1.Z = Z;

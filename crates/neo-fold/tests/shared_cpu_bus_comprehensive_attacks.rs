@@ -23,7 +23,7 @@
 
 use std::marker::PhantomData;
 
-use neo_ajtai::{decomp_b, Commitment as Cmt, DecompStyle};
+use neo_ajtai::Commitment as Cmt;
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness};
 use neo_ccs::traits::SModuleHomomorphism;
@@ -106,19 +106,6 @@ fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32
     }
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
-}
-
 fn metadata_only_mem_instance(
     layout: &PlainMemLayout,
     init: MemInit<F>,
@@ -128,7 +115,6 @@ fn metadata_only_mem_instance(
     (
         MemInstance {
             comms: Vec::new(),
-            cpu_opening_base: None,
             k: layout.k,
             d: layout.d,
             n_side: layout.n_side,
@@ -146,7 +132,6 @@ fn metadata_only_lut_instance(table: &LutTable<F>, steps: usize) -> (LutInstance
     (
         LutInstance {
             comms: Vec::new(),
-            cpu_opening_base: None,
             k: table.k,
             d: table.d,
             n_side: table.n_side,
@@ -339,7 +324,7 @@ fn ccs_must_reference_bus_columns_guardrail() {
     };
 
     let z = build_cpu_witness_with_twist_bus(m, bus_base, &mem_trace, &mem_layout);
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -438,7 +423,7 @@ fn address_bit_tampering_attack_should_be_rejected() {
     z[bus_base + 5] = F::from_u64(100); // rv = 100 (WRONG: addr 1 has 200)
     z[bus_base + 6] = F::ZERO; // inc
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -562,7 +547,7 @@ fn has_read_flag_mismatch_attack_should_be_rejected() {
     z[bus_base + 5] = F::from_u64(42); // rv = 42 (SHOULD BE 0 since has_read=0)
     z[bus_base + 6] = F::ZERO; // inc
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -688,7 +673,7 @@ fn increment_value_tampering_attack_should_be_rejected() {
     z[bus_base + 5] = F::ZERO; // rv
     z[bus_base + 6] = F::from_u64(100); // inc = 100 (WRONG: should be 40)
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -827,7 +812,7 @@ fn lookup_value_tampering_attack_should_be_rejected() {
     z[twist_base + 2] = F::ZERO; // has_read = 0
     z[twist_base + 3] = F::ZERO; // has_write = 0
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -960,7 +945,7 @@ fn bus_region_mismatch_with_twist_trace_should_be_rejected() {
     z[bus_base + 5] = F::ZERO; // rv = 0 (WRONG: should be 42)
     z[bus_base + 6] = F::ZERO; // inc
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -1095,7 +1080,7 @@ fn write_then_read_consistency_attack_should_be_rejected() {
     z1[bus_base + 5] = F::ZERO; // rv
     z1[bus_base + 6] = F::from_u64(100); // inc
 
-    let Z1 = decompose_z_to_Z(&params, &z1);
+    let Z1 = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z1);
     let c1 = l.commit(&Z1);
     let mcs1 = (
         McsInstance {
@@ -1135,7 +1120,7 @@ fn write_then_read_consistency_attack_should_be_rejected() {
     z2[bus_base + 5] = F::ZERO; // rv = 0 (WRONG)
     z2[bus_base + 6] = F::ZERO; // inc
 
-    let Z2 = decompose_z_to_Z(&params, &z2);
+    let Z2 = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z2);
     let c2 = l.commit(&Z2);
     let mcs2 = (
         McsInstance {
@@ -1256,7 +1241,7 @@ fn correct_witness_should_verify() {
     z[bus_base + 5] = F::from_u64(42); // rv = 42 (CORRECT)
     z[bus_base + 6] = F::ZERO; // inc
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (

@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use neo_ajtai::{decomp_b, Commitment as Cmt, DecompStyle};
+use neo_ajtai::Commitment as Cmt;
 use neo_ccs::matrix::Mat;
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
@@ -79,20 +79,8 @@ fn empty_identity_first_r1cs_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![i_n, a, b, c], f).expect("CCS")
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let digits = decomp_b(z, params.b, D, DecompStyle::Balanced);
-    let m = z.len();
-    let mut row_major = vec![F::ZERO; D * m];
-    for c in 0..m {
-        for r in 0..D {
-            row_major[r * m + c] = digits[c * D + r];
-        }
-    }
-    Mat::from_row_major(D, m, row_major)
-}
-
 fn create_mcs_from_z(params: &NeoParams, l: &DummyCommit, m_in: usize, z: Vec<F>) -> (McsInstance<Cmt, F>, McsWitness<F>) {
-    let Z = decompose_z_to_Z(params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
     let c = l.commit(&Z);
     let x = z[..m_in].to_vec();
     let w = z[m_in..].to_vec();
@@ -115,7 +103,6 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
 
     let mem_inst = MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: 4,
         d: 1,
         n_side: 4,

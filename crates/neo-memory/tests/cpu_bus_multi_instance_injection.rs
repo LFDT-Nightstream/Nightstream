@@ -41,7 +41,6 @@ fn empty_identity_first_r1cs_ccs(n: usize) -> CcsStructure<F> {
 fn lut_inst() -> LutInstance<(), F> {
     LutInstance {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: 2,
         d: 1,
         n_side: 2,
@@ -56,7 +55,6 @@ fn lut_inst() -> LutInstance<(), F> {
 fn mem_inst() -> MemInstance<(), F> {
     MemInstance {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: 2,
         d: 1,
         n_side: 2,

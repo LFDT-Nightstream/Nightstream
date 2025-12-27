@@ -218,7 +218,6 @@ where
 
             let inst = MemInstance::<Cmt, Goldilocks> {
                 comms: Vec::new(),
-                cpu_opening_base: None,
                 k: layout.k,
                 d: layout.d,
                 n_side: layout.n_side,
@@ -261,7 +260,6 @@ where
 
             let inst = LutInstance::<Cmt, Goldilocks> {
                 comms: Vec::new(),
-                cpu_opening_base: None,
                 k: table.k,
                 d: table.d,
                 n_side: table.n_side,

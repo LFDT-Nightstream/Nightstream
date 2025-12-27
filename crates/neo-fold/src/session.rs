@@ -18,11 +18,12 @@
 
 #![allow(non_snake_case)]
 
-use neo_ajtai::{decomp_b, s_lincomb, s_mul, Commitment as Cmt, DecompStyle};
+use neo_ajtai::{s_lincomb, s_mul, Commitment as Cmt};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
+use neo_memory::ajtai::encode_vector_balanced_to_mat;
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -93,27 +94,6 @@ pub trait NeoStep {
 
     /// Produce the CCS structure and a concrete witness for this step.
     fn synthesize_step(&mut self, step_idx: usize, y_prev: &[F], inputs: &Self::ExternalInputs) -> StepArtifacts;
-}
-
-/// Decompose z ∈ F^m into base-b digits Z ∈ F^{D×m} (balanced, for correct modular recomposition).
-///
-/// Uses balanced decomposition to ensure z ≡ Σ Z[ρ,·]·b^ρ (mod p), which is required for
-/// F (CCS constraints) to hold when the engine recomposes z from Z.
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-
-    // Column-major digits of length d for each column, balanced so recomposition equals z mod p
-    let digits_col_major = decomp_b(z, params.b, d, DecompStyle::Balanced);
-
-    // Convert to row-major Mat<F> of shape d×m
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits_col_major[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
 }
 
 /// Convert a rotation matrix rot(a) to the ring element a for S-action.
@@ -291,17 +271,8 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
     }
     let d_pad = 1usize << dims.ell_d;
 
-    // Balanced Ajtai decomposition (row-major D×m), matching existing tests/tools.
-    let d = D;
-    let m = z.len();
-    let z_digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for col in 0..m {
-        for row in 0..d {
-            row_major[row * m + col] = z_digits[col * d + row];
-        }
-    }
-    let Z = Mat::from_row_major(d, m, row_major);
+    let Z = encode_vector_balanced_to_mat(params, z);
+    let d = Z.rows();
     let c = l.commit(&Z);
 
     // X := first m_in columns of Z
@@ -419,17 +390,8 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
     }
     let d_pad = 1usize << dims.ell_d;
 
-    // Balanced Ajtai decomposition (row-major D×m), matching existing tests/tools.
-    let d = D;
-    let m = z.len();
-    let z_digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for col in 0..m {
-        for row in 0..d {
-            row_major[row * m + col] = z_digits[col * d + row];
-        }
-    }
-    let Z = Mat::from_row_major(d, m, row_major);
+    let Z = encode_vector_balanced_to_mat(params, z);
+    let d = Z.rows();
     let c = l.commit(&Z);
 
     // X := selected columns of Z (not the first m_in)
@@ -682,7 +644,7 @@ where
 
         let x: Vec<F> = x_indices.iter().map(|&i| z[i]).collect();
 
-        let Z = decompose_z_to_Z(&self.params, &z);
+        let Z = encode_vector_balanced_to_mat(&self.params, &z);
         let c = self.l.commit(&Z);
         let m_in = spec.m_in;
 
@@ -748,7 +710,7 @@ where
         z.extend_from_slice(input.public_input);
         z.extend_from_slice(input.witness);
 
-        let Z = decompose_z_to_Z(&self.params, &z);
+        let Z = encode_vector_balanced_to_mat(&self.params, &z);
         let c = self.l.commit(&Z);
 
         // Produce MCS instance + witness

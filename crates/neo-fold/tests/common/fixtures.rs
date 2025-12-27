@@ -4,7 +4,7 @@
 
 use std::marker::PhantomData;
 
-use neo_ajtai::{decomp_b, Commitment as Cmt, DecompStyle};
+use neo_ajtai::Commitment as Cmt;
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
@@ -88,19 +88,6 @@ fn create_identity_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![mat], f).expect("CCS")
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
-}
-
 fn create_mcs_from_z(
     params: &NeoParams,
     l: &HashCommit,
@@ -109,7 +96,7 @@ fn create_mcs_from_z(
 ) -> (McsInstance<Cmt, F>, McsWitness<F>) {
     let x = z[..m_in].to_vec();
     let w = z[m_in..].to_vec();
-    let Z = decompose_z_to_Z(params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
     let c = l.commit(&Z);
 
     (McsInstance { c, x, m_in }, McsWitness { w, Z })
@@ -313,7 +300,6 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
 
     let mem_inst0 = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -325,7 +311,6 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
     let mem_wit0 = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst0 = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
@@ -339,7 +324,6 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
 
     let mem_inst1 = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -351,7 +335,6 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
     let mem_wit1 = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst1 = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
-        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,

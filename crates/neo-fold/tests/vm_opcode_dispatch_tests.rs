@@ -18,7 +18,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use neo_ajtai::{decomp_b, setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt, DecompStyle};
+use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
@@ -77,19 +77,6 @@ fn create_identity_ccs(n: usize) -> CcsStructure<F> {
     let mat = Mat::identity(n);
     let f = SparsePoly::new(1, vec![]);
     CcsStructure::new(vec![mat], f).expect("CCS")
-}
-
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
 }
 
 fn write_bits_le(out: &mut [F], mut x: u64, ell: usize) {
@@ -218,7 +205,7 @@ fn create_mcs_with_bus(
         debug_assert_eq!(col_id, bus_cols_total, "bus col count mismatch");
     }
 
-    let Z = decompose_z_to_Z(params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
     let c = l.commit(&Z);
 
     let x = z[..m_in].to_vec();
@@ -289,7 +276,6 @@ fn metadata_only_mem_instance(
     (
         MemInstance {
             comms: Vec::new(),
-            cpu_opening_base: None,
             k: layout.k,
             d: layout.d,
             n_side: layout.n_side,
@@ -310,7 +296,6 @@ fn metadata_only_lut_instance(
     (
         LutInstance {
             comms: Vec::new(),
-            cpu_opening_base: None,
             k: table.k,
             d: table.d,
             n_side: table.n_side,

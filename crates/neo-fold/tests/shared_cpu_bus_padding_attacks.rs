@@ -22,7 +22,7 @@
 
 use std::marker::PhantomData;
 
-use neo_ajtai::{decomp_b, Commitment as Cmt, DecompStyle};
+use neo_ajtai::Commitment as Cmt;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
@@ -104,19 +104,6 @@ fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32
     }
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
-}
-
 fn metadata_only_mem_instance(
     layout: &PlainMemLayout,
     init: MemInit<F>,
@@ -126,7 +113,6 @@ fn metadata_only_mem_instance(
     (
         MemInstance {
             comms: Vec::new(),
-            cpu_opening_base: None,
             k: layout.k,
             d: layout.d,
             n_side: layout.n_side,
@@ -144,7 +130,6 @@ fn metadata_only_lut_instance(table: &LutTable<F>, steps: usize) -> (LutInstance
     (
         LutInstance {
             comms: Vec::new(),
-            cpu_opening_base: None,
             k: table.k,
             d: table.d,
             n_side: table.n_side,
@@ -256,7 +241,7 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
     z[bus_base + 5] = F::ZERO; // rv
     z[bus_base + 6] = F::ZERO; // inc
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -350,7 +335,7 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
     z[bus_base + 5] = F::ZERO; // rv
     z[bus_base + 6] = F::from_u64(50); // inc = 50 (SHOULD BE 0)
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -444,7 +429,7 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
     z[bus_base + 5] = F::ZERO; // rv
     z[bus_base + 6] = F::ZERO; // inc
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -538,7 +523,7 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
     z[bus_base + 5] = F::ZERO; // rv
     z[bus_base + 6] = F::ZERO; // inc
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -646,7 +631,7 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
     z[twist_base + 2] = F::ZERO; // has_read = 0
     z[twist_base + 3] = F::ZERO; // has_write = 0
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (
@@ -759,7 +744,7 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
     z[twist_base + 2] = F::ZERO; // has_read = 0
     z[twist_base + 3] = F::ZERO; // has_write = 0
 
-    let Z = decompose_z_to_Z(&params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);
 
     let mcs = (

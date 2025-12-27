@@ -150,15 +150,6 @@ impl ShardProof {
         self.compute_final_main_children(acc_init)
     }
 
-    #[deprecated(
-        note = "Use compute_fold_outputs().obligations (includes val lane) or compute_final_obligations(). \
-If you truly want main only, call compute_final_main_children()."
-    )]
-    pub fn compute_final_children(&self, acc_init: &[MeInstance<Cmt, F, K>]) -> Vec<MeInstance<Cmt, F, K>> {
-        let ShardObligations { main, val } = self.compute_fold_outputs(acc_init).obligations;
-        main.into_iter().chain(val).collect()
-    }
-
     pub fn compute_fold_outputs(&self, acc_init: &[MeInstance<Cmt, F, K>]) -> ShardFoldOutputs<Cmt, F, K> {
         let main = if self.steps.is_empty() {
             acc_init.to_vec()

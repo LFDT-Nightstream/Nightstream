@@ -22,19 +22,6 @@ pub enum LutTableSpec {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemInstance<C, F> {
     pub comms: Vec<C>,
-    /// Optional Route A linkage hook: interpret Twist/Shout columns as living in the CPU witness
-    /// commitment namespace, and read their openings from the CPU ME output using CCS matrix indices.
-    ///
-    /// When set, `neo-fold` will:
-    /// - stop relying on `comms`/`MemWitness` ME claims for terminal checks, and instead
-    ///   use `Π_CCS` outputs (`ccs_out[0].y_scalars`) at indices `cpu_opening_base + j`
-    ///   where `j` follows `MemInstance::twist_layout()` ordering.
-    /// - optionally open the CPU commitment at `r_val` for Twist rollover checks.
-    ///
-    /// This enables the Jolt-style “shared polynomials” design: CPU + memory consume one committed
-    /// witness namespace, eliminating the fork where CPU and memory are proven against disjoint commitments.
-    #[serde(default)]
-    pub cpu_opening_base: Option<usize>,
     pub k: usize,
     pub d: usize,
     pub n_side: usize,
@@ -94,13 +81,6 @@ impl<C, F> MemInstance<C, F> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LutInstance<C, F> {
     pub comms: Vec<C>,
-    /// Optional Route A linkage hook: interpret Shout columns as living in the CPU witness
-    /// commitment namespace, and read their openings from the CPU ME output using CCS matrix indices.
-    ///
-    /// When set, `neo-fold` will read `addr_bits`, `has_lookup`, and `val` openings from the CPU
-    /// ME output using indices `cpu_opening_base + j` where `j` follows `LutInstance::shout_layout()`.
-    #[serde(default)]
-    pub cpu_opening_base: Option<usize>,
     pub k: usize,
     pub d: usize,
     pub n_side: usize,

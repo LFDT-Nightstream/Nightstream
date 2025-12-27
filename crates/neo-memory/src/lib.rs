@@ -8,7 +8,7 @@
 //!
 //! # RISC-V Support
 //!
-//! The [`riscv_lookups`] module implements the full **RV64IMAC** instruction set:
+//! The [`riscv::lookups`] module implements the full **RV64IMAC** instruction set:
 //!
 //! | Extension | Description |
 //! |-----------|-------------|
@@ -21,9 +21,9 @@
 //!
 //! # Key Modules
 //!
-//! - [`riscv_lookups`]: RISC-V instruction decoding, encoding, execution, and lookup tables
-//! - [`riscv_ccs`]: Constraint system (CCS) for RISC-V instruction verification
-//! - [`elf_loader`]: Load ELF and raw RISC-V binaries
+//! - [`riscv::lookups`]: RISC-V instruction decoding, encoding, execution, and lookup tables
+//! - [`riscv::ccs`]: Constraint system (CCS) for RISC-V instruction verification
+//! - [`riscv::elf_loader`]: Load ELF and raw RISC-V binaries
 //! - [`output_check`]: Output sumcheck for binding program I/O to proofs
 //! - [`twist`]: Read-write memory protocol
 //! - [`shout`]: Read-only memory / lookup protocol
@@ -33,14 +33,11 @@ pub mod ajtai;
 pub mod bit_ops;
 pub mod builder;
 pub mod cpu;
-pub mod elf_loader;
 pub mod mem_init;
 pub mod mle;
 pub mod output_check;
 pub mod plain;
-pub mod riscv_ccs;
-pub mod riscv_lookups;
-pub mod riscv_shout_oracle;
+pub mod riscv;
 pub mod shout;
 pub mod sparse_time;
 pub mod sumcheck_proof;

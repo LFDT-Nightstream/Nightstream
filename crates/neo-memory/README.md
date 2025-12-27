@@ -7,7 +7,7 @@ Twist & Shout memory/lookup protocols, shared CPU-bus integration, and RV64IMAC 
 - **Twist**: read/write memory argument (Route A)
 - **Shout**: read-only lookup argument (Route A)
 - **Shared CPU bus integration**: bind CPU semantics to Twist/Shout fields inside the CPU witness
-- **RISC-V RV64IMAC**: instruction decode/execute + lookup-table helpers (kept in `riscv_*` modules)
+- **RISC-V RV64IMAC**: instruction decode/execute + lookup-table helpers (kept in `riscv/`)
 - **Output binding**: output sumcheck utilities for binding program I/O to proofs
 
 ## Modules
@@ -20,11 +20,11 @@ Twist & Shout memory/lookup protocols, shared CPU-bus integration, and RV64IMAC 
 | `addr.rs` | Bit-address validation + encoding utilities |
 | `cpu/` | Shared-bus layout + CPU binding constraints + R1CS adapter |
 | `builder.rs` | Build per-step witness bundles from a `VmTrace` |
-| `elf_loader.rs` | Load ELF and raw RISC-V binaries |
+| `riscv/elf_loader.rs` | Load ELF and raw RISC-V binaries |
 | `output_check.rs` | Output sumcheck (bind program I/O) |
-| `riscv_lookups/` | RV64IMAC decode/execute + lookup tables |
-| `riscv_ccs.rs` | RISC-V CCS helpers |
-| `riscv_shout_oracle.rs` | RISC-V-specific Shout oracle helpers |
+| `riscv/lookups/` | RV64IMAC decode/execute + lookup tables |
+| `riscv/ccs.rs` | RISC-V CCS helpers |
+| `riscv/shout_oracle.rs` | RISC-V-specific Shout oracle helpers |
 | `witness.rs` | Witness/instance data structures |
 
 ## Shared CPU Bus (Important)

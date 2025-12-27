@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::ops::Range;
 
 use crate::mem_init::MemInit;
-use crate::riscv_lookups::RiscvOpcode;
+use crate::riscv::lookups::RiscvOpcode;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum LutTableSpec {

@@ -70,7 +70,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use neo_memory::riscv_lookups::{RiscvCpu, RiscvMemory, RiscvShoutTables, decode_program};
+//! use neo_memory::riscv::lookups::{decode_program, RiscvCpu, RiscvMemory, RiscvShoutTables};
 //! use neo_vm_trace::trace_program;
 //!
 //! // Load and decode a RISC-V binary (supports compressed instructions)

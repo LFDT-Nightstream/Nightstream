@@ -12,7 +12,7 @@
 
 #![allow(non_snake_case)]
 
-use neo_memory::riscv_lookups::{
+use neo_memory::riscv::lookups::{
     BranchCondition, RiscvCpu, RiscvInstruction, RiscvMemOp, RiscvMemory, RiscvOpcode, RiscvShoutTables,
 };
 use neo_vm_trace::trace_program;

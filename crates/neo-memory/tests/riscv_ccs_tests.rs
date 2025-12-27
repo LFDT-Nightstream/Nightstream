@@ -1,6 +1,6 @@
 //! Tests for RISC-V CCS constraint synthesis.
 
-use neo_memory::riscv_ccs::*;
+use neo_memory::riscv::ccs::*;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 

@@ -1,7 +1,7 @@
 //! Tests for the ELF binary loader.
 
-use neo_memory::elf_loader::{load_elf, load_raw_binary, ElfError};
-use neo_memory::riscv_lookups::{encode_program, RiscvInstruction, RiscvOpcode};
+use neo_memory::riscv::elf_loader::{load_elf, load_raw_binary, ElfError};
+use neo_memory::riscv::lookups::{encode_program, RiscvInstruction, RiscvOpcode};
 
 #[test]
 fn test_load_raw_binary() {
@@ -138,7 +138,7 @@ fn test_raw_binary_misaligned() {
 
 #[test]
 fn test_complex_program_roundtrip() {
-    use neo_memory::riscv_lookups::BranchCondition;
+    use neo_memory::riscv::lookups::BranchCondition;
 
     // Fibonacci program
     let instructions = vec![

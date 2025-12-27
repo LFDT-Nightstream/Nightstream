@@ -3,7 +3,7 @@
 //! This module provides functionality to load ELF binaries and extract
 //! RISC-V instructions for execution and proving.
 
-use crate::riscv_lookups::{decode_instruction, RiscvInstruction};
+use super::lookups::{decode_instruction, RiscvInstruction};
 
 /// ELF file header constants.
 const ELF_MAGIC: [u8; 4] = [0x7f, b'E', b'L', b'F'];

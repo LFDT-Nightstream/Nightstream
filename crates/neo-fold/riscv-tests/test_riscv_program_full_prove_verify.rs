@@ -2,7 +2,7 @@
 //!
 //! This test exercises:
 //! - `neo_vm_trace::trace_program` to execute a RISC-V program
-//! - `neo_memory::riscv_ccs` to build a CCS + per-step witnesses
+//! - `neo_memory::riscv::ccs` to build a CCS + per-step witnesses
 //! - `neo_fold::session::FoldingSession` to prove and verify the execution trace
 
 #![allow(non_snake_case)]
@@ -12,10 +12,10 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::session::{FoldingSession, ProveInput};
-use neo_memory::riscv_ccs::{
+use neo_memory::riscv::ccs::{
     build_riscv_alu_step_ccs, check_ccs_satisfaction, witness_from_trace_step, RiscvWitnessLayout,
 };
-use neo_memory::riscv_lookups::{RiscvCpu, RiscvInstruction, RiscvMemory, RiscvOpcode, RiscvShoutTables};
+use neo_memory::riscv::lookups::{RiscvCpu, RiscvInstruction, RiscvMemory, RiscvOpcode, RiscvShoutTables};
 use neo_params::NeoParams;
 use neo_vm_trace::trace_program;
 use p3_field::PrimeCharacteristicRing;

@@ -1,4 +1,4 @@
-use neo_memory::riscv_lookups::{evaluate_opcode_mle, lookup_entry, RiscvOpcode};
+use neo_memory::riscv::lookups::{evaluate_opcode_mle, lookup_entry, RiscvOpcode};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 

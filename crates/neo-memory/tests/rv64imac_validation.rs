@@ -6,7 +6,7 @@
 //! - A: Atomics
 //! - C: Compressed Instructions
 
-use neo_memory::riscv_lookups::*;
+use neo_memory::riscv::lookups::*;
 use neo_vm_trace::{trace_program, Twist, TwistOpKind};
 
 // =============================================================================

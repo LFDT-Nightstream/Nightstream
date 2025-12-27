@@ -11,7 +11,8 @@ use neo_reductions::sumcheck::RoundOracle;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::mle::build_chi_table;
-use crate::riscv_lookups::{compute_op, evaluate_opcode_mle, uninterleave_bits, RiscvOpcode};
+
+use super::lookups::{compute_op, evaluate_opcode_mle, uninterleave_bits, RiscvOpcode};
 
 /// Address-domain lookup oracle for Shout with an implicit RISC-V opcode table.
 ///

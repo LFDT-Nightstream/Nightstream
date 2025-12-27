@@ -4,10 +4,8 @@
 //! R1CS-based CPU, allowing integration with Neo's shared CPU bus architecture.
 
 use crate::builder::CpuArithmetization;
-use crate::cpu::constraints::{
-    extend_ccs_with_shared_cpu_bus_constraints, ShoutBusConfig, ShoutCpuBinding, TwistBusConfig,
-    TwistCpuBinding,
-};
+use crate::cpu::bus_layout::{build_bus_layout_for_instances, BusLayout};
+use crate::cpu::constraints::{extend_ccs_with_shared_cpu_bus_constraints, ShoutCpuBinding, TwistCpuBinding};
 use crate::mem_init::MemInit;
 use crate::plain::LutTable;
 use crate::plain::PlainMemLayout;
@@ -20,6 +18,7 @@ use neo_params::NeoParams;
 use neo_vm_trace::{StepTrace, VmTrace};
 use p3_field::{PrimeCharacteristicRing, PrimeField, PrimeField64};
 use p3_goldilocks::Goldilocks;
+use core::ops::Range;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -45,6 +44,14 @@ pub struct SharedCpuBusConfig<F> {
     ///
     /// The bus tail contains one Twist instance per `mem_id` in `mem_layouts`.
     pub twist_cpu: HashMap<u32, TwistCpuBinding>,
+}
+
+#[derive(Clone, Debug)]
+struct SharedCpuBusState<F> {
+    cfg: SharedCpuBusConfig<F>,
+    table_ids: Vec<u32>,
+    mem_ids: Vec<u32>,
+    layout: BusLayout,
 }
 
 /// Adapter that implements CpuArithmetization for a generic R1CS-based CPU.
@@ -76,7 +83,7 @@ where
     /// Optional shared CPU-bus configuration.
     /// When present, we overwrite a reserved tail segment of `z_vec` with Twist/Shout access rows
     /// (in deterministic id order) before Ajtai decomposition + commitment.
-    shared_cpu_bus: Option<SharedCpuBusConfig<F>>,
+    shared_cpu_bus: Option<SharedCpuBusState<F>>,
 
     /// Function to map a step trace to the full witness z = (x, w).
     /// The witness MUST satisfy the CCS relation.
@@ -129,13 +136,13 @@ where
     fn shared_bus_schema(
         &self,
         bus: &SharedCpuBusConfig<F>,
-    ) -> Result<(Vec<u32>, Vec<u32>, usize), String> {
+    ) -> Result<(Vec<u32>, Vec<u32>, BusLayout), String> {
         let mut table_ids: Vec<u32> = self.shout_cache.keys().copied().collect();
         table_ids.sort_unstable();
         let mut mem_ids: Vec<u32> = bus.mem_layouts.keys().copied().collect();
         mem_ids.sort_unstable();
 
-        let mut bus_cols_total = 0usize;
+        let mut shout_ell_addrs = Vec::with_capacity(table_ids.len());
         for table_id in &table_ids {
             let (d, n_side) = self
                 .shout_meta
@@ -149,12 +156,10 @@ where
             }
             let ell = n_side.trailing_zeros() as usize;
             let ell_addr = d * ell;
-            let cfg = ShoutBusConfig::new(ell_addr);
-            bus_cols_total = bus_cols_total
-                .checked_add(cfg.total_cols())
-                .ok_or_else(|| "shared_cpu_bus: bus_cols overflow (shout)".to_string())?;
+            shout_ell_addrs.push(ell_addr);
         }
 
+        let mut twist_ell_addrs = Vec::with_capacity(mem_ids.len());
         for mem_id in &mem_ids {
             let layout = bus
                 .mem_layouts
@@ -168,13 +173,11 @@ where
             }
             let ell = layout.n_side.trailing_zeros() as usize;
             let ell_addr = layout.d * ell;
-            let cfg = TwistBusConfig::new(ell_addr);
-            bus_cols_total = bus_cols_total
-                .checked_add(cfg.total_cols())
-                .ok_or_else(|| "shared_cpu_bus: bus_cols overflow (twist)".to_string())?;
+            twist_ell_addrs.push(ell_addr);
         }
 
-        Ok((table_ids, mem_ids, bus_cols_total))
+        let layout = build_bus_layout_for_instances(self.ccs.m, self.m_in, 1, shout_ell_addrs, twist_ell_addrs)?;
+        Ok((table_ids, mem_ids, layout))
     }
 
     pub fn with_shared_cpu_bus(mut self, cfg: SharedCpuBusConfig<F>) -> Result<Self, String> {
@@ -185,20 +188,8 @@ where
             ));
         }
 
-        let (table_ids, mem_ids, bus_cols_total) = self.shared_bus_schema(&cfg)?;
-        if bus_cols_total > self.ccs.m {
-            return Err(format!(
-                "shared_cpu_bus: bus region too large: bus_cols({bus_cols_total}) > ccs.m({})",
-                self.ccs.m
-            ));
-        }
-        let bus_base = self.ccs.m - bus_cols_total;
-        if bus_base < self.m_in {
-            return Err(format!(
-                "shared_cpu_bus: bus_base({bus_base}) overlaps public input region m_in({})",
-                self.m_in
-            ));
-        }
+        let (table_ids, mem_ids, layout) = self.shared_bus_schema(&cfg)?;
+        let bus_base = layout.bus_base;
 
         // Validate initial memory keys.
         for ((mem_id, addr), _val) in cfg.initial_mem.iter() {
@@ -326,6 +317,7 @@ where
 
         self.ccs = extend_ccs_with_shared_cpu_bus_constraints(
             &self.ccs,
+            self.m_in,
             cfg.const_one_col,
             &shout_cpu,
             &twist_cpu,
@@ -334,7 +326,12 @@ where
         )
         .map_err(|e| format!("shared_cpu_bus: failed to inject constraints: {e}"))?;
 
-        self.shared_cpu_bus = Some(cfg);
+        self.shared_cpu_bus = Some(SharedCpuBusState {
+            cfg,
+            table_ids,
+            mem_ids,
+            layout,
+        });
         Ok(self)
     }
 }
@@ -369,57 +366,28 @@ where
         let mut mcss = Vec::with_capacity(trace.steps.len());
 
         // Shared CPU-bus bookkeeping (optional).
-        let (table_ids, mem_ids, mut mem_state, bus_base) = if let Some(bus) = &self.shared_cpu_bus
-        {
-            if bus.const_one_col >= self.m_in {
-                return Err(format!(
-                    "shared_cpu_bus: const_one_col={} must be < m_in={}",
-                    bus.const_one_col, self.m_in
-                ));
-            }
-
-            let (table_ids, mem_ids, bus_cols_total) = self.shared_bus_schema(bus)?;
-
-            // Seed per-memory sparse state with initial values.
-            let mut mem_state: HashMap<u32, HashMap<u64, Goldilocks>> = HashMap::new();
-            for (&mem_id, layout) in &bus.mem_layouts {
-                let mut st = HashMap::<u64, Goldilocks>::new();
-                for ((init_mem_id, addr), &val) in bus.initial_mem.iter() {
-                    if *init_mem_id == mem_id && val != Goldilocks::ZERO {
-                        if (*addr as usize) >= layout.k {
-                            return Err(format!(
-                                "shared_cpu_bus: initial_mem out of range for mem_id={mem_id}: addr={addr} >= k={}",
-                                layout.k
-                            ));
-                        }
-                        if st.insert(*addr, val).is_some() {
-                            return Err(format!(
-                                "shared_cpu_bus: initial_mem contains duplicate addr={addr} for mem_id={mem_id}"
-                            ));
-                        }
-                    }
+        let shared = self.shared_cpu_bus.as_ref();
+        let mut mem_state: HashMap<u32, HashMap<u64, Goldilocks>> = HashMap::new();
+        if let Some(shared) = shared {
+            for ((mem_id, addr), &val) in shared.cfg.initial_mem.iter() {
+                if val == Goldilocks::ZERO {
+                    continue;
                 }
-                mem_state.insert(mem_id, st);
+                let layout = shared.cfg.mem_layouts.get(mem_id).ok_or_else(|| {
+                    format!("shared_cpu_bus: initial_mem refers to unknown mem_id={mem_id}")
+                })?;
+                if (*addr as usize) >= layout.k {
+                    return Err(format!(
+                        "shared_cpu_bus: initial_mem out of range for mem_id={mem_id}: addr={addr} >= k={}",
+                        layout.k
+                    ));
+                }
+                mem_state
+                    .entry(*mem_id)
+                    .or_default()
+                    .insert(*addr, val);
             }
-
-            if bus_cols_total > self.ccs.m {
-                return Err(format!(
-                    "shared_cpu_bus: bus region too large: bus_cols({bus_cols_total}) > ccs.m({})",
-                    self.ccs.m
-                ));
-            }
-            let bus_base = self.ccs.m - bus_cols_total;
-            if bus_base < self.m_in {
-                return Err(format!(
-                    "shared_cpu_bus: bus_base({bus_base}) overlaps public input region m_in({})",
-                    self.m_in
-                ));
-            }
-
-            (Some(table_ids), Some(mem_ids), Some(mem_state), Some(bus_base))
-        } else {
-            (None, None, None, None)
-        };
+        }
 
         for step in &trace.steps {
             // 1. Verify Shout lookups in this step against the table cache
@@ -475,30 +443,24 @@ where
             }
 
             // Enforce the constant-one public input (required by shared-bus constraints and guardrails).
-            if let Some(bus) = &self.shared_cpu_bus {
-                if bus.const_one_col >= self.m_in {
+            if let Some(shared) = shared {
+                if shared.cfg.const_one_col >= self.m_in {
                     return Err(format!(
                         "shared_cpu_bus: const_one_col={} must be < m_in={}",
-                        bus.const_one_col, self.m_in
+                        shared.cfg.const_one_col, self.m_in
                     ));
                 }
-                z_vec[bus.const_one_col] = Goldilocks::ONE;
+                z_vec[shared.cfg.const_one_col] = Goldilocks::ONE;
             }
 
             // 2.1 Overwrite the shared CPU-bus tail (if enabled).
-            if let (Some(table_ids), Some(mem_ids), Some(mem_state), Some(bus_base), Some(bus)) = (
-                table_ids.as_ref(),
-                mem_ids.as_ref(),
-                mem_state.as_mut(),
-                bus_base,
-                self.shared_cpu_bus.as_ref(),
-            ) {
-                // Index in the bus tail (col-major, chunk_size=1 => contiguous).
-                let mut off = 0usize;
-                let expected_bus_len = self.ccs.m - bus_base;
+            if let Some(shared) = shared {
+                let bus_base = shared.layout.bus_base;
+                let bus_region_len = shared.layout.bus_region_len();
+                debug_assert_eq!(bus_base + bus_region_len, self.ccs.m);
 
                 // Zero the bus tail so that inactive instances/ports are guaranteed zero.
-                for i in 0..expected_bus_len {
+                for i in 0..bus_region_len {
                     z_vec[bus_base + i] = Goldilocks::ZERO;
                 }
 
@@ -544,33 +506,36 @@ where
                     }
                 }
 
-                // Helper: write dim-major, bit-minor, little-endian bits for `addr`.
+                // Helper: write dim-major, bit-minor, little-endian bits for `addr` into a bus bit range.
                 fn write_addr_bits_dim_major_le(
                     z: &mut [Goldilocks],
-                    bus_base: usize,
-                    off: &mut usize,
+                    bus: &BusLayout,
+                    bit_cols: Range<usize>,
                     addr: u64,
                     d: usize,
                     n_side: usize,
                     ell: usize,
                 ) {
+                    debug_assert_eq!(bit_cols.end - bit_cols.start, d * ell);
                     let mut tmp = addr;
-                    for _dim in 0..d {
+                    for dim in 0..d {
                         let comp = (tmp % (n_side as u64)) as u64;
                         tmp /= n_side as u64;
                         for bit in 0..ell {
-                            z[bus_base + *off] = if (comp >> bit) & 1 == 1 {
+                            let idx = dim * ell + bit;
+                            let col_id = bit_cols.start + idx;
+                            z[bus.bus_cell(col_id, 0)] = if (comp >> bit) & 1 == 1 {
                                 Goldilocks::ONE
                             } else {
                                 Goldilocks::ZERO
                             };
-                            *off += 1;
                         }
                     }
                 }
 
                 // Shout: addr_bits, has_lookup, val.
-                for table_id in table_ids {
+                for (i, table_id) in shared.table_ids.iter().enumerate() {
+                    let shout_cols = &shared.layout.shout_cols[i];
                     let (d, n_side) = self
                         .shout_meta
                         .get(table_id)
@@ -580,25 +545,24 @@ where
 
                     if let Some((key, val)) = shout_by_id.get(table_id).copied() {
                         write_addr_bits_dim_major_le(
-                            &mut z_vec, bus_base, &mut off, key, d, n_side, ell,
+                            &mut z_vec,
+                            &shared.layout,
+                            shout_cols.addr_bits.clone(),
+                            key,
+                            d,
+                            n_side,
+                            ell,
                         );
-                        z_vec[bus_base + off] = Goldilocks::ONE;
-                        off += 1;
-                        z_vec[bus_base + off] = val;
-                        off += 1;
-                    } else {
-                        // addr bits are 0
-                        off += d * ell;
-                        z_vec[bus_base + off] = Goldilocks::ZERO; // has_lookup
-                        off += 1;
-                        z_vec[bus_base + off] = Goldilocks::ZERO; // val
-                        off += 1;
+                        z_vec[shared.layout.bus_cell(shout_cols.has_lookup, 0)] = Goldilocks::ONE;
+                        z_vec[shared.layout.bus_cell(shout_cols.val, 0)] = val;
                     }
                 }
 
                 // Twist: ra_bits, wa_bits, has_read, has_write, wv, rv, inc_at_write_addr.
-                for mem_id in mem_ids {
-                    let layout = bus
+                for (i, mem_id) in shared.mem_ids.iter().enumerate() {
+                    let twist_cols = &shared.layout.twist_cols[i];
+                    let layout = shared
+                        .cfg
                         .mem_layouts
                         .get(mem_id)
                         .ok_or_else(|| format!("missing mem_layout for mem_id={mem_id}"))?;
@@ -614,15 +578,14 @@ where
                     if has_read == Goldilocks::ONE {
                         write_addr_bits_dim_major_le(
                             &mut z_vec,
-                            bus_base,
-                            &mut off,
+                            &shared.layout,
+                            twist_cols.ra_bits.clone(),
                             ra,
                             layout.d,
                             layout.n_side,
                             ell,
                         );
-                    } else {
-                        off += layout.d * ell;
+                        z_vec[shared.layout.bus_cell(twist_cols.rv, 0)] = rv;
                     }
 
                     // Write port.
@@ -635,26 +598,18 @@ where
                     if has_write == Goldilocks::ONE {
                         write_addr_bits_dim_major_le(
                             &mut z_vec,
-                            bus_base,
-                            &mut off,
+                            &shared.layout,
+                            twist_cols.wa_bits.clone(),
                             wa,
                             layout.d,
                             layout.n_side,
                             ell,
                         );
-                    } else {
-                        off += layout.d * ell;
+                        z_vec[shared.layout.bus_cell(twist_cols.wv, 0)] = wv;
                     }
 
-                    // Flags + vals + inc.
-                    z_vec[bus_base + off] = has_read;
-                    off += 1;
-                    z_vec[bus_base + off] = has_write;
-                    off += 1;
-                    z_vec[bus_base + off] = wv;
-                    off += 1;
-                    z_vec[bus_base + off] = rv;
-                    off += 1;
+                    z_vec[shared.layout.bus_cell(twist_cols.has_read, 0)] = has_read;
+                    z_vec[shared.layout.bus_cell(twist_cols.has_write, 0)] = has_write;
 
                     let mut inc = Goldilocks::ZERO;
                     if has_write == Goldilocks::ONE && (wa as usize) < layout.k {
@@ -667,16 +622,7 @@ where
                             st.insert(wa, wv);
                         }
                     }
-                    z_vec[bus_base + off] = inc;
-                    off += 1;
-                }
-
-                // Sanity: we must fill exactly the reserved bus tail.
-                if off != expected_bus_len {
-                    return Err(format!(
-                        "shared_cpu_bus internal error: wrote {} bus entries, expected {}",
-                        off, expected_bus_len
-                    ));
+                    z_vec[shared.layout.bus_cell(twist_cols.inc, 0)] = inc;
                 }
             }
 

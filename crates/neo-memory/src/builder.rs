@@ -51,15 +51,15 @@ fn ell_from_pow2_n_side(n_side: usize) -> Result<usize, ShardBuildError> {
     Ok(n_side.trailing_zeros() as usize)
 }
 
-/// Build shard witness with optional CCS width alignment.
+/// Build shard witness with CCS width alignment.
 ///
 /// # Parameters
-/// * `ccs_m` - The CCS witness width (`s.m`). If `None`, uses legacy mode (NOT RECOMMENDED).
+/// * `ccs_m` - The CCS witness width (`s.m`).
 /// * `m_in` - The number of public input columns for CCS-aligned encoding.
 /// * `chunk_size` - Number of VM steps per folding chunk (`StepWitnessBundle`). Must be >= 1.
 ///
-/// When `ccs_m` is provided, all memory/LUT witnesses are encoded at exactly `ccs_m` columns
-/// with data embedded at offset `m_in`, ensuring proper alignment with Neo's ME relation.
+/// All memory/LUT witnesses are encoded at exactly `ccs_m` columns, with data embedded at
+/// offset `m_in`, ensuring proper alignment with Neo's ME relation.
 ///
 /// Note: `cpu_arith` must implement `build_ccs_chunks` for the chosen `chunk_size`. The default
 /// `build_ccs_steps` helper uses `chunk_size = 1`.
@@ -76,7 +76,7 @@ pub fn build_shard_witness<V, Cmt, L, K, A, Tw, Sh>(
     params: &NeoParams,
     commit: &L,
     cpu_arith: &A,
-    ccs_m: Option<usize>,
+    ccs_m: usize,
     m_in: usize,
 ) -> Result<Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardBuildError>
 where
@@ -210,13 +210,11 @@ where
                 chunk_idx, chunk_start, chunk_end, steps_len
             )));
         }
-        if let Some(ccs_m_val) = ccs_m {
-            if m_in + chunk_len > ccs_m_val {
-                return Err(ShardBuildError::InvalidChunkSize(format!(
-                    "chunk_len={} does not fit in ccs_m={} with m_in={} (need m_in+chunk_len <= ccs_m)",
-                    chunk_len, ccs_m_val, m_in
-                )));
-            }
+        if m_in + chunk_len > ccs_m {
+            return Err(ShardBuildError::InvalidChunkSize(format!(
+                "chunk_len={} does not fit in ccs_m={} with m_in={} (need m_in+chunk_len <= ccs_m)",
+                chunk_len, ccs_m, m_in
+            )));
         }
 
         // Build per-chunk memory witnesses

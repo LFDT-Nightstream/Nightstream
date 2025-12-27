@@ -89,7 +89,7 @@ impl ProductRoundOracle {
     }
 
     pub fn sum_over_hypercube(&self) -> K {
-        let n = self.factors.first().map(|f| f.len()).unwrap_or(0);
+        let n = self.factors.first().map(|f| f.len()).unwrap_or(1);
         let mut sum = K::ZERO;
         for t in 0..n {
             let mut prod = K::ONE;
@@ -106,7 +106,9 @@ impl RoundOracle for ProductRoundOracle {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
         if self.rounds_remaining == 0 {
             // Return the single value for all points
-            let val = self.value().unwrap_or(K::ZERO);
+            let val = self
+                .value()
+                .expect("ProductRoundOracle invariant broken: rounds_remaining==0 but value() is None");
             return vec![val; points.len()];
         }
         let half = 1usize << (self.rounds_remaining - 1);

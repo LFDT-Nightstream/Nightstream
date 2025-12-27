@@ -15,9 +15,8 @@
 
 use neo_ccs::relations::check_ccs_rowwise_zero;
 use neo_ccs::CcsStructure;
-use neo_memory::cpu::constraints::{
-    CpuColumnLayout, CpuConstraintBuilder, ShoutBusConfig, TwistBusConfig,
-};
+use neo_memory::cpu::build_bus_layout_for_instances;
+use neo_memory::cpu::constraints::{CpuColumnLayout, CpuConstraintBuilder};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
@@ -56,21 +55,21 @@ fn create_cpu_layout() -> CpuColumnLayout {
 /// - Load value binding: is_load * (rd_value - bus_rv) = 0
 /// - Store value binding: is_store * (rs2_value - bus_wv) = 0
 /// - Padding constraints: (1 - has_read) * rv = 0, etc.
-fn create_ccs_with_binding_constraints(ell_addr: usize) -> (CcsStructure<F>, usize, TwistBusConfig) {
-    let twist_cfg = TwistBusConfig::new(ell_addr);
-    let bus_cols = twist_cfg.total_cols();
+fn create_ccs_with_binding_constraints(ell_addr: usize) -> (CcsStructure<F>, neo_memory::cpu::BusLayout) {
+    let bus_cols = 2 * ell_addr + 5;
     let m = CPU_COLS + bus_cols;
     let n = m; // Square for identity-first
+    let m_in = 1usize;
 
-    let bus_base = CPU_COLS;
     let cpu_layout = create_cpu_layout();
+    let bus = build_bus_layout_for_instances(m, m_in, 1, [], [ell_addr]).expect("bus layout");
+    assert_eq!(bus.bus_base, CPU_COLS, "test assumes bus starts after CPU_COLS");
 
-    let mut builder = CpuConstraintBuilder::<F>::new(n, m, bus_base, COL_CONST_ONE);
-
-    builder.add_twist_instance(&twist_cfg, &cpu_layout);
+    let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
     let ccs = builder.build().expect("should build CCS");
-    (ccs, bus_base, twist_cfg)
+    (ccs, bus)
 }
 
 /// Test: Load value binding constraint catches the "has_read=0 but rv≠0" attack.
@@ -89,7 +88,8 @@ fn padding_constraint_catches_rv_nonzero_when_no_read() {
     println!("╚══════════════════════════════════════════════════════════════════╝\n");
 
     let ell_addr = 4;
-    let (ccs, bus_base, twist_cfg) = create_ccs_with_binding_constraints(ell_addr);
+    let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
+    let twist = &bus.twist_cols[0];
 
     // Create a malicious witness: has_read=0 but rv=42
     let mut z = vec![F::ZERO; ccs.m];
@@ -100,8 +100,8 @@ fn padding_constraint_catches_rv_nonzero_when_no_read() {
     z[COL_IS_STORE] = F::ZERO;
 
     // Bus columns - MALICIOUS: has_read=0 but rv=42
-    let bus_has_read = bus_base + twist_cfg.has_read;
-    let bus_rv = bus_base + twist_cfg.rv;
+    let bus_has_read = bus.bus_cell(twist.has_read, 0);
+    let bus_rv = bus.bus_cell(twist.rv, 0);
     z[bus_has_read] = F::ZERO; // has_read = 0
     z[bus_rv] = F::from_u64(42); // rv = 42 (MALICIOUS - should be 0!)
 
@@ -138,14 +138,15 @@ fn padding_constraint_catches_wv_nonzero_when_no_write() {
     println!("╚══════════════════════════════════════════════════════════════════╝\n");
 
     let ell_addr = 4;
-    let (ccs, bus_base, twist_cfg) = create_ccs_with_binding_constraints(ell_addr);
+    let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
+    let twist = &bus.twist_cols[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
 
     // Bus columns - MALICIOUS: has_write=0 but wv=99
-    let bus_has_write = bus_base + twist_cfg.has_write;
-    let bus_wv = bus_base + twist_cfg.wv;
+    let bus_has_write = bus.bus_cell(twist.has_write, 0);
+    let bus_wv = bus.bus_cell(twist.wv, 0);
     z[bus_has_write] = F::ZERO;
     z[bus_wv] = F::from_u64(99);
 
@@ -179,7 +180,8 @@ fn load_binding_catches_value_mismatch() {
     println!("╚══════════════════════════════════════════════════════════════════╝\n");
 
     let ell_addr = 4;
-    let (ccs, bus_base, twist_cfg) = create_ccs_with_binding_constraints(ell_addr);
+    let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
+    let twist = &bus.twist_cols[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -189,8 +191,8 @@ fn load_binding_catches_value_mismatch() {
     z[COL_RD_VALUE] = F::from_u64(100); // CPU says register gets 100
 
     // Bus columns: has_read=1, rv=200 (MISMATCH!)
-    let bus_has_read = bus_base + twist_cfg.has_read;
-    let bus_rv = bus_base + twist_cfg.rv;
+    let bus_has_read = bus.bus_cell(twist.has_read, 0);
+    let bus_rv = bus.bus_cell(twist.rv, 0);
     z[bus_has_read] = F::ONE;
     z[bus_rv] = F::from_u64(200); // Bus says memory value is 200
 
@@ -225,7 +227,8 @@ fn store_binding_catches_value_mismatch() {
     println!("╚══════════════════════════════════════════════════════════════════╝\n");
 
     let ell_addr = 4;
-    let (ccs, bus_base, twist_cfg) = create_ccs_with_binding_constraints(ell_addr);
+    let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
+    let twist = &bus.twist_cols[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -235,8 +238,8 @@ fn store_binding_catches_value_mismatch() {
     z[COL_RS2_VALUE] = F::from_u64(555); // CPU says register value is 555
 
     // Bus columns: has_write=1, wv=777 (MISMATCH!)
-    let bus_has_write = bus_base + twist_cfg.has_write;
-    let bus_wv = bus_base + twist_cfg.wv;
+    let bus_has_write = bus.bus_cell(twist.has_write, 0);
+    let bus_wv = bus.bus_cell(twist.wv, 0);
     z[bus_has_write] = F::ONE;
     z[bus_wv] = F::from_u64(777); // Bus says write value is 777
 
@@ -266,7 +269,8 @@ fn valid_witness_passes_constraints() {
     println!("╚══════════════════════════════════════════════════════════════════╝\n");
 
     let ell_addr = 4;
-    let (ccs, bus_base, twist_cfg) = create_ccs_with_binding_constraints(ell_addr);
+    let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
+    let twist = &bus.twist_cols[0];
 
     // Test 1: No memory operation (all zeros except const_one)
     {
@@ -289,8 +293,8 @@ fn valid_witness_passes_constraints() {
         z[COL_IS_LOAD] = F::ONE;
         z[COL_RD_VALUE] = F::from_u64(42);
 
-        let bus_has_read = bus_base + twist_cfg.has_read;
-        let bus_rv = bus_base + twist_cfg.rv;
+        let bus_has_read = bus.bus_cell(twist.has_read, 0);
+        let bus_rv = bus.bus_cell(twist.rv, 0);
         z[bus_has_read] = F::ONE;
         z[bus_rv] = F::from_u64(42); // Matches rd_value!
 
@@ -309,8 +313,8 @@ fn valid_witness_passes_constraints() {
         z[COL_IS_STORE] = F::ONE;
         z[COL_RS2_VALUE] = F::from_u64(99);
 
-        let bus_has_write = bus_base + twist_cfg.has_write;
-        let bus_wv = bus_base + twist_cfg.wv;
+        let bus_has_write = bus.bus_cell(twist.has_write, 0);
+        let bus_wv = bus.bus_cell(twist.wv, 0);
         z[bus_has_write] = F::ONE;
         z[bus_wv] = F::from_u64(99); // Matches rs2_value!
 
@@ -336,14 +340,15 @@ fn address_bit_padding_catches_nonzero_bits() {
     println!("╚══════════════════════════════════════════════════════════════════╝\n");
 
     let ell_addr = 4;
-    let (ccs, bus_base, twist_cfg) = create_ccs_with_binding_constraints(ell_addr);
+    let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
+    let twist = &bus.twist_cols[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
 
     // Bus columns: has_read=0 but ra_bits[0]=1 (MALICIOUS!)
-    let bus_has_read = bus_base + twist_cfg.has_read;
-    let bus_ra_bit_0 = bus_base + twist_cfg.ra_bits.start;
+    let bus_has_read = bus.bus_cell(twist.has_read, 0);
+    let bus_ra_bit_0 = bus.bus_cell(twist.ra_bits.start, 0);
     z[bus_has_read] = F::ZERO;
     z[bus_ra_bit_0] = F::ONE; // Should be 0 when has_read=0!
 
@@ -370,19 +375,20 @@ fn shout_constraints_catch_lookup_attacks() {
     println!("╚══════════════════════════════════════════════════════════════════╝\n");
 
     let ell_addr = 4;
-    let shout_cfg = ShoutBusConfig::new(ell_addr);
-    let bus_cols = shout_cfg.total_cols();
+    let bus_cols = ell_addr + 2;
     let m = CPU_COLS + bus_cols;
     let n = m;
-
-    let bus_base = CPU_COLS;
+    let m_in = 1usize;
     let cpu_layout = create_cpu_layout();
 
-    let mut builder = CpuConstraintBuilder::<F>::new(n, m, bus_base, COL_CONST_ONE);
+    let bus = build_bus_layout_for_instances(m, m_in, 1, [ell_addr], []).expect("bus layout");
+    assert_eq!(bus.bus_base, CPU_COLS, "test assumes bus starts after CPU_COLS");
 
-    builder.add_shout_instance(&shout_cfg, &cpu_layout);
+    let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
+    builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
 
     let ccs = builder.build().expect("should build CCS");
+    let shout = &bus.shout_cols[0];
 
     // Test 1: Lookup value mismatch (is_lookup=1, lookup_out ≠ bus_val)
     {
@@ -391,8 +397,8 @@ fn shout_constraints_catch_lookup_attacks() {
         z[COL_IS_LOOKUP] = F::ONE;
         z[COL_LOOKUP_OUT] = F::from_u64(123);
 
-        let bus_has_lookup = bus_base + shout_cfg.has_lookup;
-        let bus_val = bus_base + shout_cfg.val;
+        let bus_has_lookup = bus.bus_cell(shout.has_lookup, 0);
+        let bus_val = bus.bus_cell(shout.val, 0);
         z[bus_has_lookup] = F::ONE;
         z[bus_val] = F::from_u64(456); // Mismatch!
 
@@ -409,8 +415,8 @@ fn shout_constraints_catch_lookup_attacks() {
         let mut z = vec![F::ZERO; ccs.m];
         z[COL_CONST_ONE] = F::ONE;
 
-        let bus_has_lookup = bus_base + shout_cfg.has_lookup;
-        let bus_val = bus_base + shout_cfg.val;
+        let bus_has_lookup = bus.bus_cell(shout.has_lookup, 0);
+        let bus_val = bus.bus_cell(shout.val, 0);
         z[bus_has_lookup] = F::ZERO;
         z[bus_val] = F::from_u64(999); // Should be 0!
 
@@ -429,8 +435,8 @@ fn shout_constraints_catch_lookup_attacks() {
         z[COL_IS_LOOKUP] = F::ONE;
         z[COL_LOOKUP_OUT] = F::from_u64(42);
 
-        let bus_has_lookup = bus_base + shout_cfg.has_lookup;
-        let bus_val = bus_base + shout_cfg.val;
+        let bus_has_lookup = bus.bus_cell(shout.has_lookup, 0);
+        let bus_val = bus.bus_cell(shout.val, 0);
         z[bus_has_lookup] = F::ONE;
         z[bus_val] = F::from_u64(42); // Matches!
 
@@ -452,7 +458,8 @@ fn shout_constraints_catch_lookup_attacks() {
 #[test]
 fn selector_binding_catches_has_read_mismatch() {
     let ell_addr = 4;
-    let (ccs, bus_base, twist_cfg) = create_ccs_with_binding_constraints(ell_addr);
+    let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
+    let twist = &bus.twist_cols[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -460,7 +467,7 @@ fn selector_binding_catches_has_read_mismatch() {
     // CPU: not a load
     z[COL_IS_LOAD] = F::ZERO;
     // Bus: claims a read happened
-    z[bus_base + twist_cfg.has_read] = F::ONE;
+    z[bus.bus_cell(twist.has_read, 0)] = F::ONE;
 
     let x = &z[..1];
     let w = &z[1..];
@@ -473,7 +480,8 @@ fn selector_binding_catches_has_read_mismatch() {
 #[test]
 fn load_address_binding_catches_mismatch() {
     let ell_addr = 4;
-    let (ccs, bus_base, twist_cfg) = create_ccs_with_binding_constraints(ell_addr);
+    let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
+    let twist = &bus.twist_cols[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -484,10 +492,10 @@ fn load_address_binding_catches_mismatch() {
     z[COL_RD_VALUE] = F::ZERO;
 
     // Bus: read with address bits encoding 6 (mismatch) and rv matching rd_value
-    z[bus_base + twist_cfg.has_read] = F::ONE;
-    z[bus_base + twist_cfg.rv] = F::ZERO;
+    z[bus.bus_cell(twist.has_read, 0)] = F::ONE;
+    z[bus.bus_cell(twist.rv, 0)] = F::ZERO;
 
-    let ra_base = bus_base + twist_cfg.ra_bits.start;
+    let ra_base = bus.bus_cell(twist.ra_bits.start, 0);
     // 6 = 0b0110 (little-endian bits: [0,1,1,0])
     z[ra_base + 0] = F::ZERO;
     z[ra_base + 1] = F::ONE;
@@ -505,17 +513,20 @@ fn load_address_binding_catches_mismatch() {
 #[test]
 fn lookup_key_binding_catches_mismatch() {
     let ell_addr = 4;
-    let shout_cfg = ShoutBusConfig::new(ell_addr);
-    let bus_cols = shout_cfg.total_cols();
+    let bus_cols = ell_addr + 2;
     let m = CPU_COLS + bus_cols;
     let n = m;
+    let m_in = 1usize;
 
-    let bus_base = CPU_COLS;
     let cpu_layout = create_cpu_layout();
 
-    let mut builder = CpuConstraintBuilder::<F>::new(n, m, bus_base, COL_CONST_ONE);
-    builder.add_shout_instance(&shout_cfg, &cpu_layout);
+    let bus = build_bus_layout_for_instances(m, m_in, 1, [ell_addr], []).expect("bus layout");
+    assert_eq!(bus.bus_base, CPU_COLS, "test assumes bus starts after CPU_COLS");
+
+    let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
+    builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
     let ccs = builder.build().expect("should build CCS");
+    let shout = &bus.shout_cols[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -526,10 +537,10 @@ fn lookup_key_binding_catches_mismatch() {
     z[COL_LOOKUP_OUT] = F::from_u64(42);
 
     // Bus: has_lookup=1, val matches, but addr_bits encode 4 (mismatch)
-    z[bus_base + shout_cfg.has_lookup] = F::ONE;
-    z[bus_base + shout_cfg.val] = F::from_u64(42);
+    z[bus.bus_cell(shout.has_lookup, 0)] = F::ONE;
+    z[bus.bus_cell(shout.val, 0)] = F::from_u64(42);
 
-    let addr_base = bus_base + shout_cfg.addr_bits.start;
+    let addr_base = bus.bus_cell(shout.addr_bits.start, 0);
     // 4 = 0b0100 (little-endian bits: [0,0,1,0])
     z[addr_base + 0] = F::ZERO;
     z[addr_base + 1] = F::ZERO;

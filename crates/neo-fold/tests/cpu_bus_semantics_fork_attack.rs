@@ -286,7 +286,7 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(ccs.m),
+        ccs.m,
         m_in,
     );
 
@@ -481,7 +481,7 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(ccs.m),
+        ccs.m,
         m_in,
     );
 
@@ -657,7 +657,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (lut_inst, lut_wit) =
-        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, Some(ccs.m), m_in);
+        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, ccs.m, m_in);
 
     // Memory instance (inactive)
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
@@ -673,7 +673,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
     let (mem_inst, mem_wit) =
-        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(ccs.m), m_in);
+        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, ccs.m, m_in);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,

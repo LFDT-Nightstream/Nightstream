@@ -254,12 +254,12 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (mut mem_inst, mut mem_wit) =
-        encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(ccs.m), m_in);
+        encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, ccs.m, m_in);
     mem_inst.comms.clear();
     mem_wit.mats.clear();
 
     let (mut lut_inst, mut lut_wit) =
-        encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, Some(ccs.m), m_in);
+        encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, ccs.m, m_in);
     lut_inst.comms.clear();
     lut_wit.mats.clear();
 

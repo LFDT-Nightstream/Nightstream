@@ -210,7 +210,7 @@ fn cpu_memory_fork_attack_is_rejected_in_shared_bus_mode() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(ccs.m),
+        ccs.m,
         m_in,
     );
 

@@ -149,7 +149,7 @@ fn build_shard_witness_chunks_memory_and_sets_init_policy() {
         &params,
         &dummy_commit,
         &DummyCpuArith::default(),
-        None,
+        2,
         0,
     )
     .expect("build_shard_witness should succeed");
@@ -208,7 +208,7 @@ fn build_shard_witness_rejects_chunk_size_that_exceeds_ccs_width() {
         &params,
         &dummy_commit,
         &DummyCpuArith::default(),
-        Some(4),
+        4,
         3,
     )
     .expect_err("expected InvalidChunkSize error");

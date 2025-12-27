@@ -59,7 +59,7 @@ pub fn build_chi_table<Kf: Field>(r: &[Kf]) -> Vec<Kf> {
 /// `v` is interpreted over the Boolean hypercube of dimension `r.len()`.
 pub fn mle_eval<F: Field, Kf: Field + From<F>>(v: &[F], r: &[Kf]) -> Kf {
     let chi = build_chi_table(r);
-    debug_assert_eq!(v.len(), chi.len(), "mle_eval: dimension mismatch");
+    assert_eq!(v.len(), chi.len(), "mle_eval: dimension mismatch");
     let mut acc = Kf::ZERO;
     for (val, weight) in v.iter().zip(chi.iter()) {
         acc += Kf::from(*val) * *weight;

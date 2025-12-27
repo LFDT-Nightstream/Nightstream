@@ -305,8 +305,8 @@ use neo_memory::encode::{encode_mem_for_twist, encode_lut_for_shout};
 use neo_memory::witness::StepWitnessBundle;
 
 // For each chunk, build:
-let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &layout, &init, &trace, &commit_fn, None, 0);
-let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, &trace, &commit_fn, None, 0);
+let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &layout, &init, &trace, &commit_fn, ccs_m, m_in);
+let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, &trace, &commit_fn, ccs_m, m_in);
 
 let step = StepWitnessBundle {
     mcs: (mcs_inst, mcs_wit),

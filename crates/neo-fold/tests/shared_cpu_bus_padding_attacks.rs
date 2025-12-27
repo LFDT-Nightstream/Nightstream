@@ -36,7 +36,8 @@ use neo_math::{D, F, K};
 use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
-use neo_memory::cpu::constraints::{CpuColumnLayout, CpuConstraintBuilder, ShoutBusConfig, TwistBusConfig};
+use neo_memory::cpu::build_bus_layout_for_instances;
+use neo_memory::cpu::constraints::{CpuColumnLayout, CpuConstraintBuilder};
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -144,12 +145,13 @@ fn create_cpu_layout() -> CpuColumnLayout {
 }
 
 /// Create a CCS that enforces the required Twist padding constraints.
-fn create_ccs_referencing_all_twist_bus_cols(n: usize, m: usize, bus_base: usize) -> CcsStructure<F> {
+fn create_ccs_referencing_all_twist_bus_cols(n: usize, m: usize, m_in: usize, bus_base: usize) -> CcsStructure<F> {
     let cpu_layout = create_cpu_layout();
-    let twist_cfg = TwistBusConfig::new(/*ell_addr=*/ 1);
+    let bus = build_bus_layout_for_instances(m, m_in, 1, [], [1]).expect("bus layout");
+    assert_eq!(bus.bus_base, bus_base, "test assumes canonical bus_base");
 
-    let mut builder = CpuConstraintBuilder::<F>::new(n, m, bus_base, COL_CONST_ONE);
-    builder.add_twist_instance(&twist_cfg, &cpu_layout);
+    let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
     builder.build().expect("should build CCS with Twist constraints")
 }
@@ -158,18 +160,19 @@ fn create_ccs_referencing_all_twist_bus_cols(n: usize, m: usize, bus_base: usize
 fn create_ccs_referencing_all_shout_twist_bus_cols(
     n: usize,
     m: usize,
+    m_in: usize,
     bus_base: usize,
     shout_cols: usize,
 ) -> CcsStructure<F> {
     assert_eq!(shout_cols, SHOUT_BUS_COLS, "test assumes fixed shout_cols");
 
     let cpu_layout = create_cpu_layout();
-    let shout_cfg = ShoutBusConfig::new(/*ell_addr=*/ 1);
-    let twist_cfg = TwistBusConfig::new(/*ell_addr=*/ 1);
+    let bus = build_bus_layout_for_instances(m, m_in, 1, [1], [1]).expect("bus layout");
+    assert_eq!(bus.bus_base, bus_base, "test assumes canonical bus_base");
 
-    let mut builder = CpuConstraintBuilder::<F>::new(n, m, bus_base, COL_CONST_ONE);
-    builder.add_shout_instance(&shout_cfg, &cpu_layout);
-    builder.add_twist_instance(&twist_cfg, &cpu_layout);
+    let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
+    builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
     builder.build().expect("should build CCS with Shout+Twist constraints")
 }
@@ -189,7 +192,7 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
     let bus_cols = TWIST_BUS_COLS;
     let bus_base = m - bus_cols;
 
-    let ccs = create_ccs_referencing_all_twist_bus_cols(n, m, bus_base);
+    let ccs = create_ccs_referencing_all_twist_bus_cols(n, m, m_in, bus_base);
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
@@ -231,7 +234,7 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(m), m_in,
+        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in,
     );
 
     let steps_witness = vec![StepWitnessBundle {
@@ -286,7 +289,7 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
     let bus_cols = TWIST_BUS_COLS;
     let bus_base = m - bus_cols;
 
-    let ccs = create_ccs_referencing_all_twist_bus_cols(n, m, bus_base);
+    let ccs = create_ccs_referencing_all_twist_bus_cols(n, m, m_in, bus_base);
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
@@ -328,7 +331,7 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(m), m_in,
+        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in,
     );
 
     let steps_witness = vec![StepWitnessBundle {
@@ -383,7 +386,7 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
     let bus_cols = TWIST_BUS_COLS;
     let bus_base = m - bus_cols;
 
-    let ccs = create_ccs_referencing_all_twist_bus_cols(n, m, bus_base);
+    let ccs = create_ccs_referencing_all_twist_bus_cols(n, m, m_in, bus_base);
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
@@ -425,7 +428,7 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(m), m_in,
+        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in,
     );
 
     let steps_witness = vec![StepWitnessBundle {
@@ -480,7 +483,7 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
     let bus_cols = TWIST_BUS_COLS;
     let bus_base = m - bus_cols;
 
-    let ccs = create_ccs_referencing_all_twist_bus_cols(n, m, bus_base);
+    let ccs = create_ccs_referencing_all_twist_bus_cols(n, m, m_in, bus_base);
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
@@ -522,7 +525,7 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(m), m_in,
+        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in,
     );
 
     let steps_witness = vec![StepWitnessBundle {
@@ -583,7 +586,7 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
     let total_bus_cols = shout_cols + TWIST_BUS_COLS;
     let bus_base = m - total_bus_cols;
 
-    let ccs = create_ccs_referencing_all_shout_twist_bus_cols(n, m, bus_base, shout_cols);
+    let ccs = create_ccs_referencing_all_shout_twist_bus_cols(n, m, m_in, bus_base, shout_cols);
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
@@ -628,7 +631,7 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (lut_inst, lut_wit) =
-        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, Some(m), m_in);
+        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, m, m_in);
 
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
     let mem_init = MemInit::Zero;
@@ -643,7 +646,7 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
     let (mem_inst, mem_wit) =
-        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(m), m_in);
+        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -699,7 +702,7 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
     let total_bus_cols = shout_cols + TWIST_BUS_COLS;
     let bus_base = m - total_bus_cols;
 
-    let ccs = create_ccs_referencing_all_shout_twist_bus_cols(n, m, bus_base, shout_cols);
+    let ccs = create_ccs_referencing_all_shout_twist_bus_cols(n, m, m_in, bus_base, shout_cols);
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
@@ -744,7 +747,7 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (lut_inst, lut_wit) =
-        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, Some(m), m_in);
+        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, m, m_in);
 
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
     let mem_init = MemInit::Zero;
@@ -759,7 +762,7 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
     let (mem_inst, mem_wit) =
-        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(m), m_in);
+        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,

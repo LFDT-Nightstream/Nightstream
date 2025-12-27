@@ -126,20 +126,20 @@ pub fn ajtai_encode_vector(params: &NeoParams, v: &[Goldilocks]) -> Mat<Goldiloc
 /// This provides O(log n_side) columns instead of O(n_side) columns per dimension.
 ///
 /// # Parameters
-/// * `ccs_m` - The CCS witness width (`s.m`). If `None`, uses `steps` (legacy mode - NOT RECOMMENDED).
+/// * `ccs_m` - The CCS witness width (`s.m`).
 /// * `m_in` - The number of public input columns. Memory data is embedded at offset `m_in`
 ///   to ensure `X = L_x(Z) = 0` for memory ME claims.
 ///
 /// # Correctness
-/// When `ccs_m` is provided, all committed matrices will have exactly `ccs_m` columns,
-/// ensuring proper alignment with Neo's ME relation and RLC/DEC pipeline.
+/// All committed matrices have exactly `ccs_m` columns, ensuring proper alignment with Neo's
+/// ME relation and RLC/DEC pipeline.
 pub fn encode_mem_for_twist<C, L>(
     params: &NeoParams,
     layout: &PlainMemLayout,
     init: &MemInit<Goldilocks>,
     trace: &PlainMemTrace<Goldilocks>,
     commit: &L,
-    ccs_m: Option<usize>,
+    ccs_m: usize,
     m_in: usize,
 ) -> (MemInstance<C, Goldilocks>, MemWitness<Goldilocks>)
 where
@@ -153,20 +153,20 @@ where
     let dim_d = layout.d;
     let ell = get_ell(n_side);
 
-    // Use CCS width if provided, otherwise fall back to legacy mode (steps width)
-    // Legacy mode is NOT RECOMMENDED as it causes width mismatches with the CCS structure
-    let target_width = ccs_m.unwrap_or(num_steps);
+    let target_width = ccs_m;
     let data_offset = m_in; // Embed data starting at m_in to keep X = 0
+    assert!(
+        data_offset + num_steps <= target_width,
+        "encode_mem_for_twist: need m_in+steps <= ccs_m (m_in={}, steps={}, ccs_m={})",
+        data_offset,
+        num_steps,
+        target_width
+    );
 
     // Helper to encode a column at CCS width
     let encode_at_ccs_width = |col: &[Goldilocks]| -> Mat<Goldilocks> {
-        if ccs_m.is_some() {
-            let embedded = embed_vec(target_width, data_offset, col);
-            ajtai_encode_vector(params, &embedded)
-        } else {
-            // Legacy mode: encode at native width
-            ajtai_encode_vector(params, col)
-        }
+        let embedded = embed_vec(target_width, data_offset, col);
+        ajtai_encode_vector(params, &embedded)
     };
 
     // Helper: Decompose address column into 'ell' bit columns
@@ -277,7 +277,7 @@ where
 /// we commit d*ell bit vectors of length steps each.
 ///
 /// # Parameters
-/// * `ccs_m` - The CCS witness width (`s.m`). If `None`, uses `steps` (legacy mode - NOT RECOMMENDED).
+/// * `ccs_m` - The CCS witness width (`s.m`).
 /// * `m_in` - The number of public input columns. LUT data is embedded at offset `m_in`
 ///   to ensure `X = L_x(Z) = 0` for LUT ME claims.
 pub fn encode_lut_for_shout<C, L>(
@@ -285,7 +285,7 @@ pub fn encode_lut_for_shout<C, L>(
     table: &LutTable<Goldilocks>,
     trace: &PlainLutTrace<Goldilocks>,
     commit: &L,
-    ccs_m: Option<usize>,
+    ccs_m: usize,
     m_in: usize,
 ) -> (LutInstance<C, Goldilocks>, LutWitness<Goldilocks>)
 where
@@ -299,18 +299,20 @@ where
     let dim_d = table.d;
     let ell = get_ell(n_side);
 
-    // Use CCS width if provided, otherwise fall back to legacy mode
-    let target_width = ccs_m.unwrap_or(num_steps);
+    let target_width = ccs_m;
     let data_offset = m_in;
+    assert!(
+        data_offset + num_steps <= target_width,
+        "encode_lut_for_shout: need m_in+steps <= ccs_m (m_in={}, steps={}, ccs_m={})",
+        data_offset,
+        num_steps,
+        target_width
+    );
 
     // Helper to encode a column at CCS width
     let encode_at_ccs_width = |col: &[Goldilocks]| -> Mat<Goldilocks> {
-        if ccs_m.is_some() {
-            let embedded = embed_vec(target_width, data_offset, col);
-            ajtai_encode_vector(params, &embedded)
-        } else {
-            ajtai_encode_vector(params, col)
-        }
+        let embedded = embed_vec(target_width, data_offset, col);
+        ajtai_encode_vector(params, &embedded)
     };
 
     // Helper: Decompose address column into 'ell' bit columns (masked by has_lookup)

@@ -209,10 +209,10 @@ fn test_twist_semantic_check_passes_for_valid_trace() {
     let plain_traces = build_plain_mem_traces::<Goldilocks>(&trace, &layouts, &initial_mem);
     let plain_trace = plain_traces.get(&0).expect("Missing memory trace");
 
-    // Encode to Ajtai (now with index-bit addressing)
-    // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
+    // Encode to Ajtai (now with index-bit addressing).
     let mem_init = neo_memory::MemInit::Zero;
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, None, 0);
+    let (inst, wit) =
+        encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, plain_trace.steps, 0);
 
     // Check semantics using the new API
     let result = check_twist_semantics(&params, &inst, &wit);
@@ -275,7 +275,8 @@ fn test_twist_detects_bad_read_value() {
     // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test.
     // Keep init consistent with `initial_mem` so the failure is specifically the bad read value.
     let mem_init = neo_memory::MemInit::Zero;
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, None, 0);
+    let (inst, wit) =
+        encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, plain_trace.steps, 0);
 
     let result = check_twist_semantics(&params, &inst, &wit);
 
@@ -328,7 +329,8 @@ fn test_twist_with_initial_memory() {
 
     // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
     let mem_init = neo_memory::MemInit::Sparse(vec![(0, Goldilocks::from_u64(123))]);
-    let (inst, wit) = encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, None, 0);
+    let (inst, wit) =
+        encode_mem_for_twist(&params, &layouts[&0], &mem_init, plain_trace, &dummy_commit, plain_trace.steps, 0);
 
     let result = check_twist_semantics(&params, &inst, &wit);
 
@@ -462,7 +464,14 @@ fn test_shout_semantic_check_passes_for_valid_lookups() {
 
     // Encode to Ajtai (now with index-bit addressing)
     // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
-    let (inst, wit) = encode_lut_for_shout(&params, &table, plain_trace, &dummy_commit, None, 0);
+    let (inst, wit) = encode_lut_for_shout(
+        &params,
+        &table,
+        plain_trace,
+        &dummy_commit,
+        plain_trace.has_lookup.len(),
+        0,
+    );
 
     // Check semantics using the new API
     let result = check_shout_semantics(&params, &inst, &wit, &plain_trace.val);
@@ -526,5 +535,12 @@ fn test_shout_detects_bad_lookup_value() {
     // In debug mode, encoding now runs the semantic checker and will panic on bad values.
     // This is correct behavior - fail fast during encoding rather than later.
     // Use legacy mode (None for ccs_m) since we don't have a CCS structure in this test
-    let (_inst, _wit) = encode_lut_for_shout(&params, &table, plain_trace, &dummy_commit, None, 0);
+    let (_inst, _wit) = encode_lut_for_shout(
+        &params,
+        &table,
+        plain_trace,
+        &dummy_commit,
+        plain_trace.has_lookup.len(),
+        0,
+    );
 }

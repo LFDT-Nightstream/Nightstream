@@ -109,6 +109,7 @@ fn shared_cpu_bus_injection_supports_independent_instances() {
 
     let ccs = extend_ccs_with_shared_cpu_bus_constraints(
         &base_ccs,
+        /*m_in=*/ 0,
         /*const_one_col=*/ 0,
         &shout_cpu,
         &twist_cpu,
@@ -180,6 +181,7 @@ fn shared_cpu_bus_injection_supports_independent_instances() {
     let twist_cpu_bad = vec![twist_cpu[0].clone(); mem_insts.len()];
     let ccs_bad = extend_ccs_with_shared_cpu_bus_constraints(
         &base_ccs,
+        /*m_in=*/ 0,
         /*const_one_col=*/ 0,
         &shout_cpu_bad,
         &twist_cpu_bad,

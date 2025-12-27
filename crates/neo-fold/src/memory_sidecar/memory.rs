@@ -1,5 +1,4 @@
 use crate::memory_sidecar::claim_plan::RouteATimeClaimPlan;
-use crate::memory_sidecar::cpu_bus::CpuBusSpec;
 use crate::memory_sidecar::helpers::check_bitness_terminal;
 use crate::memory_sidecar::sumcheck_ds::{run_batched_sumcheck_prover_ds, verify_batched_sumcheck_rounds_ds};
 use crate::memory_sidecar::transcript::{bind_batched_claim_sums, bind_twist_val_eval_claim_sums, digest_fields};
@@ -10,6 +9,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, MeInstance};
 use neo_math::{F, K};
 use neo_memory::bit_ops::eq_bits_prod;
+use neo_memory::cpu::BusLayout;
 use neo_memory::mle::{eq_points, lt_eval};
 use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::ts_common as ts;
@@ -173,7 +173,7 @@ pub(crate) fn prove_twist_addr_pre_time(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
-    cpu_bus: Option<&CpuBusSpec>,
+    cpu_bus: Option<&BusLayout>,
     ell_n: usize,
     r_cycle: &[K],
 ) -> Result<Vec<TwistAddrPreProverData>, PiCcsError> {
@@ -186,12 +186,10 @@ pub(crate) fn prove_twist_addr_pre_time(
         PiCcsError::InvalidInput("prove_twist_addr_pre_time requires shared_cpu_bus".into())
     })?;
     let cpu_z_k = crate::memory_sidecar::cpu_bus::decode_cpu_z_to_k(params, &step.mcs.1.Z);
-    // Canonical bus order: all Shout instances first, then all Twist instances.
-    let mut cpu_bus_col = 0usize;
-    for (lut_inst, _) in &step.lut_instances {
-        cpu_bus_col = cpu_bus_col
-            .checked_add(crate::memory_sidecar::cpu_bus::shout_bus_cols(lut_inst))
-            .ok_or_else(|| PiCcsError::InvalidInput("bus column offset overflow".into()))?;
+    if bus.shout_cols.len() != step.lut_instances.len() || bus.twist_cols.len() != step.mem_instances.len() {
+        return Err(PiCcsError::InvalidInput(
+            "shared_cpu_bus layout mismatch for step (instance counts)".into(),
+        ));
     }
 
     for (idx, (mem_inst, _mem_wit)) in step.mem_instances.iter().enumerate() {
@@ -207,70 +205,76 @@ pub(crate) fn prove_twist_addr_pre_time(
         let z = &cpu_z_k;
 
         let ell_addr = mem_inst.d * mem_inst.ell;
+        let twist_cols = bus.twist_cols.get(idx).ok_or_else(|| {
+            PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus layout mismatch: missing twist_cols for mem_idx={idx}"
+            ))
+        })?;
+        if twist_cols.ra_bits.end - twist_cols.ra_bits.start != ell_addr
+            || twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr
+        {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus layout mismatch at mem_idx={idx}: expected ell_addr={ell_addr}"
+            )));
+        }
+
         let mut ra_bits = Vec::with_capacity(ell_addr);
-        for _ in 0..ell_addr {
+        for col_id in twist_cols.ra_bits.clone() {
             ra_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
                 z,
                 bus,
-                cpu_bus_col,
+                col_id,
                 mem_inst.steps,
                 pow2_cycle,
             )?);
-            cpu_bus_col += 1;
         }
 
         let mut wa_bits = Vec::with_capacity(ell_addr);
-        for _ in 0..ell_addr {
+        for col_id in twist_cols.wa_bits.clone() {
             wa_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
                 z,
                 bus,
-                cpu_bus_col,
+                col_id,
                 mem_inst.steps,
                 pow2_cycle,
             )?);
-            cpu_bus_col += 1;
         }
 
         let has_read = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
             z,
             bus,
-            cpu_bus_col,
+            twist_cols.has_read,
             mem_inst.steps,
             pow2_cycle,
         )?;
-        cpu_bus_col += 1;
         let has_write = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
             z,
             bus,
-            cpu_bus_col,
+            twist_cols.has_write,
             mem_inst.steps,
             pow2_cycle,
         )?;
-        cpu_bus_col += 1;
         let wv = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
             z,
             bus,
-            cpu_bus_col,
+            twist_cols.wv,
             mem_inst.steps,
             pow2_cycle,
         )?;
-        cpu_bus_col += 1;
         let rv = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
             z,
             bus,
-            cpu_bus_col,
+            twist_cols.rv,
             mem_inst.steps,
             pow2_cycle,
         )?;
-        cpu_bus_col += 1;
         let inc_at_write_addr = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
             z,
             bus,
-            cpu_bus_col,
+            twist_cols.inc,
             mem_inst.steps,
             pow2_cycle,
         )?;
-        cpu_bus_col += 1;
 
         let decoded = TwistDecodedColsSparse {
             ra_bits,
@@ -370,7 +374,7 @@ pub(crate) fn prove_shout_addr_pre_time(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
-    cpu_bus: Option<&CpuBusSpec>,
+    cpu_bus: Option<&BusLayout>,
     ell_n: usize,
     r_cycle: &[K],
 ) -> Result<Vec<ShoutAddrPreProverData>, PiCcsError> {
@@ -383,7 +387,11 @@ pub(crate) fn prove_shout_addr_pre_time(
         PiCcsError::InvalidInput("prove_shout_addr_pre_time requires shared_cpu_bus".into())
     })?;
     let cpu_z_k = crate::memory_sidecar::cpu_bus::decode_cpu_z_to_k(params, &step.mcs.1.Z);
-    let mut cpu_bus_col = 0usize;
+    if bus.shout_cols.len() != step.lut_instances.len() || bus.twist_cols.len() != step.mem_instances.len() {
+        return Err(PiCcsError::InvalidInput(
+            "shared_cpu_bus layout mismatch for step (instance counts)".into(),
+        ));
+    }
 
     for (idx, (lut_inst, _lut_wit)) in step.lut_instances.iter().enumerate() {
         neo_memory::addr::validate_shout_bit_addressing(lut_inst)?;
@@ -397,35 +405,42 @@ pub(crate) fn prove_shout_addr_pre_time(
 
         let z = &cpu_z_k;
         let ell_addr = lut_inst.d * lut_inst.ell;
+        let shout_cols = bus.shout_cols.get(idx).ok_or_else(|| {
+            PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus layout mismatch: missing shout_cols for lut_idx={idx}"
+            ))
+        })?;
+        if shout_cols.addr_bits.end - shout_cols.addr_bits.start != ell_addr {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus layout mismatch at lut_idx={idx}: expected ell_addr={ell_addr}"
+            )));
+        }
 
         let mut addr_bits = Vec::with_capacity(ell_addr);
-        for _ in 0..ell_addr {
+        for col_id in shout_cols.addr_bits.clone() {
             addr_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
                 z,
                 bus,
-                cpu_bus_col,
+                col_id,
                 lut_inst.steps,
                 pow2_cycle,
             )?);
-            cpu_bus_col += 1;
         }
 
         let has_lookup = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
             z,
             bus,
-            cpu_bus_col,
+            shout_cols.has_lookup,
             lut_inst.steps,
             pow2_cycle,
         )?;
-        cpu_bus_col += 1;
         let val = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
             z,
             bus,
-            cpu_bus_col,
+            shout_cols.val,
             lut_inst.steps,
             pow2_cycle,
         )?;
-        cpu_bus_col += 1;
 
         let decoded = ShoutDecodedColsSparse {
             addr_bits,
@@ -1364,6 +1379,7 @@ pub(crate) fn finalize_route_a_memory_prover(
 // ============================================================================
 pub fn verify_route_a_memory_step(
     tr: &mut Poseidon2Transcript,
+    cpu_bus: &BusLayout,
     step: &StepInstanceBundle<Cmt, F, K>,
     prev_step: Option<&StepInstanceBundle<Cmt, F, K>>,
     ccs_out0: &MeInstance<Cmt, F, K>,
@@ -1435,27 +1451,21 @@ pub fn verify_route_a_memory_step(
 
     let proofs_mem = &mem_proof.proofs;
 
-    let shout_bus_cols_total: usize = step
-        .lut_insts
-        .iter()
-        .map(crate::memory_sidecar::cpu_bus::shout_bus_cols)
-        .sum();
-    let bus_cols_total: usize = shout_bus_cols_total
-        + step
-            .mem_insts
-            .iter()
-            .map(crate::memory_sidecar::cpu_bus::twist_bus_cols)
-            .sum::<usize>();
-    let bus_y_base_time = if bus_cols_total > 0 {
+    if cpu_bus.shout_cols.len() != step.lut_insts.len() || cpu_bus.twist_cols.len() != step.mem_insts.len() {
+        return Err(PiCcsError::InvalidInput(
+            "shared_cpu_bus layout mismatch for step (instance counts)".into(),
+        ));
+    }
+
+    let bus_y_base_time = if cpu_bus.bus_cols > 0 {
         ccs_out0
             .y_scalars
             .len()
-            .checked_sub(bus_cols_total)
+            .checked_sub(cpu_bus.bus_cols)
             .ok_or_else(|| PiCcsError::InvalidInput("CPU y_scalars too short for bus openings".into()))?
     } else {
         0usize
     };
-    let mut bus_col_offset_time = 0usize;
     let claim_plan = RouteATimeClaimPlan::build(step, claim_idx_start)?;
     if claim_plan.claim_idx_end > batched_final_values.len() {
         return Err(PiCcsError::InvalidInput(format!(
@@ -1505,38 +1515,36 @@ pub fn verify_route_a_memory_step(
         let layout = inst.shout_layout();
         let ell_addr = layout.ell_addr;
 
-        if bus_col_offset_time
-            .checked_add(ell_addr + 2)
-            .ok_or_else(|| PiCcsError::ProtocolError("bus column offset overflow".into()))?
-            > bus_cols_total
-        {
-            return Err(PiCcsError::ProtocolError(
-                "bus column slice out of range for Shout".into(),
-            ));
+        let shout_cols = cpu_bus
+            .shout_cols
+            .get(proof_idx)
+            .ok_or_else(|| PiCcsError::InvalidInput("shared_cpu_bus layout mismatch (shout)".into()))?;
+        if shout_cols.addr_bits.end - shout_cols.addr_bits.start != ell_addr {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus layout mismatch at lut_idx={proof_idx}: expected ell_addr={ell_addr}"
+            )));
         }
 
         let mut addr_bits_open = Vec::with_capacity(ell_addr);
-        for j in 0..ell_addr {
+        for (_j, col_id) in shout_cols.addr_bits.clone().enumerate() {
             addr_bits_open.push(
                 ccs_out0
                     .y_scalars
-                    .get(bus_y_base_time + bus_col_offset_time + j)
+                    .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
                     .copied()
                     .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Shout addr_bits opening".into()))?,
             );
         }
         let has_lookup_open = ccs_out0
             .y_scalars
-            .get(bus_y_base_time + bus_col_offset_time + ell_addr)
+            .get(cpu_bus.y_scalar_index(bus_y_base_time, shout_cols.has_lookup))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Shout has_lookup opening".into()))?;
         let val_open = ccs_out0
             .y_scalars
-            .get(bus_y_base_time + bus_col_offset_time + ell_addr + 1)
+            .get(cpu_bus.y_scalar_index(bus_y_base_time, shout_cols.val))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Shout val opening".into()))?;
-
-        bus_col_offset_time += ell_addr + 2;
 
         let pre = shout_pre
             .get(proof_idx)
@@ -1615,34 +1623,34 @@ pub fn verify_route_a_memory_step(
         let layout = inst.twist_layout();
         let ell_addr = layout.ell_addr;
 
-        if bus_col_offset_time
-            .checked_add(2 * ell_addr + 5)
-            .ok_or_else(|| PiCcsError::ProtocolError("bus column offset overflow".into()))?
-            > bus_cols_total
+        let twist_cols = cpu_bus
+            .twist_cols
+            .get(i_mem)
+            .ok_or_else(|| PiCcsError::InvalidInput("shared_cpu_bus layout mismatch (twist)".into()))?;
+        if twist_cols.ra_bits.end - twist_cols.ra_bits.start != ell_addr
+            || twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr
         {
-            return Err(PiCcsError::ProtocolError(
-                "bus column slice out of range for Twist".into(),
-            ));
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus layout mismatch at mem_idx={i_mem}: expected ell_addr={ell_addr}"
+            )));
         }
 
-        let base = bus_col_offset_time;
-
         let mut ra_bits_open = Vec::with_capacity(ell_addr);
-        for j in 0..ell_addr {
+        for col_id in twist_cols.ra_bits.clone() {
             ra_bits_open.push(
                 ccs_out0
                     .y_scalars
-                    .get(bus_y_base_time + base + j)
+                    .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
                     .copied()
                     .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist ra_bits opening".into()))?,
             );
         }
         let mut wa_bits_open = Vec::with_capacity(ell_addr);
-        for j in 0..ell_addr {
+        for col_id in twist_cols.wa_bits.clone() {
             wa_bits_open.push(
                 ccs_out0
                     .y_scalars
-                    .get(bus_y_base_time + base + ell_addr + j)
+                    .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
                     .copied()
                     .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist wa_bits opening".into()))?,
             );
@@ -1650,31 +1658,29 @@ pub fn verify_route_a_memory_step(
 
         let has_read_open = ccs_out0
             .y_scalars
-            .get(bus_y_base_time + base + 2 * ell_addr)
+            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.has_read))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist has_read opening".into()))?;
         let has_write_open = ccs_out0
             .y_scalars
-            .get(bus_y_base_time + base + 2 * ell_addr + 1)
+            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.has_write))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist has_write opening".into()))?;
         let wv_open = ccs_out0
             .y_scalars
-            .get(bus_y_base_time + base + 2 * ell_addr + 2)
+            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.wv))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist wv opening".into()))?;
         let rv_open = ccs_out0
             .y_scalars
-            .get(bus_y_base_time + base + 2 * ell_addr + 3)
+            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.rv))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist rv opening".into()))?;
         let inc_write_open = ccs_out0
             .y_scalars
-            .get(bus_y_base_time + base + 2 * ell_addr + 4)
+            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.inc))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist inc opening".into()))?;
-
-        bus_col_offset_time += 2 * ell_addr + 5;
 
         let pre = twist_pre
             .get(i_mem)
@@ -1943,7 +1949,7 @@ pub fn verify_route_a_memory_step(
         let bus_y_base_val = cpu_me_cur
             .y_scalars
             .len()
-            .checked_sub(bus_cols_total)
+            .checked_sub(cpu_bus.bus_cols)
             .ok_or_else(|| PiCcsError::InvalidInput("CPU y_scalars too short for bus openings".into()))?;
 
         (Some(cpu_me_cur), cpu_me_prev, bus_y_base_val)
@@ -1963,32 +1969,34 @@ pub fn verify_route_a_memory_step(
 
         let cpu_me_cur = cpu_me_val_cur.ok_or_else(|| PiCcsError::ProtocolError("missing CPU ME claim at r_val".into()))?;
 
-        let twist_base = shout_bus_cols_total
-            + step
-                .mem_insts
-                .iter()
-                .take(i_mem)
-                .map(crate::memory_sidecar::cpu_bus::twist_bus_cols)
-                .sum::<usize>();
+        let twist_cols = cpu_bus
+            .twist_cols
+            .get(i_mem)
+            .ok_or_else(|| PiCcsError::InvalidInput("shared_cpu_bus layout mismatch (twist)".into()))?;
+        if twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus layout mismatch at mem_idx={i_mem}: expected ell_addr={ell_addr}"
+            )));
+        }
 
         let mut wa_bits_val_open = Vec::with_capacity(ell_addr);
-        for j in 0..ell_addr {
+        for col_id in twist_cols.wa_bits.clone() {
             wa_bits_val_open.push(
                 cpu_me_cur
                     .y_scalars
-                    .get(bus_y_base_val + twist_base + ell_addr + j)
+                    .get(cpu_bus.y_scalar_index(bus_y_base_val, col_id))
                     .copied()
                     .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing wa_bits(val) opening".into()))?,
             );
         }
         let has_write_val_open = cpu_me_cur
             .y_scalars
-            .get(bus_y_base_val + twist_base + 2 * ell_addr + 1)
+            .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.has_write))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing has_write(val) opening".into()))?;
         let inc_at_write_addr_val_open = cpu_me_cur
             .y_scalars
-            .get(bus_y_base_val + twist_base + 2 * ell_addr + 4)
+            .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.inc))
             .copied()
             .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing inc(val) opening".into()))?;
 
@@ -2024,21 +2032,13 @@ pub fn verify_route_a_memory_step(
                 let cpu_me_prev = cpu_me_val_prev
                     .ok_or_else(|| PiCcsError::ProtocolError("missing prev CPU ME claim at r_val".into()))?;
 
-                let twist_base = shout_bus_cols_total
-                    + step
-                        .mem_insts
-                        .iter()
-                        .take(i_mem)
-                        .map(crate::memory_sidecar::cpu_bus::twist_bus_cols)
-                        .sum::<usize>();
-
                 // Terminal check for prev-total: uses previous-step openings at current r_val.
                 let mut wa_bits_prev_open = Vec::with_capacity(ell_addr);
-                for j in 0..ell_addr {
+                for col_id in twist_cols.wa_bits.clone() {
                     wa_bits_prev_open.push(
                         cpu_me_prev
                             .y_scalars
-                            .get(bus_y_base_val + twist_base + ell_addr + j)
+                            .get(cpu_bus.y_scalar_index(bus_y_base_val, col_id))
                             .copied()
                             .ok_or_else(|| {
                                 PiCcsError::ProtocolError("CPU y_scalars missing wa_bits(prev) opening".into())
@@ -2047,12 +2047,12 @@ pub fn verify_route_a_memory_step(
                 }
                 let has_write_prev_open = cpu_me_prev
                     .y_scalars
-                    .get(bus_y_base_val + twist_base + 2 * ell_addr + 1)
+                    .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.has_write))
                     .copied()
                     .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing has_write(prev) opening".into()))?;
                 let inc_prev_open = cpu_me_prev
                     .y_scalars
-                    .get(bus_y_base_val + twist_base + 2 * ell_addr + 4)
+                    .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.inc))
                     .copied()
                     .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing inc(prev) opening".into()))?;
 

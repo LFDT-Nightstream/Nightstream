@@ -47,6 +47,7 @@ use neo_fold::shard::{
 };
 use neo_fold::PiCcsError;
 use neo_math::{D, F, K};
+use neo_memory::cpu::build_bus_layout_for_instances;
 use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
 use neo_memory::plain::{
     build_plain_lut_traces, build_plain_mem_traces, LutTable, PlainMemLayout, PlainMemTrace,
@@ -589,9 +590,18 @@ fn test_twist_route_a_time_claimed_sum_must_match_addr_pre_final() {
     let r_time = &step_proof.fold.ccs_out[0].r;
     let r_cycle = r_time.clone(); // any point with correct length suffices for this negative test
     let mut tr = Poseidon2Transcript::new(b"twist-only-claim-sum-mismatch");
+    let cpu_bus = build_bus_layout_for_instances(
+        ctx.ccs.m,
+        step.mcs_inst.m_in,
+        1,
+        step.lut_insts.iter().map(|inst| inst.d * inst.ell),
+        step.mem_insts.iter().map(|inst| inst.d * inst.ell),
+    )
+    .expect("cpu bus layout");
 
     let err = match verify_route_a_memory_step(
         &mut tr,
+        &cpu_bus,
         &step,
         None,
         &step_proof.fold.ccs_out[0],
@@ -1225,10 +1235,12 @@ fn test_twist_shout_sidecar_proving() {
     // Encode for Twist (memory)
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let mem_init = neo_memory::MemInit::Zero;
-    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layout, &mem_init, plain_mem, &commit_fn, None, 0);
+    let (mem_inst, mem_wit) =
+        encode_mem_for_twist(&params, &mem_layout, &mem_init, plain_mem, &commit_fn, plain_mem.steps, 0);
 
     // Encode for Shout (lookup)
-    let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &lut_table, plain_lut, &commit_fn, None, 0);
+    let (lut_inst, lut_wit) =
+        encode_lut_for_shout(&params, &lut_table, plain_lut, &commit_fn, plain_lut.has_lookup.len(), 0);
 
     println!("Memory witness matrices: {}", mem_wit.mats.len());
     println!("LUT witness matrices: {}", lut_wit.mats.len());

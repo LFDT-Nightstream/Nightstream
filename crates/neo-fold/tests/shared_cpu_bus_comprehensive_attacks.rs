@@ -38,7 +38,8 @@ use neo_math::{D, F, K};
 use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
-use neo_memory::cpu::constraints::{CpuColumnLayout, CpuConstraintBuilder, ShoutBusConfig, TwistBusConfig};
+use neo_memory::cpu::build_bus_layout_for_instances;
+use neo_memory::cpu::constraints::{CpuColumnLayout, CpuConstraintBuilder};
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -174,10 +175,12 @@ fn create_identity_ccs(n: usize) -> CcsStructure<F> {
 /// the guardrail. The actual semantic constraints would come from CPU arithmetization.
 fn create_ccs_referencing_all_twist_bus_cols(n: usize, m: usize, bus_base: usize) -> CcsStructure<F> {
     let cpu_layout = create_cpu_layout();
-    let twist_cfg = TwistBusConfig::new(/*ell_addr=*/ 1);
+    let m_in = 1usize;
+    let bus = build_bus_layout_for_instances(m, m_in, 1, [], [1]).expect("bus layout");
+    assert_eq!(bus.bus_base, bus_base, "test assumes canonical bus_base");
 
-    let mut builder = CpuConstraintBuilder::<F>::new(n, m, bus_base, COL_CONST_ONE);
-    builder.add_twist_instance(&twist_cfg, &cpu_layout);
+    let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
     builder.build().expect("should build CCS with Twist constraints")
 }
@@ -192,12 +195,13 @@ fn create_ccs_referencing_all_shout_twist_bus_cols(
     assert_eq!(shout_cols, SHOUT_BUS_COLS, "test assumes fixed shout_cols");
 
     let cpu_layout = create_cpu_layout();
-    let shout_cfg = ShoutBusConfig::new(/*ell_addr=*/ 1);
-    let twist_cfg = TwistBusConfig::new(/*ell_addr=*/ 1);
+    let m_in = 1usize;
+    let bus = build_bus_layout_for_instances(m, m_in, 1, [1], [1]).expect("bus layout");
+    assert_eq!(bus.bus_base, bus_base, "test assumes canonical bus_base");
 
-    let mut builder = CpuConstraintBuilder::<F>::new(n, m, bus_base, COL_CONST_ONE);
-    builder.add_shout_instance(&shout_cfg, &cpu_layout);
-    builder.add_twist_instance(&twist_cfg, &cpu_layout);
+    let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
+    builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
     builder.build().expect("should build CCS with Shout+Twist constraints")
 }
@@ -315,7 +319,7 @@ fn ccs_must_reference_bus_columns_guardrail() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(m),
+        m,
         m_in,
     );
     mem_inst.comms.clear();
@@ -436,7 +440,7 @@ fn address_bit_tampering_attack_should_be_rejected() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(m),
+        m,
         m_in,
     );
     mem_inst.comms.clear();
@@ -571,7 +575,7 @@ fn has_read_flag_mismatch_attack_should_be_rejected() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(m),
+        m,
         m_in,
     );
     mem_inst.comms.clear();
@@ -707,7 +711,7 @@ fn increment_value_tampering_attack_should_be_rejected() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(m),
+        m,
         m_in,
     );
     mem_inst.comms.clear();
@@ -847,7 +851,7 @@ fn lookup_value_tampering_attack_should_be_rejected() {
 
     let commit_fn = |mat: &Mat<F>| l.commit(mat);
     let (lut_inst, lut_wit) =
-        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, Some(m), m_in);
+        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, m, m_in);
 
     // Empty memory instance
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
@@ -863,7 +867,7 @@ fn lookup_value_tampering_attack_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
     let (mem_inst, mem_wit) =
-        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, Some(m), m_in);
+        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -994,7 +998,7 @@ fn bus_region_mismatch_with_twist_trace_should_be_rejected() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(m),
+        m,
         m_in,
     );
 
@@ -1125,7 +1129,7 @@ fn write_then_read_consistency_attack_should_be_rejected() {
         &mem_init_step1,
         &mem_trace_step1,
         &commit_fn,
-        Some(m),
+        m,
         m_in,
     );
 
@@ -1172,7 +1176,7 @@ fn write_then_read_consistency_attack_should_be_rejected() {
         &mem_init_step2,
         &mem_trace_step2,
         &commit_fn,
-        Some(m),
+        m,
         m_in,
     );
 
@@ -1313,7 +1317,7 @@ fn correct_witness_should_verify() {
         &mem_init,
         &mem_trace,
         &commit_fn,
-        Some(m),
+        m,
         m_in,
     );
     mem_inst.comms.clear();

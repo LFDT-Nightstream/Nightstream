@@ -110,15 +110,6 @@ impl<C, F> LutInstance<C, F> {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ShardWitnessBundle<Cmt, F, K> {
-    pub mcss: Vec<(McsInstance<Cmt, F>, McsWitness<F>)>,
-    pub lut_shard_instances: Vec<(LutInstance<Cmt, F>, LutWitness<F>)>,
-    pub mem_shard_instances: Vec<(MemInstance<Cmt, F>, MemWitness<F>)>,
-    #[serde(skip)]
-    pub _phantom: PhantomData<K>,
-}
-
 /// Per-step bundle that carries CPU + memory witnesses for a single folding step.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StepWitnessBundle<Cmt, F, K> {

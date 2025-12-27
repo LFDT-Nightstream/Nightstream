@@ -3,7 +3,6 @@ pub mod ajtai;
 pub mod bit_ops;
 pub mod builder;
 pub mod cpu;
-pub mod r1cs_adapter;
 pub mod encode;
 pub mod mem_init;
 pub mod mle;

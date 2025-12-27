@@ -316,13 +316,13 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
         &mem_init0,
         &mem_trace0,
         &commit_fn,
-        Some(ccs.m),
+        ccs.m,
         m_in,
     );
     mem_inst0.comms.clear();
     mem_wit0.mats.clear();
     let (mut lut_inst0, mut lut_wit0) =
-        encode_lut_for_shout(&params, &lut_table, &lut_trace0, &commit_fn, Some(ccs.m), m_in);
+        encode_lut_for_shout(&params, &lut_table, &lut_trace0, &commit_fn, ccs.m, m_in);
     lut_inst0.comms.clear();
     lut_wit0.mats.clear();
 
@@ -332,13 +332,13 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
         &mem_init1,
         &mem_trace1,
         &commit_fn,
-        Some(ccs.m),
+        ccs.m,
         m_in,
     );
     mem_inst1.comms.clear();
     mem_wit1.mats.clear();
     let (mut lut_inst1, mut lut_wit1) =
-        encode_lut_for_shout(&params, &lut_table, &lut_trace1, &commit_fn, Some(ccs.m), m_in);
+        encode_lut_for_shout(&params, &lut_table, &lut_trace1, &commit_fn, ccs.m, m_in);
     lut_inst1.comms.clear();
     lut_wit1.mats.clear();
 

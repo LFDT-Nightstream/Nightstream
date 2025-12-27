@@ -339,7 +339,7 @@ fn vm_simple_add_program() {
             &mem_init,
             &mem_trace,
             &commit_fn,
-            Some(ccs.m),
+            ccs.m,
             m_in,
         );
         mem_inst.comms.clear();
@@ -350,7 +350,7 @@ fn vm_simple_add_program() {
             &bytecode_table,
             &opcode_trace,
             &commit_fn,
-            Some(ccs.m),
+            ccs.m,
             m_in,
         );
         opcode_inst.comms.clear();
@@ -361,7 +361,7 @@ fn vm_simple_add_program() {
             &imm_table,
             &imm_trace,
             &commit_fn,
-            Some(ccs.m),
+            ccs.m,
             m_in,
         );
         imm_inst.comms.clear();
@@ -456,7 +456,7 @@ fn vm_register_file_operations() {
             &reg_init,
             &reg_trace,
             &commit_fn,
-            Some(ccs.m),
+            ccs.m,
             m_in,
         );
         reg_inst.comms.clear();
@@ -493,7 +493,7 @@ fn vm_register_file_operations() {
             &reg_init,
             &reg_trace,
             &commit_fn,
-            Some(ccs.m),
+            ccs.m,
             m_in,
         );
         reg_inst.comms.clear();
@@ -531,7 +531,7 @@ fn vm_register_file_operations() {
             &reg_init,
             &reg_trace,
             &commit_fn,
-            Some(ccs.m),
+            ccs.m,
             m_in,
         );
         reg_inst.comms.clear();
@@ -638,7 +638,7 @@ fn vm_combined_bytecode_and_data_memory() {
         &bytecode,
         &bytecode_trace,
         &commit_fn,
-        Some(ccs.m),
+        ccs.m,
         m_in,
     );
     bytecode_inst.comms.clear();
@@ -650,7 +650,7 @@ fn vm_combined_bytecode_and_data_memory() {
         &ram_init,
         &ram_trace,
         &commit_fn,
-        Some(ccs.m),
+        ccs.m,
         m_in,
     );
     ram_inst.comms.clear();
@@ -725,7 +725,7 @@ fn vm_invalid_opcode_claim_fails() {
     let m_in = 0usize;
 
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        encode_lut_for_shout(&params, &bytecode, &bad_trace, &commit_fn, Some(ccs.m), m_in)
+        encode_lut_for_shout(&params, &bytecode, &bad_trace, &commit_fn, ccs.m, m_in)
     }));
     let (mut bytecode_inst, mut bytecode_wit) = match result {
         Ok(x) => x,
@@ -832,7 +832,7 @@ fn vm_multi_instruction_sequence() {
             &mem_init,
             &mem_trace,
             &commit_fn,
-            Some(ccs.m),
+            ccs.m,
             m_in,
         );
         mem_inst.comms.clear();
@@ -842,7 +842,7 @@ fn vm_multi_instruction_sequence() {
             &bytecode,
             &bytecode_trace,
             &commit_fn,
-            Some(ccs.m),
+            ccs.m,
             m_in,
         );
         bytecode_inst.comms.clear();

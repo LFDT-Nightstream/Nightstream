@@ -816,7 +816,7 @@ where
     let s0 = s_me
         .ensure_identity_first()
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
-    let (s, _cpu_bus) = crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(&s0, steps)?;
+    let (s, cpu_bus) = crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(&s0, steps)?;
     // Route A terminal checks interpret `ME.y_scalars[0]` as MLE(column)(r_time), which requires M₀ = I.
     s.assert_m0_is_identity_for_nc()
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first (M₀=I) required: {e:?}")))?;
@@ -1048,6 +1048,7 @@ where
         let prev_step = (idx > 0).then(|| &steps[idx - 1]);
 	        let claim_idx = crate::memory_sidecar::memory::verify_route_a_memory_step(
 	            tr,
+	            &cpu_bus,
 	            step,
 	            prev_step,
 	            &step_proof.fold.ccs_out[0],

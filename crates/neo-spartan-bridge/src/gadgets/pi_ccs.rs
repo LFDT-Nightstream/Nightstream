@@ -3,72 +3,11 @@
 //! Currently this module exposes:
 //! - Sumcheck round verification
 //! - Sumcheck evaluation via Horner’s method
-//! - A base-b recomposition helper (legacy; no longer used by the main circuit)
 
-use crate::gadgets::k_field::{k_add, k_mul, KNum, KNumVar};
+use crate::gadgets::k_field::{k_add, KNum, KNumVar};
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use neo_math::K as NeoK;
-
-/// Recompose K-field digits in base b: Σ b^ℓ * y[ℓ]
-///
-/// y: vector of K-field elements (digits)
-/// b: base
-/// delta: δ constant for K multiplication
-pub fn base_b_recompose_k<F: PrimeField, CS: ConstraintSystem<F>>(
-    cs: &mut CS,
-    y_digits: &[KNumVar],
-    b: u32,
-    delta: F,
-    label: &str,
-) -> Result<KNumVar, SynthesisError> {
-    if y_digits.is_empty() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-
-    // Start with y[0]
-    let mut result = y_digits[0].clone();
-
-    // Compute powers of b in F
-    let b_f = F::from(b as u64);
-    let mut b_power = b_f;
-
-    for (ell, y_ell) in y_digits.iter().enumerate().skip(1) {
-        // Lift b^ell to K as (b^ell, 0)
-        let b_pow_c0 = cs.alloc(|| format!("{}_b_pow_{}_c0", label, ell), || Ok(b_power))?;
-
-        cs.enforce(
-            || format!("{}_b_pow_{}_c0_constraint", label, ell),
-            |lc| lc + (b_power, CS::one()),
-            |lc| lc + CS::one(),
-            |lc| lc + b_pow_c0,
-        );
-
-        let b_pow_k = KNumVar {
-            c0: b_pow_c0,
-            c1: cs.alloc(|| format!("{}_b_pow_{}_c1_zero", label, ell), || Ok(F::ZERO))?,
-        };
-
-        // Enforce c1 = 0
-        cs.enforce(
-            || format!("{}_b_pow_{}_c1_zero_constraint", label, ell),
-            |lc| lc + b_pow_k.c1,
-            |lc| lc + CS::one(),
-            |lc| lc,
-        );
-
-        // term = b^ell * y[ell]
-        let term = k_mul(cs, &b_pow_k, y_ell, delta, None, &format!("{}_term_{}", label, ell))?;
-
-        // result += term
-        result = k_add(cs, &result, &term, None, &format!("{}_add_{}", label, ell))?;
-
-        // Update b_power for next iteration
-        b_power = b_power * b_f;
-    }
-
-    Ok(result)
-}
 
 /// Verify a single sumcheck round: p(0) + p(1) = claimed_sum
 ///

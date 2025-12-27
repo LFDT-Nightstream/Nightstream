@@ -280,7 +280,8 @@ fn twist_shout_trace_to_witness_smoke() {
 
     // Encode memory for Twist
     let mem_init = neo_memory::MemInit::Zero;
-    let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], &mem_init, t, &commit, None, 0);
+    let (mem_inst, mem_wit) =
+        encode_mem_for_twist(&params, &mem_layouts[&1u32], &mem_init, t, &commit, t.steps, 0);
 
     // Create the LUT table struct
     let table = LutTable {
@@ -292,7 +293,8 @@ fn twist_shout_trace_to_witness_smoke() {
     };
 
     // Encode lookup for Shout
-    let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, l, &commit, None, 0);
+    let (lut_inst, lut_wit) =
+        encode_lut_for_shout(&params, &table, l, &commit, l.has_lookup.len(), 0);
 
     // Sanity: matrix counts
     // Twist: 2*d*ell + 5 matrices (Route A layout)
@@ -458,7 +460,8 @@ fn twist_shout_sidecar_shapes_and_rlc() {
     let plain_mem = build_plain_mem_traces::<F>(&trace, &mem_layouts, &initial_mem);
     let t = &plain_mem[&1u32];
     let mem_init = neo_memory::MemInit::Zero;
-    let (_mem_inst, mem_wit) = encode_mem_for_twist(&params, &mem_layouts[&1u32], &mem_init, t, &commit, None, 0);
+    let (_mem_inst, mem_wit) =
+        encode_mem_for_twist(&params, &mem_layouts[&1u32], &mem_init, t, &commit, t.steps, 0);
 
     let mut table_sizes = HashMap::new();
     table_sizes.insert(0u32, (4usize, 2usize));
@@ -471,7 +474,8 @@ fn twist_shout_sidecar_shapes_and_rlc() {
         n_side: 2,
         content: vec![F::from_u64(10), F::from_u64(20), F::from_u64(30), F::from_u64(40)],
     };
-    let (_lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, l, &commit, None, 0);
+    let (_lut_inst, lut_wit) =
+        encode_lut_for_shout(&params, &table, l, &commit, l.has_lookup.len(), 0);
 
     // CCS structure used only for dimensions/padding
     let target_cols = mem_wit.mats.iter().map(|m| m.cols()).max().unwrap_or(1);

@@ -35,15 +35,36 @@ fn absorb_k(tr: &mut Poseidon2Transcript, label: &'static [u8], k: K) {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutputCheckError {
-    AddressOutOfDomain { addr: u64, max_addr: u64 },
-    DuplicateAddress { addr: u64 },
+    AddressOutOfDomain {
+        addr: u64,
+        max_addr: u64,
+    },
+    DuplicateAddress {
+        addr: u64,
+    },
     NonZeroClaim,
-    RoundCheckFailed { round: usize, message: String },
+    RoundCheckFailed {
+        round: usize,
+        message: String,
+    },
     External(String),
-    FinalClaimMismatch { got: K, expected: K },
-    DimensionMismatch { expected: usize, got: usize },
-    NumBitsTooLarge { num_bits: usize, max: usize },
-    WrongDegree { round: usize, expected: usize, got: usize },
+    FinalClaimMismatch {
+        got: K,
+        expected: K,
+    },
+    DimensionMismatch {
+        expected: usize,
+        got: usize,
+    },
+    NumBitsTooLarge {
+        num_bits: usize,
+        max: usize,
+    },
+    WrongDegree {
+        round: usize,
+        expected: usize,
+        got: usize,
+    },
 }
 
 impl std::fmt::Display for OutputCheckError {
@@ -75,20 +96,28 @@ pub struct ProgramIO<F> {
 
 impl<F: Field> Default for ProgramIO<F> {
     fn default() -> Self {
-        Self { claims: BTreeMap::new() }
+        Self {
+            claims: BTreeMap::new(),
+        }
     }
 }
 
 impl<F: Field> ProgramIO<F> {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn with_claim(mut self, addr: u64, value: F) -> Self {
         self.claims.insert(addr, value);
         self
     }
 
-    pub fn with_output(self, addr: u64, value: F) -> Self { self.with_claim(addr, value) }
-    pub fn with_input(self, addr: u64, value: F) -> Self { self.with_claim(addr, value) }
+    pub fn with_output(self, addr: u64, value: F) -> Self {
+        self.with_claim(addr, value)
+    }
+    pub fn with_input(self, addr: u64, value: F) -> Self {
+        self.with_claim(addr, value)
+    }
 
     pub fn try_with_claim(mut self, addr: u64, value: F) -> Result<Self, OutputCheckError> {
         if self.claims.contains_key(&addr) {
@@ -98,15 +127,28 @@ impl<F: Field> ProgramIO<F> {
         Ok(self)
     }
 
-    pub fn claimed_addresses(&self) -> impl Iterator<Item = u64> + '_ { self.claims.keys().copied() }
-    pub fn get_claim(&self, addr: u64) -> Option<F> { self.claims.get(&addr).copied() }
-    pub fn num_claims(&self) -> usize { self.claims.len() }
-    pub fn is_empty(&self) -> bool { self.claims.is_empty() }
-    pub fn claims(&self) -> impl Iterator<Item = (u64, F)> + '_ { self.claims.iter().map(|(&a, &v)| (a, v)) }
+    pub fn claimed_addresses(&self) -> impl Iterator<Item = u64> + '_ {
+        self.claims.keys().copied()
+    }
+    pub fn get_claim(&self, addr: u64) -> Option<F> {
+        self.claims.get(&addr).copied()
+    }
+    pub fn num_claims(&self) -> usize {
+        self.claims.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.claims.is_empty()
+    }
+    pub fn claims(&self) -> impl Iterator<Item = (u64, F)> + '_ {
+        self.claims.iter().map(|(&a, &v)| (a, v))
+    }
 
     pub fn validate(&self, num_bits: usize) -> Result<(), OutputCheckError> {
         if num_bits > MAX_NUM_BITS {
-            return Err(OutputCheckError::NumBitsTooLarge { num_bits, max: MAX_NUM_BITS });
+            return Err(OutputCheckError::NumBitsTooLarge {
+                num_bits,
+                max: MAX_NUM_BITS,
+            });
         }
         let max_addr = 1u64 << num_bits;
         for &addr in self.claims.keys() {
@@ -118,7 +160,8 @@ impl<F: Field> ProgramIO<F> {
     }
 
     pub fn absorb_into_transcript(&self, tr: &mut Poseidon2Transcript)
-    where F: Into<neo_math::F> + Copy,
+    where
+        F: Into<neo_math::F> + Copy,
     {
         tr.append_message(b"output_check/num_claims", &(self.claims.len() as u64).to_le_bytes());
         for (&addr, &value) in &self.claims {
@@ -162,7 +205,9 @@ fn interpolate(xs: &[K], ys: &[K]) -> Vec<K> {
         let mut cur_deg = 0;
         let mut denom = K::ONE;
         for j in 0..n {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             let mut next = vec![K::ZERO; n];
             for d in 0..=cur_deg {
                 next[d + 1] += numer[d];
@@ -182,15 +227,21 @@ fn interpolate(xs: &[K], ys: &[K]) -> Vec<K> {
 
 /// Sparse evaluation of I/O mask: Σ_{addr in claimed} eq(r, addr)
 fn eval_io_mask<F: Field>(program_io: &ProgramIO<F>, r: &[K], num_bits: usize) -> K {
-    program_io.claimed_addresses().map(|addr| chi_at_point(r, addr, num_bits)).sum()
+    program_io
+        .claimed_addresses()
+        .map(|addr| chi_at_point(r, addr, num_bits))
+        .sum()
 }
 
 /// Sparse evaluation of claimed values: Σ_k claimed[k] · χ_r(k)
 fn eval_claimed_io<F: Field + Into<K>>(program_io: &ProgramIO<F>, r: &[K], num_bits: usize) -> K {
-    program_io.claims().map(|(addr, val)| {
-        let val_k: K = val.into();
-        val_k * chi_at_point(r, addr, num_bits)
-    }).sum()
+    program_io
+        .claims()
+        .map(|(addr, val)| {
+            let val_k: K = val.into();
+            val_k * chi_at_point(r, addr, num_bits)
+        })
+        .sum()
 }
 
 // ============================================================================
@@ -213,11 +264,18 @@ impl<F: Field + Into<neo_math::F> + Copy> OutputSumcheckParams<F> {
     ) -> Result<Self, OutputCheckError> {
         program_io.validate(num_bits)?;
         program_io.absorb_into_transcript(tr);
-        let r_addr = (0..num_bits).map(|i| {
-            tr.append_message(b"output_check/r_addr/idx", &(i as u64).to_le_bytes());
-            sample_k_challenge(tr)
-        }).collect();
-        Ok(Self { k: 1 << num_bits, num_bits, r_addr, program_io })
+        let r_addr = (0..num_bits)
+            .map(|i| {
+                tr.append_message(b"output_check/r_addr/idx", &(i as u64).to_le_bytes());
+                sample_k_challenge(tr)
+            })
+            .collect();
+        Ok(Self {
+            k: 1 << num_bits,
+            num_bits,
+            r_addr,
+            program_io,
+        })
     }
 
     /// For testing only - use sample_from_transcript in production
@@ -227,11 +285,20 @@ impl<F: Field + Into<neo_math::F> + Copy> OutputSumcheckParams<F> {
         program_io: ProgramIO<F>,
     ) -> Result<Self, OutputCheckError> {
         program_io.validate(num_bits)?;
-        Ok(Self { k: 1 << num_bits, num_bits, r_addr, program_io })
+        Ok(Self {
+            k: 1 << num_bits,
+            num_bits,
+            r_addr,
+            program_io,
+        })
     }
 
-    pub fn num_rounds(&self) -> usize { self.num_bits }
-    pub fn degree_bound(&self) -> usize { 3 }
+    pub fn num_rounds(&self) -> usize {
+        self.num_bits
+    }
+    pub fn degree_bound(&self) -> usize {
+        3
+    }
 }
 
 // ============================================================================
@@ -252,39 +319,52 @@ impl<F: Field + Into<K> + Clone> OutputSumcheckProver<F> {
     pub fn new(params: OutputSumcheckParams<F>, final_memory_state: &[F]) -> Result<Self, OutputCheckError> {
         let (num_bits, k) = (params.num_bits, params.k);
         if final_memory_state.len() != k {
-            return Err(OutputCheckError::DimensionMismatch { expected: k, got: final_memory_state.len() });
+            return Err(OutputCheckError::DimensionMismatch {
+                expected: k,
+                got: final_memory_state.len(),
+            });
         }
 
         let eq_table = build_chi_table(&params.r_addr);
-        
+
         // Build sparse mask table
         let mut io_mask_table = vec![K::ZERO; k];
         for addr in params.program_io.claimed_addresses() {
-            if (addr as usize) < k { io_mask_table[addr as usize] = K::ONE; }
+            if (addr as usize) < k {
+                io_mask_table[addr as usize] = K::ONE;
+            }
         }
-        
+
         let val_final_table: Vec<K> = final_memory_state.iter().map(|v| (*v).into()).collect();
-        
+
         // Build sparse val_io table
         let mut val_io_table = vec![K::ZERO; k];
         for (addr, val) in params.program_io.claims() {
-            if (addr as usize) < k { val_io_table[addr as usize] = val.into(); }
+            if (addr as usize) < k {
+                val_io_table[addr as usize] = val.into();
+            }
         }
 
         Ok(Self {
-            eq_table, io_mask_table, val_final_table, val_io_table,
-            rounds_remaining: num_bits, challenges: Vec::with_capacity(num_bits),
+            eq_table,
+            io_mask_table,
+            val_final_table,
+            val_io_table,
+            rounds_remaining: num_bits,
+            challenges: Vec::with_capacity(num_bits),
             _phantom: std::marker::PhantomData,
         })
     }
 
     pub fn compute_claim(&self) -> K {
-        (0..self.eq_table.len()).map(|i| {
-            self.eq_table[i] * self.io_mask_table[i] * (self.val_final_table[i] - self.val_io_table[i])
-        }).sum()
+        (0..self.eq_table.len())
+            .map(|i| self.eq_table[i] * self.io_mask_table[i] * (self.val_final_table[i] - self.val_io_table[i]))
+            .sum()
     }
 
-    pub fn challenges(&self) -> &[K] { &self.challenges }
+    pub fn challenges(&self) -> &[K] {
+        &self.challenges
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -378,8 +458,12 @@ impl<F: Field + Into<K> + Clone> RoundOracle for OutputSumcheckProver<F> {
             .collect()
     }
 
-    fn num_rounds(&self) -> usize { self.rounds_remaining }
-    fn degree_bound(&self) -> usize { 3 }
+    fn num_rounds(&self) -> usize {
+        self.rounds_remaining
+    }
+    fn degree_bound(&self) -> usize {
+        3
+    }
 
     fn fold(&mut self, r: K) {
         let n = self.eq_table.len();
@@ -448,7 +532,11 @@ fn verify_sumcheck_rounds(
 
     for (round, coeffs) in round_polys.iter().enumerate() {
         if coeffs.len() != expected_num_coeffs {
-            return Err(OutputCheckError::WrongDegree { round, expected: expected_num_coeffs, got: coeffs.len() });
+            return Err(OutputCheckError::WrongDegree {
+                round,
+                expected: expected_num_coeffs,
+                got: coeffs.len(),
+            });
         }
         let (p_0, p_1) = (eval_poly(coeffs, K::ZERO), eval_poly(coeffs, K::ONE));
         if p_0 + p_1 != current_claim {
@@ -457,7 +545,9 @@ fn verify_sumcheck_rounds(
                 message: format!("p(0)+p(1)={:?}, expected {:?}", p_0 + p_1, current_claim),
             });
         }
-        for &c in coeffs { absorb_k(tr, coeff_label, c); }
+        for &c in coeffs {
+            absorb_k(tr, coeff_label, c);
+        }
         let r = sample_k_challenge(tr);
         challenges.push(r);
         current_claim = eval_poly(coeffs, r);
@@ -513,12 +603,16 @@ fn run_sumcheck_prover<O: RoundOracle>(
     coeff_label: &'static [u8],
 ) -> Vec<Vec<K>> {
     let num_rounds = oracle.num_rounds();
-    let eval_points: Vec<K> = (0..=oracle.degree_bound()).map(|i| K::from_u64(i as u64)).collect();
+    let eval_points: Vec<K> = (0..=oracle.degree_bound())
+        .map(|i| K::from_u64(i as u64))
+        .collect();
     let mut round_polys = Vec::with_capacity(num_rounds);
 
     for _ in 0..num_rounds {
         let coeffs = interpolate(&eval_points, &oracle.evals_at(&eval_points));
-        for &c in &coeffs { absorb_k(tr, coeff_label, c); }
+        for &c in &coeffs {
+            absorb_k(tr, coeff_label, c);
+        }
         round_polys.push(coeffs);
         oracle.fold(sample_k_challenge(tr));
     }
@@ -526,9 +620,7 @@ fn run_sumcheck_prover<O: RoundOracle>(
 }
 
 /// Generate an output sumcheck proof and return the sampled `r'` challenges.
-pub fn generate_output_sumcheck_proof_and_challenges<
-    F: Field + Into<K> + Into<neo_math::F> + Clone + Copy,
->(
+pub fn generate_output_sumcheck_proof_and_challenges<F: Field + Into<K> + Into<neo_math::F> + Clone + Copy>(
     tr: &mut Poseidon2Transcript,
     num_bits: usize,
     program_io: ProgramIO<F>,
@@ -608,7 +700,10 @@ pub fn verify_output_sumcheck<F: Field + Into<K> + Into<neo_math::F> + Clone + C
     let expected = eq_eval * io_mask_eval * (val_final_at_r_prime - val_io_eval);
 
     if final_claim != expected {
-        return Err(OutputCheckError::FinalClaimMismatch { got: final_claim, expected });
+        return Err(OutputCheckError::FinalClaimMismatch {
+            got: final_claim,
+            expected,
+        });
     }
 
     Ok(())

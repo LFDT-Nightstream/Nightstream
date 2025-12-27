@@ -9,9 +9,7 @@ use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_fold::output_binding::OutputBindingConfig;
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::shard::{
-    fold_shard_prove_with_output_binding, fold_shard_verify_with_output_binding, CommitMixers,
-};
+use neo_fold::shard::{fold_shard_prove_with_output_binding, fold_shard_verify_with_output_binding, CommitMixers};
 use neo_fold::PiCcsError;
 use neo_math::{D, F, K};
 use neo_memory::cpu::build_bus_layout_for_instances;
@@ -79,7 +77,12 @@ fn empty_identity_first_r1cs_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![i_n, a, b, c], f).expect("CCS")
 }
 
-fn create_mcs_from_z(params: &NeoParams, l: &DummyCommit, m_in: usize, z: Vec<F>) -> (McsInstance<Cmt, F>, McsWitness<F>) {
+fn create_mcs_from_z(
+    params: &NeoParams,
+    l: &DummyCommit,
+    m_in: usize,
+    z: Vec<F>,
+) -> (McsInstance<Cmt, F>, McsWitness<F>) {
     let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
     let c = l.commit(&Z);
     let x = z[..m_in].to_vec();
@@ -190,8 +193,7 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
         mem_instances: vec![(mem_inst, mem_wit)],
         _phantom: PhantomData,
     }];
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps_witness.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps_witness.iter().map(StepInstanceBundle::from).collect();
 
     let final_memory_state = vec![F::ZERO, F::ZERO, F::from_u64(7), F::ZERO];
 

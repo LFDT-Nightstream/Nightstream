@@ -12,7 +12,9 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::session::{FoldingSession, ProveInput};
-use neo_memory::riscv_ccs::{build_riscv_alu_step_ccs, check_ccs_satisfaction, witness_from_trace_step, RiscvWitnessLayout};
+use neo_memory::riscv_ccs::{
+    build_riscv_alu_step_ccs, check_ccs_satisfaction, witness_from_trace_step, RiscvWitnessLayout,
+};
 use neo_memory::riscv_lookups::{RiscvCpu, RiscvInstruction, RiscvMemory, RiscvOpcode, RiscvShoutTables};
 use neo_params::NeoParams;
 use neo_vm_trace::trace_program;
@@ -99,12 +101,17 @@ fn test_riscv_program_full_prove_verify() {
             witness: witness.private_witness(),
             output_claims: &[],
         };
-        session.add_step_from_io(&input).expect("add_step_from_io should succeed");
+        session
+            .add_step_from_io(&input)
+            .expect("add_step_from_io should succeed");
     }
 
-    let run = session.fold_and_prove(&ccs).expect("fold_and_prove should succeed");
+    let run = session
+        .fold_and_prove(&ccs)
+        .expect("fold_and_prove should succeed");
     let mcss_public = session.mcss_public();
-    let ok = session.verify(&ccs, &mcss_public, &run).expect("verify should run");
+    let ok = session
+        .verify(&ccs, &mcss_public, &run)
+        .expect("verify should run");
     assert!(ok, "verification should succeed");
 }
-

@@ -15,13 +15,13 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt};
+use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::shard::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, F, K};
 use neo_memory::plain::{LutTable, PlainLutTrace};
@@ -97,7 +97,10 @@ fn build_4bit_range_table() -> LutTable<F> {
 fn make_shout_instance(
     table: &LutTable<F>,
     steps: usize,
-) -> (neo_memory::witness::LutInstance<Cmt, F>, neo_memory::witness::LutWitness<F>) {
+) -> (
+    neo_memory::witness::LutInstance<Cmt, F>,
+    neo_memory::witness::LutWitness<F>,
+) {
     let ell = table.n_side.trailing_zeros() as usize;
     (
         neo_memory::witness::LutInstance {
@@ -210,8 +213,7 @@ fn range_check_4bit_valid() {
             addr: vec![val],
             val: vec![range_table.content[val as usize]],
         };
-        let step_bundle =
-            create_step_with_shout_bus(&params, &ccs, &l, val, vec![(&range_table, range_trace)]);
+        let step_bundle = create_step_with_shout_bus(&params, &ccs, &l, val, vec![(&range_table, range_trace)]);
 
         let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
         let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -266,8 +268,7 @@ fn range_check_4bit_invalid_value_fails() {
         addr: vec![20],
         val: vec![F::from_u64(20)],
     };
-    let step_bundle =
-        create_step_with_shout_bus(&params, &ccs, &l, 20, vec![(&range_table, bad_trace)]);
+    let step_bundle = create_step_with_shout_bus(&params, &ccs, &l, 20, vec![(&range_table, bad_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -506,8 +507,7 @@ fn range_check_wrong_value_claimed_fails() {
         addr: vec![5],
         val: vec![F::from_u64(10)], // WRONG: should be 5
     };
-    let step_bundle =
-        create_step_with_shout_bus(&params, &ccs, &l, 5, vec![(&range_table, bad_trace)]);
+    let step_bundle = create_step_with_shout_bus(&params, &ccs, &l, 5, vec![(&range_table, bad_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -595,8 +595,7 @@ fn range_check_boundary_values() {
     .expect("prove should succeed for boundary values");
 
     let mut tr_verify = Poseidon2Transcript::new(b"range-boundary");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,

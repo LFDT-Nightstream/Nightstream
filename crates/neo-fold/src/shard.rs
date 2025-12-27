@@ -31,9 +31,7 @@ use neo_memory::ts_common as ts;
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils;
-use neo_reductions::paper_exact_engine::{
-    build_me_outputs_paper_exact, claimed_initial_sum_from_inputs,
-};
+use neo_reductions::paper_exact_engine::{build_me_outputs_paper_exact, claimed_initial_sum_from_inputs};
 use neo_reductions::sumcheck::{poly_eval_k, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -367,7 +365,10 @@ where
         RlcLane::Val => "val-lane ",
     };
     if parent_pub.X.as_slice() != rlc_parent.X.as_slice() {
-        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC X mismatch", step_idx)));
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: {prefix}RLC X mismatch",
+            step_idx
+        )));
     }
     if parent_pub.c != rlc_parent.c {
         return Err(PiCcsError::ProtocolError(format!(
@@ -376,10 +377,16 @@ where
         )));
     }
     if parent_pub.r != rlc_parent.r {
-        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC r mismatch", step_idx)));
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: {prefix}RLC r mismatch",
+            step_idx
+        )));
     }
     if parent_pub.y != rlc_parent.y {
-        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC y mismatch", step_idx)));
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: {prefix}RLC y mismatch",
+            step_idx
+        )));
     }
     if parent_pub.y_scalars != rlc_parent.y_scalars {
         return Err(PiCcsError::ProtocolError(format!(
@@ -446,9 +453,7 @@ where
     let mut output_proof: Option<neo_memory::output_check::OutputBindingProof> = None;
 
     if ob.is_some() && steps.is_empty() {
-        return Err(PiCcsError::InvalidInput(
-            "output binding requires >= 1 step".into(),
-        ));
+        return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
     }
 
     for (idx, step) in steps.iter().enumerate() {
@@ -460,9 +465,8 @@ where
 
         // Output binding is injected only on the final step, and must run before sampling Route-A `r_time`.
         if include_ob {
-            let (cfg, final_memory_state) = ob.ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but config missing".into())
-            })?;
+            let (cfg, final_memory_state) =
+                ob.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
 
             if output_proof.is_some() {
                 return Err(PiCcsError::ProtocolError(
@@ -502,14 +506,13 @@ where
             tr.append_u64s(b"output_binding/mem_idx", &[cfg.mem_idx as u64]);
             tr.append_u64s(b"output_binding/num_bits", &[cfg.num_bits as u64]);
 
-            let (output_sc, r_prime) =
-                neo_memory::output_check::generate_output_sumcheck_proof_and_challenges(
-                    tr,
-                    cfg.num_bits,
-                    cfg.program_io.clone(),
-                    final_memory_state,
-                )
-                .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
+            let (output_sc, r_prime) = neo_memory::output_check::generate_output_sumcheck_proof_and_challenges(
+                tr,
+                cfg.num_bits,
+                cfg.program_io.clone(),
+                final_memory_state,
+            )
+            .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
 
             output_proof = Some(neo_memory::output_check::OutputBindingProof { output_sc });
             ob_r_prime = Some(r_prime);
@@ -606,24 +609,18 @@ where
         let twist_read_claims: Vec<K> = twist_pre.iter().map(|p| p.read_check_claim_sum).collect();
         let twist_write_claims: Vec<K> = twist_pre.iter().map(|p| p.write_check_claim_sum).collect();
         let mut mem_oracles = crate::memory_sidecar::memory::build_route_a_memory_oracles(
-            params,
-            step,
-            ell_n,
-            &r_cycle,
-            &shout_pre,
-            &twist_pre,
+            params, step, ell_n, &r_cycle, &shout_pre, &twist_pre,
         )?;
 
         if include_ob {
-            let (cfg, _final_memory_state) = ob.ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but config missing".into())
-            })?;
+            let (cfg, _final_memory_state) =
+                ob.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
             let r_prime = ob_r_prime
                 .as_ref()
                 .ok_or_else(|| PiCcsError::ProtocolError("output binding r_prime missing".into()))?;
-            let pre = twist_pre.get(cfg.mem_idx).ok_or_else(|| {
-                PiCcsError::ProtocolError("output binding mem_idx out of range for twist_pre".into())
-            })?;
+            let pre = twist_pre
+                .get(cfg.mem_idx)
+                .ok_or_else(|| PiCcsError::ProtocolError("output binding mem_idx out of range for twist_pre".into()))?;
 
             let (oracle, claimed_sum) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
                 pre.decoded.wa_bits.clone(),
@@ -718,21 +715,21 @@ where
         // Memory sidecar: emit ME claims at the shared r_time (no fixed-challenge sumcheck).
         let prev_step = (idx > 0).then(|| &steps[idx - 1]);
         let prev_twist_decoded_ref = prev_twist_decoded.as_deref();
-	        let mut mem_proof = crate::memory_sidecar::memory::finalize_route_a_memory_prover(
-	            tr,
-	            params,
-	            &s,
-	            step,
-	            prev_step,
-	            prev_twist_decoded_ref,
-	            &mut mem_oracles,
-	            &shout_pre,
-	            &twist_pre,
-	            &r_time,
-	            mcs_inst.m_in,
-	            idx,
-	        )?;
-	        prev_twist_decoded = Some(twist_pre.into_iter().map(|p| p.decoded).collect());
+        let mut mem_proof = crate::memory_sidecar::memory::finalize_route_a_memory_prover(
+            tr,
+            params,
+            &s,
+            step,
+            prev_step,
+            prev_twist_decoded_ref,
+            &mut mem_oracles,
+            &shout_pre,
+            &twist_pre,
+            &r_time,
+            mcs_inst.m_in,
+            idx,
+        )?;
+        prev_twist_decoded = Some(twist_pre.into_iter().map(|p| p.decoded).collect());
 
         normalize_me_claims(&mut mem_proof.cpu_me_claims_val, ell_n, ell_d, s.t())?;
 
@@ -849,8 +846,19 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    let (proof, _final_main_wits, _val_lane_wits) =
-        fold_shard_prove_impl(false, mode, tr, params, s_me, steps, acc_init, acc_wit_init, l, mixers, None)?;
+    let (proof, _final_main_wits, _val_lane_wits) = fold_shard_prove_impl(
+        false,
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        acc_wit_init,
+        l,
+        mixers,
+        None,
+    )?;
     Ok(proof)
 }
 
@@ -904,8 +912,19 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    let (proof, final_main_wits, val_lane_wits) =
-        fold_shard_prove_impl(true, mode, tr, params, s_me, steps, acc_init, acc_wit_init, l, mixers, None)?;
+    let (proof, final_main_wits, val_lane_wits) = fold_shard_prove_impl(
+        true,
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        acc_wit_init,
+        l,
+        mixers,
+        None,
+    )?;
     let outputs = proof.compute_fold_outputs(acc_init);
     if outputs.obligations.main.len() != final_main_wits.len() {
         return Err(PiCcsError::ProtocolError(format!(
@@ -973,9 +992,7 @@ where
         )));
     }
     if ob_cfg.is_some() && steps.is_empty() {
-        return Err(PiCcsError::InvalidInput(
-            "output binding requires >= 1 step".into(),
-        ));
+        return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
     }
     if ob_cfg.is_none() && proof.output_proof.is_some() {
         return Err(PiCcsError::InvalidInput(
@@ -999,19 +1016,20 @@ where
         let mut ob_inc_total_degree_bound: Option<usize> = None;
 
         if include_ob {
-            let cfg = ob_cfg.ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but config missing".into())
-            })?;
-            let ob_proof = proof.output_proof.as_ref().ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but proof missing".into())
-            })?;
+            let cfg =
+                ob_cfg.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
+            let ob_proof = proof
+                .output_proof
+                .as_ref()
+                .ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but proof missing".into()))?;
 
             if cfg.mem_idx >= step.mem_insts.len() {
                 return Err(PiCcsError::InvalidInput("output binding mem_idx out of range".into()));
             }
-            let mem_inst = step.mem_insts.get(cfg.mem_idx).ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding mem_idx out of range".into())
-            })?;
+            let mem_inst = step
+                .mem_insts
+                .get(cfg.mem_idx)
+                .ok_or_else(|| PiCcsError::InvalidInput("output binding mem_idx out of range".into()))?;
             let expected_k = 1usize
                 .checked_shl(cfg.num_bits as u32)
                 .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^num_bits overflow".into()))?;
@@ -1071,7 +1089,9 @@ where
         let claimed_initial = match &mode {
             FoldingMode::Optimized => crate::optimized_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator),
             #[cfg(feature = "paper-exact")]
-            FoldingMode::PaperExact => crate::paper_exact_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator),
+            FoldingMode::PaperExact => {
+                crate::paper_exact_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator)
+            }
             #[cfg(feature = "paper-exact")]
             FoldingMode::OptimizedWithCrosscheck(_) => {
                 crate::optimized_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator)
@@ -1282,9 +1302,8 @@ where
         }
 
         if include_ob {
-            let cfg = ob_cfg.ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but config missing".into())
-            })?;
+            let cfg =
+                ob_cfg.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
             let ob_state = ob_state
                 .take()
                 .ok_or_else(|| PiCcsError::ProtocolError("output sumcheck state missing".into()))?;
@@ -1293,9 +1312,7 @@ where
                 .len()
                 .checked_sub(1)
                 .ok_or_else(|| PiCcsError::ProtocolError("missing inc_total claim".into()))?;
-            if step_proof.batched_time.labels.get(inc_idx).copied()
-                != Some(crate::output_binding::OB_INC_TOTAL_LABEL)
-            {
+            if step_proof.batched_time.labels.get(inc_idx).copied() != Some(crate::output_binding::OB_INC_TOTAL_LABEL) {
                 return Err(PiCcsError::ProtocolError("output binding claim not last".into()));
             }
 
@@ -1308,19 +1325,20 @@ where
                 .get(inc_idx)
                 .ok_or_else(|| PiCcsError::ProtocolError("missing inc_total final_value".into()))?;
 
-            let twist_open = mem_out.twist_time_openings.get(cfg.mem_idx).ok_or_else(|| {
-                PiCcsError::ProtocolError("missing twist_time_openings for mem_idx".into())
-            })?;
-            let inc_terminal =
-                crate::output_binding::inc_terminal_from_time_openings(twist_open, &ob_state.r_prime)
-                    .map_err(|e| PiCcsError::ProtocolError(format!("inc_total terminal mismatch: {e:?}")))?;
+            let twist_open = mem_out
+                .twist_time_openings
+                .get(cfg.mem_idx)
+                .ok_or_else(|| PiCcsError::ProtocolError("missing twist_time_openings for mem_idx".into()))?;
+            let inc_terminal = crate::output_binding::inc_terminal_from_time_openings(twist_open, &ob_state.r_prime)
+                .map_err(|e| PiCcsError::ProtocolError(format!("inc_total terminal mismatch: {e:?}")))?;
             if inc_total_final != inc_terminal {
                 return Err(PiCcsError::ProtocolError("inc_total terminal mismatch".into()));
             }
 
-            let mem_inst = step.mem_insts.get(cfg.mem_idx).ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding mem_idx out of range".into())
-            })?;
+            let mem_inst = step
+                .mem_insts
+                .get(cfg.mem_idx)
+                .ok_or_else(|| PiCcsError::InvalidInput("output binding mem_idx out of range".into()))?;
             let expected_k = 1usize
                 .checked_shl(cfg.num_bits as u32)
                 .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^num_bits overflow".into()))?;
@@ -1337,9 +1355,8 @@ where
                     cfg.num_bits, ell_addr
                 )));
             }
-            let val_init =
-                crate::output_binding::val_init_from_mem_init(&mem_inst.init, mem_inst.k, &ob_state.r_prime)
-                    .map_err(|e| PiCcsError::ProtocolError(format!("MemInit eval failed: {e:?}")))?;
+            let val_init = crate::output_binding::val_init_from_mem_init(&mem_inst.init, mem_inst.k, &ob_state.r_prime)
+                .map_err(|e| PiCcsError::ProtocolError(format!("MemInit eval failed: {e:?}")))?;
 
             let val_final_at_r_prime = val_init + inc_total_claim;
             let expected_out = ob_state.eq_eval * ob_state.io_mask_eval * (val_final_at_r_prime - ob_state.val_io_eval);
@@ -1368,7 +1385,10 @@ where
         accumulator = step_proof.fold.dec_children.clone();
 
         // Phase 2: Verify the r_val folding lane for Twist val-eval ME claims.
-        match (step_proof.mem.cpu_me_claims_val.is_empty(), step_proof.val_fold.as_ref()) {
+        match (
+            step_proof.mem.cpu_me_claims_val.is_empty(),
+            step_proof.val_fold.as_ref(),
+        ) {
             (true, None) => {}
             (true, Some(_)) => {
                 return Err(PiCcsError::ProtocolError(format!(

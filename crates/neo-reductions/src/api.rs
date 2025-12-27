@@ -104,9 +104,13 @@ pub fn verify(
     proof: &PiCcsProof,
 ) -> Result<bool, PiCcsError> {
     match mode {
-        FoldingMode::Optimized => crate::engines::OptimizedEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof),
+        FoldingMode::Optimized => {
+            crate::engines::OptimizedEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)
+        }
         #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::PaperExactEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof),
+        FoldingMode::PaperExact => {
+            crate::engines::PaperExactEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)
+        }
         #[cfg(feature = "paper-exact")]
         FoldingMode::OptimizedWithCrosscheck(cfg) => crate::engines::CrossCheckEngine {
             inner: crate::engines::OptimizedEngine,

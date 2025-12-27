@@ -1,7 +1,7 @@
 use crate::ajtai::decode_vector as ajtai_decode_vector;
+use crate::riscv_lookups::{compute_op, uninterleave_bits};
 use crate::sumcheck_proof::BatchedAddrProof;
 use crate::ts_common as ts;
-use crate::riscv_lookups::{compute_op, uninterleave_bits};
 use crate::witness::{LutInstance, LutTableSpec, LutWitness};
 use neo_ccs::matrix::Mat;
 use neo_params::NeoParams;

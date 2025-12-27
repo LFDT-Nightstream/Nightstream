@@ -9,7 +9,7 @@ use crate::riscv_lookups::{decode_instruction, RiscvInstruction};
 const ELF_MAGIC: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 const ELF_CLASS_32: u8 = 1;
 const ELF_CLASS_64: u8 = 2;
-const ELF_DATA_LE: u8 = 1;  // Little-endian
+const ELF_DATA_LE: u8 = 1; // Little-endian
 const ELF_MACHINE_RISCV: u16 = 0xF3;
 
 /// Program header types.
@@ -133,12 +133,12 @@ pub fn load_elf(data: &[u8]) -> Result<LoadedProgram, ElfError> {
                         segment_data[offset + 3],
                     ];
                     let instr_word = u32::from_le_bytes(instr_bytes);
-                    
+
                     // Skip zero instructions (padding)
                     if instr_word == 0 {
                         continue;
                     }
-                    
+
                     match decode_instruction(instr_word) {
                         Ok(instr) => {
                             let addr = vaddr + offset as u64;
@@ -182,12 +182,10 @@ fn parse_elf64_header(data: &[u8]) -> Result<(u64, u64, u16, u16), ElfError> {
     }
 
     let entry = u64::from_le_bytes([
-        data[24], data[25], data[26], data[27],
-        data[28], data[29], data[30], data[31],
+        data[24], data[25], data[26], data[27], data[28], data[29], data[30], data[31],
     ]);
     let phoff = u64::from_le_bytes([
-        data[32], data[33], data[34], data[35],
-        data[36], data[37], data[38], data[39],
+        data[32], data[33], data[34], data[35], data[36], data[37], data[38], data[39],
     ]);
     let phentsize = u16::from_le_bytes([data[54], data[55]]);
     let phnum = u16::from_le_bytes([data[56], data[57]]);
@@ -201,22 +199,20 @@ fn parse_elf32_phdr(data: &[u8], offset: usize) -> Result<Option<(u64, Vec<u8>)>
         return Err(ElfError::TooShort);
     }
 
-    let p_type = u32::from_le_bytes([
-        data[offset], data[offset + 1], data[offset + 2], data[offset + 3],
-    ]);
+    let p_type = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
 
     if p_type != PT_LOAD {
         return Ok(None);
     }
 
-    let p_offset = u32::from_le_bytes([
-        data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7],
-    ]) as usize;
-    let p_vaddr = u32::from_le_bytes([
-        data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11],
-    ]) as u64;
+    let p_offset =
+        u32::from_le_bytes([data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]]) as usize;
+    let p_vaddr = u32::from_le_bytes([data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11]]) as u64;
     let p_filesz = u32::from_le_bytes([
-        data[offset + 16], data[offset + 17], data[offset + 18], data[offset + 19],
+        data[offset + 16],
+        data[offset + 17],
+        data[offset + 18],
+        data[offset + 19],
     ]) as usize;
 
     if p_offset + p_filesz > data.len() {
@@ -233,25 +229,41 @@ fn parse_elf64_phdr(data: &[u8], offset: usize) -> Result<Option<(u64, Vec<u8>)>
         return Err(ElfError::TooShort);
     }
 
-    let p_type = u32::from_le_bytes([
-        data[offset], data[offset + 1], data[offset + 2], data[offset + 3],
-    ]);
+    let p_type = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
 
     if p_type != PT_LOAD {
         return Ok(None);
     }
 
     let p_offset = u64::from_le_bytes([
-        data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11],
-        data[offset + 12], data[offset + 13], data[offset + 14], data[offset + 15],
+        data[offset + 8],
+        data[offset + 9],
+        data[offset + 10],
+        data[offset + 11],
+        data[offset + 12],
+        data[offset + 13],
+        data[offset + 14],
+        data[offset + 15],
     ]) as usize;
     let p_vaddr = u64::from_le_bytes([
-        data[offset + 16], data[offset + 17], data[offset + 18], data[offset + 19],
-        data[offset + 20], data[offset + 21], data[offset + 22], data[offset + 23],
+        data[offset + 16],
+        data[offset + 17],
+        data[offset + 18],
+        data[offset + 19],
+        data[offset + 20],
+        data[offset + 21],
+        data[offset + 22],
+        data[offset + 23],
     ]);
     let p_filesz = u64::from_le_bytes([
-        data[offset + 32], data[offset + 33], data[offset + 34], data[offset + 35],
-        data[offset + 36], data[offset + 37], data[offset + 38], data[offset + 39],
+        data[offset + 32],
+        data[offset + 33],
+        data[offset + 34],
+        data[offset + 35],
+        data[offset + 36],
+        data[offset + 37],
+        data[offset + 38],
+        data[offset + 39],
     ]) as usize;
 
     if p_offset + p_filesz > data.len() {
@@ -272,18 +284,13 @@ pub fn load_raw_binary(data: &[u8], base_addr: u64) -> Result<LoadedProgram, Elf
 
     let mut instructions = Vec::new();
     for offset in (0..data.len()).step_by(4) {
-        let instr_bytes = [
-            data[offset],
-            data[offset + 1],
-            data[offset + 2],
-            data[offset + 3],
-        ];
+        let instr_bytes = [data[offset], data[offset + 1], data[offset + 2], data[offset + 3]];
         let instr_word = u32::from_le_bytes(instr_bytes);
-        
+
         if instr_word == 0 {
             continue;
         }
-        
+
         match decode_instruction(instr_word) {
             Ok(instr) => {
                 let addr = base_addr + offset as u64;
@@ -304,14 +311,17 @@ pub fn load_raw_binary(data: &[u8], base_addr: u64) -> Result<LoadedProgram, Elf
 impl LoadedProgram {
     /// Get instructions as a vector suitable for RiscvCpu::load_program.
     pub fn get_instructions(&self) -> Vec<RiscvInstruction> {
-        self.instructions.iter().map(|(_, instr)| instr.clone()).collect()
+        self.instructions
+            .iter()
+            .map(|(_, instr)| instr.clone())
+            .collect()
     }
-    
+
     /// Get the total code size in bytes.
     pub fn code_size(&self) -> usize {
         self.instructions.len() * 4
     }
-    
+
     /// Print a disassembly of the program.
     pub fn disassemble(&self) {
         println!("Entry point: {:#x}", self.entry);

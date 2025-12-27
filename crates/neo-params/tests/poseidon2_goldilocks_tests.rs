@@ -14,4 +14,3 @@ fn seed_fixed() {
     // Verify seed hasn't been accidentally changed
     assert_eq!(SEED.len(), 32, "Seed must be 32 bytes");
 }
-

@@ -1,5 +1,5 @@
-use neo_memory::twist_oracle::ProductRoundOracle;
 use neo_math::K;
+use neo_memory::twist_oracle::ProductRoundOracle;
 use neo_reductions::sumcheck::RoundOracle;
 use p3_field::PrimeCharacteristicRing;
 
@@ -20,4 +20,3 @@ fn product_round_oracle_len1_factors_evals_at_product() {
     assert_eq!(evals, vec![K::from_u64(15), K::from_u64(15)]);
     assert_eq!(oracle.sum_over_hypercube(), K::from_u64(15));
 }
-

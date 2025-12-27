@@ -30,18 +30,15 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{
-    fold_shard_prove as fold_shard_prove_shared_cpu_bus,
-    fold_shard_verify as fold_shard_verify_shared_cpu_bus,
+    fold_shard_prove as fold_shard_prove_shared_cpu_bus, fold_shard_verify as fold_shard_verify_shared_cpu_bus,
     CommitMixers,
 };
 use neo_math::{D, F, K};
-use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::{
-    LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle,
-};
-use neo_memory::MemInit;
 use neo_memory::cpu::build_bus_layout_for_instances;
 use neo_memory::cpu::constraints::{CpuColumnLayout, CpuConstraintBuilder};
+use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
+use neo_memory::witness::{LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle};
+use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -210,7 +207,9 @@ fn create_ccs_referencing_all_twist_bus_cols(n: usize, m: usize, bus_base: usize
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
     builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
-    builder.build().expect("should build CCS with Twist constraints")
+    builder
+        .build()
+        .expect("should build CCS with Twist constraints")
 }
 
 /// Create a CCS referencing all required Shout + Twist bus columns
@@ -231,7 +230,9 @@ fn create_ccs_referencing_all_shout_twist_bus_cols(
     builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
     builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
-    builder.build().expect("should build CCS with Shout+Twist constraints")
+    builder
+        .build()
+        .expect("should build CCS with Shout+Twist constraints")
 }
 
 /// Build CPU witness with properly filled bus region for Twist
@@ -339,8 +340,7 @@ fn ccs_must_reference_bus_columns_guardrail() {
         },
     );
 
-    let (mem_inst, mem_wit) =
-        metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
+    let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -1094,8 +1094,7 @@ fn write_then_read_consistency_attack_should_be_rejected() {
         },
     );
 
-    let (mem_inst1, mem_wit1) =
-        metadata_only_mem_instance(&mem_layout, mem_init_step1, mem_trace_step1.steps);
+    let (mem_inst1, mem_wit1) = metadata_only_mem_instance(&mem_layout, mem_init_step1, mem_trace_step1.steps);
 
     // Step 2: ATTACK - Read from addr 0, claim value is 0 (should be 100)
     let mem_init_step2 = MemInit::Sparse(vec![(0, F::from_u64(100))]); // State after step 1
@@ -1134,8 +1133,7 @@ fn write_then_read_consistency_attack_should_be_rejected() {
         },
     );
 
-    let (mem_inst2, mem_wit2) =
-        metadata_only_mem_instance(&mem_layout, mem_init_step2, mem_trace_step2.steps);
+    let (mem_inst2, mem_wit2) = metadata_only_mem_instance(&mem_layout, mem_init_step2, mem_trace_step2.steps);
 
     let steps_witness = vec![
         StepWitnessBundle {

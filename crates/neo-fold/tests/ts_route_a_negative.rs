@@ -1,13 +1,14 @@
 #![allow(non_snake_case)]
 
 use neo_fold::memory_sidecar::sumcheck_ds::{
-    run_batched_sumcheck_prover_ds, run_sumcheck_prover_ds, verify_batched_sumcheck_rounds_ds, verify_sumcheck_rounds_ds,
+    run_batched_sumcheck_prover_ds, run_sumcheck_prover_ds, verify_batched_sumcheck_rounds_ds,
+    verify_sumcheck_rounds_ds,
 };
 use neo_math::{F, K};
 use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::twist_oracle::{
-    table_mle_eval, AddressLookupOracle, IndexAdapterOracleSparseTime, LazyBitnessOracleSparseTime, ShoutValueOracleSparse,
-    TwistReadCheckOracleSparseTime, TwistWriteCheckOracleSparseTime,
+    table_mle_eval, AddressLookupOracle, IndexAdapterOracleSparseTime, LazyBitnessOracleSparseTime,
+    ShoutValueOracleSparse, TwistReadCheckOracleSparseTime, TwistWriteCheckOracleSparseTime,
 };
 use neo_reductions::sumcheck::{BatchedClaim, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -244,10 +245,19 @@ fn route_a_twist_inc_flip_fails() {
 
     let mut bitness: Vec<LazyBitnessOracleSparseTime> = Vec::with_capacity(2 * ell_addr + 2);
     for col in ra_bits.iter().cloned().chain(wa_bits.iter().cloned()) {
-        bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(&r_cycle, dense_to_sparse(&col)));
+        bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(
+            &r_cycle,
+            dense_to_sparse(&col),
+        ));
     }
-    bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(&r_cycle, dense_to_sparse(&has_read)));
-    bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(&r_cycle, dense_to_sparse(&has_write)));
+    bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(
+        &r_cycle,
+        dense_to_sparse(&has_read),
+    ));
+    bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(
+        &r_cycle,
+        dense_to_sparse(&has_write),
+    ));
 
     let mut claimed_sums = Vec::with_capacity(2 + bitness.len());
     let mut degree_bounds = Vec::with_capacity(2 + bitness.len());
@@ -288,7 +298,10 @@ fn route_a_twist_inc_flip_fails() {
         run_batched_sumcheck_prover_ds(&mut tr_p, b"twist/time_batch", 0, claims.as_mut_slice())
             .expect("Twist time batch should succeed on valid witness");
 
-    let round_polys: Vec<Vec<Vec<K>>> = per_claim_results.into_iter().map(|r| r.round_polys).collect();
+    let round_polys: Vec<Vec<Vec<K>>> = per_claim_results
+        .into_iter()
+        .map(|r| r.round_polys)
+        .collect();
 
     let mut tr_v = Poseidon2Transcript::new(b"twist/route_a_negative");
     let (_r_time_v, _finals, ok) = verify_batched_sumcheck_rounds_ds(
@@ -379,7 +392,10 @@ fn route_a_proof_tamper_round_poly_fails() {
     let (_r_time, per_claim_results) =
         run_batched_sumcheck_prover_ds(&mut tr_p, b"shout/time_batch", 0, claims.as_mut_slice())
             .expect("prover should succeed");
-    let mut round_polys: Vec<Vec<Vec<K>>> = per_claim_results.into_iter().map(|r| r.round_polys).collect();
+    let mut round_polys: Vec<Vec<Vec<K>>> = per_claim_results
+        .into_iter()
+        .map(|r| r.round_polys)
+        .collect();
 
     let mut tr_v = Poseidon2Transcript::new(b"shout/route_a_tamper");
     let (_r_time_v, _finals, ok) = verify_batched_sumcheck_rounds_ds(
@@ -407,4 +423,3 @@ fn route_a_proof_tamper_round_poly_fails() {
     );
     assert!(!ok2, "verification must fail after tampering");
 }
-

@@ -40,15 +40,12 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{
-    fold_shard_prove as fold_shard_prove_shared_cpu_bus,
-    fold_shard_verify as fold_shard_verify_shared_cpu_bus,
+    fold_shard_prove as fold_shard_prove_shared_cpu_bus, fold_shard_verify as fold_shard_verify_shared_cpu_bus,
     CommitMixers,
 };
 use neo_math::{D, F, K};
 use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::{
-    LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle,
-};
+use neo_memory::witness::{LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -113,7 +110,6 @@ fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32
         combine_b_pows,
     }
 }
-
 
 // ============================================================================
 // Test: CPU/Memory Semantic Fork Attack
@@ -318,10 +314,7 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
     match prove_res {
         Err(e) => {
             // Prover rejected the inconsistent witness - system is secure
-            println!(
-                "✓ SECURE: Prover rejected CPU semantic fork attack: {:?}",
-                e
-            );
+            println!("✓ SECURE: Prover rejected CPU semantic fork attack: {:?}", e);
         }
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"cpu-semantic-fork-attack");
@@ -500,10 +493,7 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
 
     match prove_res {
         Err(e) => {
-            println!(
-                "✓ SECURE: Prover rejected splice fork attack: {:?}",
-                e
-            );
+            println!("✓ SECURE: Prover rejected splice fork attack: {:?}", e);
         }
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"cpu-splice-fork-attack");
@@ -708,10 +698,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
 
     match prove_res {
         Err(e) => {
-            println!(
-                "✓ SECURE: Prover rejected lookup fork attack: {:?}",
-                e
-            );
+            println!("✓ SECURE: Prover rejected lookup fork attack: {:?}", e);
         }
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"cpu-lookup-fork-attack");

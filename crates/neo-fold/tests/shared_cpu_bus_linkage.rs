@@ -270,15 +270,7 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
     let chunk_size = 1usize;
     let bus_base = ccs.m - bus_cols_total * chunk_size;
     let z = build_cpu_witness_with_bus(
-        ccs.m,
-        bus_base,
-        chunk_size,
-        0,
-        &lut_inst,
-        &lut_trace,
-        &mem_inst,
-        &mem_trace,
-        seed,
+        ccs.m, bus_base, chunk_size, 0, &lut_inst, &lut_trace, &mem_inst, &mem_trace, seed,
     );
     let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
     let c = l.commit(&Z);

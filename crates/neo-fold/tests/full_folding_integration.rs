@@ -9,8 +9,8 @@ use neo_ccs::{
     relations::{CcsStructure, McsInstance, McsWitness, MeInstance},
 };
 use neo_fold::finalize::{FinalizeReport, ObligationFinalizer};
-use neo_fold::shard::{fold_shard_prove, fold_shard_verify, fold_shard_verify_and_finalize, ShardObligations};
 use neo_fold::shard::CommitMixers;
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify, fold_shard_verify_and_finalize, ShardObligations};
 use neo_fold::PiCcsError;
 use neo_math::{D, K};
 use neo_memory::plain::{PlainLutTrace, PlainMemLayout, PlainMemTrace};
@@ -50,7 +50,13 @@ impl SModuleHomomorphism<F, Cmt> for DummyCommit {
     }
 }
 
-fn build_add_ccs(m: usize, chunk_size: usize, bus_base: usize, shout_ell_addr: usize, twist_ell_addr: usize) -> CcsStructure<F> {
+fn build_add_ccs(
+    m: usize,
+    chunk_size: usize,
+    bus_base: usize,
+    shout_ell_addr: usize,
+    twist_ell_addr: usize,
+) -> CcsStructure<F> {
     // A tiny R1CS CCS:
     //
     // 1) "Program output" constraint on row 0:
@@ -89,8 +95,7 @@ fn build_add_ccs(m: usize, chunk_size: usize, bus_base: usize, shout_ell_addr: u
     let per_step_padding_constraints = (shout_ell_addr + 1) + (2 * twist_ell_addr + 3);
     let include_binding_constraints = chunk_size == 1;
     let per_step_binding_constraints = if include_binding_constraints { bus_cols } else { 0 };
-    let total_constraints =
-        1 + chunk_size * (per_step_padding_constraints + per_step_binding_constraints);
+    let total_constraints = 1 + chunk_size * (per_step_padding_constraints + per_step_binding_constraints);
     assert!(
         total_constraints <= n,
         "not enough rows for shared-bus guardrail constraints: need {}, have n={}",
@@ -239,7 +244,11 @@ fn write_bus_for_chunk(
         }
         z[bus_base + col_id * chunk_size + j] = has_lookup;
         col_id += 1;
-        z[bus_base + col_id * chunk_size + j] = if has_lookup == F::ONE { lut_trace.val[j] } else { F::ZERO };
+        z[bus_base + col_id * chunk_size + j] = if has_lookup == F::ONE {
+            lut_trace.val[j]
+        } else {
+            F::ZERO
+        };
         col_id += 1;
 
         // Twist read bits (masked by has_read).
@@ -280,12 +289,23 @@ fn write_bus_for_chunk(
         col_id += 1;
         z[bus_base + col_id * chunk_size + j] = has_write;
         col_id += 1;
-        z[bus_base + col_id * chunk_size + j] = if has_write == F::ONE { mem_trace.write_val[j] } else { F::ZERO };
+        z[bus_base + col_id * chunk_size + j] = if has_write == F::ONE {
+            mem_trace.write_val[j]
+        } else {
+            F::ZERO
+        };
         col_id += 1;
-        z[bus_base + col_id * chunk_size + j] = if has_read == F::ONE { mem_trace.read_val[j] } else { F::ZERO };
+        z[bus_base + col_id * chunk_size + j] = if has_read == F::ONE {
+            mem_trace.read_val[j]
+        } else {
+            F::ZERO
+        };
         col_id += 1;
-        z[bus_base + col_id * chunk_size + j] =
-            if has_write == F::ONE { mem_trace.inc_at_write_addr[j] } else { F::ZERO };
+        z[bus_base + col_id * chunk_size + j] = if has_write == F::ONE {
+            mem_trace.inc_at_write_addr[j]
+        } else {
+            F::ZERO
+        };
         col_id += 1;
 
         debug_assert_eq!(col_id, bus_cols);
@@ -419,7 +439,9 @@ fn build_single_chunk_inputs() -> (
     z[1] = lookup_val;
     z[2] = write_val;
     z[3] = out_val;
-    write_bus_for_chunk(&mut z, bus_base, chunk_size, &lut_inst, &plain_lut, &mem_inst, &plain_mem);
+    write_bus_for_chunk(
+        &mut z, bus_base, chunk_size, &lut_inst, &plain_lut, &mem_inst, &plain_mem,
+    );
     let (mcs_inst, mcs_wit) = build_mcs_from_z(&params, &l, M_IN, z);
 
     let step_bundle = StepWitnessBundle {
@@ -501,7 +523,8 @@ fn full_folding_integration_single_chunk() {
 
 #[test]
 fn full_folding_integration_multi_step_chunk() {
-    let (params, _ccs_single, _step_bundle_1, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
+    let (params, _ccs_single, _step_bundle_1, acc_init, acc_wit_init, l, mixers, _out_val) =
+        build_single_chunk_inputs();
     let m = TEST_M;
 
     // 4-step RW memory trace (k=2) with alternating write/read.
@@ -576,7 +599,9 @@ fn full_folding_integration_multi_step_chunk() {
     z[1] = F::ZERO;
     z[2] = F::ZERO;
     z[3] = F::ONE;
-    write_bus_for_chunk(&mut z, bus_base, chunk_size, &lut_inst, &plain_lut, &mem_inst, &plain_mem);
+    write_bus_for_chunk(
+        &mut z, bus_base, chunk_size, &lut_inst, &plain_lut, &mem_inst, &plain_mem,
+    );
     let (mcs_inst, mcs_wit) = build_mcs_from_z(&params, &l, M_IN, z);
 
     let step_bundle = StepWitnessBundle {

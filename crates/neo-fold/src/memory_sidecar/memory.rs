@@ -30,11 +30,7 @@ use p3_field::PrimeCharacteristicRing;
 // Transcript binding
 // ============================================================================
 
-fn absorb_step_memory_impl<'a, LI, MI>(
-    tr: &mut Poseidon2Transcript,
-    mut lut_insts: LI,
-    mut mem_insts: MI,
-)
+fn absorb_step_memory_impl<'a, LI, MI>(tr: &mut Poseidon2Transcript, mut lut_insts: LI, mut mem_insts: MI)
 where
     LI: ExactSizeIterator<Item = &'a LutInstance<Cmt, F>>,
     MI: ExactSizeIterator<Item = &'a MemInstance<Cmt, F>>,
@@ -195,9 +191,8 @@ pub(crate) fn prove_twist_addr_pre_time(
     }
     let mut out = Vec::with_capacity(step.mem_instances.len());
 
-    let bus = cpu_bus.ok_or_else(|| {
-        PiCcsError::InvalidInput("prove_twist_addr_pre_time requires shared_cpu_bus".into())
-    })?;
+    let bus =
+        cpu_bus.ok_or_else(|| PiCcsError::InvalidInput("prove_twist_addr_pre_time requires shared_cpu_bus".into()))?;
     let cpu_z_k = crate::memory_sidecar::cpu_bus::decode_cpu_z_to_k(params, &step.mcs.1.Z);
     if bus.shout_cols.len() != step.lut_instances.len() || bus.twist_cols.len() != step.mem_instances.len() {
         return Err(PiCcsError::InvalidInput(
@@ -305,9 +300,7 @@ pub(crate) fn prove_twist_addr_pre_time(
                 .iter()
                 .map(|(addr, val)| {
                     let addr_usize = usize::try_from(*addr).map_err(|_| {
-                        PiCcsError::InvalidInput(format!(
-                            "Twist: init address doesn't fit usize: addr={addr}"
-                        ))
+                        PiCcsError::InvalidInput(format!("Twist: init address doesn't fit usize: addr={addr}"))
                     })?;
                     if addr_usize >= mem_inst.k {
                         return Err(PiCcsError::InvalidInput(format!(
@@ -396,9 +389,8 @@ pub(crate) fn prove_shout_addr_pre_time(
     }
     let mut out = Vec::with_capacity(step.lut_instances.len());
 
-    let bus = cpu_bus.ok_or_else(|| {
-        PiCcsError::InvalidInput("prove_shout_addr_pre_time requires shared_cpu_bus".into())
-    })?;
+    let bus =
+        cpu_bus.ok_or_else(|| PiCcsError::InvalidInput("prove_shout_addr_pre_time requires shared_cpu_bus".into()))?;
     let cpu_z_k = crate::memory_sidecar::cpu_bus::decode_cpu_z_to_k(params, &step.mcs.1.Z);
     if bus.shout_cols.len() != step.lut_instances.len() || bus.twist_cols.len() != step.mem_instances.len() {
         return Err(PiCcsError::InvalidInput(
@@ -1945,8 +1937,8 @@ pub fn verify_route_a_memory_step(
             ));
         }
         let cpu_me_prev = if has_prev {
-            let prev_inst = prev_step
-                .ok_or_else(|| PiCcsError::ProtocolError("prev_step missing with has_prev=true".into()))?;
+            let prev_inst =
+                prev_step.ok_or_else(|| PiCcsError::ProtocolError("prev_step missing with has_prev=true".into()))?;
             let cpu_me_prev = mem_proof
                 .cpu_me_claims_val
                 .get(1)
@@ -1957,9 +1949,7 @@ pub fn verify_route_a_memory_step(
                 ));
             }
             if cpu_me_prev.c != prev_inst.mcs_inst.c {
-                return Err(PiCcsError::ProtocolError(
-                    "CPU ME(val/prev) commitment mismatch".into(),
-                ));
+                return Err(PiCcsError::ProtocolError("CPU ME(val/prev) commitment mismatch".into()));
             }
             Some(cpu_me_prev)
         } else {
@@ -1987,7 +1977,8 @@ pub fn verify_route_a_memory_step(
         let layout = inst.twist_layout();
         let ell_addr = layout.ell_addr;
 
-        let cpu_me_cur = cpu_me_val_cur.ok_or_else(|| PiCcsError::ProtocolError("missing CPU ME claim at r_val".into()))?;
+        let cpu_me_cur =
+            cpu_me_val_cur.ok_or_else(|| PiCcsError::ProtocolError("missing CPU ME claim at r_val".into()))?;
 
         let twist_cols = cpu_bus
             .twist_cols
@@ -2043,56 +2034,56 @@ pub fn verify_route_a_memory_step(
         }
 
         if has_prev {
-                let prev = prev_step
-                    .ok_or_else(|| PiCcsError::ProtocolError("prev_step missing with has_prev=true".into()))?;
-                let prev_inst = prev
-                    .mem_insts
-                    .get(i_mem)
-                    .ok_or_else(|| PiCcsError::ProtocolError("missing prev mem instance".into()))?;
-                let cpu_me_prev = cpu_me_val_prev
-                    .ok_or_else(|| PiCcsError::ProtocolError("missing prev CPU ME claim at r_val".into()))?;
+            let prev =
+                prev_step.ok_or_else(|| PiCcsError::ProtocolError("prev_step missing with has_prev=true".into()))?;
+            let prev_inst = prev
+                .mem_insts
+                .get(i_mem)
+                .ok_or_else(|| PiCcsError::ProtocolError("missing prev mem instance".into()))?;
+            let cpu_me_prev = cpu_me_val_prev
+                .ok_or_else(|| PiCcsError::ProtocolError("missing prev CPU ME claim at r_val".into()))?;
 
-                // Terminal check for prev-total: uses previous-step openings at current r_val.
-                let mut wa_bits_prev_open = Vec::with_capacity(ell_addr);
-                for col_id in twist_cols.wa_bits.clone() {
-                    wa_bits_prev_open.push(
-                        cpu_me_prev
-                            .y_scalars
-                            .get(cpu_bus.y_scalar_index(bus_y_base_val, col_id))
-                            .copied()
-                            .ok_or_else(|| {
-                                PiCcsError::ProtocolError("CPU y_scalars missing wa_bits(prev) opening".into())
-                            })?,
-                    );
-                }
-                let has_write_prev_open = cpu_me_prev
-                    .y_scalars
-                    .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.has_write))
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing has_write(prev) opening".into()))?;
-                let inc_prev_open = cpu_me_prev
-                    .y_scalars
-                    .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.inc))
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing inc(prev) opening".into()))?;
+            // Terminal check for prev-total: uses previous-step openings at current r_val.
+            let mut wa_bits_prev_open = Vec::with_capacity(ell_addr);
+            for col_id in twist_cols.wa_bits.clone() {
+                wa_bits_prev_open.push(
+                    cpu_me_prev
+                        .y_scalars
+                        .get(cpu_bus.y_scalar_index(bus_y_base_val, col_id))
+                        .copied()
+                        .ok_or_else(|| {
+                            PiCcsError::ProtocolError("CPU y_scalars missing wa_bits(prev) opening".into())
+                        })?,
+                );
+            }
+            let has_write_prev_open = cpu_me_prev
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.has_write))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing has_write(prev) opening".into()))?;
+            let inc_prev_open = cpu_me_prev
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.inc))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing inc(prev) opening".into()))?;
 
-                let eq_wa_prev = eq_bits_prod(&wa_bits_prev_open, r_addr)?;
-                let inc_at_r_addr_prev = has_write_prev_open * inc_prev_open * eq_wa_prev;
-                if inc_at_r_addr_prev != val_eval_finals[base + 2] {
-                    return Err(PiCcsError::ProtocolError(
-                        "twist/rollover_prev_total terminal value mismatch".into(),
-                    ));
-                }
+            let eq_wa_prev = eq_bits_prod(&wa_bits_prev_open, r_addr)?;
+            let inc_at_r_addr_prev = has_write_prev_open * inc_prev_open * eq_wa_prev;
+            if inc_at_r_addr_prev != val_eval_finals[base + 2] {
+                return Err(PiCcsError::ProtocolError(
+                    "twist/rollover_prev_total terminal value mismatch".into(),
+                ));
+            }
 
-                // Enforce rollover equation: Init_i(r_addr) == Init_{i-1}(r_addr) + PrevTotal(i).
-                let claimed_prev_total = val_eval.claimed_prev_inc_sum_total.ok_or_else(|| {
-                    PiCcsError::ProtocolError("twist rollover missing claimed_prev_inc_sum_total".into())
-                })?;
-                let init_prev_at_r_addr = eval_init_at_r_addr(&prev_inst.init, prev_inst.k, r_addr)?;
-                let init_cur_at_r_addr = eval_init_at_r_addr(&inst.init, inst.k, r_addr)?;
-                if init_cur_at_r_addr != init_prev_at_r_addr + claimed_prev_total {
-                    return Err(PiCcsError::ProtocolError("twist rollover init check failed".into()));
-                }
+            // Enforce rollover equation: Init_i(r_addr) == Init_{i-1}(r_addr) + PrevTotal(i).
+            let claimed_prev_total = val_eval
+                .claimed_prev_inc_sum_total
+                .ok_or_else(|| PiCcsError::ProtocolError("twist rollover missing claimed_prev_inc_sum_total".into()))?;
+            let init_prev_at_r_addr = eval_init_at_r_addr(&prev_inst.init, prev_inst.k, r_addr)?;
+            let init_cur_at_r_addr = eval_init_at_r_addr(&inst.init, inst.k, r_addr)?;
+            if init_cur_at_r_addr != init_prev_at_r_addr + claimed_prev_total {
+                return Err(PiCcsError::ProtocolError("twist rollover init check failed".into()));
+            }
         }
     }
 

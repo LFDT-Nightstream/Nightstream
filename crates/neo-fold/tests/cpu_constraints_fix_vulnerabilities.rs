@@ -506,7 +506,10 @@ fn load_address_binding_catches_mismatch() {
     let w = &z[1..];
 
     let result = check_ccs_rowwise_zero(&ccs, x, w);
-    assert!(result.is_err(), "address binding should reject effective_addr=5, ra_bits=6");
+    assert!(
+        result.is_err(),
+        "address binding should reject effective_addr=5, ra_bits=6"
+    );
 }
 
 /// Test: Lookup key binding catches mismatched CPU lookup_key vs bus addr_bits on a lookup.
@@ -551,7 +554,10 @@ fn lookup_key_binding_catches_mismatch() {
     let w = &z[1..];
 
     let result = check_ccs_rowwise_zero(&ccs, x, w);
-    assert!(result.is_err(), "lookup key binding should reject lookup_key=3, addr_bits=4");
+    assert!(
+        result.is_err(),
+        "lookup key binding should reject lookup_key=3, addr_bits=4"
+    );
 }
 
 /// Summary test that shows the vulnerabilities are fixed.

@@ -28,18 +28,15 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{
-    fold_shard_prove as fold_shard_prove_shared_cpu_bus,
-    fold_shard_verify as fold_shard_verify_shared_cpu_bus,
+    fold_shard_prove as fold_shard_prove_shared_cpu_bus, fold_shard_verify as fold_shard_verify_shared_cpu_bus,
     CommitMixers,
 };
 use neo_math::{D, F, K};
-use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::{
-    LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle,
-};
-use neo_memory::MemInit;
 use neo_memory::cpu::build_bus_layout_for_instances;
 use neo_memory::cpu::constraints::{CpuColumnLayout, CpuConstraintBuilder};
+use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
+use neo_memory::witness::{LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle};
+use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -181,7 +178,9 @@ fn create_ccs_referencing_all_twist_bus_cols(n: usize, m: usize, m_in: usize, bu
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
     builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
-    builder.build().expect("should build CCS with Twist constraints")
+    builder
+        .build()
+        .expect("should build CCS with Twist constraints")
 }
 
 /// Create a CCS referencing all required Shout + Twist bus columns
@@ -202,7 +201,9 @@ fn create_ccs_referencing_all_shout_twist_bus_cols(
     builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
     builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
 
-    builder.build().expect("should build CCS with Shout+Twist constraints")
+    builder
+        .build()
+        .expect("should build CCS with Shout+Twist constraints")
 }
 
 // ============================================================================
@@ -245,8 +246,15 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
     let c = l.commit(&Z);
 
     let mcs = (
-        McsInstance { c, x: z[..m_in].to_vec(), m_in },
-        McsWitness { w: z[m_in..].to_vec(), Z },
+        McsInstance {
+            c,
+            x: z[..m_in].to_vec(),
+            m_in,
+        },
+        McsWitness {
+            w: z[m_in..].to_vec(),
+            Z,
+        },
     );
 
     let mem_trace = PlainMemTrace {
@@ -273,7 +281,15 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
 
     let mut tr = Poseidon2Transcript::new(b"has-write-wv-mismatch");
     let prove_res = fold_shard_prove_shared_cpu_bus(
-        FoldingMode::Optimized, &mut tr, &params, &ccs, &steps_witness, &[], &[], &l, mixers,
+        FoldingMode::Optimized,
+        &mut tr,
+        &params,
+        &ccs,
+        &steps_witness,
+        &[],
+        &[],
+        &l,
+        mixers,
     );
 
     match prove_res {
@@ -283,7 +299,14 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"has-write-wv-mismatch");
             let verify_res = fold_shard_verify_shared_cpu_bus(
-                FoldingMode::Optimized, &mut tr_v, &params, &ccs, &steps_instance, &[], &proof, mixers,
+                FoldingMode::Optimized,
+                &mut tr_v,
+                &params,
+                &ccs,
+                &steps_instance,
+                &[],
+                &proof,
+                mixers,
             );
 
             assert!(
@@ -339,8 +362,15 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
     let c = l.commit(&Z);
 
     let mcs = (
-        McsInstance { c, x: z[..m_in].to_vec(), m_in },
-        McsWitness { w: z[m_in..].to_vec(), Z },
+        McsInstance {
+            c,
+            x: z[..m_in].to_vec(),
+            m_in,
+        },
+        McsWitness {
+            w: z[m_in..].to_vec(),
+            Z,
+        },
     );
 
     let mem_trace = PlainMemTrace {
@@ -367,7 +397,15 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
 
     let mut tr = Poseidon2Transcript::new(b"has-write-inc-mismatch");
     let prove_res = fold_shard_prove_shared_cpu_bus(
-        FoldingMode::Optimized, &mut tr, &params, &ccs, &steps_witness, &[], &[], &l, mixers,
+        FoldingMode::Optimized,
+        &mut tr,
+        &params,
+        &ccs,
+        &steps_witness,
+        &[],
+        &[],
+        &l,
+        mixers,
     );
 
     match prove_res {
@@ -377,7 +415,14 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"has-write-inc-mismatch");
             let verify_res = fold_shard_verify_shared_cpu_bus(
-                FoldingMode::Optimized, &mut tr_v, &params, &ccs, &steps_instance, &[], &proof, mixers,
+                FoldingMode::Optimized,
+                &mut tr_v,
+                &params,
+                &ccs,
+                &steps_instance,
+                &[],
+                &proof,
+                mixers,
             );
 
             assert!(
@@ -433,8 +478,15 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
     let c = l.commit(&Z);
 
     let mcs = (
-        McsInstance { c, x: z[..m_in].to_vec(), m_in },
-        McsWitness { w: z[m_in..].to_vec(), Z },
+        McsInstance {
+            c,
+            x: z[..m_in].to_vec(),
+            m_in,
+        },
+        McsWitness {
+            w: z[m_in..].to_vec(),
+            Z,
+        },
     );
 
     let mem_trace = PlainMemTrace {
@@ -461,7 +513,15 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
 
     let mut tr = Poseidon2Transcript::new(b"has-read-ra-bits-mismatch");
     let prove_res = fold_shard_prove_shared_cpu_bus(
-        FoldingMode::Optimized, &mut tr, &params, &ccs, &steps_witness, &[], &[], &l, mixers,
+        FoldingMode::Optimized,
+        &mut tr,
+        &params,
+        &ccs,
+        &steps_witness,
+        &[],
+        &[],
+        &l,
+        mixers,
     );
 
     match prove_res {
@@ -471,7 +531,14 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"has-read-ra-bits-mismatch");
             let verify_res = fold_shard_verify_shared_cpu_bus(
-                FoldingMode::Optimized, &mut tr_v, &params, &ccs, &steps_instance, &[], &proof, mixers,
+                FoldingMode::Optimized,
+                &mut tr_v,
+                &params,
+                &ccs,
+                &steps_instance,
+                &[],
+                &proof,
+                mixers,
             );
 
             assert!(
@@ -527,8 +594,15 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
     let c = l.commit(&Z);
 
     let mcs = (
-        McsInstance { c, x: z[..m_in].to_vec(), m_in },
-        McsWitness { w: z[m_in..].to_vec(), Z },
+        McsInstance {
+            c,
+            x: z[..m_in].to_vec(),
+            m_in,
+        },
+        McsWitness {
+            w: z[m_in..].to_vec(),
+            Z,
+        },
     );
 
     let mem_trace = PlainMemTrace {
@@ -555,7 +629,15 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
 
     let mut tr = Poseidon2Transcript::new(b"has-write-wa-bits-mismatch");
     let prove_res = fold_shard_prove_shared_cpu_bus(
-        FoldingMode::Optimized, &mut tr, &params, &ccs, &steps_witness, &[], &[], &l, mixers,
+        FoldingMode::Optimized,
+        &mut tr,
+        &params,
+        &ccs,
+        &steps_witness,
+        &[],
+        &[],
+        &l,
+        mixers,
     );
 
     match prove_res {
@@ -565,7 +647,14 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"has-write-wa-bits-mismatch");
             let verify_res = fold_shard_verify_shared_cpu_bus(
-                FoldingMode::Optimized, &mut tr_v, &params, &ccs, &steps_instance, &[], &proof, mixers,
+                FoldingMode::Optimized,
+                &mut tr_v,
+                &params,
+                &ccs,
+                &steps_instance,
+                &[],
+                &proof,
+                mixers,
             );
 
             assert!(
@@ -635,8 +724,15 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
     let c = l.commit(&Z);
 
     let mcs = (
-        McsInstance { c, x: z[..m_in].to_vec(), m_in },
-        McsWitness { w: z[m_in..].to_vec(), Z },
+        McsInstance {
+            c,
+            x: z[..m_in].to_vec(),
+            m_in,
+        },
+        McsWitness {
+            w: z[m_in..].to_vec(),
+            Z,
+        },
     );
 
     let lut_trace = PlainLutTrace {
@@ -672,7 +768,15 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
 
     let mut tr = Poseidon2Transcript::new(b"has-lookup-val-mismatch");
     let prove_res = fold_shard_prove_shared_cpu_bus(
-        FoldingMode::Optimized, &mut tr, &params, &ccs, &steps_witness, &[], &[], &l, mixers,
+        FoldingMode::Optimized,
+        &mut tr,
+        &params,
+        &ccs,
+        &steps_witness,
+        &[],
+        &[],
+        &l,
+        mixers,
     );
 
     match prove_res {
@@ -682,7 +786,14 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"has-lookup-val-mismatch");
             let verify_res = fold_shard_verify_shared_cpu_bus(
-                FoldingMode::Optimized, &mut tr_v, &params, &ccs, &steps_instance, &[], &proof, mixers,
+                FoldingMode::Optimized,
+                &mut tr_v,
+                &params,
+                &ccs,
+                &steps_instance,
+                &[],
+                &proof,
+                mixers,
             );
 
             assert!(
@@ -748,8 +859,15 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
     let c = l.commit(&Z);
 
     let mcs = (
-        McsInstance { c, x: z[..m_in].to_vec(), m_in },
-        McsWitness { w: z[m_in..].to_vec(), Z },
+        McsInstance {
+            c,
+            x: z[..m_in].to_vec(),
+            m_in,
+        },
+        McsWitness {
+            w: z[m_in..].to_vec(),
+            Z,
+        },
     );
 
     let lut_trace = PlainLutTrace {
@@ -785,7 +903,15 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
 
     let mut tr = Poseidon2Transcript::new(b"has-lookup-addr-bits-mismatch");
     let prove_res = fold_shard_prove_shared_cpu_bus(
-        FoldingMode::Optimized, &mut tr, &params, &ccs, &steps_witness, &[], &[], &l, mixers,
+        FoldingMode::Optimized,
+        &mut tr,
+        &params,
+        &ccs,
+        &steps_witness,
+        &[],
+        &[],
+        &l,
+        mixers,
     );
 
     match prove_res {
@@ -795,7 +921,14 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
         Ok(proof) => {
             let mut tr_v = Poseidon2Transcript::new(b"has-lookup-addr-bits-mismatch");
             let verify_res = fold_shard_verify_shared_cpu_bus(
-                FoldingMode::Optimized, &mut tr_v, &params, &ccs, &steps_instance, &[], &proof, mixers,
+                FoldingMode::Optimized,
+                &mut tr_v,
+                &params,
+                &ccs,
+                &steps_instance,
+                &[],
+                &proof,
+                mixers,
             );
 
             assert!(

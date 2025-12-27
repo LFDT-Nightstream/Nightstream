@@ -766,7 +766,11 @@ where
         if acc.me.is_empty() {
             return Ok(());
         }
-        if acc.me.iter().all(|me| me.y.len() == s.t() && me.y_scalars.len() == s.t()) {
+        if acc
+            .me
+            .iter()
+            .all(|me| me.y.len() == s.t() && me.y_scalars.len() == s.t())
+        {
             return Ok(());
         }
 
@@ -774,8 +778,7 @@ where
         let d_pad = 1usize << dims.ell_d;
 
         for (me, z_mat) in acc.me.iter_mut().zip(acc.witnesses.iter()) {
-            let (y_vecs_d, y_scalars) =
-                neo_memory::mle::compute_me_y_for_ccs(s, z_mat, &me.r, self.params.b as u64);
+            let (y_vecs_d, y_scalars) = neo_memory::mle::compute_me_y_for_ccs(s, z_mat, &me.r, self.params.b as u64);
 
             let d = z_mat.rows();
             let mut y_padded: Vec<Vec<K>> = Vec::with_capacity(y_vecs_d.len());
@@ -980,8 +983,7 @@ where
         }
 
         // Build steps_public from the internal bundles to include mem/lut instances.
-        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-            self.steps.iter().map(|bundle| bundle.into()).collect();
+        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = self.steps.iter().map(|bundle| bundle.into()).collect();
         let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
 
         // Validate (or empty) initial accumulator to mirror finalize()
@@ -1000,9 +1002,17 @@ where
             None => &[], // k=1
         };
 
-        let outputs =
-            shard::fold_shard_verify(self.mode.clone(), tr, &self.params, &s_norm, &steps_public, seed_me, run, self.mixers)?;
-        
+        let outputs = shard::fold_shard_verify(
+            self.mode.clone(),
+            tr,
+            &self.params,
+            &s_norm,
+            &steps_public,
+            seed_me,
+            run,
+            self.mixers,
+        )?;
+
         // For CCS-only sessions (no Twist/Shout), val-lane obligations should be empty
         // For Twist+Shout sessions, val-lane obligations are expected and valid
         let has_twist_or_shout = self.has_twist_instances() || self.has_shout_instances();
@@ -1054,8 +1064,7 @@ where
             return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
         }
 
-        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-            self.steps.iter().map(|bundle| bundle.into()).collect();
+        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = self.steps.iter().map(|bundle| bundle.into()).collect();
         let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
 
         let seed_me: &[MeInstance<Cmt, F, K>] = match &self.acc0 {

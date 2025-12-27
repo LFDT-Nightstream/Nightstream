@@ -18,19 +18,17 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt};
+use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::shard::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, F, K};
 use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::{
-    LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle,
-};
+use neo_memory::witness::{LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -185,9 +183,14 @@ fn create_mcs_with_bus(
         z[0] = F::from_u64(tag);
     }
 
-    let bus_cols_total: usize =
-        lut_insts.iter().map(|(inst, _)| bus_cols_shout(inst)).sum::<usize>()
-            + mem_insts.iter().map(|(inst, _)| bus_cols_twist(inst)).sum::<usize>();
+    let bus_cols_total: usize = lut_insts
+        .iter()
+        .map(|(inst, _)| bus_cols_shout(inst))
+        .sum::<usize>()
+        + mem_insts
+            .iter()
+            .map(|(inst, _)| bus_cols_twist(inst))
+            .sum::<usize>();
     if bus_cols_total > 0 {
         assert!(
             bus_cols_total <= z.len(),
@@ -211,10 +214,7 @@ fn create_mcs_with_bus(
     let x = z[..m_in].to_vec();
     let w = z[m_in..].to_vec();
 
-    (
-        McsInstance { c, x, m_in },
-        McsWitness { w, Z },
-    )
+    (McsInstance { c, x, m_in }, McsWitness { w, Z })
 }
 
 /// Build a bytecode table for a simple program.
@@ -288,10 +288,7 @@ fn metadata_only_mem_instance(
     )
 }
 
-fn metadata_only_lut_instance(
-    table: &LutTable<F>,
-    steps: usize,
-) -> (LutInstance<Cmt, F>, LutWitness<F>) {
+fn metadata_only_lut_instance(table: &LutTable<F>, steps: usize) -> (LutInstance<Cmt, F>, LutWitness<F>) {
     let ell = table.n_side.trailing_zeros() as usize;
     (
         LutInstance {
@@ -360,12 +357,9 @@ fn vm_simple_add_program() {
         // Minimal memory (no actual memory operations in this simplified test)
         let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
         let mem_trace = empty_mem_trace();
-        let (mem_inst, mem_wit) =
-            metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
-        let (opcode_inst, opcode_wit) =
-            metadata_only_lut_instance(&bytecode_table, opcode_trace.has_lookup.len());
-        let (imm_inst, imm_wit) =
-            metadata_only_lut_instance(&imm_table, imm_trace.has_lookup.len());
+        let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
+        let (opcode_inst, opcode_wit) = metadata_only_lut_instance(&bytecode_table, opcode_trace.has_lookup.len());
+        let (imm_inst, imm_wit) = metadata_only_lut_instance(&imm_table, imm_trace.has_lookup.len());
 
         let lut_bus = [(&opcode_inst, &opcode_trace), (&imm_inst, &imm_trace)];
         let mem_bus = [(&mem_inst, &mem_trace)];
@@ -399,8 +393,7 @@ fn vm_simple_add_program() {
     .expect("prove should succeed for VM add program");
 
     let mut tr_verify = Poseidon2Transcript::new(b"vm-add-program");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
@@ -446,8 +439,7 @@ fn vm_register_file_operations() {
             write_val: vec![F::from_u64(10)],
             inc_at_write_addr: vec![F::from_u64(10)],
         };
-        let (reg_inst, reg_wit) =
-            metadata_only_mem_instance(&reg_layout, MemInit::Zero, reg_trace.steps);
+        let (reg_inst, reg_wit) = metadata_only_mem_instance(&reg_layout, MemInit::Zero, reg_trace.steps);
         let mem_bus = [(&reg_inst, &reg_trace)];
         let (mcs, mcs_wit) = create_mcs_with_bus(&params, &ccs, &l, 0, &[], &mem_bus);
 
@@ -493,9 +485,9 @@ fn vm_register_file_operations() {
             steps: 1,
             has_read: vec![F::ONE],
             has_write: vec![F::ONE],
-            read_addr: vec![0], // Read R0
-            write_addr: vec![2], // Write R2
-            read_val: vec![F::from_u64(10)], // R0 = 10
+            read_addr: vec![0],               // Read R0
+            write_addr: vec![2],              // Write R2
+            read_val: vec![F::from_u64(10)],  // R0 = 10
             write_val: vec![F::from_u64(30)], // R2 = 10 + 20 = 30
             inc_at_write_addr: vec![F::from_u64(30)],
         };
@@ -532,8 +524,7 @@ fn vm_register_file_operations() {
     .expect("prove should succeed for register file operations");
 
     let mut tr_verify = Poseidon2Transcript::new(b"vm-register-file");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
@@ -596,8 +587,7 @@ fn vm_combined_bytecode_and_data_memory() {
         write_val: vec![F::from_u64(42)],
         inc_at_write_addr: vec![F::from_u64(42)],
     };
-    let (bytecode_inst, bytecode_wit) =
-        metadata_only_lut_instance(&bytecode, bytecode_trace.has_lookup.len());
+    let (bytecode_inst, bytecode_wit) = metadata_only_lut_instance(&bytecode, bytecode_trace.has_lookup.len());
     let (ram_inst, ram_wit) = metadata_only_mem_instance(&ram_layout, MemInit::Zero, ram_trace.steps);
 
     let lut_bus = [(&bytecode_inst, &bytecode_trace)];
@@ -665,8 +655,7 @@ fn vm_invalid_opcode_claim_fails() {
         val: vec![F::from_u64(OP_HALT)], // WRONG: should be LOAD_IMM
     };
 
-    let (bytecode_inst, bytecode_wit) =
-        metadata_only_lut_instance(&bytecode, bad_trace.has_lookup.len());
+    let (bytecode_inst, bytecode_wit) = metadata_only_lut_instance(&bytecode, bad_trace.has_lookup.len());
 
     // Proving or verification must fail for an invalid lookup witness.
     let lut_bus = [(&bytecode_inst, &bad_trace)];
@@ -754,10 +743,8 @@ fn vm_multi_instruction_sequence() {
         let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
 
         let mem_trace = empty_mem_trace();
-        let (mem_inst, mem_wit) =
-            metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
-        let (bytecode_inst, bytecode_wit) =
-            metadata_only_lut_instance(&bytecode, bytecode_trace.has_lookup.len());
+        let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
+        let (bytecode_inst, bytecode_wit) = metadata_only_lut_instance(&bytecode, bytecode_trace.has_lookup.len());
 
         let lut_bus = [(&bytecode_inst, &bytecode_trace)];
         let mem_bus = [(&mem_inst, &mem_trace)];
@@ -789,8 +776,7 @@ fn vm_multi_instruction_sequence() {
     .expect("prove should succeed for multi-instruction sequence");
 
     let mut tr_verify = Poseidon2Transcript::new(b"vm-multi-instr");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,

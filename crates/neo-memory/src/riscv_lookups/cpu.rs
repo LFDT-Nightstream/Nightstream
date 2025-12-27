@@ -1,0 +1,428 @@
+use neo_vm_trace::{Shout, Twist, TwistId};
+
+use super::bits::interleave_bits;
+use super::isa::{RiscvInstruction, RiscvMemOp};
+use super::tables::RiscvShoutTables;
+
+/// A RISC-V CPU that can be traced using Neo's VmCpu trait.
+///
+/// Implements RV32I/RV64I base instruction set.
+/// Based on Jolt's CPU implementation (MIT/Apache-2.0 license).
+/// Credit: <https://github.com/a16z/jolt>
+pub struct RiscvCpu {
+    /// Program counter.
+    pub pc: u64,
+    /// General-purpose registers (x0-x31, where x0 is always 0).
+    pub regs: [u64; 32],
+    /// Word size in bits (32 or 64).
+    pub xlen: usize,
+    /// Whether the CPU has halted.
+    pub halted: bool,
+    /// Program to execute (list of instructions).
+    program: Vec<RiscvInstruction>,
+    /// Base address of the program.
+    program_base: u64,
+}
+
+impl RiscvCpu {
+    /// Create a new CPU with the given word size.
+    pub fn new(xlen: usize) -> Self {
+        assert!(xlen == 32 || xlen == 64);
+        Self {
+            pc: 0,
+            regs: [0; 32],
+            xlen,
+            halted: false,
+            program: Vec::new(),
+            program_base: 0,
+        }
+    }
+
+    /// Load a program starting at the given base address.
+    pub fn load_program(&mut self, base: u64, program: Vec<RiscvInstruction>) {
+        self.program_base = base;
+        self.program = program;
+        self.pc = base;
+    }
+
+    /// Set a register value (x0 writes are ignored).
+    pub fn set_reg(&mut self, reg: u8, value: u64) {
+        if reg != 0 {
+            self.regs[reg as usize] = self.mask_value(value);
+        }
+    }
+
+    /// Get a register value.
+    pub fn get_reg(&self, reg: u8) -> u64 {
+        self.regs[reg as usize]
+    }
+
+    /// Mask a value to the word size.
+    fn mask_value(&self, value: u64) -> u64 {
+        if self.xlen == 32 {
+            value as u32 as u64
+        } else {
+            value
+        }
+    }
+
+    /// Sign-extend an immediate.
+    fn sign_extend_imm(&self, imm: i32) -> u64 {
+        if self.xlen == 32 {
+            imm as u32 as u64
+        } else {
+            imm as i64 as u64
+        }
+    }
+
+    /// Get the current instruction (if any).
+    fn current_instruction(&self) -> Option<&RiscvInstruction> {
+        let index = (self.pc - self.program_base) / 4;
+        self.program.get(index as usize)
+    }
+}
+
+impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
+    type Error = String;
+
+    fn snapshot_regs(&self) -> Vec<u64> {
+        self.regs.to_vec()
+    }
+
+    fn pc(&self) -> u64 {
+        self.pc
+    }
+
+    fn halted(&self) -> bool {
+        self.halted
+    }
+
+    fn step<T, S>(&mut self, twist: &mut T, shout: &mut S) -> Result<neo_vm_trace::StepMeta<u64>, Self::Error>
+    where
+        T: Twist<u64, u64>,
+        S: Shout<u64>,
+    {
+        let ram = TwistId(0);
+
+        let instr = self
+            .current_instruction()
+            .cloned()
+            .ok_or_else(|| format!("No instruction at PC {:#x}", self.pc))?;
+
+        // Default: advance PC by 4
+        let mut next_pc = self.pc.wrapping_add(4);
+        let opcode_num: u32;
+
+        match instr {
+            RiscvInstruction::RAlu { op, rd, rs1, rs2 } => {
+                let rs1_val = self.get_reg(rs1);
+                let rs2_val = self.get_reg(rs2);
+
+                // Use Shout for the ALU operation
+                let shout_id = RiscvShoutTables::new(self.xlen).opcode_to_id(op);
+                let index = interleave_bits(rs1_val, rs2_val) as u64;
+                let result = shout.lookup(shout_id, index);
+
+                self.set_reg(rd, result);
+                opcode_num = 0x33; // R-type opcode
+            }
+
+            RiscvInstruction::IAlu { op, rd, rs1, imm } => {
+                let rs1_val = self.get_reg(rs1);
+                let imm_val = self.sign_extend_imm(imm);
+
+                // Use Shout for the ALU operation
+                let shout_id = RiscvShoutTables::new(self.xlen).opcode_to_id(op);
+                let index = interleave_bits(rs1_val, imm_val) as u64;
+                let result = shout.lookup(shout_id, index);
+
+                self.set_reg(rd, result);
+                opcode_num = 0x13; // I-type opcode
+            }
+
+            RiscvInstruction::Load { op, rd, rs1, imm } => {
+                let base = self.get_reg(rs1);
+                let addr = base.wrapping_add(self.sign_extend_imm(imm));
+
+                // Use Twist for memory access
+                let raw_value = twist.load(ram, addr);
+
+                // Apply width and sign extension
+                let width = op.width_bytes();
+                let mask = if width >= 8 {
+                    u64::MAX
+                } else {
+                    (1u64 << (width * 8)) - 1
+                };
+                let value = raw_value & mask;
+
+                // Sign-extend if needed
+                let result = if op.is_sign_extend() {
+                    match width {
+                        1 => (value as u8) as i8 as i64 as u64,
+                        2 => (value as u16) as i16 as i64 as u64,
+                        4 => (value as u32) as i32 as i64 as u64,
+                        _ => value,
+                    }
+                } else {
+                    value
+                };
+
+                self.set_reg(rd, self.mask_value(result));
+                opcode_num = 0x03; // Load opcode
+            }
+
+            RiscvInstruction::Store { op, rs1, rs2, imm } => {
+                let base = self.get_reg(rs1);
+                let addr = base.wrapping_add(self.sign_extend_imm(imm));
+                let value = self.get_reg(rs2);
+
+                // Mask value to store width
+                let width = op.width_bytes();
+                let mask = if width >= 8 {
+                    u64::MAX
+                } else {
+                    (1u64 << (width * 8)) - 1
+                };
+                let store_value = value & mask;
+
+                // Use Twist for memory access
+                twist.store(ram, addr, store_value);
+                opcode_num = 0x23; // Store opcode
+            }
+
+            RiscvInstruction::Branch { cond, rs1, rs2, imm } => {
+                let rs1_val = self.get_reg(rs1);
+                let rs2_val = self.get_reg(rs2);
+
+                // Use Shout for the comparison
+                let shout_id = RiscvShoutTables::new(self.xlen).opcode_to_id(cond.to_shout_opcode());
+                let index = interleave_bits(rs1_val, rs2_val) as u64;
+                let _comparison_result = shout.lookup(shout_id, index);
+
+                // Evaluate branch condition
+                if cond.evaluate(rs1_val, rs2_val, self.xlen) {
+                    next_pc = (self.pc as i64 + imm as i64) as u64;
+                }
+                opcode_num = 0x63; // Branch opcode
+            }
+
+            RiscvInstruction::Jal { rd, imm } => {
+                // rd = pc + 4 (return address)
+                self.set_reg(rd, self.pc.wrapping_add(4));
+                // pc = pc + imm
+                next_pc = (self.pc as i64 + imm as i64) as u64;
+                opcode_num = 0x6F; // JAL opcode
+            }
+
+            RiscvInstruction::Jalr { rd, rs1, imm } => {
+                let rs1_val = self.get_reg(rs1);
+                let return_addr = self.pc.wrapping_add(4);
+
+                // pc = (rs1 + imm) & ~1
+                next_pc = rs1_val.wrapping_add(self.sign_extend_imm(imm)) & !1;
+
+                // rd = return address
+                self.set_reg(rd, return_addr);
+                opcode_num = 0x67; // JALR opcode
+            }
+
+            RiscvInstruction::Lui { rd, imm } => {
+                // rd = imm << 12 (upper 20 bits)
+                let value = (imm as i64 as u64) << 12;
+                self.set_reg(rd, self.mask_value(value));
+                opcode_num = 0x37; // LUI opcode
+            }
+
+            RiscvInstruction::Auipc { rd, imm } => {
+                // rd = pc + (imm << 12)
+                let value = self.pc.wrapping_add((imm as i64 as u64) << 12);
+                self.set_reg(rd, self.mask_value(value));
+                opcode_num = 0x17; // AUIPC opcode
+            }
+
+            RiscvInstruction::Halt => {
+                self.halted = true;
+                opcode_num = 0x73; // ECALL opcode
+            }
+
+            RiscvInstruction::Nop => {
+                opcode_num = 0x13; // NOP is ADDI x0, x0, 0
+            }
+
+            // === RV64 W-suffix Operations ===
+            RiscvInstruction::RAluw { op, rd, rs1, rs2 } => {
+                let rs1_val = self.get_reg(rs1);
+                let rs2_val = self.get_reg(rs2);
+
+                let shout_id = RiscvShoutTables::new(self.xlen).opcode_to_id(op);
+                let index = interleave_bits(rs1_val, rs2_val) as u64;
+                let result = shout.lookup(shout_id, index);
+
+                self.set_reg(rd, result);
+                opcode_num = 0x3B; // RV64 R-type W opcode
+            }
+
+            RiscvInstruction::IAluw { op, rd, rs1, imm } => {
+                let rs1_val = self.get_reg(rs1);
+                let imm_val = self.sign_extend_imm(imm);
+
+                let shout_id = RiscvShoutTables::new(self.xlen).opcode_to_id(op);
+                let index = interleave_bits(rs1_val, imm_val) as u64;
+                let result = shout.lookup(shout_id, index);
+
+                self.set_reg(rd, result);
+                opcode_num = 0x1B; // RV64 I-type W opcode
+            }
+
+            // === A Extension: Atomics ===
+            RiscvInstruction::LoadReserved { op, rd, rs1 } => {
+                let addr = self.get_reg(rs1);
+                let value = twist.load(ram, addr);
+
+                // Apply width and sign extension
+                let width = op.width_bytes();
+                let mask = if width >= 8 {
+                    u64::MAX
+                } else {
+                    (1u64 << (width * 8)) - 1
+                };
+                let result = if op.is_sign_extend() {
+                    match width {
+                        4 => (value as u32) as i32 as i64 as u64,
+                        _ => value & mask,
+                    }
+                } else {
+                    value & mask
+                };
+
+                self.set_reg(rd, self.mask_value(result));
+                // Note: In a real implementation, we'd reserve the address here
+                opcode_num = 0x2F; // AMO opcode
+            }
+
+            RiscvInstruction::StoreConditional { op, rd, rs1, rs2 } => {
+                let addr = self.get_reg(rs1);
+                let value = self.get_reg(rs2);
+
+                // Mask value to store width
+                let width = op.width_bytes();
+                let mask = if width >= 8 {
+                    u64::MAX
+                } else {
+                    (1u64 << (width * 8)) - 1
+                };
+                let store_value = value & mask;
+
+                // Store the value
+                twist.store(ram, addr, store_value);
+
+                // SC returns 0 on success (assuming reservation is valid in single-threaded mode)
+                self.set_reg(rd, 0);
+                opcode_num = 0x2F; // AMO opcode
+            }
+
+            RiscvInstruction::Amo { op, rd, rs1, rs2 } => {
+                let addr = self.get_reg(rs1);
+                let src = self.get_reg(rs2);
+
+                // Load original value
+                let original = twist.load(ram, addr);
+                self.set_reg(rd, self.mask_value(original));
+
+                // Compute new value based on AMO operation
+                let new_val = match op {
+                    RiscvMemOp::AmoswapW | RiscvMemOp::AmoswapD => src,
+                    RiscvMemOp::AmoaddW | RiscvMemOp::AmoaddD => original.wrapping_add(src),
+                    RiscvMemOp::AmoxorW | RiscvMemOp::AmoxorD => original ^ src,
+                    RiscvMemOp::AmoandW | RiscvMemOp::AmoandD => original & src,
+                    RiscvMemOp::AmoorW | RiscvMemOp::AmoorD => original | src,
+                    RiscvMemOp::AmominW => {
+                        if (original as i32) < (src as i32) {
+                            original
+                        } else {
+                            src
+                        }
+                    }
+                    RiscvMemOp::AmominD => {
+                        if (original as i64) < (src as i64) {
+                            original
+                        } else {
+                            src
+                        }
+                    }
+                    RiscvMemOp::AmomaxW => {
+                        if (original as i32) > (src as i32) {
+                            original
+                        } else {
+                            src
+                        }
+                    }
+                    RiscvMemOp::AmomaxD => {
+                        if (original as i64) > (src as i64) {
+                            original
+                        } else {
+                            src
+                        }
+                    }
+                    RiscvMemOp::AmominuW | RiscvMemOp::AmominuD => {
+                        if original < src {
+                            original
+                        } else {
+                            src
+                        }
+                    }
+                    RiscvMemOp::AmomaxuW | RiscvMemOp::AmomaxuD => {
+                        if original > src {
+                            original
+                        } else {
+                            src
+                        }
+                    }
+                    _ => src, // Fallback
+                };
+
+                // Store new value
+                twist.store(ram, addr, new_val);
+                opcode_num = 0x2F; // AMO opcode
+            }
+
+            // === System Instructions ===
+            RiscvInstruction::Ecall => {
+                // ECALL - environment call (syscall)
+                // In a real implementation, this would trigger a trap
+                // For now, check if a0 (x10) == 0 to halt
+                if self.get_reg(10) == 0 {
+                    self.halted = true;
+                }
+                opcode_num = 0x73; // SYSTEM opcode
+            }
+
+            RiscvInstruction::Ebreak => {
+                // EBREAK - debugger breakpoint
+                // For now, treat as halt
+                self.halted = true;
+                opcode_num = 0x73; // SYSTEM opcode
+            }
+
+            RiscvInstruction::Fence { pred: _, succ: _ } => {
+                // FENCE - memory ordering
+                // No-op in single-threaded execution
+                opcode_num = 0x0F; // MISC-MEM opcode
+            }
+
+            RiscvInstruction::FenceI => {
+                // FENCE.I - instruction fence
+                // No-op in our implementation
+                opcode_num = 0x0F; // MISC-MEM opcode
+            }
+        }
+
+        self.pc = next_pc;
+
+        Ok(neo_vm_trace::StepMeta {
+            pc_after: self.pc,
+            opcode: opcode_num,
+        })
+    }
+}

@@ -76,10 +76,7 @@ fn test_constraint_builder_basic() {
     let has_store_binding = constraints
         .iter()
         .any(|c| matches!(c.label, CpuConstraintLabel::StoreValueBinding));
-    assert!(
-        has_store_binding,
-        "should have store value binding constraint"
-    );
+    assert!(has_store_binding, "should have store value binding constraint");
 
     // Check that we have padding constraints
     let has_rv_padding = constraints
@@ -113,10 +110,7 @@ fn test_build_ccs() {
     // Verify CCS structure
     assert_eq!(ccs.n, n);
     assert_eq!(ccs.m, m);
-    assert!(
-        ccs.matrices.len() >= 3,
-        "should have at least A, B, C matrices"
-    );
+    assert!(ccs.matrices.len() >= 3, "should have at least A, B, C matrices");
 }
 
 #[test]

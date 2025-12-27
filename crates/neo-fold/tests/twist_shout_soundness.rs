@@ -5,7 +5,10 @@
 mod fixtures;
 
 use neo_ajtai::Commitment as Cmt;
-use neo_ccs::{matrix::Mat, relations::{CcsStructure, MeInstance}};
+use neo_ccs::{
+    matrix::Mat,
+    relations::{CcsStructure, MeInstance},
+};
 use neo_fold::memory_sidecar::claim_plan::RouteATimeClaimPlan;
 use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove as fold_shard_prove_legacy, fold_shard_verify as fold_shard_verify_legacy};

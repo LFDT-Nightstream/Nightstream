@@ -4,8 +4,8 @@ use crate::witness::{LutInstance, LutWitness, MemInstance, MemWitness, StepWitne
 use neo_vm_trace::VmTrace;
 
 use neo_ccs::relations::{McsInstance, McsWitness};
-use p3_goldilocks::Goldilocks;
 use p3_field::PrimeCharacteristicRing;
+use p3_goldilocks::Goldilocks;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -143,9 +143,9 @@ where
     // 4) Track sparse memory state across chunks to compute per-chunk MemInit (rollover).
     let mut mem_states: HashMap<u32, HashMap<u64, Goldilocks>> = HashMap::new();
     for mem_id in mem_ids.iter().copied() {
-        let layout = mem_layouts.get(&mem_id).ok_or_else(|| {
-            ShardBuildError::MissingLayout(format!("missing PlainMemLayout for twist_id {}", mem_id))
-        })?;
+        let layout = mem_layouts
+            .get(&mem_id)
+            .ok_or_else(|| ShardBuildError::MissingLayout(format!("missing PlainMemLayout for twist_id {}", mem_id)))?;
         let mut state = HashMap::<u64, Goldilocks>::new();
         for ((init_mem_id, addr), &val) in initial_mem.iter() {
             if *init_mem_id != mem_id || val == Goldilocks::ZERO {

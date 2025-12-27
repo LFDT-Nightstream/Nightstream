@@ -10,10 +10,8 @@ use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::shard::{
-    fold_shard_prove, fold_shard_verify, ShardFoldOutputs, ShardProof,
-};
 use neo_fold::shard::CommitMixers;
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify, ShardFoldOutputs, ShardProof};
 use neo_fold::{finalize::ObligationFinalizer, PiCcsError};
 use neo_math::{D, F, K};
 use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};

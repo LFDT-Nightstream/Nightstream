@@ -69,7 +69,9 @@ fn shout_value_oracle_sparse_claim_matches_naive_and_runs_sumcheck() {
     let pow2_cycle = 1usize << r_cycle.len();
 
     let has_lookup = vec![K::ONE, K::ZERO, K::ONE, K::ONE, K::ZERO, K::ONE, K::ZERO, K::ONE];
-    let val = (0..pow2_cycle).map(|t| k(100 + t as u64)).collect::<Vec<_>>();
+    let val = (0..pow2_cycle)
+        .map(|t| k(100 + t as u64))
+        .collect::<Vec<_>>();
 
     let (oracle, claim) = ShoutValueOracleSparse::new(&r_cycle, dense_to_sparse(&has_lookup), dense_to_sparse(&val));
 
@@ -90,7 +92,9 @@ fn shout_adapter_oracle_sparse_claim_matches_naive_and_runs_sumcheck() {
     let ell_addr = r_addr.len();
 
     let has_lookup = vec![K::ONE, K::ZERO, K::ONE, K::ONE, K::ZERO, K::ONE, K::ZERO, K::ONE];
-    let addrs = (0..pow2_cycle).map(|t| (1 + 3 * t) % (1usize << ell_addr)).collect::<Vec<_>>();
+    let addrs = (0..pow2_cycle)
+        .map(|t| (1 + 3 * t) % (1usize << ell_addr))
+        .collect::<Vec<_>>();
     let addr_bits = bits_from_addrs(&addrs, ell_addr);
 
     let (oracle, claim) = IndexAdapterOracleSparseTime::new_with_gate(
@@ -136,7 +140,9 @@ fn twist_val_eval_and_total_inc_sparse_claims_match_naive_and_run_sumcheck() {
     let inc_at_write_addr = (0..pow2_cycle)
         .map(|t| if t % 2 == 0 { k(5 + t as u64) } else { K::ZERO })
         .collect::<Vec<_>>();
-    let wa_addrs = (0..pow2_cycle).map(|t| (3 * t + 1) % (1usize << ell_addr)).collect::<Vec<_>>();
+    let wa_addrs = (0..pow2_cycle)
+        .map(|t| (3 * t + 1) % (1usize << ell_addr))
+        .collect::<Vec<_>>();
     let wa_bits = bits_from_addrs(&wa_addrs, ell_addr);
 
     let (val_oracle, val_claim) = TwistValEvalOracleSparseTime::new(
@@ -156,7 +162,12 @@ fn twist_val_eval_and_total_inc_sparse_claims_match_naive_and_run_sumcheck() {
         val_naive += has_write[t] * inc_at_write_addr[t] * eq_addr * lt;
     }
     assert_eq!(val_claim, val_naive);
-    assert_sumcheck_ok(b"track_a/twist/val_eval/v1", val_oracle.degree_bound(), val_claim, val_oracle);
+    assert_sumcheck_ok(
+        b"track_a/twist/val_eval/v1",
+        val_oracle.degree_bound(),
+        val_claim,
+        val_oracle,
+    );
 
     let (total_oracle, total_claim) = TwistTotalIncOracleSparseTime::new(
         cols_to_sparse(&wa_bits),
@@ -189,7 +200,9 @@ fn shout_addr_lookup_oracle_sparse_claim_matches_naive_and_runs_sumcheck() {
     let pow2_addr = 1usize << ell_addr;
 
     let has_lookup = vec![K::ONE, K::ZERO, K::ONE, K::ONE, K::ZERO, K::ONE, K::ZERO, K::ONE];
-    let addrs = (0..pow2_cycle).map(|t| (1 + 3 * t) % pow2_addr).collect::<Vec<_>>();
+    let addrs = (0..pow2_cycle)
+        .map(|t| (1 + 3 * t) % pow2_addr)
+        .collect::<Vec<_>>();
     let addr_bits = bits_from_addrs(&addrs, ell_addr);
     let table = vec![k(2), k(3), k(5), k(7)];
 
@@ -242,7 +255,13 @@ fn twist_time_read_write_checks_sparse_have_zero_claim_on_consistent_trace() {
 
     let has_write = vec![K::ONE, K::ZERO, K::ONE, K::ONE, K::ZERO, K::ONE, K::ZERO, K::ONE];
     let inc_at_write_addr = (0..pow2_cycle)
-        .map(|t| if has_write[t] == K::ONE { k(5 + t as u64) } else { K::ZERO })
+        .map(|t| {
+            if has_write[t] == K::ONE {
+                k(5 + t as u64)
+            } else {
+                K::ZERO
+            }
+        })
         .collect::<Vec<_>>();
 
     // Simulate a single-address memory so both checks should have 0 claim.

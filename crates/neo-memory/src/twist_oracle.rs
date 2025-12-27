@@ -904,11 +904,7 @@ impl TwistValEvalOracleSparseTime {
         debug_assert_eq!(inc_at_write_addr.len(), 1usize << ell_n);
         debug_assert_eq!(wa_bits.len(), ell_addr);
         for (b, col) in wa_bits.iter().enumerate() {
-            debug_assert_eq!(
-                col.len(),
-                1usize << ell_n,
-                "wa_bits[{b}] length must match time domain"
-            );
+            debug_assert_eq!(col.len(), 1usize << ell_n, "wa_bits[{b}] length must match time domain");
         }
 
         let mut claim = K::ZERO;
@@ -1042,11 +1038,7 @@ impl TwistTotalIncOracleSparseTime {
         debug_assert_eq!(inc_at_write_addr.len(), 1usize << ell_n);
         debug_assert_eq!(wa_bits.len(), ell_addr);
         for (b, col) in wa_bits.iter().enumerate() {
-            debug_assert_eq!(
-                col.len(),
-                1usize << ell_n,
-                "wa_bits[{b}] length must match time domain"
-            );
+            debug_assert_eq!(col.len(), 1usize << ell_n, "wa_bits[{b}] length must match time domain");
         }
 
         let mut claim = K::ZERO;
@@ -1306,8 +1298,16 @@ impl TwistReadCheckAddrOracleSparseTime {
             has_write_out.push(hw);
             inc_out.push(inc_at_write_addr.get(t));
 
-            ra_addrs.push(if hr != K::ZERO { addr_from_sparse_bits_at_time(ra_bits, t) } else { 0 });
-            wa_addrs.push(if hw != K::ZERO { addr_from_sparse_bits_at_time(wa_bits, t) } else { 0 });
+            ra_addrs.push(if hr != K::ZERO {
+                addr_from_sparse_bits_at_time(ra_bits, t)
+            } else {
+                0
+            });
+            wa_addrs.push(if hw != K::ZERO {
+                addr_from_sparse_bits_at_time(wa_bits, t)
+            } else {
+                0
+            });
         }
 
         let (init_addrs, init_vals): (Vec<usize>, Vec<K>) = init_sparse.into_iter().unzip();
@@ -1646,11 +1646,7 @@ impl AddressLookupOracle {
 
         assert_eq!(addr_bits.len(), ell_addr, "addr_bits count must match ell_addr");
         for (b, col) in addr_bits.iter().enumerate() {
-            assert_eq!(
-                col.len(),
-                pow2_cycle,
-                "addr_bits[{b}] length must match cycle domain"
-            );
+            assert_eq!(col.len(), pow2_cycle, "addr_bits[{b}] length must match cycle domain");
         }
         assert_eq!(
             has_lookup.len(),

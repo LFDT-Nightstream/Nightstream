@@ -16,13 +16,13 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt};
+use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::shard::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, F, K};
 use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
@@ -88,7 +88,10 @@ fn make_twist_instance(
     layout: &PlainMemLayout,
     init: MemInit<F>,
     steps: usize,
-) -> (neo_memory::witness::MemInstance<Cmt, F>, neo_memory::witness::MemWitness<F>) {
+) -> (
+    neo_memory::witness::MemInstance<Cmt, F>,
+    neo_memory::witness::MemWitness<F>,
+) {
     let ell = layout.n_side.trailing_zeros() as usize;
     (
         neo_memory::witness::MemInstance {
@@ -154,12 +157,19 @@ fn write_twist_bus_step(
     *col_id += 1;
     z[bus_base + *col_id * chunk_size + j] = has_write;
     *col_id += 1;
-    z[bus_base + *col_id * chunk_size + j] = if has_write == F::ONE { trace.write_val[j] } else { F::ZERO };
+    z[bus_base + *col_id * chunk_size + j] = if has_write == F::ONE {
+        trace.write_val[j]
+    } else {
+        F::ZERO
+    };
     *col_id += 1;
     z[bus_base + *col_id * chunk_size + j] = if has_read == F::ONE { trace.read_val[j] } else { F::ZERO };
     *col_id += 1;
-    z[bus_base + *col_id * chunk_size + j] =
-        if has_write == F::ONE { trace.inc_at_write_addr[j] } else { F::ZERO };
+    z[bus_base + *col_id * chunk_size + j] = if has_write == F::ONE {
+        trace.inc_at_write_addr[j]
+    } else {
+        F::ZERO
+    };
     *col_id += 1;
 }
 
@@ -168,7 +178,11 @@ fn create_step_with_twist_bus(
     ccs: &CcsStructure<F>,
     l: &AjtaiSModule,
     tag: u64,
-    mem_instances: Vec<(neo_memory::witness::MemInstance<Cmt, F>, neo_memory::witness::MemWitness<F>, PlainMemTrace<F>)>,
+    mem_instances: Vec<(
+        neo_memory::witness::MemInstance<Cmt, F>,
+        neo_memory::witness::MemWitness<F>,
+        PlainMemTrace<F>,
+    )>,
 ) -> StepWitnessBundle<Cmt, F, K> {
     let chunk_size = 1usize;
     let mut bus_cols_total = 0usize;
@@ -302,8 +316,7 @@ fn memory_cross_step_read_consistency() {
     .expect("prove should succeed for valid cross-step memory");
 
     let mut tr_verify = Poseidon2Transcript::new(b"mem-cross-step");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
@@ -345,13 +358,7 @@ fn memory_read_uninitialized_returns_zero() {
     let mem_init = MemInit::Zero;
 
     let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
-    let step_bundle = create_step_with_twist_bus(
-        &params,
-        &ccs,
-        &l,
-        0,
-        vec![(mem_inst, mem_wit, mem_trace)],
-    );
+    let step_bundle = create_step_with_twist_bus(&params, &ccs, &l, 0, vec![(mem_inst, mem_wit, mem_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -416,13 +423,7 @@ fn memory_tamper_read_value_fails() {
     };
 
     let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
-    let step_bundle = create_step_with_twist_bus(
-        &params,
-        &ccs,
-        &l,
-        0,
-        vec![(mem_inst, mem_wit, bad_mem_trace)],
-    );
+    let step_bundle = create_step_with_twist_bus(&params, &ccs, &l, 0, vec![(mem_inst, mem_wit, bad_mem_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -488,13 +489,7 @@ fn memory_tamper_write_increment_fails() {
         inc_at_write_addr: vec![F::from_u64(10)], // WRONG: should be 58
     };
     let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
-    let step_bundle = create_step_with_twist_bus(
-        &params,
-        &ccs,
-        &l,
-        0,
-        vec![(mem_inst, mem_wit, bad_mem_trace)],
-    );
+    let step_bundle = create_step_with_twist_bus(&params, &ccs, &l, 0, vec![(mem_inst, mem_wit, bad_mem_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -643,13 +638,7 @@ fn memory_sparse_initialization() {
     };
 
     let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
-    let step_bundle = create_step_with_twist_bus(
-        &params,
-        &ccs,
-        &l,
-        0,
-        vec![(mem_inst, mem_wit, mem_trace)],
-    );
+    let step_bundle = create_step_with_twist_bus(&params, &ccs, &l, 0, vec![(mem_inst, mem_wit, mem_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();

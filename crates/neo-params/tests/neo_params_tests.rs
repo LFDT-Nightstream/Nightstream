@@ -39,4 +39,3 @@ fn serde_roundtrip() {
     let back: NeoParams = serde_json::from_str(&s).unwrap();
     assert_eq!(p, back);
 }
-

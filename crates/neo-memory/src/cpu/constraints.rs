@@ -33,11 +33,11 @@
 //! a load instruction writes to a register) are equal to the corresponding bus columns
 //! (e.g., `rv` from Twist).
 
+use core::ops::Range;
 use neo_ccs::matrix::Mat;
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::relations::CcsStructure;
 use p3_field::Field;
-use core::ops::Range;
 
 use crate::cpu::bus_layout::{build_bus_layout_for_instances, BusLayout, ShoutCols, TwistCols};
 use crate::witness::{LutInstance, MemInstance};
@@ -172,12 +172,7 @@ pub struct CpuConstraint<F> {
 
 impl<F: Field> CpuConstraint<F> {
     /// Create a constraint: `condition * (left - right) = 0`.
-    pub fn new_eq(
-        label: CpuConstraintLabel,
-        condition_col: usize,
-        left_col: usize,
-        right_col: usize,
-    ) -> Self {
+    pub fn new_eq(label: CpuConstraintLabel, condition_col: usize, left_col: usize, right_col: usize) -> Self {
         Self {
             label,
             condition_col,
@@ -188,12 +183,7 @@ impl<F: Field> CpuConstraint<F> {
     }
 
     /// Create a constraint: `(1 - condition) * (left - right) = 0`.
-    pub fn new_eq_negated(
-        label: CpuConstraintLabel,
-        condition_col: usize,
-        left_col: usize,
-        right_col: usize,
-    ) -> Self {
+    pub fn new_eq_negated(label: CpuConstraintLabel, condition_col: usize, left_col: usize, right_col: usize) -> Self {
         Self {
             label,
             condition_col,
@@ -328,12 +318,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
     /// - `RamReadEqRdWriteIfLoad` in Jolt
     /// - `Rs2EqRamWriteIfStore` in Jolt
     /// - `RamAddrEqZeroIfNotLoadStore` in Jolt
-    pub fn add_twist_instance(
-        &mut self,
-        layout: &BusLayout,
-        twist: &TwistCols,
-        cpu_layout: &CpuColumnLayout,
-    ) {
+    pub fn add_twist_instance(&mut self, layout: &BusLayout, twist: &TwistCols, cpu_layout: &CpuColumnLayout) {
         let cpu = TwistCpuBinding {
             has_read: cpu_layout.is_load,
             has_write: cpu_layout.is_store,
@@ -347,16 +332,8 @@ impl<F: Field> CpuConstraintBuilder<F> {
     }
 
     /// Add constraints for a Twist (memory) instance using an explicit per-instance CPU binding.
-    pub fn add_twist_instance_bound(
-        &mut self,
-        layout: &BusLayout,
-        twist: &TwistCols,
-        cpu: &TwistCpuBinding,
-    ) {
-        assert_eq!(
-            layout.chunk_size, 1,
-            "CpuConstraintBuilder only supports chunk_size==1"
-        );
+    pub fn add_twist_instance_bound(&mut self, layout: &BusLayout, twist: &TwistCols, cpu: &TwistCpuBinding) {
+        assert_eq!(layout.chunk_size, 1, "CpuConstraintBuilder only supports chunk_size==1");
 
         // Bus column indices (absolute in witness)
         let bus_has_read = layout.bus_cell(twist.has_read, 0);
@@ -384,11 +361,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
 
         // Selector binding: cpu_has_* == bus_has_*
         self.add_equality_constraint(CpuConstraintLabel::LoadSelectorBinding, cpu.has_read, bus_has_read);
-        self.add_equality_constraint(
-            CpuConstraintLabel::StoreSelectorBinding,
-            cpu.has_write,
-            bus_has_write,
-        );
+        self.add_equality_constraint(CpuConstraintLabel::StoreSelectorBinding, cpu.has_write, bus_has_write);
 
         // Address binding (bit-pack):
         // - has_read  * (read_addr - pack(ra_bits)) = 0
@@ -469,12 +442,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
     ///
     /// # Credits
     /// Constraints adapted from Jolt's `RdWriteEqLookupIfWriteLookupToRd`.
-    pub fn add_shout_instance(
-        &mut self,
-        layout: &BusLayout,
-        shout: &ShoutCols,
-        cpu_layout: &CpuColumnLayout,
-    ) {
+    pub fn add_shout_instance(&mut self, layout: &BusLayout, shout: &ShoutCols, cpu_layout: &CpuColumnLayout) {
         let cpu = ShoutCpuBinding {
             has_lookup: cpu_layout.is_lookup,
             addr: cpu_layout.lookup_key,
@@ -484,16 +452,8 @@ impl<F: Field> CpuConstraintBuilder<F> {
     }
 
     /// Add constraints for a Shout (lookup) instance using an explicit per-instance CPU binding.
-    pub fn add_shout_instance_bound(
-        &mut self,
-        layout: &BusLayout,
-        shout: &ShoutCols,
-        cpu: &ShoutCpuBinding,
-    ) {
-        assert_eq!(
-            layout.chunk_size, 1,
-            "CpuConstraintBuilder only supports chunk_size==1"
-        );
+    pub fn add_shout_instance_bound(&mut self, layout: &BusLayout, shout: &ShoutCols, cpu: &ShoutCpuBinding) {
+        assert_eq!(layout.chunk_size, 1, "CpuConstraintBuilder only supports chunk_size==1");
 
         // Bus column indices
         let bus_has_lookup = layout.bus_cell(shout.has_lookup, 0);
@@ -543,18 +503,9 @@ impl<F: Field> CpuConstraintBuilder<F> {
     ///
     /// This is used for selector binding (is_load == has_read, etc.).
     /// Internally represented as: `1 * (left - right) = 0`
-    pub fn add_equality_constraint(
-        &mut self,
-        label: CpuConstraintLabel,
-        left_col: usize,
-        right_col: usize,
-    ) {
-        self.constraints.push(CpuConstraint::new_eq(
-            label,
-            self.const_one_col,
-            left_col,
-            right_col,
-        ));
+    pub fn add_equality_constraint(&mut self, label: CpuConstraintLabel, left_col: usize, right_col: usize) {
+        self.constraints
+            .push(CpuConstraint::new_eq(label, self.const_one_col, left_col, right_col));
     }
 
     /// Get the accumulated constraints.
@@ -637,8 +588,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
                     },
                 ],
             );
-            CcsStructure::new(vec![i_n, a, b, c], f)
-                .map_err(|e| format!("failed to create CCS: {:?}", e))
+            CcsStructure::new(vec![i_n, a, b, c], f).map_err(|e| format!("failed to create CCS: {:?}", e))
         } else {
             let f = SparsePoly::new(
                 3,
@@ -653,8 +603,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
                     },
                 ],
             );
-            CcsStructure::new(vec![a, b, c], f)
-                .map_err(|e| format!("failed to create CCS: {:?}", e))
+            CcsStructure::new(vec![a, b, c], f).map_err(|e| format!("failed to create CCS: {:?}", e))
         }
     }
 
@@ -701,12 +650,11 @@ impl<F: Field> CpuConstraintBuilder<F> {
         // Determine which matrix indices are A, B, C
         // For identity-first CCS: M_0 = I_n, M_1 = A, M_2 = B, M_3 = C
         // For non-identity-first: M_0 = A, M_1 = B, M_2 = C
-        let (a_idx, b_idx, _c_idx) =
-            if base_ccs.matrices.len() >= 4 && base_ccs.matrices[0].is_identity() {
-                (1, 2, 3)
-            } else {
-                (0, 1, 2)
-            };
+        let (a_idx, b_idx, _c_idx) = if base_ccs.matrices.len() >= 4 && base_ccs.matrices[0].is_identity() {
+            (1, 2, 3)
+        } else {
+            (0, 1, 2)
+        };
 
         // Add constraints to A and B matrices
         for (i, constraint) in self.constraints.iter().enumerate() {
@@ -738,8 +686,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
             }
         }
 
-        CcsStructure::new(matrices, base_ccs.f.clone())
-            .map_err(|e| format!("failed to extend CCS: {:?}", e))
+        CcsStructure::new(matrices, base_ccs.f.clone()).map_err(|e| format!("failed to extend CCS: {:?}", e))
     }
 }
 
@@ -870,10 +817,7 @@ pub fn extend_ccs_with_shared_cpu_bus_constraints<F: Field + Copy, Cmt>(
 /// - `(1 - has_read) * rv = 0`
 /// - `(1 - has_write) * wv = 0`
 /// - etc.
-pub fn create_twist_padding_constraints<F: Field>(
-    layout: &BusLayout,
-    twist: &TwistCols,
-) -> Vec<CpuConstraint<F>> {
+pub fn create_twist_padding_constraints<F: Field>(layout: &BusLayout, twist: &TwistCols) -> Vec<CpuConstraint<F>> {
     assert_eq!(
         layout.chunk_size, 1,
         "create_twist_padding_constraints only supports chunk_size==1"
@@ -929,10 +873,7 @@ pub fn create_twist_padding_constraints<F: Field>(
 }
 
 /// Create padding constraints for Shout (lookup) bus columns.
-pub fn create_shout_padding_constraints<F: Field>(
-    layout: &BusLayout,
-    shout: &ShoutCols,
-) -> Vec<CpuConstraint<F>> {
+pub fn create_shout_padding_constraints<F: Field>(layout: &BusLayout, shout: &ShoutCols) -> Vec<CpuConstraint<F>> {
     assert_eq!(
         layout.chunk_size, 1,
         "create_shout_padding_constraints only supports chunk_size==1"

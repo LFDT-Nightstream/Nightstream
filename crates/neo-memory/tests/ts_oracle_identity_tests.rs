@@ -4,7 +4,9 @@ use neo_math::K;
 use neo_memory::bit_ops::eq_bit_affine;
 use neo_memory::mle::{chi_at_index, lt_eval};
 use neo_memory::sparse_time::SparseIdxVec;
-use neo_memory::twist_oracle::{IndexAdapterOracleSparseTime, TwistTotalIncOracleSparseTime, TwistValEvalOracleSparseTime};
+use neo_memory::twist_oracle::{
+    IndexAdapterOracleSparseTime, TwistTotalIncOracleSparseTime, TwistValEvalOracleSparseTime,
+};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 

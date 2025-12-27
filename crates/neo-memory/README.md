@@ -22,7 +22,7 @@ Twist & Shout memory/lookup protocols, shared CPU-bus integration, and RV64IMAC 
 | `builder.rs` | Build per-step witness bundles from a `VmTrace` |
 | `elf_loader.rs` | Load ELF and raw RISC-V binaries |
 | `output_check.rs` | Output sumcheck (bind program I/O) |
-| `riscv_lookups.rs` | RV64IMAC decode/execute + lookup tables |
+| `riscv_lookups/` | RV64IMAC decode/execute + lookup tables |
 | `riscv_ccs.rs` | RISC-V CCS helpers |
 | `riscv_shout_oracle.rs` | RISC-V-specific Shout oracle helpers |
 | `witness.rs` | Witness/instance data structures |

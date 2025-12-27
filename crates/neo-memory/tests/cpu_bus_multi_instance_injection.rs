@@ -5,9 +5,7 @@ use std::marker::PhantomData;
 use neo_ccs::matrix::Mat;
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::relations::{check_ccs_rowwise_zero, CcsStructure};
-use neo_memory::cpu::constraints::{
-    extend_ccs_with_shared_cpu_bus_constraints, ShoutCpuBinding, TwistCpuBinding,
-};
+use neo_memory::cpu::constraints::{extend_ccs_with_shared_cpu_bus_constraints, ShoutCpuBinding, TwistCpuBinding};
 use neo_memory::witness::{LutInstance, MemInstance};
 use neo_memory::MemInit;
 use p3_field::PrimeCharacteristicRing;
@@ -109,13 +107,7 @@ fn shared_cpu_bus_injection_supports_independent_instances() {
     ];
 
     let ccs = extend_ccs_with_shared_cpu_bus_constraints(
-        &base_ccs,
-        /*m_in=*/ 0,
-        /*const_one_col=*/ 0,
-        &shout_cpu,
-        &twist_cpu,
-        &lut_insts,
-        &mem_insts,
+        &base_ccs, /*m_in=*/ 0, /*const_one_col=*/ 0, &shout_cpu, &twist_cpu, &lut_insts, &mem_insts,
     )
     .expect("inject shared-bus constraints");
 

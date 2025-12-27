@@ -159,23 +159,14 @@ fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
     let inst3 = &bundles[3].mem_instances[0].0;
 
     assert!(matches!(inst0.init, MemInit::Zero));
-    assert_eq!(
-        inst1.init,
-        MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(5))])
-    );
+    assert_eq!(inst1.init, MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(5))]));
     assert_eq!(
         inst2.init,
-        MemInit::Sparse(vec![
-            (0u64, Goldilocks::from_u64(5)),
-            (1u64, Goldilocks::from_u64(7))
-        ])
+        MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(5)), (1u64, Goldilocks::from_u64(7))])
     );
     assert_eq!(
         inst3.init,
-        MemInit::Sparse(vec![
-            (0u64, Goldilocks::from_u64(9)),
-            (1u64, Goldilocks::from_u64(7))
-        ])
+        MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(9)), (1u64, Goldilocks::from_u64(7))])
     );
 }
 

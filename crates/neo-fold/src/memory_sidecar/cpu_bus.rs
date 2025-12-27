@@ -2,8 +2,8 @@ use crate::PiCcsError;
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::{CcsStructure, Mat};
 use neo_math::{F, K};
-use neo_memory::cpu::{build_bus_layout_for_instances, BusLayout};
 use neo_memory::ajtai::decode_vector as ajtai_decode_vector;
+use neo_memory::cpu::{build_bus_layout_for_instances, BusLayout};
 use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
@@ -750,7 +750,10 @@ fn ensure_ccs_has_shared_bus_padding_for_steps<Cmt, S: BusStepView<Cmt>>(
 }
 
 pub(crate) fn decode_cpu_z_to_k(params: &NeoParams, Z: &Mat<F>) -> Vec<K> {
-    ajtai_decode_vector(params, Z).into_iter().map(Into::into).collect()
+    ajtai_decode_vector(params, Z)
+        .into_iter()
+        .map(Into::into)
+        .collect()
 }
 
 pub(crate) fn build_time_sparse_from_bus_col(

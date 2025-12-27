@@ -29,7 +29,11 @@ fn sample_r(xlen: usize, seed: u64) -> Vec<Goldilocks> {
         .map(|i| {
             let i = i as u64;
             // Deterministic, non-boolean values.
-            Goldilocks::from_u64(seed.wrapping_add(17 * i).wrapping_mul(31).wrapping_add(i * (i + 3)))
+            Goldilocks::from_u64(
+                seed.wrapping_add(17 * i)
+                    .wrapping_mul(31)
+                    .wrapping_add(i * (i + 3)),
+            )
         })
         .collect()
 }
@@ -55,4 +59,3 @@ fn opcode_mle_matches_naive_for_small_xlen() {
         }
     }
 }
-

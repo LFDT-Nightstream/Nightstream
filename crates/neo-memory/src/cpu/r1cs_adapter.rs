@@ -3,8 +3,8 @@
 //! This module provides an adapter that implements `CpuArithmetization` for a generic
 //! R1CS-based CPU, allowing integration with Neo's shared CPU bus architecture.
 
-use crate::builder::CpuArithmetization;
 use crate::addr::write_addr_bits_dim_major_le_into_bus;
+use crate::builder::CpuArithmetization;
 use crate::cpu::bus_layout::{build_bus_layout_for_instances, BusLayout};
 use crate::cpu::constraints::{extend_ccs_with_shared_cpu_bus_constraints, ShoutCpuBinding, TwistCpuBinding};
 use crate::mem_init::MemInit;
@@ -133,10 +133,7 @@ where
         }
     }
 
-    fn shared_bus_schema(
-        &self,
-        bus: &SharedCpuBusConfig<F>,
-    ) -> Result<(Vec<u32>, Vec<u32>, BusLayout), String> {
+    fn shared_bus_schema(&self, bus: &SharedCpuBusConfig<F>) -> Result<(Vec<u32>, Vec<u32>, BusLayout), String> {
         let mut table_ids: Vec<u32> = self.shout_cache.keys().copied().collect();
         table_ids.sort_unstable();
         let mut mem_ids: Vec<u32> = bus.mem_layouts.keys().copied().collect();
@@ -193,9 +190,10 @@ where
 
         // Validate initial memory keys.
         for ((mem_id, addr), _val) in cfg.initial_mem.iter() {
-            let layout = cfg.mem_layouts.get(mem_id).ok_or_else(|| {
-                format!("shared_cpu_bus: initial_mem refers to unknown mem_id={mem_id}")
-            })?;
+            let layout = cfg
+                .mem_layouts
+                .get(mem_id)
+                .ok_or_else(|| format!("shared_cpu_bus: initial_mem refers to unknown mem_id={mem_id}"))?;
             if (*addr as usize) >= layout.k {
                 return Err(format!(
                     "shared_cpu_bus: initial_mem out of range for mem_id={mem_id}: addr={addr} >= k={}",
@@ -223,9 +221,10 @@ where
         // Build per-instance binding vectors in canonical order (id-sorted).
         let mut shout_cpu: Vec<ShoutCpuBinding> = Vec::with_capacity(table_ids.len());
         for table_id in &table_ids {
-            let b = cfg.shout_cpu.get(table_id).ok_or_else(|| {
-                format!("shared_cpu_bus: missing shout_cpu binding for table_id={table_id}")
-            })?;
+            let b = cfg
+                .shout_cpu
+                .get(table_id)
+                .ok_or_else(|| format!("shared_cpu_bus: missing shout_cpu binding for table_id={table_id}"))?;
             validate_cpu_binding_cols(
                 "shout_cpu",
                 *table_id,
@@ -236,9 +235,10 @@ where
         }
         let mut twist_cpu: Vec<TwistCpuBinding> = Vec::with_capacity(mem_ids.len());
         for mem_id in &mem_ids {
-            let b = cfg.twist_cpu.get(mem_id).ok_or_else(|| {
-                format!("shared_cpu_bus: missing twist_cpu binding for mem_id={mem_id}")
-            })?;
+            let b = cfg
+                .twist_cpu
+                .get(mem_id)
+                .ok_or_else(|| format!("shared_cpu_bus: missing twist_cpu binding for mem_id={mem_id}"))?;
             let mut cols = vec![
                 ("has_read", b.has_read),
                 ("has_write", b.has_write),
@@ -279,11 +279,7 @@ where
                 .copied()
                 .ok_or_else(|| format!("shared_cpu_bus: missing shout_meta for table_id={table_id}"))?;
             let ell = n_side.trailing_zeros() as usize;
-            let k = self
-                .shout_cache
-                .get(table_id)
-                .map(|m| m.len())
-                .unwrap_or(0);
+            let k = self.shout_cache.get(table_id).map(|m| m.len()).unwrap_or(0);
             lut_insts.push(LutInstance {
                 comms: Vec::new(),
                 k,
@@ -374,19 +370,18 @@ where
                 if val == Goldilocks::ZERO {
                     continue;
                 }
-                let layout = shared.cfg.mem_layouts.get(mem_id).ok_or_else(|| {
-                    format!("shared_cpu_bus: initial_mem refers to unknown mem_id={mem_id}")
-                })?;
+                let layout = shared
+                    .cfg
+                    .mem_layouts
+                    .get(mem_id)
+                    .ok_or_else(|| format!("shared_cpu_bus: initial_mem refers to unknown mem_id={mem_id}"))?;
                 if (*addr as usize) >= layout.k {
                     return Err(format!(
                         "shared_cpu_bus: initial_mem out of range for mem_id={mem_id}: addr={addr} >= k={}",
                         layout.k
                     ));
                 }
-                mem_state
-                    .entry(*mem_id)
-                    .or_default()
-                    .insert(*addr, val);
+                mem_state.entry(*mem_id).or_default().insert(*addr, val);
             }
         }
 
@@ -414,10 +409,7 @@ where
                         ));
                     }
                 } else {
-                    return Err(format!(
-                        "Missing Shout table for shout_id {}",
-                        shout.shout_id.0
-                    ));
+                    return Err(format!("Missing Shout table for shout_id {}", shout.shout_id.0));
                 }
             }
 
@@ -473,9 +465,7 @@ where
                         .insert(id, (ev.key, Goldilocks::from_u64(ev.value)))
                         .is_some()
                     {
-                        return Err(format!(
-                            "multiple shout events for shout_id={id} in one step"
-                        ));
+                        return Err(format!("multiple shout events for shout_id={id} in one step"));
                     }
                 }
 
@@ -489,9 +479,7 @@ where
                                 .insert(id, (ev.addr, Goldilocks::from_u64(ev.value)))
                                 .is_some()
                             {
-                                return Err(format!(
-                                    "multiple twist reads for twist_id={id} in one step"
-                                ));
+                                return Err(format!("multiple twist reads for twist_id={id} in one step"));
                             }
                         }
                         neo_vm_trace::TwistOpKind::Write => {
@@ -499,9 +487,7 @@ where
                                 .insert(id, (ev.addr, Goldilocks::from_u64(ev.value)))
                                 .is_some()
                             {
-                                return Err(format!(
-                                    "multiple twist writes for twist_id={id} in one step"
-                                ));
+                                return Err(format!("multiple twist writes for twist_id={id} in one step"));
                             }
                         }
                     }
@@ -544,11 +530,10 @@ where
                     let ell = layout.n_side.trailing_zeros() as usize;
 
                     // Read port.
-                    let (has_read, ra, rv) =
-                        if let Some((addr, val)) = read_by_id.get(mem_id).copied() {
-                            (Goldilocks::ONE, addr, val)
-                        } else {
-                            (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
+                    let (has_read, ra, rv) = if let Some((addr, val)) = read_by_id.get(mem_id).copied() {
+                        (Goldilocks::ONE, addr, val)
+                    } else {
+                        (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
                     };
                     if has_read == Goldilocks::ONE {
                         write_addr_bits_dim_major_le_into_bus(
@@ -565,11 +550,10 @@ where
                     }
 
                     // Write port.
-                    let (has_write, wa, wv) =
-                        if let Some((addr, val)) = write_by_id.get(mem_id).copied() {
-                            (Goldilocks::ONE, addr, val)
-                        } else {
-                            (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
+                    let (has_write, wa, wv) = if let Some((addr, val)) = write_by_id.get(mem_id).copied() {
+                        (Goldilocks::ONE, addr, val)
+                    } else {
+                        (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
                     };
                     if has_write == Goldilocks::ONE {
                         write_addr_bits_dim_major_le_into_bus(

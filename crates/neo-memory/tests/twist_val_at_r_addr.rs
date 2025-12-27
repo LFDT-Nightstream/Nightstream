@@ -94,7 +94,13 @@ fn read_write_checks_have_zero_claim_with_distractor_writes() {
 
     let has_read = vec![K::ONE, K::ONE, K::ONE, K::ONE, K::ZERO, K::ONE, K::ZERO, K::ONE];
     let rv = (0..pow2_cycle)
-        .map(|t| if has_read[t] == K::ONE { val_pre_target[t] } else { K::ZERO })
+        .map(|t| {
+            if has_read[t] == K::ONE {
+                val_pre_target[t]
+            } else {
+                K::ZERO
+            }
+        })
         .collect::<Vec<_>>();
 
     let read_check = TwistReadCheckOracleSparseTime::new(
@@ -108,7 +114,12 @@ fn read_write_checks_have_zero_claim_with_distractor_writes() {
         &r_addr,
         init_at_r_addr,
     );
-    assert_sumcheck_ok(b"twist/read_check/gating", read_check.degree_bound(), K::ZERO, read_check);
+    assert_sumcheck_ok(
+        b"twist/read_check/gating",
+        read_check.degree_bound(),
+        K::ZERO,
+        read_check,
+    );
 
     let write_check = TwistWriteCheckOracleSparseTime::new(
         &r_cycle,
@@ -119,7 +130,12 @@ fn read_write_checks_have_zero_claim_with_distractor_writes() {
         &r_addr,
         init_at_r_addr,
     );
-    assert_sumcheck_ok(b"twist/write_check/gating", write_check.degree_bound(), K::ZERO, write_check);
+    assert_sumcheck_ok(
+        b"twist/write_check/gating",
+        write_check.degree_bound(),
+        K::ZERO,
+        write_check,
+    );
 }
 
 #[test]
@@ -138,7 +154,13 @@ fn corrupting_rv_breaks_read_check_invariant() {
 
     let has_write = vec![K::ONE, K::ZERO, K::ONE, K::ZERO, K::ZERO, K::ONE, K::ZERO, K::ZERO];
     let inc_at_write_addr = (0..pow2_cycle)
-        .map(|t| if has_write[t] == K::ONE { k(4 + t as u64) } else { K::ZERO })
+        .map(|t| {
+            if has_write[t] == K::ONE {
+                k(4 + t as u64)
+            } else {
+                K::ZERO
+            }
+        })
         .collect::<Vec<_>>();
 
     // Correct reads: rv[t] = pre-write value at addr.

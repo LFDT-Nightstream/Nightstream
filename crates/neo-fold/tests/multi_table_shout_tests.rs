@@ -17,13 +17,13 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt};
+use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::shard::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, F, K};
 use neo_memory::plain::{LutTable, PlainLutTrace};
@@ -88,7 +88,10 @@ fn create_mcs_from_z(
 fn make_shout_instance(
     table: &LutTable<F>,
     steps: usize,
-) -> (neo_memory::witness::LutInstance<Cmt, F>, neo_memory::witness::LutWitness<F>) {
+) -> (
+    neo_memory::witness::LutInstance<Cmt, F>,
+    neo_memory::witness::LutWitness<F>,
+) {
     let ell = table.n_side.trailing_zeros() as usize;
     (
         neo_memory::witness::LutInstance {
@@ -200,10 +203,10 @@ fn multi_table_shout_two_tables() {
         d: 1,
         n_side: 4,
         content: vec![
-            F::from_u64(1),  // ADD
-            F::from_u64(2),  // MUL
-            F::from_u64(3),  // SUB
-            F::from_u64(4),  // DIV
+            F::from_u64(1), // ADD
+            F::from_u64(2), // MUL
+            F::from_u64(3), // SUB
+            F::from_u64(4), // DIV
         ],
     };
 
@@ -213,12 +216,7 @@ fn multi_table_shout_two_tables() {
         k: 4,
         d: 1,
         n_side: 4,
-        content: vec![
-            F::from_u64(0),
-            F::from_u64(1),
-            F::from_u64(2),
-            F::from_u64(3),
-        ],
+        content: vec![F::from_u64(0), F::from_u64(1), F::from_u64(2), F::from_u64(3)],
     };
 
     // Step 0: Lookup opcode[1]=MUL=2, range[2]=2
@@ -371,8 +369,7 @@ fn multi_table_shout_three_tables_interleaved() {
     .expect("prove should succeed with three tables");
 
     let mut tr_verify = Poseidon2Transcript::new(b"multi-table-three");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
@@ -564,8 +561,7 @@ fn multi_table_optional_lookups() {
     .expect("prove should succeed with optional lookups");
 
     let mut tr_verify = Poseidon2Transcript::new(b"multi-table-optional");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,

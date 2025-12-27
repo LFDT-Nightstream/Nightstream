@@ -97,6 +97,14 @@ mod mle;
 mod tables;
 mod trace;
 
+use neo_vm_trace::TwistId;
+
+/// Canonical Twist instance id for RISC-V data RAM.
+pub const RAM_ID: TwistId = TwistId(0);
+
+/// Canonical Twist instance id for the program ROM (B1 instruction fetch).
+pub const PROG_ID: TwistId = TwistId(1);
+
 pub use alu::{compute_op, lookup_entry};
 pub use bits::{interleave_bits, uninterleave_bits};
 pub use cpu::RiscvCpu;

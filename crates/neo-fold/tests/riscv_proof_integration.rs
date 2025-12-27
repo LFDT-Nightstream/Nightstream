@@ -13,9 +13,9 @@
 #![allow(non_snake_case)]
 
 use neo_memory::riscv::lookups::{
-    BranchCondition, RiscvCpu, RiscvInstruction, RiscvMemOp, RiscvMemory, RiscvOpcode, RiscvShoutTables,
+    encode_program, BranchCondition, RiscvCpu, RiscvInstruction, RiscvMemOp, RiscvMemory, RiscvOpcode, RiscvShoutTables,
 };
-use neo_vm_trace::trace_program;
+use neo_vm_trace::{trace_program, TwistId};
 
 // ============================================================================
 // Test 1: Simple Arithmetic Program
@@ -57,10 +57,11 @@ fn riscv_exec_simple_arithmetic() {
         RiscvInstruction::Halt,
     ];
 
+    let program_bytes = encode_program(&program);
     let mut cpu = RiscvCpu::new(xlen);
     cpu.load_program(0, program);
 
-    let memory = RiscvMemory::new(xlen);
+    let memory = RiscvMemory::with_program_in_twist(xlen, TwistId(1), 0, &program_bytes);
     let shout_tables = RiscvShoutTables::new(xlen);
 
     // Execute and trace
@@ -149,10 +150,11 @@ fn riscv_exec_memory_program() {
         RiscvInstruction::Halt,
     ];
 
+    let program_bytes = encode_program(&program);
     let mut cpu = RiscvCpu::new(xlen);
     cpu.load_program(0, program);
 
-    let memory = RiscvMemory::new(xlen);
+    let memory = RiscvMemory::with_program_in_twist(xlen, TwistId(1), 0, &program_bytes);
     let shout_tables = RiscvShoutTables::new(xlen);
 
     // Execute and trace
@@ -215,10 +217,11 @@ fn riscv_exec_multiplication_program() {
         RiscvInstruction::Halt,
     ];
 
+    let program_bytes = encode_program(&program);
     let mut cpu = RiscvCpu::new(xlen);
     cpu.load_program(0, program);
 
-    let memory = RiscvMemory::new(xlen);
+    let memory = RiscvMemory::with_program_in_twist(xlen, TwistId(1), 0, &program_bytes);
     let shout_tables = RiscvShoutTables::new(xlen);
 
     let trace = trace_program(cpu, memory, shout_tables, 100).unwrap();
@@ -296,10 +299,11 @@ fn riscv_exec_fibonacci() {
         RiscvInstruction::Halt,
     ];
 
+    let program_bytes = encode_program(&program);
     let mut cpu = RiscvCpu::new(32);
     cpu.load_program(0, program);
 
-    let memory = RiscvMemory::new(32);
+    let memory = RiscvMemory::with_program_in_twist(32, TwistId(1), 0, &program_bytes);
     let shout_tables = RiscvShoutTables::new(32);
 
     let trace = trace_program(cpu, memory, shout_tables, 100).unwrap();
@@ -375,10 +379,11 @@ fn riscv_exec_gcd_euclidean() {
         RiscvInstruction::Halt,
     ];
 
+    let program_bytes = encode_program(&program);
     let mut cpu = RiscvCpu::new(xlen);
     cpu.load_program(0, program);
 
-    let memory = RiscvMemory::new(xlen);
+    let memory = RiscvMemory::with_program_in_twist(xlen, TwistId(1), 0, &program_bytes);
     let shout_tables = RiscvShoutTables::new(xlen);
 
     let trace = trace_program(cpu, memory, shout_tables, 100).unwrap();
@@ -446,10 +451,11 @@ fn riscv_exec_factorial() {
         RiscvInstruction::Halt,
     ];
 
+    let program_bytes = encode_program(&program);
     let mut cpu = RiscvCpu::new(xlen);
     cpu.load_program(0, program);
 
-    let memory = RiscvMemory::new(xlen);
+    let memory = RiscvMemory::with_program_in_twist(xlen, TwistId(1), 0, &program_bytes);
     let shout_tables = RiscvShoutTables::new(xlen);
 
     let trace = trace_program(cpu, memory, shout_tables, 100).unwrap();

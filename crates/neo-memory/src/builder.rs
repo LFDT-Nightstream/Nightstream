@@ -1,6 +1,6 @@
 use crate::mem_init::MemInit;
 use crate::plain::{build_plain_mem_traces, LutTable, PlainMemLayout};
-use crate::witness::{LutInstance, LutWitness, MemInstance, MemWitness, StepWitnessBundle};
+use crate::witness::{LutInstance, LutTableSpec, LutWitness, MemInstance, MemWitness, StepWitnessBundle};
 use neo_vm_trace::VmTrace;
 
 use neo_ccs::relations::{McsInstance, McsWitness};
@@ -63,6 +63,7 @@ pub fn build_shard_witness_shared_cpu_bus<V, Cmt, K, A, Tw, Sh>(
     chunk_size: usize,
     mem_layouts: &HashMap<u32, PlainMemLayout>,
     lut_tables: &HashMap<u32, LutTable<Goldilocks>>,
+    lut_table_specs: &HashMap<u32, LutTableSpec>,
     initial_mem: &HashMap<(u32, u64), Goldilocks>,
     cpu_arith: &A,
 ) -> Result<Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardBuildError>
@@ -99,9 +100,9 @@ where
         }
         for ev in &step.shout_events {
             let table_id = ev.shout_id.0;
-            if !lut_tables.contains_key(&table_id) {
+            if !lut_tables.contains_key(&table_id) && !lut_table_specs.contains_key(&table_id) {
                 return Err(ShardBuildError::MissingTable(format!(
-                    "trace contains shout events for table_id={table_id} at step {j}, but lut_tables has no entry"
+                    "trace contains shout events for table_id={table_id} at step {j}, but neither lut_tables nor lut_table_specs has an entry"
                 )));
             }
         }
@@ -123,8 +124,9 @@ where
     // Deterministic ordering (required for the shared-bus column schema).
     let mut mem_ids: Vec<u32> = mem_layouts.keys().copied().collect();
     mem_ids.sort_unstable();
-    let mut table_ids: Vec<u32> = lut_tables.keys().copied().collect();
+    let mut table_ids: Vec<u32> = lut_tables.keys().copied().chain(lut_table_specs.keys().copied()).collect();
     table_ids.sort_unstable();
+    table_ids.dedup();
 
     // 3) CPU arithmetization chunks.
     let mcss = cpu_arith
@@ -253,20 +255,37 @@ where
         // Lookup instances (metadata-only).
         let mut lut_instances = Vec::new();
         for table_id in table_ids.iter().copied() {
-            let table = lut_tables
-                .get(&table_id)
-                .ok_or_else(|| ShardBuildError::MissingTable(format!("missing LutTable for shout_id {}", table_id)))?;
-            let ell = ell_from_pow2_n_side(table.n_side)?;
+            let table_spec = lut_table_specs.get(&table_id).cloned();
+
+            let (k, d, n_side, ell, table) = if let Some(spec) = &table_spec {
+                // Derive addressing parameters from the implicit table spec.
+                match spec {
+                    LutTableSpec::RiscvOpcode { xlen, .. } => {
+                        let d = xlen
+                            .checked_mul(2)
+                            .ok_or_else(|| ShardBuildError::InvalidInit("2*xlen overflow for RISC-V shout table".into()))?;
+                        let n_side = 2usize;
+                        let ell = 1usize;
+                        (0usize, d, n_side, ell, Vec::new())
+                    }
+                }
+            } else {
+                let table = lut_tables
+                    .get(&table_id)
+                    .ok_or_else(|| ShardBuildError::MissingTable(format!("missing LutTable for shout_id {}", table_id)))?;
+                let ell = ell_from_pow2_n_side(table.n_side)?;
+                (table.k, table.d, table.n_side, ell, table.content.clone())
+            };
 
             let inst = LutInstance::<Cmt, Goldilocks> {
                 comms: Vec::new(),
-                k: table.k,
-                d: table.d,
-                n_side: table.n_side,
+                k,
+                d,
+                n_side,
                 steps: chunk_len,
                 ell,
-                table_spec: None,
-                table: table.content.clone(),
+                table_spec,
+                table,
                 _phantom: PhantomData,
             };
             let wit = LutWitness { mats: Vec::new() };

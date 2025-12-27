@@ -1,6 +1,8 @@
-use neo_vm_trace::{Shout, Twist, TwistId};
+use neo_vm_trace::{Shout, Twist};
 
 use super::bits::interleave_bits;
+use super::decode::decode_instruction;
+use super::encode::encode_instruction;
 use super::isa::{RiscvInstruction, RiscvMemOp};
 use super::tables::RiscvShoutTables;
 
@@ -102,16 +104,37 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
         T: Twist<u64, u64>,
         S: Shout<u64>,
     {
-        let ram = TwistId(0);
+        let ram = super::RAM_ID;
+        let prog = super::PROG_ID;
 
-        let instr = self
-            .current_instruction()
-            .cloned()
-            .ok_or_else(|| format!("No instruction at PC {:#x}", self.pc))?;
+        let instr_word = twist.load(prog, self.pc);
+        let instr_word_u32 = u32::try_from(instr_word).map_err(|_| {
+            format!(
+                "Instruction word at PC {:#x} does not fit in 32 bits: {:#x}",
+                self.pc, instr_word
+            )
+        })?;
+
+        if let Some(expected) = self.current_instruction() {
+            let expected_word = encode_instruction(expected);
+            if expected_word != instr_word_u32 {
+                return Err(format!(
+                    "Program ROM mismatch at PC {:#x}: expected {:#x}, got {:#x}",
+                    self.pc, expected_word, instr_word_u32
+                ));
+            }
+        }
+
+        let instr = decode_instruction(instr_word_u32).map_err(|e| {
+            format!(
+                "Failed to decode instruction at PC {:#x} (word {:#x}): {e}",
+                self.pc, instr_word_u32
+            )
+        })?;
 
         // Default: advance PC by 4
         let mut next_pc = self.pc.wrapping_add(4);
-        let opcode_num: u32;
+        let step_opcode: u32 = instr_word_u32;
 
         match instr {
             RiscvInstruction::RAlu { op, rd, rs1, rs2 } => {
@@ -124,7 +147,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 let result = shout.lookup(shout_id, index);
 
                 self.set_reg(rd, result);
-                opcode_num = 0x33; // R-type opcode
             }
 
             RiscvInstruction::IAlu { op, rd, rs1, imm } => {
@@ -137,7 +159,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 let result = shout.lookup(shout_id, index);
 
                 self.set_reg(rd, result);
-                opcode_num = 0x13; // I-type opcode
             }
 
             RiscvInstruction::Load { op, rd, rs1, imm } => {
@@ -169,7 +190,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 };
 
                 self.set_reg(rd, self.mask_value(result));
-                opcode_num = 0x03; // Load opcode
             }
 
             RiscvInstruction::Store { op, rs1, rs2, imm } => {
@@ -188,7 +208,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
                 // Use Twist for memory access
                 twist.store(ram, addr, store_value);
-                opcode_num = 0x23; // Store opcode
             }
 
             RiscvInstruction::Branch { cond, rs1, rs2, imm } => {
@@ -204,7 +223,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 if cond.evaluate(rs1_val, rs2_val, self.xlen) {
                     next_pc = (self.pc as i64 + imm as i64) as u64;
                 }
-                opcode_num = 0x63; // Branch opcode
             }
 
             RiscvInstruction::Jal { rd, imm } => {
@@ -212,7 +230,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 self.set_reg(rd, self.pc.wrapping_add(4));
                 // pc = pc + imm
                 next_pc = (self.pc as i64 + imm as i64) as u64;
-                opcode_num = 0x6F; // JAL opcode
             }
 
             RiscvInstruction::Jalr { rd, rs1, imm } => {
@@ -224,30 +241,25 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
                 // rd = return address
                 self.set_reg(rd, return_addr);
-                opcode_num = 0x67; // JALR opcode
             }
 
             RiscvInstruction::Lui { rd, imm } => {
                 // rd = imm << 12 (upper 20 bits)
                 let value = (imm as i64 as u64) << 12;
                 self.set_reg(rd, self.mask_value(value));
-                opcode_num = 0x37; // LUI opcode
             }
 
             RiscvInstruction::Auipc { rd, imm } => {
                 // rd = pc + (imm << 12)
                 let value = self.pc.wrapping_add((imm as i64 as u64) << 12);
                 self.set_reg(rd, self.mask_value(value));
-                opcode_num = 0x17; // AUIPC opcode
             }
 
             RiscvInstruction::Halt => {
                 self.halted = true;
-                opcode_num = 0x73; // ECALL opcode
             }
 
             RiscvInstruction::Nop => {
-                opcode_num = 0x13; // NOP is ADDI x0, x0, 0
             }
 
             // === RV64 W-suffix Operations ===
@@ -260,7 +272,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 let result = shout.lookup(shout_id, index);
 
                 self.set_reg(rd, result);
-                opcode_num = 0x3B; // RV64 R-type W opcode
             }
 
             RiscvInstruction::IAluw { op, rd, rs1, imm } => {
@@ -272,7 +283,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 let result = shout.lookup(shout_id, index);
 
                 self.set_reg(rd, result);
-                opcode_num = 0x1B; // RV64 I-type W opcode
             }
 
             // === A Extension: Atomics ===
@@ -298,7 +308,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
                 self.set_reg(rd, self.mask_value(result));
                 // Note: In a real implementation, we'd reserve the address here
-                opcode_num = 0x2F; // AMO opcode
             }
 
             RiscvInstruction::StoreConditional { op, rd, rs1, rs2 } => {
@@ -319,7 +328,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
                 // SC returns 0 on success (assuming reservation is valid in single-threaded mode)
                 self.set_reg(rd, 0);
-                opcode_num = 0x2F; // AMO opcode
             }
 
             RiscvInstruction::Amo { op, rd, rs1, rs2 } => {
@@ -384,7 +392,6 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
                 // Store new value
                 twist.store(ram, addr, new_val);
-                opcode_num = 0x2F; // AMO opcode
             }
 
             // === System Instructions ===
@@ -395,26 +402,22 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 if self.get_reg(10) == 0 {
                     self.halted = true;
                 }
-                opcode_num = 0x73; // SYSTEM opcode
             }
 
             RiscvInstruction::Ebreak => {
                 // EBREAK - debugger breakpoint
                 // For now, treat as halt
                 self.halted = true;
-                opcode_num = 0x73; // SYSTEM opcode
             }
 
             RiscvInstruction::Fence { pred: _, succ: _ } => {
                 // FENCE - memory ordering
                 // No-op in single-threaded execution
-                opcode_num = 0x0F; // MISC-MEM opcode
             }
 
             RiscvInstruction::FenceI => {
                 // FENCE.I - instruction fence
                 // No-op in our implementation
-                opcode_num = 0x0F; // MISC-MEM opcode
             }
         }
 
@@ -422,7 +425,7 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
         Ok(neo_vm_trace::StepMeta {
             pc_after: self.pc,
-            opcode: opcode_num,
+            opcode: step_opcode,
         })
     }
 }

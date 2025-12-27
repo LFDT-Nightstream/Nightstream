@@ -7,16 +7,17 @@
 //! - C: Compressed Instructions
 
 use neo_memory::riscv::lookups::*;
-use neo_vm_trace::{trace_program, Twist, TwistOpKind};
+use neo_vm_trace::{trace_program, Twist, TwistId, TwistOpKind};
 
 // =============================================================================
 // Helper: Execute a program and return final register state
 // =============================================================================
 
 fn run_program(instructions: Vec<RiscvInstruction>, xlen: usize) -> Vec<u64> {
+    let program_bytes = encode_program(&instructions);
     let mut cpu = RiscvCpu::new(xlen);
     cpu.load_program(0, instructions);
-    let memory = RiscvMemory::new(xlen);
+    let memory = RiscvMemory::with_program_in_twist(xlen, TwistId(1), 0, &program_bytes);
     let shout = RiscvShoutTables::new(xlen);
 
     let trace = trace_program(cpu, memory, shout, 1000).expect("execution failed");
@@ -31,9 +32,10 @@ fn run_program_with_memory(
     xlen: usize,
     initial_memory: Vec<(u64, u64)>,
 ) -> (Vec<u64>, RiscvMemory) {
+    let program_bytes = encode_program(&instructions);
     let mut cpu = RiscvCpu::new(xlen);
     cpu.load_program(0, instructions);
-    let mut memory = RiscvMemory::new(xlen);
+    let mut memory = RiscvMemory::with_program_in_twist(xlen, TwistId(1), 0, &program_bytes);
 
     // Initialize memory
     for (addr, val) in initial_memory {
@@ -382,12 +384,16 @@ fn test_i_load_store() {
             rs1: 0,
             imm: 0x100,
         }, // addr
+        // Construct 0xABCD using legal immediates:
+        //   LUI  x2, 0xB      => x2 = 0xB000
+        //   ADDI x2, x2, -0x433 => x2 = 0xABCD
+        RiscvInstruction::Lui { rd: 2, imm: 0xB },
         RiscvInstruction::IAlu {
             op: RiscvOpcode::Add,
             rd: 2,
-            rs1: 0,
-            imm: 0xABCD,
-        }, // value
+            rs1: 2,
+            imm: -0x433,
+        },
         RiscvInstruction::Store {
             op: RiscvMemOp::Sw,
             rs1: 1,

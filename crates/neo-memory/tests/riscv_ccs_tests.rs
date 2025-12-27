@@ -1,217 +1,139 @@
-//! Tests for RISC-V CCS constraint synthesis.
+//! Tests for the RV32 B1 shared-bus step CCS.
 
-use neo_memory::riscv::ccs::*;
+use std::collections::HashMap;
+
+use neo_ccs::matrix::Mat;
+use neo_ccs::relations::check_ccs_rowwise_zero;
+use neo_ccs::traits::SModuleHomomorphism;
+use neo_memory::plain::PlainMemLayout;
+use neo_memory::riscv::ccs::{build_rv32_b1_step_ccs, rv32_b1_shared_cpu_bus_config, rv32_b1_step_to_witness};
+use neo_memory::riscv::lookups::{encode_program, RiscvCpu, RiscvInstruction, RiscvMemOp, RiscvMemory, RiscvOpcode, RiscvShoutTables, PROG_ID};
+use neo_memory::witness::LutTableSpec;
+use neo_memory::{CpuArithmetization, R1csCpu};
+use neo_params::NeoParams;
+use neo_vm_trace::trace_program;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
-#[test]
-fn test_witness_layout_indices() {
-    let layout = RiscvWitnessLayout::new();
+#[derive(Clone, Copy, Default)]
+struct NoopCommit;
 
-    // Check that indices don't overlap
-    assert_eq!(RiscvWitnessLayout::CONST_1, 0);
-    assert_eq!(RiscvWitnessLayout::PC_IN, 1);
-    assert_eq!(RiscvWitnessLayout::PC_OUT, 2);
-    assert_eq!(RiscvWitnessLayout::OUTPUT_VAL, 3);
+impl SModuleHomomorphism<F, ()> for NoopCommit {
+    fn commit(&self, _z: &Mat<F>) -> () {}
 
-    // Check register indices
-    assert_eq!(RiscvWitnessLayout::reg_in(0), 4);
-    assert_eq!(RiscvWitnessLayout::reg_in(31), 35);
-    assert_eq!(RiscvWitnessLayout::reg_out(0), 36);
-    assert_eq!(RiscvWitnessLayout::reg_out(31), 67);
+    fn project_x(&self, z: &Mat<F>, m_in: usize) -> Mat<F> {
+        let rows = z.rows();
+        let mut out = Mat::zero(rows, m_in, F::ZERO);
+        for r in 0..rows {
+            for c in 0..m_in.min(z.cols()) {
+                out[(r, c)] = z[(r, c)];
+            }
+        }
+        out
+    }
+}
 
-    // Verify m_in (public inputs)
-    assert_eq!(layout.m_in, 4);
+fn pow2_ceil_k(min_k: usize) -> (usize, usize) {
+    let k = min_k.next_power_of_two().max(2);
+    let d = k.trailing_zeros() as usize;
+    (k, d)
+}
+
+fn prog_init_words(base: u64, program_bytes: &[u8]) -> HashMap<(u32, u64), F> {
+    assert_eq!(program_bytes.len() % 4, 0, "program must be 4-byte aligned");
+    let mut out = HashMap::new();
+    for (i, chunk) in program_bytes.chunks_exact(4).enumerate() {
+        let addr = base + (i as u64) * 4;
+        let w = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as u64;
+        if w != 0 {
+            out.insert((PROG_ID.0, addr), F::from_u64(w));
+        }
+    }
+    out
 }
 
 #[test]
-fn test_witness_creation() {
-    let layout = RiscvWitnessLayout::new();
-    let mut witness = RiscvStepWitness::new(layout);
+fn rv32_b1_ccs_happy_path_small_program() {
+    let xlen = 32usize;
+    let program = vec![
+        RiscvInstruction::Lui { rd: 1, imm: 1 }, // x1 = 0x1000
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 1,
+            rs1: 1,
+            imm: 5,
+        }, // x1 = 0x1005
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 2,
+            rs1: 0,
+            imm: 7,
+        }, // x2 = 7
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Add,
+            rd: 3,
+            rs1: 1,
+            rs2: 2,
+        }, // x3 = 0x100c
+        RiscvInstruction::Store {
+            op: RiscvMemOp::Sw,
+            rs1: 0,
+            rs2: 3,
+            imm: 0x100,
+        }, // mem[0x100] = x3
+        RiscvInstruction::Load {
+            op: RiscvMemOp::Lw,
+            rd: 4,
+            rs1: 0,
+            imm: 0x100,
+        }, // x4 = mem[0x100]
+        RiscvInstruction::Auipc { rd: 5, imm: 0 }, // x5 = pc
+        RiscvInstruction::Halt,
+    ];
 
-    // Check const_1 is set
-    assert_eq!(witness.values[RiscvWitnessLayout::CONST_1], F::ONE);
+    let program_bytes = encode_program(&program);
+    let mut cpu_vm = RiscvCpu::new(xlen);
+    cpu_vm.load_program(0, program.clone());
+    let memory = RiscvMemory::with_program_in_twist(xlen, PROG_ID, 0, &program_bytes);
+    let shout = RiscvShoutTables::new(xlen);
+    let trace = trace_program(cpu_vm, memory, shout, 64).expect("trace");
+    assert!(trace.did_halt(), "expected Halt");
 
-    // Set and verify PC
-    witness.set_pc(0x1000, 0x1004);
-    assert_eq!(witness.values[RiscvWitnessLayout::PC_IN], F::from_u64(0x1000));
-    assert_eq!(witness.values[RiscvWitnessLayout::PC_OUT], F::from_u64(0x1004));
+    // mem_layouts: keep k small to reduce bus tail width.
+    let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
+    let (k_ram, d_ram) = pow2_ceil_k(0x200); // covers addresses up to 0x1ff
+    let mem_layouts = HashMap::from([
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+    ]);
 
-    // Set and verify registers
-    witness.set_reg_in(1, 42);
-    witness.set_reg_out(1, 100);
-    assert_eq!(witness.values[RiscvWitnessLayout::reg_in(1)], F::from_u64(42));
-    assert_eq!(witness.values[RiscvWitnessLayout::reg_out(1)], F::from_u64(100));
+    let initial_mem = prog_init_words(0, &program_bytes);
 
-    // x0 should remain 0 even if we try to set it
-    witness.set_reg_in(0, 999);
-    witness.set_reg_out(0, 999);
-    assert_eq!(witness.values[RiscvWitnessLayout::reg_in(0)], F::ZERO);
-    assert_eq!(witness.values[RiscvWitnessLayout::reg_out(0)], F::ZERO);
-}
+    let (ccs, layout) = build_rv32_b1_step_ccs(&mem_layouts).expect("ccs");
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
 
-#[test]
-fn test_add_constraint_ccs_satisfied() {
-    // Build a simple CCS: z[4] = z[2] + z[3]
-    let n = 8;
-    let m = 8;
-    let ccs = build_add_constraint_ccs(n, m, 2, 3, 4);
+    let table_specs = HashMap::from([(
+        3u32,
+        LutTableSpec::RiscvOpcode {
+            opcode: RiscvOpcode::Add,
+            xlen,
+        },
+    )]);
 
-    // Valid witness: z[2]=5, z[3]=7, z[4]=12
-    let mut witness = vec![F::ZERO; m];
-    witness[0] = F::ONE; // const_1
-    witness[2] = F::from_u64(5); // in1
-    witness[3] = F::from_u64(7); // in2
-    witness[4] = F::from_u64(12); // out = in1 + in2
+    let cpu = R1csCpu::new(
+        ccs,
+        params,
+        NoopCommit::default(),
+        layout.m_in,
+        &HashMap::new(),
+        &table_specs,
+        rv32_b1_step_to_witness(layout.clone()),
+    )
+    .with_shared_cpu_bus(rv32_b1_shared_cpu_bus_config(&layout, mem_layouts, initial_mem))
+    .expect("shared bus");
 
-    assert!(
-        check_ccs_satisfaction(&ccs, &witness),
-        "Valid witness should satisfy CCS"
-    );
-}
-
-#[test]
-fn test_add_constraint_ccs_unsatisfied() {
-    // Build a simple CCS: z[4] = z[2] + z[3]
-    let n = 8;
-    let m = 8;
-    let ccs = build_add_constraint_ccs(n, m, 2, 3, 4);
-
-    // Invalid witness: z[2]=5, z[3]=7, z[4]=10 (should be 12)
-    let mut witness = vec![F::ZERO; m];
-    witness[0] = F::ONE;
-    witness[2] = F::from_u64(5);
-    witness[3] = F::from_u64(7);
-    witness[4] = F::from_u64(10); // Wrong!
-
-    assert!(
-        !check_ccs_satisfaction(&ccs, &witness),
-        "Invalid witness should not satisfy CCS"
-    );
-}
-
-#[test]
-fn test_pc_increment_ccs_satisfied() {
-    let layout = RiscvWitnessLayout::new();
-    let ccs = build_pc_increment_ccs(layout.m, layout.m, &layout);
-
-    // Build a valid witness
-    let mut witness = RiscvStepWitness::new(layout);
-    witness.set_pc(0x1000, 0x1004); // PC advances by 4
-
-    assert!(
-        check_ccs_satisfaction(&ccs, witness.as_slice()),
-        "PC increment by 4 should satisfy CCS"
-    );
-}
-
-#[test]
-fn test_pc_increment_ccs_unsatisfied() {
-    let layout = RiscvWitnessLayout::new();
-    let ccs = build_pc_increment_ccs(layout.m, layout.m, &layout);
-
-    // Build an invalid witness
-    let mut witness = RiscvStepWitness::new(layout);
-    witness.set_pc(0x1000, 0x1008); // PC advances by 8 (should be 4)
-
-    assert!(
-        !check_ccs_satisfaction(&ccs, witness.as_slice()),
-        "PC increment by 8 should not satisfy CCS"
-    );
-}
-
-#[test]
-fn test_riscv_alu_step_ccs() {
-    let layout = RiscvWitnessLayout::new();
-    let ccs = build_riscv_alu_step_ccs(&layout);
-
-    // Build a valid witness with PC increment
-    let mut witness = RiscvStepWitness::new(layout);
-    witness.set_pc(0x100, 0x104);
-    witness.set_reg_in(1, 10);
-    witness.set_reg_out(1, 10); // Unchanged register
-    witness.set_output(42);
-
-    assert!(
-        check_ccs_satisfaction(&ccs, witness.as_slice()),
-        "Valid ALU step should satisfy CCS"
-    );
-}
-
-#[test]
-fn test_public_inputs_extraction() {
-    let layout = RiscvWitnessLayout::new();
-    let mut witness = RiscvStepWitness::new(layout.clone());
-
-    witness.set_pc(0x1000, 0x1004);
-    witness.set_output(999);
-
-    let public = witness.public_inputs();
-    assert_eq!(public.len(), 4);
-    assert_eq!(public[0], F::ONE); // const_1
-    assert_eq!(public[1], F::from_u64(0x1000)); // pc_in
-    assert_eq!(public[2], F::from_u64(0x1004)); // pc_out
-    assert_eq!(public[3], F::from_u64(999)); // output_val
-}
-
-#[test]
-fn test_witness_from_trace() {
-    use neo_vm_trace::{StepTrace, VmTrace};
-
-    // Create a synthetic trace manually
-    let mut trace = VmTrace::new();
-
-    // Step 1: x1 = 42 (ADDI x1, x0, 42)
-    let mut regs_before: Vec<u64> = vec![0; 32];
-    let mut regs_after: Vec<u64> = vec![0; 32];
-    regs_after[1] = 42;
-
-    trace.steps.push(StepTrace {
-        cycle: 0,
-        pc_before: 0u64,
-        pc_after: 4u64,
-        opcode: 0x13, // ADDI
-        regs_before: regs_before.clone(),
-        regs_after: regs_after.clone(),
-        twist_events: vec![],
-        shout_events: vec![],
-        halted: false,
-    });
-
-    // Step 2: x2 = 50 (ADDI x2, x1, 8)
-    regs_before = regs_after.clone();
-    regs_after[2] = 50;
-
-    trace.steps.push(StepTrace {
-        cycle: 1,
-        pc_before: 4,
-        pc_after: 8,
-        opcode: 0x13,
-        regs_before,
-        regs_after,
-        twist_events: vec![],
-        shout_events: vec![],
-        halted: false,
-    });
-
-    // Generate witnesses
-    let layout = RiscvWitnessLayout::new();
-    let witnesses = witnesses_from_trace(&trace, &layout);
-
-    assert_eq!(witnesses.len(), 2, "Should generate 2 witnesses");
-
-    // Check first witness
-    let w0 = &witnesses[0];
-    assert_eq!(w0.values[RiscvWitnessLayout::PC_IN], F::ZERO);
-    assert_eq!(w0.values[RiscvWitnessLayout::PC_OUT], F::from_u64(4));
-
-    // After first step, x1 should be 42
-    assert_eq!(w0.values[RiscvWitnessLayout::reg_out(1)], F::from_u64(42));
-
-    // Check second witness
-    let w1 = &witnesses[1];
-    assert_eq!(w1.values[RiscvWitnessLayout::PC_IN], F::from_u64(4));
-    assert_eq!(w1.values[RiscvWitnessLayout::PC_OUT], F::from_u64(8));
-    assert_eq!(w1.values[RiscvWitnessLayout::reg_in(1)], F::from_u64(42));
-    assert_eq!(w1.values[RiscvWitnessLayout::reg_out(2)], F::from_u64(50));
+    let steps = CpuArithmetization::build_ccs_steps(&cpu, &trace).expect("build steps");
+    for (mcs_inst, mcs_wit) in steps {
+        check_ccs_rowwise_zero(&cpu.ccs, &mcs_inst.x, &mcs_wit.w).expect("CCS satisfied");
+    }
 }

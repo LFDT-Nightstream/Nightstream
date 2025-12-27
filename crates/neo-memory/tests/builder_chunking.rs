@@ -130,6 +130,7 @@ fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
     mem_layouts.insert(0u32, PlainMemLayout { k: 2, d: 1, n_side: 2 });
 
     let lut_tables: HashMap<u32, neo_memory::plain::LutTable<Goldilocks>> = HashMap::new();
+    let lut_table_specs: HashMap<u32, neo_memory::witness::LutTableSpec> = HashMap::new();
     let initial_mem: HashMap<(u32, u64), Goldilocks> = HashMap::new();
 
     let bundles = build_shard_witness_shared_cpu_bus::<_, (), neo_math::K, _, _, _>(
@@ -140,6 +141,7 @@ fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
         1, // shared_cpu_bus requires chunk_size==1
         &mem_layouts,
         &lut_tables,
+        &lut_table_specs,
         &initial_mem,
         &DummyCpuArith::default(),
     )
@@ -176,6 +178,7 @@ fn build_shard_witness_shared_cpu_bus_rejects_chunk_size_not_one() {
     mem_layouts.insert(0u32, PlainMemLayout { k: 2, d: 1, n_side: 2 });
 
     let lut_tables: HashMap<u32, neo_memory::plain::LutTable<Goldilocks>> = HashMap::new();
+    let lut_table_specs: HashMap<u32, neo_memory::witness::LutTableSpec> = HashMap::new();
     let initial_mem: HashMap<(u32, u64), Goldilocks> = HashMap::new();
 
     let err = build_shard_witness_shared_cpu_bus::<_, (), neo_math::K, _, _, _>(
@@ -186,6 +189,7 @@ fn build_shard_witness_shared_cpu_bus_rejects_chunk_size_not_one() {
         2, // chunk_size
         &mem_layouts,
         &lut_tables,
+        &lut_table_specs,
         &initial_mem,
         &DummyCpuArith::default(),
     )

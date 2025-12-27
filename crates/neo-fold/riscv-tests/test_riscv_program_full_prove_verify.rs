@@ -1,25 +1,32 @@
-//! End-to-end proving + verification for a small RISC-V program.
+//! End-to-end prove+verify for a small RV32 program under the B1 shared-bus step circuit.
 //!
-//! This test exercises:
-//! - `neo_vm_trace::trace_program` to execute a RISC-V program
-//! - `neo_memory::riscv::ccs` to build a CCS + per-step witnesses
-//! - `neo_fold::session::FoldingSession` to prove and verify the execution trace
+//! This exercises:
+//! - B1 instruction fetch via `PROG_ID` Twist reads
+//! - shared CPU bus tail wiring (Twist + Shout)
+//! - implicit Shout table spec (`LutTableSpec::RiscvOpcode`)
+//! - the RV32 B1 step CCS glue constraints
 
 #![allow(non_snake_case)]
 
+use std::collections::HashMap;
+
 use neo_ajtai::Commitment as Cmt;
+use neo_ccs::matrix::Mat;
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::session::{FoldingSession, ProveInput};
-use neo_memory::riscv::ccs::{
-    build_riscv_alu_step_ccs, check_ccs_satisfaction, witness_from_trace_step, RiscvWitnessLayout,
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify, CommitMixers};
+use neo_math::{F, K};
+use neo_memory::builder::build_shard_witness_shared_cpu_bus;
+use neo_memory::plain::PlainMemLayout;
+use neo_memory::riscv::ccs::{build_rv32_b1_step_ccs, rv32_b1_shared_cpu_bus_config, rv32_b1_step_to_witness};
+use neo_memory::riscv::lookups::{
+    encode_program, RiscvCpu, RiscvInstruction, RiscvMemOp, RiscvMemory, RiscvOpcode, RiscvShoutTables, PROG_ID,
 };
-use neo_memory::riscv::lookups::{RiscvCpu, RiscvInstruction, RiscvMemory, RiscvOpcode, RiscvShoutTables};
+use neo_memory::witness::{LutTableSpec, StepInstanceBundle};
+use neo_memory::R1csCpu;
 use neo_params::NeoParams;
-use neo_vm_trace::trace_program;
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 #[derive(Clone, Copy, Default)]
 struct DummyCommit;
@@ -41,16 +48,49 @@ impl SModuleHomomorphism<F, Cmt> for DummyCommit {
     }
 }
 
+fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt> {
+    fn mix_rhos_commits(_rhos: &[Mat<F>], _cs: &[Cmt]) -> Cmt {
+        Cmt::zeros(neo_math::D, 1)
+    }
+    fn combine_b_pows(_cs: &[Cmt], _b: u32) -> Cmt {
+        Cmt::zeros(neo_math::D, 1)
+    }
+    CommitMixers {
+        mix_rhos_commits,
+        combine_b_pows,
+    }
+}
+
+fn pow2_ceil_k(min_k: usize) -> (usize, usize) {
+    let k = min_k.next_power_of_two().max(2);
+    let d = k.trailing_zeros() as usize;
+    (k, d)
+}
+
+fn prog_init_words(base: u64, program_bytes: &[u8]) -> HashMap<(u32, u64), F> {
+    assert_eq!(program_bytes.len() % 4, 0, "program must be 4-byte aligned");
+    let mut out = HashMap::new();
+    for (i, chunk) in program_bytes.chunks_exact(4).enumerate() {
+        let addr = base + (i as u64) * 4;
+        let w = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as u64;
+        if w != 0 {
+            out.insert((PROG_ID.0, addr), F::from_u64(w));
+        }
+    }
+    out
+}
+
 #[test]
 fn test_riscv_program_full_prove_verify() {
-    // Program: compute 5 + 7 = 12 into x3
+    let xlen = 32usize;
     let program = vec![
+        RiscvInstruction::Lui { rd: 1, imm: 1 }, // x1 = 0x1000
         RiscvInstruction::IAlu {
             op: RiscvOpcode::Add,
             rd: 1,
-            rs1: 0,
+            rs1: 1,
             imm: 5,
-        }, // x1 = 5
+        }, // x1 = 0x1005
         RiscvInstruction::IAlu {
             op: RiscvOpcode::Add,
             rd: 2,
@@ -62,56 +102,108 @@ fn test_riscv_program_full_prove_verify() {
             rd: 3,
             rs1: 1,
             rs2: 2,
-        }, // x3 = x1 + x2
+        }, // x3 = 0x100c
+        RiscvInstruction::Store {
+            op: RiscvMemOp::Sw,
+            rs1: 0,
+            rs2: 3,
+            imm: 0x100,
+        }, // mem[0x100] = x3
+        RiscvInstruction::Load {
+            op: RiscvMemOp::Lw,
+            rd: 4,
+            rs1: 0,
+            imm: 0x100,
+        }, // x4 = mem[0x100]
+        RiscvInstruction::Auipc { rd: 5, imm: 0 }, // x5 = pc
         RiscvInstruction::Halt,
     ];
 
-    let mut cpu = RiscvCpu::new(32);
-    cpu.load_program(0, program);
-    let memory = RiscvMemory::new(32);
-    let shout_tables = RiscvShoutTables::new(32);
+    let program_bytes = encode_program(&program);
+    let mut vm = RiscvCpu::new(xlen);
+    vm.load_program(0, program);
+    let twist = RiscvMemory::with_program_in_twist(xlen, PROG_ID, 0, &program_bytes);
+    let shout = RiscvShoutTables::new(xlen);
 
-    let trace = trace_program(cpu, memory, shout_tables, 100).expect("trace_program should succeed");
-    assert!(trace.did_halt(), "program should halt");
+    // Keep k small to reduce bus tail width and proof work.
+    let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
+    let (k_ram, d_ram) = pow2_ceil_k(0x200);
+    let mem_layouts = HashMap::from([
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+    ]);
+    let initial_mem = prog_init_words(0, &program_bytes);
 
-    let last_step = trace.steps.last().expect("non-empty trace");
-    let output = last_step.regs_after[3];
-    assert_eq!(output, 12, "expected x3 = 12");
+    // Build CCS + shared-bus CPU arithmetization.
+    let (ccs_base, layout) = build_rv32_b1_step_ccs(&mem_layouts).expect("ccs");
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs_base.n).expect("params");
 
-    // Build CCS + parameters for proving
-    let layout = RiscvWitnessLayout::new();
-    let ccs = build_riscv_alu_step_ccs(&layout);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
-    let l = DummyCommit::default();
+    let table_specs = HashMap::from([(
+        3u32,
+        LutTableSpec::RiscvOpcode {
+            opcode: RiscvOpcode::Add,
+            xlen,
+        },
+    )]);
 
-    // Prove every executed step
-    let mut session = FoldingSession::new(FoldingMode::Optimized, params, l);
-    for step_idx in 0..trace.steps.len() {
-        let mut witness = witness_from_trace_step(&trace, step_idx, &layout).expect("witness");
-        witness.set_output(output);
+    let cpu = R1csCpu::new(
+        ccs_base,
+        params.clone(),
+        DummyCommit::default(),
+        layout.m_in,
+        &HashMap::new(),
+        &table_specs,
+        rv32_b1_step_to_witness(layout.clone()),
+    )
+    .with_shared_cpu_bus(rv32_b1_shared_cpu_bus_config(&layout, mem_layouts.clone(), initial_mem.clone()))
+    .expect("shared bus inject");
 
-        assert!(
-            check_ccs_satisfaction(&ccs, witness.as_slice()),
-            "step {step_idx} witness should satisfy CCS"
-        );
+    // Build shared-bus step bundles (includes CPU MCS + metadata-only mem/lut instances).
+    let lut_tables = HashMap::new();
+    let steps = build_shard_witness_shared_cpu_bus::<_, Cmt, K, _, _, _>(
+        vm,
+        twist,
+        shout,
+        /*max_steps=*/ 64,
+        /*chunk_size=*/ 1,
+        &mem_layouts,
+        &lut_tables,
+        &table_specs,
+        &initial_mem,
+        &cpu,
+    )
+    .expect("build shard witness");
 
-        let input = ProveInput {
-            ccs: &ccs,
-            public_input: witness.public_inputs(),
-            witness: witness.private_witness(),
-            output_claims: &[],
-        };
-        session
-            .add_step_from_io(&input)
-            .expect("add_step_from_io should succeed");
-    }
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
 
-    let run = session
-        .fold_and_prove(&ccs)
-        .expect("fold_and_prove should succeed");
-    let mcss_public = session.mcss_public();
-    let ok = session
-        .verify(&ccs, &mcss_public, &run)
-        .expect("verify should run");
-    assert!(ok, "verification should succeed");
+    let mixers = default_mixers();
+    let mut tr_prove = Poseidon2Transcript::new(b"riscv-b1-full");
+    // PaperExact is intentionally slow (brute-force oracle) and can make this end-to-end
+    // test take minutes. Use the optimized engine here and keep PaperExact covered by
+    // smaller unit tests.
+    let proof = fold_shard_prove(
+        FoldingMode::Optimized,
+        &mut tr_prove,
+        &params,
+        &cpu.ccs,
+        &steps,
+        &[],
+        &[],
+        &DummyCommit::default(),
+        mixers,
+    )
+    .expect("prove");
+
+    let mut tr_verify = Poseidon2Transcript::new(b"riscv-b1-full");
+    let _ = fold_shard_verify(
+        FoldingMode::Optimized,
+        &mut tr_verify,
+        &params,
+        &cpu.ccs,
+        &steps_public,
+        &[],
+        &proof,
+        mixers,
+    )
+    .expect("verify");
 }

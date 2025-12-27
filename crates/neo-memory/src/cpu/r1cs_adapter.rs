@@ -10,7 +10,7 @@ use crate::cpu::constraints::{extend_ccs_with_shared_cpu_bus_constraints, ShoutC
 use crate::mem_init::MemInit;
 use crate::plain::LutTable;
 use crate::plain::PlainMemLayout;
-use crate::witness::{LutInstance, MemInstance};
+use crate::witness::{LutInstance, LutTableSpec, MemInstance};
 use neo_ajtai::{decomp_b, DecompStyle};
 use neo_ccs::matrix::Mat;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness};
@@ -73,10 +73,6 @@ where
     /// The witness z is split as z = (x[0..m_in], w[m_in..]).
     pub m_in: usize,
 
-    /// Cached Shout tables for verification: shout_id -> (key -> val)
-    /// Used to ensure trace Shout lookups are valid against the table.
-    pub shout_cache: HashMap<u32, HashMap<u64, F>>,
-
     /// Shout table metadata needed to write the shared CPU bus (d, n_side).
     pub shout_meta: HashMap<u32, (usize, usize)>,
 
@@ -103,21 +99,22 @@ where
         committer: L,
         m_in: usize,
         tables: &HashMap<u32, LutTable<F>>,
+        table_specs: &HashMap<u32, LutTableSpec>,
         step_to_witness: Box<dyn Fn(&StepTrace<u64, u64>) -> Vec<F> + Send + Sync>,
     ) -> Self {
-        // Build fast Shout cache from tables
-        let mut shout_cache = HashMap::new();
         let mut shout_meta = HashMap::new();
         for (id, table) in tables {
-            // Assuming table content is dense (val = content[addr])
-            // LutTable currently has `content: Vec<F>`.
-            // We'll map key -> val.
-            let mut map = HashMap::new();
-            for (key, val) in table.content.iter().enumerate() {
-                map.insert(key as u64, *val);
-            }
-            shout_cache.insert(*id, map);
             shout_meta.insert(*id, (table.d, table.n_side));
+        }
+        for (id, spec) in table_specs {
+            let (d, n_side) = match spec {
+                LutTableSpec::RiscvOpcode { xlen, .. } => (
+                    xlen.checked_mul(2)
+                        .expect("RISC-V table spec: 2*xlen overflow"),
+                    2usize,
+                ),
+            };
+            shout_meta.insert(*id, (d, n_side));
         }
 
         Self {
@@ -125,7 +122,6 @@ where
             params,
             committer,
             m_in,
-            shout_cache,
             shout_meta,
             shared_cpu_bus: None,
             step_to_witness,
@@ -134,7 +130,7 @@ where
     }
 
     fn shared_bus_schema(&self, bus: &SharedCpuBusConfig<F>) -> Result<(Vec<u32>, Vec<u32>, BusLayout), String> {
-        let mut table_ids: Vec<u32> = self.shout_cache.keys().copied().collect();
+        let mut table_ids: Vec<u32> = self.shout_meta.keys().copied().collect();
         table_ids.sort_unstable();
         let mut mem_ids: Vec<u32> = bus.mem_layouts.keys().copied().collect();
         mem_ids.sort_unstable();
@@ -279,10 +275,9 @@ where
                 .copied()
                 .ok_or_else(|| format!("shared_cpu_bus: missing shout_meta for table_id={table_id}"))?;
             let ell = n_side.trailing_zeros() as usize;
-            let k = self.shout_cache.get(table_id).map(|m| m.len()).unwrap_or(0);
             lut_insts.push(LutInstance {
                 comms: Vec::new(),
-                k,
+                k: 0,
                 d,
                 n_side,
                 steps: 1,
@@ -386,34 +381,7 @@ where
         }
 
         for step in &trace.steps {
-            // 1. Verify Shout lookups in this step against the table cache
-            for shout in &step.shout_events {
-                if let Some(table) = self.shout_cache.get(&shout.shout_id.0) {
-                    // Check val == table[key]
-                    if let Some(&expected) = table.get(&shout.key) {
-                        let trace_val = Goldilocks::from_u64(shout.value);
-                        if trace_val != expected {
-                            return Err(format!(
-                                "Shout mismatch at step pc={:?}: shout {} key {} has {}, trace has {}",
-                                step.pc_before,
-                                shout.shout_id.0,
-                                shout.key,
-                                expected.as_canonical_u64(),
-                                trace_val.as_canonical_u64()
-                            ));
-                        }
-                    } else {
-                        return Err(format!(
-                            "Shout key {} not found in shout {}",
-                            shout.key, shout.shout_id.0
-                        ));
-                    }
-                } else {
-                    return Err(format!("Missing Shout table for shout_id {}", shout.shout_id.0));
-                }
-            }
-
-            // 2. Build witness z
+            // 1. Build witness z
             let mut z_vec = (self.step_to_witness)(step);
 
             // Allow witness builders to omit trailing dummy variables (including the shared-bus tail).

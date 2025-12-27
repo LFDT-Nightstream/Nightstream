@@ -96,6 +96,7 @@ fn with_shared_cpu_bus_injects_constraints_and_forces_const_one() {
         NoopCommit::default(),
         /*m_in=*/ 1,
         &tables,
+        &HashMap::new(),
         Box::new(|_step| vec![F::ZERO]),
     );
 
@@ -164,6 +165,7 @@ fn with_shared_cpu_bus_rejects_non_public_const_one() {
         NoopCommit::default(),
         /*m_in=*/ 1,
         &tables,
+        &HashMap::new(),
         Box::new(|_step| vec![F::ZERO]),
     );
 
@@ -205,6 +207,7 @@ fn with_shared_cpu_bus_rejects_bindings_in_bus_tail() {
         NoopCommit::default(),
         /*m_in=*/ 1,
         &tables,
+        &HashMap::new(),
         Box::new(|_step| vec![F::ZERO]),
     );
 

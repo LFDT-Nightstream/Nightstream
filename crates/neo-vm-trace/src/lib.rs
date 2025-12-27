@@ -28,7 +28,7 @@
 //! let trace = trace_program(my_cpu, my_twist, my_shout, 1000)?;
 //!
 //! // 3. Pass to neo-memory for witness generation
-//! let witness = build_shard_witness(..., &trace, ...);
+//! let steps = build_shard_witness_shared_cpu_bus(...);
 //! ```
 //!
 //! ## Design Notes

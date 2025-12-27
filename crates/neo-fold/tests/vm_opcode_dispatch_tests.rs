@@ -27,9 +27,10 @@ use neo_fold::shard::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, F, K};
-use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
 use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
+use neo_memory::witness::{
+    LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle,
+};
 use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -279,6 +280,47 @@ fn empty_mem_trace() -> PlainMemTrace<F> {
     }
 }
 
+fn metadata_only_mem_instance(
+    layout: &PlainMemLayout,
+    init: MemInit<F>,
+    steps: usize,
+) -> (MemInstance<Cmt, F>, MemWitness<F>) {
+    let ell = layout.n_side.trailing_zeros() as usize;
+    (
+        MemInstance {
+            comms: Vec::new(),
+            k: layout.k,
+            d: layout.d,
+            n_side: layout.n_side,
+            steps,
+            ell,
+            init,
+            _phantom: PhantomData,
+        },
+        MemWitness { mats: Vec::new() },
+    )
+}
+
+fn metadata_only_lut_instance(
+    table: &LutTable<F>,
+    steps: usize,
+) -> (LutInstance<Cmt, F>, LutWitness<F>) {
+    let ell = table.n_side.trailing_zeros() as usize;
+    (
+        LutInstance {
+            comms: Vec::new(),
+            k: table.k,
+            d: table.d,
+            n_side: table.n_side,
+            steps,
+            ell,
+            table: table.content.clone(),
+            _phantom: PhantomData,
+        },
+        LutWitness { mats: Vec::new() },
+    )
+}
+
 /// Simple VM execution: fetch opcode and immediate from lookup tables.
 /// Program: LOAD_IMM 10, ADD 5, STORE, HALT
 /// This test validates instruction fetch via lookup tables without complex memory operations.
@@ -291,7 +333,6 @@ fn vm_simple_add_program() {
 
     let l = setup_ajtai_pp(ccs.m, 0x4001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let bytecode_table = build_bytecode_table();
     let imm_table = build_imm_table();
@@ -301,7 +342,6 @@ fn vm_simple_add_program() {
     // Simulate 4 CPU cycles - focus on bytecode fetch via lookups
     let mut register: u64 = 0;
 
-    let m_in = 0usize;
     for pc in 0u64..4 {
         let opcode = bytecode_table.content[pc as usize].as_canonical_u64();
         let imm = imm_table.content[pc as usize].as_canonical_u64();
@@ -331,41 +371,13 @@ fn vm_simple_add_program() {
 
         // Minimal memory (no actual memory operations in this simplified test)
         let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-        let mem_init = MemInit::Zero;
         let mem_trace = empty_mem_trace();
-        let (mut mem_inst, mut mem_wit) = encode_mem_for_twist(
-            &params,
-            &mem_layout,
-            &mem_init,
-            &mem_trace,
-            &commit_fn,
-            ccs.m,
-            m_in,
-        );
-        mem_inst.comms.clear();
-        mem_wit.mats.clear();
-
-        let (mut opcode_inst, mut opcode_wit) = encode_lut_for_shout(
-            &params,
-            &bytecode_table,
-            &opcode_trace,
-            &commit_fn,
-            ccs.m,
-            m_in,
-        );
-        opcode_inst.comms.clear();
-        opcode_wit.mats.clear();
-
-        let (mut imm_inst, mut imm_wit) = encode_lut_for_shout(
-            &params,
-            &imm_table,
-            &imm_trace,
-            &commit_fn,
-            ccs.m,
-            m_in,
-        );
-        imm_inst.comms.clear();
-        imm_wit.mats.clear();
+        let (mem_inst, mem_wit) =
+            metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
+        let (opcode_inst, opcode_wit) =
+            metadata_only_lut_instance(&bytecode_table, opcode_trace.has_lookup.len());
+        let (imm_inst, imm_wit) =
+            metadata_only_lut_instance(&imm_table, imm_trace.has_lookup.len());
 
         let lut_bus = [(&opcode_inst, &opcode_trace), (&imm_inst, &imm_trace)];
         let mem_bus = [(&mem_inst, &mem_trace)];
@@ -428,13 +440,11 @@ fn vm_register_file_operations() {
 
     let l = setup_ajtai_pp(ccs.m, 0x4001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     // Register file layout: 4 registers
     let reg_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
 
     let mut steps: Vec<StepWitnessBundle<Cmt, F, K>> = Vec::new();
-    let m_in = 0usize;
 
     // Step 0: Write 10 to R0
     {
@@ -448,19 +458,8 @@ fn vm_register_file_operations() {
             write_val: vec![F::from_u64(10)],
             inc_at_write_addr: vec![F::from_u64(10)],
         };
-        let reg_init = MemInit::Zero;
-
-        let (mut reg_inst, mut reg_wit) = encode_mem_for_twist(
-            &params,
-            &reg_layout,
-            &reg_init,
-            &reg_trace,
-            &commit_fn,
-            ccs.m,
-            m_in,
-        );
-        reg_inst.comms.clear();
-        reg_wit.mats.clear();
+        let (reg_inst, reg_wit) =
+            metadata_only_mem_instance(&reg_layout, MemInit::Zero, reg_trace.steps);
         let mem_bus = [(&reg_inst, &reg_trace)];
         let (mcs, mcs_wit) = create_mcs_with_bus(&params, &ccs, &l, 0, &[], &mem_bus);
 
@@ -487,17 +486,7 @@ fn vm_register_file_operations() {
         // State after step 0: R0=10
         let reg_init = MemInit::Sparse(vec![(0, F::from_u64(10))]);
 
-        let (mut reg_inst, mut reg_wit) = encode_mem_for_twist(
-            &params,
-            &reg_layout,
-            &reg_init,
-            &reg_trace,
-            &commit_fn,
-            ccs.m,
-            m_in,
-        );
-        reg_inst.comms.clear();
-        reg_wit.mats.clear();
+        let (reg_inst, reg_wit) = metadata_only_mem_instance(&reg_layout, reg_init, reg_trace.steps);
         let mem_bus = [(&reg_inst, &reg_trace)];
         let (mcs, mcs_wit) = create_mcs_with_bus(&params, &ccs, &l, 1, &[], &mem_bus);
 
@@ -525,17 +514,7 @@ fn vm_register_file_operations() {
         // State after step 1: R0=10, R1=20
         let reg_init = MemInit::Sparse(vec![(0, F::from_u64(10)), (1, F::from_u64(20))]);
 
-        let (mut reg_inst, mut reg_wit) = encode_mem_for_twist(
-            &params,
-            &reg_layout,
-            &reg_init,
-            &reg_trace,
-            &commit_fn,
-            ccs.m,
-            m_in,
-        );
-        reg_inst.comms.clear();
-        reg_wit.mats.clear();
+        let (reg_inst, reg_wit) = metadata_only_mem_instance(&reg_layout, reg_init, reg_trace.steps);
         let mem_bus = [(&reg_inst, &reg_trace)];
         let (mcs, mcs_wit) = create_mcs_with_bus(&params, &ccs, &l, 2, &[], &mem_bus);
 
@@ -594,7 +573,6 @@ fn vm_combined_bytecode_and_data_memory() {
 
     let l = setup_ajtai_pp(ccs.m, 0x4001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     // Bytecode table (ROM via Shout)
     let bytecode = LutTable {
@@ -630,31 +608,9 @@ fn vm_combined_bytecode_and_data_memory() {
         write_val: vec![F::from_u64(42)],
         inc_at_write_addr: vec![F::from_u64(42)],
     };
-    let ram_init = MemInit::Zero;
-
-    let m_in = 0usize;
-    let (mut bytecode_inst, mut bytecode_wit) = encode_lut_for_shout(
-        &params,
-        &bytecode,
-        &bytecode_trace,
-        &commit_fn,
-        ccs.m,
-        m_in,
-    );
-    bytecode_inst.comms.clear();
-    bytecode_wit.mats.clear();
-
-    let (mut ram_inst, mut ram_wit) = encode_mem_for_twist(
-        &params,
-        &ram_layout,
-        &ram_init,
-        &ram_trace,
-        &commit_fn,
-        ccs.m,
-        m_in,
-    );
-    ram_inst.comms.clear();
-    ram_wit.mats.clear();
+    let (bytecode_inst, bytecode_wit) =
+        metadata_only_lut_instance(&bytecode, bytecode_trace.has_lookup.len());
+    let (ram_inst, ram_wit) = metadata_only_mem_instance(&ram_layout, MemInit::Zero, ram_trace.steps);
 
     let lut_bus = [(&bytecode_inst, &bytecode_trace)];
     let mem_bus = [(&ram_inst, &ram_trace)];
@@ -711,7 +667,6 @@ fn vm_invalid_opcode_claim_fails() {
 
     let l = setup_ajtai_pp(ccs.m, 0x4001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let bytecode = build_bytecode_table();
 
@@ -722,22 +677,10 @@ fn vm_invalid_opcode_claim_fails() {
         val: vec![F::from_u64(OP_HALT)], // WRONG: should be LOAD_IMM
     };
 
-    let m_in = 0usize;
+    let (bytecode_inst, bytecode_wit) =
+        metadata_only_lut_instance(&bytecode, bad_trace.has_lookup.len());
 
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        encode_lut_for_shout(&params, &bytecode, &bad_trace, &commit_fn, ccs.m, m_in)
-    }));
-    let (mut bytecode_inst, mut bytecode_wit) = match result {
-        Ok(x) => x,
-        Err(_) => {
-            println!("✓ vm_invalid_opcode_claim_fails: Encoding rejected invalid witness");
-            return;
-        }
-    };
-    bytecode_inst.comms.clear();
-    bytecode_wit.mats.clear();
-
-    // If encoding doesn't panic (e.g. release builds), proving or verification must fail.
+    // Proving or verification must fail for an invalid lookup witness.
     let lut_bus = [(&bytecode_inst, &bad_trace)];
     let (mcs, mcs_wit) = create_mcs_with_bus(&params, &ccs, &l, 0, &lut_bus, &[]);
 
@@ -796,7 +739,6 @@ fn vm_multi_instruction_sequence() {
 
     let l = setup_ajtai_pp(ccs.m, 0x4001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     // Bytecode: NOP, ADD, NOP, HALT
     let bytecode = LutTable {
@@ -814,7 +756,6 @@ fn vm_multi_instruction_sequence() {
 
     let mut steps: Vec<StepWitnessBundle<Cmt, F, K>> = Vec::new();
 
-    let m_in = 0usize;
     for pc in 0u64..4 {
         let bytecode_trace = PlainLutTrace {
             has_lookup: vec![F::ONE],
@@ -823,30 +764,12 @@ fn vm_multi_instruction_sequence() {
         };
 
         let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-        let mem_init = MemInit::Zero;
 
         let mem_trace = empty_mem_trace();
-        let (mut mem_inst, mut mem_wit) = encode_mem_for_twist(
-            &params,
-            &mem_layout,
-            &mem_init,
-            &mem_trace,
-            &commit_fn,
-            ccs.m,
-            m_in,
-        );
-        mem_inst.comms.clear();
-        mem_wit.mats.clear();
-        let (mut bytecode_inst, mut bytecode_wit) = encode_lut_for_shout(
-            &params,
-            &bytecode,
-            &bytecode_trace,
-            &commit_fn,
-            ccs.m,
-            m_in,
-        );
-        bytecode_inst.comms.clear();
-        bytecode_wit.mats.clear();
+        let (mem_inst, mem_wit) =
+            metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
+        let (bytecode_inst, bytecode_wit) =
+            metadata_only_lut_instance(&bytecode, bytecode_trace.has_lookup.len());
 
         let lut_bus = [(&bytecode_inst, &bytecode_trace)];
         let mem_bus = [(&mem_inst, &mem_trace)];

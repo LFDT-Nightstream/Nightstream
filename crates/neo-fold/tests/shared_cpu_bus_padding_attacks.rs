@@ -34,7 +34,9 @@ use neo_fold::shard::{
 };
 use neo_math::{D, F, K};
 use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
+use neo_memory::witness::{
+    LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle,
+};
 use neo_memory::MemInit;
 use neo_memory::cpu::build_bus_layout_for_instances;
 use neo_memory::cpu::constraints::{CpuColumnLayout, CpuConstraintBuilder};
@@ -113,6 +115,44 @@ fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
         }
     }
     Mat::from_row_major(d, m, row_major)
+}
+
+fn metadata_only_mem_instance(
+    layout: &PlainMemLayout,
+    init: MemInit<F>,
+    steps: usize,
+) -> (MemInstance<Cmt, F>, MemWitness<F>) {
+    let ell = layout.n_side.trailing_zeros() as usize;
+    (
+        MemInstance {
+            comms: Vec::new(),
+            k: layout.k,
+            d: layout.d,
+            n_side: layout.n_side,
+            steps,
+            ell,
+            init,
+            _phantom: PhantomData,
+        },
+        MemWitness { mats: Vec::new() },
+    )
+}
+
+fn metadata_only_lut_instance(table: &LutTable<F>, steps: usize) -> (LutInstance<Cmt, F>, LutWitness<F>) {
+    let ell = table.n_side.trailing_zeros() as usize;
+    (
+        LutInstance {
+            comms: Vec::new(),
+            k: table.k,
+            d: table.d,
+            n_side: table.n_side,
+            steps,
+            ell,
+            table: table.content.clone(),
+            _phantom: PhantomData,
+        },
+        LutWitness { mats: Vec::new() },
+    )
 }
 
 const TWIST_BUS_COLS: usize = 7;
@@ -232,10 +272,7 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in,
-    );
+    let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, mem_init, mem_trace.steps);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -329,10 +366,7 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
         inc_at_write_addr: vec![F::from_u64(50)], // Attack
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in,
-    );
+    let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, mem_init, mem_trace.steps);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -426,10 +460,7 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in,
-    );
+    let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, mem_init, mem_trace.steps);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -523,10 +554,7 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in,
-    );
+    let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, mem_init, mem_trace.steps);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -629,9 +657,7 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
         val: vec![F::from_u64(999)], // Non-zero despite no lookup
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (lut_inst, lut_wit) =
-        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, m, m_in);
+    let (lut_inst, lut_wit) = metadata_only_lut_instance(&lut_table, lut_trace.has_lookup.len());
 
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
     let mem_init = MemInit::Zero;
@@ -645,8 +671,7 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
         write_val: vec![F::ZERO],
         inc_at_write_addr: vec![F::ZERO],
     };
-    let (mem_inst, mem_wit) =
-        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in);
+    let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, mem_init, mem_trace.steps);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -745,9 +770,7 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
         val: vec![F::ZERO],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (lut_inst, lut_wit) =
-        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, m, m_in);
+    let (lut_inst, lut_wit) = metadata_only_lut_instance(&lut_table, lut_trace.has_lookup.len());
 
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
     let mem_init = MemInit::Zero;
@@ -761,8 +784,7 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
         write_val: vec![F::ZERO],
         inc_at_write_addr: vec![F::ZERO],
     };
-    let (mem_inst, mem_wit) =
-        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, m, m_in);
+    let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, mem_init, mem_trace.steps);
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,

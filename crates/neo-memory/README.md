@@ -9,20 +9,21 @@ This crate provides:
 - **Twist**: Read/write memory arguments via sparse increment recurrence
 - **Shout**: Read-only lookup table arguments
 - **CPU Constraints**: Binding constraints between CPU semantics and the shared memory/lookup bus
-- **Encoding**: Bit-address encoding for compact address representation
+- **Address helpers**: Bit-address validation + encoding utilities
 - **Witness Building**: Tools for constructing memory/lookup witnesses from VM traces
 
 ## Modules
 
 | Module | Description |
 |--------|-------------|
-| `twist.rs` | Twist (R/W memory) semantics and validation |
+| `twist.rs` | Twist (R/W memory) Route A proof metadata |
 | `twist_oracle.rs` | Sum-check oracles for Twist |
-| `shout.rs` | Shout (lookup) semantics and validation |
+| `shout.rs` | Shout (lookup) Route A proof metadata |
+| `addr.rs` | Bit-address validation + helpers |
 | `cpu/` | CPU integration module (constraints + R1CS adapter) |
+| `cpu/bus_layout.rs` | Canonical shared-bus layout (single source of truth) |
 | `cpu/constraints.rs` | CPU-to-bus binding constraints (adapted from Jolt) |
 | `cpu/r1cs_adapter.rs` | R1CS-based CPU adapter for the shared bus |
-| `encode.rs` | Bit-address encoding utilities |
 | `builder.rs` | Shard/step witness construction |
 | `witness.rs` | Witness data structures |
 
@@ -94,19 +95,19 @@ Twist models memory as a recurrence via sparse updates:
 Val_{t+1} = Val_t + Inc_t
 ```
 
-**Committed columns per chunk:**
-- Address bit-columns for reads/writes
-- `has_read`, `has_write` flags
-- `rv`, `wv` (read/write values)
-- `inc_at_write_addr` (write delta)
+**Shared-bus mode:** Twist consumes bus fields opened from the CPU commitment (the tail of the CPU witness `z`):
+- `ra_bits`, `wa_bits`
+- `has_read`, `has_write`
+- `rv`, `wv`
+- `inc_at_write_addr`
 
 ## Shout (Read-Only Lookups)
 
 Shout proves that when `has_lookup[t] = 1`, the committed `val[t]` matches `table[addr[t]]`.
 
-**Committed columns per chunk:**
-- Address bit-columns (masked by `has_lookup`)
-- `has_lookup` flag
+**Shared-bus mode:** Shout consumes bus fields opened from the CPU commitment:
+- `addr_bits`
+- `has_lookup`
 - `val`
 
 ## Address Encoding
@@ -124,9 +125,6 @@ cargo test -p neo-memory --release
 
 # CPU constraints tests
 cargo test -p neo-memory --test cpu_constraints_tests --release -- --nocapture
-
-# Twist/Shout semantics tests
-cargo test -p neo-memory twist_shout_semantics --release -- --nocapture
 ```
 
 ## License

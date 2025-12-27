@@ -2,10 +2,9 @@ use std::collections::HashMap;
 
 use neo_ccs::matrix::Mat;
 use neo_ccs::relations::{McsInstance, McsWitness};
-use neo_memory::builder::{build_shard_witness, CpuArithmetization, ShardBuildError};
+use neo_memory::builder::{build_shard_witness_shared_cpu_bus, CpuArithmetization, ShardBuildError};
 use neo_memory::plain::PlainMemLayout;
 use neo_memory::MemInit;
-use neo_params::NeoParams;
 use neo_vm_trace::{Shout, ShoutId, StepMeta, Twist, TwistId, VmCpu};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
@@ -125,78 +124,70 @@ impl CpuArithmetization<Goldilocks, ()> for DummyCpuArith {
     }
 }
 
-fn dummy_commit(_mat: &Mat<Goldilocks>) -> () {}
-
 #[test]
-fn build_shard_witness_chunks_memory_and_sets_init_policy() {
-    let params = NeoParams::goldilocks_127();
-
+fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
     let mut mem_layouts = HashMap::new();
     mem_layouts.insert(0u32, PlainMemLayout { k: 2, d: 1, n_side: 2 });
 
     let lut_tables: HashMap<u32, neo_memory::plain::LutTable<Goldilocks>> = HashMap::new();
     let initial_mem: HashMap<(u32, u64), Goldilocks> = HashMap::new();
 
-    let bundles = build_shard_witness::<_, (), _, neo_math::K, _, _, _>(
+    let bundles = build_shard_witness_shared_cpu_bus::<_, (), neo_math::K, _, _, _>(
         ScriptCpu::new(),
         MapTwist::default(),
         NoopShout::default(),
         16,
-        2, // chunk_size
+        1, // shared_cpu_bus requires chunk_size==1
         &mem_layouts,
         &lut_tables,
         &initial_mem,
-        &params,
-        &dummy_commit,
         &DummyCpuArith::default(),
-        2,
-        0,
     )
-    .expect("build_shard_witness should succeed");
+    .expect("build_shard_witness_shared_cpu_bus should succeed");
 
-    assert_eq!(bundles.len(), 2, "expected 4 steps / chunk_size=2 => 2 chunks");
-    assert_eq!(bundles[0].mem_instances.len(), 1);
-    assert_eq!(bundles[1].mem_instances.len(), 1);
+    assert_eq!(bundles.len(), 4, "script CPU halts after 4 steps");
+    for bundle in &bundles {
+        assert_eq!(bundle.mem_instances.len(), 1);
+        assert_eq!(bundle.mem_instances[0].0.steps, 1);
+        assert!(bundle.mem_instances[0].0.comms.is_empty());
+        assert!(bundle.mem_instances[0].1.mats.is_empty());
+    }
 
     let inst0 = &bundles[0].mem_instances[0].0;
     let inst1 = &bundles[1].mem_instances[0].0;
-    assert_eq!(inst0.steps, 2);
-    assert_eq!(inst1.steps, 2);
+    let inst2 = &bundles[2].mem_instances[0].0;
+    let inst3 = &bundles[3].mem_instances[0].0;
 
     assert!(matches!(inst0.init, MemInit::Zero));
     assert_eq!(
         inst1.init,
-        MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(5)), (1u64, Goldilocks::from_u64(7))])
+        MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(5))])
     );
-
-    // Check that inc_at_write_addr encodes the correct write deltas per chunk.
-    // Layout: [ra_bits, wa_bits, has_read, has_write, wv, rv, inc_at_write_addr].
-    let inc0 = neo_memory::ajtai::decode_vector(&params, &bundles[0].mem_instances[0].1.mats[6]);
     assert_eq!(
-        inc0,
-        vec![Goldilocks::from_u64(5), Goldilocks::from_u64(7)],
-        "chunk 0 inc_at_write_addr should be [5, 7]"
+        inst2.init,
+        MemInit::Sparse(vec![
+            (0u64, Goldilocks::from_u64(5)),
+            (1u64, Goldilocks::from_u64(7))
+        ])
     );
-    let inc1 = neo_memory::ajtai::decode_vector(&params, &bundles[1].mem_instances[0].1.mats[6]);
     assert_eq!(
-        inc1,
-        vec![Goldilocks::from_u64(4), Goldilocks::ZERO],
-        "chunk 1 inc_at_write_addr should be [4, 0]"
+        inst3.init,
+        MemInit::Sparse(vec![
+            (0u64, Goldilocks::from_u64(9)),
+            (1u64, Goldilocks::from_u64(7))
+        ])
     );
 }
 
 #[test]
-fn build_shard_witness_rejects_chunk_size_that_exceeds_ccs_width() {
-    let params = NeoParams::goldilocks_127();
-
+fn build_shard_witness_shared_cpu_bus_rejects_chunk_size_not_one() {
     let mut mem_layouts = HashMap::new();
     mem_layouts.insert(0u32, PlainMemLayout { k: 2, d: 1, n_side: 2 });
 
     let lut_tables: HashMap<u32, neo_memory::plain::LutTable<Goldilocks>> = HashMap::new();
     let initial_mem: HashMap<(u32, u64), Goldilocks> = HashMap::new();
 
-    // With ccs_m=4 and m_in=3, any chunk_len>=2 would overflow embed_vec.
-    let err = build_shard_witness::<_, (), _, neo_math::K, _, _, _>(
+    let err = build_shard_witness_shared_cpu_bus::<_, (), neo_math::K, _, _, _>(
         ScriptCpu::new(),
         MapTwist::default(),
         NoopShout::default(),
@@ -205,11 +196,7 @@ fn build_shard_witness_rejects_chunk_size_that_exceeds_ccs_width() {
         &mem_layouts,
         &lut_tables,
         &initial_mem,
-        &params,
-        &dummy_commit,
         &DummyCpuArith::default(),
-        4,
-        3,
     )
     .expect_err("expected InvalidChunkSize error");
 

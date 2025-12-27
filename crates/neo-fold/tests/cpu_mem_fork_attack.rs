@@ -23,7 +23,6 @@ use neo_fold::shard::{
     CommitMixers,
 };
 use neo_math::{D, F, K};
-use neo_memory::encode::encode_mem_for_twist;
 use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
@@ -203,16 +202,19 @@ fn cpu_memory_fork_attack_is_rejected_in_shared_bus_mode() {
         inc_at_write_addr: vec![F::ZERO],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &mem_trace,
-        &commit_fn,
-        ccs.m,
-        m_in,
-    );
+    let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
+        comms: vec![Cmt::zeros(D, 1)],
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: mem_trace.steps,
+        ell: mem_layout.n_side.trailing_zeros() as usize,
+        init: mem_init,
+        _phantom: PhantomData,
+    };
+    let mem_wit = neo_memory::witness::MemWitness {
+        mats: vec![Mat::zero(D, ccs.m, F::ZERO)],
+    };
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,

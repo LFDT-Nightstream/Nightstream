@@ -46,7 +46,9 @@ use neo_fold::shard::{
 };
 use neo_math::{D, F, K};
 use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
+use neo_memory::witness::{
+    LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle,
+};
 use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -279,16 +281,17 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &mem_trace,
-        &commit_fn,
-        ccs.m,
-        m_in,
-    );
+    let mem_inst = MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: mem_trace.steps,
+        ell: mem_layout.n_side.trailing_zeros() as usize,
+        init: mem_init,
+        _phantom: PhantomData,
+    };
+    let mem_wit = MemWitness { mats: Vec::new() };
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -474,16 +477,17 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
         inc_at_write_addr: vec![F::ZERO],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = neo_memory::encode::encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &mem_trace,
-        &commit_fn,
-        ccs.m,
-        m_in,
-    );
+    let mem_inst = MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: mem_trace.steps,
+        ell: mem_layout.n_side.trailing_zeros() as usize,
+        init: mem_init,
+        _phantom: PhantomData,
+    };
+    let mem_wit = MemWitness { mats: Vec::new() };
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,
@@ -655,9 +659,17 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
         val: vec![real_table_val_at_1],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (lut_inst, lut_wit) =
-        neo_memory::encode::encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, ccs.m, m_in);
+    let lut_inst = LutInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: lut_table.k,
+        d: lut_table.d,
+        n_side: lut_table.n_side,
+        steps: lut_trace.has_lookup.len(),
+        ell: lut_table.n_side.trailing_zeros() as usize,
+        table: lut_table.content.clone(),
+        _phantom: PhantomData,
+    };
+    let lut_wit = LutWitness { mats: Vec::new() };
 
     // Memory instance (inactive)
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
@@ -672,8 +684,17 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
         write_val: vec![F::ZERO],
         inc_at_write_addr: vec![F::ZERO],
     };
-    let (mem_inst, mem_wit) =
-        neo_memory::encode::encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, ccs.m, m_in);
+    let mem_inst = MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: mem_trace.steps,
+        ell: mem_layout.n_side.trailing_zeros() as usize,
+        init: mem_init,
+        _phantom: PhantomData,
+    };
+    let mem_wit = MemWitness { mats: Vec::new() };
 
     let steps_witness = vec![StepWitnessBundle {
         mcs,

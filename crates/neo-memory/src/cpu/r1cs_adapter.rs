@@ -4,6 +4,7 @@
 //! R1CS-based CPU, allowing integration with Neo's shared CPU bus architecture.
 
 use crate::builder::CpuArithmetization;
+use crate::addr::write_addr_bits_dim_major_le_into_bus;
 use crate::cpu::bus_layout::{build_bus_layout_for_instances, BusLayout};
 use crate::cpu::constraints::{extend_ccs_with_shared_cpu_bus_constraints, ShoutCpuBinding, TwistCpuBinding};
 use crate::mem_init::MemInit;
@@ -18,7 +19,6 @@ use neo_params::NeoParams;
 use neo_vm_trace::{StepTrace, VmTrace};
 use p3_field::{PrimeCharacteristicRing, PrimeField, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use core::ops::Range;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -506,33 +506,6 @@ where
                     }
                 }
 
-                // Helper: write dim-major, bit-minor, little-endian bits for `addr` into a bus bit range.
-                fn write_addr_bits_dim_major_le(
-                    z: &mut [Goldilocks],
-                    bus: &BusLayout,
-                    bit_cols: Range<usize>,
-                    addr: u64,
-                    d: usize,
-                    n_side: usize,
-                    ell: usize,
-                ) {
-                    debug_assert_eq!(bit_cols.end - bit_cols.start, d * ell);
-                    let mut tmp = addr;
-                    for dim in 0..d {
-                        let comp = (tmp % (n_side as u64)) as u64;
-                        tmp /= n_side as u64;
-                        for bit in 0..ell {
-                            let idx = dim * ell + bit;
-                            let col_id = bit_cols.start + idx;
-                            z[bus.bus_cell(col_id, 0)] = if (comp >> bit) & 1 == 1 {
-                                Goldilocks::ONE
-                            } else {
-                                Goldilocks::ZERO
-                            };
-                        }
-                    }
-                }
-
                 // Shout: addr_bits, has_lookup, val.
                 for (i, table_id) in shared.table_ids.iter().enumerate() {
                     let shout_cols = &shared.layout.shout_cols[i];
@@ -544,10 +517,11 @@ where
                     let ell = n_side.trailing_zeros() as usize;
 
                     if let Some((key, val)) = shout_by_id.get(table_id).copied() {
-                        write_addr_bits_dim_major_le(
+                        write_addr_bits_dim_major_le_into_bus(
                             &mut z_vec,
                             &shared.layout,
                             shout_cols.addr_bits.clone(),
+                            0,
                             key,
                             d,
                             n_side,
@@ -574,12 +548,13 @@ where
                             (Goldilocks::ONE, addr, val)
                         } else {
                             (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
-                        };
+                    };
                     if has_read == Goldilocks::ONE {
-                        write_addr_bits_dim_major_le(
+                        write_addr_bits_dim_major_le_into_bus(
                             &mut z_vec,
                             &shared.layout,
                             twist_cols.ra_bits.clone(),
+                            0,
                             ra,
                             layout.d,
                             layout.n_side,
@@ -594,12 +569,13 @@ where
                             (Goldilocks::ONE, addr, val)
                         } else {
                             (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
-                        };
+                    };
                     if has_write == Goldilocks::ONE {
-                        write_addr_bits_dim_major_le(
+                        write_addr_bits_dim_major_le_into_bus(
                             &mut z_vec,
                             &shared.layout,
                             twist_cols.wa_bits.clone(),
+                            0,
                             wa,
                             layout.d,
                             layout.n_side,

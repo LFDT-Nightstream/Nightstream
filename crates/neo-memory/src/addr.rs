@@ -1,7 +1,67 @@
+use core::ops::Range;
 use neo_reductions::error::PiCcsError;
 use p3_field::PrimeCharacteristicRing;
 
+use crate::cpu::BusLayout;
 use crate::witness::{LutInstance, MemInstance};
+
+pub fn for_each_addr_bit_dim_major_le(
+    addr: u64,
+    d: usize,
+    n_side: usize,
+    ell: usize,
+    mut f: impl FnMut(usize, bool),
+) {
+    assert!(n_side > 0, "n_side must be > 0");
+    let mut tmp = addr;
+    for dim in 0..d {
+        let comp = (tmp % (n_side as u64)) as u64;
+        tmp /= n_side as u64;
+        for bit in 0..ell {
+            let idx = dim * ell + bit;
+            let is_one = ((comp >> bit) & 1) == 1;
+            f(idx, is_one);
+        }
+    }
+}
+
+pub fn write_addr_bits_dim_major_le<F: PrimeCharacteristicRing>(
+    out_bits: &mut [F],
+    addr: u64,
+    d: usize,
+    n_side: usize,
+    ell: usize,
+) {
+    assert_eq!(
+        out_bits.len(),
+        d * ell,
+        "addr_bits output length mismatch"
+    );
+    for_each_addr_bit_dim_major_le(addr, d, n_side, ell, |idx, is_one| {
+        out_bits[idx] = if is_one { F::ONE } else { F::ZERO };
+    });
+}
+
+pub fn write_addr_bits_dim_major_le_into_bus<F: PrimeCharacteristicRing>(
+    z: &mut [F],
+    bus: &BusLayout,
+    bit_cols: Range<usize>,
+    j: usize,
+    addr: u64,
+    d: usize,
+    n_side: usize,
+    ell: usize,
+) {
+    assert_eq!(
+        bit_cols.end - bit_cols.start,
+        d * ell,
+        "addr_bits bus range mismatch"
+    );
+    for_each_addr_bit_dim_major_le(addr, d, n_side, ell, |idx, is_one| {
+        let col_id = bit_cols.start + idx;
+        z[bus.bus_cell(col_id, j)] = if is_one { F::ONE } else { F::ZERO };
+    });
+}
 
 pub fn validate_pow2_bit_addressing(
     proto: &'static str,

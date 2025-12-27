@@ -26,7 +26,6 @@
 #![allow(non_snake_case)]
 #![allow(deprecated)]
 
-use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use neo_ajtai::Commitment as Cmt;
@@ -48,16 +47,12 @@ use neo_fold::shard::{
 use neo_fold::PiCcsError;
 use neo_math::{D, F, K};
 use neo_memory::cpu::build_bus_layout_for_instances;
-use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
-use neo_memory::plain::{
-    build_plain_lut_traces, build_plain_mem_traces, LutTable, PlainMemLayout, PlainMemTrace,
-};
+use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
-use neo_memory::{shout, twist, MemInit};
+use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_reductions::engines::utils;
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use neo_vm_trace::{ShoutEvent, ShoutId, StepTrace, TwistEvent, TwistId, TwistOpKind, VmTrace};
 use p3_field::PrimeCharacteristicRing;
 
 // ============================================================================
@@ -989,98 +984,6 @@ fn create_seed_me(
     (me, Z)
 }
 
-/// Build a simple VM trace with memory reads/writes and table lookups.
-fn build_test_vm_trace() -> VmTrace<u64, u64> {
-    let mem_id = TwistId(0);
-    let tbl_id = ShoutId(0);
-
-    // 4-step trace:
-    // Step 0: Write 42 to mem[0], lookup table[1] = 20
-    // Step 1: Read mem[0] = 42, lookup table[2] = 30
-    // Step 2: Write 100 to mem[1]
-    // Step 3: Read mem[1] = 100, lookup table[0] = 10
-    VmTrace {
-        steps: vec![
-            StepTrace {
-                cycle: 0,
-                pc_before: 0,
-                pc_after: 1,
-                opcode: 1,
-                regs_before: vec![],
-                regs_after: vec![],
-                twist_events: vec![TwistEvent {
-                    twist_id: mem_id,
-                    kind: TwistOpKind::Write,
-                    addr: 0,
-                    value: 42,
-                }],
-                shout_events: vec![ShoutEvent {
-                    shout_id: tbl_id,
-                    key: 1,
-                    value: 20,
-                }],
-                halted: false,
-            },
-            StepTrace {
-                cycle: 1,
-                pc_before: 1,
-                pc_after: 2,
-                opcode: 2,
-                regs_before: vec![],
-                regs_after: vec![],
-                twist_events: vec![TwistEvent {
-                    twist_id: mem_id,
-                    kind: TwistOpKind::Read,
-                    addr: 0,
-                    value: 42,
-                }],
-                shout_events: vec![ShoutEvent {
-                    shout_id: tbl_id,
-                    key: 2,
-                    value: 30,
-                }],
-                halted: false,
-            },
-            StepTrace {
-                cycle: 2,
-                pc_before: 2,
-                pc_after: 3,
-                opcode: 1,
-                regs_before: vec![],
-                regs_after: vec![],
-                twist_events: vec![TwistEvent {
-                    twist_id: mem_id,
-                    kind: TwistOpKind::Write,
-                    addr: 1,
-                    value: 100,
-                }],
-                shout_events: vec![],
-                halted: false,
-            },
-            StepTrace {
-                cycle: 3,
-                pc_before: 3,
-                pc_after: 4,
-                opcode: 2,
-                regs_before: vec![],
-                regs_after: vec![],
-                twist_events: vec![TwistEvent {
-                    twist_id: mem_id,
-                    kind: TwistOpKind::Read,
-                    addr: 1,
-                    value: 100,
-                }],
-                shout_events: vec![ShoutEvent {
-                    shout_id: tbl_id,
-                    key: 0,
-                    value: 10,
-                }],
-                halted: true,
-            },
-        ],
-    }
-}
-
 // ============================================================================
 // Test 1: CPU-Only Folding (Works)
 // ============================================================================
@@ -1178,83 +1081,6 @@ fn test_shard_cpu_only_folding() {
     println!("  - CPU steps: {}", proof.steps.len());
     println!("  - Final children: {}", final_children.len());
     println!("  - k_rho: {}", params.k_rho);
-}
-
-// ============================================================================
-// Test 2: Twist & Shout Proving in Isolation (Works)
-// ============================================================================
-
-/// Test memory sidecar (Twist/Shout) proving in isolation.
-///
-/// This validates that:
-/// 1. VM trace → plain trace → encoding produces valid witnesses
-/// 2. Twist::prove produces valid ME claims and proof
-/// 3. Shout::prove produces valid ME claims and proof
-/// 4. Semantic checks pass for both protocols
-///
-/// NOTE: Full integration with CPU (merge via RLC) requires r-alignment.
-/// Currently, CPU and memory ME claims have different `r` values, so merge fails.
-/// This is tracked as a TODO for the architecture.
-#[test]
-#[cfg(feature = "paper-exact")]
-fn test_twist_shout_sidecar_proving() {
-    let params = NeoParams::goldilocks_127();
-    let l = DummyCommit::default();
-
-    // =========================================================================
-    // Create VM Trace and Memory/LUT structures
-    // =========================================================================
-    let vm_trace = build_test_vm_trace();
-
-    // Memory layout: 4 cells, d=1 dimension, n_side=4 (ell = 2 bits)
-    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
-    let mut mem_layouts = HashMap::new();
-    mem_layouts.insert(0u32, mem_layout.clone());
-
-    // LUT table: [10, 20, 30, 40] at addresses 0..3
-    let lut_table = LutTable {
-        table_id: 0,
-        k: 4,
-        d: 1,
-        n_side: 4,
-        content: vec![F::from_u64(10), F::from_u64(20), F::from_u64(30), F::from_u64(40)],
-    };
-
-    // =========================================================================
-    // Build Plain Traces and Encode
-    // =========================================================================
-    let initial_mem: HashMap<(u32, u64), F> = HashMap::new();
-    let plain_mem_traces = build_plain_mem_traces::<F>(&vm_trace, &mem_layouts, &initial_mem);
-    let plain_mem = &plain_mem_traces[&0u32];
-
-    let mut table_sizes = HashMap::new();
-    table_sizes.insert(0u32, (4usize, 1usize)); // (k, d)
-    let plain_lut_traces = build_plain_lut_traces::<F>(&vm_trace, &table_sizes);
-    let plain_lut = &plain_lut_traces[&0u32];
-
-    // Encode for Twist (memory)
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let mem_init = neo_memory::MemInit::Zero;
-    let (mem_inst, mem_wit) =
-        encode_mem_for_twist(&params, &mem_layout, &mem_init, plain_mem, &commit_fn, plain_mem.steps, 0);
-
-    // Encode for Shout (lookup)
-    let (lut_inst, lut_wit) =
-        encode_lut_for_shout(&params, &lut_table, plain_lut, &commit_fn, plain_lut.has_lookup.len(), 0);
-
-    println!("Memory witness matrices: {}", mem_wit.mats.len());
-    println!("LUT witness matrices: {}", lut_wit.mats.len());
-
-    // =========================================================================
-    // Verify Semantic Checks Pass
-    // =========================================================================
-    twist::check_twist_semantics(&params, &mem_inst, &mem_wit).expect("Twist semantic check should pass");
-
-    shout::check_shout_semantics(&params, &lut_inst, &lut_wit, &plain_lut.val)
-        .expect("Shout semantic check should pass");
-
-    // The secure integration path is Route A in `neo_fold::shard`; this test is now semantic-only.
-    println!("✓ test_twist_shout_sidecar_proving passed (semantic-only)");
 }
 
 // ============================================================================

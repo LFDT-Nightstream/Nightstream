@@ -11,7 +11,6 @@ use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify, CommitMixers};
 use neo_fold::PiCcsError;
 use neo_math::{D, F, K};
-use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
 use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
@@ -252,16 +251,32 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
         val: vec![lut_table.content[1]],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mut mem_inst, mut mem_wit) =
-        encode_mem_for_twist(&params, &mem_layout, &mem_init, &mem_trace, &commit_fn, ccs.m, m_in);
-    mem_inst.comms.clear();
-    mem_wit.mats.clear();
+    let mem_ell = mem_layout.n_side.trailing_zeros() as usize;
+    let lut_ell = lut_table.n_side.trailing_zeros() as usize;
 
-    let (mut lut_inst, mut lut_wit) =
-        encode_lut_for_shout(&params, &lut_table, &lut_trace, &commit_fn, ccs.m, m_in);
-    lut_inst.comms.clear();
-    lut_wit.mats.clear();
+    let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: mem_trace.steps,
+        ell: mem_ell,
+        init: mem_init,
+        _phantom: PhantomData,
+    };
+    let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
+
+    let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: lut_table.k,
+        d: lut_table.d,
+        n_side: lut_table.n_side,
+        steps: lut_trace.has_lookup.len(),
+        ell: lut_ell,
+        table: lut_table.content.clone(),
+        _phantom: PhantomData,
+    };
+    let lut_wit = neo_memory::witness::LutWitness { mats: Vec::new() };
 
     let bus_cols_total = bus_cols_shout(lut_inst.d, lut_inst.ell) + bus_cols_twist(mem_inst.d, mem_inst.ell);
     let chunk_size = 1usize;

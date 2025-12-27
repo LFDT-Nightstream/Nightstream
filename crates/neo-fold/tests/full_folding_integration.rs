@@ -69,14 +69,17 @@ fn build_add_ccs(m: usize, chunk_size: usize, bus_base: usize, shout_ell_addr: u
     // 1) "Program output" constraint on row 0:
     //      (const_one + lhs0 + lhs1 - out) * const_one = 0
     //
-    // 2) Shared-bus padding constraints:
+    // 2) Shared-bus binding "touch" constraints, one per bus column:
+    //      bus_col * const_one = bus_col
+    //
+    // 3) Shared-bus padding constraints:
     //      (1 - has_*) * field = 0
     //
     // This keeps the test CPU semantics minimal but satisfies the shared-bus guardrails.
     let n = m;
     let mut A = Mat::zero(n, m, F::ZERO);
     let mut B = Mat::zero(n, m, F::ZERO);
-    let C = Mat::zero(n, m, F::ZERO);
+    let mut C = Mat::zero(n, m, F::ZERO);
 
     // Row 0: (z0 + z1 + z2 - z3) * z0 = 0
     A[(0, 0)] = F::ONE;
@@ -96,11 +99,14 @@ fn build_add_ccs(m: usize, chunk_size: usize, bus_base: usize, shout_ell_addr: u
         m
     );
 
-    let per_step_constraints = (shout_ell_addr + 1) + (2 * twist_ell_addr + 3);
-    let total_constraints = 1 + chunk_size * per_step_constraints;
+    let per_step_padding_constraints = (shout_ell_addr + 1) + (2 * twist_ell_addr + 3);
+    let include_binding_constraints = chunk_size == 1;
+    let per_step_binding_constraints = if include_binding_constraints { bus_cols } else { 0 };
+    let total_constraints =
+        1 + chunk_size * (per_step_padding_constraints + per_step_binding_constraints);
     assert!(
         total_constraints <= n,
-        "not enough rows for padding constraints: need {}, have n={}",
+        "not enough rows for shared-bus guardrail constraints: need {}, have n={}",
         total_constraints,
         n
     );
@@ -164,6 +170,24 @@ fn build_add_ccs(m: usize, chunk_size: usize, bus_base: usize, shout_ell_addr: u
             A[(row, twist_has_write)] = F::ZERO - F::ONE;
             B[(row, wa_bit)] = F::ONE;
             row += 1;
+        }
+    }
+
+    // Non-padding "touch" constraints for every bus column (only for chunk_size==1 fixtures).
+    //
+    //   bus_col * 1 = bus_col
+    //
+    // These are tautologies, but they prevent a common linkage footgun where the CPU CCS only
+    // references bus columns inside the padding rows.
+    if include_binding_constraints {
+        for j in 0..chunk_size {
+            for col_id in 0..bus_cols {
+                let bus_cell = bus_base + col_id * chunk_size + j;
+                A[(row, bus_cell)] = F::ONE;
+                B[(row, 0)] = F::ONE;
+                C[(row, bus_cell)] = F::ONE;
+                row += 1;
+            }
         }
     }
 

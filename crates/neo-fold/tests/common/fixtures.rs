@@ -16,7 +16,6 @@ use neo_fold::shard::{
 use neo_fold::shard::CommitMixers;
 use neo_fold::{finalize::ObligationFinalizer, PiCcsError};
 use neo_math::{D, F, K};
-use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
 use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
@@ -309,38 +308,54 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
         val: vec![lut_trace1_val],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mut mem_inst0, mut mem_wit0) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init0,
-        &mem_trace0,
-        &commit_fn,
-        ccs.m,
-        m_in,
-    );
-    mem_inst0.comms.clear();
-    mem_wit0.mats.clear();
-    let (mut lut_inst0, mut lut_wit0) =
-        encode_lut_for_shout(&params, &lut_table, &lut_trace0, &commit_fn, ccs.m, m_in);
-    lut_inst0.comms.clear();
-    lut_wit0.mats.clear();
+    let mem_ell = mem_layout.n_side.trailing_zeros() as usize;
+    let lut_ell = lut_table.n_side.trailing_zeros() as usize;
 
-    let (mut mem_inst1, mut mem_wit1) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init1,
-        &mem_trace1,
-        &commit_fn,
-        ccs.m,
-        m_in,
-    );
-    mem_inst1.comms.clear();
-    mem_wit1.mats.clear();
-    let (mut lut_inst1, mut lut_wit1) =
-        encode_lut_for_shout(&params, &lut_table, &lut_trace1, &commit_fn, ccs.m, m_in);
-    lut_inst1.comms.clear();
-    lut_wit1.mats.clear();
+    let mem_inst0 = neo_memory::witness::MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: mem_trace0.steps,
+        ell: mem_ell,
+        init: mem_init0,
+        _phantom: PhantomData,
+    };
+    let mem_wit0 = neo_memory::witness::MemWitness { mats: Vec::new() };
+    let lut_inst0 = neo_memory::witness::LutInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: lut_table.k,
+        d: lut_table.d,
+        n_side: lut_table.n_side,
+        steps: mem_trace0.steps,
+        ell: lut_ell,
+        table: lut_table.content.clone(),
+        _phantom: PhantomData,
+    };
+    let lut_wit0 = neo_memory::witness::LutWitness { mats: Vec::new() };
+
+    let mem_inst1 = neo_memory::witness::MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: mem_trace1.steps,
+        ell: mem_ell,
+        init: mem_init1,
+        _phantom: PhantomData,
+    };
+    let mem_wit1 = neo_memory::witness::MemWitness { mats: Vec::new() };
+    let lut_inst1 = neo_memory::witness::LutInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: lut_table.k,
+        d: lut_table.d,
+        n_side: lut_table.n_side,
+        steps: mem_trace1.steps,
+        ell: lut_ell,
+        table: lut_table.content.clone(),
+        _phantom: PhantomData,
+    };
+    let lut_wit1 = neo_memory::witness::LutWitness { mats: Vec::new() };
 
     let bus_cols_total = bus_cols_shout(lut_inst0.d, lut_inst0.ell) + bus_cols_twist(mem_inst0.d, mem_inst0.ell);
     let bus_base = ccs.m - bus_cols_total;

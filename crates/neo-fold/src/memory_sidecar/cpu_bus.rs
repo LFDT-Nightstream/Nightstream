@@ -173,8 +173,8 @@ pub(crate) fn prepare_ccs_for_shared_cpu_bus_steps<Cmt, S: BusStepView<Cmt>>(
     steps: &[S],
 ) -> Result<(CcsStructure<F>, BusLayout), PiCcsError> {
     let bus = infer_bus_layout_for_steps(s0, steps)?;
-    ensure_ccs_binds_shared_bus_for_steps(s0, &bus, steps)?;
-    ensure_ccs_has_shared_bus_padding_for_steps(s0, &bus, steps)?;
+    let padding_rows = ensure_ccs_has_shared_bus_padding_for_steps(s0, &bus, steps)?;
+    ensure_ccs_binds_shared_bus_for_steps(s0, &bus, &padding_rows)?;
     let s = extend_ccs_with_cpu_bus_copyouts(s0, &bus)?;
     Ok((s, bus))
 }
@@ -302,6 +302,14 @@ fn required_bus_cols_for_layout(layout: &BusLayout) -> Vec<BusColLabel> {
     out
 }
 
+fn required_bus_binding_cols_for_layout(layout: &BusLayout) -> Vec<BusColLabel> {
+    let inc_cols: HashSet<usize> = layout.twist_cols.iter().map(|t| t.inc).collect();
+    required_bus_cols_for_layout(layout)
+        .into_iter()
+        .filter(|c| !inc_cols.contains(&c.col_id))
+        .collect()
+}
+
 fn ensure_ccs_references_bus_cols(
     s: &CcsStructure<F>,
     bus: &BusLayout,
@@ -366,6 +374,88 @@ fn ensure_ccs_references_bus_cols(
         "shared_cpu_bus=true but CPU CCS does not reference required bus columns in any active constraint matrix.\n\
          This makes the bus a dead witness: CPU semantics can fork from Twist/Shout semantics.\n\
          Fix: make CPU semantics use the bus coordinates directly, or add equality constraints tying any shadow columns to the bus.\n\
+         Missing examples: {}",
+        examples.join(", ")
+    )))
+}
+
+fn ensure_ccs_references_bus_cols_outside_padding_rows(
+    s: &CcsStructure<F>,
+    bus: &BusLayout,
+    padding_rows: &HashSet<usize>,
+    required_cols: &[BusColLabel],
+) -> Result<(), PiCcsError> {
+    if bus.bus_cols == 0 {
+        return Ok(());
+    }
+
+    let active = active_matrix_indices(s);
+    if active.is_empty() {
+        // If the CCS polynomial does not depend on any matrix (e.g. f == 0), the CCS imposes
+        // no constraints at all. In that case this check is not meaningful, so we skip it.
+        return Ok(());
+    }
+
+    let mut is_padding_row = vec![false; s.n];
+    for &r in padding_rows {
+        if r < s.n {
+            is_padding_row[r] = true;
+        }
+    }
+
+    let mut missing: Vec<&BusColLabel> = Vec::new();
+    for col in required_cols {
+        if col.col_id >= bus.bus_cols {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus internal error: required col_id {} out of range (bus_cols={})",
+                col.col_id, bus.bus_cols
+            )));
+        }
+        let z_idx = bus.bus_cell(col.col_id, 0);
+        if z_idx >= s.m {
+            return Err(PiCcsError::InvalidInput(format!(
+                "shared_cpu_bus internal error: bus z index {} out of range (m={})",
+                z_idx, s.m
+            )));
+        }
+
+        let mut found = false;
+        'active_mats: for &mj in &active {
+            let mat = &s.matrices[mj];
+            for r in 0..mat.rows() {
+                if is_padding_row[r] {
+                    continue;
+                }
+                if mat[(r, z_idx)] != F::ZERO {
+                    found = true;
+                    break 'active_mats;
+                }
+            }
+        }
+        if !found {
+            missing.push(col);
+        }
+    }
+
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    let mut examples: Vec<String> = missing
+        .iter()
+        .take(8)
+        .map(|c| format!("col_id {} ({})", c.col_id, c.label))
+        .collect();
+    if missing.len() > examples.len() {
+        examples.push(format!("... ({} more)", missing.len() - examples.len()));
+    }
+
+    Err(PiCcsError::InvalidInput(format!(
+        "shared_cpu_bus=true but CPU CCS never references core bus columns outside the canonical padding rows.\n\
+         This is a common linkage footgun: padding constraints (1-has_*)*field=0 only restrict inactive fields, \
+         and do not bind active bus semantics to CPU semantics.\n\
+         Fix: inject binding constraints tying CPU semantics columns to the shared bus (recommended: \
+         `neo_memory::cpu::constraints::extend_ccs_with_shared_cpu_bus_constraints` / `CpuConstraintBuilder`).\n\
          Missing examples: {}",
         examples.join(", ")
     )))
@@ -551,15 +641,15 @@ fn ensure_ccs_has_bus_padding_constraints(
     bus: &BusLayout,
     const_one_cols: &[usize],
     required: &[BusPaddingLabel],
-) -> Result<(), PiCcsError> {
+) -> Result<HashSet<usize>, PiCcsError> {
     if bus.bus_cols == 0 {
-        return Ok(());
+        return Ok(HashSet::new());
     }
 
     let active = active_matrix_indices(s);
     if active.is_empty() {
         // CCS has no active constraints (e.g., f == 0); skip guardrail to preserve plumbing tests.
-        return Ok(());
+        return Ok(HashSet::new());
     }
 
     if const_one_cols.is_empty() {
@@ -586,6 +676,7 @@ fn ensure_ccs_has_bus_padding_constraints(
     };
 
     let mut present: HashSet<(usize, usize)> = HashSet::new();
+    let mut padding_rows: HashSet<usize> = HashSet::new();
     for row in 0..s.n {
         if !row_is_all_zero(&s.matrices[c_idx], row) {
             continue;
@@ -597,6 +688,7 @@ fn ensure_ccs_has_bus_padding_constraints(
             continue;
         };
         present.insert((flag_col, field_col));
+        padding_rows.insert(row);
     }
 
     let mut missing: Vec<&BusPaddingLabel> = Vec::new();
@@ -607,7 +699,7 @@ fn ensure_ccs_has_bus_padding_constraints(
     }
 
     if missing.is_empty() {
-        return Ok(());
+        return Ok(padding_rows);
     }
 
     let mut examples: Vec<String> = missing
@@ -629,25 +721,28 @@ fn ensure_ccs_has_bus_padding_constraints(
     )))
 }
 
-fn ensure_ccs_binds_shared_bus_for_steps<Cmt, S: BusStepView<Cmt>>(
+fn ensure_ccs_binds_shared_bus_for_steps(
     s: &CcsStructure<F>,
     bus: &BusLayout,
-    steps: &[S],
+    padding_rows: &HashSet<usize>,
 ) -> Result<(), PiCcsError> {
-    if steps.is_empty() || bus.bus_cols == 0 {
+    if bus.bus_cols == 0 {
         return Ok(());
     }
     let required = required_bus_cols_for_layout(bus);
-    ensure_ccs_references_bus_cols(s, bus, &required)
+    ensure_ccs_references_bus_cols(s, bus, &required)?;
+
+    let binding_required = required_bus_binding_cols_for_layout(bus);
+    ensure_ccs_references_bus_cols_outside_padding_rows(s, bus, padding_rows, &binding_required)
 }
 
 fn ensure_ccs_has_shared_bus_padding_for_steps<Cmt, S: BusStepView<Cmt>>(
     s: &CcsStructure<F>,
     bus: &BusLayout,
     steps: &[S],
-) -> Result<(), PiCcsError> {
+) -> Result<HashSet<usize>, PiCcsError> {
     if steps.is_empty() || bus.bus_cols == 0 {
-        return Ok(());
+        return Ok(HashSet::new());
     }
     let const_one_cols = infer_public_constant_one_cols_from_steps(steps);
     let required = required_bus_padding_for_layout(bus);

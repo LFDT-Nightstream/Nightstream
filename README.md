@@ -183,8 +183,8 @@ cargo test --workspace --release
 # See full shard folding with Twist/Shout in action:
 cargo test -p neo-fold full_folding_integration --release -- --nocapture
 
-# Twist/Shout witness building:
-cargo test -p neo-fold twist_shout_integration --release -- --nocapture
+# Shared CPU-bus linkage + adversarial checks:
+cargo test -p neo-fold shared_cpu_bus_linkage --release -- --nocapture
 ```
 
 ### 3. Where to Start in the Code
@@ -204,13 +204,14 @@ cargo test -p neo-fold twist_shout_integration --release -- --nocapture
   - Runs Twist's value-eval sum-check and emits value-lane ME claims at `r_val`
 
 **Trace → per-step witnesses** — [`crates/neo-memory/src/builder.rs`](crates/neo-memory/src/builder.rs)
-- `build_shard_witness(...)` splits a VM trace into chunks and produces:
-  - An MCS witness chunk
-  - Matching Twist/Shout witnesses for that same chunk
+- `build_shard_witness_shared_cpu_bus(...)` builds per-step bundles for **shared CPU-bus** mode:
+  - CPU MCS witnesses (via the CPU arithmetization)
+  - Metadata-only Twist/Shout instances (no separate commitments)
 
-**Twist/Shout encoders and invariants**
-- [`crates/neo-memory/src/encode.rs`](crates/neo-memory/src/encode.rs) — bit-address encoding, layout decisions
-- [`crates/neo-memory/src/twist.rs`](crates/neo-memory/src/twist.rs), [`shout.rs`](crates/neo-memory/src/shout.rs) — semantics checks, decoding
+**Shared CPU-bus layout and constraints**
+- [`crates/neo-memory/src/cpu/bus_layout.rs`](crates/neo-memory/src/cpu/bus_layout.rs) — canonical bus layout (single source of truth)
+- [`crates/neo-memory/src/cpu/constraints.rs`](crates/neo-memory/src/cpu/constraints.rs) — CPU↔bus binding + padding-to-zero constraints
+- [`crates/neo-fold/src/memory_sidecar/cpu_bus.rs`](crates/neo-fold/src/memory_sidecar/cpu_bus.rs) — guardrails + bus copyouts
 - [`crates/neo-memory/src/twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs) — sum-check oracles
 
 ---
@@ -297,23 +298,21 @@ docs/
 
 ### Step 1: Build Per-Chunk Witnesses
 
-Use the encoding functions in `neo-memory`. The following is **pseudocode** illustrating the pattern; see the [actual test code](crates/neo-fold/tests/full_folding_integration.rs) for working examples:
+Use the shared CPU-bus witness builder in `neo-memory`. The following is **pseudocode** illustrating the pattern; see the [actual test code](crates/neo-fold/tests/full_folding_integration.rs) for working examples:
 
 ```rust
 // Pseudocode — see full_folding_integration.rs for working code
-use neo_memory::encode::{encode_mem_for_twist, encode_lut_for_shout};
-use neo_memory::witness::StepWitnessBundle;
+use neo_memory::builder::build_shard_witness_shared_cpu_bus;
 
-// For each chunk, build:
-let (mem_inst, mem_wit) = encode_mem_for_twist(&params, &layout, &init, &trace, &commit_fn, ccs_m, m_in);
-let (lut_inst, lut_wit) = encode_lut_for_shout(&params, &table, &trace, &commit_fn, ccs_m, m_in);
-
-let step = StepWitnessBundle {
-    mcs: (mcs_inst, mcs_wit),
-    lut_instances: vec![(lut_inst, lut_wit)],
-    mem_instances: vec![(mem_inst, mem_wit)],
-    _phantom: PhantomData,
-};
+let steps = build_shard_witness_shared_cpu_bus(
+    vm, twist, shout,
+    max_steps,
+    1, // chunk_size == 1
+    &mem_layouts,
+    &lut_tables,
+    &initial_mem,
+    &cpu_arith, // must be configured to write the shared bus into the CPU witness
+)?;
 ```
 
 **Reference test**: [`crates/neo-fold/tests/full_folding_integration.rs`](crates/neo-fold/tests/full_folding_integration.rs) — `full_folding_integration_single_chunk`
@@ -373,32 +372,33 @@ Twist models memory as a recurrence via sparse updates:
 Val_{t+1} = Val_t + Inc_t
 ```
 
-**What's committed per chunk:**
-- Address bit-columns for reads/writes
-- `has_read`, `has_write` flags
-- `rv`, `wv` (read/write values)
-- `inc_at_write_addr` (write delta)
+**Shared-bus mode:** Twist does not have its own witness/commitments. Instead it consumes bus fields
+opened from the CPU commitment (the tail of the CPU witness `z`):
+- `ra_bits`, `wa_bits`
+- `has_read`, `has_write`
+- `rv`, `wv`
+- `inc_at_write_addr`
 
 **What stays virtual:**
 - Full memory vector `Val_t` (never committed, computed via sum-check)
 
 **Code:**
-- Encoding: [`neo_memory::encode::encode_mem_for_twist`](crates/neo-memory/src/encode.rs)
+- Bus layout: [`crates/neo-memory/src/cpu/bus_layout.rs`](crates/neo-memory/src/cpu/bus_layout.rs)
+- CPU↔bus constraints: [`crates/neo-memory/src/cpu/constraints.rs`](crates/neo-memory/src/cpu/constraints.rs)
 - Oracles: [`neo_memory::twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs)
-- Semantics: [`neo_memory::twist::check_twist_semantics`](crates/neo-memory/src/twist.rs)
 
 ### Shout (Read-Only Lookups)
 
 Shout proves that when `has_lookup[t] = 1`, the committed `val[t]` matches `table[addr[t]]`.
 
-**What's committed per chunk:**
-- Address bit-columns (masked by `has_lookup`)
-- `has_lookup` flag
+**Shared-bus mode:** Shout consumes bus fields opened from the CPU commitment:
+- `addr_bits`
+- `has_lookup`
 - `val`
 
 **Code:**
-- Encoding: [`neo_memory::encode::encode_lut_for_shout`](crates/neo-memory/src/encode.rs)
 - Oracles: [`neo_memory::shout.rs`](crates/neo-memory/src/shout.rs)
+ - Bus layout: [`crates/neo-memory/src/cpu/bus_layout.rs`](crates/neo-memory/src/cpu/bus_layout.rs)
 
 ### Address Encoding & IDX Adapter
 
@@ -409,7 +409,7 @@ Addresses use compact **bit-decomposition** instead of one-hot vectors:
 
 The **IDX adapter** implements an index-to-virtual-one-hot bridge: it provides a **virtual one-hot oracle** backed by committed bit-columns. Twist/Shout protocols query conceptual one-hot MLE evaluations, and the adapter proves these are consistent with the compact index-bit representation via sum-check. This shifts work from commitments to foldable sum-check proofs.
 
-**Code:** `neo_memory::encode::get_ell`, `IndexAdapterOracle` in [`twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs)
+**Code:** `IndexAdapterOracle` in [`twist_oracle.rs`](crates/neo-memory/src/twist_oracle.rs), bit-address validation in [`crates/neo-memory/src/addr.rs`](crates/neo-memory/src/addr.rs)
 
 ---
 

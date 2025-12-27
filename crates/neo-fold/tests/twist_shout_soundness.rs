@@ -413,7 +413,7 @@ fn tamper_batched_time_static_claim_sum_nonzero_fails() {
 
     let dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
     let step_inst = StepInstanceBundle::from(&step_bundle);
-    let metas = RouteATimeClaimPlan::time_claim_metas_for_step(&step_inst, dims.d_sc);
+    let metas = RouteATimeClaimPlan::time_claim_metas_for_step(&step_inst, dims.d_sc, None);
     let static_idx = metas
         .iter()
         .enumerate()

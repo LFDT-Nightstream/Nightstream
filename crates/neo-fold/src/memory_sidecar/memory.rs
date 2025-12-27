@@ -169,6 +169,19 @@ pub struct TwistAddrPreVerifyData {
     pub write_check_claim_sum: K,
 }
 
+#[derive(Clone, Debug)]
+pub struct TwistTimeLaneOpenings {
+    pub wa_bits: Vec<K>,
+    pub has_write: K,
+    pub inc_at_write_addr: K,
+}
+
+#[derive(Clone, Debug)]
+pub struct RouteAMemoryVerifyOutput {
+    pub claim_idx_end: usize,
+    pub twist_time_openings: Vec<TwistTimeLaneOpenings>,
+}
+
 pub(crate) fn prove_twist_addr_pre_time(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -1392,7 +1405,7 @@ pub fn verify_route_a_memory_step(
     shout_pre: &[ShoutAddrPreVerifyData],
     twist_pre: &[TwistAddrPreVerifyData],
     step_idx: usize,
-) -> Result<usize, PiCcsError> {
+) -> Result<RouteAMemoryVerifyOutput, PiCcsError> {
     let chi_cycle_at_r_time = eq_points(r_time, r_cycle);
     if ccs_out0.r.as_slice() != r_time {
         return Err(PiCcsError::ProtocolError(
@@ -1504,6 +1517,8 @@ pub fn verify_route_a_memory_step(
             twist_pre.len()
         )));
     }
+
+    let mut twist_time_openings: Vec<TwistTimeLaneOpenings> = Vec::with_capacity(step.mem_insts.len());
 
     // Shout instances first.
     for (proof_idx, inst) in step.lut_insts.iter().enumerate() {
@@ -1778,6 +1793,11 @@ pub fn verify_route_a_memory_step(
             ));
         }
 
+        twist_time_openings.push(TwistTimeLaneOpenings {
+            wa_bits: wa_bits_open,
+            has_write: has_write_open,
+            inc_at_write_addr: inc_write_open,
+        });
     }
 
     // --------------------------------------------------------------------
@@ -2076,5 +2096,8 @@ pub fn verify_route_a_memory_step(
         }
     }
 
-    Ok(claim_plan.claim_idx_end)
+    Ok(RouteAMemoryVerifyOutput {
+        claim_idx_end: claim_plan.claim_idx_end,
+        twist_time_openings,
+    })
 }

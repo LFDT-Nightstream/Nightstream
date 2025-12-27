@@ -19,6 +19,12 @@ pub struct RouteABatchedTimeProverOutput {
     pub proof: BatchedTimeProof,
 }
 
+pub struct ExtraBatchedTimeClaim {
+    pub oracle: Box<dyn RoundOracle>,
+    pub claimed_sum: K,
+    pub label: &'static [u8],
+}
+
 pub fn prove_route_a_batched_time(
     tr: &mut Poseidon2Transcript,
     step_idx: usize,
@@ -30,6 +36,7 @@ pub fn prove_route_a_batched_time(
     step: &StepWitnessBundle<Cmt, F, K>,
     twist_read_claims: Vec<K>,
     twist_write_claims: Vec<K>,
+    ob_inc_total: Option<ExtraBatchedTimeClaim>,
 ) -> Result<RouteABatchedTimeProverOutput, PiCcsError> {
     let mut claimed_sums: Vec<K> = Vec::new();
     let mut degree_bounds: Vec<usize> = Vec::new();
@@ -71,10 +78,33 @@ pub fn prove_route_a_batched_time(
         &mut claims,
     );
 
+    let ob_inc_total_degree_bound = ob_inc_total.as_ref().map(|extra| extra.oracle.degree_bound());
+    let mut ob_inc_total_claimed_sum: Option<K> = None;
+    let mut ob_inc_total_label: Option<&'static [u8]> = None;
+    let mut ob_inc_total_oracle: Option<Box<dyn RoundOracle>> = ob_inc_total.map(|extra| {
+        ob_inc_total_claimed_sum = Some(extra.claimed_sum);
+        ob_inc_total_label = Some(extra.label);
+        extra.oracle
+    });
+    if let Some(oracle) = ob_inc_total_oracle.as_deref_mut() {
+        let claimed_sum = ob_inc_total_claimed_sum.expect("missing ob_inc_total claimed_sum");
+        let label = ob_inc_total_label.expect("missing ob_inc_total label");
+        claimed_sums.push(claimed_sum);
+        degree_bounds.push(oracle.degree_bound());
+        labels.push(label);
+        claim_is_dynamic.push(true);
+        claims.push(BatchedClaim {
+            oracle,
+            claimed_sum,
+            label,
+        });
+    }
+
     let metas = RouteATimeClaimPlan::time_claim_metas_for_instances(
         step.lut_instances.iter().map(|(inst, _)| inst),
         step.mem_instances.iter().map(|(inst, _)| inst),
         ccs_time_degree_bound,
+        ob_inc_total_degree_bound,
     );
     let expected_degree_bounds: Vec<usize> = metas.iter().map(|m| m.degree_bound).collect();
     let expected_labels: Vec<&'static [u8]> = metas.iter().map(|m| m.label).collect();
@@ -132,8 +162,10 @@ pub fn verify_route_a_batched_time(
     claimed_initial_sum: K,
     step: &StepInstanceBundle<Cmt, F, K>,
     proof: &BatchedTimeProof,
+    ob_inc_total_degree_bound: Option<usize>,
 ) -> Result<RouteABatchedTimeVerifyOutput, PiCcsError> {
-    let metas = RouteATimeClaimPlan::time_claim_metas_for_step(step, ccs_time_degree_bound);
+    let metas =
+        RouteATimeClaimPlan::time_claim_metas_for_step(step, ccs_time_degree_bound, ob_inc_total_degree_bound);
     let expected_degree_bounds: Vec<usize> = metas.iter().map(|m| m.degree_bound).collect();
     let expected_labels: Vec<&'static [u8]> = metas.iter().map(|m| m.label).collect();
     let claim_is_dynamic: Vec<bool> = metas.iter().map(|m| m.is_dynamic).collect();

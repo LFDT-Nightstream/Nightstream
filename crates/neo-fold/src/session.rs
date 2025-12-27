@@ -23,7 +23,7 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
-use neo_memory::witness::StepWitnessBundle;
+use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -40,6 +40,10 @@ pub struct OutputClaim<Ff> {
     pub tag: &'static [u8],
     pub expected: Ff,
 }
+
+// Twist/Shout linkage is supported only via the shared CPU-bus path. Callers must provide:
+// - metadata-only Twist/Shout instances (no independent mem/lut commitments), and
+// - a CPU witness/CCS that binds those bus fields (binding + padding constraints).
 
 /// Direct inputs for a single step when you don't want to implement `NeoStep`.
 /// We'll compute the commitment and split (x | w) for you.
@@ -764,6 +768,85 @@ where
         Ok(())
     }
 
+    /// Add a pre-built step bundle directly.
+    ///
+    /// This is the low-level API for when you have already constructed a `StepWitnessBundle`
+    /// with memory (Twist) and/or lookup (Shout) instances.
+    ///
+    /// Use this method when your proof requires Twist/Shout arguments in addition to CCS.
+    pub fn add_step_bundle(&mut self, bundle: StepWitnessBundle<Cmt, F, K>) {
+        self.steps.push(bundle);
+        self.step_claims.push(vec![]);
+    }
+
+    /// Add multiple pre-built step bundles at once.
+    pub fn add_step_bundles(&mut self, bundles: impl IntoIterator<Item = StepWitnessBundle<Cmt, F, K>>) {
+        for bundle in bundles {
+            self.add_step_bundle(bundle);
+        }
+    }
+
+    /// Check if any steps have Twist (memory) instances.
+    pub fn has_twist_instances(&self) -> bool {
+        self.steps.iter().any(|s| !s.mem_instances.is_empty())
+    }
+
+    /// Check if any steps have Shout (lookup) instances.
+    pub fn has_shout_instances(&self) -> bool {
+        self.steps.iter().any(|s| !s.lut_instances.is_empty())
+    }
+
+    fn ensure_accumulator_matches_ccs(&mut self, s: &CcsStructure<F>) -> Result<(), PiCcsError> {
+        let Some(acc) = self.acc0.as_mut() else {
+            return Ok(());
+        };
+
+        if acc.me.is_empty() {
+            return Ok(());
+        }
+        if acc.me.iter().all(|me| me.y.len() == s.t() && me.y_scalars.len() == s.t()) {
+            return Ok(());
+        }
+
+        let dims = utils::build_dims_and_policy(&self.params, s)?;
+        let d_pad = 1usize << dims.ell_d;
+
+        for (me, z_mat) in acc.me.iter_mut().zip(acc.witnesses.iter()) {
+            let (y_vecs_d, y_scalars) =
+                neo_memory::mle::compute_me_y_for_ccs(s, z_mat, &me.r, self.params.b as u64);
+
+            let d = z_mat.rows();
+            let mut y_padded: Vec<Vec<K>> = Vec::with_capacity(y_vecs_d.len());
+            for y_d in y_vecs_d {
+                let mut yj = vec![K::ZERO; d_pad];
+                for rho in 0..d {
+                    yj[rho] = y_d[rho];
+                }
+                y_padded.push(yj);
+            }
+
+            me.y = y_padded;
+            me.y_scalars = y_scalars;
+        }
+
+        Ok(())
+    }
+
+    fn prepared_ccs_for_accumulator(&self, s: &CcsStructure<F>) -> Result<CcsStructure<F>, PiCcsError> {
+        if !(self.has_twist_instances() || self.has_shout_instances()) {
+            return Ok(s.clone());
+        }
+        if self.steps.is_empty() {
+            return Ok(s.clone());
+        }
+
+        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
+            self.steps.iter().map(StepInstanceBundle::from).collect();
+        let (s_prepared, _cpu_bus) =
+            crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(s, &steps_public)?;
+        Ok(s_prepared)
+    }
+
     /// Fold and prove: run folding over all collected steps and return a `FoldRun`.
     /// This is where the actual cryptographic work happens (Π_CCS → RLC → DEC for each step).
     /// This method manages the transcript internally for ease of use.
@@ -789,6 +872,13 @@ where
             .assert_m0_is_identity_for_nc()
             .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
 
+        // Shared CPU bus: compute the prepared CCS shape (copy-outs) for accumulator validation.
+        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
+        s_prepared
+            .assert_m0_is_identity_for_nc()
+            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
+        self.ensure_accumulator_matches_ccs(&s_prepared)?;
+
         // Determine canonical m_in from steps and ensure they all match (needed for RLC).
         let m_in_steps = self.steps.first().map(|step| step.mcs.0.m_in).unwrap_or(0);
         if !self.steps.iter().all(|step| step.mcs.0.m_in == m_in_steps) {
@@ -798,7 +888,7 @@ where
         // Validate or default the accumulator: None → k=1 simple case (no ME inputs).
         let (seed_me, seed_me_wit): (&[MeInstance<Cmt, F, K>], &[Mat<F>]) = match &self.acc0 {
             Some(acc) => {
-                acc.check(&self.params, &s_norm)?;
+                acc.check(&self.params, &s_prepared)?;
                 // Also ensure accumulator m_in matches steps' m_in to avoid X-mixing shape issues.
                 let acc_m_in = acc.me.first().map(|m| m.m_in).unwrap_or(m_in_steps);
                 if acc_m_in != m_in_steps {
@@ -824,6 +914,71 @@ where
         )
     }
 
+    pub fn fold_and_prove_with_output_binding(
+        &mut self,
+        tr: &mut Poseidon2Transcript,
+        s: &CcsStructure<F>,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+        final_memory_state: &[F],
+    ) -> Result<FoldRun, PiCcsError> {
+        let s_norm = s
+            .ensure_identity_first()
+            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+        s_norm
+            .assert_m0_is_identity_for_nc()
+            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
+
+        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
+        s_prepared
+            .assert_m0_is_identity_for_nc()
+            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
+        self.ensure_accumulator_matches_ccs(&s_prepared)?;
+
+        let m_in_steps = self.steps.first().map(|step| step.mcs.0.m_in).unwrap_or(0);
+        if !self.steps.iter().all(|step| step.mcs.0.m_in == m_in_steps) {
+            return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
+        }
+
+        let (seed_me, seed_me_wit): (&[MeInstance<Cmt, F, K>], &[Mat<F>]) = match &self.acc0 {
+            Some(acc) => {
+                acc.check(&self.params, &s_prepared)?;
+                let acc_m_in = acc.me.first().map(|m| m.m_in).unwrap_or(m_in_steps);
+                if acc_m_in != m_in_steps {
+                    return Err(PiCcsError::InvalidInput(
+                        "initial Accumulator.m_in must match steps' m_in".into(),
+                    ));
+                }
+                (&acc.me, &acc.witnesses)
+            }
+            None => (&[], &[]),
+        };
+
+        shard::fold_shard_prove_with_output_binding(
+            self.mode.clone(),
+            tr,
+            &self.params,
+            &s_norm,
+            &self.steps,
+            seed_me,
+            seed_me_wit,
+            &self.l,
+            self.mixers,
+            ob_cfg,
+            final_memory_state,
+        )
+    }
+
+    /// Fold and prove with output binding, managing the transcript internally.
+    pub fn fold_and_prove_with_output_binding_simple(
+        &mut self,
+        s: &CcsStructure<F>,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+        final_memory_state: &[F],
+    ) -> Result<FoldRun, PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold/session");
+        self.fold_and_prove_with_output_binding(&mut tr, s, ob_cfg, final_memory_state)
+    }
+
     /// Verify a finished run against the public MCS list.
     /// This method manages the transcript internally for ease of use.
     pub fn verify(
@@ -834,6 +989,13 @@ where
     ) -> Result<bool, PiCcsError> {
         let mut tr = Poseidon2Transcript::new(b"neo.fold/session");
         self.verify_with_transcript(&mut tr, s, mcss_public, run)
+    }
+
+    /// Verify a finished run using the internally collected steps.
+    /// Convenient when you don't want to manually extract the public MCS list.
+    pub fn verify_collected(&self, s: &CcsStructure<F>, run: &FoldRun) -> Result<bool, PiCcsError> {
+        let mcss_public = self.mcss_public();
+        self.verify(s, &mcss_public, run)
     }
 
     /// Verify with a caller-provided transcript (advanced users).
@@ -855,10 +1017,15 @@ where
             return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
         }
 
+        // Build steps_public from the internal bundles to include mem/lut instances.
+        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
+            self.steps.iter().map(|bundle| bundle.into()).collect();
+        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
+
         // Validate (or empty) initial accumulator to mirror finalize()
         let seed_me: &[MeInstance<Cmt, F, K>] = match &self.acc0 {
             Some(acc) => {
-                acc.check(&self.params, &s_norm)?;
+                acc.check(&self.params, &s_prepared)?;
                 let acc_m_in = acc.me.first().map(|m| m.m_in).unwrap_or(m_in_steps);
                 if acc_m_in != m_in_steps {
                     return Err(PiCcsError::InvalidInput(
@@ -871,19 +1038,97 @@ where
             None => &[], // k=1
         };
 
-        let steps_public: Vec<_> = mcss_public
-            .iter()
-            .cloned()
-            .map(Into::into)
-            .collect();
-
         let outputs =
             shard::fold_shard_verify(self.mode.clone(), tr, &self.params, &s_norm, &steps_public, seed_me, run, self.mixers)?;
-        if !outputs.obligations.val.is_empty() {
+        
+        // For CCS-only sessions (no Twist/Shout), val-lane obligations should be empty
+        // For Twist+Shout sessions, val-lane obligations are expected and valid
+        let has_twist_or_shout = self.has_twist_instances() || self.has_shout_instances();
+        if !has_twist_or_shout && !outputs.obligations.val.is_empty() {
             return Err(PiCcsError::ProtocolError(
                 "CCS-only session verification produced unexpected val-lane obligations".into(),
             ));
         }
+        Ok(true)
+    }
+
+    /// Verify with output binding, managing the transcript internally.
+    pub fn verify_with_output_binding_simple(
+        &self,
+        s: &CcsStructure<F>,
+        mcss_public: &[neo_ccs::McsInstance<Cmt, F>],
+        run: &FoldRun,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+    ) -> Result<bool, PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold/session");
+        self.verify_with_output_binding(&mut tr, s, mcss_public, run, ob_cfg)
+    }
+
+    /// Verify with output binding using the internally collected steps (and public MCS list).
+    pub fn verify_with_output_binding_collected_simple(
+        &self,
+        s: &CcsStructure<F>,
+        run: &FoldRun,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+    ) -> Result<bool, PiCcsError> {
+        let mcss_public = self.mcss_public();
+        self.verify_with_output_binding_simple(s, &mcss_public, run, ob_cfg)
+    }
+
+    pub fn verify_with_output_binding(
+        &self,
+        tr: &mut Poseidon2Transcript,
+        s: &CcsStructure<F>,
+        mcss_public: &[neo_ccs::McsInstance<Cmt, F>],
+        run: &FoldRun,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+    ) -> Result<bool, PiCcsError> {
+        let s_norm = s
+            .ensure_identity_first()
+            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+
+        let m_in_steps = mcss_public.first().map(|inst| inst.m_in).unwrap_or(0);
+        if !mcss_public.iter().all(|inst| inst.m_in == m_in_steps) {
+            return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
+        }
+
+        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
+            self.steps.iter().map(|bundle| bundle.into()).collect();
+        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
+
+        let seed_me: &[MeInstance<Cmt, F, K>] = match &self.acc0 {
+            Some(acc) => {
+                acc.check(&self.params, &s_prepared)?;
+                let acc_m_in = acc.me.first().map(|m| m.m_in).unwrap_or(m_in_steps);
+                if acc_m_in != m_in_steps {
+                    return Err(PiCcsError::InvalidInput(
+                        "initial Accumulator.m_in must match steps' m_in".into(),
+                    ));
+                }
+                &acc.me
+            }
+            None => &[],
+        };
+
+        let outputs = shard::fold_shard_verify_with_output_binding(
+            self.mode.clone(),
+            tr,
+            &self.params,
+            &s_norm,
+            &steps_public,
+            seed_me,
+            run,
+            self.mixers,
+            ob_cfg,
+        )?;
+
+        let has_twist_or_shout = self.has_twist_instances() || self.has_shout_instances();
+        if !has_twist_or_shout && !outputs.obligations.val.is_empty() {
+            return Err(PiCcsError::ProtocolError(
+                "CCS-only session verification produced unexpected val-lane obligations".into(),
+            ));
+        }
+
         Ok(true)
     }
 }

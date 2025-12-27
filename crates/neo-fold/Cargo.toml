@@ -39,3 +39,7 @@ criterion = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 neo-vm-trace = { path = "../neo-vm-trace" }
+
+[[test]]
+name = "test_riscv_program_full_prove_verify"
+path = "riscv-tests/test_riscv_program_full_prove_verify.rs"

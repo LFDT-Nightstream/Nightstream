@@ -121,6 +121,7 @@ fn build_trivial_fold_run_and_instance() -> (FoldRunInstance, FoldRunWitness) {
             },
             val_fold: None,
         }],
+        output_proof: None,
     };
 
     // Public instance: empty initial accumulator, final accumulator = DEC children,

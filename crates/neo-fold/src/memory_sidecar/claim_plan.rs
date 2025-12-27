@@ -50,6 +50,7 @@ impl RouteATimeClaimPlan {
         lut_insts: LI,
         mem_insts: MI,
         ccs_time_degree_bound: usize,
+        ob_inc_total_degree_bound: Option<usize>,
     ) -> Vec<TimeClaimMeta>
     where
         LI: IntoIterator<Item = &'a LutInstance<Cmt, F>>,
@@ -109,6 +110,14 @@ impl RouteATimeClaimPlan {
             }
         }
 
+        if let Some(degree_bound) = ob_inc_total_degree_bound {
+            out.push(TimeClaimMeta {
+                label: crate::output_binding::OB_INC_TOTAL_LABEL,
+                degree_bound,
+                is_dynamic: true,
+            });
+        }
+
         out
     }
 
@@ -120,8 +129,14 @@ impl RouteATimeClaimPlan {
     pub fn time_claim_metas_for_step(
         step: &StepInstanceBundle<Cmt, F, K>,
         ccs_time_degree_bound: usize,
+        ob_inc_total_degree_bound: Option<usize>,
     ) -> Vec<TimeClaimMeta> {
-        Self::time_claim_metas_for_instances(step.lut_insts.iter(), step.mem_insts.iter(), ccs_time_degree_bound)
+        Self::time_claim_metas_for_instances(
+            step.lut_insts.iter(),
+            step.mem_insts.iter(),
+            ccs_time_degree_bound,
+            ob_inc_total_degree_bound,
+        )
     }
 
     pub fn build(

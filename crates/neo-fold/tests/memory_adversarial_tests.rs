@@ -106,6 +106,7 @@ fn make_twist_instance(
     (
         neo_memory::witness::MemInstance {
             comms: Vec::new(),
+            cpu_opening_base: None,
             k: layout.k,
             d: layout.d,
             n_side: layout.n_side,

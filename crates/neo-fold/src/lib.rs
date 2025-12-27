@@ -26,4 +26,7 @@ pub mod finalize;
 // Shard-level folding (CPU + Memory Sidecar)
 pub mod shard;
 
+// Output binding integration
+pub mod output_binding;
+
 mod shard_proof_types;

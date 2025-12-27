@@ -256,6 +256,7 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
 
     let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -268,11 +269,13 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
 
     let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
         steps: lut_trace.has_lookup.len(),
         ell: lut_ell,
+        table_spec: None,
         table: lut_table.content.clone(),
         _phantom: PhantomData,
     };

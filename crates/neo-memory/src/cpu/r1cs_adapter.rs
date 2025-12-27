@@ -286,11 +286,13 @@ where
                 .unwrap_or(0);
             lut_insts.push(LutInstance {
                 comms: Vec::new(),
+                cpu_opening_base: None,
                 k,
                 d,
                 n_side,
                 steps: 1,
                 ell,
+                table_spec: None,
                 table: Vec::new(),
                 _phantom: PhantomData,
             });
@@ -305,6 +307,7 @@ where
             let ell = layout.n_side.trailing_zeros() as usize;
             mem_insts.push(MemInstance {
                 comms: Vec::new(),
+                cpu_opening_base: None,
                 k: layout.k,
                 d: layout.d,
                 n_side: layout.n_side,

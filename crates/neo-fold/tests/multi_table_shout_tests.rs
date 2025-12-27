@@ -106,11 +106,13 @@ fn make_shout_instance(
     (
         neo_memory::witness::LutInstance {
             comms: Vec::new(),
+            cpu_opening_base: None,
             k: table.k,
             d: table.d,
             n_side: table.n_side,
             steps,
             ell,
+            table_spec: None,
             table: table.content.clone(),
             _phantom: PhantomData,
         },

@@ -2,6 +2,7 @@ use crate::PiCcsProof;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{matrix::Mat, MeInstance};
 use neo_math::{F, K};
+use neo_memory::output_check::OutputBindingProof;
 
 pub type TwistProofK = neo_memory::twist::TwistProof<K>;
 pub type ShoutProofK = neo_memory::shout::ShoutProof<K>;
@@ -129,6 +130,9 @@ pub struct StepProof {
 #[derive(Clone, Debug)]
 pub struct ShardProof {
     pub steps: Vec<StepProof>,
+    /// Optional output binding proof (proves final memory matches claimed outputs).
+    /// Twist linkage is proven as an extra Route-A batched-time claim on the final step.
+    pub output_proof: Option<OutputBindingProof>,
 }
 
 impl ShardProof {

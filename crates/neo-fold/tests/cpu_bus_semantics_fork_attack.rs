@@ -283,6 +283,7 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
 
     let mem_inst = MemInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -479,6 +480,7 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
 
     let mem_inst = MemInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -661,11 +663,13 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
 
     let lut_inst = LutInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
         steps: lut_trace.has_lookup.len(),
         ell: lut_table.n_side.trailing_zeros() as usize,
+        table_spec: None,
         table: lut_table.content.clone(),
         _phantom: PhantomData,
     };
@@ -686,6 +690,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
     };
     let mem_inst = MemInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,

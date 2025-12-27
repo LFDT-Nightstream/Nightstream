@@ -313,6 +313,7 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
 
     let mem_inst0 = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -324,11 +325,13 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
     let mem_wit0 = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst0 = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
         steps: mem_trace0.steps,
         ell: lut_ell,
+        table_spec: None,
         table: lut_table.content.clone(),
         _phantom: PhantomData,
     };
@@ -336,6 +339,7 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
 
     let mem_inst1 = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -347,11 +351,13 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
     let mem_wit1 = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst1 = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
         steps: mem_trace1.steps,
         ell: lut_ell,
+        table_spec: None,
         table: lut_table.content.clone(),
         _phantom: PhantomData,
     };

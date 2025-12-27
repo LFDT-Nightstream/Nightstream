@@ -3,7 +3,7 @@ use neo_reductions::error::PiCcsError;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::cpu::BusLayout;
-use crate::witness::{LutInstance, MemInstance};
+use crate::witness::{LutInstance, LutTableSpec, MemInstance};
 
 pub fn for_each_addr_bit_dim_major_le(
     addr: u64,
@@ -98,7 +98,64 @@ pub fn validate_pow2_bit_addressing(
     Ok(())
 }
 
+pub fn validate_pow2_bit_addressing_shape(
+    proto: &'static str,
+    n_side: usize,
+    ell: usize,
+) -> Result<(), PiCcsError> {
+    if n_side == 0 {
+        return Err(PiCcsError::InvalidInput(format!("{proto}: n_side must be > 0")));
+    }
+    if !n_side.is_power_of_two() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{proto}: n_side={n_side} must be a power of two under bit addressing (otherwise a range proof is required)"
+        )));
+    }
+
+    let expected_ell = n_side.trailing_zeros() as usize;
+    if ell != expected_ell {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{proto}: ell={ell} must equal log2(n_side)={expected_ell} for power-of-two n_side"
+        )));
+    }
+
+    Ok(())
+}
+
 pub fn validate_shout_bit_addressing<Cmt, F>(inst: &LutInstance<Cmt, F>) -> Result<(), PiCcsError> {
+    // Virtual/implicit tables may not have a materialized `k = n_side^d` table.
+    if let Some(spec) = &inst.table_spec {
+        validate_pow2_bit_addressing_shape("Shout", inst.n_side, inst.ell)?;
+        if !inst.table.is_empty() {
+            return Err(PiCcsError::InvalidInput(
+                "Shout: table must be empty when table_spec is set".into(),
+            ));
+        }
+
+        match spec {
+            LutTableSpec::RiscvOpcode { xlen, .. } => {
+                if inst.n_side != 2 || inst.ell != 1 {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "Shout(RISC-V): expected n_side=2, ell=1, got n_side={}, ell={}",
+                        inst.n_side, inst.ell
+                    )));
+                }
+                let expected_d = xlen
+                    .checked_mul(2)
+                    .ok_or_else(|| PiCcsError::InvalidInput("Shout(RISC-V): 2*xlen overflow".into()))?;
+                if inst.d != expected_d {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "Shout(RISC-V): expected d=2*xlen={}, got d={}",
+                        expected_d, inst.d
+                    )));
+                }
+            }
+        }
+
+        return Ok(());
+    }
+
+    // Explicit table mode (legacy).
     validate_pow2_bit_addressing("Shout", inst.n_side, inst.d, inst.ell, inst.k)?;
     if inst.table.len() != inst.k {
         return Err(PiCcsError::InvalidInput(format!(

@@ -389,6 +389,7 @@ fn build_single_chunk_inputs() -> (
     // Shared-bus mode: instances are metadata-only; access rows live in the CPU witness.
     let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -400,11 +401,13 @@ fn build_single_chunk_inputs() -> (
     let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
         steps: plain_mem.steps,
         ell: lut_table.n_side.trailing_zeros() as usize,
+        table_spec: None,
         table: lut_table.content.clone(),
         _phantom: PhantomData,
     };
@@ -547,6 +550,7 @@ fn full_folding_integration_multi_step_chunk() {
 
     let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: mem_layout.k,
         d: mem_layout.d,
         n_side: mem_layout.n_side,
@@ -558,11 +562,13 @@ fn full_folding_integration_multi_step_chunk() {
     let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
         comms: Vec::new(),
+        cpu_opening_base: None,
         k: lut_table.k,
         d: lut_table.d,
         n_side: lut_table.n_side,
         steps: plain_mem.steps,
         ell: lut_table.n_side.trailing_zeros() as usize,
+        table_spec: None,
         table: lut_table.content.clone(),
         _phantom: PhantomData,
     };

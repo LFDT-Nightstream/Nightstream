@@ -289,6 +289,7 @@ fn metadata_only_mem_instance(
     (
         MemInstance {
             comms: Vec::new(),
+            cpu_opening_base: None,
             k: layout.k,
             d: layout.d,
             n_side: layout.n_side,
@@ -309,11 +310,13 @@ fn metadata_only_lut_instance(
     (
         LutInstance {
             comms: Vec::new(),
+            cpu_opening_base: None,
             k: table.k,
             d: table.d,
             n_side: table.n_side,
             steps,
             ell,
+            table_spec: None,
             table: table.content.clone(),
             _phantom: PhantomData,
         },

@@ -1,7 +1,5 @@
 use crate::mem_init::MemInit;
-use crate::plain::{
-    build_plain_mem_traces, LutTable, PlainMemLayout,
-};
+use crate::plain::{build_plain_mem_traces, LutTable, PlainMemLayout};
 use crate::witness::{LutInstance, LutWitness, MemInstance, MemWitness, StepWitnessBundle};
 use neo_vm_trace::VmTrace;
 
@@ -144,10 +142,13 @@ where
 
     // 4) Track sparse memory state across chunks to compute per-chunk MemInit (rollover).
     let mut mem_states: HashMap<u32, HashMap<u64, Goldilocks>> = HashMap::new();
-    for (mem_id, layout) in mem_layouts {
+    for mem_id in mem_ids.iter().copied() {
+        let layout = mem_layouts.get(&mem_id).ok_or_else(|| {
+            ShardBuildError::MissingLayout(format!("missing PlainMemLayout for twist_id {}", mem_id))
+        })?;
         let mut state = HashMap::<u64, Goldilocks>::new();
         for ((init_mem_id, addr), &val) in initial_mem.iter() {
-            if init_mem_id != mem_id || val == Goldilocks::ZERO {
+            if *init_mem_id != mem_id || val == Goldilocks::ZERO {
                 continue;
             }
             if (*addr as usize) >= layout.k {
@@ -163,7 +164,7 @@ where
                 )));
             }
         }
-        mem_states.insert(*mem_id, state);
+        mem_states.insert(mem_id, state);
     }
 
     // Local helper: MemInit from sparse state.
@@ -217,6 +218,7 @@ where
 
             let inst = MemInstance::<Cmt, Goldilocks> {
                 comms: Vec::new(),
+                cpu_opening_base: None,
                 k: layout.k,
                 d: layout.d,
                 n_side: layout.n_side,
@@ -259,11 +261,13 @@ where
 
             let inst = LutInstance::<Cmt, Goldilocks> {
                 comms: Vec::new(),
+                cpu_opening_base: None,
                 k: table.k,
                 d: table.d,
                 n_side: table.n_side,
                 steps: chunk_len,
                 ell,
+                table_spec: None,
                 table: table.content.clone(),
                 _phantom: PhantomData,
             };

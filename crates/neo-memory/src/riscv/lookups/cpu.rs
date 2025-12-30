@@ -350,19 +350,35 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
             RiscvInstruction::Amo { op, rd, rs1, rs2 } => {
                 let addr = self.get_reg(rs1);
-                let src = self.get_reg(rs2);
+                let src = self.mask_value(self.get_reg(rs2));
 
                 // Load original value
-                let original = twist.load(ram, addr);
-                self.set_reg(rd, self.mask_value(original));
+                let original = self.mask_value(twist.load(ram, addr));
+                self.set_reg(rd, original);
 
                 // Compute new value based on AMO operation
                 let new_val = match op {
                     RiscvMemOp::AmoswapW | RiscvMemOp::AmoswapD => src,
-                    RiscvMemOp::AmoaddW | RiscvMemOp::AmoaddD => original.wrapping_add(src),
-                    RiscvMemOp::AmoxorW | RiscvMemOp::AmoxorD => original ^ src,
-                    RiscvMemOp::AmoandW | RiscvMemOp::AmoandD => original & src,
-                    RiscvMemOp::AmoorW | RiscvMemOp::AmoorD => original | src,
+                    // Use Shout for modular semantics (and to emit a ShoutEvent for the prover).
+                    RiscvMemOp::AmoaddW | RiscvMemOp::AmoaddD => {
+                        let index = interleave_bits(original, src) as u64;
+                        shout.lookup(add_shout_id, index)
+                    }
+                    RiscvMemOp::AmoxorW | RiscvMemOp::AmoxorD => {
+                        let shout_id = shout_tables.opcode_to_id(RiscvOpcode::Xor);
+                        let index = interleave_bits(original, src) as u64;
+                        shout.lookup(shout_id, index)
+                    }
+                    RiscvMemOp::AmoandW | RiscvMemOp::AmoandD => {
+                        let shout_id = shout_tables.opcode_to_id(RiscvOpcode::And);
+                        let index = interleave_bits(original, src) as u64;
+                        shout.lookup(shout_id, index)
+                    }
+                    RiscvMemOp::AmoorW | RiscvMemOp::AmoorD => {
+                        let shout_id = shout_tables.opcode_to_id(RiscvOpcode::Or);
+                        let index = interleave_bits(original, src) as u64;
+                        shout.lookup(shout_id, index)
+                    }
                     RiscvMemOp::AmominW => {
                         if (original as i32) < (src as i32) {
                             original
@@ -409,7 +425,7 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 };
 
                 // Store new value
-                twist.store(ram, addr, new_val);
+                twist.store(ram, addr, self.mask_value(new_val));
             }
 
             // === System Instructions ===

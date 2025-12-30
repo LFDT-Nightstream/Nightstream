@@ -15,7 +15,7 @@ use neo_memory::riscv::rom_init::prog_init_words;
 use neo_memory::witness::LutTableSpec;
 use neo_memory::{CpuArithmetization, R1csCpu};
 use neo_params::NeoParams;
-use neo_vm_trace::trace_program;
+use neo_vm_trace::{trace_program, StepTrace, TwistEvent, TwistOpKind, VmTrace};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
@@ -195,6 +195,458 @@ fn rv32_b1_ccs_happy_path_small_program() {
     let (ccs, layout) = build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, 1).expect("ccs");
     let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
 
+    let table_specs = rv32i_table_specs(xlen);
+
+    let cpu = R1csCpu::new(
+        ccs,
+        params,
+        NoopCommit::default(),
+        layout.m_in,
+        &HashMap::new(),
+        &table_specs,
+        rv32_b1_chunk_to_witness(layout.clone()),
+    )
+    .with_shared_cpu_bus(
+        rv32_b1_shared_cpu_bus_config(&layout, &shout_table_ids, mem_layouts, initial_mem).expect("cfg"),
+        1,
+    )
+    .expect("shared bus");
+
+    let steps = CpuArithmetization::build_ccs_steps(&cpu, &trace).expect("build steps");
+    for (mcs_inst, mcs_wit) in steps {
+        check_ccs_rowwise_zero(&cpu.ccs, &mcs_inst.x, &mcs_wit.w).expect("CCS satisfied");
+    }
+}
+
+#[test]
+fn rv32_b1_ccs_happy_path_rv32m_program() {
+    let xlen = 32usize;
+    let program = vec![
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 1,
+            rs1: 0,
+            imm: -6,
+        }, // x1 = -6
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 2,
+            rs1: 0,
+            imm: 3,
+        }, // x2 = 3
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Mul,
+            rd: 3,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Mulh,
+            rd: 4,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Mulhu,
+            rd: 5,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Mulhsu,
+            rd: 6,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Div,
+            rd: 7,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Divu,
+            rd: 8,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Rem,
+            rd: 9,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Remu,
+            rd: 10,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::Halt,
+    ];
+
+    let program_bytes = encode_program(&program);
+    let mut cpu_vm = RiscvCpu::new(xlen);
+    cpu_vm.load_program(0, program.clone());
+    let memory = RiscvMemory::with_program_in_twist(xlen, PROG_ID, 0, &program_bytes);
+    let shout = RiscvShoutTables::new(xlen);
+    let trace = trace_program(cpu_vm, memory, shout, 64).expect("trace");
+    assert!(trace.did_halt(), "expected Halt");
+
+    let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
+    let (k_ram, d_ram) = pow2_ceil_k(0x40);
+    let mem_layouts = HashMap::from([
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+    ]);
+    let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
+
+    // Minimal table set for this program: ADD + RV32M (MUL/DIV/REM families).
+    let shout_table_ids: [u32; 9] = [3, 12, 13, 14, 15, 16, 17, 18, 19];
+    let (ccs, layout) = build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, 1).expect("ccs");
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
+
+    let table_specs = HashMap::from([
+        (
+            3u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Add,
+                xlen,
+            },
+        ),
+        (
+            12u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Mul,
+                xlen,
+            },
+        ),
+        (
+            13u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Mulh,
+                xlen,
+            },
+        ),
+        (
+            14u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Mulhu,
+                xlen,
+            },
+        ),
+        (
+            15u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Mulhsu,
+                xlen,
+            },
+        ),
+        (
+            16u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Div,
+                xlen,
+            },
+        ),
+        (
+            17u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Divu,
+                xlen,
+            },
+        ),
+        (
+            18u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Rem,
+                xlen,
+            },
+        ),
+        (
+            19u32,
+            LutTableSpec::RiscvOpcode {
+                opcode: RiscvOpcode::Remu,
+                xlen,
+            },
+        ),
+    ]);
+
+    let cpu = R1csCpu::new(
+        ccs,
+        params,
+        NoopCommit::default(),
+        layout.m_in,
+        &HashMap::new(),
+        &table_specs,
+        rv32_b1_chunk_to_witness(layout.clone()),
+    )
+    .with_shared_cpu_bus(
+        rv32_b1_shared_cpu_bus_config(&layout, &shout_table_ids, mem_layouts, initial_mem).expect("cfg"),
+        1,
+    )
+    .expect("shared bus");
+
+    let steps = CpuArithmetization::build_ccs_steps(&cpu, &trace).expect("build steps");
+    for (mcs_inst, mcs_wit) in steps {
+        check_ccs_rowwise_zero(&cpu.ccs, &mcs_inst.x, &mcs_wit.w).expect("CCS satisfied");
+    }
+}
+
+#[test]
+fn rv32_b1_ccs_happy_path_rv32a_amoaddw_program() {
+    let xlen = 32usize;
+    let program = vec![
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 1,
+            rs1: 0,
+            imm: 0x100,
+        }, // x1 = 0x100
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 2,
+            rs1: 0,
+            imm: 10,
+        }, // x2 = 10
+        RiscvInstruction::Store {
+            op: RiscvMemOp::Sw,
+            rs1: 1,
+            rs2: 2,
+            imm: 0,
+        }, // mem[0x100] = 10
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 3,
+            rs1: 0,
+            imm: 5,
+        }, // x3 = 5
+        RiscvInstruction::Amo {
+            op: RiscvMemOp::AmoaddW,
+            rd: 4,
+            rs1: 1,
+            rs2: 3,
+        }, // x4 = old, mem = old + 5
+        RiscvInstruction::Load {
+            op: RiscvMemOp::Lw,
+            rd: 5,
+            rs1: 1,
+            imm: 0,
+        }, // x5 = new
+        RiscvInstruction::Halt,
+    ];
+
+    let program_bytes = encode_program(&program);
+    let mut cpu_vm = RiscvCpu::new(xlen);
+    cpu_vm.load_program(0, program.clone());
+    let memory = RiscvMemory::with_program_in_twist(xlen, PROG_ID, 0, &program_bytes);
+    let shout = RiscvShoutTables::new(xlen);
+    let trace = trace_program(cpu_vm, memory, shout, 64).expect("trace");
+    assert!(trace.did_halt(), "expected Halt");
+
+    let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
+    let (k_ram, d_ram) = pow2_ceil_k(0x200);
+    let mem_layouts = HashMap::from([
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+    ]);
+    let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
+
+    let shout_table_ids = RV32I_SHOUT_TABLE_IDS;
+    let (ccs, layout) = build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, 1).expect("ccs");
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
+    let table_specs = rv32i_table_specs(xlen);
+
+    let cpu = R1csCpu::new(
+        ccs,
+        params,
+        NoopCommit::default(),
+        layout.m_in,
+        &HashMap::new(),
+        &table_specs,
+        rv32_b1_chunk_to_witness(layout.clone()),
+    )
+    .with_shared_cpu_bus(
+        rv32_b1_shared_cpu_bus_config(&layout, &shout_table_ids, mem_layouts, initial_mem).expect("cfg"),
+        1,
+    )
+    .expect("shared bus");
+
+    let steps = CpuArithmetization::build_ccs_steps(&cpu, &trace).expect("build steps");
+    for (mcs_inst, mcs_wit) in steps {
+        check_ccs_rowwise_zero(&cpu.ccs, &mcs_inst.x, &mcs_wit.w).expect("CCS satisfied");
+    }
+}
+
+#[test]
+fn rv32_b1_ccs_rejects_tampered_ram_write_value_for_amoaddw() {
+    let xlen = 32usize;
+    let program = vec![
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 1,
+            rs1: 0,
+            imm: 0x100,
+        },
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 2,
+            rs1: 0,
+            imm: 10,
+        },
+        RiscvInstruction::Store {
+            op: RiscvMemOp::Sw,
+            rs1: 1,
+            rs2: 2,
+            imm: 0,
+        },
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 3,
+            rs1: 0,
+            imm: 5,
+        },
+        RiscvInstruction::Amo {
+            op: RiscvMemOp::AmoaddW,
+            rd: 4,
+            rs1: 1,
+            rs2: 3,
+        },
+        RiscvInstruction::Halt,
+    ];
+
+    let program_bytes = encode_program(&program);
+    let mut cpu_vm = RiscvCpu::new(xlen);
+    cpu_vm.load_program(0, program.clone());
+    let memory = RiscvMemory::with_program_in_twist(xlen, PROG_ID, 0, &program_bytes);
+    let shout = RiscvShoutTables::new(xlen);
+    let trace = trace_program(cpu_vm, memory, shout, 64).expect("trace");
+    assert!(trace.did_halt(), "expected Halt");
+
+    let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
+    let (k_ram, d_ram) = pow2_ceil_k(0x200);
+    let mem_layouts = HashMap::from([
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+    ]);
+    let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
+
+    let shout_table_ids = RV32I_SHOUT_TABLE_IDS;
+    let (ccs, layout) = build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, 1).expect("ccs");
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
+    let table_specs = rv32i_table_specs(xlen);
+
+    let cpu = R1csCpu::new(
+        ccs,
+        params,
+        NoopCommit::default(),
+        layout.m_in,
+        &HashMap::new(),
+        &table_specs,
+        rv32_b1_chunk_to_witness(layout.clone()),
+    )
+    .with_shared_cpu_bus(
+        rv32_b1_shared_cpu_bus_config(&layout, &shout_table_ids, mem_layouts, initial_mem).expect("cfg"),
+        1,
+    )
+    .expect("shared bus");
+
+    let mut steps = CpuArithmetization::build_ccs_steps(&cpu, &trace).expect("build steps");
+    let amo_step_idx = 4usize;
+    let (mcs_inst, mut mcs_wit) = steps.remove(amo_step_idx);
+
+    let ram_wv_w_idx = layout
+        .ram_wv
+        .checked_sub(layout.m_in)
+        .expect("ram_wv must be in private witness");
+    mcs_wit.w[ram_wv_w_idx] += F::ONE;
+
+    assert!(
+        check_ccs_rowwise_zero(&cpu.ccs, &mcs_inst.x, &mcs_wit.w).is_err(),
+        "tampered RAM write value should not satisfy CCS"
+    );
+}
+
+#[test]
+fn rv32_b1_ccs_happy_path_rv32a_word_amos_program() {
+    let xlen = 32usize;
+    let program = vec![
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 1,
+            rs1: 0,
+            imm: 0x100,
+        }, // x1 = 0x100
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 2,
+            rs1: 0,
+            imm: 0b1111,
+        }, // x2 = 15
+        RiscvInstruction::Store {
+            op: RiscvMemOp::Sw,
+            rs1: 1,
+            rs2: 2,
+            imm: 0,
+        }, // mem[0x100] = 15
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 3,
+            rs1: 0,
+            imm: 0b1010,
+        }, // x3 = 10
+        RiscvInstruction::Amo {
+            op: RiscvMemOp::AmoandW,
+            rd: 4,
+            rs1: 1,
+            rs2: 3,
+        }, // mem &= 10
+        RiscvInstruction::Amo {
+            op: RiscvMemOp::AmoorW,
+            rd: 5,
+            rs1: 1,
+            rs2: 3,
+        }, // mem |= 10
+        RiscvInstruction::Amo {
+            op: RiscvMemOp::AmoxorW,
+            rd: 6,
+            rs1: 1,
+            rs2: 3,
+        }, // mem ^= 10
+        RiscvInstruction::Amo {
+            op: RiscvMemOp::AmoswapW,
+            rd: 7,
+            rs1: 1,
+            rs2: 2,
+        }, // mem = 15
+        RiscvInstruction::Load {
+            op: RiscvMemOp::Lw,
+            rd: 8,
+            rs1: 1,
+            imm: 0,
+        },
+        RiscvInstruction::Halt,
+    ];
+
+    let program_bytes = encode_program(&program);
+    let mut cpu_vm = RiscvCpu::new(xlen);
+    cpu_vm.load_program(0, program.clone());
+    let memory = RiscvMemory::with_program_in_twist(xlen, PROG_ID, 0, &program_bytes);
+    let shout = RiscvShoutTables::new(xlen);
+    let trace = trace_program(cpu_vm, memory, shout, 64).expect("trace");
+    assert!(trace.did_halt(), "expected Halt");
+
+    let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
+    let (k_ram, d_ram) = pow2_ceil_k(0x200);
+    let mem_layouts = HashMap::from([
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+    ]);
+    let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
+
+    let shout_table_ids = RV32I_SHOUT_TABLE_IDS;
+    let (ccs, layout) = build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, 1).expect("ccs");
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     let table_specs = rv32i_table_specs(xlen);
 
     let cpu = R1csCpu::new(
@@ -719,6 +1171,90 @@ fn rv32_b1_ccs_jalr_masks_lsb() {
     for (mcs_inst, mcs_wit) in steps {
         check_ccs_rowwise_zero(&cpu.ccs, &mcs_inst.x, &mcs_wit.w).expect("CCS satisfied");
     }
+}
+
+#[test]
+fn rv32_b1_ccs_rejects_step_after_halt_within_chunk() {
+    let xlen = 32usize;
+    let program = vec![RiscvInstruction::Halt, RiscvInstruction::Halt];
+    let program_bytes = encode_program(&program);
+
+    let w0 = u32::from_le_bytes(program_bytes[0..4].try_into().expect("word0"));
+    let w1 = u32::from_le_bytes(program_bytes[4..8].try_into().expect("word1"));
+
+    let regs = vec![0u64; 32];
+    let steps: Vec<StepTrace<u64, u64>> = vec![
+        StepTrace {
+            cycle: 0,
+            pc_before: 0,
+            pc_after: 4,
+            opcode: w0,
+            regs_before: regs.clone(),
+            regs_after: regs.clone(),
+            twist_events: vec![TwistEvent {
+                twist_id: PROG_ID,
+                kind: TwistOpKind::Read,
+                addr: 0,
+                value: w0 as u64,
+            }],
+            shout_events: Vec::new(),
+            halted: true,
+        },
+        StepTrace {
+            cycle: 1,
+            pc_before: 4,
+            pc_after: 8,
+            opcode: w1,
+            regs_before: regs.clone(),
+            regs_after: regs.clone(),
+            twist_events: vec![TwistEvent {
+                twist_id: PROG_ID,
+                kind: TwistOpKind::Read,
+                addr: 4,
+                value: w1 as u64,
+            }],
+            shout_events: Vec::new(),
+            halted: true,
+        },
+    ];
+    let trace = VmTrace { steps };
+
+    let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
+    let (k_ram, d_ram) = pow2_ceil_k(0x80);
+    let mem_layouts = HashMap::from([
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+    ]);
+    let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
+
+    let shout_table_ids = RV32I_SHOUT_TABLE_IDS;
+    let chunk_size = 2usize;
+    let (ccs, layout) = build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, chunk_size).expect("ccs");
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
+    let table_specs = rv32i_table_specs(xlen);
+
+    let cpu = R1csCpu::new(
+        ccs,
+        params,
+        NoopCommit::default(),
+        layout.m_in,
+        &HashMap::new(),
+        &table_specs,
+        rv32_b1_chunk_to_witness(layout.clone()),
+    )
+    .with_shared_cpu_bus(
+        rv32_b1_shared_cpu_bus_config(&layout, &shout_table_ids, mem_layouts, initial_mem).expect("cfg"),
+        chunk_size,
+    )
+    .expect("shared bus");
+
+    let mut chunks = CpuArithmetization::build_ccs_chunks(&cpu, &trace, chunk_size).expect("chunks");
+    assert_eq!(chunks.len(), 1, "expected single chunk");
+    let (mcs_inst, mcs_wit) = chunks.pop().expect("chunk");
+    assert!(
+        check_ccs_rowwise_zero(&cpu.ccs, &mcs_inst.x, &mcs_wit.w).is_err(),
+        "step after HALT should not satisfy CCS"
+    );
 }
 
 #[test]

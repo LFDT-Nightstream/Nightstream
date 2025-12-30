@@ -42,6 +42,54 @@ use p3_field::PrimeCharacteristicRing;
 
 pub use crate::memory_sidecar::memory::absorb_step_memory;
 
+// ============================================================================
+// Optional step-to-step (cross-chunk) linking
+// ============================================================================
+
+/// Optional verifier-side linking constraints across adjacent shard steps.
+///
+/// This is intended for chunked CPU circuits that expose boundary state as part of the public
+/// input vector `x` per step, and need the verifier to enforce that the state chains across steps.
+#[derive(Clone, Debug)]
+pub struct StepLinkingConfig {
+    /// Equalities on adjacent steps: require `steps[i].x[prev_idx] == steps[i+1].x[next_idx]`.
+    pub prev_next_equalities: Vec<(usize, usize)>,
+}
+
+impl StepLinkingConfig {
+    pub fn new(prev_next_equalities: Vec<(usize, usize)>) -> Self {
+        Self { prev_next_equalities }
+    }
+}
+
+pub fn check_step_linking(
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    cfg: &StepLinkingConfig,
+) -> Result<(), PiCcsError> {
+    if steps.len() <= 1 || cfg.prev_next_equalities.is_empty() {
+        return Ok(());
+    }
+    for (i, (prev, next)) in steps.iter().zip(steps.iter().skip(1)).enumerate() {
+        let prev_x = &prev.mcs_inst.x;
+        let next_x = &next.mcs_inst.x;
+        for &(prev_idx, next_idx) in &cfg.prev_next_equalities {
+            if prev_idx >= prev_x.len() || next_idx >= next_x.len() {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "step linking index out of range at boundary {i}: prev_x.len()={}, next_x.len()={}, pair=({prev_idx},{next_idx})",
+                    prev_x.len(),
+                    next_x.len(),
+                )));
+            }
+            if prev_x[prev_idx] != next_x[next_idx] {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "step linking failed at boundary {i}: prev_x[{prev_idx}] != next_x[{next_idx}]",
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Commitment mixers so the coordinator stays scheme-agnostic.
 /// - `mix_rhos_commits(ρ, cs)` returns Σ ρ_i · c_i  (S-action).
 /// - `combine_b_pows(cs, b)` returns Σ \bar b^{i-1} c_i  (DEC check).
@@ -1452,6 +1500,25 @@ where
     fold_shard_verify_impl(mode, tr, params, s_me, steps, acc_init, proof, mixers, None)
 }
 
+pub fn fold_shard_verify_with_step_linking<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    step_linking: &StepLinkingConfig,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify(mode, tr, params, s_me, steps, acc_init, proof, mixers)
+}
+
 pub fn fold_shard_verify_with_output_binding<MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
@@ -1468,6 +1535,26 @@ where
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
     fold_shard_verify_impl(mode, tr, params, s_me, steps, acc_init, proof, mixers, Some(ob_cfg))
+}
+
+pub fn fold_shard_verify_with_output_binding_and_step_linking<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    ob_cfg: &crate::output_binding::OutputBindingConfig,
+    step_linking: &StepLinkingConfig,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify_with_output_binding(mode, tr, params, s_me, steps, acc_init, proof, mixers, ob_cfg)
 }
 
 pub fn fold_shard_verify_and_finalize<MR, MB, Fin>(
@@ -1494,6 +1581,27 @@ where
     Ok(())
 }
 
+pub fn fold_shard_verify_and_finalize_with_step_linking<MR, MB, Fin>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    step_linking: &StepLinkingConfig,
+    finalizer: &mut Fin,
+) -> Result<(), PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+    Fin: ObligationFinalizer<Cmt, F, K, Error = PiCcsError>,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify_and_finalize(mode, tr, params, s_me, steps, acc_init, proof, mixers, finalizer)
+}
+
 pub fn fold_shard_verify_and_finalize_with_output_binding<MR, MB, Fin>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
@@ -1518,4 +1626,28 @@ where
         .obligations
         .require_all_finalized(report.did_finalize_main, report.did_finalize_val)?;
     Ok(())
+}
+
+pub fn fold_shard_verify_and_finalize_with_output_binding_and_step_linking<MR, MB, Fin>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    ob_cfg: &crate::output_binding::OutputBindingConfig,
+    step_linking: &StepLinkingConfig,
+    finalizer: &mut Fin,
+) -> Result<(), PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+    Fin: ObligationFinalizer<Cmt, F, K, Error = PiCcsError>,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify_and_finalize_with_output_binding(
+        mode, tr, params, s_me, steps, acc_init, proof, mixers, ob_cfg, finalizer,
+    )
 }

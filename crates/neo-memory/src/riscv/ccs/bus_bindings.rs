@@ -9,8 +9,9 @@ use crate::riscv::lookups::{RAM_ID, PROG_ID};
 
 use super::config::{derive_mem_ids_and_ell_addrs, derive_shout_ids_and_ell_addrs};
 use super::constants::{
-    ADD_TABLE_ID, AND_TABLE_ID, EQ_TABLE_ID, NEQ_TABLE_ID, OR_TABLE_ID, SLL_TABLE_ID, SLT_TABLE_ID, SLTU_TABLE_ID,
-    SRA_TABLE_ID, SRL_TABLE_ID, SUB_TABLE_ID, XOR_TABLE_ID,
+    ADD_TABLE_ID, AND_TABLE_ID, DIV_TABLE_ID, DIVU_TABLE_ID, EQ_TABLE_ID, MULH_TABLE_ID, MULHSU_TABLE_ID,
+    MULHU_TABLE_ID, MUL_TABLE_ID, NEQ_TABLE_ID, OR_TABLE_ID, REMU_TABLE_ID, REM_TABLE_ID, SLL_TABLE_ID, SLT_TABLE_ID,
+    SLTU_TABLE_ID, SRA_TABLE_ID, SRL_TABLE_ID, SUB_TABLE_ID, XOR_TABLE_ID,
 };
 use super::Rv32B1Layout;
 
@@ -76,6 +77,46 @@ fn shout_cpu_binding(layout: &Rv32B1Layout, table_id: u32) -> ShoutCpuBinding {
             addr: layout.lookup_key,
             val: layout.alu_out,
         },
+        MUL_TABLE_ID => ShoutCpuBinding {
+            has_lookup: layout.is_mul,
+            addr: layout.lookup_key,
+            val: layout.alu_out,
+        },
+        MULH_TABLE_ID => ShoutCpuBinding {
+            has_lookup: layout.is_mulh,
+            addr: layout.lookup_key,
+            val: layout.alu_out,
+        },
+        MULHU_TABLE_ID => ShoutCpuBinding {
+            has_lookup: layout.is_mulhu,
+            addr: layout.lookup_key,
+            val: layout.alu_out,
+        },
+        MULHSU_TABLE_ID => ShoutCpuBinding {
+            has_lookup: layout.is_mulhsu,
+            addr: layout.lookup_key,
+            val: layout.alu_out,
+        },
+        DIV_TABLE_ID => ShoutCpuBinding {
+            has_lookup: layout.is_div,
+            addr: layout.lookup_key,
+            val: layout.alu_out,
+        },
+        DIVU_TABLE_ID => ShoutCpuBinding {
+            has_lookup: layout.is_divu,
+            addr: layout.lookup_key,
+            val: layout.alu_out,
+        },
+        REM_TABLE_ID => ShoutCpuBinding {
+            has_lookup: layout.is_rem,
+            addr: layout.lookup_key,
+            val: layout.alu_out,
+        },
+        REMU_TABLE_ID => ShoutCpuBinding {
+            has_lookup: layout.is_remu,
+            addr: layout.lookup_key,
+            val: layout.alu_out,
+        },
         _ => {
             // Bind unused tables to fixed-zero CPU columns so they are provably inactive.
             let zero = layout.reg_in(0, 0);
@@ -91,12 +132,12 @@ fn shout_cpu_binding(layout: &Rv32B1Layout, table_id: u32) -> ShoutCpuBinding {
 fn twist_cpu_binding(layout: &Rv32B1Layout, mem_id: u32) -> TwistCpuBinding {
     if mem_id == RAM_ID.0 {
         TwistCpuBinding {
-            has_read: layout.is_lw,
-            has_write: layout.is_sw,
+            has_read: layout.ram_has_read,
+            has_write: layout.ram_has_write,
             read_addr: layout.eff_addr,
             write_addr: layout.eff_addr,
             rv: layout.mem_rv,
-            wv: layout.rs2_val,
+            wv: layout.ram_wv,
             inc: None,
         }
     } else if mem_id == PROG_ID.0 {
@@ -143,8 +184,8 @@ pub(super) fn injected_bus_constraints_len(layout: &Rv32B1Layout, table_ids: &[u
 ///
 /// This config:
 /// - binds `PROG_ID` reads to `pc_in` / `instr_word`, forces no ROM writes,
-/// - binds `RAM_ID` reads/writes to `eff_addr` / `mem_rv` / `rs2_val`,
-/// - binds RV32I Shout opcode tables (ids 0..=11) to `lookup_key` / `alu_out`.
+/// - binds `RAM_ID` reads/writes to `eff_addr` / `mem_rv` / `ram_wv` (with selectors derived from instruction flags),
+/// - binds RV32IM Shout opcode tables (ids 0..=19) to `lookup_key` / `alu_out`.
 pub fn rv32_b1_shared_cpu_bus_config(
     layout: &Rv32B1Layout,
     shout_table_ids: &[u32],
@@ -172,4 +213,3 @@ pub fn rv32_b1_shared_cpu_bus_config(
         twist_cpu,
     })
 }
-

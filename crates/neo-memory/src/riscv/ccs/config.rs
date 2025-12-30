@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::plain::PlainMemLayout;
 
-use super::constants::{ADD_TABLE_ID, NEQ_TABLE_ID, RV32_XLEN};
+use super::constants::{ADD_TABLE_ID, REMU_TABLE_ID, RV32_XLEN};
 
 pub(super) fn derive_mem_ids_and_ell_addrs(mem_layouts: &HashMap<u32, PlainMemLayout>) -> Result<(Vec<u32>, Vec<usize>), String> {
     let mut mem_ids: Vec<u32> = mem_layouts.keys().copied().collect();
@@ -33,14 +33,14 @@ pub(super) fn derive_shout_ids_and_ell_addrs(shout_table_ids: &[u32]) -> Result<
     if !table_ids.contains(&ADD_TABLE_ID) {
         return Err(format!("RV32 B1: shout_table_ids must include ADD table_id={ADD_TABLE_ID}"));
     }
-    // This circuit supports RV32I via the 12 base opcode tables (ids 0..=11). Callers may pass any
+    // This circuit supports RV32IM via the 20 base+M opcode tables (ids 0..=19). Callers may pass any
     // subset, as long as it covers the opcodes that will actually appear in the VM trace.
     // (Missing table specs are rejected by `build_shard_witness_shared_cpu_bus` when the trace contains
     // a Shout event for an unlisted `table_id`.)
     for &table_id in &table_ids {
-        if table_id > NEQ_TABLE_ID {
+        if table_id > REMU_TABLE_ID {
             return Err(format!(
-                "RV32 B1: unsupported table_id={table_id} (expected RISC-V opcode table ids 0..={NEQ_TABLE_ID})"
+                "RV32 B1: unsupported table_id={table_id} (expected RISC-V opcode table ids 0..={REMU_TABLE_ID})"
             ));
         }
     }
@@ -48,4 +48,3 @@ pub(super) fn derive_shout_ids_and_ell_addrs(shout_table_ids: &[u32]) -> Result<
     let shout_ell_addrs = vec![2 * RV32_XLEN; table_ids.len()];
     Ok((table_ids, shout_ell_addrs))
 }
-

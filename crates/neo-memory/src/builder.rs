@@ -1,7 +1,8 @@
-use crate::mem_init::MemInit;
+use crate::mem_init::mem_init_from_state_map;
 use crate::plain::{build_plain_mem_traces, LutTable, PlainMemLayout};
 use crate::witness::{LutInstance, LutTableSpec, LutWitness, MemInstance, MemWitness, StepWitnessBundle};
 use neo_vm_trace::VmTrace;
+use neo_vm_trace::StepTrace;
 
 use neo_ccs::relations::{McsInstance, McsWitness};
 use p3_field::PrimeCharacteristicRing;
@@ -77,9 +78,66 @@ where
         return Err(ShardBuildError::InvalidChunkSize("chunk_size must be >= 1".into()));
     }
 
-    // 1) Run VM and collect full trace for this shard.
-    let trace = neo_vm_trace::trace_program(vm, twist, shout, max_steps)
+    // 1) Run VM and collect full trace for this shard (then pad to fixed length).
+    let mut trace = neo_vm_trace::trace_program(vm, twist, shout, max_steps)
         .map_err(|e| ShardBuildError::VmError(e.to_string()))?;
+    let original_len = trace.steps.len();
+    debug_assert!(
+        original_len <= max_steps,
+        "trace_program must not exceed max_steps (got {}, max_steps={})",
+        original_len,
+        max_steps
+    );
+
+    // L1-style fixed-row execution: pad to exactly `max_steps` by repeating the final architectural
+    // state with no Twist/Shout events. (Per-row padding is expressed via `is_active` in the CPU CCS.)
+    if original_len < max_steps {
+        if let Some(last) = trace.steps.last() {
+            let pc = last.pc_after;
+            let regs = last.regs_after.clone();
+            let start = original_len;
+            trace.steps.reserve(max_steps - start);
+            for t in start..max_steps {
+                trace.steps.push(StepTrace {
+                    cycle: t as u64,
+                    pc_before: pc,
+                    pc_after: pc,
+                    opcode: 0,
+                    regs_before: regs.clone(),
+                    regs_after: regs.clone(),
+                    twist_events: Vec::new(),
+                    shout_events: Vec::new(),
+                    halted: true,
+                });
+            }
+        }
+    }
+    if original_len > 0 && original_len < max_steps {
+        debug_assert_eq!(
+            trace.steps.len(),
+            max_steps,
+            "internal error: expected builder padding to reach max_steps"
+        );
+        for (t, step) in trace.steps.iter().enumerate().skip(original_len) {
+            debug_assert!(
+                step.twist_events.is_empty(),
+                "padded step {t} must have no twist events"
+            );
+            debug_assert!(
+                step.shout_events.is_empty(),
+                "padded step {t} must have no shout events"
+            );
+            debug_assert!(step.halted, "padded step {t} must be halted");
+            debug_assert_eq!(
+                step.pc_before, step.pc_after,
+                "padded step {t} must keep pc constant"
+            );
+            debug_assert_eq!(
+                step.regs_before, step.regs_after,
+                "padded step {t} must keep regs constant"
+            );
+        }
+    }
 
     // Shared-bus mode does not support "silent dropping" of trace events: if the trace contains
     // Twist/Shout events, the corresponding instance metadata must be provided so the prover
@@ -148,7 +206,13 @@ where
             if *init_mem_id != mem_id || val == Goldilocks::ZERO {
                 continue;
             }
-            if (*addr as usize) >= layout.k {
+            let addr_usize = usize::try_from(*addr).map_err(|_| {
+                ShardBuildError::InvalidInit(format!(
+                    "initial_mem address doesn't fit usize for twist_id {}: addr={addr}",
+                    mem_id
+                ))
+            })?;
+            if addr_usize >= layout.k {
                 return Err(ShardBuildError::InvalidInit(format!(
                     "initial_mem address out of range for twist_id {}: addr={} >= k={}",
                     mem_id, addr, layout.k
@@ -162,31 +226,6 @@ where
             }
         }
         mem_states.insert(mem_id, state);
-    }
-
-    // Local helper: MemInit from sparse state.
-    fn mem_init_from_state(
-        mem_id: u32,
-        k: usize,
-        state: &HashMap<u64, Goldilocks>,
-    ) -> Result<MemInit<Goldilocks>, ShardBuildError> {
-        if state.is_empty() {
-            return Ok(MemInit::Zero);
-        }
-        let mut pairs: Vec<(u64, Goldilocks)> = state
-            .iter()
-            .filter_map(|(&addr, &val)| (val != Goldilocks::ZERO).then_some((addr, val)))
-            .collect();
-        pairs.sort_by_key(|(addr, _)| *addr);
-        if let Some((addr, _)) = pairs.last() {
-            if (*addr as usize) >= k {
-                return Err(ShardBuildError::InvalidInit(format!(
-                    "internal error: state address out of range for twist_id {}: addr={} >= k={}",
-                    mem_id, addr, k
-                )));
-            }
-        }
-        Ok(MemInit::Sparse(pairs))
     }
 
     let mut step_bundles = Vec::with_capacity(chunks_len);
@@ -210,7 +249,8 @@ where
             let state = mem_states
                 .get_mut(&mem_id)
                 .ok_or_else(|| ShardBuildError::MissingLayout(format!("missing state for twist_id {}", mem_id)))?;
-            let init = mem_init_from_state(mem_id, layout.k, state)?;
+            let init = mem_init_from_state_map(mem_id, layout.k, state)
+                .map_err(|e| ShardBuildError::InvalidInit(e.to_string()))?;
             let ell = ell_from_pow2_n_side(layout.n_side)?;
 
             let inst = MemInstance::<Cmt, Goldilocks> {
@@ -235,7 +275,10 @@ where
                     continue;
                 }
                 let addr = plain.write_addr[t];
-                if (addr as usize) >= layout.k {
+                let Ok(addr_usize) = usize::try_from(addr) else {
+                    continue;
+                };
+                if addr_usize >= layout.k {
                     continue;
                 }
                 let new_val = plain.write_val[t];

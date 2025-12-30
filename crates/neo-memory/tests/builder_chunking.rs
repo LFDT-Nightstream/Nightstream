@@ -147,7 +147,7 @@ fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
     )
     .expect("build_shard_witness_shared_cpu_bus should succeed");
 
-    assert_eq!(bundles.len(), 4, "script CPU halts after 4 steps");
+    assert_eq!(bundles.len(), 16, "builder pads to max_steps under fixed-length semantics");
     for bundle in &bundles {
         assert_eq!(bundle.mem_instances.len(), 1);
         assert_eq!(bundle.mem_instances[0].0.steps, 1);
@@ -159,6 +159,8 @@ fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
     let inst1 = &bundles[1].mem_instances[0].0;
     let inst2 = &bundles[2].mem_instances[0].0;
     let inst3 = &bundles[3].mem_instances[0].0;
+    let inst4 = &bundles[4].mem_instances[0].0;
+    let inst_last = &bundles.last().expect("non-empty").mem_instances[0].0;
 
     assert!(matches!(inst0.init, MemInit::Zero));
     assert_eq!(inst1.init, MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(5))]));
@@ -170,6 +172,11 @@ fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
         inst3.init,
         MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(9)), (1u64, Goldilocks::from_u64(7))])
     );
+    assert_eq!(
+        inst4.init,
+        MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(9)), (1u64, Goldilocks::from_u64(7))])
+    );
+    assert_eq!(inst_last.init, inst4.init);
 }
 
 #[test]
@@ -195,8 +202,7 @@ fn build_shard_witness_shared_cpu_bus_supports_chunk_size_gt_one() {
     )
     .expect("chunk_size>1 should be supported");
 
-    // Script CPU halts after 4 steps, so for chunk_size=2 we expect 2 chunks.
-    assert_eq!(bundles.len(), 2);
+    assert_eq!(bundles.len(), 8, "builder pads to max_steps under fixed-length semantics");
     for bundle in &bundles {
         assert_eq!(bundle.mem_instances.len(), 1);
         assert_eq!(bundle.mem_instances[0].0.steps, 2);
@@ -204,10 +210,17 @@ fn build_shard_witness_shared_cpu_bus_supports_chunk_size_gt_one() {
 
     let inst0 = &bundles[0].mem_instances[0].0;
     let inst1 = &bundles[1].mem_instances[0].0;
+    let inst2 = &bundles[2].mem_instances[0].0;
+    let inst_last = &bundles.last().expect("non-empty").mem_instances[0].0;
 
     assert!(matches!(inst0.init, MemInit::Zero));
     assert_eq!(
         inst1.init,
         MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(5)), (1u64, Goldilocks::from_u64(7))])
     );
+    assert_eq!(
+        inst2.init,
+        MemInit::Sparse(vec![(0u64, Goldilocks::from_u64(9)), (1u64, Goldilocks::from_u64(7))])
+    );
+    assert_eq!(inst_last.init, inst2.init);
 }

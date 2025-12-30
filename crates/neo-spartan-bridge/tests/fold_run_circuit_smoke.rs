@@ -324,6 +324,7 @@ fn fold_run_circuit_optimized_nontrivial_satisfied() {
 
     // Sanity: the native paper-exact verifier should accept this run.
     let mcss_public = session.mcss_public();
+    session.unsafe_allow_unlinked_steps();
     let ok = session
         .verify(&ccs, &mcss_public, &run)
         .expect("verify should run");

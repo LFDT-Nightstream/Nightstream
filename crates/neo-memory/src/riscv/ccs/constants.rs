@@ -14,3 +14,12 @@ pub(super) const SRA_TABLE_ID: u32 = 9; // `RiscvOpcode::Sra`
 pub(super) const EQ_TABLE_ID: u32 = 10; // `RiscvOpcode::Eq`
 pub(super) const NEQ_TABLE_ID: u32 = 11; // `RiscvOpcode::Neq`
 
+// RV32M (R-type, funct7 = 0b0000001).
+pub(super) const MUL_TABLE_ID: u32 = 12; // `RiscvOpcode::Mul`
+pub(super) const MULH_TABLE_ID: u32 = 13; // `RiscvOpcode::Mulh`
+pub(super) const MULHU_TABLE_ID: u32 = 14; // `RiscvOpcode::Mulhu`
+pub(super) const MULHSU_TABLE_ID: u32 = 15; // `RiscvOpcode::Mulhsu`
+pub(super) const DIV_TABLE_ID: u32 = 16; // `RiscvOpcode::Div`
+pub(super) const DIVU_TABLE_ID: u32 = 17; // `RiscvOpcode::Divu`
+pub(super) const REM_TABLE_ID: u32 = 18; // `RiscvOpcode::Rem`
+pub(super) const REMU_TABLE_ID: u32 = 19; // `RiscvOpcode::Remu`

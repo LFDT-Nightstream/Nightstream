@@ -30,7 +30,7 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::pi_ccs::FoldingMode;
-use crate::shard::{self, CommitMixers, ShardProof as FoldRun};
+use crate::shard::{self, CommitMixers, ShardProof as FoldRun, StepLinkingConfig};
 use crate::PiCcsError;
 use neo_reductions::engines::utils;
 
@@ -511,6 +511,17 @@ where
     // Collected per-step bundles (CCS-only steps have empty LUT/MEM vectors)
     steps: Vec<StepWitnessBundle<Cmt, F, K>>,
 
+    /// Optional verifier-side step-to-step linking constraints.
+    ///
+    /// If more than one step is collected, verification requires either:
+    /// - a non-empty `step_linking` config, or
+    /// - `allow_unlinked_steps=true` (explicit and unsafe).
+    step_linking: Option<StepLinkingConfig>,
+    /// Explicit escape hatch: allow verifying multi-step runs without step linking.
+    ///
+    /// This is unsafe for any workflow where step-to-step chaining is part of the statement.
+    allow_unlinked_steps: bool,
+
     // Optional initial accumulated ME(b, L)^k inputs (k = me.len()).
     acc0: Option<Accumulator>,
 
@@ -533,10 +544,22 @@ where
             l,
             mixers: default_mixers(),
             steps: vec![],
+            step_linking: None,
+            allow_unlinked_steps: false,
             acc0: None,
             step_claims: vec![],
             curr_state: None,
         }
+    }
+
+    /// Enable verifier-side step-to-step linking for multi-step runs.
+    pub fn set_step_linking(&mut self, cfg: StepLinkingConfig) {
+        self.step_linking = Some(cfg);
+    }
+
+    /// Explicitly allow multi-step verification without step linking (unsafe).
+    pub fn unsafe_allow_unlinked_steps(&mut self) {
+        self.allow_unlinked_steps = true;
     }
 
     /// Set an explicit initial state y₀ for the IVC (optional).
@@ -1002,16 +1025,52 @@ where
             None => &[], // k=1
         };
 
-        let outputs = shard::fold_shard_verify(
-            self.mode.clone(),
-            tr,
-            &self.params,
-            &s_norm,
-            &steps_public,
-            seed_me,
-            run,
-            self.mixers,
-        )?;
+        let step_linking = self
+            .step_linking
+            .as_ref()
+            .filter(|cfg| !cfg.prev_next_equalities.is_empty());
+
+        let outputs = if steps_public.len() > 1 {
+            match step_linking {
+                Some(cfg) => shard::fold_shard_verify_with_step_linking(
+                    self.mode.clone(),
+                    tr,
+                    &self.params,
+                    &s_norm,
+                    &steps_public,
+                    seed_me,
+                    run,
+                    self.mixers,
+                    cfg,
+                )?,
+                None if self.allow_unlinked_steps => shard::fold_shard_verify(
+                    self.mode.clone(),
+                    tr,
+                    &self.params,
+                    &s_norm,
+                    &steps_public,
+                    seed_me,
+                    run,
+                    self.mixers,
+                )?,
+                None => {
+                    return Err(PiCcsError::InvalidInput(
+                        "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".into(),
+                    ));
+                }
+            }
+        } else {
+            shard::fold_shard_verify(
+                self.mode.clone(),
+                tr,
+                &self.params,
+                &s_norm,
+                &steps_public,
+                seed_me,
+                run,
+                self.mixers,
+            )?
+        };
 
         // For CCS-only sessions (no Twist/Shout), val-lane obligations should be empty
         // For Twist+Shout sessions, val-lane obligations are expected and valid
@@ -1081,17 +1140,55 @@ where
             None => &[],
         };
 
-        let outputs = shard::fold_shard_verify_with_output_binding(
-            self.mode.clone(),
-            tr,
-            &self.params,
-            &s_norm,
-            &steps_public,
-            seed_me,
-            run,
-            self.mixers,
-            ob_cfg,
-        )?;
+        let step_linking = self
+            .step_linking
+            .as_ref()
+            .filter(|cfg| !cfg.prev_next_equalities.is_empty());
+
+        let outputs = if steps_public.len() > 1 {
+            match step_linking {
+                Some(cfg) => shard::fold_shard_verify_with_output_binding_and_step_linking(
+                    self.mode.clone(),
+                    tr,
+                    &self.params,
+                    &s_norm,
+                    &steps_public,
+                    seed_me,
+                    run,
+                    self.mixers,
+                    ob_cfg,
+                    cfg,
+                )?,
+                None if self.allow_unlinked_steps => shard::fold_shard_verify_with_output_binding(
+                    self.mode.clone(),
+                    tr,
+                    &self.params,
+                    &s_norm,
+                    &steps_public,
+                    seed_me,
+                    run,
+                    self.mixers,
+                    ob_cfg,
+                )?,
+                None => {
+                    return Err(PiCcsError::InvalidInput(
+                        "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".into(),
+                    ));
+                }
+            }
+        } else {
+            shard::fold_shard_verify_with_output_binding(
+                self.mode.clone(),
+                tr,
+                &self.params,
+                &s_norm,
+                &steps_public,
+                seed_me,
+                run,
+                self.mixers,
+                ob_cfg,
+            )?
+        };
 
         let has_twist_or_shout = self.has_twist_instances() || self.has_shout_instances();
         if !has_twist_or_shout && !outputs.obligations.val.is_empty() {

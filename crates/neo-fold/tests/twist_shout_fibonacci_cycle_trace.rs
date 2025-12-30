@@ -793,11 +793,13 @@ fn twist_shout_fibonacci_cycle_trace() {
                     .max()
                     .unwrap_or(0)
             );
+
             println!(
                 "mem_sidecar: cpu_me_claims_val={}  proofs={}",
                 step_proof.mem.cpu_me_claims_val.len(),
                 step_proof.mem.proofs.len()
             );
+            
             println!(
                 "shout_addr_pre: claimed_sums={} active_mask=0x{:x} rounds={} r_addr_len={}",
                 step_proof.mem.shout_addr_pre.claimed_sums.len(),

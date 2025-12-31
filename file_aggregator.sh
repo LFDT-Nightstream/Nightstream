@@ -113,6 +113,19 @@ should_strip() {
     esac
 }
 
+# Format number with comma separators (e.g., 5000 -> 5,000)
+format_number() {
+    echo "$1" | awk '{
+        n = $0
+        s = ""
+        while (length(n) > 3) {
+            s = "," substr(n, length(n)-2) s
+            n = substr(n, 1, length(n)-3)
+        }
+        print n s
+    }'
+}
+
 # Remove trailing slashes from all directories
 for i in "${!dirs[@]}"; do
     dirs[$i]="${dirs[$i]%/}"
@@ -151,19 +164,27 @@ done
 # Deduplicate while preserving input order, then process
 printf '%s\n' "${files_to_process[@]}" | awk '!seen[$0]++' | while IFS= read -r file; do
     [ -e "$file" ] || continue
-    echo "Processing: $file"
-    echo "# $file" >> "$outfile"
+    # Get size before processing this file
+    size_before=$(wc -c < "$outfile")
     if $NO_COMMENTS; then
         ext="${file##*.}"
         if should_strip "$ext"; then
+            echo "# $file" >> "$outfile"
             strip_comments_cstyle < "$file" >> "$outfile"
         else
+            echo "# $file" >> "$outfile"
             cat "$file" >> "$outfile"
         fi
     else
+        echo "# $file" >> "$outfile"
         cat "$file" >> "$outfile"
     fi
     echo >> "$outfile"
+    # Calculate this file's token contribution
+    size_after=$(wc -c < "$outfile")
+    file_size=$((size_after - size_before))
+    file_tokens=$((file_size / 4))
+    echo "Processing: $file ($(format_number $file_tokens))"
 done
 
 # Show final file statistics
@@ -175,7 +196,7 @@ if [ -f "$outfile" ]; then
     echo
     echo "=== Final Output Statistics ==="
     echo "Output file: $outfile"
-    echo "Total size: ${final_size} bytes"
-    echo "Total words: ${final_words}"
-    echo "Total AI tokens (est): ${final_ai_tokens}"
+    echo "Total size: $(format_number $final_size) bytes"
+    echo "Total words: $(format_number $final_words)"
+    echo "Total AI tokens (est): $(format_number $final_ai_tokens)"
 fi

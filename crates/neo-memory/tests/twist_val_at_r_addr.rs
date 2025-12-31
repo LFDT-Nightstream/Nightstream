@@ -1,13 +1,29 @@
-//! Phase-1 Twist helper/oracle tests.
+//! Twist time-lane read/write checks: focused sparse-time tests.
 
 use neo_math::K;
-use neo_memory::twist::compute_val_at_r_addr_pre_write;
-use neo_memory::twist_oracle::{build_eq_table, TwistReadCheckOracle, TwistWriteCheckOracle};
+use neo_memory::sparse_time::SparseIdxVec;
+use neo_memory::twist_oracle::{TwistReadCheckOracleSparseTime, TwistWriteCheckOracleSparseTime};
+use neo_reductions::sumcheck::{run_sumcheck_prover, verify_sumcheck_rounds, RoundOracle};
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
 fn k(u: u64) -> K {
     K::from(Goldilocks::from_u64(u))
+}
+
+fn dense_to_sparse(v: &[K]) -> SparseIdxVec<K> {
+    SparseIdxVec::from_entries(
+        v.len(),
+        v.iter()
+            .enumerate()
+            .filter_map(|(i, &x)| (x != K::ZERO).then_some((i, x)))
+            .collect(),
+    )
+}
+
+fn cols_to_sparse(cols: &[Vec<K>]) -> Vec<SparseIdxVec<K>> {
+    cols.iter().map(|c| dense_to_sparse(c)).collect()
 }
 
 fn addr_to_bits(addr: usize, ell: usize) -> Vec<K> {
@@ -16,145 +32,163 @@ fn addr_to_bits(addr: usize, ell: usize) -> Vec<K> {
         .collect()
 }
 
-#[test]
-fn compute_val_at_r_addr_matches_reference_simulation_on_boolean_r_addr() {
-    // ell_cycle=3 => pow2_cycle=8, ell_addr=2 => 4 addresses
-    let pow2_cycle = 8usize;
-    let ell_addr = 2usize;
-    let r_addr_bool = addr_to_bits(2, ell_addr);
-
-    // A small write trace (boolean address bits).
-    let mut wa_bits = vec![vec![K::ZERO; pow2_cycle]; ell_addr];
-    let mut has_write = vec![K::ZERO; pow2_cycle];
-    let mut inc_at_write_addr = vec![K::ZERO; pow2_cycle];
-
-    // Writes:
-    // t=1: addr=2, inc=+5
-    // t=3: addr=1, inc=+7
-    // t=4: addr=2, inc=+11
-    for (t, addr, inc) in [(1usize, 2usize, 5u64), (3usize, 1usize, 7u64), (4usize, 2usize, 11u64)] {
-        has_write[t] = K::ONE;
-        inc_at_write_addr[t] = k(inc);
-        let bits = addr_to_bits(addr, ell_addr);
+fn bits_from_addrs(addrs: &[usize], ell_addr: usize) -> Vec<Vec<K>> {
+    let mut cols = vec![vec![K::ZERO; addrs.len()]; ell_addr];
+    for (t, &addr) in addrs.iter().enumerate() {
         for b in 0..ell_addr {
-            wa_bits[b][t] = bits[b];
-        }
-    }
-
-    let got = compute_val_at_r_addr_pre_write(&wa_bits, &has_write, &inc_at_write_addr, &r_addr_bool, K::ZERO);
-
-    // Reference simulation over the concrete address r_addr_bool (here: addr=2).
-    let mut mem = vec![K::ZERO; 1usize << ell_addr];
-    let mut expected = vec![K::ZERO; pow2_cycle];
-    let r_addr_int = 2usize;
-    for t in 0..pow2_cycle {
-        expected[t] = mem[r_addr_int];
-        if has_write[t] == K::ONE {
-            let mut addr_t = 0usize;
-            for b in 0..ell_addr {
-                if wa_bits[b][t] == K::ONE {
-                    addr_t |= 1 << b;
-                }
+            if ((addr >> b) & 1) == 1 {
+                cols[b][t] = K::ONE;
             }
-            mem[addr_t] += inc_at_write_addr[t];
         }
     }
+    cols
+}
 
-    assert_eq!(got, expected);
+fn assert_sumcheck_ok(label: &'static [u8], degree_bound: usize, initial_sum: K, mut oracle: impl RoundOracle) {
+    let mut tr_p = Poseidon2Transcript::new(label);
+    let (rounds, _chals) = run_sumcheck_prover(&mut tr_p, &mut oracle, initial_sum).expect("prover");
+
+    let mut tr_v = Poseidon2Transcript::new(label);
+    let (_chals_v, _final_sum, ok) = verify_sumcheck_rounds(&mut tr_v, degree_bound, initial_sum, &rounds);
+    assert!(ok);
 }
 
 #[test]
-fn read_write_check_oracles_have_zero_claim_on_single_address_trace() {
-    // Construct a trace where all reads/writes are to the same boolean address (so eq(bits, r_addr) is an indicator).
-    let pow2_cycle = 4usize;
+fn read_write_checks_have_zero_claim_with_distractor_writes() {
+    let r_cycle = vec![k(2), k(3), k(5)];
+    let pow2_cycle = 1usize << r_cycle.len();
+
     let ell_addr = 2usize;
-    let addr = 1usize;
-    let r_addr = addr_to_bits(addr, ell_addr);
+    let target_addr = 2usize;
+    let r_addr = addr_to_bits(target_addr, ell_addr);
+    let init_at_r_addr = k(7);
 
-    // r_cycle must avoid {0,1} so eq_table weights are non-zero.
-    let r_cycle = vec![k(2), k(3)];
-    let _eq_cycle = build_eq_table(&r_cycle);
+    // Write addresses: include distractors not equal to target_addr.
+    let wa_addrs = vec![0usize, 2, 1, 2, 3, 2, 0, 1];
+    assert_eq!(wa_addrs.len(), pow2_cycle);
+    let wa_bits = bits_from_addrs(&wa_addrs, ell_addr);
 
-    let mut ra_bits = vec![vec![K::ZERO; pow2_cycle]; ell_addr];
-    let mut wa_bits = vec![vec![K::ZERO; pow2_cycle]; ell_addr];
-    for b in 0..ell_addr {
-        let bit = if ((addr >> b) & 1) == 1 { K::ONE } else { K::ZERO };
-        for t in 0..pow2_cycle {
-            ra_bits[b][t] = bit;
-            wa_bits[b][t] = bit;
+    // Read addresses: always read target_addr when has_read=1.
+    let ra_bits = vec![vec![r_addr[0]; pow2_cycle], vec![r_addr[1]; pow2_cycle]];
+
+    let has_write = vec![K::ONE, K::ONE, K::ONE, K::ONE, K::ONE, K::ONE, K::ZERO, K::ZERO];
+    let mut inc_at_write_addr = vec![K::ZERO; pow2_cycle];
+    let mut wv = vec![K::ZERO; pow2_cycle];
+
+    // Ensure only writes to `target_addr` affect the expected value used by reads/writes.
+    let mut cur = init_at_r_addr;
+    let mut val_pre_target = vec![K::ZERO; pow2_cycle];
+    for t in 0..pow2_cycle {
+        val_pre_target[t] = cur;
+        if has_write[t] == K::ONE {
+            inc_at_write_addr[t] = k(10 + t as u64);
+            if wa_addrs[t] == target_addr {
+                wv[t] = cur + inc_at_write_addr[t];
+                cur += inc_at_write_addr[t];
+            } else {
+                // Distractor writes: can be arbitrary (they are gated out by eq(wa_bits, r_addr)).
+                wv[t] = k(200 + t as u64);
+            }
         }
     }
 
-    // Memory starts at 0 and evolves only at `addr`.
-    // t=0: write new=5 (inc=+5)
-    // t=1: read -> 5
-    // t=2: write new=9 (inc=+4)
-    // t=3: read -> 9
-    let has_write = vec![K::ONE, K::ZERO, K::ONE, K::ZERO];
-    let has_read = vec![K::ZERO, K::ONE, K::ZERO, K::ONE];
-    let wv = vec![k(5), K::ZERO, k(9), K::ZERO];
-    let rv = vec![K::ZERO, k(5), K::ZERO, k(9)];
-    let inc_at_write_addr = vec![k(5), K::ZERO, k(4), K::ZERO];
+    let has_read = vec![K::ONE, K::ONE, K::ONE, K::ONE, K::ZERO, K::ONE, K::ZERO, K::ONE];
+    let rv = (0..pow2_cycle)
+        .map(|t| {
+            if has_read[t] == K::ONE {
+                val_pre_target[t]
+            } else {
+                K::ZERO
+            }
+        })
+        .collect::<Vec<_>>();
 
-    let val_at_r_addr = compute_val_at_r_addr_pre_write(&wa_bits, &has_write, &inc_at_write_addr, &r_addr, K::ZERO);
-
-    let read_check = TwistReadCheckOracle::new(&ra_bits, val_at_r_addr.clone(), rv, has_read, &r_cycle, &r_addr);
-    let write_check = TwistWriteCheckOracle::new(
-        &wa_bits,
-        wv,
-        val_at_r_addr,
-        inc_at_write_addr,
-        has_write,
+    let read_check = TwistReadCheckOracleSparseTime::new(
         &r_cycle,
+        dense_to_sparse(&has_read),
+        dense_to_sparse(&rv),
+        cols_to_sparse(&ra_bits),
+        dense_to_sparse(&has_write),
+        dense_to_sparse(&inc_at_write_addr),
+        cols_to_sparse(&wa_bits),
         &r_addr,
+        init_at_r_addr,
+    );
+    assert_sumcheck_ok(
+        b"twist/read_check/gating",
+        read_check.degree_bound(),
+        K::ZERO,
+        read_check,
     );
 
-    assert_eq!(read_check.compute_claim(), K::ZERO);
-    assert_eq!(write_check.compute_claim(), K::ZERO);
+    let write_check = TwistWriteCheckOracleSparseTime::new(
+        &r_cycle,
+        dense_to_sparse(&has_write),
+        dense_to_sparse(&wv),
+        dense_to_sparse(&inc_at_write_addr),
+        cols_to_sparse(&wa_bits),
+        &r_addr,
+        init_at_r_addr,
+    );
+    assert_sumcheck_ok(
+        b"twist/write_check/gating",
+        write_check.degree_bound(),
+        K::ZERO,
+        write_check,
+    );
 }
 
 #[test]
-fn corrupting_rv_or_inc_breaks_read_or_write_check_claim() {
-    let pow2_cycle = 4usize;
+fn corrupting_rv_breaks_read_check_invariant() {
+    let r_cycle = vec![k(2), k(3), k(5)];
+    let pow2_cycle = 1usize << r_cycle.len();
+
     let ell_addr = 2usize;
     let addr = 1usize;
     let r_addr = addr_to_bits(addr, ell_addr);
+    let init_at_r_addr = k(9);
 
-    let r_cycle = vec![k(2), k(3)];
+    // Constant write addr == addr, so eq(wa_bits, r_addr)=1.
+    let wa_bits = vec![vec![r_addr[0]; pow2_cycle], vec![r_addr[1]; pow2_cycle]];
+    let ra_bits = wa_bits.clone();
 
-    let mut ra_bits = vec![vec![K::ZERO; pow2_cycle]; ell_addr];
-    let mut wa_bits = vec![vec![K::ZERO; pow2_cycle]; ell_addr];
-    for b in 0..ell_addr {
-        let bit = if ((addr >> b) & 1) == 1 { K::ONE } else { K::ZERO };
-        for t in 0..pow2_cycle {
-            ra_bits[b][t] = bit;
-            wa_bits[b][t] = bit;
+    let has_write = vec![K::ONE, K::ZERO, K::ONE, K::ZERO, K::ZERO, K::ONE, K::ZERO, K::ZERO];
+    let inc_at_write_addr = (0..pow2_cycle)
+        .map(|t| {
+            if has_write[t] == K::ONE {
+                k(4 + t as u64)
+            } else {
+                K::ZERO
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Correct reads: rv[t] = pre-write value at addr.
+    let mut cur = init_at_r_addr;
+    let mut val_pre = vec![K::ZERO; pow2_cycle];
+    for t in 0..pow2_cycle {
+        val_pre[t] = cur;
+        if has_write[t] == K::ONE {
+            cur += inc_at_write_addr[t];
         }
     }
+    let has_read = vec![K::ONE; pow2_cycle];
+    let mut rv = val_pre.clone();
+    rv[1] += K::ONE; // corrupt
 
-    let has_write = vec![K::ONE, K::ZERO, K::ONE, K::ZERO];
-    let has_read = vec![K::ZERO, K::ONE, K::ZERO, K::ONE];
-    let wv = vec![k(5), K::ZERO, k(9), K::ZERO];
-    let mut rv = vec![K::ZERO, k(5), K::ZERO, k(9)];
-    let mut inc_at_write_addr = vec![k(5), K::ZERO, k(4), K::ZERO];
-
-    // Corrupt one read value and confirm read_check claim becomes non-zero.
-    rv[1] += K::ONE;
-    let val_at_r_addr = compute_val_at_r_addr_pre_write(&wa_bits, &has_write, &inc_at_write_addr, &r_addr, K::ZERO);
-    let read_check = TwistReadCheckOracle::new(&ra_bits, val_at_r_addr, rv, has_read, &r_cycle, &r_addr);
-    assert_ne!(read_check.compute_claim(), K::ZERO);
-
-    // Corrupt one increment and confirm write_check claim becomes non-zero.
-    inc_at_write_addr[0] += K::ONE;
-    let val_at_r_addr = compute_val_at_r_addr_pre_write(&wa_bits, &has_write, &inc_at_write_addr, &r_addr, K::ZERO);
-    let write_check = TwistWriteCheckOracle::new(
-        &wa_bits,
-        wv,
-        val_at_r_addr,
-        inc_at_write_addr,
-        has_write,
+    let mut oracle = TwistReadCheckOracleSparseTime::new(
         &r_cycle,
+        dense_to_sparse(&has_read),
+        dense_to_sparse(&rv),
+        cols_to_sparse(&ra_bits),
+        dense_to_sparse(&has_write),
+        dense_to_sparse(&inc_at_write_addr),
+        cols_to_sparse(&wa_bits),
         &r_addr,
+        init_at_r_addr,
     );
-    assert_ne!(write_check.compute_claim(), K::ZERO);
+
+    let mut tr = Poseidon2Transcript::new(b"twist/read_check/corrupt_rv");
+    let err = run_sumcheck_prover(&mut tr, &mut oracle, K::ZERO).expect_err("must fail invariant");
+    let _ = err;
 }

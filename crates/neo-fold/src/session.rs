@@ -18,19 +18,19 @@
 
 #![allow(non_snake_case)]
 
-use neo_ajtai::{decomp_b, s_lincomb, s_mul, Commitment as Cmt, DecompStyle};
+use neo_ajtai::{s_lincomb, s_mul, Commitment as Cmt};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
+use neo_memory::ajtai::encode_vector_balanced_to_mat;
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::pi_ccs::FoldingMode;
-use crate::memory_sidecar::cpu_link;
-use crate::shard::{self, CommitMixers, ShardProof as FoldRun};
+use crate::shard::{self, CommitMixers, ShardProof as FoldRun, StepLinkingConfig};
 use crate::PiCcsError;
 use neo_reductions::engines::utils;
 
@@ -41,6 +41,10 @@ pub struct OutputClaim<Ff> {
     pub tag: &'static [u8],
     pub expected: Ff,
 }
+
+// Twist/Shout linkage is supported only via the shared CPU-bus path. Callers must provide:
+// - metadata-only Twist/Shout instances (no independent mem/lut commitments), and
+// - a CPU witness/CCS that binds those bus fields (binding + padding constraints).
 
 /// Direct inputs for a single step when you don't want to implement `NeoStep`.
 /// We'll compute the commitment and split (x | w) for you.
@@ -90,27 +94,6 @@ pub trait NeoStep {
 
     /// Produce the CCS structure and a concrete witness for this step.
     fn synthesize_step(&mut self, step_idx: usize, y_prev: &[F], inputs: &Self::ExternalInputs) -> StepArtifacts;
-}
-
-/// Decompose z ∈ F^m into base-b digits Z ∈ F^{D×m} (balanced, for correct modular recomposition).
-///
-/// Uses balanced decomposition to ensure z ≡ Σ Z[ρ,·]·b^ρ (mod p), which is required for
-/// F (CCS constraints) to hold when the engine recomposes z from Z.
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-
-    // Column-major digits of length d for each column, balanced so recomposition equals z mod p
-    let digits_col_major = decomp_b(z, params.b, d, DecompStyle::Balanced);
-
-    // Convert to row-major Mat<F> of shape d×m
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits_col_major[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
 }
 
 /// Convert a rotation matrix rot(a) to the ring element a for S-action.
@@ -288,17 +271,8 @@ pub fn me_from_z_balanced<Lm: SModuleHomomorphism<F, Cmt>>(
     }
     let d_pad = 1usize << dims.ell_d;
 
-    // Balanced Ajtai decomposition (row-major D×m), matching existing tests/tools.
-    let d = D;
-    let m = z.len();
-    let z_digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for col in 0..m {
-        for row in 0..d {
-            row_major[row * m + col] = z_digits[col * d + row];
-        }
-    }
-    let Z = Mat::from_row_major(d, m, row_major);
+    let Z = encode_vector_balanced_to_mat(params, z);
+    let d = Z.rows();
     let c = l.commit(&Z);
 
     // X := first m_in columns of Z
@@ -416,17 +390,8 @@ pub fn me_from_z_balanced_select<Lm: SModuleHomomorphism<F, Cmt>>(
     }
     let d_pad = 1usize << dims.ell_d;
 
-    // Balanced Ajtai decomposition (row-major D×m), matching existing tests/tools.
-    let d = D;
-    let m = z.len();
-    let z_digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for col in 0..m {
-        for row in 0..d {
-            row_major[row * m + col] = z_digits[col * d + row];
-        }
-    }
-    let Z = Mat::from_row_major(d, m, row_major);
+    let Z = encode_vector_balanced_to_mat(params, z);
+    let d = Z.rows();
     let c = l.commit(&Z);
 
     // X := selected columns of Z (not the first m_in)
@@ -546,6 +511,17 @@ where
     // Collected per-step bundles (CCS-only steps have empty LUT/MEM vectors)
     steps: Vec<StepWitnessBundle<Cmt, F, K>>,
 
+    /// Optional verifier-side step-to-step linking constraints.
+    ///
+    /// If more than one step is collected, verification requires either:
+    /// - a non-empty `step_linking` config, or
+    /// - `allow_unlinked_steps=true` (explicit and unsafe).
+    step_linking: Option<StepLinkingConfig>,
+    /// Explicit escape hatch: allow verifying multi-step runs without step linking.
+    ///
+    /// This is unsafe for any workflow where step-to-step chaining is part of the statement.
+    allow_unlinked_steps: bool,
+
     // Optional initial accumulated ME(b, L)^k inputs (k = me.len()).
     acc0: Option<Accumulator>,
 
@@ -568,10 +544,22 @@ where
             l,
             mixers: default_mixers(),
             steps: vec![],
+            step_linking: None,
+            allow_unlinked_steps: false,
             acc0: None,
             step_claims: vec![],
             curr_state: None,
         }
+    }
+
+    /// Enable verifier-side step-to-step linking for multi-step runs.
+    pub fn set_step_linking(&mut self, cfg: StepLinkingConfig) {
+        self.step_linking = Some(cfg);
+    }
+
+    /// Explicitly allow multi-step verification without step linking (unsafe).
+    pub fn unsafe_allow_unlinked_steps(&mut self) {
+        self.allow_unlinked_steps = true;
     }
 
     /// Set an explicit initial state y₀ for the IVC (optional).
@@ -679,7 +667,7 @@ where
 
         let x: Vec<F> = x_indices.iter().map(|&i| z[i]).collect();
 
-        let Z = decompose_z_to_Z(&self.params, &z);
+        let Z = encode_vector_balanced_to_mat(&self.params, &z);
         let c = self.l.commit(&Z);
         let m_in = spec.m_in;
 
@@ -745,7 +733,7 @@ where
         z.extend_from_slice(input.public_input);
         z.extend_from_slice(input.witness);
 
-        let Z = decompose_z_to_Z(&self.params, &z);
+        let Z = encode_vector_balanced_to_mat(&self.params, &z);
         let c = self.l.commit(&Z);
 
         // Produce MCS instance + witness
@@ -801,7 +789,11 @@ where
         if acc.me.is_empty() {
             return Ok(());
         }
-        if acc.me.iter().all(|me| me.y.len() == s.t() && me.y_scalars.len() == s.t()) {
+        if acc
+            .me
+            .iter()
+            .all(|me| me.y.len() == s.t() && me.y_scalars.len() == s.t())
+        {
             return Ok(());
         }
 
@@ -809,8 +801,7 @@ where
         let d_pad = 1usize << dims.ell_d;
 
         for (me, z_mat) in acc.me.iter_mut().zip(acc.witnesses.iter()) {
-            let (y_vecs_d, y_scalars) =
-                neo_memory::mle::compute_me_y_for_ccs(s, z_mat, &me.r, self.params.b as u64);
+            let (y_vecs_d, y_scalars) = neo_memory::mle::compute_me_y_for_ccs(s, z_mat, &me.r, self.params.b as u64);
 
             let d = z_mat.rows();
             let mut y_padded: Vec<Vec<K>> = Vec::with_capacity(y_vecs_d.len());
@@ -829,67 +820,19 @@ where
         Ok(())
     }
 
-    fn prepare_shared_cpu_bus_ccs(&mut self, s: CcsStructure<F>) -> Result<CcsStructure<F>, PiCcsError> {
+    fn prepared_ccs_for_accumulator(&self, s: &CcsStructure<F>) -> Result<CcsStructure<F>, PiCcsError> {
         if !(self.has_twist_instances() || self.has_shout_instances()) {
-            return Ok(s);
+            return Ok(s.clone());
         }
         if self.steps.is_empty() {
-            return Ok(s);
+            return Ok(s.clone());
         }
 
-        // Determine whether this session is already in CPU-linked mode (cpu_opening_base set)
-        // or still in legacy mode (independent Twist/Shout commitments).
-        let mut mode: Option<bool> = None;
-        for (i, step) in self.steps.iter().enumerate() {
-            if step.lut_instances.is_empty() && step.mem_instances.is_empty() {
-                continue;
-            }
-            let has_some = step
-                .lut_instances
-                .iter()
-                .any(|(inst, _)| inst.cpu_opening_base.is_some())
-                || step
-                    .mem_instances
-                    .iter()
-                    .any(|(inst, _)| inst.cpu_opening_base.is_some());
-            let has_none = step
-                .lut_instances
-                .iter()
-                .any(|(inst, _)| inst.cpu_opening_base.is_none())
-                || step
-                    .mem_instances
-                    .iter()
-                    .any(|(inst, _)| inst.cpu_opening_base.is_none());
-
-            if has_some && has_none {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "step {i}: mixed cpu_opening_base mode within step"
-                )));
-            }
-            let step_mode = has_some;
-            match mode {
-                None => mode = Some(step_mode),
-                Some(prev) if prev == step_mode => {}
-                Some(_) => {
-                    return Err(PiCcsError::InvalidInput(
-                        "mixed cpu_opening_base mode across steps".into(),
-                    ))
-                }
-            }
-        }
-
-        match mode {
-            Some(true) => {
-                // Steps are already CPU-linked; ensure the provided CCS is extended with bus copy-outs.
-                let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-                    self.steps.iter().map(StepInstanceBundle::from).collect();
-                cpu_link::ensure_ccs_has_cpu_bus_copyouts_for_cpu_linked_steps(&s, &steps_public)
-            }
-            Some(false) | None => {
-                // Legacy witness bundles: deterministically convert them to CPU-linked mode.
-                cpu_link::make_steps_cpu_linked(&self.params, &self.l, s, &mut self.steps)
-            }
-        }
+        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
+            self.steps.iter().map(StepInstanceBundle::from).collect();
+        let (s_prepared, _cpu_bus) =
+            crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(s, &steps_public)?;
+        Ok(s_prepared)
     }
 
     /// Fold and prove: run folding over all collected steps and return a `FoldRun`.
@@ -917,9 +860,8 @@ where
             .assert_m0_is_identity_for_nc()
             .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
 
-        // Shared CPU bus (default): deterministically convert legacy Twist/Shout bundles into CPU-linked mode
-        // and ensure the CCS contains the required copy-out matrices.
-        let s_prepared = self.prepare_shared_cpu_bus_ccs(s_norm)?;
+        // Shared CPU bus: compute the prepared CCS shape (copy-outs) for accumulator validation.
+        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
         s_prepared
             .assert_m0_is_identity_for_nc()
             .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
@@ -951,7 +893,7 @@ where
             self.mode.clone(),
             tr,
             &self.params,
-            &s_prepared,
+            &s_norm,
             &self.steps,
             seed_me,
             seed_me_wit,
@@ -974,7 +916,7 @@ where
             .assert_m0_is_identity_for_nc()
             .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
 
-        let s_prepared = self.prepare_shared_cpu_bus_ccs(s_norm)?;
+        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
         s_prepared
             .assert_m0_is_identity_for_nc()
             .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
@@ -1003,7 +945,7 @@ where
             self.mode.clone(),
             tr,
             &self.params,
-            &s_prepared,
+            &s_norm,
             &self.steps,
             seed_me,
             seed_me_wit,
@@ -1012,6 +954,17 @@ where
             ob_cfg,
             final_memory_state,
         )
+    }
+
+    /// Fold and prove with output binding, managing the transcript internally.
+    pub fn fold_and_prove_with_output_binding_simple(
+        &mut self,
+        s: &CcsStructure<F>,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+        final_memory_state: &[F],
+    ) -> Result<FoldRun, PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold/session");
+        self.fold_and_prove_with_output_binding(&mut tr, s, ob_cfg, final_memory_state)
     }
 
     /// Verify a finished run against the public MCS list.
@@ -1053,24 +1006,8 @@ where
         }
 
         // Build steps_public from the internal bundles to include mem/lut instances.
-        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-            self.steps.iter().map(|bundle| bundle.into()).collect();
-
-        // Shared CPU bus (default): require CPU-linked instances when Twist/Shout are present.
-        if self.has_twist_instances() || self.has_shout_instances() {
-            let any_cpu_linked = steps_public.iter().any(|step| {
-                step.lut_insts.iter().any(|inst| inst.cpu_opening_base.is_some())
-                    || step.mem_insts.iter().any(|inst| inst.cpu_opening_base.is_some())
-            });
-            if !any_cpu_linked {
-                return Err(PiCcsError::InvalidInput(
-                    "session verify requires CPU-linked Twist/Shout instances (cpu_opening_base must be set); build proof via FoldingSession::fold_and_prove".into(),
-                ));
-            }
-        }
-
-        let s_prepared =
-            cpu_link::ensure_ccs_has_cpu_bus_copyouts_for_cpu_linked_steps(&s_norm, &steps_public)?;
+        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = self.steps.iter().map(|bundle| bundle.into()).collect();
+        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
 
         // Validate (or empty) initial accumulator to mirror finalize()
         let seed_me: &[MeInstance<Cmt, F, K>] = match &self.acc0 {
@@ -1088,9 +1025,53 @@ where
             None => &[], // k=1
         };
 
-        let outputs =
-            shard::fold_shard_verify(self.mode.clone(), tr, &self.params, &s_prepared, &steps_public, seed_me, run, self.mixers)?;
-        
+        let step_linking = self
+            .step_linking
+            .as_ref()
+            .filter(|cfg| !cfg.prev_next_equalities.is_empty());
+
+        let outputs = if steps_public.len() > 1 {
+            match step_linking {
+                Some(cfg) => shard::fold_shard_verify_with_step_linking(
+                    self.mode.clone(),
+                    tr,
+                    &self.params,
+                    &s_norm,
+                    &steps_public,
+                    seed_me,
+                    run,
+                    self.mixers,
+                    cfg,
+                )?,
+                None if self.allow_unlinked_steps => shard::fold_shard_verify(
+                    self.mode.clone(),
+                    tr,
+                    &self.params,
+                    &s_norm,
+                    &steps_public,
+                    seed_me,
+                    run,
+                    self.mixers,
+                )?,
+                None => {
+                    return Err(PiCcsError::InvalidInput(
+                        "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".into(),
+                    ));
+                }
+            }
+        } else {
+            shard::fold_shard_verify(
+                self.mode.clone(),
+                tr,
+                &self.params,
+                &s_norm,
+                &steps_public,
+                seed_me,
+                run,
+                self.mixers,
+            )?
+        };
+
         // For CCS-only sessions (no Twist/Shout), val-lane obligations should be empty
         // For Twist+Shout sessions, val-lane obligations are expected and valid
         let has_twist_or_shout = self.has_twist_instances() || self.has_shout_instances();
@@ -1100,6 +1081,29 @@ where
             ));
         }
         Ok(true)
+    }
+
+    /// Verify with output binding, managing the transcript internally.
+    pub fn verify_with_output_binding_simple(
+        &self,
+        s: &CcsStructure<F>,
+        mcss_public: &[neo_ccs::McsInstance<Cmt, F>],
+        run: &FoldRun,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+    ) -> Result<bool, PiCcsError> {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold/session");
+        self.verify_with_output_binding(&mut tr, s, mcss_public, run, ob_cfg)
+    }
+
+    /// Verify with output binding using the internally collected steps (and public MCS list).
+    pub fn verify_with_output_binding_collected_simple(
+        &self,
+        s: &CcsStructure<F>,
+        run: &FoldRun,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+    ) -> Result<bool, PiCcsError> {
+        let mcss_public = self.mcss_public();
+        self.verify_with_output_binding_simple(s, &mcss_public, run, ob_cfg)
     }
 
     pub fn verify_with_output_binding(
@@ -1119,23 +1123,8 @@ where
             return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
         }
 
-        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-            self.steps.iter().map(|bundle| bundle.into()).collect();
-
-        if self.has_twist_instances() || self.has_shout_instances() {
-            let any_cpu_linked = steps_public.iter().any(|step| {
-                step.lut_insts.iter().any(|inst| inst.cpu_opening_base.is_some())
-                    || step.mem_insts.iter().any(|inst| inst.cpu_opening_base.is_some())
-            });
-            if !any_cpu_linked {
-                return Err(PiCcsError::InvalidInput(
-                    "session verify requires CPU-linked Twist/Shout instances (cpu_opening_base must be set); build proof via FoldingSession::fold_and_prove".into(),
-                ));
-            }
-        }
-
-        let s_prepared =
-            cpu_link::ensure_ccs_has_cpu_bus_copyouts_for_cpu_linked_steps(&s_norm, &steps_public)?;
+        let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = self.steps.iter().map(|bundle| bundle.into()).collect();
+        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
 
         let seed_me: &[MeInstance<Cmt, F, K>] = match &self.acc0 {
             Some(acc) => {
@@ -1151,17 +1140,55 @@ where
             None => &[],
         };
 
-        let outputs = shard::fold_shard_verify_with_output_binding(
-            self.mode.clone(),
-            tr,
-            &self.params,
-            &s_prepared,
-            &steps_public,
-            seed_me,
-            run,
-            self.mixers,
-            ob_cfg,
-        )?;
+        let step_linking = self
+            .step_linking
+            .as_ref()
+            .filter(|cfg| !cfg.prev_next_equalities.is_empty());
+
+        let outputs = if steps_public.len() > 1 {
+            match step_linking {
+                Some(cfg) => shard::fold_shard_verify_with_output_binding_and_step_linking(
+                    self.mode.clone(),
+                    tr,
+                    &self.params,
+                    &s_norm,
+                    &steps_public,
+                    seed_me,
+                    run,
+                    self.mixers,
+                    ob_cfg,
+                    cfg,
+                )?,
+                None if self.allow_unlinked_steps => shard::fold_shard_verify_with_output_binding(
+                    self.mode.clone(),
+                    tr,
+                    &self.params,
+                    &s_norm,
+                    &steps_public,
+                    seed_me,
+                    run,
+                    self.mixers,
+                    ob_cfg,
+                )?,
+                None => {
+                    return Err(PiCcsError::InvalidInput(
+                        "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".into(),
+                    ));
+                }
+            }
+        } else {
+            shard::fold_shard_verify_with_output_binding(
+                self.mode.clone(),
+                tr,
+                &self.params,
+                &s_norm,
+                &steps_public,
+                seed_me,
+                run,
+                self.mixers,
+                ob_cfg,
+            )?
+        };
 
         let has_twist_or_shout = self.has_twist_instances() || self.has_shout_instances();
         if !has_twist_or_shout && !outputs.obligations.val.is_empty() {

@@ -123,6 +123,7 @@ fn test_session_multifold_k3_three_steps_r1cs_crosscheck() {
     );
 
     let mcss_public = session.mcss_public();
+    session.unsafe_allow_unlinked_steps();
     let ok = session
         .verify(&ccs, &mcss_public, &run)
         .expect("verify should run");

@@ -1,0 +1,416 @@
+#![allow(non_snake_case)]
+
+use std::marker::PhantomData;
+
+use neo_ajtai::Commitment as Cmt;
+use neo_ccs::poly::SparsePoly;
+use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness};
+use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::Mat;
+use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify, CommitMixers};
+use neo_fold::PiCcsError;
+use neo_math::{D, F, K};
+use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
+use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
+use neo_memory::MemInit;
+use neo_params::NeoParams;
+use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+
+#[derive(Clone, Copy, Default)]
+struct HashCommit;
+
+impl HashCommit {
+    fn digest_mat(mat: &Mat<F>) -> u64 {
+        let mut h: u64 = 0xcbf29ce484222325;
+        h ^= mat.rows() as u64;
+        h = h.wrapping_mul(0x100000001b3);
+        h ^= mat.cols() as u64;
+        h = h.wrapping_mul(0x100000001b3);
+        for r in 0..mat.rows() {
+            for c in 0..mat.cols() {
+                h ^= mat[(r, c)].as_canonical_u64();
+                h = h.wrapping_mul(0x100000001b3);
+            }
+        }
+        h
+    }
+}
+
+impl SModuleHomomorphism<F, Cmt> for HashCommit {
+    fn commit(&self, z: &Mat<F>) -> Cmt {
+        let h = Self::digest_mat(z);
+        let base = F::from_u64(h);
+        let mut out = Cmt::zeros(z.rows(), 1);
+        for i in 0..z.rows() {
+            out.data[i] = base + F::from_u64(i as u64);
+        }
+        out
+    }
+
+    fn project_x(&self, z: &Mat<F>, m_in: usize) -> Mat<F> {
+        let rows = z.rows();
+        let mut out = Mat::zero(rows, m_in, F::ZERO);
+        for r in 0..rows {
+            for c in 0..m_in.min(z.cols()) {
+                out[(r, c)] = z[(r, c)];
+            }
+        }
+        out
+    }
+}
+
+fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt> {
+    fn mix_rhos_commits(_rhos: &[Mat<F>], _cs: &[Cmt]) -> Cmt {
+        Cmt::zeros(D, 1)
+    }
+    fn combine_b_pows(_cs: &[Cmt], _b: u32) -> Cmt {
+        Cmt::zeros(D, 1)
+    }
+    CommitMixers {
+        mix_rhos_commits,
+        combine_b_pows,
+    }
+}
+
+fn create_identity_ccs(n: usize) -> CcsStructure<F> {
+    let mat = Mat::identity(n);
+    let f = SparsePoly::new(1, vec![]);
+    CcsStructure::new(vec![mat], f).expect("CCS")
+}
+
+fn write_bits_le(out: &mut [F], mut x: u64, ell: usize) {
+    for i in 0..ell {
+        out[i] = if (x & 1) == 1 { F::ONE } else { F::ZERO };
+        x >>= 1;
+    }
+}
+
+fn bus_cols_shout(d: usize, ell: usize) -> usize {
+    d * ell + 2
+}
+
+fn bus_cols_twist(d: usize, ell: usize) -> usize {
+    2 * d * ell + 5
+}
+
+fn build_cpu_witness_with_bus(
+    m: usize,
+    bus_base: usize,
+    chunk_size: usize,
+    step_in_chunk: usize,
+    lut_inst: &neo_memory::witness::LutInstance<Cmt, F>,
+    lut_trace: &PlainLutTrace<F>,
+    mem_inst: &neo_memory::witness::MemInstance<Cmt, F>,
+    mem_trace: &PlainMemTrace<F>,
+    tag: u64,
+) -> Vec<F> {
+    let mut z = vec![F::ZERO; m];
+    if !z.is_empty() {
+        z[0] = F::from_u64(tag);
+    }
+
+    let mut col_id = 0usize;
+
+    // Shout: addr_bits, has_lookup, val
+    {
+        let ell_addr = lut_inst.d * lut_inst.ell;
+        let mut bits = vec![F::ZERO; ell_addr];
+        let addr = lut_trace.addr[step_in_chunk];
+        let mut tmp = addr;
+        for dim in 0..lut_inst.d {
+            let comp = (tmp % (lut_inst.n_side as u64)) as u64;
+            tmp /= lut_inst.n_side as u64;
+            let offset = dim * lut_inst.ell;
+            write_bits_le(&mut bits[offset..offset + lut_inst.ell], comp, lut_inst.ell);
+        }
+        for j in 0..ell_addr {
+            z[bus_base + col_id * chunk_size + step_in_chunk] = bits[j];
+            col_id += 1;
+        }
+        z[bus_base + col_id * chunk_size + step_in_chunk] = lut_trace.has_lookup[step_in_chunk];
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + step_in_chunk] = lut_trace.val[step_in_chunk];
+        col_id += 1;
+    }
+
+    // Twist: ra_bits, wa_bits, has_read, has_write, wv, rv, inc
+    {
+        let ell_addr = mem_inst.d * mem_inst.ell;
+        let mut ra_bits = vec![F::ZERO; ell_addr];
+        let mut wa_bits = vec![F::ZERO; ell_addr];
+
+        let ra = mem_trace.read_addr[step_in_chunk];
+        let wa = mem_trace.write_addr[step_in_chunk];
+
+        let mut tmp = ra;
+        for dim in 0..mem_inst.d {
+            let comp = (tmp % (mem_inst.n_side as u64)) as u64;
+            tmp /= mem_inst.n_side as u64;
+            let offset = dim * mem_inst.ell;
+            write_bits_le(&mut ra_bits[offset..offset + mem_inst.ell], comp, mem_inst.ell);
+        }
+        let mut tmp = wa;
+        for dim in 0..mem_inst.d {
+            let comp = (tmp % (mem_inst.n_side as u64)) as u64;
+            tmp /= mem_inst.n_side as u64;
+            let offset = dim * mem_inst.ell;
+            write_bits_le(&mut wa_bits[offset..offset + mem_inst.ell], comp, mem_inst.ell);
+        }
+
+        for j in 0..ell_addr {
+            z[bus_base + col_id * chunk_size + step_in_chunk] = ra_bits[j];
+            col_id += 1;
+        }
+        for j in 0..ell_addr {
+            z[bus_base + col_id * chunk_size + step_in_chunk] = wa_bits[j];
+            col_id += 1;
+        }
+
+        z[bus_base + col_id * chunk_size + step_in_chunk] = mem_trace.has_read[step_in_chunk];
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + step_in_chunk] = mem_trace.has_write[step_in_chunk];
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + step_in_chunk] = mem_trace.write_val[step_in_chunk];
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + step_in_chunk] = mem_trace.read_val[step_in_chunk];
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + step_in_chunk] = mem_trace.inc_at_write_addr[step_in_chunk];
+        col_id += 1;
+    }
+
+    debug_assert_eq!(
+        col_id,
+        bus_cols_shout(lut_inst.d, lut_inst.ell) + bus_cols_twist(mem_inst.d, mem_inst.ell),
+        "bus col count mismatch"
+    );
+
+    z
+}
+
+struct SharedBusFixture {
+    params: NeoParams,
+    ccs: CcsStructure<F>,
+    l: HashCommit,
+    mixers: CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>,
+    steps_witness: Vec<StepWitnessBundle<Cmt, F, K>>,
+    steps_instance: Vec<StepInstanceBundle<Cmt, F, K>>,
+}
+
+fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
+    let n = 32usize;
+    let ccs = create_identity_ccs(n);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    params.k_rho = 16;
+    let l = HashCommit::default();
+    let mixers = default_mixers();
+
+    let m_in = 0usize;
+
+    // Geometry: k=2, d=1, n_side=2 (minimal).
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_init = MemInit::Zero;
+
+    let write0 = F::from_u64(seed.wrapping_add(10));
+    let mem_trace = PlainMemTrace {
+        steps: 1,
+        has_read: vec![F::ZERO],
+        has_write: vec![F::ONE],
+        read_addr: vec![0],
+        write_addr: vec![0],
+        read_val: vec![F::ZERO],
+        write_val: vec![write0],
+        inc_at_write_addr: vec![write0],
+    };
+
+    // Shout table: k=2, d=1, n_side=2 (minimal).
+    let lut_table = LutTable {
+        table_id: 0,
+        k: 2,
+        d: 1,
+        n_side: 2,
+        content: vec![F::from_u64(11), F::from_u64(22)],
+    };
+    let lut_trace = PlainLutTrace {
+        has_lookup: vec![F::ONE],
+        addr: vec![1],
+        val: vec![lut_table.content[1]],
+    };
+
+    let mem_ell = mem_layout.n_side.trailing_zeros() as usize;
+    let lut_ell = lut_table.n_side.trailing_zeros() as usize;
+
+    let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: mem_trace.steps,
+        ell: mem_ell,
+        init: mem_init,
+        _phantom: PhantomData,
+    };
+    let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
+
+    let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: lut_table.k,
+        d: lut_table.d,
+        n_side: lut_table.n_side,
+        steps: lut_trace.has_lookup.len(),
+        ell: lut_ell,
+        table_spec: None,
+        table: lut_table.content.clone(),
+        _phantom: PhantomData,
+    };
+    let lut_wit = neo_memory::witness::LutWitness { mats: Vec::new() };
+
+    let bus_cols_total = bus_cols_shout(lut_inst.d, lut_inst.ell) + bus_cols_twist(mem_inst.d, mem_inst.ell);
+    let chunk_size = 1usize;
+    let bus_base = ccs.m - bus_cols_total * chunk_size;
+    let z = build_cpu_witness_with_bus(
+        ccs.m, bus_base, chunk_size, 0, &lut_inst, &lut_trace, &mem_inst, &mem_trace, seed,
+    );
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
+    let c = l.commit(&Z);
+    let x = z[..m_in].to_vec();
+    let w = z[m_in..].to_vec();
+    let mcs = (McsInstance { c, x, m_in }, McsWitness { w, Z });
+
+    let steps_witness = vec![StepWitnessBundle {
+        mcs,
+        lut_instances: vec![(lut_inst, lut_wit)],
+        mem_instances: vec![(mem_inst, mem_wit)],
+        _phantom: PhantomData::<K>,
+    }];
+    let steps_instance = steps_witness.iter().map(StepInstanceBundle::from).collect();
+
+    SharedBusFixture {
+        params,
+        ccs,
+        l,
+        mixers,
+        steps_witness,
+        steps_instance,
+    }
+}
+
+fn prove_and_verify_shared(fx: &SharedBusFixture) -> Result<(), PiCcsError> {
+    let mut tr = Poseidon2Transcript::new(b"shared-cpu-bus");
+    let proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr,
+        &fx.params,
+        &fx.ccs,
+        &fx.steps_witness,
+        &[],
+        &[],
+        &fx.l,
+        fx.mixers,
+    )?;
+
+    let mut tr_v = Poseidon2Transcript::new(b"shared-cpu-bus");
+    let _outputs = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_v,
+        &fx.params,
+        &fx.ccs,
+        &fx.steps_instance,
+        &[],
+        &proof,
+        fx.mixers,
+    )?;
+    Ok(())
+}
+
+#[test]
+fn shared_cpu_bus_happy_path_one_step() {
+    let fx = build_one_step_fixture(7);
+    prove_and_verify_shared(&fx).expect("shared-bus prove+verify should succeed");
+}
+
+#[test]
+fn shared_cpu_bus_tamper_bus_opening_fails() {
+    let fx = build_one_step_fixture(8);
+
+    let mut tr = Poseidon2Transcript::new(b"shared-cpu-bus");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr,
+        &fx.params,
+        &fx.ccs,
+        &fx.steps_witness,
+        &[],
+        &[],
+        &fx.l,
+        fx.mixers,
+    )
+    .expect("prove");
+
+    // Tamper a bus opening inside CPU ME output at r_time.
+    // In shared-bus mode, verifier reads these openings from `ccs_out[0].y_scalars` tail.
+    let step0 = &mut proof.steps[0];
+    let ccs_out0 = &mut step0.fold.ccs_out[0];
+
+    let lut_inst = &fx.steps_witness[0].lut_instances[0].0;
+    let mem_inst = &fx.steps_witness[0].mem_instances[0].0;
+    let bus_cols_total = bus_cols_shout(lut_inst.d, lut_inst.ell) + bus_cols_twist(mem_inst.d, mem_inst.ell);
+    let bus_y_base = ccs_out0.y_scalars.len() - bus_cols_total;
+
+    ccs_out0.y_scalars[bus_y_base] += K::ONE;
+
+    let mut tr_v = Poseidon2Transcript::new(b"shared-cpu-bus");
+    assert!(
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr_v,
+            &fx.params,
+            &fx.ccs,
+            &fx.steps_instance,
+            &[],
+            &proof,
+            fx.mixers,
+        )
+        .is_err(),
+        "tampering CPU bus opening must break verification in shared-bus mode"
+    );
+}
+
+#[test]
+fn shared_cpu_bus_missing_cpu_me_claim_val_fails() {
+    let fx = build_one_step_fixture(9);
+
+    let mut tr = Poseidon2Transcript::new(b"shared-cpu-bus");
+    let mut proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr,
+        &fx.params,
+        &fx.ccs,
+        &fx.steps_witness,
+        &[],
+        &[],
+        &fx.l,
+        fx.mixers,
+    )
+    .expect("prove");
+
+    // Shared-bus mode expects CPU ME claims at r_val inside mem proof, so dropping them must fail.
+    proof.steps[0].mem.cpu_me_claims_val.clear();
+
+    let mut tr_v = Poseidon2Transcript::new(b"shared-cpu-bus");
+    assert!(
+        fold_shard_verify(
+            FoldingMode::PaperExact,
+            &mut tr_v,
+            &fx.params,
+            &fx.ccs,
+            &fx.steps_instance,
+            &[],
+            &proof,
+            fx.mixers,
+        )
+        .is_err(),
+        "missing CPU ME@r_val must fail in shared-bus mode"
+    );
+}

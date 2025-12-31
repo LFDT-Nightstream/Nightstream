@@ -5,23 +5,23 @@ use std::marker::PhantomData;
 use std::ops::Range;
 
 use crate::mem_init::MemInit;
+use crate::riscv::lookups::RiscvOpcode;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum LutTableSpec {
+    /// A "virtual" lookup table defined by the RISC-V opcode semantics over
+    /// an interleaved operand address space.
+    ///
+    /// Addressing convention:
+    /// - `n_side = 2`, `ell = 1`
+    /// - `d = 2*xlen` (one bit per dimension)
+    /// - Address bits are little-endian and correspond to `interleave_bits(rs1, rs2)`.
+    RiscvOpcode { opcode: RiscvOpcode, xlen: usize },
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemInstance<C, F> {
     pub comms: Vec<C>,
-    /// Optional Route A linkage hook: interpret Twist/Shout columns as living in the CPU witness
-    /// commitment namespace, and read their openings from the CPU ME output using CCS matrix indices.
-    ///
-    /// When set, `neo-fold` will:
-    /// - stop relying on `comms`/`MemWitness` ME claims for terminal checks, and instead
-    ///   use `Π_CCS` outputs (`ccs_out[0].y_scalars`) at indices `cpu_opening_base + j`
-    ///   where `j` follows `MemInstance::twist_layout()` ordering.
-    /// - optionally open the CPU commitment at `r_val` for Twist rollover checks.
-    ///
-    /// This enables the Jolt-style “shared polynomials” design: CPU + memory consume one committed
-    /// witness namespace, eliminating the fork where CPU and memory are proven against disjoint commitments.
-    #[serde(default)]
-    pub cpu_opening_base: Option<usize>,
     pub k: usize,
     pub d: usize,
     pub n_side: usize,
@@ -81,19 +81,15 @@ impl<C, F> MemInstance<C, F> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LutInstance<C, F> {
     pub comms: Vec<C>,
-    /// Optional Route A linkage hook: interpret Shout columns as living in the CPU witness
-    /// commitment namespace, and read their openings from the CPU ME output using CCS matrix indices.
-    ///
-    /// When set, `neo-fold` will read `addr_bits`, `has_lookup`, and `val` openings from the CPU
-    /// ME output using indices `cpu_opening_base + j` where `j` follows `LutInstance::shout_layout()`.
-    #[serde(default)]
-    pub cpu_opening_base: Option<usize>,
     pub k: usize,
     pub d: usize,
     pub n_side: usize,
     pub steps: usize,
     /// Bits per address dimension: ell = ceil(log2(n_side))
     pub ell: usize,
+    /// Optional virtual table descriptor (when the full table is not materialized).
+    #[serde(default)]
+    pub table_spec: Option<LutTableSpec>,
     pub table: Vec<F>,
     #[serde(skip)]
     pub _phantom: PhantomData<F>,
@@ -128,15 +124,6 @@ impl<C, F> LutInstance<C, F> {
             val: ell_addr + 1,
         }
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ShardWitnessBundle<Cmt, F, K> {
-    pub mcss: Vec<(McsInstance<Cmt, F>, McsWitness<F>)>,
-    pub lut_shard_instances: Vec<(LutInstance<Cmt, F>, LutWitness<F>)>,
-    pub mem_shard_instances: Vec<(MemInstance<Cmt, F>, MemWitness<F>)>,
-    #[serde(skip)]
-    pub _phantom: PhantomData<K>,
 }
 
 /// Per-step bundle that carries CPU + memory witnesses for a single folding step.

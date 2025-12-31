@@ -6,16 +6,13 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{
     matrix::Mat,
-    poly::SparsePoly,
     relations::{CcsStructure, McsInstance, McsWitness, MeInstance},
 };
 use neo_fold::finalize::{FinalizeReport, ObligationFinalizer};
-use neo_fold::session::FoldingSession;
-use neo_fold::shard::{fold_shard_prove, fold_shard_verify, fold_shard_verify_and_finalize, ShardObligations};
 use neo_fold::shard::CommitMixers;
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify, fold_shard_verify_and_finalize, ShardObligations};
 use neo_fold::PiCcsError;
 use neo_math::{D, K};
-use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
 use neo_memory::plain::{PlainLutTrace, PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
@@ -27,6 +24,10 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
 type Mixers = CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>;
+
+const TEST_M: usize = 64;
+// Shared-bus padding validation requires a public constant-one column.
+const M_IN: usize = 1;
 
 /// Dummy commit that produces zero commitments.
 #[derive(Clone, Copy, Default)]
@@ -49,89 +50,263 @@ impl SModuleHomomorphism<F, Cmt> for DummyCommit {
     }
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = neo_ajtai::decomp_b(z, params.b, d, neo_ajtai::DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
+fn build_add_ccs(
+    m: usize,
+    chunk_size: usize,
+    bus_base: usize,
+    shout_ell_addr: usize,
+    twist_ell_addr: usize,
+) -> CcsStructure<F> {
+    // A tiny R1CS CCS:
+    //
+    // 1) "Program output" constraint on row 0:
+    //      (const_one + lhs0 + lhs1 - out) * const_one = 0
+    //
+    // 2) Shared-bus binding "touch" constraints, one per bus column:
+    //      bus_col * const_one = bus_col
+    //
+    // 3) Shared-bus padding constraints:
+    //      (1 - has_*) * field = 0
+    //
+    // This keeps the test CPU semantics minimal but satisfies the shared-bus guardrails.
+    let n = m;
+    let mut A = Mat::zero(n, m, F::ZERO);
+    let mut B = Mat::zero(n, m, F::ZERO);
+    let mut C = Mat::zero(n, m, F::ZERO);
+
+    // Row 0: (z0 + z1 + z2 - z3) * z0 = 0
+    A[(0, 0)] = F::ONE;
+    A[(0, 1)] = F::ONE;
+    A[(0, 2)] = F::ONE;
+    A[(0, 3)] = F::ZERO - F::ONE;
+    B[(0, 0)] = F::ONE;
+
+    let bus_cols = (shout_ell_addr + 2) + (2 * twist_ell_addr + 5);
+    let bus_region_len = bus_cols * chunk_size;
+    assert!(
+        bus_base + bus_region_len <= m,
+        "bus region out of bounds (bus_base={}, bus_cols={}, chunk_size={}, m={})",
+        bus_base,
+        bus_cols,
+        chunk_size,
+        m
+    );
+
+    let per_step_padding_constraints = (shout_ell_addr + 1) + (2 * twist_ell_addr + 3);
+    // "Touch" every bus column once (at j=0) so the CPU CCS references the shared-bus columns
+    // outside the canonical padding rows. This prevents a common linkage footgun.
+    let binding_constraints = bus_cols;
+    let total_constraints = 1 + chunk_size * per_step_padding_constraints + binding_constraints;
+    assert!(
+        total_constraints <= n,
+        "not enough rows for shared-bus guardrail constraints: need {}, have n={}",
+        total_constraints,
+        n
+    );
+
+    let mut row = 1usize;
+    for j in 0..chunk_size {
+        let mut col_id = 0usize;
+
+        // Shout padding: (1 - has_lookup) * {addr_bits[b], val} = 0
+        let shout_has_lookup = bus_base + (col_id + shout_ell_addr) * chunk_size + j;
+        let shout_val = bus_base + (col_id + shout_ell_addr + 1) * chunk_size + j;
+        // (1 - has_lookup) * val = 0
+        A[(row, 0)] = F::ONE;
+        A[(row, shout_has_lookup)] = F::ZERO - F::ONE;
+        B[(row, shout_val)] = F::ONE;
+        row += 1;
+        for b in 0..shout_ell_addr {
+            let bit = bus_base + (col_id + b) * chunk_size + j;
+            A[(row, 0)] = F::ONE;
+            A[(row, shout_has_lookup)] = F::ZERO - F::ONE;
+            B[(row, bit)] = F::ONE;
+            row += 1;
+        }
+        col_id += shout_ell_addr + 2;
+
+        // Twist padding.
+        let twist_has_read = bus_base + (col_id + 2 * twist_ell_addr + 0) * chunk_size + j;
+        let twist_has_write = bus_base + (col_id + 2 * twist_ell_addr + 1) * chunk_size + j;
+        let twist_wv = bus_base + (col_id + 2 * twist_ell_addr + 2) * chunk_size + j;
+        let twist_rv = bus_base + (col_id + 2 * twist_ell_addr + 3) * chunk_size + j;
+        let twist_inc = bus_base + (col_id + 2 * twist_ell_addr + 4) * chunk_size + j;
+
+        // (1 - has_read) * rv = 0
+        A[(row, 0)] = F::ONE;
+        A[(row, twist_has_read)] = F::ZERO - F::ONE;
+        B[(row, twist_rv)] = F::ONE;
+        row += 1;
+        // (1 - has_write) * wv = 0
+        A[(row, 0)] = F::ONE;
+        A[(row, twist_has_write)] = F::ZERO - F::ONE;
+        B[(row, twist_wv)] = F::ONE;
+        row += 1;
+        // (1 - has_write) * inc = 0
+        A[(row, 0)] = F::ONE;
+        A[(row, twist_has_write)] = F::ZERO - F::ONE;
+        B[(row, twist_inc)] = F::ONE;
+        row += 1;
+
+        for b in 0..twist_ell_addr {
+            // (1 - has_read) * ra_bits[b] = 0
+            let ra_bit = bus_base + (col_id + b) * chunk_size + j;
+            A[(row, 0)] = F::ONE;
+            A[(row, twist_has_read)] = F::ZERO - F::ONE;
+            B[(row, ra_bit)] = F::ONE;
+            row += 1;
+        }
+        for b in 0..twist_ell_addr {
+            // (1 - has_write) * wa_bits[b] = 0
+            let wa_bit = bus_base + (col_id + twist_ell_addr + b) * chunk_size + j;
+            A[(row, 0)] = F::ONE;
+            A[(row, twist_has_write)] = F::ZERO - F::ONE;
+            B[(row, wa_bit)] = F::ONE;
+            row += 1;
         }
     }
-    Mat::from_row_major(d, m, row_major)
+
+    // Non-padding "touch" constraints for every bus column (j=0 only).
+    //
+    //   bus_col * 1 = bus_col
+    //
+    // These are tautologies, but they prevent a common linkage footgun where the CPU CCS only
+    // references bus columns inside the padding rows.
+    for col_id in 0..bus_cols {
+        let bus_cell = bus_base + col_id * chunk_size;
+        A[(row, bus_cell)] = F::ONE;
+        B[(row, 0)] = F::ONE;
+        C[(row, bus_cell)] = F::ONE;
+        row += 1;
+    }
+
+    // Our constraints are R1CS-style: A(z)*B(z) = C(z).
+    neo_ccs::r1cs_to_ccs(A, B, C)
 }
 
-fn build_add_ccs_mcs(
+fn build_mcs_from_z(
     params: &NeoParams,
     l: &DummyCommit,
-    n: usize,
-    chunk_size: usize,
-    const_one: F,
-    lhs0: F,
-    lhs1: F,
-    out: F,
-) -> (CcsStructure<F>, McsInstance<Cmt, F>, McsWitness<F>) {
-    // Shared CPU-bus constraint: const_one + shout_val(step0) + twist_wv(step0) - out = 0 (row 0).
-    //
-    // Bus layout for this test:
-    // - 1 Shout instance with ell_addr=1 ⇒ shout cols = 3 (addr_bit, has_lookup, val), val col_id = 2.
-    // - 1 Twist instance with ell_addr=1 ⇒ twist cols = 7 (ra, wa, has_r, has_w, wv, rv, inc), wv col_id = 3+4 = 7.
-    // - Total bus cols = 10, stored in the witness tail with stride = chunk_size.
-    let bus_cols_total = 10usize;
-    let slots_total = bus_cols_total
-        .checked_mul(chunk_size)
-        .expect("bus slots_total overflow");
-    assert!(
-        slots_total <= n,
-        "test CCS must have enough slack for CPU bus: slots_total={slots_total} > n={n}"
-    );
-    let bus_base = n - slots_total;
-    let shout_val_idx = bus_base + 2 * chunk_size; // step 0
-    let twist_wv_idx = bus_base + 7 * chunk_size; // step 0
-
-    let mut m0 = Mat::zero(n, n, F::ZERO);
-    m0[(0, 0)] = F::ONE; // const_one
-    let mut m1 = Mat::zero(n, n, F::ZERO);
-    m1[(0, shout_val_idx)] = F::ONE; // shout val(step0)
-    let mut m2 = Mat::zero(n, n, F::ZERO);
-    m2[(0, twist_wv_idx)] = F::ONE; // twist wv(step0)
-    let mut m3 = Mat::zero(n, n, F::ZERO);
-    m3[(0, 3)] = F::ONE; // out
-
-    let term_const = neo_ccs::poly::Term {
-        coeff: F::ONE,
-        exps: vec![1, 0, 0, 0],
-    };
-    let term_x1 = neo_ccs::poly::Term {
-        coeff: F::ONE,
-        exps: vec![0, 1, 0, 0],
-    };
-    let term_x2 = neo_ccs::poly::Term {
-        coeff: F::ONE,
-        exps: vec![0, 0, 1, 0],
-    };
-    let term_neg_out = neo_ccs::poly::Term {
-        coeff: F::ZERO - F::ONE,
-        exps: vec![0, 0, 0, 1],
-    };
-    let f = SparsePoly::new(4, vec![term_const, term_x1, term_x2, term_neg_out]);
-
-    let s = CcsStructure::new(vec![m0, m1, m2, m3], f).expect("CCS");
-
-    let mut z = vec![F::ZERO; n];
-    z[0] = const_one;
-    z[3] = out;
-    // Pre-fill the bus slots used by the CPU constraint so it is satisfiable even in legacy mode.
-    z[shout_val_idx] = lhs0;
-    z[twist_wv_idx] = lhs1;
-    let Z = decompose_z_to_Z(params, &z);
+    m_in: usize,
+    z: Vec<F>,
+) -> (McsInstance<Cmt, F>, McsWitness<F>) {
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
     let c = l.commit(&Z);
-    let w = z.clone(); // all witness, m_in=0
+    let x = z[..m_in].to_vec();
+    let w = z[m_in..].to_vec();
+    (McsInstance { c, x, m_in }, McsWitness { w, Z })
+}
 
-    let inst = McsInstance { c, x: vec![], m_in: 0 };
-    let wit = McsWitness { w, Z };
-    (s, inst, wit)
+fn write_bus_for_chunk(
+    z: &mut [F],
+    bus_base: usize,
+    chunk_size: usize,
+    lut_inst: &neo_memory::witness::LutInstance<Cmt, F>,
+    lut_trace: &PlainLutTrace<F>,
+    mem_inst: &neo_memory::witness::MemInstance<Cmt, F>,
+    mem_trace: &PlainMemTrace<F>,
+) {
+    assert_eq!(lut_inst.steps, chunk_size);
+    assert_eq!(mem_inst.steps, chunk_size);
+    assert_eq!(lut_trace.has_lookup.len(), chunk_size);
+    assert_eq!(lut_trace.addr.len(), chunk_size);
+    assert_eq!(lut_trace.val.len(), chunk_size);
+    assert_eq!(mem_trace.steps, chunk_size);
+
+    // Clear bus region.
+    let bus_cols = (lut_inst.d * lut_inst.ell + 2) + (2 * mem_inst.d * mem_inst.ell + 5);
+    let bus_region_len = bus_cols * chunk_size;
+    z[bus_base..bus_base + bus_region_len].fill(F::ZERO);
+
+    // Fill each step j independently, with canonical column order:
+    // Shout(addr_bits, has_lookup, val) then Twist(ra_bits, wa_bits, flags/vals/inc).
+    for j in 0..chunk_size {
+        let mut col_id = 0usize;
+
+        // Shout addr bits (masked by has_lookup).
+        let has_lookup = lut_trace.has_lookup[j];
+        if has_lookup == F::ONE {
+            let mut tmp = lut_trace.addr[j];
+            for _dim in 0..lut_inst.d {
+                let comp = (tmp % (lut_inst.n_side as u64)) as u64;
+                tmp /= lut_inst.n_side as u64;
+                for bit in 0..lut_inst.ell {
+                    let b = if (comp >> bit) & 1 == 1 { F::ONE } else { F::ZERO };
+                    z[bus_base + col_id * chunk_size + j] = b;
+                    col_id += 1;
+                }
+            }
+        } else {
+            col_id += lut_inst.d * lut_inst.ell;
+        }
+        z[bus_base + col_id * chunk_size + j] = has_lookup;
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + j] = if has_lookup == F::ONE {
+            lut_trace.val[j]
+        } else {
+            F::ZERO
+        };
+        col_id += 1;
+
+        // Twist read bits (masked by has_read).
+        let has_read = mem_trace.has_read[j];
+        if has_read == F::ONE {
+            let mut tmp = mem_trace.read_addr[j];
+            for _dim in 0..mem_inst.d {
+                let comp = (tmp % (mem_inst.n_side as u64)) as u64;
+                tmp /= mem_inst.n_side as u64;
+                for bit in 0..mem_inst.ell {
+                    let b = if (comp >> bit) & 1 == 1 { F::ONE } else { F::ZERO };
+                    z[bus_base + col_id * chunk_size + j] = b;
+                    col_id += 1;
+                }
+            }
+        } else {
+            col_id += mem_inst.d * mem_inst.ell;
+        }
+
+        // Twist write bits (masked by has_write).
+        let has_write = mem_trace.has_write[j];
+        if has_write == F::ONE {
+            let mut tmp = mem_trace.write_addr[j];
+            for _dim in 0..mem_inst.d {
+                let comp = (tmp % (mem_inst.n_side as u64)) as u64;
+                tmp /= mem_inst.n_side as u64;
+                for bit in 0..mem_inst.ell {
+                    let b = if (comp >> bit) & 1 == 1 { F::ONE } else { F::ZERO };
+                    z[bus_base + col_id * chunk_size + j] = b;
+                    col_id += 1;
+                }
+            }
+        } else {
+            col_id += mem_inst.d * mem_inst.ell;
+        }
+
+        z[bus_base + col_id * chunk_size + j] = has_read;
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + j] = has_write;
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + j] = if has_write == F::ONE {
+            mem_trace.write_val[j]
+        } else {
+            F::ZERO
+        };
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + j] = if has_read == F::ONE {
+            mem_trace.read_val[j]
+        } else {
+            F::ZERO
+        };
+        col_id += 1;
+        z[bus_base + col_id * chunk_size + j] = if has_write == F::ONE {
+            mem_trace.inc_at_write_addr[j]
+        } else {
+            F::ZERO
+        };
+        col_id += 1;
+
+        debug_assert_eq!(col_id, bus_cols);
+    }
 }
 
 fn default_mixers() -> Mixers {
@@ -154,10 +329,11 @@ fn build_single_chunk_inputs() -> (
     Vec<MeInstance<Cmt, F, K>>,
     Vec<Mat<F>>,
     DummyCommit,
+    Mixers,
     F,
 ) {
-    let n = 64usize;
-    let base_params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let m = TEST_M;
+    let base_params = NeoParams::goldilocks_auto_r1cs_ccs(m).expect("params");
     let params = NeoParams::new(
         base_params.q,
         base_params.eta,
@@ -172,6 +348,7 @@ fn build_single_chunk_inputs() -> (
     )
     .expect("params");
     let l = DummyCommit::default();
+    let mixers = default_mixers();
 
     // Program values: lookup_val + write_val = out
     let const_one = F::ONE;
@@ -179,11 +356,7 @@ fn build_single_chunk_inputs() -> (
     let lookup_val = F::from_u64(1);
     let out_val = const_one + write_val + lookup_val;
 
-    // Build CCS (single chunk) enforcing out = write_val + lookup_val
-    let chunk_size = 1usize;
-    let (ccs, mcs_inst, mcs_wit) = build_add_ccs_mcs(&params, &l, n, chunk_size, const_one, lookup_val, write_val, out_val);
-    let _dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
-
+    // Build CCS (single chunk) enforcing out = write_val + lookup_val (bus vars are extra).
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
@@ -217,19 +390,56 @@ fn build_single_chunk_inputs() -> (
         content: vec![F::from_u64(1), F::from_u64(2)],
     };
 
-    // Encode memory/lookup for this chunk
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &plain_mem,
-        &commit_fn,
-        Some(ccs.m),
-        mcs_inst.m_in,
+    // Shared-bus mode: instances are metadata-only; access rows live in the CPU witness.
+    let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: plain_mem.steps,
+        ell: mem_layout.n_side.trailing_zeros() as usize,
+        init: mem_init.clone(),
+        _phantom: PhantomData,
+    };
+    let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
+    let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: lut_table.k,
+        d: lut_table.d,
+        n_side: lut_table.n_side,
+        steps: plain_mem.steps,
+        ell: lut_table.n_side.trailing_zeros() as usize,
+        table_spec: None,
+        table: lut_table.content.clone(),
+        _phantom: PhantomData,
+    };
+    let lut_wit = neo_memory::witness::LutWitness { mats: Vec::new() };
+
+    // CPU witness z: core coords in [0..4), bus in the tail segment.
+    let bus_cols = (lut_inst.d * lut_inst.ell + 2) + (2 * mem_inst.d * mem_inst.ell + 5);
+    let chunk_size = plain_mem.steps;
+    let bus_base = m - bus_cols * chunk_size;
+
+    // Build CCS (single chunk) enforcing out = const_one + lookup_val + write_val,
+    // and also referencing the shared-bus columns (without changing CCS semantics).
+    let ccs = build_add_ccs(
+        m,
+        chunk_size,
+        bus_base,
+        /*shout_ell_addr=*/ lut_inst.d * lut_inst.ell,
+        /*twist_ell_addr=*/ mem_inst.d * mem_inst.ell,
     );
-    let (lut_inst, lut_wit) =
-        encode_lut_for_shout(&params, &lut_table, &plain_lut, &commit_fn, Some(ccs.m), mcs_inst.m_in);
+    let _dims = utils::build_dims_and_policy(&params, &ccs).expect("dims");
+
+    let mut z = vec![F::ZERO; m];
+    z[0] = const_one;
+    z[1] = lookup_val;
+    z[2] = write_val;
+    z[3] = out_val;
+    write_bus_for_chunk(
+        &mut z, bus_base, chunk_size, &lut_inst, &plain_lut, &mem_inst, &plain_mem,
+    );
+    let (mcs_inst, mcs_wit) = build_mcs_from_z(&params, &l, M_IN, z);
 
     let step_bundle = StepWitnessBundle {
         mcs: (mcs_inst.clone(), mcs_wit.clone()),
@@ -238,37 +448,50 @@ fn build_single_chunk_inputs() -> (
         _phantom: PhantomData::<K>,
     };
 
-    (params, ccs, step_bundle, acc_init, acc_wit_init, l, out_val)
+    (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, out_val)
 }
-
-// ============================================================================
-// Tests using FoldingSession
-// ============================================================================
 
 #[test]
 fn full_folding_integration_single_chunk() {
-    let (params, ccs, step_bundle, _acc_init, _acc_wit_init, l, out_val) = build_single_chunk_inputs();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, out_val) = build_single_chunk_inputs();
 
-    // Use FoldingSession
-    let mut session = FoldingSession::new(FoldingMode::PaperExact, params.clone(), l);
-    session.add_step_bundle(step_bundle.clone());
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold");
+    let proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
 
-    // Prove
-    let proof = session.fold_and_prove(&ccs).expect("prove should succeed");
-
-    // Verify using the session's collected steps
-    session.verify_collected(&ccs, &proof).expect("verify should succeed");
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    let _outputs = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &steps_public,
+        &acc_init,
+        &proof,
+        mixers,
+    )
+    .expect("verify should succeed");
 
     // Print a short summary so it's clear what was enforced.
     let step0 = &proof.steps[0];
-    let mem_me_time = step0.mem.me_claims_time.len();
-    let mem_me_val = step0.mem.me_claims_val.len();
+    let mem_me_val = step0.mem.cpu_me_claims_val.len();
     let ccs_me = step0.fold.ccs_out.len();
-    let total_me = mem_me_time + ccs_me;
+    let total_me = ccs_me;
     let children = step0.fold.dec_children.len();
     println!("Full folding step:");
     println!("  CCS ME count: {}", ccs_me);
-    println!("  Twist+Shout ME count (r_time lane): {}", mem_me_time);
+    println!("  Twist+Shout ME count (r_time lane): 0 (shared bus)");
     println!("  Twist ME count (r_val lane): {}", mem_me_val);
     println!("  Total ME into RLC (r_time lane): {}", total_me);
     println!("  Children after DEC: {}", children);
@@ -279,7 +502,7 @@ fn full_folding_integration_single_chunk() {
     println!("  Program output (CCS out) = {}", out_val.as_canonical_u64());
 
     // Show a small, deterministic slice of the folded output.
-    let final_children = proof.compute_final_main_children(&[]);
+    let final_children = proof.compute_final_main_children(&acc_init);
     if let Some(first) = final_children.first() {
         let r_len = first.r.len();
         let y0_prefix: Vec<K> = first
@@ -297,17 +520,9 @@ fn full_folding_integration_single_chunk() {
 
 #[test]
 fn full_folding_integration_multi_step_chunk() {
-    let (params, _ccs, _step_bundle_1, _acc_init, _acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-
-    // Build a CCS/MCS sized for a 4-step chunk (stride = 4 for CPU bus packing).
-    let n = 64usize;
-    let chunk_size = 4usize;
-    let const_one = F::ONE;
-    let lookup_val = F::ONE; // step0
-    let write_val = F::ONE; // step0
-    let out_val = const_one + lookup_val + write_val;
-    let (ccs, mcs_inst, mcs_wit) =
-        build_add_ccs_mcs(&params, &l, n, chunk_size, const_one, lookup_val, write_val, out_val);
+    let (params, _ccs_single, _step_bundle_1, acc_init, acc_wit_init, l, mixers, _out_val) =
+        build_single_chunk_inputs();
+    let m = TEST_M;
 
     // 4-step RW memory trace (k=2) with alternating write/read.
     let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
@@ -338,18 +553,53 @@ fn full_folding_integration_multi_step_chunk() {
         val: vec![F::ONE, F::ZERO, F::from_u64(2), F::ZERO],
     };
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &plain_mem,
-        &commit_fn,
-        Some(ccs.m),
-        mcs_inst.m_in,
+    let mem_inst = neo_memory::witness::MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: mem_layout.k,
+        d: mem_layout.d,
+        n_side: mem_layout.n_side,
+        steps: plain_mem.steps,
+        ell: mem_layout.n_side.trailing_zeros() as usize,
+        init: mem_init.clone(),
+        _phantom: PhantomData,
+    };
+    let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
+    let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: lut_table.k,
+        d: lut_table.d,
+        n_side: lut_table.n_side,
+        steps: plain_mem.steps,
+        ell: lut_table.n_side.trailing_zeros() as usize,
+        table_spec: None,
+        table: lut_table.content.clone(),
+        _phantom: PhantomData,
+    };
+    let lut_wit = neo_memory::witness::LutWitness { mats: Vec::new() };
+
+    let bus_cols = (lut_inst.d * lut_inst.ell + 2) + (2 * mem_inst.d * mem_inst.ell + 5);
+    let chunk_size = plain_mem.steps;
+    let bus_base = m - bus_cols * chunk_size;
+
+    // CCS must be built for this chunk_size/bus_base so it references the correct bus indices.
+    let ccs = build_add_ccs(
+        m,
+        chunk_size,
+        bus_base,
+        /*shout_ell_addr=*/ lut_inst.d * lut_inst.ell,
+        /*twist_ell_addr=*/ mem_inst.d * mem_inst.ell,
     );
-    let (lut_inst, lut_wit) =
-        encode_lut_for_shout(&params, &lut_table, &plain_lut, &commit_fn, Some(ccs.m), mcs_inst.m_in);
+
+    let mut z = vec![F::ZERO; m];
+    // Satisfy the add CCS constraint on row 0 with a trivial assignment.
+    z[0] = F::ONE;
+    z[1] = F::ZERO;
+    z[2] = F::ZERO;
+    z[3] = F::ONE;
+    write_bus_for_chunk(
+        &mut z, bus_base, chunk_size, &lut_inst, &plain_lut, &mem_inst, &plain_mem,
+    );
+    let (mcs_inst, mcs_wit) = build_mcs_from_z(&params, &l, M_IN, z);
 
     let step_bundle = StepWitnessBundle {
         mcs: (mcs_inst, mcs_wit),
@@ -358,22 +608,38 @@ fn full_folding_integration_multi_step_chunk() {
         _phantom: PhantomData,
     };
 
-    // Use FoldingSession
-    let mut session = FoldingSession::new(FoldingMode::PaperExact, params.clone(), l);
-    session.add_step_bundle(step_bundle.clone());
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-multi-step-chunk");
+    let proof = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed for multi-step chunks");
 
-    let proof = session.fold_and_prove(&ccs).expect("prove should succeed");
-    session.verify_collected(&ccs, &proof).expect("verify should succeed");
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-multi-step-chunk");
+    let steps_public = [StepInstanceBundle::from(&step_bundle)];
+    let _ = fold_shard_verify(
+        FoldingMode::PaperExact,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &steps_public,
+        &acc_init,
+        &proof,
+        mixers,
+    )
+    .expect("verify should succeed for multi-step chunks");
 }
-
-// ============================================================================
-// Tamper tests (still use low-level API for precise control)
-// ============================================================================
 
 #[test]
 fn tamper_batched_claimed_sum_fails() {
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-    let mixers = default_mixers();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-claim");
     let mut proof = fold_shard_prove(
@@ -410,8 +676,7 @@ fn tamper_batched_claimed_sum_fails() {
 
 #[test]
 fn tamper_me_opening_fails() {
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-    let mixers = default_mixers();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-me");
     let mut proof = fold_shard_prove(
@@ -427,8 +692,12 @@ fn tamper_me_opening_fails() {
     )
     .expect("prove should succeed");
 
-    // Mutate a memory ME opening used in terminal checks.
-    proof.steps[0].mem.me_claims_time[0].y_scalars[0] += K::ONE;
+    // Mutate a CPU ME opening used by shared-bus memory checks (a bus opening at r_time).
+    let step0 = &mut proof.steps[0];
+    let ccs_out0 = &mut step0.fold.ccs_out[0];
+    let bus_cols = 10usize; // 1 Shout (3) + 1 Twist (7) in this fixture
+    let bus_y_base = ccs_out0.y_scalars.len() - bus_cols;
+    ccs_out0.y_scalars[bus_y_base] += K::ONE;
 
     let mut tr_verify = Poseidon2Transcript::new(b"full-fold-tamper-me");
     let steps_public = [StepInstanceBundle::from(&step_bundle)];
@@ -448,10 +717,7 @@ fn tamper_me_opening_fails() {
 
 #[test]
 fn tamper_shout_addr_pre_round_poly_fails() {
-    use neo_fold::shard::MemOrLutProof;
-
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-    let mixers = default_mixers();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-shout-addr-pre");
     let mut proof = fold_shard_prove(
@@ -468,13 +734,7 @@ fn tamper_shout_addr_pre_round_poly_fails() {
     .expect("prove should succeed");
 
     let mem0 = proof.steps.get_mut(0).expect("one step");
-    let shout0 = mem0.mem.proofs.get_mut(0).expect("one Shout proof");
-    let shout_proof = match shout0 {
-        MemOrLutProof::Shout(p) => p,
-        _ => panic!("expected Shout proof"),
-    };
-
-    shout_proof.addr_pre.round_polys[0][0][0] += K::ONE;
+    mem0.mem.shout_addr_pre.round_polys[0][0][0] += K::ONE;
 
     let mut tr_verify = Poseidon2Transcript::new(b"full-fold-tamper-shout-addr-pre");
     let steps_public = [StepInstanceBundle::from(&step_bundle)];
@@ -499,8 +759,7 @@ fn tamper_shout_addr_pre_round_poly_fails() {
 fn tamper_twist_val_eval_round_poly_fails() {
     use neo_fold::shard::MemOrLutProof;
 
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-    let mixers = default_mixers();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-tamper-twist-val-eval-rounds");
     let mut proof = fold_shard_prove(
@@ -547,8 +806,7 @@ fn tamper_twist_val_eval_round_poly_fails() {
 
 #[test]
 fn missing_val_fold_fails() {
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-    let mixers = default_mixers();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-missing-val-fold");
     let mut proof = fold_shard_prove(
@@ -606,8 +864,7 @@ fn verify_and_finalize_receives_val_lane() {
         }
     }
 
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-    let mixers = default_mixers();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-finalizer");
     let proof = fold_shard_prove(
@@ -655,8 +912,7 @@ fn main_only_finalizer_is_rejected_when_val_lane_present() {
         }
     }
 
-    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-    let mixers = default_mixers();
+    let (params, ccs, step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
 
     let mut tr_prove = Poseidon2Transcript::new(b"full-fold-finalizer-main-only");
     let proof = fold_shard_prove(
@@ -695,21 +951,27 @@ fn main_only_finalizer_is_rejected_when_val_lane_present() {
 
 #[test]
 fn wrong_shout_lookup_value_witness_fails() {
-    let (params, ccs, mut step_bundle, acc_init, acc_wit_init, l, _out_val) = build_single_chunk_inputs();
-    let mixers = default_mixers();
+    // In shared-bus mode, Shout consumes its access rows from the CPU witness.
+    // So a wrong Shout value must make verification fail.
+    let (params, ccs, mut step_bundle, acc_init, acc_wit_init, l, mixers, _out_val) = build_single_chunk_inputs();
 
-    // Corrupt the Shout `val` column at the active lookup step.
-    let lut_inst = &step_bundle.lut_instances[0].0;
-    let ell_addr = lut_inst.d * lut_inst.ell;
-    let val_mat_idx = ell_addr + 1;
-    let t0 = 0usize; // m_in=0 in this fixture
+    // Flip the Shout `val` entry inside the CPU bus tail (step j=0, last column of the Shout slot).
+    // Layout for 1 Shout instance (d=1, ell=1, chunk_size=1):
+    //   [addr_bit0, has_lookup, val] => Shout val is column id 2.
+    // There is also 1 Twist instance after it, but we don't touch it.
+    let m = step_bundle.mcs.1.Z.cols();
+    let bus_cols = 10usize;
+    let bus_base = m - bus_cols;
+    let shout_val_col_id = 2usize;
+    let mut z = neo_memory::ajtai::decode_vector(&params, &step_bundle.mcs.1.Z);
+    z[bus_base + shout_val_col_id] += F::ONE;
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(&params, &z);
+    let c = l.commit(&Z);
+    step_bundle.mcs.0.c = c;
+    step_bundle.mcs.1.Z = Z;
+    step_bundle.mcs.1.w = z[M_IN..].to_vec();
 
-    let val_mat = &mut step_bundle.lut_instances[0].1.mats[val_mat_idx];
-    let mut decoded = neo_memory::ajtai::decode_vector(&params, val_mat);
-    decoded[t0] += F::ONE;
-    *val_mat = neo_memory::encode::ajtai_encode_vector(&params, &decoded);
-
-    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-wrong-shout-witness");
+    let mut tr_prove = Poseidon2Transcript::new(b"full-fold-wrong-shout-bus");
     let proof = fold_shard_prove(
         FoldingMode::PaperExact,
         &mut tr_prove,
@@ -721,11 +983,11 @@ fn wrong_shout_lookup_value_witness_fails() {
         &l,
         mixers,
     )
-    .expect("prove should succeed (even with invalid lookup witness)");
+    .expect("prove should succeed (even with invalid Shout bus)");
 
-    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-wrong-shout-witness");
+    let mut tr_verify = Poseidon2Transcript::new(b"full-fold-wrong-shout-bus");
     let steps_public = [StepInstanceBundle::from(&step_bundle)];
-    let result = fold_shard_verify(
+    let res = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
         &params,
@@ -736,5 +998,5 @@ fn wrong_shout_lookup_value_witness_fails() {
         mixers,
     );
 
-    assert!(result.is_err(), "invalid Shout lookup witness must fail verification");
+    assert!(res.is_err(), "wrong Shout bus value must fail verification");
 }

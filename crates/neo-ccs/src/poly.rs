@@ -56,6 +56,31 @@ impl<F> SparsePoly<F> {
             terms: new_terms,
         }
     }
+
+    /// Return a new polynomial with `extra` dummy variables appended at the end.
+    /// All terms are updated by extending exponent vectors with trailing zeros.
+    pub fn append_zero_vars(&self, extra: usize) -> Self
+    where
+        F: Clone,
+    {
+        if extra == 0 {
+            return self.clone();
+        }
+        let new_t = self.t + extra;
+        let mut new_terms = Vec::with_capacity(self.terms.len());
+        for term in &self.terms {
+            let mut exps = term.exps.clone();
+            exps.extend(core::iter::repeat(0u32).take(extra));
+            new_terms.push(Term {
+                coeff: term.coeff.clone(),
+                exps,
+            });
+        }
+        SparsePoly {
+            t: new_t,
+            terms: new_terms,
+        }
+    }
 }
 
 /// A single term: `coeff * ∏_j x_j^{exps[j]}`.

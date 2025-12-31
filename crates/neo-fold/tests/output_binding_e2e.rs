@@ -3,21 +3,21 @@
 use std::marker::PhantomData;
 
 use neo_ajtai::Commitment as Cmt;
-use neo_ccs::poly::SparsePoly;
+use neo_ccs::matrix::Mat;
+use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_ccs::Mat;
 use neo_fold::output_binding::OutputBindingConfig;
+use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{fold_shard_prove_with_output_binding, fold_shard_verify_with_output_binding, CommitMixers};
 use neo_fold::PiCcsError;
 use neo_math::{D, F, K};
-use neo_memory::encode::encode_mem_for_twist;
+use neo_memory::cpu::build_bus_layout_for_instances;
+use neo_memory::cpu::constraints::{extend_ccs_with_shared_cpu_bus_constraints, TwistCpuBinding};
 use neo_memory::output_check::ProgramIO;
-use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
-use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
+use neo_memory::witness::{MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
 use neo_params::NeoParams;
-use neo_reductions::api::FoldingMode;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -54,53 +54,138 @@ fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32
     }
 }
 
-fn create_identity_ccs(n: usize) -> CcsStructure<F> {
-    let mat = Mat::identity(n);
-    let f = SparsePoly::new(1, vec![]);
-    CcsStructure::new(vec![mat], f).expect("CCS")
+fn empty_identity_first_r1cs_ccs(n: usize) -> CcsStructure<F> {
+    let i_n = Mat::identity(n);
+    let a = Mat::zero(n, n, F::ZERO);
+    let b = Mat::zero(n, n, F::ZERO);
+    let c = Mat::zero(n, n, F::ZERO);
+
+    // f(I, A, B, C) = A * B - C, with I unused.
+    let f = SparsePoly::new(
+        4,
+        vec![
+            Term {
+                coeff: F::ONE,
+                exps: vec![0, 1, 1, 0],
+            },
+            Term {
+                coeff: -F::ONE,
+                exps: vec![0, 0, 0, 1],
+            },
+        ],
+    );
+    CcsStructure::new(vec![i_n, a, b, c], f).expect("CCS")
+}
+
+fn create_mcs_from_z(
+    params: &NeoParams,
+    l: &DummyCommit,
+    m_in: usize,
+    z: Vec<F>,
+) -> (McsInstance<Cmt, F>, McsWitness<F>) {
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
+    let c = l.commit(&Z);
+    let x = z[..m_in].to_vec();
+    let w = z[m_in..].to_vec();
+    (McsInstance { c, x, m_in }, McsWitness { w, Z })
 }
 
 #[test]
 fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
-    // Smallest square CCS that yields ell_n=2 (n_pad=4).
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
+    // R1CS base CCS with enough slack rows to inject shared-bus constraints.
+    let n = 64usize;
+    let base_ccs = empty_identity_first_r1cs_ccs(n);
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
     params.k_rho = 16;
     let l = DummyCommit::default();
     let mixers = default_mixers();
 
-    // One-step Twist trace: write addr 2 := 7 in a 4-cell memory (num_bits=2).
-    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
-    let mem_init = MemInit::Zero;
-    let plain_mem = PlainMemTrace {
+    // One Twist instance: 4-cell memory (num_bits=2), single write at addr=2 to value=7.
+    let m_in = 1usize;
+    let const_one_col = 0usize;
+
+    let mem_inst = MemInstance::<Cmt, F> {
+        comms: Vec::new(),
+        k: 4,
+        d: 1,
+        n_side: 4,
         steps: 1,
-        has_read: vec![F::ZERO],
-        has_write: vec![F::ONE],
-        read_addr: vec![0],
-        write_addr: vec![2],
-        read_val: vec![F::ZERO],
-        write_val: vec![F::from_u64(7)],
-        inc_at_write_addr: vec![F::from_u64(7)],
+        ell: 2,
+        init: MemInit::Zero,
+        _phantom: PhantomData,
     };
+    let mem_wit = MemWitness { mats: Vec::new() };
 
-    // CPU witness is trivial and unconstrained for this test.
-    let z: Vec<F> = vec![F::ZERO; ccs.m];
-    let Z = neo_memory::encode::ajtai_encode_vector(&params, &z);
-    let c = l.commit(&Z);
-    let mcs_inst = McsInstance { c, x: vec![], m_in: 0 };
-    let mcs_wit = McsWitness { w: z, Z };
+    // Minimal CPU columns used by the injected constraints (all < bus_base).
+    const COL_HAS_READ: usize = 1;
+    const COL_HAS_WRITE: usize = 2;
+    const COL_READ_ADDR: usize = 3;
+    const COL_WRITE_ADDR: usize = 4;
+    const COL_RV: usize = 5;
+    const COL_WV: usize = 6;
+    const COL_INC: usize = 7;
 
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &plain_mem,
-        &commit_fn,
-        Some(ccs.m),
-        mcs_inst.m_in,
-    );
+    let twist_cpu = vec![TwistCpuBinding {
+        has_read: COL_HAS_READ,
+        has_write: COL_HAS_WRITE,
+        read_addr: COL_READ_ADDR,
+        write_addr: COL_WRITE_ADDR,
+        rv: COL_RV,
+        wv: COL_WV,
+        inc: Some(COL_INC),
+    }];
+
+    let ccs = extend_ccs_with_shared_cpu_bus_constraints(
+        &base_ccs,
+        m_in,
+        const_one_col,
+        &[], // no Shout instances
+        &twist_cpu,
+        &[], // no LUT instances
+        &[mem_inst.clone()],
+    )
+    .map_err(|e| PiCcsError::InvalidInput(e))?;
+
+    let bus = build_bus_layout_for_instances(
+        ccs.m,
+        m_in,
+        1,
+        core::iter::empty(),
+        core::iter::once(mem_inst.d * mem_inst.ell),
+    )
+    .map_err(PiCcsError::InvalidInput)?;
+
+    // Build CPU witness z = [x | w] including the shared bus tail.
+    let mut z = vec![F::ZERO; ccs.m];
+    z[0] = F::ONE; // public const-one
+
+    // CPU semantic columns (must match bus via injected constraints).
+    z[COL_HAS_READ] = F::ZERO;
+    z[COL_HAS_WRITE] = F::ONE;
+    z[COL_READ_ADDR] = F::ZERO;
+    z[COL_WRITE_ADDR] = F::from_u64(2);
+    z[COL_RV] = F::ZERO;
+    z[COL_WV] = F::from_u64(7);
+    z[COL_INC] = F::from_u64(7);
+
+    // Bus tail (Twist only).
+    let twist = &bus.twist_cols[0];
+    // ra_bits = 0 when has_read=0
+    for col_id in twist.ra_bits.clone() {
+        z[bus.bus_cell(col_id, 0)] = F::ZERO;
+    }
+    // wa_bits for addr=2 (little-endian bits: [0]=0, [1]=1)
+    let wa_bits = [F::ZERO, F::ONE];
+    for (i, col_id) in twist.wa_bits.clone().enumerate() {
+        z[bus.bus_cell(col_id, 0)] = wa_bits[i];
+    }
+    z[bus.bus_cell(twist.has_read, 0)] = F::ZERO;
+    z[bus.bus_cell(twist.has_write, 0)] = F::ONE;
+    z[bus.bus_cell(twist.wv, 0)] = F::from_u64(7);
+    z[bus.bus_cell(twist.rv, 0)] = F::ZERO;
+    z[bus.bus_cell(twist.inc, 0)] = F::from_u64(7);
+
+    let (mcs_inst, mcs_wit) = create_mcs_from_z(&params, &l, m_in, z);
 
     let steps_witness: Vec<StepWitnessBundle<Cmt, F, K>> = vec![StepWitnessBundle {
         mcs: (mcs_inst, mcs_wit),
@@ -108,12 +193,13 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
         mem_instances: vec![(mem_inst, mem_wit)],
         _phantom: PhantomData,
     }];
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps_witness.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps_witness.iter().map(StepInstanceBundle::from).collect();
 
     let final_memory_state = vec![F::ZERO, F::ZERO, F::from_u64(7), F::ZERO];
 
     let ob_cfg_ok = OutputBindingConfig::new(2, ProgramIO::new().with_output(2, F::from_u64(7)));
+    let ob_cfg_bad = OutputBindingConfig::new(2, ProgramIO::new().with_output(2, F::from_u64(8)));
+
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
@@ -145,7 +231,6 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
         &ob_cfg_ok,
     )?;
 
-    let ob_cfg_bad = OutputBindingConfig::new(2, ProgramIO::new().with_output(2, F::from_u64(8)));
     let mut tr_verify_bad = Poseidon2Transcript::new(b"output-binding-e2e");
     let res = fold_shard_verify_with_output_binding(
         FoldingMode::PaperExact,

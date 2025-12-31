@@ -9,27 +9,25 @@
 //! ## Coverage
 //! - `multi_table_shout_two_tables`: Basic test with two independent tables
 //! - `multi_table_shout_three_tables_interleaved`: Three tables with interleaved lookups
-//! - `multi_table_wrong_table_id_fails`: Adversarial: lookup from wrong table
-//! - `multi_table_cross_table_value_swap_fails`: Adversarial: swap values between tables
+//! - `multi_table_wrong_table_value_fails`: Adversarial: wrong value for a table
+//! - `multi_table_optional_lookups`: `has_lookup=0` rows are ignored
 
 #![allow(non_snake_case)]
 
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use neo_ajtai::{decomp_b, setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt, DecompStyle};
+use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::shard::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, F, K};
-use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
-use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
+use neo_memory::plain::{LutTable, PlainLutTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
-use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -37,6 +35,9 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
 type Mixers = CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>;
+
+const TEST_N: usize = 32;
+const M_IN: usize = 0;
 
 /// Setup real Ajtai public parameters for tests.
 fn setup_ajtai_pp(m: usize, seed: u64) -> AjtaiSModule {
@@ -70,38 +71,116 @@ fn create_identity_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![mat], f).expect("CCS")
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
+fn create_mcs_from_z(
+    params: &NeoParams,
+    l: &AjtaiSModule,
+    m_in: usize,
+    z: Vec<F>,
+) -> (McsInstance<Cmt, F>, McsWitness<F>) {
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
+    let c = l.commit(&Z);
+
+    let x = z[..m_in].to_vec();
+    let w = z[m_in..].to_vec();
+    (McsInstance { c, x, m_in }, McsWitness { w, Z })
 }
 
-fn create_mcs(
+fn make_shout_instance(
+    table: &LutTable<F>,
+    steps: usize,
+) -> (
+    neo_memory::witness::LutInstance<Cmt, F>,
+    neo_memory::witness::LutWitness<F>,
+) {
+    let ell = table.n_side.trailing_zeros() as usize;
+    (
+        neo_memory::witness::LutInstance {
+            comms: Vec::new(),
+            k: table.k,
+            d: table.d,
+            n_side: table.n_side,
+            steps,
+            ell,
+            table_spec: None,
+            table: table.content.clone(),
+            _phantom: PhantomData,
+        },
+        neo_memory::witness::LutWitness { mats: Vec::new() },
+    )
+}
+
+fn write_shout_bus_step(
+    z: &mut [F],
+    bus_base: usize,
+    chunk_size: usize,
+    j: usize,
+    inst: &neo_memory::witness::LutInstance<Cmt, F>,
+    trace: &PlainLutTrace<F>,
+    col_id: &mut usize,
+) {
+    debug_assert_eq!(chunk_size, 1);
+    debug_assert_eq!(j, 0);
+
+    let has_lookup = trace.has_lookup[j];
+    if has_lookup == F::ONE {
+        let mut tmp = trace.addr[j];
+        for _dim in 0..inst.d {
+            let comp = (tmp % (inst.n_side as u64)) as u64;
+            tmp /= inst.n_side as u64;
+            for bit in 0..inst.ell {
+                z[bus_base + *col_id * chunk_size + j] = if (comp >> bit) & 1 == 1 { F::ONE } else { F::ZERO };
+                *col_id += 1;
+            }
+        }
+    } else {
+        *col_id += inst.d * inst.ell;
+    }
+    z[bus_base + *col_id * chunk_size + j] = has_lookup;
+    *col_id += 1;
+    z[bus_base + *col_id * chunk_size + j] = if has_lookup == F::ONE { trace.val[j] } else { F::ZERO };
+    *col_id += 1;
+}
+
+fn create_step_with_shout_bus(
     params: &NeoParams,
     ccs: &CcsStructure<F>,
     l: &AjtaiSModule,
     tag: u64,
-) -> (McsInstance<Cmt, F>, McsWitness<F>) {
-    let m = ccs.m;
-    let mut z: Vec<F> = vec![F::ZERO; m];
-    if !z.is_empty() {
-        z[0] = F::from_u64(tag);
+    luts: Vec<(&LutTable<F>, PlainLutTrace<F>)>,
+) -> StepWitnessBundle<Cmt, F, K> {
+    let chunk_size = 1usize;
+    let mut bus_cols_total = 0usize;
+    let mut lut_instances = Vec::with_capacity(luts.len());
+    let mut traces = Vec::with_capacity(luts.len());
+
+    for (table, trace) in luts {
+        let steps = trace.has_lookup.len();
+        assert_eq!(steps, chunk_size);
+        assert_eq!(trace.addr.len(), chunk_size);
+        assert_eq!(trace.val.len(), chunk_size);
+        let (inst, wit) = make_shout_instance(table, steps);
+        bus_cols_total += inst.d * inst.ell + 2;
+        lut_instances.push((inst, wit));
+        traces.push(trace);
     }
 
-    let Z = decompose_z_to_Z(params, &z);
-    let c = l.commit(&Z);
+    let bus_base = ccs.m - bus_cols_total * chunk_size;
+    let mut z = vec![F::ZERO; ccs.m];
+    z[0] = F::from_u64(tag);
 
-    (
-        McsInstance { c, x: vec![], m_in: 0 },
-        McsWitness { w: z, Z },
-    )
+    let mut col_id = 0usize;
+    for ((inst, _wit), trace) in lut_instances.iter().zip(traces.iter()) {
+        write_shout_bus_step(&mut z, bus_base, chunk_size, 0, inst, trace, &mut col_id);
+    }
+    debug_assert_eq!(col_id, bus_cols_total);
+
+    let (mcs, mcs_wit) = create_mcs_from_z(params, l, M_IN, z);
+    StepWitnessBundle {
+        mcs: (mcs, mcs_wit),
+        lut_instances,
+        mem_instances: vec![],
+        _phantom: PhantomData::<K>,
+    }
 }
 
 /// Two lookup tables used in the same step:
@@ -109,15 +188,13 @@ fn create_mcs(
 /// - Table 1 (range8): [0, 1, 2, ..., 15] (small range for test)
 #[test]
 fn multi_table_shout_two_tables() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     // Setup real Ajtai commitments
     let l = setup_ajtai_pp(ccs.m, 0x1001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     // Table 0: Opcode table (4 entries)
     let opcode_table = LutTable {
@@ -126,10 +203,10 @@ fn multi_table_shout_two_tables() {
         d: 1,
         n_side: 4,
         content: vec![
-            F::from_u64(1),  // ADD
-            F::from_u64(2),  // MUL
-            F::from_u64(3),  // SUB
-            F::from_u64(4),  // DIV
+            F::from_u64(1), // ADD
+            F::from_u64(2), // MUL
+            F::from_u64(3), // SUB
+            F::from_u64(4), // DIV
         ],
     };
 
@@ -139,12 +216,7 @@ fn multi_table_shout_two_tables() {
         k: 4,
         d: 1,
         n_side: 4,
-        content: vec![
-            F::from_u64(0),
-            F::from_u64(1),
-            F::from_u64(2),
-            F::from_u64(3),
-        ],
+        content: vec![F::from_u64(0), F::from_u64(1), F::from_u64(2), F::from_u64(3)],
     };
 
     // Step 0: Lookup opcode[1]=MUL=2, range[2]=2
@@ -158,54 +230,13 @@ fn multi_table_shout_two_tables() {
         addr: vec![2],
         val: vec![range_table.content[2]], // 2
     };
-
-    // Minimal memory (required by pipeline)
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-    let mem_trace = PlainMemTrace {
-        steps: 1,
-        has_read: vec![F::ZERO],
-        has_write: vec![F::ZERO],
-        read_addr: vec![0],
-        write_addr: vec![0],
-        read_val: vec![F::ZERO],
-        write_val: vec![F::ZERO],
-        inc_at_write_addr: vec![F::ZERO],
-    };
-    let mem_init = MemInit::Zero;
-
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 42);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
+    let step_bundle = create_step_with_shout_bus(
         &params,
-        &mem_layout,
-        &mem_init,
-        &mem_trace,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
+        &ccs,
+        &l,
+        42,
+        vec![(&opcode_table, opcode_trace0), (&range_table, range_trace0)],
     );
-    let (opcode_inst, opcode_wit) = encode_lut_for_shout(
-        &params,
-        &opcode_table,
-        &opcode_trace0,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-    let (range_inst, range_wit) = encode_lut_for_shout(
-        &params,
-        &range_table,
-        &range_trace0,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-
-    let step_bundle = StepWitnessBundle {
-        mcs: (mcs, mcs_wit),
-        lut_instances: vec![(opcode_inst, opcode_wit), (range_inst, range_wit)],
-        mem_instances: vec![(mem_inst, mem_wit)],
-        _phantom: PhantomData::<K>,
-    };
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -247,14 +278,12 @@ fn multi_table_shout_two_tables() {
 /// - Table 2: Bitwise AND results for nibbles
 #[test]
 fn multi_table_shout_three_tables_interleaved() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x1002);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     // Table 0: Opcodes
     let opcode_table = LutTable {
@@ -287,8 +316,6 @@ fn multi_table_shout_three_tables_interleaved() {
     let mut steps: Vec<StepWitnessBundle<Cmt, F, K>> = Vec::new();
 
     for step_idx in 0..2u64 {
-        let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, step_idx * 1000);
-
         // Step 0: lookup opcode[0], range[1], bitwise[2]
         // Step 1: lookup opcode[3], range[0], bitwise[1]
         let opcode_addr = if step_idx == 0 { 0 } else { 3 };
@@ -311,63 +338,17 @@ fn multi_table_shout_three_tables_interleaved() {
             val: vec![bitwise_table.content[bitwise_addr as usize]],
         };
 
-        let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-        let mem_trace = PlainMemTrace {
-            steps: 1,
-            has_read: vec![F::ZERO],
-            has_write: vec![F::ZERO],
-            read_addr: vec![0],
-            write_addr: vec![0],
-            read_val: vec![F::ZERO],
-            write_val: vec![F::ZERO],
-            inc_at_write_addr: vec![F::ZERO],
-        };
-        let mem_init = MemInit::Zero;
-
-        let (mem_inst, mem_wit) = encode_mem_for_twist(
+        steps.push(create_step_with_shout_bus(
             &params,
-            &mem_layout,
-            &mem_init,
-            &mem_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-        let (opcode_inst, opcode_wit) = encode_lut_for_shout(
-            &params,
-            &opcode_table,
-            &opcode_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-        let (range_inst, range_wit) = encode_lut_for_shout(
-            &params,
-            &range_table,
-            &range_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-        let (bitwise_inst, bitwise_wit) = encode_lut_for_shout(
-            &params,
-            &bitwise_table,
-            &bitwise_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-
-        steps.push(StepWitnessBundle {
-            mcs: (mcs, mcs_wit),
-            lut_instances: vec![
-                (opcode_inst, opcode_wit),
-                (range_inst, range_wit),
-                (bitwise_inst, bitwise_wit),
+            &ccs,
+            &l,
+            step_idx * 1000,
+            vec![
+                (&opcode_table, opcode_trace),
+                (&range_table, range_trace),
+                (&bitwise_table, bitwise_trace),
             ],
-            mem_instances: vec![(mem_inst, mem_wit)],
-            _phantom: PhantomData::<K>,
-        });
+        ));
     }
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
@@ -388,8 +369,7 @@ fn multi_table_shout_three_tables_interleaved() {
     .expect("prove should succeed with three tables");
 
     let mut tr_verify = Poseidon2Transcript::new(b"multi-table-three");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
@@ -409,14 +389,12 @@ fn multi_table_shout_three_tables_interleaved() {
 /// Prover claims table[0][1] = X, but uses the value from table[1][1] instead.
 #[test]
 fn multi_table_wrong_table_value_fails() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x1003);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     // Table 0: [100, 200, 300, 400]
     let table0 = LutTable {
@@ -449,98 +427,53 @@ fn multi_table_wrong_table_value_fails() {
         addr: vec![1],
         val: vec![table1.content[1]], // Correct: 2
     };
-
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 999);
-
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-    let mem_trace = PlainMemTrace {
-        steps: 1,
-        has_read: vec![F::ZERO],
-        has_write: vec![F::ZERO],
-        read_addr: vec![0],
-        write_addr: vec![0],
-        read_val: vec![F::ZERO],
-        write_val: vec![F::ZERO],
-        inc_at_write_addr: vec![F::ZERO],
-    };
-    let mem_init = MemInit::Zero;
-
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
+    let step_bundle = create_step_with_shout_bus(
         &params,
-        &mem_layout,
-        &mem_init,
-        &mem_trace,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
+        &ccs,
+        &l,
+        999,
+        vec![(&table0, bad_trace0), (&table1, good_trace1)],
     );
 
-    // The bad encoding should either panic during encode (semantic check)
-    // or fail during verification.
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        encode_lut_for_shout(&params, &table0, &bad_trace0, &commit_fn, Some(ccs.m), mcs.m_in)
-    }));
+    let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
+    let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
-    match result {
+    let mut tr_prove = Poseidon2Transcript::new(b"multi-table-wrong");
+    let proof_result = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    );
+
+    match proof_result {
         Err(_) => {
-            println!("✓ multi_table_wrong_table_value_fails: Encoding correctly panicked on invalid lookup");
+            println!("✓ multi_table_wrong_table_value_fails: Proving correctly failed on invalid lookup");
         }
-        Ok((bad_inst, bad_wit)) => {
-            // If encoding passed, verification should fail
-            let (good_inst, good_wit) = encode_lut_for_shout(
-                &params,
-                &table1,
-                &good_trace1,
-                &commit_fn,
-                Some(ccs.m),
-                mcs.m_in,
-            );
-
-            let step_bundle = StepWitnessBundle {
-                mcs: (mcs, mcs_wit),
-                lut_instances: vec![(bad_inst, bad_wit), (good_inst, good_wit)],
-                mem_instances: vec![(mem_inst, mem_wit)],
-                _phantom: PhantomData::<K>,
-            };
-
-            let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
-            let acc_wit_init: Vec<Mat<F>> = Vec::new();
-
-            let mut tr_prove = Poseidon2Transcript::new(b"multi-table-wrong");
-            let proof_result = fold_shard_prove(
+        Ok(proof) => {
+            let mut tr_verify = Poseidon2Transcript::new(b"multi-table-wrong");
+            let steps_public = [StepInstanceBundle::from(&step_bundle)];
+            let verify_result = fold_shard_verify(
                 FoldingMode::PaperExact,
-                &mut tr_prove,
+                &mut tr_verify,
                 &params,
                 &ccs,
-                &[step_bundle.clone()],
+                &steps_public,
                 &acc_init,
-                &acc_wit_init,
-                &l,
+                &proof,
                 mixers,
             );
 
-            if let Ok(proof) = proof_result {
-                let mut tr_verify = Poseidon2Transcript::new(b"multi-table-wrong");
-                let steps_public = [StepInstanceBundle::from(&step_bundle)];
-                let verify_result = fold_shard_verify(
-                    FoldingMode::PaperExact,
-                    &mut tr_verify,
-                    &params,
-                    &ccs,
-                    &steps_public,
-                    &acc_init,
-                    &proof,
-                    mixers,
-                );
-
-                assert!(
-                    verify_result.is_err(),
-                    "Verification should fail when lookup uses wrong table's value"
-                );
-                println!("✓ multi_table_wrong_table_value_fails: Verification correctly rejected invalid lookup");
-            } else {
-                println!("✓ multi_table_wrong_table_value_fails: Proving correctly failed on invalid lookup");
-            }
+            assert!(
+                verify_result.is_err(),
+                "Verification should fail when lookup uses wrong table's value"
+            );
+            println!("✓ multi_table_wrong_table_value_fails: Verification correctly rejected invalid lookup");
         }
     }
 }
@@ -548,14 +481,12 @@ fn multi_table_wrong_table_value_fails() {
 /// Test: Optional lookups (has_lookup=0) should not affect table consistency.
 #[test]
 fn multi_table_optional_lookups() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x1004);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let table0 = LutTable {
         table_id: 0,
@@ -603,53 +534,13 @@ fn multi_table_optional_lookups() {
         .into_iter()
         .enumerate()
     {
-        let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, step_idx as u64);
-
-        let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-        let mem_trace = PlainMemTrace {
-            steps: 1,
-            has_read: vec![F::ZERO],
-            has_write: vec![F::ZERO],
-            read_addr: vec![0],
-            write_addr: vec![0],
-            read_val: vec![F::ZERO],
-            write_val: vec![F::ZERO],
-            inc_at_write_addr: vec![F::ZERO],
-        };
-        let mem_init = MemInit::Zero;
-
-        let (mem_inst, mem_wit) = encode_mem_for_twist(
+        steps.push(create_step_with_shout_bus(
             &params,
-            &mem_layout,
-            &mem_init,
-            &mem_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-        let (inst0, wit0) = encode_lut_for_shout(
-            &params,
-            &table0,
-            &t0_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-        let (inst1, wit1) = encode_lut_for_shout(
-            &params,
-            &table1,
-            &t1_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-
-        steps.push(StepWitnessBundle {
-            mcs: (mcs, mcs_wit),
-            lut_instances: vec![(inst0, wit0), (inst1, wit1)],
-            mem_instances: vec![(mem_inst, mem_wit)],
-            _phantom: PhantomData::<K>,
-        });
+            &ccs,
+            &l,
+            step_idx as u64,
+            vec![(&table0, t0_trace), (&table1, t1_trace)],
+        ));
     }
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
@@ -670,8 +561,7 @@ fn multi_table_optional_lookups() {
     .expect("prove should succeed with optional lookups");
 
     let mut tr_verify = Poseidon2Transcript::new(b"multi-table-optional");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,

@@ -32,4 +32,4 @@ pub use engines::{finalize_ccs_after_batch, prepare_ccs_for_batch, CcsBatchConte
 pub use error::PiCcsError;
 
 // Re-export common utilities
-pub use common::{sample_rot_rhos, sample_rot_rhos_n, split_b_matrix_k, RotRing};
+pub use common::{sample_rot_rhos_n, split_b_matrix_k, RotRing};

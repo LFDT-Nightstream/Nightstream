@@ -193,13 +193,22 @@ pub fn decode_addrs_from_bits<F: PrimeField>(
     let mut addrs = vec![0u64; steps];
     for dim in 0..d {
         let base = dim * ell;
-        let stride = (n_side as u64).pow(dim as u32);
+        let stride = (n_side as u64)
+            .checked_pow(dim as u32)
+            .expect("decode_addrs_from_bits: stride overflow");
         for b in 0..ell {
             let col = &decoded[base + b];
-            let bit_weight = 1u64 << b;
+            let bit_weight = 1u64
+                .checked_shl(b as u32)
+                .expect("decode_addrs_from_bits: bit_weight overflow");
             for j in 0..steps.min(col.len()) {
                 if col[j] == F::ONE {
-                    addrs[j] += bit_weight * stride;
+                    let delta = bit_weight
+                        .checked_mul(stride)
+                        .expect("decode_addrs_from_bits: address contribution overflow");
+                    addrs[j] = addrs[j]
+                        .checked_add(delta)
+                        .expect("decode_addrs_from_bits: address overflow");
                 }
             }
         }

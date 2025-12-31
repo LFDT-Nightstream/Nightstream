@@ -1,7 +1,7 @@
 use neo_reductions::error::PiCcsError;
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 /// Public initial memory state for a Twist instance.
 ///
@@ -39,9 +39,7 @@ impl<F: PrimeCharacteristicRing> MemInit<F> {
                     }
                     prev = Some(*addr);
                     let addr_usize = usize::try_from(*addr).map_err(|_| {
-                        PiCcsError::InvalidInput(format!(
-                            "MemInit::Sparse address doesn't fit usize: addr={addr}"
-                        ))
+                        PiCcsError::InvalidInput(format!("MemInit::Sparse address doesn't fit usize: addr={addr}"))
                     })?;
                     if addr_usize >= k {
                         return Err(PiCcsError::InvalidInput(format!(
@@ -59,6 +57,74 @@ impl<F: PrimeCharacteristicRing> MemInit<F> {
             }
         }
     }
+}
+
+pub fn mem_init_from_state_map<F: PrimeCharacteristicRing + Copy + PartialEq>(
+    mem_id: u32,
+    k: usize,
+    state: &HashMap<u64, F>,
+) -> Result<MemInit<F>, PiCcsError> {
+    if state.is_empty() {
+        return Ok(MemInit::Zero);
+    }
+
+    let mut pairs: Vec<(u64, F)> = state
+        .iter()
+        .filter_map(|(&addr, &val)| (val != F::ZERO).then_some((addr, val)))
+        .collect();
+    pairs.sort_by_key(|(addr, _)| *addr);
+
+    if pairs.is_empty() {
+        return Ok(MemInit::Zero);
+    }
+
+    if let Some((addr, _)) = pairs.last() {
+        let addr_usize = usize::try_from(*addr).map_err(|_| {
+            PiCcsError::InvalidInput(format!(
+                "mem_id={mem_id}: MemInit address doesn't fit usize: addr={addr}"
+            ))
+        })?;
+        if addr_usize >= k {
+            return Err(PiCcsError::InvalidInput(format!(
+                "mem_id={mem_id}: MemInit address out of range: addr={addr} >= k={k}"
+            )));
+        }
+    }
+
+    Ok(MemInit::Sparse(pairs))
+}
+
+pub fn mem_init_from_initial_mem<F: PrimeCharacteristicRing + Copy + PartialEq>(
+    mem_id: u32,
+    k: usize,
+    initial_mem: &HashMap<(u32, u64), F>,
+) -> Result<MemInit<F>, PiCcsError> {
+    let mut state: HashMap<u64, F> = HashMap::new();
+
+    for ((init_mem_id, addr), &val) in initial_mem.iter() {
+        if *init_mem_id != mem_id || val == F::ZERO {
+            continue;
+        }
+
+        let addr_usize = usize::try_from(*addr).map_err(|_| {
+            PiCcsError::InvalidInput(format!(
+                "mem_id={mem_id}: MemInit address doesn't fit usize: addr={addr}"
+            ))
+        })?;
+        if addr_usize >= k {
+            return Err(PiCcsError::InvalidInput(format!(
+                "mem_id={mem_id}: MemInit address out of range: addr={addr} >= k={k}"
+            )));
+        }
+
+        if state.insert(*addr, val).is_some() {
+            return Err(PiCcsError::InvalidInput(format!(
+                "mem_id={mem_id}: MemInit must not contain duplicate addresses: addr={addr}"
+            )));
+        }
+    }
+
+    mem_init_from_state_map(mem_id, k, &state)
 }
 
 /// Evaluate the multilinear extension of the initial memory table at `r_addr`.

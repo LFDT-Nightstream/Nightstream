@@ -1,20 +1,32 @@
 #![allow(non_snake_case)]
 
-mod common;
-
-use common::twist_oracle_2d::{build_val_table_pre_write_from_inc, TwistReadCheck2DOracle, TwistWriteCheck2DOracle};
 use neo_fold::memory_sidecar::sumcheck_ds::{
     run_batched_sumcheck_prover_ds, run_sumcheck_prover_ds, verify_batched_sumcheck_rounds_ds,
     verify_sumcheck_rounds_ds,
 };
-use neo_fold::memory_sidecar::utils::RoundOraclePrefix;
 use neo_math::{F, K};
+use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::twist_oracle::{
-    build_eq_table, table_mle_eval, AddressLookupOracle, IndexAdapterOracle, LazyBitnessOracle, ProductRoundOracle,
+    table_mle_eval, AddressLookupOracle, IndexAdapterOracleSparseTime, LazyBitnessOracleSparseTime,
+    ShoutValueOracleSparse, TwistReadCheckOracleSparseTime, TwistWriteCheckOracleSparseTime,
 };
 use neo_reductions::sumcheck::{BatchedClaim, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
+
+fn dense_to_sparse(v: &[K]) -> SparseIdxVec<K> {
+    SparseIdxVec::from_entries(
+        v.len(),
+        v.iter()
+            .enumerate()
+            .filter_map(|(i, &x)| (x != K::ZERO).then_some((i, x)))
+            .collect(),
+    )
+}
+
+fn cols_to_sparse(cols: &[Vec<K>]) -> Vec<SparseIdxVec<K>> {
+    cols.iter().map(|c| dense_to_sparse(c)).collect()
+}
 
 fn addr_bits_columns(addrs: &[usize], ell_addr: usize) -> Vec<Vec<K>> {
     let mut cols = vec![vec![K::ZERO; addrs.len()]; ell_addr];
@@ -38,12 +50,15 @@ fn run_shout_route_a(table: &[K], addr_bits: &[Vec<K>], has_lookup: &[K], val: &
     let ell_addr = addr_bits.len();
     let inst_idx = 0usize;
 
+    let addr_bits_sparse = cols_to_sparse(addr_bits);
+    let has_lookup_sparse = dense_to_sparse(has_lookup);
+
     let mut tr_p = Poseidon2Transcript::new(b"shout/route_a_negative");
     let mut tr_v = Poseidon2Transcript::new(b"shout/route_a_negative");
 
     let (r_addr, addr_claim_sum, addr_final) = {
         let (mut addr_oracle, addr_claim_sum) =
-            AddressLookupOracle::new(addr_bits, has_lookup, table, r_cycle, ell_addr);
+            AddressLookupOracle::new(&addr_bits_sparse, &has_lookup_sparse, table, r_cycle, ell_addr);
 
         let (addr_rounds, r_addr) = run_sumcheck_prover_ds(
             &mut tr_p,
@@ -67,19 +82,22 @@ fn run_shout_route_a(table: &[K], addr_bits: &[Vec<K>], has_lookup: &[K], val: &
         (r_addr, addr_claim_sum, addr_final)
     };
 
-    let chi_cycle = build_eq_table(r_cycle);
-    let mut value_oracle = ProductRoundOracle::new(vec![chi_cycle.clone(), has_lookup.to_vec(), val.to_vec()], 3);
-    let value_claim = value_oracle.sum_over_hypercube();
+    let (mut value_oracle, value_claim) =
+        ShoutValueOracleSparse::new(r_cycle, has_lookup_sparse.clone(), dense_to_sparse(val));
 
-    let mut adapter_oracle = IndexAdapterOracle::new_with_gate(addr_bits, has_lookup, r_cycle, &r_addr);
-    let adapter_claim = adapter_oracle.compute_claim();
+    let (mut adapter_oracle, adapter_claim) = IndexAdapterOracleSparseTime::new_with_gate(
+        r_cycle,
+        has_lookup_sparse.clone(),
+        addr_bits_sparse.clone(),
+        &r_addr,
+    );
 
-    let mut bitness_oracles: Vec<LazyBitnessOracle> = addr_bits
+    let mut bitness_oracles: Vec<LazyBitnessOracleSparseTime> = addr_bits_sparse
         .iter()
         .cloned()
-        .map(|col| LazyBitnessOracle::new_with_cycle(r_cycle, col))
+        .map(|col| LazyBitnessOracleSparseTime::new_with_cycle(r_cycle, col))
         .collect();
-    bitness_oracles.push(LazyBitnessOracle::new_with_cycle(r_cycle, has_lookup.to_vec()));
+    bitness_oracles.push(LazyBitnessOracleSparseTime::new_with_cycle(r_cycle, has_lookup_sparse));
 
     let mut claimed_sums: Vec<K> = Vec::with_capacity(2 + bitness_oracles.len());
     let mut round_polys: Vec<Vec<Vec<K>>> = Vec::with_capacity(2 + bitness_oracles.len());
@@ -87,6 +105,7 @@ fn run_shout_route_a(table: &[K], addr_bits: &[Vec<K>], has_lookup: &[K], val: &
     let mut labels: Vec<&[u8]> = Vec::with_capacity(2 + bitness_oracles.len());
 
     let mut claims: Vec<BatchedClaim<'_>> = Vec::with_capacity(2 + bitness_oracles.len());
+
     claimed_sums.push(value_claim);
     degree_bounds.push(value_oracle.degree_bound());
     labels.push(b"shout/value");
@@ -185,42 +204,60 @@ fn route_a_twist_inc_flip_fails() {
     let ell_time = 2usize;
     let ell_addr = 2usize;
     let pow2_time = 1usize << ell_time;
-    let pow2_addr = 1usize << ell_addr;
 
     let r_cycle = vec![K::ZERO; ell_time]; // boolean -> selects t=0
-    let init_table = vec![K::ZERO; pow2_addr];
+    let r_addr = vec![K::ONE, K::ZERO]; // boolean -> selects addr=1
+    let init_at_r_addr = K::ZERO;
 
     let has_read = vec![K::ZERO; pow2_time];
     let rv = vec![K::ZERO; pow2_time];
-    let ra_bits = vec![vec![K::ZERO; pow2_time]; ell_addr];
+    let ra_bits = vec![vec![r_addr[0]; pow2_time], vec![r_addr[1]; pow2_time]];
 
     let mut has_write = vec![K::ZERO; pow2_time];
     has_write[0] = K::ONE;
     let mut wv = vec![K::ZERO; pow2_time];
     wv[0] = K::from(F::from_u64(5));
-    let wa_addrs = vec![1usize, 0, 0, 0];
-    let wa_bits = addr_bits_columns(&wa_addrs, ell_addr);
+    let wa_bits = ra_bits.clone();
 
     let mut inc = vec![K::ZERO; pow2_time];
     inc[0] = wv[0];
 
-    let val_table = build_val_table_pre_write_from_inc(&init_table, &has_write, &wa_bits, &inc, pow2_time, pow2_addr);
-
-    let mut read_check =
-        TwistReadCheck2DOracle::new(&r_cycle, &has_read, &ra_bits, &rv, &val_table, pow2_time, pow2_addr);
-    let mut write_check = TwistWriteCheck2DOracle::new(
-        &r_cycle, &has_write, &wa_bits, &wv, &inc, &val_table, pow2_time, pow2_addr,
+    let mut read_check = TwistReadCheckOracleSparseTime::new(
+        &r_cycle,
+        dense_to_sparse(&has_read),
+        dense_to_sparse(&rv),
+        cols_to_sparse(&ra_bits),
+        dense_to_sparse(&has_write),
+        dense_to_sparse(&inc),
+        cols_to_sparse(&wa_bits),
+        &r_addr,
+        init_at_r_addr,
+    );
+    let mut write_check = TwistWriteCheckOracleSparseTime::new(
+        &r_cycle,
+        dense_to_sparse(&has_write),
+        dense_to_sparse(&wv),
+        dense_to_sparse(&inc),
+        cols_to_sparse(&wa_bits),
+        &r_addr,
+        init_at_r_addr,
     );
 
-    let mut bitness: Vec<LazyBitnessOracle> = Vec::with_capacity(2 * ell_addr + 2);
+    let mut bitness: Vec<LazyBitnessOracleSparseTime> = Vec::with_capacity(2 * ell_addr + 2);
     for col in ra_bits.iter().cloned().chain(wa_bits.iter().cloned()) {
-        bitness.push(LazyBitnessOracle::new_with_cycle(&r_cycle, col));
+        bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(
+            &r_cycle,
+            dense_to_sparse(&col),
+        ));
     }
-    bitness.push(LazyBitnessOracle::new_with_cycle(&r_cycle, has_read.clone()));
-    bitness.push(LazyBitnessOracle::new_with_cycle(&r_cycle, has_write.clone()));
-
-    let mut read_check_time = RoundOraclePrefix::new(&mut read_check, ell_time);
-    let mut write_check_time = RoundOraclePrefix::new(&mut write_check, ell_time);
+    bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(
+        &r_cycle,
+        dense_to_sparse(&has_read),
+    ));
+    bitness.push(LazyBitnessOracleSparseTime::new_with_cycle(
+        &r_cycle,
+        dense_to_sparse(&has_write),
+    ));
 
     let mut claimed_sums = Vec::with_capacity(2 + bitness.len());
     let mut degree_bounds = Vec::with_capacity(2 + bitness.len());
@@ -228,19 +265,19 @@ fn route_a_twist_inc_flip_fails() {
     let mut claims: Vec<BatchedClaim<'_>> = Vec::with_capacity(2 + bitness.len());
 
     claimed_sums.push(K::ZERO);
-    degree_bounds.push(read_check_time.degree_bound());
+    degree_bounds.push(read_check.degree_bound());
     labels.push(b"twist/read_check");
     claims.push(BatchedClaim {
-        oracle: &mut read_check_time,
+        oracle: &mut read_check,
         claimed_sum: K::ZERO,
         label: b"twist/read_check",
     });
 
     claimed_sums.push(K::ZERO);
-    degree_bounds.push(write_check_time.degree_bound());
+    degree_bounds.push(write_check.degree_bound());
     labels.push(b"twist/write_check");
     claims.push(BatchedClaim {
-        oracle: &mut write_check_time,
+        oracle: &mut write_check,
         claimed_sum: K::ZERO,
         label: b"twist/write_check",
     });
@@ -280,22 +317,18 @@ fn route_a_twist_inc_flip_fails() {
 
     // Now flip one write increment and the prover must fail (claimed sum stays 0).
     inc[0] += K::ONE;
-    let bad_val_table =
-        build_val_table_pre_write_from_inc(&init_table, &has_write, &wa_bits, &inc, pow2_time, pow2_addr);
-    let mut bad_write_check = TwistWriteCheck2DOracle::new(
+    let mut bad_write_check = TwistWriteCheckOracleSparseTime::new(
         &r_cycle,
-        &has_write,
-        &wa_bits,
-        &wv,
-        &inc,
-        &bad_val_table,
-        pow2_time,
-        pow2_addr,
+        dense_to_sparse(&has_write),
+        dense_to_sparse(&wv),
+        dense_to_sparse(&inc),
+        cols_to_sparse(&wa_bits),
+        &r_addr,
+        init_at_r_addr,
     );
 
-    let mut bad_write_check_time = RoundOraclePrefix::new(&mut bad_write_check, ell_time);
     let mut bad_claims = vec![BatchedClaim {
-        oracle: &mut bad_write_check_time,
+        oracle: &mut bad_write_check,
         claimed_sum: K::ZERO,
         label: b"twist/write_check",
     }];
@@ -329,12 +362,14 @@ fn route_a_proof_tamper_round_poly_fails() {
 
     let r_addr = vec![K::from(F::from_u64(7)); ell_addr];
 
-    let chi_cycle = build_eq_table(&r_cycle);
-    let mut value_oracle = ProductRoundOracle::new(vec![chi_cycle.clone(), has_lookup.clone(), val.clone()], 3);
-    let value_claim = value_oracle.sum_over_hypercube();
-
-    let mut adapter_oracle = IndexAdapterOracle::new_with_gate(&addr_bits, &has_lookup, &r_cycle, &r_addr);
-    let adapter_claim = adapter_oracle.compute_claim();
+    let (mut value_oracle, value_claim) =
+        ShoutValueOracleSparse::new(&r_cycle, dense_to_sparse(&has_lookup), dense_to_sparse(&val));
+    let (mut adapter_oracle, adapter_claim) = IndexAdapterOracleSparseTime::new_with_gate(
+        &r_cycle,
+        dense_to_sparse(&has_lookup),
+        cols_to_sparse(&addr_bits),
+        &r_addr,
+    );
 
     let claimed_sums = vec![value_claim, adapter_claim];
     let degree_bounds = vec![value_oracle.degree_bound(), adapter_oracle.degree_bound()];

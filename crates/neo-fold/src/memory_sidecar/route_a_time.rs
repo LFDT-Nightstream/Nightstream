@@ -78,7 +78,9 @@ pub fn prove_route_a_batched_time(
         &mut claims,
     );
 
-    let ob_inc_total_degree_bound = ob_inc_total.as_ref().map(|extra| extra.oracle.degree_bound());
+    let ob_inc_total_degree_bound = ob_inc_total
+        .as_ref()
+        .map(|extra| extra.oracle.degree_bound());
     let mut ob_inc_total_claimed_sum: Option<K> = None;
     let mut ob_inc_total_label: Option<&'static [u8]> = None;
     let mut ob_inc_total_oracle: Option<Box<dyn RoundOracle>> = ob_inc_total.map(|extra| {
@@ -164,8 +166,7 @@ pub fn verify_route_a_batched_time(
     proof: &BatchedTimeProof,
     ob_inc_total_degree_bound: Option<usize>,
 ) -> Result<RouteABatchedTimeVerifyOutput, PiCcsError> {
-    let metas =
-        RouteATimeClaimPlan::time_claim_metas_for_step(step, ccs_time_degree_bound, ob_inc_total_degree_bound);
+    let metas = RouteATimeClaimPlan::time_claim_metas_for_step(step, ccs_time_degree_bound, ob_inc_total_degree_bound);
     let expected_degree_bounds: Vec<usize> = metas.iter().map(|m| m.degree_bound).collect();
     let expected_labels: Vec<&'static [u8]> = metas.iter().map(|m| m.label).collect();
     let claim_is_dynamic: Vec<bool> = metas.iter().map(|m| m.is_dynamic).collect();

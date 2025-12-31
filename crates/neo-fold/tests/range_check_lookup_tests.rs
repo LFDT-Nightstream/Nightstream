@@ -15,19 +15,17 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use neo_ajtai::{decomp_b, setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt, DecompStyle};
+use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::shard::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, F, K};
-use neo_memory::encode::{encode_lut_for_shout, encode_mem_for_twist};
-use neo_memory::plain::{LutTable, PlainLutTrace, PlainMemLayout, PlainMemTrace};
+use neo_memory::plain::{LutTable, PlainLutTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
-use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -35,6 +33,9 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
 type Mixers = CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>;
+
+const TEST_N: usize = 64;
+const M_IN: usize = 0;
 
 /// Setup real Ajtai public parameters for tests.
 fn setup_ajtai_pp(m: usize, seed: u64) -> AjtaiSModule {
@@ -68,38 +69,18 @@ fn create_identity_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![mat], f).expect("CCS")
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
-}
-
-fn create_mcs(
+fn create_mcs_from_z(
     params: &NeoParams,
-    ccs: &CcsStructure<F>,
     l: &AjtaiSModule,
-    tag: u64,
+    m_in: usize,
+    z: Vec<F>,
 ) -> (McsInstance<Cmt, F>, McsWitness<F>) {
-    let m = ccs.m;
-    let mut z: Vec<F> = vec![F::ZERO; m];
-    if !z.is_empty() {
-        z[0] = F::from_u64(tag);
-    }
-
-    let Z = decompose_z_to_Z(params, &z);
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
     let c = l.commit(&Z);
 
-    (
-        McsInstance { c, x: vec![], m_in: 0 },
-        McsWitness { w: z, Z },
-    )
+    let x = z[..m_in].to_vec();
+    let w = z[m_in..].to_vec();
+    (McsInstance { c, x, m_in }, McsWitness { w, Z })
 }
 
 /// Build a 4-bit range check table: [0, 1, 2, ..., 15]
@@ -113,30 +94,113 @@ fn build_4bit_range_table() -> LutTable<F> {
     }
 }
 
-fn empty_mem_trace() -> PlainMemTrace<F> {
-    PlainMemTrace {
-        steps: 1,
-        has_read: vec![F::ZERO],
-        has_write: vec![F::ZERO],
-        read_addr: vec![0],
-        write_addr: vec![0],
-        read_val: vec![F::ZERO],
-        write_val: vec![F::ZERO],
-        inc_at_write_addr: vec![F::ZERO],
+fn make_shout_instance(
+    table: &LutTable<F>,
+    steps: usize,
+) -> (
+    neo_memory::witness::LutInstance<Cmt, F>,
+    neo_memory::witness::LutWitness<F>,
+) {
+    let ell = table.n_side.trailing_zeros() as usize;
+    (
+        neo_memory::witness::LutInstance {
+            comms: Vec::new(),
+            k: table.k,
+            d: table.d,
+            n_side: table.n_side,
+            steps,
+            ell,
+            table_spec: None,
+            table: table.content.clone(),
+            _phantom: PhantomData,
+        },
+        neo_memory::witness::LutWitness { mats: Vec::new() },
+    )
+}
+
+fn write_shout_bus_step(
+    z: &mut [F],
+    bus_base: usize,
+    chunk_size: usize,
+    j: usize,
+    inst: &neo_memory::witness::LutInstance<Cmt, F>,
+    trace: &PlainLutTrace<F>,
+    col_id: &mut usize,
+) {
+    debug_assert_eq!(chunk_size, 1);
+    debug_assert_eq!(j, 0);
+
+    let has_lookup = trace.has_lookup[j];
+    if has_lookup == F::ONE {
+        let mut tmp = trace.addr[j];
+        for _dim in 0..inst.d {
+            let comp = (tmp % (inst.n_side as u64)) as u64;
+            tmp /= inst.n_side as u64;
+            for bit in 0..inst.ell {
+                z[bus_base + *col_id * chunk_size + j] = if (comp >> bit) & 1 == 1 { F::ONE } else { F::ZERO };
+                *col_id += 1;
+            }
+        }
+    } else {
+        *col_id += inst.d * inst.ell;
+    }
+    z[bus_base + *col_id * chunk_size + j] = has_lookup;
+    *col_id += 1;
+    z[bus_base + *col_id * chunk_size + j] = if has_lookup == F::ONE { trace.val[j] } else { F::ZERO };
+    *col_id += 1;
+}
+
+fn create_step_with_shout_bus(
+    params: &NeoParams,
+    ccs: &CcsStructure<F>,
+    l: &AjtaiSModule,
+    tag: u64,
+    luts: Vec<(&LutTable<F>, PlainLutTrace<F>)>,
+) -> StepWitnessBundle<Cmt, F, K> {
+    let chunk_size = 1usize;
+    let mut bus_cols_total = 0usize;
+    let mut lut_instances = Vec::with_capacity(luts.len());
+    let mut traces = Vec::with_capacity(luts.len());
+
+    for (table, trace) in luts {
+        let steps = trace.has_lookup.len();
+        assert_eq!(steps, chunk_size);
+        assert_eq!(trace.addr.len(), chunk_size);
+        assert_eq!(trace.val.len(), chunk_size);
+        let (inst, wit) = make_shout_instance(table, steps);
+        bus_cols_total += inst.d * inst.ell + 2;
+        lut_instances.push((inst, wit));
+        traces.push(trace);
+    }
+
+    let bus_base = ccs.m - bus_cols_total * chunk_size;
+    let mut z = vec![F::ZERO; ccs.m];
+    z[0] = F::from_u64(tag);
+
+    let mut col_id = 0usize;
+    for ((inst, _wit), trace) in lut_instances.iter().zip(traces.iter()) {
+        write_shout_bus_step(&mut z, bus_base, chunk_size, 0, inst, trace, &mut col_id);
+    }
+    debug_assert_eq!(col_id, bus_cols_total);
+
+    let (mcs, mcs_wit) = create_mcs_from_z(params, l, M_IN, z);
+    StepWitnessBundle {
+        mcs: (mcs, mcs_wit),
+        lut_instances,
+        mem_instances: vec![],
+        _phantom: PhantomData::<K>,
     }
 }
 
 /// Valid 4-bit range check: prove value is in [0..16)
 #[test]
 fn range_check_4bit_valid() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x3001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let range_table = build_4bit_range_table();
 
@@ -149,36 +213,7 @@ fn range_check_4bit_valid() {
             addr: vec![val],
             val: vec![range_table.content[val as usize]],
         };
-
-        let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, val);
-
-        let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-        let mem_init = MemInit::Zero;
-
-        let (mem_inst, mem_wit) = encode_mem_for_twist(
-            &params,
-            &mem_layout,
-            &mem_init,
-            &empty_mem_trace(),
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-        let (range_inst, range_wit) = encode_lut_for_shout(
-            &params,
-            &range_table,
-            &range_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-
-        let step_bundle = StepWitnessBundle {
-            mcs: (mcs, mcs_wit),
-            lut_instances: vec![(range_inst, range_wit)],
-            mem_instances: vec![(mem_inst, mem_wit)],
-            _phantom: PhantomData::<K>,
-        };
+        let step_bundle = create_step_with_shout_bus(&params, &ccs, &l, val, vec![(&range_table, range_trace)]);
 
         let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
         let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -218,53 +253,22 @@ fn range_check_4bit_valid() {
 /// Invalid range check: value 20 is outside [0..16)
 #[test]
 fn range_check_4bit_invalid_value_fails() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x3001);
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let range_table = build_4bit_range_table();
 
-    // Invalid: claim 20 is in [0..16). For Shout, this becomes a bogus lookup witness.
+    // Invalid: claim 20 is in [0..16). Under bit-addressing, 20 wraps to 4-bit address bits,
+    // so forcing `val=20` should be rejected by the Shout constraints.
     let bad_trace = PlainLutTrace {
         has_lookup: vec![F::ONE],
-        addr: vec![20], // Out of bounds!
+        addr: vec![20],
         val: vec![F::from_u64(20)],
     };
-
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 20);
-
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-    let mem_init = MemInit::Zero;
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &empty_mem_trace(),
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-    let range_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        encode_lut_for_shout(&params, &range_table, &bad_trace, &commit_fn, Some(ccs.m), mcs.m_in)
-    }));
-    let (range_inst, range_wit) = match range_result {
-        Ok(x) => x,
-        Err(_) => {
-            println!("✓ range_check_4bit_invalid_value_fails: Encoding rejected invalid witness");
-            return;
-        }
-    };
-
-    let step_bundle = StepWitnessBundle {
-        mcs: (mcs, mcs_wit),
-        lut_instances: vec![(range_inst, range_wit)],
-        mem_instances: vec![(mem_inst, mem_wit)],
-        _phantom: PhantomData::<K>,
-    };
+    let step_bundle = create_step_with_shout_bus(&params, &ccs, &l, 20, vec![(&range_table, bad_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -309,14 +313,12 @@ fn range_check_4bit_invalid_value_fails() {
 /// Both nibbles must be in [0..16).
 #[test]
 fn range_check_nibble_decomposition() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x3001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let range_table = build_4bit_range_table();
 
@@ -336,48 +338,22 @@ fn range_check_nibble_decomposition() {
         addr: vec![high_nibble],
         val: vec![range_table.content[high_nibble as usize]],
     };
-
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, byte_val);
-
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-    let mem_init = MemInit::Zero;
-
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &empty_mem_trace(),
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-
-    // We need two separate table instances for two lookups in same step
-    // Actually, in a real system these would be the same table but different lookup slots
-    // For this test, we use the same table twice
-    let (low_inst, low_wit) = encode_lut_for_shout(
-        &params,
-        &LutTable { table_id: 0, ..range_table.clone() },
-        &low_trace,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-    let (high_inst, high_wit) = encode_lut_for_shout(
-        &params,
-        &LutTable { table_id: 1, ..range_table.clone() },
-        &high_trace,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-
-    let step_bundle = StepWitnessBundle {
-        mcs: (mcs, mcs_wit),
-        lut_instances: vec![(low_inst, low_wit), (high_inst, high_wit)],
-        mem_instances: vec![(mem_inst, mem_wit)],
-        _phantom: PhantomData::<K>,
+    let low_table = LutTable {
+        table_id: 0,
+        ..range_table.clone()
     };
+    let high_table = LutTable {
+        table_id: 1,
+        ..range_table.clone()
+    };
+
+    let step_bundle = create_step_with_shout_bus(
+        &params,
+        &ccs,
+        &l,
+        byte_val,
+        vec![(&low_table, low_trace), (&high_table, high_trace)],
+    );
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -422,19 +398,13 @@ fn range_check_nibble_decomposition() {
 fn range_check_combined_with_addition() {
     // CCS for addition: a + b - c = 0
     // z = [1, a, b, c] where z[0]=1 is the constant
-    let n = 4usize;
-
-    // Build addition CCS: M0*z + M1*z - M2*z = 0 (linearized)
-    // Actually, we can use: (M0 + M1) * z = M2 * z
-    // But for simplicity, use identity CCS and just verify via lookup
-
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    // For this test we use identity CCS and validate only the batched lookup logic.
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x3001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let range_table = build_4bit_range_table();
 
@@ -461,53 +431,26 @@ fn range_check_combined_with_addition() {
         addr: vec![c],
         val: vec![range_table.content[c as usize]],
     };
-
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, a * 100 + b * 10 + c);
-
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-    let mem_init = MemInit::Zero;
-
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &empty_mem_trace(),
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-
-    let (inst_a, wit_a) = encode_lut_for_shout(
-        &params,
-        &LutTable { table_id: 0, ..range_table.clone() },
-        &trace_a,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-    let (inst_b, wit_b) = encode_lut_for_shout(
-        &params,
-        &LutTable { table_id: 1, ..range_table.clone() },
-        &trace_b,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-    let (inst_c, wit_c) = encode_lut_for_shout(
-        &params,
-        &LutTable { table_id: 2, ..range_table.clone() },
-        &trace_c,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-
-    let step_bundle = StepWitnessBundle {
-        mcs: (mcs, mcs_wit),
-        lut_instances: vec![(inst_a, wit_a), (inst_b, wit_b), (inst_c, wit_c)],
-        mem_instances: vec![(mem_inst, mem_wit)],
-        _phantom: PhantomData::<K>,
+    let table_a = LutTable {
+        table_id: 0,
+        ..range_table.clone()
     };
+    let table_b = LutTable {
+        table_id: 1,
+        ..range_table.clone()
+    };
+    let table_c = LutTable {
+        table_id: 2,
+        ..range_table.clone()
+    };
+
+    let step_bundle = create_step_with_shout_bus(
+        &params,
+        &ccs,
+        &l,
+        a * 100 + b * 10 + c,
+        vec![(&table_a, trace_a), (&table_b, trace_b), (&table_c, trace_c)],
+    );
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -550,13 +493,11 @@ fn range_check_combined_with_addition() {
 /// Claim lookup returns 10, but actually the value at that address is different.
 #[test]
 fn range_check_wrong_value_claimed_fails() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x3001);
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let range_table = build_4bit_range_table();
 
@@ -566,37 +507,7 @@ fn range_check_wrong_value_claimed_fails() {
         addr: vec![5],
         val: vec![F::from_u64(10)], // WRONG: should be 5
     };
-
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 5);
-
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-    let mem_init = MemInit::Zero;
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &empty_mem_trace(),
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-    let range_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        encode_lut_for_shout(&params, &range_table, &bad_trace, &commit_fn, Some(ccs.m), mcs.m_in)
-    }));
-    let (range_inst, range_wit) = match range_result {
-        Ok(x) => x,
-        Err(_) => {
-            println!("✓ range_check_wrong_value_claimed_fails: Encoding rejected invalid witness");
-            return;
-        }
-    };
-
-    let step_bundle = StepWitnessBundle {
-        mcs: (mcs, mcs_wit),
-        lut_instances: vec![(range_inst, range_wit)],
-        mem_instances: vec![(mem_inst, mem_wit)],
-        _phantom: PhantomData::<K>,
-    };
+    let step_bundle = create_step_with_shout_bus(&params, &ccs, &l, 5, vec![(&range_table, bad_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -639,14 +550,12 @@ fn range_check_wrong_value_claimed_fails() {
 /// Boundary test: check edge values 0 and 15 specifically.
 #[test]
 fn range_check_boundary_values() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x3001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let range_table = build_4bit_range_table();
 
@@ -659,36 +568,13 @@ fn range_check_boundary_values() {
             addr: vec![*val],
             val: vec![range_table.content[*val as usize]],
         };
-
-        let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, *step_idx);
-
-        let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
-        let mem_init = MemInit::Zero;
-
-        let (mem_inst, mem_wit) = encode_mem_for_twist(
+        steps.push(create_step_with_shout_bus(
             &params,
-            &mem_layout,
-            &mem_init,
-            &empty_mem_trace(),
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-        let (range_inst, range_wit) = encode_lut_for_shout(
-            &params,
-            &range_table,
-            &trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-
-        steps.push(StepWitnessBundle {
-            mcs: (mcs, mcs_wit),
-            lut_instances: vec![(range_inst, range_wit)],
-            mem_instances: vec![(mem_inst, mem_wit)],
-            _phantom: PhantomData::<K>,
-        });
+            &ccs,
+            &l,
+            *step_idx,
+            vec![(&range_table, trace)],
+        ));
     }
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
@@ -709,8 +595,7 @@ fn range_check_boundary_values() {
     .expect("prove should succeed for boundary values");
 
     let mut tr_verify = Poseidon2Transcript::new(b"range-boundary");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,

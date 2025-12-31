@@ -7,6 +7,39 @@ use neo_memory::output_check::OutputBindingProof;
 pub type TwistProofK = neo_memory::twist::TwistProof<K>;
 pub type ShoutProofK = neo_memory::shout::ShoutProof<K>;
 
+/// Route A Shout address pre-time proof metadata, with optional per-table skipping.
+///
+/// When a Shout instance is provably inactive for a step (no lookups), we can skip its
+/// address-domain sumcheck entirely. We still bind all `claimed_sums` to the transcript,
+/// but we only include sumcheck rounds for the active subset.
+#[derive(Clone, Debug)]
+pub struct ShoutAddrPreProof<KK> {
+    /// Claimed sums per Shout instance (length = `step.lut_instances.len()`).
+    pub claimed_sums: Vec<KK>,
+    /// Bit `i` set iff Shout instance `i` includes an address sumcheck proof.
+    ///
+    /// This is indexed by lut instance order (not table id), so it remains stable under
+    /// different `shout_table_ids` orderings.
+    pub active_mask: u64,
+    /// Sumcheck rounds for active instances only, in increasing lut-index order.
+    ///
+    /// `round_polys[active_idx][round] = coeffs`, and each inner `round` vector has length `ell_addr`.
+    pub round_polys: Vec<Vec<Vec<KK>>>,
+    /// Shared terminal address point `r_addr` (length = `ell_addr`).
+    pub r_addr: Vec<KK>,
+}
+
+impl<KK> Default for ShoutAddrPreProof<KK> {
+    fn default() -> Self {
+        Self {
+            claimed_sums: Vec::new(),
+            active_mask: 0,
+            round_polys: Vec::new(),
+            r_addr: Vec::new(),
+        }
+    }
+}
+
 /// One fold step’s artifacts (Π_CCS → Π_RLC → Π_DEC).
 #[derive(Clone, Debug)]
 pub struct FoldStep {
@@ -83,10 +116,13 @@ pub enum MemOrLutProof {
 
 #[derive(Clone, Debug)]
 pub struct MemSidecarProof<C, FF, KK> {
-    /// Memory/LUT ME claims evaluated at the shared `r_time` point.
-    pub me_claims_time: Vec<MeInstance<C, FF, KK>>,
-    /// Additional ME claims evaluated at `r_val` (Twist val-eval terminal point).
-    pub me_claims_val: Vec<MeInstance<C, FF, KK>>,
+    /// CPU ME claims evaluated at `r_val` (Twist val-eval terminal point).
+    ///
+    /// In shared-CPU-bus-only mode, Twist reads val-lane openings from these claims
+    /// (current step + optional previous step for rollover).
+    pub cpu_me_claims_val: Vec<MeInstance<C, FF, KK>>,
+    /// Route A Shout address pre-time proofs batched across all Shout instances in the step.
+    pub shout_addr_pre: ShoutAddrPreProof<KK>,
     pub proofs: Vec<MemOrLutProof>,
 }
 
@@ -147,15 +183,6 @@ impl ShardProof {
     /// Legacy alias for CCS-only codepaths: compute the final main accumulator.
     pub fn compute_final_outputs(&self, acc_init: &[MeInstance<Cmt, F, K>]) -> Vec<MeInstance<Cmt, F, K>> {
         self.compute_final_main_children(acc_init)
-    }
-
-    #[deprecated(
-        note = "Use compute_fold_outputs().obligations (includes val lane) or compute_final_obligations(). \
-If you truly want main only, call compute_final_main_children()."
-    )]
-    pub fn compute_final_children(&self, acc_init: &[MeInstance<Cmt, F, K>]) -> Vec<MeInstance<Cmt, F, K>> {
-        let ShardObligations { main, val } = self.compute_fold_outputs(acc_init).obligations;
-        main.into_iter().chain(val).collect()
     }
 
     pub fn compute_fold_outputs(&self, acc_init: &[MeInstance<Cmt, F, K>]) -> ShardFoldOutputs<Cmt, F, K> {

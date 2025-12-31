@@ -28,7 +28,7 @@
 //! let trace = trace_program(my_cpu, my_twist, my_shout, 1000)?;
 //!
 //! // 3. Pass to neo-memory for witness generation
-//! let witness = build_shard_witness(..., &trace, ...);
+//! let steps = build_shard_witness_shared_cpu_bus(...);
 //! ```
 //!
 //! ## Design Notes
@@ -547,6 +547,25 @@ where
     let mut trace = VmTrace::new();
     let mut tracing_twist = TracingTwist::new(twist);
     let mut tracing_shout = TracingShout::new(shout);
+
+    // If the CPU is already halted, emit a single no-op snapshot step so downstream
+    // padding logic (fixed-N execution models) can still operate deterministically.
+    if max_steps > 0 && cpu.halted() {
+        let regs = cpu.snapshot_regs();
+        let pc = cpu.pc();
+        trace.steps.push(StepTrace {
+            cycle: 0,
+            pc_before: pc,
+            pc_after: pc,
+            opcode: 0,
+            regs_before: regs.clone(),
+            regs_after: regs,
+            twist_events: Vec::new(),
+            shout_events: Vec::new(),
+            halted: true,
+        });
+        return Ok(trace);
+    }
 
     for cycle in 0..max_steps {
         if cpu.halted() {

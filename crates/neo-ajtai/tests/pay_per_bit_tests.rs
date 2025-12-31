@@ -156,10 +156,10 @@ fn dense_commit_matches_spec_with_mixed_digits() {
     let mut Z = vec![Fq::ZERO; d * m];
     for i in 0..Z.len() {
         Z[i] = match i % 16 {
-            0..=7 => Fq::ONE,             // 50% ones
-            8..=11 => Fq::ZERO,           // 25% zeros
+            0..=7 => Fq::ONE,              // 50% ones
+            8..=11 => Fq::ZERO,            // 25% zeros
             12..=13 => Fq::ZERO - Fq::ONE, // 12.5% minus ones
-            _ => Fq::from_u64(2),         // 12.5% twos (breaks pay-per-bit!)
+            _ => Fq::from_u64(2),          // 12.5% twos (breaks pay-per-bit!)
         };
     }
 

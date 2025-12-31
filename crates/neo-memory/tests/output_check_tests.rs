@@ -1,10 +1,10 @@
 //! Tests for the Output Sumcheck module.
 
-use neo_math::{K, KExtensions};
+use neo_math::{KExtensions, K};
 use neo_memory::mle::build_chi_table;
 use neo_memory::output_check::{
-    generate_output_sumcheck_proof, verify_output_sumcheck, OutputCheckError, OutputSumcheckParams, OutputSumcheckProof,
-    OutputSumcheckProver, ProgramIO,
+    generate_output_sumcheck_proof, verify_output_sumcheck, OutputCheckError, OutputSumcheckParams,
+    OutputSumcheckProof, OutputSumcheckProver, ProgramIO,
 };
 use neo_reductions::sumcheck::RoundOracle;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -16,7 +16,9 @@ use p3_goldilocks::Goldilocks as F;
 // ============================================================================
 
 fn make_test_params(num_bits: usize, claims: &[(u64, u64)]) -> OutputSumcheckParams<F> {
-    let r_addr: Vec<K> = (0..num_bits).map(|i| K::from_u64(100 + (i * 37) as u64)).collect();
+    let r_addr: Vec<K> = (0..num_bits)
+        .map(|i| K::from_u64(100 + (i * 37) as u64))
+        .collect();
     let mut program_io = ProgramIO::new();
     for (addr, value) in claims {
         program_io = program_io.with_output(*addr, F::from_u64(*value));
@@ -45,7 +47,9 @@ fn interpolate(xs: &[K], ys: &[K]) -> Vec<K> {
         let mut cur_deg = 0;
         let mut denom = K::ONE;
         for j in 0..n {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             let mut next = vec![K::ZERO; n];
             for d in 0..=cur_deg {
                 next[d + 1] += numer[d];
@@ -56,7 +60,9 @@ fn interpolate(xs: &[K], ys: &[K]) -> Vec<K> {
             denom *= xs[i] - xs[j];
         }
         let scale = ys[i] * denom.inv();
-        for d in 0..n { coeffs[d] += scale * numer[d]; }
+        for d in 0..n {
+            coeffs[d] += scale * numer[d];
+        }
     }
     coeffs
 }
@@ -101,7 +107,9 @@ fn test_verifier_enforces_zero_claim() {
     assert_ne!(prover.compute_claim(), K::ZERO);
 
     // Generate proof
-    let eval_points: Vec<K> = (0..=prover.degree_bound()).map(|i| K::from_u64(i as u64)).collect();
+    let eval_points: Vec<K> = (0..=prover.degree_bound())
+        .map(|i| K::from_u64(i as u64))
+        .collect();
     let mut round_polys = Vec::new();
     let mut challenges = Vec::new();
 
@@ -117,15 +125,18 @@ fn test_verifier_enforces_zero_claim() {
 
     // Compute val_final at challenge point
     let chi = build_chi_table(&challenges);
-    let val_final_at_r: K = lying_final_state.iter().enumerate()
-        .map(|(i, &v)| K::from(v) * chi[i]).sum();
+    let val_final_at_r: K = lying_final_state
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| K::from(v) * chi[i])
+        .sum();
 
     // Verify using transcript-based verification
     let mut tr = Poseidon2Transcript::new(b"test");
     // Re-derive params from transcript
     let program_io = ProgramIO::new().with_output(0, F::from_u64(100));
     let result = verify_output_sumcheck(&mut tr, num_bits, program_io, val_final_at_r, &proof);
-    
+
     // Should fail because initial claim != 0
     assert!(result.is_err());
 }
@@ -137,7 +148,9 @@ fn test_verifier_rejects_wrong_degree() {
     let final_state = build_final_state(num_bits, &[(0, 100)]);
 
     let mut prover = OutputSumcheckProver::new(params, &final_state).unwrap();
-    let eval_points: Vec<K> = (0..=prover.degree_bound()).map(|i| K::from_u64(i as u64)).collect();
+    let eval_points: Vec<K> = (0..=prover.degree_bound())
+        .map(|i| K::from_u64(i as u64))
+        .collect();
     let mut round_polys = Vec::new();
     let mut challenges = Vec::new();
 
@@ -154,14 +167,24 @@ fn test_verifier_rejects_wrong_degree() {
     let bad_proof = OutputSumcheckProof { round_polys };
 
     let chi = build_chi_table(&challenges);
-    let val_final_at_r: K = final_state.iter().enumerate()
-        .map(|(i, &v)| K::from(v) * chi[i]).sum();
+    let val_final_at_r: K = final_state
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| K::from(v) * chi[i])
+        .sum();
 
     let mut tr = Poseidon2Transcript::new(b"test");
     let program_io = ProgramIO::new().with_output(0, F::from_u64(100));
     let result = verify_output_sumcheck(&mut tr, num_bits, program_io, val_final_at_r, &bad_proof);
 
-    assert!(matches!(result, Err(OutputCheckError::WrongDegree { round: 0, expected: 4, got: 5 })));
+    assert!(matches!(
+        result,
+        Err(OutputCheckError::WrongDegree {
+            round: 0,
+            expected: 4,
+            got: 5
+        })
+    ));
 }
 
 // ============================================================================
@@ -204,13 +227,19 @@ fn test_address_out_of_domain_detection() {
     let program_io: ProgramIO<F> = ProgramIO::new()
         .with_output(15, F::from_u64(100))
         .with_output(16, F::from_u64(200));
-    assert!(matches!(program_io.validate(4), Err(OutputCheckError::AddressOutOfDomain { addr: 16, .. })));
+    assert!(matches!(
+        program_io.validate(4),
+        Err(OutputCheckError::AddressOutOfDomain { addr: 16, .. })
+    ));
 }
 
 #[test]
 fn test_num_bits_too_large() {
     let program_io: ProgramIO<F> = ProgramIO::new();
-    assert!(matches!(program_io.validate(64), Err(OutputCheckError::NumBitsTooLarge { .. })));
+    assert!(matches!(
+        program_io.validate(64),
+        Err(OutputCheckError::NumBitsTooLarge { .. })
+    ));
 }
 
 #[test]
@@ -232,7 +261,9 @@ fn test_fold_handles_completion() {
     let params = make_test_params(2, &[(0, 42)]);
     let final_state = build_final_state(2, &[(0, 42)]);
     let mut prover = OutputSumcheckProver::new(params, &final_state).unwrap();
-    for _ in 0..4 { prover.fold(K::from_u64(7)); } // Extra folds are no-ops
+    for _ in 0..4 {
+        prover.fold(K::from_u64(7));
+    } // Extra folds are no-ops
     assert_eq!(prover.num_rounds(), 0);
 }
 
@@ -241,7 +272,9 @@ fn test_evals_at_handles_completion() {
     let params = make_test_params(2, &[(0, 42)]);
     let final_state = build_final_state(2, &[(0, 42)]);
     let mut prover = OutputSumcheckProver::new(params, &final_state).unwrap();
-    for _ in 0..2 { prover.fold(K::from_u64(7)); }
+    for _ in 0..2 {
+        prover.fold(K::from_u64(7));
+    }
     let evals = prover.evals_at(&[K::ZERO, K::ONE, K::from_u64(5)]);
     assert_eq!(evals[0], evals[1]);
     assert_eq!(evals[1], evals[2]);
@@ -271,7 +304,9 @@ fn test_full_proof_generation_and_verification() {
     let _params = OutputSumcheckParams::sample_from_transcript(&mut tr_replay, num_bits, program_io.clone()).unwrap();
     let mut challenges = Vec::new();
     for coeffs in &proof.round_polys {
-        for &c in coeffs { tr_replay.append_fields(b"output_check/round_coeff", &c.as_coeffs()); }
+        for &c in coeffs {
+            tr_replay.append_fields(b"output_check/round_coeff", &c.as_coeffs());
+        }
         challenges.push(neo_math::from_complex(
             tr_replay.challenge_field(b"output_check/chal/re"),
             tr_replay.challenge_field(b"output_check/chal/im"),
@@ -279,7 +314,11 @@ fn test_full_proof_generation_and_verification() {
     }
 
     let chi = build_chi_table(&challenges);
-    let val_final_at_r: K = final_state.iter().enumerate().map(|(i, &v)| K::from(v) * chi[i]).sum();
+    let val_final_at_r: K = final_state
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| K::from(v) * chi[i])
+        .sum();
 
     let mut tr_verify = Poseidon2Transcript::new(b"test");
     let result = verify_output_sumcheck(&mut tr_verify, num_bits, program_io, val_final_at_r, &proof);
@@ -331,7 +370,12 @@ fn test_bit_order_consistency_small() {
         let params = make_test_params(num_bits, &[(0, 42)]);
         let final_state = build_final_state(num_bits, &[(0, 42)]);
         let prover = OutputSumcheckProver::new(params, &final_state).unwrap();
-        assert_eq!(prover.compute_claim(), K::ZERO, "Bit order mismatch at num_bits={}", num_bits);
+        assert_eq!(
+            prover.compute_claim(),
+            K::ZERO,
+            "Bit order mismatch at num_bits={}",
+            num_bits
+        );
     }
 }
 
@@ -370,7 +414,7 @@ fn eval_table_at_point(vals: &[F], r: &[K]) -> K {
 #[test]
 fn output_sumcheck_accepts_correct_claims() {
     use neo_memory::output_check::generate_output_sumcheck_proof_and_challenges;
-    
+
     let num_bits = 3usize;
     let k = 1usize << num_bits;
 
@@ -386,33 +430,22 @@ fn output_sumcheck_accepts_correct_claims() {
 
     // Prove
     let mut tr_p = Poseidon2Transcript::new(b"ob-test");
-    let (proof, r_prime) = generate_output_sumcheck_proof_and_challenges(
-        &mut tr_p,
-        num_bits,
-        program_io.clone(),
-        &final_memory_state,
-    )
-    .unwrap();
+    let (proof, r_prime) =
+        generate_output_sumcheck_proof_and_challenges(&mut tr_p, num_bits, program_io.clone(), &final_memory_state)
+            .unwrap();
 
     // Verifier needs Val_final(r_prime)
     let val_final_at_r_prime = eval_table_at_point(&final_memory_state, &r_prime);
 
     // Verify
     let mut tr_v = Poseidon2Transcript::new(b"ob-test");
-    verify_output_sumcheck(
-        &mut tr_v,
-        num_bits,
-        program_io,
-        val_final_at_r_prime,
-        &proof,
-    )
-    .unwrap();
+    verify_output_sumcheck(&mut tr_v, num_bits, program_io, val_final_at_r_prime, &proof).unwrap();
 }
 
 #[test]
 fn output_sumcheck_rejects_wrong_claims() {
     use neo_memory::output_check::generate_output_sumcheck_proof_and_challenges;
-    
+
     let num_bits = 3usize;
     let k = 1usize << num_bits;
 
@@ -427,26 +460,16 @@ fn output_sumcheck_rejects_wrong_claims() {
         .with_output(6, wrong);
 
     let mut tr_p = Poseidon2Transcript::new(b"ob-test");
-    let (proof, r_prime) = generate_output_sumcheck_proof_and_challenges(
-        &mut tr_p,
-        num_bits,
-        program_io.clone(),
-        &final_memory_state,
-    )
-    .unwrap();
+    let (proof, r_prime) =
+        generate_output_sumcheck_proof_and_challenges(&mut tr_p, num_bits, program_io.clone(), &final_memory_state)
+            .unwrap();
 
     let val_final_at_r_prime = eval_table_at_point(&final_memory_state, &r_prime);
 
     let mut tr_v = Poseidon2Transcript::new(b"ob-test");
-    let err = verify_output_sumcheck(
-        &mut tr_v,
-        num_bits,
-        program_io,
-        val_final_at_r_prime,
-        &proof,
-    )
-    .err()
-    .expect("must fail");
+    let err = verify_output_sumcheck(&mut tr_v, num_bits, program_io, val_final_at_r_prime, &proof)
+        .err()
+        .expect("must fail");
 
     // Any failure is acceptable, but it must fail.
     eprintln!("expected failure: {err}");

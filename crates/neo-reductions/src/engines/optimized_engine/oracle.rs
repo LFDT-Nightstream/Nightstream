@@ -119,9 +119,6 @@ fn dot_weights(vals: &[K], w: &[K]) -> K {
 
 /// Precomputation for a fixed r' (row assignment) - eliminates redundant v_j recomputation
 struct RPrecomp {
-    /// v_j = M_j^T · χ_r' for all j (computed once per r')
-    #[allow(dead_code)]
-    vjs: Vec<Vec<K>>,
     /// Y_nc[i][ρ] = (Z_i · v_1)[ρ] for NC terms
     y_nc: Vec<[K; D]>,
     /// Y_eval[i][j][ρ] = (Z_i · v_j)[ρ] for Eval terms  
@@ -306,48 +303,57 @@ where
             None => K::ZERO,
         };
 
-        // Compute all v_j = M_j^T · χ_r' once
+        // Compute all v_j = M_j^T · χ_r' once (sparse representation).
+        //
+        // NOTE: `evals_row_phase` already parallelizes over the remaining Boolean row assignments,
+        // so this is intentionally sequential to avoid nested rayon parallelism.
         let n_eff = core::cmp::min(self.s.n, n_sz);
-        let sparse_threshold = sparse_thresh();
+        let sparse = self
+            .sparse
+            .as_ref()
+            .expect("optimized oracle must build sparse cache in new()");
+        if sparse.csc.len() != t {
+            panic!("optimized oracle sparse cache: matrix count mismatch");
+        }
 
-        let vjs: Vec<Vec<K>> = (0..t)
-            .into_par_iter()
-            .map(|j| {
-                if j == 0 {
-                    let mut v1 = vec![K::ZERO; self.s.m];
-                    let cap = core::cmp::min(self.s.m, n_eff);
-                    v1[..cap].copy_from_slice(&chi_r[..cap]);
-                    return v1;
+        // vjs_nz[j] = list of (col, vj[col]) pairs where vj[col] != 0.
+        let mut vjs_nz: Vec<Vec<(usize, K)>> = Vec::with_capacity(t);
+
+        // j=0 is identity: v1[c] = χ_r[c] for c < min(m, n_eff).
+        let cap = core::cmp::min(self.s.m, n_eff);
+        let mut v1_nz = Vec::with_capacity(cap);
+        for c in 0..cap {
+            let v = chi_r[c];
+            if v != K::ZERO {
+                v1_nz.push((c, v));
+            }
+        }
+        vjs_nz.push(v1_nz);
+
+        for j in 1..t {
+            let csc = sparse.csc[j]
+                .as_ref()
+                .expect("optimized oracle: missing CSC matrix for j>0");
+            let mut nz = Vec::<(usize, K)>::new();
+            for c in 0..csc.ncols {
+                let s = csc.col_ptr[c];
+                let e = csc.col_ptr[c + 1];
+                if s == e {
+                    continue;
                 }
-
-                let mut vj = vec![K::ZERO; self.s.m];
-                let use_sparse = self
-                    .sparse
-                    .as_ref()
-                    .and_then(|sc| sc.density.get(j).copied())
-                    .map(|d| d < sparse_threshold)
-                    .unwrap_or(false);
-
-                if use_sparse {
-                    if let Some(ref sc) = self.sparse {
-                        if let Some(ref csc) = sc.csc[j] {
-                            csc.add_mul_transpose_into::<K>(&chi_r, &mut vj, n_eff);
-                        }
-                    }
-                } else {
-                    for row in 0..n_eff {
-                        let wr = chi_r[row];
-                        if wr == K::ZERO {
-                            continue;
-                        }
-                        for c in 0..self.s.m {
-                            vj[c] += K::from(Self::get_F(&self.s.matrices[j], row, c)) * wr;
-                        }
+                let mut acc = K::ZERO;
+                for k in s..e {
+                    let r = csc.row_idx[k];
+                    if r < n_eff {
+                        acc += K::from(csc.vals[k]) * chi_r[r];
                     }
                 }
-                vj
-            })
-            .collect();
+                if acc != K::ZERO {
+                    nz.push((c, acc));
+                }
+            }
+            vjs_nz.push(nz);
+        }
 
         // Compute F' = f(z_1 · v_j) - independent of α'
         let bF = F::from_u64(self.params.b as u64);
@@ -365,10 +371,10 @@ where
         }
 
         let mut m_vals = vec![K::ZERO; t];
-        for j in 0..t {
+        for (j, vj) in vjs_nz.iter().enumerate() {
             let mut acc = K::ZERO;
-            for c in 0..self.s.m {
-                acc += z1[c] * vjs[j][c];
+            for &(c, v) in vj {
+                acc += z1[c] * v;
             }
             m_vals[j] = acc;
         }
@@ -389,8 +395,8 @@ where
             // NC uses v_1 (j=0)
             for rho in 0..D {
                 let mut acc = K::ZERO;
-                for c in 0..self.s.m {
-                    acc += K::from(Zi[(rho, c)]) * vjs[0][c];
+                for &(c, v) in &vjs_nz[0] {
+                    acc += K::from(Zi[(rho, c)]) * v;
                 }
                 y_nc[idx][rho] = acc;
             }
@@ -399,8 +405,8 @@ where
             for j in 0..t {
                 for rho in 0..D {
                     let mut acc = K::ZERO;
-                    for c in 0..self.s.m {
-                        acc += K::from(Zi[(rho, c)]) * vjs[j][c];
+                    for &(c, v) in &vjs_nz[j] {
+                        acc += K::from(Zi[(rho, c)]) * v;
                     }
                     y_eval[idx][j][rho] = acc;
                 }
@@ -408,7 +414,6 @@ where
         }
 
         RPrecomp {
-            vjs,
             y_nc,
             y_eval,
             f_prime,

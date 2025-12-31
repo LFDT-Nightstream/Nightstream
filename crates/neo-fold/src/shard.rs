@@ -31,9 +31,7 @@ use neo_memory::ts_common as ts;
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils;
-use neo_reductions::paper_exact_engine::{
-    build_me_outputs_paper_exact, claimed_initial_sum_from_inputs,
-};
+use neo_reductions::paper_exact_engine::{build_me_outputs_paper_exact, claimed_initial_sum_from_inputs};
 use neo_reductions::sumcheck::{poly_eval_k, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -42,7 +40,55 @@ use p3_field::PrimeCharacteristicRing;
 // Utilities
 // ============================================================================
 
-pub use crate::memory_sidecar::memory::absorb_step_memory_commitments;
+pub use crate::memory_sidecar::memory::absorb_step_memory;
+
+// ============================================================================
+// Optional step-to-step (cross-chunk) linking
+// ============================================================================
+
+/// Optional verifier-side linking constraints across adjacent shard steps.
+///
+/// This is intended for chunked CPU circuits that expose boundary state as part of the public
+/// input vector `x` per step, and need the verifier to enforce that the state chains across steps.
+#[derive(Clone, Debug)]
+pub struct StepLinkingConfig {
+    /// Equalities on adjacent steps: require `steps[i].x[prev_idx] == steps[i+1].x[next_idx]`.
+    pub prev_next_equalities: Vec<(usize, usize)>,
+}
+
+impl StepLinkingConfig {
+    pub fn new(prev_next_equalities: Vec<(usize, usize)>) -> Self {
+        Self { prev_next_equalities }
+    }
+}
+
+pub fn check_step_linking(
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    cfg: &StepLinkingConfig,
+) -> Result<(), PiCcsError> {
+    if steps.len() <= 1 || cfg.prev_next_equalities.is_empty() {
+        return Ok(());
+    }
+    for (i, (prev, next)) in steps.iter().zip(steps.iter().skip(1)).enumerate() {
+        let prev_x = &prev.mcs_inst.x;
+        let next_x = &next.mcs_inst.x;
+        for &(prev_idx, next_idx) in &cfg.prev_next_equalities {
+            if prev_idx >= prev_x.len() || next_idx >= next_x.len() {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "step linking index out of range at boundary {i}: prev_x.len()={}, next_x.len()={}, pair=({prev_idx},{next_idx})",
+                    prev_x.len(),
+                    next_x.len(),
+                )));
+            }
+            if prev_x[prev_idx] != next_x[next_idx] {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "step linking failed at boundary {i}: prev_x[{prev_idx}] != next_x[{next_idx}]",
+                )));
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Commitment mixers so the coordinator stays scheme-agnostic.
 /// - `mix_rhos_commits(ρ, cs)` returns Σ ρ_i · c_i  (S-action).
@@ -367,7 +413,10 @@ where
         RlcLane::Val => "val-lane ",
     };
     if parent_pub.X.as_slice() != rlc_parent.X.as_slice() {
-        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC X mismatch", step_idx)));
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: {prefix}RLC X mismatch",
+            step_idx
+        )));
     }
     if parent_pub.c != rlc_parent.c {
         return Err(PiCcsError::ProtocolError(format!(
@@ -376,10 +425,16 @@ where
         )));
     }
     if parent_pub.r != rlc_parent.r {
-        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC r mismatch", step_idx)));
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: {prefix}RLC r mismatch",
+            step_idx
+        )));
     }
     if parent_pub.y != rlc_parent.y {
-        return Err(PiCcsError::ProtocolError(format!("step {}: {prefix}RLC y mismatch", step_idx)));
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: {prefix}RLC y mismatch",
+            step_idx
+        )));
     }
     if parent_pub.y_scalars != rlc_parent.y_scalars {
         return Err(PiCcsError::ProtocolError(format!(
@@ -420,9 +475,10 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    let s = s_me
+    let s0 = s_me
         .ensure_identity_first()
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+    let (s, cpu_bus) = crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(&s0, steps)?;
     // Route A terminal checks interpret `ME.y_scalars[0]` as MLE(column)(r_time), which requires M₀ = I.
     s.assert_m0_is_identity_for_nc()
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first (M₀=I) required: {e:?}")))?;
@@ -441,17 +497,15 @@ where
 
     let mut step_proofs = Vec::with_capacity(steps.len());
     let mut val_lane_wits: Vec<Mat<F>> = Vec::new();
-    let mut prev_twist_decoded: Option<Vec<neo_memory::twist::TwistDecodedCols>> = None;
-    let mut output_proof_opt: Option<neo_memory::output_check::OutputBindingProof> = None;
+    let mut prev_twist_decoded: Option<Vec<crate::memory_sidecar::memory::TwistDecodedColsSparse>> = None;
+    let mut output_proof: Option<neo_memory::output_check::OutputBindingProof> = None;
 
     if ob.is_some() && steps.is_empty() {
-        return Err(PiCcsError::InvalidInput(
-            "output binding requires >= 1 step".into(),
-        ));
+        return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
     }
 
     for (idx, step) in steps.iter().enumerate() {
-        crate::memory_sidecar::memory::absorb_step_memory_commitments_witness(tr, step);
+        crate::memory_sidecar::memory::absorb_step_memory_witness(tr, step);
 
         let include_ob = ob.is_some() && (idx + 1 == steps.len());
         let mut ob_time_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
@@ -459,9 +513,14 @@ where
 
         // Output binding is injected only on the final step, and must run before sampling Route-A `r_time`.
         if include_ob {
-            let (cfg, final_memory_state) = ob.ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but config missing".into())
-            })?;
+            let (cfg, final_memory_state) =
+                ob.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
+
+            if output_proof.is_some() {
+                return Err(PiCcsError::ProtocolError(
+                    "output binding already attached (internal error)".into(),
+                ));
+            }
 
             if cfg.mem_idx >= step.mem_instances.len() {
                 return Err(PiCcsError::InvalidInput("output binding mem_idx out of range".into()));
@@ -495,16 +554,15 @@ where
             tr.append_u64s(b"output_binding/mem_idx", &[cfg.mem_idx as u64]);
             tr.append_u64s(b"output_binding/num_bits", &[cfg.num_bits as u64]);
 
-            let (output_sc, r_prime) =
-                neo_memory::output_check::generate_output_sumcheck_proof_and_challenges(
-                    tr,
-                    cfg.num_bits,
-                    cfg.program_io.clone(),
-                    final_memory_state,
-                )
-                .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
+            let (output_sc, r_prime) = neo_memory::output_check::generate_output_sumcheck_proof_and_challenges(
+                tr,
+                cfg.num_bits,
+                cfg.program_io.clone(),
+                final_memory_state,
+            )
+            .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
 
-            output_proof_opt = Some(neo_memory::output_check::OutputBindingProof { output_sc });
+            output_proof = Some(neo_memory::output_check::OutputBindingProof { output_sc });
             ob_r_prime = Some(r_prime);
         }
 
@@ -580,86 +638,52 @@ where
             }
         };
 
-        let shout_pre = crate::memory_sidecar::memory::prove_shout_addr_pre_time(tr, params, step, ell_n, &r_cycle)?;
-        let twist_pre = crate::memory_sidecar::memory::prove_twist_addr_pre_time(tr, params, step, ell_n, &r_cycle)?;
+        let shout_pre = crate::memory_sidecar::memory::prove_shout_addr_pre_time(
+            tr,
+            params,
+            step,
+            Some(&cpu_bus),
+            ell_n,
+            &r_cycle,
+            idx,
+        )?;
+        let twist_pre = crate::memory_sidecar::memory::prove_twist_addr_pre_time(
+            tr,
+            params,
+            step,
+            Some(&cpu_bus),
+            ell_n,
+            &r_cycle,
+        )?;
         let twist_read_claims: Vec<K> = twist_pre.iter().map(|p| p.read_check_claim_sum).collect();
         let twist_write_claims: Vec<K> = twist_pre.iter().map(|p| p.write_check_claim_sum).collect();
+        let mut mem_oracles = crate::memory_sidecar::memory::build_route_a_memory_oracles(
+            params, step, ell_n, &r_cycle, &shout_pre, &twist_pre,
+        )?;
 
         if include_ob {
-            let (cfg, _final_memory_state) = ob.ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but config missing".into())
-            })?;
+            let (cfg, _final_memory_state) =
+                ob.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
             let r_prime = ob_r_prime
-                .take()
-                .ok_or_else(|| PiCcsError::ProtocolError("missing r_prime for output binding".into()))?;
-            let decoded = &twist_pre
+                .as_ref()
+                .ok_or_else(|| PiCcsError::ProtocolError("output binding r_prime missing".into()))?;
+            let pre = twist_pre
                 .get(cfg.mem_idx)
-                .ok_or_else(|| PiCcsError::InvalidInput("output binding mem_idx out of range".into()))?
-                .decoded;
-            if decoded.wa_bits.len() != cfg.num_bits {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "output binding: Twist decoded wa_bits len {} != num_bits {}",
-                    decoded.wa_bits.len(),
-                    cfg.num_bits
-                )));
-            }
-            if r_prime.len() != cfg.num_bits {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "output binding: r_prime.len()={} != num_bits={}",
-                    r_prime.len(),
-                    cfg.num_bits
-                )));
-            }
+                .ok_or_else(|| PiCcsError::ProtocolError("output binding mem_idx out of range for twist_pre".into()))?;
 
-            let expected_pow2_time = 1usize
-                .checked_shl(ell_n as u32)
-                .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^ell_n overflow".into()))?;
-            if decoded.has_write.len() != expected_pow2_time {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "output binding: decoded.has_write.len()={} != 2^ell_n={}",
-                    decoded.has_write.len(),
-                    expected_pow2_time
-                )));
-            }
-            if decoded.inc_at_write_addr.len() != expected_pow2_time {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "output binding: decoded.inc_at_write_addr.len()={} != 2^ell_n={}",
-                    decoded.inc_at_write_addr.len(),
-                    expected_pow2_time
-                )));
-            }
-            for (b, col) in decoded.wa_bits.iter().enumerate() {
-                if col.len() != expected_pow2_time {
-                    return Err(PiCcsError::InvalidInput(format!(
-                        "output binding: decoded.wa_bits[{b}].len()={} != 2^ell_n={}",
-                        col.len(),
-                        expected_pow2_time
-                    )));
-                }
-            }
-
-            use neo_memory::twist_oracle::TwistTotalIncOracleSparse;
-            let (inc_oracle, inc_total_claim) = TwistTotalIncOracleSparse::new(
-                &decoded.wa_bits,
-                decoded.has_write.clone(),
-                decoded.inc_at_write_addr.clone(),
-                &r_prime,
+            let (oracle, claimed_sum) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
+                pre.decoded.wa_bits.clone(),
+                pre.decoded.has_write.clone(),
+                pre.decoded.inc_at_write_addr.clone(),
+                r_prime,
             );
+
             ob_time_claim = Some(crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim {
-                oracle: Box::new(inc_oracle),
-                claimed_sum: inc_total_claim,
+                oracle: Box::new(oracle),
+                claimed_sum,
                 label: crate::output_binding::OB_INC_TOTAL_LABEL,
             });
         }
-
-        let mut mem_oracles = crate::memory_sidecar::memory::build_route_a_memory_oracles(
-            params,
-            step,
-            ell_n,
-            &r_cycle,
-            &shout_pre,
-            &twist_pre,
-        )?;
 
         let crate::memory_sidecar::route_a_time::RouteABatchedTimeProverOutput {
             r_time,
@@ -740,35 +764,25 @@ where
         // Memory sidecar: emit ME claims at the shared r_time (no fixed-challenge sumcheck).
         let prev_step = (idx > 0).then(|| &steps[idx - 1]);
         let prev_twist_decoded_ref = prev_twist_decoded.as_deref();
-	        let mut mem_out = crate::memory_sidecar::memory::finalize_route_a_memory_prover(
-	            tr,
-	            params,
-	            &s,
-	            step,
-	            prev_step,
-	            prev_twist_decoded_ref,
-	            &mut mem_oracles,
-	            &shout_pre,
-	            &twist_pre,
-	            &r_time,
-	            mcs_inst.m_in,
-	            idx,
-	        )?;
-	        prev_twist_decoded = Some(twist_pre.into_iter().map(|p| p.decoded).collect());
+        let mut mem_proof = crate::memory_sidecar::memory::finalize_route_a_memory_prover(
+            tr,
+            params,
+            &s,
+            step,
+            prev_step,
+            prev_twist_decoded_ref,
+            &mut mem_oracles,
+            &shout_pre.addr_pre,
+            &twist_pre,
+            &r_time,
+            mcs_inst.m_in,
+            idx,
+        )?;
+        prev_twist_decoded = Some(twist_pre.into_iter().map(|p| p.decoded).collect());
 
-        normalize_me_claims(&mut mem_out.mem.me_claims_time, ell_n, ell_d, s.t())?;
-        normalize_me_claims(&mut mem_out.mem.me_claims_val, ell_n, ell_d, s.t())?;
+        normalize_me_claims(&mut mem_proof.cpu_me_claims_val, ell_n, ell_d, s.t())?;
 
         validate_me_batch_invariants(&ccs_out, "prove step ccs outputs")?;
-        validate_me_batch_invariants(&mem_out.mem.me_claims_time, "prove step memory outputs")?;
-
-        // Build RLC inputs: CCS outputs + memory ME
-        let mut rlc_inputs = ccs_out.clone();
-        rlc_inputs.extend(mem_out.mem.me_claims_time.clone());
-        validate_me_batch_invariants(&rlc_inputs, "prove step RLC inputs (ccs_out + mem_time)")?;
-
-        let mut rlc_wits = outs_Z.clone();
-        rlc_wits.extend(pad_mats_to_ccs_width(&mem_out.me_wits_time, s.m)?);
 
         let (main_fold, Z_split) = prove_rlc_dec_lane(
             &mode,
@@ -780,8 +794,8 @@ where
             ell_d,
             k_dec,
             idx,
-            &rlc_inputs,
-            &rlc_wits,
+            &ccs_out,
+            &outs_Z,
             l,
             mixers,
         )?;
@@ -794,20 +808,25 @@ where
         // --------------------------------------------------------------------
         // Phase 2: Second folding lane for Twist val-eval ME claims at r_val.
         // --------------------------------------------------------------------
-        let val_fold = if mem_out.mem.me_claims_val.is_empty() {
+        let val_fold = if mem_proof.cpu_me_claims_val.is_empty() {
             None
         } else {
-            validate_me_batch_invariants(&mem_out.mem.me_claims_val, "prove step memory val outputs")?;
-            if mem_out.me_wits_val.len() != mem_out.mem.me_claims_val.len() {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "Twist(val) witness count mismatch (have {}, need {})",
-                    mem_out.me_wits_val.len(),
-                    mem_out.mem.me_claims_val.len()
-                )));
-            }
+            validate_me_batch_invariants(&mem_proof.cpu_me_claims_val, "prove step memory val outputs")?;
 
             tr.append_message(b"fold/val_lane_start", &(idx as u64).to_le_bytes());
-            let val_wits = pad_mats_to_ccs_width(&mem_out.me_wits_val, s.m)?;
+            let mut val_wits = Vec::with_capacity(mem_proof.cpu_me_claims_val.len());
+            val_wits.push(mcs_wit.Z.clone());
+            if let Some(prev) = prev_step {
+                val_wits.push(prev.mcs.1.Z.clone());
+            }
+            if val_wits.len() != mem_proof.cpu_me_claims_val.len() {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "Twist(val) witness count mismatch (have {}, need {})",
+                    val_wits.len(),
+                    mem_proof.cpu_me_claims_val.len()
+                )));
+            }
+            let val_wits = pad_mats_to_ccs_width(&val_wits, s.m)?;
             let (val_fold, mut Z_split_val) = prove_rlc_dec_lane(
                 &mode,
                 RlcLane::Val,
@@ -818,7 +837,7 @@ where
                 ell_d,
                 k_dec,
                 idx,
-                &mem_out.mem.me_claims_val,
+                &mem_proof.cpu_me_claims_val,
                 &val_wits,
                 l,
                 mixers,
@@ -842,7 +861,7 @@ where
                 rlc_parent: parent_pub,
                 dec_children: children,
             },
-            mem: mem_out.mem,
+            mem: mem_proof,
             batched_time,
             val_fold,
         });
@@ -853,7 +872,7 @@ where
     Ok((
         ShardProof {
             steps: step_proofs,
-            output_proof: output_proof_opt,
+            output_proof,
         },
         accumulator_wit,
         val_lane_wits,
@@ -876,8 +895,19 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    let (proof, _final_main_wits, _val_lane_wits) =
-        fold_shard_prove_impl(false, mode, tr, params, s_me, steps, acc_init, acc_wit_init, l, mixers, None)?;
+    let (proof, _final_main_wits, _val_lane_wits) = fold_shard_prove_impl(
+        false,
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        acc_wit_init,
+        l,
+        mixers,
+        None,
+    )?;
     Ok(proof)
 }
 
@@ -931,8 +961,19 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    let (proof, final_main_wits, val_lane_wits) =
-        fold_shard_prove_impl(true, mode, tr, params, s_me, steps, acc_init, acc_wit_init, l, mixers, None)?;
+    let (proof, final_main_wits, val_lane_wits) = fold_shard_prove_impl(
+        true,
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        acc_wit_init,
+        l,
+        mixers,
+        None,
+    )?;
     let outputs = proof.compute_fold_outputs(acc_init);
     if outputs.obligations.main.len() != final_main_wits.len() {
         return Err(PiCcsError::ProtocolError(format!(
@@ -977,9 +1018,10 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    let s = s_me
+    let s0 = s_me
         .ensure_identity_first()
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+    let (s, cpu_bus) = crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(&s0, steps)?;
     // Route A terminal checks interpret `ME.y_scalars[0]` as MLE(column)(r_time), which requires M₀ = I.
     s.assert_m0_is_identity_for_nc()
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first (M₀=I) required: {e:?}")))?;
@@ -998,44 +1040,75 @@ where
             proof.steps.len()
         )));
     }
-
     if ob_cfg.is_some() && steps.is_empty() {
+        return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
+    }
+    if ob_cfg.is_none() && proof.output_proof.is_some() {
         return Err(PiCcsError::InvalidInput(
-            "output binding requires >= 1 step".into(),
+            "shard proof contains output binding, but verifier did not supply OutputBindingConfig".into(),
+        ));
+    }
+    if ob_cfg.is_some() && proof.output_proof.is_none() {
+        return Err(PiCcsError::InvalidInput(
+            "verifier supplied OutputBindingConfig, but shard proof has no output binding".into(),
         ));
     }
 
     let mut accumulator = acc_init.to_vec();
     let mut val_lane_obligations: Vec<MeInstance<Cmt, F, K>> = Vec::new();
-    let mut ob_state: Option<neo_memory::output_check::OutputSumcheckState> = None;
 
     for (idx, (step, step_proof)) in steps.iter().zip(proof.steps.iter()).enumerate() {
-        absorb_step_memory_commitments(tr, step);
+        absorb_step_memory(tr, step);
 
         let include_ob = ob_cfg.is_some() && (idx + 1 == steps.len());
+        let mut ob_state: Option<neo_memory::output_check::OutputSumcheckState> = None;
+        let mut ob_inc_total_degree_bound: Option<usize> = None;
+
         if include_ob {
-            let cfg = ob_cfg.ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but config missing".into())
-            })?;
-            let ob_proof = proof.output_proof.as_ref().ok_or_else(|| {
-                PiCcsError::InvalidInput("no output binding proof attached".into())
-            })?;
+            let cfg =
+                ob_cfg.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
+            let ob_proof = proof
+                .output_proof
+                .as_ref()
+                .ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but proof missing".into()))?;
+
+            if cfg.mem_idx >= step.mem_insts.len() {
+                return Err(PiCcsError::InvalidInput("output binding mem_idx out of range".into()));
+            }
+            let mem_inst = step
+                .mem_insts
+                .get(cfg.mem_idx)
+                .ok_or_else(|| PiCcsError::InvalidInput("output binding mem_idx out of range".into()))?;
+            let expected_k = 1usize
+                .checked_shl(cfg.num_bits as u32)
+                .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^num_bits overflow".into()))?;
+            if mem_inst.k != expected_k {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "output binding: cfg.num_bits implies k={}, but mem_inst.k={}",
+                    expected_k, mem_inst.k
+                )));
+            }
+            let ell_addr = mem_inst.twist_layout().ell_addr;
+            if ell_addr != cfg.num_bits {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
+                    cfg.num_bits, ell_addr
+                )));
+            }
 
             tr.append_message(b"shard/output_binding_start", &(idx as u64).to_le_bytes());
             tr.append_u64s(b"output_binding/mem_idx", &[cfg.mem_idx as u64]);
             tr.append_u64s(b"output_binding/num_bits", &[cfg.num_bits as u64]);
 
-            ob_state = Some(
-                neo_memory::output_check::verify_output_sumcheck_rounds_get_state(
-                    tr,
-                    cfg.num_bits,
-                    cfg.program_io.clone(),
-                    &ob_proof.output_sc,
-                )
-                .map_err(|e| {
-                    PiCcsError::ProtocolError(format!("output sumcheck rounds invalid: {e:?}"))
-                })?,
-            );
+            let state = neo_memory::output_check::verify_output_sumcheck_rounds_get_state(
+                tr,
+                cfg.num_bits,
+                cfg.program_io.clone(),
+                &ob_proof.output_sc,
+            )
+            .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
+            ob_inc_total_degree_bound = Some(2 + ell_addr);
+            ob_state = Some(state);
         }
 
         let mcs_inst = &step.mcs_inst;
@@ -1065,7 +1138,9 @@ where
         let claimed_initial = match &mode {
             FoldingMode::Optimized => crate::optimized_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator),
             #[cfg(feature = "paper-exact")]
-            FoldingMode::PaperExact => crate::paper_exact_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator),
+            FoldingMode::PaperExact => {
+                crate::paper_exact_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator)
+            }
             #[cfg(feature = "paper-exact")]
             FoldingMode::OptimizedWithCrosscheck(_) => {
                 crate::optimized_engine::claimed_initial_sum_from_inputs(&s, &ch, &accumulator)
@@ -1085,10 +1160,8 @@ where
         let r_cycle: Vec<K> =
             ts::sample_ext_point(tr, b"route_a/r_cycle", b"route_a/cycle/0", b"route_a/cycle/1", ell_n);
 
-        let shout_pre = crate::memory_sidecar::memory::verify_shout_addr_pre_time(tr, step, &step_proof.mem)?;
+        let shout_pre = crate::memory_sidecar::memory::verify_shout_addr_pre_time(tr, step, &step_proof.mem, idx)?;
         let twist_pre = crate::memory_sidecar::memory::verify_twist_addr_pre_time(tr, step, &step_proof.mem)?;
-        let include_ob = ob_cfg.is_some() && (idx + 1 == steps.len());
-        let ob_inc_total_degree_bound = include_ob.then(|| 2 + ob_cfg.expect("include_ob implies ob_cfg").num_bits);
         let crate::memory_sidecar::route_a_time::RouteABatchedTimeVerifyOutput { r_time, final_values } =
             crate::memory_sidecar::route_a_time::verify_route_a_batched_time(
                 tr,
@@ -1243,46 +1316,43 @@ where
             return Err(PiCcsError::ProtocolError("Π_CCS header digest mismatch".into()));
         }
 
-        // Verify mem proofs and collect ME claims.
+        // Verify mem proofs (shared CPU bus only).
         let prev_step = (idx > 0).then(|| &steps[idx - 1]);
-	        let mem_out = crate::memory_sidecar::memory::verify_route_a_memory_step(
-	            tr,
-	            params,
-	            step,
-	            prev_step,
-	            &step_proof.fold.ccs_out[0],
-	            &r_time,
-	            &r_cycle,
-	            &final_values,
-	            &step_proof.batched_time.claimed_sums,
-	            1, // claim 0 is CCS/time
-	            &step_proof.mem,
-	            &shout_pre,
-	            &twist_pre,
-	            idx,
-	        )?;
-        let crate::memory_sidecar::memory::RouteAMemoryVerifyOutput {
-            collected_me_time,
-            collected_me_val,
-            claim_idx_end: claim_idx,
-            twist_total_inc_sums: _twist_total_inc_sums,
-            twist_time_openings,
-        } = mem_out;
+        let mem_out = crate::memory_sidecar::memory::verify_route_a_memory_step(
+            tr,
+            &cpu_bus,
+            step,
+            prev_step,
+            &step_proof.fold.ccs_out[0],
+            &r_time,
+            &r_cycle,
+            &final_values,
+            &step_proof.batched_time.claimed_sums,
+            1, // claim 0 is CCS/time
+            &step_proof.mem,
+            &shout_pre,
+            &twist_pre,
+            idx,
+        )?;
 
-        let expected_consumed = if include_ob { final_values.len() - 1 } else { final_values.len() };
-        if claim_idx != expected_consumed {
+        let expected_consumed = if include_ob {
+            final_values
+                .len()
+                .checked_sub(1)
+                .ok_or_else(|| PiCcsError::ProtocolError("missing output binding claim".into()))?
+        } else {
+            final_values.len()
+        };
+        if mem_out.claim_idx_end != expected_consumed {
             return Err(PiCcsError::ProtocolError(format!(
                 "step {}: batched claim index mismatch (consumed {}, expected {})",
-                idx,
-                claim_idx,
-                expected_consumed
+                idx, mem_out.claim_idx_end, expected_consumed
             )));
         }
 
         if include_ob {
-            let cfg = ob_cfg.ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding enabled but config missing".into())
-            })?;
+            let cfg =
+                ob_cfg.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
             let ob_state = ob_state
                 .take()
                 .ok_or_else(|| PiCcsError::ProtocolError("output sumcheck state missing".into()))?;
@@ -1304,19 +1374,20 @@ where
                 .get(inc_idx)
                 .ok_or_else(|| PiCcsError::ProtocolError("missing inc_total final_value".into()))?;
 
-            let twist_open = twist_time_openings.get(cfg.mem_idx).ok_or_else(|| {
-                PiCcsError::ProtocolError("missing twist_time_openings for mem_idx".into())
-            })?;
-            let inc_terminal =
-                crate::output_binding::inc_terminal_from_time_openings(twist_open, &ob_state.r_prime)
-                    .map_err(|e| PiCcsError::ProtocolError(format!("inc_total terminal mismatch: {e:?}")))?;
+            let twist_open = mem_out
+                .twist_time_openings
+                .get(cfg.mem_idx)
+                .ok_or_else(|| PiCcsError::ProtocolError("missing twist_time_openings for mem_idx".into()))?;
+            let inc_terminal = crate::output_binding::inc_terminal_from_time_openings(twist_open, &ob_state.r_prime)
+                .map_err(|e| PiCcsError::ProtocolError(format!("inc_total terminal mismatch: {e:?}")))?;
             if inc_total_final != inc_terminal {
                 return Err(PiCcsError::ProtocolError("inc_total terminal mismatch".into()));
             }
 
-            let mem_inst = step.mem_insts.get(cfg.mem_idx).ok_or_else(|| {
-                PiCcsError::InvalidInput("output binding mem_idx out of range".into())
-            })?;
+            let mem_inst = step
+                .mem_insts
+                .get(cfg.mem_idx)
+                .ok_or_else(|| PiCcsError::InvalidInput("output binding mem_idx out of range".into()))?;
             let expected_k = 1usize
                 .checked_shl(cfg.num_bits as u32)
                 .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^num_bits overflow".into()))?;
@@ -1338,29 +1409,13 @@ where
 
             let val_final_at_r_prime = val_init + inc_total_claim;
             let expected_out = ob_state.eq_eval * ob_state.io_mask_eval * (val_final_at_r_prime - ob_state.val_io_eval);
-            if ob_state.output_final != expected_out {
-                return Err(PiCcsError::ProtocolError("output binding final mismatch".into()));
+            if expected_out != ob_state.output_final {
+                return Err(PiCcsError::ProtocolError("output binding final check failed".into()));
             }
         }
 
         validate_me_batch_invariants(&step_proof.fold.ccs_out, "verify step ccs outputs")?;
-        validate_me_batch_invariants(&collected_me_time, "verify step memory outputs")?;
-        validate_me_batch_invariants(&collected_me_val, "verify step memory val outputs")?;
-
-        // Enforce r-alignment between CCS outputs and memory ME claims (needed for RLC).
-        let r_ccs = &step_proof.fold.ccs_out[0].r;
-        for (i, me) in collected_me_time.iter().enumerate() {
-            if &me.r != r_ccs {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "step {}: memory ME[{}] r != CCS r (cannot fold via Π_RLC)",
-                    idx, i
-                )));
-            }
-        }
-
-        let mut rlc_inputs = step_proof.fold.ccs_out.clone();
-        rlc_inputs.extend_from_slice(&collected_me_time);
-        validate_me_batch_invariants(&rlc_inputs, "verify step RLC inputs (ccs_out + mem_time)")?;
+        validate_me_batch_invariants(&step_proof.mem.cpu_me_claims_val, "verify step memory val outputs")?;
         verify_rlc_dec_lane(
             RlcLane::Main,
             tr,
@@ -1370,7 +1425,7 @@ where
             ell_d,
             mixers,
             idx,
-            &rlc_inputs,
+            &step_proof.fold.ccs_out,
             &step_proof.fold.rlc_rhos,
             &step_proof.fold.rlc_parent,
             &step_proof.fold.dec_children,
@@ -1379,7 +1434,10 @@ where
         accumulator = step_proof.fold.dec_children.clone();
 
         // Phase 2: Verify the r_val folding lane for Twist val-eval ME claims.
-        match (collected_me_val.is_empty(), step_proof.val_fold.as_ref()) {
+        match (
+            step_proof.mem.cpu_me_claims_val.is_empty(),
+            step_proof.val_fold.as_ref(),
+        ) {
             (true, None) => {}
             (true, Some(_)) => {
                 return Err(PiCcsError::ProtocolError(format!(
@@ -1404,7 +1462,7 @@ where
                     ell_d,
                     mixers,
                     idx,
-                    &collected_me_val,
+                    &step_proof.mem.cpu_me_claims_val,
                     &val_fold.rlc_rhos,
                     &val_fold.rlc_parent,
                     &val_fold.dec_children,
@@ -1442,6 +1500,25 @@ where
     fold_shard_verify_impl(mode, tr, params, s_me, steps, acc_init, proof, mixers, None)
 }
 
+pub fn fold_shard_verify_with_step_linking<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    step_linking: &StepLinkingConfig,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify(mode, tr, params, s_me, steps, acc_init, proof, mixers)
+}
+
 pub fn fold_shard_verify_with_output_binding<MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
@@ -1458,6 +1535,26 @@ where
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
     fold_shard_verify_impl(mode, tr, params, s_me, steps, acc_init, proof, mixers, Some(ob_cfg))
+}
+
+pub fn fold_shard_verify_with_output_binding_and_step_linking<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    ob_cfg: &crate::output_binding::OutputBindingConfig,
+    step_linking: &StepLinkingConfig,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify_with_output_binding(mode, tr, params, s_me, steps, acc_init, proof, mixers, ob_cfg)
 }
 
 pub fn fold_shard_verify_and_finalize<MR, MB, Fin>(
@@ -1484,6 +1581,27 @@ where
     Ok(())
 }
 
+pub fn fold_shard_verify_and_finalize_with_step_linking<MR, MB, Fin>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    step_linking: &StepLinkingConfig,
+    finalizer: &mut Fin,
+) -> Result<(), PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+    Fin: ObligationFinalizer<Cmt, F, K, Error = PiCcsError>,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify_and_finalize(mode, tr, params, s_me, steps, acc_init, proof, mixers, finalizer)
+}
+
 pub fn fold_shard_verify_and_finalize_with_output_binding<MR, MB, Fin>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
@@ -1508,4 +1626,28 @@ where
         .obligations
         .require_all_finalized(report.did_finalize_main, report.did_finalize_val)?;
     Ok(())
+}
+
+pub fn fold_shard_verify_and_finalize_with_output_binding_and_step_linking<MR, MB, Fin>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[MeInstance<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    ob_cfg: &crate::output_binding::OutputBindingConfig,
+    step_linking: &StepLinkingConfig,
+    finalizer: &mut Fin,
+) -> Result<(), PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+    Fin: ObligationFinalizer<Cmt, F, K, Error = PiCcsError>,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify_and_finalize_with_output_binding(
+        mode, tr, params, s_me, steps, acc_init, proof, mixers, ob_cfg, finalizer,
+    )
 }

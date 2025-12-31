@@ -251,13 +251,4 @@ pub fn k_scalar_mul<F: PrimeField, CS: ConstraintSystem<F>>(
     Ok(KNumVar { c0, c1 })
 }
 
-#[cfg(test)]
-#[allow(unused_imports)]
-mod tests {
-    use super::*;
-    use bellpepper_core::test_cs::TestConstraintSystem;
-    use p3_goldilocks::Goldilocks;
-
-    // Note: Full tests would require proper PrimeField implementation for Goldilocks
-    // This is a placeholder showing the structure
-}
+// Tests live in `crates/neo-spartan-bridge/tests/` (no in-file test modules).

@@ -432,18 +432,6 @@ pub fn sample_rot_rhos_n(
     Ok(out)
 }
 
-/// Sample `k_rho + 1` rotation matrices (legacy API for backwards compatibility).
-///
-/// This is equivalent to `sample_rot_rhos_n(tr, params, ring, params.k_rho + 1)`.
-/// For new code, prefer `sample_rot_rhos_n` with explicit count.
-pub fn sample_rot_rhos(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    ring: &RotRing,
-) -> Result<Vec<Mat<F>>, PiCcsError> {
-    sample_rot_rhos_n(tr, params, ring, (params.k_rho as usize) + 1)
-}
-
 // ---------------------------------------------------------------------------
 // ME Relation Helpers
 // ---------------------------------------------------------------------------

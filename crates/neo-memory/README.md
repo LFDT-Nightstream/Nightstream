@@ -1,88 +1,43 @@
 # neo-memory
 
-Twist & Shout memory protocols with full **RV64IMAC** RISC-V support.
+Twist & Shout memory/lookup protocols, shared CPU-bus integration, and RV64IMAC RISC-V helpers.
 
-## RISC-V Support
+## What’s In This Crate
 
-This crate implements the complete RV64IMAC instruction set, matching [Jolt's](https://github.com/a16z/jolt) capabilities:
+- **Twist**: read/write memory argument (Route A)
+- **Shout**: read-only lookup argument (Route A)
+- **Shared CPU bus integration**: bind CPU semantics to Twist/Shout fields inside the CPU witness
+- **RISC-V RV64IMAC**: instruction decode/execute + lookup-table helpers (kept in `riscv/`)
+- **Output binding**: output sumcheck utilities for binding program I/O to proofs
 
-| Extension | Description | Instructions |
-|-----------|-------------|--------------|
-| **I** | Base Integer (64-bit) | ADD, SUB, AND, OR, XOR, SLT, shifts, branches, jumps, loads, stores |
-| **M** | Multiply/Divide | MUL, MULH, MULHU, MULHSU, DIV, DIVU, REM, REMU |
-| **A** | Atomics | LR, SC, AMOSWAP, AMOADD, AMOXOR, AMOAND, AMOOR, AMOMIN, AMOMAX |
-| **C** | Compressed | All 16-bit instructions (C.ADDI, C.LW, C.SW, C.J, etc.) |
+## Modules
 
-### RV64-specific Operations
+| Module | Description |
+|--------|-------------|
+| `twist.rs` | Twist proof metadata + helpers |
+| `twist_oracle.rs` | Sum-check oracles for Twist/Shout |
+| `shout.rs` | Shout proof metadata + helpers |
+| `addr.rs` | Bit-address validation + encoding utilities |
+| `cpu/` | Shared-bus layout + CPU binding constraints + R1CS adapter |
+| `builder.rs` | Build per-step witness bundles from a `VmTrace` |
+| `riscv/elf_loader.rs` | Load ELF and raw RISC-V binaries |
+| `output_check.rs` | Output sumcheck (bind program I/O) |
+| `riscv/lookups/` | RV64IMAC decode/execute + lookup tables |
+| `riscv/ccs.rs` | RISC-V CCS helpers |
+| `riscv/shout_oracle.rs` | RISC-V-specific Shout oracle helpers |
+| `witness.rs` | Witness/instance data structures |
 
-- **Word operations**: ADDW, SUBW, SLLW, SRLW, SRAW, MULW, DIVW, REMW (32-bit ops with sign-extension)
-- **64-bit loads/stores**: LD, SD, LWU
+## Shared CPU Bus (Important)
 
-## Key Modules
+In shared-bus mode, Twist/Shout do **not** have independent commitment namespaces. Their access-row
+columns live in the **tail of the CPU witness** `z`, and the fold/sidecar logic consumes only CPU-derived
+openings. This prevents CPU↔memory forking at the commitment level.
 
-### `riscv_lookups`
-- Instruction decoding (32-bit and 16-bit compressed)
-- Instruction encoding
-- CPU execution with tracing
-- Lookup tables for ALU operations
+Security still requires **semantic binding** inside the CPU constraints: flag-gated checks must also
+enforce padding-to-zero so inactive bus fields cannot float.
 
-### `riscv_ccs`
-- Constraint system (CCS) definitions for RISC-V instructions
-- Witness generation from execution traces
+## Tests
 
-### `elf_loader`
-- Load ELF binaries
-- Load raw RISC-V binaries
-
-### `output_check`
-- Output sumcheck protocol
-- Binds program I/O to cryptographic proofs
-
-### `twist` / `shout`
-- Twist: Read-write memory protocol
-- Shout: Read-only memory / lookup table protocol
-
-## Example
-
-```rust
-use neo_memory::riscv_lookups::{RiscvCpu, RiscvMemory, RiscvShoutTables, decode_program};
-use neo_memory::elf_loader::load_raw_binary;
-use neo_vm_trace::trace_program;
-
-// Load a RISC-V binary
-let loaded = load_raw_binary(&binary_bytes, 0x1000)?;
-
-// Execute with full tracing
-let mut cpu = RiscvCpu::new(64);
-cpu.load_program(0x1000, loaded.get_instructions());
-let memory = RiscvMemory::new(64);
-let shout = RiscvShoutTables::new(64);
-
-let trace = trace_program(cpu, memory, shout, 10000)?;
-assert!(trace.did_halt());
-
-// trace.steps contains all execution steps for proving
+```bash
+cargo test -p neo-memory --release
 ```
-
-## Architecture
-
-```
-┌──────────────────┐     ┌──────────────────┐
-│   RiscvCpu       │────▶│   VmTrace        │
-│   (execution)    │     │   (steps)        │
-└──────────────────┘     └──────────────────┘
-         │                        │
-         ▼                        ▼
-┌──────────────────┐     ┌──────────────────┐
-│   Shout          │     │   Twist          │
-│   (ALU lookups)  │     │   (memory)       │
-└──────────────────┘     └──────────────────┘
-         │                        │
-         └────────────┬───────────┘
-                      ▼
-              ┌──────────────────┐
-              │   Neo Prover     │
-              │   (fold + prove) │
-              └──────────────────┘
-```
-

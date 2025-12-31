@@ -1,39 +1,13 @@
-//! Shout argument for read-only lookup table correctness (Route A).
-//!
-//! This module is intentionally minimal: the only supported integration is Route A
-//! inside `neo-fold::shard`, which proves Shout constraints via shared-challenge
-//! batched sum-check and terminal checks bound to ME openings.
-
 use crate::ajtai::decode_vector as ajtai_decode_vector;
+use crate::riscv::lookups::{compute_op, uninterleave_bits};
 use crate::sumcheck_proof::BatchedAddrProof;
 use crate::ts_common as ts;
-use crate::twist_oracle::{
-    build_eq_table, AddressLookupOracle, IndexAdapterOracle, LazyBitnessOracle, ProductRoundOracle,
-};
-use crate::witness::{LutInstance, LutWitness};
-use neo_ajtai::Commitment as AjtaiCmt;
+use crate::witness::{LutInstance, LutTableSpec, LutWitness};
 use neo_ccs::matrix::Mat;
-use neo_math::{F as BaseField, K as KElem};
 use neo_params::NeoParams;
 use neo_reductions::error::PiCcsError;
-use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
-
-// ============================================================================
-// Input validation
-// ============================================================================
-
-// ============================================================================
-// Transcript binding
-// ============================================================================
-
-/// Absorb all Shout commitments into the transcript.
-///
-/// Must be called before sampling any challenge used to open these commitments.
-pub fn absorb_commitments<F>(tr: &mut Poseidon2Transcript, inst: &LutInstance<AjtaiCmt, F>) {
-    ts::absorb_ajtai_commitments(tr, b"shout/absorb_commitments", b"shout/comm_idx", &inst.comms);
-}
 
 // ============================================================================
 // Proof metadata (Route A)
@@ -94,41 +68,6 @@ pub fn split_lut_mats<'a, F: Clone>(
 // Decoded columns (Route A helpers)
 // ============================================================================
 
-#[derive(Clone, Debug)]
-pub struct ShoutDecodedCols {
-    pub addr_bits: Vec<Vec<KElem>>,
-    pub has_lookup: Vec<KElem>,
-    pub val: Vec<KElem>,
-}
-
-pub fn decode_shout_cols<Cmt: Clone>(
-    params: &NeoParams,
-    inst: &LutInstance<Cmt, BaseField>,
-    wit: &LutWitness<BaseField>,
-    ell_cycle: usize,
-) -> Result<ShoutDecodedCols, PiCcsError> {
-    crate::addr::validate_shout_bit_addressing(inst)?;
-    let parts = split_lut_mats(inst, wit);
-
-    let pow2_cycle = 1usize << ell_cycle;
-    if inst.steps > pow2_cycle {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout(Route A): steps={} exceeds 2^ell_cycle={pow2_cycle}",
-            inst.steps
-        )));
-    }
-
-    let addr_bits = ts::decode_mats_to_k_padded(params, parts.addr_bit_mats, pow2_cycle);
-    let has_lookup = ts::decode_mat_to_k_padded(params, parts.has_lookup_mat, pow2_cycle);
-    let val = ts::decode_mat_to_k_padded(params, parts.val_mat, pow2_cycle);
-
-    Ok(ShoutDecodedCols {
-        addr_bits,
-        has_lookup,
-        val,
-    })
-}
-
 // ============================================================================
 // Semantic checker (debug/tests)
 // ============================================================================
@@ -167,13 +106,24 @@ pub fn check_shout_semantics<F: PrimeField>(
     for j in 0..steps {
         if has_lookup[j] == F::ONE {
             let addr = addrs[j] as usize;
-            if addr >= inst.table.len() {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "Shout: out-of-range lookup at step {j}: addr={addr} >= table.len()={}",
-                    inst.table.len()
-                )));
-            }
-            let table_val = inst.table[addr];
+            let table_val = match &inst.table_spec {
+                Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
+                    let (rs1, rs2) = uninterleave_bits(addrs[j] as u128);
+                    // NOTE: For RV64 this currently truncates keys to 64 bits at trace time.
+                    // This mode is intended for RV32 (xlen=32) until RV64 key encoding is fixed.
+                    let out = compute_op(*opcode, rs1, rs2, *xlen);
+                    F::from_u64(out)
+                }
+                None => {
+                    if addr >= inst.table.len() {
+                        return Err(PiCcsError::InvalidInput(format!(
+                            "Shout: out-of-range lookup at step {j}: addr={addr} >= table.len()={}",
+                            inst.table.len()
+                        )));
+                    }
+                    inst.table[addr]
+                }
+            };
             if val[j] != table_val {
                 return Err(PiCcsError::InvalidInput(format!(
                     "Shout: lookup mismatch at step {j}: Table[{addr}]={table_val:?}, committed val={:?}",
@@ -190,93 +140,4 @@ pub fn check_shout_semantics<F: PrimeField>(
     }
 
     Ok(())
-}
-
-// ============================================================================
-// Route A oracles
-// ============================================================================
-
-/// Route A Shout oracles (time-domain only).
-pub struct RouteAShoutOracles {
-    /// Value oracle: `χ_{r_cycle}(t) * has_lookup(t) * val(t)`.
-    pub value: ProductRoundOracle,
-    /// Claimed sum for the value oracle.
-    pub value_claim: KElem,
-    /// Adapter oracle: `χ_{r_cycle}(t) * has_lookup(t) * eq(addr_bits(t), r_addr)`.
-    pub adapter: IndexAdapterOracle,
-    /// Claimed sum for the adapter oracle.
-    pub adapter_claim: KElem,
-    /// Bitness checks for address bits + has_lookup (time-domain), χ_{r_cycle}-weighted.
-    pub bitness: Vec<LazyBitnessOracle>,
-    /// Number of address bits (`d*ell`).
-    pub ell_addr: usize,
-}
-
-pub fn build_shout_addr_oracle<Cmt: Clone>(
-    inst: &LutInstance<Cmt, BaseField>,
-    decoded: &ShoutDecodedCols,
-    r_cycle: &[KElem],
-    table_k: &[KElem],
-) -> Result<(AddressLookupOracle, KElem), PiCcsError> {
-    let ell_addr = inst.d * inst.ell;
-    if table_k.len() != inst.table.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout: table_k.len()={} != inst.table.len()={}",
-            table_k.len(),
-            inst.table.len()
-        )));
-    }
-    let (oracle, addr_claim_sum) =
-        AddressLookupOracle::new(&decoded.addr_bits, &decoded.has_lookup, table_k, r_cycle, ell_addr);
-    Ok((oracle, addr_claim_sum))
-}
-
-pub fn build_route_a_shout_oracles<Cmt: Clone>(
-    inst: &LutInstance<Cmt, BaseField>,
-    decoded: &ShoutDecodedCols,
-    r_cycle: &[KElem],
-    r_addr: &[KElem],
-) -> Result<RouteAShoutOracles, PiCcsError> {
-    crate::addr::validate_shout_bit_addressing(inst)?;
-    let ell_addr = inst.d * inst.ell;
-    if r_addr.len() != ell_addr {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout(Route A): r_addr.len()={} != ell_addr={}",
-            r_addr.len(),
-            ell_addr
-        )));
-    }
-
-    let chi_cycle = build_eq_table(r_cycle);
-    if chi_cycle.len() != decoded.has_lookup.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout(Route A): chi_cycle.len()={} != has_lookup.len()={}",
-            chi_cycle.len(),
-            decoded.has_lookup.len()
-        )));
-    }
-
-    let value = ProductRoundOracle::new(
-        vec![chi_cycle.clone(), decoded.has_lookup.clone(), decoded.val.clone()],
-        3,
-    );
-    let value_claim = value.sum_over_hypercube();
-
-    let adapter = IndexAdapterOracle::new_with_gate(&decoded.addr_bits, &decoded.has_lookup, r_cycle, r_addr);
-    let adapter_claim = adapter.compute_claim();
-
-    let mut bitness = Vec::with_capacity(ell_addr + 1);
-    for col in decoded.addr_bits.iter().cloned() {
-        bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, col));
-    }
-    bitness.push(LazyBitnessOracle::new_with_cycle(r_cycle, decoded.has_lookup.clone()));
-
-    Ok(RouteAShoutOracles {
-        value,
-        value_claim,
-        adapter,
-        adapter_claim,
-        bitness,
-        ell_addr,
-    })
 }

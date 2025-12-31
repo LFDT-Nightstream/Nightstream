@@ -35,7 +35,11 @@ pub const OB_INC_TOTAL_LABEL: &'static [u8] = b"output_binding/inc_total";
 impl OutputBindingConfig {
     /// Create a new output binding config with just the I/O claims.
     pub fn new(num_bits: usize, program_io: ProgramIO<F>) -> Self {
-        Self { num_bits, program_io, mem_idx: 0 }
+        Self {
+            num_bits,
+            program_io,
+            mem_idx: 0,
+        }
     }
 
     pub fn with_mem_idx(mut self, mem_idx: usize) -> Self {

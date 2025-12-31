@@ -16,16 +16,15 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use neo_ajtai::{decomp_b, setup as ajtai_setup, set_global_pp, AjtaiSModule, Commitment as Cmt, DecompStyle};
+use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness, MeInstance};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_fold::shard::CommitMixers;
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::CommitMixers;
 use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
 use neo_math::{D, F, K};
-use neo_memory::encode::encode_mem_for_twist;
 use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
@@ -36,6 +35,9 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
 type Mixers = CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>;
+
+const TEST_N: usize = 32;
+const M_IN: usize = 0;
 
 /// Setup real Ajtai public parameters for tests.
 fn setup_ajtai_pp(m: usize, seed: u64) -> AjtaiSModule {
@@ -69,38 +71,143 @@ fn create_identity_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![mat], f).expect("CCS")
 }
 
-fn decompose_z_to_Z(params: &NeoParams, z: &[F]) -> Mat<F> {
-    let d = D;
-    let m = z.len();
-    let digits = decomp_b(z, params.b, d, DecompStyle::Balanced);
-    let mut row_major = vec![F::ZERO; d * m];
-    for c in 0..m {
-        for r in 0..d {
-            row_major[r * m + c] = digits[c * d + r];
-        }
-    }
-    Mat::from_row_major(d, m, row_major)
+fn create_mcs_from_z(
+    params: &NeoParams,
+    l: &AjtaiSModule,
+    m_in: usize,
+    z: Vec<F>,
+) -> (McsInstance<Cmt, F>, McsWitness<F>) {
+    let Z = neo_memory::ajtai::encode_vector_balanced_to_mat(params, &z);
+    let c = l.commit(&Z);
+    let x = z[..m_in].to_vec();
+    let w = z[m_in..].to_vec();
+    (McsInstance { c, x, m_in }, McsWitness { w, Z })
 }
 
-fn create_mcs(
+fn make_twist_instance(
+    layout: &PlainMemLayout,
+    init: MemInit<F>,
+    steps: usize,
+) -> (
+    neo_memory::witness::MemInstance<Cmt, F>,
+    neo_memory::witness::MemWitness<F>,
+) {
+    let ell = layout.n_side.trailing_zeros() as usize;
+    (
+        neo_memory::witness::MemInstance {
+            comms: Vec::new(),
+            k: layout.k,
+            d: layout.d,
+            n_side: layout.n_side,
+            steps,
+            ell,
+            init,
+            _phantom: PhantomData,
+        },
+        neo_memory::witness::MemWitness { mats: Vec::new() },
+    )
+}
+
+fn write_twist_bus_step(
+    z: &mut [F],
+    bus_base: usize,
+    chunk_size: usize,
+    j: usize,
+    inst: &neo_memory::witness::MemInstance<Cmt, F>,
+    trace: &PlainMemTrace<F>,
+    col_id: &mut usize,
+) {
+    debug_assert_eq!(chunk_size, 1);
+    debug_assert_eq!(j, 0);
+
+    let has_read = trace.has_read[j];
+    let has_write = trace.has_write[j];
+
+    // ra_bits (masked by has_read)
+    if has_read == F::ONE {
+        let mut tmp = trace.read_addr[j];
+        for _dim in 0..inst.d {
+            let comp = (tmp % (inst.n_side as u64)) as u64;
+            tmp /= inst.n_side as u64;
+            for bit in 0..inst.ell {
+                z[bus_base + *col_id * chunk_size + j] = if (comp >> bit) & 1 == 1 { F::ONE } else { F::ZERO };
+                *col_id += 1;
+            }
+        }
+    } else {
+        *col_id += inst.d * inst.ell;
+    }
+
+    // wa_bits (masked by has_write)
+    if has_write == F::ONE {
+        let mut tmp = trace.write_addr[j];
+        for _dim in 0..inst.d {
+            let comp = (tmp % (inst.n_side as u64)) as u64;
+            tmp /= inst.n_side as u64;
+            for bit in 0..inst.ell {
+                z[bus_base + *col_id * chunk_size + j] = if (comp >> bit) & 1 == 1 { F::ONE } else { F::ZERO };
+                *col_id += 1;
+            }
+        }
+    } else {
+        *col_id += inst.d * inst.ell;
+    }
+
+    z[bus_base + *col_id * chunk_size + j] = has_read;
+    *col_id += 1;
+    z[bus_base + *col_id * chunk_size + j] = has_write;
+    *col_id += 1;
+    z[bus_base + *col_id * chunk_size + j] = if has_write == F::ONE {
+        trace.write_val[j]
+    } else {
+        F::ZERO
+    };
+    *col_id += 1;
+    z[bus_base + *col_id * chunk_size + j] = if has_read == F::ONE { trace.read_val[j] } else { F::ZERO };
+    *col_id += 1;
+    z[bus_base + *col_id * chunk_size + j] = if has_write == F::ONE {
+        trace.inc_at_write_addr[j]
+    } else {
+        F::ZERO
+    };
+    *col_id += 1;
+}
+
+fn create_step_with_twist_bus(
     params: &NeoParams,
     ccs: &CcsStructure<F>,
     l: &AjtaiSModule,
     tag: u64,
-) -> (McsInstance<Cmt, F>, McsWitness<F>) {
-    let m = ccs.m;
-    let mut z: Vec<F> = vec![F::ZERO; m];
-    if !z.is_empty() {
-        z[0] = F::from_u64(tag);
+    mem_instances: Vec<(
+        neo_memory::witness::MemInstance<Cmt, F>,
+        neo_memory::witness::MemWitness<F>,
+        PlainMemTrace<F>,
+    )>,
+) -> StepWitnessBundle<Cmt, F, K> {
+    let chunk_size = 1usize;
+    let mut bus_cols_total = 0usize;
+    for (inst, _, _) in &mem_instances {
+        bus_cols_total += 2 * inst.d * inst.ell + 5;
+        assert_eq!(inst.steps, chunk_size);
     }
+    let bus_base = ccs.m - bus_cols_total * chunk_size;
 
-    let Z = decompose_z_to_Z(params, &z);
-    let c = l.commit(&Z);
+    let mut z = vec![F::ZERO; ccs.m];
+    z[0] = F::from_u64(tag);
+    // Bus tail is already zeroed by default.
+    let mut col_id = 0usize;
+    for (inst, _wit, trace) in &mem_instances {
+        write_twist_bus_step(&mut z, bus_base, chunk_size, 0, inst, trace, &mut col_id);
+    }
+    debug_assert_eq!(col_id, bus_cols_total);
 
-    (
-        McsInstance { c, x: vec![], m_in: 0 },
-        McsWitness { w: z, Z },
-    )
+    let (mcs, mcs_wit) = create_mcs_from_z(params, l, M_IN, z);
+    StepWitnessBundle {
+        mcs: (mcs, mcs_wit),
+        lut_instances: vec![],
+        mem_instances: mem_instances.into_iter().map(|(i, w, _)| (i, w)).collect(),
+        _phantom: PhantomData::<K>,
+    }
 }
 
 /// Valid 3-step memory trace:
@@ -109,14 +216,12 @@ fn create_mcs(
 /// Step 2: Write 100 to addr[0], overwriting 42
 #[test]
 fn memory_cross_step_read_consistency() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(TEST_N).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
 
@@ -136,24 +241,14 @@ fn memory_cross_step_read_consistency() {
             inc_at_write_addr: vec![F::from_u64(42)], // 42 - 0 = 42
         };
         let mem_init = MemInit::Zero;
-
-        let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 0);
-        let (mem_inst, mem_wit) = encode_mem_for_twist(
+        let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
+        steps.push(create_step_with_twist_bus(
             &params,
-            &mem_layout,
-            &mem_init,
-            &mem_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-
-        steps.push(StepWitnessBundle {
-            mcs: (mcs, mcs_wit),
-            lut_instances: vec![],
-            mem_instances: vec![(mem_inst, mem_wit)],
-            _phantom: PhantomData::<K>,
-        });
+            &ccs,
+            &l,
+            0,
+            vec![(mem_inst, mem_wit, mem_trace)],
+        ));
     }
 
     // Step 1: Read addr[0] → should be 42
@@ -170,24 +265,14 @@ fn memory_cross_step_read_consistency() {
         };
         // Memory state after step 0: addr[0] = 42
         let mem_init = MemInit::Sparse(vec![(0, F::from_u64(42))]);
-
-        let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 1);
-        let (mem_inst, mem_wit) = encode_mem_for_twist(
+        let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
+        steps.push(create_step_with_twist_bus(
             &params,
-            &mem_layout,
-            &mem_init,
-            &mem_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-
-        steps.push(StepWitnessBundle {
-            mcs: (mcs, mcs_wit),
-            lut_instances: vec![],
-            mem_instances: vec![(mem_inst, mem_wit)],
-            _phantom: PhantomData::<K>,
-        });
+            &ccs,
+            &l,
+            1,
+            vec![(mem_inst, mem_wit, mem_trace)],
+        ));
     }
 
     // Step 2: Write 100 to addr[0]
@@ -203,24 +288,14 @@ fn memory_cross_step_read_consistency() {
             inc_at_write_addr: vec![F::from_u64(100) - F::from_u64(42)], // 100 - 42 = 58
         };
         let mem_init = MemInit::Sparse(vec![(0, F::from_u64(42))]);
-
-        let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 2);
-        let (mem_inst, mem_wit) = encode_mem_for_twist(
+        let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
+        steps.push(create_step_with_twist_bus(
             &params,
-            &mem_layout,
-            &mem_init,
-            &mem_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        );
-
-        steps.push(StepWitnessBundle {
-            mcs: (mcs, mcs_wit),
-            lut_instances: vec![],
-            mem_instances: vec![(mem_inst, mem_wit)],
-            _phantom: PhantomData::<K>,
-        });
+            &ccs,
+            &l,
+            2,
+            vec![(mem_inst, mem_wit, mem_trace)],
+        ));
     }
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
@@ -241,8 +316,7 @@ fn memory_cross_step_read_consistency() {
     .expect("prove should succeed for valid cross-step memory");
 
     let mut tr_verify = Poseidon2Transcript::new(b"mem-cross-step");
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
     let _ = fold_shard_verify(
         FoldingMode::PaperExact,
         &mut tr_verify,
@@ -261,14 +335,12 @@ fn memory_cross_step_read_consistency() {
 /// Reading from uninitialized memory should return zero.
 #[test]
 fn memory_read_uninitialized_returns_zero() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(TEST_N).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
 
@@ -285,23 +357,8 @@ fn memory_read_uninitialized_returns_zero() {
     };
     let mem_init = MemInit::Zero;
 
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 0);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &mem_trace,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-
-    let step_bundle = StepWitnessBundle {
-        mcs: (mcs, mcs_wit),
-        lut_instances: vec![],
-        mem_instances: vec![(mem_inst, mem_wit)],
-        _phantom: PhantomData::<K>,
-    };
+    let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
+    let step_bundle = create_step_with_twist_bus(&params, &ccs, &l, 0, vec![(mem_inst, mem_wit, mem_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -341,14 +398,12 @@ fn memory_read_uninitialized_returns_zero() {
 /// Memory has addr[0]=42, but prover claims read returns 99.
 #[test]
 fn memory_tamper_read_value_fails() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(TEST_N).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
 
@@ -367,81 +422,41 @@ fn memory_tamper_read_value_fails() {
         inc_at_write_addr: vec![F::ZERO],
     };
 
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 0);
+    let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
+    let step_bundle = create_step_with_twist_bus(&params, &ccs, &l, 0, vec![(mem_inst, mem_wit, bad_mem_trace)]);
 
-    // The bad encoding should either panic during encode (semantic check)
-    // or fail during verification.
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        encode_mem_for_twist(
-            &params,
-            &mem_layout,
-            &mem_init,
-            &bad_mem_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        )
-    }));
+    let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
+    let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
-    match result {
-        Err(_) => {
-            println!("✓ memory_tamper_read_value_fails: Encoding correctly panicked on invalid read value");
-        }
-        Ok((mem_inst, mem_wit)) => {
-            // If encoding passed, semantic check should fail
-            let check_result = neo_memory::twist::check_twist_semantics(&params, &mem_inst, &mem_wit);
+    let mut tr_prove = Poseidon2Transcript::new(b"mem-tamper-read");
+    let proof_result = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    );
 
-            if check_result.is_err() {
-                println!("✓ memory_tamper_read_value_fails: Semantic check correctly rejected invalid read value");
-                return;
-            }
-
-            // If semantic check passed, verification should fail
-            let step_bundle = StepWitnessBundle {
-                mcs: (mcs, mcs_wit),
-                lut_instances: vec![],
-                mem_instances: vec![(mem_inst, mem_wit)],
-                _phantom: PhantomData::<K>,
-            };
-
-            let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
-            let acc_wit_init: Vec<Mat<F>> = Vec::new();
-
-            let mut tr_prove = Poseidon2Transcript::new(b"mem-tamper-read");
-            let proof_result = fold_shard_prove(
+    match proof_result {
+        Err(_) => {}
+        Ok(proof) => {
+            let mut tr_verify = Poseidon2Transcript::new(b"mem-tamper-read");
+            let steps_public = [StepInstanceBundle::from(&step_bundle)];
+            let verify_result = fold_shard_verify(
                 FoldingMode::PaperExact,
-                &mut tr_prove,
+                &mut tr_verify,
                 &params,
                 &ccs,
-                &[step_bundle.clone()],
+                &steps_public,
                 &acc_init,
-                &acc_wit_init,
-                &l,
+                &proof,
                 mixers,
             );
-
-            if let Ok(proof) = proof_result {
-                let mut tr_verify = Poseidon2Transcript::new(b"mem-tamper-read");
-                let steps_public = [StepInstanceBundle::from(&step_bundle)];
-                let verify_result = fold_shard_verify(
-                    FoldingMode::PaperExact,
-                    &mut tr_verify,
-                    &params,
-                    &ccs,
-                    &steps_public,
-                    &acc_init,
-                    &proof,
-                    mixers,
-                );
-
-                assert!(
-                    verify_result.is_err(),
-                    "Verification should fail when read value is tampered"
-                );
-                println!("✓ memory_tamper_read_value_fails: Verification correctly rejected invalid read value");
-            } else {
-                println!("✓ memory_tamper_read_value_fails: Proving correctly failed on invalid read value");
-            }
+            assert!(verify_result.is_err(), "tampered read value must fail verification");
         }
     }
 }
@@ -450,14 +465,12 @@ fn memory_tamper_read_value_fails() {
 /// Writing 100 to addr[0] which previously had 42, but claiming delta = 10 instead of 58.
 #[test]
 fn memory_tamper_write_increment_fails() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(TEST_N).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
 
@@ -475,78 +488,41 @@ fn memory_tamper_write_increment_fails() {
         write_val: vec![F::from_u64(100)],
         inc_at_write_addr: vec![F::from_u64(10)], // WRONG: should be 58
     };
+    let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
+    let step_bundle = create_step_with_twist_bus(&params, &ccs, &l, 0, vec![(mem_inst, mem_wit, bad_mem_trace)]);
 
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 0);
+    let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
+    let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        encode_mem_for_twist(
-            &params,
-            &mem_layout,
-            &mem_init,
-            &bad_mem_trace,
-            &commit_fn,
-            Some(ccs.m),
-            mcs.m_in,
-        )
-    }));
+    let mut tr_prove = Poseidon2Transcript::new(b"mem-tamper-inc");
+    let proof_result = fold_shard_prove(
+        FoldingMode::PaperExact,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &[step_bundle.clone()],
+        &acc_init,
+        &acc_wit_init,
+        &l,
+        mixers,
+    );
 
-    match result {
-        Err(_) => {
-            println!("✓ memory_tamper_write_increment_fails: Encoding correctly panicked on invalid increment");
-        }
-        Ok((mem_inst, mem_wit)) => {
-            let check_result = neo_memory::twist::check_twist_semantics(&params, &mem_inst, &mem_wit);
-
-            if check_result.is_err() {
-                println!("✓ memory_tamper_write_increment_fails: Semantic check correctly rejected invalid increment");
-                return;
-            }
-
-            let step_bundle = StepWitnessBundle {
-                mcs: (mcs, mcs_wit),
-                lut_instances: vec![],
-                mem_instances: vec![(mem_inst, mem_wit)],
-                _phantom: PhantomData::<K>,
-            };
-
-            let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
-            let acc_wit_init: Vec<Mat<F>> = Vec::new();
-
-            let mut tr_prove = Poseidon2Transcript::new(b"mem-tamper-inc");
-            let proof_result = fold_shard_prove(
+    match proof_result {
+        Err(_) => {}
+        Ok(proof) => {
+            let mut tr_verify = Poseidon2Transcript::new(b"mem-tamper-inc");
+            let steps_public = [StepInstanceBundle::from(&step_bundle)];
+            let verify_result = fold_shard_verify(
                 FoldingMode::PaperExact,
-                &mut tr_prove,
+                &mut tr_verify,
                 &params,
                 &ccs,
-                &[step_bundle.clone()],
+                &steps_public,
                 &acc_init,
-                &acc_wit_init,
-                &l,
+                &proof,
                 mixers,
             );
-
-            if let Ok(proof) = proof_result {
-                let mut tr_verify = Poseidon2Transcript::new(b"mem-tamper-inc");
-                let steps_public = [StepInstanceBundle::from(&step_bundle)];
-                let verify_result = fold_shard_verify(
-                    FoldingMode::PaperExact,
-                    &mut tr_verify,
-                    &params,
-                    &ccs,
-                    &steps_public,
-                    &acc_init,
-                    &proof,
-                    mixers,
-                );
-
-                assert!(
-                    verify_result.is_err(),
-                    "Verification should fail when increment is tampered"
-                );
-                println!("✓ memory_tamper_write_increment_fails: Verification correctly rejected invalid increment");
-            } else {
-                println!("✓ memory_tamper_write_increment_fails: Proving correctly failed on invalid increment");
-            }
+            assert!(verify_result.is_err(), "tampered increment must fail verification");
         }
     }
 }
@@ -555,14 +531,12 @@ fn memory_tamper_write_increment_fails() {
 /// This simulates a VM with separate RAM, ROM, and register file.
 #[test]
 fn memory_multiple_regions_same_step() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(TEST_N).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     // Region 0: RAM (read-write)
     let ram_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
@@ -592,33 +566,15 @@ fn memory_multiple_regions_same_step() {
     };
     let reg_init = MemInit::Sparse(vec![(0, F::from_u64(10))]);
 
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 0);
-
-    let (ram_inst, ram_wit) = encode_mem_for_twist(
+    let (ram_inst, ram_wit) = make_twist_instance(&ram_layout, ram_init, 1);
+    let (reg_inst, reg_wit) = make_twist_instance(&reg_layout, reg_init, 1);
+    let step_bundle = create_step_with_twist_bus(
         &params,
-        &ram_layout,
-        &ram_init,
-        &ram_trace,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
+        &ccs,
+        &l,
+        0,
+        vec![(ram_inst, ram_wit, ram_trace), (reg_inst, reg_wit, reg_trace)],
     );
-    let (reg_inst, reg_wit) = encode_mem_for_twist(
-        &params,
-        &reg_layout,
-        &reg_init,
-        &reg_trace,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-
-    let step_bundle = StepWitnessBundle {
-        mcs: (mcs, mcs_wit),
-        lut_instances: vec![],
-        mem_instances: vec![(ram_inst, ram_wit), (reg_inst, reg_wit)],
-        _phantom: PhantomData::<K>,
-    };
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
@@ -657,14 +613,12 @@ fn memory_multiple_regions_same_step() {
 /// Test memory with sparse initialization (ROM-like behavior).
 #[test]
 fn memory_sparse_initialization() {
-    let n = 4usize;
-    let ccs = create_identity_ccs(n);
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let ccs = create_identity_ccs(TEST_N);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(TEST_N).expect("params");
     params.k_rho = 16;
 
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
-    let commit_fn = |mat: &Mat<F>| l.commit(mat);
 
     let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
 
@@ -683,23 +637,8 @@ fn memory_sparse_initialization() {
         inc_at_write_addr: vec![F::ZERO],
     };
 
-    let (mcs, mcs_wit) = create_mcs(&params, &ccs, &l, 0);
-    let (mem_inst, mem_wit) = encode_mem_for_twist(
-        &params,
-        &mem_layout,
-        &mem_init,
-        &mem_trace,
-        &commit_fn,
-        Some(ccs.m),
-        mcs.m_in,
-    );
-
-    let step_bundle = StepWitnessBundle {
-        mcs: (mcs, mcs_wit),
-        lut_instances: vec![],
-        mem_instances: vec![(mem_inst, mem_wit)],
-        _phantom: PhantomData::<K>,
-    };
+    let (mem_inst, mem_wit) = make_twist_instance(&mem_layout, mem_init, 1);
+    let step_bundle = create_step_with_twist_bus(&params, &ccs, &l, 0, vec![(mem_inst, mem_wit, mem_trace)]);
 
     let acc_init: Vec<MeInstance<Cmt, F, K>> = Vec::new();
     let acc_wit_init: Vec<Mat<F>> = Vec::new();

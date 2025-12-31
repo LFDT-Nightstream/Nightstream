@@ -8,13 +8,15 @@
 
 #![allow(non_snake_case)]
 
+use neo_ajtai::Commitment as Cmt;
+use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 use neo_math::{D, K};
 use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 use std::sync::Arc;
 
 use crate::sumcheck::RoundOracle;
-use neo_ccs::{CcsStructure, Mat, McsWitness};
 
 use super::common::Challenges;
 use super::sparse::CscMat;
@@ -428,6 +430,17 @@ impl RowStreamState {
         self.cur_len /= 2;
     }
 
+    /// Multiply a polynomial by an affine `(a + b·x)` in-place.
+    ///
+    /// Coefficients are in low→high order. Output is truncated to the input length.
+    #[inline]
+    fn poly_mul_affine_inplace(poly: &mut [K], a: K, b: K) {
+        for d in (0..poly.len()).rev() {
+            let prev = if d == 0 { K::ZERO } else { poly[d - 1] };
+            poly[d] = a * poly[d] + b * prev;
+        }
+    }
+
     fn evals_row_phase<Ff>(&self, xs: &[K]) -> Vec<K>
     where
         Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
@@ -435,6 +448,133 @@ impl RowStreamState {
     {
         debug_assert!(self.cur_len >= 2 && self.cur_len % 2 == 0);
         let tail_len = self.cur_len / 2;
+
+        // Fast path for b=2: build the univariate coefficients once per round,
+        // then evaluate cheaply at all requested points.
+        if self.b == 2 {
+            let three = K::from(Ff::from_u64(3));
+
+            let f_max_term_deg: usize = self
+                .f_terms
+                .iter()
+                .map(|term| term.vars.iter().map(|&(_, exp)| exp as usize).sum::<usize>())
+                .max()
+                .unwrap_or(0);
+            // NC contributes degree 4 after multiplying by eq_beta_r(X).
+            let deg_max = core::cmp::max(4, f_max_term_deg + 1);
+
+            let mut coeffs = vec![K::ZERO; deg_max + 1];
+            let mut inner = vec![K::ZERO; deg_max + 1];
+            let mut term_poly = vec![K::ZERO; deg_max + 1];
+
+            for t in 0..tail_len {
+                // eq_beta_r(X) = e0 + e1·X
+                let e0 = self.eq_beta_r_tbl[2 * t];
+                let e1 = self.eq_beta_r_tbl[2 * t + 1] - e0;
+
+                // inner(X) = f_prime(X) + nc_total(X)
+                inner.fill(K::ZERO);
+
+                // f_prime(X): expand sparse polynomial with affine substitutions.
+                for term in &self.f_terms {
+                    term_poly.fill(K::ZERO);
+                    term_poly[0] = term.coeff;
+                    for &(var_pos, exp) in &term.vars {
+                        if exp == 0 {
+                            continue;
+                        }
+                        let tbl = &self.f_var_tables[var_pos];
+                        // v(X) = a + b·X
+                        let a = tbl[2 * t];
+                        let b = tbl[2 * t + 1] - a;
+                        for _ in 0..exp {
+                            Self::poly_mul_affine_inplace(&mut term_poly, a, b);
+                        }
+                    }
+                    for (dst, src) in inner.iter_mut().zip(term_poly.iter()) {
+                        *dst += *src;
+                    }
+                }
+
+                // NC: degree-3 in X before multiplying by eq_beta_r(X).
+                for rho in 0..D {
+                    let w = self.w_beta_a[rho];
+                    if w == K::ZERO {
+                        continue;
+                    }
+                    let mut c0 = K::ZERO;
+                    let mut c1 = K::ZERO;
+                    let mut c2 = K::ZERO;
+                    let mut c3 = K::ZERO;
+
+                    for (i, gamma_i) in self.gamma_nc.iter().enumerate() {
+                        // y(X) = a + b·X
+                        let a = self.nc_tables[i][2 * t][rho];
+                        let b = self.nc_tables[i][2 * t + 1][rho] - a;
+
+                        // For b=2, range_product_symmetric(y) = y(y^2-1) = y^3 - y.
+                        let a2 = a * a;
+                        let a3 = a2 * a;
+                        let b2 = b * b;
+                        let b3 = b2 * b;
+
+                        // (a + bX)^3 - (a + bX)
+                        let t0 = a3 - a;
+                        let t1 = (three * a2 * b) - b;
+                        let t2 = three * a * b2;
+                        let t3 = b3;
+
+                        c0 += *gamma_i * t0;
+                        c1 += *gamma_i * t1;
+                        c2 += *gamma_i * t2;
+                        c3 += *gamma_i * t3;
+                    }
+
+                    inner[0] += w * c0;
+                    if deg_max >= 1 {
+                        inner[1] += w * c1;
+                    }
+                    if deg_max >= 2 {
+                        inner[2] += w * c2;
+                    }
+                    if deg_max >= 3 {
+                        inner[3] += w * c3;
+                    }
+                }
+
+                // coeffs += eq_beta_r(X) * inner(X)
+                coeffs[0] += e0 * inner[0];
+                for d in 1..=deg_max {
+                    coeffs[d] += (e0 * inner[d]) + (e1 * inner[d - 1]);
+                }
+
+                // Eval: eq_r_inputs(X) * gamma_to_k * eval_tbl(X) (quadratic).
+                if let (Some(eq_tbl), Some(eval_tbl)) =
+                    (self.eq_r_inputs_tbl.as_ref(), self.eval_tbl.as_ref())
+                {
+                    let r0 = eq_tbl[2 * t];
+                    let r1 = eq_tbl[2 * t + 1] - r0;
+                    let v0 = eval_tbl[2 * t];
+                    let v1 = eval_tbl[2 * t + 1] - v0;
+
+                    let g = self.gamma_to_k;
+                    coeffs[0] += g * (r0 * v0);
+                    if deg_max >= 1 {
+                        coeffs[1] += g * (r0 * v1 + r1 * v0);
+                    }
+                    if deg_max >= 2 {
+                        coeffs[2] += g * (r1 * v1);
+                    }
+                }
+            }
+
+            return xs
+                .iter()
+                .map(|&x| crate::sumcheck::poly_eval_k(&coeffs, x))
+                .collect();
+        }
+
+        // Generic fallback: evaluate directly at each x (slower).
         let f_arity = self.f_var_tables.len();
 
         xs.par_iter()
@@ -491,8 +631,7 @@ impl RowStreamState {
                     if let (Some(eq_tbl), Some(eval_tbl)) =
                         (self.eq_r_inputs_tbl.as_ref(), self.eval_tbl.as_ref())
                     {
-                        let eq_r_inputs =
-                            one_minus * eq_tbl[2 * t] + x * eq_tbl[2 * t + 1];
+                        let eq_r_inputs = one_minus * eq_tbl[2 * t] + x * eq_tbl[2 * t + 1];
                         if eq_r_inputs != K::ZERO {
                             let e = one_minus * eval_tbl[2 * t] + x * eval_tbl[2 * t + 1];
                             out += eq_r_inputs * (self.gamma_to_k * e);
@@ -1017,6 +1156,127 @@ where
                 out
             })
             .collect()
+    }
+
+    /// Build Π_CCS ME outputs at the finalized row point `r'` using the oracle's cached
+    /// `precompute_for_r` results (no dense matrix scans).
+    pub fn build_me_outputs_from_ajtai_precomp<L>(
+        &mut self,
+        mcs_list: &[McsInstance<Cmt, F>],
+        me_inputs: &[MeInstance<Cmt, F, K>],
+        fold_digest: [u8; 32],
+        l: &L,
+    ) -> Vec<MeInstance<Cmt, F, K>>
+    where
+        L: SModuleHomomorphism<F, Cmt>,
+    {
+        assert_eq!(
+            mcs_list.len(),
+            self.mcs_witnesses.len(),
+            "ME output builder: mcs_list/mcs_witnesses length mismatch"
+        );
+        assert_eq!(
+            me_inputs.len(),
+            self.me_witnesses.len(),
+            "ME output builder: me_inputs/me_witnesses length mismatch"
+        );
+        assert_eq!(
+            self.row_chals.len(),
+            self.ell_n,
+            "ME output builder: row challenges not finalized"
+        );
+
+        // Ensure r'-only precomputation is available.
+        if self.ajtai_precomp.is_none() {
+            self.ajtai_precomp = Some(self.precompute_for_r(&self.row_chals));
+        }
+        let pre = self
+            .ajtai_precomp
+            .as_ref()
+            .expect("ajtai_precomp just populated");
+
+        let d_pad = 1usize << self.ell_d;
+        assert!(
+            d_pad >= D,
+            "ME output builder: expected 2^ell_d >= D (2^{} = {d_pad}, D = {D})",
+            self.ell_d
+        );
+
+        // Base-b recomposition cache for y_scalars.
+        let base = K::from(F::from_u64(self.params.b as u64));
+        let mut pow_cache = vec![K::ONE; D];
+        for rho in 1..D {
+            pow_cache[rho] = pow_cache[rho - 1] * base;
+        }
+        let recompose = |digits: &[K; D]| -> K {
+            let mut acc = K::ZERO;
+            for rho in 0..D {
+                acc += digits[rho] * pow_cache[rho];
+            }
+            acc
+        };
+
+        let t_mats = self.s.t();
+        let mut out = Vec::with_capacity(self.mcs_witnesses.len() + self.me_witnesses.len());
+
+        // MCS outputs (keep order).
+        for (idx, (inst, wit)) in mcs_list.iter().zip(self.mcs_witnesses.iter()).enumerate() {
+            let X = l.project_x(&wit.Z, inst.m_in);
+            let mut y = Vec::with_capacity(t_mats);
+            let mut y_scalars = Vec::with_capacity(t_mats);
+
+            for j in 0..t_mats {
+                let digits = &pre.y_eval[idx][j];
+                let mut yj = vec![K::ZERO; d_pad];
+                yj[..D].copy_from_slice(digits);
+                y.push(yj);
+                y_scalars.push(recompose(digits));
+            }
+
+            out.push(MeInstance {
+                c_step_coords: vec![],
+                u_offset: 0,
+                u_len: 0,
+                c: inst.c.clone(),
+                X,
+                r: self.row_chals.clone(),
+                y,
+                y_scalars,
+                m_in: inst.m_in,
+                fold_digest,
+            });
+        }
+
+        // ME outputs (keep order).
+        let base_idx = self.mcs_witnesses.len();
+        for (me_idx, inp) in me_inputs.iter().enumerate() {
+            let idx = base_idx + me_idx;
+            let mut y = Vec::with_capacity(t_mats);
+            let mut y_scalars = Vec::with_capacity(t_mats);
+
+            for j in 0..t_mats {
+                let digits = &pre.y_eval[idx][j];
+                let mut yj = vec![K::ZERO; d_pad];
+                yj[..D].copy_from_slice(digits);
+                y.push(yj);
+                y_scalars.push(recompose(digits));
+            }
+
+            out.push(MeInstance {
+                c_step_coords: vec![],
+                u_offset: 0,
+                u_len: 0,
+                c: inp.c.clone(),
+                X: inp.X.clone(),
+                r: self.row_chals.clone(),
+                y,
+                y_scalars,
+                m_in: inp.m_in,
+                fold_digest,
+            });
+        }
+
+        out
     }
 }
 

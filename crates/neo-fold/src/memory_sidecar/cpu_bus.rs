@@ -1,6 +1,5 @@
 use crate::PiCcsError;
-use neo_ccs::poly::SparsePoly;
-use neo_ccs::{CcsStructure, Mat};
+use neo_ccs::{CcsStructure, Mat, MeInstance};
 use neo_math::{F, K};
 use neo_memory::ajtai::decode_vector as ajtai_decode_vector;
 use neo_memory::cpu::{build_bus_layout_for_instances, BusLayout};
@@ -170,52 +169,148 @@ pub(crate) fn prepare_ccs_for_shared_cpu_bus_steps<Cmt, S: BusStepView<Cmt>>(
     let bus = infer_bus_layout_for_steps(s0, steps)?;
     let padding_rows = ensure_ccs_has_shared_bus_padding_for_steps(s0, &bus, steps)?;
     ensure_ccs_binds_shared_bus_for_steps(s0, &bus, &padding_rows)?;
-    let s = extend_ccs_with_cpu_bus_copyouts(s0, &bus)?;
-    Ok((s, bus))
+    // Performance: do NOT materialize bus copyout matrices into the CCS. Instead, we append the
+    // corresponding ME openings directly from the witness (see `append_bus_openings_to_me_*`).
+    Ok((s0.clone(), bus))
 }
 
-pub(crate) fn extend_ccs_with_cpu_bus_copyouts(
-    s: &CcsStructure<F>,
-    bus: &BusLayout,
-) -> Result<CcsStructure<F>, PiCcsError> {
-    if bus.bus_cols == 0 {
-        return Ok(s.clone());
+#[inline]
+fn chi_for_row_index(r: &[K], idx: usize) -> K {
+    // Multilinear basis polynomial χ_r(idx) where idx is interpreted in little-endian bits:
+    // χ_r(idx) = ∏_i (idx_i ? r_i : (1 - r_i)).
+    let mut acc = K::ONE;
+    for (bit, &ri) in r.iter().enumerate() {
+        let is_one = ((idx >> bit) & 1) == 1;
+        acc *= if is_one { ri } else { K::ONE - ri };
     }
-    if s.n != s.m {
+    acc
+}
+
+pub(crate) fn append_bus_openings_to_me_instance<Cmt>(
+    params: &NeoParams,
+    bus: &BusLayout,
+    core_t: usize,
+    Z: &Mat<F>,
+    me: &mut MeInstance<Cmt, F, K>,
+) -> Result<(), PiCcsError>
+where
+    Cmt: Clone,
+{
+    if bus.bus_cols == 0 {
+        return Ok(());
+    }
+
+    let y_pad = (params.d as usize).next_power_of_two();
+    let d = neo_math::D;
+    if y_pad < d {
         return Err(PiCcsError::InvalidInput(format!(
-            "shared-bus requires square CCS (n==m) for identity-first ME semantics, got {}×{}",
-            s.n, s.m
+            "bus openings require y_pad >= D (y_pad={y_pad}, D={d})"
         )));
     }
-
-    let mut matrices = s.matrices.clone();
-    let old_len = matrices.len();
-    let f: SparsePoly<F> = s.f.append_zero_vars(bus.bus_cols);
-
-    for col_id in 0..bus.bus_cols {
-        let mut mat = Mat::zero(s.n, s.m, F::ZERO);
-        for j in 0..bus.chunk_size {
-            let row = bus.time_index(j);
-            let col = bus.bus_cell(col_id, j);
-            if row >= s.n || col >= s.m {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "bus copy-out index out of range (row={row}, col={col}, n={}, m={})",
-                    s.n, s.m
-                )));
-            }
-            mat.set(row, col, F::ONE);
+    if Z.rows() != d {
+        return Err(PiCcsError::InvalidInput(format!(
+            "bus openings require Z.rows()==D (got {}, want {})",
+            Z.rows(),
+            d
+        )));
+    }
+    if Z.cols() != bus.m {
+        return Err(PiCcsError::InvalidInput(format!(
+            "bus openings require Z.cols()==bus.m (got {}, want {})",
+            Z.cols(),
+            bus.m
+        )));
+    }
+    if me.m_in != bus.m_in {
+        return Err(PiCcsError::InvalidInput(format!(
+            "bus openings require ME.m_in==bus.m_in (got {}, want {})",
+            me.m_in, bus.m_in
+        )));
+    }
+    if me.r.len() == 0 {
+        return Err(PiCcsError::InvalidInput("bus openings require non-empty ME.r".into()));
+    }
+    let n_pad = 1usize
+        .checked_shl(me.r.len() as u32)
+        .ok_or_else(|| PiCcsError::InvalidInput("2^ell_n overflow".into()))?;
+    for j in 0..bus.chunk_size {
+        let row = bus.time_index(j);
+        if row >= n_pad {
+            return Err(PiCcsError::InvalidInput(format!(
+                "bus time_index({j})={row} out of range for ell_n={} (n_pad={})",
+                me.r.len(),
+                n_pad
+            )));
         }
-        matrices.push(mat);
     }
 
-    let out = CcsStructure::new(matrices, f)
-        .map_err(|e| PiCcsError::InvalidInput(format!("invalid CCS after bus extension: {e:?}")))?;
-    assert_eq!(
-        out.matrices.len(),
-        old_len + bus.bus_cols,
-        "shared-bus copyouts: matrix count mismatch"
-    );
-    Ok(out)
+    // Idempotent append: allow callers to call this once; reject unexpected shapes.
+    let want_len = core_t
+        .checked_add(bus.bus_cols)
+        .ok_or_else(|| PiCcsError::InvalidInput("core_t + bus_cols overflow".into()))?;
+    if me.y.len() == want_len && me.y_scalars.len() == want_len {
+        return Ok(());
+    }
+    if me.y.len() != core_t || me.y_scalars.len() != core_t {
+        return Err(PiCcsError::InvalidInput(format!(
+            "bus openings expect ME y/y_scalars to start at core_t (y.len()={}, y_scalars.len()={}, core_t={})",
+            me.y.len(),
+            me.y_scalars.len(),
+            core_t
+        )));
+    }
+    for (j, row) in me.y.iter().enumerate() {
+        if row.len() != y_pad {
+            return Err(PiCcsError::InvalidInput(format!(
+                "bus openings require ME.y[{j}].len()==y_pad (got {}, want {})",
+                row.len(),
+                y_pad
+            )));
+        }
+    }
+
+    // Precompute χ_r(time_index(j)) weights for the bus time rows.
+    let mut time_weights = Vec::with_capacity(bus.chunk_size);
+    for j in 0..bus.chunk_size {
+        time_weights.push(chi_for_row_index(&me.r, bus.time_index(j)));
+    }
+
+    // Base-b powers for recomposition.
+    let bK = K::from(F::from_u64(params.b as u64));
+    let mut pow_b = Vec::with_capacity(d);
+    let mut cur = K::ONE;
+    for _ in 0..d {
+        pow_b.push(cur);
+        cur *= bK;
+    }
+
+    // Append bus openings in canonical col_id order so `bus_y_base = y_scalars.len() - bus_cols`
+    // remains valid.
+    for col_id in 0..bus.bus_cols {
+        let mut y_row = vec![K::ZERO; y_pad];
+        for rho in 0..d {
+            let mut acc = K::ZERO;
+            for j in 0..bus.chunk_size {
+                let w = time_weights[j];
+                if w == K::ZERO {
+                    continue;
+                }
+                let z_idx = bus.bus_cell(col_id, j);
+                acc += w * K::from(Z[(rho, z_idx)]);
+            }
+            y_row[rho] = acc;
+        }
+
+        let mut y_scalar = K::ZERO;
+        for rho in 0..d {
+            y_scalar += y_row[rho] * pow_b[rho];
+        }
+
+        me.y.push(y_row);
+        me.y_scalars.push(y_scalar);
+    }
+
+    Ok(())
 }
 
 fn active_matrix_indices(s: &CcsStructure<F>) -> Vec<usize> {
@@ -298,6 +393,10 @@ fn required_bus_cols_for_layout(layout: &BusLayout) -> Vec<BusColLabel> {
 }
 
 fn required_bus_binding_cols_for_layout(layout: &BusLayout) -> Vec<BusColLabel> {
+    // Note: `inc_at_write_addr` is a Twist-internal witness field derived from the sparse
+    // memory state. Many CPU CCSes do not (and should not) constrain it outside padding rows;
+    // it is constrained by the Twist Route-A checks instead. We still require the canonical
+    // padding constraint `(1 - has_write) * inc_at_write_addr = 0`.
     let inc_cols: HashSet<usize> = layout.twist_cols.iter().map(|t| t.inc).collect();
     required_bus_cols_for_layout(layout)
         .into_iter()
@@ -329,25 +428,32 @@ fn ensure_ccs_references_bus_cols(
                 col.col_id, bus.bus_cols
             )));
         }
-        let z_idx = bus.bus_cell(col.col_id, 0);
-        if z_idx >= s.m {
-            return Err(PiCcsError::InvalidInput(format!(
-                "shared_cpu_bus internal error: bus z index {} out of range (m={})",
-                z_idx, s.m
-            )));
-        }
+        let mut all_js_present = true;
+        for j in 0..bus.chunk_size {
+            let z_idx = bus.bus_cell(col.col_id, j);
+            if z_idx >= s.m {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "shared_cpu_bus internal error: bus z index {} out of range (m={})",
+                    z_idx, s.m
+                )));
+            }
 
-        let mut found = false;
-        'active_mats: for &mj in &active {
-            let mat = &s.matrices[mj];
-            for r in 0..mat.rows() {
-                if mat[(r, z_idx)] != F::ZERO {
-                    found = true;
-                    break 'active_mats;
+            let mut found = false;
+            'active_mats: for &mj in &active {
+                let mat = &s.matrices[mj];
+                for r in 0..mat.rows() {
+                    if mat[(r, z_idx)] != F::ZERO {
+                        found = true;
+                        break 'active_mats;
+                    }
                 }
             }
+            if !found {
+                all_js_present = false;
+                break;
+            }
         }
-        if !found {
+        if !all_js_present {
             missing.push(col);
         }
     }
@@ -406,28 +512,35 @@ fn ensure_ccs_references_bus_cols_outside_padding_rows(
                 col.col_id, bus.bus_cols
             )));
         }
-        let z_idx = bus.bus_cell(col.col_id, 0);
-        if z_idx >= s.m {
-            return Err(PiCcsError::InvalidInput(format!(
-                "shared_cpu_bus internal error: bus z index {} out of range (m={})",
-                z_idx, s.m
-            )));
-        }
+        let mut all_js_present = true;
+        for j in 0..bus.chunk_size {
+            let z_idx = bus.bus_cell(col.col_id, j);
+            if z_idx >= s.m {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "shared_cpu_bus internal error: bus z index {} out of range (m={})",
+                    z_idx, s.m
+                )));
+            }
 
-        let mut found = false;
-        'active_mats: for &mj in &active {
-            let mat = &s.matrices[mj];
-            for r in 0..mat.rows() {
-                if is_padding_row[r] {
-                    continue;
-                }
-                if mat[(r, z_idx)] != F::ZERO {
-                    found = true;
-                    break 'active_mats;
+            let mut found = false;
+            'active_mats: for &mj in &active {
+                let mat = &s.matrices[mj];
+                for r in 0..mat.rows() {
+                    if is_padding_row[r] {
+                        continue;
+                    }
+                    if mat[(r, z_idx)] != F::ZERO {
+                        found = true;
+                        break 'active_mats;
+                    }
                 }
             }
+            if !found {
+                all_js_present = false;
+                break;
+            }
         }
-        if !found {
+        if !all_js_present {
             missing.push(col);
         }
     }
@@ -467,74 +580,78 @@ fn required_bus_padding_for_layout(bus: &BusLayout) -> Vec<BusPaddingLabel> {
     let mut out = Vec::<BusPaddingLabel>::new();
 
     for (lut_idx, shout) in bus.shout_cols.iter().enumerate() {
-        let has_lookup_z = bus.bus_cell(shout.has_lookup, 0);
-        let val_z = bus.bus_cell(shout.val, 0);
+        for j in 0..bus.chunk_size {
+            let has_lookup_z = bus.bus_cell(shout.has_lookup, j);
+            let val_z = bus.bus_cell(shout.val, j);
 
-        // (1 - has_lookup) * val = 0
-        out.push(BusPaddingLabel {
-            flag_z_idx: has_lookup_z,
-            field_z_idx: val_z,
-            label: format!("shout[{lut_idx}]: (1-has_lookup)*val"),
-        });
-
-        // (1 - has_lookup) * addr_bits[b] = 0
-        for (b, col_id) in shout.addr_bits.clone().enumerate() {
-            let bit_z = bus.bus_cell(col_id, 0);
+            // (1 - has_lookup) * val = 0
             out.push(BusPaddingLabel {
                 flag_z_idx: has_lookup_z,
-                field_z_idx: bit_z,
-                label: format!("shout[{lut_idx}]: (1-has_lookup)*addr_bits[{b}]"),
+                field_z_idx: val_z,
+                label: format!("shout[{lut_idx}][j={j}]: (1-has_lookup)*val"),
             });
+
+            // (1 - has_lookup) * addr_bits[b] = 0
+            for (b, col_id) in shout.addr_bits.clone().enumerate() {
+                let bit_z = bus.bus_cell(col_id, j);
+                out.push(BusPaddingLabel {
+                    flag_z_idx: has_lookup_z,
+                    field_z_idx: bit_z,
+                    label: format!("shout[{lut_idx}][j={j}]: (1-has_lookup)*addr_bits[{b}]"),
+                });
+            }
         }
     }
 
     for (mem_idx, twist) in bus.twist_cols.iter().enumerate() {
-        let has_read_z = bus.bus_cell(twist.has_read, 0);
-        let has_write_z = bus.bus_cell(twist.has_write, 0);
+        for j in 0..bus.chunk_size {
+            let has_read_z = bus.bus_cell(twist.has_read, j);
+            let has_write_z = bus.bus_cell(twist.has_write, j);
 
-        let wv_z = bus.bus_cell(twist.wv, 0);
-        let rv_z = bus.bus_cell(twist.rv, 0);
-        let inc_z = bus.bus_cell(twist.inc, 0);
+            let wv_z = bus.bus_cell(twist.wv, j);
+            let rv_z = bus.bus_cell(twist.rv, j);
+            let inc_z = bus.bus_cell(twist.inc, j);
 
-        // (1 - has_read) * rv = 0
-        out.push(BusPaddingLabel {
-            flag_z_idx: has_read_z,
-            field_z_idx: rv_z,
-            label: format!("twist[{mem_idx}]: (1-has_read)*rv"),
-        });
-
-        // (1 - has_read) * ra_bits[b] = 0
-        for (b, col_id) in twist.ra_bits.clone().enumerate() {
-            let bit_z = bus.bus_cell(col_id, 0);
+            // (1 - has_read) * rv = 0
             out.push(BusPaddingLabel {
                 flag_z_idx: has_read_z,
-                field_z_idx: bit_z,
-                label: format!("twist[{mem_idx}]: (1-has_read)*ra_bits[{b}]"),
+                field_z_idx: rv_z,
+                label: format!("twist[{mem_idx}][j={j}]: (1-has_read)*rv"),
             });
-        }
 
-        // (1 - has_write) * wv = 0
-        out.push(BusPaddingLabel {
-            flag_z_idx: has_write_z,
-            field_z_idx: wv_z,
-            label: format!("twist[{mem_idx}]: (1-has_write)*wv"),
-        });
+            // (1 - has_read) * ra_bits[b] = 0
+            for (b, col_id) in twist.ra_bits.clone().enumerate() {
+                let bit_z = bus.bus_cell(col_id, j);
+                out.push(BusPaddingLabel {
+                    flag_z_idx: has_read_z,
+                    field_z_idx: bit_z,
+                    label: format!("twist[{mem_idx}][j={j}]: (1-has_read)*ra_bits[{b}]"),
+                });
+            }
 
-        // (1 - has_write) * inc_at_write_addr = 0
-        out.push(BusPaddingLabel {
-            flag_z_idx: has_write_z,
-            field_z_idx: inc_z,
-            label: format!("twist[{mem_idx}]: (1-has_write)*inc_at_write_addr"),
-        });
-
-        // (1 - has_write) * wa_bits[b] = 0
-        for (b, col_id) in twist.wa_bits.clone().enumerate() {
-            let bit_z = bus.bus_cell(col_id, 0);
+            // (1 - has_write) * wv = 0
             out.push(BusPaddingLabel {
                 flag_z_idx: has_write_z,
-                field_z_idx: bit_z,
-                label: format!("twist[{mem_idx}]: (1-has_write)*wa_bits[{b}]"),
+                field_z_idx: wv_z,
+                label: format!("twist[{mem_idx}][j={j}]: (1-has_write)*wv"),
             });
+
+            // (1 - has_write) * inc_at_write_addr = 0
+            out.push(BusPaddingLabel {
+                flag_z_idx: has_write_z,
+                field_z_idx: inc_z,
+                label: format!("twist[{mem_idx}][j={j}]: (1-has_write)*inc_at_write_addr"),
+            });
+
+            // (1 - has_write) * wa_bits[b] = 0
+            for (b, col_id) in twist.wa_bits.clone().enumerate() {
+                let bit_z = bus.bus_cell(col_id, j);
+                out.push(BusPaddingLabel {
+                    flag_z_idx: has_write_z,
+                    field_z_idx: bit_z,
+                    label: format!("twist[{mem_idx}][j={j}]: (1-has_write)*wa_bits[{b}]"),
+                });
+            }
         }
     }
 

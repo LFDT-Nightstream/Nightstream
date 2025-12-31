@@ -1,5 +1,3 @@
-use core::ops::Range;
-
 use neo_ajtai::Commitment as Cmt;
 use neo_math::{F, K};
 use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle};
@@ -17,8 +15,7 @@ pub struct TimeClaimMeta {
 pub struct ShoutTimeClaimIdx {
     pub value: usize,
     pub adapter: usize,
-    pub bitness_addr_bits: Range<usize>,
-    pub bitness_has_lookup: usize,
+    pub bitness: usize,
     pub ell_addr: usize,
 }
 
@@ -26,10 +23,7 @@ pub struct ShoutTimeClaimIdx {
 pub struct TwistTimeClaimIdx {
     pub read_check: usize,
     pub write_check: usize,
-    pub bitness_ra_bits: Range<usize>,
-    pub bitness_wa_bits: Range<usize>,
-    pub bitness_has_read: usize,
-    pub bitness_has_write: usize,
+    pub bitness: usize,
     pub ell_addr: usize,
 }
 
@@ -78,13 +72,11 @@ impl RouteATimeClaimPlan {
                 is_dynamic: true,
             });
 
-            for _ in 0..(ell_addr + 1) {
-                out.push(TimeClaimMeta {
-                    label: b"shout/bitness",
-                    degree_bound: 3,
-                    is_dynamic: false,
-                });
-            }
+            out.push(TimeClaimMeta {
+                label: b"shout/bitness",
+                degree_bound: 3,
+                is_dynamic: false,
+            });
         }
 
         for mem_inst in mem_insts {
@@ -101,13 +93,11 @@ impl RouteATimeClaimPlan {
                 is_dynamic: true,
             });
 
-            for _ in 0..(2 * ell_addr + 2) {
-                out.push(TimeClaimMeta {
-                    label: b"twist/bitness",
-                    degree_bound: 3,
-                    is_dynamic: false,
-                });
-            }
+            out.push(TimeClaimMeta {
+                label: b"twist/bitness",
+                degree_bound: 3,
+                is_dynamic: false,
+            });
         }
 
         if let Some(degree_bound) = ob_inc_total_degree_bound {
@@ -153,16 +143,13 @@ impl RouteATimeClaimPlan {
             idx += 1;
             let adapter = idx;
             idx += 1;
-            let bitness_addr_bits = idx..(idx + ell_addr);
-            idx += ell_addr;
-            let bitness_has_lookup = idx;
+            let bitness = idx;
             idx += 1;
 
             shout.push(ShoutTimeClaimIdx {
                 value,
                 adapter,
-                bitness_addr_bits,
-                bitness_has_lookup,
+                bitness,
                 ell_addr,
             });
         }
@@ -174,22 +161,13 @@ impl RouteATimeClaimPlan {
             let write_check = idx;
             idx += 1;
 
-            let bitness_ra_bits = idx..(idx + ell_addr);
-            idx += ell_addr;
-            let bitness_wa_bits = idx..(idx + ell_addr);
-            idx += ell_addr;
-            let bitness_has_read = idx;
-            idx += 1;
-            let bitness_has_write = idx;
+            let bitness = idx;
             idx += 1;
 
             twist.push(TwistTimeClaimIdx {
                 read_check,
                 write_check,
-                bitness_ra_bits,
-                bitness_wa_bits,
-                bitness_has_read,
-                bitness_has_write,
+                bitness,
                 ell_addr,
             });
         }

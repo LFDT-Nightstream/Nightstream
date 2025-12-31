@@ -37,6 +37,46 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use std::sync::Arc;
 
+enum CcsOracleDispatch<'a> {
+    Optimized(neo_reductions::engines::optimized_engine::oracle::OptimizedOracle<'a, F>),
+    #[cfg(feature = "paper-exact")]
+    PaperExact(neo_reductions::engines::paper_exact_engine::oracle::PaperExactOracle<'a, F>),
+}
+
+impl<'a> RoundOracle for CcsOracleDispatch<'a> {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        match self {
+            Self::Optimized(oracle) => oracle.evals_at(points),
+            #[cfg(feature = "paper-exact")]
+            Self::PaperExact(oracle) => oracle.evals_at(points),
+        }
+    }
+
+    fn num_rounds(&self) -> usize {
+        match self {
+            Self::Optimized(oracle) => oracle.num_rounds(),
+            #[cfg(feature = "paper-exact")]
+            Self::PaperExact(oracle) => oracle.num_rounds(),
+        }
+    }
+
+    fn degree_bound(&self) -> usize {
+        match self {
+            Self::Optimized(oracle) => oracle.degree_bound(),
+            #[cfg(feature = "paper-exact")]
+            Self::PaperExact(oracle) => oracle.degree_bound(),
+        }
+    }
+
+    fn fold(&mut self, r: K) {
+        match self {
+            Self::Optimized(oracle) => oracle.fold(r),
+            #[cfg(feature = "paper-exact")]
+            Self::PaperExact(oracle) => oracle.fold(r),
+        }
+    }
+}
+
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -303,6 +343,7 @@ fn prove_rlc_dec_lane<L, MR, MB>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s: &CcsStructure<F>,
+    cpu_bus: Option<&neo_memory::cpu::BusLayout>,
     ring: &ccs::RotRing,
     ell_d: usize,
     k_dec: usize,
@@ -319,7 +360,7 @@ where
 {
     bind_rlc_inputs(tr, lane, step_idx, me_inputs)?;
     let rlc_rhos = ccs::sample_rot_rhos_n(tr, params, ring, me_inputs.len())?;
-    let (rlc_parent, Z_mix) = ccs::rlc_with_commit(
+    let (mut rlc_parent, Z_mix) = ccs::rlc_with_commit(
         mode.clone(),
         s,
         params,
@@ -332,7 +373,7 @@ where
 
     let Z_split = ccs::split_b_matrix_k(&Z_mix, k_dec, params.b)?;
     let child_cs: Vec<Cmt> = Z_split.iter().map(|Zi| l.commit(Zi)).collect();
-    let (dec_children, ok_y, ok_X, ok_c) = ccs::dec_children_with_commit(
+    let (mut dec_children, ok_y, ok_X, ok_c) = ccs::dec_children_with_commit(
         mode.clone(),
         s,
         params,
@@ -351,6 +392,26 @@ where
             "{} public check failed at step {} (y={}, X={}, c={})",
             lane_label, step_idx, ok_y, ok_X, ok_c
         )));
+    }
+
+    // Shared CPU bus: carry the implicit bus openings through Π_RLC/Π_DEC so they remain
+    // part of the folded instance (and are checked by public DEC verification).
+    if let Some(bus) = cpu_bus {
+        if bus.bus_cols > 0 {
+            let core_t = s.t();
+            crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(
+                params,
+                bus,
+                core_t,
+                &Z_mix,
+                &mut rlc_parent,
+            )?;
+            for (child, Zi) in dec_children.iter_mut().zip(Z_split.iter()) {
+                crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(
+                    params, bus, core_t, Zi, child,
+                )?;
+            }
+        }
     }
 
     Ok((
@@ -606,10 +667,12 @@ where
         let r_cycle: Vec<K> =
             ts::sample_ext_point(tr, b"route_a/r_cycle", b"route_a/cycle/0", b"route_a/cycle/1", ell_n);
 
-        // CCS oracle (engine-selected)
-        let mut ccs_oracle: Box<dyn RoundOracle> = match mode.clone() {
-            FoldingMode::Optimized => {
-                Box::new(neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new_with_sparse(
+        // CCS oracle (engine-selected).
+        //
+        // Keep the optimized oracle concrete so we can build outputs from its Ajtai precompute.
+        let mut ccs_oracle: CcsOracleDispatch<'_> = match mode.clone() {
+            FoldingMode::Optimized => CcsOracleDispatch::Optimized(
+                neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new_with_sparse(
                     &s,
                     params,
                     core::slice::from_ref(mcs_wit),
@@ -620,10 +683,10 @@ where
                     d_sc,
                     accumulator.first().map(|mi| mi.r.as_slice()),
                     ccs_sparse_cache.clone(),
-                ))
-            }
+                ),
+            ),
             #[cfg(feature = "paper-exact")]
-            FoldingMode::PaperExact => Box::new(
+            FoldingMode::PaperExact => CcsOracleDispatch::PaperExact(
                 neo_reductions::engines::paper_exact_engine::oracle::PaperExactOracle::new(
                     &s,
                     params,
@@ -637,8 +700,8 @@ where
                 ),
             ),
             #[cfg(feature = "paper-exact")]
-            FoldingMode::OptimizedWithCrosscheck(_) => {
-                Box::new(neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new_with_sparse(
+            FoldingMode::OptimizedWithCrosscheck(_) => CcsOracleDispatch::Optimized(
+                neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new_with_sparse(
                     &s,
                     params,
                     core::slice::from_ref(mcs_wit),
@@ -649,8 +712,8 @@ where
                     d_sc,
                     accumulator.first().map(|mi| mi.r.as_slice()),
                     ccs_sparse_cache.clone(),
-                ))
-            }
+                ),
+            ),
         };
 
         let shout_pre = crate::memory_sidecar::memory::prove_shout_addr_pre_time(
@@ -710,7 +773,7 @@ where
             ell_n,
             d_sc,
             ccs_initial_sum,
-            ccs_oracle.as_mut(),
+            &mut ccs_oracle,
             &mut mem_oracles,
             step,
             twist_read_claims,
@@ -730,7 +793,7 @@ where
             .map(|r| r.final_value)
             .unwrap_or(ccs_initial_sum);
 
-        let mut ccs_ajtai = RoundOraclePrefix::new(ccs_oracle.as_mut(), ell_d);
+        let mut ccs_ajtai = RoundOraclePrefix::new(&mut ccs_oracle, ell_d);
         let (ajtai_rounds, ajtai_chals) =
             run_sumcheck_prover_ds(tr, b"ccs/ajtai", idx, &mut ccs_ajtai, ajtai_initial_sum)?;
         let mut running_sum = ajtai_initial_sum;
@@ -740,23 +803,62 @@ where
         sumcheck_rounds.extend_from_slice(&ajtai_rounds);
         sumcheck_chals.extend_from_slice(&ajtai_chals);
 
+        // Build CCS ME outputs at r_time.
+        let fold_digest = tr.digest32();
+        let mut ccs_out = match &mut ccs_oracle {
+            CcsOracleDispatch::Optimized(oracle) => oracle.build_me_outputs_from_ajtai_precomp(
+                core::slice::from_ref(mcs_inst),
+                &accumulator,
+                fold_digest,
+                l,
+            ),
+            #[cfg(feature = "paper-exact")]
+            CcsOracleDispatch::PaperExact(_) => build_me_outputs_paper_exact(
+                &s,
+                params,
+                core::slice::from_ref(mcs_inst),
+                core::slice::from_ref(mcs_wit),
+                &accumulator,
+                &accumulator_wit,
+                &r_time,
+                ell_d,
+                fold_digest,
+                l,
+            ),
+        };
+
         // CCS oracle borrows accumulator_wit; drop before updating accumulator_wit at the end.
         drop(ccs_oracle);
 
-        // Build CCS ME outputs at r_time
-        let fold_digest = tr.digest32();
-        let ccs_out = build_me_outputs_paper_exact(
-            &s,
-            params,
-            core::slice::from_ref(mcs_inst),
-            core::slice::from_ref(mcs_wit),
-            &accumulator,
-            &accumulator_wit,
-            &r_time,
-            ell_d,
-            fold_digest,
-            l,
-        );
+        // Shared CPU bus: append "implicit openings" for all bus columns without materializing
+        // bus copyout matrices into the CCS.
+        if cpu_bus.bus_cols > 0 {
+            let core_t = s.t();
+            if ccs_out.len() != 1 + accumulator_wit.len() {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "CCS output count mismatch for bus openings (ccs_out.len()={}, expected {})",
+                    ccs_out.len(),
+                    1 + accumulator_wit.len()
+                )));
+            }
+
+            crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(
+                params,
+                &cpu_bus,
+                core_t,
+                &mcs_wit.Z,
+                &mut ccs_out[0],
+            )?;
+            for (out, Z) in ccs_out.iter_mut().skip(1).zip(accumulator_wit.iter()) {
+                crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(
+                    params,
+                    &cpu_bus,
+                    core_t,
+                    Z,
+                    out,
+                )?;
+            }
+        }
 
         if ccs_out.len() != k {
             return Err(PiCcsError::ProtocolError(format!(
@@ -782,6 +884,7 @@ where
         let mut mem_proof = crate::memory_sidecar::memory::finalize_route_a_memory_prover(
             tr,
             params,
+            &cpu_bus,
             &s,
             step,
             prev_step,
@@ -795,7 +898,11 @@ where
         )?;
         prev_twist_decoded = Some(twist_pre.into_iter().map(|p| p.decoded).collect());
 
-        normalize_me_claims(&mut mem_proof.cpu_me_claims_val, ell_n, ell_d, s.t())?;
+        let y_len_total = s
+            .t()
+            .checked_add(cpu_bus.bus_cols)
+            .ok_or_else(|| PiCcsError::ProtocolError("t + bus_cols overflow".into()))?;
+        normalize_me_claims(&mut mem_proof.cpu_me_claims_val, ell_n, ell_d, y_len_total)?;
 
         validate_me_batch_invariants(&ccs_out, "prove step ccs outputs")?;
 
@@ -805,6 +912,7 @@ where
             tr,
             params,
             &s,
+            Some(&cpu_bus),
             &ring,
             ell_d,
             k_dec,
@@ -848,6 +956,7 @@ where
                 tr,
                 params,
                 &s,
+                Some(&cpu_bus),
                 &ring,
                 ell_d,
                 k_dec,

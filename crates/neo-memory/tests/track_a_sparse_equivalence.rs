@@ -8,7 +8,7 @@ use neo_memory::bit_ops::eq_bit_affine;
 use neo_memory::mle::{chi_at_index, lt_eval};
 use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::twist_oracle::{
-    AddressLookupOracle, IndexAdapterOracleSparseTime, LazyBitnessOracleSparseTime, ShoutValueOracleSparse,
+    AddressLookupOracle, IndexAdapterOracleSparseTime, LazyWeightedBitnessOracleSparseTime, ShoutValueOracleSparse,
     TwistReadCheckOracleSparseTime, TwistTotalIncOracleSparseTime, TwistValEvalOracleSparseTime,
     TwistWriteCheckOracleSparseTime,
 };
@@ -125,8 +125,50 @@ fn lazy_bitness_oracle_sparse_binary_claim_zero_and_runs_sumcheck() {
         .map(|t| if t % 2 == 0 { K::ZERO } else { K::ONE })
         .collect::<Vec<_>>();
 
-    let oracle = LazyBitnessOracleSparseTime::new_with_cycle(&r_cycle, dense_to_sparse(&col));
+    let oracle = LazyWeightedBitnessOracleSparseTime::new_with_cycle(
+        &r_cycle,
+        vec![dense_to_sparse(&col)],
+        vec![K::ONE],
+    );
     assert_sumcheck_ok(b"track_a/bitness/v1", oracle.degree_bound(), K::ZERO, oracle);
+}
+
+#[test]
+fn lazy_weighted_bitness_oracle_sparse_multi_col_claim_matches_naive_and_runs_sumcheck() {
+    let r_cycle = vec![k(5), k(7), k(11)];
+    let pow2_cycle = 1usize << r_cycle.len();
+
+    let col0 = (0..pow2_cycle)
+        .map(|t| if t % 2 == 0 { K::ZERO } else { K::ONE })
+        .collect::<Vec<_>>();
+    let col1 = (0..pow2_cycle)
+        .map(|t| if t % 3 == 0 { k(2) } else { K::ZERO })
+        .collect::<Vec<_>>();
+    let col2 = (0..pow2_cycle)
+        .map(|t| if t % 5 == 0 { k(3) } else { K::ONE })
+        .collect::<Vec<_>>();
+
+    let cols = vec![col0, col1, col2];
+    let weights = vec![K::ONE, k(7), k(13)];
+
+    let oracle = LazyWeightedBitnessOracleSparseTime::new_with_cycle(&r_cycle, cols_to_sparse(&cols), weights.clone());
+
+    let mut naive = K::ZERO;
+    for t in 0..pow2_cycle {
+        let mut inner = K::ZERO;
+        for (w, col) in weights.iter().zip(cols.iter()) {
+            let b = col[t];
+            inner += *w * b * (b - K::ONE);
+        }
+        naive += chi_at_index(&r_cycle, t) * inner;
+    }
+
+    assert_sumcheck_ok(
+        b"track_a/bitness/multi/v1",
+        oracle.degree_bound(),
+        naive,
+        oracle,
+    );
 }
 
 #[test]

@@ -182,21 +182,9 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         sumcheck_rounds.push(coeffs);
     }
 
-    // Build outputs literally at r′ using paper-exact helper
+    // Build outputs at r′ using the oracle's r′-only precomputation (no dense scan).
     let fold_digest = tr.digest32();
-    let (r_prime, _alpha_prime) = sumcheck_chals.split_at(dims.ell_n);
-    let out_me = crate::paper_exact_engine::build_me_outputs_paper_exact(
-        s,
-        params,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        r_prime,
-        dims.ell_d,
-        fold_digest,
-        log,
-    );
+    let out_me = oracle.build_me_outputs_from_ajtai_precomp(mcs_list, me_inputs, fold_digest, log);
 
     let mut proof = PiCcsProof::new(sumcheck_rounds, Some(initial_sum));
     proof.sumcheck_challenges = sumcheck_chals;
@@ -392,19 +380,10 @@ pub fn finalize_ccs_after_batch<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>
 
     // Build ME outputs
     let fold_digest = tr.digest32();
-    let (r_prime, _alpha_prime) = sumcheck_chals.split_at(context.ell_n);
-    let out_me = crate::paper_exact_engine::build_me_outputs_paper_exact(
-        s,
-        params,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        r_prime,
-        context.ell_d,
-        fold_digest,
-        log,
-    );
+    let _ = (params, s, mcs_witnesses, me_witnesses);
+    let out_me = context
+        .oracle
+        .build_me_outputs_from_ajtai_precomp(mcs_list, me_inputs, fold_digest, log);
 
     let mut proof = super::PiCcsProof::new(sumcheck_rounds, Some(context.initial_sum));
     proof.sumcheck_challenges = sumcheck_chals;

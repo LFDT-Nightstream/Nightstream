@@ -1095,6 +1095,11 @@ where
     let d_pad = 1usize << ell_d;
     let m_in = me_inputs[0].m_in;
     let r = me_inputs[0].r.clone();
+    let t = me_inputs[0].y.len();
+    assert!(t >= s.t(), "Π_RLC: ME y.len() must be >= s.t()");
+    for (idx, inst) in me_inputs.iter().enumerate() {
+        assert_eq!(inst.y.len(), t, "Π_RLC: y.len mismatch at input {idx}");
+    }
 
     // Helper: acc += rho * A (left multiply)
     let left_mul_acc = |acc: &mut Mat<Ff>, rho: &Mat<Ff>, a: &Mat<Ff>| {
@@ -1121,8 +1126,8 @@ where
     }
 
     // y_j := Σ ρ_i y_(i,j) (apply ρ to the first D digits; keep padding to 2^{ell_d})
-    let mut y: Vec<Vec<K>> = Vec::with_capacity(s.t());
-    for j in 0..s.t() {
+    let mut y: Vec<Vec<K>> = Vec::with_capacity(t);
+    for j in 0..t {
         let mut yj_acc = vec![K::ZERO; d_pad];
         for i in 0..k1 {
             // term = ρ_i · y_(i,j)

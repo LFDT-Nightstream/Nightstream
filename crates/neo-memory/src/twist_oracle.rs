@@ -9,7 +9,7 @@
 //! - `ProductRoundOracle`: Generic multilinear product sumcheck (used for address-domain checks)
 //! - `AddressLookupOracle`: Shout address-domain lookup sumcheck
 //! - `IndexAdapterOracleSparseTime`: Sparse-in-time IDX→OH adapter (time-domain)
-//! - `LazyBitnessOracleSparseTime`: Sparse-in-time bitness checks (time-domain)
+//! - `LazyWeightedBitnessOracleSparseTime`: Sparse-in-time aggregated bitness checks (time-domain)
 //! - `TwistReadCheckOracleSparseTime` / `TwistWriteCheckOracleSparseTime`: Twist time-lane checks (time-domain)
 //! - `TwistValEvalOracleSparseTime` / `TwistTotalIncOracleSparseTime`: Twist val reconstruction (time-domain)
 
@@ -508,58 +508,92 @@ impl RoundOracle for IndexAdapterOracleSparseTime {
     }
 }
 
-/// Sparse Route A oracle for χ_{r_cycle}-weighted bitness:
-///   Σ_t χ_{r_cycle}(t) · col(t) · (col(t) - 1)
-pub struct LazyBitnessOracleSparseTime {
+/// Sparse Route A oracle for χ_{r_cycle}-weighted *aggregated* bitness:
+///   Σ_t χ_{r_cycle}(t) · ( Σ_i w_i · col_i(t) · (col_i(t) - 1) )
+///
+/// This reduces O(#bit-columns) separate degree-3 sumchecks to a single degree-3 sumcheck.
+/// The weights `w_i` MUST be derived deterministically from transcript-known data (e.g. r_cycle),
+/// so prover/verifier agree on the same polynomial.
+pub struct LazyWeightedBitnessOracleSparseTime {
     bit_idx: usize,
     r_cycle: Vec<K>,
     prefix_eq: K,
-    col: SparseIdxVec<K>,
+    cols: Vec<SparseIdxVec<K>>,
+    weights: Vec<K>,
     degree_bound: usize,
     challenges: Vec<K>,
 }
 
-impl LazyBitnessOracleSparseTime {
-    pub fn new_with_cycle(r_cycle: &[K], col: SparseIdxVec<K>) -> Self {
+impl LazyWeightedBitnessOracleSparseTime {
+    pub fn new_with_cycle(r_cycle: &[K], cols: Vec<SparseIdxVec<K>>, weights: Vec<K>) -> Self {
         let ell_n = r_cycle.len();
-        debug_assert_eq!(col.len(), 1usize << ell_n);
+        debug_assert_eq!(cols.len(), weights.len());
+        for col in &cols {
+            debug_assert_eq!(col.len(), 1usize << ell_n);
+        }
         Self {
             bit_idx: 0,
             r_cycle: r_cycle.to_vec(),
             prefix_eq: K::ONE,
-            col,
+            cols,
+            weights,
             degree_bound: 3,
             challenges: Vec::with_capacity(ell_n),
         }
     }
 }
 
-impl RoundOracle for LazyBitnessOracleSparseTime {
+impl RoundOracle for LazyWeightedBitnessOracleSparseTime {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
-        if self.col.len() == 1 {
-            let b = self.col.singleton_value();
-            let v = self.prefix_eq * b * (b - K::ONE);
+        if self.cols.is_empty() {
+            return vec![K::ZERO; points.len()];
+        }
+
+        if self.cols[0].len() == 1 {
+            let mut acc = K::ZERO;
+            for (col, w) in self.cols.iter().zip(self.weights.iter()) {
+                let b = col.singleton_value();
+                acc += *w * b * (b - K::ONE);
+            }
+            let v = self.prefix_eq * acc;
             return vec![v; points.len()];
         }
 
-        let pairs = gather_pairs_from_sparse(self.col.entries());
+        // Union of parent indices whose children contain any nonzero across the aggregated columns.
+        let mut pairs: Vec<usize> = Vec::new();
+        for col in &self.cols {
+            for &(idx, _v) in col.entries() {
+                pairs.push(idx >> 1);
+            }
+        }
+        pairs.sort_unstable();
+        pairs.dedup();
+
         let mut ys = vec![K::ZERO; points.len()];
         for &pair in pairs.iter() {
             let child0 = 2 * pair;
             let child1 = child0 + 1;
 
-            let b0 = self.col.get(child0);
-            let b1 = self.col.get(child1);
-            if b0 == K::ZERO && b1 == K::ZERO {
-                continue;
-            }
-
             let (chi0, chi1) = chi_cycle_children(&self.r_cycle, self.bit_idx, self.prefix_eq, pair);
 
             for (i, &x) in points.iter().enumerate() {
                 let chi_x = interp(chi0, chi1, x);
-                let b_x = interp(b0, b1, x);
-                ys[i] += chi_x * b_x * (b_x - K::ONE);
+                if chi_x == K::ZERO {
+                    continue;
+                }
+
+                let mut bit_sum = K::ZERO;
+                for (col, w) in self.cols.iter().zip(self.weights.iter()) {
+                    let b0 = col.get(child0);
+                    let b1 = col.get(child1);
+                    if b0 == K::ZERO && b1 == K::ZERO {
+                        continue;
+                    }
+                    let b_x = interp(b0, b1, x);
+                    bit_sum += *w * b_x * (b_x - K::ONE);
+                }
+
+                ys[i] += chi_x * bit_sum;
             }
         }
         ys
@@ -578,7 +612,9 @@ impl RoundOracle for LazyBitnessOracleSparseTime {
             return;
         }
         self.prefix_eq *= eq_single(r, self.r_cycle[self.bit_idx]);
-        self.col.fold_round_in_place(r);
+        for col in self.cols.iter_mut() {
+            col.fold_round_in_place(r);
+        }
         self.challenges.push(r);
         self.bit_idx += 1;
     }

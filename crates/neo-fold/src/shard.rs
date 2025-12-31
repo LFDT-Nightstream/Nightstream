@@ -35,6 +35,7 @@ use neo_reductions::paper_exact_engine::{build_me_outputs_paper_exact, claimed_i
 use neo_reductions::sumcheck::{poly_eval_k, RoundOracle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
+use std::sync::Arc;
 
 // ============================================================================
 // Utilities
@@ -488,6 +489,10 @@ where
         ell,
         d_sc,
     } = utils::build_dims_and_policy(params, &s)?;
+    let ccs_mat_digest = utils::digest_ccs_matrices(&s);
+    let ccs_sparse_cache = Arc::new(
+        neo_reductions::engines::optimized_engine::oracle::SparseCache::build(&s),
+    );
     let k_dec = params.k_rho as usize;
     let ring = ccs::RotRing::goldilocks();
 
@@ -582,7 +587,15 @@ where
         // 5) Finish CCS alone for remaining ell_d Ajtai rounds
         // 6) Emit CCS + memory ME claims at the shared r_time and fold via RLC/DEC
 
-        utils::bind_header_and_instances(tr, params, &s, core::slice::from_ref(mcs_inst), ell, d_sc, 0)?;
+        utils::bind_header_and_instances_with_digest(
+            tr,
+            params,
+            &s,
+            core::slice::from_ref(mcs_inst),
+            ell,
+            d_sc,
+            &ccs_mat_digest,
+        )?;
         utils::bind_me_inputs(tr, &accumulator)?;
         let ch = utils::sample_challenges(tr, ell_d, ell)?;
         let ccs_initial_sum = claimed_initial_sum_from_inputs(&s, &ch, &accumulator);
@@ -596,7 +609,7 @@ where
         // CCS oracle (engine-selected)
         let mut ccs_oracle: Box<dyn RoundOracle> = match mode.clone() {
             FoldingMode::Optimized => {
-                Box::new(neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new(
+                Box::new(neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new_with_sparse(
                     &s,
                     params,
                     core::slice::from_ref(mcs_wit),
@@ -606,6 +619,7 @@ where
                     ell_n,
                     d_sc,
                     accumulator.first().map(|mi| mi.r.as_slice()),
+                    ccs_sparse_cache.clone(),
                 ))
             }
             #[cfg(feature = "paper-exact")]
@@ -624,7 +638,7 @@ where
             ),
             #[cfg(feature = "paper-exact")]
             FoldingMode::OptimizedWithCrosscheck(_) => {
-                Box::new(neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new(
+                Box::new(neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new_with_sparse(
                     &s,
                     params,
                     core::slice::from_ref(mcs_wit),
@@ -634,6 +648,7 @@ where
                     ell_n,
                     d_sc,
                     accumulator.first().map(|mi| mi.r.as_slice()),
+                    ccs_sparse_cache.clone(),
                 ))
             }
         };
@@ -1056,6 +1071,7 @@ where
 
     let mut accumulator = acc_init.to_vec();
     let mut val_lane_obligations: Vec<MeInstance<Cmt, F, K>> = Vec::new();
+    let ccs_mat_digest = utils::digest_ccs_matrices(&s);
 
     for (idx, (step, step_proof)) in steps.iter().zip(proof.steps.iter()).enumerate() {
         absorb_step_memory(tr, step);
@@ -1119,7 +1135,15 @@ where
         // --------------------------------------------------------------------
 
         // Bind CCS header + ME inputs and sample public challenges.
-        utils::bind_header_and_instances(tr, params, &s, core::slice::from_ref(mcs_inst), ell, d_sc, 0)?;
+        utils::bind_header_and_instances_with_digest(
+            tr,
+            params,
+            &s,
+            core::slice::from_ref(mcs_inst),
+            ell,
+            d_sc,
+            &ccs_mat_digest,
+        )?;
         utils::bind_me_inputs(tr, &accumulator)?;
         let ch = utils::sample_challenges(tr, ell_d, ell)?;
         let expected_ch = &step_proof.fold.ccs_proof.challenges_public;

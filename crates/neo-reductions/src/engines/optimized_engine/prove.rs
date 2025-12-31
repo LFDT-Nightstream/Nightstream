@@ -17,6 +17,7 @@ use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
 use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
+use std::sync::Arc;
 
 use crate::engines::utils;
 
@@ -107,7 +108,8 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     tr.append_fields(b"sumcheck/initial_sum", &initial_sum.as_coeffs());
 
     // Optimized oracle with cached sparse formats and factored algebra
-    let mut oracle = super::oracle::OptimizedOracle::new(
+    let sparse = Arc::new(super::oracle::SparseCache::build(s));
+    let mut oracle = super::oracle::OptimizedOracle::new_with_sparse(
         s,
         params,
         mcs_witnesses,
@@ -117,6 +119,7 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         dims.ell_n,
         dims.d_sc,
         me_inputs.first().map(|mi| mi.r.as_slice()),
+        sparse,
     );
 
     let mut running_sum = initial_sum;
@@ -305,7 +308,8 @@ pub fn prepare_ccs_for_batch<'a>(
     let initial_sum = crate::paper_exact_engine::claimed_initial_sum_from_inputs(s, &ch, me_inputs);
 
     // Create the oracle
-    let oracle = super::oracle::OptimizedOracle::new(
+    let sparse = Arc::new(super::oracle::SparseCache::build(s));
+    let oracle = super::oracle::OptimizedOracle::new_with_sparse(
         s,
         params,
         mcs_witnesses,
@@ -315,6 +319,7 @@ pub fn prepare_ccs_for_batch<'a>(
         dims.ell_n,
         dims.d_sc,
         me_inputs.first().map(|mi| mi.r.as_slice()),
+        sparse,
     );
 
     Ok(CcsBatchContext {

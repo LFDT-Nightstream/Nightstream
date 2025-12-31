@@ -43,3 +43,27 @@ neo-vm-trace = { path = "../neo-vm-trace" }
 [[test]]
 name = "test_riscv_program_full_prove_verify"
 path = "riscv-tests/test_riscv_program_full_prove_verify.rs"
+
+[[test]]
+name = "test_starstream_tx_valid_crosscheck"
+path = "starstream-tests/test_starstream_tx_valid_crosscheck.rs"
+
+[[test]]
+name = "test_starstream_tx_valid_optimized"
+path = "starstream-tests/test_starstream_tx_valid_optimized.rs"
+
+[[test]]
+name = "test_starstream_tx_valid_paper_exact"
+path = "starstream-tests/test_starstream_tx_valid_paper_exact.rs"
+
+[[test]]
+name = "test_starstream_tx_invalid_crosscheck"
+path = "starstream-tests/test_starstream_tx_invalid_crosscheck.rs"
+
+[[test]]
+name = "test_starstream_tx_invalid_optimized"
+path = "starstream-tests/test_starstream_tx_invalid_optimized.rs"
+
+[[test]]
+name = "test_starstream_tx_invalid_paper_exact"
+path = "starstream-tests/test_starstream_tx_invalid_paper_exact.rs"

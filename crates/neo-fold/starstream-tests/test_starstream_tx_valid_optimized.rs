@@ -8,6 +8,7 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use neo_fold::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
 use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::shard::StepLinkingConfig;
 use neo_ccs::{Mat, r1cs_to_ccs, CcsStructure};
 use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule};
 use rand_chacha::rand_core::SeedableRng;
@@ -201,6 +202,23 @@ fn test_starstream_tx_valid_optimized() {
     };
     
     let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
+
+    // Multi-step verification requires explicit step-to-step linking.
+    // Here `x = [const1] ++ y_step ++ y_prev`, so enforce:
+    //   prev.x[1+i] == next.x[1+|y_step|+i]  for i in 0..y_len
+    let y_len = step_spec.y_len;
+    let y_step_len = step_spec.y_step_indices.len();
+    let y_prev_len = step_spec
+        .app_input_indices
+        .as_ref()
+        .map(|v| v.len())
+        .unwrap_or(0);
+    assert!(y_len <= y_step_len, "y_step_indices must cover y_len");
+    assert!(y_len <= y_prev_len, "app_input_indices must cover y_len (y_prev)");
+    let pairs: Vec<(usize, usize)> = (0..y_len)
+        .map(|i| (1 + i, 1 + y_step_len + i))
+        .collect();
+    session.set_step_linking(StepLinkingConfig::new(pairs));
     
     // Execute all steps
     for _ in 0..export.steps.len() {
@@ -224,4 +242,3 @@ fn test_starstream_tx_valid_optimized() {
         .expect("verify should run");
     assert!(ok, "optimized verification should pass");
 }
-

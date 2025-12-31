@@ -73,6 +73,22 @@ pub fn bind_header_and_instances(
     d_sc: usize,
     _slack_bits: i32,
 ) -> Result<(), PiCcsError> {
+    let digest = digest_ccs_matrices(s);
+    bind_header_and_instances_with_digest(tr, params, s, mcs_list, ell, d_sc, &digest)
+}
+
+/// Bind CCS header and MCS instances to transcript, using a precomputed CCS matrix digest.
+///
+/// This is performance-critical in shard folding, where the same `s` is reused across many steps.
+pub fn bind_header_and_instances_with_digest(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[McsInstance<Cmt, F>],
+    ell: usize,
+    d_sc: usize,
+    mat_digest: &[Goldilocks],
+) -> Result<(), PiCcsError> {
     tr.append_message(tr_labels::PI_CCS, b"");
 
     let ext = params
@@ -97,7 +113,13 @@ pub fn bind_header_and_instances(
     tr.append_message(b"neo/ccs/instances", b"");
     tr.append_u64s(b"dims", &[s.n as u64, s.m as u64, s.t() as u64]);
 
-    for &digest_elem in &digest_ccs_matrices(s) {
+    if mat_digest.len() != 4 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "CCS matrix digest must have len 4, got {}",
+            mat_digest.len()
+        )));
+    }
+    for &digest_elem in mat_digest {
         tr.append_fields(b"mat_digest", &[F::from_u64(digest_elem.as_canonical_u64())]);
     }
 
@@ -164,7 +186,7 @@ pub fn sample_challenges(tr: &mut Poseidon2Transcript, ell_d: usize, ell: usize)
     })
 }
 
-fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<Goldilocks> {
+pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<Goldilocks> {
     use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 
     const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;

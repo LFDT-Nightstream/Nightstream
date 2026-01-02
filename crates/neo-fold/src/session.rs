@@ -722,9 +722,9 @@ where
             )));
         }
 
-        // Identity-first normalization
+        // Identity-first normalization (owned; avoids cloning when already normalized).
         let s_norm = ccs
-            .ensure_identity_first()
+            .ensure_identity_first_owned()
             .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
 
         // STRICT validation: Ajtai/NC requires M₀ = I_n (fail fast instead of mysterious sumcheck errors)
@@ -816,11 +816,25 @@ where
     /// We compute the commitment and split (x | w) for you.
     /// This accumulates the step instance and witness without performing any folding.
     pub fn add_step_from_io(&mut self, input: &ProveInput<'_>) -> Result<(), PiCcsError> {
-        // Normalize CCS to identity-first
-        let s_norm = input
-            .ccs
-            .ensure_identity_first()
-            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+        // Normalize CCS to identity-first (avoid cloning when already normalized).
+        let is_id0 = input.ccs.n == input.ccs.m
+            && input
+                .ccs
+                .matrices
+                .first()
+                .map(|m0| m0.is_identity())
+                .unwrap_or(false);
+        let s_norm_owned = if is_id0 {
+            None
+        } else {
+            Some(
+                input
+                    .ccs
+                    .ensure_identity_first()
+                    .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?,
+            )
+        };
+        let s_norm: &CcsStructure<F> = s_norm_owned.as_ref().unwrap_or(input.ccs);
 
         // STRICT validation: Ajtai/NC requires M₀ = I_n (fail fast instead of mysterious sumcheck errors)
         s_norm
@@ -1267,10 +1281,22 @@ where
         mcss_public: &[neo_ccs::McsInstance<Cmt, F>],
         run: &FoldRun,
     ) -> Result<bool, PiCcsError> {
-        // Normalize CCS
-        let s_norm = s
-            .ensure_identity_first()
-            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+        // Normalize CCS (avoid cloning when already normalized).
+        let is_id0 = s.n == s.m
+            && s
+                .matrices
+                .first()
+                .map(|m0| m0.is_identity())
+                .unwrap_or(false);
+        let s_norm_owned = if s.n == s.m && !is_id0 {
+            Some(
+                s.ensure_identity_first()
+                    .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?,
+            )
+        } else {
+            None
+        };
+        let s_norm: &CcsStructure<F> = s_norm_owned.as_ref().unwrap_or(s);
 
         // m_in consistency across public MCS
         let m_in_steps = mcss_public.first().map(|inst| inst.m_in).unwrap_or(0);
@@ -1280,7 +1306,7 @@ where
 
         // Build steps_public from the internal bundles to include mem/lut instances.
         let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = self.steps.iter().map(|bundle| bundle.into()).collect();
-        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
+        let s_prepared = self.prepared_ccs_for_accumulator(s_norm)?;
 
         // Validate (or empty) initial accumulator to mirror finalize()
         let seed_me: &[MeInstance<Cmt, F, K>] = match &self.acc0 {
@@ -1309,7 +1335,7 @@ where
                     self.mode.clone(),
                     tr,
                     &self.params,
-                    &s_norm,
+                    s_norm,
                     &steps_public,
                     seed_me,
                     run,
@@ -1320,7 +1346,7 @@ where
                     self.mode.clone(),
                     tr,
                     &self.params,
-                    &s_norm,
+                    s_norm,
                     &steps_public,
                     seed_me,
                     run,
@@ -1337,7 +1363,7 @@ where
                 self.mode.clone(),
                 tr,
                 &self.params,
-                &s_norm,
+                s_norm,
                 &steps_public,
                 seed_me,
                 run,
@@ -1387,9 +1413,22 @@ where
         run: &FoldRun,
         ob_cfg: &crate::output_binding::OutputBindingConfig,
     ) -> Result<bool, PiCcsError> {
-        let s_norm = s
-            .ensure_identity_first()
-            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+        // Normalize CCS (avoid cloning when already normalized).
+        let is_id0 = s.n == s.m
+            && s
+                .matrices
+                .first()
+                .map(|m0| m0.is_identity())
+                .unwrap_or(false);
+        let s_norm_owned = if s.n == s.m && !is_id0 {
+            Some(
+                s.ensure_identity_first()
+                    .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?,
+            )
+        } else {
+            None
+        };
+        let s_norm: &CcsStructure<F> = s_norm_owned.as_ref().unwrap_or(s);
 
         let m_in_steps = mcss_public.first().map(|inst| inst.m_in).unwrap_or(0);
         if !mcss_public.iter().all(|inst| inst.m_in == m_in_steps) {
@@ -1397,7 +1436,7 @@ where
         }
 
         let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = self.steps.iter().map(|bundle| bundle.into()).collect();
-        let s_prepared = self.prepared_ccs_for_accumulator(&s_norm)?;
+        let s_prepared = self.prepared_ccs_for_accumulator(s_norm)?;
 
         let seed_me: &[MeInstance<Cmt, F, K>] = match &self.acc0 {
             Some(acc) => {
@@ -1424,7 +1463,7 @@ where
                     self.mode.clone(),
                     tr,
                     &self.params,
-                    &s_norm,
+                    s_norm,
                     &steps_public,
                     seed_me,
                     run,
@@ -1436,7 +1475,7 @@ where
                     self.mode.clone(),
                     tr,
                     &self.params,
-                    &s_norm,
+                    s_norm,
                     &steps_public,
                     seed_me,
                     run,
@@ -1454,7 +1493,7 @@ where
                 self.mode.clone(),
                 tr,
                 &self.params,
-                &s_norm,
+                s_norm,
                 &steps_public,
                 seed_me,
                 run,

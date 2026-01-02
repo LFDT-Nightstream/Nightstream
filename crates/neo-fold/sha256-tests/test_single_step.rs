@@ -7,10 +7,7 @@ use bellpepper_core::{Circuit, Comparable, ConstraintSystem, Index, LinearCombin
 use ff::PrimeField;
 use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
-use neo_fold::{
-    pi_ccs::FoldingMode,
-    session::{FoldingSession, NeoStep, StepArtifacts, StepSpec},
-};
+use neo_fold::{pi_ccs::FoldingMode, session::{FoldingSession, ProveInput}};
 use neo_math::{D, F};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -35,43 +32,6 @@ fn setup_ajtai_for_dims(m: usize) {
 fn fp_to_u64(x: &FpGoldilocks) -> u64 {
     let bytes = x.to_repr();
     u64::from_le_bytes(bytes.0[0..8].try_into().expect("repr is at least 8 bytes"))
-}
-
-#[derive(Clone)]
-struct NoInputs;
-
-struct StepCircuit {
-    steps: Vec<Vec<F>>,
-    step_spec: StepSpec,
-    step_ccs: CcsStructure<F>,
-}
-
-impl NeoStep for StepCircuit {
-    type ExternalInputs = NoInputs;
-
-    fn state_len(&self) -> usize {
-        0
-    }
-
-    fn step_spec(&self) -> StepSpec {
-        self.step_spec.clone()
-    }
-
-    fn synthesize_step(
-        &mut self,
-        step_idx: usize,
-        _y_prev: &[F],
-        _inputs: &Self::ExternalInputs,
-    ) -> StepArtifacts {
-        let z = self.steps[step_idx].clone();
-        let z_padded = pad_witness_to_m(z, self.step_ccs.m);
-        StepArtifacts {
-            ccs: self.step_ccs.clone(),
-            witness: z_padded,
-            public_app_inputs: vec![],
-            spec: self.step_spec.clone(),
-        }
-    }
 }
 
 #[test]
@@ -155,31 +115,24 @@ fn test_sha256_preimage_len_bytes(preimage_len_bytes: usize) {
 
     let m_in = 1 + expected_inputs.len();
 
-    let step_spec = StepSpec {
-        y_len: 0,
-        const1_index: 0,
-        y_step_indices: vec![],
-        app_input_indices: Some((1..m_in).collect()),
-        m_in,
-    };
-
-    let mut circuit = StepCircuit {
-        steps: vec![witness; 1],
-        step_spec: step_spec.clone(),
-        step_ccs: step_ccs.clone(),
-    };
-
     let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
+    let start = Instant::now();
 
-    for _ in 0..circuit.steps.len() {
-        let start = Instant::now();
+    let z = pad_witness_to_m(witness, step_ccs.m);
+    let public_input = &z[..m_in];
+    let witness = &z[m_in..];
 
-        session
-            .add_step(&mut circuit, &NoInputs)
-            .expect("add_step should succeed with optimized");
-
-        println!("Add step duration: {:?}", start.elapsed());
-    }
+    let step_start = Instant::now();
+    let input = ProveInput {
+        ccs: &step_ccs,
+        public_input,
+        witness,
+        output_claims: &[],
+    };
+    session
+        .add_step_from_io(&input)
+        .expect("add_step should succeed with optimized");
+    println!("Add step duration: {:?}", step_start.elapsed());
 
     // The step's public inputs include the packed SHA256 digest, so we can validate it here.
     {
@@ -189,20 +142,19 @@ fn test_sha256_preimage_len_bytes(preimage_len_bytes: usize) {
         assert_eq!(mcss_public[0].x[1..], expected_inputs);
     }
 
-    let start = Instant::now();
     let run = session
         .fold_and_prove(&step_ccs)
         .expect("fold_and_prove should produce a FoldRun");
-    let finalize_duration = start.elapsed();
-
-    println!("Proof generation time (finalize): {:?}", finalize_duration);
+    println!("Proof generation time (finalize): {:?}", start.elapsed());
 
     assert_eq!(run.steps.len(), 1, "should have correct number of steps");
 
     let mcss_public = session.mcss_public();
+    let verify_start = Instant::now();
     let ok = session
         .verify(&step_ccs, &mcss_public, &run)
         .expect("verify should run");
+    println!("Verification time: {:?}", verify_start.elapsed());
     assert!(ok, "optimized verification should pass");
 }
 

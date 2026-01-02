@@ -1328,7 +1328,12 @@ where
 
     let mut accumulator = acc_init.to_vec();
     let mut val_lane_obligations: Vec<MeInstance<Cmt, F, K>> = Vec::new();
-    let ccs_mat_digest = utils::digest_ccs_matrices(&s);
+    let ccs_sparse_cache: Option<Arc<SparseCache<F>>> = if mode_uses_sparse_cache(&mode) {
+        Some(Arc::new(SparseCache::build(s)))
+    } else {
+        None
+    };
+    let ccs_mat_digest = utils::digest_ccs_matrices_with_sparse_cache(s, ccs_sparse_cache.as_deref());
 
     for (idx, (step, step_proof)) in steps.iter().zip(proof.steps.iter()).enumerate() {
         absorb_step_memory(tr, step);

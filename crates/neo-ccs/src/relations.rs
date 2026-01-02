@@ -88,6 +88,31 @@ impl<F: Field> CcsStructure<F> {
         })
     }
 
+    /// Owned variant of `ensure_identity_first` that avoids cloning when `M₀` is already identity.
+    ///
+    /// This is useful in hot paths where callers already own a `CcsStructure` and only need to
+    /// normalize it (if necessary) for Ajtai/NC semantics.
+    pub fn ensure_identity_first_owned(mut self) -> Result<Self, RelationError>
+    where
+        F: p3_field::PrimeCharacteristicRing + Copy + Eq + Clone,
+    {
+        // If not square, we cannot insert a true identity; leave structure unchanged.
+        if self.n != self.m {
+            return Ok(self);
+        }
+        let is_id0 = self
+            .matrices
+            .first()
+            .map(|m0| m0.is_identity())
+            .unwrap_or(false);
+        if is_id0 {
+            return Ok(self);
+        }
+        self.matrices.insert(0, Mat::<F>::identity(self.n));
+        self.f = self.f.insert_var_at_front();
+        Ok(self)
+    }
+
     /// **STRICT** validation: Assert that M₀ = I_n for Ajtai/NC pipeline.
     ///
     /// The Ajtai norm constraint (NC) layer assumes the first matrix is the identity

@@ -11,7 +11,7 @@
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
-use neo_math::{D, K};
+use neo_math::{D, K, KExtensions};
 use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 use std::sync::Arc;
@@ -254,7 +254,7 @@ impl RowStreamState {
                     for k in s0..e0 {
                         let r = csc.row_idx[k];
                         if r < n_eff {
-                            out[r] += K::from(csc.vals[k]) * x_c;
+                            out[r] += x_c.scale_base_k(K::from(csc.vals[k]));
                         }
                     }
                 }
@@ -318,7 +318,7 @@ impl RowStreamState {
                         continue;
                     }
                     for c in 0..s.m {
-                        s_alpha[c] += w * K::from(Zi[(rho, c)]);
+                        s_alpha[c] += w.scale_base_k(K::from(Zi[(rho, c)]));
                     }
                 }
 
@@ -358,7 +358,7 @@ impl RowStreamState {
                         for k in s0..e0 {
                             let r = csc.row_idx[k];
                             if r < n_eff {
-                                eval_tbl[r] += K::from(csc.vals[k]) * scaled_x;
+                                eval_tbl[r] += scaled_x.scale_base_k(K::from(csc.vals[k]));
                             }
                         }
                     }
@@ -374,8 +374,8 @@ impl RowStreamState {
         if b > 1 {
             range_t_sq.reserve((b - 1) as usize);
             for t in 1..(b as i64) {
-                let tt = K::from(Ff::from_i64(t));
-                range_t_sq.push(tt * tt);
+                let tt = Ff::from_i64(t);
+                range_t_sq.push(K::from(tt * tt));
             }
         }
 
@@ -400,11 +400,10 @@ impl RowStreamState {
     fn fold_table_inplace(table: &mut Vec<K>, r: K) {
         debug_assert!(table.len() >= 2 && table.len() % 2 == 0);
         let half = table.len() / 2;
-        let one_minus = K::ONE - r;
         for i in 0..half {
             let lo = table[2 * i];
             let hi = table[2 * i + 1];
-            table[i] = one_minus * lo + r * hi;
+            table[i] = lo + (hi - lo) * r;
         }
         table.truncate(half);
     }
@@ -413,13 +412,13 @@ impl RowStreamState {
     fn fold_digits_table_inplace(table: &mut Vec<[K; D]>, r: K) {
         debug_assert!(table.len() >= 2 && table.len() % 2 == 0);
         let half = table.len() / 2;
-        let one_minus = K::ONE - r;
         for i in 0..half {
-            let lo = table[2 * i];
-            let hi = table[2 * i + 1];
             let mut out = [K::ZERO; D];
+            let base = 2 * i;
             for rho in 0..D {
-                out[rho] = one_minus * lo[rho] + r * hi[rho];
+                let lo = table[base][rho];
+                let hi = table[base + 1][rho];
+                out[rho] = lo + (hi - lo) * r;
             }
             table[i] = out;
         }
@@ -684,7 +683,6 @@ fn fold_bit_inplace(digits: &mut [K; D], bit: usize, a: K) {
     let stride = 1usize << bit;
     let step = stride << 1;
     let n = D;
-    let one_minus_a = K::ONE - a;
     let mut base = 0usize;
     while base < n {
         let mut off = 0usize;
@@ -696,7 +694,7 @@ fn fold_bit_inplace(digits: &mut [K; D], bit: usize, a: K) {
             let i1 = i0 + stride;
             let lo = digits[i0];
             let hi = if i1 < n { digits[i1] } else { K::ZERO };
-            digits[i0] = one_minus_a * lo + a * hi;
+            digits[i0] = lo + (hi - lo) * a;
             off += 1;
         }
         base += step;
@@ -752,15 +750,16 @@ fn ajtai_tail_weighted_range_prefolded(
 fn chi_tail_weights(bits: &[K]) -> Vec<K> {
     let t = bits.len();
     let len = 1usize << t;
-    let mut w = vec![K::ONE; len];
-    for mask in 0..len {
-        let mut prod = K::ONE;
-        for i in 0..t {
-            let bi = bits[i];
-            let is_one = ((mask >> i) & 1) == 1;
-            prod *= if is_one { bi } else { K::ONE - bi };
+    let mut w = vec![K::ZERO; len];
+    w[0] = K::ONE;
+    for (i, &b) in bits.iter().enumerate() {
+        let step = 1usize << i;
+        let one_minus = K::ONE - b;
+        for mask in 0..step {
+            let v = w[mask];
+            w[mask] = v * one_minus;
+            w[mask + step] = v * b;
         }
-        w[mask] = prod;
     }
     w
 }
@@ -894,18 +893,9 @@ where
         let k_total = self.mcs_witnesses.len() + self.me_witnesses.len();
         let t = self.s.t();
 
-        // Build χ_r table
-        let n_sz = 1usize << r_prime.len();
-        let mut chi_r = vec![K::ZERO; n_sz];
-        for row in 0..n_sz {
-            let mut w = K::ONE;
-            for bit in 0..r_prime.len() {
-                let r = r_prime[bit];
-                let is_one = ((row >> bit) & 1) == 1;
-                w *= if is_one { r } else { K::ONE - r };
-            }
-            chi_r[row] = w;
-        }
+        // Build χ_r table over the Boolean row domain.
+        let chi_r = chi_tail_weights(r_prime);
+        let n_sz = chi_r.len();
 
         // Compute eq(r', β_r) and eq(r', r_inputs)
         let eq_beta_r = Self::eq_points(r_prime, &self.ch.beta_r);
@@ -953,7 +943,7 @@ where
                 for k in s..e {
                     let r = csc.row_idx[k];
                     if r < n_eff {
-                        acc += K::from(csc.vals[k]) * chi_r[r];
+                        acc += chi_r[r].scale_base_k(K::from(csc.vals[k]));
                     }
                 }
                 if acc != K::ZERO {
@@ -993,7 +983,7 @@ where
             for rho in 0..D {
                 let mut acc = K::ZERO;
                 for &(c, v) in &vjs_nz[0] {
-                    acc += K::from(Zi[(rho, c)]) * v;
+                    acc += v.scale_base_k(K::from(Zi[(rho, c)]));
                 }
                 y_nc[idx][rho] = acc;
             }
@@ -1003,7 +993,7 @@ where
                 for rho in 0..D {
                     let mut acc = K::ZERO;
                     for &(c, v) in &vjs_nz[j] {
-                        acc += K::from(Zi[(rho, c)]) * v;
+                        acc += v.scale_base_k(K::from(Zi[(rho, c)]));
                     }
                     y_eval[idx][j][rho] = acc;
                 }

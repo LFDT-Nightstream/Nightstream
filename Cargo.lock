@@ -925,7 +925,10 @@ dependencies = [
 name = "neo-fold"
 version = "0.1.0"
 dependencies = [
+ "bellpepper",
+ "bellpepper-core",
  "criterion",
+ "ff",
  "neo-ajtai",
  "neo-ccs",
  "neo-math",
@@ -943,6 +946,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.17",
  "tracing",
 ]

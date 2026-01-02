@@ -197,18 +197,19 @@ fn test_poseidon2_ic_batch_size(batch_size: usize) {
     };
 
     let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
-
+    let start = Instant::now();
+    
     for _ in 0..export.witness.len() {
-        let start = Instant::now();
+        let step_start = Instant::now();
 
         session
             .add_step(&mut circuit, &NoInputs)
             .expect("add_step should succeed with optimized");
 
-        println!("Add step duration: {:?}", start.elapsed());
+        println!("Add step duration: {:?}", step_start.elapsed());
     }
 
-    let start = Instant::now();
+    
     let run = session
         .fold_and_prove(&step_ccs)
         .expect("fold_and_prove should produce a FoldRun");

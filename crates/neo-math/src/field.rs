@@ -3,7 +3,7 @@
 //! SHOULD: expose roots-of-unity hooks sized for ring ops.
 
 use p3_field::extension::BinomialExtensionField;
-use p3_field::Field;
+use p3_field::{Field, PrimeCharacteristicRing};
 use p3_goldilocks::Goldilocks;
 
 /// Goldilocks base field F_q, q = 2^64 - 2^32 + 1.
@@ -33,6 +33,10 @@ pub trait KExtensions {
     fn as_coeffs(&self) -> [Fq; 2];
     /// Construct from coefficients [real, imag]
     fn from_coeffs(coefs: [Fq; 2]) -> Self;
+    /// Multiply by a base-field scalar (faster than general extension multiplication).
+    fn scale_base(self, s: Fq) -> Self;
+    /// Multiply by a scalar embedded in K (imag=0); falls back to `self * s` if not base.
+    fn scale_base_k(self, s: Self) -> Self;
     /// Real part (convenience)  
     fn real(&self) -> Fq {
         self.as_coeffs()[0]
@@ -65,6 +69,22 @@ impl KExtensions for K {
     #[inline]
     fn from_coeffs(coefs: [Fq; 2]) -> Self {
         new_k_from_coeffs(coefs)
+    }
+
+    #[inline]
+    fn scale_base(self, s: Fq) -> Self {
+        let [c0, c1] = self.as_coeffs();
+        Self::from_coeffs([c0 * s, c1 * s])
+    }
+
+    #[inline]
+    fn scale_base_k(self, s: Self) -> Self {
+        let [s0, s1] = s.as_coeffs();
+        if s1 == Fq::ZERO {
+            self.scale_base(s0)
+        } else {
+            self * s
+        }
     }
 }
 

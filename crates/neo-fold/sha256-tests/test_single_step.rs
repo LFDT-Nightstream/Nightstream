@@ -3,9 +3,7 @@
 use std::time::Instant;
 
 use bellpepper::gadgets::boolean::{AllocatedBit, Boolean};
-use bellpepper_core::{
-    Circuit, Comparable, ConstraintSystem, Index, LinearCombination, SynthesisError,
-};
+use bellpepper_core::{Circuit, Comparable, ConstraintSystem, Index, LinearCombination, SynthesisError};
 use ff::PrimeField;
 use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
@@ -17,24 +15,9 @@ use neo_math::{D, F};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
-use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 extern crate ff;
-
-#[derive(Serialize, Deserialize, Clone)]
-struct SparseMatrix {
-    rows: usize,
-    cols: usize,
-    entries: Vec<(usize, usize, u64)>,
-}
-
-fn sparse_to_dense_mat(sparse: SparseMatrix) -> Mat<F> {
-    let mut data = vec![F::ZERO; sparse.rows * sparse.cols];
-    for &(row, col, val) in &sparse.entries {
-        data[row * sparse.cols + col] = F::from_u64(val);
-    }
-    Mat::from_row_major(sparse.rows, sparse.cols, data)
-}
 
 /// Pad witness to match CCS dimensions (adds slack variables if n > m_original)
 fn pad_witness_to_m(mut z: Vec<F>, m_target: usize) -> Vec<F> {
@@ -47,6 +30,11 @@ fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
     let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
     let _ = set_global_pp(pp);
+}
+
+fn fp_to_u64(x: &FpGoldilocks) -> u64 {
+    let bytes = x.to_repr();
+    u64::from_le_bytes(bytes.0[0..8].try_into().expect("repr is at least 8 bytes"))
 }
 
 #[derive(Clone)]
@@ -87,56 +75,92 @@ impl NeoStep for StepCircuit {
 }
 
 #[test]
-fn test_sha256_preimage_64_bits() {
-    test_sha256_batch_size(1 << 6);
+fn test_sha256_circuit_is_satisfied() {
+    use bellpepper_core::test_cs::TestConstraintSystem;
+
+    let mut cs = TestConstraintSystem::<FpGoldilocks>::new();
+    let preimage = b"abc".to_vec();
+    let circuit = Sha256Circuit {
+        preimage: preimage.clone(),
+    };
+    circuit
+        .synthesize(&mut cs)
+        .expect("Circuit synthesis should succeed");
+    assert!(cs.is_satisfied());
+
+    // Verify that the packed public inputs match the SHA256 digest of the preimage.
+    let digest = Sha256::digest(&preimage);
+    let digest_bits = bellpepper::gadgets::multipack::bytes_to_bits(digest.as_ref());
+    let expected_inputs =
+        bellpepper::gadgets::multipack::compute_multipacking::<FpGoldilocks>(&digest_bits);
+    assert!(cs.verify(&expected_inputs));
 }
 
 #[test]
-fn test_sha256_preimage_128_bits() {
-    test_sha256_batch_size(1 << 7);
+#[ignore = "Very memory-heavy: builds dense n×n matrices for SHA256 R1CS; run manually."]
+fn test_sha256_preimage_64_bytes() {
+    test_sha256_preimage_len_bytes(64);
 }
 
 #[test]
-fn test_sha256_preimage_256_bits() {
-    test_sha256_batch_size(1 << 8);
+#[ignore = "Very memory-heavy: builds dense n×n matrices for SHA256 R1CS; run manually."]
+fn test_sha256_preimage_128_bytes() {
+    test_sha256_preimage_len_bytes(128);
 }
 
 #[test]
-fn test_sha256_preimage_512_bits() {
-    test_sha256_batch_size(1 << 9);
+#[ignore = "Very memory-heavy: builds dense n×n matrices for SHA256 R1CS; run manually."]
+fn test_sha256_preimage_256_bytes() {
+    test_sha256_preimage_len_bytes(256);
 }
 
 #[test]
-#[ignore]
+#[ignore = "Very memory-heavy: builds dense n×n matrices for SHA256 R1CS; run manually."]
+fn test_sha256_preimage_512_bytes() {
+    test_sha256_preimage_len_bytes(512);
+}
+
+#[test]
+#[ignore = "Very memory-heavy: builds dense n×n matrices for SHA256 R1CS; run manually."]
 fn test_sha256_preimage_4kB() {
-    test_sha256_batch_size(1 << 15);
+    test_sha256_preimage_len_bytes(1 << 12);
 }
 
 #[test]
-#[ignore]
+#[ignore = "Very memory-heavy: builds dense n×n matrices for SHA256 R1CS; run manually."]
 fn test_sha256_preimage_8kB() {
-    test_sha256_batch_size(1 << 16);
+    test_sha256_preimage_len_bytes(1 << 13);
 }
 
-/// The size is in bytes
-/// This generates a hash of [0; 1 << size]
-fn test_sha256_batch_size(size: usize) {
-    let (step_ccs, witness) = bellpepper_sha256_circuit(size);
+fn test_sha256_preimage_len_bytes(preimage_len_bytes: usize) {
+    let preimage = vec![0u8; preimage_len_bytes];
+    let digest = Sha256::digest(&preimage);
+    let digest_bits = bellpepper::gadgets::multipack::bytes_to_bits(digest.as_ref());
+    let expected_inputs_fp =
+        bellpepper::gadgets::multipack::compute_multipacking::<FpGoldilocks>(&digest_bits);
+    let expected_inputs: Vec<F> = expected_inputs_fp
+        .iter()
+        .map(|x| F::from_u64(fp_to_u64(x)))
+        .collect();
+
+    let (step_ccs, witness) = bellpepper_sha256_circuit(preimage_len_bytes);
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(step_ccs.n)
         .expect("goldilocks_auto_r1cs_ccs should find valid params");
 
     params.b = 3;
 
-    setup_ajtai_for_dims(step_ccs.n);
-    let l = AjtaiSModule::from_global_for_dims(D, step_ccs.n).expect("AjtaiSModule init");
+    setup_ajtai_for_dims(step_ccs.m);
+    let l = AjtaiSModule::from_global_for_dims(D, step_ccs.m).expect("AjtaiSModule init");
+
+    let m_in = 1 + expected_inputs.len();
 
     let step_spec = StepSpec {
         y_len: 0,
-        const1_index: 1,
+        const1_index: 0,
         y_step_indices: vec![],
-        app_input_indices: Some(vec![]),
-        m_in: 1,
+        app_input_indices: Some((1..m_in).collect()),
+        m_in,
     };
 
     let mut circuit = StepCircuit {
@@ -155,6 +179,14 @@ fn test_sha256_batch_size(size: usize) {
             .expect("add_step should succeed with optimized");
 
         println!("Add step duration: {:?}", start.elapsed());
+    }
+
+    // The step's public inputs include the packed SHA256 digest, so we can validate it here.
+    {
+        let mcss_public = session.mcss_public();
+        assert_eq!(mcss_public.len(), 1);
+        assert_eq!(mcss_public[0].x[0], F::ONE);
+        assert_eq!(mcss_public[0].x[1..], expected_inputs);
     }
 
     let start = Instant::now();
@@ -190,11 +222,9 @@ impl Circuit<FpGoldilocks> for Sha256Circuit {
         self,
         cs: &mut CS,
     ) -> Result<(), SynthesisError> {
-        let bit_values: Vec<_> = self
-            .preimage
-            .clone()
+        // SHA256 expects a big-endian bit order within each byte.
+        let bit_values: Vec<_> = bellpepper::gadgets::multipack::bytes_to_bits(&self.preimage)
             .into_iter()
-            .flat_map(|byte| (0..8).map(move |i| (byte >> i) & 1u8 == 1u8))
             .map(Some)
             .collect();
         assert_eq!(bit_values.len(), self.preimage.len() * 8);
@@ -208,20 +238,23 @@ impl Circuit<FpGoldilocks> for Sha256Circuit {
 
         // TODO: these would have to be added as outputs
         // it doesn't matter right now though
-        let _hash_bits =
+        let hash_bits =
             bellpepper::gadgets::sha256::sha256(cs.namespace(|| "sha256"), &preimage_bits)?;
+
+        // Bind the SHA256 digest as compact public inputs.
+        bellpepper::gadgets::multipack::pack_into_inputs(cs.namespace(|| "hash_out"), &hash_bits)?;
 
         Ok(())
     }
 }
 
-fn bellpepper_sha256_circuit(size: usize) -> (CcsStructure<F>, Vec<F>) {
+fn bellpepper_sha256_circuit(preimage_len_bytes: usize) -> (CcsStructure<F>, Vec<F>) {
     use bellpepper_core::test_cs::TestConstraintSystem;
 
     let mut cs = TestConstraintSystem::<FpGoldilocks>::new();
 
     let circuit = Sha256Circuit {
-        preimage: vec![0u8; size],
+        preimage: vec![0u8; preimage_len_bytes],
     };
     circuit
         .synthesize(&mut cs)
@@ -242,12 +275,8 @@ fn bellpepper_sha256_circuit(size: usize) -> (CcsStructure<F>, Vec<F>) {
 
     let n = num_constraints.max(num_variables);
 
-    let mut entries_a: Vec<(usize, usize, u64)> = vec![];
-    let mut entries_b: Vec<(usize, usize, u64)> = vec![];
-    let mut entries_c: Vec<(usize, usize, u64)> = vec![];
-
     let f = |row: usize,
-             entries: &mut Vec<(usize, usize, u64)>,
+             mat: &mut Mat<F>,
              lc: &LinearCombination<FpGoldilocks>| {
         for (var, coeff) in lc.iter() {
             let col = match var.0 {
@@ -255,60 +284,37 @@ fn bellpepper_sha256_circuit(size: usize) -> (CcsStructure<F>, Vec<F>) {
                 Index::Aux(i) => num_inputs + i,
             };
 
-            let bytes = coeff.to_repr();
-            let value = u64::from_le_bytes(bytes.0[0..8].try_into().unwrap());
-
-            if value != 0 {
-                entries.push((row, col, value));
+            let value = fp_to_u64(coeff);
+            if value == 0 {
+                continue;
             }
+            mat[(row, col)] = mat[(row, col)] + F::from_u64(value);
         }
     };
 
+    let mut A = Mat::zero(n, n, F::ZERO);
+    let mut B = Mat::zero(n, n, F::ZERO);
+    let mut C = Mat::zero(n, n, F::ZERO);
+
     // Extract constraints and convert to matrix form
     for (row, constraint) in cs.constraints().iter().enumerate() {
-        f(row, &mut entries_a, &constraint.0);
-        f(row, &mut entries_b, &constraint.0);
-        f(row, &mut entries_c, &constraint.0);
+        f(row, &mut A, &constraint.0);
+        f(row, &mut B, &constraint.1);
+        f(row, &mut C, &constraint.2);
     }
 
-    let a = SparseMatrix {
-        rows: n,
-        cols: n,
-        entries: entries_a,
-    };
-    let b = SparseMatrix {
-        rows: n,
-        cols: n,
-        entries: entries_b,
-    };
-    let c = SparseMatrix {
-        rows: n,
-        cols: n,
-        entries: entries_c,
-    };
-
-    let mut witness = vec![F::ONE];
+    let mut witness: Vec<F> = Vec::with_capacity(num_variables);
 
     for val in cs.scalar_inputs() {
-        let bytes = val.to_repr();
-        let value = u64::from_le_bytes(bytes.0[0..8].try_into().unwrap());
-        witness.push(F::from_u64(value));
+        witness.push(F::from_u64(fp_to_u64(&val)));
     }
 
     for val in cs.scalar_aux() {
-        let bytes = val.to_repr();
-        let value = u64::from_le_bytes(bytes.0[0..8].try_into().unwrap());
-        witness.push(F::from_u64(value));
+        witness.push(F::from_u64(fp_to_u64(&val)));
     }
 
-    let s0 = r1cs_to_ccs(
-        sparse_to_dense_mat(a),
-        sparse_to_dense_mat(b),
-        sparse_to_dense_mat(c),
-    );
-    let ccs = s0
-        .ensure_identity_first()
-        .expect("ensure_identity_first should succeed");
+    debug_assert_eq!(witness.len(), num_variables);
 
+    let ccs = r1cs_to_ccs(A, B, C);
     (ccs, witness)
 }

@@ -42,6 +42,7 @@ rand_chacha = { workspace = true }
 bellpepper = { workspace = true }
 bellpepper-core = { workspace = true }
 ff = { workspace = true, features = ["derive"] }
+sha2 = { version = "0.10" }
 
 [[test]]
 name = "test_riscv_program_full_prove_verify"
@@ -80,4 +81,3 @@ required-features = []
 name = "test_sha256_single_step"
 path = "sha256-tests/test_single_step.rs"
 required-features = []
-

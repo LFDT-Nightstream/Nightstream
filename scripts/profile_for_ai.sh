@@ -66,14 +66,21 @@ if ! command -v jq &> /dev/null; then
   exit 1
 fi
 
+# Ensure frame pointers for `sample(1)` while preserving any caller-provided RUSTFLAGS.
+RUSTFLAGS_COMBINED="${RUSTFLAGS:-}"
+if [ -n "$RUSTFLAGS_COMBINED" ]; then
+  RUSTFLAGS_COMBINED="$RUSTFLAGS_COMBINED "
+fi
+RUSTFLAGS_COMBINED="${RUSTFLAGS_COMBINED}-C force-frame-pointers=yes"
+
 # Build with profiling profile
 echo "🔨 Building test with profiling profile..."
-RUSTFLAGS="-C force-frame-pointers=yes" cargo test --profile profiling \
+RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling \
   -p "$PACKAGE" --test "$TEST_FILE" --no-run 2>&1 | tail -5
 
 # Find the test binary
 echo "🔎 Finding test binary..."
-TEST_BINARY=$(cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
+TEST_BINARY=$(RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
   --no-run --message-format=json 2>/dev/null | \
   jq -r 'select(.executable != null) | .executable' | head -1)
 

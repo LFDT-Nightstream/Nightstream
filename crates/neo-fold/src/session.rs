@@ -1,8 +1,8 @@
 //! Thin, ergonomic session layer for Π-CCS folding.
 //!
 //! This module provides:
-//!   1) A small adapter trait (`NeoStep`) and `prove_step` for Nova/Sonobe-style step synthesis.
-//!   2) A direct IO path via `ProveInput` + `prove_step_from_io` (callers hand us (x, w)).
+//!   1) A small adapter trait (`NeoStep`) and `FoldingSession::add_step` for Nova/Sonobe-style step synthesis.
+//!   2) A direct IO path via `ProveInput` + `FoldingSession::add_step_from_io` (callers hand us (x, w)).
 //!   3) A session driver (`FoldingSession`) that **hides** commitment mixers.
 //!
 //! Concepts (paper-aligned):
@@ -29,7 +29,8 @@ mod circuit;
 pub use circuit::*;
 pub use crate::witness_layout;
 
-use neo_ajtai::{s_lincomb, s_mul, Commitment as Cmt};
+use neo_ajtai::{has_seed_for_dims, s_lincomb, s_mul, unload_global_pp_for_dims, Commitment as Cmt};
+use neo_ajtai::AjtaiSModule;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance};
 use neo_math::ring::Rq as RqEl;
@@ -42,6 +43,8 @@ use neo_memory::witness::LutTableSpec;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
+use rand_chacha::rand_core::{SeedableRng, TryRngCore};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -50,6 +53,7 @@ use crate::shard::{self, CommitMixers, ShardProof as FoldRun, ShardProverContext
 use crate::PiCcsError;
 use neo_reductions::engines::utils;
 use neo_reductions::engines::optimized_engine::oracle::SparseCache;
+use neo_ccs::sparse::{CcsMatrix, CscMat};
 
 #[inline]
 fn mode_uses_sparse_cache(mode: &FoldingMode) -> bool {
@@ -60,6 +64,88 @@ fn mode_uses_sparse_cache(mode: &FoldingMode) -> bool {
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => false,
     }
+}
+
+#[inline]
+fn canonical_ccs_square_dim(s: &CcsStructure<F>) -> usize {
+    s.n.max(s.m)
+}
+
+fn pad_ccs_to_square(s: &CcsStructure<F>, dim: usize) -> Result<CcsStructure<F>, PiCcsError> {
+    if dim < s.n || dim < s.m {
+        return Err(PiCcsError::InvalidInput(format!(
+            "pad_ccs_to_square requires dim >= max(n, m), got dim={} for CCS {}x{}",
+            dim, s.n, s.m
+        )));
+    }
+    if s.n == dim && s.m == dim {
+        return Ok(s.clone());
+    }
+
+    let mut matrices: Vec<CcsMatrix<F>> = Vec::with_capacity(s.matrices.len());
+    for mj in &s.matrices {
+        match mj {
+            CcsMatrix::Identity { .. } => {
+                return Err(PiCcsError::InvalidInput(
+                    "cannot pad CCS containing Identity matrix while non-square".into(),
+                ));
+            }
+            CcsMatrix::Csc(m) => {
+                let mut m_new: CscMat<F> = m.clone();
+                // Increase effective shape by adding trailing all-zero rows/cols.
+                m_new.nrows = dim;
+                if m_new.ncols < dim {
+                    let last = *m_new
+                        .col_ptr
+                        .last()
+                        .ok_or_else(|| PiCcsError::InvalidInput("CSC col_ptr is empty".into()))?;
+                    m_new.col_ptr.resize(dim + 1, last);
+                }
+                m_new.ncols = dim;
+                matrices.push(CcsMatrix::Csc(m_new));
+            }
+        }
+    }
+
+    Ok(CcsStructure {
+        matrices,
+        f: s.f.clone(),
+        n: dim,
+        m: dim,
+    })
+}
+
+/// Normalize a CCS for the Ajtai/NC pipeline used by the session layer.
+///
+/// This:
+/// - pads to a **square** CCS with `n=m=max(n,m)` by adding trailing all-zero rows/cols, then
+/// - ensures identity-first form (`M₀ = I`), which is required by the NC constraints.
+fn normalize_ccs_for_session(s: &CcsStructure<F>) -> Result<Cow<'_, CcsStructure<F>>, PiCcsError> {
+    let dim = canonical_ccs_square_dim(s);
+    let is_id0 = s.n == s.m
+        && s
+            .matrices
+            .first()
+            .map(|m0| m0.is_identity())
+            .unwrap_or(false);
+    if s.n == dim && s.m == dim && is_id0 {
+        return Ok(Cow::Borrowed(s));
+    }
+
+    let mut owned = if s.n == dim && s.m == dim {
+        s.clone()
+    } else {
+        pad_ccs_to_square(s, dim)?
+    };
+
+    owned = owned
+        .ensure_identity_first_owned()
+        .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+    owned
+        .assert_m0_is_identity_for_nc()
+        .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
+
+    Ok(Cow::Owned(owned))
 }
 
 /// Optional application-level "output claim".
@@ -97,6 +183,73 @@ pub struct StepSpec {
     pub app_input_indices: Option<Vec<usize>>,
     /// Number of public inputs `m_in` (prefix length in z).
     pub m_in: usize,
+}
+
+impl StepSpec {
+    /// Derive a verifier-side step-linking configuration under the common IVC convention:
+    ///
+    /// - public `x` is ordered as `[const1] ++ y_step ++ app_inputs`
+    ///   (this is exactly how `FoldingSession::add_step` constructs `x`), and
+    /// - the *previous-step state* `y_prev` is stored as the first `y_len` elements of `app_inputs`.
+    ///
+    /// This yields constraints:
+    /// `steps[i].x[1 + j] == steps[i+1].x[1 + y_step_len + j]` for `j = 0..y_len`.
+    pub fn ivc_step_linking_pairs(&self) -> Result<Vec<(usize, usize)>, PiCcsError> {
+        if self.y_len == 0 {
+            return Ok(Vec::new());
+        }
+        let Some(app) = &self.app_input_indices else {
+            return Err(PiCcsError::InvalidInput(
+                "StepSpec: ivc_step_linking_pairs requires app_input_indices (y_prev as prefix of app_inputs)".into(),
+            ));
+        };
+        if self.y_len > self.y_step_indices.len() {
+            return Err(PiCcsError::InvalidInput(
+                "StepSpec: ivc_step_linking_pairs requires y_step_indices to include y_step".into(),
+            ));
+        }
+        if self.y_len > app.len() {
+            return Err(PiCcsError::InvalidInput(
+                "StepSpec: ivc_step_linking_pairs requires app_input_indices to include y_prev as a prefix".into(),
+            ));
+        }
+
+        // Derive x-layout from the StepSpec to avoid hard-coding offsets.
+        let x_indices = indices_from_spec(self);
+        if x_indices.len() != self.m_in {
+            return Err(PiCcsError::InvalidInput(format!(
+                "StepSpec: ivc_step_linking_pairs requires m_in == 1 + y_step_indices.len() + app_input_indices.len(); got m_in={}, computed {}",
+                self.m_in,
+                x_indices.len()
+            )));
+        }
+
+        // Reject duplicates to avoid ambiguous x-position mapping.
+        let mut pos_by_z: HashMap<usize, usize> = HashMap::with_capacity(x_indices.len());
+        for (pos, &z_idx) in x_indices.iter().enumerate() {
+            if pos_by_z.insert(z_idx, pos).is_some() {
+                return Err(PiCcsError::InvalidInput(
+                    "StepSpec: ivc_step_linking_pairs requires unique x indices (duplicates found)".into(),
+                ));
+            }
+        }
+
+        // Under the IVC convention, y_prev is the prefix of app_inputs and y_step is the prefix of y_step_indices.
+        let mut pairs = Vec::with_capacity(self.y_len);
+        for j in 0..self.y_len {
+            let y_step_z = self.y_step_indices[j];
+            let y_prev_z = app[j];
+            let step_pos = *pos_by_z.get(&y_step_z).ok_or_else(|| {
+                PiCcsError::InvalidInput("StepSpec: y_step_indices must be included in x".into())
+            })?;
+            let prev_pos = *pos_by_z.get(&y_prev_z).ok_or_else(|| {
+                PiCcsError::InvalidInput("StepSpec: app_input_indices must be included in x".into())
+            })?;
+            pairs.push((step_pos, prev_pos));
+        }
+
+        Ok(pairs)
+    }
 }
 
 /// What a step must return for the session to run Π-CCS.
@@ -519,6 +672,7 @@ where
     mode: FoldingMode,
     params: NeoParams,
     l: L,
+    commit_m: Option<usize>,
     mixers: CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>,
 
     // Cached CCS preprocessing for proving (best-effort reuse).
@@ -546,6 +700,8 @@ where
     ///
     /// This is unsafe for any workflow where step-to-step chaining is part of the statement.
     allow_unlinked_steps: bool,
+    /// Best-effort diagnostic for why auto step-linking did not engage (if attempted).
+    auto_step_linking_error: Option<String>,
 
     // Optional initial accumulated ME(b, L)^k inputs (k = me.len()).
     acc0: Option<Accumulator>,
@@ -577,6 +733,7 @@ where
             mode,
             params,
             l,
+            commit_m: None,
             mixers: default_mixers(),
             prover_ctx: None,
             verifier_ctx: None,
@@ -585,10 +742,34 @@ where
             shared_bus_resources: None,
             step_linking: None,
             allow_unlinked_steps: false,
+            auto_step_linking_error: None,
             acc0: None,
             step_claims: vec![],
             curr_state: None,
         }
+    }
+
+    /// Access the selected Neo parameters for this session.
+    pub fn params(&self) -> &NeoParams {
+        &self.params
+    }
+
+    /// Access the underlying committer used by this session.
+    pub fn committer(&self) -> &L {
+        &self.l
+    }
+
+    fn ensure_committer_m_matches(&self, m: usize) -> Result<(), PiCcsError> {
+        let Some(commit_m) = self.commit_m else {
+            return Ok(());
+        };
+        if commit_m != m {
+            return Err(PiCcsError::InvalidInput(format!(
+                "session committer configured for CCS.m={}, but this step expects CCS.m={}; construct the session from the same (padded) CCS shape",
+                commit_m, m
+            )));
+        }
+        Ok(())
     }
 
     /// Replace the stored shared-bus resource configuration (Twist layouts/init + Shout tables/specs).
@@ -650,11 +831,22 @@ where
     /// Enable verifier-side step-to-step linking for multi-step runs.
     pub fn set_step_linking(&mut self, cfg: StepLinkingConfig) {
         self.step_linking = Some(cfg);
+        self.auto_step_linking_error = None;
+    }
+
+    /// Enable verifier-side step-to-step linking using the common IVC convention from `StepSpec`.
+    ///
+    /// See `StepSpec::ivc_step_linking_pairs` for the exact assumptions.
+    pub fn enable_step_linking_from_step_spec(&mut self, spec: &StepSpec) -> Result<(), PiCcsError> {
+        let pairs = spec.ivc_step_linking_pairs()?;
+        self.set_step_linking(StepLinkingConfig::new(pairs));
+        Ok(())
     }
 
     /// Explicitly allow multi-step verification without step linking (unsafe).
     pub fn unsafe_allow_unlinked_steps(&mut self) {
         self.allow_unlinked_steps = true;
+        self.auto_step_linking_error = None;
     }
 
     /// Set an explicit initial state y₀ for the IVC (optional).
@@ -665,16 +857,13 @@ where
 
     /// Inject an explicit initial Accumulator (k = acc.me.len()). This enables k>1 multi-folding.
     pub fn with_initial_accumulator(mut self, acc: Accumulator, s: &CcsStructure<F>) -> Result<Self, PiCcsError> {
-        let s_norm = s
-            .ensure_identity_first()
-            .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
+        let s_norm_owned: Option<CcsStructure<F>> = match normalize_ccs_for_session(s)? {
+            Cow::Borrowed(_) => None,
+            Cow::Owned(s_norm) => Some(s_norm),
+        };
+        let s_norm = s_norm_owned.as_ref().unwrap_or(s);
 
-        // STRICT validation: Ajtai/NC requires M₀ = I_n (fail fast instead of mysterious sumcheck errors)
-        s_norm
-            .assert_m0_is_identity_for_nc()
-            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
-
-        acc.check(&self.params, &s_norm)?;
+        acc.check(&self.params, s_norm)?;
         self.acc0 = Some(acc);
         Ok(self)
     }
@@ -684,9 +873,22 @@ where
         self.steps.iter().map(|step| step.mcs.0.clone()).collect()
     }
 
+    /// Access the collected *public* per-step bundles (MCS + optional Twist/Shout instances).
+    ///
+    /// This is useful for specialized verifiers (e.g. RV32 B1 statement checks) that need access
+    /// to memory/lookup instances, not just the MCS list.
+    pub fn steps_public(&self) -> Vec<StepInstanceBundle<Cmt, F, K>> {
+        self.steps.iter().map(StepInstanceBundle::from).collect()
+    }
+
     /// Add one step using the `NeoStep` synthesis adapter.
     /// This accumulates the step instance and witness without performing any folding.
+    ///
+    /// If the returned `StepSpec` matches the common IVC layout (see
+    /// `StepSpec::ivc_step_linking_pairs`), this automatically enables verifier-side step linking
+    /// so multi-step verification works by default.
     pub fn add_step<S: NeoStep>(&mut self, stepper: &mut S, inputs: &S::ExternalInputs) -> Result<(), PiCcsError> {
+        let step_idx = self.steps.len();
         // 1) Decide previous state y_prev
         let state_len = stepper.state_len();
         let y_prev = self
@@ -697,10 +899,10 @@ where
         // 2) Let the app synthesize CCS + witness given y_prev
         let StepArtifacts {
             ccs,
-            witness: z,
+            witness: mut z,
             spec,
             public_app_inputs: _,
-        } = stepper.synthesize_step(self.steps.len(), &y_prev, inputs);
+        } = stepper.synthesize_step(step_idx, &y_prev, inputs);
 
         // Safety: require state_len to match StepSpec
         if spec.y_len != state_len {
@@ -710,36 +912,32 @@ where
             )));
         }
 
-        // Identity-first normalization (borrow when already normalized; clone only if insertion required).
-        let is_id0 = ccs.n == ccs.m
-            && ccs
-                .matrices
-                .first()
-                .map(|m0| m0.is_identity())
-                .unwrap_or(false);
-        let s_norm_owned = if ccs.n == ccs.m && !is_id0 {
-            Some(
-                ccs.as_ref()
-                    .clone()
-                    .ensure_identity_first_owned()
-                    .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?,
-            )
-        } else {
-            None
-        };
-        let s_norm: &CcsStructure<F> = s_norm_owned.as_ref().unwrap_or(ccs.as_ref());
+        if self.step_linking.is_none() && !self.allow_unlinked_steps {
+            match spec.ivc_step_linking_pairs() {
+                Ok(pairs) => {
+                    if !pairs.is_empty() {
+                        self.set_step_linking(StepLinkingConfig::new(pairs));
+                    }
+                }
+                Err(e) => {
+                    self.auto_step_linking_error = Some(format!("step {step_idx}: {e}"));
+                }
+            }
+        }
 
-        // STRICT validation: Ajtai/NC requires M₀ = I_n (fail fast instead of mysterious sumcheck errors)
-        s_norm
-            .assert_m0_is_identity_for_nc()
-            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
-
-        // z must match CCS dimension
-        if z.len() != s_norm.m {
+        // Canonicalize witness length to the padded-square CCS dimension.
+        let m_expected = ccs.m;
+        let m_target = canonical_ccs_square_dim(ccs.as_ref());
+        self.ensure_committer_m_matches(m_target)?;
+        if z.len() == m_expected && m_expected < m_target {
+            z.resize(m_target, F::ZERO);
+        }
+        if z.len() != m_target {
             return Err(PiCcsError::InvalidInput(format!(
-                "step witness length {} != CCS.m {}",
+                "step witness length {} must equal CCS.m={} (or CCS.m padded to {})",
                 z.len(),
-                s_norm.m
+                m_expected,
+                m_target
             )));
         }
         if spec.m_in > z.len() {
@@ -818,44 +1016,28 @@ where
     /// We compute the commitment and split (x | w) for you.
     /// This accumulates the step instance and witness without performing any folding.
     pub fn add_step_from_io(&mut self, input: &ProveInput<'_>) -> Result<(), PiCcsError> {
-        // Normalize CCS to identity-first (avoid cloning when already normalized).
-        let is_id0 = input.ccs.n == input.ccs.m
-            && input
-                .ccs
-                .matrices
-                .first()
-                .map(|m0| m0.is_identity())
-                .unwrap_or(false);
-        let s_norm_owned = if is_id0 {
-            None
-        } else {
-            Some(
-                input
-                    .ccs
-                    .ensure_identity_first()
-                    .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?,
-            )
-        };
-        let s_norm: &CcsStructure<F> = s_norm_owned.as_ref().unwrap_or(input.ccs);
-
-        // STRICT validation: Ajtai/NC requires M₀ = I_n (fail fast instead of mysterious sumcheck errors)
-        s_norm
-            .assert_m0_is_identity_for_nc()
-            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
-
         let m_in = input.public_input.len();
-        if m_in + input.witness.len() != s_norm.m {
+        let m_expected = input.ccs.m;
+        let m_target = canonical_ccs_square_dim(input.ccs);
+        self.ensure_committer_m_matches(m_target)?;
+        let total = m_in
+            .checked_add(input.witness.len())
+            .ok_or_else(|| PiCcsError::InvalidInput("len(x) + len(w) overflow".into()))?;
+        if total != m_expected && total != m_target {
             return Err(PiCcsError::InvalidInput(format!(
-                "len(x) + len(w) = {} but CCS.m = {}",
-                m_in + input.witness.len(),
-                s_norm.m
+                "len(x) + len(w) = {} but CCS.m = {} (or padded to {})",
+                total, m_expected, m_target
             )));
         }
 
         // Build z = [x | w], compute Z and commitment c
-        let mut z = Vec::with_capacity(s_norm.m);
+        let mut z = Vec::with_capacity(m_target);
         z.extend_from_slice(input.public_input);
         z.extend_from_slice(input.witness);
+        if total == m_expected && m_expected < m_target {
+            z.resize(m_target, F::ZERO);
+        }
+        debug_assert_eq!(z.len(), m_target);
 
         let Z = encode_vector_balanced_to_mat(&self.params, &z);
         let c = self.l.commit(&Z);
@@ -867,7 +1049,7 @@ where
             m_in,
         };
         let mcs_wit = McsWitness {
-            w: input.witness.to_vec(),
+            w: z[m_in..].to_vec(),
             Z,
         };
 
@@ -875,6 +1057,35 @@ where
         self.steps.push((mcs_inst, mcs_wit).into());
         self.step_claims.push(input.output_claims.to_vec());
 
+        Ok(())
+    }
+
+    /// Convenience: add one step directly from `(x, w)` without constructing `ProveInput`.
+    pub fn add_step_io(
+        &mut self,
+        ccs: &CcsStructure<F>,
+        public_input: &[F],
+        witness: &[F],
+    ) -> Result<(), PiCcsError> {
+        let input = ProveInput {
+            ccs,
+            public_input,
+            witness,
+            output_claims: &[],
+        };
+        self.add_step_from_io(&input)
+    }
+
+    /// Convenience: add `n_steps` steps by repeatedly calling `add_step`.
+    pub fn add_steps<S: NeoStep>(
+        &mut self,
+        stepper: &mut S,
+        inputs: &S::ExternalInputs,
+        n_steps: usize,
+    ) -> Result<(), PiCcsError> {
+        for _ in 0..n_steps {
+            self.add_step(stepper, inputs)?;
+        }
         Ok(())
     }
 
@@ -1012,25 +1223,13 @@ where
         let src_ptr = (s as *const CcsStructure<F>) as usize;
 
         let mut s_norm_opt: Option<CcsStructure<F>> = None;
-        let is_id0 = s.n == s.m
-            && s
-                .matrices
-                .first()
-                .map(|m0| m0.is_identity())
-                .unwrap_or(false);
-        let s_norm_ref: &CcsStructure<F> = if is_id0 || s.n != s.m {
-            s
-        } else {
-            let s_norm = s
-                .ensure_identity_first()
-                .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?;
-            s_norm_opt = Some(s_norm);
-            s_norm_opt.as_ref().expect("just set")
+        let s_norm_ref: &CcsStructure<F> = match normalize_ccs_for_session(s)? {
+            Cow::Borrowed(s) => s,
+            Cow::Owned(s) => {
+                s_norm_opt = Some(s);
+                s_norm_opt.as_ref().expect("just set")
+            }
         };
-
-        s_norm_ref
-            .assert_m0_is_identity_for_nc()
-            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
 
         if let Some(ref cache) = ccs_sparse_cache {
             if cache.len() != s_norm_ref.t() {
@@ -1111,6 +1310,18 @@ where
         self.fold_and_prove_with_transcript(&mut tr, s)
     }
 
+    /// Convenience: fold, prove, and verify using the internally collected steps.
+    ///
+    /// This returns the proof run if verification succeeds.
+    pub fn prove_and_verify_collected(&mut self, s: &CcsStructure<F>) -> Result<FoldRun, PiCcsError> {
+        let run = self.fold_and_prove(s)?;
+        let ok = self.verify_collected(s, &run)?;
+        if !ok {
+            return Err(PiCcsError::ProtocolError("verification failed".into()));
+        }
+        Ok(run)
+    }
+
     /// Fold and prove with a caller-provided transcript (advanced users).
     /// This is where the actual cryptographic work happens (Π_CCS → RLC → DEC for each step).
     pub fn fold_and_prove_with_transcript(
@@ -1156,6 +1367,12 @@ where
                 None => (&[], &[]), // k=1
             };
 
+            // If PP is reloadable (seeded), unload it before memory-heavy oracle/sumcheck work.
+            // This keeps peak RSS low on constrained runtimes (e.g. WASM).
+            if has_seed_for_dims(D, s_norm.m) {
+                let _ = unload_global_pp_for_dims(D, s_norm.m);
+            }
+
             shard::fold_shard_prove_with_context(
                 self.mode.clone(),
                 tr,
@@ -1183,48 +1400,54 @@ where
     ) -> Result<FoldRun, PiCcsError> {
         self.ensure_prover_ctx_for_ccs(s)?;
 
-        let s_prepared = self.prepared_ccs_for_accumulator(s)?;
-        s_prepared
-            .assert_m0_is_identity_for_nc()
-            .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
-        self.ensure_accumulator_matches_ccs(s_prepared)?;
-
-        let m_in_steps = self.steps.first().map(|step| step.mcs.0.m_in).unwrap_or(0);
-        if !self.steps.iter().all(|step| step.mcs.0.m_in == m_in_steps) {
-            return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
-        }
-
-        let (seed_me, seed_me_wit): (&[MeInstance<Cmt, F, K>], &[Mat<F>]) = match &self.acc0 {
-            Some(acc) => {
-                acc.check(&self.params, s_prepared)?;
-                let acc_m_in = acc.me.first().map(|m| m.m_in).unwrap_or(m_in_steps);
-                if acc_m_in != m_in_steps {
-                    return Err(PiCcsError::InvalidInput(
-                        "initial Accumulator.m_in must match steps' m_in".into(),
-                    ));
-                }
-                (&acc.me, &acc.witnesses)
-            }
-            None => (&[], &[]),
-        };
-
-        let cache = self.prover_ctx.as_ref().expect("prover ctx must be set");
-        let s_norm = cache.s_norm.as_ref().unwrap_or(s);
+        let cache = self.prover_ctx.take().expect("prover ctx must be set");
         let ctx = cache.ctx.clone();
-        shard::fold_shard_prove_with_output_binding_with_context(
-            self.mode.clone(),
-            tr,
-            &self.params,
-            s_norm,
-            &self.steps,
-            seed_me,
-            seed_me_wit,
-            &self.l,
-            self.mixers,
-            ob_cfg,
-            final_memory_state,
-            &ctx,
-        )
+        let s_norm = cache.s_norm.as_ref().unwrap_or(s);
+
+        let result = (|| {
+            let s_prepared = self.prepared_ccs_for_accumulator(s_norm)?;
+            s_prepared
+                .assert_m0_is_identity_for_nc()
+                .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
+            self.ensure_accumulator_matches_ccs(s_prepared)?;
+
+            let m_in_steps = self.steps.first().map(|step| step.mcs.0.m_in).unwrap_or(0);
+            if !self.steps.iter().all(|step| step.mcs.0.m_in == m_in_steps) {
+                return Err(PiCcsError::InvalidInput("all steps must share the same m_in".into()));
+            }
+
+            let (seed_me, seed_me_wit): (&[MeInstance<Cmt, F, K>], &[Mat<F>]) = match &self.acc0 {
+                Some(acc) => {
+                    acc.check(&self.params, s_prepared)?;
+                    let acc_m_in = acc.me.first().map(|m| m.m_in).unwrap_or(m_in_steps);
+                    if acc_m_in != m_in_steps {
+                        return Err(PiCcsError::InvalidInput(
+                            "initial Accumulator.m_in must match steps' m_in".into(),
+                        ));
+                    }
+                    (&acc.me, &acc.witnesses)
+                }
+                None => (&[], &[]),
+            };
+
+            shard::fold_shard_prove_with_output_binding_with_context(
+                self.mode.clone(),
+                tr,
+                &self.params,
+                s_norm,
+                &self.steps,
+                seed_me,
+                seed_me_wit,
+                &self.l,
+                self.mixers,
+                ob_cfg,
+                final_memory_state,
+                &ctx,
+            )
+        })();
+
+        self.prover_ctx = Some(cache);
+        result
     }
 
     /// Fold and prove with output binding, managing the transcript internally.
@@ -1306,6 +1529,22 @@ where
         self.fold_and_prove_with_output_binding_auto(&mut tr, s, ob_cfg)
     }
 
+    /// Convenience: fold+prove with output binding (auto final memory) and verify (collected steps).
+    ///
+    /// This returns the proof run if verification succeeds.
+    pub fn prove_and_verify_with_output_binding_collected_auto_simple(
+        &mut self,
+        s: &CcsStructure<F>,
+        ob_cfg: &crate::output_binding::OutputBindingConfig,
+    ) -> Result<FoldRun, PiCcsError> {
+        let run = self.fold_and_prove_with_output_binding_auto_simple(s, ob_cfg)?;
+        let ok = self.verify_with_output_binding_collected_simple(s, &run, ob_cfg)?;
+        if !ok {
+            return Err(PiCcsError::ProtocolError("verification failed".into()));
+        }
+        Ok(run)
+    }
+
     /// Verify a finished run against the public MCS list.
     /// This method manages the transcript internally for ease of use.
     ///
@@ -1344,25 +1583,16 @@ where
         let verifier_ctx = verifier_cache.map(|cache| &cache.ctx);
 
         // Normalize CCS (avoid cloning when already normalized or preloaded).
-        let mut s_norm_owned: Option<CcsStructure<F>> = None;
+        let s_norm_owned: Option<CcsStructure<F>> = match verifier_cache {
+            Some(_) => None,
+            None => match normalize_ccs_for_session(s)? {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(s_norm) => Some(s_norm),
+            },
+        };
         let s_norm: &CcsStructure<F> = match verifier_cache {
             Some(cache) => cache.s_norm.as_ref().unwrap_or(s),
-            None => {
-                let is_id0 = s.n == s.m
-                    && s
-                        .matrices
-                        .first()
-                        .map(|m0| m0.is_identity())
-                        .unwrap_or(false);
-                if s.n == s.m && !is_id0 {
-                    s_norm_owned = Some(
-                        s.ensure_identity_first().map_err(|e| {
-                            PiCcsError::InvalidInput(format!("identity-first required: {e:?}"))
-                        })?,
-                    );
-                }
-                s_norm_owned.as_ref().unwrap_or(s)
-            }
+            None => s_norm_owned.as_ref().unwrap_or(s),
         };
 
         // m_in consistency across public MCS
@@ -1447,8 +1677,12 @@ where
                     )?,
                 },
                 None => {
+                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".to_string();
+                    if let Some(diag) = &self.auto_step_linking_error {
+                        msg.push_str(&format!(" (auto step-linking from StepSpec failed: {diag})"));
+                    }
                     return Err(PiCcsError::InvalidInput(
-                        "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".into(),
+                        msg,
                     ));
                 }
             }
@@ -1528,25 +1762,16 @@ where
         let verifier_ctx = verifier_cache.map(|cache| &cache.ctx);
 
         // Normalize CCS (avoid cloning when already normalized or preloaded).
-        let mut s_norm_owned: Option<CcsStructure<F>> = None;
+        let s_norm_owned: Option<CcsStructure<F>> = match verifier_cache {
+            Some(_) => None,
+            None => match normalize_ccs_for_session(s)? {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(s_norm) => Some(s_norm),
+            },
+        };
         let s_norm: &CcsStructure<F> = match verifier_cache {
             Some(cache) => cache.s_norm.as_ref().unwrap_or(s),
-            None => {
-                let is_id0 = s.n == s.m
-                    && s
-                        .matrices
-                        .first()
-                        .map(|m0| m0.is_identity())
-                        .unwrap_or(false);
-                if s.n == s.m && !is_id0 {
-                    s_norm_owned = Some(
-                        s.ensure_identity_first().map_err(|e| {
-                            PiCcsError::InvalidInput(format!("identity-first required: {e:?}"))
-                        })?,
-                    );
-                }
-                s_norm_owned.as_ref().unwrap_or(s)
-            }
+            None => s_norm_owned.as_ref().unwrap_or(s),
         };
 
         let m_in_steps = mcss_public.first().map(|inst| inst.m_in).unwrap_or(0);
@@ -1631,8 +1856,12 @@ where
                     )?,
                 },
                 None => {
+                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".to_string();
+                    if let Some(diag) = &self.auto_step_linking_error {
+                        msg.push_str(&format!(" (auto step-linking from StepSpec failed: {diag})"));
+                    }
                     return Err(PiCcsError::InvalidInput(
-                        "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".into(),
+                        msg,
                     ));
                 }
             }
@@ -1672,5 +1901,53 @@ where
         }
 
         Ok(true)
+    }
+}
+
+impl FoldingSession<AjtaiSModule> {
+    /// Build a session with an Ajtai committer and auto-picked Goldilocks parameters.
+    ///
+    /// This is intended as a “few lines” frontend: it hides Ajtai PP generation and `NeoParams`
+    /// selection. The committer dimension uses the session's canonical square padding rule
+    /// (`m = max(ccs.n, ccs.m)`) to match internal CCS normalization.
+    ///
+    /// For deterministic parameters (e.g. in tests), use `new_ajtai_seeded`.
+    pub fn new_ajtai(mode: FoldingMode, ccs: &CcsStructure<F>) -> Result<Self, PiCcsError> {
+        let m_commit = canonical_ccs_square_dim(ccs);
+        let params = NeoParams::goldilocks_auto_r1cs_ccs(m_commit)
+            .map_err(|e| PiCcsError::InvalidInput(format!("NeoParams::goldilocks_auto_r1cs_ccs failed: {e}")))?;
+
+        let mut seed = [0u8; 32];
+        rand_chacha::rand_core::OsRng
+            .try_fill_bytes(&mut seed)
+            .map_err(|e| PiCcsError::InvalidInput(format!("OsRng failed: {e}")))?;
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed(seed);
+        let pp = neo_ajtai::setup_par(&mut rng, D, params.kappa as usize, m_commit)
+            .map_err(|e| PiCcsError::InvalidInput(format!("Ajtai setup failed: {e}")))?;
+        let committer = AjtaiSModule::new(Arc::new(pp));
+        let mut session = FoldingSession::new(mode, params, committer);
+        session.commit_m = Some(m_commit);
+        Ok(session)
+    }
+
+    /// Same as `new_ajtai`, but with a deterministic ChaCha8 seed for reproducible tests/benchmarks.
+    ///
+    /// This uses the sequential Ajtai setup to avoid any parallelism-related determinism concerns.
+    pub fn new_ajtai_seeded(
+        mode: FoldingMode,
+        ccs: &CcsStructure<F>,
+        seed: [u8; 32],
+    ) -> Result<Self, PiCcsError> {
+        let m_commit = canonical_ccs_square_dim(ccs);
+        let params = NeoParams::goldilocks_auto_r1cs_ccs(m_commit)
+            .map_err(|e| PiCcsError::InvalidInput(format!("NeoParams::goldilocks_auto_r1cs_ccs failed: {e}")))?;
+
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed(seed);
+        let pp = neo_ajtai::setup(&mut rng, D, params.kappa as usize, m_commit)
+            .map_err(|e| PiCcsError::InvalidInput(format!("Ajtai setup failed: {e}")))?;
+        let committer = AjtaiSModule::new(Arc::new(pp));
+        let mut session = FoldingSession::new(mode, params, committer);
+        session.commit_m = Some(m_commit);
+        Ok(session)
     }
 }

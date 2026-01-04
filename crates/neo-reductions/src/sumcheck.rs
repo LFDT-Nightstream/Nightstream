@@ -57,6 +57,22 @@ pub fn poly_eval_k(coeffs: &[K], x: K) -> K {
     result
 }
 
+/// Evaluate a polynomial at a base-field point `x ∈ Fq ⊂ K` (imag=0).
+///
+/// This is a hot path for sumcheck oracles which evaluate at `x = 0..deg` and can use the
+/// specialized `KExtensions::scale_base` instead of a full extension-field multiplication.
+#[inline]
+pub fn poly_eval_k_base(coeffs: &[K], x: Fq) -> K {
+    if coeffs.is_empty() {
+        return K::ZERO;
+    }
+    let mut result = coeffs[coeffs.len() - 1];
+    for &c in coeffs.iter().rev().skip(1) {
+        result = result.scale_base(x) + c;
+    }
+    result
+}
+
 /// Lagrange-interpolate a univariate polynomial from evaluations.
 ///
 /// Returns coefficients in low→high order so that `poly_eval_k(&coeffs, x)`

@@ -1,8 +1,8 @@
-use neo_ajtai::{decomp_b, DecompStyle};
+use neo_ajtai::{decomp_b_row_major, DecompStyle};
 use neo_ccs::matrix::Mat;
 use neo_math::F as BaseField;
 use neo_params::NeoParams;
-use p3_field::{PrimeCharacteristicRing, PrimeField};
+use p3_field::PrimeField;
 
 /// Encode a vector `z ∈ F^m` into its Ajtai digit matrix `Z ∈ F^{d×m}` using **balanced** digits.
 ///
@@ -20,18 +20,8 @@ pub fn encode_vector_balanced_to_mat(params: &NeoParams, z: &[BaseField]) -> Mat
     );
     let m = z.len();
 
-    // Column-major digits of length d for each column, balanced so recomposition equals z mod p.
-    let digits_col_major = decomp_b(z, params.b, d, DecompStyle::Balanced);
-
-    // Convert to row-major Mat<F> of shape d×m.
-    let mut row_major = vec![BaseField::ZERO; d * m];
-    // Write row-major contiguously for better cache behavior on large matrices.
-    for row in 0..d {
-        let row_offset = row * m;
-        for col in 0..m {
-            row_major[row_offset + col] = digits_col_major[col * d + row];
-        }
-    }
+    // Row-major digits of shape d×m, balanced so recomposition equals z mod p.
+    let row_major = decomp_b_row_major(z, params.b, d, DecompStyle::Balanced);
     Mat::from_row_major(d, m, row_major)
 }
 

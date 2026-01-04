@@ -48,7 +48,7 @@ fn setup_ajtai_pp(m: usize, seed: u64) -> AjtaiSModule {
 
     let mut rng = ChaCha20Rng::seed_from_u64(seed);
     let pp = ajtai_setup(&mut rng, d, kappa, m).expect("Ajtai setup should succeed");
-    let _ = set_global_pp(pp.clone());
+    set_global_pp(pp.clone()).expect("set_global_pp");
     AjtaiSModule::new(Arc::new(pp))
 }
 

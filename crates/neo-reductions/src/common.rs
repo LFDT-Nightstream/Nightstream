@@ -554,6 +554,13 @@ pub fn sample_rot_rhos_n(
         // Draw D coefficients from the small alphabet (unbiased rejection sampling)
         let coeffs_i8 = draw_alphabet_vector(tr, D, ring.alphabet, b"rlc/rot/chunk", i as u64);
 
+        // For k=1 there is nothing to mix, so Π_RLC can be the identity without affecting soundness.
+        // We still consume transcript randomness above to keep Fiat–Shamir behavior consistent.
+        if count == 1 {
+            out.push(Mat::identity(D));
+            continue;
+        }
+
         // Lift to field F
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();
 

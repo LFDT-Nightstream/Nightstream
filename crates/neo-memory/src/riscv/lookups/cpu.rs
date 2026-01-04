@@ -3,7 +3,7 @@ use neo_vm_trace::{Shout, Twist};
 use super::bits::interleave_bits;
 use super::decode::decode_instruction;
 use super::encode::encode_instruction;
-use super::isa::{RiscvInstruction, RiscvMemOp, RiscvOpcode};
+use super::isa::{BranchCondition, RiscvInstruction, RiscvMemOp, RiscvOpcode};
 use super::tables::RiscvShoutTables;
 
 /// A RISC-V CPU that can be traced using Neo's VmCpu trait.
@@ -104,6 +104,13 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
         T: Twist<u64, u64>,
         S: Shout<u64>,
     {
+        if (self.pc & 0b11) != 0 {
+            return Err(format!(
+                "PC not 4-byte aligned (no compressed): pc={:#x}",
+                self.pc
+            ));
+        }
+
         let ram = super::RAM_ID;
         let prog = super::PROG_ID;
         let shout_tables = RiscvShoutTables::new(self.xlen);
@@ -229,11 +236,20 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 // Use Shout for the comparison
                 let shout_id = shout_tables.opcode_to_id(cond.to_shout_opcode());
                 let index = interleave_bits(rs1_val, rs2_val) as u64;
-                let _comparison_result = shout.lookup(shout_id, index);
+                let cmp = shout.lookup(shout_id, index);
+                if cmp > 1 {
+                    return Err(format!(
+                        "branch compare lookup must be 0/1: cond={cond}, rs1={rs1_val:#x}, rs2={rs2_val:#x}, got={cmp}"
+                    ));
+                }
 
-                // Evaluate branch condition
-                if cond.evaluate(rs1_val, rs2_val, self.xlen) {
-                    next_pc = (self.pc as i64 + imm as i64) as u64;
+                let taken = match cond {
+                    BranchCondition::Eq | BranchCondition::Ne | BranchCondition::Lt | BranchCondition::Ltu => cmp == 1,
+                    BranchCondition::Ge | BranchCondition::Geu => cmp == 0,
+                };
+                if taken {
+                    let imm_u = self.sign_extend_imm(imm);
+                    next_pc = self.pc.wrapping_add(imm_u);
                 }
             }
 
@@ -241,19 +257,20 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 // rd = pc + 4 (return address)
                 self.set_reg(rd, self.pc.wrapping_add(4));
                 // pc = pc + imm
-                next_pc = (self.pc as i64 + imm as i64) as u64;
+                let imm_u = self.sign_extend_imm(imm);
+                next_pc = self.pc.wrapping_add(imm_u);
             }
 
             RiscvInstruction::Jalr { rd, rs1, imm } => {
                 let rs1_val = self.get_reg(rs1);
                 let return_addr = self.pc.wrapping_add(4);
 
-                // pc = (rs1 + imm) & ~1
-                // Use Shout ADD for modular RV32 semantics, then apply the JALR alignment mask in-circuit.
+                // pc = (rs1 + imm) & !3 (MVP: no compressed instructions)
+                // Use Shout ADD for modular semantics, then apply the JALR alignment mask.
                 let imm_val = self.sign_extend_imm(imm);
                 let index = interleave_bits(rs1_val, imm_val) as u64;
                 let sum = shout.lookup(add_shout_id, index);
-                next_pc = sum & !1;
+                next_pc = sum & !3u64;
 
                 // rd = return address
                 self.set_reg(rd, return_addr);
@@ -285,7 +302,7 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 let rs1_val = self.get_reg(rs1);
                 let rs2_val = self.get_reg(rs2);
 
-                let shout_id = RiscvShoutTables::new(self.xlen).opcode_to_id(op);
+                let shout_id = shout_tables.opcode_to_id(op);
                 let index = interleave_bits(rs1_val, rs2_val) as u64;
                 let result = shout.lookup(shout_id, index);
 
@@ -296,7 +313,7 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 let rs1_val = self.get_reg(rs1);
                 let imm_val = self.sign_extend_imm(imm);
 
-                let shout_id = RiscvShoutTables::new(self.xlen).opcode_to_id(op);
+                let shout_id = shout_tables.opcode_to_id(op);
                 let index = interleave_bits(rs1_val, imm_val) as u64;
                 let result = shout.lookup(shout_id, index);
 
@@ -455,7 +472,14 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
             }
         }
 
-        self.pc = self.mask_value(next_pc);
+        let next_pc_masked = self.mask_value(next_pc);
+        if (next_pc_masked & 0b11) != 0 {
+            return Err(format!(
+                "control-flow target not 4-byte aligned (no compressed): next_pc={:#x}",
+                next_pc_masked
+            ));
+        }
+        self.pc = next_pc_masked;
 
         Ok(neo_vm_trace::StepMeta {
             pc_after: self.pc,

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use neo_ajtai::Commitment as Cmt;
+use neo_ajtai::{setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, McsInstance, McsWitness, MeInstance, SparsePoly, Term};
 use neo_math::{from_complex, D, F, K};
@@ -9,55 +9,12 @@ use neo_reductions::engines::optimized_engine::oracle::{OptimizedOracle, SparseC
 use neo_reductions::engines::optimized_engine::Challenges;
 use neo_reductions::paper_exact_engine::build_me_outputs_paper_exact;
 use neo_reductions::sumcheck::RoundOracle;
-use p3_field::PrimeField64;
 use p3_field::PrimeCharacteristicRing;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 fn k(re: u64, im: u64) -> K {
     from_complex(F::from_u64(re), F::from_u64(im))
-}
-
-#[derive(Clone, Copy, Default)]
-struct HashCommit;
-
-impl HashCommit {
-    fn digest_mat(mat: &Mat<F>) -> u64 {
-        // Simple FNV-1a style hash over dimensions + entries.
-        let mut h: u64 = 0xcbf29ce484222325;
-        h ^= mat.rows() as u64;
-        h = h.wrapping_mul(0x100000001b3);
-        h ^= mat.cols() as u64;
-        h = h.wrapping_mul(0x100000001b3);
-        for r in 0..mat.rows() {
-            for c in 0..mat.cols() {
-                h ^= mat[(r, c)].as_canonical_u64();
-                h = h.wrapping_mul(0x100000001b3);
-            }
-        }
-        h
-    }
-}
-
-impl SModuleHomomorphism<F, Cmt> for HashCommit {
-    fn commit(&self, z: &Mat<F>) -> Cmt {
-        let h = Self::digest_mat(z);
-        let base = F::from_u64(h);
-        let mut out = Cmt::zeros(z.rows(), 1);
-        for i in 0..z.rows() {
-            out.data[i] = base + F::from_u64(i as u64);
-        }
-        out
-    }
-
-    fn project_x(&self, z: &Mat<F>, m_in: usize) -> Mat<F> {
-        let rows = z.rows();
-        let mut out = Mat::zero(rows, m_in, F::ZERO);
-        for r in 0..rows {
-            for c in 0..m_in.min(z.cols()) {
-                out[(r, c)] = z[(r, c)];
-            }
-        }
-        out
-    }
 }
 
 fn dense_mat<Ff: PrimeCharacteristicRing + Copy>(rows: usize, cols: usize, seed: u64) -> Mat<Ff> {
@@ -114,7 +71,9 @@ fn optimized_oracle_outputs_match_paper_exact_builder() {
     let s = CcsStructure::new(matrices, f).unwrap();
 
     let dims = neo_reductions::engines::utils::build_dims_and_policy(&params, &s).unwrap();
-    let l = HashCommit;
+    let mut rng = ChaCha8Rng::seed_from_u64(7);
+    let pp = ajtai_setup(&mut rng, D, params.kappa as usize, m).expect("Ajtai setup should succeed");
+    let l = AjtaiSModule::new(Arc::new(pp));
 
     // One MCS + one ME witness, to exercise both output cases.
     let m_in = 4usize;

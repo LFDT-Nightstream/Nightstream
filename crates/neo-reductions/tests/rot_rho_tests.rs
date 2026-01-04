@@ -56,6 +56,17 @@ fn test_sample_rot_rhos_succeeds_with_valid_params() {
 }
 
 #[test]
+fn test_rot_rhos_k1_is_identity() {
+    let params = NeoParams::goldilocks_127();
+    let ring = RotRing::goldilocks();
+    let mut tr = Poseidon2Transcript::new(b"test/rot_rhos_k1");
+
+    let rhos = sample_rot_rhos_n(&mut tr, &params, &ring, 1).unwrap();
+    assert_eq!(rhos.len(), 1);
+    assert!(rhos[0].is_identity(), "k=1 rho should be identity");
+}
+
+#[test]
 fn test_rot_rhos_are_different() {
     // Test that we don't accidentally generate identical challenge matrices
     let params = NeoParams::goldilocks_127();

@@ -28,11 +28,11 @@ rayon = { workspace = true }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 # Plonky3 (field + small dense matrix)
-p3-field = "0.3.0"
-p3-goldilocks = { version = "0.3.0", default-features = false }
-p3-matrix = "0.3.0"
+p3-field = "0.4.1"
+p3-goldilocks = { version = "0.4.1", default-features = false }
+p3-matrix = "0.4.1"
 
 [dev-dependencies]
 proptest = "1.7"
 serde_json = { workspace = true }
-p3-symmetric = "0.3.0"
+p3-symmetric = "0.4.1"

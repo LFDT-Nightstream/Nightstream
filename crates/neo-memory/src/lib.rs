@@ -1,23 +1,16 @@
-//! Neo Memory: Twist & Shout protocols with RV64IMAC RISC-V support.
+//! Neo Memory: Twist & Shout protocols plus RISC-V helpers.
 //!
 //! This crate provides:
 //!
 //! - **Twist**: Read-write memory argument for proving memory operations
 //! - **Shout**: Read-only memory / lookup table argument for proving ALU operations
-//! - **RISC-V RV64IMAC**: Complete instruction set implementation
+//! - **RISC-V helpers**: instruction decode/encode, tracing CPU, and CCS builders
 //!
 //! # RISC-V Support
 //!
-//! The [`riscv::lookups`] module implements the full **RV64IMAC** instruction set:
-//!
-//! | Extension | Description |
-//! |-----------|-------------|
-//! | **I** | Base Integer (64-bit) |
-//! | **M** | Multiply/Divide |
-//! | **A** | Atomics (LR/SC, AMO) |
-//! | **C** | Compressed (16-bit instructions) |
-//!
-//! This matches [Jolt's](https://github.com/a16z/jolt) RISC-V support.
+//! The current proving integration is RV32-focused (e.g. the shared-bus RV32 B1 path assumes
+//! `xlen == 32`, no compressed instructions, and 4-byte aligned control flow).
+//! RV64 proving is not yet supported by the Shout key encoding used in this path.
 //!
 //! # Key Modules
 //!

@@ -96,12 +96,18 @@ where
             dims.ell_n,
             me_inputs.get(0).map(|mi| mi.r.as_slice()),
         );
-        if let Some(initial_sum_prover) = proof.sc_initial_sum {
-            if lhs_exact != initial_sum_prover {
-                return Err(PiCcsError::ProtocolError(
-                    "crosscheck: initial sum mismatch (optimized vs paper-exact)".into(),
-                ));
-            }
+        let initial_sum_prover = match proof.sc_initial_sum {
+            Some(x) => x,
+            None => proof
+                .sumcheck_rounds
+                .first()
+                .map(|p0| crate::sumcheck::poly_eval_k(p0, K::ZERO) + crate::sumcheck::poly_eval_k(p0, K::ONE))
+                .ok_or_else(|| PiCcsError::ProtocolError("crosscheck: missing sumcheck round 0".into()))?,
+        };
+        if lhs_exact != initial_sum_prover {
+            return Err(PiCcsError::ProtocolError(
+                "crosscheck: initial sum mismatch (optimized vs paper-exact)".into(),
+            ));
         }
     }
 

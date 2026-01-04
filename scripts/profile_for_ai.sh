@@ -24,6 +24,7 @@ if [ $# -lt 3 ]; then
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored"
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored 20"
   echo "  $0 neo-fold test_starstream_tx_valid_optimized test_starstream_tx_valid_optimized 30"
+  echo "  $0 neo-fold test_riscv_program_compiled_full_prove_verify test_riscv_program_compiled_full_prove_verify"
   echo ""
   echo "Output: Writes profile to profile-output.txt for AI analysis"
   exit 1
@@ -66,14 +67,21 @@ if ! command -v jq &> /dev/null; then
   exit 1
 fi
 
+# Ensure frame pointers for `sample(1)` while preserving any caller-provided RUSTFLAGS.
+RUSTFLAGS_COMBINED="${RUSTFLAGS:-}"
+if [ -n "$RUSTFLAGS_COMBINED" ]; then
+  RUSTFLAGS_COMBINED="$RUSTFLAGS_COMBINED "
+fi
+RUSTFLAGS_COMBINED="${RUSTFLAGS_COMBINED}-C force-frame-pointers=yes"
+
 # Build with profiling profile
 echo "🔨 Building test with profiling profile..."
-RUSTFLAGS="-C force-frame-pointers=yes" cargo test --profile profiling \
+RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling \
   -p "$PACKAGE" --test "$TEST_FILE" --no-run 2>&1 | tail -5
 
 # Find the test binary
 echo "🔎 Finding test binary..."
-TEST_BINARY=$(cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
+TEST_BINARY=$(RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
   --no-run --message-format=json 2>/dev/null | \
   jq -r 'select(.executable != null) | .executable' | head -1)
 

@@ -3,7 +3,7 @@
 use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::{r1cs_to_ccs, Mat};
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::session::{me_from_z_balanced, Accumulator, FoldingSession, ProveInput};
+use neo_fold::session::{me_from_z_balanced, Accumulator, FoldingSession};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -12,7 +12,7 @@ use rand_chacha::rand_core::SeedableRng;
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
     let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
-    let _ = set_global_pp(pp);
+    set_global_pp(pp).expect("set_global_pp");
 }
 
 #[test]
@@ -53,37 +53,19 @@ fn test_session_multifold_k3_three_steps_r1cs_optimized() {
     {
         let x: Vec<F> = vec![F::ZERO, F::ZERO];
         let w: Vec<F> = vec![F::ZERO, F::ZERO];
-        let input = ProveInput {
-            ccs: &ccs,
-            public_input: &x,
-            witness: &w,
-            output_claims: &[],
-        };
-        session.add_step_from_io(&input).expect("add_step 1");
+        session.add_step_io(&ccs, &x, &w).expect("add_step 1");
     }
 
     {
         let x: Vec<F> = vec![F::ZERO, F::ZERO];
         let w: Vec<F> = vec![F::ZERO, F::ZERO];
-        let input = ProveInput {
-            ccs: &ccs,
-            public_input: &x,
-            witness: &w,
-            output_claims: &[],
-        };
-        session.add_step_from_io(&input).expect("add_step 2");
+        session.add_step_io(&ccs, &x, &w).expect("add_step 2");
     }
 
     {
         let x: Vec<F> = vec![F::ZERO, F::ZERO];
         let w: Vec<F> = vec![F::ZERO, F::ZERO];
-        let input = ProveInput {
-            ccs: &ccs,
-            public_input: &x,
-            witness: &w,
-            output_claims: &[],
-        };
-        session.add_step_from_io(&input).expect("add_step 3");
+        session.add_step_io(&ccs, &x, &w).expect("add_step 3");
     }
 
     let run = session

@@ -28,9 +28,11 @@ pub mod util;
 pub mod s_module;
 
 pub use commit::{
-    commit, commit_masked_ct, commit_precomp_ct, s_lincomb, s_mul, setup, try_commit, verify_open, verify_split_open,
+    commit, commit_masked_ct, commit_precomp_ct, commit_row_major, precompute_rot_columns, s_lincomb, s_mul, setup,
+    setup_par, try_commit, try_commit_row_major, verify_open,
+    verify_split_open,
 };
-pub use decomp::{assert_range_b, decomp_b, split_b, DecompStyle};
+pub use decomp::{assert_range_b, decomp_b, decomp_b_row_major, split_b, DecompStyle};
 pub use error::{AjtaiError, AjtaiResult};
 pub use types::{Commitment, PP};
 
@@ -38,5 +40,10 @@ pub use types::{Commitment, PP};
 pub use commit::rot_step;
 
 pub use s_module::{
-    get_global_pp, get_global_pp_for_dims, get_global_pp_for_z_len, has_global_pp_for_dims, set_global_pp, AjtaiSModule,
+    get_global_pp, get_global_pp_for_dims, get_global_pp_for_z_len, has_global_pp_for_dims, has_seed_for_dims,
+    get_global_pp_seeded_params_for_dims, set_global_pp, set_global_pp_seeded, try_get_loaded_global_pp_for_dims,
+    unload_global_pp_for_dims, AjtaiSModule,
 };
+
+#[doc(hidden)]
+pub use commit::{commit_row_major_seeded, sample_uniform_rq, seeded_pp_chunk_seeds};

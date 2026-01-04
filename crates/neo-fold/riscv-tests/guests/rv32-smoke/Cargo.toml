@@ -1,0 +1,17 @@
+[package]
+name = "rv32-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "rv32_smoke"
+path = "src/main.rs"
+
+# Standalone guest project: do not inherit the repo workspace.
+[workspace]
+
+[profile.release]
+panic = "abort"
+
+[dependencies]

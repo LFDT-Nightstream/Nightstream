@@ -1,19 +1,11 @@
 #![allow(non_snake_case)]
 
-use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
+use neo_ajtai::AjtaiSModule;
 use neo_ccs::{CcsStructure, Mat, SparsePoly, Term};
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::session::{FoldingSession, ProveInput};
-use neo_math::{D, F};
-use neo_params::NeoParams;
+use neo_fold::session::FoldingSession;
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use rand_chacha::rand_core::SeedableRng;
-
-fn setup_ajtai_for_dims(m: usize) {
-    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
-    let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
-    let _ = set_global_pp(pp);
-}
 
 fn r1cs_f_base() -> SparsePoly<F> {
     SparsePoly::new(
@@ -59,27 +51,13 @@ fn test_regression_optimized_all_public_inputs() {
 
     let ccs = neo_ccs::r1cs_to_ccs(A, B, C);
 
-    let params =
-        NeoParams::goldilocks_auto_r1cs_ccs(n_constraints).expect("goldilocks_auto_r1cs_ccs should find valid params");
-
-    setup_ajtai_for_dims(n_vars);
-    let l = AjtaiSModule::from_global_for_dims(D, n_vars).expect("AjtaiSModule init");
-
     // Valid witness: z = [x0, x1, x2] = [1, 0, 1]
     let public_input = vec![F::ONE, F::ZERO, F::ONE];
     let witness: Vec<F> = vec![];
 
-    let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
-    let input = ProveInput {
-        ccs: &ccs,
-        public_input: &public_input,
-        witness: &witness,
-        output_claims: &[],
-    };
+    let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, &ccs).expect("new_ajtai");
 
-    session
-        .add_step_from_io(&input)
-        .expect("add_step should succeed");
+    session.add_step_io(&ccs, &public_input, &witness).expect("add_step_io");
     let run = session.fold_and_prove(&ccs).expect("fold_and_prove");
 
     let public_mcss = session.mcss_public();
@@ -116,26 +94,12 @@ fn test_regression_optimized_normalizes_identity_first() {
     // Intentionally build a 3-matrix CCS even though it's square, so M0 is not identity.
     let ccs = CcsStructure::new(vec![A, B, C], r1cs_f_base()).expect("valid R1CS→CCS structure");
 
-    let params =
-        NeoParams::goldilocks_auto_r1cs_ccs(n_constraints).expect("goldilocks_auto_r1cs_ccs should find valid params");
-
-    setup_ajtai_for_dims(n_vars);
-    let l = AjtaiSModule::from_global_for_dims(D, n_vars).expect("AjtaiSModule init");
-
     let public_input = vec![F::ONE, F::ONE];
     let witness = vec![F::ONE];
 
-    let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
-    let input = ProveInput {
-        ccs: &ccs,
-        public_input: &public_input,
-        witness: &witness,
-        output_claims: &[],
-    };
+    let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, &ccs).expect("new_ajtai");
 
-    session
-        .add_step_from_io(&input)
-        .expect("add_step should succeed");
+    session.add_step_io(&ccs, &public_input, &witness).expect("add_step_io");
     let run = session.fold_and_prove(&ccs).expect("fold_and_prove");
 
     let public_mcss = session.mcss_public();

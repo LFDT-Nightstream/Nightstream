@@ -4,7 +4,7 @@
 #[path = "common/fixtures.rs"]
 mod fixtures;
 
-use neo_ajtai::Commitment as Cmt;
+use neo_ajtai::{AjtaiSModule, Commitment as Cmt};
 use neo_ccs::{
     matrix::Mat,
     relations::{CcsStructure, MeInstance},
@@ -27,7 +27,7 @@ fn build_single_chunk_inputs() -> (
     StepWitnessBundle<Cmt, F, K>,
     Vec<MeInstance<Cmt, F, K>>,
     Vec<Mat<F>>,
-    fixtures::HashCommit,
+    AjtaiSModule,
     CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>,
 ) {
     let fx = fixtures::build_twist_shout_2step_fixture(1);

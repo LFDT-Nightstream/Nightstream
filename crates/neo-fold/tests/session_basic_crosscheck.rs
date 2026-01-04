@@ -1,19 +1,11 @@
 #![allow(non_snake_case)]
 
-use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
+use neo_ajtai::AjtaiSModule;
 use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::session::{FoldingSession, ProveInput};
-use neo_math::{D, F};
-use neo_params::NeoParams;
+use neo_fold::session::FoldingSession;
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use rand_chacha::rand_core::SeedableRng;
-
-fn setup_ajtai_for_dims(m: usize) {
-    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
-    let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
-    let _ = set_global_pp(pp);
-}
 
 #[test]
 #[cfg(feature = "paper-exact")]
@@ -56,12 +48,6 @@ fn test_session_single_fold_with_crosscheck() {
 
     let ccs = neo_ccs::r1cs_to_ccs(A, B, C);
 
-    let params =
-        NeoParams::goldilocks_auto_r1cs_ccs(n_constraints).expect("goldilocks_auto_r1cs_ccs should find valid params");
-
-    setup_ajtai_for_dims(n_vars);
-    let l = AjtaiSModule::from_global_for_dims(D, n_vars).expect("AjtaiSModule init");
-
     // Valid witness: x=[1,1,1], w=[2,2]
     let public_input = vec![F::ONE, F::ONE, F::ONE]; // x0,x1,x2
     let witness = vec![F::from_u64(2), F::from_u64(2)]; // w0,w1
@@ -76,30 +62,18 @@ fn test_session_single_fold_with_crosscheck() {
     };
 
     // Create session with crosscheck mode
-    let mut session = FoldingSession::new(FoldingMode::OptimizedWithCrosscheck(crosscheck_cfg), params, l.clone());
-
-    // Use ProveInput directly (same as paper_exact test)
-    let input = ProveInput {
-        ccs: &ccs,
-        public_input: &public_input,
-        witness: &witness,
-        output_claims: &[],
-    };
-
+    let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(
+        FoldingMode::OptimizedWithCrosscheck(crosscheck_cfg),
+        &ccs,
+    )
+    .expect("new_ajtai");
     session
-        .add_step_from_io(&input)
-        .expect("add_step should succeed");
+        .add_step_io(&ccs, &public_input, &witness)
+        .expect("add_step_io should succeed");
 
-    let run = session
-        .fold_and_prove(&ccs)
-        .expect("fold_and_prove should produce a FoldRun");
-
-    // Verify
-    let public_mcss = session.mcss_public();
-    let ok = session
-        .verify(&ccs, &public_mcss, &run)
-        .expect("verify should run");
-    assert!(ok, "session verification should pass");
+    let _run = session
+        .prove_and_verify_collected(&ccs)
+        .expect("prove_and_verify_collected should succeed");
 
     println!("Crosscheck verification passed!");
 }

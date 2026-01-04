@@ -33,8 +33,9 @@
 #![allow(non_snake_case)]
 
 use std::marker::PhantomData;
+use std::sync::Arc;
 
-use neo_ajtai::Commitment as Cmt;
+use neo_ajtai::{s_lincomb, s_mul, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
@@ -43,67 +44,60 @@ use neo_fold::shard::{
     fold_shard_prove as fold_shard_prove_shared_cpu_bus, fold_shard_verify as fold_shard_verify_shared_cpu_bus,
     CommitMixers,
 };
+use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
 use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
 use neo_memory::witness::{LutInstance, LutWitness, MemInstance, MemWitness, StepInstanceBundle, StepWitnessBundle};
 use neo_memory::MemInit;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 // ============================================================================
 // Test Infrastructure
 // ============================================================================
 
-#[derive(Clone, Copy, Default)]
-struct HashCommit;
-
-impl HashCommit {
-    fn digest_mat(mat: &Mat<F>) -> u64 {
-        let mut h: u64 = 0xcbf29ce484222325;
-        h ^= mat.rows() as u64;
-        h = h.wrapping_mul(0x100000001b3);
-        h ^= mat.cols() as u64;
-        h = h.wrapping_mul(0x100000001b3);
-        for r in 0..mat.rows() {
-            for c in 0..mat.cols() {
-                h ^= mat[(r, c)].as_canonical_u64();
-                h = h.wrapping_mul(0x100000001b3);
-            }
-        }
-        h
-    }
+fn setup_ajtai_committer(params: &NeoParams, m: usize) -> AjtaiSModule {
+    let mut rng = ChaCha8Rng::seed_from_u64(7);
+    let pp = ajtai_setup(&mut rng, D, params.kappa as usize, m).expect("Ajtai setup should succeed");
+    AjtaiSModule::new(Arc::new(pp))
 }
 
-impl SModuleHomomorphism<F, Cmt> for HashCommit {
-    fn commit(&self, z: &Mat<F>) -> Cmt {
-        let h = Self::digest_mat(z);
-        let base = F::from_u64(h);
-        let mut out = Cmt::zeros(z.rows(), 1);
-        for i in 0..z.rows() {
-            out.data[i] = base + F::from_u64(i as u64);
-        }
-        out
-    }
+fn rot_matrix_to_rq(mat: &Mat<F>) -> RqEl {
+    use neo_math::ring::cf_inv;
 
-    fn project_x(&self, z: &Mat<F>, m_in: usize) -> Mat<F> {
-        let rows = z.rows();
-        let mut out = Mat::zero(rows, m_in, F::ZERO);
-        for r in 0..rows {
-            for c in 0..m_in.min(z.cols()) {
-                out[(r, c)] = z[(r, c)];
-            }
-        }
-        out
+    debug_assert_eq!(mat.rows(), D);
+    debug_assert_eq!(mat.cols(), D);
+
+    let mut coeffs = [F::ZERO; D];
+    for i in 0..D {
+        coeffs[i] = mat[(i, 0)];
     }
+    cf_inv(coeffs)
 }
 
 fn default_mixers() -> CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt> {
-    fn mix_rhos_commits(_rhos: &[Mat<F>], _cs: &[Cmt]) -> Cmt {
-        Cmt::zeros(D, 1)
+    fn mix_rhos_commits(rhos: &[Mat<F>], cs: &[Cmt]) -> Cmt {
+        assert!(!cs.is_empty(), "mix_rhos_commits: empty commitments");
+        if cs.len() == 1 {
+            return cs[0].clone();
+        }
+        let rq_els: Vec<RqEl> = rhos.iter().map(rot_matrix_to_rq).collect();
+        s_lincomb(&rq_els, cs).expect("s_lincomb should succeed")
     }
-    fn combine_b_pows(_cs: &[Cmt], _b: u32) -> Cmt {
-        Cmt::zeros(D, 1)
+    fn combine_b_pows(cs: &[Cmt], b: u32) -> Cmt {
+        assert!(!cs.is_empty(), "combine_b_pows: empty commitments");
+        let mut acc = cs[0].clone();
+        let mut pow = F::from_u64(b as u64);
+        for i in 1..cs.len() {
+            let rq_pow = RqEl::from_field_scalar(pow);
+            let term = s_mul(&rq_pow, &cs[i]);
+            acc.add_inplace(&term);
+            pow *= F::from_u64(b as u64);
+        }
+        acc
     }
     CommitMixers {
         mix_rhos_commits,
@@ -211,7 +205,7 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
 
-    let l = HashCommit::default();
+    let l = setup_ajtai_committer(&params, m);
     let mixers = default_mixers();
 
     let mut z_cpu: Vec<F> = vec![F::ZERO; ccs.m];
@@ -397,7 +391,7 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
-    let l = HashCommit::default();
+    let l = setup_ajtai_committer(&params, m);
     let mixers = default_mixers();
 
     // =========================================================================
@@ -580,7 +574,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
 
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n).expect("params");
     params.k_rho = 16;
-    let l = HashCommit::default();
+    let l = setup_ajtai_committer(&params, m);
     let mixers = default_mixers();
 
     // LUT table: table[0] = 100, table[1] = 200

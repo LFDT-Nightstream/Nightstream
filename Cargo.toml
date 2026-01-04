@@ -28,12 +28,12 @@ rayon = "1.10"
 once_cell = "1.19"
 
 # Plonky3 core (Poseidon2 transcript only)
-p3-field = "0.3.0"
-p3-goldilocks = { version = "0.3.0", default-features = false }
-p3-matrix = "0.3.0"    # Still needed by some crates, will remove in separate cleanup
-p3-symmetric = "0.3.0"    # Poseidon2 for FS transcript
-p3-poseidon2 = "0.3.0"
-p3-challenger = "0.3.0"
+p3-field = "0.4.1"
+p3-goldilocks = { version = "0.4.1", default-features = false }
+p3-matrix = "0.4.1"    # Still needed by some crates, will remove in separate cleanup
+p3-symmetric = "0.4.1"    # Poseidon2 for FS transcript
+p3-poseidon2 = "0.4.1"
+p3-challenger = "0.4.1"
 byteorder = "1.5"
 anyhow = "1.0"
 bincode = "1.3"

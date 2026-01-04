@@ -569,6 +569,12 @@ where
                             (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
                         };
                         if has_read == Goldilocks::ONE {
+                            if ra >= layout.k as u64 {
+                                return Err(format!(
+                                    "shared_cpu_bus: twist read addr out of range: mem_id={mem_id}, addr={ra}, k={}",
+                                    layout.k
+                                ));
+                            }
                             write_addr_bits_dim_major_le_into_bus(
                                 &mut z_vec,
                                 &shared.layout,
@@ -589,6 +595,12 @@ where
                             (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
                         };
                         if has_write == Goldilocks::ONE {
+                            if wa >= layout.k as u64 {
+                                return Err(format!(
+                                    "shared_cpu_bus: twist write addr out of range: mem_id={mem_id}, addr={wa}, k={}",
+                                    layout.k
+                                ));
+                            }
                             write_addr_bits_dim_major_le_into_bus(
                                 &mut z_vec,
                                 &shared.layout,
@@ -606,7 +618,7 @@ where
                         z_vec[shared.layout.bus_cell(twist_cols.has_write, j)] = has_write;
 
                         let mut inc = Goldilocks::ZERO;
-                        if has_write == Goldilocks::ONE && (wa as usize) < layout.k {
+                        if has_write == Goldilocks::ONE {
                             let st = mem_state.entry(*mem_id).or_default();
                             let old = st.get(&wa).copied().unwrap_or(Goldilocks::ZERO);
                             inc = wv - old;

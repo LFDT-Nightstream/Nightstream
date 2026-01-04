@@ -236,6 +236,41 @@ impl Poseidon2Transcript {
             .push(crate::debug::Event::new("append_u64s", label, us.len(), &self.st));
     }
 
+    pub fn append_fields_iter<I>(&mut self, label: &'static [u8], len: usize, iter: I)
+    where
+        I: IntoIterator<Item = F>,
+    {
+        for &b in label {
+            self.absorb_elem(Goldilocks::from_u64(b as u64));
+        }
+        self.absorb_elem(Goldilocks::from_u64(len as u64));
+
+        const CHUNK: usize = 1024;
+        let mut buf = Vec::<F>::with_capacity(CHUNK);
+        let mut seen = 0usize;
+        for f in iter {
+            buf.push(f);
+            seen += 1;
+            if buf.len() == CHUNK {
+                self.absorb_slice(&buf);
+                buf.clear();
+            }
+        }
+        if !buf.is_empty() {
+            self.absorb_slice(&buf);
+        }
+
+        if seen != len {
+            panic!("append_fields_iter: iterator length mismatch (seen={seen}, len={len})");
+        }
+
+        #[cfg(feature = "debug-log")]
+        self.log
+            .push(crate::debug::Event::new("append_fields_iter", label, len, &self.st));
+        #[cfg(feature = "fs-guard")]
+        crate::fs_guard::record(crate::debug::Event::new("append_fields_iter", label, len, &self.st));
+    }
+
     pub fn append_bytes_packed(&mut self, label: &'static [u8], bytes: &[u8]) {
         // Pack 8-bytes per field + absorb length at end for framing
         for &b in label {

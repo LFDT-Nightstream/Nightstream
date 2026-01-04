@@ -9,12 +9,9 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use neo_fold::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::shard::StepLinkingConfig;
 use neo_ccs::{Mat, r1cs_to_ccs, CcsStructure};
-use neo_ajtai::{setup as ajtai_setup, set_global_pp, AjtaiSModule};
-use rand_chacha::rand_core::SeedableRng;
-use neo_params::NeoParams;
-use neo_math::{F, D};
+use neo_ajtai::AjtaiSModule;
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -124,12 +121,6 @@ fn load_test_export() -> TestExport {
     serde_json::from_str(&json_content).expect("Failed to parse JSON")
 }
 
-fn setup_ajtai_for_dims(m: usize) {
-    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
-    let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
-    let _ = set_global_pp(pp);
-}
-
 #[derive(Clone)]
 struct NoInputs;
 
@@ -170,21 +161,6 @@ impl NeoStep for StarstreamStepCircuit {
 #[test]
 fn test_starstream_tx_valid_optimized() {
     let export = load_test_export();
-    let _y0: Vec<F> = export.ivc_params.y0.iter().map(|s| parse_field_element(s)).collect();
-    
-    // Determine n from the first step's R1CS (n = number of constraints, not variables)
-    let n = export.steps[0].r1cs.num_constraints;
-    let m = export.steps[0].r1cs.num_variables;
-    
-    // If n > m, we pad to m_padded = n for identity-first CCS
-    let m_padded = n.max(m);
-    
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n)
-        .expect("goldilocks_auto_r1cs_ccs should find valid params");
-    
-    // Ajtai commitment is over Z ∈ F^{D×m}, so set it up for m_padded (after slack variable padding)
-    setup_ajtai_for_dims(m_padded);
-    let l = AjtaiSModule::from_global_for_dims(D, m_padded).expect("AjtaiSModule init");
     
     let step_spec = StepSpec {
         y_len: export.ivc_params.step_spec.y_len,
@@ -202,35 +178,18 @@ fn test_starstream_tx_valid_optimized() {
         step_ccs: step_ccs.clone(),
     };
     
-    let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
-
-    // Multi-step verification requires explicit step-to-step linking.
-    // Here `x = [const1] ++ y_step ++ y_prev`, so enforce:
-    //   prev.x[1+i] == next.x[1+|y_step|+i]  for i in 0..y_len
-    let y_len = step_spec.y_len;
-    let y_step_len = step_spec.y_step_indices.len();
-    let y_prev_len = step_spec
-        .app_input_indices
-        .as_ref()
-        .map(|v| v.len())
-        .unwrap_or(0);
-    assert!(y_len <= y_step_len, "y_step_indices must cover y_len");
-    assert!(y_len <= y_prev_len, "app_input_indices must cover y_len (y_prev)");
-    let pairs: Vec<(usize, usize)> = (0..y_len)
-        .map(|i| (1 + i, 1 + y_step_len + i))
-        .collect();
-    session.set_step_linking(StepLinkingConfig::new(pairs));
+    let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, step_ccs.as_ref())
+        .expect("new_ajtai");
     
-    // Execute all steps
-    for _ in 0..export.steps.len() {
-        session.add_step(&mut circuit, &NoInputs)
-            .expect("add_step should succeed with optimized");
-    }
+    let inputs = NoInputs;
+    session
+        .add_steps(&mut circuit, &inputs, export.steps.len())
+        .expect("add_steps should succeed with optimized");
     
     let start = Instant::now();
     let run = session
-        .fold_and_prove(step_ccs.as_ref())
-        .expect("fold_and_prove should produce a FoldRun");
+        .prove_and_verify_collected(step_ccs.as_ref())
+        .expect("prove_and_verify_collected should succeed");
     let finalize_duration = start.elapsed();
     
     println!("Proof generation time (finalize): {:?}", finalize_duration);
@@ -238,10 +197,4 @@ fn test_starstream_tx_valid_optimized() {
     println!("This proof generation was 0.862s on the last ci run.");
     
     assert_eq!(run.steps.len(), export.steps.len(), "should have correct number of steps");
-    
-    let mcss_public = session.mcss_public();
-    let ok = session
-        .verify(step_ccs.as_ref(), &mcss_public, &run)
-        .expect("verify should run");
-    assert!(ok, "optimized verification should pass");
 }

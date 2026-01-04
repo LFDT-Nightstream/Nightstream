@@ -8,8 +8,14 @@ running end-to-end prove/verify flows.
 
 ### 1) “Direct IO” steps (CCS-only)
 
-- Implement `NeoStep` (or use `ProveInput`/`prove_step_from_io`).
+- Implement `NeoStep` (or use `ProveInput`/`FoldingSession::add_step_from_io`).
 - Use `FoldingSession` to run the Π-CCS folding loop and verification.
+
+Ergonomic shortcuts:
+
+- `FoldingSession::<AjtaiSModule>::new_ajtai(...)` auto-picks `NeoParams` and builds an Ajtai committer.
+- `FoldingSession::add_step_io(...)` avoids constructing `ProveInput`.
+- `FoldingSession::prove_and_verify_collected(...)` folds+proves+verifies in one call.
 
 ### 2) Shared CPU-bus R1CS circuits (Twist + Shout)
 
@@ -31,4 +37,3 @@ shared CPU bus (Route-A sidecar), but the CPU witness is still a CCS/R1CS-style 
 - Prove/verify using `FoldingSession` helpers (including output binding helpers in `neo_fold::output_binding`).
 
 See `crates/neo-fold/tests/twist_shout_fibonacci_cycle_trace.rs` for a complete example.
-

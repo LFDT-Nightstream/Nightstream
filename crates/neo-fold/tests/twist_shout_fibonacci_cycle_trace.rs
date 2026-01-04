@@ -350,7 +350,7 @@ fn twist_shout_fibonacci_cycle_trace() {
             "vm_steps={n_steps}  fold_steps={}  chunk_size={CHUNK_SIZE}  m={m}  m_in={m_in}",
             max_steps / CHUNK_SIZE
         );
-        println!("commit: backend=AjtaiSModule  kappa={}", prover.committer.pp.kappa);
+        println!("commit: backend=AjtaiSModule  kappa={}", prover.committer.kappa());
         println!(
             "bus: base={}  cols={}  region_len={}",
             bus_layout.bus_base,

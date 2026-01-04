@@ -24,6 +24,7 @@ if [ $# -lt 3 ]; then
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored"
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored 20"
   echo "  $0 neo-fold test_starstream_tx_valid_optimized test_starstream_tx_valid_optimized 30"
+  echo "  $0 neo-fold test_riscv_program_compiled_full_prove_verify test_riscv_program_compiled_full_prove_verify"
   echo ""
   echo "Output: Writes profile to profile-output.txt for AI analysis"
   exit 1

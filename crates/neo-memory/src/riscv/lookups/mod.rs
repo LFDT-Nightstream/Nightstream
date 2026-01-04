@@ -1,23 +1,19 @@
-//! RISC-V RV64IMAC instruction support for Neo's proving system.
+//! RISC-V lookup-based execution helpers (RV32-focused proving integration).
 //!
-//! This module implements a complete **RV64IMAC** RISC-V instruction set, providing:
-//! - Instruction decoding (32-bit and 16-bit compressed)
-//! - Instruction encoding
-//! - CPU execution with tracing
-//! - Lookup tables for ALU operations (Shout protocol)
-//! - Memory operations (Twist protocol)
+//! This module provides:
+//! - Instruction decoding/encoding
+//! - A traceable CPU that emits Twist (memory) and Shout (ALU/compare lookup) events
+//! - Lookup helpers/tables for proving integrations
 //!
-//! # Supported RISC-V Extensions
+//! # Proving integration scope (today)
 //!
-//! | Extension | Description | Status |
-//! |-----------|-------------|--------|
-//! | **I** | Base Integer (RV64I) | ✅ Full |
-//! | **M** | Multiply/Divide | ✅ Full |
-//! | **A** | Atomics (LR/SC, AMO) | ✅ Full |
-//! | **C** | Compressed (16-bit) | ✅ Full |
-//! | **Zbb** | Bitmanip (subset) | ✅ ANDN |
+//! The shared-bus RV32 B1 proving path assumes:
+//! - `xlen == 32` (RV32)
+//! - no compressed (RVC) instructions
+//! - 4-byte aligned PC and control-flow targets
 //!
-//! This provides feature parity with [Jolt](https://github.com/a16z/jolt).
+//! Note: Shout operand keys are encoded via bit interleaving into a `u64` key
+//! (2×32-bit → 64-bit), which is sufficient for RV32. RV64 proving requires a wider key.
 //!
 //! # Architecture
 //!
@@ -73,14 +69,14 @@
 //! use neo_memory::riscv::lookups::{decode_program, RiscvCpu, RiscvMemory, RiscvShoutTables};
 //! use neo_vm_trace::trace_program;
 //!
-//! // Load and decode a RISC-V binary (supports compressed instructions)
+//! // Load and decode a RISC-V binary
 //! let program = decode_program(&binary_bytes)?;
 //!
 //! // Execute with full tracing
-//! let mut cpu = RiscvCpu::new(64); // RV64
-//! cpu.load_program(0, &program);
-//! let memory = RiscvMemory::new(64);
-//! let shout = RiscvShoutTables::new(64);
+//! let mut cpu = RiscvCpu::new(32); // RV32
+//! cpu.load_program(0, program);
+//! let memory = RiscvMemory::new(32);
+//! let shout = RiscvShoutTables::new(32);
 //!
 //! let trace = trace_program(cpu, memory, shout, 1000)?;
 //! // trace now contains all steps for proving

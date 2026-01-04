@@ -304,7 +304,7 @@ impl Rv32B1 {
     pub fn prove(self) -> Result<Rv32B1Run, PiCcsError> {
         if self.xlen != 32 {
             return Err(PiCcsError::InvalidInput(format!(
-                "Rv32B1 only supports xlen=32 (got {})",
+                "RV32 B1 MVP requires xlen == 32 (got {})",
                 self.xlen
             )));
         }
@@ -317,8 +317,10 @@ impl Rv32B1 {
         if self.ram_bytes == 0 {
             return Err(PiCcsError::InvalidInput("ram_bytes must be non-zero".into()));
         }
-        if self.program_base % 4 != 0 {
-            return Err(PiCcsError::InvalidInput("program_base must be 4-byte aligned".into()));
+        if self.program_base != 0 {
+            return Err(PiCcsError::InvalidInput(
+                "RV32 B1 MVP requires program_base == 0 (addresses are indices into PROG/RAM layouts)".into(),
+            ));
         }
         if self.program_bytes.len() % 4 != 0 {
             return Err(PiCcsError::InvalidInput(
@@ -348,13 +350,13 @@ impl Rv32B1 {
         let twist = neo_memory::riscv::lookups::RiscvMemory::with_program_in_twist(
             self.xlen,
             PROG_ID,
-            self.program_base,
+            /*base_addr=*/ 0,
             &self.program_bytes,
         );
         let shout = RiscvShoutTables::new(self.xlen);
 
         let (prog_layout, initial_mem) =
-            neo_memory::riscv::rom_init::prog_rom_layout_and_init_words(PROG_ID, self.program_base, &self.program_bytes)
+            neo_memory::riscv::rom_init::prog_rom_layout_and_init_words(PROG_ID, /*base_addr=*/ 0, &self.program_bytes)
                 .map_err(|e| PiCcsError::InvalidInput(format!("prog_rom_layout_and_init_words failed: {e}")))?;
 
         let (k_ram, d_ram) = pow2_ceil_k(self.ram_bytes.max(4));
@@ -389,7 +391,7 @@ impl Rv32B1 {
         let committer = session.committer().clone();
 
         let mut vm = RiscvCpu::new(self.xlen);
-        vm.load_program(self.program_base, program);
+        vm.load_program(/*base=*/ 0, program);
 
         let empty_tables: HashMap<u32, LutTable<F>> = HashMap::new();
 

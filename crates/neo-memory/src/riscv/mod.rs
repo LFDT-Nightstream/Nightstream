@@ -1,4 +1,4 @@
-//! RISC-V support (RV64IMAC).
+//! RISC-V support (RV32-focused proving integration).
 //!
 //! This module groups RISC-V-specific components under `neo_memory::riscv::*`.
 

@@ -24,6 +24,18 @@ pub fn alloc_k_from_neo<CS: ConstraintSystem<CircuitF>>(cs: &mut CS, k: neo_math
     alloc_k(cs, Some(k_num), label).map_err(SpartanBridgeError::BellpepperError)
 }
 
+/// Helper: allocate a K element as a public input.
+pub fn alloc_k_input_from_neo<CS: ConstraintSystem<CircuitF>>(
+    cs: &mut CS,
+    k: neo_math::K,
+    label: &str,
+) -> Result<KNumVar> {
+    let k_num = KNum::<CircuitF>::from_neo_k(k);
+    let c0 = cs.alloc_input(|| format!("{}_c0", label), || Ok(k_num.c0))?;
+    let c1 = cs.alloc_input(|| format!("{}_c1", label), || Ok(k_num.c1))?;
+    Ok(KNumVar { c0, c1 })
+}
+
 /// Helper: allocate a dense matrix of NeoF as circuit variables.
 pub fn alloc_matrix_from_neo<CS: ConstraintSystem<CircuitF>>(
     cs: &mut CS,
@@ -79,10 +91,58 @@ pub fn enforce_k_eq<CS: ConstraintSystem<CircuitF>>(cs: &mut CS, a: &KNumVar, b:
     );
 }
 
-/// Helper: allocate a constant K element from a base-field value.
+/// Helper: allocate a constant K element (constrained).
+///
+/// IMPORTANT: Use this only for *true* constants (independent of the witness),
+/// otherwise you bake witness values into the circuit shape.
 pub fn k_const<CS: ConstraintSystem<CircuitF>>(cs: &mut CS, c0: CircuitF, label: &str) -> Result<KNumVar> {
-    let k_num = KNum::<CircuitF>::from_f(c0);
-    alloc_k(cs, Some(k_num), label).map_err(SpartanBridgeError::BellpepperError)
+    let c0_var = cs.alloc(|| format!("{label}_c0_const"), || Ok(c0))?;
+    cs.enforce(
+        || format!("{label}_c0_is_const"),
+        |lc| lc + c0_var,
+        |lc| lc + CS::one(),
+        |lc| lc + (c0, CS::one()),
+    );
+
+    let c1_zero = CircuitF::from(0u64);
+    let c1_var = cs.alloc(|| format!("{label}_c1_const"), || Ok(c1_zero))?;
+    cs.enforce(
+        || format!("{label}_c1_is_zero"),
+        |lc| lc + c1_var,
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+
+    Ok(KNumVar { c0: c0_var, c1: c1_var })
+}
+
+/// Helper: allocate a constant K element from a neo_math::K value (constrained).
+///
+/// IMPORTANT: Use this only for *true* constants (independent of the witness).
+pub fn k_const_from_neo<CS: ConstraintSystem<CircuitF>>(cs: &mut CS, k: neo_math::K, label: &str) -> Result<KNumVar> {
+    use neo_math::KExtensions;
+
+    let coeffs = k.as_coeffs();
+    let c0 = CircuitF::from(coeffs[0].as_canonical_u64());
+    let c1 = CircuitF::from(coeffs[1].as_canonical_u64());
+
+    let c0_var = cs.alloc(|| format!("{label}_c0_const"), || Ok(c0))?;
+    cs.enforce(
+        || format!("{label}_c0_is_const"),
+        |lc| lc + c0_var,
+        |lc| lc + CS::one(),
+        |lc| lc + (c0, CS::one()),
+    );
+
+    let c1_var = cs.alloc(|| format!("{label}_c1_const"), || Ok(c1))?;
+    cs.enforce(
+        || format!("{label}_c1_is_const"),
+        |lc| lc + c1_var,
+        |lc| lc + CS::one(),
+        |lc| lc + (c1, CS::one()),
+    );
+
+    Ok(KNumVar { c0: c0_var, c1: c1_var })
 }
 
 /// Helper: K zero.
@@ -219,23 +279,4 @@ pub fn k_mul_with_hint<CS: ConstraintSystem<CircuitF>>(
     );
 
     Ok((KNumVar { c0, c1 }, prod_val))
-}
-
-/// Helper: K exponentiation by small integer exponent: base^exp.
-#[allow(dead_code)]
-pub fn k_pow<CS: ConstraintSystem<CircuitF>>(
-    cs: &mut CS,
-    base: &KNumVar,
-    exp: u32,
-    delta: CircuitF,
-    label: &str,
-) -> Result<KNumVar> {
-    if exp == 0 {
-        return k_one(cs, &format!("{}_pow0", label));
-    }
-    let mut acc = base.clone();
-    for i in 1..exp {
-        acc = k_mul(cs, &acc, base, delta, &format!("{}_pow_step_{}", label, i))?;
-    }
-    Ok(acc)
 }

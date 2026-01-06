@@ -8,6 +8,8 @@
 
 pub mod fold_circuit;
 pub mod fold_circuit_helpers;
+pub mod route_a_memory_terminal;
+pub mod route_a_time;
 pub mod witness;
 
 pub use fold_circuit::FoldRunCircuit;

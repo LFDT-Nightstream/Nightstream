@@ -7,23 +7,21 @@ use neo_memory::output_check::OutputBindingProof;
 pub type TwistProofK = neo_memory::twist::TwistProof<K>;
 pub type ShoutProofK = neo_memory::shout::ShoutProof<K>;
 
-/// Route A Shout address pre-time proof metadata, with optional per-table skipping.
+/// Route A Shout address pre-time proof metadata (fixed-count profile).
 ///
-/// When a Shout instance is provably inactive for a step (no lookups), we can skip its
-/// address-domain sumcheck entirely. We still bind all `claimed_sums` to the transcript,
-/// but we only include sumcheck rounds for the active subset.
+/// This proof format is **compression-friendly**: it always includes one sumcheck per Shout
+/// instance in the step, even when the instance is inactive (in which case the oracle and
+/// claimed sum are zero).
+///
+/// This removes transcript branching (`active_mask` / `no_sumcheck`) so a SNARK-of-verifier can
+/// have a fixed circuit shape.
 #[derive(Clone, Debug)]
 pub struct ShoutAddrPreProof<KK> {
     /// Claimed sums per Shout instance (length = `step.lut_instances.len()`).
     pub claimed_sums: Vec<KK>,
-    /// Bit `i` set iff Shout instance `i` includes an address sumcheck proof.
+    /// Sumcheck rounds per Shout instance.
     ///
-    /// This is indexed by lut instance order (not table id), so it remains stable under
-    /// different `shout_table_ids` orderings.
-    pub active_mask: u64,
-    /// Sumcheck rounds for active instances only, in increasing lut-index order.
-    ///
-    /// `round_polys[active_idx][round] = coeffs`, and each inner `round` vector has length `ell_addr`.
+    /// `round_polys[lut_idx][round] = coeffs`, and each inner `round` vector has length `ell_addr`.
     pub round_polys: Vec<Vec<Vec<KK>>>,
     /// Shared terminal address point `r_addr` (length = `ell_addr`).
     pub r_addr: Vec<KK>,
@@ -33,7 +31,6 @@ impl<KK> Default for ShoutAddrPreProof<KK> {
     fn default() -> Self {
         Self {
             claimed_sums: Vec::new(),
-            active_mask: 0,
             round_polys: Vec::new(),
             r_addr: Vec::new(),
         }

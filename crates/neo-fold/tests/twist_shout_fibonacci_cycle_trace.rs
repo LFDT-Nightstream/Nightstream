@@ -400,9 +400,8 @@ fn twist_shout_fibonacci_cycle_trace() {
                 step_proof.mem.proofs.len()
             );
             println!(
-                "shout_addr_pre: claimed_sums={} active_mask=0x{:x} rounds={} r_addr_len={}",
+                "shout_addr_pre: claimed_sums={} rounds={} r_addr_len={}",
                 step_proof.mem.shout_addr_pre.claimed_sums.len(),
-                step_proof.mem.shout_addr_pre.active_mask,
                 step_proof.mem.shout_addr_pre.round_polys.len(),
                 step_proof.mem.shout_addr_pre.r_addr.len()
             );

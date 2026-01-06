@@ -20,7 +20,7 @@ use crate::memory_sidecar::utils::RoundOraclePrefix;
 use crate::pi_ccs::{self as ccs, FoldingMode};
 pub use crate::shard_proof_types::{
     BatchedTimeProof, FoldStep, MemOrLutProof, MemSidecarProof, RlcDecProof, ShardFoldOutputs, ShardFoldWitnesses,
-    ShardObligations, ShardProof, ShoutProofK, StepProof, TwistProofK,
+    ShardObligations, ShardProof, ShoutAddrPreProof, ShoutProofK, StepProof, TwistProofK,
 };
 use crate::PiCcsError;
 use neo_ajtai::{
@@ -1124,6 +1124,7 @@ where
 
 fn bind_rlc_inputs(
     tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
     lane: RlcLane,
     step_idx: usize,
     me_inputs: &[MeInstance<Cmt, F, K>],
@@ -1154,8 +1155,20 @@ fn bind_rlc_inputs(
             }
         }
 
-        for ysc in &me.y_scalars {
-            tr.append_fields(b"y_scalar", &ysc.as_coeffs());
+        // Canonical y_scalars: recomposition of the first D digits of each y[j].
+        //
+        // NOTE: In shared-bus mode, `me.y_scalars` may include extra bus openings appended after
+        // the core `t=s.t()` entries. Those must not affect Fiat–Shamir (ρ sampling), so we bind
+        // only the canonical core scalars derived from `y`.
+        let bK = K::from(F::from_u64(params.b as u64));
+        for yj in &me.y {
+            let mut sc = K::ZERO;
+            let mut pow = K::ONE;
+            for rho in 0..D {
+                sc += pow * yj[rho];
+                pow *= bK;
+            }
+            tr.append_fields(b"y_scalar", &sc.as_coeffs());
         }
 
         tr.append_u64s(b"c_step_coords_len", &[me.c_step_coords.len() as u64]);
@@ -1190,7 +1203,7 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    bind_rlc_inputs(tr, lane, step_idx, me_inputs)?;
+    bind_rlc_inputs(tr, params, lane, step_idx, me_inputs)?;
     let rlc_rhos = ccs::sample_rot_rhos_n(tr, params, ring, me_inputs.len())?;
     let (mut rlc_parent, Z_mix) = if me_inputs.len() == 1 {
         assert_eq!(rlc_rhos.len(), 1, "Π_RLC(k=1): |rhos| must equal |inputs|");
@@ -1348,7 +1361,7 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    bind_rlc_inputs(tr, lane, step_idx, rlc_inputs)?;
+    bind_rlc_inputs(tr, params, lane, step_idx, rlc_inputs)?;
 
     if rlc_rhos.len() != rlc_inputs.len() {
         let prefix = match lane {

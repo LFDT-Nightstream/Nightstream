@@ -476,6 +476,14 @@ pub struct Rv32B1Run {
 }
 
 impl Rv32B1Run {
+    pub fn params(&self) -> &NeoParams {
+        self.session.params()
+    }
+
+    pub fn ccs(&self) -> &CcsStructure<F> {
+        &self.ccs
+    }
+
     pub fn verify(&mut self) -> Result<(), PiCcsError> {
         let verify_start = Instant::now();
         let ok = match self.output_claim {

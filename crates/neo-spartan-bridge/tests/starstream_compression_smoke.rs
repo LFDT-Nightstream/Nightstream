@@ -194,6 +194,14 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
 
     let spartan = prove_fold_run(&pk, session.params(), step_ccs.as_ref(), witness).expect("prove_fold_run");
 
+    // Print proof size information
+    let proof_bytes = spartan.proof_data.len();
+    let serialized = bincode::serialize(&spartan).expect("serialize proof");
+    let serialized_bytes = serialized.len();
+    println!("Spartan proof size:");
+    println!("  proof_data:  {} bytes ({:.2} KB)", proof_bytes, proof_bytes as f64 / 1024.0);
+    println!("  serialized:  {} bytes ({:.2} KB)", serialized_bytes, serialized_bytes as f64 / 1024.0);
+
     let stmt = verify_fold_run_proof_only(&vk, &spartan).expect("verify_fold_run_proof_only");
     assert_eq!(stmt.vm_digest, vm_digest);
 

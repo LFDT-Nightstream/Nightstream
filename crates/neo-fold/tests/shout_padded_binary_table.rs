@@ -15,8 +15,8 @@ use p3_field::PrimeCharacteristicRing;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
-const CHUNK_SIZE: usize = 2;
-const N_STEPS: usize = CHUNK_SIZE * 2;
+const CHUNK_SIZE: usize = 4;
+const N_STEPS: usize = CHUNK_SIZE;
 
 witness_layout! {
     #[derive(Clone, Debug)]
@@ -182,8 +182,6 @@ fn shout_padded_binary_table_auto_params_and_prove_verify() {
         .expect("execute_into_session should succeed");
 
     let run = session.fold_and_prove(prover.ccs()).expect("prove should succeed");
-    session.unsafe_allow_unlinked_steps();
     let ok = session.verify_collected(prover.ccs(), &run).expect("verify should run");
     assert!(ok, "verification should pass");
 }
-

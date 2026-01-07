@@ -12,7 +12,7 @@ use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
 use neo_math::F;
 use neo_spartan_bridge::circuit::FoldRunWitness;
-use neo_spartan_bridge::{prove_fold_run, setup_fold_run, verify_fold_run};
+use neo_spartan_bridge::{compute_vm_digest_v1, prove_fold_run, setup_fold_run, verify_fold_run, verify_fold_run_proof_only};
 use p3_field::PrimeCharacteristicRing;
 use serde::Deserialize;
 
@@ -95,11 +95,13 @@ fn pad_witness_to_m(mut z: Vec<F>, m_target: usize) -> Vec<F> {
     z
 }
 
-fn load_test_export() -> TestExport {
+fn load_test_export_and_vm_digest() -> (TestExport, [u8; 32]) {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let json_path = manifest_dir.join("../neo-fold/starstream-tests/test_starstream_tx_export_valid.json");
-    let json_content = fs::read_to_string(&json_path).expect("read JSON");
-    serde_json::from_str(&json_content).expect("parse JSON")
+    let json_bytes = fs::read(&json_path).expect("read JSON bytes");
+    let vm_digest = compute_vm_digest_v1(&json_bytes);
+    let export: TestExport = serde_json::from_slice(&json_bytes).expect("parse JSON");
+    (export, vm_digest)
 }
 
 #[derive(Clone)]
@@ -141,7 +143,7 @@ impl NeoStep for StarstreamStepCircuit {
 
 #[test]
 fn test_starstream_tx_export_spartan_phase1_smoke() {
-    let export = load_test_export();
+    let (export, vm_digest) = load_test_export_and_vm_digest();
     let steps_to_run: usize = std::env::var("NEO_SPARTAN_BRIDGE_STARSTREAM_STEPS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -184,21 +186,38 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
         run.clone(),
         steps_public.clone(),
         initial_accumulator.clone(),
+        vm_digest,
         None,
     );
 
     let (pk, vk) = setup_fold_run(session.params(), step_ccs.as_ref(), &witness).expect("setup_fold_run");
 
     let spartan = prove_fold_run(&pk, session.params(), step_ccs.as_ref(), witness).expect("prove_fold_run");
+
+    let stmt = verify_fold_run_proof_only(&vk, &spartan).expect("verify_fold_run_proof_only");
+    assert_eq!(stmt.vm_digest, vm_digest);
+
     assert!(
-        verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &steps_public, None, &spartan).expect("verify_fold_run"),
+        verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &vm_digest, &steps_public, None, &[], &spartan)
+            .expect("verify_fold_run"),
         "Spartan proof should verify"
+    );
+    let wrong_vm_digest = compute_vm_digest_v1(b"wrong");
+    assert!(
+        verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &wrong_vm_digest, &steps_public, None, &[], &spartan).is_err(),
+        "vm_digest mismatch must be rejected"
+    );
+
+    assert!(
+        verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &vm_digest, &steps_public, None, &[(0, 0)], &spartan)
+            .is_err(),
+        "mismatched step_linking policy must be rejected"
     );
 }
 
 #[test]
 fn test_starstream_tx_export_spartan_phase1_tampering_is_rejected() {
-    let export = load_test_export();
+    let (export, vm_digest) = load_test_export_and_vm_digest();
 
     // Keep this test small: one step is enough to exercise FS bindings (Π‑CCS chals, sumcheck chals, Π‑RLC ρ).
     let steps_to_run: usize = 1.min(export.steps.len());
@@ -232,7 +251,7 @@ fn test_starstream_tx_export_spartan_phase1_tampering_is_rejected() {
 
     let initial_accumulator = Vec::new();
     let steps_public = session.steps_public();
-    let witness = FoldRunWitness::new(run.clone(), steps_public.clone(), initial_accumulator, None);
+    let witness = FoldRunWitness::new(run.clone(), steps_public.clone(), initial_accumulator, vm_digest, None);
 
     let (pk, vk) = setup_fold_run(session.params(), step_ccs.as_ref(), &witness).expect("setup_fold_run");
 
@@ -240,7 +259,8 @@ fn test_starstream_tx_export_spartan_phase1_tampering_is_rejected() {
         match prove_fold_run(&pk, session.params(), step_ccs.as_ref(), w) {
             Ok(proof) => {
                 assert!(
-                    verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &steps_public, None, &proof).is_err(),
+                    verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &vm_digest, &steps_public, None, &[], &proof)
+                        .is_err(),
                     "tampered witness must not verify"
                 );
             }

@@ -9,7 +9,7 @@ use neo_fold::output_binding::simple_output_config;
 use neo_fold::riscv_shard::Rv32B1;
 use neo_math::{F, K};
 use neo_spartan_bridge::circuit::FoldRunWitness;
-use neo_spartan_bridge::{prove_fold_run, setup_fold_run, verify_fold_run};
+use neo_spartan_bridge::{compute_vm_digest_v1, prove_fold_run, setup_fold_run, verify_fold_run};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
@@ -20,6 +20,7 @@ fn test_riscv_rv32_b1_output_binding_spartan_smoke() {
     // Encoding: 0x00000013 (little-endian).
     let program_base = 0u64;
     let program_bytes: &[u8] = &[0x13, 0x00, 0x00, 0x00];
+    let vm_digest = compute_vm_digest_v1(program_bytes);
 
     // Bind a single output claim against RAM addr 0. This should remain 0 for a NOP-only trace.
     let output_addr = 0u64;
@@ -51,6 +52,7 @@ fn test_riscv_rv32_b1_output_binding_spartan_smoke() {
         run.proof().clone(),
         steps_public.clone(),
         initial_accumulator,
+        vm_digest,
         Some(ob_cfg.clone()),
     );
 
@@ -58,7 +60,7 @@ fn test_riscv_rv32_b1_output_binding_spartan_smoke() {
     let spartan = prove_fold_run(&pk, run.params(), run.ccs(), witness).expect("prove_fold_run");
 
     assert!(
-        verify_fold_run(&vk, run.params(), run.ccs(), &steps_public, Some(&ob_cfg), &spartan)
+        verify_fold_run(&vk, run.params(), run.ccs(), &vm_digest, &steps_public, Some(&ob_cfg), &[], &spartan)
             .expect("verify_fold_run"),
         "Spartan proof should verify"
     );
@@ -69,6 +71,7 @@ fn test_riscv_rv32_b1_output_binding_spartan_smoke() {
 fn test_riscv_rv32_b1_output_binding_rejects_tampered_output_sumcheck() {
     let program_base = 0u64;
     let program_bytes: &[u8] = &[0x13, 0x00, 0x00, 0x00];
+    let vm_digest = compute_vm_digest_v1(program_bytes);
     let output_addr = 0u64;
     let expected_output = F::ZERO;
 
@@ -98,6 +101,7 @@ fn test_riscv_rv32_b1_output_binding_rejects_tampered_output_sumcheck() {
         run.proof().clone(),
         steps_public.clone(),
         initial_accumulator.clone(),
+        vm_digest,
         Some(ob_cfg.clone()),
     );
     let (pk, _vk) = setup_fold_run(run.params(), run.ccs(), &good_witness).expect("setup_fold_run");
@@ -111,6 +115,7 @@ fn test_riscv_rv32_b1_output_binding_rejects_tampered_output_sumcheck() {
         bad_proof,
         steps_public,
         initial_accumulator,
+        vm_digest,
         Some(ob_cfg),
     );
     assert!(
@@ -124,6 +129,7 @@ fn test_riscv_rv32_b1_output_binding_rejects_tampered_output_sumcheck() {
 fn test_riscv_rv32_b1_output_binding_rejects_tampered_program_io() {
     let program_base = 0u64;
     let program_bytes: &[u8] = &[0x13, 0x00, 0x00, 0x00];
+    let vm_digest = compute_vm_digest_v1(program_bytes);
     let output_addr = 0u64;
     let expected_output = F::ZERO;
 
@@ -153,6 +159,7 @@ fn test_riscv_rv32_b1_output_binding_rejects_tampered_program_io() {
         run.proof().clone(),
         steps_public.clone(),
         initial_accumulator.clone(),
+        vm_digest,
         Some(ob_cfg_good.clone()),
     );
     let (pk, _vk) = setup_fold_run(run.params(), run.ccs(), &good_witness).expect("setup_fold_run");
@@ -163,6 +170,7 @@ fn test_riscv_rv32_b1_output_binding_rejects_tampered_program_io() {
         run.proof().clone(),
         steps_public,
         initial_accumulator,
+        vm_digest,
         Some(ob_cfg_bad),
     );
     assert!(

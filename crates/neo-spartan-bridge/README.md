@@ -35,7 +35,8 @@ The crate is split into:
 3. **`api/`** – high-level `setup_fold_run` / `prove_fold_run` / `verify_fold_run` API:
    - `setup_fold_run` returns a pinned `(pk, vk)` for a circuit shape (verifiers must not accept a prover-supplied `vk`).
    - `prove_fold_run` produces `SpartanProof { proof_data, statement }`.
-   - `verify_fold_run` verifies using a pinned `vk` and checks statement digests (params/CCS/MCS) against the verifier’s view.
+   - `verify_fold_run` verifies using a pinned `vk` and checks statement digests (params/CCS/steps/program I/O/step-linking) against the verifier’s view.
+   - `verify_fold_run_statement_only` verifies using a pinned `vk` and an expected `SpartanShardStatement` (no need for `steps_public`).
 
 ---
 
@@ -60,7 +61,7 @@ Today the circuit covers:
 
 Limitations:
 - Shout `table_spec=None` is rejected in the compression profile (only `LutTableSpec::RiscvOpcode` is supported today).
-- `program_digest` is currently a placeholder (0) in the API; use `steps_digest` / `program_io_digest` for binding for now.
+- Commitment correctness/openings are not proven yet (see "Remaining Work").
 
 ### Π‑CCS side
 
@@ -131,7 +132,8 @@ Limitations:
   - Serializes the `snark` into `SpartanProof::proof_data` (verifier key is not bundled).
 
 - `api::verify_fold_run`:
-  - Recomputes `(params_digest, ccs_digest, steps_digest)` and checks them against the proof’s statement.
+  - Recomputes `(params_digest, ccs_digest, steps_digest, step_linking_digest)` and checks them against the proof’s statement.
+  - Checks `vm_digest` against the verifier’s expected VM/program digest.
   - Deserializes `snark` and runs Spartan verification with a pinned `vk`.
   - Checks Spartan’s returned public IO matches the statement encoding.
 
@@ -141,15 +143,11 @@ Limitations:
 
 Depending on how much of the folding stack we want Spartan to attest to, the main missing pieces are:
 
-- **Program/VM binding**
-  - Define and enforce a real `program_digest` (ROM / ELF / cfg) in the statement.
-  - Optionally bind a step-linking policy digest.
-
 - **Step linking**
-  - Wire a pinned step-linking config into the circuit shape and statement profile.
+  - Step linking constraints are enforced in-circuit, and the statement binds the step-linking policy via `step_linking_digest`.
 
-- **Commitment-level consistency (optional)**
-  - Commitment equalities are enforced, but Spartan does not prove Ajtai commitment correctness/openings yet; this remains an explicit external contract.
+- **Commitment-level consistency**
+  - Commitment equalities are enforced, but Spartan does not prove Ajtai commitment correctness/openings yet; this remains the main end-to-end soundness gap.
 
 ---
 

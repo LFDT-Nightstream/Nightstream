@@ -6,7 +6,7 @@
 //!
 //! **STATUS**: WIP / non-production. Phase 1 (sound folding lane compression) is implemented.
 //! Route‑A memory terminal checks and optional output binding are implemented, but program/VM binding
-//! (`program_digest`) and step-linking profiles are still evolving.
+//! (`vm_digest`) and step-linking profiles are still evolving.
 
 use crate::circuit::fold_circuit::CircuitPolyTerm;
 use crate::circuit::{FoldRunCircuit, FoldRunInstance, FoldRunWitness};
@@ -25,6 +25,7 @@ use neo_reductions::common::format_ext;
 #[cfg(feature = "debug-logs")]
 use neo_reductions::paper_exact_engine::claimed_initial_sum_from_inputs;
 use p3_field::PrimeCharacteristicRing;
+use serde::{Deserialize, Serialize};
 
 use spartan2::{provider::GoldilocksP3MerkleMleEngine, spartan::R1CSSNARK, traits::snark::R1CSSNARKTrait};
 use spartan2::bellpepper::shape_cs::ShapeCS;
@@ -471,19 +472,50 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
         run,
         shape.steps_public.clone(),
         initial_accumulator,
+        [0u8; 32],
         shape.output_binding.clone(),
     )
     .with_step_linking(shape.step_linking.clone()))
 }
 
 /// Proof output from Spartan2
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpartanProof {
     /// The actual Spartan proof bytes
     pub proof_data: Vec<u8>,
 
     /// Public statement (small, fixed-size).
     pub statement: SpartanShardStatement,
+}
+
+/// Verify a Spartan proof without any external context.
+///
+/// This checks only that:
+/// - the proof is well-formed for the pinned `vk`,
+/// - and the public IO returned by Spartan matches the embedded statement encoding.
+///
+/// It does **not** recompute or validate any statement digests against a verifier-side view of the
+/// VM/program, steps metadata, or output claims. Use `verify_fold_run(...)` for that.
+pub fn verify_fold_run_proof_only(vk: &SpartanVerifierKey, proof: &SpartanProof) -> Result<SpartanShardStatement> {
+    if proof.statement.version != STATEMENT_VERSION {
+        return Err(SpartanBridgeError::VerificationError(format!(
+            "Unsupported statement version: {}",
+            proof.statement.version
+        )));
+    }
+
+    let expected_statement_io = proof.statement.public_io();
+
+    let snark: SpartanSnark = bincode::deserialize(&proof.proof_data)
+        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 proof deserialization failed: {e}")))?;
+    let io = snark
+        .verify(vk)
+        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 verification failed: {e}")))?;
+    if io != expected_statement_io {
+        return Err(SpartanBridgeError::VerificationError("Spartan2 public IO mismatch".into()));
+    }
+
+    Ok(proof.statement.clone())
 }
 
 /// Setup a pinned Spartan2 (prover key, verifier key) for a particular circuit shape.
@@ -516,12 +548,15 @@ pub fn setup_fold_run_shape(
     } else {
         [0u8; 32]
     };
+    let vm_digest = dummy.vm_digest;
+    let step_linking_digest = compute_step_linking_digest_v1(shape.step_linking.as_slice())?;
     let statement = SpartanShardStatement::new(
         params_digest,
         ccs_digest,
-        [0u8; 32], // program_digest (Phase 1 placeholder)
+        vm_digest,
         steps_digest, // steps_digest (Phase 1)
         program_io_digest,
+        step_linking_digest,
         acc_init_digest,
         acc_final_main_digest,
         acc_final_val_digest,
@@ -1048,12 +1083,14 @@ pub fn prove_fold_run(
     } else {
         [0u8; 32]
     };
+    let step_linking_digest = compute_step_linking_digest_v1(witness.step_linking.as_slice())?;
     let statement = SpartanShardStatement::new(
         params_digest,
         ccs_digest,
-        [0u8; 32], // program_digest (Phase 1 placeholder)
+        witness.vm_digest,
         steps_digest, // steps_digest (Phase 1)
         program_io_digest,
+        step_linking_digest,
         acc_init_digest,
         acc_final_main_digest,
         acc_final_val_digest,
@@ -1164,14 +1201,17 @@ pub fn verify_fold_run(
     vk: &SpartanVerifierKey,
     params: &NeoParams,
     ccs: &CcsStructure<NeoF>,
+    expected_vm_digest: &[u8; 32],
     steps_public: &[StepInstanceBundle<Cmt, NeoF, NeoK>],
     output_binding: Option<&OutputBindingConfig>,
+    step_linking: &[(usize, usize)],
     proof: &SpartanProof,
 ) -> Result<bool> {
     // 1. Verify digests match
     let params_digest = compute_params_digest(params);
     let ccs_digest = compute_ccs_digest(ccs);
     let steps_digest = compute_steps_digest_v3(steps_public)?;
+    let step_linking_digest = compute_step_linking_digest_v1(step_linking)?;
 
     if proof.statement.version != STATEMENT_VERSION {
         return Err(SpartanBridgeError::VerificationError(format!(
@@ -1209,8 +1249,18 @@ pub fn verify_fold_run(
     if proof.statement.ccs_digest != ccs_digest {
         return Err(SpartanBridgeError::VerificationError("CCS digest mismatch".into()));
     }
+    if &proof.statement.vm_digest != expected_vm_digest {
+        return Err(SpartanBridgeError::VerificationError(
+            "vm_digest mismatch".into(),
+        ));
+    }
     if proof.statement.steps_digest != steps_digest {
         return Err(SpartanBridgeError::VerificationError("Steps digest mismatch".into()));
+    }
+    if proof.statement.step_linking_digest != step_linking_digest {
+        return Err(SpartanBridgeError::VerificationError(
+            "step_linking_digest mismatch".into(),
+        ));
     }
     let expected_mem_enabled = steps_public
         .iter()
@@ -1239,6 +1289,40 @@ pub fn verify_fold_run(
         return Err(SpartanBridgeError::VerificationError("Spartan2 public IO mismatch".into()));
     }
 
+    Ok(true)
+}
+
+/// Verify a Spartan proof using only an expected statement.
+///
+/// This is the "fully compressed" verifier entrypoint: the caller provides the pinned `vk` and the
+/// exact statement it expects, and does not need to re-materialize `steps_public` or output claims.
+pub fn verify_fold_run_statement_only(
+    vk: &SpartanVerifierKey,
+    expected_statement: &SpartanShardStatement,
+    proof: &SpartanProof,
+) -> Result<bool> {
+    if expected_statement.version != STATEMENT_VERSION {
+        return Err(SpartanBridgeError::VerificationError(format!(
+            "Unsupported statement version: expected={}, got={}",
+            STATEMENT_VERSION, expected_statement.version
+        )));
+    }
+    if proof.statement != *expected_statement {
+        return Err(SpartanBridgeError::VerificationError(
+            "Statement mismatch".into(),
+        ));
+    }
+
+    let expected_statement_io = expected_statement.public_io();
+
+    let snark: SpartanSnark = bincode::deserialize(&proof.proof_data)
+        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 proof deserialization failed: {e}")))?;
+    let io = snark
+        .verify(vk)
+        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 verification failed: {e}")))?;
+    if io != expected_statement_io {
+        return Err(SpartanBridgeError::VerificationError("Spartan2 public IO mismatch".into()));
+    }
     Ok(true)
 }
 
@@ -1316,6 +1400,19 @@ fn compute_steps_digest_v3(steps_public: &[StepInstanceBundle<Cmt, NeoF, NeoK>])
     Ok(tr.digest32())
 }
 
+/// Bind the proof to a specific VM/program image (e.g., raw ROM/ELF bytes).
+///
+/// This digest is a verifier-side contract: verifiers MUST compare it against their expected VM
+/// artifact when they want "program binding" (as opposed to "there exists *some* program").
+pub fn compute_vm_digest_v1(vm_bytes: &[u8]) -> [u8; 32] {
+    use neo_transcript::{Poseidon2Transcript, Transcript};
+
+    let mut tr = Poseidon2Transcript::new(b"neo/spartan-bridge/vm_digest/v1");
+    tr.append_message(b"vm/len", &(vm_bytes.len() as u64).to_le_bytes());
+    tr.append_bytes_packed(b"vm/bytes", vm_bytes);
+    tr.digest32()
+}
+
 fn compute_program_io_digest_v1(cfg: &OutputBindingConfig) -> Result<[u8; 32]> {
     use neo_transcript::{Poseidon2Transcript, Transcript};
 
@@ -1327,6 +1424,19 @@ fn compute_program_io_digest_v1(cfg: &OutputBindingConfig) -> Result<[u8; 32]> {
     tr.append_u64s(b"output_binding/mem_idx", &[cfg.mem_idx as u64]);
     tr.append_u64s(b"output_binding/num_bits", &[cfg.num_bits as u64]);
     cfg.program_io.absorb_into_transcript(&mut tr);
+    Ok(tr.digest32())
+}
+
+fn compute_step_linking_digest_v1(step_linking: &[(usize, usize)]) -> Result<[u8; 32]> {
+    use neo_transcript::{Poseidon2Transcript, Transcript};
+
+    let mut tr = Poseidon2Transcript::new(b"neo/spartan-bridge/step_linking_digest/v1");
+    tr.append_message(b"pairs/len", &(step_linking.len() as u64).to_le_bytes());
+    for (i, (prev, next)) in step_linking.iter().enumerate() {
+        tr.append_message(b"pair/idx", &(i as u64).to_le_bytes());
+        tr.append_message(b"pair/prev", &(*prev as u64).to_le_bytes());
+        tr.append_message(b"pair/next", &(*next as u64).to_le_bytes());
+    }
     Ok(tr.digest32())
 }
 

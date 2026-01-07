@@ -1,5 +1,8 @@
 # AGENTS.md
 
+## Code
+- Avoid extending files over 2,000 LOC
+
 ## Testing
 - Never add tests in the same implementation file, always prefer to add them to a file inside tests/ (current or new)
 

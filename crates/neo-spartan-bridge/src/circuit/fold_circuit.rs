@@ -16,6 +16,10 @@ use crate::gadgets::sponge::Poseidon2Sponge;
 use crate::gadgets::sumcheck::{verify_batched_sumcheck_rounds_ds, verify_sumcheck_rounds_ds};
 use crate::gadgets::transcript::Poseidon2TranscriptVar;
 use crate::CircuitF;
+use crate::statement::{
+    STATEMENT_IO_ACC_FINAL_MAIN_DIGEST_OFFSET, STATEMENT_IO_ACC_FINAL_VAL_DIGEST_OFFSET, STATEMENT_IO_ACC_INIT_DIGEST_OFFSET,
+    STATEMENT_IO_PROGRAM_IO_DIGEST_OFFSET, STATEMENT_IO_STEP_LINKING_DIGEST_OFFSET, STATEMENT_IO_STEPS_DIGEST_OFFSET,
+};
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use neo_ccs::Mat;
 use neo_fold::output_binding::OutputBindingConfig;
@@ -214,7 +218,7 @@ impl FoldRunCircuit {
             current_inputs_vals.as_slice(),
             &current_inputs_vars,
             &public_inputs.statement_io,
-            21,
+            STATEMENT_IO_ACC_INIT_DIGEST_OFFSET,
         )?;
 
         // Bind the program I/O digest when output binding is enabled. This binds the public
@@ -296,7 +300,7 @@ impl FoldRunCircuit {
                         || format!("program_io_digest_v1_limb_{limb_idx}_eq_public"),
                         |lc| lc + digest_limbs[limb_idx].get_variable(),
                         |lc| lc + CS::one(),
-                        |lc| lc + public_inputs.statement_io[17 + limb_idx],
+                        |lc| lc + public_inputs.statement_io[STATEMENT_IO_PROGRAM_IO_DIGEST_OFFSET + limb_idx],
                     );
                 }
 
@@ -382,8 +386,67 @@ impl FoldRunCircuit {
                 || format!("steps_digest_v3_limb_{limb_idx}_eq_public"),
                 |lc| lc + steps_digest_limbs[limb_idx].get_variable(),
                 |lc| lc + CS::one(),
-                |lc| lc + public_inputs.statement_io[13 + limb_idx],
+                |lc| lc + public_inputs.statement_io[STATEMENT_IO_STEPS_DIGEST_OFFSET + limb_idx],
             );
+        }
+
+        // Bind the step-linking policy digest to the public statement.
+        //
+        // This commits the verifier-visible policy (pairs of x-coordinate equality constraints)
+        // so the proof meaning is non-malleable even if multiple step-linking profiles share the
+        // same circuit shape.
+        {
+            let mut link_tr = Poseidon2TranscriptVar::new(
+                cs,
+                b"neo/spartan-bridge/step_linking_digest/v1",
+                "step_linking_digest_v1",
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
+            link_tr
+                .append_message(
+                    cs,
+                    b"pairs/len",
+                    &(self.step_linking.len() as u64).to_le_bytes(),
+                    "step_linking_len",
+                )
+                .map_err(SpartanBridgeError::BellpepperError)?;
+            for (i, (prev, next)) in self.step_linking.iter().enumerate() {
+                link_tr
+                    .append_message(
+                        cs,
+                        b"pair/idx",
+                        &(i as u64).to_le_bytes(),
+                        &format!("step_linking_pair_{i}_idx"),
+                    )
+                    .map_err(SpartanBridgeError::BellpepperError)?;
+                link_tr
+                    .append_message(
+                        cs,
+                        b"pair/prev",
+                        &(*prev as u64).to_le_bytes(),
+                        &format!("step_linking_pair_{i}_prev"),
+                    )
+                    .map_err(SpartanBridgeError::BellpepperError)?;
+                link_tr
+                    .append_message(
+                        cs,
+                        b"pair/next",
+                        &(*next as u64).to_le_bytes(),
+                        &format!("step_linking_pair_{i}_next"),
+                    )
+                    .map_err(SpartanBridgeError::BellpepperError)?;
+            }
+            let link_limbs = link_tr
+                .digest32(cs, "step_linking_digest_v1_digest32")
+                .map_err(SpartanBridgeError::BellpepperError)?;
+            for limb_idx in 0..4 {
+                cs.enforce(
+                    || format!("step_linking_digest_v1_limb_{limb_idx}_eq_public"),
+                    |lc| lc + link_limbs[limb_idx].get_variable(),
+                    |lc| lc + CS::one(),
+                    |lc| lc + public_inputs.statement_io[STATEMENT_IO_STEP_LINKING_DIGEST_OFFSET + limb_idx],
+                );
+            }
         }
 
         self.enforce_accumulator_digest_v2(
@@ -392,7 +455,7 @@ impl FoldRunCircuit {
             current_inputs_vals.as_slice(),
             &current_inputs_vars,
             &public_inputs.statement_io,
-            25,
+            STATEMENT_IO_ACC_FINAL_MAIN_DIGEST_OFFSET,
         )?;
 
         self.enforce_accumulator_digest_v2(
@@ -401,7 +464,7 @@ impl FoldRunCircuit {
             val_obligations_vals.as_slice(),
             val_obligations_vars.as_slice(),
             &public_inputs.statement_io,
-            29,
+            STATEMENT_IO_ACC_FINAL_VAL_DIGEST_OFFSET,
         )?;
 
         Ok(())
@@ -1299,11 +1362,12 @@ impl FoldRunCircuit {
             .map_err(|_| SpartanBridgeError::InvalidInput(format!("{label}: u64 byte allocation failed")))
     }
 
-    fn append_message_u64_le_bytes_dual<CS: ConstraintSystem<CircuitF>>(
+    fn append_message_u64_le_bytes_multi<CS: ConstraintSystem<CircuitF>>(
         &self,
         cs: &mut CS,
         tr: &mut Poseidon2TranscriptVar,
         mut tr2: Option<&mut Poseidon2TranscriptVar>,
+        mut tr3: Option<&mut Poseidon2TranscriptVar>,
         label: &'static [u8],
         v: u64,
         ctx: &str,
@@ -1313,6 +1377,10 @@ impl FoldRunCircuit {
             .map_err(SpartanBridgeError::BellpepperError)?;
         if let Some(tr2) = tr2.as_mut() {
             tr2.append_message_bytes_allocated(cs, label, bytes.as_slice(), ctx)
+                .map_err(SpartanBridgeError::BellpepperError)?;
+        }
+        if let Some(tr3) = tr3.as_mut() {
+            tr3.append_message_bytes_allocated(cs, label, bytes.as_slice(), ctx)
                 .map_err(SpartanBridgeError::BellpepperError)?;
         }
         Ok(())
@@ -1360,6 +1428,7 @@ impl FoldRunCircuit {
         cs: &mut CS,
         tr: &mut Poseidon2TranscriptVar,
         mut tr2: Option<&mut Poseidon2TranscriptVar>,
+        mut tr3: Option<&mut Poseidon2TranscriptVar>,
         spec: &Option<neo_memory::witness::LutTableSpec>,
         ctx: &str,
     ) -> Result<()> {
@@ -1373,6 +1442,10 @@ impl FoldRunCircuit {
             tr2.append_message(cs, b"shout/table_spec/tag", &[1u8], ctx)
                 .map_err(SpartanBridgeError::BellpepperError)?;
         }
+        if let Some(tr3) = tr3.as_mut() {
+            tr3.append_message(cs, b"shout/table_spec/tag", &[1u8], ctx)
+                .map_err(SpartanBridgeError::BellpepperError)?;
+        }
 
         match spec {
             neo_memory::witness::LutTableSpec::RiscvOpcode { opcode, xlen } => {
@@ -1380,6 +1453,10 @@ impl FoldRunCircuit {
                     .map_err(SpartanBridgeError::BellpepperError)?;
                 if let Some(tr2) = tr2.as_mut() {
                     tr2.append_message(cs, b"shout/table_spec/riscv/tag", &[1u8], ctx)
+                        .map_err(SpartanBridgeError::BellpepperError)?;
+                }
+                if let Some(tr3) = tr3.as_mut() {
+                    tr3.append_message(cs, b"shout/table_spec/riscv/tag", &[1u8], ctx)
                         .map_err(SpartanBridgeError::BellpepperError)?;
                 }
 
@@ -1418,18 +1495,20 @@ impl FoldRunCircuit {
                     neo_memory::riscv::lookups::RiscvOpcode::Andn => 30,
                 };
 
-                self.append_message_u64_le_bytes_dual(
+                self.append_message_u64_le_bytes_multi(
                     cs,
                     tr,
                     tr2.as_deref_mut(),
+                    tr3.as_deref_mut(),
                     b"shout/table_spec/riscv/opcode_id",
                     opcode_id,
                     &format!("{ctx}_opcode_id"),
                 )?;
-                self.append_message_u64_le_bytes_dual(
+                self.append_message_u64_le_bytes_multi(
                     cs,
                     tr,
                     tr2.as_deref_mut(),
+                    tr3.as_deref_mut(),
                     b"shout/table_spec/riscv/xlen",
                     *xlen as u64,
                     &format!("{ctx}_xlen"),
@@ -1445,6 +1524,7 @@ impl FoldRunCircuit {
         cs: &mut CS,
         tr: &mut Poseidon2TranscriptVar,
         mut tr2: Option<&mut Poseidon2TranscriptVar>,
+        mut tr3: Option<&mut Poseidon2TranscriptVar>,
         step_idx: usize,
         step_public: &neo_memory::witness::StepInstanceBundle<neo_ajtai::Commitment, NeoF, neo_math::K>,
     ) -> Result<()> {
@@ -1456,6 +1536,10 @@ impl FoldRunCircuit {
             tr2.append_message(cs, b"step/absorb_memory_start", &[], &ctx)
                 .map_err(SpartanBridgeError::BellpepperError)?;
         }
+        if let Some(tr3) = tr3.as_mut() {
+            tr3.append_message(cs, b"step/absorb_memory_start", &[], &ctx)
+                .map_err(SpartanBridgeError::BellpepperError)?;
+        }
 
         // LUTs
         let lut_count_bytes = &(step_public.lut_insts.len() as u64).to_le_bytes();
@@ -1463,6 +1547,10 @@ impl FoldRunCircuit {
             .map_err(SpartanBridgeError::BellpepperError)?;
         if let Some(tr2) = tr2.as_mut() {
             tr2.append_message(cs, b"step/lut_count", lut_count_bytes, &format!("{ctx}_lut_count"))
+                .map_err(SpartanBridgeError::BellpepperError)?;
+        }
+        if let Some(tr3) = tr3.as_mut() {
+            tr3.append_message(cs, b"step/lut_count", lut_count_bytes, &format!("{ctx}_lut_count"))
                 .map_err(SpartanBridgeError::BellpepperError)?;
         }
 
@@ -1474,43 +1562,52 @@ impl FoldRunCircuit {
                 tr2.append_message(cs, b"step/lut_idx", lut_idx_bytes, &format!("{ctx}_lut_{lut_idx}_idx"))
                     .map_err(SpartanBridgeError::BellpepperError)?;
             }
+            if let Some(tr3) = tr3.as_mut() {
+                tr3.append_message(cs, b"step/lut_idx", lut_idx_bytes, &format!("{ctx}_lut_{lut_idx}_idx"))
+                    .map_err(SpartanBridgeError::BellpepperError)?;
+            }
 
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"shout/k",
                 inst.k as u64,
                 &format!("{ctx}_lut_{lut_idx}_k"),
             )?;
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"shout/d",
                 inst.d as u64,
                 &format!("{ctx}_lut_{lut_idx}_d"),
             )?;
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"shout/n_side",
                 inst.n_side as u64,
                 &format!("{ctx}_lut_{lut_idx}_n_side"),
             )?;
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"shout/steps",
                 inst.steps as u64,
                 &format!("{ctx}_lut_{lut_idx}_steps"),
             )?;
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"shout/ell",
                 inst.ell as u64,
                 &format!("{ctx}_lut_{lut_idx}_ell"),
@@ -1520,6 +1617,7 @@ impl FoldRunCircuit {
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 &inst.table_spec,
                 &format!("{ctx}_lut_{lut_idx}_table_spec"),
             )?;
@@ -1542,6 +1640,15 @@ impl FoldRunCircuit {
                 )
                 .map_err(SpartanBridgeError::BellpepperError)?;
             }
+            if let Some(tr3) = tr3.as_mut() {
+                tr3.append_message_bytes_allocated(
+                    cs,
+                    b"shout/table_digest",
+                    table_digest_bytes.as_slice(),
+                    &format!("{ctx}_lut_{lut_idx}_table_digest_bind"),
+                )
+                .map_err(SpartanBridgeError::BellpepperError)?;
+            }
         }
 
         // MEMs
@@ -1550,6 +1657,10 @@ impl FoldRunCircuit {
             .map_err(SpartanBridgeError::BellpepperError)?;
         if let Some(tr2) = tr2.as_mut() {
             tr2.append_message(cs, b"step/mem_count", mem_count_bytes, &format!("{ctx}_mem_count"))
+                .map_err(SpartanBridgeError::BellpepperError)?;
+        }
+        if let Some(tr3) = tr3.as_mut() {
+            tr3.append_message(cs, b"step/mem_count", mem_count_bytes, &format!("{ctx}_mem_count"))
                 .map_err(SpartanBridgeError::BellpepperError)?;
         }
 
@@ -1561,43 +1672,52 @@ impl FoldRunCircuit {
                 tr2.append_message(cs, b"step/mem_idx", mem_idx_bytes, &format!("{ctx}_mem_{mem_idx}_idx"))
                     .map_err(SpartanBridgeError::BellpepperError)?;
             }
+            if let Some(tr3) = tr3.as_mut() {
+                tr3.append_message(cs, b"step/mem_idx", mem_idx_bytes, &format!("{ctx}_mem_{mem_idx}_idx"))
+                    .map_err(SpartanBridgeError::BellpepperError)?;
+            }
 
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"twist/k",
                 inst.k as u64,
                 &format!("{ctx}_mem_{mem_idx}_k"),
             )?;
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"twist/d",
                 inst.d as u64,
                 &format!("{ctx}_mem_{mem_idx}_d"),
             )?;
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"twist/n_side",
                 inst.n_side as u64,
                 &format!("{ctx}_mem_{mem_idx}_n_side"),
             )?;
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"twist/steps",
                 inst.steps as u64,
                 &format!("{ctx}_mem_{mem_idx}_steps"),
             )?;
-            self.append_message_u64_le_bytes_dual(
+            self.append_message_u64_le_bytes_multi(
                 cs,
                 tr,
                 tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
                 b"twist/ell",
                 inst.ell as u64,
                 &format!("{ctx}_mem_{mem_idx}_ell"),
@@ -1633,12 +1753,25 @@ impl FoldRunCircuit {
                 )
                 .map_err(SpartanBridgeError::BellpepperError)?;
             }
+            if let Some(tr3) = tr3.as_mut() {
+                tr3.append_message_bytes_allocated(
+                    cs,
+                    b"twist/init_digest",
+                    init_digest_bytes.as_slice(),
+                    &format!("{ctx}_mem_{mem_idx}_init_digest_bind"),
+                )
+                .map_err(SpartanBridgeError::BellpepperError)?;
+            }
         }
 
         tr.append_message(cs, b"step/absorb_memory_done", &[], &ctx)
             .map_err(SpartanBridgeError::BellpepperError)?;
         if let Some(tr2) = tr2.as_mut() {
             tr2.append_message(cs, b"step/absorb_memory_done", &[], &ctx)
+                .map_err(SpartanBridgeError::BellpepperError)?;
+        }
+        if let Some(tr3) = tr3.as_mut() {
+            tr3.append_message(cs, b"step/absorb_memory_done", &[], &ctx)
                 .map_err(SpartanBridgeError::BellpepperError)?;
         }
         Ok(())
@@ -2813,7 +2946,7 @@ impl FoldRunCircuit {
 
         // 0) absorb_step_memory (Route-A memory meta).
         if mem_enabled {
-            self.absorb_step_memory(cs, tr, Some(steps_tr), step_idx, step_public)?;
+            self.absorb_step_memory(cs, tr, None, Some(steps_tr), step_idx, step_public)?;
         } else {
             if !step_public.lut_insts.is_empty() || !step_public.mem_insts.is_empty() {
                 return Err(SpartanBridgeError::InvalidInput(format!(

@@ -28,6 +28,8 @@ pub struct FoldRunWitness {
     pub steps_public: Vec<StepInstanceBundle<Cmt, F, K>>,
     /// Initial accumulator (ME inputs to step 0).
     pub initial_accumulator: Vec<MeInstance<Cmt, F, K>>,
+    /// Digest binding the VM/program identity (e.g., ROM/ELF bytes).
+    pub vm_digest: [u8; 32],
     /// Optional output binding configuration (public claim set) used when `fold_run.output_proof` is present.
     pub output_binding: Option<OutputBindingConfig>,
     /// Optional step-to-step linking constraints pinned into the circuit.
@@ -47,12 +49,14 @@ impl FoldRunWitness {
         fold_run: FoldRun,
         steps_public: Vec<StepInstanceBundle<Cmt, F, K>>,
         initial_accumulator: Vec<MeInstance<Cmt, F, K>>,
+        vm_digest: [u8; 32],
         output_binding: Option<OutputBindingConfig>,
     ) -> Self {
         Self {
             fold_run,
             steps_public,
             initial_accumulator,
+            vm_digest,
             output_binding,
             step_linking: Vec::new(),
         }

@@ -844,12 +844,6 @@ where
         Ok(())
     }
 
-    /// Explicitly allow multi-step verification without step linking (unsafe).
-    pub fn unsafe_allow_unlinked_steps(&mut self) {
-        self.allow_unlinked_steps = true;
-        self.auto_step_linking_error = None;
-    }
-
     /// Set an explicit initial state y₀ for the IVC (optional).
     /// If not set, y₀ defaults to all zeros of length `state_len()`.
     pub fn set_initial_state(&mut self, y0: Vec<F>) {
@@ -1680,7 +1674,7 @@ where
                     )?,
                 },
                 None => {
-                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".to_string();
+                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...)".to_string();
                     if let Some(diag) = &self.auto_step_linking_error {
                         msg.push_str(&format!(" (auto step-linking from StepSpec failed: {diag})"));
                     }
@@ -1859,7 +1853,7 @@ where
                     )?,
                 },
                 None => {
-                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".to_string();
+                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...)".to_string();
                     if let Some(diag) = &self.auto_step_linking_error {
                         msg.push_str(&format!(" (auto step-linking from StepSpec failed: {diag})"));
                     }

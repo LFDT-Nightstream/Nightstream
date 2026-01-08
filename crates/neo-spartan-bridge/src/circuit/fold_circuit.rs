@@ -36,7 +36,7 @@ use super::route_a_time::verify_route_a_batched_time_step;
 
 // Spartan2 integration: implement SpartanCircuit over Goldilocks + Hash-MLE PCS.
 use bellpepper_core::num::AllocatedNum;
-use spartan2::provider::GoldilocksP3MerkleMleEngine;
+use spartan2::provider::GoldilocksMerkleMleEngine;
 use spartan2::traits::circuit::SpartanCircuit as SpartanCircuitTrait;
 
 /// Sparse representation of the CCS polynomial f in the circuit field.
@@ -6286,7 +6286,7 @@ impl FoldRunCircuit {
 /// Implement Spartan2's `SpartanCircuit` trait for `FoldRunCircuit` using the
 /// Goldilocks + Hash-MLE PCS engine. This lets Spartan2 treat the FoldRun
 /// circuit as an R1CS provider.
-impl SpartanCircuitTrait<GoldilocksP3MerkleMleEngine> for FoldRunCircuit {
+impl SpartanCircuitTrait<GoldilocksMerkleMleEngine> for FoldRunCircuit {
     fn public_values(&self) -> std::result::Result<Vec<CircuitF>, SynthesisError> {
         // Must mirror `allocate_public_inputs`.
         Ok(self.instance.public_io())

@@ -27,10 +27,15 @@ use neo_reductions::paper_exact_engine::claimed_initial_sum_from_inputs;
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 
-use spartan2::{provider::GoldilocksP3MerkleMleEngine, spartan::R1CSSNARK, traits::snark::R1CSSNARKTrait};
+use spartan2::{provider::GoldilocksMerkleMleEngine, spartan::R1CSSNARK, traits::snark::R1CSSNARKTrait};
 use spartan2::bellpepper::shape_cs::ShapeCS;
 
-pub type SpartanEngine = GoldilocksP3MerkleMleEngine;
+/// Spartan2 engine for the bridge circuit.
+///
+/// This uses a transparent Hash-MLE PCS based on Keccak, which is significantly faster in native
+/// proving than the Poseidon2-based (p3) backend. The Neo verifier transcript (inside the circuit)
+/// remains Poseidon2-equivalent; this affects only Spartan2's outer proof system.
+pub type SpartanEngine = GoldilocksMerkleMleEngine;
 pub type SpartanSnark = R1CSSNARK<SpartanEngine>;
 pub type SpartanProverKey = spartan2::spartan::SpartanProverKey<SpartanEngine>;
 pub type SpartanVerifierKey = spartan2::spartan::SpartanVerifierKey<SpartanEngine>;
@@ -641,8 +646,9 @@ pub fn setup_fold_run_shape(
     );
 
     // Shape extraction during `SpartanSnark::setup` maps bridge-level errors to an opaque
-    // `SynthesisError::Unsatisfiable`. Run a cheap pre-check to surface actionable diagnostics.
-    {
+    // `SynthesisError::Unsatisfiable`. For debugging, an optional pre-check can surface more
+    // actionable diagnostics, but it runs a full shape synthesis pass.
+    if std::env::var("NEO_SPARTAN_BRIDGE_SHAPE_PRECHECK").ok().as_deref() == Some("1") {
         let mut cs = ShapeCS::<SpartanEngine>::new();
         circuit.synthesize(&mut cs)?;
     }

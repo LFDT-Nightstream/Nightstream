@@ -922,6 +922,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo-closure-proof"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "serde",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "neo-fold"
 version = "0.1.0"
 dependencies = [
@@ -1035,6 +1044,7 @@ dependencies = [
  "ff",
  "neo-ajtai",
  "neo-ccs",
+ "neo-closure-proof",
  "neo-fold",
  "neo-math",
  "neo-memory",

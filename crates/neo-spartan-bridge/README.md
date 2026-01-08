@@ -2,19 +2,27 @@
 
 Experimental integration layer between Neo folding (Π-CCS / `FoldRun`) and the Spartan2 SNARK.
 
-> **Status:** Folding + Route‑A memory terminal checks are implemented. Output binding is implemented behind `statement.output_binding_enabled=true` (tests are `#[ignore]` because they are very slow).
+> **Status (docs vs reality):**
+> - ✅ **Phase 1 implemented:** a single Spartan2 proof that is verifier-equivalent to `fold_shard_verify` (up to producing final obligations), under a replay-resistant public statement.
+> - 🚧 **Phase 2 not implemented yet:** obligation closure (`verify_and_finalize` semantics) is **not** proven; `neo-closure-proof` currently contains a test-only placeholder.
+> - ✅ **Plumbing exists for the end-state artifact:** `BridgeProofV2 = { spartan_proof, closure_proof }`, where `closure_stmt` is deterministically derived from the Spartan statement. The closure verifier is stubbed today.
 
 ---
 
 ## Goal
 
-Provide a single Spartan2 proof that attests to the correctness of an entire Neo `FoldRun`, with:
+Provide a small, shareable proof artifact for a Neo shard/FoldRun run:
 
-- Π-CCS **sumcheck invariants and terminal identity** enforced as R1CS constraints.
-- Π-RLC and Π-DEC **linear/base‑b equalities** enforced as constraints (including commitment linear relations).
-- **Accumulator chaining** across all steps, from an initial public accumulator to a final public claim.
+- **Phase 1 (today):** one Spartan2 proof attesting the native verifier would accept (up to obligations).
+- **Phase 2 (target):** augment with a separate succinct closure proof so the blob implies native
+  `fold_shard_verify_and_finalize` semantics (“obligations are openable to bounded witnesses”).
 
-The Spartan proof uses whatever PCS is chosen by the Spartan **engine** (Hash-MLE today). The bridge only defines a bellpepper circuit over Neo's Goldilocks arithmetic; it does not introduce a second PCS.
+The Spartan proof uses whatever PCS is chosen by the Spartan **engine** (Hash‑MLE today). The bridge
+only defines a bellpepper circuit over Neo's Goldilocks arithmetic; it does not introduce a second PCS.
+
+For requirements and the intended end-state, see:
+- `docs/spartan-compression-must-wants.md`
+- `docs/spartan-compression-two-phase-plan.md`
 
 ---
 
@@ -22,7 +30,7 @@ The Spartan proof uses whatever PCS is chosen by the Spartan **engine** (Hash-ML
 
 The crate is split into:
 
-1. **`circuit/`** – R1CS circuit for a `FoldRun`:
+1. **`circuit/`** – R1CS circuit for a `FoldRun` (SNARK-of-verifier):
    - `FoldRunInstance` – public IO container (`SpartanShardStatement` only).
    - `FoldRunWitness` – private witness (`ShardProof`, per‑step `McsInstance`, initial accumulator).
    - `FoldRunCircuit` – synthesizes constraints for all steps and enforces accumulator endpoint digests.
@@ -32,11 +40,15 @@ The crate is split into:
    - `poseidon2` / `sponge` / `transcript` – Poseidon2 permutation + in-circuit `Poseidon2Transcript` (Fiat–Shamir source of truth).
    - `sumcheck` – transcript-bound sumcheck gadgets (single + batched, DS framed).
 
-3. **`api/`** – high-level `setup_fold_run` / `prove_fold_run` / `verify_fold_run` API:
+3. **`api`** – high-level `setup_fold_run` / `prove_fold_run` / `verify_fold_run` API:
    - `setup_fold_run` returns a pinned `(pk, vk)` for a circuit shape (verifiers must not accept a prover-supplied `vk`).
    - `prove_fold_run` produces `SpartanProof { proof_data, statement }`.
    - `verify_fold_run` verifies using a pinned `vk` and checks statement digests (params/CCS/steps/program I/O/step-linking) against the verifier’s view.
    - `verify_fold_run_statement_only` verifies using a pinned `vk` and an expected `SpartanShardStatement` (no need for `steps_public`).
+
+4. **`bridge_proof_v2`** – “one blob” wrapper:
+   - `BridgeProofV2 = { spartan, closure_stmt, closure }`
+   - `closure_stmt` is derived from the Spartan statement via `compute_context_digest_v1`.
 
 ---
 
@@ -46,7 +58,8 @@ To run the slow RV32 compression tests: `cargo test -p neo-spartan-bridge --rele
 
 ### Phase 1 meaning
 
-The current Spartan proof attests: “there exists a `ShardProof` such that the circuit’s in-circuit verifier accepts for every step, with all verifier coins derived via the canonical Neo transcript.”
+The current Spartan proof attests: “there exists a `ShardProof` such that the circuit’s in-circuit
+verifier accepts for every step, with all verifier coins derived via the canonical Neo transcript.”
 
 Today the circuit covers:
 - Π‑CCS verification (Route‑A batched time + Ajtai rounds + terminal identity),
@@ -61,7 +74,8 @@ Today the circuit covers:
 
 Limitations:
 - Shout `table_spec=None` is rejected in the compression profile (only `LutTableSpec::RiscvOpcode` is supported today).
-- Commitment correctness/openings are not proven yet (see "Remaining Work").
+- **Obligation closure is not proven yet** (see "Remaining Work"). Phase 1 binds the final obligations
+  via digests, but does not prove they are openable to bounded witnesses.
 
 ### Π‑CCS side
 
@@ -139,22 +153,87 @@ Limitations:
 
 ---
 
-## Remaining Work
+## Drift Risk: Keeping Native and Circuit Transcripts in Sync
 
-Depending on how much of the folding stack we want Spartan to attest to, the main missing pieces are:
+This project intentionally replays the native verifier transcript inside the circuit (to avoid
+prover-chosen Fiat–Shamir challenges). The main maintenance risk is **drift**: the native verifier
+and the circuit verifier must absorb the *same labels*, in the *same order*, with the *same framing*
+(`append_message` encoding, lengths, endianness).
 
-- **Step linking**
-  - Step linking constraints are enforced in-circuit, and the statement binds the step-linking policy via `step_linking_digest`.
+Example of a past drift class: missing absorption of `shout/lanes` / `twist/lanes` for multi-lane
+instances would cause transcript divergence even though both sides “look reasonable”.
 
-- **Commitment-level consistency**
-  - Commitment equalities are enforced, but Spartan does not prove Ajtai commitment correctness/openings yet; this remains the main end-to-end soundness gap.
+### What a “single spec” would look like
+
+To reduce drift, a recommended refactor is to define the transcript “script” once and execute it
+with two backends:
+- **native backend:** calls `neo_transcript::Poseidon2Transcript`
+- **circuit backend:** calls `Poseidon2TranscriptVar` (allocating bytes/vars + constraints)
+
+Concretely: define a small trait like `SpecTranscript` and write a single `*_spec(...)` function
+that contains the canonical sequence of events (e.g. `absorb_step_memory_spec`). Both backends
+implement the trait, so any future change to absorption order/fields is made **once**.
+
+Sketch:
+
+```rust
+pub trait SpecTranscript<CS> {
+    type Error;
+    fn msg_u64_le(&mut self, cs: &mut CS, label: &'static [u8], v: u64, ctx: &str) -> Result<(), Self::Error>;
+    fn msg_bytes(&mut self, cs: &mut CS, label: &'static [u8], bytes: &[u8], ctx: &str) -> Result<(), Self::Error>;
+}
+
+pub fn absorb_step_memory_spec<CS, T: SpecTranscript<CS>>(
+    cs: &mut CS,
+    tr: &mut T,
+    step: &neo_memory::witness::StepInstanceBundle<...>,
+    ctx: &str,
+) -> Result<(), T::Error> {
+    tr.msg_bytes(cs, b"step/absorb_memory_start", &[], ctx)?;
+    tr.msg_u64_le(cs, b"step/lut_count", step.lut_insts.len() as u64, ctx)?;
+    // ... same labels/order as native verifier ...
+    tr.msg_bytes(cs, b"step/absorb_memory_done", &[], ctx)?;
+    Ok(())
+}
+```
+
+---
+
+## Performance Notes
+
+- `prove_fold_run` is already in the “few seconds” range on representative runs; the big one-time
+  cost is `setup_fold_run` for a new circuit shape (keygen).
+- In production you typically cache `(pk, vk)` keyed by `FoldRunShape` (step count + per-step public
+  instance shapes + output binding + step linking) and reuse it across proofs of the same shape.
+
+---
+
+## Remaining Work (Phase 2 / end-state)
+
+To reach `verify_and_finalize` semantics (per `docs/spartan-compression-must-wants.md`):
+
+1. **Implement a real closure proof backend**
+   - `neo-closure-proof` currently only supports `ClosureProofV1::TestOnlyDigest`.
+   - A real `ClosureProofV1::OpaqueBytes` backend must prove:
+     - Ajtai opening/correctness `c == Commit(pp, Z)` for bounded `Z`,
+     - bounds/range constraints required for binding,
+     - ME consistency between `(Z, r)` and the instance fields.
+   - It must be bound to `context_digest` + `pp_id_digest` + `obligations_digest`.
+
+2. **Ship and verify the “two proofs in one blob” artifact**
+   - `BridgeProofV2` is already wired so `closure_stmt` is deterministically derived from the Spartan
+     statement, but the closure verifier is stubbed until the backend exists.
+
+3. **(Optional) One-proof artifact**
+   - If desired later, make the Spartan circuit verify the closure verifier in-circuit (usually
+     expensive; the two-proof blob is the pragmatic target).
 
 ---
 
 ## Safety and Caveats
 
 - This crate is **experimental** and should not yet be treated as a hardened verification layer.
-- Commitment correctness is still delegated to the outer Ajtai verifier; Spartan enforces the same *linear commitment relations* checked by the native folding verifier.
+- Phase 1 only proves verifier acceptance up to obligations; Phase 2 closure is not implemented yet.
 
 ---
 

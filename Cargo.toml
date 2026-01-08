@@ -8,9 +8,15 @@ members = [
   "crates/neo-ccs",
   "crates/neo-reductions",
   "crates/neo-fold",
+  "crates/neo-closure-proof",
   "crates/neo-spartan-bridge",
   "crates/neo-vm-trace",
   "crates/neo-memory",
+]
+exclude = [
+  # Spartan2 is a path dependency (for local patching/inspection), but it is not part of this
+  # workspace's test surface. Excluding it prevents `cargo test --workspace` from running its tests.
+  "Spartan2",
 ]
 resolver = "2"
 

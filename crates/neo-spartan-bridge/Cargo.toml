@@ -23,6 +23,7 @@ neo-reductions = { path = "../neo-reductions" }
 neo-fold = { path = "../neo-fold" }
 neo-memory = { path = "../neo-memory" }
 neo-transcript = { path = "../neo-transcript" }
+neo-closure-proof = { path = "../neo-closure-proof" }
 
 # Spartan2 and circuit dependencies
 spartan2 = { workspace = true }

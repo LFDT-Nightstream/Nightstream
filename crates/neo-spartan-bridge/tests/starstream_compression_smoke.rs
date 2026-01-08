@@ -5,6 +5,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use neo_ajtai::{set_global_pp_seeded, AjtaiSModule};
 use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
@@ -173,13 +174,23 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
     let committer = AjtaiSModule::from_global_for_dims(D, m_commit).expect("committer");
     let mut session = FoldingSession::new(FoldingMode::Optimized, params, committer);
     let inputs = NoInputs;
+    let t_add_steps = Instant::now();
     session
         .add_steps(&mut circuit, &inputs, steps_to_run)
         .expect("add_steps");
+    println!(
+        "timing: add_steps took {}ms",
+        t_add_steps.elapsed().as_millis()
+    );
 
+    let t_fold_prove_verify = Instant::now();
     let run = session
         .prove_and_verify_collected(step_ccs.as_ref())
         .expect("prove_and_verify_collected");
+    println!(
+        "timing: prove_and_verify_collected took {}ms",
+        t_fold_prove_verify.elapsed().as_millis()
+    );
 
     let steps_len = run.steps.len();
     assert_eq!(steps_len, steps_to_run);
@@ -195,9 +206,16 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
         None,
     );
 
+    let t_setup = Instant::now();
     let (pk, vk) = setup_fold_run(session.params(), step_ccs.as_ref(), &witness).expect("setup_fold_run");
+    println!("timing: setup_fold_run took {}ms", t_setup.elapsed().as_millis());
 
+    let t_prove = Instant::now();
     let spartan = prove_fold_run(&pk, session.params(), step_ccs.as_ref(), witness).expect("prove_fold_run");
+    println!(
+        "timing: prove_fold_run took {}ms",
+        t_prove.elapsed().as_millis()
+    );
 
     // Print proof size information
     let proof_bytes = spartan.proof_data.len();
@@ -207,13 +225,23 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
     println!("  proof_data:  {} bytes ({:.2} KB)", proof_bytes, proof_bytes as f64 / 1024.0);
     println!("  serialized:  {} bytes ({:.2} KB)", serialized_bytes, serialized_bytes as f64 / 1024.0);
 
+    let t_verify_proof_only = Instant::now();
     let stmt = verify_fold_run_proof_only(&vk, &spartan).expect("verify_fold_run_proof_only");
+    println!(
+        "timing: verify_fold_run_proof_only took {}ms",
+        t_verify_proof_only.elapsed().as_millis()
+    );
     assert_eq!(stmt.vm_digest, vm_digest);
 
+    let t_verify_full = Instant::now();
     assert!(
         verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &vm_digest, &steps_public, None, &[], &spartan)
             .expect("verify_fold_run"),
         "Spartan proof should verify"
+    );
+    println!(
+        "timing: verify_fold_run (full) took {}ms",
+        t_verify_full.elapsed().as_millis()
     );
     let wrong_vm_digest = compute_vm_digest_v1(b"wrong");
     assert!(

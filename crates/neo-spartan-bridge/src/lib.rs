@@ -12,7 +12,9 @@
 #![allow(non_snake_case)]
 
 pub mod api;
+pub mod bridge_proof_v2;
 pub mod circuit;
+pub mod digests;
 pub mod error;
 pub mod gadgets;
 pub mod statement;
@@ -30,3 +32,6 @@ pub use api::{
     verify_fold_run_proof_only, verify_fold_run_statement_only, FoldRunShape, SpartanEngine, SpartanProverKey, SpartanSnark,
     SpartanVerifierKey,
 };
+
+pub use bridge_proof_v2::{verify_bridge_proof_v2, BridgeProofV2};
+pub use digests::compute_context_digest_v1;

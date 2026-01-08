@@ -1851,7 +1851,7 @@ where
                     expected_k, mem_inst.k
                 )));
             }
-            let ell_addr = mem_inst.twist_layout().ell_addr;
+            let ell_addr = mem_inst.twist_layout().lanes[0].ell_addr;
             if ell_addr != cfg.num_bits {
                 return Err(PiCcsError::InvalidInput(format!(
                     "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
@@ -1998,12 +1998,23 @@ where
                 .get(cfg.mem_idx)
                 .ok_or_else(|| PiCcsError::ProtocolError("output binding mem_idx out of range for twist_pre".into()))?;
 
-            let (oracle, claimed_sum) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
-                pre.decoded.wa_bits.clone(),
-                pre.decoded.has_write.clone(),
-                pre.decoded.inc_at_write_addr.clone(),
-                r_prime,
-            );
+            if pre.decoded.lanes.is_empty() {
+                return Err(PiCcsError::ProtocolError("output binding: Twist decoded lanes empty".into()));
+            }
+
+            let mut oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
+            let mut claimed_sum = K::ZERO;
+            for lane in pre.decoded.lanes.iter() {
+                let (oracle, claim) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
+                    lane.wa_bits.clone(),
+                    lane.has_write.clone(),
+                    lane.inc_at_write_addr.clone(),
+                    r_prime,
+                );
+                oracles.push(Box::new(oracle));
+                claimed_sum += claim;
+            }
+            let oracle = crate::memory_sidecar::memory::SumRoundOracle::new(oracles);
 
             ob_time_claim = Some(crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim {
                 oracle: Box::new(oracle),
@@ -2603,7 +2614,7 @@ where
                     expected_k, mem_inst.k
                 )));
             }
-            let ell_addr = mem_inst.twist_layout().ell_addr;
+            let ell_addr = mem_inst.twist_layout().lanes[0].ell_addr;
             if ell_addr != cfg.num_bits {
                 return Err(PiCcsError::InvalidInput(format!(
                     "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
@@ -2920,7 +2931,7 @@ where
                     expected_k, mem_inst.k
                 )));
             }
-            let ell_addr = mem_inst.twist_layout().ell_addr;
+            let ell_addr = mem_inst.twist_layout().lanes[0].ell_addr;
             if ell_addr != cfg.num_bits {
                 return Err(PiCcsError::InvalidInput(format!(
                     "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",

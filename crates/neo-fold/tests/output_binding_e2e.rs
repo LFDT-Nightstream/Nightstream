@@ -110,6 +110,7 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
         d: 1,
         n_side: 4,
         steps: 1,
+        lanes: 1,
         ell: 2,
         init: MemInit::Zero,
         _phantom: PhantomData,
@@ -169,7 +170,7 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
     z[COL_INC] = F::from_u64(7);
 
     // Bus tail (Twist only).
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
     // ra_bits = 0 when has_read=0
     for col_id in twist.ra_bits.clone() {
         z[bus.bus_cell(col_id, 0)] = F::ZERO;

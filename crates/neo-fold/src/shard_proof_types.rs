@@ -9,19 +9,19 @@ pub type ShoutProofK = neo_memory::shout::ShoutProof<K>;
 
 /// Route A Shout address pre-time proof metadata (fixed-count profile).
 ///
-/// This proof format is **compression-friendly**: it always includes one sumcheck per Shout
-/// instance in the step, even when the instance is inactive (in which case the oracle and
-/// claimed sum are zero).
-///
-/// This removes transcript branching (`active_mask` / `no_sumcheck`) so a SNARK-of-verifier can
-/// have a fixed circuit shape.
+/// This proof format is **compression-friendly**: it always includes one addr-pre sumcheck per
+/// Shout lane in the step, even when the lane is inactive (in which case the oracle and claimed
+/// sum are zero).
 #[derive(Clone, Debug)]
 pub struct ShoutAddrPreProof<KK> {
-    /// Claimed sums per Shout instance (length = `step.lut_instances.len()`).
-    pub claimed_sums: Vec<KK>,
-    /// Sumcheck rounds per Shout instance.
+    /// Claimed sums per Shout lane.
     ///
-    /// `round_polys[lut_idx][round] = coeffs`, and each inner `round` vector has length `ell_addr`.
+    /// Lanes are flattened in `(lut_idx, lane_idx)` order, where `lut_idx` is the
+    /// index in `step.lut_instances`, and `lane_idx` ranges over `inst.lanes.max(1)`.
+    pub claimed_sums: Vec<KK>,
+    /// Sumcheck rounds per Shout lane.
+    ///
+    /// `round_polys[flat_lane_idx][round] = coeffs`, and each inner `round` vector has length `ell_addr`.
     pub round_polys: Vec<Vec<Vec<KK>>>,
     /// Shared terminal address point `r_addr` (length = `ell_addr`).
     pub r_addr: Vec<KK>,

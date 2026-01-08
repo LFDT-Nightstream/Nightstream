@@ -5,7 +5,7 @@
 
 use crate::addr::write_addr_bits_dim_major_le_into_bus;
 use crate::builder::CpuArithmetization;
-use crate::cpu::bus_layout::{build_bus_layout_for_instances, BusLayout};
+use crate::cpu::bus_layout::{build_bus_layout_for_instances_with_shout_and_twist_lanes, BusLayout};
 use crate::cpu::constraints::{extend_ccs_with_shared_cpu_bus_constraints, ShoutCpuBinding, TwistCpuBinding};
 use crate::mem_init::MemInit;
 use crate::plain::LutTable;
@@ -40,11 +40,17 @@ pub struct SharedCpuBusConfig<F> {
     /// Per-table CPU→bus bindings (shout_id -> binding).
     ///
     /// The bus tail contains one Shout instance per `table_id` known to this CPU (from `tables` in `R1csCpu::new`).
-    pub shout_cpu: HashMap<u32, ShoutCpuBinding>,
+    ///
+    /// Each Shout instance may have multiple lookup lanes; this map must provide one `ShoutCpuBinding`
+    /// per lane in lane-index order.
+    pub shout_cpu: HashMap<u32, Vec<ShoutCpuBinding>>,
     /// Per-memory CPU→bus bindings (twist_id -> binding).
     ///
     /// The bus tail contains one Twist instance per `mem_id` in `mem_layouts`.
-    pub twist_cpu: HashMap<u32, TwistCpuBinding>,
+    ///
+    /// Each Twist instance may have multiple access lanes (`PlainMemLayout.lanes`); this map must
+    /// provide one `TwistCpuBinding` per lane in lane-index order.
+    pub twist_cpu: HashMap<u32, Vec<TwistCpuBinding>>,
 }
 
 #[derive(Clone, Debug)]
@@ -150,7 +156,7 @@ where
         let mut mem_ids: Vec<u32> = bus.mem_layouts.keys().copied().collect();
         mem_ids.sort_unstable();
 
-        let mut shout_ell_addrs = Vec::with_capacity(table_ids.len());
+        let mut shout_ell_addrs_and_lanes = Vec::with_capacity(table_ids.len());
         for table_id in &table_ids {
             let (d, n_side) = self
                 .shout_meta
@@ -164,10 +170,20 @@ where
             }
             let ell = n_side.trailing_zeros() as usize;
             let ell_addr = d * ell;
-            shout_ell_addrs.push(ell_addr);
+            let lanes = bus
+                .shout_cpu
+                .get(table_id)
+                .ok_or_else(|| format!("shared_cpu_bus: missing shout_cpu binding for table_id={table_id}"))?
+                .len();
+            if lanes == 0 {
+                return Err(format!(
+                    "shared_cpu_bus: shout_cpu bindings for table_id={table_id} must be non-empty"
+                ));
+            }
+            shout_ell_addrs_and_lanes.push((ell_addr, lanes));
         }
 
-        let mut twist_ell_addrs = Vec::with_capacity(mem_ids.len());
+        let mut twist_ell_addrs_and_lanes = Vec::with_capacity(mem_ids.len());
         for mem_id in &mem_ids {
             let layout = bus
                 .mem_layouts
@@ -181,15 +197,15 @@ where
             }
             let ell = layout.n_side.trailing_zeros() as usize;
             let ell_addr = layout.d * ell;
-            twist_ell_addrs.push(ell_addr);
+            twist_ell_addrs_and_lanes.push((ell_addr, layout.lanes.max(1)));
         }
 
-        let layout = build_bus_layout_for_instances(
+        let layout = build_bus_layout_for_instances_with_shout_and_twist_lanes(
             self.ccs.m,
             self.m_in,
             chunk_size,
-            shout_ell_addrs,
-            twist_ell_addrs,
+            shout_ell_addrs_and_lanes,
+            twist_ell_addrs_and_lanes,
         )?;
         Ok((table_ids, mem_ids, layout))
     }
@@ -245,41 +261,75 @@ where
             Ok(())
         }
 
-        // Build per-instance binding vectors in canonical order (id-sorted).
-        let mut shout_cpu: Vec<ShoutCpuBinding> = Vec::with_capacity(table_ids.len());
+        // Build per-lane binding vectors in canonical order (id-sorted, then lane index).
+        let total_shout_lanes: usize = table_ids
+            .iter()
+            .map(|id| cfg.shout_cpu.get(id).map(|v| v.len()).unwrap_or(0))
+            .sum();
+        let mut shout_cpu: Vec<ShoutCpuBinding> = Vec::with_capacity(total_shout_lanes);
         for table_id in &table_ids {
-            let b = cfg
+            let bindings = cfg
                 .shout_cpu
                 .get(table_id)
                 .ok_or_else(|| format!("shared_cpu_bus: missing shout_cpu binding for table_id={table_id}"))?;
-            validate_cpu_binding_cols(
-                "shout_cpu",
-                *table_id,
-                bus_base,
-                chunk_size,
-                &[("has_lookup", b.has_lookup), ("addr", b.addr), ("val", b.val)],
-            )?;
-            shout_cpu.push(b.clone());
+            if bindings.is_empty() {
+                return Err(format!(
+                    "shared_cpu_bus: shout_cpu bindings for table_id={table_id} must be non-empty"
+                ));
+            }
+            for (lane_idx, b) in bindings.iter().enumerate() {
+                validate_cpu_binding_cols(
+                    &format!("shout_cpu[lane={lane_idx}]"),
+                    *table_id,
+                    bus_base,
+                    chunk_size,
+                    &[("has_lookup", b.has_lookup), ("addr", b.addr), ("val", b.val)],
+                )?;
+                shout_cpu.push(b.clone());
+            }
         }
-        let mut twist_cpu: Vec<TwistCpuBinding> = Vec::with_capacity(mem_ids.len());
+        let total_twist_lanes: usize = mem_ids
+            .iter()
+            .map(|mem_id| {
+                cfg.mem_layouts
+                    .get(mem_id)
+                    .map(|l| l.lanes.max(1))
+                    .unwrap_or(0)
+            })
+            .sum();
+        let mut twist_cpu: Vec<TwistCpuBinding> = Vec::with_capacity(total_twist_lanes);
         for mem_id in &mem_ids {
-            let b = cfg
+            let layout = cfg
+                .mem_layouts
+                .get(mem_id)
+                .ok_or_else(|| format!("shared_cpu_bus: missing mem_layout for mem_id={mem_id}"))?;
+            let lanes = layout.lanes.max(1);
+            let bindings = cfg
                 .twist_cpu
                 .get(mem_id)
                 .ok_or_else(|| format!("shared_cpu_bus: missing twist_cpu binding for mem_id={mem_id}"))?;
-            let mut cols = vec![
-                ("has_read", b.has_read),
-                ("has_write", b.has_write),
-                ("read_addr", b.read_addr),
-                ("write_addr", b.write_addr),
-                ("rv", b.rv),
-                ("wv", b.wv),
-            ];
-            if let Some(inc) = b.inc {
-                cols.push(("inc", inc));
+            if bindings.len() != lanes {
+                return Err(format!(
+                    "shared_cpu_bus: twist_cpu bindings for mem_id={mem_id} has len={}, expected lanes={lanes}",
+                    bindings.len()
+                ));
             }
-            validate_cpu_binding_cols("twist_cpu", *mem_id, bus_base, chunk_size, &cols)?;
-            twist_cpu.push(b.clone());
+            for (lane_idx, b) in bindings.iter().enumerate() {
+                let mut cols = vec![
+                    ("has_read", b.has_read),
+                    ("has_write", b.has_write),
+                    ("read_addr", b.read_addr),
+                    ("write_addr", b.write_addr),
+                    ("rv", b.rv),
+                    ("wv", b.wv),
+                ];
+                if let Some(inc) = b.inc {
+                    cols.push(("inc", inc));
+                }
+                let kind = format!("twist_cpu[lane={lane_idx}]");
+                validate_cpu_binding_cols(&kind, *mem_id, bus_base, chunk_size, &cols)?;
+                twist_cpu.push(b.clone());
+            }
         }
 
         // Catch typos: refuse extra bindings for unknown ids.
@@ -307,12 +357,19 @@ where
                 .copied()
                 .ok_or_else(|| format!("shared_cpu_bus: missing shout_meta for table_id={table_id}"))?;
             let ell = n_side.trailing_zeros() as usize;
+            let lanes = cfg
+                .shout_cpu
+                .get(table_id)
+                .ok_or_else(|| format!("shared_cpu_bus: missing shout_cpu binding for table_id={table_id}"))?
+                .len()
+                .max(1);
             lut_insts.push(LutInstance {
                 comms: Vec::new(),
                 k: 0,
                 d,
                 n_side,
                 steps: chunk_size,
+                lanes,
                 ell,
                 table_spec: None,
                 table: Vec::new(),
@@ -333,6 +390,7 @@ where
                 d: layout.d,
                 n_side: layout.n_side,
                 steps: chunk_size,
+                lanes: layout.lanes.max(1),
                 ell,
                 init: MemInit::Zero,
                 _phantom: PhantomData,
@@ -469,14 +527,41 @@ where
                 }
 
                 // Scratch buffers for per-step event lookup (avoid per-step HashMap allocation).
-                let mut shout_events: Vec<Option<(u64, Goldilocks)>> = vec![None; shared.table_ids.len()];
-                let mut twist_reads: Vec<Option<(u64, Goldilocks)>> = vec![None; shared.mem_ids.len()];
-                let mut twist_writes: Vec<Option<(u64, Goldilocks)>> = vec![None; shared.mem_ids.len()];
+                let mut shout_events: Vec<Vec<Option<(u64, Goldilocks)>>> = shared
+                    .layout
+                    .shout_cols
+                    .iter()
+                    .map(|inst| vec![None; inst.lanes.len()])
+                    .collect();
+                let mut used_shout: Vec<usize> = vec![0; shout_events.len()];
+                let mut twist_reads: Vec<Vec<Option<(u64, Goldilocks)>>> = shared
+                    .layout
+                    .twist_cols
+                    .iter()
+                    .map(|inst| vec![None; inst.lanes.len()])
+                    .collect();
+                let mut used_twist_reads: Vec<usize> = vec![0; twist_reads.len()];
+                let mut twist_writes: Vec<Vec<Option<(u64, Goldilocks)>>> = shared
+                    .layout
+                    .twist_cols
+                    .iter()
+                    .map(|inst| vec![None; inst.lanes.len()])
+                    .collect();
+                let mut used_twist_writes: Vec<usize> = vec![0; twist_writes.len()];
 
                 for (j, step) in chunk.iter().enumerate() {
-                    shout_events.fill(None);
-                    twist_reads.fill(None);
-                    twist_writes.fill(None);
+                    used_shout.fill(0);
+                    for lanes in shout_events.iter_mut() {
+                        lanes.fill(None);
+                    }
+                    used_twist_reads.fill(0);
+                    for lanes in twist_reads.iter_mut() {
+                        lanes.fill(None);
+                    }
+                    used_twist_writes.fill(0);
+                    for lanes in twist_writes.iter_mut() {
+                        lanes.fill(None);
+                    }
 
                     // Collect Shout events keyed by (sorted) table_id list.
                     for ev in &step.shout_events {
@@ -485,14 +570,15 @@ where
                             .table_ids
                             .binary_search(&id)
                             .map_err(|_| format!("unexpected shout_id={id} in one step (chunk_start={chunk_start}, j={j})"))?;
-                        if shout_events[idx]
-                            .replace((ev.key, Goldilocks::from_u64(ev.value)))
-                            .is_some()
-                        {
+                        let lanes = shout_events[idx].len();
+                        let lane_idx = used_shout[idx];
+                        if lane_idx >= lanes {
                             return Err(format!(
-                                "multiple shout events for shout_id={id} in one step (chunk_start={chunk_start}, j={j})"
+                                "too many shout events for shout_id={id} in one step (chunk_start={chunk_start}, j={j}): lanes={lanes}"
                             ));
                         }
+                        shout_events[idx][lane_idx] = Some((ev.key, Goldilocks::from_u64(ev.value)));
+                        used_shout[idx] += 1;
                     }
 
                     // Collect Twist events keyed by (sorted) mem_id list.
@@ -504,31 +590,44 @@ where
                             .map_err(|_| format!("unexpected twist_id={id} in one step (chunk_start={chunk_start}, j={j})"))?;
                         match ev.kind {
                             neo_vm_trace::TwistOpKind::Read => {
-                                if twist_reads[idx]
-                                    .replace((ev.addr, Goldilocks::from_u64(ev.value)))
-                                    .is_some()
-                                {
+                                let lanes = twist_reads[idx].len();
+                                let lane_idx = used_twist_reads[idx];
+                                if lane_idx >= lanes {
                                     return Err(format!(
-                                        "multiple twist reads for twist_id={id} in one step (chunk_start={chunk_start}, j={j})"
+                                        "too many twist reads for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lanes={lanes}"
                                     ));
                                 }
+                                twist_reads[idx][lane_idx] = Some((ev.addr, Goldilocks::from_u64(ev.value)));
+                                used_twist_reads[idx] += 1;
                             }
                             neo_vm_trace::TwistOpKind::Write => {
+                                let lanes = twist_writes[idx].len();
+                                let lane_idx = used_twist_writes[idx];
                                 if twist_writes[idx]
-                                    .replace((ev.addr, Goldilocks::from_u64(ev.value)))
-                                    .is_some()
+                                    .iter()
+                                    .take(lane_idx)
+                                    .flatten()
+                                    .any(|(addr, _)| *addr == ev.addr)
                                 {
                                     return Err(format!(
-                                        "multiple twist writes for twist_id={id} in one step (chunk_start={chunk_start}, j={j})"
+                                        "duplicate twist write addr for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): addr={}",
+                                        ev.addr
                                     ));
                                 }
+                                if lane_idx >= lanes {
+                                    return Err(format!(
+                                        "too many twist writes for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lanes={lanes}"
+                                    ));
+                                }
+                                twist_writes[idx][lane_idx] = Some((ev.addr, Goldilocks::from_u64(ev.value)));
+                                used_twist_writes[idx] += 1;
                             }
                         }
                     }
 
-                    // Shout: addr_bits, has_lookup, val.
+                    // Shout lanes: addr_bits, has_lookup, val.
                     for (i, table_id) in shared.table_ids.iter().enumerate() {
-                        let shout_cols = &shared.layout.shout_cols[i];
+                        let inst_cols = &shared.layout.shout_cols[i];
                         let (d, n_side) = self
                             .shout_meta
                             .get(table_id)
@@ -536,25 +635,27 @@ where
                             .ok_or_else(|| format!("missing shout_meta for table_id={table_id}"))?;
                         let ell = n_side.trailing_zeros() as usize;
 
-                        if let Some((key, val)) = shout_events[i] {
-                            write_addr_bits_dim_major_le_into_bus(
-                                &mut z_vec,
-                                &shared.layout,
-                                shout_cols.addr_bits.clone(),
-                                j,
-                                key,
-                                d,
-                                n_side,
-                                ell,
-                            );
-                            z_vec[shared.layout.bus_cell(shout_cols.has_lookup, j)] = Goldilocks::ONE;
-                            z_vec[shared.layout.bus_cell(shout_cols.val, j)] = val;
+                        for (lane_idx, shout_cols) in inst_cols.lanes.iter().enumerate() {
+                            if let Some((key, val)) = shout_events[i][lane_idx] {
+                                write_addr_bits_dim_major_le_into_bus(
+                                    &mut z_vec,
+                                    &shared.layout,
+                                    shout_cols.addr_bits.clone(),
+                                    j,
+                                    key,
+                                    d,
+                                    n_side,
+                                    ell,
+                                );
+                                z_vec[shared.layout.bus_cell(shout_cols.has_lookup, j)] = Goldilocks::ONE;
+                                z_vec[shared.layout.bus_cell(shout_cols.val, j)] = val;
+                            }
                         }
                     }
 
                     // Twist: ra_bits, wa_bits, has_read, has_write, wv, rv, inc_at_write_addr.
                     for (i, mem_id) in shared.mem_ids.iter().enumerate() {
-                        let twist_cols = &shared.layout.twist_cols[i];
+                        let inst_cols = &shared.layout.twist_cols[i];
                         let layout = shared
                             .cfg
                             .mem_layouts
@@ -562,73 +663,80 @@ where
                             .ok_or_else(|| format!("missing mem_layout for mem_id={mem_id}"))?;
                         let ell = layout.n_side.trailing_zeros() as usize;
 
-                        // Read port.
-                        let (has_read, ra, rv) = if let Some((addr, val)) = twist_reads[i] {
-                            (Goldilocks::ONE, addr, val)
-                        } else {
-                            (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
-                        };
-                        if has_read == Goldilocks::ONE {
-                            if ra >= layout.k as u64 {
-                                return Err(format!(
-                                    "shared_cpu_bus: twist read addr out of range: mem_id={mem_id}, addr={ra}, k={}",
-                                    layout.k
-                                ));
+                        let st = mem_state.entry(*mem_id).or_default();
+                        let mut writes_to_apply: Vec<(u64, Goldilocks)> = Vec::new();
+
+                        for (lane_idx, twist_cols) in inst_cols.lanes.iter().enumerate() {
+                            // Read port.
+                            let (has_read, ra, rv) = if let Some((addr, val)) = twist_reads[i][lane_idx] {
+                                (Goldilocks::ONE, addr, val)
+                            } else {
+                                (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
+                            };
+                            if has_read == Goldilocks::ONE {
+                                if ra >= layout.k as u64 {
+                                    return Err(format!(
+                                        "shared_cpu_bus: twist read addr out of range: mem_id={mem_id}, addr={ra}, k={}",
+                                        layout.k
+                                    ));
+                                }
+                                write_addr_bits_dim_major_le_into_bus(
+                                    &mut z_vec,
+                                    &shared.layout,
+                                    twist_cols.ra_bits.clone(),
+                                    j,
+                                    ra,
+                                    layout.d,
+                                    layout.n_side,
+                                    ell,
+                                );
+                                z_vec[shared.layout.bus_cell(twist_cols.rv, j)] = rv;
                             }
-                            write_addr_bits_dim_major_le_into_bus(
-                                &mut z_vec,
-                                &shared.layout,
-                                twist_cols.ra_bits.clone(),
-                                j,
-                                ra,
-                                layout.d,
-                                layout.n_side,
-                                ell,
-                            );
-                            z_vec[shared.layout.bus_cell(twist_cols.rv, j)] = rv;
+
+                            // Write port.
+                            let (has_write, wa, wv) = if let Some((addr, val)) = twist_writes[i][lane_idx] {
+                                (Goldilocks::ONE, addr, val)
+                            } else {
+                                (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
+                            };
+
+                            let mut inc = Goldilocks::ZERO;
+                            if has_write == Goldilocks::ONE {
+                                if wa >= layout.k as u64 {
+                                    return Err(format!(
+                                        "shared_cpu_bus: twist write addr out of range: mem_id={mem_id}, addr={wa}, k={}",
+                                        layout.k
+                                    ));
+                                }
+                                write_addr_bits_dim_major_le_into_bus(
+                                    &mut z_vec,
+                                    &shared.layout,
+                                    twist_cols.wa_bits.clone(),
+                                    j,
+                                    wa,
+                                    layout.d,
+                                    layout.n_side,
+                                    ell,
+                                );
+                                z_vec[shared.layout.bus_cell(twist_cols.wv, j)] = wv;
+
+                                let old = st.get(&wa).copied().unwrap_or(Goldilocks::ZERO);
+                                inc = wv - old;
+                                writes_to_apply.push((wa, wv));
+                            }
+
+                            z_vec[shared.layout.bus_cell(twist_cols.has_read, j)] = has_read;
+                            z_vec[shared.layout.bus_cell(twist_cols.has_write, j)] = has_write;
+                            z_vec[shared.layout.bus_cell(twist_cols.inc, j)] = inc;
                         }
 
-                        // Write port.
-                        let (has_write, wa, wv) = if let Some((addr, val)) = twist_writes[i] {
-                            (Goldilocks::ONE, addr, val)
-                        } else {
-                            (Goldilocks::ZERO, 0u64, Goldilocks::ZERO)
-                        };
-                        if has_write == Goldilocks::ONE {
-                            if wa >= layout.k as u64 {
-                                return Err(format!(
-                                    "shared_cpu_bus: twist write addr out of range: mem_id={mem_id}, addr={wa}, k={}",
-                                    layout.k
-                                ));
-                            }
-                            write_addr_bits_dim_major_le_into_bus(
-                                &mut z_vec,
-                                &shared.layout,
-                                twist_cols.wa_bits.clone(),
-                                j,
-                                wa,
-                                layout.d,
-                                layout.n_side,
-                                ell,
-                            );
-                            z_vec[shared.layout.bus_cell(twist_cols.wv, j)] = wv;
-                        }
-
-                        z_vec[shared.layout.bus_cell(twist_cols.has_read, j)] = has_read;
-                        z_vec[shared.layout.bus_cell(twist_cols.has_write, j)] = has_write;
-
-                        let mut inc = Goldilocks::ZERO;
-                        if has_write == Goldilocks::ONE {
-                            let st = mem_state.entry(*mem_id).or_default();
-                            let old = st.get(&wa).copied().unwrap_or(Goldilocks::ZERO);
-                            inc = wv - old;
+                        for (wa, wv) in writes_to_apply {
                             if wv == Goldilocks::ZERO {
                                 st.remove(&wa);
                             } else {
                                 st.insert(wa, wv);
                             }
                         }
-                        z_vec[shared.layout.bus_cell(twist_cols.inc, j)] = inc;
                     }
                 }
             }

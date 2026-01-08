@@ -244,7 +244,7 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
     // Memory is zero-initialized. The read at addr 0 should return 0.
     // This is consistent with bus_rv=0, but inconsistent with shadow_rv=1.
     // -------------------------------------------------------------------------
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let mem_init = MemInit::Zero;
 
     let mem_trace = PlainMemTrace {
@@ -264,6 +264,7 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
         d: mem_layout.d,
         n_side: mem_layout.n_side,
         steps: mem_trace.steps,
+        lanes: mem_layout.lanes.max(1),
         ell: mem_layout.n_side.trailing_zeros() as usize,
         init: mem_init,
         _phantom: PhantomData,
@@ -439,7 +440,7 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
         },
     );
 
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let mem_trace = PlainMemTrace {
         steps: 1,
         has_read: vec![F::ONE],
@@ -457,6 +458,7 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
         d: mem_layout.d,
         n_side: mem_layout.n_side,
         steps: mem_trace.steps,
+        lanes: mem_layout.lanes.max(1),
         ell: mem_layout.n_side.trailing_zeros() as usize,
         init: mem_init,
         _phantom: PhantomData,
@@ -636,6 +638,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
         d: lut_table.d,
         n_side: lut_table.n_side,
         steps: lut_trace.has_lookup.len(),
+        lanes: 1,
         ell: lut_table.n_side.trailing_zeros() as usize,
         table_spec: None,
         table: lut_table.content.clone(),
@@ -644,7 +647,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
     let lut_wit = LutWitness { mats: Vec::new() };
 
     // Memory instance (inactive)
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let mem_init = MemInit::Zero;
     let mem_trace = PlainMemTrace {
         steps: 1,
@@ -662,6 +665,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
         d: mem_layout.d,
         n_side: mem_layout.n_side,
         steps: mem_trace.steps,
+        lanes: mem_layout.lanes.max(1),
         ell: mem_layout.n_side.trailing_zeros() as usize,
         init: mem_init,
         _phantom: PhantomData,

@@ -100,6 +100,7 @@ fn make_twist_instance(
             d: layout.d,
             n_side: layout.n_side,
             steps,
+            lanes: layout.lanes.max(1),
             ell,
             init,
             _phantom: PhantomData,
@@ -223,7 +224,7 @@ fn memory_cross_step_read_consistency() {
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
 
-    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
+    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 , lanes: 1};
 
     // 3-step trace testing cross-step consistency
     let mut steps: Vec<StepWitnessBundle<Cmt, F, K>> = Vec::new();
@@ -342,7 +343,7 @@ fn memory_read_uninitialized_returns_zero() {
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
 
-    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
+    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 , lanes: 1};
 
     // Read from addr[2] which was never written (should be 0)
     let mem_trace = PlainMemTrace {
@@ -405,7 +406,7 @@ fn memory_tamper_read_value_fails() {
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
 
-    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
+    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 , lanes: 1};
 
     // Memory state: addr[0] = 42
     let mem_init = MemInit::Sparse(vec![(0, F::from_u64(42))]);
@@ -472,7 +473,7 @@ fn memory_tamper_write_increment_fails() {
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
 
-    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
+    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 , lanes: 1};
 
     // Memory state: addr[0] = 42
     let mem_init = MemInit::Sparse(vec![(0, F::from_u64(42))]);
@@ -539,7 +540,7 @@ fn memory_multiple_regions_same_step() {
     let mixers = default_mixers();
 
     // Region 0: RAM (read-write)
-    let ram_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
+    let ram_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 , lanes: 1};
     let ram_trace = PlainMemTrace {
         steps: 1,
         has_read: vec![F::ZERO],
@@ -553,7 +554,7 @@ fn memory_multiple_regions_same_step() {
     let ram_init = MemInit::Zero;
 
     // Region 1: Register file (read-write, smaller)
-    let reg_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let reg_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let reg_trace = PlainMemTrace {
         steps: 1,
         has_read: vec![F::ONE],
@@ -620,7 +621,7 @@ fn memory_sparse_initialization() {
     let l = setup_ajtai_pp(ccs.m, 0x2001);
     let mixers = default_mixers();
 
-    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
+    let mem_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 , lanes: 1};
 
     // Sparse init: addr[0]=100, addr[2]=200, others=0
     let mem_init = MemInit::Sparse(vec![(0, F::from_u64(100)), (2, F::from_u64(200))]);

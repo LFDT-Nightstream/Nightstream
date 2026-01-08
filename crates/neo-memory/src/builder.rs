@@ -1,8 +1,9 @@
 use crate::mem_init::mem_init_from_state_map;
-use crate::plain::{build_plain_mem_traces, LutTable, PlainMemLayout};
+use crate::plain::{LutTable, PlainMemLayout};
 use crate::witness::{LutInstance, LutTableSpec, LutWitness, MemInstance, MemWitness, StepWitnessBundle};
 use neo_vm_trace::VmTrace;
 use neo_vm_trace::StepTrace;
+use neo_vm_trace::TwistOpKind;
 
 use neo_ccs::relations::{McsInstance, McsWitness};
 use p3_field::PrimeCharacteristicRing;
@@ -78,6 +79,7 @@ pub fn build_shard_witness_shared_cpu_bus<V, Cmt, K, A, Tw, Sh>(
     mem_layouts: &HashMap<u32, PlainMemLayout>,
     lut_tables: &HashMap<u32, LutTable<Goldilocks>>,
     lut_table_specs: &HashMap<u32, LutTableSpec>,
+    lut_lanes: &HashMap<u32, usize>,
     initial_mem: &HashMap<(u32, u64), Goldilocks>,
     cpu_arith: &A,
 ) -> Result<Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardBuildError>
@@ -96,6 +98,7 @@ where
         mem_layouts,
         lut_tables,
         lut_table_specs,
+        lut_lanes,
         initial_mem,
         cpu_arith,
     )?;
@@ -113,6 +116,7 @@ pub fn build_shard_witness_shared_cpu_bus_with_aux<V, Cmt, K, A, Tw, Sh>(
     mem_layouts: &HashMap<u32, PlainMemLayout>,
     lut_tables: &HashMap<u32, LutTable<Goldilocks>>,
     lut_table_specs: &HashMap<u32, LutTableSpec>,
+    lut_lanes: &HashMap<u32, usize>,
     initial_mem: &HashMap<(u32, u64), Goldilocks>,
     cpu_arith: &A,
 ) -> Result<(Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardWitnessAux), ShardBuildError>
@@ -219,9 +223,6 @@ where
     let steps_len = trace.steps.len();
     let chunks_len = steps_len.div_ceil(chunk_size);
 
-    // 2) Build plain traces over [0..T).
-    let plain_mem = build_plain_mem_traces::<Goldilocks>(&trace, mem_layouts, initial_mem);
-
     // Deterministic ordering (required for the shared-bus column schema).
     let mut mem_ids: Vec<u32> = mem_layouts.keys().copied().collect();
     mem_ids.sort_unstable();
@@ -307,6 +308,7 @@ where
                 d: layout.d,
                 n_side: layout.n_side,
                 steps: chunk_size,
+                lanes: layout.lanes.max(1),
                 ell,
                 init,
                 _phantom: PhantomData,
@@ -315,25 +317,28 @@ where
             mem_instances.push((inst, wit));
 
             // Advance state across this chunk for the next chunk's init.
-            let plain = plain_mem.get(&mem_id).ok_or_else(|| {
-                ShardBuildError::MissingLayout(format!("missing PlainMemTrace for twist_id {}", mem_id))
-            })?;
             for t in chunk_start..chunk_end {
-                if plain.has_write[t] != Goldilocks::ONE {
-                    continue;
-                }
-                let addr = plain.write_addr[t];
-                let Ok(addr_usize) = usize::try_from(addr) else {
-                    continue;
-                };
-                if addr_usize >= layout.k {
-                    continue;
-                }
-                let new_val = plain.write_val[t];
-                if new_val == Goldilocks::ZERO {
-                    state.remove(&addr);
-                } else {
-                    state.insert(addr, new_val);
+                let step = trace
+                    .steps
+                    .get(t)
+                    .ok_or_else(|| ShardBuildError::VmError(format!("missing trace step t={t}")))?;
+                for ev in &step.twist_events {
+                    if ev.twist_id.0 != mem_id || ev.kind != TwistOpKind::Write {
+                        continue;
+                    }
+                    let addr = ev.addr;
+                    let Ok(addr_usize) = usize::try_from(addr) else {
+                        continue;
+                    };
+                    if addr_usize >= layout.k {
+                        continue;
+                    }
+                    let new_val = Goldilocks::from_u64(ev.value);
+                    if new_val == Goldilocks::ZERO {
+                        state.remove(&addr);
+                    } else {
+                        state.insert(addr, new_val);
+                    }
                 }
             }
         }
@@ -368,12 +373,14 @@ where
                 (table.k, table.d, table.n_side, ell, table.content.clone())
             };
 
+            let lanes = lut_lanes.get(&table_id).copied().unwrap_or(1).max(1);
             let inst = LutInstance::<Cmt, Goldilocks> {
                 comms: Vec::new(),
                 k,
                 d,
                 n_side,
                 steps: chunk_size,
+                lanes,
                 ell,
                 table_spec,
                 table,

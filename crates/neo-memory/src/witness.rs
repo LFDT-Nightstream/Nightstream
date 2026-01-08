@@ -7,6 +7,10 @@ use std::ops::Range;
 use crate::mem_init::MemInit;
 use crate::riscv::lookups::RiscvOpcode;
 
+fn default_one_usize() -> usize {
+    1
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum LutTableSpec {
     /// A "virtual" lookup table defined by the RISC-V opcode semantics over
@@ -26,6 +30,12 @@ pub struct MemInstance<C, F> {
     pub d: usize,
     pub n_side: usize,
     pub steps: usize,
+    /// Number of access lanes per VM step for this Twist instance.
+    ///
+    /// Each lane carries the canonical Twist bus slice:
+    /// `[ra_bits, wa_bits, has_read, has_write, wv, rv, inc]`.
+    #[serde(default = "default_one_usize")]
+    pub lanes: usize,
     /// Bits per address dimension: ell = ceil(log2(n_side))
     /// With index-bit addressing, we commit d*ell bit-columns instead of d*n_side one-hot columns.
     pub ell: usize,
@@ -41,7 +51,7 @@ pub struct MemWitness<F> {
 }
 
 #[derive(Clone, Debug)]
-pub struct TwistWitnessLayout {
+pub struct TwistWitnessLaneLayout {
     pub ell_addr: usize,
     pub ra_bits: Range<usize>,
     pub wa_bits: Range<usize>,
@@ -52,29 +62,41 @@ pub struct TwistWitnessLayout {
     pub inc_at_write_addr: usize,
 }
 
+#[derive(Clone, Debug)]
+pub struct TwistWitnessLayout {
+    pub lane_len: usize,
+    pub lanes: Vec<TwistWitnessLaneLayout>,
+}
+
 impl TwistWitnessLayout {
     pub fn expected_len(&self) -> usize {
-        2 * self.ell_addr + 5
-    }
-
-    pub fn val_lane_len(&self) -> usize {
-        self.ell_addr + 2
+        self.lane_len
+            .checked_mul(self.lanes.len())
+            .expect("TwistWitnessLayout: lane_len*lanes overflow")
     }
 }
 
 impl<C, F> MemInstance<C, F> {
     pub fn twist_layout(&self) -> TwistWitnessLayout {
         let ell_addr = self.d * self.ell;
-        TwistWitnessLayout {
-            ell_addr,
-            ra_bits: 0..ell_addr,
-            wa_bits: ell_addr..(2 * ell_addr),
-            has_read: 2 * ell_addr,
-            has_write: 2 * ell_addr + 1,
-            wv: 2 * ell_addr + 2,
-            rv: 2 * ell_addr + 3,
-            inc_at_write_addr: 2 * ell_addr + 4,
+        let lane_len = 2 * ell_addr + 5;
+        let lanes = self.lanes.max(1);
+
+        let mut out = Vec::with_capacity(lanes);
+        for lane in 0..lanes {
+            let base = lane * lane_len;
+            out.push(TwistWitnessLaneLayout {
+                ell_addr,
+                ra_bits: base..(base + ell_addr),
+                wa_bits: (base + ell_addr)..(base + 2 * ell_addr),
+                has_read: base + 2 * ell_addr,
+                has_write: base + 2 * ell_addr + 1,
+                wv: base + 2 * ell_addr + 2,
+                rv: base + 2 * ell_addr + 3,
+                inc_at_write_addr: base + 2 * ell_addr + 4,
+            });
         }
+        TwistWitnessLayout { lane_len, lanes: out }
     }
 }
 
@@ -85,6 +107,12 @@ pub struct LutInstance<C, F> {
     pub d: usize,
     pub n_side: usize,
     pub steps: usize,
+    /// Number of lookup lanes per VM step for this Shout instance.
+    ///
+    /// Each lane carries the canonical Shout bus slice:
+    /// `[addr_bits, has_lookup, val]`.
+    #[serde(default = "default_one_usize")]
+    pub lanes: usize,
     /// Bits per address dimension: ell = ceil(log2(n_side))
     pub ell: usize,
     /// Optional virtual table descriptor (when the full table is not materialized).

@@ -203,7 +203,7 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
     let m_in = 0usize;
 
     // Geometry: k=2, d=1, n_side=2 (minimal).
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let mem_init = MemInit::Zero;
 
     let write0 = F::from_u64(seed.wrapping_add(10));
@@ -241,6 +241,7 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
         d: mem_layout.d,
         n_side: mem_layout.n_side,
         steps: mem_trace.steps,
+        lanes: mem_layout.lanes.max(1),
         ell: mem_ell,
         init: mem_init,
         _phantom: PhantomData,
@@ -253,6 +254,7 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
         d: lut_table.d,
         n_side: lut_table.n_side,
         steps: lut_trace.has_lookup.len(),
+        lanes: 1,
         ell: lut_ell,
         table_spec: None,
         table: lut_table.content.clone(),

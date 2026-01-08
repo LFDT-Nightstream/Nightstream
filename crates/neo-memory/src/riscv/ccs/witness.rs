@@ -495,18 +495,12 @@ pub fn rv32_b1_chunk_to_witness_checked(layout: &Rv32B1Layout, chunk: &[StepTrac
         z[layout.br_taken(j)] = F::ZERO;
         z[layout.br_not_taken(j)] = F::ZERO;
 
-        // Shout event (at most one per step in this circuit).
-        let mut shout_event: Option<(u32, u64, u64)> = None;
+        // Shout events (this circuit exposes only one Shout port).
+        let mut shout_events: Vec<(u32, u64, u64)> = Vec::new();
         for ev in &step.shout_events {
             let id = ev.shout_id.0;
             if layout.shout_idx(id).is_ok() {
-                if shout_event.is_some() {
-                    return Err(format!(
-                        "RV32 B1: multiple shout events in one step (pc={:#x}, chunk j={j})",
-                        step.pc_before
-                    ));
-                }
-                shout_event = Some((id, ev.key, ev.value));
+                shout_events.push((id, ev.key, ev.value));
             } else {
                 return Err(format!(
                     "RV32 B1: unsupported shout table id={id} at pc={:#x} (chunk j={j})",
@@ -514,7 +508,14 @@ pub fn rv32_b1_chunk_to_witness_checked(layout: &Rv32B1Layout, chunk: &[StepTrac
                 ));
             }
         }
-        if let Some((_id, key, value)) = shout_event {
+        if shout_events.len() > 1 {
+            let ids: Vec<u32> = shout_events.iter().map(|(id, _, _)| *id).collect();
+            return Err(format!(
+                "RV32 B1: multiple shout events in one step (pc={:#x}, chunk j={j}): shout_ids={ids:?}; this circuit has 1 Shout port (no lanes) so you must either provision multiple Shout lanes in the shared CPU bus or split into micro-steps",
+                step.pc_before
+            ));
+        }
+        if let Some((_id, key, value)) = shout_events.pop() {
             z[layout.lookup_key(j)] = F::from_u64(key);
             z[layout.alu_out(j)] = F::from_u64(value);
             if z[layout.add_has_lookup(j)] == F::ONE {

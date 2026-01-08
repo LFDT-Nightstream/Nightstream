@@ -148,14 +148,11 @@ impl<Word: fmt::Debug> fmt::Display for ShoutEvent<Word> {
 /// - All Shout (lookup) operations
 /// - Whether the CPU halted
 ///
-/// # Invariants
+/// # Notes
 ///
-/// Downstream code (neo-memory) assumes:
-/// - At most one read per (twist_id, step)
-/// - At most one write per (twist_id, step)
-/// - At most one lookup per (shout_id, step)
-///
-/// If your VM violates these, you need micro-steps or an extended trace format.
+/// The trace format allows multiple Twist/Shout events in a single step. Downstream
+/// circuits may require you to provision enough access "lanes" (ports) and will
+/// reject steps that exceed that capacity.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StepTrace<Addr, Word> {
     /// The cycle number (0-indexed).

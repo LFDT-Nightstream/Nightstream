@@ -66,19 +66,23 @@ pub(crate) fn inc_terminal_from_time_openings(
     open: &crate::memory_sidecar::memory::TwistTimeLaneOpenings,
     r_prime: &[K],
 ) -> Result<K, OutputCheckError> {
-    if open.wa_bits.len() != r_prime.len() {
-        return Err(OutputCheckError::DimensionMismatch {
-            expected: r_prime.len(),
-            got: open.wa_bits.len(),
-        });
-    }
+    let mut total = K::ZERO;
+    for lane in open.lanes.iter() {
+        if lane.wa_bits.len() != r_prime.len() {
+            return Err(OutputCheckError::DimensionMismatch {
+                expected: r_prime.len(),
+                got: lane.wa_bits.len(),
+            });
+        }
 
-    let mut eq = K::ONE;
-    for (bit, &u) in open.wa_bits.iter().zip(r_prime.iter()) {
-        eq *= eq_bit_affine(*bit, u);
-    }
+        let mut eq = K::ONE;
+        for (bit, &u) in lane.wa_bits.iter().zip(r_prime.iter()) {
+            eq *= eq_bit_affine(*bit, u);
+        }
 
-    Ok(open.has_write * open.inc_at_write_addr * eq)
+        total += lane.has_write * lane.inc_at_write_addr * eq;
+    }
+    Ok(total)
 }
 
 /// Check if a shard proof has output binding attached.

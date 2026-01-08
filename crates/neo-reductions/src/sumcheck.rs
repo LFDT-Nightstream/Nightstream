@@ -42,6 +42,16 @@ pub enum SumcheckError {
         expected: K,
         actual: K,
     },
+    #[error(
+        "round {round} invariant failed for claim {claim_idx} ({label:?}): expected p(0)+p(1)={expected:?}, got {actual:?}"
+    )]
+    BatchedInvariant {
+        round: usize,
+        claim_idx: usize,
+        label: &'static [u8],
+        expected: K,
+        actual: K,
+    },
 }
 
 /// Evaluate a polynomial (given as coefficients) at a point
@@ -401,8 +411,10 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
             // Check invariant: p(0) + p(1) = running_sum
             let sum_at_01 = ys[0] + ys[1];
             if sum_at_01 != running_sums[claim_idx] {
-                return Err(SumcheckError::Invariant {
+                return Err(SumcheckError::BatchedInvariant {
                     round: round_idx,
+                    claim_idx,
+                    label: claim.label,
                     expected: running_sums[claim_idx],
                     actual: sum_at_01,
                 });

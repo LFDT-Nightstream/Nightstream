@@ -237,15 +237,23 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
                 .steps_public
                 .first()
                 .ok_or_else(|| SpartanBridgeError::InvalidInput("dummy_witness_for_shape: steps_public empty".into()))?;
-            let shout_ell_addrs: Vec<usize> = step0.lut_insts.iter().map(|inst| inst.d * inst.ell).collect();
-            let twist_ell_addrs: Vec<usize> = step0.mem_insts.iter().map(|inst| inst.d * inst.ell).collect();
+            let shout_ell_addrs_and_lanes: Vec<(usize, usize)> = step0
+                .lut_insts
+                .iter()
+                .map(|inst| (inst.d * inst.ell, inst.lanes.max(1)))
+                .collect();
+            let twist_ell_addrs_and_lanes: Vec<(usize, usize)> = step0
+                .mem_insts
+                .iter()
+                .map(|inst| (inst.d * inst.ell, inst.lanes.max(1)))
+                .collect();
 
-            let bus = neo_memory::cpu::build_bus_layout_for_instances(
+            let bus = neo_memory::cpu::build_bus_layout_for_instances_with_shout_and_twist_lanes(
                 ccs.m,
                 m_in,
                 /*chunk_size=*/ 1,
-                shout_ell_addrs.into_iter(),
-                twist_ell_addrs.into_iter(),
+                shout_ell_addrs_and_lanes.into_iter(),
+                twist_ell_addrs_and_lanes.into_iter(),
             )
             .map_err(|e| SpartanBridgeError::InvalidInput(format!("dummy_witness_for_shape: bus layout failed: {e}")))?;
             bus.bus_cols
@@ -322,7 +330,7 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
                         "dummy_witness_for_shape: output binding mem_idx out of range".into(),
                     )
                 })?;
-                let ell_addr = mem_inst.twist_layout().ell_addr;
+                let ell_addr = mem_inst.d * mem_inst.ell;
                 Some(2 + ell_addr)
             } else {
                 None
@@ -345,18 +353,23 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
         }
 
         // Memory sidecar proof shape.
-        let shout_addr_pre = if n_lut == 0 {
+        let total_shout_lanes: usize = step_public
+            .lut_insts
+            .iter()
+            .map(|inst| inst.lanes.max(1))
+            .sum();
+        let shout_addr_pre = if total_shout_lanes == 0 {
             Default::default()
         } else {
-            // Fixed-count profile: one addr-pre sumcheck per LUT instance.
+            // Fixed-count profile: one addr-pre sumcheck per Shout lane.
             let ell_addr = step_public
                 .lut_insts
                 .first()
                 .map(|inst| inst.d * inst.ell)
                 .unwrap_or(0);
             neo_fold::shard::ShoutAddrPreProof {
-                claimed_sums: vec![NeoK::ZERO; n_lut],
-                round_polys: vec![vec![vec![NeoK::ZERO; 3]; ell_addr]; n_lut],
+                claimed_sums: vec![NeoK::ZERO; total_shout_lanes],
+                round_polys: vec![vec![vec![NeoK::ZERO; 3]; ell_addr]; total_shout_lanes],
                 r_addr: vec![NeoK::ZERO; ell_addr],
             }
         };
@@ -531,11 +544,13 @@ pub fn setup_fold_run_shape(
 
     let params_digest = compute_params_digest(params);
     let ccs_digest = compute_ccs_digest(ccs);
+    let pp_id_digest = compute_pp_id_digest_v1(params, ccs)?;
     let steps_digest = compute_steps_digest_v3(dummy.steps_public.as_slice())?;
     let acc_init_digest = compute_accumulator_digest_v2(params.b, dummy.initial_accumulator.as_slice());
     let obligations = dummy.fold_run.compute_final_obligations(dummy.initial_accumulator.as_slice());
     let acc_final_main_digest = compute_accumulator_digest_v2(params.b, obligations.main.as_slice());
     let acc_final_val_digest = compute_accumulator_digest_v2(params.b, obligations.val.as_slice());
+    let obligations_digest = compute_obligations_digest_v1(acc_final_main_digest, acc_final_val_digest, pp_id_digest);
 
     let mem_enabled = dummy
         .steps_public
@@ -553,6 +568,7 @@ pub fn setup_fold_run_shape(
     let statement = SpartanShardStatement::new(
         params_digest,
         ccs_digest,
+        pp_id_digest,
         vm_digest,
         steps_digest, // steps_digest (Phase 1)
         program_io_digest,
@@ -560,6 +576,7 @@ pub fn setup_fold_run_shape(
         acc_init_digest,
         acc_final_main_digest,
         acc_final_val_digest,
+        obligations_digest,
         shape.step_count,
         mem_enabled,
         output_binding_enabled,
@@ -622,6 +639,13 @@ pub fn setup_fold_run_shape(
         poly_f,
         shape.step_linking.clone(),
     );
+
+    // Shape extraction during `SpartanSnark::setup` maps bridge-level errors to an opaque
+    // `SynthesisError::Unsatisfiable`. Run a cheap pre-check to surface actionable diagnostics.
+    {
+        let mut cs = ShapeCS::<SpartanEngine>::new();
+        circuit.synthesize(&mut cs)?;
+    }
 
     let (pk, vk) = SpartanSnark::setup(circuit)
         .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 setup failed: {e}")))
@@ -1084,9 +1108,12 @@ pub fn prove_fold_run(
         [0u8; 32]
     };
     let step_linking_digest = compute_step_linking_digest_v1(witness.step_linking.as_slice())?;
+    let pp_id_digest = compute_pp_id_digest_v1(params, ccs)?;
+    let obligations_digest = compute_obligations_digest_v1(acc_final_main_digest, acc_final_val_digest, pp_id_digest);
     let statement = SpartanShardStatement::new(
         params_digest,
         ccs_digest,
+        pp_id_digest,
         witness.vm_digest,
         steps_digest, // steps_digest (Phase 1)
         program_io_digest,
@@ -1094,6 +1121,7 @@ pub fn prove_fold_run(
         acc_init_digest,
         acc_final_main_digest,
         acc_final_val_digest,
+        obligations_digest,
         step_count,
         mem_enabled,
         output_binding_enabled,
@@ -1210,6 +1238,7 @@ pub fn verify_fold_run(
     // 1. Verify digests match
     let params_digest = compute_params_digest(params);
     let ccs_digest = compute_ccs_digest(ccs);
+    let pp_id_digest = compute_pp_id_digest_v1(params, ccs)?;
     let steps_digest = compute_steps_digest_v3(steps_public)?;
     let step_linking_digest = compute_step_linking_digest_v1(step_linking)?;
 
@@ -1248,6 +1277,16 @@ pub fn verify_fold_run(
 
     if proof.statement.ccs_digest != ccs_digest {
         return Err(SpartanBridgeError::VerificationError("CCS digest mismatch".into()));
+    }
+    if proof.statement.pp_id_digest != pp_id_digest {
+        return Err(SpartanBridgeError::VerificationError("pp_id_digest mismatch".into()));
+    }
+    let expected_obligations_digest =
+        compute_obligations_digest_v1(proof.statement.acc_final_main_digest, proof.statement.acc_final_val_digest, pp_id_digest);
+    if proof.statement.obligations_digest != expected_obligations_digest {
+        return Err(SpartanBridgeError::VerificationError(
+            "obligations_digest mismatch".into(),
+        ));
     }
     if &proof.statement.vm_digest != expected_vm_digest {
         return Err(SpartanBridgeError::VerificationError(
@@ -1375,6 +1414,70 @@ fn compute_ccs_digest(ccs: &CcsStructure<NeoF>) -> [u8; 32] {
     let mut digest = [0u8; 32];
     digest.copy_from_slice(hash.as_bytes());
     digest
+}
+
+fn compute_pp_id_digest_v1(params: &NeoParams, ccs: &CcsStructure<NeoF>) -> Result<[u8; 32]> {
+    use blake3::Hasher;
+
+    let d = usize::try_from(params.d).map_err(|_| {
+        SpartanBridgeError::InvalidInput(format!(
+            "params.d does not fit usize: {}",
+            params.d
+        ))
+    })?;
+    if d != neo_math::D {
+        return Err(SpartanBridgeError::InvalidInput(format!(
+            "Ajtai d mismatch: params.d={d}, neo_math::D={}",
+            neo_math::D
+        )));
+    }
+
+    // Ajtai commitments are to `Z ∈ F^{d×m}` where `m` matches the (padded) CCS width.
+    let m_commit = ccs.m;
+
+    let (kappa, seed) = neo_ajtai::get_global_pp_seeded_params_for_dims(d, m_commit).map_err(|e| {
+        SpartanBridgeError::InvalidInput(format!(
+            "seeded Ajtai PP required for pp_id_digest_v1: {e:?} (call neo_ajtai::set_global_pp_seeded(d,kappa,m,seed) for (d,m)=({d},{m_commit}))",
+        ))
+    })?;
+    let kappa_expected = usize::try_from(params.kappa).map_err(|_| {
+        SpartanBridgeError::InvalidInput(format!(
+            "params.kappa does not fit usize: {}",
+            params.kappa
+        ))
+    })?;
+    if kappa != kappa_expected {
+        return Err(SpartanBridgeError::InvalidInput(format!(
+            "Ajtai κ mismatch: seeded registry has κ={kappa}, but params.kappa={kappa_expected}"
+        )));
+    }
+
+    let mut h = Hasher::new();
+    h.update(b"neo/spartan-bridge/pp_id/v1");
+    h.update(&(d as u64).to_le_bytes());
+    h.update(&(m_commit as u64).to_le_bytes());
+    h.update(&(kappa as u64).to_le_bytes());
+    h.update(&seed);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(h.finalize().as_bytes());
+    Ok(out)
+}
+
+fn compute_obligations_digest_v1(
+    acc_final_main_digest: [u8; 32],
+    acc_final_val_digest: [u8; 32],
+    pp_id_digest: [u8; 32],
+) -> [u8; 32] {
+    use blake3::Hasher;
+
+    let mut h = Hasher::new();
+    h.update(b"neo/spartan-bridge/obligations_digest/v1");
+    h.update(&acc_final_main_digest);
+    h.update(&acc_final_val_digest);
+    h.update(&pp_id_digest);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(h.finalize().as_bytes());
+    out
 }
 
 fn compute_steps_digest_v3(steps_public: &[StepInstanceBundle<Cmt, NeoF, NeoK>]) -> Result<[u8; 32]> {

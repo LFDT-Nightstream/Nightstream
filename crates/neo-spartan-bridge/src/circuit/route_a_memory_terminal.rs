@@ -27,9 +27,11 @@ use neo_memory::witness::{LutTableSpec, StepInstanceBundle};
 
 #[derive(Clone, Debug)]
 pub(crate) struct ShoutAddrPreCircuitData<'a> {
-    pub claimed_sums_vars: &'a [KNumVar], // per LUT
+    /// Addr-pre claimed sums per Shout lane (flattened in `(lut_idx, lane_idx)` order).
+    pub claimed_sums_vars: &'a [KNumVar],
     pub claimed_sums_vals: &'a [NeoK],
-    pub finals_vars: &'a [KNumVar], // per LUT
+    /// Addr-pre terminal values per Shout lane (same flattening as `claimed_sums_vars`).
+    pub finals_vars: &'a [KNumVar],
     pub r_addr_vars: &'a [KNumVar], // shared
     pub r_addr_vals: &'a [NeoK],
 }
@@ -52,6 +54,11 @@ pub(crate) struct TwistValEvalCircuitData<'a> {
 
 #[derive(Clone, Debug)]
 pub(crate) struct TwistTimeLaneOpeningsVars {
+    pub lanes: Vec<TwistTimeLaneOpeningsLaneVars>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TwistTimeLaneOpeningsLaneVars {
     pub wa_bits: Vec<KNumVar>,
     pub wa_bits_vals: Vec<NeoK>,
     pub has_write: KNumVar,
@@ -1106,14 +1113,20 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
     let ctx = format!("step_{step_idx}_route_a_mem_term");
 
     // Shared CPU bus layout (ordering only; chunk_size does not affect y_scalar_index).
-    let shout_ell_addrs = step_public.lut_insts.iter().map(|inst| inst.d * inst.ell);
-    let twist_ell_addrs = step_public.mem_insts.iter().map(|inst| inst.d * inst.ell);
-    let cpu_bus = neo_memory::cpu::build_bus_layout_for_instances(
+    let shout_ell_addrs_and_lanes = step_public
+        .lut_insts
+        .iter()
+        .map(|inst| (inst.d * inst.ell, inst.lanes.max(1)));
+    let twist_ell_addrs_and_lanes = step_public
+        .mem_insts
+        .iter()
+        .map(|inst| (inst.d * inst.ell, inst.lanes.max(1)));
+    let cpu_bus = neo_memory::cpu::build_bus_layout_for_instances_with_shout_and_twist_lanes(
         ccs_m,
         step_public.mcs_inst.m_in,
         /*chunk_size=*/ 1,
-        shout_ell_addrs,
-        twist_ell_addrs,
+        shout_ell_addrs_and_lanes,
+        twist_ell_addrs_and_lanes,
     )
     .map_err(|e| SpartanBridgeError::InvalidInput(format!("{ctx}: shared_cpu_bus layout failed: {e}")))?;
 
@@ -1195,30 +1208,47 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                 "{ctx}: missing shout_pre circuit data"
             )));
         };
-        if shout_pre.claimed_sums_vars.len() != step_public.lut_insts.len()
-            || shout_pre.finals_vars.len() != step_public.lut_insts.len()
-            || shout_pre.claimed_sums_vals.len() != shout_pre.claimed_sums_vars.len()
+        let total_shout_lanes: usize = step_public
+            .lut_insts
+            .iter()
+            .map(|inst| inst.lanes.max(1))
+            .sum();
+        if shout_pre.claimed_sums_vars.len() != total_shout_lanes
+            || shout_pre.finals_vars.len() != total_shout_lanes
+            || shout_pre.claimed_sums_vals.len() != total_shout_lanes
         {
             return Err(SpartanBridgeError::InvalidInput(format!(
-                "{ctx}: shout_pre length mismatch"
+                "{ctx}: shout_pre length mismatch (expected total_shout_lanes={total_shout_lanes})"
             )));
         }
 
+        #[derive(Clone)]
+        struct ShoutLaneOpen {
+            addr_bits: Vec<KNumVar>,
+            addr_bits_val: Vec<NeoK>,
+            has_lookup: KNumVar,
+            has_lookup_val: NeoK,
+            val: KNumVar,
+            val_val: NeoK,
+        }
+
+        let mut shout_lane_base = 0usize;
         for (lut_idx, inst) in step_public.lut_insts.iter().enumerate() {
             if !inst.comms.is_empty() {
                 return Err(SpartanBridgeError::InvalidInput(format!(
                     "{ctx}: shared bus requires metadata-only Shout instances (lut_idx={lut_idx})"
                 )));
             }
-            let layout = inst.shout_layout();
-            let ell_addr = layout.ell_addr;
+            let ell_addr = inst.d * inst.ell;
+            let expected_lanes = inst.lanes.max(1);
 
             let shout_cols = cpu_bus.shout_cols.get(lut_idx).ok_or_else(|| {
                 SpartanBridgeError::InvalidInput(format!("{ctx}: missing shout_cols[{lut_idx}]"))
             })?;
-            if shout_cols.addr_bits.end - shout_cols.addr_bits.start != ell_addr {
+            if shout_cols.lanes.len() != expected_lanes {
                 return Err(SpartanBridgeError::InvalidInput(format!(
-                    "{ctx}: shout bus layout mismatch at lut_idx={lut_idx}"
+                    "{ctx}: shout bus lane mismatch at lut_idx={lut_idx} (expected lanes={expected_lanes}, got {})",
+                    shout_cols.lanes.len()
                 )));
             }
             if shout_pre.r_addr_vars.len() != ell_addr || shout_pre.r_addr_vals.len() != ell_addr {
@@ -1227,54 +1257,84 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                 )));
             }
 
-            // Open addr_bits, has_lookup, val from CPU ME time lane.
-            let mut addr_bits_open = Vec::with_capacity(ell_addr);
-            let mut addr_bits_open_val = Vec::with_capacity(ell_addr);
-            for (j, col_id) in shout_cols.addr_bits.clone().enumerate() {
-                let y_idx = bus_y_base_time + col_id;
-                let (open_var, open_val) = y_scalar_from_y_row(
-                    cs,
-                    base_b,
-                    &ccs_out0_vars.y[y_idx],
-                    &ccs_out0_vals.y[y_idx],
-                    &format!("{ctx}_shout_{lut_idx}_addr_bit_{j}"),
-                )?;
-                addr_bits_open.push(open_var);
-                addr_bits_open_val.push(open_val);
-            }
-            let (has_lookup_open, has_lookup_open_val) = {
-                let y_idx = bus_y_base_time + shout_cols.has_lookup;
-                y_scalar_from_y_row(
-                    cs,
-                    base_b,
-                    &ccs_out0_vars.y[y_idx],
-                    &ccs_out0_vals.y[y_idx],
-                    &format!("{ctx}_shout_{lut_idx}_has_lookup"),
-                )?
-            };
-            let (val_open, val_open_val) = {
-                let y_idx = bus_y_base_time + shout_cols.val;
-                y_scalar_from_y_row(
-                    cs,
-                    base_b,
-                    &ccs_out0_vars.y[y_idx],
-                    &ccs_out0_vals.y[y_idx],
-                    &format!("{ctx}_shout_{lut_idx}_val"),
-                )?
-            };
-
             let shout_claims = claim_plan.shout.get(lut_idx).ok_or_else(|| {
                 SpartanBridgeError::InvalidInput(format!("{ctx}: missing shout claim schedule at lut_idx={lut_idx}"))
             })?;
+            if shout_claims.lanes.len() != expected_lanes {
+                return Err(SpartanBridgeError::InvalidInput(format!(
+                    "{ctx}: shout claim schedule lane mismatch at lut_idx={lut_idx} (expected lanes={expected_lanes}, got {})",
+                    shout_claims.lanes.len()
+                )));
+            }
+            if shout_claims.ell_addr != ell_addr {
+                return Err(SpartanBridgeError::InvalidInput(format!(
+                    "{ctx}: shout claim schedule ell_addr mismatch at lut_idx={lut_idx} (expected ell_addr={ell_addr}, got {})",
+                    shout_claims.ell_addr
+                )));
+            }
+
+            // Open addr_bits, has_lookup, val from CPU ME time lane for each lane.
+            let mut lane_opens: Vec<ShoutLaneOpen> = Vec::with_capacity(expected_lanes);
+            for (lane_idx, lane_cols) in shout_cols.lanes.iter().enumerate() {
+                if lane_cols.addr_bits.end - lane_cols.addr_bits.start != ell_addr {
+                    return Err(SpartanBridgeError::InvalidInput(format!(
+                        "{ctx}: shout bus layout mismatch at lut_idx={lut_idx}, lane={lane_idx}"
+                    )));
+                }
+                let mut addr_bits_open = Vec::with_capacity(ell_addr);
+                let mut addr_bits_open_val = Vec::with_capacity(ell_addr);
+                for (j, col_id) in lane_cols.addr_bits.clone().enumerate() {
+                    let y_idx = bus_y_base_time + col_id;
+                    let (open_var, open_val) = y_scalar_from_y_row(
+                        cs,
+                        base_b,
+                        &ccs_out0_vars.y[y_idx],
+                        &ccs_out0_vals.y[y_idx],
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_addr_bit_{j}"),
+                    )?;
+                    addr_bits_open.push(open_var);
+                    addr_bits_open_val.push(open_val);
+                }
+                let (has_lookup_open, has_lookup_open_val) = {
+                    let y_idx = bus_y_base_time + lane_cols.has_lookup;
+                    y_scalar_from_y_row(
+                        cs,
+                        base_b,
+                        &ccs_out0_vars.y[y_idx],
+                        &ccs_out0_vals.y[y_idx],
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_has_lookup"),
+                    )?
+                };
+                let (val_open, val_open_val) = {
+                    let y_idx = bus_y_base_time + lane_cols.val;
+                    y_scalar_from_y_row(
+                        cs,
+                        base_b,
+                        &ccs_out0_vars.y[y_idx],
+                        &ccs_out0_vals.y[y_idx],
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_val"),
+                    )?
+                };
+                lane_opens.push(ShoutLaneOpen {
+                    addr_bits: addr_bits_open,
+                    addr_bits_val: addr_bits_open_val,
+                    has_lookup: has_lookup_open,
+                    has_lookup_val: has_lookup_open_val,
+                    val: val_open,
+                    val_val: val_open_val,
+                });
+            }
 
             // bitness over (addr_bits, has_lookup)
             {
-                let mut opens = Vec::with_capacity(ell_addr + 1);
-                let mut opens_val = Vec::with_capacity(ell_addr + 1);
-                opens.extend(addr_bits_open.iter().cloned());
-                opens_val.extend(addr_bits_open_val.iter().copied());
-                opens.push(has_lookup_open.clone());
-                opens_val.push(has_lookup_open_val);
+                let mut opens = Vec::with_capacity(expected_lanes * (ell_addr + 1));
+                let mut opens_val = Vec::with_capacity(expected_lanes * (ell_addr + 1));
+                for lane in lane_opens.iter() {
+                    opens.extend(lane.addr_bits.iter().cloned());
+                    opens_val.extend(lane.addr_bits_val.iter().copied());
+                    opens.push(lane.has_lookup.clone());
+                    opens_val.push(lane.has_lookup_val);
+                }
 
                 let (acc, acc_val) = weighted_bitness_acc(
                     cs,
@@ -1301,127 +1361,145 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                     &expected,
                     &bt_final_values_vars[shout_claims.bitness],
                     &format!("{ctx}_shout_{lut_idx}_bitness_final"),
-                );
+                    );
                 let _ = expected_val;
             }
 
-            // value terminal: chi_cycle * has_lookup * val
-            {
-                let (t0, t0_val) = helpers::k_mul_with_hint(
-                    cs,
-                    &has_lookup_open,
-                    has_lookup_open_val,
-                    &val_open,
-                    val_open_val,
-                    delta,
-                    &format!("{ctx}_shout_{lut_idx}_value_inner"),
-                )?;
-                let (expected, _expected_val) = helpers::k_mul_with_hint(
-                    cs,
-                    &chi_cycle,
-                    chi_cycle_val,
-                    &t0,
-                    t0_val,
-                    delta,
-                    &format!("{ctx}_shout_{lut_idx}_value_expected"),
-                )?;
-                helpers::enforce_k_eq(
-                    cs,
-                    &expected,
-                    &bt_final_values_vars[shout_claims.value],
-                    &format!("{ctx}_shout_{lut_idx}_value_final"),
-                );
-            }
-
-            // adapter terminal: chi_cycle * has_lookup * eq_addr
-            {
-                let (eq_addr, eq_addr_val) = eq_bits_prod(
-                    cs,
-                    delta,
-                    addr_bits_open.as_slice(),
-                    addr_bits_open_val.as_slice(),
-                    shout_pre.r_addr_vars,
-                    shout_pre.r_addr_vals,
-                    &format!("{ctx}_shout_{lut_idx}_eq_addr"),
-                )?;
-                let (t0, t0_val) = helpers::k_mul_with_hint(
-                    cs,
-                    &has_lookup_open,
-                    has_lookup_open_val,
-                    &eq_addr,
-                    eq_addr_val,
-                    delta,
-                    &format!("{ctx}_shout_{lut_idx}_adapter_inner"),
-                )?;
-                let (expected, _expected_val) = helpers::k_mul_with_hint(
-                    cs,
-                    &chi_cycle,
-                    chi_cycle_val,
-                    &t0,
-                    t0_val,
-                    delta,
-                    &format!("{ctx}_shout_{lut_idx}_adapter_expected"),
-                )?;
-                helpers::enforce_k_eq(
-                    cs,
-                    &expected,
-                    &bt_final_values_vars[shout_claims.adapter],
-                    &format!("{ctx}_shout_{lut_idx}_adapter_final"),
-                );
-            }
-
-            // value_claim == addr_claim_sum
-            helpers::enforce_k_eq(
-                cs,
-                &bt_claimed_sums_vars[shout_claims.value],
-                &shout_pre.claimed_sums_vars[lut_idx],
-                &format!("{ctx}_shout_{lut_idx}_value_claim_eq_addr_claim"),
-            );
-
-            // addr_final == table_eval_at_r_addr * adapter_claim
-            {
-                let table_eval = match &inst.table_spec {
-                    None => {
+            let table_eval = match &inst.table_spec {
+                None => {
+                    return Err(SpartanBridgeError::InvalidInput(format!(
+                        "{ctx}: Shout LUT table_spec=None not supported in compression profile (lut_idx={lut_idx})"
+                    )))
+                }
+                Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
+                    let xlen = *xlen;
+                    if shout_pre.r_addr_vars.len() != 2 * xlen {
                         return Err(SpartanBridgeError::InvalidInput(format!(
-                            "{ctx}: Shout LUT table_spec=None not supported in compression profile (lut_idx={lut_idx})"
-                        )))
+                            "{ctx}: RiscvOpcode LUT expects ell_addr=2*xlen (lut_idx={lut_idx})"
+                        )));
                     }
-                    Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
-                        let xlen = *xlen;
-                        if shout_pre.r_addr_vars.len() != 2 * xlen {
-                            return Err(SpartanBridgeError::InvalidInput(format!(
-                                "{ctx}: RiscvOpcode LUT expects ell_addr=2*xlen (lut_idx={lut_idx})"
-                            )));
-                        }
-                        eval_riscv_opcode_mle(
-                            cs,
-                            delta,
-                            *opcode,
-                            xlen,
-                            shout_pre.r_addr_vars,
-                            shout_pre.r_addr_vals,
-                            &format!("{ctx}_shout_{lut_idx}_table_eval"),
-                        )?
-                    }
-                };
+                    eval_riscv_opcode_mle(
+                        cs,
+                        delta,
+                        *opcode,
+                        xlen,
+                        shout_pre.r_addr_vars,
+                        shout_pre.r_addr_vals,
+                        &format!("{ctx}_shout_{lut_idx}_table_eval"),
+                    )?
+                }
+            };
 
-                let adapter_claim_val = bt_claimed_sums_vals[shout_claims.adapter];
-                let (expected_addr_final, _expected_addr_final_val) = helpers::k_mul_with_hint(
-                    cs,
-                    &table_eval.0,
-                    table_eval.1,
-                    &bt_claimed_sums_vars[shout_claims.adapter],
-                    adapter_claim_val,
-                    delta,
-                    &format!("{ctx}_shout_{lut_idx}_addr_final_expected"),
-                )?;
+            for (lane_idx, lane) in lane_opens.iter().enumerate() {
+                let flat_lane = shout_lane_base
+                    .checked_add(lane_idx)
+                    .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("{ctx}: shout lane overflow")))?;
+                let lane_claims = shout_claims.lanes.get(lane_idx).ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!(
+                        "{ctx}: missing shout claim schedule at lut_idx={lut_idx}, lane={lane_idx}"
+                    ))
+                })?;
+
+                // value terminal: chi_cycle * has_lookup * val
+                {
+                    let (t0, t0_val) = helpers::k_mul_with_hint(
+                        cs,
+                        &lane.has_lookup,
+                        lane.has_lookup_val,
+                        &lane.val,
+                        lane.val_val,
+                        delta,
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_value_inner"),
+                    )?;
+                    let (expected, _expected_val) = helpers::k_mul_with_hint(
+                        cs,
+                        &chi_cycle,
+                        chi_cycle_val,
+                        &t0,
+                        t0_val,
+                        delta,
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_value_expected"),
+                    )?;
+                    helpers::enforce_k_eq(
+                        cs,
+                        &expected,
+                        &bt_final_values_vars[lane_claims.value],
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_value_final"),
+                    );
+                }
+
+                // adapter terminal: chi_cycle * has_lookup * eq_addr
+                {
+                    let (eq_addr, eq_addr_val) = eq_bits_prod(
+                        cs,
+                        delta,
+                        lane.addr_bits.as_slice(),
+                        lane.addr_bits_val.as_slice(),
+                        shout_pre.r_addr_vars,
+                        shout_pre.r_addr_vals,
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_eq_addr"),
+                    )?;
+                    let (t0, t0_val) = helpers::k_mul_with_hint(
+                        cs,
+                        &lane.has_lookup,
+                        lane.has_lookup_val,
+                        &eq_addr,
+                        eq_addr_val,
+                        delta,
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_adapter_inner"),
+                    )?;
+                    let (expected, _expected_val) = helpers::k_mul_with_hint(
+                        cs,
+                        &chi_cycle,
+                        chi_cycle_val,
+                        &t0,
+                        t0_val,
+                        delta,
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_adapter_expected"),
+                    )?;
+                    helpers::enforce_k_eq(
+                        cs,
+                        &expected,
+                        &bt_final_values_vars[lane_claims.adapter],
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_adapter_final"),
+                    );
+                }
+
+                // value_claim == addr_claim_sum
                 helpers::enforce_k_eq(
                     cs,
-                    &expected_addr_final,
-                    &shout_pre.finals_vars[lut_idx],
-                    &format!("{ctx}_shout_{lut_idx}_addr_final_eq"),
+                    &bt_claimed_sums_vars[lane_claims.value],
+                    &shout_pre.claimed_sums_vars[flat_lane],
+                    &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_value_claim_eq_addr_claim"),
                 );
+
+                // addr_final == table_eval_at_r_addr * adapter_claim
+                {
+                    let adapter_claim_val = bt_claimed_sums_vals[lane_claims.adapter];
+                    let (expected_addr_final, _expected_addr_final_val) = helpers::k_mul_with_hint(
+                        cs,
+                        &table_eval.0,
+                        table_eval.1,
+                        &bt_claimed_sums_vars[lane_claims.adapter],
+                        adapter_claim_val,
+                        delta,
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_addr_final_expected"),
+                    )?;
+                    helpers::enforce_k_eq(
+                        cs,
+                        &expected_addr_final,
+                        &shout_pre.finals_vars[flat_lane],
+                        &format!("{ctx}_shout_{lut_idx}_lane{lane_idx}_addr_final_eq"),
+                    );
+                }
             }
+
+            shout_lane_base += expected_lanes;
+        }
+        if shout_lane_base != total_shout_lanes {
+            return Err(SpartanBridgeError::InvalidInput(format!(
+                "{ctx}: shout lanes not fully consumed"
+            )));
         }
     }
 
@@ -1441,15 +1519,16 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                 "{ctx}: shared bus requires metadata-only Twist instances (mem_idx={mem_idx})"
             )));
         }
-        let layout = inst.twist_layout();
-        let ell_addr = layout.ell_addr;
+        let ell_addr = inst.d * inst.ell;
+        let expected_lanes = inst.lanes.max(1);
 
         let twist_cols = cpu_bus.twist_cols.get(mem_idx).ok_or_else(|| {
             SpartanBridgeError::InvalidInput(format!("{ctx}: missing twist_cols[{mem_idx}]"))
         })?;
-        if twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr {
+        if twist_cols.lanes.len() != expected_lanes {
             return Err(SpartanBridgeError::InvalidInput(format!(
-                "{ctx}: twist bus layout mismatch at mem_idx={mem_idx}"
+                "{ctx}: twist bus lane mismatch at mem_idx={mem_idx} (expected lanes={expected_lanes}, got {})",
+                twist_cols.lanes.len()
             )));
         }
 
@@ -1465,89 +1544,142 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
             )));
         }
 
+        #[derive(Clone)]
+        struct TwistLaneOpen {
+            ra_bits: Vec<KNumVar>,
+            ra_bits_val: Vec<NeoK>,
+            wa_bits: Vec<KNumVar>,
+            wa_bits_val: Vec<NeoK>,
+            has_read: KNumVar,
+            has_read_val: NeoK,
+            has_write: KNumVar,
+            has_write_val: NeoK,
+            wv: KNumVar,
+            wv_val: NeoK,
+            rv: KNumVar,
+            rv_val: NeoK,
+            inc: KNumVar,
+            inc_val: NeoK,
+        }
+
         let bus_y_base_time = bus_y_base_time;
-        let mut ra_bits_open = Vec::with_capacity(ell_addr);
-        let mut ra_bits_open_val = Vec::with_capacity(ell_addr);
-        for (j, col_id) in twist_cols.ra_bits.clone().enumerate() {
-            let y_idx = bus_y_base_time + col_id;
-            let (open_var, open_val) = y_scalar_from_y_row(
-                cs,
-                base_b,
-                &ccs_out0_vars.y[y_idx],
-                &ccs_out0_vals.y[y_idx],
-                &format!("{ctx}_twist_{mem_idx}_ra_bit_{j}"),
-            )?;
-            ra_bits_open.push(open_var);
-            ra_bits_open_val.push(open_val);
+        let mut lane_opens: Vec<TwistLaneOpen> = Vec::with_capacity(expected_lanes);
+        for (lane_idx, lane_cols) in twist_cols.lanes.iter().enumerate() {
+            if lane_cols.ra_bits.end - lane_cols.ra_bits.start != ell_addr
+                || lane_cols.wa_bits.end - lane_cols.wa_bits.start != ell_addr
+            {
+                return Err(SpartanBridgeError::InvalidInput(format!(
+                    "{ctx}: twist bus layout mismatch at mem_idx={mem_idx}, lane={lane_idx}"
+                )));
+            }
+
+            let mut ra_bits_open = Vec::with_capacity(ell_addr);
+            let mut ra_bits_open_val = Vec::with_capacity(ell_addr);
+            for (j, col_id) in lane_cols.ra_bits.clone().enumerate() {
+                let y_idx = bus_y_base_time + col_id;
+                let (open_var, open_val) = y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &ccs_out0_vars.y[y_idx],
+                    &ccs_out0_vals.y[y_idx],
+                    &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_ra_bit_{j}"),
+                )?;
+                ra_bits_open.push(open_var);
+                ra_bits_open_val.push(open_val);
+            }
+            let mut wa_bits_open = Vec::with_capacity(ell_addr);
+            let mut wa_bits_open_val = Vec::with_capacity(ell_addr);
+            for (j, col_id) in lane_cols.wa_bits.clone().enumerate() {
+                let y_idx = bus_y_base_time + col_id;
+                let (open_var, open_val) = y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &ccs_out0_vars.y[y_idx],
+                    &ccs_out0_vals.y[y_idx],
+                    &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_wa_bit_{j}"),
+                )?;
+                wa_bits_open.push(open_var);
+                wa_bits_open_val.push(open_val);
+            }
+
+            let (has_read_open, has_read_open_val) = {
+                let y_idx = bus_y_base_time + lane_cols.has_read;
+                y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &ccs_out0_vars.y[y_idx],
+                    &ccs_out0_vals.y[y_idx],
+                    &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_has_read"),
+                )?
+            };
+            let (has_write_open, has_write_open_val) = {
+                let y_idx = bus_y_base_time + lane_cols.has_write;
+                y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &ccs_out0_vars.y[y_idx],
+                    &ccs_out0_vals.y[y_idx],
+                    &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_has_write"),
+                )?
+            };
+            let (wv_open, wv_open_val) = {
+                let y_idx = bus_y_base_time + lane_cols.wv;
+                y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &ccs_out0_vars.y[y_idx],
+                    &ccs_out0_vals.y[y_idx],
+                    &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_wv"),
+                )?
+            };
+            let (rv_open, rv_open_val) = {
+                let y_idx = bus_y_base_time + lane_cols.rv;
+                y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &ccs_out0_vars.y[y_idx],
+                    &ccs_out0_vals.y[y_idx],
+                    &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_rv"),
+                )?
+            };
+            let (inc_write_open, inc_write_open_val) = {
+                let y_idx = bus_y_base_time + lane_cols.inc;
+                y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &ccs_out0_vars.y[y_idx],
+                    &ccs_out0_vals.y[y_idx],
+                    &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_inc"),
+                )?
+            };
+
+            lane_opens.push(TwistLaneOpen {
+                ra_bits: ra_bits_open,
+                ra_bits_val: ra_bits_open_val,
+                wa_bits: wa_bits_open,
+                wa_bits_val: wa_bits_open_val,
+                has_read: has_read_open,
+                has_read_val: has_read_open_val,
+                has_write: has_write_open,
+                has_write_val: has_write_open_val,
+                wv: wv_open,
+                wv_val: wv_open_val,
+                rv: rv_open,
+                rv_val: rv_open_val,
+                inc: inc_write_open,
+                inc_val: inc_write_open_val,
+            });
         }
-        let mut wa_bits_open = Vec::with_capacity(ell_addr);
-        let mut wa_bits_open_val = Vec::with_capacity(ell_addr);
-        for (j, col_id) in twist_cols.wa_bits.clone().enumerate() {
-            let y_idx = bus_y_base_time + col_id;
-            let (open_var, open_val) = y_scalar_from_y_row(
-                cs,
-                base_b,
-                &ccs_out0_vars.y[y_idx],
-                &ccs_out0_vals.y[y_idx],
-                &format!("{ctx}_twist_{mem_idx}_wa_bit_{j}"),
-            )?;
-            wa_bits_open.push(open_var);
-            wa_bits_open_val.push(open_val);
-        }
-        let (has_read_open, has_read_open_val) = {
-            let y_idx = bus_y_base_time + twist_cols.has_read;
-            y_scalar_from_y_row(
-                cs,
-                base_b,
-                &ccs_out0_vars.y[y_idx],
-                &ccs_out0_vals.y[y_idx],
-                &format!("{ctx}_twist_{mem_idx}_has_read"),
-            )?
-        };
-        let (has_write_open, has_write_open_val) = {
-            let y_idx = bus_y_base_time + twist_cols.has_write;
-            y_scalar_from_y_row(
-                cs,
-                base_b,
-                &ccs_out0_vars.y[y_idx],
-                &ccs_out0_vals.y[y_idx],
-                &format!("{ctx}_twist_{mem_idx}_has_write"),
-            )?
-        };
-        let (wv_open, wv_open_val) = {
-            let y_idx = bus_y_base_time + twist_cols.wv;
-            y_scalar_from_y_row(
-                cs,
-                base_b,
-                &ccs_out0_vars.y[y_idx],
-                &ccs_out0_vals.y[y_idx],
-                &format!("{ctx}_twist_{mem_idx}_wv"),
-            )?
-        };
-        let (rv_open, rv_open_val) = {
-            let y_idx = bus_y_base_time + twist_cols.rv;
-            y_scalar_from_y_row(
-                cs,
-                base_b,
-                &ccs_out0_vars.y[y_idx],
-                &ccs_out0_vals.y[y_idx],
-                &format!("{ctx}_twist_{mem_idx}_rv"),
-            )?
-        };
-        let (inc_write_open, inc_write_open_val) = {
-            let y_idx = bus_y_base_time + twist_cols.inc;
-            y_scalar_from_y_row(
-                cs,
-                base_b,
-                &ccs_out0_vars.y[y_idx],
-                &ccs_out0_vals.y[y_idx],
-                &format!("{ctx}_twist_{mem_idx}_inc"),
-            )?
-        };
 
         let twist_claims = claim_plan.twist.get(mem_idx).ok_or_else(|| {
             SpartanBridgeError::InvalidInput(format!("{ctx}: missing twist claim schedule at mem_idx={mem_idx}"))
         })?;
+        if twist_claims.ell_addr != ell_addr {
+            return Err(SpartanBridgeError::InvalidInput(format!(
+                "{ctx}: twist claim schedule ell_addr mismatch at mem_idx={mem_idx} (expected ell_addr={ell_addr}, got {})",
+                twist_claims.ell_addr
+            )));
+        }
 
         // claimed sums must match addr-pre finals (read_check/write_check).
         helpers::enforce_k_eq(
@@ -1565,16 +1697,18 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
 
         // bitness over (ra_bits, wa_bits, has_read, has_write)
         {
-            let mut opens = Vec::with_capacity(2 * ell_addr + 2);
-            let mut opens_val = Vec::with_capacity(2 * ell_addr + 2);
-            opens.extend(ra_bits_open.iter().cloned());
-            opens_val.extend(ra_bits_open_val.iter().copied());
-            opens.extend(wa_bits_open.iter().cloned());
-            opens_val.extend(wa_bits_open_val.iter().copied());
-            opens.push(has_read_open.clone());
-            opens_val.push(has_read_open_val);
-            opens.push(has_write_open.clone());
-            opens_val.push(has_write_open_val);
+            let mut opens = Vec::with_capacity(expected_lanes * (2 * ell_addr + 2));
+            let mut opens_val = Vec::with_capacity(expected_lanes * (2 * ell_addr + 2));
+            for lane in lane_opens.iter() {
+                opens.extend(lane.ra_bits.iter().cloned());
+                opens_val.extend(lane.ra_bits_val.iter().copied());
+                opens.extend(lane.wa_bits.iter().cloned());
+                opens_val.extend(lane.wa_bits_val.iter().copied());
+                opens.push(lane.has_read.clone());
+                opens_val.push(lane.has_read_val);
+                opens.push(lane.has_write.clone());
+                opens_val.push(lane.has_write_val);
+            }
 
             let (acc, acc_val) = weighted_bitness_acc(
                 cs,
@@ -1638,43 +1772,48 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
             &format!("{ctx}_twist_{mem_idx}_claimed_val"),
         )?;
 
-        let (read_eq_addr, read_eq_addr_val) = eq_bits_prod(
-            cs,
-            delta,
-            ra_bits_open.as_slice(),
-            ra_bits_open_val.as_slice(),
-            pre.r_addr_vars,
-            pre.r_addr_vals,
-            &format!("{ctx}_twist_{mem_idx}_eq_ra"),
-        )?;
-        let (write_eq_addr, write_eq_addr_val) = eq_bits_prod(
-            cs,
-            delta,
-            wa_bits_open.as_slice(),
-            wa_bits_open_val.as_slice(),
-            pre.r_addr_vars,
-            pre.r_addr_vals,
-            &format!("{ctx}_twist_{mem_idx}_eq_wa"),
-        )?;
+        // Terminal checks for read_check / write_check at (r_time, r_addr).
+        let (mut expected_read, mut expected_read_val) =
+            k_zero_var(cs, &format!("{ctx}_twist_{mem_idx}_read_acc0"))?;
+        let (mut expected_write, mut expected_write_val) =
+            k_zero_var(cs, &format!("{ctx}_twist_{mem_idx}_write_acc0"))?;
+        for (lane_idx, lane) in lane_opens.iter().enumerate() {
+            let (read_eq_addr, read_eq_addr_val) = eq_bits_prod(
+                cs,
+                delta,
+                lane.ra_bits.as_slice(),
+                lane.ra_bits_val.as_slice(),
+                pre.r_addr_vars,
+                pre.r_addr_vals,
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_eq_ra"),
+            )?;
+            let (write_eq_addr, write_eq_addr_val) = eq_bits_prod(
+                cs,
+                delta,
+                lane.wa_bits.as_slice(),
+                lane.wa_bits_val.as_slice(),
+                pre.r_addr_vars,
+                pre.r_addr_vals,
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_eq_wa"),
+            )?;
 
-        // read terminal
-        {
+            // read contribution
             let (claimed_minus_rv, claimed_minus_rv_val) = k_sub_with_hint(
                 cs,
                 &claimed_val,
                 claimed_val_val,
-                &rv_open,
-                rv_open_val,
-                &format!("{ctx}_twist_{mem_idx}_claimed_minus_rv"),
+                &lane.rv,
+                lane.rv_val,
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_claimed_minus_rv"),
             )?;
             let (t0, t0_val) = helpers::k_mul_with_hint(
                 cs,
-                &has_read_open,
-                has_read_open_val,
+                &lane.has_read,
+                lane.has_read_val,
                 &claimed_minus_rv,
                 claimed_minus_rv_val,
                 delta,
-                &format!("{ctx}_twist_{mem_idx}_read_t0"),
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_read_t0"),
             )?;
             let (t1, t1_val) = helpers::k_mul_with_hint(
                 cs,
@@ -1683,51 +1822,53 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                 &read_eq_addr,
                 read_eq_addr_val,
                 delta,
-                &format!("{ctx}_twist_{mem_idx}_read_t1"),
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_read_t1"),
             )?;
-            let (expected, _expected_val) = helpers::k_mul_with_hint(
+            let (term, term_val) = helpers::k_mul_with_hint(
                 cs,
                 &chi_cycle,
                 chi_cycle_val,
                 &t1,
                 t1_val,
                 delta,
-                &format!("{ctx}_twist_{mem_idx}_read_expected"),
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_read_term"),
             )?;
-            helpers::enforce_k_eq(
+            let (new_expected_read, new_expected_read_val) = k_add_with_hint(
                 cs,
-                &expected,
-                &bt_final_values_vars[twist_claims.read_check],
-                &format!("{ctx}_twist_{mem_idx}_read_final"),
-            );
-        }
+                &expected_read,
+                expected_read_val,
+                &term,
+                term_val,
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_read_acc"),
+            )?;
+            expected_read = new_expected_read;
+            expected_read_val = new_expected_read_val;
 
-        // write terminal
-        {
+            // write contribution
             let (wv_minus_claimed, wv_minus_claimed_val) = k_sub_with_hint(
                 cs,
-                &wv_open,
-                wv_open_val,
+                &lane.wv,
+                lane.wv_val,
                 &claimed_val,
                 claimed_val_val,
-                &format!("{ctx}_twist_{mem_idx}_wv_minus_claimed"),
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_wv_minus_claimed"),
             )?;
             let (wv_minus_claimed_minus_inc, wv_minus_claimed_minus_inc_val) = k_sub_with_hint(
                 cs,
                 &wv_minus_claimed,
                 wv_minus_claimed_val,
-                &inc_write_open,
-                inc_write_open_val,
-                &format!("{ctx}_twist_{mem_idx}_wv_minus_claimed_minus_inc"),
+                &lane.inc,
+                lane.inc_val,
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_wv_minus_claimed_minus_inc"),
             )?;
             let (t0, t0_val) = helpers::k_mul_with_hint(
                 cs,
-                &has_write_open,
-                has_write_open_val,
+                &lane.has_write,
+                lane.has_write_val,
                 &wv_minus_claimed_minus_inc,
                 wv_minus_claimed_minus_inc_val,
                 delta,
-                &format!("{ctx}_twist_{mem_idx}_write_t0"),
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_write_t0"),
             )?;
             let (t1, t1_val) = helpers::k_mul_with_hint(
                 cs,
@@ -1736,34 +1877,54 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                 &write_eq_addr,
                 write_eq_addr_val,
                 delta,
-                &format!("{ctx}_twist_{mem_idx}_write_t1"),
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_write_t1"),
             )?;
-            let (expected, _expected_val) = helpers::k_mul_with_hint(
+            let (term, term_val) = helpers::k_mul_with_hint(
                 cs,
                 &chi_cycle,
                 chi_cycle_val,
                 &t1,
                 t1_val,
                 delta,
-                &format!("{ctx}_twist_{mem_idx}_write_expected"),
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_write_term"),
             )?;
-	            helpers::enforce_k_eq(
-	                cs,
-	                &expected,
-	                &bt_final_values_vars[twist_claims.write_check],
-	                &format!("{ctx}_twist_{mem_idx}_write_final"),
-	            );
-	        }
+            let (new_expected_write, new_expected_write_val) = k_add_with_hint(
+                cs,
+                &expected_write,
+                expected_write_val,
+                &term,
+                term_val,
+                &format!("{ctx}_twist_{mem_idx}_lane{lane_idx}_write_acc"),
+            )?;
+            expected_write = new_expected_write;
+            expected_write_val = new_expected_write_val;
+        }
+        helpers::enforce_k_eq(
+            cs,
+            &expected_read,
+            &bt_final_values_vars[twist_claims.read_check],
+            &format!("{ctx}_twist_{mem_idx}_read_final"),
+        );
+        helpers::enforce_k_eq(
+            cs,
+            &expected_write,
+            &bt_final_values_vars[twist_claims.write_check],
+            &format!("{ctx}_twist_{mem_idx}_write_final"),
+        );
 
-	        twist_time_openings.push(TwistTimeLaneOpeningsVars {
-	            wa_bits: wa_bits_open,
-	            wa_bits_vals: wa_bits_open_val,
-	            has_write: has_write_open,
-	            has_write_val: has_write_open_val,
-	            inc_at_write_addr: inc_write_open,
-	            inc_at_write_addr_val: inc_write_open_val,
-	        });
-	    }
+        let mut lanes = Vec::with_capacity(expected_lanes);
+        for lane in lane_opens.iter() {
+            lanes.push(TwistTimeLaneOpeningsLaneVars {
+                wa_bits: lane.wa_bits.clone(),
+                wa_bits_vals: lane.wa_bits_val.clone(),
+                has_write: lane.has_write.clone(),
+                has_write_val: lane.has_write_val,
+                inc_at_write_addr: lane.inc.clone(),
+                inc_at_write_addr_val: lane.inc_val,
+            });
+        }
+        twist_time_openings.push(TwistTimeLaneOpeningsVars { lanes });
+    }
 
 	    // --------------------------------------------------------------------
 	    // Twist val-eval terminals at r_val + rollover.
@@ -1839,11 +2000,17 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
         .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("{ctx}: CPU y(val) too short for bus openings")))?;
 
     for (mem_idx, inst) in step_public.mem_insts.iter().enumerate() {
-        let layout = inst.twist_layout();
-        let ell_addr = layout.ell_addr;
+        let ell_addr = inst.d * inst.ell;
+        let expected_lanes = inst.lanes.max(1);
         let twist_cols = cpu_bus.twist_cols.get(mem_idx).ok_or_else(|| {
             SpartanBridgeError::InvalidInput(format!("{ctx}: missing twist_cols[{mem_idx}]"))
         })?;
+        if twist_cols.lanes.len() != expected_lanes {
+            return Err(SpartanBridgeError::InvalidInput(format!(
+                "{ctx}: twist bus lane mismatch at mem_idx={mem_idx} (expected lanes={expected_lanes}, got {})",
+                twist_cols.lanes.len()
+            )));
+        }
 
         let claims_per_mem = if has_prev { 3 } else { 2 };
         let base = claims_per_mem * mem_idx;
@@ -1853,72 +2020,89 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
             )));
         }
 
-        // Open wa_bits/has_write/inc at r_val from cpu_me_cur.
-        let mut wa_bits_val_open = Vec::with_capacity(ell_addr);
-        let mut wa_bits_val_open_val = Vec::with_capacity(ell_addr);
-        for (j, col_id) in twist_cols.wa_bits.clone().enumerate() {
-            let y_idx = bus_y_base_val + col_id;
-            let (open_var, open_val) = y_scalar_from_y_row(
-                cs,
-                base_b,
-                &cpu_me_vars[0].y[y_idx],
-                &cpu_me_claims_val_vals[0].y[y_idx],
-                &format!("{ctx}_val_cur_mem{mem_idx}_wa_{j}"),
-            )?;
-            wa_bits_val_open.push(open_var);
-            wa_bits_val_open_val.push(open_val);
-        }
-        let (has_write_val_open, has_write_val_open_val) = {
-            let y_idx = bus_y_base_val + twist_cols.has_write;
-            y_scalar_from_y_row(
-                cs,
-                base_b,
-                &cpu_me_vars[0].y[y_idx],
-                &cpu_me_claims_val_vals[0].y[y_idx],
-                &format!("{ctx}_val_cur_mem{mem_idx}_has_write"),
-            )?
-        };
-        let (inc_val_open, inc_val_open_val) = {
-            let y_idx = bus_y_base_val + twist_cols.inc;
-            y_scalar_from_y_row(
-                cs,
-                base_b,
-                &cpu_me_vars[0].y[y_idx],
-                &cpu_me_claims_val_vals[0].y[y_idx],
-                &format!("{ctx}_val_cur_mem{mem_idx}_inc"),
-            )?
-        };
-
         let r_addr_vars = twist_pre[mem_idx].r_addr_vars;
         let r_addr_vals = twist_pre[mem_idx].r_addr_vals;
-        let (eq_wa, eq_wa_val) = eq_bits_prod(
-            cs,
-            delta,
-            wa_bits_val_open.as_slice(),
-            wa_bits_val_open_val.as_slice(),
-            r_addr_vars,
-            r_addr_vals,
-            &format!("{ctx}_val_cur_mem{mem_idx}_eq_wa"),
-        )?;
+        let (mut inc_at_r_addr_val, mut inc_at_r_addr_val_val) =
+            k_zero_var(cs, &format!("{ctx}_val_cur_mem{mem_idx}_inc_acc0"))?;
+        for (lane_idx, lane_cols) in twist_cols.lanes.iter().enumerate() {
+            if lane_cols.wa_bits.end - lane_cols.wa_bits.start != ell_addr {
+                return Err(SpartanBridgeError::InvalidInput(format!(
+                    "{ctx}: twist bus layout mismatch at mem_idx={mem_idx}, lane={lane_idx} (wa_bits)"
+                )));
+            }
 
-        let (t0, t0_val) = helpers::k_mul_with_hint(
-            cs,
-            &has_write_val_open,
-            has_write_val_open_val,
-            &inc_val_open,
-            inc_val_open_val,
-            delta,
-            &format!("{ctx}_val_cur_mem{mem_idx}_t0"),
-        )?;
-        let (inc_at_r_addr_val, inc_at_r_addr_val_val) = helpers::k_mul_with_hint(
-            cs,
-            &t0,
-            t0_val,
-            &eq_wa,
-            eq_wa_val,
-            delta,
-            &format!("{ctx}_val_cur_mem{mem_idx}_inc_at_r_addr"),
-        )?;
+            let mut wa_bits_val_open = Vec::with_capacity(ell_addr);
+            let mut wa_bits_val_open_val = Vec::with_capacity(ell_addr);
+            for (j, col_id) in lane_cols.wa_bits.clone().enumerate() {
+                let y_idx = bus_y_base_val + col_id;
+                let (open_var, open_val) = y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &cpu_me_vars[0].y[y_idx],
+                    &cpu_me_claims_val_vals[0].y[y_idx],
+                    &format!("{ctx}_val_cur_mem{mem_idx}_lane{lane_idx}_wa_{j}"),
+                )?;
+                wa_bits_val_open.push(open_var);
+                wa_bits_val_open_val.push(open_val);
+            }
+            let (has_write_val_open, has_write_val_open_val) = {
+                let y_idx = bus_y_base_val + lane_cols.has_write;
+                y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &cpu_me_vars[0].y[y_idx],
+                    &cpu_me_claims_val_vals[0].y[y_idx],
+                    &format!("{ctx}_val_cur_mem{mem_idx}_lane{lane_idx}_has_write"),
+                )?
+            };
+            let (inc_val_open, inc_val_open_val) = {
+                let y_idx = bus_y_base_val + lane_cols.inc;
+                y_scalar_from_y_row(
+                    cs,
+                    base_b,
+                    &cpu_me_vars[0].y[y_idx],
+                    &cpu_me_claims_val_vals[0].y[y_idx],
+                    &format!("{ctx}_val_cur_mem{mem_idx}_lane{lane_idx}_inc"),
+                )?
+            };
+            let (eq_wa, eq_wa_val) = eq_bits_prod(
+                cs,
+                delta,
+                wa_bits_val_open.as_slice(),
+                wa_bits_val_open_val.as_slice(),
+                r_addr_vars,
+                r_addr_vals,
+                &format!("{ctx}_val_cur_mem{mem_idx}_lane{lane_idx}_eq_wa"),
+            )?;
+            let (t0, t0_val) = helpers::k_mul_with_hint(
+                cs,
+                &has_write_val_open,
+                has_write_val_open_val,
+                &inc_val_open,
+                inc_val_open_val,
+                delta,
+                &format!("{ctx}_val_cur_mem{mem_idx}_lane{lane_idx}_t0"),
+            )?;
+            let (term, term_val) = helpers::k_mul_with_hint(
+                cs,
+                &t0,
+                t0_val,
+                &eq_wa,
+                eq_wa_val,
+                delta,
+                &format!("{ctx}_val_cur_mem{mem_idx}_lane{lane_idx}_inc_at_r_addr"),
+            )?;
+            let (new_acc, new_acc_val) = k_add_with_hint(
+                cs,
+                &inc_at_r_addr_val,
+                inc_at_r_addr_val_val,
+                &term,
+                term_val,
+                &format!("{ctx}_val_cur_mem{mem_idx}_lane{lane_idx}_inc_acc"),
+            )?;
+            inc_at_r_addr_val = new_acc;
+            inc_at_r_addr_val_val = new_acc_val;
+        }
 
         // expected_lt_final = inc_at_r_addr_val * lt
         {
@@ -1948,73 +2132,94 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
 
         if has_prev {
             // Prev openings at current r_val.
-            let mut wa_bits_prev_open = Vec::with_capacity(ell_addr);
-            let mut wa_bits_prev_open_val = Vec::with_capacity(ell_addr);
-            for (j, col_id) in twist_cols.wa_bits.clone().enumerate() {
-                let y_idx = bus_y_base_val + col_id;
-                let (open_var, open_val) = y_scalar_from_y_row(
+            let (mut inc_at_r_addr_prev, mut inc_at_r_addr_prev_val) =
+                k_zero_var(cs, &format!("{ctx}_val_prev_mem{mem_idx}_inc_acc0"))?;
+            for (lane_idx, lane_cols) in twist_cols.lanes.iter().enumerate() {
+                if lane_cols.wa_bits.end - lane_cols.wa_bits.start != ell_addr {
+                    return Err(SpartanBridgeError::InvalidInput(format!(
+                        "{ctx}: twist bus layout mismatch at mem_idx={mem_idx}, lane={lane_idx} (wa_bits prev)"
+                    )));
+                }
+
+                let mut wa_bits_prev_open = Vec::with_capacity(ell_addr);
+                let mut wa_bits_prev_open_val = Vec::with_capacity(ell_addr);
+                for (j, col_id) in lane_cols.wa_bits.clone().enumerate() {
+                    let y_idx = bus_y_base_val + col_id;
+                    let (open_var, open_val) = y_scalar_from_y_row(
+                        cs,
+                        base_b,
+                        &cpu_me_vars[1].y[y_idx],
+                        &cpu_me_claims_val_vals[1].y[y_idx],
+                        &format!("{ctx}_val_prev_mem{mem_idx}_lane{lane_idx}_wa_{j}"),
+                    )?;
+                    wa_bits_prev_open.push(open_var);
+                    wa_bits_prev_open_val.push(open_val);
+                }
+                let (has_write_prev_open, has_write_prev_open_val) = {
+                    let y_idx = bus_y_base_val + lane_cols.has_write;
+                    y_scalar_from_y_row(
+                        cs,
+                        base_b,
+                        &cpu_me_vars[1].y[y_idx],
+                        &cpu_me_claims_val_vals[1].y[y_idx],
+                        &format!("{ctx}_val_prev_mem{mem_idx}_lane{lane_idx}_has_write"),
+                    )?
+                };
+                let (inc_prev_open, inc_prev_open_val) = {
+                    let y_idx = bus_y_base_val + lane_cols.inc;
+                    y_scalar_from_y_row(
+                        cs,
+                        base_b,
+                        &cpu_me_vars[1].y[y_idx],
+                        &cpu_me_claims_val_vals[1].y[y_idx],
+                        &format!("{ctx}_val_prev_mem{mem_idx}_lane{lane_idx}_inc"),
+                    )?
+                };
+                let (eq_wa_prev, eq_wa_prev_val) = eq_bits_prod(
                     cs,
-                    base_b,
-                    &cpu_me_vars[1].y[y_idx],
-                    &cpu_me_claims_val_vals[1].y[y_idx],
-                    &format!("{ctx}_val_prev_mem{mem_idx}_wa_{j}"),
+                    delta,
+                    wa_bits_prev_open.as_slice(),
+                    wa_bits_prev_open_val.as_slice(),
+                    r_addr_vars,
+                    r_addr_vals,
+                    &format!("{ctx}_val_prev_mem{mem_idx}_lane{lane_idx}_eq_wa"),
                 )?;
-                wa_bits_prev_open.push(open_var);
-                wa_bits_prev_open_val.push(open_val);
+                let (t0, t0_val) = helpers::k_mul_with_hint(
+                    cs,
+                    &has_write_prev_open,
+                    has_write_prev_open_val,
+                    &inc_prev_open,
+                    inc_prev_open_val,
+                    delta,
+                    &format!("{ctx}_val_prev_mem{mem_idx}_lane{lane_idx}_t0"),
+                )?;
+                let (term, term_val) = helpers::k_mul_with_hint(
+                    cs,
+                    &t0,
+                    t0_val,
+                    &eq_wa_prev,
+                    eq_wa_prev_val,
+                    delta,
+                    &format!("{ctx}_val_prev_mem{mem_idx}_lane{lane_idx}_inc_at_r_addr"),
+                )?;
+                let (new_acc, new_acc_val) = k_add_with_hint(
+                    cs,
+                    &inc_at_r_addr_prev,
+                    inc_at_r_addr_prev_val,
+                    &term,
+                    term_val,
+                    &format!("{ctx}_val_prev_mem{mem_idx}_lane{lane_idx}_inc_acc"),
+                )?;
+                inc_at_r_addr_prev = new_acc;
+                inc_at_r_addr_prev_val = new_acc_val;
             }
-            let (has_write_prev_open, has_write_prev_open_val) = {
-                let y_idx = bus_y_base_val + twist_cols.has_write;
-                y_scalar_from_y_row(
-                    cs,
-                    base_b,
-                    &cpu_me_vars[1].y[y_idx],
-                    &cpu_me_claims_val_vals[1].y[y_idx],
-                    &format!("{ctx}_val_prev_mem{mem_idx}_has_write"),
-                )?
-            };
-            let (inc_prev_open, inc_prev_open_val) = {
-                let y_idx = bus_y_base_val + twist_cols.inc;
-                y_scalar_from_y_row(
-                    cs,
-                    base_b,
-                    &cpu_me_vars[1].y[y_idx],
-                    &cpu_me_claims_val_vals[1].y[y_idx],
-                    &format!("{ctx}_val_prev_mem{mem_idx}_inc"),
-                )?
-            };
-            let (eq_wa_prev, eq_wa_prev_val) = eq_bits_prod(
-                cs,
-                delta,
-                wa_bits_prev_open.as_slice(),
-                wa_bits_prev_open_val.as_slice(),
-                r_addr_vars,
-                r_addr_vals,
-                &format!("{ctx}_val_prev_mem{mem_idx}_eq_wa"),
-            )?;
-            let (t0, t0_val) = helpers::k_mul_with_hint(
-                cs,
-                &has_write_prev_open,
-                has_write_prev_open_val,
-                &inc_prev_open,
-                inc_prev_open_val,
-                delta,
-                &format!("{ctx}_val_prev_mem{mem_idx}_t0"),
-            )?;
-            let (inc_at_r_addr_prev, _inc_at_r_addr_prev_val) = helpers::k_mul_with_hint(
-                cs,
-                &t0,
-                t0_val,
-                &eq_wa_prev,
-                eq_wa_prev_val,
-                delta,
-                &format!("{ctx}_val_prev_mem{mem_idx}_inc_at_r_addr"),
-            )?;
             helpers::enforce_k_eq(
                 cs,
                 &inc_at_r_addr_prev,
                 &val_eval.finals_vars[base + 2],
                 &format!("{ctx}_val_prev_mem{mem_idx}_prev_total_final_eq"),
             );
+            let _ = inc_at_r_addr_prev_val;
 
             // Rollover init equation: Init_cur(r_addr) == Init_prev(r_addr) + claimed_prev_total
             let prev_step = prev_step_public.ok_or_else(|| {

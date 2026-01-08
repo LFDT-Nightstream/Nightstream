@@ -6,11 +6,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use neo_ajtai::AjtaiSModule;
+use neo_ajtai::{set_global_pp_seeded, AjtaiSModule};
 use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
-use neo_math::F;
+use neo_math::{D, F};
+use neo_params::NeoParams;
 use neo_spartan_bridge::circuit::FoldRunWitness;
 use neo_spartan_bridge::{compute_vm_digest_v1, prove_fold_run, setup_fold_run, verify_fold_run, verify_fold_run_proof_only};
 use p3_field::PrimeCharacteristicRing;
@@ -165,8 +166,12 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
         step_ccs: step_ccs.clone(),
     };
 
-    let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, step_ccs.as_ref())
-        .expect("new_ajtai");
+    let m_commit = step_ccs.n.max(step_ccs.m);
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(m_commit).expect("params");
+    let seed = [42u8; 32];
+    set_global_pp_seeded(D, params.kappa as usize, m_commit, seed).expect("set_global_pp_seeded");
+    let committer = AjtaiSModule::from_global_for_dims(D, m_commit).expect("committer");
+    let mut session = FoldingSession::new(FoldingMode::Optimized, params, committer);
     let inputs = NoInputs;
     session
         .add_steps(&mut circuit, &inputs, steps_to_run)
@@ -245,8 +250,12 @@ fn test_starstream_tx_export_spartan_phase1_tampering_is_rejected() {
         step_ccs: step_ccs.clone(),
     };
 
-    let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, step_ccs.as_ref())
-        .expect("new_ajtai");
+    let m_commit = step_ccs.n.max(step_ccs.m);
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(m_commit).expect("params");
+    let seed = [42u8; 32];
+    set_global_pp_seeded(D, params.kappa as usize, m_commit, seed).expect("set_global_pp_seeded");
+    let committer = AjtaiSModule::from_global_for_dims(D, m_commit).expect("committer");
+    let mut session = FoldingSession::new(FoldingMode::Optimized, params, committer);
     let inputs = NoInputs;
     session
         .add_steps(&mut circuit, &inputs, steps_to_run)

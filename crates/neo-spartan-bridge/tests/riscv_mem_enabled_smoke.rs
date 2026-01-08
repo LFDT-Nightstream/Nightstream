@@ -14,8 +14,10 @@
 //! Note: this test is `#[ignore]` because Spartan2 proving for RV32 B1 is very slow.
 
 use neo_fold::riscv_shard::Rv32B1;
+use neo_ajtai::set_global_pp_seeded;
 use neo_spartan_bridge::circuit::FoldRunWitness;
 use neo_spartan_bridge::{compute_vm_digest_v1, prove_fold_run, setup_fold_run, verify_fold_run};
+use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
@@ -39,6 +41,10 @@ fn test_riscv_rv32_b1_mem_enabled_spartan_phase1_smoke() {
         .expect("prove");
 
     run.verify().expect("native verify");
+
+    let seed = [42u8; 32];
+    let m_commit = run.ccs().m;
+    set_global_pp_seeded(D, run.params().kappa as usize, m_commit, seed).expect("set_global_pp_seeded");
 
     let steps_public = run.steps_public();
     let initial_accumulator = Vec::new(); // seed run
@@ -78,6 +84,10 @@ fn test_riscv_rv32_b1_mem_enabled_spartan_rejects_tampered_bus_opening() {
         .expect("prove");
     run.verify().expect("native verify");
 
+    let seed = [42u8; 32];
+    let m_commit = run.ccs().m;
+    set_global_pp_seeded(D, run.params().kappa as usize, m_commit, seed).expect("set_global_pp_seeded");
+
     let steps_public = run.steps_public();
     let initial_accumulator = Vec::new();
     let good_witness = FoldRunWitness::new(
@@ -93,20 +103,30 @@ fn test_riscv_rv32_b1_mem_enabled_spartan_rejects_tampered_bus_opening() {
     // Tamper a Twist time-lane opening (has_write) in ccs_out[0].y at a bus row.
     let mut bad_proof = run.proof().clone();
     let step0 = steps_public.first().expect("step0 public");
-    let shout_ell_addrs = step0.lut_insts.iter().map(|inst| inst.d * inst.ell);
-    let twist_ell_addrs = step0.mem_insts.iter().map(|inst| inst.d * inst.ell);
-    let bus = neo_memory::cpu::build_bus_layout_for_instances(
+    let shout_ell_addrs_and_lanes = step0
+        .lut_insts
+        .iter()
+        .map(|inst| (inst.d * inst.ell, inst.lanes.max(1)));
+    let twist_ell_addrs_and_lanes = step0
+        .mem_insts
+        .iter()
+        .map(|inst| (inst.d * inst.ell, inst.lanes.max(1)));
+    let bus = neo_memory::cpu::build_bus_layout_for_instances_with_shout_and_twist_lanes(
         run.ccs().m,
         step0.mcs_inst.m_in,
         /*chunk_size=*/ 1,
-        shout_ell_addrs,
-        twist_ell_addrs,
+        shout_ell_addrs_and_lanes,
+        twist_ell_addrs_and_lanes,
     )
     .expect("bus layout");
     assert!(!bus.twist_cols.is_empty(), "expected >=1 Twist instance");
 
     let ccs_t = run.ccs().t();
-    let has_write_col = bus.twist_cols[0].has_write;
+    let has_write_col = bus.twist_cols[0]
+        .lanes
+        .first()
+        .expect("expected at least one Twist lane")
+        .has_write;
     let y_idx = ccs_t + has_write_col;
     bad_proof.steps[0].fold.ccs_out[0].y[y_idx][0] += neo_math::K::ONE;
 

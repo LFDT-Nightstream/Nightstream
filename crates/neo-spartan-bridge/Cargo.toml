@@ -46,3 +46,4 @@ once_cell = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+neo-vm-trace = { path = "../neo-vm-trace" }

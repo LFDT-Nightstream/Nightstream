@@ -24,7 +24,7 @@ use bellpepper_core::{ConstraintSystem, SynthesisError};
 use neo_ccs::Mat;
 use neo_fold::output_binding::OutputBindingConfig;
 use neo_fold::shard::{FoldStep, StepProof};
-use neo_math::F as NeoF;
+use neo_math::{F as NeoF, K as NeoK};
 use neo_math::KExtensions;
 use neo_memory::output_check::OutputBindingProof;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -968,7 +968,7 @@ impl FoldRunCircuit {
                     "output binding: cfg.num_bits inconsistent with mem_inst.k".into(),
                 ));
             }
-            let ell_addr = mem_inst.twist_layout().ell_addr;
+            let ell_addr = mem_inst.d * mem_inst.ell;
             if ell_addr != cfg.num_bits {
                 return Err(SpartanBridgeError::InvalidInput(
                     "output binding: cfg.num_bits inconsistent with twist_layout.ell_addr".into(),
@@ -1612,6 +1612,15 @@ impl FoldRunCircuit {
                 inst.ell as u64,
                 &format!("{ctx}_lut_{lut_idx}_ell"),
             )?;
+            self.append_message_u64_le_bytes_multi(
+                cs,
+                tr,
+                tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
+                b"shout/lanes",
+                inst.lanes.max(1) as u64,
+                &format!("{ctx}_lut_{lut_idx}_lanes"),
+            )?;
 
             self.bind_shout_table_spec(
                 cs,
@@ -1721,6 +1730,15 @@ impl FoldRunCircuit {
                 b"twist/ell",
                 inst.ell as u64,
                 &format!("{ctx}_mem_{mem_idx}_ell"),
+            )?;
+            self.append_message_u64_le_bytes_multi(
+                cs,
+                tr,
+                tr2.as_deref_mut(),
+                tr3.as_deref_mut(),
+                b"twist/lanes",
+                inst.lanes.max(1) as u64,
+                &format!("{ctx}_mem_{mem_idx}_lanes"),
             )?;
 
             let (init_label, init_fields): (&'static [u8], Vec<NeoF>) = match &inst.init {
@@ -3005,7 +3023,7 @@ impl FoldRunCircuit {
                     mem_inst.k
                 )));
             }
-            let ell_addr = mem_inst.twist_layout().ell_addr;
+            let ell_addr = mem_inst.d * mem_inst.ell;
             if ell_addr != cfg.num_bits {
                 return Err(SpartanBridgeError::InvalidInput(format!(
                     "step {step_idx}: output binding cfg.num_bits={}, but twist_layout.ell_addr={ell_addr}",
@@ -3257,16 +3275,21 @@ impl FoldRunCircuit {
                 }
                 let ell_addr = ell_addr.unwrap_or(0);
 
+                let total_shout_lanes: usize = step_public
+                    .lut_insts
+                    .iter()
+                    .map(|inst| inst.lanes.max(1))
+                    .sum();
                 let proof_ap = &step_proof.mem.shout_addr_pre;
-                if proof_ap.claimed_sums.len() != n_lut {
+                if proof_ap.claimed_sums.len() != total_shout_lanes {
                     return Err(SpartanBridgeError::InvalidInput(format!(
-                        "step {step_idx}: shout_addr_pre claimed_sums.len()={}, expected n_lut={n_lut}",
+                        "step {step_idx}: shout_addr_pre claimed_sums.len()={}, expected total_shout_lanes={total_shout_lanes}",
                         proof_ap.claimed_sums.len()
                     )));
                 }
-                if proof_ap.round_polys.len() != n_lut {
+                if proof_ap.round_polys.len() != total_shout_lanes {
                     return Err(SpartanBridgeError::InvalidInput(format!(
-                        "step {step_idx}: shout_addr_pre round_polys.len()={}, expected n_lut={n_lut}",
+                        "step {step_idx}: shout_addr_pre round_polys.len()={}, expected total_shout_lanes={total_shout_lanes}",
                         proof_ap.round_polys.len()
                     )));
                 }
@@ -3277,7 +3300,7 @@ impl FoldRunCircuit {
                     )));
                 }
 
-                let labels_all: Vec<&[u8]> = vec![b"shout/addr_pre".as_slice(); n_lut];
+                let labels_all: Vec<&[u8]> = vec![b"shout/addr_pre".as_slice(); total_shout_lanes];
                 tr.append_message(
                     cs,
                     b"shout/addr_pre_time/step_idx",
@@ -3290,18 +3313,18 @@ impl FoldRunCircuit {
                 tr.append_message(
                     cs,
                     b"shout/addr_pre_time/claimed_sums",
-                    &(n_lut as u64).to_le_bytes(),
+                    &(total_shout_lanes as u64).to_le_bytes(),
                     &format!("step_{step_idx}_shout_addr_pre_claimed_sums_len"),
                 )
                 .map_err(SpartanBridgeError::BellpepperError)?;
 
-	                let mut claimed_sums_vars: Vec<KNumVar> = Vec::with_capacity(n_lut);
-	                for (i, &sum) in proof_ap.claimed_sums.iter().enumerate() {
-	                    let var = helpers::alloc_k_from_neo(cs, sum, &format!("step_{step_idx}_shout_addr_pre_sum_{i}"))?;
-	                    tr.append_message(
-	                        cs,
-	                        b"addr_batch/label",
-	                        labels_all[i],
+                let mut claimed_sums_vars: Vec<KNumVar> = Vec::with_capacity(total_shout_lanes);
+                for (i, &sum) in proof_ap.claimed_sums.iter().enumerate() {
+                    let var = helpers::alloc_k_from_neo(cs, sum, &format!("step_{step_idx}_shout_addr_pre_sum_{i}"))?;
+                    tr.append_message(
+                        cs,
+                        b"addr_batch/label",
+                        labels_all[i],
                         &format!("step_{step_idx}_shout_addr_pre_bind_{i}"),
                     )
                     .map_err(SpartanBridgeError::BellpepperError)?;
@@ -3313,26 +3336,26 @@ impl FoldRunCircuit {
                     )
                     .map_err(SpartanBridgeError::BellpepperError)?;
                     let coeffs = sum.as_coeffs();
-	                    tr.append_fields_vars(
-	                        cs,
-	                        b"addr_batch/claimed_sum",
-	                        &[var.c0, var.c1],
-	                        &[
-	                            helpers::neo_f_to_circuit(&coeffs[0]),
-	                            helpers::neo_f_to_circuit(&coeffs[1]),
-	                        ],
-	                        &format!("step_{step_idx}_shout_addr_pre_bind_{i}_sum"),
-	                    )
-	                    .map_err(SpartanBridgeError::BellpepperError)?;
-	                    claimed_sums_vars.push(var);
-	                }
+                    tr.append_fields_vars(
+                        cs,
+                        b"addr_batch/claimed_sum",
+                        &[var.c0, var.c1],
+                        &[
+                            helpers::neo_f_to_circuit(&coeffs[0]),
+                            helpers::neo_f_to_circuit(&coeffs[1]),
+                        ],
+                        &format!("step_{step_idx}_shout_addr_pre_bind_{i}_sum"),
+                    )
+                    .map_err(SpartanBridgeError::BellpepperError)?;
+                    claimed_sums_vars.push(var);
+                }
 
                 // Allocate per-LUT sumcheck rounds as K variables.
-                let mut round_polys_vars: Vec<Vec<Vec<KNumVar>>> = Vec::with_capacity(n_lut);
-                for (lut_idx, rounds) in proof_ap.round_polys.iter().enumerate() {
+                let mut round_polys_vars: Vec<Vec<Vec<KNumVar>>> = Vec::with_capacity(total_shout_lanes);
+                for (lane_idx, rounds) in proof_ap.round_polys.iter().enumerate() {
                     if rounds.len() != ell_addr {
                         return Err(SpartanBridgeError::InvalidInput(format!(
-                            "step {step_idx}: shout_addr_pre round_polys[{lut_idx}].len()={}, expected ell_addr={ell_addr}",
+                            "step {step_idx}: shout_addr_pre round_polys[{lane_idx}].len()={}, expected ell_addr={ell_addr}",
                             rounds.len()
                         )));
                     }
@@ -3343,7 +3366,7 @@ impl FoldRunCircuit {
                             coeff_vars.push(helpers::alloc_k_from_neo(
                                 cs,
                                 coeff,
-                                &format!("step_{step_idx}_shout_addr_pre_lut{lut_idx}_round{round_idx}_coeff{coeff_idx}"),
+                                &format!("step_{step_idx}_shout_addr_pre_lane{lane_idx}_round{round_idx}_coeff{coeff_idx}"),
                             )?);
                         }
                         claim_vars.push(coeff_vars);
@@ -3351,7 +3374,7 @@ impl FoldRunCircuit {
                     round_polys_vars.push(claim_vars);
                 }
 
-                let degree_bounds = vec![2usize; n_lut];
+                let degree_bounds = vec![2usize; total_shout_lanes];
                 let (r_addr, finals) = verify_batched_sumcheck_rounds_ds(
                     cs,
                     tr,
@@ -4144,34 +4167,47 @@ impl FoldRunCircuit {
                     ))
                 })?;
 
-                // inc_terminal = has_write * inc_at_write_addr * eq_bits_prod(wa_bits, r')
-                let (eq_wa, eq_wa_val) = self.eq_points(
-                    cs,
-                    step_idx,
-                    twist_open.wa_bits.as_slice(),
-                    ob.r_prime_vars.as_slice(),
-                    twist_open.wa_bits_vals.as_slice(),
-                    ob.r_prime_vals.as_slice(),
-                    &format!("step_{step_idx}_ob_inc_eq_wa"),
-                )?;
-                let (t0, t0_val) = helpers::k_mul_with_hint(
-                    cs,
-                    &twist_open.has_write,
-                    twist_open.has_write_val,
-                    &twist_open.inc_at_write_addr,
-                    twist_open.inc_at_write_addr_val,
-                    self.delta,
-                    &format!("step_{step_idx}_ob_inc_t0"),
-                )?;
-                let (inc_terminal, _inc_terminal_val) = helpers::k_mul_with_hint(
-                    cs,
-                    &t0,
-                    t0_val,
-                    &eq_wa,
-                    eq_wa_val,
-                    self.delta,
-                    &format!("step_{step_idx}_ob_inc_terminal"),
-                )?;
+                // inc_terminal = Σ_lane has_write * inc_at_write_addr * eq_bits_prod(wa_bits, r')
+                let mut inc_terminal_val = NeoK::ZERO;
+                let mut inc_terminal = helpers::k_zero(cs, &format!("step_{step_idx}_ob_inc_acc0"))?;
+                for (lane_idx, lane) in twist_open.lanes.iter().enumerate() {
+                    let (eq_wa, eq_wa_val) = self.eq_points(
+                        cs,
+                        step_idx,
+                        lane.wa_bits.as_slice(),
+                        ob.r_prime_vars.as_slice(),
+                        lane.wa_bits_vals.as_slice(),
+                        ob.r_prime_vals.as_slice(),
+                        &format!("step_{step_idx}_ob_inc_eq_wa_lane{lane_idx}"),
+                    )?;
+                    let (t0, t0_val) = helpers::k_mul_with_hint(
+                        cs,
+                        &lane.has_write,
+                        lane.has_write_val,
+                        &lane.inc_at_write_addr,
+                        lane.inc_at_write_addr_val,
+                        self.delta,
+                        &format!("step_{step_idx}_ob_inc_t0_lane{lane_idx}"),
+                    )?;
+                    let (term, term_val) = helpers::k_mul_with_hint(
+                        cs,
+                        &t0,
+                        t0_val,
+                        &eq_wa,
+                        eq_wa_val,
+                        self.delta,
+                        &format!("step_{step_idx}_ob_inc_term_lane{lane_idx}"),
+                    )?;
+                    inc_terminal_val += term_val;
+                    inc_terminal = k_add_raw(
+                        cs,
+                        &inc_terminal,
+                        &term,
+                        Some(KNum::<CircuitF>::from_neo_k(inc_terminal_val)),
+                        &format!("step_{step_idx}_ob_inc_acc_lane{lane_idx}"),
+                    )
+                    .map_err(SpartanBridgeError::BellpepperError)?;
+                }
                 helpers::enforce_k_eq(
                     cs,
                     &inc_terminal,

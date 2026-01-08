@@ -7,20 +7,22 @@ use crate::CircuitF;
 use serde::{Deserialize, Serialize};
 
 /// Current public-statement version supported by this crate.
-pub const STATEMENT_VERSION: u32 = 5;
+pub const STATEMENT_VERSION: u32 = 6;
 
 // Statement public-IO layout (indices into `SpartanShardStatement::public_io()`).
 pub const STATEMENT_IO_VERSION: usize = 0;
 pub const STATEMENT_IO_PARAMS_DIGEST_OFFSET: usize = 1;
 pub const STATEMENT_IO_CCS_DIGEST_OFFSET: usize = STATEMENT_IO_PARAMS_DIGEST_OFFSET + 4;
-pub const STATEMENT_IO_VM_DIGEST_OFFSET: usize = STATEMENT_IO_CCS_DIGEST_OFFSET + 4;
+pub const STATEMENT_IO_PP_ID_DIGEST_OFFSET: usize = STATEMENT_IO_CCS_DIGEST_OFFSET + 4;
+pub const STATEMENT_IO_VM_DIGEST_OFFSET: usize = STATEMENT_IO_PP_ID_DIGEST_OFFSET + 4;
 pub const STATEMENT_IO_STEPS_DIGEST_OFFSET: usize = STATEMENT_IO_VM_DIGEST_OFFSET + 4;
 pub const STATEMENT_IO_PROGRAM_IO_DIGEST_OFFSET: usize = STATEMENT_IO_STEPS_DIGEST_OFFSET + 4;
 pub const STATEMENT_IO_STEP_LINKING_DIGEST_OFFSET: usize = STATEMENT_IO_PROGRAM_IO_DIGEST_OFFSET + 4;
 pub const STATEMENT_IO_ACC_INIT_DIGEST_OFFSET: usize = STATEMENT_IO_STEP_LINKING_DIGEST_OFFSET + 4;
 pub const STATEMENT_IO_ACC_FINAL_MAIN_DIGEST_OFFSET: usize = STATEMENT_IO_ACC_INIT_DIGEST_OFFSET + 4;
 pub const STATEMENT_IO_ACC_FINAL_VAL_DIGEST_OFFSET: usize = STATEMENT_IO_ACC_FINAL_MAIN_DIGEST_OFFSET + 4;
-pub const STATEMENT_IO_STEP_COUNT_OFFSET: usize = STATEMENT_IO_ACC_FINAL_VAL_DIGEST_OFFSET + 4;
+pub const STATEMENT_IO_OBLIGATIONS_DIGEST_OFFSET: usize = STATEMENT_IO_ACC_FINAL_VAL_DIGEST_OFFSET + 4;
+pub const STATEMENT_IO_STEP_COUNT_OFFSET: usize = STATEMENT_IO_OBLIGATIONS_DIGEST_OFFSET + 4;
 pub const STATEMENT_IO_MEM_ENABLED_OFFSET: usize = STATEMENT_IO_STEP_COUNT_OFFSET + 1;
 pub const STATEMENT_IO_OUTPUT_BINDING_ENABLED_OFFSET: usize = STATEMENT_IO_MEM_ENABLED_OFFSET + 1;
 pub const STATEMENT_IO_LEN: usize = STATEMENT_IO_OUTPUT_BINDING_ENABLED_OFFSET + 1;
@@ -33,6 +35,12 @@ pub struct SpartanShardStatement {
     /// Bind to system/circuit context.
     pub params_digest: [u8; 32],
     pub ccs_digest: [u8; 32],
+
+    /// Bind to the Ajtai public parameters identity used for commitments (seed + dims + κ).
+    ///
+    /// This is a verifier-side contract: verifiers MUST compute and check this value to ensure
+    /// closure semantics (Phase 2) are well-defined.
+    pub pp_id_digest: [u8; 32],
 
     /// Bind to VM/program context (digest of raw ROM/ELF bytes + VM configuration).
     pub vm_digest: [u8; 32],
@@ -55,6 +63,9 @@ pub struct SpartanShardStatement {
 
     /// Bind to the final val-lane obligations accumulator (digest).
     pub acc_final_val_digest: [u8; 32],
+
+    /// Bind to the full set of obligations implied by Phase 1 that Phase 2 must close.
+    pub obligations_digest: [u8; 32],
 
     /// Bind to execution shape.
     pub step_count: u32,
@@ -80,6 +91,7 @@ impl SpartanShardStatement {
     pub fn new(
         params_digest: [u8; 32],
         ccs_digest: [u8; 32],
+        pp_id_digest: [u8; 32],
         vm_digest: [u8; 32],
         steps_digest: [u8; 32],
         program_io_digest: [u8; 32],
@@ -87,6 +99,7 @@ impl SpartanShardStatement {
         acc_init_digest: [u8; 32],
         acc_final_main_digest: [u8; 32],
         acc_final_val_digest: [u8; 32],
+        obligations_digest: [u8; 32],
         step_count: u32,
         mem_enabled: bool,
         output_binding_enabled: bool,
@@ -95,6 +108,7 @@ impl SpartanShardStatement {
             version: STATEMENT_VERSION,
             params_digest,
             ccs_digest,
+            pp_id_digest,
             vm_digest,
             steps_digest,
             program_io_digest,
@@ -102,6 +116,7 @@ impl SpartanShardStatement {
             acc_init_digest,
             acc_final_main_digest,
             acc_final_val_digest,
+            obligations_digest,
             step_count,
             mem_enabled,
             output_binding_enabled,
@@ -120,6 +135,7 @@ impl SpartanShardStatement {
         push_u64(&mut out, self.version as u64);
         push_digest(&mut out, &self.params_digest);
         push_digest(&mut out, &self.ccs_digest);
+        push_digest(&mut out, &self.pp_id_digest);
         push_digest(&mut out, &self.vm_digest);
         push_digest(&mut out, &self.steps_digest);
         push_digest(&mut out, &self.program_io_digest);
@@ -127,6 +143,7 @@ impl SpartanShardStatement {
         push_digest(&mut out, &self.acc_init_digest);
         push_digest(&mut out, &self.acc_final_main_digest);
         push_digest(&mut out, &self.acc_final_val_digest);
+        push_digest(&mut out, &self.obligations_digest);
         push_u64(&mut out, self.step_count as u64);
         push_u64(&mut out, self.mem_enabled as u64);
         push_u64(&mut out, self.output_binding_enabled as u64);

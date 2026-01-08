@@ -1041,6 +1041,7 @@ dependencies = [
  "neo-params",
  "neo-reductions",
  "neo-transcript",
+ "neo-vm-trace",
  "once_cell",
  "p3-field 0.4.1",
  "p3-goldilocks 0.4.1",

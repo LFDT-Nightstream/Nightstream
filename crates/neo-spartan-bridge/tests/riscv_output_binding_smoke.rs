@@ -5,9 +5,10 @@
 //!
 //! Note: this test is `#[ignore]` because Spartan2 proving for RV32 B1 is very slow.
 
+use neo_ajtai::set_global_pp_seeded;
 use neo_fold::output_binding::simple_output_config;
 use neo_fold::riscv_shard::Rv32B1;
-use neo_math::{F, K};
+use neo_math::{D, F, K};
 use neo_spartan_bridge::circuit::FoldRunWitness;
 use neo_spartan_bridge::{compute_vm_digest_v1, prove_fold_run, setup_fold_run, verify_fold_run};
 use p3_field::PrimeCharacteristicRing;
@@ -36,6 +37,10 @@ fn test_riscv_rv32_b1_output_binding_spartan_smoke() {
         .prove()
         .expect("prove");
     run.verify().expect("native verify (with output binding)");
+
+    let seed = [42u8; 32];
+    let m_commit = run.ccs().m;
+    set_global_pp_seeded(D, run.params().kappa as usize, m_commit, seed).expect("set_global_pp_seeded");
 
     let steps_public = run.steps_public();
     let num_bits = steps_public
@@ -85,6 +90,10 @@ fn test_riscv_rv32_b1_output_binding_rejects_tampered_output_sumcheck() {
         .prove()
         .expect("prove");
     run.verify().expect("native verify");
+
+    let seed = [42u8; 32];
+    let m_commit = run.ccs().m;
+    set_global_pp_seeded(D, run.params().kappa as usize, m_commit, seed).expect("set_global_pp_seeded");
 
     let steps_public = run.steps_public();
     let num_bits = steps_public
@@ -143,6 +152,10 @@ fn test_riscv_rv32_b1_output_binding_rejects_tampered_program_io() {
         .prove()
         .expect("prove");
     run.verify().expect("native verify");
+
+    let seed = [42u8; 32];
+    let m_commit = run.ccs().m;
+    set_global_pp_seeded(D, run.params().kappa as usize, m_commit, seed).expect("set_global_pp_seeded");
 
     let steps_public = run.steps_public();
     let num_bits = steps_public

@@ -154,12 +154,14 @@ fn ports_fill_from_trace_writes_expected_cells() {
                 kind: TwistOpKind::Read,
                 addr: 7,
                 value: 9,
+                lane: None,
             },
             TwistEvent {
                 twist_id: TwistId(0),
                 kind: TwistOpKind::Write,
                 addr: 7,
                 value: 10,
+                lane: None,
             },
         ],
         shout_events: vec![ShoutEvent {
@@ -222,12 +224,14 @@ fn ports_fill_from_trace_rejects_multiple_events() {
                 kind: TwistOpKind::Read,
                 addr: 0,
                 value: 0,
+                lane: None,
             },
             TwistEvent {
                 twist_id: TwistId(0),
                 kind: TwistOpKind::Read,
                 addr: 1,
                 value: 0,
+                lane: None,
             },
         ],
         shout_events: vec![

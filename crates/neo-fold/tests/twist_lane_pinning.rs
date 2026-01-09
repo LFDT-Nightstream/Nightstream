@@ -21,7 +21,7 @@ const N_STEPS: usize = CHUNK_SIZE * 2;
 
 witness_layout! {
     #[derive(Clone, Debug)]
-    pub MultiWriteCols<const N: usize> {
+    pub PinnedLaneCols<const N: usize> {
         pub one: Public<Scalar>,
         pub twist0_lane0: TwistPort<N>,
         pub twist0_lane1: TwistPort<N>,
@@ -29,10 +29,10 @@ witness_layout! {
 }
 
 #[derive(Clone, Debug, Default)]
-struct MultiWriteCircuit<const N: usize>;
+struct PinnedLaneCircuit<const N: usize>;
 
-impl<const N: usize> NeoCircuit for MultiWriteCircuit<N> {
-    type Layout = MultiWriteCols<N>;
+impl<const N: usize> NeoCircuit for PinnedLaneCircuit<N> {
+    type Layout = PinnedLaneCols<N>;
 
     fn chunk_size(&self) -> usize {
         N
@@ -74,14 +74,32 @@ impl<const N: usize> NeoCircuit for MultiWriteCircuit<N> {
         cs: &mut neo_fold::session::CcsBuilder<F>,
         layout: &Self::Layout,
     ) -> Result<(), String> {
-        cs.eq(layout.one, layout.one);
+        let one = layout.one;
+        fn constrain_zero(cs: &mut neo_fold::session::CcsBuilder<F>, one: usize, col: usize) {
+            cs.r1cs_terms([(col, F::ONE)], [(one, F::ONE)], []);
+        }
+
+        for j in 0..N {
+            if j % 2 == 0 {
+                cs.eq(layout.twist0_lane0.has_write.at(j), one);
+                constrain_zero(cs, one, layout.twist0_lane1.has_write.at(j));
+                constrain_zero(cs, one, layout.twist0_lane0.write_addr.at(j));
+                constrain_zero(cs, one, layout.twist0_lane1.write_addr.at(j));
+            } else {
+                constrain_zero(cs, one, layout.twist0_lane0.has_write.at(j));
+                cs.eq(layout.twist0_lane1.has_write.at(j), one);
+                constrain_zero(cs, one, layout.twist0_lane0.write_addr.at(j));
+                cs.eq(layout.twist0_lane1.write_addr.at(j), one);
+            }
+        }
+
         Ok(())
     }
 
     fn build_witness_prefix(&self, layout: &Self::Layout, chunk: &[StepTrace<u64, u64>]) -> Result<Vec<F>, String> {
         if chunk.len() != N {
             return Err(format!(
-                "MultiWriteCircuit witness builder expects full chunks (len {} != N {})",
+                "PinnedLaneCircuit witness builder expects full chunks (len {} != N {})",
                 chunk.len(),
                 N
             ));
@@ -126,12 +144,12 @@ impl Shout<u64> for DummyShout {
 }
 
 #[derive(Clone, Debug, Default)]
-struct MultiWriteVm {
+struct PinnedLaneVm {
     pc: u64,
     step: u64,
 }
 
-impl VmCpu<u64, u64> for MultiWriteVm {
+impl VmCpu<u64, u64> for PinnedLaneVm {
     type Error = String;
 
     fn snapshot_regs(&self) -> Vec<u64> {
@@ -151,8 +169,12 @@ impl VmCpu<u64, u64> for MultiWriteVm {
         T: Twist<u64, u64>,
         S: Shout<u64>,
     {
-        twist.store(TwistId(0), 0, self.step + 1);
-        twist.store(TwistId(0), 1, self.step + 2);
+        let write_lane0 = self.step % 2 == 0;
+        let write_lane1 = !write_lane0;
+
+        twist.store_if_lane(write_lane0, TwistId(0), 0, self.step + 1, 0);
+        twist.store_if_lane(write_lane1, TwistId(0), 1, self.step + 2, 1);
+
         self.step += 1;
 
         self.pc = self.pc.wrapping_add(4);
@@ -167,8 +189,8 @@ fn setup_ajtai_committer(m: usize, kappa: usize) -> AjtaiSModule {
 }
 
 #[test]
-fn twist_multi_write_two_writes_per_step_prove_verify() {
-    let circuit = Arc::new(MultiWriteCircuit::<CHUNK_SIZE>::default());
+fn twist_lane_pinning_allows_writing_lane1_without_lane0() {
+    let circuit = Arc::new(PinnedLaneCircuit::<CHUNK_SIZE>::default());
     let pre = preprocess_shared_bus_r1cs(Arc::clone(&circuit)).expect("preprocess_shared_bus_r1cs");
     let m = pre.m();
 
@@ -180,7 +202,7 @@ fn twist_multi_write_two_writes_per_step_prove_verify() {
     prover
         .execute_into_session(
             &mut session,
-            MultiWriteVm::default(),
+            PinnedLaneVm::default(),
             SimpleTwistMem::default(),
             DummyShout::default(),
             N_STEPS,
@@ -191,60 +213,4 @@ fn twist_multi_write_two_writes_per_step_prove_verify() {
     session.set_step_linking(StepLinkingConfig::new(vec![(0, 0)]));
     let ok = session.verify_collected(prover.ccs(), &run).expect("verify should run");
     assert!(ok, "verification should pass");
-}
-
-#[test]
-fn twist_multi_write_duplicate_addr_rejected_by_lane_filler() {
-    let layout = <MultiWriteCols<CHUNK_SIZE> as neo_fold::session::WitnessLayout>::new_layout();
-    let mut z = <MultiWriteCols<CHUNK_SIZE> as neo_fold::session::WitnessLayout>::zero_witness_prefix();
-
-    let mut chunk: Vec<StepTrace<u64, u64>> = Vec::with_capacity(CHUNK_SIZE);
-    chunk.push(StepTrace {
-        cycle: 0,
-        pc_before: 0,
-        pc_after: 4,
-        opcode: 0,
-        regs_before: Vec::new(),
-        regs_after: Vec::new(),
-        twist_events: vec![
-            neo_vm_trace::TwistEvent {
-                twist_id: TwistId(0),
-                kind: neo_vm_trace::TwistOpKind::Write,
-                addr: 0,
-                value: 1,
-                lane: None,
-            },
-            neo_vm_trace::TwistEvent {
-                twist_id: TwistId(0),
-                kind: neo_vm_trace::TwistOpKind::Write,
-                addr: 0,
-                value: 2,
-                lane: None,
-            },
-        ],
-        shout_events: Vec::new(),
-        halted: false,
-    });
-    for i in 1..CHUNK_SIZE {
-        chunk.push(StepTrace {
-            cycle: i as u64,
-            pc_before: 4 * i as u64,
-            pc_after: 4 * (i as u64 + 1),
-            opcode: 0,
-            regs_before: Vec::new(),
-            regs_after: Vec::new(),
-            twist_events: Vec::new(),
-            shout_events: Vec::new(),
-            halted: false,
-        });
-    }
-
-    let err = TwistPort::fill_lanes_from_trace(
-        &[layout.twist0_lane0, layout.twist0_lane1],
-        &chunk,
-        0,
-        &mut z,
-    )
-    .expect_err("expected duplicate write addr error");
-    assert!(err.contains("duplicate twist write addr"), "unexpected error: {err}");
 }

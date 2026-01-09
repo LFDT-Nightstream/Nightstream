@@ -540,25 +540,21 @@ where
                     .iter()
                     .map(|inst| vec![None; inst.lanes.len()])
                     .collect();
-                let mut used_twist_reads: Vec<usize> = vec![0; twist_reads.len()];
                 let mut twist_writes: Vec<Vec<Option<(u64, Goldilocks)>>> = shared
                     .layout
                     .twist_cols
                     .iter()
                     .map(|inst| vec![None; inst.lanes.len()])
                     .collect();
-                let mut used_twist_writes: Vec<usize> = vec![0; twist_writes.len()];
 
                 for (j, step) in chunk.iter().enumerate() {
                     used_shout.fill(0);
                     for lanes in shout_events.iter_mut() {
                         lanes.fill(None);
                     }
-                    used_twist_reads.fill(0);
                     for lanes in twist_reads.iter_mut() {
                         lanes.fill(None);
                     }
-                    used_twist_writes.fill(0);
                     for lanes in twist_writes.iter_mut() {
                         lanes.fill(None);
                     }
@@ -590,37 +586,77 @@ where
                             .map_err(|_| format!("unexpected twist_id={id} in one step (chunk_start={chunk_start}, j={j})"))?;
                         match ev.kind {
                             neo_vm_trace::TwistOpKind::Read => {
-                                let lanes = twist_reads[idx].len();
-                                let lane_idx = used_twist_reads[idx];
-                                if lane_idx >= lanes {
-                                    return Err(format!(
-                                        "too many twist reads for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lanes={lanes}"
-                                    ));
-                                }
-                                twist_reads[idx][lane_idx] = Some((ev.addr, Goldilocks::from_u64(ev.value)));
-                                used_twist_reads[idx] += 1;
+                                let lanes = twist_reads
+                                    .get_mut(idx)
+                                    .ok_or_else(|| format!("missing twist read lanes for twist_id={id}"))?;
+
+                                let lane_idx = if let Some(lane) = ev.lane {
+                                    let lane_idx = usize::try_from(lane).map_err(|_| {
+                                        format!(
+                                            "invalid twist read lane for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lane={lane}"
+                                        )
+                                    })?;
+                                    if lane_idx >= lanes.len() {
+                                        return Err(format!(
+                                            "twist read lane out of range for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lane={lane_idx}, lanes={}",
+                                            lanes.len()
+                                        ));
+                                    }
+                                    if lanes[lane_idx].is_some() {
+                                        return Err(format!(
+                                            "multiple twist reads for twist_id={id} in one step (chunk_start={chunk_start}, j={j}) in lane={lane_idx}"
+                                        ));
+                                    }
+                                    lane_idx
+                                } else {
+                                    lanes.iter().position(|x| x.is_none()).ok_or_else(|| {
+                                        format!(
+                                            "too many twist reads for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lanes={}",
+                                            lanes.len()
+                                        )
+                                    })?
+                                };
+                                lanes[lane_idx] = Some((ev.addr, Goldilocks::from_u64(ev.value)));
                             }
                             neo_vm_trace::TwistOpKind::Write => {
-                                let lanes = twist_writes[idx].len();
-                                let lane_idx = used_twist_writes[idx];
-                                if twist_writes[idx]
-                                    .iter()
-                                    .take(lane_idx)
-                                    .flatten()
-                                    .any(|(addr, _)| *addr == ev.addr)
-                                {
+                                let lanes = twist_writes
+                                    .get_mut(idx)
+                                    .ok_or_else(|| format!("missing twist write lanes for twist_id={id}"))?;
+
+                                if lanes.iter().flatten().any(|(addr, _)| *addr == ev.addr) {
                                     return Err(format!(
                                         "duplicate twist write addr for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): addr={}",
                                         ev.addr
                                     ));
                                 }
-                                if lane_idx >= lanes {
-                                    return Err(format!(
-                                        "too many twist writes for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lanes={lanes}"
-                                    ));
-                                }
-                                twist_writes[idx][lane_idx] = Some((ev.addr, Goldilocks::from_u64(ev.value)));
-                                used_twist_writes[idx] += 1;
+
+                                let lane_idx = if let Some(lane) = ev.lane {
+                                    let lane_idx = usize::try_from(lane).map_err(|_| {
+                                        format!(
+                                            "invalid twist write lane for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lane={lane}"
+                                        )
+                                    })?;
+                                    if lane_idx >= lanes.len() {
+                                        return Err(format!(
+                                            "twist write lane out of range for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lane={lane_idx}, lanes={}",
+                                            lanes.len()
+                                        ));
+                                    }
+                                    if lanes[lane_idx].is_some() {
+                                        return Err(format!(
+                                            "multiple twist writes for twist_id={id} in one step (chunk_start={chunk_start}, j={j}) in lane={lane_idx}"
+                                        ));
+                                    }
+                                    lane_idx
+                                } else {
+                                    lanes.iter().position(|x| x.is_none()).ok_or_else(|| {
+                                        format!(
+                                            "too many twist writes for twist_id={id} in one step (chunk_start={chunk_start}, j={j}): lanes={}",
+                                            lanes.len()
+                                        )
+                                    })?
+                                };
+                                lanes[lane_idx] = Some((ev.addr, Goldilocks::from_u64(ev.value)));
                             }
                         }
                     }

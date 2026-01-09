@@ -36,7 +36,8 @@
 //! - **No field arithmetic**: This crate works in machine types (u64, etc.).
 //!   Conversion to field elements happens in `neo-memory`.
 //! - **Relational trace**: Only stores per-step deltas, not full state dumps.
-//! - **At most one read/write/lookup per (id, step)**: Downstream code assumes this.
+//! - **Lane-bounded side effects**: A single step may contain multiple Twist/Shout events for an id,
+//!   up to the number of access lanes provisioned downstream (and optionally pinned via `lane` hints).
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -103,11 +104,21 @@ pub struct TwistEvent<Addr, Word> {
     pub addr: Addr,
     /// The value read or written.
     pub value: Word,
+    /// Optional lane hint for witness assignment (when multiple per-step access lanes exist).
+    ///
+    /// When present, downstream witness assignment should place this event in the specified
+    /// lane index (0-based) rather than using a "first free lane" policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lane: Option<u32>,
 }
 
 impl<Addr: fmt::Debug, Word: fmt::Debug> fmt::Display for TwistEvent<Addr, Word> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[{:?}] {} {:?}", self.twist_id, self.addr, self.kind, self.value)
+        write!(f, "{}[{:?}", self.twist_id, self.addr)?;
+        if let Some(lane) = self.lane {
+            write!(f, ", lane={lane}")?;
+        }
+        write!(f, "] {} {:?}", self.kind, self.value)
     }
 }
 
@@ -269,6 +280,62 @@ pub trait Twist<Addr, Word> {
     fn load(&mut self, twist_id: TwistId, addr: Addr) -> Word;
     /// Store a value to memory.
     fn store(&mut self, twist_id: TwistId, addr: Addr, value: Word);
+
+    /// Load a value from memory, pinning the access to a specific lane.
+    ///
+    /// This is a *hint* for tracing/witness assignment; memory implementations typically ignore it.
+    #[inline]
+    fn load_lane(&mut self, twist_id: TwistId, addr: Addr, _lane: u32) -> Word {
+        self.load(twist_id, addr)
+    }
+
+    /// Store a value to memory, pinning the access to a specific lane.
+    ///
+    /// This is a *hint* for tracing/witness assignment; memory implementations typically ignore it.
+    #[inline]
+    fn store_lane(&mut self, twist_id: TwistId, addr: Addr, value: Word, _lane: u32) {
+        self.store(twist_id, addr, value)
+    }
+
+    /// Conditionally load a value from memory.
+    ///
+    /// If `cond` is false, returns `default` and does not record a Twist event in tracing wrappers.
+    #[inline]
+    fn load_if(&mut self, cond: bool, twist_id: TwistId, addr: Addr, default: Word) -> Word {
+        if cond { self.load(twist_id, addr) } else { default }
+    }
+
+    /// Conditionally store a value to memory.
+    ///
+    /// If `cond` is false, no store occurs and no Twist event is recorded in tracing wrappers.
+    #[inline]
+    fn store_if(&mut self, cond: bool, twist_id: TwistId, addr: Addr, value: Word) {
+        if cond {
+            self.store(twist_id, addr, value);
+        }
+    }
+
+    /// Conditionally load a value from memory, pinning the access to a specific lane.
+    ///
+    /// If `cond` is false, returns `default` and does not record a Twist event in tracing wrappers.
+    #[inline]
+    fn load_if_lane(&mut self, cond: bool, twist_id: TwistId, addr: Addr, default: Word, lane: u32) -> Word {
+        if cond {
+            self.load_lane(twist_id, addr, lane)
+        } else {
+            default
+        }
+    }
+
+    /// Conditionally store a value to memory, pinning the access to a specific lane.
+    ///
+    /// If `cond` is false, no store occurs and no Twist event is recorded in tracing wrappers.
+    #[inline]
+    fn store_if_lane(&mut self, cond: bool, twist_id: TwistId, addr: Addr, value: Word, lane: u32) {
+        if cond {
+            self.store_lane(twist_id, addr, value, lane);
+        }
+    }
 }
 
 /// A tracing wrapper around any `Twist` implementation.
@@ -322,6 +389,7 @@ where
             kind: TwistOpKind::Read,
             addr,
             value: v,
+            lane: None,
         });
         v
     }
@@ -333,6 +401,30 @@ where
             kind: TwistOpKind::Write,
             addr,
             value,
+            lane: None,
+        });
+    }
+
+    fn load_lane(&mut self, twist_id: TwistId, addr: Addr, lane: u32) -> Word {
+        let v = self.inner.load_lane(twist_id, addr, lane);
+        self.current_step_events.push(TwistEvent {
+            twist_id,
+            kind: TwistOpKind::Read,
+            addr,
+            value: v,
+            lane: Some(lane),
+        });
+        v
+    }
+
+    fn store_lane(&mut self, twist_id: TwistId, addr: Addr, value: Word, lane: u32) {
+        self.inner.store_lane(twist_id, addr, value, lane);
+        self.current_step_events.push(TwistEvent {
+            twist_id,
+            kind: TwistOpKind::Write,
+            addr,
+            value,
+            lane: Some(lane),
         });
     }
 }

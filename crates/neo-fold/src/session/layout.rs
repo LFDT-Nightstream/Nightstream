@@ -414,6 +414,13 @@ impl<const N: usize> TwistPort<N> {
                 if ev.twist_id.0 != twist_id {
                     continue;
                 }
+                if let Some(lane) = ev.lane {
+                    if lane != 0 {
+                        return Err(format!(
+                            "TwistPort::fill_from_trace: lane hint out of range for twist_id={twist_id} in one step (j={j}): lane={lane}"
+                        ));
+                    }
+                }
                 match ev.kind {
                     TwistOpKind::Read => {
                         if read.replace((ev.addr, ev.value)).is_some() {
@@ -481,8 +488,6 @@ impl<const N: usize> TwistPort<N> {
         for (j, step) in chunk.iter().enumerate() {
             reads.fill(None);
             writes.fill(None);
-            let mut used_reads = 0usize;
-            let mut used_writes = 0usize;
 
             for ev in &step.twist_events {
                 if ev.twist_id.0 != twist_id {
@@ -490,35 +495,74 @@ impl<const N: usize> TwistPort<N> {
                 }
                 match ev.kind {
                     TwistOpKind::Read => {
-                        if used_reads >= reads.len() {
-                            return Err(format!(
-                                "too many twist reads for twist_id={twist_id} in one step (j={j}): lanes={}",
-                                lanes.len()
-                            ));
-                        }
-                        reads[used_reads] = Some((ev.addr, ev.value));
-                        used_reads += 1;
+                        let lane_idx = if let Some(lane) = ev.lane {
+                            let lane_idx = usize::try_from(lane).map_err(|_| {
+                                format!(
+                                    "invalid twist read lane for twist_id={twist_id} in one step (j={j}): lane={lane}"
+                                )
+                            })?;
+                            if lane_idx >= reads.len() {
+                                return Err(format!(
+                                    "twist read lane out of range for twist_id={twist_id} in one step (j={j}): lane={lane_idx}, lanes={}",
+                                    lanes.len()
+                                ));
+                            }
+                            if reads[lane_idx].is_some() {
+                                return Err(format!(
+                                    "multiple twist reads for twist_id={twist_id} in one step (j={j}) in lane={lane_idx}"
+                                ));
+                            }
+                            lane_idx
+                        } else {
+                            reads
+                                .iter()
+                                .position(|x| x.is_none())
+                                .ok_or_else(|| {
+                                    format!(
+                                        "too many twist reads for twist_id={twist_id} in one step (j={j}): lanes={}",
+                                        lanes.len()
+                                    )
+                                })?
+                        };
+                        reads[lane_idx] = Some((ev.addr, ev.value));
                     }
                     TwistOpKind::Write => {
-                        if writes
-                            .iter()
-                            .take(used_writes)
-                            .flatten()
-                            .any(|(addr, _)| *addr == ev.addr)
-                        {
+                        if writes.iter().flatten().any(|(addr, _)| *addr == ev.addr) {
                             return Err(format!(
                                 "duplicate twist write addr for twist_id={twist_id} in one step (j={j}): addr={}",
                                 ev.addr
                             ));
                         }
-                        if used_writes >= writes.len() {
-                            return Err(format!(
-                                "too many twist writes for twist_id={twist_id} in one step (j={j}): lanes={}",
-                                lanes.len()
-                            ));
-                        }
-                        writes[used_writes] = Some((ev.addr, ev.value));
-                        used_writes += 1;
+                        let lane_idx = if let Some(lane) = ev.lane {
+                            let lane_idx = usize::try_from(lane).map_err(|_| {
+                                format!(
+                                    "invalid twist write lane for twist_id={twist_id} in one step (j={j}): lane={lane}"
+                                )
+                            })?;
+                            if lane_idx >= writes.len() {
+                                return Err(format!(
+                                    "twist write lane out of range for twist_id={twist_id} in one step (j={j}): lane={lane_idx}, lanes={}",
+                                    lanes.len()
+                                ));
+                            }
+                            if writes[lane_idx].is_some() {
+                                return Err(format!(
+                                    "multiple twist writes for twist_id={twist_id} in one step (j={j}) in lane={lane_idx}"
+                                ));
+                            }
+                            lane_idx
+                        } else {
+                            writes
+                                .iter()
+                                .position(|x| x.is_none())
+                                .ok_or_else(|| {
+                                    format!(
+                                        "too many twist writes for twist_id={twist_id} in one step (j={j}): lanes={}",
+                                        lanes.len()
+                                    )
+                                })?
+                        };
+                        writes[lane_idx] = Some((ev.addr, ev.value));
                     }
                 }
             }
@@ -592,6 +636,13 @@ impl<const N: usize> TwistPortWithInc<N> {
             for ev in &step.twist_events {
                 if ev.twist_id.0 != twist_id {
                     continue;
+                }
+                if let Some(lane) = ev.lane {
+                    if lane != 0 {
+                        return Err(format!(
+                            "TwistPortWithInc::fill_from_trace: lane hint out of range for twist_id={twist_id} in one step (j={j}): lane={lane}"
+                        ));
+                    }
                 }
                 match ev.kind {
                     TwistOpKind::Read => {

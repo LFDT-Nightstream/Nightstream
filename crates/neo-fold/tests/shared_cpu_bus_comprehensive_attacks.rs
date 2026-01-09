@@ -110,6 +110,7 @@ fn metadata_only_mem_instance(
             d: layout.d,
             n_side: layout.n_side,
             steps,
+            lanes: layout.lanes.max(1),
             ell,
             init,
             _phantom: PhantomData,
@@ -127,6 +128,7 @@ fn metadata_only_lut_instance(table: &LutTable<F>, steps: usize) -> (LutInstance
             d: table.d,
             n_side: table.n_side,
             steps,
+            lanes: 1,
             ell,
             table_spec: None,
             table: table.content.clone(),
@@ -199,7 +201,7 @@ fn create_ccs_referencing_all_twist_bus_cols(n: usize, m: usize, bus_base: usize
     assert_eq!(bus.bus_base, bus_base, "test assumes canonical bus_base");
 
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
-    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0].lanes[0], &cpu_layout);
 
     builder
         .build()
@@ -221,8 +223,8 @@ fn create_ccs_referencing_all_shout_twist_bus_cols(
     assert_eq!(bus.bus_base, bus_base, "test assumes canonical bus_base");
 
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
-    builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
-    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
+    builder.add_shout_instance(&bus, &bus.shout_cols[0].lanes[0], &cpu_layout);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0].lanes[0], &cpu_layout);
 
     builder
         .build()
@@ -306,7 +308,7 @@ fn ccs_must_reference_bus_columns_guardrail() {
     let mixers = default_mixers();
 
     // Build a witness with bus region filled
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let mem_trace = PlainMemTrace {
         steps: 1,
         has_read: vec![F::ONE],
@@ -402,7 +404,7 @@ fn address_bit_tampering_attack_should_be_rejected() {
 
     // Memory: addr 0 = 100, addr 1 = 200
     let mem_init = MemInit::Sparse(vec![(0, F::from_u64(100)), (1, F::from_u64(200))]);
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // ATTACK: Bus says read from addr 1 (ra_bit=1), but rv claims to be 100 (value at addr 0)
     let mut z = vec![F::ZERO; m];
@@ -528,7 +530,7 @@ fn has_read_flag_mismatch_attack_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Sparse(vec![(0, F::from_u64(42))]);
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // ATTACK: has_read=0 but rv=42 (non-zero value without read operation)
     let mut z = vec![F::ZERO; m];
@@ -654,7 +656,7 @@ fn increment_value_tampering_attack_should_be_rejected() {
 
     // Memory at addr 0 = 10
     let mem_init = MemInit::Sparse(vec![(0, F::from_u64(10))]);
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // ATTACK: Write 50, but claim inc = 100 (should be 40)
     let mut z = vec![F::ZERO; m];
@@ -831,7 +833,7 @@ fn lookup_value_tampering_attack_should_be_rejected() {
     let (lut_inst, lut_wit) = metadata_only_lut_instance(&lut_table, lut_trace.has_lookup.len());
 
     // Empty memory instance
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let mem_init = MemInit::Zero;
     let mem_trace = PlainMemTrace {
         steps: 1,
@@ -927,7 +929,7 @@ fn bus_region_mismatch_with_twist_trace_should_be_rejected() {
 
     // Memory has addr 0 = 42
     let mem_init = MemInit::Sparse(vec![(0, F::from_u64(42))]);
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // ATTACK: Bus says rv=0, but trace claims rv=42
     let mut z = vec![F::ZERO; m];
@@ -1050,7 +1052,7 @@ fn write_then_read_consistency_attack_should_be_rejected() {
     let l = setup_ajtai_committer(&params, m);
     let mixers = default_mixers();
 
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // Step 1: Write 100 to addr 0
     let mem_init_step1 = MemInit::Zero;
@@ -1218,7 +1220,7 @@ fn correct_witness_should_verify() {
 
     // Memory at addr 0 = 42
     let mem_init = MemInit::Sparse(vec![(0, F::from_u64(42))]);
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // Correct witness: read from addr 0 returns 42
     let mut z = vec![F::ZERO; m];

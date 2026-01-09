@@ -280,6 +280,7 @@ fn metadata_only_mem_instance(
             d: layout.d,
             n_side: layout.n_side,
             steps,
+            lanes: layout.lanes.max(1),
             ell,
             init,
             _phantom: PhantomData,
@@ -297,6 +298,7 @@ fn metadata_only_lut_instance(table: &LutTable<F>, steps: usize) -> (LutInstance
             d: table.d,
             n_side: table.n_side,
             steps,
+            lanes: 1,
             ell,
             table_spec: None,
             table: table.content.clone(),
@@ -355,7 +357,7 @@ fn vm_simple_add_program() {
         }
 
         // Minimal memory (no actual memory operations in this simplified test)
-        let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+        let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
         let mem_trace = empty_mem_trace();
         let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);
         let (opcode_inst, opcode_wit) = metadata_only_lut_instance(&bytecode_table, opcode_trace.has_lookup.len());
@@ -423,7 +425,7 @@ fn vm_register_file_operations() {
     let mixers = default_mixers();
 
     // Register file layout: 4 registers
-    let reg_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
+    let reg_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 , lanes: 1};
 
     let mut steps: Vec<StepWitnessBundle<Cmt, F, K>> = Vec::new();
 
@@ -568,7 +570,7 @@ fn vm_combined_bytecode_and_data_memory() {
     };
 
     // Data memory (RAM via Twist)
-    let ram_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 };
+    let ram_layout = PlainMemLayout { k: 4, d: 1, n_side: 4 , lanes: 1};
 
     // Single step: fetch LOAD_IMM from PC=0, write 42 to RAM[0]
     let bytecode_trace = PlainLutTrace {
@@ -740,7 +742,7 @@ fn vm_multi_instruction_sequence() {
             val: vec![bytecode.content[pc as usize]],
         };
 
-        let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+        let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
         let mem_trace = empty_mem_trace();
         let (mem_inst, mem_wit) = metadata_only_mem_instance(&mem_layout, MemInit::Zero, mem_trace.steps);

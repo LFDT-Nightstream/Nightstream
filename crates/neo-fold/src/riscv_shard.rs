@@ -361,7 +361,7 @@ impl Rv32B1 {
 
         let (k_ram, d_ram) = pow2_ceil_k(self.ram_bytes.max(4));
         let mem_layouts = HashMap::from([
-            (neo_memory::riscv::lookups::RAM_ID.0, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
+            (neo_memory::riscv::lookups::RAM_ID.0, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
             (PROG_ID.0, prog_layout),
         ]);
 
@@ -394,6 +394,7 @@ impl Rv32B1 {
         vm.load_program(/*base=*/ 0, program);
 
         let empty_tables: HashMap<u32, LutTable<F>> = HashMap::new();
+        let lut_lanes: HashMap<u32, usize> = HashMap::new();
 
         // CPU arithmetization (builds chunk witnesses and commits them).
         let mut cpu = R1csCpu::new(
@@ -426,6 +427,7 @@ impl Rv32B1 {
             &mem_layouts,
             &empty_tables,
             &table_specs,
+            &lut_lanes,
             &initial_mem,
             &cpu,
         )?;
@@ -476,6 +478,14 @@ pub struct Rv32B1Run {
 }
 
 impl Rv32B1Run {
+    pub fn params(&self) -> &NeoParams {
+        self.session.params()
+    }
+
+    pub fn ccs(&self) -> &CcsStructure<F> {
+        &self.ccs
+    }
+
     pub fn verify(&mut self) -> Result<(), PiCcsError> {
         let verify_start = Instant::now();
         let ok = match self.output_claim {

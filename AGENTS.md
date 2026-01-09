@@ -1,7 +1,11 @@
 # AGENTS.md
 
+## Code
+- Avoid extending files over 2,000 LOC
+
 ## Testing
 - Never add tests in the same implementation file, always prefer to add them to a file inside tests/ (current or new)
+- If you add a test to catch a problem, the test should fail if aims to confirm a problem.
 
 ## Build & Test Commands
 - When running tests use --release eg cargo test --workspace --release

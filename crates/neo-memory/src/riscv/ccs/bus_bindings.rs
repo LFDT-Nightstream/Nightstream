@@ -172,10 +172,10 @@ pub(super) fn injected_bus_constraints_len(layout: &Rv32B1Layout, table_ids: &[u
 
     let mut builder = CpuConstraintBuilder::<F>::new(layout.m, layout.m, layout.const_one);
     for (i, cpu) in shout_cpu.iter().enumerate() {
-        builder.add_shout_instance_bound(&layout.bus, &layout.bus.shout_cols[i], cpu);
+        builder.add_shout_instance_bound(&layout.bus, &layout.bus.shout_cols[i].lanes[0], cpu);
     }
     for (i, cpu) in twist_cpu.iter().enumerate() {
-        builder.add_twist_instance_bound(&layout.bus, &layout.bus.twist_cols[i], cpu);
+        builder.add_twist_instance_bound(&layout.bus, &layout.bus.twist_cols[i].lanes[0], cpu);
     }
     builder.constraints().len()
 }
@@ -196,13 +196,24 @@ pub fn rv32_b1_shared_cpu_bus_config(
 
     let mut shout_cpu = HashMap::new();
     for table_id in table_ids {
-        shout_cpu.insert(table_id, shout_cpu_binding(layout, table_id));
+        shout_cpu.insert(table_id, vec![shout_cpu_binding(layout, table_id)]);
     }
 
     let (mem_ids, _ell_addrs) = derive_mem_ids_and_ell_addrs(&mem_layouts)?;
     let mut twist_cpu = HashMap::new();
     for mem_id in mem_ids {
-        twist_cpu.insert(mem_id, twist_cpu_binding(layout, mem_id));
+        let lanes = mem_layouts
+            .get(&mem_id)
+            .map(|l| l.lanes.max(1))
+            .unwrap_or(1);
+        let primary = twist_cpu_binding(layout, mem_id);
+        let disabled = twist_cpu_binding(layout, u32::MAX);
+        let mut bindings = Vec::with_capacity(lanes);
+        bindings.push(primary);
+        for _ in 1..lanes {
+            bindings.push(disabled.clone());
+        }
+        twist_cpu.insert(mem_id, bindings);
     }
 
     Ok(SharedCpuBusConfig {

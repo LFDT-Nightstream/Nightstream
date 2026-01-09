@@ -4,6 +4,7 @@ use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::{r1cs_to_ccs, Mat};
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::session::{me_from_z_balanced, Accumulator, FoldingSession};
+use neo_fold::shard::StepLinkingConfig;
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -143,7 +144,8 @@ fn test_session_multifold_k3_three_steps_r1cs_paper_exact_nontrivial() {
     );
 
     let mcss_public = session.mcss_public();
-    session.unsafe_allow_unlinked_steps();
+    // Link x[2] across steps: it's constant (=1) in this fixture.
+    session.set_step_linking(StepLinkingConfig::new(vec![(2, 2)]));
     let ok = session
         .verify(&ccs, &mcss_public, &run)
         .expect("verify should run");

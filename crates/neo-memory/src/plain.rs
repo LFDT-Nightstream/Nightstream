@@ -7,6 +7,11 @@ pub struct PlainMemLayout {
     pub k: usize,
     pub d: usize,
     pub n_side: usize,
+    /// Number of independent access lanes per VM step for this logical memory.
+    ///
+    /// Each lane can perform at most one read and at most one write per VM step.
+    /// Lane 0 corresponds to the legacy single-op-per-step behavior.
+    pub lanes: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -124,36 +129,77 @@ pub fn build_plain_lut_traces<F: PrimeField64>(
     trace: &VmTrace<u64, u64>,
     table_sizes: &HashMap<u32, (usize, usize)>,
 ) -> HashMap<u32, PlainLutTrace<F>> {
-    let mut results = HashMap::new();
+    let empty: HashMap<u32, usize> = HashMap::new();
+    let multi = build_plain_lut_traces_with_lanes(trace, table_sizes, &empty);
+    multi
+        .into_iter()
+        .map(|(table_id, mut lanes)| {
+            let lane0 = lanes
+                .pop()
+                .expect("build_plain_lut_traces_with_lanes must return at least 1 lane");
+            (table_id, lane0)
+        })
+        .collect()
+}
+
+/// Build lane-separated Shout traces, using a "first empty lane slot" policy per step.
+///
+/// `table_lanes` specifies how many independent lanes are available for each `table_id`.
+/// If a `table_id` is missing from `table_lanes`, it defaults to 1 lane.
+pub fn build_plain_lut_traces_with_lanes<F: PrimeField64>(
+    trace: &VmTrace<u64, u64>,
+    table_sizes: &HashMap<u32, (usize, usize)>,
+    table_lanes: &HashMap<u32, usize>,
+) -> HashMap<u32, Vec<PlainLutTrace<F>>> {
+    let mut results: HashMap<u32, Vec<PlainLutTrace<F>>> = HashMap::new();
     let steps_len = trace.steps.len();
 
     for (table_id, _) in table_sizes {
+        let lanes = table_lanes.get(table_id).copied().unwrap_or(1).max(1);
         results.insert(
             *table_id,
-            PlainLutTrace {
-                has_lookup: vec![F::ZERO; steps_len],
-                addr: vec![0; steps_len],
-                val: vec![F::ZERO; steps_len],
-            },
+            (0..lanes)
+                .map(|_| PlainLutTrace {
+                    has_lookup: vec![F::ZERO; steps_len],
+                    addr: vec![0; steps_len],
+                    val: vec![F::ZERO; steps_len],
+                })
+                .collect(),
         );
     }
 
     for (j, step) in trace.steps.iter().enumerate() {
-        // Using ShoutEvent (renamed from LookupEvent)
+        let mut used_lanes: HashMap<u32, usize> = HashMap::new();
+
         for shout in &step.shout_events {
-            if let Some(t) = results.get_mut(&shout.shout_id.0) {
-                // Ensure at most one lookup per step per table
-                debug_assert_eq!(
-                    t.has_lookup[j],
-                    F::ZERO,
-                    "Multiple shouts for shout_id {} at step {}",
-                    shout.shout_id.0,
-                    j
+            let table_id = shout.shout_id.0;
+            let Some(lanes) = results.get_mut(&table_id) else {
+                continue;
+            };
+
+            let lane_idx = used_lanes.entry(table_id).or_insert(0);
+            if *lane_idx >= lanes.len() {
+                panic!(
+                    "too many shouts for shout_id {table_id} at step {j}: lanes={}, got index {}",
+                    lanes.len(),
+                    lane_idx
                 );
-                t.has_lookup[j] = F::ONE;
-                t.addr[j] = shout.key;
-                t.val[j] = F::from_u64(shout.value);
             }
+
+            let t = &mut lanes[*lane_idx];
+            debug_assert_eq!(
+                t.has_lookup[j],
+                F::ZERO,
+                "Multiple shouts for shout_id {} in lane {} at step {}",
+                table_id,
+                lane_idx,
+                j
+            );
+            t.has_lookup[j] = F::ONE;
+            t.addr[j] = shout.key;
+            t.val[j] = F::from_u64(shout.value);
+
+            *lane_idx += 1;
         }
     }
 

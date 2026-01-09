@@ -1,0 +1,49 @@
+[package]
+name = "neo-closure-proof"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = "Apache-2.0"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+blake3 = { workspace = true }
+bincode = { workspace = true }
+# Explicit obligation-closure checking (ReferenceFinalizer) + digest binding.
+neo-ajtai = { path = "../neo-ajtai" }
+neo-ccs = { path = "../neo-ccs" }
+neo-fold = { path = "../neo-fold" }
+neo-math = { path = "../neo-math" }
+neo-memory = { path = "../neo-memory" }
+neo-params = { path = "../neo-params" }
+neo-reductions = { path = "../neo-reductions" }
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true, optional = true }
+p3-symmetric = { workspace = true }
+p3-challenger = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+rand_chacha = { workspace = true, optional = true }
+whir-p3 = { path = "../whir-p3", optional = true }
+
+[features]
+default = []
+# Enables the WHIR (Plonky3-based) backend for `ClosureProofV1::OpaqueBytes`.
+whir-p3-backend = [
+  "dep:rand",
+  "dep:rand_chacha",
+  "dep:whir-p3",
+  "dep:p3-goldilocks",
+  "dep:p3-challenger",
+]
+
+# Dev-only: allow WHIR payloads to serialize the full obligations encoding.
+# Production builds should keep obligations private and must NOT enable this.
+whir-p3-obligations-public = []
+
+# Development profile for WHIR backends (faster, lower security).
+# Production builds should NOT enable this.
+whir-p3-dev = []

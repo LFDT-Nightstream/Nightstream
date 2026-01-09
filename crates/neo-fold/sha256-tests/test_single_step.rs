@@ -9,7 +9,7 @@ use bellpepper_core::{
 use ff::PrimeField;
 use neo_ajtai::{set_global_pp_seeded, AjtaiSModule};
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SparsePoly, Term};
-use neo_fold::{pi_ccs::FoldingMode, session::FoldingSession};
+use neo_fold::{pi_ccs::FoldingMode, session::FoldingSession, shard::ShardProof};
 use neo_math::{D, F};
 use neo_params::NeoParams;
 use neo_reductions::engines::optimized_engine::oracle::SparseCache;
@@ -30,6 +30,128 @@ fn setup_ajtai_for_dims(m: usize) {
     let mut seed = [0u8; 32];
     seed[..8].copy_from_slice(&42u64.to_le_bytes());
     set_global_pp_seeded(D, 4, m, seed).expect("set_global_pp_seeded");
+}
+
+/// Calculate and print proof size statistics.
+/// 
+/// Field element sizes:
+/// - F (Goldilocks base field): 8 bytes
+/// - K (quadratic extension): 2 * 8 = 16 bytes
+/// - Cmt (Ajtai commitment): d * kappa * 8 bytes (Fq elements)
+fn print_proof_size(proof: &ShardProof) {
+    const F_BYTES: usize = 8;
+    const K_BYTES: usize = 16; // 2 * 8 bytes for quadratic extension (K = F_{q^2})
+    
+    let mut total_k_elements = 0usize;
+    let mut total_f_elements = 0usize;
+    let mut total_cmt_bytes = 0usize;
+    
+    for step in &proof.steps {
+        // FoldStep
+        let fold = &step.fold;
+        
+        // ccs_proof sumcheck_rounds: Vec<Vec<K>>
+        for round in &fold.ccs_proof.sumcheck_rounds {
+            total_k_elements += round.len();
+        }
+        // sumcheck_challenges: Vec<K>
+        total_k_elements += fold.ccs_proof.sumcheck_challenges.len();
+        // sc_initial_sum: Option<K>, sumcheck_final: K
+        total_k_elements += 2;
+        
+        // ccs_out: Vec<MeInstance<Cmt, F, K>>
+        for me in &fold.ccs_out {
+            total_cmt_bytes += me.c.d * me.c.kappa * 8; // Commitment
+            total_f_elements += me.X.rows() * me.X.cols(); // X matrix
+            total_k_elements += me.r.len(); // r vector
+            for y_vec in &me.y {
+                total_k_elements += y_vec.len();
+            }
+        }
+        
+        // rlc_rhos: Vec<Mat<F>> (D x D matrices)
+        for mat in &fold.rlc_rhos {
+            total_f_elements += mat.rows() * mat.cols();
+        }
+        
+        // rlc_parent: MeInstance
+        total_cmt_bytes += fold.rlc_parent.c.d * fold.rlc_parent.c.kappa * 8;
+        total_f_elements += fold.rlc_parent.X.rows() * fold.rlc_parent.X.cols();
+        total_k_elements += fold.rlc_parent.r.len();
+        for y_vec in &fold.rlc_parent.y {
+            total_k_elements += y_vec.len();
+        }
+        
+        // dec_children: Vec<MeInstance>
+        for me in &fold.dec_children {
+            total_cmt_bytes += me.c.d * me.c.kappa * 8;
+            total_f_elements += me.X.rows() * me.X.cols();
+            total_k_elements += me.r.len();
+            for y_vec in &me.y {
+                total_k_elements += y_vec.len();
+            }
+        }
+        
+        // batched_time proof
+        let bt = &step.batched_time;
+        total_k_elements += bt.claimed_sums.len();
+        for claim_rounds in &bt.round_polys {
+            for round in claim_rounds {
+                total_k_elements += round.len();
+            }
+        }
+        
+        // mem sidecar (usually empty for CCS-only)
+        let mem = &step.mem;
+        for me in &mem.cpu_me_claims_val {
+            total_cmt_bytes += me.c.d * me.c.kappa * 8;
+            total_f_elements += me.X.rows() * me.X.cols();
+            total_k_elements += me.r.len();
+            for y_vec in &me.y {
+                total_k_elements += y_vec.len();
+            }
+        }
+        total_k_elements += mem.shout_addr_pre.claimed_sums.len();
+        total_k_elements += mem.shout_addr_pre.r_addr.len();
+        for lane_rounds in &mem.shout_addr_pre.round_polys {
+            for round in lane_rounds {
+                total_k_elements += round.len();
+            }
+        }
+        
+        // val_fold (optional)
+        if let Some(val_fold) = &step.val_fold {
+            for mat in &val_fold.rlc_rhos {
+                total_f_elements += mat.rows() * mat.cols();
+            }
+            total_cmt_bytes += val_fold.rlc_parent.c.d * val_fold.rlc_parent.c.kappa * 8;
+            total_f_elements += val_fold.rlc_parent.X.rows() * val_fold.rlc_parent.X.cols();
+            total_k_elements += val_fold.rlc_parent.r.len();
+            for y_vec in &val_fold.rlc_parent.y {
+                total_k_elements += y_vec.len();
+            }
+            for me in &val_fold.dec_children {
+                total_cmt_bytes += me.c.d * me.c.kappa * 8;
+                total_f_elements += me.X.rows() * me.X.cols();
+                total_k_elements += me.r.len();
+                for y_vec in &me.y {
+                    total_k_elements += y_vec.len();
+                }
+            }
+        }
+    }
+    
+    let f_bytes = total_f_elements * F_BYTES;
+    let k_bytes = total_k_elements * K_BYTES;
+    let total_bytes = f_bytes + k_bytes + total_cmt_bytes;
+    
+    println!("=== PROOF SIZE ===");
+    println!("  F elements:   {:>8} ({:>10} bytes)", total_f_elements, f_bytes);
+    println!("  K elements:   {:>8} ({:>10} bytes)", total_k_elements, k_bytes);
+    println!("  Commitments:  {:>10} bytes", total_cmt_bytes);
+    println!("  ---------------------------------");
+    println!("  TOTAL:        {:>10} bytes ({:.2} KB)", total_bytes, total_bytes as f64 / 1024.0);
+    println!("==================");
 }
 
 fn fp_to_u64(x: &FpGoldilocks) -> u64 {
@@ -277,6 +399,9 @@ fn test_sha256_preimage_len_bytes(preimage_len_bytes: usize) {
         .fold_and_prove(&step_ccs)
         .expect("fold_and_prove should produce a FoldRun");
     println!("Proof generation time (finalize): {:?}", start.elapsed());
+
+    // Print proof size statistics
+    print_proof_size(&run);
 
     assert_eq!(run.steps.len(), 1, "should have correct number of steps");
 

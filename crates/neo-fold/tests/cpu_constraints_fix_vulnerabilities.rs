@@ -68,7 +68,7 @@ fn create_ccs_with_binding_constraints(ell_addr: usize) -> (CcsStructure<F>, neo
     assert_eq!(bus.bus_base, CPU_COLS, "test assumes bus starts after CPU_COLS");
 
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
-    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0].lanes[0], &cpu_layout);
 
     let ccs = builder.build().expect("should build CCS");
     (ccs, bus)
@@ -91,7 +91,7 @@ fn padding_constraint_catches_rv_nonzero_when_no_read() {
 
     let ell_addr = 4;
     let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
 
     // Create a malicious witness: has_read=0 but rv=42
     let mut z = vec![F::ZERO; ccs.m];
@@ -141,7 +141,7 @@ fn padding_constraint_catches_wv_nonzero_when_no_write() {
 
     let ell_addr = 4;
     let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -183,7 +183,7 @@ fn load_binding_catches_value_mismatch() {
 
     let ell_addr = 4;
     let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -230,7 +230,7 @@ fn store_binding_catches_value_mismatch() {
 
     let ell_addr = 4;
     let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -272,7 +272,7 @@ fn valid_witness_passes_constraints() {
 
     let ell_addr = 4;
     let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
 
     // Test 1: No memory operation (all zeros except const_one)
     {
@@ -343,7 +343,7 @@ fn address_bit_padding_catches_nonzero_bits() {
 
     let ell_addr = 4;
     let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -387,10 +387,10 @@ fn shout_constraints_catch_lookup_attacks() {
     assert_eq!(bus.bus_base, CPU_COLS, "test assumes bus starts after CPU_COLS");
 
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
-    builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
+    builder.add_shout_instance(&bus, &bus.shout_cols[0].lanes[0], &cpu_layout);
 
     let ccs = builder.build().expect("should build CCS");
-    let shout = &bus.shout_cols[0];
+    let shout = &bus.shout_cols[0].lanes[0];
 
     // Test 1: Lookup value mismatch (is_lookup=1, lookup_out ≠ bus_val)
     {
@@ -461,7 +461,7 @@ fn shout_constraints_catch_lookup_attacks() {
 fn selector_binding_catches_has_read_mismatch() {
     let ell_addr = 4;
     let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -483,7 +483,7 @@ fn selector_binding_catches_has_read_mismatch() {
 fn load_address_binding_catches_mismatch() {
     let ell_addr = 4;
     let (ccs, bus) = create_ccs_with_binding_constraints(ell_addr);
-    let twist = &bus.twist_cols[0];
+    let twist = &bus.twist_cols[0].lanes[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;
@@ -529,9 +529,9 @@ fn lookup_key_binding_catches_mismatch() {
     assert_eq!(bus.bus_base, CPU_COLS, "test assumes bus starts after CPU_COLS");
 
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
-    builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
+    builder.add_shout_instance(&bus, &bus.shout_cols[0].lanes[0], &cpu_layout);
     let ccs = builder.build().expect("should build CCS");
-    let shout = &bus.shout_cols[0];
+    let shout = &bus.shout_cols[0].lanes[0];
 
     let mut z = vec![F::ZERO; ccs.m];
     z[COL_CONST_ONE] = F::ONE;

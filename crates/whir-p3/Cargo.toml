@@ -1,0 +1,104 @@
+[package]
+name = "whir-p3"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+default-run = "main"
+
+[lints]
+rust.missing_debug_implementations = "warn"
+rust.unreachable_pub = "warn"
+rust.unused_must_use = "deny"
+rust.rust_2018_idioms = { level = "deny", priority = -1 }
+rust.dead_code = "allow"
+rustdoc.all = "warn"
+
+[lints.clippy]
+# all lints that are on by default (correctness, suspicious, style, complexity, perf)
+all = { level = "warn", priority = -1 }
+
+# new lints that are still under development
+nursery = { level = "warn", priority = -1 }
+# avoid lints that are too pedantic
+doc_markdown = "allow"
+
+# lints which are rather strict or have occasional false positives
+pedantic = { level = "warn", priority = -1 }
+# avoid lints that are too pedantic
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+many_single_char_names = "allow"
+should_panic_without_expect = "allow"
+similar_names = "allow"
+suboptimal_flops = "allow"
+cast_sign_loss = "allow"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+rayon = { version = "1.0", optional = true }
+p3-field = "0.4.1"
+p3-baby-bear = "0.4.1"
+p3-koala-bear = "0.4.1"
+p3-merkle-tree = "0.4.1"
+p3-symmetric = "0.4.1"
+p3-matrix = "0.4.1"
+p3-commit = "0.4.1"
+p3-goldilocks = { version = "0.4.1", default-features = false }
+p3-dft = "0.4.1"
+p3-util = "0.4.1"
+p3-maybe-rayon = "0.4.1"
+p3-interpolation = "0.4.1"
+p3-challenger = "0.4.1"
+p3-multilinear-util = "0.4.1"
+
+itertools = "0.14"
+thiserror = "2.0"
+tracing = { version = "0.1.37", default-features = false, features = [
+    "attributes",
+] }
+tracing-forest = "0.2"
+tracing-subscriber = { version = "0.3.17", default-features = false, features = [
+    "alloc",
+    "env-filter",
+] }
+rand = "0.9"
+clap = { version = "4.5", features = ["derive"] }
+
+[dev-dependencies]
+criterion = "0.7"
+proptest = "1.0"
+
+[features]
+default = ["parallel"]
+parallel = ["dep:rayon", "p3-maybe-rayon/parallel", "p3-util/parallel"]
+rayon = ["dep:rayon"]
+
+[[bench]]
+name = "whir"
+harness = false
+
+[[bench]]
+name = "wavelet"
+harness = false
+
+[[bench]]
+name = "evaluate"
+harness = false
+
+[[bench]]
+name = "lagrange"
+harness = false
+
+[[bench]]
+name = "eval_multilinear"
+harness = false
+
+[[bench]]
+name = "sumcheck"
+harness = false
+
+[[bench]]
+name = "stir_queries"
+harness = false

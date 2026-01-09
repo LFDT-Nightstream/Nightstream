@@ -45,8 +45,8 @@ fn shared_cpu_bus_copyout_indices_match_bus_layout() {
     let time_row = bus.time_index(0);
     let chi = chi_at_index(&ccs_out0.r, time_row);
 
-    let shout0 = &bus.shout_cols[0];
-    let twist0 = &bus.twist_cols[0];
+    let shout0 = &bus.shout_cols[0].lanes[0];
+    let twist0 = &bus.twist_cols[0].lanes[0];
     let col_ids = [shout0.has_lookup, shout0.val, twist0.has_write, twist0.wv, twist0.inc];
 
     for col_id in col_ids {

@@ -6,8 +6,9 @@ set -eo pipefail
 # Usage: ./scripts/profile_for_ai.sh <package> <test_file> <test_function> [--ignored]
 #
 # Examples:
-#   ./scripts/profile_for_ai.sh neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored
+#   ./scripts/profile_for_ai.sh neo-fold test_sha256_single_step test_sha256_preimage_64_bytes
 #   ./scripts/profile_for_ai.sh neo-fold test_starstream_tx_valid_optimized test_starstream_tx_valid_optimized
+#   NEO_SPARTAN_BRIDGE_DEBUG_SHAPE=1 ./scripts/profile_for_ai.sh neo-spartan-bridge starstream_compression_smoke test_starstream_tx_export_spartan_phase1_smoke 400
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -25,6 +26,7 @@ if [ $# -lt 3 ]; then
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored 20"
   echo "  $0 neo-fold test_starstream_tx_valid_optimized test_starstream_tx_valid_optimized 30"
   echo "  $0 neo-fold test_riscv_program_compiled_full_prove_verify test_riscv_program_compiled_full_prove_verify"
+  echo "  NEO_SPARTAN_BRIDGE_DEBUG_SHAPE=1 $0 neo-spartan-bridge starstream_compression_smoke test_starstream_tx_export_spartan_phase1_smoke 400"
   echo ""
   echo "Output: Writes profile to profile-output.txt for AI analysis"
   exit 1

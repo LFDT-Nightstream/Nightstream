@@ -20,7 +20,7 @@ use crate::memory_sidecar::utils::RoundOraclePrefix;
 use crate::pi_ccs::{self as ccs, FoldingMode};
 pub use crate::shard_proof_types::{
     BatchedTimeProof, FoldStep, MemOrLutProof, MemSidecarProof, RlcDecProof, ShardFoldOutputs, ShardFoldWitnesses,
-    ShardObligations, ShardProof, ShoutProofK, StepProof, TwistProofK,
+    ShardObligations, ShardProof, ShoutAddrPreProof, ShoutProofK, StepProof, TwistProofK,
 };
 use crate::PiCcsError;
 use neo_ajtai::{
@@ -1124,6 +1124,7 @@ where
 
 fn bind_rlc_inputs(
     tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
     lane: RlcLane,
     step_idx: usize,
     me_inputs: &[MeInstance<Cmt, F, K>],
@@ -1154,8 +1155,20 @@ fn bind_rlc_inputs(
             }
         }
 
-        for ysc in &me.y_scalars {
-            tr.append_fields(b"y_scalar", &ysc.as_coeffs());
+        // Canonical y_scalars: recomposition of the first D digits of each y[j].
+        //
+        // NOTE: In shared-bus mode, `me.y_scalars` may include extra bus openings appended after
+        // the core `t=s.t()` entries. Those must not affect Fiat–Shamir (ρ sampling), so we bind
+        // only the canonical core scalars derived from `y`.
+        let bK = K::from(F::from_u64(params.b as u64));
+        for yj in &me.y {
+            let mut sc = K::ZERO;
+            let mut pow = K::ONE;
+            for rho in 0..D {
+                sc += pow * yj[rho];
+                pow *= bK;
+            }
+            tr.append_fields(b"y_scalar", &sc.as_coeffs());
         }
 
         tr.append_u64s(b"c_step_coords_len", &[me.c_step_coords.len() as u64]);
@@ -1190,7 +1203,7 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    bind_rlc_inputs(tr, lane, step_idx, me_inputs)?;
+    bind_rlc_inputs(tr, params, lane, step_idx, me_inputs)?;
     let rlc_rhos = ccs::sample_rot_rhos_n(tr, params, ring, me_inputs.len())?;
     let (mut rlc_parent, Z_mix) = if me_inputs.len() == 1 {
         assert_eq!(rlc_rhos.len(), 1, "Π_RLC(k=1): |rhos| must equal |inputs|");
@@ -1348,7 +1361,7 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    bind_rlc_inputs(tr, lane, step_idx, rlc_inputs)?;
+    bind_rlc_inputs(tr, params, lane, step_idx, rlc_inputs)?;
 
     if rlc_rhos.len() != rlc_inputs.len() {
         let prefix = match lane {
@@ -1838,7 +1851,7 @@ where
                     expected_k, mem_inst.k
                 )));
             }
-            let ell_addr = mem_inst.twist_layout().ell_addr;
+            let ell_addr = mem_inst.twist_layout().lanes[0].ell_addr;
             if ell_addr != cfg.num_bits {
                 return Err(PiCcsError::InvalidInput(format!(
                     "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
@@ -1985,12 +1998,23 @@ where
                 .get(cfg.mem_idx)
                 .ok_or_else(|| PiCcsError::ProtocolError("output binding mem_idx out of range for twist_pre".into()))?;
 
-            let (oracle, claimed_sum) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
-                pre.decoded.wa_bits.clone(),
-                pre.decoded.has_write.clone(),
-                pre.decoded.inc_at_write_addr.clone(),
-                r_prime,
-            );
+            if pre.decoded.lanes.is_empty() {
+                return Err(PiCcsError::ProtocolError("output binding: Twist decoded lanes empty".into()));
+            }
+
+            let mut oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
+            let mut claimed_sum = K::ZERO;
+            for lane in pre.decoded.lanes.iter() {
+                let (oracle, claim) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
+                    lane.wa_bits.clone(),
+                    lane.has_write.clone(),
+                    lane.inc_at_write_addr.clone(),
+                    r_prime,
+                );
+                oracles.push(Box::new(oracle));
+                claimed_sum += claim;
+            }
+            let oracle = crate::memory_sidecar::memory::SumRoundOracle::new(oracles);
 
             ob_time_claim = Some(crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim {
                 oracle: Box::new(oracle),
@@ -2590,7 +2614,7 @@ where
                     expected_k, mem_inst.k
                 )));
             }
-            let ell_addr = mem_inst.twist_layout().ell_addr;
+            let ell_addr = mem_inst.twist_layout().lanes[0].ell_addr;
             if ell_addr != cfg.num_bits {
                 return Err(PiCcsError::InvalidInput(format!(
                     "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
@@ -2907,7 +2931,7 @@ where
                     expected_k, mem_inst.k
                 )));
             }
-            let ell_addr = mem_inst.twist_layout().ell_addr;
+            let ell_addr = mem_inst.twist_layout().lanes[0].ell_addr;
             if ell_addr != cfg.num_bits {
                 return Err(PiCcsError::InvalidInput(format!(
                     "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",

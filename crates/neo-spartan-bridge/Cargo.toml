@@ -12,10 +12,12 @@ workspace = true
 default = []
 # Enable verbose logging for debugging
 debug-logs = ["neo-reductions/debug-logs"]
-# Experimental engine abstraction (not wired to Spartan2 yet)
-experimental-engine = []
-# Unsafe gadgets that use cs.get() (TestConstraintSystem only)
-unsafe-gadgets = []
+# Enables WHIR-backed closure proof backends in `neo-closure-proof` (used by BridgeProofV2 tests).
+whir-p3-backend = ["neo-closure-proof/whir-p3-backend"]
+# Dev-only: allow WHIR closure backends to serialize obligations in the payload.
+whir-p3-obligations-public = ["neo-closure-proof/whir-p3-obligations-public"]
+# Development profile for WHIR backends in `neo-closure-proof` (faster, lower security).
+whir-p3-dev = ["neo-closure-proof/whir-p3-dev"]
 
 [dependencies]
 # Neo dependencies
@@ -25,7 +27,9 @@ neo-ccs = { path = "../neo-ccs" }
 neo-params = { path = "../neo-params" }
 neo-reductions = { path = "../neo-reductions" }
 neo-fold = { path = "../neo-fold" }
+neo-memory = { path = "../neo-memory" }
 neo-transcript = { path = "../neo-transcript" }
+neo-closure-proof = { path = "../neo-closure-proof" }
 
 # Spartan2 and circuit dependencies
 spartan2 = { workspace = true }
@@ -45,7 +49,8 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 bincode = { workspace = true }
 blake3 = { workspace = true }
+once_cell = { workspace = true }
 
 [dev-dependencies]
-criterion = { workspace = true }
-proptest = { workspace = true }
+serde_json = { workspace = true }
+neo-vm-trace = { path = "../neo-vm-trace" }

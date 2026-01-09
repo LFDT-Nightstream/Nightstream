@@ -100,6 +100,7 @@ fn make_shout_instance(
             d: table.d,
             n_side: table.n_side,
             steps,
+            lanes: 1,
             ell,
             table_spec: None,
             table: table.content.clone(),

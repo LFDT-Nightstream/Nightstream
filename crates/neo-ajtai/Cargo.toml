@@ -19,6 +19,7 @@ neo-logs = []
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
 neo-ccs = { path = "../neo-ccs" }
+blake3 = { workspace = true }
 rand = "0.9"
 rand_chacha = "0.9"
 serde = { version = "1.0", features = ["derive"] }

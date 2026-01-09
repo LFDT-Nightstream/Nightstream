@@ -127,10 +127,11 @@ impl CpuArithmetization<Goldilocks, ()> for DummyCpuArith {
 #[test]
 fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
     let mut mem_layouts = HashMap::new();
-    mem_layouts.insert(0u32, PlainMemLayout { k: 2, d: 1, n_side: 2 });
+    mem_layouts.insert(0u32, PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1});
 
     let lut_tables: HashMap<u32, neo_memory::plain::LutTable<Goldilocks>> = HashMap::new();
     let lut_table_specs: HashMap<u32, neo_memory::witness::LutTableSpec> = HashMap::new();
+    let lut_lanes: HashMap<u32, usize> = HashMap::new();
     let initial_mem: HashMap<(u32, u64), Goldilocks> = HashMap::new();
 
     let bundles = build_shard_witness_shared_cpu_bus::<_, (), neo_math::K, _, _, _>(
@@ -142,6 +143,7 @@ fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
         &mem_layouts,
         &lut_tables,
         &lut_table_specs,
+        &lut_lanes,
         &initial_mem,
         &DummyCpuArith::default(),
     )
@@ -182,10 +184,11 @@ fn build_shard_witness_shared_cpu_bus_sets_init_policy_per_step() {
 #[test]
 fn build_shard_witness_shared_cpu_bus_supports_chunk_size_gt_one() {
     let mut mem_layouts = HashMap::new();
-    mem_layouts.insert(0u32, PlainMemLayout { k: 2, d: 1, n_side: 2 });
+    mem_layouts.insert(0u32, PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1});
 
     let lut_tables: HashMap<u32, neo_memory::plain::LutTable<Goldilocks>> = HashMap::new();
     let lut_table_specs: HashMap<u32, neo_memory::witness::LutTableSpec> = HashMap::new();
+    let lut_lanes: HashMap<u32, usize> = HashMap::new();
     let initial_mem: HashMap<(u32, u64), Goldilocks> = HashMap::new();
 
     let bundles = build_shard_witness_shared_cpu_bus::<_, (), neo_math::K, _, _, _>(
@@ -197,6 +200,7 @@ fn build_shard_witness_shared_cpu_bus_supports_chunk_size_gt_one() {
         &mem_layouts,
         &lut_tables,
         &lut_table_specs,
+        &lut_lanes,
         &initial_mem,
         &DummyCpuArith::default(),
     )

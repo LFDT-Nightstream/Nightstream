@@ -32,4 +32,7 @@ pub mod riscv_shard;
 // Output binding integration
 pub mod output_binding;
 
+// Digest helpers used by the Spartan bridge and closure proofs
+pub mod bridge_digests;
+
 mod shard_proof_types;

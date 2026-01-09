@@ -379,6 +379,20 @@ fn build_inc_terms_at_r_addr(
 // Sparse-in-time Route A oracles (Track A, shared CPU bus)
 // ============================================================================
 
+/// Per-lane Twist bus columns (sparse in time).
+///
+/// A "lane" is an independent per-step access slot with its own read + write ports.
+#[derive(Clone, Debug)]
+pub struct TwistLaneSparseCols {
+    pub ra_bits: Vec<SparseIdxVec<K>>,
+    pub wa_bits: Vec<SparseIdxVec<K>>,
+    pub has_read: SparseIdxVec<K>,
+    pub has_write: SparseIdxVec<K>,
+    pub wv: SparseIdxVec<K>,
+    pub rv: SparseIdxVec<K>,
+    pub inc_at_write_addr: SparseIdxVec<K>,
+}
+
 /// Sparse Route A oracle for Shout adapter:
 ///   Σ_t χ_{r_cycle}(t) · has_lookup(t) · Π_b eq(addr_bits_b(t), r_addr_b)
 pub struct IndexAdapterOracleSparseTime {
@@ -679,6 +693,38 @@ impl TwistReadCheckOracleSparseTime {
             challenges: Vec::with_capacity(ell_n),
         }
     }
+
+    pub fn new_with_inc_terms(
+        r_cycle: &[K],
+        has_read: SparseIdxVec<K>,
+        rv: SparseIdxVec<K>,
+        ra_bits: Vec<SparseIdxVec<K>>,
+        r_addr: &[K],
+        init_at_r_addr: K,
+        inc_terms_at_r_addr: Vec<(usize, K)>,
+    ) -> Self {
+        let ell_n = r_cycle.len();
+        let ell_addr = r_addr.len();
+        debug_assert_eq!(has_read.len(), 1usize << ell_n);
+        debug_assert_eq!(rv.len(), 1usize << ell_n);
+        debug_assert_eq!(ra_bits.len(), ell_addr);
+
+        Self {
+            bit_idx: 0,
+            r_cycle: r_cycle.to_vec(),
+            prefix_eq: K::ONE,
+            degree_bound: 3 + ell_addr,
+            r_addr: r_addr.to_vec(),
+            ra_bits,
+            has_read,
+            rv,
+            init_at_r_addr,
+            inc_terms_at_r_addr,
+            t_child0: vec![K::ZERO; ell_n],
+            t_child1: vec![K::ZERO; ell_n],
+            challenges: Vec::with_capacity(ell_n),
+        }
+    }
 }
 
 impl RoundOracle for TwistReadCheckOracleSparseTime {
@@ -803,6 +849,41 @@ impl TwistWriteCheckOracleSparseTime {
         debug_assert_eq!(wa_bits.len(), ell_addr);
 
         let inc_terms_at_r_addr = build_inc_terms_at_r_addr(&wa_bits, &has_write, &inc_at_write_addr, r_addr);
+
+        Self {
+            bit_idx: 0,
+            r_cycle: r_cycle.to_vec(),
+            prefix_eq: K::ONE,
+            degree_bound: 3 + ell_addr,
+            r_addr: r_addr.to_vec(),
+            wa_bits,
+            has_write,
+            wv,
+            inc_at_write_addr,
+            init_at_r_addr,
+            inc_terms_at_r_addr,
+            t_child0: vec![K::ZERO; ell_n],
+            t_child1: vec![K::ZERO; ell_n],
+            challenges: Vec::with_capacity(ell_n),
+        }
+    }
+
+    pub fn new_with_inc_terms(
+        r_cycle: &[K],
+        has_write: SparseIdxVec<K>,
+        wv: SparseIdxVec<K>,
+        inc_at_write_addr: SparseIdxVec<K>,
+        wa_bits: Vec<SparseIdxVec<K>>,
+        r_addr: &[K],
+        init_at_r_addr: K,
+        inc_terms_at_r_addr: Vec<(usize, K)>,
+    ) -> Self {
+        let ell_n = r_cycle.len();
+        let ell_addr = r_addr.len();
+        debug_assert_eq!(has_write.len(), 1usize << ell_n);
+        debug_assert_eq!(wv.len(), 1usize << ell_n);
+        debug_assert_eq!(inc_at_write_addr.len(), 1usize << ell_n);
+        debug_assert_eq!(wa_bits.len(), ell_addr);
 
         Self {
             bit_idx: 0,
@@ -1616,6 +1697,474 @@ impl RoundOracle for TwistWriteCheckAddrOracleSparseTime {
                 let delta = self.inc_at_write_addr[i] * gate_w * self.wa_prefix_w[i];
                 if delta != K::ZERO {
                     *mem.entry(idx).or_insert(K::ZERO) += delta;
+                }
+            }
+        }
+
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.ell_addr.saturating_sub(self.bit_idx)
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.num_rounds() == 0 {
+            return;
+        }
+        update_prefix_weights_in_place(&mut self.init_prefix_w, &self.init_addrs, self.bit_idx, r);
+        update_prefix_weights_in_place(&mut self.wa_prefix_w, &self.wa_addrs, self.bit_idx, r);
+        self.bit_idx += 1;
+    }
+}
+
+/// Multi-lane variant of `TwistReadCheckAddrOracleSparseTime`.
+///
+/// This oracle supports multiple Twist access lanes per CPU step by treating each lane's read/write
+/// activity as an independent sparse event stream, ordered by `(time, op_kind, lane)` where
+/// `op_kind` is read-before-write.
+///
+/// Semantics match Track A: reads observe pre-state at time `t`, writes are applied after reads at
+/// the same `t`. Multiple writes to the same address at the same `t` are **not** supported by this
+/// oracle (the caller must disallow or canonicalize them).
+pub struct TwistReadCheckAddrOracleSparseTimeMultiLane {
+    ell_addr: usize,
+    bit_idx: usize,
+    degree_bound: usize,
+
+    mem_scratch: std::collections::HashMap<usize, K>,
+
+    // Per-event (sparse time list) arrays, sorted by (time, op_kind, lane).
+    eq_cycle: Vec<K>,
+    has_read: Vec<K>,
+    rv: Vec<K>,
+    has_write: Vec<K>,
+    inc_at_write_addr: Vec<K>,
+    ra_addrs: Vec<usize>,
+    wa_addrs: Vec<usize>,
+    ra_prefix_w: Vec<K>,
+    wa_prefix_w: Vec<K>,
+
+    init_addrs: Vec<usize>,
+    init_vals: Vec<K>,
+    init_prefix_w: Vec<K>,
+}
+
+impl TwistReadCheckAddrOracleSparseTimeMultiLane {
+    pub fn new(init_sparse: Vec<(usize, K)>, r_cycle: &[K], lanes: &[TwistLaneSparseCols]) -> Self {
+        assert!(!lanes.is_empty(), "multi-lane Twist oracle requires at least 1 lane");
+
+        let pow2_time = 1usize << r_cycle.len();
+        let ell_addr = lanes[0].ra_bits.len();
+        let pow2_addr = 1usize << ell_addr;
+
+        for (addr, _) in init_sparse.iter() {
+            assert!(*addr < pow2_addr, "init address out of range");
+        }
+
+        for (lane_idx, lane) in lanes.iter().enumerate() {
+            assert_eq!(
+                lane.has_read.len(),
+                pow2_time,
+                "has_read length must match time domain (lane={lane_idx})"
+            );
+            assert_eq!(lane.rv.len(), pow2_time, "rv length must match time domain (lane={lane_idx})");
+            assert_eq!(
+                lane.has_write.len(),
+                pow2_time,
+                "has_write length must match time domain (lane={lane_idx})"
+            );
+            assert_eq!(
+                lane.inc_at_write_addr.len(),
+                pow2_time,
+                "inc_at_write_addr length must match time domain (lane={lane_idx})"
+            );
+            assert_eq!(
+                lane.ra_bits.len(),
+                ell_addr,
+                "ra_bits count must match ell_addr (lane={lane_idx})"
+            );
+            assert_eq!(
+                lane.wa_bits.len(),
+                ell_addr,
+                "wa_bits count must match ell_addr (lane={lane_idx})"
+            );
+            for (b, col) in lane.ra_bits.iter().enumerate() {
+                assert_eq!(col.len(), pow2_time, "ra_bits[{b}] length mismatch (lane={lane_idx})");
+            }
+            for (b, col) in lane.wa_bits.iter().enumerate() {
+                assert_eq!(col.len(), pow2_time, "wa_bits[{b}] length mismatch (lane={lane_idx})");
+            }
+        }
+
+        // Collect per-lane sparse events: reads first, then writes, at each time.
+        let mut events: Vec<(usize, u8, usize)> = Vec::new();
+        for (lane_idx, lane) in lanes.iter().enumerate() {
+            events.extend(lane.has_read.entries().iter().map(|&(t, _)| (t, 0u8, lane_idx)));
+            events.extend(lane.has_write.entries().iter().map(|&(t, _)| (t, 1u8, lane_idx)));
+        }
+        events.sort_unstable_by_key(|(t, kind, lane)| (*t, *kind, *lane));
+
+        let mut eq_cycle_out = Vec::with_capacity(events.len());
+        let mut has_read_out = Vec::with_capacity(events.len());
+        let mut rv_out = Vec::with_capacity(events.len());
+        let mut has_write_out = Vec::with_capacity(events.len());
+        let mut inc_out = Vec::with_capacity(events.len());
+        let mut ra_addrs = Vec::with_capacity(events.len());
+        let mut wa_addrs = Vec::with_capacity(events.len());
+
+        for (t, kind, lane_idx) in events.into_iter() {
+            let lane = &lanes[lane_idx];
+            eq_cycle_out.push(chi_at_bool_index(r_cycle, t));
+            if kind == 0 {
+                // Read
+                let hr = lane.has_read.get(t);
+                has_read_out.push(hr);
+                rv_out.push(lane.rv.get(t));
+                has_write_out.push(K::ZERO);
+                inc_out.push(K::ZERO);
+                ra_addrs.push(if hr != K::ZERO {
+                    addr_from_sparse_bits_at_time(&lane.ra_bits, t)
+                } else {
+                    0
+                });
+                wa_addrs.push(0);
+            } else {
+                // Write
+                let hw = lane.has_write.get(t);
+                has_read_out.push(K::ZERO);
+                rv_out.push(K::ZERO);
+                has_write_out.push(hw);
+                inc_out.push(lane.inc_at_write_addr.get(t));
+                ra_addrs.push(0);
+                wa_addrs.push(if hw != K::ZERO {
+                    addr_from_sparse_bits_at_time(&lane.wa_bits, t)
+                } else {
+                    0
+                });
+            }
+        }
+
+        let events_len = eq_cycle_out.len();
+        let (init_addrs, init_vals): (Vec<usize>, Vec<K>) = init_sparse.into_iter().unzip();
+        Self {
+            ell_addr,
+            bit_idx: 0,
+            degree_bound: 2,
+            mem_scratch: std::collections::HashMap::with_capacity(init_addrs.len()),
+            eq_cycle: eq_cycle_out,
+            has_read: has_read_out,
+            rv: rv_out,
+            has_write: has_write_out,
+            inc_at_write_addr: inc_out,
+            ra_addrs,
+            wa_addrs,
+            ra_prefix_w: vec![K::ONE; events_len],
+            wa_prefix_w: vec![K::ONE; events_len],
+            init_prefix_w: vec![K::ONE; init_addrs.len()],
+            init_addrs,
+            init_vals,
+        }
+    }
+}
+
+impl RoundOracle for TwistReadCheckAddrOracleSparseTimeMultiLane {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.num_rounds() == 0 {
+            let mut mem = K::ZERO;
+            for (&val, &w) in self.init_vals.iter().zip(self.init_prefix_w.iter()) {
+                mem += val * w;
+            }
+
+            let mut sum = K::ZERO;
+            for i in 0..self.eq_cycle.len() {
+                let diff = mem - self.rv[i];
+                sum += self.eq_cycle[i] * self.has_read[i] * self.ra_prefix_w[i] * diff;
+
+                let gate_w = self.has_write[i];
+                if gate_w != K::ZERO {
+                    mem += self.inc_at_write_addr[i] * gate_w * self.wa_prefix_w[i];
+                }
+            }
+            return vec![sum; points.len()];
+        }
+
+        let bit_idx = self.bit_idx;
+        let mut ys = vec![K::ZERO; points.len()];
+
+        self.mem_scratch.clear();
+        let mem = &mut self.mem_scratch;
+        for ((&addr, &val), &w) in self
+            .init_addrs
+            .iter()
+            .zip(self.init_vals.iter())
+            .zip(self.init_prefix_w.iter())
+        {
+            let idx = addr >> bit_idx;
+            let contrib = val * w;
+            if contrib != K::ZERO {
+                *mem.entry(idx).or_insert(K::ZERO) += contrib;
+            }
+        }
+
+        for i in 0..self.eq_cycle.len() {
+            let eq_t = self.eq_cycle[i];
+            let gate_r = self.has_read[i];
+            if gate_r != K::ZERO {
+                let ra = self.ra_addrs[i];
+                let base = ra >> (bit_idx + 1);
+                let idx0 = base * 2;
+                let idx1 = idx0 + 1;
+                let v0 = mem.get(&idx0).copied().unwrap_or(K::ZERO);
+                let v1 = mem.get(&idx1).copied().unwrap_or(K::ZERO);
+                let dv = v1 - v0;
+                let rv_t = self.rv[i];
+                let prefix = self.ra_prefix_w[i];
+                let bit = (ra >> bit_idx) & 1;
+
+                for (j, &x) in points.iter().enumerate() {
+                    let val_x = v0 + dv * x;
+                    let addr_factor = if bit == 1 { x } else { K::ONE - x };
+                    ys[j] += eq_t * gate_r * prefix * addr_factor * (val_x - rv_t);
+                }
+            }
+
+            let gate_w = self.has_write[i];
+            if gate_w != K::ZERO {
+                let wa = self.wa_addrs[i];
+                let idx = wa >> bit_idx;
+                let delta = self.inc_at_write_addr[i] * gate_w * self.wa_prefix_w[i];
+                if delta != K::ZERO {
+                    *mem.entry(idx).or_insert(K::ZERO) += delta;
+                }
+            }
+        }
+
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.ell_addr.saturating_sub(self.bit_idx)
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.num_rounds() == 0 {
+            return;
+        }
+        update_prefix_weights_in_place(&mut self.init_prefix_w, &self.init_addrs, self.bit_idx, r);
+        update_prefix_weights_in_place(&mut self.ra_prefix_w, &self.ra_addrs, self.bit_idx, r);
+        update_prefix_weights_in_place(&mut self.wa_prefix_w, &self.wa_addrs, self.bit_idx, r);
+        self.bit_idx += 1;
+    }
+}
+
+/// Multi-lane variant of `TwistWriteCheckAddrOracleSparseTime`.
+///
+/// Semantics are identical: multiple writes per time are allowed as independent sparse events.
+pub struct TwistWriteCheckAddrOracleSparseTimeMultiLane {
+    ell_addr: usize,
+    bit_idx: usize,
+    degree_bound: usize,
+
+    mem_scratch: std::collections::HashMap<usize, K>,
+
+    time_idxs: Vec<usize>,
+    eq_cycle: Vec<K>,
+    has_write: Vec<K>,
+    wv: Vec<K>,
+    inc_at_write_addr: Vec<K>,
+    wa_addrs: Vec<usize>,
+    wa_prefix_w: Vec<K>,
+
+    init_addrs: Vec<usize>,
+    init_vals: Vec<K>,
+    init_prefix_w: Vec<K>,
+}
+
+impl TwistWriteCheckAddrOracleSparseTimeMultiLane {
+    pub fn new(init_sparse: Vec<(usize, K)>, r_cycle: &[K], lanes: &[TwistLaneSparseCols]) -> Self {
+        assert!(!lanes.is_empty(), "multi-lane Twist oracle requires at least 1 lane");
+
+        let pow2_time = 1usize << r_cycle.len();
+        let ell_addr = lanes[0].wa_bits.len();
+        let pow2_addr = 1usize << ell_addr;
+
+        for (addr, _) in init_sparse.iter() {
+            assert!(*addr < pow2_addr, "init address out of range");
+        }
+
+        for (lane_idx, lane) in lanes.iter().enumerate() {
+            assert_eq!(
+                lane.has_write.len(),
+                pow2_time,
+                "has_write length must match time domain (lane={lane_idx})"
+            );
+            assert_eq!(lane.wv.len(), pow2_time, "wv length must match time domain (lane={lane_idx})");
+            assert_eq!(
+                lane.inc_at_write_addr.len(),
+                pow2_time,
+                "inc_at_write_addr length must match time domain (lane={lane_idx})"
+            );
+            assert_eq!(
+                lane.wa_bits.len(),
+                ell_addr,
+                "wa_bits count must match ell_addr (lane={lane_idx})"
+            );
+            for (b, col) in lane.wa_bits.iter().enumerate() {
+                assert_eq!(col.len(), pow2_time, "wa_bits[{b}] length mismatch (lane={lane_idx})");
+            }
+        }
+
+        let mut events: Vec<(usize, usize)> = Vec::new();
+        for (lane_idx, lane) in lanes.iter().enumerate() {
+            events.extend(lane.has_write.entries().iter().map(|&(t, _)| (t, lane_idx)));
+        }
+        events.sort_unstable_by_key(|(t, lane)| (*t, *lane));
+
+        let mut eq_cycle_out = Vec::with_capacity(events.len());
+        let mut has_write_out = Vec::with_capacity(events.len());
+        let mut wv_out = Vec::with_capacity(events.len());
+        let mut inc_out = Vec::with_capacity(events.len());
+        let mut wa_addrs = Vec::with_capacity(events.len());
+        let mut time_idxs = Vec::with_capacity(events.len());
+
+        for (t, lane_idx) in events.into_iter() {
+            let lane = &lanes[lane_idx];
+            let hw = lane.has_write.get(t);
+            time_idxs.push(t);
+            eq_cycle_out.push(chi_at_bool_index(r_cycle, t));
+            has_write_out.push(hw);
+            wv_out.push(lane.wv.get(t));
+            inc_out.push(lane.inc_at_write_addr.get(t));
+            wa_addrs.push(addr_from_sparse_bits_at_time(&lane.wa_bits, t));
+        }
+
+        let events_len = eq_cycle_out.len();
+        let (init_addrs, init_vals): (Vec<usize>, Vec<K>) = init_sparse.into_iter().unzip();
+        Self {
+            ell_addr,
+            bit_idx: 0,
+            degree_bound: 2,
+            mem_scratch: std::collections::HashMap::with_capacity(init_addrs.len()),
+            time_idxs,
+            eq_cycle: eq_cycle_out,
+            has_write: has_write_out,
+            wv: wv_out,
+            inc_at_write_addr: inc_out,
+            wa_addrs,
+            init_prefix_w: vec![K::ONE; init_addrs.len()],
+            init_addrs,
+            init_vals,
+            wa_prefix_w: vec![K::ONE; events_len],
+        }
+    }
+}
+
+impl RoundOracle for TwistWriteCheckAddrOracleSparseTimeMultiLane {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.num_rounds() == 0 {
+            let mut mem = K::ZERO;
+            for (&val, &w) in self.init_vals.iter().zip(self.init_prefix_w.iter()) {
+                mem += val * w;
+            }
+
+            let mut sum = K::ZERO;
+            let mut i = 0usize;
+            while i < self.eq_cycle.len() {
+                let t = self.time_idxs[i];
+                let start = i;
+                while i < self.eq_cycle.len() && self.time_idxs[i] == t {
+                    i += 1;
+                }
+                let end = i;
+
+                // Evaluate write-check terms at time t using pre-state mem.
+                for k in start..end {
+                    let delta = self.wv[k] - mem - self.inc_at_write_addr[k];
+                    sum += self.eq_cycle[k] * self.has_write[k] * self.wa_prefix_w[k] * delta;
+                }
+
+                // Apply all writes at time t after checks.
+                for k in start..end {
+                    let gate_w = self.has_write[k];
+                    if gate_w != K::ZERO {
+                        mem += self.inc_at_write_addr[k] * gate_w * self.wa_prefix_w[k];
+                    }
+                }
+            }
+            return vec![sum; points.len()];
+        }
+
+        let bit_idx = self.bit_idx;
+        let mut ys = vec![K::ZERO; points.len()];
+
+        self.mem_scratch.clear();
+        let mem = &mut self.mem_scratch;
+        for ((&addr, &val), &w) in self
+            .init_addrs
+            .iter()
+            .zip(self.init_vals.iter())
+            .zip(self.init_prefix_w.iter())
+        {
+            let idx = addr >> bit_idx;
+            let contrib = val * w;
+            if contrib != K::ZERO {
+                *mem.entry(idx).or_insert(K::ZERO) += contrib;
+            }
+        }
+
+        let mut i = 0usize;
+        while i < self.eq_cycle.len() {
+            let t = self.time_idxs[i];
+            let start = i;
+            while i < self.eq_cycle.len() && self.time_idxs[i] == t {
+                i += 1;
+            }
+            let end = i;
+
+            // Evaluate write-check terms at time t using pre-state mem.
+            for k in start..end {
+                let eq_t = self.eq_cycle[k];
+                let gate = self.has_write[k];
+                if gate != K::ZERO {
+                    let wa = self.wa_addrs[k];
+                    let base = wa >> (bit_idx + 1);
+                    let idx0 = base * 2;
+                    let idx1 = idx0 + 1;
+                    let v0 = mem.get(&idx0).copied().unwrap_or(K::ZERO);
+                    let v1 = mem.get(&idx1).copied().unwrap_or(K::ZERO);
+                    let dv = v1 - v0;
+                    let wv_t = self.wv[k];
+                    let inc_t = self.inc_at_write_addr[k];
+                    let prefix = self.wa_prefix_w[k];
+                    let bit = (wa >> bit_idx) & 1;
+
+                    for (j, &x) in points.iter().enumerate() {
+                        let val_x = v0 + dv * x;
+                        let addr_factor = if bit == 1 { x } else { K::ONE - x };
+                        ys[j] += eq_t * gate * prefix * addr_factor * (wv_t - val_x - inc_t);
+                    }
+                }
+            }
+
+            // Apply all writes at time t after checks.
+            for k in start..end {
+                let gate_w = self.has_write[k];
+                if gate_w != K::ZERO {
+                    let wa = self.wa_addrs[k];
+                    let idx = wa >> bit_idx;
+                    let delta = self.inc_at_write_addr[k] * gate_w * self.wa_prefix_w[k];
+                    if delta != K::ZERO {
+                        *mem.entry(idx).or_insert(K::ZERO) += delta;
+                    }
                 }
             }
         }

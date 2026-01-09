@@ -54,6 +54,7 @@ use neo_fold::session::{CcsBuilder, FoldingSession, NeoCircuit, ShoutPort, Share
 use neo_fold::session::{Lane, Public, Scalar};
 use neo_fold::session::{preprocess_shared_bus_r1cs, witness_layout};
 use neo_fold::shard::MemOrLutProof;
+use neo_fold::shard::StepLinkingConfig;
 use neo_math::{D, F};
 use neo_memory::plain::PlainMemLayout;
 use neo_params::NeoParams;
@@ -101,7 +102,7 @@ impl<const N: usize> NeoCircuit for FibCircuit<N> {
     fn resources(&self, resources: &mut SharedBusResources) {
         resources
             .twist(0)
-            .layout(PlainMemLayout { k: 2, d: 1, n_side: 2 })
+            .layout(PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1})
             .init_cell(0, F::ONE);
         resources.set_binary_table(0, vec![F::ZERO, F::ONE]);
     }
@@ -111,14 +112,14 @@ impl<const N: usize> NeoCircuit for FibCircuit<N> {
         layout: &Self::Layout,
     ) -> Result<
         (
-            HashMap<u32, neo_memory::cpu::ShoutCpuBinding>,
-            HashMap<u32, neo_memory::cpu::TwistCpuBinding>,
+            HashMap<u32, Vec<neo_memory::cpu::ShoutCpuBinding>>,
+            HashMap<u32, Vec<neo_memory::cpu::TwistCpuBinding>>,
         ),
         String,
     > {
         Ok((
-            HashMap::from([(0u32, layout.shout0.cpu_binding())]),
-            HashMap::from([(0u32, layout.twist0.cpu_binding())]),
+            HashMap::from([(0u32, vec![layout.shout0.cpu_binding()])]),
+            HashMap::from([(0u32, vec![layout.twist0.cpu_binding()])]),
         ))
     }
 
@@ -302,7 +303,7 @@ fn twist_shout_fibonacci_cycle_trace() {
     let outputs = run.compute_fold_outputs(&[]);
 
     let t_verify = Instant::now();
-    session.unsafe_allow_unlinked_steps();
+    session.set_step_linking(StepLinkingConfig::new(vec![(0, 0)]));
     let ok = session
         .verify_with_output_binding_collected_simple(prover.ccs(), &run, &ob_cfg)
         .expect("verify should run");
@@ -400,9 +401,8 @@ fn twist_shout_fibonacci_cycle_trace() {
                 step_proof.mem.proofs.len()
             );
             println!(
-                "shout_addr_pre: claimed_sums={} active_mask=0x{:x} rounds={} r_addr_len={}",
+                "shout_addr_pre: claimed_sums={} rounds={} r_addr_len={}",
                 step_proof.mem.shout_addr_pre.claimed_sums.len(),
-                step_proof.mem.shout_addr_pre.active_mask,
                 step_proof.mem.shout_addr_pre.round_polys.len(),
                 step_proof.mem.shout_addr_pre.r_addr.len()
             );

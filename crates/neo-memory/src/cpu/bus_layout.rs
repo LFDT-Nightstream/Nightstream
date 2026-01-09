@@ -13,9 +13,10 @@ use core::ops::Range;
 /// 2) All Twist instances, in the order provided to the builder.
 ///
 /// Within each Shout instance:
-/// - `addr_bits[0..ell_addr)`
-/// - `has_lookup`
-/// - `val`
+/// - lanes in order, each lane is:
+///   - `addr_bits[0..ell_addr)`
+///   - `has_lookup`
+///   - `val`
 ///
 /// Within each Twist instance:
 /// - `ra_bits[0..ell_addr)`
@@ -32,8 +33,8 @@ pub struct BusLayout {
     pub chunk_size: usize,
     pub bus_cols: usize,
     pub bus_base: usize,
-    pub shout_cols: Vec<ShoutCols>,
-    pub twist_cols: Vec<TwistCols>,
+    pub shout_cols: Vec<ShoutInstanceCols>,
+    pub twist_cols: Vec<TwistInstanceCols>,
 }
 
 #[derive(Clone, Debug)]
@@ -41,6 +42,15 @@ pub struct ShoutCols {
     pub addr_bits: Range<usize>,
     pub has_lookup: usize,
     pub val: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct ShoutInstanceCols {
+    /// Lookup lanes for this Shout instance.
+    ///
+    /// Each lane has the canonical per-step bus slice:
+    /// `[addr_bits, has_lookup, val]`.
+    pub lanes: Vec<ShoutCols>,
 }
 
 #[derive(Clone, Debug)]
@@ -52,6 +62,15 @@ pub struct TwistCols {
     pub wv: usize,
     pub rv: usize,
     pub inc: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct TwistInstanceCols {
+    /// Access lanes for this Twist instance.
+    ///
+    /// Each lane has the canonical per-step bus slice:
+    /// `[ra_bits, wa_bits, has_read, has_write, wv, rv, inc]`.
+    pub lanes: Vec<TwistCols>,
 }
 
 impl BusLayout {
@@ -95,72 +114,114 @@ pub fn build_bus_layout_for_instances(
     shout_ell_addrs: impl IntoIterator<Item = usize>,
     twist_ell_addrs: impl IntoIterator<Item = usize>,
 ) -> Result<BusLayout, String> {
+    build_bus_layout_for_instances_with_shout_and_twist_lanes(
+        m,
+        m_in,
+        chunk_size,
+        shout_ell_addrs.into_iter().map(|ell_addr| (ell_addr, 1usize)),
+        twist_ell_addrs.into_iter().map(|ell_addr| (ell_addr, 1usize)),
+    )
+}
+
+pub fn build_bus_layout_for_instances_with_twist_lanes(
+    m: usize,
+    m_in: usize,
+    chunk_size: usize,
+    shout_ell_addrs: impl IntoIterator<Item = usize>,
+    twist_ell_addrs_and_lanes: impl IntoIterator<Item = (usize, usize)>,
+) -> Result<BusLayout, String> {
+    build_bus_layout_for_instances_with_shout_and_twist_lanes(
+        m,
+        m_in,
+        chunk_size,
+        shout_ell_addrs.into_iter().map(|ell_addr| (ell_addr, 1usize)),
+        twist_ell_addrs_and_lanes,
+    )
+}
+
+pub fn build_bus_layout_for_instances_with_shout_and_twist_lanes(
+    m: usize,
+    m_in: usize,
+    chunk_size: usize,
+    shout_ell_addrs_and_lanes: impl IntoIterator<Item = (usize, usize)>,
+    twist_ell_addrs_and_lanes: impl IntoIterator<Item = (usize, usize)>,
+) -> Result<BusLayout, String> {
     if chunk_size == 0 {
         return Err("BusLayout: chunk_size must be >= 1".into());
     }
 
     let mut col = 0usize;
 
-    let mut shout_cols = Vec::<ShoutCols>::new();
-    for ell_addr in shout_ell_addrs {
-        let addr_bits = col..(col + ell_addr);
-        col = col
-            .checked_add(ell_addr)
-            .ok_or_else(|| "BusLayout: column overflow (shout addr_bits)".to_string())?;
-        let has_lookup = col;
-        col = col
-            .checked_add(1)
-            .ok_or_else(|| "BusLayout: column overflow (shout has_lookup)".to_string())?;
-        let val = col;
-        col = col
-            .checked_add(1)
-            .ok_or_else(|| "BusLayout: column overflow (shout val)".to_string())?;
-        shout_cols.push(ShoutCols {
-            addr_bits,
-            has_lookup,
-            val,
-        });
+    let mut shout_cols = Vec::<ShoutInstanceCols>::new();
+    for (ell_addr, lanes) in shout_ell_addrs_and_lanes {
+        let lanes = lanes.max(1);
+        let mut lane_cols = Vec::<ShoutCols>::with_capacity(lanes);
+        for _lane in 0..lanes {
+            let addr_bits = col..(col + ell_addr);
+            col = col
+                .checked_add(ell_addr)
+                .ok_or_else(|| "BusLayout: column overflow (shout addr_bits)".to_string())?;
+            let has_lookup = col;
+            col = col
+                .checked_add(1)
+                .ok_or_else(|| "BusLayout: column overflow (shout has_lookup)".to_string())?;
+            let val = col;
+            col = col
+                .checked_add(1)
+                .ok_or_else(|| "BusLayout: column overflow (shout val)".to_string())?;
+            lane_cols.push(ShoutCols {
+                addr_bits,
+                has_lookup,
+                val,
+            });
+        }
+        shout_cols.push(ShoutInstanceCols { lanes: lane_cols });
     }
 
-    let mut twist_cols = Vec::<TwistCols>::new();
-    for ell_addr in twist_ell_addrs {
-        let ra_bits = col..(col + ell_addr);
-        col = col
-            .checked_add(ell_addr)
-            .ok_or_else(|| "BusLayout: column overflow (twist ra_bits)".to_string())?;
-        let wa_bits = col..(col + ell_addr);
-        col = col
-            .checked_add(ell_addr)
-            .ok_or_else(|| "BusLayout: column overflow (twist wa_bits)".to_string())?;
-        let has_read = col;
-        col = col
-            .checked_add(1)
-            .ok_or_else(|| "BusLayout: column overflow (twist has_read)".to_string())?;
-        let has_write = col;
-        col = col
-            .checked_add(1)
-            .ok_or_else(|| "BusLayout: column overflow (twist has_write)".to_string())?;
-        let wv = col;
-        col = col
-            .checked_add(1)
-            .ok_or_else(|| "BusLayout: column overflow (twist wv)".to_string())?;
-        let rv = col;
-        col = col
-            .checked_add(1)
-            .ok_or_else(|| "BusLayout: column overflow (twist rv)".to_string())?;
-        let inc = col;
-        col = col
-            .checked_add(1)
-            .ok_or_else(|| "BusLayout: column overflow (twist inc)".to_string())?;
-        twist_cols.push(TwistCols {
-            ra_bits,
-            wa_bits,
-            has_read,
-            has_write,
-            wv,
-            rv,
-            inc,
-        });
+    let mut twist_cols = Vec::<TwistInstanceCols>::new();
+    for (ell_addr, lanes) in twist_ell_addrs_and_lanes {
+        let lanes = lanes.max(1);
+        let mut lane_cols = Vec::<TwistCols>::with_capacity(lanes);
+        for _lane in 0..lanes {
+            let ra_bits = col..(col + ell_addr);
+            col = col
+                .checked_add(ell_addr)
+                .ok_or_else(|| "BusLayout: column overflow (twist ra_bits)".to_string())?;
+            let wa_bits = col..(col + ell_addr);
+            col = col
+                .checked_add(ell_addr)
+                .ok_or_else(|| "BusLayout: column overflow (twist wa_bits)".to_string())?;
+            let has_read = col;
+            col = col
+                .checked_add(1)
+                .ok_or_else(|| "BusLayout: column overflow (twist has_read)".to_string())?;
+            let has_write = col;
+            col = col
+                .checked_add(1)
+                .ok_or_else(|| "BusLayout: column overflow (twist has_write)".to_string())?;
+            let wv = col;
+            col = col
+                .checked_add(1)
+                .ok_or_else(|| "BusLayout: column overflow (twist wv)".to_string())?;
+            let rv = col;
+            col = col
+                .checked_add(1)
+                .ok_or_else(|| "BusLayout: column overflow (twist rv)".to_string())?;
+            let inc = col;
+            col = col
+                .checked_add(1)
+                .ok_or_else(|| "BusLayout: column overflow (twist inc)".to_string())?;
+            lane_cols.push(TwistCols {
+                ra_bits,
+                wa_bits,
+                has_read,
+                has_write,
+                wv,
+                rv,
+                inc,
+            });
+        }
+        twist_cols.push(TwistInstanceCols { lanes: lane_cols });
     }
 
     let bus_cols = col;

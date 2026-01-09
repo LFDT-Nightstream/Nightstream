@@ -402,11 +402,11 @@ fn rot_from_coeffs(a_coeffs: &[F], phi_coeffs: &[i32]) -> Mat<F> {
     rho
 }
 
-/// Draw `need` samples uniformly from `alphabet` using transcript randomness (rejection sampling).
+/// Draw `need` samples from `alphabet` using transcript-derived 16-bit chunks.
 ///
-/// Uses 16-bit chunks from the transcript digest to achieve unbiased sampling:
-/// - Accept chunk if it falls in [0, largest_multiple_of_|alphabet|)
-/// - Reject and retry otherwise
+/// This implementation maps each chunk using `u16 % |alphabet|` to keep transcript
+/// consumption fixed-length (SNARK-friendly). This introduces a tiny bias (≤ 1/2^16 per draw)
+/// compared to unbiased rejection sampling.
 fn draw_alphabet_vector(
     tr: &mut Poseidon2Transcript,
     need: usize,
@@ -414,8 +414,16 @@ fn draw_alphabet_vector(
     label: &'static [u8],
     seed: u64,
 ) -> Vec<i8> {
+    // NOTE: The original implementation used unbiased rejection sampling with a bucket:
+    //   bucket = floor(2^16 / m) * m, rejecting u16 values in [bucket, 2^16).
+    //
+    // For m=5 (Goldilocks), bucket=65535 and the only rejected value is 0xFFFF.
+    // This makes transcript consumption *data-dependent*, which is unfriendly to
+    // fixed-shape SNARK circuits. We instead accept all u16 chunks and take `x % m`.
+    //
+    // This introduces a tiny bias (at most 1/2^16) but yields deterministic, fixed-length
+    // transcript consumption for RLC rho sampling.
     let m = alphabet.len() as u32;
-    let bucket = (1u32 << 16) / m * m; // Largest multiple of m below 2^16
 
     let mut out = Vec::with_capacity(need);
     let mut ctr = seed;
@@ -426,12 +434,10 @@ fn draw_alphabet_vector(
 
         for w in dig.chunks_exact(2) {
             let x = u16::from_le_bytes([w[0], w[1]]) as u32;
-            if x < bucket {
-                let idx = (x % m) as usize;
-                out.push(alphabet[idx]);
-                if out.len() == need {
-                    break;
-                }
+            let idx = (x % m) as usize;
+            out.push(alphabet[idx]);
+            if out.len() == need {
+                break;
             }
         }
         ctr = ctr.wrapping_add(1);
@@ -442,7 +448,9 @@ fn draw_alphabet_vector(
 
 /// Sample `count` rotation matrices ρ_i = rot(a_i) for ΠRLC with a_i having small coefficients.
 ///
-/// This is the **paper-compliant** ΠRLC sampler (Section 4.5, Definition 14).
+/// This sampler is deterministic and uses a fixed-length transcript consumption pattern
+/// (see `draw_alphabet_vector`), which is SNARK-friendly but introduces a tiny bias compared
+/// to unbiased rejection sampling. Treat this as a protocol-version choice.
 ///
 /// ## Key Insight: Decoupling `count` from `k_rho`
 ///

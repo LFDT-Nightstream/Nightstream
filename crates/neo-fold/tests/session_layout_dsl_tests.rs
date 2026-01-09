@@ -98,6 +98,17 @@ fn shared_bus_resources_resolve_shout_conflicts() {
 }
 
 #[test]
+fn shared_bus_resources_binary_table_uses_pow2_geometry() {
+    let mut r = SharedBusResources::new();
+    r.set_binary_table(7, (0u64..8).map(F::from_u64).collect());
+
+    let t = r.lut_tables.get(&7).expect("table inserted");
+    assert_eq!(t.k, 8);
+    assert_eq!(t.n_side, 2);
+    assert_eq!(t.d, 3, "expected d = log2(k) for binary tables");
+}
+
+#[test]
 fn lane_set_helpers_write_expected_cells() {
     type L = TestLayout<4>;
     let l = L::new();
@@ -143,12 +154,14 @@ fn ports_fill_from_trace_writes_expected_cells() {
                 kind: TwistOpKind::Read,
                 addr: 7,
                 value: 9,
+                lane: None,
             },
             TwistEvent {
                 twist_id: TwistId(0),
                 kind: TwistOpKind::Write,
                 addr: 7,
                 value: 10,
+                lane: None,
             },
         ],
         shout_events: vec![ShoutEvent {
@@ -211,12 +224,14 @@ fn ports_fill_from_trace_rejects_multiple_events() {
                 kind: TwistOpKind::Read,
                 addr: 0,
                 value: 0,
+                lane: None,
             },
             TwistEvent {
                 twist_id: TwistId(0),
                 kind: TwistOpKind::Read,
                 addr: 1,
                 value: 0,
+                lane: None,
             },
         ],
         shout_events: vec![

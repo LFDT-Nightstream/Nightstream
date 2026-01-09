@@ -1,37 +1,37 @@
 //! Neo-Spartan-Bridge: Integration layer between Neo folding and Spartan2 SNARK
 //!
-//! This crate provides a modular architecture for proving Neo FoldRun executions
-//! using Spartan2, with pluggable PCS backends.
+//! This crate provides a Bellpepper R1CS circuit that verifies Neo shard folding (Π‑CCS + Π‑RLC/Π‑DEC),
+//! with optional Route‑A memory semantics and output binding, and an API for producing/verifying a
+//! single Spartan2 proof for it.
 //!
-//! ## Architecture
-//!
-//! 1. **Engine trait**: Defines the backend (field, group, PCS, transcript, Z-layout)
-//! 2. **K-field gadgets**: Represent K (degree-2 extension) as 2 limbs over F
-//! 3. **FoldRun circuit**: Synthesizes R1CS constraints for:
-//!    - Π-CCS terminal identity verification
-//!    - Sumcheck round checks
-//!    - RLC equalities
-//!    - DEC equalities
-//!    - Accumulator chaining
-//! 4. **Prove/Verify API**: High-level interface to Spartan2
+//! ## High-level pieces
+//! - `circuit/`: `FoldRunCircuit` that enforces Π-CCS + Π-RLC/Π-DEC checks and binds accumulator digests.
+//! - `gadgets/`: Poseidon2 transcript, K-field arithmetic, and sumcheck helpers.
+//! - `api`: pinned `(pk,vk)` setup plus `prove_fold_run`/`verify_fold_run`.
 
 #![allow(non_snake_case)]
 
 pub mod api;
+pub mod bridge_proof_v2;
 pub mod circuit;
-pub mod engine;
+pub mod digests;
 pub mod error;
 pub mod gadgets;
+pub mod statement;
 
 // Re-export commonly used types
 pub use error::SpartanBridgeError;
+pub use statement::SpartanShardStatement;
 
 /// The fixed circuit field for Spartan2 integration.
 /// This is Spartan2's Goldilocks field, matching Neo's field modulus.
 pub type CircuitF = spartan2::provider::goldi::F;
 
-// Engine is experimental and gated
-#[cfg(feature = "experimental-engine")]
-pub use engine::{BridgeEngine, HashMleEngine, ZPolyLayout};
+pub use api::{
+    compute_accumulator_digest_v2, compute_vm_digest_v1, prove_fold_run, setup_fold_run, setup_fold_run_shape, verify_fold_run,
+    verify_fold_run_proof_only, verify_fold_run_statement_only, FoldRunShape, SpartanEngine, SpartanProverKey, SpartanSnark,
+    SpartanVerifierKey,
+};
 
-pub use api::{prove_fold_run, verify_fold_run};
+pub use bridge_proof_v2::{verify_bridge_proof_v2, BridgeProofV2};
+pub use digests::compute_context_digest_v1;

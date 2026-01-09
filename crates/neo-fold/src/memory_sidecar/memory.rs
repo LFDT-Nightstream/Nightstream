@@ -7,7 +7,7 @@ use crate::PiCcsError;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, MeInstance};
 use neo_math::{F, K};
-use neo_memory::bit_ops::eq_bits_prod;
+use neo_memory::bit_ops::{eq_bit_affine, eq_bits_prod};
 use neo_memory::cpu::BusLayout;
 use neo_memory::mle::{eq_points, lt_eval};
 use neo_memory::riscv::shout_oracle::RiscvAddressLookupOracleSparse;
@@ -15,8 +15,9 @@ use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::ts_common as ts;
 use neo_memory::twist_oracle::{
     AddressLookupOracle, IndexAdapterOracleSparseTime, LazyWeightedBitnessOracleSparseTime, ShoutValueOracleSparse,
-    TwistReadCheckAddrOracleSparseTime, TwistReadCheckOracleSparseTime, TwistTotalIncOracleSparseTime,
-    TwistValEvalOracleSparseTime, TwistWriteCheckAddrOracleSparseTime, TwistWriteCheckOracleSparseTime,
+    TwistLaneSparseCols, TwistReadCheckAddrOracleSparseTimeMultiLane, TwistReadCheckOracleSparseTime,
+    TwistTotalIncOracleSparseTime, TwistValEvalOracleSparseTime, TwistWriteCheckAddrOracleSparseTimeMultiLane,
+    TwistWriteCheckOracleSparseTime,
 };
 use neo_memory::witness::{LutInstance, LutTableSpec, MemInstance, StepInstanceBundle, StepWitnessBundle};
 use neo_memory::{eval_init_at_r_addr, twist, BatchedAddrProof, MemInit};
@@ -94,6 +95,7 @@ where
         tr.append_message(b"shout/n_side", &(inst.n_side as u64).to_le_bytes());
         tr.append_message(b"shout/steps", &(inst.steps as u64).to_le_bytes());
         tr.append_message(b"shout/ell", &(inst.ell as u64).to_le_bytes());
+        tr.append_message(b"shout/lanes", &(inst.lanes.max(1) as u64).to_le_bytes());
         bind_shout_table_spec(tr, &inst.table_spec);
         let table_digest = digest_fields(b"shout/table", &inst.table);
         tr.append_message(b"shout/table_digest", &table_digest);
@@ -107,6 +109,7 @@ where
         tr.append_message(b"twist/n_side", &(inst.n_side as u64).to_le_bytes());
         tr.append_message(b"twist/steps", &(inst.steps as u64).to_le_bytes());
         tr.append_message(b"twist/ell", &(inst.ell as u64).to_le_bytes());
+        tr.append_message(b"twist/lanes", &(inst.lanes.max(1) as u64).to_le_bytes());
         let init_digest = match &inst.init {
             MemInit::Zero => digest_fields(b"twist/init/zero", &[]),
             MemInit::Sparse(pairs) => {
@@ -140,28 +143,130 @@ pub(crate) fn absorb_step_memory_witness(tr: &mut Poseidon2Transcript, step: &St
 // ============================================================================
 
 pub(crate) struct ShoutDecodedColsSparse {
+    pub lanes: Vec<ShoutLaneSparseCols>,
+}
+
+pub(crate) struct ShoutLaneSparseCols {
     pub addr_bits: Vec<SparseIdxVec<K>>,
     pub has_lookup: SparseIdxVec<K>,
     pub val: SparseIdxVec<K>,
 }
 
 pub(crate) struct TwistDecodedColsSparse {
-    pub ra_bits: Vec<SparseIdxVec<K>>,
-    pub wa_bits: Vec<SparseIdxVec<K>>,
-    pub has_read: SparseIdxVec<K>,
-    pub has_write: SparseIdxVec<K>,
-    pub wv: SparseIdxVec<K>,
-    pub rv: SparseIdxVec<K>,
-    pub inc_at_write_addr: SparseIdxVec<K>,
+    pub lanes: Vec<TwistLaneSparseCols>,
+}
+
+pub(crate) struct SumRoundOracle {
+    oracles: Vec<Box<dyn RoundOracle>>,
+    num_rounds: usize,
+    degree_bound: usize,
+}
+
+impl SumRoundOracle {
+    pub(crate) fn new(oracles: Vec<Box<dyn RoundOracle>>) -> Self {
+        if oracles.is_empty() {
+            panic!("SumRoundOracle requires at least one oracle");
+        }
+
+        let num_rounds = oracles[0].num_rounds();
+        let degree_bound = oracles[0].degree_bound();
+        for (idx, o) in oracles.iter().enumerate().skip(1) {
+            if o.num_rounds() != num_rounds {
+                panic!(
+                    "SumRoundOracle num_rounds mismatch at idx={idx} (got {}, expected {num_rounds})",
+                    o.num_rounds()
+                );
+            }
+            if o.degree_bound() != degree_bound {
+                panic!(
+                    "SumRoundOracle degree_bound mismatch at idx={idx} (got {}, expected {degree_bound})",
+                    o.degree_bound()
+                );
+            }
+        }
+
+        Self {
+            oracles,
+            num_rounds,
+            degree_bound,
+        }
+    }
+}
+
+impl RoundOracle for SumRoundOracle {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        let mut acc = vec![K::ZERO; points.len()];
+        for o in self.oracles.iter_mut() {
+            let ys = o.evals_at(points);
+            if ys.len() != acc.len() {
+                panic!(
+                    "SumRoundOracle eval length mismatch (got {}, expected {})",
+                    ys.len(),
+                    acc.len()
+                );
+            }
+            for (a, y) in acc.iter_mut().zip(ys) {
+                *a += y;
+            }
+        }
+        acc
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.num_rounds
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        for o in self.oracles.iter_mut() {
+            o.fold(r);
+        }
+        self.num_rounds = self.oracles[0].num_rounds();
+    }
+}
+
+fn build_twist_inc_terms_at_r_addr(lanes: &[TwistLaneSparseCols], r_addr: &[K]) -> Vec<(usize, K)> {
+    let ell_addr = r_addr.len();
+    let mut out: Vec<(usize, K)> = Vec::new();
+
+    for lane in lanes.iter() {
+        debug_assert_eq!(lane.wa_bits.len(), ell_addr, "wa_bits len mismatch");
+        for &(t, has_w) in lane.has_write.entries() {
+            let inc_t = lane.inc_at_write_addr.get(t);
+            if has_w == K::ZERO || inc_t == K::ZERO {
+                continue;
+            }
+
+            let mut eq_addr = K::ONE;
+            for (b, col) in lane.wa_bits.iter().enumerate() {
+                let bit = col.get(t);
+                eq_addr *= eq_bit_affine(bit, r_addr[b]);
+            }
+
+            let inc_at_r_addr = has_w * inc_t * eq_addr;
+            if inc_at_r_addr != K::ZERO {
+                out.push((t, inc_at_r_addr));
+            }
+        }
+    }
+
+    out
 }
 
 pub struct RouteAShoutTimeOracles {
+    pub lanes: Vec<RouteAShoutTimeLaneOracles>,
+    pub bitness: Vec<Box<dyn RoundOracle>>,
+    pub ell_addr: usize,
+}
+
+pub struct RouteAShoutTimeLaneOracles {
     pub value: Box<dyn RoundOracle>,
     pub value_claim: K,
     pub adapter: Box<dyn RoundOracle>,
     pub adapter_claim: K,
-    pub bitness: Vec<Box<dyn RoundOracle>>,
-    pub ell_addr: usize,
 }
 
 pub struct RouteATwistTimeOracles {
@@ -217,10 +322,15 @@ pub struct TwistAddrPreVerifyData {
 }
 
 #[derive(Clone, Debug)]
-pub struct TwistTimeLaneOpenings {
+pub struct TwistTimeLaneOpeningsLane {
     pub wa_bits: Vec<K>,
     pub has_write: K,
     pub inc_at_write_addr: K,
+}
+
+#[derive(Clone, Debug)]
+pub struct TwistTimeLaneOpenings {
+    pub lanes: Vec<TwistTimeLaneOpeningsLane>,
 }
 
 #[derive(Clone, Debug)]
@@ -264,86 +374,99 @@ pub(crate) fn prove_twist_addr_pre_time(
         let z = &cpu_z_k;
 
         let ell_addr = mem_inst.d * mem_inst.ell;
-        let twist_cols = bus.twist_cols.get(idx).ok_or_else(|| {
+        let expected_lanes = mem_inst.lanes.max(1);
+        let twist_inst_cols = bus.twist_cols.get(idx).ok_or_else(|| {
             PiCcsError::InvalidInput(format!(
                 "shared_cpu_bus layout mismatch: missing twist_cols for mem_idx={idx}"
             ))
         })?;
-        if twist_cols.ra_bits.end - twist_cols.ra_bits.start != ell_addr
-            || twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr
-        {
+        if twist_inst_cols.lanes.len() != expected_lanes {
             return Err(PiCcsError::InvalidInput(format!(
-                "shared_cpu_bus layout mismatch at mem_idx={idx}: expected ell_addr={ell_addr}"
+                "shared_cpu_bus layout mismatch at mem_idx={idx}: expected lanes={expected_lanes}, got {}",
+                twist_inst_cols.lanes.len()
             )));
         }
 
-        let mut ra_bits = Vec::with_capacity(ell_addr);
-        for col_id in twist_cols.ra_bits.clone() {
-            ra_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+        let mut lanes: Vec<TwistLaneSparseCols> = Vec::with_capacity(twist_inst_cols.lanes.len());
+        for (lane_idx, twist_cols) in twist_inst_cols.lanes.iter().enumerate() {
+            if twist_cols.ra_bits.end - twist_cols.ra_bits.start != ell_addr
+                || twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr
+            {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "shared_cpu_bus layout mismatch at mem_idx={idx}, lane={lane_idx}: expected ell_addr={ell_addr}"
+                )));
+            }
+
+            let mut ra_bits = Vec::with_capacity(ell_addr);
+            for col_id in twist_cols.ra_bits.clone() {
+                ra_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+                    z,
+                    bus,
+                    col_id,
+                    mem_inst.steps,
+                    pow2_cycle,
+                )?);
+            }
+
+            let mut wa_bits = Vec::with_capacity(ell_addr);
+            for col_id in twist_cols.wa_bits.clone() {
+                wa_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+                    z,
+                    bus,
+                    col_id,
+                    mem_inst.steps,
+                    pow2_cycle,
+                )?);
+            }
+
+            let has_read = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
                 z,
                 bus,
-                col_id,
+                twist_cols.has_read,
                 mem_inst.steps,
                 pow2_cycle,
-            )?);
-        }
-
-        let mut wa_bits = Vec::with_capacity(ell_addr);
-        for col_id in twist_cols.wa_bits.clone() {
-            wa_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+            )?;
+            let has_write = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
                 z,
                 bus,
-                col_id,
+                twist_cols.has_write,
                 mem_inst.steps,
                 pow2_cycle,
-            )?);
+            )?;
+            let wv = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+                z,
+                bus,
+                twist_cols.wv,
+                mem_inst.steps,
+                pow2_cycle,
+            )?;
+            let rv = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+                z,
+                bus,
+                twist_cols.rv,
+                mem_inst.steps,
+                pow2_cycle,
+            )?;
+            let inc_at_write_addr = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+                z,
+                bus,
+                twist_cols.inc,
+                mem_inst.steps,
+                pow2_cycle,
+            )?;
+
+            lanes.push(TwistLaneSparseCols {
+                ra_bits,
+                wa_bits,
+                has_read,
+                has_write,
+                wv,
+                rv,
+                inc_at_write_addr,
+            });
         }
 
-        let has_read = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
-            z,
-            bus,
-            twist_cols.has_read,
-            mem_inst.steps,
-            pow2_cycle,
-        )?;
-        let has_write = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
-            z,
-            bus,
-            twist_cols.has_write,
-            mem_inst.steps,
-            pow2_cycle,
-        )?;
-        let wv = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
-            z,
-            bus,
-            twist_cols.wv,
-            mem_inst.steps,
-            pow2_cycle,
-        )?;
-        let rv = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
-            z,
-            bus,
-            twist_cols.rv,
-            mem_inst.steps,
-            pow2_cycle,
-        )?;
-        let inc_at_write_addr = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
-            z,
-            bus,
-            twist_cols.inc,
-            mem_inst.steps,
-            pow2_cycle,
-        )?;
-
-        let decoded = TwistDecodedColsSparse {
-            ra_bits,
-            wa_bits,
-            has_read,
-            has_write,
-            wv,
-            rv,
-            inc_at_write_addr,
-        };
+        let decoded = TwistDecodedColsSparse { lanes };
 
         let init_sparse: Vec<(usize, K)> = match &mem_inst.init {
             MemInit::Zero => Vec::new(),
@@ -364,24 +487,10 @@ pub(crate) fn prove_twist_addr_pre_time(
                 .collect::<Result<_, _>>()?,
         };
 
-        let mut read_addr_oracle = TwistReadCheckAddrOracleSparseTime::new(
-            init_sparse.clone(),
-            r_cycle,
-            decoded.has_read.clone(),
-            decoded.rv.clone(),
-            &decoded.ra_bits,
-            decoded.has_write.clone(),
-            &decoded.wa_bits,
-            decoded.inc_at_write_addr.clone(),
-        );
-        let mut write_addr_oracle = TwistWriteCheckAddrOracleSparseTime::new(
-            init_sparse,
-            r_cycle,
-            decoded.has_write.clone(),
-            decoded.wv.clone(),
-            &decoded.wa_bits,
-            decoded.inc_at_write_addr.clone(),
-        );
+        let mut read_addr_oracle =
+            TwistReadCheckAddrOracleSparseTimeMultiLane::new(init_sparse.clone(), r_cycle, &decoded.lanes);
+        let mut write_addr_oracle =
+            TwistWriteCheckAddrOracleSparseTimeMultiLane::new(init_sparse, r_cycle, &decoded.lanes);
 
         let labels: [&[u8]; 2] = [b"twist/read_addr_pre".as_slice(), b"twist/write_addr_pre".as_slice()];
         let claimed_sums = vec![K::ZERO, K::ZERO];
@@ -454,20 +563,21 @@ pub(crate) fn prove_shout_addr_pre_time(
 
     let pow2_cycle = 1usize << ell_n;
     let n_lut = step.lut_instances.len();
-    if n_lut > 64 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout(Route A): skip mask supports up to 64 Shout instances, got n_lut={n_lut}"
-        )));
-    }
+    let total_lanes: usize = step
+        .lut_instances
+        .iter()
+        .map(|(inst, _)| inst.lanes.max(1))
+        .sum();
 
     let mut decoded_cols: Vec<ShoutDecodedColsSparse> = Vec::with_capacity(n_lut);
-    let mut claimed_sums: Vec<K> = vec![K::ZERO; n_lut];
-    let mut active_mask: u64 = 0;
+    let mut claimed_sums: Vec<K> = vec![K::ZERO; total_lanes];
+    let mut active_lanes: Vec<u32> = Vec::new();
 
     let mut addr_oracles: Vec<Box<dyn RoundOracle>> = Vec::new();
     let mut active_claimed_sums: Vec<K> = Vec::new();
 
     let mut ell_addr: Option<usize> = None;
+    let mut flat_lane_idx: usize = 0;
     for (idx, (lut_inst, _lut_wit)) in step.lut_instances.iter().enumerate() {
         neo_memory::addr::validate_shout_bit_addressing(lut_inst)?;
         if lut_inst.steps > pow2_cycle {
@@ -488,94 +598,110 @@ pub(crate) fn prove_shout_addr_pre_time(
         } else {
             ell_addr = Some(inst_ell_addr);
         }
-        let shout_cols = bus.shout_cols.get(idx).ok_or_else(|| {
+        let inst_cols = bus.shout_cols.get(idx).ok_or_else(|| {
             PiCcsError::InvalidInput(format!(
                 "shared_cpu_bus layout mismatch: missing shout_cols for lut_idx={idx}"
             ))
         })?;
-        if shout_cols.addr_bits.end - shout_cols.addr_bits.start != inst_ell_addr {
+        let expected_lanes = lut_inst.lanes.max(1);
+        if inst_cols.lanes.len() != expected_lanes {
             return Err(PiCcsError::InvalidInput(format!(
-                "shared_cpu_bus layout mismatch at lut_idx={idx}: expected ell_addr={inst_ell_addr}"
+                "shared_cpu_bus layout mismatch at lut_idx={idx}: shout lanes={} but instance expects {}",
+                inst_cols.lanes.len(),
+                expected_lanes
             )));
         }
 
-        let mut addr_bits = Vec::with_capacity(inst_ell_addr);
-        for col_id in shout_cols.addr_bits.clone() {
-            addr_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+        let mut lanes: Vec<ShoutLaneSparseCols> = Vec::with_capacity(expected_lanes);
+
+        for (lane_idx, shout_cols) in inst_cols.lanes.iter().enumerate() {
+            if shout_cols.addr_bits.end - shout_cols.addr_bits.start != inst_ell_addr {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "shared_cpu_bus layout mismatch at lut_idx={idx}, lane_idx={lane_idx}: expected ell_addr={inst_ell_addr}"
+                )));
+            }
+
+            let mut addr_bits = Vec::with_capacity(inst_ell_addr);
+            for col_id in shout_cols.addr_bits.clone() {
+                addr_bits.push(crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+                    z,
+                    bus,
+                    col_id,
+                    lut_inst.steps,
+                    pow2_cycle,
+                )?);
+            }
+
+            let has_lookup = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
                 z,
                 bus,
-                col_id,
+                shout_cols.has_lookup,
                 lut_inst.steps,
                 pow2_cycle,
-            )?);
+            )?;
+            let val = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
+                z,
+                bus,
+                shout_cols.val,
+                lut_inst.steps,
+                pow2_cycle,
+            )?;
+
+            let has_any_lookup = has_lookup.entries().iter().any(|&(_t, gate)| gate != K::ZERO);
+
+            if has_any_lookup {
+                let (addr_oracle, lane_sum): (Box<dyn RoundOracle>, K) = match &lut_inst.table_spec {
+                    None => {
+                        let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
+                        let (o, sum) =
+                            AddressLookupOracle::new(&addr_bits, &has_lookup, &table_k, r_cycle, inst_ell_addr);
+                        (Box::new(o), sum)
+                    }
+                    Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
+                        let (o, sum) = RiscvAddressLookupOracleSparse::new_sparse_time(
+                            *opcode,
+                            *xlen,
+                            &addr_bits,
+                            &has_lookup,
+                            r_cycle,
+                        )?;
+                        (Box::new(o), sum)
+                    }
+                };
+
+                claimed_sums[flat_lane_idx] = lane_sum;
+                active_lanes.push(
+                    u32::try_from(flat_lane_idx)
+                        .map_err(|_| PiCcsError::InvalidInput("Shout(Route A): lane index overflow".into()))?,
+                );
+                active_claimed_sums.push(lane_sum);
+                addr_oracles.push(addr_oracle);
+            }
+
+            lanes.push(ShoutLaneSparseCols {
+                addr_bits,
+                has_lookup,
+                val,
+            });
+            flat_lane_idx += 1;
         }
 
-        let has_lookup = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
-            z,
-            bus,
-            shout_cols.has_lookup,
-            lut_inst.steps,
-            pow2_cycle,
-        )?;
-        let val = crate::memory_sidecar::cpu_bus::build_time_sparse_from_bus_col(
-            z,
-            bus,
-            shout_cols.val,
-            lut_inst.steps,
-            pow2_cycle,
-        )?;
-
-        let decoded = ShoutDecodedColsSparse {
-            addr_bits,
-            has_lookup,
-            val,
-        };
-
-        let has_any_lookup = decoded
-            .has_lookup
-            .entries()
-            .iter()
-            .any(|&(_t, gate)| gate != K::ZERO);
-        if has_any_lookup {
-            let (addr_oracle, addr_claim_sum): (Box<dyn RoundOracle>, K) = match &lut_inst.table_spec {
-                None => {
-                    let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
-                    let (o, sum) = AddressLookupOracle::new(
-                        &decoded.addr_bits,
-                        &decoded.has_lookup,
-                        &table_k,
-                        r_cycle,
-                        inst_ell_addr,
-                    );
-                    (Box::new(o), sum)
-                }
-                Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
-                    let (o, sum) = RiscvAddressLookupOracleSparse::new_sparse_time(
-                        *opcode,
-                        *xlen,
-                        &decoded.addr_bits,
-                        &decoded.has_lookup,
-                        r_cycle,
-                    )?;
-                    (Box::new(o), sum)
-                }
-            };
-
-            claimed_sums[idx] = addr_claim_sum;
-            active_mask |= 1u64 << idx;
-            active_claimed_sums.push(addr_claim_sum);
-            addr_oracles.push(addr_oracle);
-        }
+        let decoded = ShoutDecodedColsSparse { lanes };
 
         decoded_cols.push(decoded);
     }
+    if flat_lane_idx != total_lanes {
+        return Err(PiCcsError::ProtocolError(format!(
+            "Shout(Route A): flat lane indexing drift (got {flat_lane_idx}, expected {total_lanes})"
+        )));
+    }
 
-    let labels_all: Vec<&'static [u8]> = vec![b"shout/addr_pre".as_slice(); n_lut];
+    let labels_all: Vec<&'static [u8]> = vec![b"shout/addr_pre".as_slice(); total_lanes];
     tr.append_message(b"shout/addr_pre_time/step_idx", &(step_idx as u64).to_le_bytes());
     bind_batched_claim_sums(tr, b"shout/addr_pre_time/claimed_sums", &claimed_sums, &labels_all);
 
     let ell_addr = ell_addr.unwrap_or(0);
-    let (r_addr, round_polys) = if active_mask == 0 {
+    let (r_addr, round_polys) = if active_lanes.is_empty() {
         // No Shout lookups in this step; sample an arbitrary `r_addr` without running sumcheck.
         tr.append_message(b"shout/addr_pre_time/no_sumcheck", &(step_idx as u64).to_le_bytes());
         (
@@ -612,7 +738,7 @@ pub(crate) fn prove_shout_addr_pre_time(
     Ok(ShoutAddrPreBatchProverData {
         addr_pre: ShoutAddrPreProof {
             claimed_sums,
-            active_mask,
+            active_lanes,
             round_polys,
             r_addr,
         },
@@ -628,7 +754,7 @@ pub fn verify_shout_addr_pre_time(
 ) -> Result<Vec<ShoutAddrPreVerifyData>, PiCcsError> {
     if step.lut_insts.is_empty() {
         if !mem_proof.shout_addr_pre.claimed_sums.is_empty()
-            || mem_proof.shout_addr_pre.active_mask != 0
+            || !mem_proof.shout_addr_pre.active_lanes.is_empty()
             || !mem_proof.shout_addr_pre.round_polys.is_empty()
             || !mem_proof.shout_addr_pre.r_addr.is_empty()
         {
@@ -639,13 +765,8 @@ pub fn verify_shout_addr_pre_time(
         return Ok(Vec::new());
     }
 
-    let n_lut = step.lut_insts.len();
-    if n_lut > 64 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "Shout(Route A): skip mask supports up to 64 Shout instances, got n_lut={n_lut}"
-        )));
-    }
-    let mut out = Vec::with_capacity(n_lut);
+    let total_lanes: usize = step.lut_insts.iter().map(|inst| inst.lanes.max(1)).sum();
+    let mut out = Vec::with_capacity(total_lanes);
 
     let mut ell_addr: Option<usize> = None;
     for (idx, lut_inst) in step.lut_insts.iter().enumerate() {
@@ -664,11 +785,11 @@ pub fn verify_shout_addr_pre_time(
     let ell_addr = ell_addr.unwrap_or(0);
 
     let proof = &mem_proof.shout_addr_pre;
-    if proof.claimed_sums.len() != n_lut {
+    if proof.claimed_sums.len() != total_lanes {
         return Err(PiCcsError::InvalidInput(format!(
-            "shout_addr_pre claimed_sums.len()={}, expected {}",
+            "shout_addr_pre claimed_sums.len()={}, expected total_lanes={}",
             proof.claimed_sums.len(),
-            n_lut
+            total_lanes
         )));
     }
     if proof.r_addr.len() != ell_addr {
@@ -678,18 +799,20 @@ pub fn verify_shout_addr_pre_time(
         )));
     }
 
-    let allowed_mask = if n_lut == 64 {
-        u64::MAX
-    } else {
-        (1u64 << n_lut) - 1
-    };
-    if (proof.active_mask & !allowed_mask) != 0 {
-        return Err(PiCcsError::InvalidInput(
-            "shout_addr_pre active_mask has bits set out of range".into(),
-        ));
+    for (pos, &lane_idx) in proof.active_lanes.iter().enumerate() {
+        let lane_idx_usize = lane_idx as usize;
+        if lane_idx_usize >= total_lanes {
+            return Err(PiCcsError::InvalidInput(
+                "shout_addr_pre active_lanes has index out of range".into(),
+            ));
+        }
+        if pos > 0 && proof.active_lanes[pos - 1] >= lane_idx {
+            return Err(PiCcsError::InvalidInput(
+                "shout_addr_pre active_lanes must be strictly increasing".into(),
+            ));
+        }
     }
-    let active_mask = proof.active_mask & allowed_mask;
-    let active_count = active_mask.count_ones() as usize;
+    let active_count = proof.active_lanes.len();
     if proof.round_polys.len() != active_count {
         return Err(PiCcsError::InvalidInput(format!(
             "shout_addr_pre round_polys.len()={}, expected active_count={active_count}",
@@ -705,7 +828,7 @@ pub fn verify_shout_addr_pre_time(
         }
     }
 
-    let labels_all: Vec<&'static [u8]> = vec![b"shout/addr_pre".as_slice(); n_lut];
+    let labels_all: Vec<&'static [u8]> = vec![b"shout/addr_pre".as_slice(); total_lanes];
     tr.append_message(b"shout/addr_pre_time/step_idx", &(step_idx as u64).to_le_bytes());
     bind_batched_claim_sums(tr, b"shout/addr_pre_time/claimed_sums", &proof.claimed_sums, &labels_all);
 
@@ -727,10 +850,13 @@ pub fn verify_shout_addr_pre_time(
         (r_addr, Vec::new())
     } else {
         let mut active_claimed_sums: Vec<K> = Vec::with_capacity(active_count);
-        for lut_idx in 0..n_lut {
-            if ((active_mask >> lut_idx) & 1) == 1 {
-                active_claimed_sums.push(proof.claimed_sums[lut_idx]);
-            }
+        for &lane_idx in proof.active_lanes.iter() {
+            active_claimed_sums.push(
+                *proof
+                    .claimed_sums
+                    .get(lane_idx as usize)
+                    .ok_or_else(|| PiCcsError::ProtocolError("shout addr-pre active lane idx drift".into()))?,
+            );
         }
         let labels_active: Vec<&'static [u8]> = vec![b"shout/addr_pre".as_slice(); active_count];
         let degree_bounds = vec![2usize; active_count];
@@ -763,48 +889,60 @@ pub fn verify_shout_addr_pre_time(
     };
 
     let mut active_pos = 0usize;
-    for (idx, lut_inst) in step.lut_insts.iter().enumerate() {
-        let addr_claim_sum = proof.claimed_sums[idx];
-        let is_active = ((active_mask >> idx) & 1) == 1;
-        let addr_final = if is_active {
-            let v = finals
-                .get(active_pos)
-                .copied()
-                .ok_or_else(|| PiCcsError::ProtocolError("shout addr-pre finals index drift".into()))?;
-            active_pos += 1;
-            v
-        } else {
-            K::ZERO
-        };
+    let mut next_active = proof.active_lanes.get(active_pos).copied().unwrap_or(u32::MAX);
+    for lut_inst in step.lut_insts.iter() {
+        let expected_lanes = lut_inst.lanes.max(1);
+        for _lane_idx in 0..expected_lanes {
+            let flat_lane_idx = out.len();
+            let addr_claim_sum = *proof
+                .claimed_sums
+                .get(flat_lane_idx)
+                .ok_or_else(|| PiCcsError::ProtocolError("shout addr-pre lane index drift".into()))?;
+            let is_active = (flat_lane_idx as u32) == next_active;
+            let addr_final = if is_active {
+                let v = finals
+                    .get(active_pos)
+                    .copied()
+                    .ok_or_else(|| PiCcsError::ProtocolError("shout addr-pre finals index drift".into()))?;
+                active_pos += 1;
+                next_active = proof.active_lanes.get(active_pos).copied().unwrap_or(u32::MAX);
+                v
+            } else {
+                K::ZERO
+            };
 
-        let table_eval_at_r_addr = if is_active {
-            match &lut_inst.table_spec {
-                None => {
-                    let pow2 = 1usize
-                        .checked_shl(r_addr.len() as u32)
-                        .ok_or_else(|| PiCcsError::InvalidInput("Shout: 2^ell_addr overflow".into()))?;
-                    let mut acc = K::ZERO;
-                    for (i, &v) in lut_inst.table.iter().enumerate().take(pow2) {
-                        let w = neo_memory::mle::chi_at_index(&r_addr, i);
-                        acc += K::from(v) * w;
+            let table_eval_at_r_addr = if is_active {
+                match &lut_inst.table_spec {
+                    None => {
+                        let pow2 = 1usize
+                            .checked_shl(r_addr.len() as u32)
+                            .ok_or_else(|| PiCcsError::InvalidInput("Shout: 2^ell_addr overflow".into()))?;
+                        let mut acc = K::ZERO;
+                        for (i, &v) in lut_inst.table.iter().enumerate().take(pow2) {
+                            let w = neo_memory::mle::chi_at_index(&r_addr, i);
+                            acc += K::from(v) * w;
+                        }
+                        acc
                     }
-                    acc
+                    Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
+                        neo_memory::riscv::lookups::evaluate_opcode_mle(*opcode, &r_addr, *xlen)
+                    }
                 }
-                Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
-                    neo_memory::riscv::lookups::evaluate_opcode_mle(*opcode, &r_addr, *xlen)
-                }
-            }
-        } else {
-            K::ZERO
-        };
+            } else {
+                K::ZERO
+            };
 
-        out.push(ShoutAddrPreVerifyData {
-            is_active,
-            addr_claim_sum,
-            addr_final,
-            r_addr: r_addr.clone(),
-            table_eval_at_r_addr,
-        });
+            out.push(ShoutAddrPreVerifyData {
+                is_active,
+                addr_claim_sum,
+                addr_final,
+                r_addr: r_addr.clone(),
+                table_eval_at_r_addr,
+            });
+        }
+    }
+    if out.len() != total_lanes {
+        return Err(PiCcsError::ProtocolError("shout addr-pre lane count mismatch".into()));
     }
     if active_pos != active_count {
         return Err(PiCcsError::ProtocolError(
@@ -942,27 +1080,45 @@ pub(crate) fn build_route_a_memory_oracles(
             )));
         }
 
-        let (value_oracle, value_claim) =
-            ShoutValueOracleSparse::new(r_cycle, decoded.has_lookup.clone(), decoded.val.clone());
-        let (adapter_oracle, adapter_claim) = IndexAdapterOracleSparseTime::new_with_gate(
-            r_cycle,
-            decoded.has_lookup.clone(),
-            decoded.addr_bits.clone(),
-            r_addr,
-        );
+        if decoded.lanes.is_empty() {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Shout(Route A): decoded lanes empty at lut_idx={lut_idx}"
+            )));
+        }
 
-        let mut bit_cols: Vec<SparseIdxVec<K>> = Vec::with_capacity(ell_addr + 1);
-        bit_cols.extend(decoded.addr_bits.iter().cloned());
-        bit_cols.push(decoded.has_lookup.clone());
+        let lane_count = decoded.lanes.len();
+        let mut lanes: Vec<RouteAShoutTimeLaneOracles> = Vec::with_capacity(lane_count);
+
+        for lane in decoded.lanes.iter() {
+            let (value_oracle, value_claim) =
+                ShoutValueOracleSparse::new(r_cycle, lane.has_lookup.clone(), lane.val.clone());
+
+            let (adapter_oracle, adapter_claim) = IndexAdapterOracleSparseTime::new_with_gate(
+                r_cycle,
+                lane.has_lookup.clone(),
+                lane.addr_bits.clone(),
+                r_addr,
+            );
+
+            lanes.push(RouteAShoutTimeLaneOracles {
+                value: Box::new(value_oracle),
+                value_claim,
+                adapter: Box::new(adapter_oracle),
+                adapter_claim,
+            });
+        }
+
+        let mut bit_cols: Vec<SparseIdxVec<K>> = Vec::with_capacity(lane_count * (ell_addr + 1));
+        for lane in decoded.lanes.iter() {
+            bit_cols.extend(lane.addr_bits.iter().cloned());
+            bit_cols.push(lane.has_lookup.clone());
+        }
         let weights = bitness_weights(r_cycle, bit_cols.len(), 0x5348_4F55_54u64 + lut_idx as u64);
         let bitness_oracle = LazyWeightedBitnessOracleSparseTime::new_with_cycle(r_cycle, bit_cols, weights);
         let bitness: Vec<Box<dyn RoundOracle>> = vec![Box::new(bitness_oracle)];
 
         shout_oracles.push(RouteAShoutTimeOracles {
-            value: Box::new(value_oracle),
-            value_claim,
-            adapter: Box::new(adapter_oracle),
-            adapter_claim,
+            lanes,
             bitness,
             ell_addr,
         });
@@ -980,39 +1136,55 @@ pub(crate) fn build_route_a_memory_oracles(
             )));
         }
 
-        let read_check = TwistReadCheckOracleSparseTime::new(
-            r_cycle,
-            pre.decoded.has_read.clone(),
-            pre.decoded.rv.clone(),
-            pre.decoded.ra_bits.clone(),
-            pre.decoded.has_write.clone(),
-            pre.decoded.inc_at_write_addr.clone(),
-            pre.decoded.wa_bits.clone(),
-            &pre.addr_pre.r_addr,
-            init_at_r_addr,
-        );
-        let write_check = TwistWriteCheckOracleSparseTime::new(
-            r_cycle,
-            pre.decoded.has_write.clone(),
-            pre.decoded.wv.clone(),
-            pre.decoded.inc_at_write_addr.clone(),
-            pre.decoded.wa_bits.clone(),
-            &pre.addr_pre.r_addr,
-            init_at_r_addr,
-        );
+        if pre.decoded.lanes.is_empty() {
+            return Err(PiCcsError::InvalidInput(format!(
+                "Twist(Route A): decoded lanes empty at mem_idx={mem_idx}"
+            )));
+        }
 
-        let mut bit_cols: Vec<SparseIdxVec<K>> = Vec::with_capacity(2 * ell_addr + 2);
-        bit_cols.extend(pre.decoded.ra_bits.iter().cloned());
-        bit_cols.extend(pre.decoded.wa_bits.iter().cloned());
-        bit_cols.push(pre.decoded.has_read.clone());
-        bit_cols.push(pre.decoded.has_write.clone());
+        let inc_terms_at_r_addr = build_twist_inc_terms_at_r_addr(&pre.decoded.lanes, &pre.addr_pre.r_addr);
+
+        let mut read_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
+        let mut write_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
+        for lane in pre.decoded.lanes.iter() {
+            read_oracles.push(Box::new(TwistReadCheckOracleSparseTime::new_with_inc_terms(
+                r_cycle,
+                lane.has_read.clone(),
+                lane.rv.clone(),
+                lane.ra_bits.clone(),
+                &pre.addr_pre.r_addr,
+                init_at_r_addr,
+                inc_terms_at_r_addr.clone(),
+            )));
+            write_oracles.push(Box::new(TwistWriteCheckOracleSparseTime::new_with_inc_terms(
+                r_cycle,
+                lane.has_write.clone(),
+                lane.wv.clone(),
+                lane.inc_at_write_addr.clone(),
+                lane.wa_bits.clone(),
+                &pre.addr_pre.r_addr,
+                init_at_r_addr,
+                inc_terms_at_r_addr.clone(),
+            )));
+        }
+        let read_check: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(read_oracles));
+        let write_check: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(write_oracles));
+
+        let lane_count = pre.decoded.lanes.len();
+        let mut bit_cols: Vec<SparseIdxVec<K>> = Vec::with_capacity(lane_count * (2 * ell_addr + 2));
+        for lane in pre.decoded.lanes.iter() {
+            bit_cols.extend(lane.ra_bits.iter().cloned());
+            bit_cols.extend(lane.wa_bits.iter().cloned());
+            bit_cols.push(lane.has_read.clone());
+            bit_cols.push(lane.has_write.clone());
+        }
         let weights = bitness_weights(r_cycle, bit_cols.len(), 0x5457_4953_54u64 + mem_idx as u64);
         let bitness_oracle = LazyWeightedBitnessOracleSparseTime::new_with_cycle(r_cycle, bit_cols, weights);
         let bitness: Vec<Box<dyn RoundOracle>> = vec![Box::new(bitness_oracle)];
 
         twist_oracles.push(RouteATwistTimeOracles {
-            read_check: Box::new(read_check),
-            write_check: Box::new(write_check),
+            read_check,
+            write_check,
             bitness,
             ell_addr,
         });
@@ -1025,36 +1197,44 @@ pub(crate) fn build_route_a_memory_oracles(
 }
 
 pub struct RouteAShoutTimeClaimsGuard<'a> {
-    pub value_prefixes: Vec<RoundOraclePrefix<'a>>,
-    pub adapter_prefixes: Vec<RoundOraclePrefix<'a>>,
-    pub value_claims: Vec<K>,
-    pub adapter_claims: Vec<K>,
+    pub lane_ranges: Vec<core::ops::Range<usize>>,
+    pub lanes: Vec<RouteAShoutTimeLaneClaims<'a>>,
     pub bitness: Vec<Vec<Box<dyn RoundOracle>>>,
+}
+
+pub struct RouteAShoutTimeLaneClaims<'a> {
+    pub value_prefix: RoundOraclePrefix<'a>,
+    pub adapter_prefix: RoundOraclePrefix<'a>,
+    pub value_claim: K,
+    pub adapter_claim: K,
 }
 
 pub fn build_route_a_shout_time_claims_guard<'a>(
     shout_oracles: &'a mut [RouteAShoutTimeOracles],
     ell_n: usize,
 ) -> RouteAShoutTimeClaimsGuard<'a> {
-    let mut value_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(shout_oracles.len());
-    let mut adapter_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(shout_oracles.len());
-    let mut value_claims: Vec<K> = Vec::with_capacity(shout_oracles.len());
-    let mut adapter_claims: Vec<K> = Vec::with_capacity(shout_oracles.len());
+    let mut lane_ranges: Vec<core::ops::Range<usize>> = Vec::with_capacity(shout_oracles.len());
+    let mut lanes: Vec<RouteAShoutTimeLaneClaims<'a>> = Vec::new();
     let mut bitness: Vec<Vec<Box<dyn RoundOracle>>> = Vec::with_capacity(shout_oracles.len());
 
     for o in shout_oracles.iter_mut() {
         bitness.push(core::mem::take(&mut o.bitness));
-        value_claims.push(o.value_claim);
-        adapter_claims.push(o.adapter_claim);
-        value_prefixes.push(RoundOraclePrefix::new(o.value.as_mut(), ell_n));
-        adapter_prefixes.push(RoundOraclePrefix::new(o.adapter.as_mut(), ell_n));
+        let start = lanes.len();
+        for lane in o.lanes.iter_mut() {
+            lanes.push(RouteAShoutTimeLaneClaims {
+                value_prefix: RoundOraclePrefix::new(lane.value.as_mut(), ell_n),
+                adapter_prefix: RoundOraclePrefix::new(lane.adapter.as_mut(), ell_n),
+                value_claim: lane.value_claim,
+                adapter_claim: lane.adapter_claim,
+            });
+        }
+        let end = lanes.len();
+        lane_ranges.push(start..end);
     }
 
     RouteAShoutTimeClaimsGuard {
-        value_prefixes,
-        adapter_prefixes,
-        value_claims,
-        adapter_claims,
+        lane_ranges,
+        lanes,
         bitness,
     }
 }
@@ -1100,44 +1280,61 @@ pub fn append_route_a_shout_time_claims<'a>(
     claim_is_dynamic: &mut Vec<bool>,
     claims: &mut Vec<BatchedClaim<'a>>,
 ) {
-    for (((value_time, adapter_time), bitness_vec), (value_claim, adapter_claim)) in guard
-        .value_prefixes
-        .iter_mut()
-        .zip(guard.adapter_prefixes.iter_mut())
-        .zip(guard.bitness.iter_mut())
-        .zip(guard.value_claims.iter().zip(guard.adapter_claims.iter()))
-    {
-        claimed_sums.push(*value_claim);
-        degree_bounds.push(value_time.degree_bound());
+    if guard.lane_ranges.is_empty() {
+        return;
+    }
+    if guard.bitness.len() != guard.lane_ranges.len() {
+        panic!("shout bitness count mismatch");
+    }
+
+    let mut lane_ranges_iter = guard.lane_ranges.iter();
+    let mut next_end = lane_ranges_iter
+        .next()
+        .expect("non-empty")
+        .end;
+    let mut bitness_iter = guard.bitness.iter_mut();
+
+    for (lane_idx, lane) in guard.lanes.iter_mut().enumerate() {
+        claimed_sums.push(lane.value_claim);
+        degree_bounds.push(lane.value_prefix.degree_bound());
         labels.push(b"shout/value");
         claim_is_dynamic.push(true);
         claims.push(BatchedClaim {
-            oracle: value_time,
-            claimed_sum: *value_claim,
+            oracle: &mut lane.value_prefix,
+            claimed_sum: lane.value_claim,
             label: b"shout/value",
         });
 
-        claimed_sums.push(*adapter_claim);
-        degree_bounds.push(adapter_time.degree_bound());
+        claimed_sums.push(lane.adapter_claim);
+        degree_bounds.push(lane.adapter_prefix.degree_bound());
         labels.push(b"shout/adapter");
         claim_is_dynamic.push(true);
         claims.push(BatchedClaim {
-            oracle: adapter_time,
-            claimed_sum: *adapter_claim,
+            oracle: &mut lane.adapter_prefix,
+            claimed_sum: lane.adapter_claim,
             label: b"shout/adapter",
         });
 
-        for bit_oracle in bitness_vec.iter_mut() {
-            claimed_sums.push(K::ZERO);
-            degree_bounds.push(bit_oracle.degree_bound());
-            labels.push(b"shout/bitness");
-            claim_is_dynamic.push(false);
-            claims.push(BatchedClaim {
-                oracle: bit_oracle.as_mut(),
-                claimed_sum: K::ZERO,
-                label: b"shout/bitness",
-            });
+        if lane_idx + 1 == next_end {
+            let bitness_vec = bitness_iter.next().expect("shout bitness idx drift");
+            for bit_oracle in bitness_vec.iter_mut() {
+                claimed_sums.push(K::ZERO);
+                degree_bounds.push(bit_oracle.degree_bound());
+                labels.push(b"shout/bitness");
+                claim_is_dynamic.push(false);
+                claims.push(BatchedClaim {
+                    oracle: bit_oracle.as_mut(),
+                    claimed_sum: K::ZERO,
+                    label: b"shout/bitness",
+                });
+            }
+
+            next_end = lane_ranges_iter.next().map(|r| r.end).unwrap_or(usize::MAX);
         }
+    }
+
+    if bitness_iter.next().is_some() {
+        panic!("shout bitness not fully consumed");
     }
 }
 
@@ -1304,26 +1501,32 @@ pub(crate) fn finalize_route_a_memory_prover(
             prev_twist_decoded.is_some()
         )));
     }
-    let n_lut = step.lut_instances.len();
-    if n_lut > 64 {
+    let total_lanes: usize = step
+        .lut_instances
+        .iter()
+        .map(|(inst, _)| inst.lanes.max(1))
+        .sum();
+    if shout_addr_pre.claimed_sums.len() != total_lanes {
         return Err(PiCcsError::InvalidInput(format!(
-            "Shout(Route A): skip mask supports up to 64 Shout instances, got n_lut={n_lut}"
-        )));
-    }
-    if shout_addr_pre.claimed_sums.len() != n_lut {
-        return Err(PiCcsError::InvalidInput(format!(
-            "shout addr-pre proof count mismatch (expected claimed_sums.len()={}, got {})",
-            n_lut,
+            "shout addr-pre proof count mismatch (expected claimed_sums.len()=total_lanes={}, got {})",
+            total_lanes,
             shout_addr_pre.claimed_sums.len(),
         )));
     }
-    let allowed_mask = if n_lut == 64 { u64::MAX } else { (1u64 << n_lut) - 1 };
-    if (shout_addr_pre.active_mask & !allowed_mask) != 0 {
-        return Err(PiCcsError::InvalidInput(
-            "shout addr-pre active_mask has bits set out of range".into(),
-        ));
+    for (pos, &lane_idx) in shout_addr_pre.active_lanes.iter().enumerate() {
+        let lane_idx_usize = lane_idx as usize;
+        if lane_idx_usize >= total_lanes {
+            return Err(PiCcsError::InvalidInput(
+                "shout addr-pre active_lanes has index out of range".into(),
+            ));
+        }
+        if pos > 0 && shout_addr_pre.active_lanes[pos - 1] >= lane_idx {
+            return Err(PiCcsError::InvalidInput(
+                "shout addr-pre active_lanes must be strictly increasing".into(),
+            ));
+        }
     }
-    let active_count = (shout_addr_pre.active_mask & allowed_mask).count_ones() as usize;
+    let active_count = shout_addr_pre.active_lanes.len();
     if shout_addr_pre.round_polys.len() != active_count {
         return Err(PiCcsError::InvalidInput(format!(
             "shout addr-pre round_polys.len()={}, expected active_count={active_count}",
@@ -1407,26 +1610,47 @@ pub(crate) fn finalize_route_a_memory_prover(
                 .ok_or_else(|| PiCcsError::ProtocolError("missing Twist pre-time data".into()))?;
             let decoded = &pre.decoded;
             let r_addr = &pre.addr_pre.r_addr;
-            let (oracle_lt, claimed_inc_sum_lt) = TwistValEvalOracleSparseTime::new(
-                decoded.wa_bits.clone(),
-                decoded.has_write.clone(),
-                decoded.inc_at_write_addr.clone(),
-                r_addr,
-                r_time,
-            );
-            let (oracle_total, claimed_inc_sum_total) = TwistTotalIncOracleSparseTime::new(
-                decoded.wa_bits.clone(),
-                decoded.has_write.clone(),
-                decoded.inc_at_write_addr.clone(),
-                r_addr,
-            );
+            if decoded.lanes.is_empty() {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "Twist(Route A): decoded lanes empty at mem_idx={i_mem}"
+                )));
+            }
 
-            val_oracles.push(Box::new(oracle_lt));
+            let mut lt_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(decoded.lanes.len());
+            let mut claimed_inc_sum_lt = K::ZERO;
+            for lane in decoded.lanes.iter() {
+                let (oracle, claim) = TwistValEvalOracleSparseTime::new(
+                    lane.wa_bits.clone(),
+                    lane.has_write.clone(),
+                    lane.inc_at_write_addr.clone(),
+                    r_addr,
+                    r_time,
+                );
+                lt_oracles.push(Box::new(oracle));
+                claimed_inc_sum_lt += claim;
+            }
+            let oracle_lt: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(lt_oracles));
+
+            let mut total_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(decoded.lanes.len());
+            let mut claimed_inc_sum_total = K::ZERO;
+            for lane in decoded.lanes.iter() {
+                let (oracle, claim) = TwistTotalIncOracleSparseTime::new(
+                    lane.wa_bits.clone(),
+                    lane.has_write.clone(),
+                    lane.inc_at_write_addr.clone(),
+                    r_addr,
+                );
+                total_oracles.push(Box::new(oracle));
+                claimed_inc_sum_total += claim;
+            }
+            let oracle_total: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(total_oracles));
+
+            val_oracles.push(oracle_lt);
             bind_claims.push((plan.bind_tags[claim_idx], claimed_inc_sum_lt));
             claimed_sums.push(claimed_inc_sum_lt);
             claim_idx += 1;
 
-            val_oracles.push(Box::new(oracle_total));
+            val_oracles.push(oracle_total);
             bind_claims.push((plan.bind_tags[claim_idx], claimed_inc_sum_total));
             claimed_sums.push(claimed_inc_sum_total);
             claim_idx += 1;
@@ -1439,24 +1663,49 @@ pub(crate) fn finalize_route_a_memory_prover(
                     .mem_instances
                     .get(i_mem)
                     .ok_or_else(|| PiCcsError::ProtocolError("missing prev mem instance".into()))?;
-                if prev_inst.d != mem_inst.d || prev_inst.ell != mem_inst.ell || prev_inst.k != mem_inst.k {
+                if prev_inst.d != mem_inst.d
+                    || prev_inst.ell != mem_inst.ell
+                    || prev_inst.k != mem_inst.k
+                    || prev_inst.lanes != mem_inst.lanes
+                {
                     return Err(PiCcsError::InvalidInput(format!(
-                        "Twist rollover requires stable geometry at mem_idx={}: prev (k={}, d={}, ell={}) vs cur (k={}, d={}, ell={})",
-                        i_mem, prev_inst.k, prev_inst.d, prev_inst.ell, mem_inst.k, mem_inst.d, mem_inst.ell
+                        "Twist rollover requires stable geometry at mem_idx={}: prev (k={}, d={}, ell={}, lanes={}) vs cur (k={}, d={}, ell={}, lanes={})",
+                        i_mem,
+                        prev_inst.k,
+                        prev_inst.d,
+                        prev_inst.ell,
+                        prev_inst.lanes,
+                        mem_inst.k,
+                        mem_inst.d,
+                        mem_inst.ell,
+                        mem_inst.lanes
                     )));
                 }
                 let prev_decoded = prev_twist_decoded
                     .ok_or_else(|| PiCcsError::ProtocolError("missing prev Twist decoded cols".into()))?
                     .get(i_mem)
                     .ok_or_else(|| PiCcsError::ProtocolError("missing prev Twist decoded cols at mem_idx".into()))?;
-                let (oracle_prev_total, claimed_prev_total) = TwistTotalIncOracleSparseTime::new(
-                    prev_decoded.wa_bits.clone(),
-                    prev_decoded.has_write.clone(),
-                    prev_decoded.inc_at_write_addr.clone(),
-                    r_addr,
-                );
+                if prev_decoded.lanes.is_empty() {
+                    return Err(PiCcsError::ProtocolError(
+                        "missing prev Twist decoded cols lanes".into(),
+                    ));
+                }
 
-                val_oracles.push(Box::new(oracle_prev_total));
+                let mut prev_total_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(prev_decoded.lanes.len());
+                let mut claimed_prev_total = K::ZERO;
+                for lane in prev_decoded.lanes.iter() {
+                    let (oracle, claim) = TwistTotalIncOracleSparseTime::new(
+                        lane.wa_bits.clone(),
+                        lane.has_write.clone(),
+                        lane.inc_at_write_addr.clone(),
+                        r_addr,
+                    );
+                    prev_total_oracles.push(Box::new(oracle));
+                    claimed_prev_total += claim;
+                }
+                let oracle_prev_total: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(prev_total_oracles));
+
+                val_oracles.push(oracle_prev_total);
                 bind_claims.push((plan.bind_tags[claim_idx], claimed_prev_total));
                 claimed_sums.push(claimed_prev_total);
                 claim_idx += 1;
@@ -1521,7 +1770,7 @@ pub(crate) fn finalize_route_a_memory_prover(
 
     if step.lut_instances.is_empty() {
         if !shout_addr_pre.claimed_sums.is_empty()
-            || shout_addr_pre.active_mask != 0
+            || !shout_addr_pre.active_lanes.is_empty()
             || !shout_addr_pre.round_polys.is_empty()
             || !shout_addr_pre.r_addr.is_empty()
         {
@@ -1700,10 +1949,19 @@ pub fn verify_route_a_memory_step(
             )));
         }
         for (idx, (prev_inst, inst)) in prev.mem_insts.iter().zip(step.mem_insts.iter()).enumerate() {
-            if prev_inst.d != inst.d || prev_inst.ell != inst.ell || prev_inst.k != inst.k {
+            if prev_inst.d != inst.d || prev_inst.ell != inst.ell || prev_inst.k != inst.k || prev_inst.lanes != inst.lanes
+            {
                 return Err(PiCcsError::InvalidInput(format!(
-                    "Twist rollover requires stable geometry at mem_idx={}: prev (k={}, d={}, ell={}) vs cur (k={}, d={}, ell={})",
-                    idx, prev_inst.k, prev_inst.d, prev_inst.ell, inst.k, inst.d, inst.ell
+                    "Twist rollover requires stable geometry at mem_idx={}: prev (k={}, d={}, ell={}, lanes={}) vs cur (k={}, d={}, ell={}, lanes={})",
+                    idx,
+                    prev_inst.k,
+                    prev_inst.d,
+                    prev_inst.ell,
+                    prev_inst.lanes,
+                    inst.k,
+                    inst.d,
+                    inst.ell,
+                    inst.lanes
                 )));
             }
         }
@@ -1781,10 +2039,11 @@ pub fn verify_route_a_memory_step(
             proofs_mem.len()
         )));
     }
-    if shout_pre.len() != step.lut_insts.len() {
+    let total_shout_lanes: usize = step.lut_insts.iter().map(|inst| inst.lanes.max(1)).sum();
+    if shout_pre.len() != total_shout_lanes {
         return Err(PiCcsError::InvalidInput(format!(
-            "shout pre-time count mismatch (expected {}, got {})",
-            step.lut_insts.len(),
+            "shout pre-time count mismatch (expected total_lanes={}, got {})",
+            total_shout_lanes,
             shout_pre.len()
         )));
     }
@@ -1799,67 +2058,100 @@ pub fn verify_route_a_memory_step(
     let mut twist_time_openings: Vec<TwistTimeLaneOpenings> = Vec::with_capacity(step.mem_insts.len());
 
     // Shout instances first.
+    let mut shout_lane_base: usize = 0;
     for (proof_idx, inst) in step.lut_insts.iter().enumerate() {
         match &proofs_mem[proof_idx] {
             MemOrLutProof::Shout(_proof) => {}
             _ => return Err(PiCcsError::InvalidInput("expected Shout proof".into())),
         }
 
-        let layout = inst.shout_layout();
-        let ell_addr = layout.ell_addr;
+        let ell_addr = inst.d * inst.ell;
+        let expected_lanes = inst.lanes.max(1);
 
-        let shout_cols = cpu_bus
+        let inst_cols = cpu_bus
             .shout_cols
             .get(proof_idx)
             .ok_or_else(|| PiCcsError::InvalidInput("shared_cpu_bus layout mismatch (shout)".into()))?;
-        if shout_cols.addr_bits.end - shout_cols.addr_bits.start != ell_addr {
+        if inst_cols.lanes.len() != expected_lanes {
             return Err(PiCcsError::InvalidInput(format!(
-                "shared_cpu_bus layout mismatch at lut_idx={proof_idx}: expected ell_addr={ell_addr}"
+                "shared_cpu_bus layout mismatch at lut_idx={proof_idx}: bus shout lanes={} but instance expects {expected_lanes}",
+                inst_cols.lanes.len()
             )));
         }
 
-        let mut addr_bits_open = Vec::with_capacity(ell_addr);
-        for (_j, col_id) in shout_cols.addr_bits.clone().enumerate() {
-            addr_bits_open.push(
-                ccs_out0
-                    .y_scalars
-                    .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Shout addr_bits opening".into()))?,
-            );
+        struct ShoutLaneOpen {
+            addr_bits: Vec<K>,
+            has_lookup: K,
+            val: K,
         }
-        let has_lookup_open = ccs_out0
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_time, shout_cols.has_lookup))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Shout has_lookup opening".into()))?;
-        let val_open = ccs_out0
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_time, shout_cols.val))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Shout val opening".into()))?;
+        let mut lane_opens: Vec<ShoutLaneOpen> = Vec::with_capacity(expected_lanes);
+        for (lane_idx, shout_cols) in inst_cols.lanes.iter().enumerate() {
+            if shout_cols.addr_bits.end - shout_cols.addr_bits.start != ell_addr {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "shared_cpu_bus layout mismatch at lut_idx={proof_idx}, lane_idx={lane_idx}: expected ell_addr={ell_addr}"
+                )));
+            }
 
-        let pre = shout_pre
-            .get(proof_idx)
-            .ok_or_else(|| PiCcsError::InvalidInput(format!("missing pre-time Shout data at index {}", proof_idx)))?;
+            let mut addr_bits_open = Vec::with_capacity(ell_addr);
+            for (_j, col_id) in shout_cols.addr_bits.clone().enumerate() {
+                addr_bits_open.push(
+                    ccs_out0
+                        .y_scalars
+                        .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
+                        .copied()
+                        .ok_or_else(|| {
+                            PiCcsError::ProtocolError("CPU y_scalars missing Shout addr_bits opening".into())
+                        })?,
+                );
+            }
+            let has_lookup_open = ccs_out0
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_time, shout_cols.has_lookup))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Shout has_lookup opening".into()))?;
+            let val_open = ccs_out0
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_time, shout_cols.val))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Shout val opening".into()))?;
+
+            lane_opens.push(ShoutLaneOpen {
+                addr_bits: addr_bits_open,
+                has_lookup: has_lookup_open,
+                val: val_open,
+            });
+        }
 
         let shout_claims = claim_plan
             .shout
             .get(proof_idx)
             .ok_or_else(|| PiCcsError::ProtocolError(format!("missing Shout claim schedule at index {}", proof_idx)))?;
+        if shout_claims.lanes.len() != expected_lanes {
+            return Err(PiCcsError::ProtocolError(format!(
+                "Shout claim schedule lane count mismatch at lut_idx={proof_idx}: expected {expected_lanes}, got {}",
+                shout_claims.lanes.len()
+            )));
+        }
+        if shout_lane_base
+            .checked_add(expected_lanes)
+            .ok_or_else(|| PiCcsError::ProtocolError("shout lane index overflow".into()))?
+            > shout_pre.len()
+        {
+            return Err(PiCcsError::ProtocolError(
+                "Shout pre-time lane indexing drift".into(),
+            ));
+        }
 
         // Route A Shout ordering in batched_time:
-        // - value (time rounds only)
-        // - adapter (time rounds only)
+        // - value (time rounds only) per lane
+        // - adapter (time rounds only) per lane
         // - aggregated bitness for (addr_bits, has_lookup)
-        let value_claim = batched_claimed_sums[shout_claims.value];
-        let value_final = batched_final_values[shout_claims.value];
-        let adapter_claim = batched_claimed_sums[shout_claims.adapter];
-        let adapter_final = batched_final_values[shout_claims.adapter];
         {
-            let mut opens: Vec<K> = Vec::with_capacity(ell_addr + 1);
-            opens.extend_from_slice(&addr_bits_open);
-            opens.push(has_lookup_open);
+            let mut opens: Vec<K> = Vec::with_capacity(expected_lanes * (ell_addr + 1));
+            for lane in lane_opens.iter() {
+                opens.extend_from_slice(&lane.addr_bits);
+                opens.push(lane.has_lookup);
+            }
             let weights = bitness_weights(r_cycle, opens.len(), 0x5348_4F55_54u64 + proof_idx as u64);
             let mut acc = K::ZERO;
             for (w, b) in weights.iter().zip(opens.iter()) {
@@ -1871,49 +2163,76 @@ pub fn verify_route_a_memory_step(
             }
         }
 
-        let expected_value_final = chi_cycle_at_r_time * has_lookup_open * val_open;
-        if expected_value_final != value_final {
-            return Err(PiCcsError::ProtocolError("shout value terminal value mismatch".into()));
-        }
+        for (lane_idx, lane) in lane_opens.iter().enumerate() {
+            let pre = shout_pre.get(shout_lane_base + lane_idx).ok_or_else(|| {
+                PiCcsError::InvalidInput(format!(
+                    "missing pre-time Shout lane data at index {}",
+                    shout_lane_base + lane_idx
+                ))
+            })?;
+            let lane_claims = shout_claims
+                .lanes
+                .get(lane_idx)
+                .ok_or_else(|| PiCcsError::ProtocolError("shout claim schedule lane idx drift".into()))?;
 
-        let eq_addr = eq_bits_prod(&addr_bits_open, &pre.r_addr)?;
-        let expected_adapter_final = chi_cycle_at_r_time * has_lookup_open * eq_addr;
-        if expected_adapter_final != adapter_final {
-            return Err(PiCcsError::ProtocolError(
-                "shout adapter terminal value mismatch".into(),
-            ));
-        }
+            let value_claim = batched_claimed_sums[lane_claims.value];
+            let value_final = batched_final_values[lane_claims.value];
+            let adapter_claim = batched_claimed_sums[lane_claims.adapter];
+            let adapter_final = batched_final_values[lane_claims.adapter];
 
-        if value_claim != pre.addr_claim_sum {
-            return Err(PiCcsError::ProtocolError(
-                "shout value claimed sum != addr claimed sum".into(),
-            ));
-        }
-
-        if pre.is_active {
-            let expected_addr_final = pre.table_eval_at_r_addr * adapter_claim;
-            if expected_addr_final != pre.addr_final {
-                return Err(PiCcsError::ProtocolError("shout addr terminal value mismatch".into()));
-            }
-        } else {
-            // If we skipped the addr-pre sumcheck, the only sound case is "no lookups".
-            // Enforce this by requiring the addr claim + adapter claim to be zero.
-            if pre.addr_claim_sum != K::ZERO {
+            let expected_value_final = chi_cycle_at_r_time * lane.has_lookup * lane.val;
+            if expected_value_final != value_final {
                 return Err(PiCcsError::ProtocolError(
-                    "shout addr-pre skipped but addr claim is nonzero".into(),
+                    "shout value terminal value mismatch".into(),
                 ));
             }
-            if adapter_claim != K::ZERO {
+
+            let eq_addr = eq_bits_prod(&lane.addr_bits, &pre.r_addr)?;
+            let expected_adapter_final = chi_cycle_at_r_time * lane.has_lookup * eq_addr;
+            if expected_adapter_final != adapter_final {
                 return Err(PiCcsError::ProtocolError(
-                    "shout addr-pre skipped but adapter claim is nonzero".into(),
+                    "shout adapter terminal value mismatch".into(),
                 ));
             }
-            if pre.addr_final != K::ZERO {
+
+            if value_claim != pre.addr_claim_sum {
                 return Err(PiCcsError::ProtocolError(
-                    "shout addr-pre skipped but addr_final is nonzero".into(),
+                    "shout value claimed sum != addr claimed sum".into(),
                 ));
+            }
+
+            if pre.is_active {
+                let expected_addr_final = pre.table_eval_at_r_addr * adapter_claim;
+                if expected_addr_final != pre.addr_final {
+                    return Err(PiCcsError::ProtocolError("shout addr terminal value mismatch".into()));
+                }
+            } else {
+                // If we skipped the addr-pre sumcheck, the only sound case is "no lookups".
+                // Enforce this by requiring the addr claim + adapter claim to be zero.
+                if pre.addr_claim_sum != K::ZERO {
+                    return Err(PiCcsError::ProtocolError(
+                        "shout addr-pre skipped but addr claim is nonzero".into(),
+                    ));
+                }
+                if adapter_claim != K::ZERO {
+                    return Err(PiCcsError::ProtocolError(
+                        "shout addr-pre skipped but adapter claim is nonzero".into(),
+                    ));
+                }
+                if pre.addr_final != K::ZERO {
+                    return Err(PiCcsError::ProtocolError(
+                        "shout addr-pre skipped but addr_final is nonzero".into(),
+                    ));
+                }
             }
         }
+
+        shout_lane_base += expected_lanes;
+    }
+    if shout_lane_base != shout_pre.len() {
+        return Err(PiCcsError::ProtocolError(
+            "shout pre-time lanes not fully consumed".into(),
+        ));
     }
 
     // Twist instances next.
@@ -1928,66 +2247,105 @@ pub fn verify_route_a_memory_step(
             _ => return Err(PiCcsError::InvalidInput("expected Twist proof".into())),
         };
         let layout = inst.twist_layout();
-        let ell_addr = layout.ell_addr;
+        let ell_addr = layout
+            .lanes
+            .get(0)
+            .ok_or_else(|| PiCcsError::InvalidInput("TwistWitnessLayout has no lanes".into()))?
+            .ell_addr;
 
-        let twist_cols = cpu_bus
+        let twist_inst_cols = cpu_bus
             .twist_cols
             .get(i_mem)
             .ok_or_else(|| PiCcsError::InvalidInput("shared_cpu_bus layout mismatch (twist)".into()))?;
-        if twist_cols.ra_bits.end - twist_cols.ra_bits.start != ell_addr
-            || twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr
-        {
+        let expected_lanes = inst.lanes.max(1);
+        if twist_inst_cols.lanes.len() != expected_lanes {
             return Err(PiCcsError::InvalidInput(format!(
-                "shared_cpu_bus layout mismatch at mem_idx={i_mem}: expected ell_addr={ell_addr}"
+                "shared_cpu_bus layout mismatch at mem_idx={i_mem}: expected lanes={expected_lanes}, got {}",
+                twist_inst_cols.lanes.len()
             )));
         }
 
-        let mut ra_bits_open = Vec::with_capacity(ell_addr);
-        for col_id in twist_cols.ra_bits.clone() {
-            ra_bits_open.push(
-                ccs_out0
-                    .y_scalars
-                    .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist ra_bits opening".into()))?,
-            );
-        }
-        let mut wa_bits_open = Vec::with_capacity(ell_addr);
-        for col_id in twist_cols.wa_bits.clone() {
-            wa_bits_open.push(
-                ccs_out0
-                    .y_scalars
-                    .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist wa_bits opening".into()))?,
-            );
+        struct TwistLaneTimeOpen {
+            ra_bits: Vec<K>,
+            wa_bits: Vec<K>,
+            has_read: K,
+            has_write: K,
+            wv: K,
+            rv: K,
+            inc: K,
         }
 
-        let has_read_open = ccs_out0
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.has_read))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist has_read opening".into()))?;
-        let has_write_open = ccs_out0
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.has_write))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist has_write opening".into()))?;
-        let wv_open = ccs_out0
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.wv))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist wv opening".into()))?;
-        let rv_open = ccs_out0
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.rv))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist rv opening".into()))?;
-        let inc_write_open = ccs_out0
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.inc))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist inc opening".into()))?;
+        let mut lane_opens: Vec<TwistLaneTimeOpen> = Vec::with_capacity(twist_inst_cols.lanes.len());
+        for (lane_idx, twist_cols) in twist_inst_cols.lanes.iter().enumerate() {
+            if twist_cols.ra_bits.end - twist_cols.ra_bits.start != ell_addr
+                || twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr
+            {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "shared_cpu_bus layout mismatch at mem_idx={i_mem}, lane={lane_idx}: expected ell_addr={ell_addr}"
+                )));
+            }
+
+            let mut ra_bits_open = Vec::with_capacity(ell_addr);
+            for col_id in twist_cols.ra_bits.clone() {
+                ra_bits_open.push(
+                    ccs_out0
+                        .y_scalars
+                        .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
+                        .copied()
+                        .ok_or_else(|| {
+                            PiCcsError::ProtocolError("CPU y_scalars missing Twist ra_bits opening".into())
+                        })?,
+                );
+            }
+            let mut wa_bits_open = Vec::with_capacity(ell_addr);
+            for col_id in twist_cols.wa_bits.clone() {
+                wa_bits_open.push(
+                    ccs_out0
+                        .y_scalars
+                        .get(cpu_bus.y_scalar_index(bus_y_base_time, col_id))
+                        .copied()
+                        .ok_or_else(|| {
+                            PiCcsError::ProtocolError("CPU y_scalars missing Twist wa_bits opening".into())
+                        })?,
+                );
+            }
+
+            let has_read_open = ccs_out0
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.has_read))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist has_read opening".into()))?;
+            let has_write_open = ccs_out0
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.has_write))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist has_write opening".into()))?;
+            let wv_open = ccs_out0
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.wv))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist wv opening".into()))?;
+            let rv_open = ccs_out0
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.rv))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist rv opening".into()))?;
+            let inc_write_open = ccs_out0
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_time, twist_cols.inc))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing Twist inc opening".into()))?;
+
+            lane_opens.push(TwistLaneTimeOpen {
+                ra_bits: ra_bits_open,
+                wa_bits: wa_bits_open,
+                has_read: has_read_open,
+                has_write: has_write_open,
+                wv: wv_open,
+                rv: rv_open,
+                inc: inc_write_open,
+            });
+        }
 
         let pre = twist_pre
             .get(i_mem)
@@ -2028,11 +2386,13 @@ pub fn verify_route_a_memory_step(
 
         // Aggregated bitness terminal check (ra_bits, wa_bits, has_read, has_write).
         {
-            let mut opens: Vec<K> = Vec::with_capacity(2 * ell_addr + 2);
-            opens.extend_from_slice(&ra_bits_open);
-            opens.extend_from_slice(&wa_bits_open);
-            opens.push(has_read_open);
-            opens.push(has_write_open);
+            let mut opens: Vec<K> = Vec::with_capacity(expected_lanes * (2 * ell_addr + 2));
+            for lane in lane_opens.iter() {
+                opens.extend_from_slice(&lane.ra_bits);
+                opens.extend_from_slice(&lane.wa_bits);
+                opens.push(lane.has_read);
+                opens.push(lane.has_write);
+            }
             let weights = bitness_weights(r_cycle, opens.len(), 0x5457_4953_54u64 + i_mem as u64);
             let mut acc = K::ZERO;
             for (w, b) in weights.iter().zip(opens.iter()) {
@@ -2052,19 +2412,23 @@ pub fn verify_route_a_memory_step(
         let init_at_r_addr = eval_init_at_r_addr(&inst.init, inst.k, r_addr)?;
         let claimed_val = init_at_r_addr + val_eval.claimed_inc_sum_lt;
 
-        let read_eq_addr = eq_bits_prod(&ra_bits_open, r_addr)?;
-        let write_eq_addr = eq_bits_prod(&wa_bits_open, r_addr)?;
-
         // Terminal checks for read_check / write_check at (r_time, r_addr).
-        let expected_read_check_final = chi_cycle_at_r_time * has_read_open * (claimed_val - rv_open) * read_eq_addr;
+        let mut expected_read_check_final = K::ZERO;
+        let mut expected_write_check_final = K::ZERO;
+        for lane in lane_opens.iter() {
+            let read_eq_addr = eq_bits_prod(&lane.ra_bits, r_addr)?;
+            expected_read_check_final += chi_cycle_at_r_time * lane.has_read * (claimed_val - lane.rv) * read_eq_addr;
+
+            let write_eq_addr = eq_bits_prod(&lane.wa_bits, r_addr)?;
+            expected_write_check_final +=
+                chi_cycle_at_r_time * lane.has_write * (lane.wv - claimed_val - lane.inc) * write_eq_addr;
+        }
         if expected_read_check_final != read_check_final {
             return Err(PiCcsError::ProtocolError(
                 "twist/read_check terminal value mismatch".into(),
             ));
         }
 
-        let expected_write_check_final =
-            chi_cycle_at_r_time * has_write_open * (wv_open - claimed_val - inc_write_open) * write_eq_addr;
         if expected_write_check_final != write_check_final {
             return Err(PiCcsError::ProtocolError(
                 "twist/write_check terminal value mismatch".into(),
@@ -2072,9 +2436,14 @@ pub fn verify_route_a_memory_step(
         }
 
         twist_time_openings.push(TwistTimeLaneOpenings {
-            wa_bits: wa_bits_open,
-            has_write: has_write_open,
-            inc_at_write_addr: inc_write_open,
+            lanes: lane_opens
+                .into_iter()
+                .map(|lane| TwistTimeLaneOpeningsLane {
+                    wa_bits: lane.wa_bits,
+                    has_write: lane.has_write,
+                    inc_at_write_addr: lane.inc,
+                })
+                .collect(),
         });
     }
 
@@ -2261,49 +2630,68 @@ pub fn verify_route_a_memory_step(
             .as_ref()
             .ok_or_else(|| PiCcsError::InvalidInput("Twist(Route A): missing val_eval proof".into()))?;
         let layout = inst.twist_layout();
-        let ell_addr = layout.ell_addr;
+        let ell_addr = layout
+            .lanes
+            .get(0)
+            .ok_or_else(|| PiCcsError::InvalidInput("TwistWitnessLayout has no lanes".into()))?
+            .ell_addr;
 
         let cpu_me_cur =
             cpu_me_val_cur.ok_or_else(|| PiCcsError::ProtocolError("missing CPU ME claim at r_val".into()))?;
 
-        let twist_cols = cpu_bus
+        let twist_inst_cols = cpu_bus
             .twist_cols
             .get(i_mem)
             .ok_or_else(|| PiCcsError::InvalidInput("shared_cpu_bus layout mismatch (twist)".into()))?;
-        if twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr {
+        let expected_lanes = inst.lanes.max(1);
+        if twist_inst_cols.lanes.len() != expected_lanes {
             return Err(PiCcsError::InvalidInput(format!(
-                "shared_cpu_bus layout mismatch at mem_idx={i_mem}: expected ell_addr={ell_addr}"
+                "shared_cpu_bus layout mismatch at mem_idx={i_mem}: expected lanes={expected_lanes}, got {}",
+                twist_inst_cols.lanes.len()
             )));
         }
-
-        let mut wa_bits_val_open = Vec::with_capacity(ell_addr);
-        for col_id in twist_cols.wa_bits.clone() {
-            wa_bits_val_open.push(
-                cpu_me_cur
-                    .y_scalars
-                    .get(cpu_bus.y_scalar_index(bus_y_base_val, col_id))
-                    .copied()
-                    .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing wa_bits(val) opening".into()))?,
-            );
-        }
-        let has_write_val_open = cpu_me_cur
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.has_write))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing has_write(val) opening".into()))?;
-        let inc_at_write_addr_val_open = cpu_me_cur
-            .y_scalars
-            .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.inc))
-            .copied()
-            .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing inc(val) opening".into()))?;
 
         let r_addr = twist_pre
             .get(i_mem)
             .ok_or_else(|| PiCcsError::InvalidInput(format!("missing Twist pre-time data at index {}", i_mem)))?
             .r_addr
             .as_slice();
-        let eq_wa_val = eq_bits_prod(&wa_bits_val_open, r_addr)?;
-        let inc_at_r_addr_val = has_write_val_open * inc_at_write_addr_val_open * eq_wa_val;
+
+        let mut inc_at_r_addr_val = K::ZERO;
+        for (lane_idx, twist_cols) in twist_inst_cols.lanes.iter().enumerate() {
+            if twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "shared_cpu_bus layout mismatch at mem_idx={i_mem}, lane={lane_idx}: expected ell_addr={ell_addr}"
+                )));
+            }
+
+            let mut wa_bits_val_open = Vec::with_capacity(ell_addr);
+            for col_id in twist_cols.wa_bits.clone() {
+                wa_bits_val_open.push(
+                    cpu_me_cur
+                        .y_scalars
+                        .get(cpu_bus.y_scalar_index(bus_y_base_val, col_id))
+                        .copied()
+                        .ok_or_else(|| {
+                            PiCcsError::ProtocolError("CPU y_scalars missing wa_bits(val) opening".into())
+                        })?,
+                );
+            }
+            let has_write_val_open = cpu_me_cur
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.has_write))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing has_write(val) opening".into()))?;
+            let inc_at_write_addr_val_open = cpu_me_cur
+                .y_scalars
+                .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.inc))
+                .copied()
+                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing inc(val) opening".into()))?;
+
+            let eq_wa_val = eq_bits_prod(&wa_bits_val_open, r_addr)?;
+            inc_at_r_addr_val += has_write_val_open * inc_at_write_addr_val_open * eq_wa_val;
+        }
+
         let expected_lt_final = inc_at_r_addr_val * lt;
         let claims_per_mem = if has_prev { 3 } else { 2 };
         let base = claims_per_mem * i_mem;
@@ -2330,31 +2718,40 @@ pub fn verify_route_a_memory_step(
                 .ok_or_else(|| PiCcsError::ProtocolError("missing prev CPU ME claim at r_val".into()))?;
 
             // Terminal check for prev-total: uses previous-step openings at current r_val.
-            let mut wa_bits_prev_open = Vec::with_capacity(ell_addr);
-            for col_id in twist_cols.wa_bits.clone() {
-                wa_bits_prev_open.push(
-                    cpu_me_prev
-                        .y_scalars
-                        .get(cpu_bus.y_scalar_index(bus_y_base_val, col_id))
-                        .copied()
-                        .ok_or_else(|| {
-                            PiCcsError::ProtocolError("CPU y_scalars missing wa_bits(prev) opening".into())
-                        })?,
-                );
-            }
-            let has_write_prev_open = cpu_me_prev
-                .y_scalars
-                .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.has_write))
-                .copied()
-                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing has_write(prev) opening".into()))?;
-            let inc_prev_open = cpu_me_prev
-                .y_scalars
-                .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.inc))
-                .copied()
-                .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing inc(prev) opening".into()))?;
+            let mut inc_at_r_addr_prev = K::ZERO;
+            for (lane_idx, twist_cols) in twist_inst_cols.lanes.iter().enumerate() {
+                if twist_cols.wa_bits.end - twist_cols.wa_bits.start != ell_addr {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "shared_cpu_bus layout mismatch at mem_idx={i_mem}, lane={lane_idx}: expected ell_addr={ell_addr}"
+                    )));
+                }
 
-            let eq_wa_prev = eq_bits_prod(&wa_bits_prev_open, r_addr)?;
-            let inc_at_r_addr_prev = has_write_prev_open * inc_prev_open * eq_wa_prev;
+                let mut wa_bits_prev_open = Vec::with_capacity(ell_addr);
+                for col_id in twist_cols.wa_bits.clone() {
+                    wa_bits_prev_open.push(
+                        cpu_me_prev
+                            .y_scalars
+                            .get(cpu_bus.y_scalar_index(bus_y_base_val, col_id))
+                            .copied()
+                            .ok_or_else(|| {
+                                PiCcsError::ProtocolError("CPU y_scalars missing wa_bits(prev) opening".into())
+                            })?,
+                    );
+                }
+                let has_write_prev_open = cpu_me_prev
+                    .y_scalars
+                    .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.has_write))
+                    .copied()
+                    .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing has_write(prev) opening".into()))?;
+                let inc_prev_open = cpu_me_prev
+                    .y_scalars
+                    .get(cpu_bus.y_scalar_index(bus_y_base_val, twist_cols.inc))
+                    .copied()
+                    .ok_or_else(|| PiCcsError::ProtocolError("CPU y_scalars missing inc(prev) opening".into()))?;
+
+                let eq_wa_prev = eq_bits_prod(&wa_bits_prev_open, r_addr)?;
+                inc_at_r_addr_prev += has_write_prev_open * inc_prev_open * eq_wa_prev;
+            }
             if inc_at_r_addr_prev != val_eval_finals[base + 2] {
                 return Err(PiCcsError::ProtocolError(
                     "twist/rollover_prev_total terminal value mismatch".into(),

@@ -817,6 +817,7 @@ where
                 &resources.mem_layouts,
                 &resources.lut_tables,
                 &resources.lut_table_specs,
+                &resources.lut_lanes,
                 &resources.initial_mem,
                 cpu_arith,
             )
@@ -841,12 +842,6 @@ where
         let pairs = spec.ivc_step_linking_pairs()?;
         self.set_step_linking(StepLinkingConfig::new(pairs));
         Ok(())
-    }
-
-    /// Explicitly allow multi-step verification without step linking (unsafe).
-    pub fn unsafe_allow_unlinked_steps(&mut self) {
-        self.allow_unlinked_steps = true;
-        self.auto_step_linking_error = None;
     }
 
     /// Set an explicit initial state y₀ for the IVC (optional).
@@ -1123,6 +1118,7 @@ where
         mem_layouts: &HashMap<u32, PlainMemLayout>,
         lut_tables: &HashMap<u32, LutTable<F>>,
         lut_table_specs: &HashMap<u32, LutTableSpec>,
+        lut_lanes: &HashMap<u32, usize>,
         initial_mem: &HashMap<(u32, u64), F>,
         cpu_arith: &A,
     ) -> Result<(), PiCcsError>
@@ -1141,6 +1137,7 @@ where
             mem_layouts,
             lut_tables,
             lut_table_specs,
+            lut_lanes,
             initial_mem,
             cpu_arith,
         )
@@ -1677,7 +1674,7 @@ where
                     )?,
                 },
                 None => {
-                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".to_string();
+                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...)".to_string();
                     if let Some(diag) = &self.auto_step_linking_error {
                         msg.push_str(&format!(" (auto step-linking from StepSpec failed: {diag})"));
                     }
@@ -1856,7 +1853,7 @@ where
                     )?,
                 },
                 None => {
-                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...) or FoldingSession::unsafe_allow_unlinked_steps()".to_string();
+                    let mut msg = "multi-step verification requires step linking; call FoldingSession::set_step_linking(...)".to_string();
                     if let Some(diag) = &self.auto_step_linking_error {
                         msg.push_str(&format!(" (auto step-linking from StepSpec failed: {diag})"));
                     }

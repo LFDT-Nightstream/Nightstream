@@ -130,8 +130,8 @@ fn test_riscv_program_full_prove_verify() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -142,7 +142,7 @@ fn test_riscv_program_full_prove_verify() {
         .iter()
         .position(|&id| id == 3u32)
         .expect("ADD table id present");
-    let add_mask = 1u64 << add_idx;
+    let add_lane = u32::try_from(add_idx).expect("ADD lane index fits u32");
     let (ccs_base, layout) = build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, 1).expect("ccs");
     let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs_base.n).expect("params");
 
@@ -175,6 +175,7 @@ fn test_riscv_program_full_prove_verify() {
         &mem_layouts,
         &lut_tables,
         &table_specs,
+        &HashMap::new(),
         &initial_mem,
         &cpu,
     )
@@ -206,16 +207,20 @@ fn test_riscv_program_full_prove_verify() {
     let mut saw_add_only = false;
     for step in &proof.steps {
         let pre = &step.mem.shout_addr_pre;
-        if pre.active_mask == 0 {
+        if pre.active_lanes.is_empty() {
             assert!(
                 pre.round_polys.is_empty(),
-                "active_mask=0 must imply no Shout addr-pre rounds"
+                "active_lanes=[] must imply no Shout addr-pre rounds"
             );
             saw_skipped = true;
             continue;
         }
-        assert_eq!(pre.active_mask, add_mask, "expected ADD-only Shout addr-pre mask");
-        assert_eq!(pre.round_polys.len(), 1, "ADD-only mask must include 1 proof");
+        assert_eq!(
+            pre.active_lanes,
+            vec![add_lane],
+            "expected ADD-only Shout addr-pre active_lanes"
+        );
+        assert_eq!(pre.round_polys.len(), 1, "ADD-only step must include 1 proof");
         saw_add_only = true;
     }
     assert!(saw_skipped, "expected at least one no-Shout step (mask=0)");
@@ -258,10 +263,15 @@ fn test_riscv_program_full_prove_verify() {
         "expected step linking failure"
     );
 
-    // Tamper: flip Shout addr-pre active_mask; verification must fail.
+    // Tamper: change Shout addr-pre active_lanes; verification must fail.
     let mut bad_proof = proof.clone();
-    let first = bad_proof.steps.first_mut().expect("non-empty");
-    first.mem.shout_addr_pre.active_mask ^= 1u64;
+    let tamper_step = bad_proof
+        .steps
+        .iter_mut()
+        .find(|s| !s.mem.shout_addr_pre.active_lanes.is_empty())
+        .expect("expected at least one active Shout addr-pre step");
+    tamper_step.mem.shout_addr_pre.active_lanes.clear();
+    tamper_step.mem.shout_addr_pre.round_polys.clear();
     let mut tr_bad_mask = Poseidon2Transcript::new(b"riscv-b1-full");
     assert!(
         fold_shard_verify_rv32_b1_with_statement_mem_init(
@@ -278,7 +288,7 @@ fn test_riscv_program_full_prove_verify() {
             &layout,
         )
         .is_err(),
-        "expected Shout addr-pre mask mismatch failure"
+        "expected Shout addr-pre active_lanes mismatch failure"
     );
 }
 
@@ -294,8 +304,8 @@ fn test_riscv_statement_mem_init_mismatch_fails() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -335,6 +345,7 @@ fn test_riscv_statement_mem_init_mismatch_fails() {
         &mem_layouts,
         &HashMap::new(),
         &table_specs,
+        &HashMap::new(),
         &initial_mem,
         &cpu,
     )
@@ -452,8 +463,8 @@ fn perf_rv32_b1_chunk_size_sweep() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -541,6 +552,7 @@ fn perf_rv32_b1_chunk_size_sweep() {
                 &mem_layouts,
                 &HashMap::new(),
                 &table_specs,
+                &HashMap::new(),
                 &initial_mem,
                 &cpu,
             )
@@ -627,8 +639,8 @@ fn test_riscv_program_chunk_size_equivalence() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -673,6 +685,7 @@ fn test_riscv_program_chunk_size_equivalence() {
             &mem_layouts,
             &HashMap::new(),
             &table_specs,
+            &HashMap::new(),
             &initial_mem,
             &cpu,
         )
@@ -857,8 +870,8 @@ fn test_riscv_program_rv32m_full_prove_verify() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 }),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 }),
+        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
+        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -916,6 +929,7 @@ fn test_riscv_program_rv32m_full_prove_verify() {
         &mem_layouts,
         &HashMap::new(),
         &table_specs,
+        &HashMap::new(),
         &initial_mem,
         &cpu,
     )

@@ -43,13 +43,6 @@ fn test_session_multi_step_verification_requires_step_linking_or_unsafe_opt_out(
         "expected missing step linking to be rejected"
     );
 
-    // Explicit escape hatch: allow unlinked verification.
-    session.unsafe_allow_unlinked_steps();
-    assert!(
-        session.verify(&ccs, &mcss_public, &run).expect("verify runs"),
-        "expected verification to succeed with unsafe opt-out"
-    );
-
     // When step linking is enabled, the mismatch must be detected.
     session.set_step_linking(StepLinkingConfig::new(vec![(1, 1)]));
     assert!(

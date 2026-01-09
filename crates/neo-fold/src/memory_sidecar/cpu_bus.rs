@@ -2,7 +2,7 @@ use crate::PiCcsError;
 use neo_ccs::{CcsMatrix, CcsStructure, Mat, MeInstance};
 use neo_math::{F, K};
 use neo_memory::ajtai::decode_vector as ajtai_decode_vector;
-use neo_memory::cpu::{build_bus_layout_for_instances, BusLayout};
+use neo_memory::cpu::{build_bus_layout_for_instances_with_shout_and_twist_lanes, BusLayout};
 use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
@@ -112,10 +112,22 @@ fn infer_bus_layout_for_steps<Cmt, S: BusStepView<Cmt>>(
             inst.d * inst.ell
         })
         .collect();
+    let base_shout_lanes: Vec<usize> = (0..steps[0].lut_insts_len())
+        .map(|i| {
+            let inst = steps[0].lut_inst(i);
+            inst.lanes
+        })
+        .collect();
     let base_twist_ell_addrs: Vec<usize> = (0..steps[0].mem_insts_len())
         .map(|i| {
             let inst = steps[0].mem_inst(i);
             inst.d * inst.ell
+        })
+        .collect();
+    let base_twist_lanes: Vec<usize> = (0..steps[0].mem_insts_len())
+        .map(|i| {
+            let inst = steps[0].mem_inst(i);
+            inst.lanes
         })
         .collect();
 
@@ -126,25 +138,51 @@ fn infer_bus_layout_for_steps<Cmt, S: BusStepView<Cmt>>(
                 inst.d * inst.ell
             })
             .collect();
+        let cur_shout_lanes: Vec<usize> = (0..step.lut_insts_len())
+            .map(|j| {
+                let inst = step.lut_inst(j);
+                inst.lanes
+            })
+            .collect();
         let cur_twist: Vec<usize> = (0..step.mem_insts_len())
             .map(|j| {
                 let inst = step.mem_inst(j);
                 inst.d * inst.ell
             })
             .collect();
-        if cur_shout != base_shout_ell_addrs || cur_twist != base_twist_ell_addrs {
+        let cur_twist_lanes: Vec<usize> = (0..step.mem_insts_len())
+            .map(|j| {
+                let inst = step.mem_inst(j);
+                inst.lanes
+            })
+            .collect();
+        if cur_shout != base_shout_ell_addrs
+            || cur_shout_lanes != base_shout_lanes
+            || cur_twist != base_twist_ell_addrs
+            || cur_twist_lanes != base_twist_lanes
+        {
             return Err(PiCcsError::InvalidInput(format!(
                 "shared CPU bus layout mismatch across steps (step 0 vs step {i})"
             )));
         }
     }
 
-    let layout = build_bus_layout_for_instances(
+    let shout_ell_addrs_and_lanes = base_shout_ell_addrs
+        .iter()
+        .copied()
+        .zip(base_shout_lanes.iter().copied())
+        .map(|(ell_addr, lanes)| (ell_addr, lanes));
+    let twist_ell_addrs_and_lanes = base_twist_ell_addrs
+        .iter()
+        .copied()
+        .zip(base_twist_lanes.iter().copied())
+        .map(|(ell_addr, lanes)| (ell_addr, lanes));
+    let layout = build_bus_layout_for_instances_with_shout_and_twist_lanes(
         s.m,
         m_in,
         chunk_size,
-        base_shout_ell_addrs.iter().copied(),
-        base_twist_ell_addrs.iter().copied(),
+        shout_ell_addrs_and_lanes,
+        twist_ell_addrs_and_lanes,
     )
     .map_err(PiCcsError::InvalidInput)?;
 
@@ -377,56 +415,60 @@ struct BusColLabel {
 
 fn required_bus_cols_for_layout(layout: &BusLayout) -> Vec<BusColLabel> {
     let mut out = Vec::<BusColLabel>::new();
-    for (lut_idx, shout) in layout.shout_cols.iter().enumerate() {
-        for (b, col_id) in shout.addr_bits.clone().enumerate() {
+    for (lut_idx, inst) in layout.shout_cols.iter().enumerate() {
+        for (lane_idx, shout) in inst.lanes.iter().enumerate() {
+            for (b, col_id) in shout.addr_bits.clone().enumerate() {
+                out.push(BusColLabel {
+                    col_id,
+                    label: format!("shout[{lut_idx}].lane[{lane_idx}].addr_bits[{b}]"),
+                });
+            }
             out.push(BusColLabel {
-                col_id,
-                label: format!("shout[{lut_idx}].addr_bits[{b}]"),
+                col_id: shout.has_lookup,
+                label: format!("shout[{lut_idx}].lane[{lane_idx}].has_lookup"),
+            });
+            out.push(BusColLabel {
+                col_id: shout.val,
+                label: format!("shout[{lut_idx}].lane[{lane_idx}].val"),
             });
         }
-        out.push(BusColLabel {
-            col_id: shout.has_lookup,
-            label: format!("shout[{lut_idx}].has_lookup"),
-        });
-        out.push(BusColLabel {
-            col_id: shout.val,
-            label: format!("shout[{lut_idx}].val"),
-        });
     }
 
-    for (mem_idx, twist) in layout.twist_cols.iter().enumerate() {
-        for (b, col_id) in twist.ra_bits.clone().enumerate() {
+    for (mem_idx, inst) in layout.twist_cols.iter().enumerate() {
+        for (lane_idx, twist) in inst.lanes.iter().enumerate() {
+            for (b, col_id) in twist.ra_bits.clone().enumerate() {
+                out.push(BusColLabel {
+                    col_id,
+                    label: format!("twist[{mem_idx}].lane[{lane_idx}].ra_bits[{b}]"),
+                });
+            }
+            for (b, col_id) in twist.wa_bits.clone().enumerate() {
+                out.push(BusColLabel {
+                    col_id,
+                    label: format!("twist[{mem_idx}].lane[{lane_idx}].wa_bits[{b}]"),
+                });
+            }
             out.push(BusColLabel {
-                col_id,
-                label: format!("twist[{mem_idx}].ra_bits[{b}]"),
+                col_id: twist.has_read,
+                label: format!("twist[{mem_idx}].lane[{lane_idx}].has_read"),
+            });
+            out.push(BusColLabel {
+                col_id: twist.has_write,
+                label: format!("twist[{mem_idx}].lane[{lane_idx}].has_write"),
+            });
+            out.push(BusColLabel {
+                col_id: twist.wv,
+                label: format!("twist[{mem_idx}].lane[{lane_idx}].wv"),
+            });
+            out.push(BusColLabel {
+                col_id: twist.rv,
+                label: format!("twist[{mem_idx}].lane[{lane_idx}].rv"),
+            });
+            out.push(BusColLabel {
+                col_id: twist.inc,
+                label: format!("twist[{mem_idx}].lane[{lane_idx}].inc_at_write_addr"),
             });
         }
-        for (b, col_id) in twist.wa_bits.clone().enumerate() {
-            out.push(BusColLabel {
-                col_id,
-                label: format!("twist[{mem_idx}].wa_bits[{b}]"),
-            });
-        }
-        out.push(BusColLabel {
-            col_id: twist.has_read,
-            label: format!("twist[{mem_idx}].has_read"),
-        });
-        out.push(BusColLabel {
-            col_id: twist.has_write,
-            label: format!("twist[{mem_idx}].has_write"),
-        });
-        out.push(BusColLabel {
-            col_id: twist.wv,
-            label: format!("twist[{mem_idx}].wv"),
-        });
-        out.push(BusColLabel {
-            col_id: twist.rv,
-            label: format!("twist[{mem_idx}].rv"),
-        });
-        out.push(BusColLabel {
-            col_id: twist.inc,
-            label: format!("twist[{mem_idx}].inc_at_write_addr"),
-        });
     }
 
     out
@@ -437,7 +479,11 @@ fn required_bus_binding_cols_for_layout(layout: &BusLayout) -> Vec<BusColLabel> 
     // memory state. Many CPU CCSes do not (and should not) constrain it outside padding rows;
     // it is constrained by the Twist Route-A checks instead. We still require the canonical
     // padding constraint `(1 - has_write) * inc_at_write_addr = 0`.
-    let inc_cols: HashSet<usize> = layout.twist_cols.iter().map(|t| t.inc).collect();
+    let inc_cols: HashSet<usize> = layout
+        .twist_cols
+        .iter()
+        .flat_map(|inst| inst.lanes.iter().map(|t| t.inc))
+        .collect();
     required_bus_cols_for_layout(layout)
         .into_iter()
         .filter(|c| !inc_cols.contains(&c.col_id))
@@ -612,78 +658,90 @@ struct BusPaddingLabel {
 fn required_bus_padding_for_layout(bus: &BusLayout) -> Vec<BusPaddingLabel> {
     let mut out = Vec::<BusPaddingLabel>::new();
 
-    for (lut_idx, shout) in bus.shout_cols.iter().enumerate() {
-        for j in 0..bus.chunk_size {
-            let has_lookup_z = bus.bus_cell(shout.has_lookup, j);
-            let val_z = bus.bus_cell(shout.val, j);
+    for (lut_idx, inst) in bus.shout_cols.iter().enumerate() {
+        for (lane_idx, shout) in inst.lanes.iter().enumerate() {
+            for j in 0..bus.chunk_size {
+                let has_lookup_z = bus.bus_cell(shout.has_lookup, j);
+                let val_z = bus.bus_cell(shout.val, j);
 
-            // (1 - has_lookup) * val = 0
-            out.push(BusPaddingLabel {
-                flag_z_idx: has_lookup_z,
-                field_z_idx: val_z,
-                label: format!("shout[{lut_idx}][j={j}]: (1-has_lookup)*val"),
-            });
-
-            // (1 - has_lookup) * addr_bits[b] = 0
-            for (b, col_id) in shout.addr_bits.clone().enumerate() {
-                let bit_z = bus.bus_cell(col_id, j);
+                // (1 - has_lookup) * val = 0
                 out.push(BusPaddingLabel {
                     flag_z_idx: has_lookup_z,
-                    field_z_idx: bit_z,
-                    label: format!("shout[{lut_idx}][j={j}]: (1-has_lookup)*addr_bits[{b}]"),
+                    field_z_idx: val_z,
+                    label: format!("shout[{lut_idx}].lane[{lane_idx}][j={j}]: (1-has_lookup)*val"),
                 });
+
+                // (1 - has_lookup) * addr_bits[b] = 0
+                for (b, col_id) in shout.addr_bits.clone().enumerate() {
+                    let bit_z = bus.bus_cell(col_id, j);
+                    out.push(BusPaddingLabel {
+                        flag_z_idx: has_lookup_z,
+                        field_z_idx: bit_z,
+                        label: format!(
+                            "shout[{lut_idx}].lane[{lane_idx}][j={j}]: (1-has_lookup)*addr_bits[{b}]"
+                        ),
+                    });
+                }
             }
         }
     }
 
-    for (mem_idx, twist) in bus.twist_cols.iter().enumerate() {
-        for j in 0..bus.chunk_size {
-            let has_read_z = bus.bus_cell(twist.has_read, j);
-            let has_write_z = bus.bus_cell(twist.has_write, j);
+    for (mem_idx, inst) in bus.twist_cols.iter().enumerate() {
+        for (lane_idx, twist) in inst.lanes.iter().enumerate() {
+            for j in 0..bus.chunk_size {
+                let has_read_z = bus.bus_cell(twist.has_read, j);
+                let has_write_z = bus.bus_cell(twist.has_write, j);
 
-            let wv_z = bus.bus_cell(twist.wv, j);
-            let rv_z = bus.bus_cell(twist.rv, j);
-            let inc_z = bus.bus_cell(twist.inc, j);
+                let wv_z = bus.bus_cell(twist.wv, j);
+                let rv_z = bus.bus_cell(twist.rv, j);
+                let inc_z = bus.bus_cell(twist.inc, j);
 
-            // (1 - has_read) * rv = 0
-            out.push(BusPaddingLabel {
-                flag_z_idx: has_read_z,
-                field_z_idx: rv_z,
-                label: format!("twist[{mem_idx}][j={j}]: (1-has_read)*rv"),
-            });
-
-            // (1 - has_read) * ra_bits[b] = 0
-            for (b, col_id) in twist.ra_bits.clone().enumerate() {
-                let bit_z = bus.bus_cell(col_id, j);
+                // (1 - has_read) * rv = 0
                 out.push(BusPaddingLabel {
                     flag_z_idx: has_read_z,
-                    field_z_idx: bit_z,
-                    label: format!("twist[{mem_idx}][j={j}]: (1-has_read)*ra_bits[{b}]"),
+                    field_z_idx: rv_z,
+                    label: format!("twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_read)*rv"),
                 });
-            }
 
-            // (1 - has_write) * wv = 0
-            out.push(BusPaddingLabel {
-                flag_z_idx: has_write_z,
-                field_z_idx: wv_z,
-                label: format!("twist[{mem_idx}][j={j}]: (1-has_write)*wv"),
-            });
+                // (1 - has_read) * ra_bits[b] = 0
+                for (b, col_id) in twist.ra_bits.clone().enumerate() {
+                    let bit_z = bus.bus_cell(col_id, j);
+                    out.push(BusPaddingLabel {
+                        flag_z_idx: has_read_z,
+                        field_z_idx: bit_z,
+                        label: format!(
+                            "twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_read)*ra_bits[{b}]"
+                        ),
+                    });
+                }
 
-            // (1 - has_write) * inc_at_write_addr = 0
-            out.push(BusPaddingLabel {
-                flag_z_idx: has_write_z,
-                field_z_idx: inc_z,
-                label: format!("twist[{mem_idx}][j={j}]: (1-has_write)*inc_at_write_addr"),
-            });
-
-            // (1 - has_write) * wa_bits[b] = 0
-            for (b, col_id) in twist.wa_bits.clone().enumerate() {
-                let bit_z = bus.bus_cell(col_id, j);
+                // (1 - has_write) * wv = 0
                 out.push(BusPaddingLabel {
                     flag_z_idx: has_write_z,
-                    field_z_idx: bit_z,
-                    label: format!("twist[{mem_idx}][j={j}]: (1-has_write)*wa_bits[{b}]"),
+                    field_z_idx: wv_z,
+                    label: format!("twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_write)*wv"),
                 });
+
+                // (1 - has_write) * inc_at_write_addr = 0
+                out.push(BusPaddingLabel {
+                    flag_z_idx: has_write_z,
+                    field_z_idx: inc_z,
+                    label: format!(
+                        "twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_write)*inc_at_write_addr"
+                    ),
+                });
+
+                // (1 - has_write) * wa_bits[b] = 0
+                for (b, col_id) in twist.wa_bits.clone().enumerate() {
+                    let bit_z = bus.bus_cell(col_id, j);
+                    out.push(BusPaddingLabel {
+                        flag_z_idx: has_write_z,
+                        field_z_idx: bit_z,
+                        label: format!(
+                            "twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_write)*wa_bits[{b}]"
+                        ),
+                    });
+                }
             }
         }
     }

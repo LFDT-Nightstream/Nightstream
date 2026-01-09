@@ -139,11 +139,12 @@ fn semantic_constraints(layout: &Rv32B1Layout, mem_layouts: &HashMap<u32, PlainM
 
     let mut constraints = Vec::<Constraint<F>>::new();
 
-    let shout_cols = |table_id: u32| layout.table_ids.binary_search(&table_id).ok().map(|idx| &layout.bus.shout_cols[idx]);
+    let shout_cols =
+        |table_id: u32| layout.table_ids.binary_search(&table_id).ok().map(|idx| &layout.bus.shout_cols[idx].lanes[0]);
 
     // The ADD table is required because this circuit uses it for address/ALU wiring (LW/SW/AUIPC/JALR).
     let add_shout_idx = layout.shout_idx(ADD_TABLE_ID)?;
-    let add_cols = &layout.bus.shout_cols[add_shout_idx];
+    let add_cols = &layout.bus.shout_cols[add_shout_idx].lanes[0];
 
     let and_cols = shout_cols(AND_TABLE_ID);
     let xor_cols = shout_cols(XOR_TABLE_ID);
@@ -323,8 +324,8 @@ fn semantic_constraints(layout: &Rv32B1Layout, mem_layouts: &HashMap<u32, PlainM
         return Err("RV32 B1: RAM_ID must use n_side=2 and d>=2 (bit addressing)".into());
     }
 
-    let prog = &layout.bus.twist_cols[layout.prog_twist_idx];
-    let ram = &layout.bus.twist_cols[layout.ram_twist_idx];
+    let prog = &layout.bus.twist_cols[layout.prog_twist_idx].lanes[0];
+    let ram = &layout.bus.twist_cols[layout.ram_twist_idx].lanes[0];
 
     let pack_interleaved_operand = |addr_bits_start: usize, j: usize, parity: usize, value_col: usize| -> Vec<(usize, F)> {
         debug_assert!(parity == 0 || parity == 1, "parity must be 0 (even) or 1 (odd)");

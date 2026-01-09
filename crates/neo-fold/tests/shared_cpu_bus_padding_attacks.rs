@@ -108,6 +108,7 @@ fn metadata_only_mem_instance(
             d: layout.d,
             n_side: layout.n_side,
             steps,
+            lanes: layout.lanes.max(1),
             ell,
             init,
             _phantom: PhantomData,
@@ -125,6 +126,7 @@ fn metadata_only_lut_instance(table: &LutTable<F>, steps: usize) -> (LutInstance
             d: table.d,
             n_side: table.n_side,
             steps,
+            lanes: 1,
             ell,
             table_spec: None,
             table: table.content.clone(),
@@ -170,7 +172,7 @@ fn create_ccs_referencing_all_twist_bus_cols(n: usize, m: usize, m_in: usize, bu
     assert_eq!(bus.bus_base, bus_base, "test assumes canonical bus_base");
 
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
-    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0].lanes[0], &cpu_layout);
 
     builder
         .build()
@@ -192,8 +194,8 @@ fn create_ccs_referencing_all_shout_twist_bus_cols(
     assert_eq!(bus.bus_base, bus_base, "test assumes canonical bus_base");
 
     let mut builder = CpuConstraintBuilder::<F>::new(n, m, COL_CONST_ONE);
-    builder.add_shout_instance(&bus, &bus.shout_cols[0], &cpu_layout);
-    builder.add_twist_instance(&bus, &bus.twist_cols[0], &cpu_layout);
+    builder.add_shout_instance(&bus, &bus.shout_cols[0].lanes[0], &cpu_layout);
+    builder.add_twist_instance(&bus, &bus.twist_cols[0].lanes[0], &cpu_layout);
 
     builder
         .build()
@@ -223,7 +225,7 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Zero;
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // ATTACK: has_write=0 but wv=99 (non-zero)
     let mut z = vec![F::ZERO; m];
@@ -339,7 +341,7 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Zero;
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // ATTACK: has_write=0 but inc=50 (non-zero)
     let mut z = vec![F::ZERO; m];
@@ -455,7 +457,7 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Zero;
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // ATTACK: has_read=0 but ra_bit=1 (non-zero address bits when no read)
     let mut z = vec![F::ZERO; m];
@@ -571,7 +573,7 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Zero;
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
 
     // ATTACK: has_write=0 but wa_bit=1 (non-zero address bits when no write)
     let mut z = vec![F::ZERO; m];
@@ -738,7 +740,7 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
 
     let (lut_inst, lut_wit) = metadata_only_lut_instance(&lut_table, lut_trace.has_lookup.len());
 
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let mem_init = MemInit::Zero;
     let mem_trace = PlainMemTrace {
         steps: 1,
@@ -874,7 +876,7 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
 
     let (lut_inst, lut_wit) = metadata_only_lut_instance(&lut_table, lut_trace.has_lookup.len());
 
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 };
+    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
     let mem_init = MemInit::Zero;
     let mem_trace = PlainMemTrace {
         steps: 1,

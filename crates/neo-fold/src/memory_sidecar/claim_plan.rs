@@ -12,9 +12,14 @@ pub struct TimeClaimMeta {
 }
 
 #[derive(Clone, Debug)]
-pub struct ShoutTimeClaimIdx {
+pub struct ShoutLaneTimeClaimIdx {
     pub value: usize,
     pub adapter: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct ShoutTimeClaimIdx {
+    pub lanes: Vec<ShoutLaneTimeClaimIdx>,
     pub bitness: usize,
     pub ell_addr: usize,
 }
@@ -60,17 +65,20 @@ impl RouteATimeClaimPlan {
 
         for lut_inst in lut_insts {
             let ell_addr = lut_inst.d * lut_inst.ell;
+            let lanes = lut_inst.lanes.max(1);
 
-            out.push(TimeClaimMeta {
-                label: b"shout/value",
-                degree_bound: 3,
-                is_dynamic: true,
-            });
-            out.push(TimeClaimMeta {
-                label: b"shout/adapter",
-                degree_bound: 2 + ell_addr,
-                is_dynamic: true,
-            });
+            for _lane in 0..lanes {
+                out.push(TimeClaimMeta {
+                    label: b"shout/value",
+                    degree_bound: 3,
+                    is_dynamic: true,
+                });
+                out.push(TimeClaimMeta {
+                    label: b"shout/adapter",
+                    degree_bound: 2 + ell_addr,
+                    is_dynamic: true,
+                });
+            }
 
             out.push(TimeClaimMeta {
                 label: b"shout/bitness",
@@ -139,16 +147,20 @@ impl RouteATimeClaimPlan {
 
         for lut_inst in &step.lut_insts {
             let ell_addr = lut_inst.d * lut_inst.ell;
-            let value = idx;
-            idx += 1;
-            let adapter = idx;
-            idx += 1;
+            let lanes = lut_inst.lanes.max(1);
+            let mut lane_claims: Vec<ShoutLaneTimeClaimIdx> = Vec::with_capacity(lanes);
+            for _lane in 0..lanes {
+                let value = idx;
+                idx += 1;
+                let adapter = idx;
+                idx += 1;
+                lane_claims.push(ShoutLaneTimeClaimIdx { value, adapter });
+            }
             let bitness = idx;
             idx += 1;
 
             shout.push(ShoutTimeClaimIdx {
-                value,
-                adapter,
+                lanes: lane_claims,
                 bitness,
                 ell_addr,
             });

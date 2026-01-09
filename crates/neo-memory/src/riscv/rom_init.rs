@@ -24,7 +24,7 @@ pub fn prog_rom_layout(base: u64, program_bytes: &[u8]) -> Result<PlainMemLayout
     let min_k = usize::try_from(end_excl).map_err(|_| "program address range does not fit usize".to_string())?;
     let k = min_k.next_power_of_two().max(4); // ensure d>=2 for RV32 alignment constraints
     let d = k.trailing_zeros() as usize;
-    Ok(PlainMemLayout { k, d, n_side: 2 })
+    Ok(PlainMemLayout { k, d, n_side: 2 , lanes: 1})
 }
 
 /// Checked version of [`prog_init_words`] (does not panic).

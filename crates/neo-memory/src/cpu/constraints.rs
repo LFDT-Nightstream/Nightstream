@@ -40,7 +40,9 @@ use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::relations::CcsStructure;
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use crate::cpu::bus_layout::{build_bus_layout_for_instances, BusLayout, ShoutCols, TwistCols};
+use crate::cpu::bus_layout::{
+    build_bus_layout_for_instances_with_shout_and_twist_lanes, BusLayout, ShoutCols, TwistCols,
+};
 use crate::witness::{LutInstance, MemInstance};
 
 /// CPU column layout for binding to the bus.
@@ -157,6 +159,16 @@ pub enum CpuConstraintLabel {
     StoreSelectorBinding,
     /// Selector binding: is_lookup == has_lookup
     LookupSelectorBinding,
+
+    /// Multi-read-port helper: mirror Twist write stream across multiple Twist instances.
+    ///
+    /// These are unconditional equalities between **bus** columns of different Twist instances,
+    /// used to emulate multiple read ports against a single logical memory by replicating the
+    /// Twist instance and forcing all replicas to share the same write stream.
+    TwistWriteMirrorHasWrite,
+    TwistWriteMirrorWaBits,
+    TwistWriteMirrorWv,
+    TwistWriteMirrorInc,
 }
 
 /// A single constraint in the CPU binding system.
@@ -572,6 +584,62 @@ impl<F: Field> CpuConstraintBuilder<F> {
             .push(CpuConstraint::new_eq(label, self.const_one_col, left_col, right_col));
     }
 
+    /// Add unconditional constraints that mirror the **write** side of Twist across replicas.
+    ///
+    /// This is a pragmatic way to get multiple **read** ports against one logical memory without
+    /// changing Twist: create `k` Twist instances with identical init/layout, bind each to its own
+    /// CPU read columns, and then mirror the write stream across all instances so their states
+    /// remain identical.
+    ///
+    /// The constraints enforce (for all `j`):
+    /// - `has_write` equal across replicas
+    /// - `wa_bits` equal across replicas
+    /// - `wv` equal across replicas
+    /// - `inc` equal across replicas
+    ///
+    /// Notes:
+    /// - Read columns (`has_read`, `ra_bits`, `rv`) are intentionally **not** mirrored.
+    /// - This helper assumes all replicas have identical `wa_bits` widths (same `d*ell`).
+    pub fn add_twist_write_mirror_group(&mut self, layout: &BusLayout, twists: &[TwistCols]) {
+        if twists.len() <= 1 {
+            return;
+        }
+        let reference = &twists[0];
+        let wa_len = reference.wa_bits.end.saturating_sub(reference.wa_bits.start);
+
+        for other in twists.iter().skip(1) {
+            let other_wa_len = other.wa_bits.end.saturating_sub(other.wa_bits.start);
+            assert_eq!(
+                other_wa_len, wa_len,
+                "add_twist_write_mirror_group: wa_bits width mismatch (ref={wa_len}, other={other_wa_len})"
+            );
+            for j in 0..layout.chunk_size {
+                self.add_equality_constraint(
+                    CpuConstraintLabel::TwistWriteMirrorHasWrite,
+                    layout.bus_cell(reference.has_write, j),
+                    layout.bus_cell(other.has_write, j),
+                );
+                self.add_equality_constraint(
+                    CpuConstraintLabel::TwistWriteMirrorWv,
+                    layout.bus_cell(reference.wv, j),
+                    layout.bus_cell(other.wv, j),
+                );
+                self.add_equality_constraint(
+                    CpuConstraintLabel::TwistWriteMirrorInc,
+                    layout.bus_cell(reference.inc, j),
+                    layout.bus_cell(other.inc, j),
+                );
+                for (col_ref, col_other) in reference.wa_bits.clone().zip(other.wa_bits.clone()) {
+                    self.add_equality_constraint(
+                        CpuConstraintLabel::TwistWriteMirrorWaBits,
+                        layout.bus_cell(col_ref, j),
+                        layout.bus_cell(col_other, j),
+                    );
+                }
+            }
+        }
+    }
+
     /// Get the accumulated constraints.
     pub fn constraints(&self) -> &[CpuConstraint<F>] {
         &self.constraints
@@ -797,7 +865,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
 /// - The base CCS must be R1CS-embedded (A/B/C matrices, optionally identity-first).
 /// - The base CCS must reserve enough trailing **all-zero** rows in A/B/C to fit the injected constraints.
 /// - Only `chunk_size == 1` is supported (i.e., all instances must have `steps == 1`).
-/// - `shout_cpu` and `twist_cpu` must be aligned 1:1 with the provided instances.
+/// - `shout_cpu` must provide one binding per Shout lane, and `twist_cpu` must provide one binding per Twist lane.
 ///
 /// ## Bus Ordering
 /// This function assumes the caller passes instances in canonical bus order:
@@ -812,18 +880,18 @@ pub fn extend_ccs_with_shared_cpu_bus_constraints<F: Field + PrimeCharacteristic
     lut_insts: &[LutInstance<Cmt, F>],
     mem_insts: &[MemInstance<Cmt, F>],
 ) -> Result<CcsStructure<F>, String> {
-    if shout_cpu.len() != lut_insts.len() {
+    let total_shout_lanes: usize = lut_insts.iter().map(|l| l.lanes.max(1)).sum();
+    if shout_cpu.len() != total_shout_lanes {
         return Err(format!(
-            "shout_cpu.len()={} != lut_insts.len()={}",
+            "shout_cpu.len()={} != total_shout_lanes({total_shout_lanes})",
             shout_cpu.len(),
-            lut_insts.len()
         ));
     }
-    if twist_cpu.len() != mem_insts.len() {
+    let total_twist_lanes: usize = mem_insts.iter().map(|m| m.lanes.max(1)).sum();
+    if twist_cpu.len() != total_twist_lanes {
         return Err(format!(
-            "twist_cpu.len()={} != mem_insts.len()={}",
-            twist_cpu.len(),
-            mem_insts.len()
+            "twist_cpu.len()={} != total_twist_lanes({total_twist_lanes})",
+            twist_cpu.len()
         ));
     }
 
@@ -861,12 +929,16 @@ pub fn extend_ccs_with_shared_cpu_bus_constraints<F: Field + PrimeCharacteristic
         chunk_size = 1;
     }
 
-    let layout = build_bus_layout_for_instances(
+    let layout = build_bus_layout_for_instances_with_shout_and_twist_lanes(
         base_ccs.m,
         m_in,
         chunk_size,
-        lut_insts.iter().map(|inst| inst.d * inst.ell),
-        mem_insts.iter().map(|inst| inst.d * inst.ell),
+        lut_insts
+            .iter()
+            .map(|inst| (inst.d * inst.ell, inst.lanes.max(1))),
+        mem_insts
+            .iter()
+            .map(|inst| (inst.d * inst.ell, inst.lanes.max(1))),
     )?;
 
     if layout.bus_cols == 0 {
@@ -874,11 +946,26 @@ pub fn extend_ccs_with_shared_cpu_bus_constraints<F: Field + PrimeCharacteristic
     }
 
     let mut builder = CpuConstraintBuilder::<F>::new(base_ccs.n, base_ccs.m, const_one_col);
-    for (i, cpu) in shout_cpu.iter().enumerate() {
-        builder.add_shout_instance_bound(&layout, &layout.shout_cols[i], cpu);
+    let mut shout_lane_idx = 0usize;
+    for inst_cols in layout.shout_cols.iter() {
+        for lane_cols in inst_cols.lanes.iter() {
+            let cpu = shout_cpu
+                .get(shout_lane_idx)
+                .ok_or_else(|| format!("missing shout_cpu binding at lane_idx={shout_lane_idx}"))?;
+            builder.add_shout_instance_bound(&layout, lane_cols, cpu);
+            shout_lane_idx += 1;
+        }
     }
-    for (i, cpu) in twist_cpu.iter().enumerate() {
-        builder.add_twist_instance_bound(&layout, &layout.twist_cols[i], cpu);
+    debug_assert_eq!(shout_lane_idx, shout_cpu.len());
+    let mut lane_idx = 0usize;
+    for inst_cols in layout.twist_cols.iter() {
+        for lane_cols in inst_cols.lanes.iter() {
+            let cpu = twist_cpu
+                .get(lane_idx)
+                .ok_or_else(|| format!("missing twist_cpu binding at lane_idx={lane_idx}"))?;
+            builder.add_twist_instance_bound(&layout, lane_cols, cpu);
+            lane_idx += 1;
+        }
     }
 
     let needed = builder.constraints().len();

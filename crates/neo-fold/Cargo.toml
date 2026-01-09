@@ -20,11 +20,13 @@ neo-vm-trace = { path = "../neo-vm-trace" }
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }
 p3-goldilocks = { workspace = true }
+p3-symmetric = { workspace = true }
 rayon = { workspace = true }
 rand_chacha = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+blake3 = { workspace = true }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 # Profiling

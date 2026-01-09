@@ -9,6 +9,25 @@ use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 use std::collections::HashSet;
 
+/// Try to infer the shared CPU bus layout for per-step public bundles.
+///
+/// Returns:
+/// - `Ok(None)` if there are no Shout/Twist instances (no shared-bus tail to bind), or if `steps` is empty.
+/// - `Ok(Some(bus))` when a shared bus is present and the per-step shapes are consistent.
+pub fn try_infer_cpu_bus_layout_for_step_instances<Cmt>(
+    s: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+) -> Result<Option<BusLayout>, PiCcsError> {
+    if steps.is_empty() {
+        return Ok(None);
+    }
+    let first = &steps[0];
+    if first.lut_insts.is_empty() && first.mem_insts.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(infer_bus_layout_for_steps(s, steps)?))
+}
+
 pub(crate) trait BusStepView<Cmt> {
     fn m_in(&self) -> usize;
     fn public_x(&self) -> &[F];

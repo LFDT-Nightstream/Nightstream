@@ -26,6 +26,7 @@ use neo_reductions::common::format_ext;
 use neo_reductions::paper_exact_engine::claimed_initial_sum_from_inputs;
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
+use bincode::Options;
 
 use spartan2::{provider::GoldilocksMerkleMleEngine, spartan::R1CSSNARK, traits::snark::R1CSSNARKTrait};
 use spartan2::bellpepper::shape_cs::ShapeCS;
@@ -41,89 +42,7 @@ pub type SpartanProverKey = spartan2::spartan::SpartanProverKey<SpartanEngine>;
 pub type SpartanVerifierKey = spartan2::spartan::SpartanVerifierKey<SpartanEngine>;
 
 pub fn compute_accumulator_digest_v2(base_b: u32, acc: &[MeInstance<Cmt, NeoF, NeoK>]) -> [u8; 32] {
-    use crate::gadgets::poseidon2::{native_permute_w8, RATE, WIDTH};
-    use neo_math::KExtensions;
-    use p3_field::PrimeField64;
-    use p3_goldilocks::Goldilocks;
-
-    let mut st = [Goldilocks::ZERO; WIDTH];
-    let mut absorbed = 0usize;
-
-    let mut absorb = |x: Goldilocks| {
-        if absorbed >= RATE {
-            st = native_permute_w8(st);
-            absorbed = 0;
-        }
-        st[absorbed] = x;
-        absorbed += 1;
-    };
-
-    for &b in b"neo/spartan-bridge/acc_digest/v2" {
-        absorb(Goldilocks::from_u64(b as u64));
-    }
-
-    absorb(Goldilocks::from_u64(acc.len() as u64));
-
-    for me in acc {
-        absorb(Goldilocks::from_u64(me.m_in as u64));
-
-        // Commitment data (binds the Ajtai commitment relation used by native verifier).
-        absorb(Goldilocks::from_u64(me.c.data.len() as u64));
-        for &c in &me.c.data {
-            absorb(Goldilocks::from_u64(c.as_canonical_u64()));
-        }
-
-        // X matrix (binds the public linear projection).
-        absorb(Goldilocks::from_u64(me.X.rows() as u64));
-        absorb(Goldilocks::from_u64(me.X.cols() as u64));
-        for &x in me.X.as_slice() {
-            absorb(Goldilocks::from_u64(x.as_canonical_u64()));
-        }
-
-        absorb(Goldilocks::from_u64(me.r.len() as u64));
-        for limb in &me.r {
-            let coeffs = limb.as_coeffs();
-            absorb(coeffs[0]);
-            absorb(coeffs[1]);
-        }
-
-        absorb(Goldilocks::from_u64(me.y.len() as u64));
-        for yj in &me.y {
-            absorb(Goldilocks::from_u64(yj.len() as u64));
-            for y_elem in yj {
-                let coeffs = y_elem.as_coeffs();
-                absorb(coeffs[0]);
-                absorb(coeffs[1]);
-            }
-        }
-
-        // Canonical y_scalars: base-b recomposition of the first D digits of y[j].
-        //
-        // IMPORTANT: in shared-bus mode, `me.y_scalars` may include extra scalars appended after
-        // the core `t=s.t()` entries (bus openings). Those must not affect the public accumulator
-        // digest, so we derive scalars from `y` directly.
-        let bK = NeoK::from(NeoF::from_u64(base_b as u64));
-        for yj in &me.y {
-            let mut acc_k = NeoK::ZERO;
-            let mut pw = NeoK::ONE;
-            for rho in 0..neo_math::D {
-                acc_k += pw * yj[rho];
-                pw *= bK;
-            }
-            let coeffs = acc_k.as_coeffs();
-            absorb(coeffs[0]);
-            absorb(coeffs[1]);
-        }
-    }
-
-    absorb(Goldilocks::ONE);
-    st = native_permute_w8(st);
-
-    let mut out = [0u8; 32];
-    for i in 0..4 {
-        out[i * 8..(i + 1) * 8].copy_from_slice(&st[i].as_canonical_u64().to_le_bytes());
-    }
-    out
+    neo_fold::bridge_digests::compute_accumulator_digest_v2(base_b, acc)
 }
 
 /// Circuit shape parameters needed to pin a Spartan2 VK/PK.
@@ -506,6 +425,27 @@ pub struct SpartanProof {
     pub statement: SpartanShardStatement,
 }
 
+const MAX_SPARTAN2_PROOF_BYTES: u64 = 64 * 1024 * 1024; // 64 MiB
+
+fn snark_bincode_opts() -> impl Options {
+    bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .reject_trailing_bytes()
+        .with_limit(MAX_SPARTAN2_PROOF_BYTES)
+}
+
+fn deserialize_spartan_snark(proof_data: &[u8]) -> Result<SpartanSnark> {
+    if proof_data.len() > MAX_SPARTAN2_PROOF_BYTES as usize {
+        return Err(SpartanBridgeError::VerificationError(format!(
+            "Spartan2 proof bytes too large: len={} exceeds MAX_SPARTAN2_PROOF_BYTES={MAX_SPARTAN2_PROOF_BYTES}",
+            proof_data.len()
+        )));
+    }
+    snark_bincode_opts()
+        .deserialize(proof_data)
+        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 proof deserialization failed: {e}")))
+}
+
 /// Verify a Spartan proof without any external context.
 ///
 /// This checks only that:
@@ -524,8 +464,7 @@ pub fn verify_fold_run_proof_only(vk: &SpartanVerifierKey, proof: &SpartanProof)
 
     let expected_statement_io = proof.statement.public_io();
 
-    let snark: SpartanSnark = bincode::deserialize(&proof.proof_data)
-        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 proof deserialization failed: {e}")))?;
+    let snark: SpartanSnark = deserialize_spartan_snark(&proof.proof_data)?;
     let io = snark
         .verify(vk)
         .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 verification failed: {e}")))?;
@@ -1215,7 +1154,8 @@ pub fn prove_fold_run(
         .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 prove failed: {e}")))?;
 
     // Pack SNARK into proof bytes. The verifier key must be pinned out-of-band.
-    let proof_data = bincode::serialize(&snark)
+    let proof_data = snark_bincode_opts()
+        .serialize(&snark)
         .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 proof serialization failed: {e}")))?;
 
     Ok(SpartanProof {
@@ -1321,8 +1261,7 @@ pub fn verify_fold_run(
     let expected_statement_io = proof.statement.public_io();
 
     // 3. Deserialize snark from proof bytes.
-    let snark: SpartanSnark = bincode::deserialize(&proof.proof_data)
-        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 proof deserialization failed: {e}")))?;
+    let snark: SpartanSnark = deserialize_spartan_snark(&proof.proof_data)?;
 
     // 4. Run Spartan2 verification.
     let io = snark
@@ -1360,8 +1299,7 @@ pub fn verify_fold_run_statement_only(
 
     let expected_statement_io = expected_statement.public_io();
 
-    let snark: SpartanSnark = bincode::deserialize(&proof.proof_data)
-        .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 proof deserialization failed: {e}")))?;
+    let snark: SpartanSnark = deserialize_spartan_snark(&proof.proof_data)?;
     let io = snark
         .verify(vk)
         .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 verification failed: {e}")))?;
@@ -1423,8 +1361,6 @@ fn compute_ccs_digest(ccs: &CcsStructure<NeoF>) -> [u8; 32] {
 }
 
 fn compute_pp_id_digest_v1(params: &NeoParams, ccs: &CcsStructure<NeoF>) -> Result<[u8; 32]> {
-    use blake3::Hasher;
-
     let d = usize::try_from(params.d).map_err(|_| {
         SpartanBridgeError::InvalidInput(format!(
             "params.d does not fit usize: {}",
@@ -1458,15 +1394,7 @@ fn compute_pp_id_digest_v1(params: &NeoParams, ccs: &CcsStructure<NeoF>) -> Resu
         )));
     }
 
-    let mut h = Hasher::new();
-    h.update(b"neo/spartan-bridge/pp_id/v1");
-    h.update(&(d as u64).to_le_bytes());
-    h.update(&(m_commit as u64).to_le_bytes());
-    h.update(&(kappa as u64).to_le_bytes());
-    h.update(&seed);
-    let mut out = [0u8; 32];
-    out.copy_from_slice(h.finalize().as_bytes());
-    Ok(out)
+    Ok(neo_ajtai::compute_pp_id_digest_v1(d, m_commit, kappa, seed))
 }
 
 fn compute_obligations_digest_v1(
@@ -1474,16 +1402,11 @@ fn compute_obligations_digest_v1(
     acc_final_val_digest: [u8; 32],
     pp_id_digest: [u8; 32],
 ) -> [u8; 32] {
-    use blake3::Hasher;
-
-    let mut h = Hasher::new();
-    h.update(b"neo/spartan-bridge/obligations_digest/v1");
-    h.update(&acc_final_main_digest);
-    h.update(&acc_final_val_digest);
-    h.update(&pp_id_digest);
-    let mut out = [0u8; 32];
-    out.copy_from_slice(h.finalize().as_bytes());
-    out
+    neo_fold::bridge_digests::compute_obligations_digest_v1(
+        acc_final_main_digest,
+        acc_final_val_digest,
+        pp_id_digest,
+    )
 }
 
 fn compute_steps_digest_v3(steps_public: &[StepInstanceBundle<Cmt, NeoF, NeoK>]) -> Result<[u8; 32]> {

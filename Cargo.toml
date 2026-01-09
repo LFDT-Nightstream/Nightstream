@@ -14,8 +14,8 @@ members = [
   "crates/neo-memory",
 ]
 exclude = [
-  # Spartan2 is a path dependency (for local patching/inspection), but it is not part of this
-  # workspace's test surface. Excluding it prevents `cargo test --workspace` from running its tests.
+  # Local Spartan2 checkouts (for inspection/patching) should not be part of this workspace's test surface.
+  # Excluding prevents `cargo test --workspace` from running any local Spartan2 tests if the folder exists.
   "Spartan2",
 ]
 resolver = "2"
@@ -45,6 +45,7 @@ anyhow = "1.0"
 bincode = "1.3"
 
 # Spartan2 and circuit dependencies
+# Pinned git dependency for reproducible builds/CI (local `Spartan2/` checkouts are for inspection only).
 spartan2 = { git = "https://github.com/nicarq/Spartan2.git", rev = "b244f5c891718235efc7b2b9814b6725010d5e71", default-features = false, features = ["p3_backend"] }
 bellpepper-core = { version = "0.4" }
 ff = { version = "0.13" }

@@ -12,6 +12,12 @@ workspace = true
 default = []
 # Enable verbose logging for debugging
 debug-logs = ["neo-reductions/debug-logs"]
+# Enables WHIR-backed closure proof backends in `neo-closure-proof` (used by BridgeProofV2 tests).
+whir-p3-backend = ["neo-closure-proof/whir-p3-backend"]
+# Dev-only: allow WHIR closure backends to serialize obligations in the payload.
+whir-p3-obligations-public = ["neo-closure-proof/whir-p3-obligations-public"]
+# Development profile for WHIR backends in `neo-closure-proof` (faster, lower security).
+whir-p3-dev = ["neo-closure-proof/whir-p3-dev"]
 
 [dependencies]
 # Neo dependencies

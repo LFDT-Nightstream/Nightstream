@@ -49,6 +49,7 @@ pub struct ReferenceFinalizer<L> {
     params: neo_params::NeoParams,
     ccs: std::sync::Arc<neo_ccs::CcsStructure<neo_math::F>>,
     committer: L,
+    bus: Option<neo_memory::cpu::BusLayout>,
     ell_d: usize,
     main_wits: Vec<neo_ccs::Mat<neo_math::F>>,
     val_wits: Vec<neo_ccs::Mat<neo_math::F>>,
@@ -65,12 +66,24 @@ where
         main_wits: Vec<neo_ccs::Mat<neo_math::F>>,
         val_wits: Vec<neo_ccs::Mat<neo_math::F>>,
     ) -> Result<Self, crate::PiCcsError> {
+        Self::new_with_bus(params, ccs, committer, main_wits, val_wits, None)
+    }
+
+    pub fn new_with_bus(
+        params: neo_params::NeoParams,
+        ccs: std::sync::Arc<neo_ccs::CcsStructure<neo_math::F>>,
+        committer: L,
+        main_wits: Vec<neo_ccs::Mat<neo_math::F>>,
+        val_wits: Vec<neo_ccs::Mat<neo_math::F>>,
+        bus: Option<neo_memory::cpu::BusLayout>,
+    ) -> Result<Self, crate::PiCcsError> {
         let dims =
             neo_reductions::engines::utils::build_dims_and_policy(&params, ccs.as_ref())?;
         Ok(Self {
             params,
             ccs,
             committer,
+            bus,
             ell_d: dims.ell_d,
             main_wits,
             val_wits,
@@ -136,14 +149,78 @@ where
         // 4) ME consistency: recompute (y, y_scalars) under optimized-engine padded-y semantics.
         let (y_expected, y_scalars_expected) =
             neo_reductions::common::compute_y_from_Z_and_r(self.ccs.as_ref(), Z, me.r.as_slice(), self.ell_d, self.params.b);
-        if me.y != y_expected {
+
+        let core_t = self.ccs.t();
+        if y_expected.len() != core_t || y_scalars_expected.len() != core_t {
             return Err(crate::PiCcsError::ProtocolError(format!(
-                "{label}: y mismatch"
+                "{label}: internal error: compute_y_from_Z_and_r returned unexpected lengths (y.len()={}, y_scalars.len()={}, core_t={core_t})",
+                y_expected.len(),
+                y_scalars_expected.len(),
             )));
         }
-        if me.y_scalars != y_scalars_expected {
-            return Err(crate::PiCcsError::ProtocolError(format!(
-                "{label}: y_scalars mismatch"
+
+        if me.y.len() == core_t && me.y_scalars.len() == core_t {
+            if me.y != y_expected {
+                return Err(crate::PiCcsError::ProtocolError(format!(
+                    "{label}: y mismatch"
+                )));
+            }
+            if me.y_scalars != y_scalars_expected {
+                return Err(crate::PiCcsError::ProtocolError(format!(
+                    "{label}: y_scalars mismatch"
+                )));
+            }
+        } else if me.y.len() > core_t {
+            let bus = self.bus.as_ref().ok_or_else(|| {
+                crate::PiCcsError::InvalidInput(format!(
+                    "{label}: ME instance has bus openings (y.len()={}, core_t={core_t}) but ReferenceFinalizer has no BusLayout",
+                    me.y.len(),
+                ))
+            })?;
+            if me.y.len() != core_t + bus.bus_cols || me.y_scalars.len() != core_t + bus.bus_cols {
+                return Err(crate::PiCcsError::InvalidInput(format!(
+                    "{label}: bus openings length mismatch (y.len()={}, y_scalars.len()={}, expected core_t+bus_cols={})",
+                    me.y.len(),
+                    me.y_scalars.len(),
+                    core_t + bus.bus_cols,
+                )));
+            }
+
+            let mut expected_me = neo_ccs::MeInstance::<neo_ajtai::Commitment, neo_math::F, neo_math::K> {
+                c: me.c.clone(),
+                X: me.X.clone(),
+                r: me.r.clone(),
+                y: y_expected,
+                y_scalars: y_scalars_expected,
+                m_in: me.m_in,
+                fold_digest: [0u8; 32],
+                c_step_coords: Vec::new(),
+                u_offset: 0,
+                u_len: 0,
+            };
+
+            crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(
+                &self.params,
+                bus,
+                core_t,
+                Z,
+                &mut expected_me,
+            )?;
+
+            if me.y != expected_me.y {
+                return Err(crate::PiCcsError::ProtocolError(format!(
+                    "{label}: y mismatch (including bus openings)"
+                )));
+            }
+            if me.y_scalars != expected_me.y_scalars {
+                return Err(crate::PiCcsError::ProtocolError(format!(
+                    "{label}: y_scalars mismatch (including bus openings)"
+                )));
+            }
+        } else {
+            return Err(crate::PiCcsError::InvalidInput(format!(
+                "{label}: ME y.len()={} smaller than core_t={core_t}",
+                me.y.len()
             )));
         }
 

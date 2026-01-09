@@ -21,6 +21,8 @@
 mod commit;
 mod decomp;
 mod error;
+pub mod opening_weights;
+pub mod pp_id;
 pub mod prg;
 mod types;
 pub mod util;
@@ -35,6 +37,9 @@ pub use commit::{
 pub use decomp::{assert_range_b, decomp_b, decomp_b_row_major, split_b, DecompStyle};
 pub use error::{AjtaiError, AjtaiResult};
 pub use types::{Commitment, PP};
+
+pub use opening_weights::compute_opening_weights_for_u_seeded;
+pub use pp_id::compute_pp_id_digest_v1;
 
 #[cfg(feature = "testing")]
 pub use commit::rot_step;

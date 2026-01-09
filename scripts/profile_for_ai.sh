@@ -6,7 +6,7 @@ set -eo pipefail
 # Usage: ./scripts/profile_for_ai.sh <package> <test_file> <test_function> [--ignored]
 #
 # Examples:
-#   ./scripts/profile_for_ai.sh neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored
+#   ./scripts/profile_for_ai.sh neo-fold test_sha256_single_step test_sha256_preimage_64_bytes
 #   ./scripts/profile_for_ai.sh neo-fold test_starstream_tx_valid_optimized test_starstream_tx_valid_optimized
 #   NEO_SPARTAN_BRIDGE_DEBUG_SHAPE=1 ./scripts/profile_for_ai.sh neo-spartan-bridge starstream_compression_smoke test_starstream_tx_export_spartan_phase1_smoke 400
 

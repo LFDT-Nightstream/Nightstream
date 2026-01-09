@@ -81,7 +81,16 @@ pub fn verify_bridge_proof_v2(
         ));
     }
 
-    neo_closure_proof::verify_closure_v1(&proof.closure_stmt, &proof.closure).map_err(|e| {
+    let bus = neo_fold::memory_sidecar::cpu_bus::try_infer_cpu_bus_layout_for_step_instances(ccs, steps_public)
+        .map_err(|e| SpartanBridgeError::InvalidInput(format!("BusLayout: {e:?}")))?;
+    neo_closure_proof::verify_closure_v1_with_context_and_bus(
+        &proof.closure_stmt,
+        &proof.closure,
+        Some(params),
+        Some(ccs),
+        bus.as_ref(),
+    )
+        .map_err(|e| {
         SpartanBridgeError::VerificationError(format!("closure proof verification failed: {e}"))
     })?;
 

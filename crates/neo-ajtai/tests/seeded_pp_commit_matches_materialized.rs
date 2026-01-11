@@ -3,8 +3,8 @@ use neo_ccs::Mat;
 use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as Fq;
-use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 #[test]
 fn seeded_pp_commit_matches_materialized_pp() {

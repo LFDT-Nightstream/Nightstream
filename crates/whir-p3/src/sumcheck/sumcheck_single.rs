@@ -211,7 +211,7 @@ pub(crate) fn compute_sumcheck_polynomial<F: Field, EF: ExtensionField<F>>(
 ///
 /// The sumcheck protocol ensures that the claimed sum is correct.
 #[derive(Debug, Clone)]
-pub struct SumcheckSingle<F, EF> {
+pub struct SumcheckSingle<F, EF: Copy> {
     /// Evaluations of the polynomial `p(X)`.
     pub(crate) evals: EvaluationsList<EF>,
     /// Evaluations of the equality polynomial used for enforcing constraints.

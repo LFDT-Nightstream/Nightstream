@@ -42,14 +42,25 @@ impl<const N: usize> NeoCircuit for PaddedBinaryTableCircuit<N> {
 
     fn resources(&self, resources: &mut SharedBusResources) {
         // 3-entry table gets padded to k=4 with entry 3 = 0.
-        resources.shout(0).padded_binary_table(vec![F::from_u64(5), F::from_u64(7), F::from_u64(9)]);
+        resources
+            .shout(0)
+            .padded_binary_table(vec![F::from_u64(5), F::from_u64(7), F::from_u64(9)]);
     }
 
     fn cpu_bindings(
         &self,
         layout: &Self::Layout,
-    ) -> Result<(HashMap<u32, Vec<ShoutCpuBinding>>, HashMap<u32, Vec<neo_memory::cpu::TwistCpuBinding>>), String> {
-        Ok((HashMap::from([(0u32, vec![layout.shout0.cpu_binding()])]), HashMap::new()))
+    ) -> Result<
+        (
+            HashMap<u32, Vec<ShoutCpuBinding>>,
+            HashMap<u32, Vec<neo_memory::cpu::TwistCpuBinding>>,
+        ),
+        String,
+    > {
+        Ok((
+            HashMap::from([(0u32, vec![layout.shout0.cpu_binding()])]),
+            HashMap::new(),
+        ))
     }
 
     fn define_cpu_constraints(
@@ -73,7 +84,9 @@ impl<const N: usize> NeoCircuit for PaddedBinaryTableCircuit<N> {
         let mut z = <Self::Layout as neo_fold::session::WitnessLayout>::zero_witness_prefix();
         z[layout.one] = F::ONE;
 
-        layout.shout0.fill_from_trace(chunk, /*shout_id=*/ 0, &mut z)?;
+        layout
+            .shout0
+            .fill_from_trace(chunk, /*shout_id=*/ 0, &mut z)?;
         Ok(z)
     }
 }
@@ -138,7 +151,10 @@ impl VmCpu<u64, u64> for PaddedLookupVm {
         self.step += 1;
 
         self.pc = self.pc.wrapping_add(4);
-        Ok(StepMeta { pc_after: self.pc, opcode: 0 })
+        Ok(StepMeta {
+            pc_after: self.pc,
+            opcode: 0,
+        })
     }
 }
 
@@ -167,7 +183,9 @@ fn shout_padded_binary_table_auto_params_and_prove_verify() {
 
     let params = NeoParams::goldilocks_auto_r1cs_ccs(m).expect("params");
     let committer = setup_ajtai_committer(m, params.kappa as usize);
-    let prover = pre.into_prover(params.clone(), committer.clone()).expect("into_prover");
+    let prover = pre
+        .into_prover(params.clone(), committer.clone())
+        .expect("into_prover");
 
     let mut session = FoldingSession::new(FoldingMode::Optimized, params.clone(), committer);
     prover
@@ -181,7 +199,11 @@ fn shout_padded_binary_table_auto_params_and_prove_verify() {
         )
         .expect("execute_into_session should succeed");
 
-    let run = session.fold_and_prove(prover.ccs()).expect("prove should succeed");
-    let ok = session.verify_collected(prover.ccs(), &run).expect("verify should run");
+    let run = session
+        .fold_and_prove(prover.ccs())
+        .expect("prove should succeed");
+    let ok = session
+        .verify_collected(prover.ccs(), &run)
+        .expect("verify should run");
     assert!(ok, "verification should pass");
 }

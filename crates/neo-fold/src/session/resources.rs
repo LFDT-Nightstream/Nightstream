@@ -27,11 +27,17 @@ impl SharedBusResources {
     }
 
     pub fn twist(&mut self, twist_id: u32) -> TwistResource<'_> {
-        TwistResource { resources: self, twist_id }
+        TwistResource {
+            resources: self,
+            twist_id,
+        }
     }
 
     pub fn shout(&mut self, table_id: u32) -> ShoutResource<'_> {
-        ShoutResource { resources: self, table_id }
+        ShoutResource {
+            resources: self,
+            table_id,
+        }
     }
 
     /// Convenience: set a power-of-two sized table under binary addressing (`n_side = 2`).
@@ -103,7 +109,9 @@ impl TwistResource<'_> {
     /// Values of `F::ZERO` are allowed but typically ignored by the underlying builders.
     pub fn init(self, init: impl IntoIterator<Item = (u64, F)>) -> Self {
         for (addr, val) in init {
-            self.resources.initial_mem.insert((self.twist_id, addr), val);
+            self.resources
+                .initial_mem
+                .insert((self.twist_id, addr), val);
         }
         self
     }
@@ -133,7 +141,8 @@ impl ShoutResource<'_> {
 
     pub fn table(self, mut table: LutTable<F>) -> Self {
         table.table_id = self.table_id;
-        self.resources.clear_shout_conflicts(self.table_id, /*keep_spec=*/ false);
+        self.resources
+            .clear_shout_conflicts(self.table_id, /*keep_spec=*/ false);
         self.resources.lut_tables.insert(self.table_id, table);
         self
     }
@@ -142,7 +151,10 @@ impl ShoutResource<'_> {
         let table_id = self.table_id;
         let k = content.len();
         assert!(k > 0, "binary_table: content must be non-empty");
-        assert!(k.is_power_of_two(), "binary_table: content.len() must be a power of two");
+        assert!(
+            k.is_power_of_two(),
+            "binary_table: content.len() must be a power of two"
+        );
         let d = k.trailing_zeros() as usize;
         self.table(LutTable {
             table_id,
@@ -170,7 +182,8 @@ impl ShoutResource<'_> {
     }
 
     pub fn spec(self, spec: LutTableSpec) -> Self {
-        self.resources.clear_shout_conflicts(self.table_id, /*keep_spec=*/ true);
+        self.resources
+            .clear_shout_conflicts(self.table_id, /*keep_spec=*/ true);
         self.resources.lut_table_specs.insert(self.table_id, spec);
         self
     }

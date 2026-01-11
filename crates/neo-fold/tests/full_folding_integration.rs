@@ -363,7 +363,12 @@ fn build_single_chunk_inputs() -> (
     let acc_wit_init: Vec<Mat<F>> = Vec::new();
 
     // Plain memory trace for one step
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
     let plain_mem = PlainMemTrace {
         steps: 1,
         // One write to addr 0 with value 1 (no reads).
@@ -529,7 +534,12 @@ fn full_folding_integration_multi_step_chunk() {
     let m = TEST_M;
 
     // 4-step RW memory trace (k=2) with alternating write/read.
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
 
     let plain_mem = PlainMemTrace {
         steps: 4,

@@ -1,20 +1,19 @@
-#![cfg(all(feature = "whir-p3-backend", feature = "whir-p3-obligations-public"))]
-
 use neo_ajtai::{set_global_pp_seeded, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::CcsStructure;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_closure_proof::prove_whir_p3_full_closure_v1;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{fold_shard_prove_with_witnesses, CommitMixers};
 use neo_math::{D, F, K};
 use neo_memory::ajtai::encode_vector_balanced_to_mat;
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
-use neo_spartan_bridge::bridge_proof_v2::compute_closure_statement_v1;
 use neo_spartan_bridge::circuit::FoldRunWitness;
-use neo_spartan_bridge::{prove_fold_run, setup_fold_run, verify_bridge_proof_v2, BridgeProofV2};
+use neo_spartan_bridge::{
+    prove_bridge_proof_v2_whir_p3_full_closure, setup_fold_run, verify_bridge_proof_v2,
+    verify_bridge_proof_v2_statement_only,
+};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -82,54 +81,33 @@ fn bridge_proof_v2_whir_full_closure_roundtrip_and_tamper() {
     // IMPORTANT: the Spartan bridge circuit replays the native session transcript which is
     // instantiated with this fixed label.
     let mut tr_prove = Poseidon2Transcript::new(b"neo.fold/session");
-    let (fold_run, outputs, wits) = fold_shard_prove_with_witnesses(
-        mode,
-        &mut tr_prove,
-        &params,
-        &ccs,
-        &steps_witness,
-        &[],
-        &[],
-        &l,
-        mixers,
-    )
-    .expect("prove_with_witnesses");
+    let (fold_run, _outputs, wits) =
+        fold_shard_prove_with_witnesses(mode, &mut tr_prove, &params, &ccs, &steps_witness, &[], &[], &l, mixers)
+            .expect("prove_with_witnesses");
 
     let vm_digest = [0u8; 32];
+    let fold_run2 = fold_run.clone();
     let witness = FoldRunWitness::new(fold_run, steps_instance.clone(), vec![], vm_digest, None);
     let (pk, vk) = setup_fold_run(&params, &ccs, &witness).expect("setup_fold_run");
-    let spartan = prove_fold_run(&pk, &params, &ccs, witness).expect("prove_fold_run");
-
-    let closure_stmt = compute_closure_statement_v1(&spartan.statement);
-    let closure = prove_whir_p3_full_closure_v1(
-        &closure_stmt,
+    let proof = prove_bridge_proof_v2_whir_p3_full_closure(
+        &pk,
         &params,
         &ccs,
-        &outputs.obligations,
+        witness,
         &wits.final_main_wits,
         &wits.val_lane_wits,
-        None,
     )
-    .expect("prove whir full closure");
+    .expect("prove BridgeProofV2 (WHIR full closure)");
 
-    let proof = BridgeProofV2 {
-        spartan: spartan.clone(),
-        closure_stmt,
-        closure,
-    };
-
-    let ok = verify_bridge_proof_v2(
-        &vk,
-        &params,
-        &ccs,
-        &vm_digest,
-        &steps_instance,
-        None,
-        &[],
-        &proof,
-    )
-    .expect("verify");
+    let ok =
+        verify_bridge_proof_v2(&vk, &params, &ccs, &vm_digest, &steps_instance, None, &[], &proof).expect("verify");
     assert!(ok, "BridgeProofV2 must verify");
+
+    assert!(
+        verify_bridge_proof_v2_statement_only(&vk, &proof.spartan.statement, &proof, Some(&params), Some(&ccs), None,)
+            .expect("verify statement-only"),
+        "BridgeProofV2 statement-only verification must succeed"
+    );
 
     // Tamper witness for closure proof: Phase-1 proof still verifies, closure must fail.
     let mut bad_main = wits.final_main_wits.clone();
@@ -137,14 +115,13 @@ fn bridge_proof_v2_whir_full_closure_roundtrip_and_tamper() {
         first.as_mut_slice()[0] = first.as_slice()[0] + F::ONE;
     }
     assert!(
-        prove_whir_p3_full_closure_v1(
-            &proof.expected_closure_statement(),
+        prove_bridge_proof_v2_whir_p3_full_closure(
+            &pk,
             &params,
             &ccs,
-            &outputs.obligations,
+            FoldRunWitness::new(fold_run2, steps_instance.clone(), vec![], vm_digest, None),
             &bad_main,
             &wits.val_lane_wits,
-            None,
         )
         .is_err(),
         "tampered closure witness must not be provable"

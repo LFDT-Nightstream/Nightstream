@@ -4,6 +4,7 @@ pub mod errors;
 pub mod fiat_shamir;
 pub mod parameters;
 pub mod poly;
+pub mod storage;
 pub mod sumcheck;
 pub mod utils;
 pub mod whir;

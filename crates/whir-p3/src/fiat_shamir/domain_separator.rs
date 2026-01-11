@@ -54,6 +54,17 @@ where
     EF: ExtensionField<F>,
     F: Field,
 {
+    #[inline]
+    fn push_triplet(&mut self, kind: Pattern, variant: F, count: Option<usize>) {
+        // Unambiguous encoding (no "sum-of-tags" collisions):
+        //   [kind, variant, count?]
+        self.pattern.push(kind.as_field_element::<F>());
+        self.pattern.push(variant);
+        if let Some(c) = count {
+            self.pattern.push(F::from_usize(c));
+        }
+    }
+
     #[must_use]
     pub const fn from_pattern(pattern: Vec<F>) -> Self {
         Self {
@@ -70,26 +81,17 @@ where
 
     /// Observe `count` native elements.
     pub fn observe(&mut self, count: usize, pattern: Observe) {
-        self.pattern.push(
-            pattern.as_field_element::<F>()
-                + F::from_usize(count)
-                + Pattern::Observe.as_field_element::<F>(),
-        );
+        self.push_triplet(Pattern::Observe, pattern.as_field_element::<F>(), Some(count));
     }
 
     /// Sample `count` native elements.
     pub fn sample(&mut self, count: usize, pattern: Sample) {
-        self.pattern.push(
-            pattern.as_field_element::<F>()
-                + F::from_usize(count)
-                + Pattern::Sample.as_field_element::<F>(),
-        );
+        self.push_triplet(Pattern::Sample, pattern.as_field_element::<F>(), Some(count));
     }
 
     /// Hint `count` native elements.
     pub fn hint(&mut self, pattern: Hint) {
-        self.pattern
-            .push(pattern.as_field_element::<F>() + Pattern::Hint.as_field_element::<F>());
+        self.push_triplet(Pattern::Hint, pattern.as_field_element::<F>(), None);
     }
 
     #[must_use]

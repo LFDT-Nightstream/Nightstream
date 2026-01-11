@@ -201,11 +201,7 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
         Self { csc }
     }
 
-    pub fn from_triplets(
-        nrows: usize,
-        ncols: usize,
-        matrices: Vec<Option<Vec<(usize, usize, Ff)>>>,
-    ) -> Self {
+    pub fn from_triplets(nrows: usize, ncols: usize, matrices: Vec<Option<Vec<(usize, usize, Ff)>>>) -> Self {
         let csc = matrices
             .into_iter()
             .map(|m| m.map(|triplets| CscMat::from_triplets(triplets, nrows, ncols)))

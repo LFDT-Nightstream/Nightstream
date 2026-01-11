@@ -88,4 +88,3 @@ where
         deserializer.deserialize_seq(BoundedVecVisitor::<T, MAX>(PhantomData))
     }
 }
-

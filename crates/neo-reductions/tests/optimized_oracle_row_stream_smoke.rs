@@ -89,9 +89,15 @@ fn optimized_oracle_row_stream_matches_paper_exact_q_at_challenge_point() {
 
     // Public challenges (α, β, γ) and ME input r for Eval gating.
     let ch = Challenges {
-        alpha: (0..dims.ell_d).map(|i| k(1000 + i as u64, 2000 + i as u64)).collect(),
-        beta_a: (0..dims.ell_d).map(|i| k(3000 + i as u64, 4000 + i as u64)).collect(),
-        beta_r: (0..dims.ell_n).map(|i| k(5000 + i as u64, 6000 + i as u64)).collect(),
+        alpha: (0..dims.ell_d)
+            .map(|i| k(1000 + i as u64, 2000 + i as u64))
+            .collect(),
+        beta_a: (0..dims.ell_d)
+            .map(|i| k(3000 + i as u64, 4000 + i as u64))
+            .collect(),
+        beta_r: (0..dims.ell_n)
+            .map(|i| k(5000 + i as u64, 6000 + i as u64))
+            .collect(),
         gamma: k(7777, 8888),
     };
     let r_inputs: Vec<K> = (0..dims.ell_n)

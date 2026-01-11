@@ -203,7 +203,12 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
     let m_in = 0usize;
 
     // Geometry: k=2, d=1, n_side=2 (minimal).
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
     let mem_init = MemInit::Zero;
 
     let write0 = F::from_u64(seed.wrapping_add(10));

@@ -9,7 +9,7 @@
 use crate::bounded::BoundedVec;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{Mat, MeInstance};
-use neo_math::{D as NeoD, F as NeoF, K as NeoK, KExtensions};
+use neo_math::{KExtensions, D as NeoD, F as NeoF, K as NeoK};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const MAX_COMMITMENT_DATA_U64: usize = NeoD * 4096; // d * kappa (kappa is small in practice)
@@ -114,8 +114,7 @@ impl EncodedMatF {
         Some(Mat::from_row_major(
             rows,
             cols,
-            self
-                .data
+            self.data
                 .iter()
                 .copied()
                 .map(decode_canonical_f)

@@ -1230,10 +1230,7 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    assert!(
-        !me_inputs.is_empty(),
-        "Π_RLC(optimized): need at least one input"
-    );
+    assert!(!me_inputs.is_empty(), "Π_RLC(optimized): need at least one input");
     let k1 = me_inputs.len();
     assert_eq!(rhos.len(), k1, "Π_RLC: |rhos| must equal |inputs|");
     assert_eq!(Zs.len(), k1, "Π_RLC: |Zs| must equal |inputs|");

@@ -28,10 +28,14 @@ pub use statement::SpartanShardStatement;
 pub type CircuitF = spartan2::provider::goldi::F;
 
 pub use api::{
-    compute_accumulator_digest_v2, compute_vm_digest_v1, prove_fold_run, setup_fold_run, setup_fold_run_shape, verify_fold_run,
-    verify_fold_run_proof_only, verify_fold_run_statement_only, FoldRunShape, SpartanEngine, SpartanProverKey, SpartanSnark,
-    SpartanVerifierKey,
+    compute_accumulator_digest_v2, compute_vm_digest_v1, prove_fold_run, setup_fold_run, setup_fold_run_shape,
+    verify_fold_run, verify_fold_run_proof_only, verify_fold_run_statement_only, FoldRunShape, SpartanEngine,
+    SpartanProverKey, SpartanSnark, SpartanVerifierKey,
 };
 
-pub use bridge_proof_v2::{verify_bridge_proof_v2, BridgeProofV2};
+pub use bridge_proof_v2::prove_bridge_proof_v2_whir_p3_full_closure;
+pub use bridge_proof_v2::{
+    deserialize_bridge_proof_v2, serialize_bridge_proof_v2, verify_bridge_proof_v2, verify_bridge_proof_v2_statement_only,
+    BridgeProofV2,
+};
 pub use digests::compute_context_digest_v1;

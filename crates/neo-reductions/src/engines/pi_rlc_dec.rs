@@ -89,8 +89,7 @@ impl RlcDecOps for OptimizedRlcDec {
     where
         Comb: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
     {
-        let (mut out, Z) =
-            super::optimized_engine::rlc_reduction_optimized(s, params, rhos, me_inputs, Zs, ell_d);
+        let (mut out, Z) = super::optimized_engine::rlc_reduction_optimized(s, params, rhos, me_inputs, Zs, ell_d);
         let inputs_c: Vec<Cmt> = me_inputs.iter().map(|m| m.c.clone()).collect();
         out.c = mix_commits(rhos, &inputs_c);
         (out, Z)

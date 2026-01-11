@@ -383,15 +383,9 @@ where
     let m_in = inputs[0].m_in;
     let d_pad = 1usize << ell_d;
     let t = inputs[0].y.len();
-    assert!(
-        t >= s.t(),
-        "rlc_public: ME input y.len() must be >= s.t()"
-    );
+    assert!(t >= s.t(), "rlc_public: ME input y.len() must be >= s.t()");
     for (idx, inst) in inputs.iter().enumerate() {
-        assert_eq!(
-            inst.m_in, m_in,
-            "rlc_public: m_in mismatch at input {idx}"
-        );
+        assert_eq!(inst.m_in, m_in, "rlc_public: m_in mismatch at input {idx}");
         assert_eq!(inst.y.len(), t, "rlc_public: y.len mismatch at input {idx}");
     }
 
@@ -477,11 +471,7 @@ where
     }
     let t = parent.y.len();
     if t < s.t() {
-        eprintln!(
-            "verify_dec_public failed: parent y.len()={} < s.t()={}",
-            t,
-            s.t()
-        );
+        eprintln!("verify_dec_public failed: parent y.len()={} < s.t()={}", t, s.t());
         return false;
     }
     for (idx, ch) in children.iter().enumerate() {
@@ -541,10 +531,7 @@ where
         let mut p = K::ONE;
         for i in 0..k {
             if children[i].y[j].len() != d_pad {
-                eprintln!(
-                    "verify_dec_public failed: child y[{}] len mismatch at j={}",
-                    i, j
-                );
+                eprintln!("verify_dec_public failed: child y[{}] len mismatch at j={}", i, j);
                 return false;
             }
             for t in 0..d_pad {

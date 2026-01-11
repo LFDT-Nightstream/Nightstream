@@ -56,8 +56,14 @@ fn verify_dec_public_checks_all_y_and_y_scalars_entries() {
         y1[j][1] = K::from(F::from_u64((40 + j) as u64));
     }
 
-    let y_scalars0: Vec<K> = y0.iter().map(|row| recompose_base_b_digits(&params, row)).collect();
-    let y_scalars1: Vec<K> = y1.iter().map(|row| recompose_base_b_digits(&params, row)).collect();
+    let y_scalars0: Vec<K> = y0
+        .iter()
+        .map(|row| recompose_base_b_digits(&params, row))
+        .collect();
+    let y_scalars1: Vec<K> = y1
+        .iter()
+        .map(|row| recompose_base_b_digits(&params, row))
+        .collect();
 
     let mut X0 = Mat::zero(D, m_in, F::ZERO);
     let mut X1 = Mat::zero(D, m_in, F::ZERO);
@@ -168,4 +174,3 @@ fn verify_dec_public_checks_all_y_and_y_scalars_entries() {
         ell_d
     ));
 }
-

@@ -1772,7 +1772,11 @@ impl TwistReadCheckAddrOracleSparseTimeMultiLane {
                 pow2_time,
                 "has_read length must match time domain (lane={lane_idx})"
             );
-            assert_eq!(lane.rv.len(), pow2_time, "rv length must match time domain (lane={lane_idx})");
+            assert_eq!(
+                lane.rv.len(),
+                pow2_time,
+                "rv length must match time domain (lane={lane_idx})"
+            );
             assert_eq!(
                 lane.has_write.len(),
                 pow2_time,
@@ -1804,8 +1808,18 @@ impl TwistReadCheckAddrOracleSparseTimeMultiLane {
         // Collect per-lane sparse events: reads first, then writes, at each time.
         let mut events: Vec<(usize, u8, usize)> = Vec::new();
         for (lane_idx, lane) in lanes.iter().enumerate() {
-            events.extend(lane.has_read.entries().iter().map(|&(t, _)| (t, 0u8, lane_idx)));
-            events.extend(lane.has_write.entries().iter().map(|&(t, _)| (t, 1u8, lane_idx)));
+            events.extend(
+                lane.has_read
+                    .entries()
+                    .iter()
+                    .map(|&(t, _)| (t, 0u8, lane_idx)),
+            );
+            events.extend(
+                lane.has_write
+                    .entries()
+                    .iter()
+                    .map(|&(t, _)| (t, 1u8, lane_idx)),
+            );
         }
         events.sort_unstable_by_key(|(t, kind, lane)| (*t, *kind, *lane));
 
@@ -2007,7 +2021,11 @@ impl TwistWriteCheckAddrOracleSparseTimeMultiLane {
                 pow2_time,
                 "has_write length must match time domain (lane={lane_idx})"
             );
-            assert_eq!(lane.wv.len(), pow2_time, "wv length must match time domain (lane={lane_idx})");
+            assert_eq!(
+                lane.wv.len(),
+                pow2_time,
+                "wv length must match time domain (lane={lane_idx})"
+            );
             assert_eq!(
                 lane.inc_at_write_addr.len(),
                 pow2_time,

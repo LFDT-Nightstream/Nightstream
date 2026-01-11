@@ -302,7 +302,11 @@ pub trait Twist<Addr, Word> {
     /// If `cond` is false, returns `default` and does not record a Twist event in tracing wrappers.
     #[inline]
     fn load_if(&mut self, cond: bool, twist_id: TwistId, addr: Addr, default: Word) -> Word {
-        if cond { self.load(twist_id, addr) } else { default }
+        if cond {
+            self.load(twist_id, addr)
+        } else {
+            default
+        }
     }
 
     /// Conditionally store a value to memory.

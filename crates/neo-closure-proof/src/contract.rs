@@ -17,11 +17,9 @@ pub fn expected_obligations_digest(
     obligations: &ShardObligations<Cmt, NeoF, NeoK>,
     pp_id_digest: [u8; 32],
 ) -> [u8; 32] {
-    let acc_main =
-        neo_fold::bridge_digests::compute_accumulator_digest_v2(params.b, obligations.main.as_slice());
-    let acc_val =
-        neo_fold::bridge_digests::compute_accumulator_digest_v2(params.b, obligations.val.as_slice());
-    neo_fold::bridge_digests::compute_obligations_digest_v1(acc_main, acc_val, pp_id_digest)
+    let acc_main = neo_fold::bridge_digests::compute_accumulator_digest_v2(params.b, obligations.main.as_slice());
+    let acc_val = neo_fold::bridge_digests::compute_accumulator_digest_v2(params.b, obligations.val.as_slice());
+    neo_fold::bridge_digests::compute_obligations_digest_v2(acc_main, acc_val, pp_id_digest)
 }
 
 /// Require that the globally loaded seeded Ajtai PP matches a statement’s `pp_id_digest`.

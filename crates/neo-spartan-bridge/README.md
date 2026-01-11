@@ -4,10 +4,11 @@ Experimental integration layer between Neo folding (Π-CCS / `FoldRun`) and the 
 
 > **Status (docs vs reality):**
 > - ✅ **Phase 1 implemented:** a single Spartan2 proof that is verifier-equivalent to `fold_shard_verify` (up to producing final obligations), under a replay-resistant public statement.
-> - ✅ **Phase 2 plumbing implemented:** `BridgeProofV2 = { spartan, closure_stmt, closure }`, where `closure_stmt` is deterministically derived from the Spartan statement.
-> - ✅ **Correctness harness exists for Phase 2:** `neo-closure-proof` has an **explicit** backend that encodes obligations + witnesses and re-runs the native `ReferenceFinalizer` checks (not production-sized, but enforces full `verify_and_finalize` semantics).
+> - ✅ **Phase 2 plumbing implemented:** `BridgeProofV2 = { spartan, closure }`, where `closure_stmt` is deterministically derived from the Spartan statement (and not redundantly stored).
 > - ✅ **Succinct Phase 2 milestone implemented:** `neo-closure-proof` has a WHIR backend that proves Ajtai opening + boundedness + ME consistency (and bus openings when a `BusLayout` is provided).
->   - 🚧 Still not production-ready: the WHIR payload currently includes the full obligations encoding (size/leakage), and the current implementation materializes large evaluation tables (won’t scale to real `m=2^24` yet).
+>   - 🚧 Still not production-ready:
+>     - the WHIR payload currently includes the full obligations encoding (size/leakage), and
+>     - the prover still materializes full `2^n` evaluation tables for `Z`/weights; these can now be disk-backed via `mmap` (out-of-core), but “true streaming” (no full materialization, even on disk) is future work.
 > - ✅ **Production direction:** ship **two proofs** (Phase‑1 Spartan + Phase‑2 closure) in one blob (`BridgeProofV2`). A one-proof “Spartan verifies closure in-circuit” artifact is optional future work.
 
 ---
@@ -31,7 +32,7 @@ For requirements and the intended end-state, see:
 
 For production, the intended artifact is **two proofs** bundled together:
 
-- `BridgeProofV2 = { spartan, closure_stmt, closure }`
+- `BridgeProofV2 = { spartan, closure }`
 - Verification is:
   1) verify `spartan` (pinned Spartan verifier key) against the verifier’s view of the FoldRun context, then
   2) derive `closure_stmt` from the Spartan statement and verify `closure` against it (closure backend parameters must be pinned).
@@ -61,8 +62,11 @@ as a streaming/succinct closure proof.
 
 ### Public vs private “obligations” (closure payload)
 
-The Phase‑1 Spartan statement binds the *final obligations* via `obligations_digest`. A closure proof
-can either:
+The Phase‑1 Spartan statement binds the *final obligations* via `obligations_digest`, computed as:
+
+- `obligations_digest = neo_fold::bridge_digests::compute_obligations_digest_v2(acc_final_main_digest, acc_final_val_digest, pp_id_digest)` (Poseidon2 over Goldilocks; ZK-friendly).
+
+A closure proof can either:
 
 - keep obligations **private** (recommended for production): the closure proof commits to them
   internally and only binds to `obligations_digest`, or
@@ -70,9 +74,8 @@ can either:
   size and leaks additional intermediate data).
 
 Today the WHIR backend still includes encoded obligations in its payload as a dev convenience; this
-is one of the main remaining steps before calling it production-sized.
-In this workspace, that behavior is explicitly gated behind the dev-only feature
-`whir-p3-obligations-public`.
+is one of the main remaining steps before calling it production-sized. Removing them requires the
+“obligations-private” redesign described in `docs/spartan-compression-phase2-obligations-private.md`.
 
 ### Tradeoffs of public proofs
 
@@ -117,7 +120,7 @@ The crate is split into:
    - `verify_fold_run_statement_only` verifies using a pinned `vk` and an expected `SpartanShardStatement` (no need for `steps_public`).
 
 4. **`bridge_proof_v2`** – “one blob” wrapper:
-   - `BridgeProofV2 = { spartan, closure_stmt, closure }`
+   - `BridgeProofV2 = { spartan, closure }`
    - `closure_stmt` is derived from the Spartan statement via `compute_context_digest_v1`.
 
 ---
@@ -125,9 +128,12 @@ The crate is split into:
 ## Current Implementation
 
 To run the slow RV32 compression tests: `cargo test -p neo-spartan-bridge --release -- --ignored`.
-To run WHIR-backed closure tests in this crate:
-- dev (includes obligations in WHIR payloads): `cargo test -p neo-spartan-bridge --release --features whir-p3-backend,whir-p3-obligations-public`
-- faster dev profile (lower security): `cargo test -p neo-spartan-bridge --release --features whir-p3-backend,whir-p3-obligations-public,whir-p3-dev`
+WHIR-backed closure tests are included in `cargo test -p neo-spartan-bridge --release`.
+
+### BridgeProofV2 API (Phase 1 + Phase 2)
+
+- Proving: `prove_bridge_proof_v2_whir_p3_full_closure` (WHIR full-closure; currently serializes obligations in the payload).
+- Verifying: `verify_bridge_proof_v2` (full context) or `verify_bridge_proof_v2_statement_only` (expected Phase-1 statement + pinned VK).
 
 ### Phase 1 meaning
 
@@ -148,8 +154,7 @@ Today the circuit covers:
 Limitations:
 - Shout `table_spec=None` is rejected in the compression profile (only `LutTableSpec::RiscvOpcode` is supported today).
 - **Obligation closure is not production-sized yet** (see "Remaining Work"). Phase 1 binds the final obligations
-  via digests; Phase 2 has a correctness harness (explicit backend) and a WHIR full-closure backend that still needs
-  payload/scale hardening.
+  via digests; Phase 2 has a WHIR full-closure backend that still needs payload/scale hardening.
 
 ### Π‑CCS side
 
@@ -289,12 +294,29 @@ To reach `verify_and_finalize` semantics (per `docs/spartan-compression-must-wan
 
 1. **Make the WHIR closure backend production-sized**
    - Today:
-     - **Explicit backend:** enforces full closure by replaying the native `ReferenceFinalizer` on encoded obligations+witnesses (correct, but not succinct / not production-sized).
-     - **WHIR full-closure backend:** proves the full closure predicate (Ajtai opening + bounds + ME consistency, and bus openings when `BusLayout` is provided), but it is a dev milestone.
+     - **WHIR full-closure backend:** proves the full closure predicate (Ajtai opening + bounds + ME consistency, and bus openings when `BusLayout` is provided), but still serializes obligations in the payload.
    - Remaining work:
      - avoid encoding obligations in the payload (keep obligations private and bind via `obligations_digest`),
-     - replace large in-memory eval-table materialization with streaming (needed for real `m=2^24`),
+     - **Obligations-private redesign (required for production)**
+       - the current WHIR backend still needs the full obligations encoding for verifier-side claimed sums and extra structural checks, and it does not yet provide an in-proof binding that the committed `W` (weights) is the deterministic obligations→weights construction.
+       - the production backend needs a proof redesign that:
+         - commits to/proves the obligations→weights computation (so the verifier never needs payload obligations for weights), and
+         - binds the private obligations to the Phase‑1 `obligations_digest` (Poseidon2 over Goldilocks; i.e., prove the digest relation rather than recomputing from public obligations).
+       - Detailed design/worklist: `docs/spartan-compression-phase2-obligations-private.md`
+     - **Out-of-core eval storage (done; still materializes tables)**
+       - `whir-p3` now supports disk-backed (`mmap`) storage for large eval tables and committed matrices (`whir_p3::storage::Buffer`), with a fixed test (`crates/whir-p3/tests/streaming_mmap.rs`).
+       - remaining “true streaming” work (optional, beyond out-of-core) would move toward a PCS/sumcheck interface that avoids full `2^n` materialization entirely.
      - pin and tune WHIR security parameters for production.
+
+2. **Recommendation: extend WHIR + sumcheck (don’t rewrite Phase 2 as a standalone AIR yet)**
+   - Recommended direction: keep the current WHIR commitments and sumcheck-style aggregation, and extend them to cover the obligations-private requirements.
+   - Treat the Phase‑2 protocol like an AIR spec (explicitly list tables/commitments, challenges, and each proved relation), but implement it as an incremental extension to the existing WHIR+sumcheck backend rather than a separate STARK stack.
+   - Why:
+     - fastest path to a small proof while reusing the current commitment and Fiat–Shamir plumbing,
+     - avoids a large new prover/verifier surface area before parameters and bottlenecks are fully understood.
+   - When to switch to a standalone AIR/STARK:
+     - if the WHIR+sumcheck “proof-of-computation” accretes too many bespoke subprotocols (hash binding + weights + ME/bus), or
+     - if auditability demands a single, conventional trace+constraints verifier.
 
 2. **Decide the production data model**
    - In particular: whether obligation encodings are ever part of the public artifact (debug-only vs

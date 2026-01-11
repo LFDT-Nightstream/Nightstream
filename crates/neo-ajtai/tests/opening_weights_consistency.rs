@@ -1,4 +1,6 @@
-use neo_ajtai::{commit_row_major_seeded, compute_opening_weights_for_u_seeded};
+use neo_ajtai::{
+    commit_row_major_seeded, compute_opening_weights_for_u_seeded, compute_opening_weights_for_u_seeded_into,
+};
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
@@ -44,6 +46,9 @@ fn opening_weights_match_commitment_projection() {
 
     let w_u = compute_opening_weights_for_u_seeded(seed, m, &u_vecs);
     assert_eq!(w_u.len(), D * m);
+    let mut w_u_into = vec![F::ZERO; D * m];
+    compute_opening_weights_for_u_seeded_into(seed, m, &u_vecs, &mut w_u_into);
+    assert_eq!(w_u, w_u_into);
 
     let mut ip = F::ZERO;
     for r in 0..D {
@@ -55,4 +60,3 @@ fn opening_weights_match_commitment_projection() {
     let projected = dot_u_commitment(&u_vecs, &c);
     assert_eq!(ip, projected);
 }
-

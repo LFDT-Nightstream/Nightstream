@@ -1,8 +1,7 @@
 #![allow(non_snake_case)]
 
 use neo_ajtai::{
-    set_global_pp, set_global_pp_seeded, setup_par, try_get_loaded_global_pp_for_dims, AjtaiSModule,
-    Commitment as Cmt,
+    set_global_pp, set_global_pp_seeded, setup_par, try_get_loaded_global_pp_for_dims, AjtaiSModule, Commitment as Cmt,
 };
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::{CcsStructure, McsInstance, McsWitness};
@@ -56,11 +55,7 @@ fn build_single_step_bundle(params: &NeoParams, l: &AjtaiSModule, m: usize) -> S
         .collect();
     let Z = encode_vector_balanced_to_mat(params, &z);
     let c = l.commit(&Z);
-    let mcs_inst = McsInstance {
-        c,
-        x: vec![],
-        m_in,
-    };
+    let mcs_inst = McsInstance { c, x: vec![], m_in };
     let mcs_wit = McsWitness { w: z, Z };
     StepWitnessBundle::from((mcs_inst, mcs_wit))
 }
@@ -90,7 +85,8 @@ fn streaming_dec_matches_materialized_dec_with_loaded_pp() {
 
     let step = build_single_step_bundle(&params, &l, ccs.m);
     let steps_witness = vec![step];
-    let steps_instance: Vec<StepInstanceBundle<Cmt, F, K>> = steps_witness.iter().map(StepInstanceBundle::from).collect();
+    let steps_instance: Vec<StepInstanceBundle<Cmt, F, K>> =
+        steps_witness.iter().map(StepInstanceBundle::from).collect();
 
     let mode = FoldingMode::Optimized;
     let mixers = mixers();
@@ -171,7 +167,8 @@ fn streaming_dec_matches_materialized_dec_with_seeded_pp() {
 
     let step = build_single_step_bundle(&params, &l, ccs.m);
     let steps_witness = vec![step];
-    let steps_instance: Vec<StepInstanceBundle<Cmt, F, K>> = steps_witness.iter().map(StepInstanceBundle::from).collect();
+    let steps_instance: Vec<StepInstanceBundle<Cmt, F, K>> =
+        steps_witness.iter().map(StepInstanceBundle::from).collect();
 
     let mode = FoldingMode::Optimized;
     let mixers = mixers();

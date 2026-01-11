@@ -1,10 +1,9 @@
-#![cfg(all(feature = "whir-p3-backend", feature = "whir-p3-obligations-public"))]
 #![allow(non_snake_case)]
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use neo_ajtai::{set_global_pp_seeded, AjtaiSModule, Commitment as Cmt, s_lincomb, s_mul};
+use neo_ajtai::{s_lincomb, s_mul, set_global_pp_seeded, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::Mat;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::session::{preprocess_shared_bus_r1cs, witness_layout, NeoCircuit, SharedBusResources};
@@ -14,9 +13,11 @@ use neo_math::{D, F, K};
 use neo_memory::builder::build_shard_witness_shared_cpu_bus_with_aux;
 use neo_memory::witness::StepInstanceBundle;
 use neo_params::NeoParams;
-use neo_spartan_bridge::bridge_proof_v2::compute_closure_statement_v1;
 use neo_spartan_bridge::circuit::FoldRunWitness;
-use neo_spartan_bridge::{prove_fold_run, setup_fold_run, verify_bridge_proof_v2, BridgeProofV2};
+use neo_spartan_bridge::{
+    prove_bridge_proof_v2_whir_p3_full_closure, setup_fold_run, verify_bridge_proof_v2,
+    verify_bridge_proof_v2_statement_only,
+};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use neo_vm_trace::{Shout, ShoutId, StepMeta, StepTrace, Twist, TwistId, VmCpu};
 use p3_field::PrimeCharacteristicRing;
@@ -48,12 +49,14 @@ impl<const N: usize> NeoCircuit for BusCircuit<N> {
 
     fn resources(&self, resources: &mut SharedBusResources) {
         // One Twist instance with 1 lane.
-        resources.twist(0).layout(neo_memory::plain::PlainMemLayout {
-            k: 2,
-            d: 1,
-            n_side: 2,
-            lanes: 1,
-        });
+        resources
+            .twist(0)
+            .layout(neo_memory::plain::PlainMemLayout {
+                k: 2,
+                d: 1,
+                n_side: 2,
+                lanes: 1,
+            });
     }
 
     fn cpu_bindings(
@@ -83,7 +86,10 @@ impl<const N: usize> NeoCircuit for BusCircuit<N> {
 
     fn build_witness_prefix(&self, layout: &Self::Layout, chunk: &[StepTrace<u64, u64>]) -> Result<Vec<F>, String> {
         if chunk.len() != N {
-            return Err(format!("BusCircuit witness builder expects chunk len {N}, got {}", chunk.len()));
+            return Err(format!(
+                "BusCircuit witness builder expects chunk len {N}, got {}",
+                chunk.len()
+            ));
         }
 
         let mut z = <Self::Layout as WitnessLayout>::zero_witness_prefix();
@@ -148,7 +154,10 @@ impl VmCpu<u64, u64> for OneWriteVm {
         let _ = shout;
         self.step += 1;
         self.pc = self.pc.wrapping_add(4);
-        Ok(StepMeta { pc_after: self.pc, opcode: 0 })
+        Ok(StepMeta {
+            pc_after: self.pc,
+            opcode: 0,
+        })
     }
 }
 
@@ -223,8 +232,7 @@ fn bridge_proof_v2_whir_full_closure_bus_roundtrip() {
     )
     .expect("build_shard_witness_shared_cpu_bus_with_aux");
 
-    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-        steps_witness.iter().map(StepInstanceBundle::from).collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps_witness.iter().map(StepInstanceBundle::from).collect();
 
     // Prove with witnesses to obtain final obligations + Z witnesses.
     let mode = FoldingMode::Optimized;
@@ -258,7 +266,6 @@ fn bridge_proof_v2_whir_full_closure_bus_roundtrip() {
     let vm_digest = [0u8; 32];
     let witness = FoldRunWitness::new(fold_run, steps_public.clone(), vec![], vm_digest, None);
     let (pk, vk) = setup_fold_run(&params, prover.ccs(), &witness).expect("setup_fold_run");
-    let spartan = prove_fold_run(&pk, &params, prover.ccs(), witness).expect("prove_fold_run");
 
     // Derive a bus layout consistent with the public step instance(s) (same inputs as verifier).
     let first = steps_public.first().expect("step0");
@@ -291,35 +298,30 @@ fn bridge_proof_v2_whir_full_closure_bus_roundtrip() {
     .expect("build bus layout");
     assert!(bus.bus_cols > 0, "expected nonzero bus cols");
 
-    // Phase-2 closure proof (WHIR full closure, includes bus semantics).
-    let closure_stmt = compute_closure_statement_v1(&spartan.statement);
-    let closure = neo_closure_proof::prove_whir_p3_full_closure_v1(
-        &closure_stmt,
+    let proof = prove_bridge_proof_v2_whir_p3_full_closure(
+        &pk,
         &params,
         prover.ccs(),
-        &outputs.obligations,
+        witness,
         &wits.final_main_wits,
         &wits.val_lane_wits,
-        Some(&bus),
     )
-    .expect("prove whir full closure");
+    .expect("prove BridgeProofV2 (WHIR full closure, bus)");
 
-    let proof = BridgeProofV2 {
-        spartan: spartan.clone(),
-        closure_stmt,
-        closure,
-    };
-
-    let ok = verify_bridge_proof_v2(
-        &vk,
-        &params,
-        prover.ccs(),
-        &vm_digest,
-        &steps_public,
-        None,
-        &[],
-        &proof,
-    )
-    .expect("verify");
+    let ok = verify_bridge_proof_v2(&vk, &params, prover.ccs(), &vm_digest, &steps_public, None, &[], &proof)
+        .expect("verify");
     assert!(ok, "BridgeProofV2 must verify with bus-enabled obligations");
+
+    assert!(
+        verify_bridge_proof_v2_statement_only(
+            &vk,
+            &proof.spartan.statement,
+            &proof,
+            Some(&params),
+            Some(prover.ccs()),
+            Some(&bus),
+        )
+        .expect("verify statement-only"),
+        "BridgeProofV2 statement-only verification must succeed with bus"
+    );
 }

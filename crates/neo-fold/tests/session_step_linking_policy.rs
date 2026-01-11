@@ -68,7 +68,9 @@ fn test_session_step_linking_allows_valid_chaining() {
     let run = session.fold_and_prove(&ccs).expect("fold_and_prove");
     let mcss_public = session.mcss_public();
     assert!(
-        session.verify(&ccs, &mcss_public, &run).expect("verify runs"),
+        session
+            .verify(&ccs, &mcss_public, &run)
+            .expect("verify runs"),
         "expected verification to succeed with step linking enabled"
     );
 }

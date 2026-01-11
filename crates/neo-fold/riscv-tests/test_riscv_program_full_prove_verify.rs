@@ -130,8 +130,24 @@ fn test_riscv_program_full_prove_verify() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -306,8 +322,24 @@ fn test_riscv_statement_mem_init_mismatch_fails() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -328,7 +360,8 @@ fn test_riscv_statement_mem_init_mismatch_fails() {
         rv32_b1_chunk_to_witness(layout.clone()),
     )
     .with_shared_cpu_bus(
-        rv32_b1_shared_cpu_bus_config(&layout, &shout_table_ids, mem_layouts.clone(), initial_mem.clone()).expect("cfg"),
+        rv32_b1_shared_cpu_bus_config(&layout, &shout_table_ids, mem_layouts.clone(), initial_mem.clone())
+            .expect("cfg"),
         1,
     )
     .expect("shared bus inject");
@@ -465,8 +498,24 @@ fn perf_rv32_b1_chunk_size_sweep() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -497,13 +546,7 @@ fn perf_rv32_b1_chunk_size_sweep() {
                     19 => RiscvOpcode::Remu,
                     _ => panic!("unsupported RV32 B1 table_id={id}"),
                 };
-                (
-                    id,
-                    LutTableSpec::RiscvOpcode {
-                        opcode,
-                        xlen,
-                    },
-                )
+                (id, LutTableSpec::RiscvOpcode { opcode, xlen })
             })
             .collect()
     }
@@ -561,8 +604,7 @@ fn perf_rv32_b1_chunk_size_sweep() {
             .expect("build shard witness");
             let build_dur = t_build.elapsed();
 
-            let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> =
-                steps.iter().map(StepInstanceBundle::from).collect();
+            let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
 
             let mut tr_prove = Poseidon2Transcript::new(b"riscv-b1-chunk-sweep");
             let t_prove = Instant::now();
@@ -641,8 +683,24 @@ fn test_riscv_program_chunk_size_equivalence() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -658,8 +716,7 @@ fn test_riscv_program_chunk_size_equivalence() {
         let twist = RiscvMemory::with_program_in_twist(xlen, PROG_ID, 0, &program_bytes);
         let shout = RiscvShoutTables::new(xlen);
 
-        let (ccs_base, layout) =
-            build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, chunk_size).expect("ccs");
+        let (ccs_base, layout) = build_rv32_b1_step_ccs(&mem_layouts, &shout_table_ids, chunk_size).expect("ccs");
         let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs_base.n).expect("params");
 
         let cpu = R1csCpu::new(
@@ -796,7 +853,10 @@ fn test_riscv_program_chunk_size_equivalence() {
     let end_1 = extract_boundary_state(&layout_1, &steps_1.last().expect("non-empty").mcs_inst.x).expect("boundary");
     let end_2 = extract_boundary_state(&layout_2, &steps_2.last().expect("non-empty").mcs_inst.x).expect("boundary");
     assert_eq!(end_1.pc_final, end_2.pc_final, "pc_final must be chunk-size invariant");
-    assert_eq!(end_1.regs_final, end_2.regs_final, "regs_final must be chunk-size invariant");
+    assert_eq!(
+        end_1.regs_final, end_2.regs_final,
+        "regs_final must be chunk-size invariant"
+    );
 
     // Stronger equivalence: each chunk boundary in chunk_size=2 corresponds to the same boundary
     // after the same number of steps in chunk_size=1.
@@ -872,8 +932,24 @@ fn test_riscv_program_rv32m_full_prove_verify() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 

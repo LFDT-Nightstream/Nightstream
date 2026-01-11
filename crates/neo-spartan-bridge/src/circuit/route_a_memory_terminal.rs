@@ -12,8 +12,8 @@ use bellpepper_core::{ConstraintSystem, Variable};
 use neo_math::{F as NeoF, K as NeoK};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use crate::circuit::fold_circuit_helpers as helpers;
 use crate::circuit::fold_circuit::{McsInstanceVars, MeInstanceVars};
+use crate::circuit::fold_circuit_helpers as helpers;
 use crate::error::{Result, SpartanBridgeError};
 use crate::gadgets::k_field::{k_add as k_add_raw, k_scalar_mul as k_scalar_mul_raw, KNum, KNumVar};
 use crate::CircuitF;
@@ -68,12 +68,7 @@ pub(crate) struct TwistTimeLaneOpeningsLaneVars {
 }
 
 fn enforce_f_eq<CS: ConstraintSystem<CircuitF>>(cs: &mut CS, a: Variable, b: Variable, label: &str) {
-    cs.enforce(
-        || label.to_string(),
-        |lc| lc + a,
-        |lc| lc + CS::one(),
-        |lc| lc + b,
-    );
+    cs.enforce(|| label.to_string(), |lc| lc + a, |lc| lc + CS::one(), |lc| lc + b);
 }
 
 fn k_add_with_hint<CS: ConstraintSystem<CircuitF>>(
@@ -210,11 +205,24 @@ fn eq_bit_affine<CS: ConstraintSystem<CircuitF>>(
     let (one, one_val) = k_one_var(cs, &format!("{label}_one"))?;
 
     let (two_u, two_u_val) = k_add_with_hint(cs, u, u_val, u, u_val, &format!("{label}_two_u"))?;
-    let (two_u_minus_one, two_u_minus_one_val) =
-        k_sub_with_hint(cs, &two_u, two_u_val, &one, one_val, &format!("{label}_two_u_minus_one"))?;
+    let (two_u_minus_one, two_u_minus_one_val) = k_sub_with_hint(
+        cs,
+        &two_u,
+        two_u_val,
+        &one,
+        one_val,
+        &format!("{label}_two_u_minus_one"),
+    )?;
 
-    let (t0, t0_val) =
-        helpers::k_mul_with_hint(cs, bit, bit_val, &two_u_minus_one, two_u_minus_one_val, delta, &format!("{label}_t0"))?;
+    let (t0, t0_val) = helpers::k_mul_with_hint(
+        cs,
+        bit,
+        bit_val,
+        &two_u_minus_one,
+        two_u_minus_one_val,
+        delta,
+        &format!("{label}_t0"),
+    )?;
 
     let (one_minus_u, one_minus_u_val) = k_sub_with_hint(cs, &one, one_val, u, u_val, &format!("{label}_one_minus_u"))?;
     k_add_with_hint(cs, &t0, t0_val, &one_minus_u, one_minus_u_val, &format!("{label}_eq"))
@@ -280,8 +288,15 @@ fn lt_eval<CS: ConstraintSystem<CircuitF>>(
 
     for i in (0..ell).rev() {
         // eq_single = (1-a)(1-b) + a*b  (use eq_bit_affine with "bit"=a and u=b gives same).
-        let (eq_i, eq_i_val) =
-            eq_bit_affine(cs, delta, &j_prime[i], j_prime_val[i], &j[i], j_val[i], &format!("{label}_eq_{i}"))?;
+        let (eq_i, eq_i_val) = eq_bit_affine(
+            cs,
+            delta,
+            &j_prime[i],
+            j_prime_val[i],
+            &j[i],
+            j_val[i],
+            &format!("{label}_eq_{i}"),
+        )?;
         let (s, s_val) = helpers::k_mul_with_hint(
             cs,
             &suffix_vars[i + 1],
@@ -298,11 +313,24 @@ fn lt_eval<CS: ConstraintSystem<CircuitF>>(
     let (mut acc, mut acc_val) = k_zero_var(cs, &format!("{label}_acc_init"))?;
     for i in 0..ell {
         // (1 - j'_i)
-        let (one_minus, one_minus_val) =
-            k_sub_with_hint(cs, &one, one_val, &j_prime[i], j_prime_val[i], &format!("{label}_one_minus_{i}"))?;
+        let (one_minus, one_minus_val) = k_sub_with_hint(
+            cs,
+            &one,
+            one_val,
+            &j_prime[i],
+            j_prime_val[i],
+            &format!("{label}_one_minus_{i}"),
+        )?;
 
-        let (t0, t0_val) =
-            helpers::k_mul_with_hint(cs, &one_minus, one_minus_val, &j[i], j_val[i], delta, &format!("{label}_t0_{i}"))?;
+        let (t0, t0_val) = helpers::k_mul_with_hint(
+            cs,
+            &one_minus,
+            one_minus_val,
+            &j[i],
+            j_val[i],
+            delta,
+            &format!("{label}_t0_{i}"),
+        )?;
         let (t1, t1_val) = helpers::k_mul_with_hint(
             cs,
             &t0,
@@ -313,8 +341,7 @@ fn lt_eval<CS: ConstraintSystem<CircuitF>>(
             &format!("{label}_t1_{i}"),
         )?;
 
-        let (new_acc, new_acc_val) =
-            k_add_with_hint(cs, &acc, acc_val, &t1, t1_val, &format!("{label}_acc_{i}"))?;
+        let (new_acc, new_acc_val) = k_add_with_hint(cs, &acc, acc_val, &t1, t1_val, &format!("{label}_acc_{i}"))?;
         acc = new_acc;
         acc_val = new_acc_val;
     }
@@ -385,11 +412,22 @@ pub(crate) fn eval_mem_init_at_r_addr<CS: ConstraintSystem<CircuitF>>(
 
                 // Multiply by val (lifted to K). Since val is in the base field, use scalar mul.
                 let val_circ = CircuitF::from(val_f.as_canonical_u64());
-                let (scaled, scaled_val) =
-                    k_scalar_mul_with_hint(cs, val_circ, &chi_var, chi_val, &format!("{label}_pair_{pair_idx}_scale"))?;
+                let (scaled, scaled_val) = k_scalar_mul_with_hint(
+                    cs,
+                    val_circ,
+                    &chi_var,
+                    chi_val,
+                    &format!("{label}_pair_{pair_idx}_scale"),
+                )?;
 
-                let (new_acc, new_acc_val) =
-                    k_add_with_hint(cs, &acc, acc_val, &scaled, scaled_val, &format!("{label}_pair_{pair_idx}_add"))?;
+                let (new_acc, new_acc_val) = k_add_with_hint(
+                    cs,
+                    &acc,
+                    acc_val,
+                    &scaled,
+                    scaled_val,
+                    &format!("{label}_pair_{pair_idx}_add"),
+                )?;
                 acc = new_acc;
                 acc_val = new_acc_val;
             }
@@ -411,9 +449,7 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
     label: &str,
 ) -> Result<(KNumVar, NeoK)> {
     if r_vars.len() != r_vals.len() {
-        return Err(SpartanBridgeError::InvalidInput(format!(
-            "{label}: r length mismatch"
-        )));
+        return Err(SpartanBridgeError::InvalidInput(format!("{label}: r length mismatch")));
     }
     if r_vars.len() != 2 * xlen {
         return Err(SpartanBridgeError::InvalidInput(format!(
@@ -440,13 +476,8 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                 let (prod, prod_val) =
                     helpers::k_mul_with_hint(cs, x_i, x_val, y_i, y_val, delta, &format!("{label}_and_prod_{i}"))?;
                 let coeff = CircuitF::from(1u64 << i);
-                let (scaled, scaled_val) = k_scalar_mul_with_hint(
-                    cs,
-                    coeff,
-                    &prod,
-                    prod_val,
-                    &format!("{label}_and_scale_{i}"),
-                )?;
+                let (scaled, scaled_val) =
+                    k_scalar_mul_with_hint(cs, coeff, &prod, prod_val, &format!("{label}_and_scale_{i}"))?;
                 let (new_acc, new_acc_val) =
                     k_add_with_hint(cs, &acc, acc_val, &scaled, scaled_val, &format!("{label}_and_add_{i}"))?;
                 acc = new_acc;
@@ -513,8 +544,7 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                 // or = x + y - xy
                 let (xy, xy_val) =
                     helpers::k_mul_with_hint(cs, x_i, x_val, y_i, y_val, delta, &format!("{label}_or_xy_{i}"))?;
-                let (sum_xy, sum_xy_val) =
-                    k_add_with_hint(cs, x_i, x_val, y_i, y_val, &format!("{label}_or_sum_{i}"))?;
+                let (sum_xy, sum_xy_val) = k_add_with_hint(cs, x_i, x_val, y_i, y_val, &format!("{label}_or_sum_{i}"))?;
                 let (or_bit, or_bit_val) =
                     k_sub_with_hint(cs, &sum_xy, sum_xy_val, &xy, xy_val, &format!("{label}_or_bit_{i}"))?;
 
@@ -541,10 +571,16 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                 let y_i = &r_vars[2 * i + 1];
                 let x_val = r_vals[2 * i];
                 let y_val = r_vals[2 * i + 1];
-                let (eq_i, eq_i_val) =
-                    eq_bit_affine(cs, delta, x_i, x_val, y_i, y_val, &format!("{label}_eq_i_{i}"))?;
-                let (new_acc, new_acc_val) =
-                    helpers::k_mul_with_hint(cs, &acc, acc_val, &eq_i, eq_i_val, delta, &format!("{label}_eq_mul_{i}"))?;
+                let (eq_i, eq_i_val) = eq_bit_affine(cs, delta, x_i, x_val, y_i, y_val, &format!("{label}_eq_i_{i}"))?;
+                let (new_acc, new_acc_val) = helpers::k_mul_with_hint(
+                    cs,
+                    &acc,
+                    acc_val,
+                    &eq_i,
+                    eq_i_val,
+                    delta,
+                    &format!("{label}_eq_mul_{i}"),
+                )?;
                 acc = new_acc;
                 acc_val = new_acc_val;
             }
@@ -588,8 +624,15 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
 
                 let (one_minus_x, one_minus_x_val) =
                     k_sub_with_hint(cs, &one, one_val, x_i, x_val, &format!("{label}_sltu_1mx_{bit}"))?;
-                let (t0, t0_val) =
-                    helpers::k_mul_with_hint(cs, &one_minus_x, one_minus_x_val, y_i, y_val, delta, &format!("{label}_sltu_t0_{bit}"))?;
+                let (t0, t0_val) = helpers::k_mul_with_hint(
+                    cs,
+                    &one_minus_x,
+                    one_minus_x_val,
+                    y_i,
+                    y_val,
+                    delta,
+                    &format!("{label}_sltu_t0_{bit}"),
+                )?;
                 let (t1, t1_val) = helpers::k_mul_with_hint(
                     cs,
                     &t0,
@@ -599,7 +642,8 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     delta,
                     &format!("{label}_sltu_t1_{bit}"),
                 )?;
-                let (new_lt, new_lt_val) = k_add_with_hint(cs, &lt, lt_val, &t1, t1_val, &format!("{label}_sltu_acc_{bit}"))?;
+                let (new_lt, new_lt_val) =
+                    k_add_with_hint(cs, &lt, lt_val, &t1, t1_val, &format!("{label}_sltu_acc_{bit}"))?;
                 lt = new_lt;
                 lt_val = new_lt_val;
 
@@ -650,8 +694,15 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
 
                 let (one_minus_x, one_minus_x_val) =
                     k_sub_with_hint(cs, &one, one_val, x_i, x_val, &format!("{label}_slt_1mx_{bit}"))?;
-                let (t0, t0_val) =
-                    helpers::k_mul_with_hint(cs, &one_minus_x, one_minus_x_val, y_i, y_val, delta, &format!("{label}_slt_t0_{bit}"))?;
+                let (t0, t0_val) = helpers::k_mul_with_hint(
+                    cs,
+                    &one_minus_x,
+                    one_minus_x_val,
+                    y_i,
+                    y_val,
+                    delta,
+                    &format!("{label}_slt_t0_{bit}"),
+                )?;
                 let (t1, t1_val) = helpers::k_mul_with_hint(
                     cs,
                     &t0,
@@ -661,7 +712,8 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     delta,
                     &format!("{label}_slt_t1_{bit}"),
                 )?;
-                let (new_lt, new_lt_val) = k_add_with_hint(cs, &lt, lt_val, &t1, t1_val, &format!("{label}_slt_acc_{bit}"))?;
+                let (new_lt, new_lt_val) =
+                    k_add_with_hint(cs, &lt, lt_val, &t1, t1_val, &format!("{label}_slt_acc_{bit}"))?;
                 lt = new_lt;
                 lt_val = new_lt_val;
 
@@ -683,7 +735,8 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
             // x_sign - y_sign + lt
             let (x_minus_y, x_minus_y_val) =
                 k_sub_with_hint(cs, x_sign, x_sign_val, y_sign, y_sign_val, &format!("{label}_slt_xmy"))?;
-            let (out, out_val) = k_add_with_hint(cs, &x_minus_y, x_minus_y_val, &lt, lt_val, &format!("{label}_slt_out"))?;
+            let (out, out_val) =
+                k_add_with_hint(cs, &x_minus_y, x_minus_y_val, &lt, lt_val, &format!("{label}_slt_out"))?;
             if out_val != native_val {
                 return Err(SpartanBridgeError::InvalidInput(format!(
                     "{label}: internal error: SLT MLE host mismatch"
@@ -710,8 +763,15 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     helpers::k_mul_with_hint(cs, x_i, x_val, &carry, carry_val, delta, &format!("{label}_add_xc_{i}"))?;
                 let (yc, yc_val) =
                     helpers::k_mul_with_hint(cs, y_i, y_val, &carry, carry_val, delta, &format!("{label}_add_yc_{i}"))?;
-                let (xyc, xyc_val) =
-                    helpers::k_mul_with_hint(cs, &xy, xy_val, &carry, carry_val, delta, &format!("{label}_add_xyc_{i}"))?;
+                let (xyc, xyc_val) = helpers::k_mul_with_hint(
+                    cs,
+                    &xy,
+                    xy_val,
+                    &carry,
+                    carry_val,
+                    delta,
+                    &format!("{label}_add_xyc_{i}"),
+                )?;
 
                 // sum_bit = x + y + c - 2xy - 2xc - 2yc + 4xyc
                 let (t0, t0_val) = k_add_with_hint(cs, x_i, x_val, y_i, y_val, &format!("{label}_add_t0_{i}"))?;
@@ -723,8 +783,14 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     k_scalar_mul_with_hint(cs, two, &xc, xc_val, &format!("{label}_add_2xc_{i}"))?;
                 let (two_yc, two_yc_val) =
                     k_scalar_mul_with_hint(cs, two, &yc, yc_val, &format!("{label}_add_2yc_{i}"))?;
-                let (sub01, sub01_val) =
-                    k_add_with_hint(cs, &two_xy, two_xy_val, &two_xc, two_xc_val, &format!("{label}_add_sub01_{i}"))?;
+                let (sub01, sub01_val) = k_add_with_hint(
+                    cs,
+                    &two_xy,
+                    two_xy_val,
+                    &two_xc,
+                    two_xc_val,
+                    &format!("{label}_add_sub01_{i}"),
+                )?;
                 let (sub012, sub012_val) = k_add_with_hint(
                     cs,
                     &sub01,
@@ -737,14 +803,26 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     k_sub_with_hint(cs, &t1, t1_val, &sub012, sub012_val, &format!("{label}_add_t2_{i}"))?;
                 let (four_xyc, four_xyc_val) =
                     k_scalar_mul_with_hint(cs, four, &xyc, xyc_val, &format!("{label}_add_4xyc_{i}"))?;
-                let (sum_bit, sum_bit_val) =
-                    k_add_with_hint(cs, &t2, t2_val, &four_xyc, four_xyc_val, &format!("{label}_add_sum_bit_{i}"))?;
+                let (sum_bit, sum_bit_val) = k_add_with_hint(
+                    cs,
+                    &t2,
+                    t2_val,
+                    &four_xyc,
+                    four_xyc_val,
+                    &format!("{label}_add_sum_bit_{i}"),
+                )?;
 
                 let coeff = CircuitF::from(1u64 << i);
                 let (scaled, scaled_val) =
                     k_scalar_mul_with_hint(cs, coeff, &sum_bit, sum_bit_val, &format!("{label}_add_scale_{i}"))?;
-                let (new_result, new_result_val) =
-                    k_add_with_hint(cs, &result, result_val, &scaled, scaled_val, &format!("{label}_add_res_add_{i}"))?;
+                let (new_result, new_result_val) = k_add_with_hint(
+                    cs,
+                    &result,
+                    result_val,
+                    &scaled,
+                    scaled_val,
+                    &format!("{label}_add_res_add_{i}"),
+                )?;
                 result = new_result;
                 result_val = new_result_val;
 
@@ -798,8 +876,15 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                 let (y_comp, y_comp_val) =
                     k_sub_with_hint(cs, &one, one_val, y_i, y_val, &format!("{label}_sub_yc_{i}"))?;
 
-                let (xy, xy_val) =
-                    helpers::k_mul_with_hint(cs, x_i, x_val, &y_comp, y_comp_val, delta, &format!("{label}_sub_xy_{i}"))?;
+                let (xy, xy_val) = helpers::k_mul_with_hint(
+                    cs,
+                    x_i,
+                    x_val,
+                    &y_comp,
+                    y_comp_val,
+                    delta,
+                    &format!("{label}_sub_xy_{i}"),
+                )?;
                 let (xc, xc_val) =
                     helpers::k_mul_with_hint(cs, x_i, x_val, &carry, carry_val, delta, &format!("{label}_sub_xc_{i}"))?;
                 let (yc, yc_val) = helpers::k_mul_with_hint(
@@ -811,8 +896,15 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     delta,
                     &format!("{label}_sub_yc2_{i}"),
                 )?;
-                let (xyc, xyc_val) =
-                    helpers::k_mul_with_hint(cs, &xy, xy_val, &carry, carry_val, delta, &format!("{label}_sub_xyc_{i}"))?;
+                let (xyc, xyc_val) = helpers::k_mul_with_hint(
+                    cs,
+                    &xy,
+                    xy_val,
+                    &carry,
+                    carry_val,
+                    delta,
+                    &format!("{label}_sub_xyc_{i}"),
+                )?;
 
                 // sum_bit = x ⊕ y_comp ⊕ carry (same polynomial as ADD).
                 let (t0, t0_val) =
@@ -825,8 +917,14 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     k_scalar_mul_with_hint(cs, two, &xc, xc_val, &format!("{label}_sub_2xc_{i}"))?;
                 let (two_yc, two_yc_val) =
                     k_scalar_mul_with_hint(cs, two, &yc, yc_val, &format!("{label}_sub_2yc_{i}"))?;
-                let (sub01, sub01_val) =
-                    k_add_with_hint(cs, &two_xy, two_xy_val, &two_xc, two_xc_val, &format!("{label}_sub_sub01_{i}"))?;
+                let (sub01, sub01_val) = k_add_with_hint(
+                    cs,
+                    &two_xy,
+                    two_xy_val,
+                    &two_xc,
+                    two_xc_val,
+                    &format!("{label}_sub_sub01_{i}"),
+                )?;
                 let (sub012, sub012_val) = k_add_with_hint(
                     cs,
                     &sub01,
@@ -839,14 +937,26 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     k_sub_with_hint(cs, &t1, t1_val, &sub012, sub012_val, &format!("{label}_sub_t2_{i}"))?;
                 let (four_xyc, four_xyc_val) =
                     k_scalar_mul_with_hint(cs, four, &xyc, xyc_val, &format!("{label}_sub_4xyc_{i}"))?;
-                let (sum_bit, sum_bit_val) =
-                    k_add_with_hint(cs, &t2, t2_val, &four_xyc, four_xyc_val, &format!("{label}_sub_sum_bit_{i}"))?;
+                let (sum_bit, sum_bit_val) = k_add_with_hint(
+                    cs,
+                    &t2,
+                    t2_val,
+                    &four_xyc,
+                    four_xyc_val,
+                    &format!("{label}_sub_sum_bit_{i}"),
+                )?;
 
                 let coeff = CircuitF::from(1u64 << i);
                 let (scaled, scaled_val) =
                     k_scalar_mul_with_hint(cs, coeff, &sum_bit, sum_bit_val, &format!("{label}_sub_scale_{i}"))?;
-                let (new_result, new_result_val) =
-                    k_add_with_hint(cs, &result, result_val, &scaled, scaled_val, &format!("{label}_sub_res_add_{i}"))?;
+                let (new_result, new_result_val) = k_add_with_hint(
+                    cs,
+                    &result,
+                    result_val,
+                    &scaled,
+                    scaled_val,
+                    &format!("{label}_sub_res_add_{i}"),
+                )?;
                 result = new_result;
                 result_val = new_result_val;
 
@@ -901,8 +1011,7 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
             let mut one_minus_y_vars = Vec::with_capacity(shift_bits);
             let mut one_minus_y_vals = Vec::with_capacity(shift_bits);
             for (k, (y, &y_val)) in y_bits_vars.iter().zip(y_bits_vals.iter()).enumerate() {
-                let (om, om_val) =
-                    k_sub_with_hint(cs, &one, one_val, y, y_val, &format!("{label}_shift_1my_{k}"))?;
+                let (om, om_val) = k_sub_with_hint(cs, &one, one_val, y, y_val, &format!("{label}_shift_1my_{k}"))?;
                 one_minus_y_vars.push(om);
                 one_minus_y_vals.push(om_val);
             }
@@ -920,8 +1029,15 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                     } else {
                         (one_minus_y_vars[k].clone(), one_minus_y_vals[k])
                     };
-                    let (new_eq, new_eq_val) =
-                        helpers::k_mul_with_hint(cs, &eq, eq_val, &f_var, f_val, delta, &format!("{label}_shift_eq_{s}_{k}"))?;
+                    let (new_eq, new_eq_val) = helpers::k_mul_with_hint(
+                        cs,
+                        &eq,
+                        eq_val,
+                        &f_var,
+                        f_val,
+                        delta,
+                        &format!("{label}_shift_eq_{s}_{k}"),
+                    )?;
                     eq = new_eq;
                     eq_val = new_eq_val;
                 }
@@ -951,8 +1067,14 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                                 delta,
                                 &format!("{label}_sll_term_{i}_{s}"),
                             )?;
-                            let (new_out, new_out_val) =
-                                k_add_with_hint(cs, &out_bit, out_bit_val, &t, t_val, &format!("{label}_sll_sum_{i}_{s}"))?;
+                            let (new_out, new_out_val) = k_add_with_hint(
+                                cs,
+                                &out_bit,
+                                out_bit_val,
+                                &t,
+                                t_val,
+                                &format!("{label}_sll_sum_{i}_{s}"),
+                            )?;
                             out_bit = new_out;
                             out_bit_val = new_out_val;
                         }
@@ -970,8 +1092,14 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                                 delta,
                                 &format!("{label}_srl_term_{i}_{s}"),
                             )?;
-                            let (new_out, new_out_val) =
-                                k_add_with_hint(cs, &out_bit, out_bit_val, &t, t_val, &format!("{label}_srl_sum_{i}_{s}"))?;
+                            let (new_out, new_out_val) = k_add_with_hint(
+                                cs,
+                                &out_bit,
+                                out_bit_val,
+                                &t,
+                                t_val,
+                                &format!("{label}_srl_sum_{i}_{s}"),
+                            )?;
                             out_bit = new_out;
                             out_bit_val = new_out_val;
                         }
@@ -992,8 +1120,14 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                                 delta,
                                 &format!("{label}_sra_term_{i}_{s}"),
                             )?;
-                            let (new_out, new_out_val) =
-                                k_add_with_hint(cs, &out_bit, out_bit_val, &t, t_val, &format!("{label}_sra_sum_{i}_{s}"))?;
+                            let (new_out, new_out_val) = k_add_with_hint(
+                                cs,
+                                &out_bit,
+                                out_bit_val,
+                                &t,
+                                t_val,
+                                &format!("{label}_sra_sum_{i}_{s}"),
+                            )?;
                             out_bit = new_out;
                             out_bit_val = new_out_val;
                         }
@@ -1004,8 +1138,14 @@ fn eval_riscv_opcode_mle<CS: ConstraintSystem<CircuitF>>(
                 let coeff = CircuitF::from(1u64 << i);
                 let (scaled, scaled_val) =
                     k_scalar_mul_with_hint(cs, coeff, &out_bit, out_bit_val, &format!("{label}_shift_scale_{i}"))?;
-                let (new_result, new_result_val) =
-                    k_add_with_hint(cs, &result, result_val, &scaled, scaled_val, &format!("{label}_shift_add_{i}"))?;
+                let (new_result, new_result_val) = k_add_with_hint(
+                    cs,
+                    &result,
+                    result_val,
+                    &scaled,
+                    scaled_val,
+                    &format!("{label}_shift_add_{i}"),
+                )?;
                 result = new_result;
                 result_val = new_result_val;
             }
@@ -1049,7 +1189,8 @@ fn weighted_bitness_acc<CS: ConstraintSystem<CircuitF>>(
     }
 
     let ds_var = helpers::k_const_from_neo(cs, ds_val, &format!("{label}_ds"))?;
-    let (base_var, _base_var_val) = k_add_with_hint(cs, r_cycle0, r_cycle0_val, &ds_var, ds_val, &format!("{label}_base"))?;
+    let (base_var, _base_var_val) =
+        k_add_with_hint(cs, r_cycle0, r_cycle0_val, &ds_var, ds_val, &format!("{label}_base"))?;
 
     let (one, one_val) = k_one_var(cs, &format!("{label}_one"))?;
 
@@ -1058,7 +1199,8 @@ fn weighted_bitness_acc<CS: ConstraintSystem<CircuitF>>(
     let (mut acc, mut acc_val) = k_zero_var(cs, &format!("{label}_acc0"))?;
 
     for (i, (b, &b_val)) in opens.iter().zip(opens_val.iter()).enumerate() {
-        let (b_minus_1, b_minus_1_val) = k_sub_with_hint(cs, b, b_val, &one, one_val, &format!("{label}_b_minus_1_{i}"))?;
+        let (b_minus_1, b_minus_1_val) =
+            k_sub_with_hint(cs, b, b_val, &one, one_val, &format!("{label}_b_minus_1_{i}"))?;
         let (t0, t0_val) = helpers::k_mul_with_hint(
             cs,
             b,
@@ -1075,8 +1217,15 @@ fn weighted_bitness_acc<CS: ConstraintSystem<CircuitF>>(
         acc = new_acc;
         acc_val = new_acc_val;
 
-        let (new_pow, new_pow_val) =
-            helpers::k_mul_with_hint(cs, &pow, pow_val, &base_var, base_val, delta, &format!("{label}_pow_{i}"))?;
+        let (new_pow, new_pow_val) = helpers::k_mul_with_hint(
+            cs,
+            &pow,
+            pow_val,
+            &base_var,
+            base_val,
+            delta,
+            &format!("{label}_pow_{i}"),
+        )?;
         pow = new_pow;
         pow_val = new_pow_val;
     }
@@ -1130,7 +1279,9 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
     )
     .map_err(|e| SpartanBridgeError::InvalidInput(format!("{ctx}: shared_cpu_bus layout failed: {e}")))?;
 
-    if cpu_bus.shout_cols.len() != step_public.lut_insts.len() || cpu_bus.twist_cols.len() != step_public.mem_insts.len() {
+    if cpu_bus.shout_cols.len() != step_public.lut_insts.len()
+        || cpu_bus.twist_cols.len() != step_public.mem_insts.len()
+    {
         return Err(SpartanBridgeError::InvalidInput(format!(
             "{ctx}: shared_cpu_bus instance count mismatch"
         )));
@@ -1138,8 +1289,13 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
 
     // chi_cycle_at_r_time = eq_points(r_time, r_cycle)
     let (chi_cycle, chi_cycle_val) = {
-        if r_time_vars.len() != r_cycle_vars.len() || r_time_vals.len() != r_cycle_vals.len() || r_time_vars.len() != r_time_vals.len() {
-            return Err(SpartanBridgeError::InvalidInput(format!("{ctx}: r_time/r_cycle length mismatch")));
+        if r_time_vars.len() != r_cycle_vars.len()
+            || r_time_vals.len() != r_cycle_vals.len()
+            || r_time_vars.len() != r_time_vals.len()
+        {
+            return Err(SpartanBridgeError::InvalidInput(format!(
+                "{ctx}: r_time/r_cycle length mismatch"
+            )));
         }
         // Use eq_bits_prod with "bits"=r_time and u=r_cycle (eq_single matches).
         eq_bits_prod(
@@ -1174,7 +1330,7 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
             .y
             .len()
             .checked_sub(cpu_bus.bus_cols)
-            .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("{ctx}: CPU y too short for bus openings")))? 
+            .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("{ctx}: CPU y too short for bus openings")))?
     } else {
         0usize
     };
@@ -1242,9 +1398,10 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
             let ell_addr = inst.d * inst.ell;
             let expected_lanes = inst.lanes.max(1);
 
-            let shout_cols = cpu_bus.shout_cols.get(lut_idx).ok_or_else(|| {
-                SpartanBridgeError::InvalidInput(format!("{ctx}: missing shout_cols[{lut_idx}]"))
-            })?;
+            let shout_cols = cpu_bus
+                .shout_cols
+                .get(lut_idx)
+                .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("{ctx}: missing shout_cols[{lut_idx}]")))?;
             if shout_cols.lanes.len() != expected_lanes {
                 return Err(SpartanBridgeError::InvalidInput(format!(
                     "{ctx}: shout bus lane mismatch at lut_idx={lut_idx} (expected lanes={expected_lanes}, got {})",
@@ -1361,7 +1518,7 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                     &expected,
                     &bt_final_values_vars[shout_claims.bitness],
                     &format!("{ctx}_shout_{lut_idx}_bitness_final"),
-                    );
+                );
                 let _ = expected_val;
             }
 
@@ -1522,9 +1679,10 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
         let ell_addr = inst.d * inst.ell;
         let expected_lanes = inst.lanes.max(1);
 
-        let twist_cols = cpu_bus.twist_cols.get(mem_idx).ok_or_else(|| {
-            SpartanBridgeError::InvalidInput(format!("{ctx}: missing twist_cols[{mem_idx}]"))
-        })?;
+        let twist_cols = cpu_bus
+            .twist_cols
+            .get(mem_idx)
+            .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("{ctx}: missing twist_cols[{mem_idx}]")))?;
         if twist_cols.lanes.len() != expected_lanes {
             return Err(SpartanBridgeError::InvalidInput(format!(
                 "{ctx}: twist bus lane mismatch at mem_idx={mem_idx} (expected lanes={expected_lanes}, got {})",
@@ -1773,8 +1931,7 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
         )?;
 
         // Terminal checks for read_check / write_check at (r_time, r_addr).
-        let (mut expected_read, mut expected_read_val) =
-            k_zero_var(cs, &format!("{ctx}_twist_{mem_idx}_read_acc0"))?;
+        let (mut expected_read, mut expected_read_val) = k_zero_var(cs, &format!("{ctx}_twist_{mem_idx}_read_acc0"))?;
         let (mut expected_write, mut expected_write_val) =
             k_zero_var(cs, &format!("{ctx}_twist_{mem_idx}_write_acc0"))?;
         for (lane_idx, lane) in lane_opens.iter().enumerate() {
@@ -1926,17 +2083,17 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
         twist_time_openings.push(TwistTimeLaneOpeningsVars { lanes });
     }
 
-	    // --------------------------------------------------------------------
-	    // Twist val-eval terminals at r_val + rollover.
-	    // --------------------------------------------------------------------
-	    if step_public.mem_insts.is_empty() {
-	        if val_eval.is_some() || cpu_me_claims_val_vars.is_some() || !cpu_me_claims_val_vals.is_empty() {
-	            return Err(SpartanBridgeError::InvalidInput(format!(
-	                "{ctx}: unexpected val-eval artifacts with no mem instances"
-	            )));
-	        }
-	        return Ok(twist_time_openings);
-	    }
+    // --------------------------------------------------------------------
+    // Twist val-eval terminals at r_val + rollover.
+    // --------------------------------------------------------------------
+    if step_public.mem_insts.is_empty() {
+        if val_eval.is_some() || cpu_me_claims_val_vars.is_some() || !cpu_me_claims_val_vals.is_empty() {
+            return Err(SpartanBridgeError::InvalidInput(format!(
+                "{ctx}: unexpected val-eval artifacts with no mem instances"
+            )));
+        }
+        return Ok(twist_time_openings);
+    }
 
     let Some(val_eval) = val_eval else {
         return Err(SpartanBridgeError::InvalidInput(format!(
@@ -1963,7 +2120,12 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
             "{ctx}: cpu_me_cur.c_data length mismatch vs mcs_inst.c"
         )));
     }
-    for (i, (&a, &b)) in cpu_me_vars[0].c_data.iter().zip(mcs_vars.c_data.iter()).enumerate() {
+    for (i, (&a, &b)) in cpu_me_vars[0]
+        .c_data
+        .iter()
+        .zip(mcs_vars.c_data.iter())
+        .enumerate()
+    {
         enforce_f_eq(cs, a, b, &format!("{ctx}_cpu_me_val_cur_c_eq_mcs_c_{i}"));
     }
     if has_prev {
@@ -1977,7 +2139,12 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                 "{ctx}: cpu_me_prev.c_data length mismatch vs prev mcs_inst.c"
             )));
         }
-        for (i, (&a, &b)) in cpu_me_vars[1].c_data.iter().zip(prev_c_data.iter()).enumerate() {
+        for (i, (&a, &b)) in cpu_me_vars[1]
+            .c_data
+            .iter()
+            .zip(prev_c_data.iter())
+            .enumerate()
+        {
             enforce_f_eq(cs, a, b, &format!("{ctx}_cpu_me_val_prev_c_eq_prev_mcs_c_{i}"));
         }
     }
@@ -2002,9 +2169,10 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
     for (mem_idx, inst) in step_public.mem_insts.iter().enumerate() {
         let ell_addr = inst.d * inst.ell;
         let expected_lanes = inst.lanes.max(1);
-        let twist_cols = cpu_bus.twist_cols.get(mem_idx).ok_or_else(|| {
-            SpartanBridgeError::InvalidInput(format!("{ctx}: missing twist_cols[{mem_idx}]"))
-        })?;
+        let twist_cols = cpu_bus
+            .twist_cols
+            .get(mem_idx)
+            .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("{ctx}: missing twist_cols[{mem_idx}]")))?;
         if twist_cols.lanes.len() != expected_lanes {
             return Err(SpartanBridgeError::InvalidInput(format!(
                 "{ctx}: twist bus lane mismatch at mem_idx={mem_idx} (expected lanes={expected_lanes}, got {})",
@@ -2268,12 +2436,7 @@ pub(crate) fn verify_route_a_memory_terminal_step<CS: ConstraintSystem<CircuitF>
                 claimed_prev_total_val,
                 &format!("{ctx}_roll_mem{mem_idx}_rhs"),
             )?;
-            helpers::enforce_k_eq(
-                cs,
-                &init_cur,
-                &rhs,
-                &format!("{ctx}_roll_mem{mem_idx}_eq"),
-            );
+            helpers::enforce_k_eq(cs, &init_cur, &rhs, &format!("{ctx}_roll_mem{mem_idx}_eq"));
             let _ = init_cur_val;
         }
     }

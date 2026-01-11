@@ -3,7 +3,6 @@ use std::{ops::Deref, sync::Arc};
 use p3_challenger::{FieldChallenger, GrindingChallenger};
 use p3_commit::Mmcs;
 use p3_field::{ExtensionField, Field, TwoAdicField};
-use p3_matrix::{Matrix, dense::RowMajorMatrix};
 use p3_merkle_tree::MerkleTreeMmcs;
 use p3_symmetric::{CryptographicHasher, PseudoCompressionFunction};
 use serde::{Deserialize, Serialize};
@@ -14,8 +13,8 @@ use crate::{
     dft::EvalsDft,
     fiat_shamir::{errors::FiatShamirError, prover::ProverState},
     poly::evals::EvaluationsList,
-    utils::parallel_repeat,
-    whir::{committer::DenseMatrix, parameters::WhirConfig, utils::sample_ood_points},
+    storage::{Buffer, MmapBuffer, mmap_threshold_bytes},
+    whir::{committer::BaseDenseMatrix, parameters::WhirConfig, utils::sample_ood_points},
 };
 
 /// Responsible for committing polynomials using a Merkle-based scheme.
@@ -59,7 +58,7 @@ where
         dft: &EvalsDft<F>,
         prover_state: &mut ProverState<F, EF, Challenger>,
         polynomial: EvaluationsList<F>,
-    ) -> Result<Witness<EF, F, DenseMatrix<F>, DIGEST_ELEMS>, FiatShamirError>
+    ) -> Result<Witness<EF, F, BaseDenseMatrix<F>, DIGEST_ELEMS>, FiatShamirError>
     where
         H: CryptographicHasher<F, [F; DIGEST_ELEMS]>
             + CryptographicHasher<F::Packing, [F::Packing; DIGEST_ELEMS]>
@@ -69,15 +68,36 @@ where
             + Sync,
         [F; DIGEST_ELEMS]: Serialize + for<'de> Deserialize<'de>,
     {
-        let evals_repeated = info_span!("repeating evals")
-            .in_scope(|| parallel_repeat(polynomial.as_slice(), 1 << self.starting_log_inv_rate));
+        let evals_repeated = info_span!("repeating evals").in_scope(|| {
+            let repeat = 1 << self.starting_log_inv_rate;
+            let src = polynomial.as_slice();
+            let total_len = src.len() * repeat;
+            let bytes = total_len.saturating_mul(std::mem::size_of::<F>());
+            let threshold = mmap_threshold_bytes();
+
+            let mut out = if bytes >= threshold {
+                Buffer::Mmap(
+                    MmapBuffer::new_zeroed(total_len)
+                        .map_err(|e| FiatShamirError::Io(e.to_string()))?,
+                )
+            } else {
+                Buffer::Vec(F::zero_vec(total_len))
+            };
+
+            let dst = out.as_mut_slice();
+            for j in 0..repeat {
+                let start = j * src.len();
+                let end = start + src.len();
+                dst[start..end].copy_from_slice(src);
+            }
+            Ok::<_, FiatShamirError>(out)
+        })?;
 
         // Perform DFT on the padded evaluations matrix
         let width = 1 << self.folding_factor.at_round(0);
         let folded_matrix = info_span!("dft", height = evals_repeated.len() / width, width)
             .in_scope(|| {
-                dft.dft_batch_by_evals(RowMajorMatrix::new(evals_repeated, width))
-                    .to_row_major_matrix()
+                dft.dft_batch_by_evals_storage(BaseDenseMatrix::new(evals_repeated, width))
             });
 
         // Commit to the Merkle tree

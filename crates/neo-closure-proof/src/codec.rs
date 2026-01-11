@@ -32,4 +32,3 @@ pub fn deserialize_payload<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, Closu
         .deserialize(bytes)
         .map_err(|_| ClosureProofError::InvalidOpaqueProofEncoding)
 }
-

@@ -13,6 +13,7 @@ use crate::circuit::{FoldRunCircuit, FoldRunInstance, FoldRunWitness};
 use crate::error::{Result, SpartanBridgeError};
 use crate::statement::{SpartanShardStatement, STATEMENT_VERSION};
 use crate::CircuitF;
+use bincode::Options;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, MeInstance};
 use neo_fold::output_binding::OutputBindingConfig;
@@ -26,10 +27,9 @@ use neo_reductions::common::format_ext;
 use neo_reductions::paper_exact_engine::claimed_initial_sum_from_inputs;
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
-use bincode::Options;
 
-use spartan2::{provider::GoldilocksMerkleMleEngine, spartan::R1CSSNARK, traits::snark::R1CSSNARKTrait};
 use spartan2::bellpepper::shape_cs::ShapeCS;
+use spartan2::{provider::GoldilocksMerkleMleEngine, spartan::R1CSSNARK, traits::snark::R1CSSNARKTrait};
 
 /// Spartan2 engine for the bridge circuit.
 ///
@@ -124,8 +124,13 @@ fn dummy_me_instance(m_in: usize, y_len: usize, r_len: usize, kappa: usize) -> M
     }
 }
 
-fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: &FoldRunShape) -> Result<FoldRunWitness> {
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params, ccs).map_err(SpartanBridgeError::NeoError)?;
+fn dummy_witness_for_shape(
+    params: &NeoParams,
+    ccs: &CcsStructure<NeoF>,
+    shape: &FoldRunShape,
+) -> Result<FoldRunWitness> {
+    let dims =
+        neo_reductions::engines::utils::build_dims_and_policy(params, ccs).map_err(SpartanBridgeError::NeoError)?;
     let d_sc = dims.d_sc;
     let r_len = dims.ell_n;
     let core_t = ccs.t();
@@ -157,10 +162,9 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
         if !has_instances {
             0usize
         } else {
-            let step0 = shape
-                .steps_public
-                .first()
-                .ok_or_else(|| SpartanBridgeError::InvalidInput("dummy_witness_for_shape: steps_public empty".into()))?;
+            let step0 = shape.steps_public.first().ok_or_else(|| {
+                SpartanBridgeError::InvalidInput("dummy_witness_for_shape: steps_public empty".into())
+            })?;
             let shout_ell_addrs_and_lanes: Vec<(usize, usize)> = step0
                 .lut_insts
                 .iter()
@@ -179,13 +183,15 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
                 shout_ell_addrs_and_lanes.into_iter(),
                 twist_ell_addrs_and_lanes.into_iter(),
             )
-            .map_err(|e| SpartanBridgeError::InvalidInput(format!("dummy_witness_for_shape: bus layout failed: {e}")))?;
+            .map_err(|e| {
+                SpartanBridgeError::InvalidInput(format!("dummy_witness_for_shape: bus layout failed: {e}"))
+            })?;
             bus.bus_cols
         }
     };
-    let y_len_total = core_t
-        .checked_add(bus_cols)
-        .ok_or_else(|| SpartanBridgeError::InvalidInput("dummy_witness_for_shape: core_t + bus_cols overflow".into()))?;
+    let y_len_total = core_t.checked_add(bus_cols).ok_or_else(|| {
+        SpartanBridgeError::InvalidInput("dummy_witness_for_shape: core_t + bus_cols overflow".into())
+    })?;
 
     let mut initial_accumulator = Vec::with_capacity(shape.initial_accumulator_len);
     for _ in 0..shape.initial_accumulator_len {
@@ -300,7 +306,9 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
 
         let mut proofs: Vec<neo_fold::shard::MemOrLutProof> = Vec::with_capacity(n_lut + n_mem);
         for _ in 0..n_lut {
-            proofs.push(neo_fold::shard::MemOrLutProof::Shout(neo_memory::shout::ShoutProof::<NeoK>::default()));
+            proofs.push(neo_fold::shard::MemOrLutProof::Shout(neo_memory::shout::ShoutProof::<
+                NeoK,
+            >::default()));
         }
         for mem_idx in 0..n_mem {
             let mem_inst = &step_public.mem_insts[mem_idx];
@@ -312,26 +320,30 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
                 r_addr: vec![NeoK::ZERO; ell_addr],
             };
 
-            let val_plan =
-                neo_fold::memory_sidecar::claim_plan::TwistValEvalClaimPlan::build(step_public.mem_insts.iter(), has_prev);
+            let val_plan = neo_fold::memory_sidecar::claim_plan::TwistValEvalClaimPlan::build(
+                step_public.mem_insts.iter(),
+                has_prev,
+            );
             let base = val_plan.base(mem_idx);
-            let lt_deg = val_plan
-                .degree_bounds
-                .get(base)
-                .copied()
-                .ok_or_else(|| SpartanBridgeError::InvalidInput("dummy_witness_for_shape: val-eval lt degree missing".into()))?;
+            let lt_deg = val_plan.degree_bounds.get(base).copied().ok_or_else(|| {
+                SpartanBridgeError::InvalidInput("dummy_witness_for_shape: val-eval lt degree missing".into())
+            })?;
             let total_deg = val_plan
                 .degree_bounds
                 .get(base + 1)
                 .copied()
-                .ok_or_else(|| SpartanBridgeError::InvalidInput("dummy_witness_for_shape: val-eval total degree missing".into()))?;
+                .ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput("dummy_witness_for_shape: val-eval total degree missing".into())
+                })?;
             let prev_total_deg = has_prev.then(|| {
                 val_plan
                     .degree_bounds
                     .get(base + 2)
                     .copied()
                     .ok_or_else(|| {
-                        SpartanBridgeError::InvalidInput("dummy_witness_for_shape: val-eval prev_total degree missing".into())
+                        SpartanBridgeError::InvalidInput(
+                            "dummy_witness_for_shape: val-eval prev_total degree missing".into(),
+                        )
                     })
             });
 
@@ -348,7 +360,10 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
                 },
             });
 
-            proofs.push(neo_fold::shard::MemOrLutProof::Twist(neo_memory::twist::TwistProof { addr_pre, val_eval }));
+            proofs.push(neo_fold::shard::MemOrLutProof::Twist(neo_memory::twist::TwistProof {
+                addr_pre,
+                val_eval,
+            }));
         }
 
         let cpu_me_claims_val = if n_mem == 0 {
@@ -398,11 +413,14 @@ fn dummy_witness_for_shape(params: &NeoParams, ccs: &CcsStructure<NeoF>, shape: 
 
     let run = FoldRun {
         steps,
-        output_proof: shape.output_binding.as_ref().map(|cfg| neo_memory::output_check::OutputBindingProof {
-            output_sc: neo_memory::output_check::OutputSumcheckProof {
-                round_polys: vec![vec![NeoK::ZERO; 4]; cfg.num_bits],
-            },
-        }),
+        output_proof: shape
+            .output_binding
+            .as_ref()
+            .map(|cfg| neo_memory::output_check::OutputBindingProof {
+                output_sc: neo_memory::output_check::OutputSumcheckProof {
+                    round_polys: vec![vec![NeoK::ZERO; 4]; cfg.num_bits],
+                },
+            }),
     };
 
     Ok(FoldRunWitness::new(
@@ -469,7 +487,9 @@ pub fn verify_fold_run_proof_only(vk: &SpartanVerifierKey, proof: &SpartanProof)
         .verify(vk)
         .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 verification failed: {e}")))?;
     if io != expected_statement_io {
-        return Err(SpartanBridgeError::VerificationError("Spartan2 public IO mismatch".into()));
+        return Err(SpartanBridgeError::VerificationError(
+            "Spartan2 public IO mismatch".into(),
+        ));
     }
 
     Ok(proof.statement.clone())
@@ -491,10 +511,12 @@ pub fn setup_fold_run_shape(
     let pp_id_digest = compute_pp_id_digest_v1(params, ccs)?;
     let steps_digest = compute_steps_digest_v3(dummy.steps_public.as_slice())?;
     let acc_init_digest = compute_accumulator_digest_v2(params.b, dummy.initial_accumulator.as_slice());
-    let obligations = dummy.fold_run.compute_final_obligations(dummy.initial_accumulator.as_slice());
+    let obligations = dummy
+        .fold_run
+        .compute_final_obligations(dummy.initial_accumulator.as_slice());
     let acc_final_main_digest = compute_accumulator_digest_v2(params.b, obligations.main.as_slice());
     let acc_final_val_digest = compute_accumulator_digest_v2(params.b, obligations.val.as_slice());
-    let obligations_digest = compute_obligations_digest_v1(acc_final_main_digest, acc_final_val_digest, pp_id_digest);
+    let obligations_digest = compute_obligations_digest_v2(acc_final_main_digest, acc_final_val_digest, pp_id_digest);
 
     let mem_enabled = dummy
         .steps_public
@@ -527,7 +549,8 @@ pub fn setup_fold_run_shape(
     );
     let instance = FoldRunInstance { statement };
 
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params, ccs).map_err(SpartanBridgeError::NeoError)?;
+    let dims =
+        neo_reductions::engines::utils::build_dims_and_policy(params, ccs).map_err(SpartanBridgeError::NeoError)?;
     let ext = params
         .extension_check(dims.ell as u32, dims.d_sc as u32)
         .map_err(|e| SpartanBridgeError::InvalidInput(format!("extension policy failed: {e:?}")))?;
@@ -587,20 +610,24 @@ pub fn setup_fold_run_shape(
     // Shape extraction during `SpartanSnark::setup` maps bridge-level errors to an opaque
     // `SynthesisError::Unsatisfiable`. For debugging, an optional pre-check can surface more
     // actionable diagnostics, but it runs a full shape synthesis pass.
-    if std::env::var("NEO_SPARTAN_BRIDGE_SHAPE_PRECHECK").ok().as_deref() == Some("1") {
+    if std::env::var("NEO_SPARTAN_BRIDGE_SHAPE_PRECHECK")
+        .ok()
+        .as_deref()
+        == Some("1")
+    {
         let mut cs = ShapeCS::<SpartanEngine>::new();
         circuit.synthesize(&mut cs)?;
     }
 
     let (pk, vk) = SpartanSnark::setup(circuit)
-        .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 setup failed: {e}")))
-        ?;
+        .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 setup failed: {e}")))?;
 
-    if std::env::var("NEO_SPARTAN_BRIDGE_DEBUG_SHAPE").ok().as_deref() == Some("1") {
-        eprintln!(
-            "[neo-spartan-bridge] setup shape sizes = {:?}",
-            pk.sizes()
-        );
+    if std::env::var("NEO_SPARTAN_BRIDGE_DEBUG_SHAPE")
+        .ok()
+        .as_deref()
+        == Some("1")
+    {
+        eprintln!("[neo-spartan-bridge] setup shape sizes = {:?}", pk.sizes());
     }
 
     Ok((pk, vk))
@@ -683,9 +710,9 @@ pub fn prove_fold_run(
         }
 
         // Memory sidecar proof normalization (fixed circuit shape).
-        let step_public = steps_public.get(step_idx).ok_or_else(|| {
-            SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing StepInstanceBundle"))
-        })?;
+        let step_public = steps_public
+            .get(step_idx)
+            .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing StepInstanceBundle")))?;
         let n_lut = step_public.lut_insts.len();
         let n_mem = step_public.mem_insts.len();
 
@@ -706,7 +733,8 @@ pub fn prove_fold_run(
 
         // Twist proofs live after the n_lut Shout placeholders.
         let has_prev = step_idx > 0;
-        let val_plan = neo_fold::memory_sidecar::claim_plan::TwistValEvalClaimPlan::build(step_public.mem_insts.iter(), has_prev);
+        let val_plan =
+            neo_fold::memory_sidecar::claim_plan::TwistValEvalClaimPlan::build(step_public.mem_insts.iter(), has_prev);
 
         for mem_idx in 0..n_mem {
             let proof_idx = n_lut + mem_idx;
@@ -813,11 +841,9 @@ pub fn prove_fold_run(
             .validate(cfg.num_bits)
             .map_err(|e| SpartanBridgeError::InvalidInput(format!("invalid ProgramIO for output binding: {e:?}")))?;
 
-        let output_proof = witness
-            .fold_run
-            .output_proof
-            .as_mut()
-            .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding enabled but fold_run.output_proof is None".into()))?;
+        let output_proof = witness.fold_run.output_proof.as_mut().ok_or_else(|| {
+            SpartanBridgeError::InvalidInput("output binding enabled but fold_run.output_proof is None".into())
+        })?;
 
         if output_proof.output_sc.round_polys.len() != cfg.num_bits {
             return Err(SpartanBridgeError::InvalidInput(format!(
@@ -866,10 +892,7 @@ pub fn prove_fold_run(
     let acc_final_main_digest = compute_accumulator_digest_v2(params.b, obligations.main.as_slice());
     let acc_final_val_digest = compute_accumulator_digest_v2(params.b, obligations.val.as_slice());
     let step_count = u32::try_from(fold_run.steps.len()).map_err(|_| {
-        SpartanBridgeError::InvalidInput(format!(
-            "FoldRun has too many steps for u32: {}",
-            fold_run.steps.len()
-        ))
+        SpartanBridgeError::InvalidInput(format!("FoldRun has too many steps for u32: {}", fold_run.steps.len()))
     })?;
     if steps_public.len() != fold_run.steps.len() {
         return Err(SpartanBridgeError::InvalidInput(format!(
@@ -1054,7 +1077,7 @@ pub fn prove_fold_run(
     };
     let step_linking_digest = compute_step_linking_digest_v1(witness.step_linking.as_slice())?;
     let pp_id_digest = compute_pp_id_digest_v1(params, ccs)?;
-    let obligations_digest = compute_obligations_digest_v1(acc_final_main_digest, acc_final_val_digest, pp_id_digest);
+    let obligations_digest = compute_obligations_digest_v2(acc_final_main_digest, acc_final_val_digest, pp_id_digest);
     let statement = SpartanShardStatement::new(
         params_digest,
         ccs_digest,
@@ -1074,7 +1097,8 @@ pub fn prove_fold_run(
     let instance = FoldRunInstance { statement };
 
     // 4. Extract CCS polynomial f into circuit-friendly representation
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params, ccs).map_err(SpartanBridgeError::NeoError)?;
+    let dims =
+        neo_reductions::engines::utils::build_dims_and_policy(params, ccs).map_err(SpartanBridgeError::NeoError)?;
     let ext = params
         .extension_check(dims.ell as u32, dims.d_sc as u32)
         .map_err(|e| SpartanBridgeError::InvalidInput(format!("extension policy failed: {e:?}")))?;
@@ -1133,10 +1157,15 @@ pub fn prove_fold_run(
         step_linking,
     );
 
-    if std::env::var("NEO_SPARTAN_BRIDGE_CHECK_SHAPE").ok().as_deref() == Some("1") {
+    if std::env::var("NEO_SPARTAN_BRIDGE_CHECK_SHAPE")
+        .ok()
+        .as_deref()
+        == Some("1")
+    {
         let pk_sizes = pk.sizes();
-        let shape = <ShapeCS<SpartanEngine> as spartan2::bellpepper::r1cs::SpartanShape<SpartanEngine>>::r1cs_shape(&circuit)
-            .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 shape extraction failed: {e}")))?;
+        let shape =
+            <ShapeCS<SpartanEngine> as spartan2::bellpepper::r1cs::SpartanShape<SpartanEngine>>::r1cs_shape(&circuit)
+                .map_err(|e| SpartanBridgeError::ProvingError(format!("Spartan2 shape extraction failed: {e}")))?;
         let got = shape.sizes();
         if got != pk_sizes {
             return Err(SpartanBridgeError::InvalidInput(format!(
@@ -1195,9 +1224,8 @@ pub fn verify_fold_run(
         )));
     }
     if proof.statement.output_binding_enabled {
-        let cfg = output_binding.ok_or_else(|| {
-            SpartanBridgeError::VerificationError("output binding enabled but config missing".into())
-        })?;
+        let cfg = output_binding
+            .ok_or_else(|| SpartanBridgeError::VerificationError("output binding enabled but config missing".into()))?;
         let digest = compute_program_io_digest_v1(cfg)?;
         if proof.statement.program_io_digest != digest {
             return Err(SpartanBridgeError::VerificationError(
@@ -1227,17 +1255,18 @@ pub fn verify_fold_run(
     if proof.statement.pp_id_digest != pp_id_digest {
         return Err(SpartanBridgeError::VerificationError("pp_id_digest mismatch".into()));
     }
-    let expected_obligations_digest =
-        compute_obligations_digest_v1(proof.statement.acc_final_main_digest, proof.statement.acc_final_val_digest, pp_id_digest);
+    let expected_obligations_digest = compute_obligations_digest_v2(
+        proof.statement.acc_final_main_digest,
+        proof.statement.acc_final_val_digest,
+        pp_id_digest,
+    );
     if proof.statement.obligations_digest != expected_obligations_digest {
         return Err(SpartanBridgeError::VerificationError(
             "obligations_digest mismatch".into(),
         ));
     }
     if &proof.statement.vm_digest != expected_vm_digest {
-        return Err(SpartanBridgeError::VerificationError(
-            "vm_digest mismatch".into(),
-        ));
+        return Err(SpartanBridgeError::VerificationError("vm_digest mismatch".into()));
     }
     if proof.statement.steps_digest != steps_digest {
         return Err(SpartanBridgeError::VerificationError("Steps digest mismatch".into()));
@@ -1270,7 +1299,9 @@ pub fn verify_fold_run(
 
     // 5. Check that the public IO returned by Spartan matches the expected statement encoding.
     if io != expected_statement_io {
-        return Err(SpartanBridgeError::VerificationError("Spartan2 public IO mismatch".into()));
+        return Err(SpartanBridgeError::VerificationError(
+            "Spartan2 public IO mismatch".into(),
+        ));
     }
 
     Ok(true)
@@ -1292,9 +1323,7 @@ pub fn verify_fold_run_statement_only(
         )));
     }
     if proof.statement != *expected_statement {
-        return Err(SpartanBridgeError::VerificationError(
-            "Statement mismatch".into(),
-        ));
+        return Err(SpartanBridgeError::VerificationError("Statement mismatch".into()));
     }
 
     let expected_statement_io = expected_statement.public_io();
@@ -1304,7 +1333,9 @@ pub fn verify_fold_run_statement_only(
         .verify(vk)
         .map_err(|e| SpartanBridgeError::VerificationError(format!("Spartan2 verification failed: {e}")))?;
     if io != expected_statement_io {
-        return Err(SpartanBridgeError::VerificationError("Spartan2 public IO mismatch".into()));
+        return Err(SpartanBridgeError::VerificationError(
+            "Spartan2 public IO mismatch".into(),
+        ));
     }
     Ok(true)
 }
@@ -1361,12 +1392,8 @@ fn compute_ccs_digest(ccs: &CcsStructure<NeoF>) -> [u8; 32] {
 }
 
 fn compute_pp_id_digest_v1(params: &NeoParams, ccs: &CcsStructure<NeoF>) -> Result<[u8; 32]> {
-    let d = usize::try_from(params.d).map_err(|_| {
-        SpartanBridgeError::InvalidInput(format!(
-            "params.d does not fit usize: {}",
-            params.d
-        ))
-    })?;
+    let d = usize::try_from(params.d)
+        .map_err(|_| SpartanBridgeError::InvalidInput(format!("params.d does not fit usize: {}", params.d)))?;
     if d != neo_math::D {
         return Err(SpartanBridgeError::InvalidInput(format!(
             "Ajtai d mismatch: params.d={d}, neo_math::D={}",
@@ -1382,12 +1409,8 @@ fn compute_pp_id_digest_v1(params: &NeoParams, ccs: &CcsStructure<NeoF>) -> Resu
             "seeded Ajtai PP required for pp_id_digest_v1: {e:?} (call neo_ajtai::set_global_pp_seeded(d,kappa,m,seed) for (d,m)=({d},{m_commit}))",
         ))
     })?;
-    let kappa_expected = usize::try_from(params.kappa).map_err(|_| {
-        SpartanBridgeError::InvalidInput(format!(
-            "params.kappa does not fit usize: {}",
-            params.kappa
-        ))
-    })?;
+    let kappa_expected = usize::try_from(params.kappa)
+        .map_err(|_| SpartanBridgeError::InvalidInput(format!("params.kappa does not fit usize: {}", params.kappa)))?;
     if kappa != kappa_expected {
         return Err(SpartanBridgeError::InvalidInput(format!(
             "Ajtai κ mismatch: seeded registry has κ={kappa}, but params.kappa={kappa_expected}"
@@ -1397,16 +1420,12 @@ fn compute_pp_id_digest_v1(params: &NeoParams, ccs: &CcsStructure<NeoF>) -> Resu
     Ok(neo_ajtai::compute_pp_id_digest_v1(d, m_commit, kappa, seed))
 }
 
-fn compute_obligations_digest_v1(
+fn compute_obligations_digest_v2(
     acc_final_main_digest: [u8; 32],
     acc_final_val_digest: [u8; 32],
     pp_id_digest: [u8; 32],
 ) -> [u8; 32] {
-    neo_fold::bridge_digests::compute_obligations_digest_v1(
-        acc_final_main_digest,
-        acc_final_val_digest,
-        pp_id_digest,
-    )
+    neo_fold::bridge_digests::compute_obligations_digest_v2(acc_final_main_digest, acc_final_val_digest, pp_id_digest)
 }
 
 fn compute_steps_digest_v3(steps_public: &[StepInstanceBundle<Cmt, NeoF, NeoK>]) -> Result<[u8; 32]> {

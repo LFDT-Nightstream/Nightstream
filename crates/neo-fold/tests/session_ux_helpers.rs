@@ -33,7 +33,9 @@ fn test_session_new_ajtai_seeded_add_step_io_and_prove_and_verify() {
     let w = vec![F::ONE];
     session.add_step_io(&ccs, &x, &w).expect("add_step_io");
 
-    let _run = session.prove_and_verify_collected(&ccs).expect("prove_and_verify_collected");
+    let _run = session
+        .prove_and_verify_collected(&ccs)
+        .expect("prove_and_verify_collected");
 }
 
 #[test]
@@ -59,7 +61,9 @@ fn test_session_enable_step_linking_from_step_spec_ivc_happy_path() {
     session.add_step_io(&ccs, &x0, &[]).expect("step0");
     session.add_step_io(&ccs, &x1, &[]).expect("step1");
 
-    let _run = session.prove_and_verify_collected(&ccs).expect("prove_and_verify_collected");
+    let _run = session
+        .prove_and_verify_collected(&ccs)
+        .expect("prove_and_verify_collected");
 }
 
 struct IvcHappyPathStepper {
@@ -102,13 +106,17 @@ impl NeoStep for IvcHappyPathStepper {
 #[test]
 fn test_session_neo_step_auto_enables_step_linking_ivc_happy_path() {
     let ccs = boolean_ccs(5);
-    let mut stepper = IvcHappyPathStepper { ccs: Arc::new(ccs.clone()) };
+    let mut stepper = IvcHappyPathStepper {
+        ccs: Arc::new(ccs.clone()),
+    };
 
     let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, &ccs).expect("new_ajtai");
     session.add_step(&mut stepper, &()).expect("add_step 0");
     session.add_step(&mut stepper, &()).expect("add_step 1");
 
-    let _run = session.prove_and_verify_collected(&ccs).expect("prove_and_verify_collected");
+    let _run = session
+        .prove_and_verify_collected(&ccs)
+        .expect("prove_and_verify_collected");
 }
 
 #[test]
@@ -157,5 +165,7 @@ fn test_session_rectangular_ccs_normalization_pads_witness_and_verifies() {
     let w = vec![F::ZERO]; // z1=0
     session.add_step_io(&ccs, &x, &w).expect("add_step_io");
 
-    let _run = session.prove_and_verify_collected(&ccs).expect("prove_and_verify_collected");
+    let _run = session
+        .prove_and_verify_collected(&ccs)
+        .expect("prove_and_verify_collected");
 }

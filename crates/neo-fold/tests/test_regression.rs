@@ -57,7 +57,9 @@ fn test_regression_optimized_all_public_inputs() {
 
     let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, &ccs).expect("new_ajtai");
 
-    session.add_step_io(&ccs, &public_input, &witness).expect("add_step_io");
+    session
+        .add_step_io(&ccs, &public_input, &witness)
+        .expect("add_step_io");
     let run = session.fold_and_prove(&ccs).expect("fold_and_prove");
 
     let public_mcss = session.mcss_public();
@@ -99,7 +101,9 @@ fn test_regression_optimized_normalizes_identity_first() {
 
     let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, &ccs).expect("new_ajtai");
 
-    session.add_step_io(&ccs, &public_input, &witness).expect("add_step_io");
+    session
+        .add_step_io(&ccs, &public_input, &witness)
+        .expect("add_step_io");
     let run = session.fold_and_prove(&ccs).expect("fold_and_prove");
 
     let public_mcss = session.mcss_public();

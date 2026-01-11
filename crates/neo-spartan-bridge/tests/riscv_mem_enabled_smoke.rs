@@ -13,11 +13,11 @@
 //!
 //! Note: this test is `#[ignore]` because Spartan2 proving for RV32 B1 is very slow.
 
-use neo_fold::riscv_shard::Rv32B1;
 use neo_ajtai::set_global_pp_seeded;
+use neo_fold::riscv_shard::Rv32B1;
+use neo_math::D;
 use neo_spartan_bridge::circuit::FoldRunWitness;
 use neo_spartan_bridge::{compute_vm_digest_v1, prove_fold_run, setup_fold_run, verify_fold_run};
-use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
@@ -60,8 +60,17 @@ fn test_riscv_rv32_b1_mem_enabled_spartan_phase1_smoke() {
     let spartan = prove_fold_run(&pk, run.params(), run.ccs(), witness).expect("prove_fold_run");
 
     assert!(
-        verify_fold_run(&vk, run.params(), run.ccs(), &vm_digest, &steps_public, None, &[], &spartan)
-            .expect("verify_fold_run"),
+        verify_fold_run(
+            &vk,
+            run.params(),
+            run.ccs(),
+            &vm_digest,
+            &steps_public,
+            None,
+            &[],
+            &spartan
+        )
+        .expect("verify_fold_run"),
         "Spartan proof should verify"
     );
 }

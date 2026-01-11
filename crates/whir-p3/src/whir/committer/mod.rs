@@ -1,16 +1,27 @@
 use std::sync::Arc;
 
 use p3_field::{ExtensionField, Field};
-use p3_matrix::{dense::DenseMatrix, extension::FlatMatrixView};
+use p3_matrix::dense::DenseMatrix;
 use p3_merkle_tree::MerkleTree;
 
 use crate::poly::evals::EvaluationsList;
+use crate::storage::Buffer;
 
 pub mod reader;
 pub mod writer;
 
-pub type RoundMerkleTree<F, EF, W, const DIGEST_ELEMS: usize> =
-    MerkleTree<F, W, FlatMatrixView<F, EF, DenseMatrix<EF>>, DIGEST_ELEMS>;
+/// Base-field committed matrix storage used by the first-round commitment.
+///
+/// This uses `Buffer<T>` so large matrices can spill to disk (`mmap`) while still satisfying the
+/// `p3_matrix::DenseStorage` bounds required by `p3_merkle_tree`.
+pub type BaseDenseMatrix<T> = DenseMatrix<T, Buffer<T>>;
+
+/// Merkle tree prover data for round commitments (base field).
+///
+/// For folded rounds the committed values are base-field scalars representing flattened
+/// extension-field elements, but the Merkle commitment is still over the base field.
+pub type RoundMerkleTree<F, W, const DIGEST_ELEMS: usize> =
+    MerkleTree<F, W, BaseDenseMatrix<F>, DIGEST_ELEMS>;
 
 /// Represents the commitment and evaluation data for a polynomial.
 ///

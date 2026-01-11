@@ -1,5 +1,5 @@
-use p3_goldilocks::Goldilocks as F;
 use p3_field::PrimeCharacteristicRing;
+use p3_goldilocks::Goldilocks as F;
 
 use crate::riscv::ccs::{rv32_b1_step_linking_pairs, Rv32B1Layout};
 
@@ -53,7 +53,11 @@ pub fn check_rv32_b1_chunk_chaining(layout: &Rv32B1Layout, chunk_publics: &[&[F]
     }
 
     let pairs = rv32_b1_step_linking_pairs(layout);
-    for (i, (a, b)) in chunk_publics.iter().zip(chunk_publics.iter().skip(1)).enumerate() {
+    for (i, (a, b)) in chunk_publics
+        .iter()
+        .zip(chunk_publics.iter().skip(1))
+        .enumerate()
+    {
         for &(out_idx, in_idx) in &pairs {
             let out = a.get(out_idx).copied().ok_or_else(|| {
                 format!(

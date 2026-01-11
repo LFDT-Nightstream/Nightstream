@@ -400,11 +400,7 @@ fn ccs_col_has_any_nonzero(mat: &CcsMatrix<F>, col: usize) -> bool {
     }
 }
 
-fn ccs_col_has_nonzero_outside_padding_rows(
-    mat: &CcsMatrix<F>,
-    col: usize,
-    is_padding_row: &[bool],
-) -> bool {
+fn ccs_col_has_nonzero_outside_padding_rows(mat: &CcsMatrix<F>, col: usize, is_padding_row: &[bool]) -> bool {
     match mat {
         CcsMatrix::Identity { n } => {
             if col >= *n {
@@ -696,9 +692,7 @@ fn required_bus_padding_for_layout(bus: &BusLayout) -> Vec<BusPaddingLabel> {
                     out.push(BusPaddingLabel {
                         flag_z_idx: has_lookup_z,
                         field_z_idx: bit_z,
-                        label: format!(
-                            "shout[{lut_idx}].lane[{lane_idx}][j={j}]: (1-has_lookup)*addr_bits[{b}]"
-                        ),
+                        label: format!("shout[{lut_idx}].lane[{lane_idx}][j={j}]: (1-has_lookup)*addr_bits[{b}]"),
                     });
                 }
             }
@@ -728,9 +722,7 @@ fn required_bus_padding_for_layout(bus: &BusLayout) -> Vec<BusPaddingLabel> {
                     out.push(BusPaddingLabel {
                         flag_z_idx: has_read_z,
                         field_z_idx: bit_z,
-                        label: format!(
-                            "twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_read)*ra_bits[{b}]"
-                        ),
+                        label: format!("twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_read)*ra_bits[{b}]"),
                     });
                 }
 
@@ -745,9 +737,7 @@ fn required_bus_padding_for_layout(bus: &BusLayout) -> Vec<BusPaddingLabel> {
                 out.push(BusPaddingLabel {
                     flag_z_idx: has_write_z,
                     field_z_idx: inc_z,
-                    label: format!(
-                        "twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_write)*inc_at_write_addr"
-                    ),
+                    label: format!("twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_write)*inc_at_write_addr"),
                 });
 
                 // (1 - has_write) * wa_bits[b] = 0
@@ -756,9 +746,7 @@ fn required_bus_padding_for_layout(bus: &BusLayout) -> Vec<BusPaddingLabel> {
                     out.push(BusPaddingLabel {
                         flag_z_idx: has_write_z,
                         field_z_idx: bit_z,
-                        label: format!(
-                            "twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_write)*wa_bits[{b}]"
-                        ),
+                        label: format!("twist[{mem_idx}].lane[{lane_idx}][j={j}]: (1-has_write)*wa_bits[{b}]"),
                     });
                 }
             }
@@ -849,46 +837,42 @@ fn ensure_ccs_has_bus_padding_constraints(
     let mut a_col2 = vec![0usize; n];
     let mut a_val2 = vec![F::ZERO; n];
 
-    let scan_c = |mat: &CcsMatrix<F>, c_has_nonzero: &mut [bool]| {
-        match mat {
-            CcsMatrix::Identity { n } => {
-                let cap = core::cmp::min(*n, c_has_nonzero.len());
-                for row in 0..cap {
-                    c_has_nonzero[row] = true;
-                }
+    let scan_c = |mat: &CcsMatrix<F>, c_has_nonzero: &mut [bool]| match mat {
+        CcsMatrix::Identity { n } => {
+            let cap = core::cmp::min(*n, c_has_nonzero.len());
+            for row in 0..cap {
+                c_has_nonzero[row] = true;
             }
-            CcsMatrix::Csc(csc) => {
-                for &row in &csc.row_idx {
-                    if row < c_has_nonzero.len() {
-                        c_has_nonzero[row] = true;
-                    }
+        }
+        CcsMatrix::Csc(csc) => {
+            for &row in &csc.row_idx {
+                if row < c_has_nonzero.len() {
+                    c_has_nonzero[row] = true;
                 }
             }
         }
     };
 
-    let scan_b = |mat: &CcsMatrix<F>, b_col: &mut [usize]| {
-        match mat {
-            CcsMatrix::Identity { n } => {
-                let cap = core::cmp::min(*n, b_col.len());
-                for row in 0..cap {
-                    b_col[row] = row;
-                }
+    let scan_b = |mat: &CcsMatrix<F>, b_col: &mut [usize]| match mat {
+        CcsMatrix::Identity { n } => {
+            let cap = core::cmp::min(*n, b_col.len());
+            for row in 0..cap {
+                b_col[row] = row;
             }
-            CcsMatrix::Csc(csc) => {
-                for col in 0..csc.ncols {
-                    let s0 = csc.col_ptr[col];
-                    let e0 = csc.col_ptr[col + 1];
-                    for k in s0..e0 {
-                        let row = csc.row_idx[k];
-                        if row >= b_col.len() {
-                            continue;
-                        }
-                        if b_col[row] == empty {
-                            b_col[row] = col;
-                        } else {
-                            b_col[row] = multi;
-                        }
+        }
+        CcsMatrix::Csc(csc) => {
+            for col in 0..csc.ncols {
+                let s0 = csc.col_ptr[col];
+                let e0 = csc.col_ptr[col + 1];
+                for k in s0..e0 {
+                    let row = csc.row_idx[k];
+                    if row >= b_col.len() {
+                        continue;
+                    }
+                    if b_col[row] == empty {
+                        b_col[row] = col;
+                    } else {
+                        b_col[row] = multi;
                     }
                 }
             }

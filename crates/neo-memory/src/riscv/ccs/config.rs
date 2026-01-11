@@ -4,7 +4,9 @@ use crate::plain::PlainMemLayout;
 
 use super::constants::{ADD_TABLE_ID, REMU_TABLE_ID, RV32_XLEN};
 
-pub(super) fn derive_mem_ids_and_ell_addrs(mem_layouts: &HashMap<u32, PlainMemLayout>) -> Result<(Vec<u32>, Vec<usize>), String> {
+pub(super) fn derive_mem_ids_and_ell_addrs(
+    mem_layouts: &HashMap<u32, PlainMemLayout>,
+) -> Result<(Vec<u32>, Vec<usize>), String> {
     let mut mem_ids: Vec<u32> = mem_layouts.keys().copied().collect();
     mem_ids.sort_unstable();
 
@@ -14,7 +16,10 @@ pub(super) fn derive_mem_ids_and_ell_addrs(mem_layouts: &HashMap<u32, PlainMemLa
             .get(mem_id)
             .ok_or_else(|| format!("missing mem_layout for mem_id={mem_id}"))?;
         if layout.n_side == 0 || !layout.n_side.is_power_of_two() {
-            return Err(format!("mem_id={mem_id}: n_side={} must be power of two", layout.n_side));
+            return Err(format!(
+                "mem_id={mem_id}: n_side={} must be power of two",
+                layout.n_side
+            ));
         }
         let ell = layout.n_side.trailing_zeros() as usize;
         twist_ell_addrs.push(layout.d * ell);
@@ -31,7 +36,9 @@ pub(super) fn derive_shout_ids_and_ell_addrs(shout_table_ids: &[u32]) -> Result<
         return Err("RV32 B1: shout_table_ids must be non-empty".into());
     }
     if !table_ids.contains(&ADD_TABLE_ID) {
-        return Err(format!("RV32 B1: shout_table_ids must include ADD table_id={ADD_TABLE_ID}"));
+        return Err(format!(
+            "RV32 B1: shout_table_ids must include ADD table_id={ADD_TABLE_ID}"
+        ));
     }
     // This circuit supports RV32IM via the 20 base+M opcode tables (ids 0..=19). Callers may pass any
     // subset, as long as it covers the opcodes that will actually appear in the VM trace.

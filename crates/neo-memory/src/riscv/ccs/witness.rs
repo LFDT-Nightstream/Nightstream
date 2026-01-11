@@ -3,14 +3,14 @@ use p3_goldilocks::Goldilocks as F;
 
 use neo_vm_trace::{StepTrace, TwistOpKind};
 
-use crate::riscv::lookups::{decode_instruction, BranchCondition, RiscvInstruction, RiscvMemOp, RiscvOpcode, RAM_ID, PROG_ID};
+use crate::riscv::lookups::{
+    decode_instruction, BranchCondition, RiscvInstruction, RiscvMemOp, RiscvOpcode, PROG_ID, RAM_ID,
+};
 
 use super::Rv32B1Layout;
 
 /// Build a CPU witness vector `z` (CPU region only; the bus tail is written by `R1csCpu`).
-pub fn rv32_b1_chunk_to_witness(
-    layout: Rv32B1Layout,
-) -> Box<dyn Fn(&[StepTrace<u64, u64>]) -> Vec<F> + Send + Sync> {
+pub fn rv32_b1_chunk_to_witness(layout: Rv32B1Layout) -> Box<dyn Fn(&[StepTrace<u64, u64>]) -> Vec<F> + Send + Sync> {
     Box::new(move |chunk: &[StepTrace<u64, u64>]| {
         rv32_b1_chunk_to_witness_checked(&layout, chunk).unwrap_or_else(|e| {
             panic!("RV32 B1 witness build failed: {e}");
@@ -18,7 +18,10 @@ pub fn rv32_b1_chunk_to_witness(
     })
 }
 
-pub fn rv32_b1_chunk_to_witness_checked(layout: &Rv32B1Layout, chunk: &[StepTrace<u64, u64>]) -> Result<Vec<F>, String> {
+pub fn rv32_b1_chunk_to_witness_checked(
+    layout: &Rv32B1Layout,
+    chunk: &[StepTrace<u64, u64>],
+) -> Result<Vec<F>, String> {
     let mut z = vec![F::ZERO; layout.bus.bus_base];
 
     z[layout.const_one] = F::ONE;
@@ -128,7 +131,11 @@ pub fn rv32_b1_chunk_to_witness_checked(layout: &Rv32B1Layout, chunk: &[StepTrac
 
         // Bits.
         for i in 0..32 {
-            z[layout.instr_bit(i, j)] = if ((instr_word_u32 >> i) & 1) == 1 { F::ONE } else { F::ZERO };
+            z[layout.instr_bit(i, j)] = if ((instr_word_u32 >> i) & 1) == 1 {
+                F::ONE
+            } else {
+                F::ZERO
+            };
         }
 
         // Decode fields.
@@ -471,14 +478,30 @@ pub fn rv32_b1_chunk_to_witness_checked(layout: &Rv32B1Layout, chunk: &[StepTrac
         } else {
             F::ZERO
         };
-        z[layout.and_has_lookup(j)] = if is_and || is_andi || is_amoand_w { F::ONE } else { F::ZERO };
-        z[layout.xor_has_lookup(j)] = if is_xor || is_xori || is_amoxor_w { F::ONE } else { F::ZERO };
+        z[layout.and_has_lookup(j)] = if is_and || is_andi || is_amoand_w {
+            F::ONE
+        } else {
+            F::ZERO
+        };
+        z[layout.xor_has_lookup(j)] = if is_xor || is_xori || is_amoxor_w {
+            F::ONE
+        } else {
+            F::ZERO
+        };
         z[layout.or_has_lookup(j)] = if is_or || is_ori || is_amoor_w { F::ONE } else { F::ZERO };
         z[layout.sll_has_lookup(j)] = if is_sll || is_slli { F::ONE } else { F::ZERO };
         z[layout.srl_has_lookup(j)] = if is_srl || is_srli { F::ONE } else { F::ZERO };
         z[layout.sra_has_lookup(j)] = if is_sra || is_srai { F::ONE } else { F::ZERO };
-        z[layout.slt_has_lookup(j)] = if is_slt || is_slti || is_blt || is_bge { F::ONE } else { F::ZERO };
-        z[layout.sltu_has_lookup(j)] = if is_sltu || is_sltiu || is_bltu || is_bgeu { F::ONE } else { F::ZERO };
+        z[layout.slt_has_lookup(j)] = if is_slt || is_slti || is_blt || is_bge {
+            F::ONE
+        } else {
+            F::ZERO
+        };
+        z[layout.sltu_has_lookup(j)] = if is_sltu || is_sltiu || is_bltu || is_bgeu {
+            F::ONE
+        } else {
+            F::ZERO
+        };
 
         let is_amo = is_amoswap_w || is_amoadd_w || is_amoxor_w || is_amoor_w || is_amoand_w;
         z[layout.ram_has_read(j)] = if is_lw || is_amo { F::ONE } else { F::ZERO };

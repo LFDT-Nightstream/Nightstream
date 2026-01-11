@@ -153,7 +153,7 @@ impl<F: Field> Statement<F> {
         // - The combined expected sum S is zero.
         if self.is_empty() {
             return (
-                EvaluationsList::new(F::zero_vec(1 << self.num_variables)),
+                EvaluationsList::new_zeroed(1 << self.num_variables),
                 F::ZERO,
             );
         }
@@ -186,8 +186,12 @@ impl<F: Field> Statement<F> {
 
         // Compute the batched equality polynomial evaluations.
         // This computes W(x) = ∑_i γ^i * eq(x, z_i) for all x ∈ {0,1}^k.
-        let mut combined = F::zero_vec(1 << num_variables);
-        eval_eq_batch::<Base, F, false>(points_matrix.as_view(), &mut combined, &challenges);
+        let mut combined = EvaluationsList::<F>::new_zeroed(1 << num_variables);
+        eval_eq_batch::<Base, F, false>(
+            points_matrix.as_view(),
+            combined.as_mut_slice(),
+            &challenges,
+        );
 
         // Combine expected evaluations: S = ∑_i γ^i * s_i
         let sum = dot_product(self.evaluations.iter().copied(), challenges.into_iter());
@@ -195,7 +199,7 @@ impl<F: Field> Statement<F> {
         // Return:
         // - The combined polynomial W(X) in evaluation form.
         // - The combined expected sum S.
-        (EvaluationsList::new(combined), sum)
+        (combined, sum)
     }
 
     /// Combines a list of evals into a single linear combination using powers of `gamma`,

@@ -244,7 +244,12 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
     // Memory is zero-initialized. The read at addr 0 should return 0.
     // This is consistent with bus_rv=0, but inconsistent with shadow_rv=1.
     // -------------------------------------------------------------------------
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
     let mem_init = MemInit::Zero;
 
     let mem_trace = PlainMemTrace {
@@ -440,7 +445,12 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
         },
     );
 
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
     let mem_trace = PlainMemTrace {
         steps: 1,
         has_read: vec![F::ONE],
@@ -647,7 +657,12 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
     let lut_wit = LutWitness { mats: Vec::new() };
 
     // Memory instance (inactive)
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
     let mem_init = MemInit::Zero;
     let mem_trace = PlainMemTrace {
         steps: 1,

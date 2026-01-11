@@ -8,8 +8,8 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_memory::plain::PlainMemLayout;
 use neo_memory::riscv::ccs::{build_rv32_b1_step_ccs, rv32_b1_chunk_to_witness, rv32_b1_shared_cpu_bus_config};
 use neo_memory::riscv::lookups::{
-    decode_instruction, encode_program, BranchCondition, RiscvCpu, RiscvInstruction, RiscvMemOp, RiscvMemory, RiscvOpcode,
-    RiscvShoutTables, PROG_ID,
+    decode_instruction, encode_program, BranchCondition, RiscvCpu, RiscvInstruction, RiscvMemOp, RiscvMemory,
+    RiscvOpcode, RiscvShoutTables, PROG_ID,
 };
 use neo_memory::riscv::rom_init::prog_init_words;
 use neo_memory::witness::LutTableSpec;
@@ -185,8 +185,24 @@ fn rv32_b1_ccs_happy_path_small_program() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200); // covers addresses up to 0x1ff
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
 
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
@@ -296,8 +312,24 @@ fn rv32_b1_ccs_happy_path_rv32m_program() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x40);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -447,8 +479,24 @@ fn rv32_b1_ccs_happy_path_rv32a_amoaddw_program() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -526,8 +574,24 @@ fn rv32_b1_ccs_rejects_tampered_ram_write_value_for_amoaddw() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -639,8 +703,24 @@ fn rv32_b1_ccs_happy_path_rv32a_word_amos_program() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -700,8 +780,24 @@ fn rv32_b1_ccs_chunk_size_2_padding_carries_state() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -812,8 +908,24 @@ fn rv32_b1_ccs_branches_and_jal() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
 
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
@@ -935,8 +1047,24 @@ fn rv32_b1_ccs_rv32i_alu_ops() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1074,8 +1202,24 @@ fn rv32_b1_ccs_branches_blt_bge_bltu_bgeu() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1142,8 +1286,24 @@ fn rv32_b1_ccs_jalr_masks_lsb() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1224,8 +1384,24 @@ fn rv32_b1_ccs_rejects_step_after_halt_within_chunk() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1283,8 +1459,24 @@ fn rv32_b1_ccs_rejects_tampered_pc_out() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1347,8 +1539,24 @@ fn rv32_b1_ccs_rejects_non_boolean_prog_read_addr_bit() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1437,8 +1645,24 @@ fn rv32_b1_ccs_rejects_non_boolean_shout_addr_bit() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1555,8 +1779,24 @@ fn rv32_b1_ccs_rejects_rom_value_mismatch() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1618,8 +1858,24 @@ fn rv32_b1_ccs_rejects_tampered_regfile() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1684,8 +1940,24 @@ fn rv32_b1_ccs_rejects_tampered_x0() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1754,8 +2026,24 @@ fn rv32_b1_ccs_binds_public_initial_and_final_state() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1789,20 +2077,14 @@ fn rv32_b1_ccs_binds_public_initial_and_final_state() {
     let first = trace.steps.first().expect("trace non-empty");
     assert_eq!(mcs_inst.x[layout.pc0], F::from_u64(first.pc_before));
     for r in 0..32 {
-        assert_eq!(
-            mcs_inst.x[layout.regs0_start + r],
-            F::from_u64(first.regs_before[r])
-        );
+        assert_eq!(mcs_inst.x[layout.regs0_start + r], F::from_u64(first.regs_before[r]));
     }
     assert_eq!(mcs_inst.x[layout.regs0_start], F::ZERO);
 
     let last = trace.steps.last().expect("trace non-empty");
     assert_eq!(mcs_inst.x[layout.pc_final], F::from_u64(last.pc_after));
     for r in 0..32 {
-        assert_eq!(
-            mcs_inst.x[layout.regs_final_start + r],
-            F::from_u64(last.regs_after[r])
-        );
+        assert_eq!(mcs_inst.x[layout.regs_final_start + r], F::from_u64(last.regs_after[r]));
     }
     assert_eq!(mcs_inst.x[layout.regs_final_start], F::ZERO);
 
@@ -1845,8 +2127,24 @@ fn rv32_b1_ccs_rejects_rom_addr_mismatch() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1910,8 +2208,24 @@ fn rv32_b1_ccs_rejects_decode_bit_mismatch() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -1939,7 +2253,9 @@ fn rv32_b1_ccs_rejects_decode_bit_mismatch() {
     let (mcs_inst, mut mcs_wit) = steps.remove(0);
 
     let bit_z = layout.instr_bit(0, 0);
-    let bit_w_idx = bit_z.checked_sub(layout.m_in).expect("instr_bit in witness");
+    let bit_w_idx = bit_z
+        .checked_sub(layout.m_in)
+        .expect("instr_bit in witness");
     let old_bit = mcs_wit.w[bit_w_idx];
     mcs_wit.w[bit_w_idx] = F::ONE - old_bit;
 
@@ -1985,8 +2301,24 @@ fn rv32_b1_ccs_rejects_shout_key_bit_mismatch() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -2064,8 +2396,24 @@ fn rv32_b1_ccs_rejects_wrong_shout_table_activation() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -2143,8 +2491,24 @@ fn rv32_b1_ccs_rejects_ram_read_value_mismatch() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x200);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 
@@ -2213,8 +2577,24 @@ fn rv32_b1_ccs_rejects_chunk_size_2_continuity_break() {
     let (k_prog, d_prog) = pow2_ceil_k(program_bytes.len());
     let (k_ram, d_ram) = pow2_ceil_k(0x80);
     let mem_layouts = HashMap::from([
-        (0u32, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
-        (1u32, PlainMemLayout { k: k_prog, d: d_prog, n_side: 2 , lanes: 1}),
+        (
+            0u32,
+            PlainMemLayout {
+                k: k_ram,
+                d: d_ram,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
+        (
+            1u32,
+            PlainMemLayout {
+                k: k_prog,
+                d: d_prog,
+                n_side: 2,
+                lanes: 1,
+            },
+        ),
     ]);
     let initial_mem = prog_init_words(PROG_ID, 0, &program_bytes);
 

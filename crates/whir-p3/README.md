@@ -34,5 +34,5 @@ If you want to refresh this vendor:
 
 1. Sync the source from upstream `whir-p3`.
 2. Keep `p3-*` dependency versions aligned with the workspace.
-3. Sanity check: `cargo tree -p neo-closure-proof --features whir-p3-backend | rg p3-goldilocks`
+3. Sanity check: `cargo tree -p neo-closure-proof | rg p3-goldilocks`
    should show a single version.

@@ -129,4 +129,3 @@ pub fn fib_mod_q_u64(n: usize, q: u64) -> u64 {
     }
     a
 }
-

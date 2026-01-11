@@ -1,20 +1,19 @@
-#![cfg(all(feature = "whir-p3-backend", feature = "whir-p3-obligations-public"))]
-
 use neo_ajtai::{set_global_pp_seeded, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::poly::SparsePoly;
 use neo_ccs::relations::CcsStructure;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_closure_proof::prove_whir_p3_ajtai_opening_only_v1;
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::shard::{fold_shard_prove_with_witnesses, CommitMixers};
 use neo_math::{D, F, K};
 use neo_memory::ajtai::encode_vector_balanced_to_mat;
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
-use neo_spartan_bridge::bridge_proof_v2::compute_closure_statement_v1;
 use neo_spartan_bridge::circuit::FoldRunWitness;
-use neo_spartan_bridge::{prove_fold_run, setup_fold_run, verify_bridge_proof_v2, BridgeProofV2};
+use neo_spartan_bridge::{
+    prove_bridge_proof_v2_whir_p3_full_closure, setup_fold_run, verify_bridge_proof_v2,
+    verify_bridge_proof_v2_statement_only,
+};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -61,13 +60,13 @@ fn build_single_step_bundle(params: &NeoParams, l: &AjtaiSModule, m: usize) -> S
 }
 
 #[test]
-fn bridge_proof_v2_whir_opening_only_roundtrip_and_tamper() {
+fn bridge_proof_v2_whir_full_closure_is_bound_to_spartan_statement() {
     let n = 16usize;
     let ccs = create_identity_ccs(n);
     let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
     params.k_rho = 8; // must satisfy count·T·(b−1) < b^k_rho even for count=1
 
-    let seed = [13u8; 32];
+    let seed = [14u8; 32];
     set_global_pp_seeded(D, params.kappa as usize, ccs.m, seed).expect("set_global_pp_seeded");
     let l = AjtaiSModule::from_global_for_dims(D, ccs.m).expect("from_global_for_dims");
 
@@ -82,86 +81,91 @@ fn bridge_proof_v2_whir_opening_only_roundtrip_and_tamper() {
     // IMPORTANT: the Spartan bridge circuit replays the native session transcript which is
     // instantiated with this fixed label.
     let mut tr_prove = Poseidon2Transcript::new(b"neo.fold/session");
-    let (fold_run, outputs, wits) = fold_shard_prove_with_witnesses(
-        mode,
-        &mut tr_prove,
+    let (fold_run, _outputs, wits) =
+        fold_shard_prove_with_witnesses(mode, &mut tr_prove, &params, &ccs, &steps_witness, &[], &[], &l, mixers)
+            .expect("prove_with_witnesses");
+
+    let vm_digest_a = [0u8; 32];
+    let vm_digest_b = [1u8; 32];
+
+    let witness_a = FoldRunWitness::new(fold_run.clone(), steps_instance.clone(), vec![], vm_digest_a, None);
+    let (pk, vk) = setup_fold_run(&params, &ccs, &witness_a).expect("setup_fold_run");
+
+    let proof_a = prove_bridge_proof_v2_whir_p3_full_closure(
+        &pk,
         &params,
         &ccs,
-        &steps_witness,
-        &[],
-        &[],
-        &l,
-        mixers,
-    )
-    .expect("prove_with_witnesses");
-
-    let vm_digest = [0u8; 32];
-    let witness = FoldRunWitness::new(fold_run, steps_instance.clone(), vec![], vm_digest, None);
-    let (pk, vk) = setup_fold_run(&params, &ccs, &witness).expect("setup_fold_run");
-    let spartan = prove_fold_run(&pk, &params, &ccs, witness).expect("prove_fold_run");
-
-    let closure_stmt = compute_closure_statement_v1(&spartan.statement);
-    let closure = prove_whir_p3_ajtai_opening_only_v1(
-        &closure_stmt,
-        &params,
-        &ccs,
-        &outputs.obligations,
+        witness_a,
         &wits.final_main_wits,
         &wits.val_lane_wits,
     )
-    .expect("prove whir opening-only closure");
+    .expect("prove A");
 
-    let proof = BridgeProofV2 {
-        spartan: spartan.clone(),
-        closure_stmt,
-        closure,
-    };
-
-    let ok = verify_bridge_proof_v2(
-        &vk,
+    let witness_b = FoldRunWitness::new(fold_run, steps_instance.clone(), vec![], vm_digest_b, None);
+    let proof_b = prove_bridge_proof_v2_whir_p3_full_closure(
+        &pk,
         &params,
         &ccs,
-        &vm_digest,
-        &steps_instance,
-        None,
-        &[],
-        &proof,
-    )
-    .expect("verify");
-    assert!(ok, "BridgeProofV2 must verify");
-
-    // Tamper witness for closure proof: Phase-1 proof still verifies, closure must fail.
-    let mut bad_main = wits.final_main_wits.clone();
-    if let Some(first) = bad_main.first_mut() {
-        first.as_mut_slice()[0] = first.as_slice()[0] + F::ONE;
-    }
-    let bad_closure = prove_whir_p3_ajtai_opening_only_v1(
-        &proof.expected_closure_statement(),
-        &params,
-        &ccs,
-        &outputs.obligations,
-        &bad_main,
+        witness_b,
+        &wits.final_main_wits,
         &wits.val_lane_wits,
     )
-    .expect("prove whir opening-only closure (bad witness)");
-    let bad_proof = BridgeProofV2 {
-        spartan,
-        closure_stmt: proof.expected_closure_statement(),
-        closure: bad_closure,
-    };
+    .expect("prove B");
 
     assert!(
-        verify_bridge_proof_v2(
+        verify_bridge_proof_v2(&vk, &params, &ccs, &vm_digest_a, &steps_instance, None, &[], &proof_a)
+            .expect("verify A"),
+        "proof A must verify"
+    );
+    assert!(
+        verify_bridge_proof_v2(&vk, &params, &ccs, &vm_digest_b, &steps_instance, None, &[], &proof_b)
+            .expect("verify B"),
+        "proof B must verify"
+    );
+
+    assert!(
+        verify_bridge_proof_v2_statement_only(
             &vk,
-            &params,
-            &ccs,
-            &vm_digest,
-            &steps_instance,
+            &proof_a.spartan.statement,
+            &proof_a,
+            Some(&params),
+            Some(&ccs),
+            None
+        )
+        .expect("verify A statement-only"),
+        "A statement-only verification must succeed"
+    );
+
+    // Mix `spartan` from A with `closure` from B. Spartan verification should still pass, but
+    // closure verification must fail because the closure proof is bound to a different statement.
+    let mut mixed = proof_a.clone();
+    mixed.closure = proof_b.closure.clone();
+
+    assert!(
+        verify_bridge_proof_v2(&vk, &params, &ccs, &vm_digest_a, &steps_instance, None, &[], &mixed).is_err(),
+        "mixed proof must be rejected (closure bound to different statement)"
+    );
+    assert!(
+        verify_bridge_proof_v2_statement_only(
+            &vk,
+            &proof_a.spartan.statement,
+            &mixed,
+            Some(&params),
+            Some(&ccs),
             None,
-            &[],
-            &bad_proof,
         )
         .is_err(),
-        "tampered closure witness must be rejected"
+        "mixed proof must be rejected in statement-only verification as well"
+    );
+
+    // Corrupt closure proof bytes: must fail verification.
+    let mut tampered = proof_a.clone();
+    let neo_closure_proof::ClosureProofV1::OpaqueBytes { proof_bytes } = &mut tampered.closure;
+    let last = proof_bytes.last_mut().expect("non-empty proof_bytes");
+    *last ^= 1;
+
+    assert!(
+        verify_bridge_proof_v2(&vk, &params, &ccs, &vm_digest_a, &steps_instance, None, &[], &tampered).is_err(),
+        "tampered closure bytes must be rejected"
     );
 }

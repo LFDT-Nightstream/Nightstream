@@ -1,10 +1,8 @@
-#![cfg(all(feature = "whir-p3-backend", feature = "whir-p3-obligations-public"))]
-
 use neo_ajtai::{set_global_pp_seeded, AjtaiSModule};
-use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_closure_proof::{
-    compute_accumulator_digest_v2, compute_obligations_digest_v1, prove_whir_p3_full_closure_v1,
+    compute_accumulator_digest_v2, compute_obligations_digest_v2, prove_whir_p3_full_closure_v1,
     verify_closure_v1_with_context_and_bus, ClosureStatementV1,
 };
 use neo_fold::shard::ShardObligations;
@@ -60,8 +58,7 @@ fn whir_p3_full_closure_roundtrip_and_rejects_bad_y_scalars() {
         K::from(F::from_u64(11)),
     ];
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let (y, y_scalars) =
-        neo_reductions::common::compute_y_from_Z_and_r(&ccs, &z, &r_point, ell_d, params.b);
+    let (y, y_scalars) = neo_reductions::common::compute_y_from_Z_and_r(&ccs, &z, &r_point, ell_d, params.b);
 
     let me = neo_ccs::MeInstance {
         c: cmt,
@@ -84,30 +81,20 @@ fn whir_p3_full_closure_roundtrip_and_rejects_bad_y_scalars() {
     let pp_id_digest = neo_ajtai::compute_pp_id_digest_v1(D, m, params.kappa as usize, seed);
     let acc_main = compute_accumulator_digest_v2(params.b, obligations.main.as_slice());
     let acc_val = compute_accumulator_digest_v2(params.b, obligations.val.as_slice());
-    let obligations_digest = compute_obligations_digest_v1(acc_main, acc_val, pp_id_digest);
+    let obligations_digest = compute_obligations_digest_v2(acc_main, acc_val, pp_id_digest);
 
     let stmt = ClosureStatementV1::new([1u8; 32], pp_id_digest, obligations_digest);
     let proof =
-        prove_whir_p3_full_closure_v1(&stmt, &params, &ccs, &obligations, &[z.clone()], &[], None)
-            .expect("prove");
-    verify_closure_v1_with_context_and_bus(&stmt, &proof, Some(&params), Some(&ccs), None)
-        .expect("verify");
+        prove_whir_p3_full_closure_v1(&stmt, &params, &ccs, &obligations, &[z.clone()], &[], None).expect("prove");
+    verify_closure_v1_with_context_and_bus(&stmt, &proof, Some(&params), Some(&ccs), None).expect("verify");
 
     // Corrupt y_scalars but keep y (and thus statement digest) unchanged. Verification must reject.
     let mut obligations_bad = obligations.clone();
     obligations_bad.main[0].y_scalars = y_scalars;
     obligations_bad.main[0].y_scalars[0] += K::ONE;
 
-    let proof_bad = prove_whir_p3_full_closure_v1(
-        &stmt,
-        &params,
-        &ccs,
-        &obligations_bad,
-        &[z],
-        &[],
-        None,
-    )
-    .expect("prove with bad y_scalars (still allowed by statement digest)");
+    let proof_bad = prove_whir_p3_full_closure_v1(&stmt, &params, &ccs, &obligations_bad, &[z], &[], None)
+        .expect("prove with bad y_scalars (still allowed by statement digest)");
 
     assert!(
         verify_closure_v1_with_context_and_bus(&stmt, &proof_bad, Some(&params), Some(&ccs), None).is_err(),
@@ -159,7 +146,7 @@ fn whir_p3_full_closure_rejects_out_of_range_and_bad_y() {
     };
     let acc_main = compute_accumulator_digest_v2(params.b, obligations_bad.main.as_slice());
     let acc_val = compute_accumulator_digest_v2(params.b, obligations_bad.val.as_slice());
-    let obligations_digest = compute_obligations_digest_v1(acc_main, acc_val, pp_id_digest);
+    let obligations_digest = compute_obligations_digest_v2(acc_main, acc_val, pp_id_digest);
     let stmt = ClosureStatementV1::new([9u8; 32], pp_id_digest, obligations_digest);
 
     assert!(
@@ -193,7 +180,7 @@ fn whir_p3_full_closure_rejects_out_of_range_and_bad_y() {
     };
     let acc_main = compute_accumulator_digest_v2(params.b, obligations_bad_y.main.as_slice());
     let acc_val = compute_accumulator_digest_v2(params.b, obligations_bad_y.val.as_slice());
-    let obligations_digest = compute_obligations_digest_v1(acc_main, acc_val, pp_id_digest);
+    let obligations_digest = compute_obligations_digest_v2(acc_main, acc_val, pp_id_digest);
     let stmt_bad_y = ClosureStatementV1::new([10u8; 32], pp_id_digest, obligations_digest);
 
     assert!(

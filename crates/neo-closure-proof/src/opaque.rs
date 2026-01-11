@@ -7,14 +7,39 @@
 
 use crate::ClosureProofError;
 
-pub const BACKEND_ID_WHIR_P3_PLACEHOLDER_V1: u32 = 1;
-pub const BACKEND_ID_EXPLICIT_OBLIGATION_CLOSURE_V1: u32 = 2;
-/// WHIR-backed proof that (batched) Ajtai openings are correct (dev milestone; not full closure yet).
-pub const BACKEND_ID_WHIR_P3_AJTAI_OPENING_ONLY_V1: u32 = 3;
-/// WHIR-backed proof that (batched) Ajtai openings are correct AND Z projects to X (dev milestone; not full closure yet).
-pub const BACKEND_ID_WHIR_P3_AJTAI_OPENING_PLUS_X_V1: u32 = 4;
-/// WHIR-backed proof of full obligation closure (Ajtai opening + bounds + ME consistency).
-pub const BACKEND_ID_WHIR_P3_FULL_CLOSURE_V1: u32 = 5;
+/// Backend IDs are part of the proof encoding contract.
+///
+/// Keep this list lean: only IDs that are supported in production should be routable by the
+/// verifier. Unknown IDs are rejected as invalid encodings.
+#[repr(u32)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum BackendIdV1 {
+    /// Dev-only WHIR backend that serializes obligations in the payload.
+    /// Not the intended production privacy/size profile.
+    WhirP3FullClosureV1 = 5,
+    /// Production-target WHIR backend with obligations kept private (no payload obligations).
+    WhirP3PrivateFullClosureV1 = 6,
+}
+
+impl BackendIdV1 {
+    pub const fn as_u32(self) -> u32 {
+        self as u32
+    }
+}
+
+impl TryFrom<u32> for BackendIdV1 {
+    type Error = ClosureProofError;
+
+    fn try_from(v: u32) -> Result<Self, Self::Error> {
+        if v == Self::WhirP3PrivateFullClosureV1.as_u32() {
+            return Ok(Self::WhirP3PrivateFullClosureV1);
+        }
+        if v == Self::WhirP3FullClosureV1.as_u32() {
+            return Ok(Self::WhirP3FullClosureV1);
+        }
+        Err(ClosureProofError::InvalidOpaqueProofEncoding)
+    }
+}
 
 const MAGIC: [u8; 4] = *b"NCLP";
 const ENVELOPE_VERSION_V1: u32 = 1;
@@ -26,18 +51,25 @@ const HEADER_LEN: usize = 4 + 4 + 4 + 4;
 /// to be far smaller (low 100s KB).
 pub const MAX_CLOSURE_PAYLOAD_BYTES: usize = 64 * 1024 * 1024; // 64 MiB
 
-pub fn encode_envelope(backend_id: u32, payload: &[u8]) -> Vec<u8> {
+pub fn encode_envelope(backend_id: u32, payload: &[u8]) -> Result<Vec<u8>, ClosureProofError> {
+    if payload.len() > MAX_CLOSURE_PAYLOAD_BYTES {
+        return Err(ClosureProofError::WhirP3(format!(
+            "encode_envelope: payload too large ({} > {})",
+            payload.len(),
+            MAX_CLOSURE_PAYLOAD_BYTES
+        )));
+    }
     let payload_len: u32 = payload
         .len()
         .try_into()
-        .expect("encode_envelope: payload too large");
+        .map_err(|_| ClosureProofError::WhirP3("encode_envelope: payload too large".into()))?;
     let mut out = Vec::with_capacity(HEADER_LEN + payload.len());
     out.extend_from_slice(&MAGIC);
     out.extend_from_slice(&ENVELOPE_VERSION_V1.to_le_bytes());
     out.extend_from_slice(&backend_id.to_le_bytes());
     out.extend_from_slice(&payload_len.to_le_bytes());
     out.extend_from_slice(payload);
-    out
+    Ok(out)
 }
 
 pub fn decode_envelope(bytes: &[u8]) -> Result<(u32, &[u8]), ClosureProofError> {

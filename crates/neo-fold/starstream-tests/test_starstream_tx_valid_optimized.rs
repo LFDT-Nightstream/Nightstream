@@ -2,17 +2,17 @@
 
 //! Integration test for Starstream TX using optimized folding mode
 
+use neo_ajtai::AjtaiSModule;
+use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
+use neo_fold::pi_ccs::FoldingMode;
+use neo_fold::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
+use neo_math::F;
+use p3_field::PrimeCharacteristicRing;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use serde::{Deserialize, Serialize};
-use neo_fold::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
-use neo_fold::pi_ccs::FoldingMode;
-use neo_ccs::{Mat, r1cs_to_ccs, CcsStructure};
-use neo_ajtai::AjtaiSModule;
-use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct TestExport {
@@ -89,22 +89,26 @@ fn sparse_to_dense_mat(sparse: &[(usize, usize, String)], rows: usize, cols: usi
 fn build_step_ccs(r1cs: &R1csData) -> CcsStructure<F> {
     let n = r1cs.num_constraints;
     let m = r1cs.num_variables;
-    
+
     // If n > m, we need to pad with slack variables to make m' = n
     let m_padded = n.max(m);
-    
+
     let a = sparse_to_dense_mat(&r1cs.a_sparse, n, m_padded);
     let b = sparse_to_dense_mat(&r1cs.b_sparse, n, m_padded);
     let c = sparse_to_dense_mat(&r1cs.c_sparse, n, m_padded);
     let s0 = r1cs_to_ccs(a, b, c);
-    
+
     // ensure_identity_first_owned will now work since n == m_padded
     s0.ensure_identity_first_owned()
         .expect("ensure_identity_first_owned should succeed")
 }
 
 fn extract_witness(witness_data: &WitnessData) -> Vec<F> {
-    witness_data.z_full.iter().map(|s| parse_field_element(s)).collect()
+    witness_data
+        .z_full
+        .iter()
+        .map(|s| parse_field_element(s))
+        .collect()
 }
 
 /// Pad witness to match CCS dimensions (adds slack variables if n > m_original)
@@ -132,21 +136,16 @@ struct StarstreamStepCircuit {
 
 impl NeoStep for StarstreamStepCircuit {
     type ExternalInputs = NoInputs;
-    
+
     fn state_len(&self) -> usize {
         self.step_spec.y_len
     }
-    
+
     fn step_spec(&self) -> StepSpec {
         self.step_spec.clone()
     }
-    
-    fn synthesize_step(
-        &mut self,
-        step_idx: usize,
-        _y_prev: &[F],
-        _inputs: &Self::ExternalInputs,
-    ) -> StepArtifacts {
+
+    fn synthesize_step(&mut self, step_idx: usize, _y_prev: &[F], _inputs: &Self::ExternalInputs) -> StepArtifacts {
         let z = extract_witness(&self.steps[step_idx].witness);
         let z_padded = pad_witness_to_m(z, self.step_ccs.m);
         StepArtifacts {
@@ -161,7 +160,7 @@ impl NeoStep for StarstreamStepCircuit {
 #[test]
 fn test_starstream_tx_valid_optimized() {
     let export = load_test_export();
-    
+
     let step_spec = StepSpec {
         y_len: export.ivc_params.step_spec.y_len,
         const1_index: export.ivc_params.step_spec.const1_index,
@@ -170,31 +169,35 @@ fn test_starstream_tx_valid_optimized() {
         app_input_indices: Some(export.ivc_params.step_spec.y_prev_indices.clone()),
         m_in: export.steps[0].r1cs.num_public_inputs,
     };
-    
+
     let step_ccs = Arc::new(build_step_ccs(&export.steps[0].r1cs));
     let mut circuit = StarstreamStepCircuit {
         steps: export.steps.clone(),
         step_spec: step_spec.clone(),
         step_ccs: step_ccs.clone(),
     };
-    
-    let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, step_ccs.as_ref())
-        .expect("new_ajtai");
-    
+
+    let mut session =
+        FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::Optimized, step_ccs.as_ref()).expect("new_ajtai");
+
     let inputs = NoInputs;
     session
         .add_steps(&mut circuit, &inputs, export.steps.len())
         .expect("add_steps should succeed with optimized");
-    
+
     let start = Instant::now();
     let run = session
         .prove_and_verify_collected(step_ccs.as_ref())
         .expect("prove_and_verify_collected should succeed");
     let finalize_duration = start.elapsed();
-    
+
     println!("Proof generation time (finalize): {:?}", finalize_duration);
     println!("For reference, the paper-exact proof generation time was ~14s");
     println!("This proof generation was 0.862s on the last ci run.");
-    
-    assert_eq!(run.steps.len(), export.steps.len(), "should have correct number of steps");
+
+    assert_eq!(
+        run.steps.len(),
+        export.steps.len(),
+        "should have correct number of steps"
+    );
 }

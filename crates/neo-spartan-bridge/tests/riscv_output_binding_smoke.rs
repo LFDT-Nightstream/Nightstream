@@ -65,8 +65,17 @@ fn test_riscv_rv32_b1_output_binding_spartan_smoke() {
     let spartan = prove_fold_run(&pk, run.params(), run.ccs(), witness).expect("prove_fold_run");
 
     assert!(
-        verify_fold_run(&vk, run.params(), run.ccs(), &vm_digest, &steps_public, Some(&ob_cfg), &[], &spartan)
-            .expect("verify_fold_run"),
+        verify_fold_run(
+            &vk,
+            run.params(),
+            run.ccs(),
+            &vm_digest,
+            &steps_public,
+            Some(&ob_cfg),
+            &[],
+            &spartan
+        )
+        .expect("verify_fold_run"),
         "Spartan proof should verify"
     );
 }
@@ -120,13 +129,7 @@ fn test_riscv_rv32_b1_output_binding_rejects_tampered_output_sumcheck() {
     let out = bad_proof.output_proof.as_mut().expect("output_proof");
     out.output_sc.round_polys[0][0] += K::ONE;
 
-    let bad_witness = FoldRunWitness::new(
-        bad_proof,
-        steps_public,
-        initial_accumulator,
-        vm_digest,
-        Some(ob_cfg),
-    );
+    let bad_witness = FoldRunWitness::new(bad_proof, steps_public, initial_accumulator, vm_digest, Some(ob_cfg));
     assert!(
         prove_fold_run(&pk, run.params(), run.ccs(), bad_witness).is_err(),
         "tampered output sumcheck should not satisfy the circuit"

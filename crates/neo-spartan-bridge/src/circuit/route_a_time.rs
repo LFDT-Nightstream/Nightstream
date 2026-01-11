@@ -12,7 +12,7 @@ use crate::gadgets::transcript::Poseidon2TranscriptVar;
 use crate::CircuitF;
 
 use neo_fold::shard::BatchedTimeProof;
-use neo_math::{K as NeoK, KExtensions};
+use neo_math::{KExtensions, K as NeoK};
 use p3_field::PrimeCharacteristicRing;
 
 pub struct RouteABatchedTimeOutVars {
@@ -151,7 +151,11 @@ pub fn verify_route_a_batched_time_step<CS: ConstraintSystem<CircuitF>>(
     );
 
     // Host-side check for non-dynamic claims (avoid polluting R1CS with policy logic).
-    for (i, (&dyn_ok, &sum)) in claim_is_dynamic.iter().zip(proof.claimed_sums.iter()).enumerate() {
+    for (i, (&dyn_ok, &sum)) in claim_is_dynamic
+        .iter()
+        .zip(proof.claimed_sums.iter())
+        .enumerate()
+    {
         if i == 0 {
             continue;
         }

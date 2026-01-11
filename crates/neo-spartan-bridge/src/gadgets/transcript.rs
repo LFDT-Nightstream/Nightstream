@@ -62,11 +62,7 @@ impl Poseidon2TranscriptVar {
         Ok(num)
     }
 
-    fn absorb_const_u64<CS: ConstraintSystem<CircuitF>>(
-        &mut self,
-        cs: &mut CS,
-        v: u64,
-    ) -> Result<(), SynthesisError> {
+    fn absorb_const_u64<CS: ConstraintSystem<CircuitF>>(&mut self, cs: &mut CS, v: u64) -> Result<(), SynthesisError> {
         let num = self.const_num(cs, v)?;
         self.sponge.absorb(cs, num)?;
         Ok(())
@@ -209,7 +205,10 @@ impl Poseidon2TranscriptVar {
         ctx: &str,
     ) -> Result<AllocatedNum<CircuitF>, SynthesisError> {
         self.append_message(cs, b"chal/label", label, ctx)?;
-        Ok(self.sponge.digest32(cs, &format!("{ctx}_challenge_field"))?[0].clone())
+        Ok(self
+            .sponge
+            .digest32(cs, &format!("{ctx}_challenge_field"))?[0]
+            .clone())
     }
 
     pub fn challenge_fields<CS: ConstraintSystem<CircuitF>>(
@@ -223,7 +222,9 @@ impl Poseidon2TranscriptVar {
         let mut out = Vec::with_capacity(n);
         let mut squeeze_idx = 0usize;
         while out.len() < n {
-            let limbs = self.sponge.digest32(cs, &format!("{ctx}_challenge_fields_{squeeze_idx}"))?;
+            let limbs = self
+                .sponge
+                .digest32(cs, &format!("{ctx}_challenge_fields_{squeeze_idx}"))?;
             squeeze_idx += 1;
             for i in 0..core::cmp::min(4, n - out.len()) {
                 out.push(limbs[i].clone());

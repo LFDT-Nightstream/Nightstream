@@ -1,7 +1,6 @@
 use p3_baby_bear::{BabyBear, Poseidon2BabyBear};
 use p3_challenger::DuplexChallenger;
 use p3_field::{PrimeCharacteristicRing, extension::BinomialExtensionField};
-use p3_matrix::dense::DenseMatrix;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use rand::{SeedableRng, rngs::SmallRng};
 
@@ -12,7 +11,7 @@ use crate::{
     poly::{coeffs::CoefficientList, evals::EvaluationsList, multilinear::MultilinearPoint},
     whir::{
         WhirConfig,
-        committer::{Witness, writer::CommitmentWriter},
+        committer::{BaseDenseMatrix, Witness, writer::CommitmentWriter},
         constraints::statement::Statement,
         prover::{Prover, round_state::RoundState},
     },
@@ -85,7 +84,7 @@ fn setup_domain_and_commitment(
 ) -> (
     DomainSeparator<EF4, F>,
     ProverState<F, EF4, MyChallenger>,
-    Witness<EF4, F, DenseMatrix<F>, DIGEST_ELEMS>,
+    Witness<EF4, F, BaseDenseMatrix<F>, DIGEST_ELEMS>,
 ) {
     // Create a new Fiat-Shamir domain separator.
     let mut domsep = DomainSeparator::new(vec![]);

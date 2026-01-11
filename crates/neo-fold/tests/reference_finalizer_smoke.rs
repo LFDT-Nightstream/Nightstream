@@ -73,7 +73,8 @@ fn reference_finalizer_accepts_and_rejects_tampering() {
 
     let step = build_single_step_bundle(&params, &l, ccs.m);
     let steps_witness = vec![step];
-    let steps_instance: Vec<StepInstanceBundle<Cmt, F, K>> = steps_witness.iter().map(StepInstanceBundle::from).collect();
+    let steps_instance: Vec<StepInstanceBundle<Cmt, F, K>> =
+        steps_witness.iter().map(StepInstanceBundle::from).collect();
 
     let mode = FoldingMode::Optimized;
     let mixers = mixers();
@@ -121,14 +122,8 @@ fn reference_finalizer_accepts_and_rejects_tampering() {
     if let Some(first) = bad_main.first_mut() {
         first.as_mut_slice()[0] = first.as_slice()[0] + F::ONE;
     }
-    let mut fin_bad = ReferenceFinalizer::new(
-        params,
-        Arc::new(ccs),
-        l,
-        bad_main,
-        wits.val_lane_wits,
-    )
-    .expect("ReferenceFinalizer::new");
+    let mut fin_bad = ReferenceFinalizer::new(params, Arc::new(ccs), l, bad_main, wits.val_lane_wits)
+        .expect("ReferenceFinalizer::new");
     assert!(
         fin_bad.finalize(&outputs.obligations).is_err(),
         "tampered witness must be rejected"

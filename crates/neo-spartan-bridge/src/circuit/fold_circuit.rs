@@ -15,17 +15,18 @@ use crate::gadgets::pi_ccs::{sumcheck_eval_gadget, sumcheck_round_gadget};
 use crate::gadgets::sponge::Poseidon2Sponge;
 use crate::gadgets::sumcheck::{verify_batched_sumcheck_rounds_ds, verify_sumcheck_rounds_ds};
 use crate::gadgets::transcript::Poseidon2TranscriptVar;
-use crate::CircuitF;
 use crate::statement::{
-    STATEMENT_IO_ACC_FINAL_MAIN_DIGEST_OFFSET, STATEMENT_IO_ACC_FINAL_VAL_DIGEST_OFFSET, STATEMENT_IO_ACC_INIT_DIGEST_OFFSET,
-    STATEMENT_IO_PROGRAM_IO_DIGEST_OFFSET, STATEMENT_IO_STEP_LINKING_DIGEST_OFFSET, STATEMENT_IO_STEPS_DIGEST_OFFSET,
+    STATEMENT_IO_ACC_FINAL_MAIN_DIGEST_OFFSET, STATEMENT_IO_ACC_FINAL_VAL_DIGEST_OFFSET,
+    STATEMENT_IO_ACC_INIT_DIGEST_OFFSET, STATEMENT_IO_PROGRAM_IO_DIGEST_OFFSET, STATEMENT_IO_STEPS_DIGEST_OFFSET,
+    STATEMENT_IO_STEP_LINKING_DIGEST_OFFSET,
 };
+use crate::CircuitF;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use neo_ccs::Mat;
 use neo_fold::output_binding::OutputBindingConfig;
 use neo_fold::shard::{FoldStep, StepProof};
-use neo_math::{F as NeoF, K as NeoK};
 use neo_math::KExtensions;
+use neo_math::{F as NeoF, K as NeoK};
 use neo_memory::output_check::OutputBindingProof;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -189,12 +190,8 @@ impl FoldRunCircuit {
             .map_err(SpartanBridgeError::BellpepperError)?;
 
         // Public step metadata digest transcript (statement binding).
-        let mut steps_tr = Poseidon2TranscriptVar::new(
-            cs,
-            b"neo/spartan-bridge/steps_digest/v3",
-            "steps_digest_v3",
-        )
-        .map_err(SpartanBridgeError::BellpepperError)?;
+        let mut steps_tr = Poseidon2TranscriptVar::new(cs, b"neo/spartan-bridge/steps_digest/v3", "steps_digest_v3")
+            .map_err(SpartanBridgeError::BellpepperError)?;
         steps_tr
             .append_message(
                 cs,
@@ -229,9 +226,9 @@ impl FoldRunCircuit {
                     SpartanBridgeError::InvalidInput("output binding enabled but witness.output_binding is None".into())
                 })?;
 
-                cfg.program_io
-                    .validate(cfg.num_bits)
-                    .map_err(|e| SpartanBridgeError::InvalidInput(format!("invalid ProgramIO for output binding: {e:?}")))?;
+                cfg.program_io.validate(cfg.num_bits).map_err(|e| {
+                    SpartanBridgeError::InvalidInput(format!("invalid ProgramIO for output binding: {e:?}"))
+                })?;
 
                 let mut claims: Vec<(u64, bellpepper_core::Variable, NeoF)> =
                     Vec::with_capacity(cfg.program_io.num_claims());
@@ -241,12 +238,9 @@ impl FoldRunCircuit {
                     claims.push((addr, var, val));
                 }
 
-                let mut io_tr = Poseidon2TranscriptVar::new(
-                    cs,
-                    b"neo/spartan-bridge/program_io_digest/v1",
-                    "program_io_digest_v1",
-                )
-                .map_err(SpartanBridgeError::BellpepperError)?;
+                let mut io_tr =
+                    Poseidon2TranscriptVar::new(cs, b"neo/spartan-bridge/program_io_digest/v1", "program_io_digest_v1")
+                        .map_err(SpartanBridgeError::BellpepperError)?;
                 io_tr
                     .append_u64s(
                         cs,
@@ -319,16 +313,23 @@ impl FoldRunCircuit {
             let is_last = step_idx + 1 == witness.fold_run.steps.len();
             let output_binding = if self.instance.statement.output_binding_enabled && is_last {
                 Some((
-                    witness
-                        .output_binding
-                        .as_ref()
-                        .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding enabled but witness.output_binding is None".into()))?,
+                    witness.output_binding.as_ref().ok_or_else(|| {
+                        SpartanBridgeError::InvalidInput(
+                            "output binding enabled but witness.output_binding is None".into(),
+                        )
+                    })?,
                     witness.fold_run.output_proof.as_ref().ok_or_else(|| {
-                        SpartanBridgeError::InvalidInput("output binding enabled but fold_run.output_proof is None".into())
+                        SpartanBridgeError::InvalidInput(
+                            "output binding enabled but fold_run.output_proof is None".into(),
+                        )
                     })?,
                     program_io_claims
                         .as_ref()
-                        .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding enabled but program_io_claims is None".into()))?
+                        .ok_or_else(|| {
+                            SpartanBridgeError::InvalidInput(
+                                "output binding enabled but program_io_claims is None".into(),
+                            )
+                        })?
                         .as_slice(),
                 ))
             } else {
@@ -342,12 +343,9 @@ impl FoldRunCircuit {
             let prev_step_public = if step_idx == 0 {
                 None
             } else {
-                Some(
-                    witness
-                        .steps_public
-                        .get(step_idx - 1)
-                        .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("missing steps_public[{}]", step_idx - 1)))?,
-                )
+                Some(witness.steps_public.get(step_idx - 1).ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!("missing steps_public[{}]", step_idx - 1))
+                })?)
             };
 
             let (next_inputs_vars, mcs_vars, val_children_vars) = self.verify_fold_step_route_a(
@@ -492,12 +490,7 @@ impl FoldRunCircuit {
 
         let y = helpers::alloc_y_table_from_neo(cs, &me.y, &format!("{}_y", label))?;
 
-        Ok(MeInstanceVars {
-            c_data,
-            X,
-            r,
-            y,
-        })
+        Ok(MeInstanceVars { c_data, X, r, y })
     }
 
     fn enforce_accumulator_digest_v2<CS: ConstraintSystem<CircuitF>>(
@@ -539,19 +532,23 @@ impl FoldRunCircuit {
                 |lc| lc + CS::one(),
                 |lc| lc + (x_val, CS::one()),
             );
-            sponge.absorb(cs, x).map_err(SpartanBridgeError::BellpepperError)?;
+            sponge
+                .absorb(cs, x)
+                .map_err(SpartanBridgeError::BellpepperError)?;
         }
 
         let len_val = CircuitF::from(acc_vals.len() as u64);
-        let len_num =
-            AllocatedNum::alloc(cs.namespace(|| format!("{label}_len")), || Ok(len_val)).map_err(SpartanBridgeError::BellpepperError)?;
+        let len_num = AllocatedNum::alloc(cs.namespace(|| format!("{label}_len")), || Ok(len_val))
+            .map_err(SpartanBridgeError::BellpepperError)?;
         cs.enforce(
             || format!("{label}_len_is_const"),
             |lc| lc + len_num.get_variable(),
             |lc| lc + CS::one(),
             |lc| lc + (len_val, CS::one()),
         );
-        sponge.absorb(cs, len_num).map_err(SpartanBridgeError::BellpepperError)?;
+        sponge
+            .absorb(cs, len_num)
+            .map_err(SpartanBridgeError::BellpepperError)?;
 
         for (me_idx, (me_val, me_var)) in acc_vals.iter().zip(acc_vars.iter()).enumerate() {
             let m_in_val = CircuitF::from(me_val.m_in as u64);
@@ -563,7 +560,9 @@ impl FoldRunCircuit {
                 |lc| lc + CS::one(),
                 |lc| lc + (m_in_val, CS::one()),
             );
-            sponge.absorb(cs, m_in).map_err(SpartanBridgeError::BellpepperError)?;
+            sponge
+                .absorb(cs, m_in)
+                .map_err(SpartanBridgeError::BellpepperError)?;
 
             // Commitment data (c_data)
             let c_len_val = CircuitF::from(me_val.c.data.len() as u64);
@@ -575,7 +574,9 @@ impl FoldRunCircuit {
                 |lc| lc + CS::one(),
                 |lc| lc + (c_len_val, CS::one()),
             );
-            sponge.absorb(cs, c_len).map_err(SpartanBridgeError::BellpepperError)?;
+            sponge
+                .absorb(cs, c_len)
+                .map_err(SpartanBridgeError::BellpepperError)?;
 
             if me_val.c.data.len() != me_var.c_data.len() {
                 return Err(SpartanBridgeError::InvalidInput(format!(
@@ -594,7 +595,9 @@ impl FoldRunCircuit {
                     |lc| lc + CS::one(),
                     |lc| lc + me_var.c_data[i],
                 );
-                sponge.absorb(cs, num).map_err(SpartanBridgeError::BellpepperError)?;
+                sponge
+                    .absorb(cs, num)
+                    .map_err(SpartanBridgeError::BellpepperError)?;
             }
 
             // X matrix
@@ -602,27 +605,33 @@ impl FoldRunCircuit {
             let x_cols = me_val.X.cols();
             let x_rows_val = CircuitF::from(x_rows as u64);
             let x_cols_val = CircuitF::from(x_cols as u64);
-            let x_rows_num =
-                AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_X_rows")), || Ok(x_rows_val))
-                    .map_err(SpartanBridgeError::BellpepperError)?;
+            let x_rows_num = AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_X_rows")), || {
+                Ok(x_rows_val)
+            })
+            .map_err(SpartanBridgeError::BellpepperError)?;
             cs.enforce(
                 || format!("{label}_me_{me_idx}_X_rows_is_const"),
                 |lc| lc + x_rows_num.get_variable(),
                 |lc| lc + CS::one(),
                 |lc| lc + (x_rows_val, CS::one()),
             );
-            sponge.absorb(cs, x_rows_num).map_err(SpartanBridgeError::BellpepperError)?;
+            sponge
+                .absorb(cs, x_rows_num)
+                .map_err(SpartanBridgeError::BellpepperError)?;
 
-            let x_cols_num =
-                AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_X_cols")), || Ok(x_cols_val))
-                    .map_err(SpartanBridgeError::BellpepperError)?;
+            let x_cols_num = AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_X_cols")), || {
+                Ok(x_cols_val)
+            })
+            .map_err(SpartanBridgeError::BellpepperError)?;
             cs.enforce(
                 || format!("{label}_me_{me_idx}_X_cols_is_const"),
                 |lc| lc + x_cols_num.get_variable(),
                 |lc| lc + CS::one(),
                 |lc| lc + (x_cols_val, CS::one()),
             );
-            sponge.absorb(cs, x_cols_num).map_err(SpartanBridgeError::BellpepperError)?;
+            sponge
+                .absorb(cs, x_cols_num)
+                .map_err(SpartanBridgeError::BellpepperError)?;
 
             if me_var.X.len() != x_rows || (!me_var.X.is_empty() && me_var.X[0].len() != x_cols) {
                 return Err(SpartanBridgeError::InvalidInput(format!(
@@ -632,16 +641,17 @@ impl FoldRunCircuit {
             for r in 0..x_rows {
                 for c in 0..x_cols {
                     let v = CircuitF::from(me_val.X[(r, c)].as_canonical_u64());
-                    let num =
-                        AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_X_{r}_{c}")), || Ok(v))
-                            .map_err(SpartanBridgeError::BellpepperError)?;
+                    let num = AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_X_{r}_{c}")), || Ok(v))
+                        .map_err(SpartanBridgeError::BellpepperError)?;
                     cs.enforce(
                         || format!("{label}_me_{me_idx}_X_{r}_{c}_eq"),
                         |lc| lc + num.get_variable(),
                         |lc| lc + CS::one(),
                         |lc| lc + me_var.X[r][c],
                     );
-                    sponge.absorb(cs, num).map_err(SpartanBridgeError::BellpepperError)?;
+                    sponge
+                        .absorb(cs, num)
+                        .map_err(SpartanBridgeError::BellpepperError)?;
                 }
             }
 
@@ -654,7 +664,9 @@ impl FoldRunCircuit {
                 |lc| lc + CS::one(),
                 |lc| lc + (r_len_val, CS::one()),
             );
-            sponge.absorb(cs, r_len).map_err(SpartanBridgeError::BellpepperError)?;
+            sponge
+                .absorb(cs, r_len)
+                .map_err(SpartanBridgeError::BellpepperError)?;
 
             if me_val.r.len() != me_var.r.len() {
                 return Err(SpartanBridgeError::InvalidInput(format!(
@@ -675,7 +687,9 @@ impl FoldRunCircuit {
                     |lc| lc + CS::one(),
                     |lc| lc + me_var.r[i].c0,
                 );
-                sponge.absorb(cs, c0).map_err(SpartanBridgeError::BellpepperError)?;
+                sponge
+                    .absorb(cs, c0)
+                    .map_err(SpartanBridgeError::BellpepperError)?;
 
                 let c1_val = CircuitF::from(coeffs[1].as_canonical_u64());
                 let c1 = AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_r_{i}_c1")), || Ok(c1_val))
@@ -686,7 +700,9 @@ impl FoldRunCircuit {
                     |lc| lc + CS::one(),
                     |lc| lc + me_var.r[i].c1,
                 );
-                sponge.absorb(cs, c1).map_err(SpartanBridgeError::BellpepperError)?;
+                sponge
+                    .absorb(cs, c1)
+                    .map_err(SpartanBridgeError::BellpepperError)?;
             }
 
             let y_len_val = CircuitF::from(me_val.y.len() as u64);
@@ -698,7 +714,9 @@ impl FoldRunCircuit {
                 |lc| lc + CS::one(),
                 |lc| lc + (y_len_val, CS::one()),
             );
-            sponge.absorb(cs, y_len).map_err(SpartanBridgeError::BellpepperError)?;
+            sponge
+                .absorb(cs, y_len)
+                .map_err(SpartanBridgeError::BellpepperError)?;
 
             if me_val.y.len() != me_var.y.len() {
                 return Err(SpartanBridgeError::InvalidInput(format!(
@@ -710,47 +728,55 @@ impl FoldRunCircuit {
 
             for (j, (row_val, row_var)) in me_val.y.iter().zip(me_var.y.iter()).enumerate() {
                 let row_len_val = CircuitF::from(row_val.len() as u64);
-                let row_len = AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_y_{j}_len")), || Ok(row_len_val))
-                    .map_err(SpartanBridgeError::BellpepperError)?;
+                let row_len = AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_y_{j}_len")), || {
+                    Ok(row_len_val)
+                })
+                .map_err(SpartanBridgeError::BellpepperError)?;
                 cs.enforce(
                     || format!("{label}_me_{me_idx}_y_{j}_len_is_const"),
                     |lc| lc + row_len.get_variable(),
                     |lc| lc + CS::one(),
                     |lc| lc + (row_len_val, CS::one()),
                 );
-                sponge.absorb(cs, row_len).map_err(SpartanBridgeError::BellpepperError)?;
+                sponge
+                    .absorb(cs, row_len)
+                    .map_err(SpartanBridgeError::BellpepperError)?;
 
                 let limit = core::cmp::min(row_val.len(), row_var.len());
                 for rho in 0..limit {
                     let coeffs = row_val[rho].as_coeffs();
 
                     let c0_val = CircuitF::from(coeffs[0].as_canonical_u64());
-                    let c0 = AllocatedNum::alloc(
-                        cs.namespace(|| format!("{label}_me_{me_idx}_y_{j}_{rho}_c0")),
-                        || Ok(c0_val),
-                    )
-                    .map_err(SpartanBridgeError::BellpepperError)?;
+                    let c0 =
+                        AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_y_{j}_{rho}_c0")), || {
+                            Ok(c0_val)
+                        })
+                        .map_err(SpartanBridgeError::BellpepperError)?;
                     cs.enforce(
                         || format!("{label}_me_{me_idx}_y_{j}_{rho}_c0_eq"),
                         |lc| lc + c0.get_variable(),
                         |lc| lc + CS::one(),
                         |lc| lc + row_var[rho].c0,
                     );
-                    sponge.absorb(cs, c0).map_err(SpartanBridgeError::BellpepperError)?;
+                    sponge
+                        .absorb(cs, c0)
+                        .map_err(SpartanBridgeError::BellpepperError)?;
 
                     let c1_val = CircuitF::from(coeffs[1].as_canonical_u64());
-                    let c1 = AllocatedNum::alloc(
-                        cs.namespace(|| format!("{label}_me_{me_idx}_y_{j}_{rho}_c1")),
-                        || Ok(c1_val),
-                    )
-                    .map_err(SpartanBridgeError::BellpepperError)?;
+                    let c1 =
+                        AllocatedNum::alloc(cs.namespace(|| format!("{label}_me_{me_idx}_y_{j}_{rho}_c1")), || {
+                            Ok(c1_val)
+                        })
+                        .map_err(SpartanBridgeError::BellpepperError)?;
                     cs.enforce(
                         || format!("{label}_me_{me_idx}_y_{j}_{rho}_c1_eq"),
                         |lc| lc + c1.get_variable(),
                         |lc| lc + CS::one(),
                         |lc| lc + row_var[rho].c1,
                     );
-                    sponge.absorb(cs, c1).map_err(SpartanBridgeError::BellpepperError)?;
+                    sponge
+                        .absorb(cs, c1)
+                        .map_err(SpartanBridgeError::BellpepperError)?;
                 }
 
                 if row_val.len() != row_var.len() {
@@ -792,11 +818,7 @@ impl FoldRunCircuit {
                     pw *= bK;
                 }
 
-                let y_scalar_var = helpers::alloc_k_from_neo(
-                    cs,
-                    acc_k,
-                    &format!("{label}_me_{me_idx}_y_scalar_{j}"),
-                )?;
+                let y_scalar_var = helpers::alloc_k_from_neo(cs, acc_k, &format!("{label}_me_{me_idx}_y_scalar_{j}"))?;
 
                 // Enforce recomposition from digits (first D entries).
                 cs.enforce(
@@ -841,7 +863,9 @@ impl FoldRunCircuit {
                     |lc| lc + CS::one(),
                     |lc| lc + y_scalar_var.c0,
                 );
-                sponge.absorb(cs, c0).map_err(SpartanBridgeError::BellpepperError)?;
+                sponge
+                    .absorb(cs, c0)
+                    .map_err(SpartanBridgeError::BellpepperError)?;
 
                 let c1_val = CircuitF::from(coeffs[1].as_canonical_u64());
                 let c1 = AllocatedNum::alloc(
@@ -855,7 +879,9 @@ impl FoldRunCircuit {
                     |lc| lc + CS::one(),
                     |lc| lc + y_scalar_var.c1,
                 );
-                sponge.absorb(cs, c1).map_err(SpartanBridgeError::BellpepperError)?;
+                sponge
+                    .absorb(cs, c1)
+                    .map_err(SpartanBridgeError::BellpepperError)?;
             }
         }
 
@@ -939,13 +965,10 @@ impl FoldRunCircuit {
                     "output binding requires at least one step".into(),
                 ));
             }
-            let cfg = witness
-                .output_binding
-                .as_ref()
-                .expect("checked above");
-            cfg.program_io
-                .validate(cfg.num_bits)
-                .map_err(|e| SpartanBridgeError::InvalidInput(format!("invalid ProgramIO for output binding: {e:?}")))?;
+            let cfg = witness.output_binding.as_ref().expect("checked above");
+            cfg.program_io.validate(cfg.num_bits).map_err(|e| {
+                SpartanBridgeError::InvalidInput(format!("invalid ProgramIO for output binding: {e:?}"))
+            })?;
 
             let last_step_public = witness
                 .steps_public
@@ -1005,11 +1028,7 @@ impl FoldRunCircuit {
                 .len()
                 .checked_sub(1)
                 .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding: missing inc_total claim".into()))?;
-            if last_step_proof
-                .batched_time
-                .labels
-                .get(inc_idx)
-                .copied()
+            if last_step_proof.batched_time.labels.get(inc_idx).copied()
                 != Some(neo_fold::output_binding::OB_INC_TOTAL_LABEL)
             {
                 return Err(SpartanBridgeError::InvalidInput(
@@ -1162,8 +1181,10 @@ impl FoldRunCircuit {
             for bit_idx in 0..8 {
                 let bit_hint = ((hint >> bit_idx) & 1) as u64;
                 let bit_val = CircuitF::from(bit_hint);
-                let bit =
-                    AllocatedNum::alloc(cs.namespace(|| format!("{label}_byte_{byte_idx}_bit_{bit_idx}")), || Ok(bit_val))?;
+                let bit = AllocatedNum::alloc(
+                    cs.namespace(|| format!("{label}_byte_{byte_idx}_bit_{bit_idx}")),
+                    || Ok(bit_val),
+                )?;
                 // bit is boolean: bit*(bit-1)=0
                 cs.enforce(
                     || format!("{label}_byte_{byte_idx}_bit_{bit_idx}_bool"),
@@ -1220,17 +1241,17 @@ impl FoldRunCircuit {
             let (hi32_hint_u64, lo32_hint_u64) = if let Some(h) = hint_bytes {
                 let limb_off = limb_idx * 8;
                 let lo = u32::from_le_bytes([h[limb_off], h[limb_off + 1], h[limb_off + 2], h[limb_off + 3]]) as u64;
-                let hi = u32::from_le_bytes([h[limb_off + 4], h[limb_off + 5], h[limb_off + 6], h[limb_off + 7]]) as u64;
+                let hi =
+                    u32::from_le_bytes([h[limb_off + 4], h[limb_off + 5], h[limb_off + 6], h[limb_off + 7]]) as u64;
                 (hi, lo)
             } else {
                 (0u64, 0u64)
             };
 
             let is_hi_ff_hint = if hi32_hint_u64 == 0xFFFF_FFFF { 1u64 } else { 0u64 };
-            let is_hi_ff =
-                AllocatedNum::alloc(cs.namespace(|| format!("{label}_limb_{limb_idx}_is_hi_ff")), || {
-                    Ok(CircuitF::from(is_hi_ff_hint))
-                })?;
+            let is_hi_ff = AllocatedNum::alloc(cs.namespace(|| format!("{label}_limb_{limb_idx}_is_hi_ff")), || {
+                Ok(CircuitF::from(is_hi_ff_hint))
+            })?;
             // boolean
             cs.enforce(
                 || format!("{label}_limb_{limb_idx}_is_hi_ff_bool"),
@@ -1261,7 +1282,9 @@ impl FoldRunCircuit {
             // Inverse witness for diff = (hi32 - 0xFFFF_FFFF), with 0 when diff == 0.
             let diff_hint = CircuitF::from(hi32_hint_u64) - CircuitF::from(0xFFFF_FFFFu64);
             let inv_hint: CircuitF = Option::from(diff_hint.invert()).unwrap_or(CircuitF::from(0u64));
-            let inv = AllocatedNum::alloc(cs.namespace(|| format!("{label}_limb_{limb_idx}_hi_diff_inv")), || Ok(inv_hint))?;
+            let inv = AllocatedNum::alloc(cs.namespace(|| format!("{label}_limb_{limb_idx}_hi_diff_inv")), || {
+                Ok(inv_hint)
+            })?;
 
             // Enforce: (hi32 - 0xFFFF_FFFF) * inv = 1 - is_hi_ff
             let minus_one = CircuitF::from(0u64) - CircuitF::from(1u64);
@@ -1354,8 +1377,10 @@ impl FoldRunCircuit {
         let bytes = v.to_le_bytes();
         let mut out = Vec::with_capacity(8);
         for (i, b) in bytes.iter().enumerate() {
-            let num = AllocatedNum::alloc(cs.namespace(|| format!("{label}_byte_{i}")), || Ok(CircuitF::from(*b as u64)))
-                .map_err(SpartanBridgeError::BellpepperError)?;
+            let num = AllocatedNum::alloc(cs.namespace(|| format!("{label}_byte_{i}")), || {
+                Ok(CircuitF::from(*b as u64))
+            })
+            .map_err(SpartanBridgeError::BellpepperError)?;
             out.push(num);
         }
         out.try_into()
@@ -1419,7 +1444,9 @@ impl FoldRunCircuit {
         h.append_fields_allocated(cs, b"digest/fields", &fs_alloc, &format!("{ctx}_digest_fields"))
             .map_err(SpartanBridgeError::BellpepperError)?;
 
-        let limbs = h.digest32(cs, &format!("{ctx}_digest32")).map_err(SpartanBridgeError::BellpepperError)?;
+        let limbs = h
+            .digest32(cs, &format!("{ctx}_digest32"))
+            .map_err(SpartanBridgeError::BellpepperError)?;
         self.alloc_digest32_bytes_from_limbs(cs, &limbs, Some(&hint), ctx)
     }
 
@@ -1631,8 +1658,12 @@ impl FoldRunCircuit {
                 &format!("{ctx}_lut_{lut_idx}_table_spec"),
             )?;
 
-            let table_digest_bytes =
-                self.digest_fields_bytes32(cs, b"shout/table", inst.table.as_slice(), &format!("{ctx}_lut_{lut_idx}_table_digest"))?;
+            let table_digest_bytes = self.digest_fields_bytes32(
+                cs,
+                b"shout/table",
+                inst.table.as_slice(),
+                &format!("{ctx}_lut_{lut_idx}_table_digest"),
+            )?;
             tr.append_message_bytes_allocated(
                 cs,
                 b"shout/table_digest",
@@ -1753,8 +1784,12 @@ impl FoldRunCircuit {
                 }
             };
 
-            let init_digest_bytes =
-                self.digest_fields_bytes32(cs, init_label, init_fields.as_slice(), &format!("{ctx}_mem_{mem_idx}_init_digest"))?;
+            let init_digest_bytes = self.digest_fields_bytes32(
+                cs,
+                init_label,
+                init_fields.as_slice(),
+                &format!("{ctx}_mem_{mem_idx}_init_digest"),
+            )?;
             tr.append_message_bytes_allocated(
                 cs,
                 b"twist/init_digest",
@@ -1869,7 +1904,11 @@ impl FoldRunCircuit {
 
         // MCS instance fields are witness-provided (absorb as vars, not constants).
         use p3_field::PrimeField64;
-        let x_vals: Vec<CircuitF> = mcs_inst.x.iter().map(|x| CircuitF::from(x.as_canonical_u64())).collect();
+        let x_vals: Vec<CircuitF> = mcs_inst
+            .x
+            .iter()
+            .map(|x| CircuitF::from(x.as_canonical_u64()))
+            .collect();
         let mut x_vars = Vec::with_capacity(x_vals.len());
         for (i, &xv) in x_vals.iter().enumerate() {
             x_vars.push(cs.alloc(|| format!("step_{step_idx}_mcs_x_{i}"), || Ok(xv))?);
@@ -1893,7 +1932,10 @@ impl FoldRunCircuit {
         tr.append_fields_vars(cs, b"c_data", &c_vars, &c_vals, &format!("{ctx}_mcs_c"))
             .map_err(SpartanBridgeError::BellpepperError)?;
 
-        Ok(McsInstanceVars { x: x_vars, c_data: c_vars })
+        Ok(McsInstanceVars {
+            x: x_vars,
+            c_data: c_vars,
+        })
     }
 
     fn bind_me_inputs_v2<CS: ConstraintSystem<CircuitF>>(
@@ -1921,7 +1963,12 @@ impl FoldRunCircuit {
         for (me_idx, (me_val, me_var)) in me_inputs_vals.iter().zip(me_inputs_vars.iter()).enumerate() {
             // c_data_in
             use p3_field::PrimeField64;
-            let c_vals: Vec<CircuitF> = me_val.c.data.iter().map(|c| CircuitF::from(c.as_canonical_u64())).collect();
+            let c_vals: Vec<CircuitF> = me_val
+                .c
+                .data
+                .iter()
+                .map(|c| CircuitF::from(c.as_canonical_u64()))
+                .collect();
             tr.append_fields_vars(
                 cs,
                 b"c_data_in",
@@ -1950,14 +1997,8 @@ impl FoldRunCircuit {
                 r_vars.push(me_var.r[limb_idx].c1);
                 r_vals.push(CircuitF::from(coeffs[1].as_canonical_u64()));
             }
-            tr.append_fields_vars(
-                cs,
-                b"r_in",
-                &r_vars,
-                &r_vals,
-                &format!("{ctx}_me_{me_idx}_r_in"),
-            )
-            .map_err(SpartanBridgeError::BellpepperError)?;
+            tr.append_fields_vars(cs, b"r_in", &r_vars, &r_vals, &format!("{ctx}_me_{me_idx}_r_in"))
+                .map_err(SpartanBridgeError::BellpepperError)?;
 
             // y_elem: flatten coeffs for all elements in all rows.
             let mut y_vars: Vec<bellpepper_core::Variable> = Vec::new();
@@ -1971,14 +2012,8 @@ impl FoldRunCircuit {
                     y_vals.push(CircuitF::from(coeffs[1].as_canonical_u64()));
                 }
             }
-            tr.append_fields_vars(
-                cs,
-                b"y_elem",
-                &y_vars,
-                &y_vals,
-                &format!("{ctx}_me_{me_idx}_y_elem"),
-            )
-            .map_err(SpartanBridgeError::BellpepperError)?;
+            tr.append_fields_vars(cs, b"y_elem", &y_vars, &y_vals, &format!("{ctx}_me_{me_idx}_y_elem"))
+                .map_err(SpartanBridgeError::BellpepperError)?;
         }
 
         Ok(())
@@ -2039,7 +2074,7 @@ impl FoldRunCircuit {
         len: usize,
         ctx: &str,
     ) -> std::result::Result<(Vec<KNumVar>, Vec<neo_math::K>), SynthesisError> {
-        use neo_math::{F as NeoF, KExtensions};
+        use neo_math::{KExtensions, F as NeoF};
 
         let mut out_vars = Vec::with_capacity(len);
         let mut out_vals = Vec::with_capacity(len);
@@ -2048,9 +2083,18 @@ impl FoldRunCircuit {
             let c0 = tr.challenge_field(cs, coord0_label, ctx)?;
             let c1 = tr.challenge_field(cs, coord1_label, ctx)?;
 
-            let c0_u64 = c0.get_value().unwrap_or(CircuitF::from(0u64)).to_canonical_u64();
-            let c1_u64 = c1.get_value().unwrap_or(CircuitF::from(0u64)).to_canonical_u64();
-            out_vals.push(neo_math::K::from_coeffs([NeoF::from_u64(c0_u64), NeoF::from_u64(c1_u64)]));
+            let c0_u64 = c0
+                .get_value()
+                .unwrap_or(CircuitF::from(0u64))
+                .to_canonical_u64();
+            let c1_u64 = c1
+                .get_value()
+                .unwrap_or(CircuitF::from(0u64))
+                .to_canonical_u64();
+            out_vals.push(neo_math::K::from_coeffs([
+                NeoF::from_u64(c0_u64),
+                NeoF::from_u64(c1_u64),
+            ]));
 
             out_vars.push(KNumVar {
                 c0: c0.get_variable(),
@@ -2094,7 +2138,13 @@ impl FoldRunCircuit {
             |lc| lc + out1_var,
         );
 
-        Ok((KNumVar { c0: out0_var, c1: out1_var }, out_val))
+        Ok((
+            KNumVar {
+                c0: out0_var,
+                c1: out1_var,
+            },
+            out_val,
+        ))
     }
 
     fn verify_output_sumcheck_rounds_get_state<CS: ConstraintSystem<CircuitF>>(
@@ -2106,7 +2156,7 @@ impl FoldRunCircuit {
         program_io_claims: &[(u64, bellpepper_core::Variable, NeoF)],
         round_polys: &[Vec<neo_math::K>],
     ) -> Result<OutputSumcheckStateVars> {
-        use neo_math::{from_complex, F as NeoF, K as NeoK, KExtensions};
+        use neo_math::{from_complex, KExtensions, F as NeoF, K as NeoK};
         use p3_field::PrimeField64;
 
         let ctx = format!("step_{step_idx}_output_sumcheck");
@@ -2202,7 +2252,10 @@ impl FoldRunCircuit {
             // Absorb coeffs into transcript under `output_check/round_coeff` (one append_fields per coeff).
             for (coeff_idx, (coeff_var, &coeff_val)) in coeff_vars.iter().zip(coeffs.iter()).enumerate() {
                 let c = coeff_val.as_coeffs();
-                let vals = [CircuitF::from(c[0].as_canonical_u64()), CircuitF::from(c[1].as_canonical_u64())];
+                let vals = [
+                    CircuitF::from(c[0].as_canonical_u64()),
+                    CircuitF::from(c[1].as_canonical_u64()),
+                ];
                 tr.append_fields_vars(
                     cs,
                     b"output_check/round_coeff",
@@ -2224,8 +2277,14 @@ impl FoldRunCircuit {
                 c0: c0.get_variable(),
                 c1: c1.get_variable(),
             };
-            let c0_u64 = c0.get_value().unwrap_or(CircuitF::from(0u64)).to_canonical_u64();
-            let c1_u64 = c1.get_value().unwrap_or(CircuitF::from(0u64)).to_canonical_u64();
+            let c0_u64 = c0
+                .get_value()
+                .unwrap_or(CircuitF::from(0u64))
+                .to_canonical_u64();
+            let c1_u64 = c1
+                .get_value()
+                .unwrap_or(CircuitF::from(0u64))
+                .to_canonical_u64();
             let r_val = from_complex(NeoF::from_u64(c0_u64), NeoF::from_u64(c1_u64));
             r_prime_vars.push(r_var.clone());
             r_prime_vals.push(r_val);
@@ -2317,8 +2376,14 @@ impl FoldRunCircuit {
             )
             .map_err(SpartanBridgeError::BellpepperError)?;
 
-            let (scaled, scaled_val) =
-                Self::k_mul_by_f_var_with_hint(cs, &chi_var, chi_val, *val_var, *val_f, &format!("{ctx}_val_io_mul_{claim_idx}"))?;
+            let (scaled, scaled_val) = Self::k_mul_by_f_var_with_hint(
+                cs,
+                &chi_var,
+                chi_val,
+                *val_var,
+                *val_f,
+                &format!("{ctx}_val_io_mul_{claim_idx}"),
+            )?;
             val_io_val += scaled_val;
             val_io_var = k_add_raw(
                 cs,
@@ -2455,18 +2520,19 @@ impl FoldRunCircuit {
 
         let minus_one = CircuitF::from(0u64) - CircuitF::from(1u64);
 
-        let alloc_bit = |cs: &mut CS, bit: bool, label: String| -> std::result::Result<bellpepper_core::Variable, SynthesisError> {
-            let v = CircuitF::from(if bit { 1u64 } else { 0u64 });
-            let var = cs.alloc(|| label.clone(), || Ok(v))?;
-            // var * (var - 1) == 0
-            cs.enforce(
-                || format!("{label}_is_bit"),
-                |lc| lc + var,
-                |lc| lc + var + (minus_one, CS::one()),
-                |lc| lc,
-            );
-            Ok(var)
-        };
+        let alloc_bit =
+            |cs: &mut CS, bit: bool, label: String| -> std::result::Result<bellpepper_core::Variable, SynthesisError> {
+                let v = CircuitF::from(if bit { 1u64 } else { 0u64 });
+                let var = cs.alloc(|| label.clone(), || Ok(v))?;
+                // var * (var - 1) == 0
+                cs.enforce(
+                    || format!("{label}_is_bit"),
+                    |lc| lc + var,
+                    |lc| lc + var + (minus_one, CS::one()),
+                    |lc| lc,
+                );
+                Ok(var)
+            };
 
         // Special case: Π_RLC(k=1) uses identity, but still consumes transcript randomness.
         if rho_vars.len() == 1 {
@@ -2484,7 +2550,11 @@ impl FoldRunCircuit {
             // Enforce ρ = I_D.
             for r in 0..D {
                 for c in 0..D {
-                    let want = if r == c { CircuitF::from(1u64) } else { CircuitF::from(0u64) };
+                    let want = if r == c {
+                        CircuitF::from(1u64)
+                    } else {
+                        CircuitF::from(0u64)
+                    };
                     cs.enforce(
                         || format!("{ctx}_rho0_identity_r{r}_c{c}"),
                         |lc| lc + rho_vars[0][r][c],
@@ -2498,13 +2568,8 @@ impl FoldRunCircuit {
 
         // For k>1, enforce: ρ_i == rot(a_i) where a_i coeffs are sampled from transcript.
         for (rho_idx, rho) in rho_vars.iter().enumerate() {
-            tr.append_message(
-                cs,
-                b"rlc/rot/index",
-                &(rho_idx as u64).to_le_bytes(),
-                &ctx,
-            )
-            .map_err(SpartanBridgeError::BellpepperError)?;
+            tr.append_message(cs, b"rlc/rot/index", &(rho_idx as u64).to_le_bytes(), &ctx)
+                .map_err(SpartanBridgeError::BellpepperError)?;
 
             // 1) Enforce column 0 coefficients a[0..D) match transcript-derived u16 % 5 mapping.
             //
@@ -2568,50 +2633,22 @@ impl FoldRunCircuit {
                         let r = (sum_nibbles % ALPHABET_M) as u8;
 
                         // Remainder r in [0..5): 3 bits with an extra constraint to exclude 5..7.
-                        let r0 = alloc_bit(
-                            cs,
-                            (r & 1) != 0,
-                            format!("{ctx}_rho{rho_idx}_row{row_idx}_r0"),
-                        )
-                        .map_err(SpartanBridgeError::BellpepperError)?;
-                        let r1 = alloc_bit(
-                            cs,
-                            ((r >> 1) & 1) != 0,
-                            format!("{ctx}_rho{rho_idx}_row{row_idx}_r1"),
-                        )
-                        .map_err(SpartanBridgeError::BellpepperError)?;
-                        let r2 = alloc_bit(
-                            cs,
-                            ((r >> 2) & 1) != 0,
-                            format!("{ctx}_rho{rho_idx}_row{row_idx}_r2"),
-                        )
-                        .map_err(SpartanBridgeError::BellpepperError)?;
+                        let r0 = alloc_bit(cs, (r & 1) != 0, format!("{ctx}_rho{rho_idx}_row{row_idx}_r0"))
+                            .map_err(SpartanBridgeError::BellpepperError)?;
+                        let r1 = alloc_bit(cs, ((r >> 1) & 1) != 0, format!("{ctx}_rho{rho_idx}_row{row_idx}_r1"))
+                            .map_err(SpartanBridgeError::BellpepperError)?;
+                        let r2 = alloc_bit(cs, ((r >> 2) & 1) != 0, format!("{ctx}_rho{rho_idx}_row{row_idx}_r2"))
+                            .map_err(SpartanBridgeError::BellpepperError)?;
 
                         // Quotient q for sum_nibbles / 5: 4 bits (0..12).
-                        let q0 = alloc_bit(
-                            cs,
-                            (q & 1) != 0,
-                            format!("{ctx}_rho{rho_idx}_row{row_idx}_q0"),
-                        )
-                        .map_err(SpartanBridgeError::BellpepperError)?;
-                        let q1 = alloc_bit(
-                            cs,
-                            ((q >> 1) & 1) != 0,
-                            format!("{ctx}_rho{rho_idx}_row{row_idx}_q1"),
-                        )
-                        .map_err(SpartanBridgeError::BellpepperError)?;
-                        let q2 = alloc_bit(
-                            cs,
-                            ((q >> 2) & 1) != 0,
-                            format!("{ctx}_rho{rho_idx}_row{row_idx}_q2"),
-                        )
-                        .map_err(SpartanBridgeError::BellpepperError)?;
-                        let q3 = alloc_bit(
-                            cs,
-                            ((q >> 3) & 1) != 0,
-                            format!("{ctx}_rho{rho_idx}_row{row_idx}_q3"),
-                        )
-                        .map_err(SpartanBridgeError::BellpepperError)?;
+                        let q0 = alloc_bit(cs, (q & 1) != 0, format!("{ctx}_rho{rho_idx}_row{row_idx}_q0"))
+                            .map_err(SpartanBridgeError::BellpepperError)?;
+                        let q1 = alloc_bit(cs, ((q >> 1) & 1) != 0, format!("{ctx}_rho{rho_idx}_row{row_idx}_q1"))
+                            .map_err(SpartanBridgeError::BellpepperError)?;
+                        let q2 = alloc_bit(cs, ((q >> 2) & 1) != 0, format!("{ctx}_rho{rho_idx}_row{row_idx}_q2"))
+                            .map_err(SpartanBridgeError::BellpepperError)?;
+                        let q3 = alloc_bit(cs, ((q >> 3) & 1) != 0, format!("{ctx}_rho{rho_idx}_row{row_idx}_q3"))
+                            .map_err(SpartanBridgeError::BellpepperError)?;
 
                         // r2 * (r0 + r1) == 0 enforces r ∈ {0,1,2,3,4}.
                         cs.enforce(
@@ -2697,7 +2734,11 @@ impl FoldRunCircuit {
                 for r in 1..D {
                     // Enforce: next[r] = prev[r-1] - c_r * last, where c_r is the Φ coefficient.
                     // For Φ(X)=X^54 + X^27 + 1: c_27 = 1, others 0.
-                    let c_r = if r == 27 { CircuitF::from(1u64) } else { CircuitF::from(0u64) };
+                    let c_r = if r == 27 {
+                        CircuitF::from(1u64)
+                    } else {
+                        CircuitF::from(0u64)
+                    };
                     cs.enforce(
                         || format!("{ctx}_rho{rho_idx}_shift_col{col}_r{r}"),
                         |lc| {
@@ -2756,10 +2797,14 @@ impl FoldRunCircuit {
         tr.append_u64s(cs, b"me_count", &[me_inputs.len() as u64], &ctx)
             .map_err(SpartanBridgeError::BellpepperError)?;
 
-        use neo_math::{F as NeoF, K as NeoK, KExtensions};
+        use neo_math::{KExtensions, F as NeoF, K as NeoK};
         use p3_field::PrimeField64;
         for (me_idx, (me, me_var)) in me_inputs.iter().zip(me_inputs_vars.iter()).enumerate() {
-            let c_vals: Vec<CircuitF> = me.c.data.iter().map(|c| CircuitF::from(c.as_canonical_u64())).collect();
+            let c_vals: Vec<CircuitF> =
+                me.c.data
+                    .iter()
+                    .map(|c| CircuitF::from(c.as_canonical_u64()))
+                    .collect();
             tr.append_fields_vars(
                 cs,
                 b"c_data",
@@ -2780,11 +2825,14 @@ impl FoldRunCircuit {
                 fold_digest_bytes,
                 &format!("{ctx}_me_{me_idx}_fd"),
             )
-                .map_err(SpartanBridgeError::BellpepperError)?;
+            .map_err(SpartanBridgeError::BellpepperError)?;
 
             for (limb_idx, limb) in me.r.iter().enumerate() {
                 let coeffs = limb.as_coeffs();
-                let coeff_vals = [CircuitF::from(coeffs[0].as_canonical_u64()), CircuitF::from(coeffs[1].as_canonical_u64())];
+                let coeff_vals = [
+                    CircuitF::from(coeffs[0].as_canonical_u64()),
+                    CircuitF::from(coeffs[1].as_canonical_u64()),
+                ];
                 if limb_idx >= me_var.r.len() {
                     return Err(SpartanBridgeError::InvalidInput(format!(
                         "step {step_idx}: ME[{me_idx}] r limb out of bounds (have {}, need {})",
@@ -2804,7 +2852,11 @@ impl FoldRunCircuit {
             }
 
             // X flattened row-major.
-            let x_vals: Vec<CircuitF> = me.X.as_slice().iter().map(|x| CircuitF::from(x.as_canonical_u64())).collect();
+            let x_vals: Vec<CircuitF> =
+                me.X.as_slice()
+                    .iter()
+                    .map(|x| CircuitF::from(x.as_canonical_u64()))
+                    .collect();
             let mut x_vars = Vec::with_capacity(x_vals.len());
             for row in &me_var.X {
                 for &v in row {
@@ -2905,15 +2957,32 @@ impl FoldRunCircuit {
                     CircuitF::from(coeffs[1].as_canonical_u64()),
                 ];
                 let vars = [y_scalar_var.c0, y_scalar_var.c1];
-                tr.append_fields_vars(cs, b"y_scalar", &vars, &coeff_vals, &format!("{ctx}_me_{me_idx}_ys_bind_{j}"))
-                    .map_err(SpartanBridgeError::BellpepperError)?;
+                tr.append_fields_vars(
+                    cs,
+                    b"y_scalar",
+                    &vars,
+                    &coeff_vals,
+                    &format!("{ctx}_me_{me_idx}_ys_bind_{j}"),
+                )
+                .map_err(SpartanBridgeError::BellpepperError)?;
             }
 
             // Folding-only Phase 1 uses Pattern-B only: these fields must be canonical zeros.
-            tr.append_u64s(cs, b"c_step_coords_len", &[0u64], &format!("{ctx}_me_{me_idx}_c_step_coords_len"))
-                .map_err(SpartanBridgeError::BellpepperError)?;
-            tr.append_fields_vars(cs, b"c_step_coords", &[], &[], &format!("{ctx}_me_{me_idx}_c_step_coords_empty"))
-                .map_err(SpartanBridgeError::BellpepperError)?;
+            tr.append_u64s(
+                cs,
+                b"c_step_coords_len",
+                &[0u64],
+                &format!("{ctx}_me_{me_idx}_c_step_coords_len"),
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
+            tr.append_fields_vars(
+                cs,
+                b"c_step_coords",
+                &[],
+                &[],
+                &format!("{ctx}_me_{me_idx}_c_step_coords_empty"),
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
             tr.append_u64s(cs, b"u_offset", &[0u64], &format!("{ctx}_me_{me_idx}_u_offset_zero"))
                 .map_err(SpartanBridgeError::BellpepperError)?;
             tr.append_u64s(cs, b"u_len", &[0u64], &format!("{ctx}_me_{me_idx}_u_len_zero"))
@@ -2935,17 +3004,22 @@ impl FoldRunCircuit {
         me_inputs_vals: &[neo_ccs::MeInstance<neo_ajtai::Commitment, NeoF, neo_math::K>],
         me_inputs_vars: &[MeInstanceVars],
         prev_mcs_vars: Option<&McsInstanceVars>,
-        output_binding: Option<(&OutputBindingConfig, &OutputBindingProof, &[(u64, bellpepper_core::Variable, NeoF)])>,
+        output_binding: Option<(
+            &OutputBindingConfig,
+            &OutputBindingProof,
+            &[(u64, bellpepper_core::Variable, NeoF)],
+        )>,
     ) -> Result<(Vec<MeInstanceVars>, McsInstanceVars, Vec<MeInstanceVars>)> {
         let mcs_inst = &step_public.mcs_inst;
         let mem_enabled = self.instance.statement.mem_enabled;
         let include_ob = self.instance.statement.output_binding_enabled
-            && step_idx + 1 == usize::try_from(self.instance.statement.step_count).map_err(|_| {
-                SpartanBridgeError::InvalidInput(format!(
-                    "statement.step_count does not fit usize: {}",
-                    self.instance.statement.step_count
-                ))
-            })?;
+            && step_idx + 1
+                == usize::try_from(self.instance.statement.step_count).map_err(|_| {
+                    SpartanBridgeError::InvalidInput(format!(
+                        "statement.step_count does not fit usize: {}",
+                        self.instance.statement.step_count
+                    ))
+                })?;
         let mut ob_state: Option<OutputSumcheckStateVars> = None;
         let mut ob_inc_total_degree_bound: Option<usize> = None;
 
@@ -3179,7 +3253,8 @@ impl FoldRunCircuit {
             beta_r_vars.push(v);
         }
 
-        let gamma_var = helpers::alloc_k_from_neo(cs, proof.challenges_public.gamma, &format!("step_{step_idx}_gamma"))?;
+        let gamma_var =
+            helpers::alloc_k_from_neo(cs, proof.challenges_public.gamma, &format!("step_{step_idx}_gamma"))?;
         helpers::enforce_k_eq(cs, &gamma_var, &gamma_tr, &format!("step_{step_idx}_gamma_fs"));
 
         // 4) derive claimed initial sum T and bind optional sc_initial_sum
@@ -3366,7 +3441,9 @@ impl FoldRunCircuit {
                             coeff_vars.push(helpers::alloc_k_from_neo(
                                 cs,
                                 coeff,
-                                &format!("step_{step_idx}_shout_addr_pre_lane{lane_idx}_round{round_idx}_coeff{coeff_idx}"),
+                                &format!(
+                                    "step_{step_idx}_shout_addr_pre_lane{lane_idx}_round{round_idx}_coeff{coeff_idx}"
+                                ),
                             )?);
                         }
                         claim_vars.push(coeff_vars);
@@ -3392,8 +3469,14 @@ impl FoldRunCircuit {
 
                 // Enforce r_addr matches proof.
                 for (i, &want) in proof_ap.r_addr.iter().enumerate() {
-                    let want_var = helpers::alloc_k_from_neo(cs, want, &format!("step_{step_idx}_shout_addr_pre_r_addr_{i}"))?;
-                    helpers::enforce_k_eq(cs, &want_var, &r_addr[i], &format!("step_{step_idx}_shout_addr_pre_r_addr_fs_{i}"));
+                    let want_var =
+                        helpers::alloc_k_from_neo(cs, want, &format!("step_{step_idx}_shout_addr_pre_r_addr_{i}"))?;
+                    helpers::enforce_k_eq(
+                        cs,
+                        &want_var,
+                        &r_addr[i],
+                        &format!("step_{step_idx}_shout_addr_pre_r_addr_fs_{i}"),
+                    );
                 }
 
                 shout_claimed_sums_vars_opt = Some(claimed_sums_vars);
@@ -3405,10 +3488,9 @@ impl FoldRunCircuit {
             let proof_offset = n_lut;
             let zero = helpers::k_zero(cs, &format!("step_{step_idx}_twist_addr_pre_zero"))?;
             for mem_idx in 0..n_mem {
-                let mem_inst = step_public
-                    .mem_insts
-                    .get(mem_idx)
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing mem_insts[{mem_idx}]")))?;
+                let mem_inst = step_public.mem_insts.get(mem_idx).ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing mem_insts[{mem_idx}]"))
+                })?;
                 let proof_twist = match step_proof.mem.proofs.get(proof_offset + mem_idx) {
                     Some(neo_fold::shard::MemOrLutProof::Twist(p)) => p,
                     _ => {
@@ -3429,7 +3511,11 @@ impl FoldRunCircuit {
                 let mut claimed_sums_vars = Vec::with_capacity(2);
                 for claim_idx in 0..2 {
                     let sum = proof_twist.addr_pre.claimed_sums[claim_idx];
-                    let var = helpers::alloc_k_from_neo(cs, sum, &format!("step_{step_idx}_twist_addr_pre_sum_{mem_idx}_{claim_idx}"))?;
+                    let var = helpers::alloc_k_from_neo(
+                        cs,
+                        sum,
+                        &format!("step_{step_idx}_twist_addr_pre_sum_{mem_idx}_{claim_idx}"),
+                    )?;
                     helpers::enforce_k_eq(
                         cs,
                         &var,
@@ -3587,7 +3673,9 @@ impl FoldRunCircuit {
                 .round_polys
                 .get(0)
                 .and_then(|v| v.get(round_idx))
-                .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing batched_time round")))?;
+                .ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing batched_time round"))
+                })?;
             if round != want.as_slice() {
                 return Err(SpartanBridgeError::InvalidInput(format!(
                     "step {step_idx}: CCS time round poly mismatch at round {round_idx}"
@@ -3601,7 +3689,8 @@ impl FoldRunCircuit {
             )));
         }
         for i in 0..self.ell_n {
-            let want = helpers::alloc_k_from_neo(cs, proof.sumcheck_challenges[i], &format!("step_{step_idx}_r_time_{i}"))?;
+            let want =
+                helpers::alloc_k_from_neo(cs, proof.sumcheck_challenges[i], &format!("step_{step_idx}_r_time_{i}"))?;
             helpers::enforce_k_eq(cs, &want, &bt_out.r_time[i], &format!("step_{step_idx}_r_time_fs_{i}"));
         }
 
@@ -3617,8 +3706,14 @@ impl FoldRunCircuit {
             )));
         }
         for i in 0..self.ell_n {
-            let out_r = helpers::alloc_k_from_neo(cs, step.ccs_out[0].r[i], &format!("step_{step_idx}_ccs_out0_r_{i}"))?;
-            helpers::enforce_k_eq(cs, &out_r, &bt_out.r_time[i], &format!("step_{step_idx}_ccs_out0_r_eq_r_time_{i}"));
+            let out_r =
+                helpers::alloc_k_from_neo(cs, step.ccs_out[0].r[i], &format!("step_{step_idx}_ccs_out0_r_{i}"))?;
+            helpers::enforce_k_eq(
+                cs,
+                &out_r,
+                &bt_out.r_time[i],
+                &format!("step_{step_idx}_ccs_out0_r_eq_r_time_{i}"),
+            );
         }
 
         // 9) Ajtai rounds (continuing transcript after batched time).
@@ -3633,7 +3728,10 @@ impl FoldRunCircuit {
 
         let mut after_time = t_val;
         for round_idx in 0..self.ell_n {
-            after_time = Self::eval_poly_k(&step_proof.batched_time.round_polys[0][round_idx], proof.sumcheck_challenges[round_idx]);
+            after_time = Self::eval_poly_k(
+                &step_proof.batched_time.round_polys[0][round_idx],
+                proof.sumcheck_challenges[round_idx],
+            );
         }
 
         let ajtai_rounds = &proof.sumcheck_rounds[self.ell_n..];
@@ -3645,7 +3743,11 @@ impl FoldRunCircuit {
                     .iter()
                     .enumerate()
                     .map(|(coeff_idx, &coeff)| {
-                        helpers::alloc_k_from_neo(cs, coeff, &format!("step_{step_idx}_ajtai_round_{round_idx}_coeff_{coeff_idx}"))
+                        helpers::alloc_k_from_neo(
+                            cs,
+                            coeff,
+                            &format!("step_{step_idx}_ajtai_round_{round_idx}_coeff_{coeff_idx}"),
+                        )
                     })
                     .collect::<Result<Vec<_>>>()
             })
@@ -3683,18 +3785,29 @@ impl FoldRunCircuit {
                 proof.sumcheck_challenges[self.ell_n + i],
                 &format!("step_{step_idx}_ajtai_chal_{i}"),
             )?;
-            helpers::enforce_k_eq(cs, &want, &ajtai_chals[i], &format!("step_{step_idx}_ajtai_chal_fs_{i}"));
+            helpers::enforce_k_eq(
+                cs,
+                &want,
+                &ajtai_chals[i],
+                &format!("step_{step_idx}_ajtai_chal_fs_{i}"),
+            );
         }
         let final_sum_expected =
             helpers::alloc_k_from_neo(cs, proof.sumcheck_final, &format!("step_{step_idx}_final_sum"))?;
-        helpers::enforce_k_eq(cs, &running_sum, &final_sum_expected, &format!("step_{step_idx}_final_sum_matches_scalar"));
+        helpers::enforce_k_eq(
+            cs,
+            &running_sum,
+            &final_sum_expected,
+            &format!("step_{step_idx}_final_sum_matches_scalar"),
+        );
 
         // 11) Allocate CCS outputs and RLC parent once (shared across terminal identity + RLC/DEC).
         let mut ccs_out_vars: Vec<MeInstanceVars> = Vec::with_capacity(step.ccs_out.len());
         for (i, child) in step.ccs_out.iter().enumerate() {
             ccs_out_vars.push(self.alloc_me_instance_vars(cs, child, &format!("step_{step_idx}_ccs_out_{i}"))?);
         }
-        let rlc_parent_vars = self.alloc_me_instance_vars(cs, &step.rlc_parent, &format!("step_{step_idx}_rlc_parent"))?;
+        let rlc_parent_vars =
+            self.alloc_me_instance_vars(cs, &step.rlc_parent, &format!("step_{step_idx}_rlc_parent"))?;
 
         let ccs_out_y_vars: Vec<Vec<Vec<KNumVar>>> = ccs_out_vars.iter().map(|v| v.y.clone()).collect();
         self.verify_terminal_identity(
@@ -3749,7 +3862,10 @@ impl FoldRunCircuit {
             let proof_offset = n_lut;
             let has_prev = step_idx > 0;
 
-            let plan = neo_fold::memory_sidecar::claim_plan::TwistValEvalClaimPlan::build(step_public.mem_insts.iter(), has_prev);
+            let plan = neo_fold::memory_sidecar::claim_plan::TwistValEvalClaimPlan::build(
+                step_public.mem_insts.iter(),
+                has_prev,
+            );
             let claim_count = plan.claim_count;
 
             let mut bind_kinds: Vec<u8> = Vec::with_capacity(claim_count);
@@ -3769,10 +3885,11 @@ impl FoldRunCircuit {
                         )))
                     }
                 };
-                let val = twist_proof
-                    .val_eval
-                    .as_ref()
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing Twist val_eval at mem_idx={mem_idx}")))?;
+                let val = twist_proof.val_eval.as_ref().ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!(
+                        "step {step_idx}: missing Twist val_eval at mem_idx={mem_idx}"
+                    ))
+                })?;
 
                 // LT claim
                 bind_kinds.push(plan.bind_tags[claim_idx]);
@@ -3836,17 +3953,16 @@ impl FoldRunCircuit {
 
                 // Optional rollover (prev-total) claim.
                 if has_prev {
-                    let prev_total = val
-                        .claimed_prev_inc_sum_total
-                        .ok_or_else(|| SpartanBridgeError::InvalidInput(format!(
+                    let prev_total = val.claimed_prev_inc_sum_total.ok_or_else(|| {
+                        SpartanBridgeError::InvalidInput(format!(
                             "step {step_idx}: missing Twist claimed_prev_inc_sum_total at mem_idx={mem_idx}"
-                        )))?;
-                    let prev_rounds = val
-                        .rounds_prev_total
-                        .as_ref()
-                        .ok_or_else(|| SpartanBridgeError::InvalidInput(format!(
+                        ))
+                    })?;
+                    let prev_rounds = val.rounds_prev_total.as_ref().ok_or_else(|| {
+                        SpartanBridgeError::InvalidInput(format!(
                             "step {step_idx}: missing Twist rounds_prev_total at mem_idx={mem_idx}"
-                        )))?;
+                        ))
+                    })?;
 
                     bind_kinds.push(plan.bind_tags[claim_idx]);
                     claimed_sums_vals.push(prev_total);
@@ -3969,13 +4085,22 @@ impl FoldRunCircuit {
             val_eval_claimed_sums_vals = Some(claimed_sums_vals);
             val_eval_finals_vars = Some(finals);
 
-            tr.append_message(cs, b"twist/val_eval/batch_done", &[], &format!("step_{step_idx}_val_eval_batch_done"))
-                .map_err(SpartanBridgeError::BellpepperError)?;
+            tr.append_message(
+                cs,
+                b"twist/val_eval/batch_done",
+                &[],
+                &format!("step_{step_idx}_val_eval_batch_done"),
+            )
+            .map_err(SpartanBridgeError::BellpepperError)?;
 
             // Compute the transcript-derived `fold_digest` used for CPU ME openings at r_val:
             // `tr.fork(b"cpu_bus/me_digest_val").digest32()`.
             let mut fork = tr
-                .fork(cs, b"cpu_bus/me_digest_val", &format!("step_{step_idx}_cpu_bus_me_digest_val_fork"))
+                .fork(
+                    cs,
+                    b"cpu_bus/me_digest_val",
+                    &format!("step_{step_idx}_cpu_bus_me_digest_val_fork"),
+                )
                 .map_err(SpartanBridgeError::BellpepperError)?;
             let limbs = fork
                 .digest32(cs, &format!("step_{step_idx}_cpu_bus_me_digest_val"))
@@ -4022,15 +4147,21 @@ impl FoldRunCircuit {
             let shout_pre = if n_lut == 0 {
                 None
             } else {
-                let claimed_sums_vars = shout_claimed_sums_vars_opt
-                    .as_ref()
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("step {step_idx}: internal error: missing shout_claimed_sums_vars")))?;
-                let finals_vars = shout_finals_vars_opt
-                    .as_ref()
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("step {step_idx}: internal error: missing shout_finals_vars")))?;
-                let r_addr_vars = shout_r_addr_vars_opt
-                    .as_ref()
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("step {step_idx}: internal error: missing shout_r_addr_vars")))?;
+                let claimed_sums_vars = shout_claimed_sums_vars_opt.as_ref().ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!(
+                        "step {step_idx}: internal error: missing shout_claimed_sums_vars"
+                    ))
+                })?;
+                let finals_vars = shout_finals_vars_opt.as_ref().ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!(
+                        "step {step_idx}: internal error: missing shout_finals_vars"
+                    ))
+                })?;
+                let r_addr_vars = shout_r_addr_vars_opt.as_ref().ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!(
+                        "step {step_idx}: internal error: missing shout_r_addr_vars"
+                    ))
+                })?;
                 Some(ShoutAddrPreCircuitData {
                     claimed_sums_vars: claimed_sums_vars.as_slice(),
                     claimed_sums_vals: step_proof.mem.shout_addr_pre.claimed_sums.as_slice(),
@@ -4071,21 +4202,25 @@ impl FoldRunCircuit {
                     SpartanBridgeError::InvalidInput(format!("step {step_idx}: internal error: missing r_val_vars"))
                 })?;
                 let claimed_sums_vars = val_eval_claimed_sums_vars.as_ref().ok_or_else(|| {
-                    SpartanBridgeError::InvalidInput(format!("step {step_idx}: internal error: missing val_eval_claimed_sums_vars"))
+                    SpartanBridgeError::InvalidInput(format!(
+                        "step {step_idx}: internal error: missing val_eval_claimed_sums_vars"
+                    ))
                 })?;
                 let claimed_sums_vals = val_eval_claimed_sums_vals.as_ref().ok_or_else(|| {
-                    SpartanBridgeError::InvalidInput(format!("step {step_idx}: internal error: missing val_eval_claimed_sums_vals"))
+                    SpartanBridgeError::InvalidInput(format!(
+                        "step {step_idx}: internal error: missing val_eval_claimed_sums_vals"
+                    ))
                 })?;
                 let finals_vars = val_eval_finals_vars.as_ref().ok_or_else(|| {
-                    SpartanBridgeError::InvalidInput(format!("step {step_idx}: internal error: missing val_eval_finals_vars"))
+                    SpartanBridgeError::InvalidInput(format!(
+                        "step {step_idx}: internal error: missing val_eval_finals_vars"
+                    ))
                 })?;
 
                 // r_val must match the CPU ME claim r vector.
-                let r_val_vals = step_proof
-                    .mem
-                    .cpu_me_claims_val
-                    .first()
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing cpu_me_claims_val for val-eval")))?;
+                let r_val_vals = step_proof.mem.cpu_me_claims_val.first().ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput(format!("step {step_idx}: missing cpu_me_claims_val for val-eval"))
+                })?;
                 Some(TwistValEvalCircuitData {
                     r_val_vars: r_val.as_slice(),
                     r_val_vals: r_val_vals.r.as_slice(),
@@ -4134,16 +4269,10 @@ impl FoldRunCircuit {
                     SpartanBridgeError::InvalidInput(format!("step {step_idx}: internal error: missing ob_state"))
                 })?;
 
-                let inc_idx = bt_out
-                    .final_values
-                    .len()
-                    .checked_sub(1)
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding: missing inc_total claim".into()))?;
-                if step_proof
-                    .batched_time
-                    .labels
-                    .get(inc_idx)
-                    .copied()
+                let inc_idx = bt_out.final_values.len().checked_sub(1).ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput("output binding: missing inc_total claim".into())
+                })?;
+                if step_proof.batched_time.labels.get(inc_idx).copied()
                     != Some(neo_fold::output_binding::OB_INC_TOTAL_LABEL)
                 {
                     return Err(SpartanBridgeError::InvalidInput(format!(
@@ -4154,11 +4283,12 @@ impl FoldRunCircuit {
                     .batched_time
                     .claimed_sums
                     .get(inc_idx)
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding: missing inc_total claimed_sum".into()))?;
-                let inc_total_claim_var = bt_out
-                    .claimed_sums_vars
-                    .get(inc_idx)
-                    .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding: missing inc_total claimed_sum var".into()))?;
+                    .ok_or_else(|| {
+                        SpartanBridgeError::InvalidInput("output binding: missing inc_total claimed_sum".into())
+                    })?;
+                let inc_total_claim_var = bt_out.claimed_sums_vars.get(inc_idx).ok_or_else(|| {
+                    SpartanBridgeError::InvalidInput("output binding: missing inc_total claimed_sum var".into())
+                })?;
 
                 let twist_open = twist_time_openings.get(cfg.mem_idx).ok_or_else(|| {
                     SpartanBridgeError::InvalidInput(format!(
@@ -4211,17 +4341,17 @@ impl FoldRunCircuit {
                 helpers::enforce_k_eq(
                     cs,
                     &inc_terminal,
-                    bt_out
-                        .final_values
-                        .get(inc_idx)
-                        .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding: missing inc_total final_value var".into()))?,
+                    bt_out.final_values.get(inc_idx).ok_or_else(|| {
+                        SpartanBridgeError::InvalidInput("output binding: missing inc_total final_value var".into())
+                    })?,
                     &format!("step_{step_idx}_ob_inc_total_final_eq"),
                 );
 
                 // expected_out = eq_eval * io_mask_eval * (val_init(r') + inc_total_claim - val_io_eval)
-                let mem_inst = step_public.mem_insts.get(cfg.mem_idx).ok_or_else(|| {
-                    SpartanBridgeError::InvalidInput("output binding mem_idx out of range".into())
-                })?;
+                let mem_inst = step_public
+                    .mem_insts
+                    .get(cfg.mem_idx)
+                    .ok_or_else(|| SpartanBridgeError::InvalidInput("output binding mem_idx out of range".into()))?;
                 let (val_init, val_init_val) = route_a_memory_terminal::eval_mem_init_at_r_addr(
                     cs,
                     self.base_b,
@@ -4310,9 +4440,11 @@ impl FoldRunCircuit {
 
             let mut dec_children_vars = Vec::with_capacity(step.dec_children.len());
             for (i, child) in step.dec_children.iter().enumerate() {
-                dec_children_vars.push(
-                    self.alloc_me_instance_vars(&mut cs_main, child, &format!("step_{step_idx}_dec_child_{i}"))?,
-                );
+                dec_children_vars.push(self.alloc_me_instance_vars(
+                    &mut cs_main,
+                    child,
+                    &format!("step_{step_idx}_dec_child_{i}"),
+                )?);
             }
             self.verify_dec(
                 &mut cs_main,
@@ -4396,7 +4528,11 @@ impl FoldRunCircuit {
 
                 let mut val_dec_children_vars = Vec::with_capacity(val_fold.dec_children.len());
                 for (i, child) in val_fold.dec_children.iter().enumerate() {
-                    val_dec_children_vars.push(self.alloc_me_instance_vars(cs, child, &format!("step_{step_idx}_val_dec_child_{i}"))?);
+                    val_dec_children_vars.push(self.alloc_me_instance_vars(
+                        cs,
+                        child,
+                        &format!("step_{step_idx}_val_dec_child_{i}"),
+                    )?);
                 }
 
                 {
@@ -4427,8 +4563,13 @@ impl FoldRunCircuit {
             }
         }
 
-        tr.append_message(cs, b"fold/step_done", &(step_idx as u64).to_le_bytes(), &format!("step_{step_idx}_done"))
-            .map_err(SpartanBridgeError::BellpepperError)?;
+        tr.append_message(
+            cs,
+            b"fold/step_done",
+            &(step_idx as u64).to_le_bytes(),
+            &format!("step_{step_idx}_done"),
+        )
+        .map_err(SpartanBridgeError::BellpepperError)?;
 
         Ok((dec_children_vars, mcs_vars, val_children_vars))
     }
@@ -5687,7 +5828,6 @@ impl FoldRunCircuit {
         children_vars: &[MeInstanceVars],
         rhos: &[Mat<NeoF>],
     ) -> Result<()> {
-
         if children.is_empty() {
             return Err(SpartanBridgeError::InvalidInput(format!(
                 "RLC at step {} has no children",
@@ -5770,7 +5910,9 @@ impl FoldRunCircuit {
                     child.c.data.len()
                 )));
             }
-            if children_vars[i].X.len() != d || (!children_vars[i].X.is_empty() && children_vars[i].X[0].len() != child.X.cols()) {
+            if children_vars[i].X.len() != d
+                || (!children_vars[i].X.is_empty() && children_vars[i].X[0].len() != child.X.cols())
+            {
                 return Err(SpartanBridgeError::InvalidInput(format!(
                     "RLC at step {}: child {} X vars shape mismatch",
                     step_idx, i
@@ -5796,9 +5938,7 @@ impl FoldRunCircuit {
         // Enforce c_parent = Σ_i ρ_i · c_i  (matrix multiply per commitment column).
         //
         // Commitment is stored as column-major flat data: data[col * d + row].
-        let kappa = parent
-            .c
-            .kappa;
+        let kappa = parent.c.kappa;
         if parent.c.d != d {
             return Err(SpartanBridgeError::InvalidInput(format!(
                 "RLC commitment d mismatch at step {} (c.d={}, X.rows()={})",
@@ -5818,7 +5958,12 @@ impl FoldRunCircuit {
                             || Ok(prod_val),
                         )?;
                         cs.enforce(
-                            || format!("step_{}_rlc_c_prod_constraint_row{}_col{}_i{}_k{}", step_idx, row, col, i, k),
+                            || {
+                                format!(
+                                    "step_{}_rlc_c_prod_constraint_row{}_col{}_i{}_k{}",
+                                    step_idx, row, col, i, k
+                                )
+                            },
                             |lc| lc + rho_vars[i][row][k],
                             |lc| lc + children_vars[i].c_data[col * d + k],
                             |lc| lc + prod,
@@ -5855,7 +6000,12 @@ impl FoldRunCircuit {
                             || Ok(prod_val),
                         )?;
                         cs.enforce(
-                            || format!("step_{}_rlc_X_prod_constraint_r{}_c{}_i{}_k{}", step_idx, row, col, i, k),
+                            || {
+                                format!(
+                                    "step_{}_rlc_X_prod_constraint_r{}_c{}_i{}_k{}",
+                                    step_idx, row, col, i, k
+                                )
+                            },
                             |lc| lc + rho_vars[i][row][k],
                             |lc| lc + children_vars[i].X[k][col],
                             |lc| lc + prod,
@@ -5960,12 +6110,7 @@ impl FoldRunCircuit {
                         let prod_c1_val = rho_val * child_y_c1_val;
 
                         let prod_c0 = cs.alloc(
-                            || {
-                                format!(
-                                    "step_{}_rlc_y_c0_prod_j{}_r{}_i{}_k{}",
-                                    step_idx, j, r_idx, i, k
-                                )
-                            },
+                            || format!("step_{}_rlc_y_c0_prod_j{}_r{}_i{}_k{}", step_idx, j, r_idx, i, k),
                             || Ok(prod_c0_val),
                         )?;
                         cs.enforce(
@@ -5982,12 +6127,7 @@ impl FoldRunCircuit {
                         prod_c0_vars.push(prod_c0);
 
                         let prod_c1 = cs.alloc(
-                            || {
-                                format!(
-                                    "step_{}_rlc_y_c1_prod_j{}_r{}_i{}_k{}",
-                                    step_idx, j, r_idx, i, k
-                                )
-                            },
+                            || format!("step_{}_rlc_y_c1_prod_j{}_r{}_i{}_k{}", step_idx, j, r_idx, i, k),
                             || Ok(prod_c1_val),
                         )?;
                         cs.enforce(
@@ -6053,7 +6193,6 @@ impl FoldRunCircuit {
         children: &[neo_ccs::MeInstance<neo_ajtai::Commitment, NeoF, neo_math::K>],
         children_vars: &[MeInstanceVars],
     ) -> Result<()> {
-
         if children.is_empty() {
             return Err(SpartanBridgeError::InvalidInput(format!(
                 "DEC at step {} has no children",
@@ -6280,7 +6419,6 @@ impl FoldRunCircuit {
 
         Ok(())
     }
-
 }
 
 /// Implement Spartan2's `SpartanCircuit` trait for `FoldRunCircuit` using the

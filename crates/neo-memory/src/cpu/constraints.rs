@@ -34,10 +34,10 @@
 //! (e.g., `rv` from Twist).
 
 use core::ops::Range;
-use neo_ccs::{CcsMatrix, CscMat};
 use neo_ccs::matrix::Mat;
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::relations::CcsStructure;
+use neo_ccs::{CcsMatrix, CscMat};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 use crate::cpu::bus_layout::{
@@ -605,7 +605,10 @@ impl<F: Field> CpuConstraintBuilder<F> {
             return;
         }
         let reference = &twists[0];
-        let wa_len = reference.wa_bits.end.saturating_sub(reference.wa_bits.start);
+        let wa_len = reference
+            .wa_bits
+            .end
+            .saturating_sub(reference.wa_bits.start);
 
         for other in twists.iter().skip(1) {
             let other_wa_len = other.wa_bits.end.saturating_sub(other.wa_bits.start);
@@ -754,11 +757,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
     ///
     /// # Returns
     /// Extended CCS with bus binding constraints added.
-    pub fn extend_ccs(
-        &self,
-        base_ccs: &CcsStructure<F>,
-        constraint_start_row: usize,
-    ) -> Result<CcsStructure<F>, String>
+    pub fn extend_ccs(&self, base_ccs: &CcsStructure<F>, constraint_start_row: usize) -> Result<CcsStructure<F>, String>
     where
         F: PrimeCharacteristicRing + Copy + Eq + Send + Sync,
     {
@@ -850,8 +849,7 @@ impl<F: Field> CpuConstraintBuilder<F> {
         matrices[a_idx] = CcsMatrix::Csc(CscMat::from_triplets(a_trips, base_ccs.n, base_ccs.m));
         matrices[b_idx] = CcsMatrix::Csc(CscMat::from_triplets(b_trips, base_ccs.n, base_ccs.m));
 
-        CcsStructure::new_sparse(matrices, base_ccs.f.clone())
-            .map_err(|e| format!("failed to extend CCS: {:?}", e))
+        CcsStructure::new_sparse(matrices, base_ccs.f.clone()).map_err(|e| format!("failed to extend CCS: {:?}", e))
     }
 }
 

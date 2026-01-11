@@ -45,12 +45,14 @@ impl<const N: usize> NeoCircuit for MultiLaneCircuit<N> {
 
     fn resources(&self, resources: &mut SharedBusResources) {
         // Twist instance with 2 lanes (two reads/writes per VM step).
-        resources.twist(0).layout(neo_memory::plain::PlainMemLayout {
-            k: 4,
-            d: 2,
-            n_side: 2,
-            lanes: 2,
-        });
+        resources
+            .twist(0)
+            .layout(neo_memory::plain::PlainMemLayout {
+                k: 4,
+                d: 2,
+                n_side: 2,
+                lanes: 2,
+            });
     }
 
     fn cpu_bindings(
@@ -156,7 +158,10 @@ impl VmCpu<u64, u64> for MultiLaneVm {
 
         self.step += 1;
         self.pc = self.pc.wrapping_add(4);
-        Ok(StepMeta { pc_after: self.pc, opcode: 0 })
+        Ok(StepMeta {
+            pc_after: self.pc,
+            opcode: 0,
+        })
     }
 }
 
@@ -171,7 +176,9 @@ fn test_spartan_steps_digest_matches_for_multi_lane_twist() {
     set_global_pp_seeded(D, params.kappa as usize, m, seed).expect("set_global_pp_seeded");
     let committer = AjtaiSModule::from_global_for_dims(D, m).expect("committer");
 
-    let prover = pre.into_prover(params.clone(), committer.clone()).expect("into_prover");
+    let prover = pre
+        .into_prover(params.clone(), committer.clone())
+        .expect("into_prover");
     let mut session = FoldingSession::new(FoldingMode::Optimized, params.clone(), committer);
 
     prover
@@ -184,7 +191,9 @@ fn test_spartan_steps_digest_matches_for_multi_lane_twist() {
         )
         .expect("execute_into_session");
 
-    let run = session.fold_and_prove(prover.ccs()).expect("fold_and_prove");
+    let run = session
+        .fold_and_prove(prover.ccs())
+        .expect("fold_and_prove");
 
     let steps_public = session.steps_public();
     let initial_accumulator = Vec::new();
@@ -195,8 +204,17 @@ fn test_spartan_steps_digest_matches_for_multi_lane_twist() {
     let spartan = prove_fold_run(&pk, session.params(), prover.ccs(), witness).expect("prove_fold_run");
 
     assert!(
-        verify_fold_run(&vk, session.params(), prover.ccs(), &vm_digest, &steps_public, None, &[], &spartan)
-            .expect("verify_fold_run"),
+        verify_fold_run(
+            &vk,
+            session.params(),
+            prover.ccs(),
+            &vm_digest,
+            &steps_public,
+            None,
+            &[],
+            &spartan
+        )
+        .expect("verify_fold_run"),
         "Spartan proof should verify for multi-lane instances"
     );
 }

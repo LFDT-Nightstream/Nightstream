@@ -1,7 +1,7 @@
 use super::{CcsBuilder, FoldingSession, SharedBusResources, WitnessLayout};
 use crate::PiCcsError;
-use neo_ccs::CcsStructure;
 use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::CcsStructure;
 use neo_memory::cpu::{CpuConstraintBuilder, R1csCpu, SharedCpuBusConfig, ShoutCpuBinding, TwistCpuBinding};
 use neo_memory::plain::LutTable;
 use neo_memory::witness::LutTableSpec;
@@ -43,7 +43,11 @@ pub trait NeoCircuit: Send + Sync + 'static {
     /// Build the CPU witness prefix z[0..USED_COLS) for a single trace chunk.
     ///
     /// The shared-bus tail is filled separately by `neo_memory::cpu::R1csCpu`.
-    fn build_witness_prefix(&self, layout: &Self::Layout, chunk: &[StepTrace<u64, u64>]) -> Result<Vec<super::F>, String>;
+    fn build_witness_prefix(
+        &self,
+        layout: &Self::Layout,
+        chunk: &[StepTrace<u64, u64>],
+    ) -> Result<Vec<super::F>, String>;
 }
 
 /// Shared preprocessing for a shared-bus R1CS circuit (no commitment key material).
@@ -156,7 +160,14 @@ where
         Sh: neo_vm_trace::Shout<u64>,
     {
         session.set_shared_bus_resources(self.resources.clone());
-        session.execute_shard_shared_cpu_bus_configured(vm, twist, shout, max_steps, self.circuit.chunk_size(), &self.cpu)
+        session.execute_shard_shared_cpu_bus_configured(
+            vm,
+            twist,
+            shout,
+            max_steps,
+            self.circuit.chunk_size(),
+            &self.cpu,
+        )
     }
 }
 
@@ -202,9 +213,9 @@ where
         table_ids.dedup();
 
         for table_id in table_ids {
-            let bindings = shout_cpu
-                .get(&table_id)
-                .ok_or_else(|| PiCcsError::InvalidInput(format!("missing shout_cpu binding for table_id={table_id}")))?;
+            let bindings = shout_cpu.get(&table_id).ok_or_else(|| {
+                PiCcsError::InvalidInput(format!("missing shout_cpu binding for table_id={table_id}"))
+            })?;
             if bindings.is_empty() {
                 return Err(PiCcsError::InvalidInput(format!(
                     "shout_cpu bindings for table_id={table_id} must be non-empty"
@@ -320,7 +331,12 @@ fn shared_bus_buslen_and_constraints(
         let ell_addr = d
             .checked_mul(ell)
             .ok_or_else(|| format!("ell_addr overflow for shout table_id={table_id}"))?;
-        let lanes = resources.lut_lanes.get(table_id).copied().unwrap_or(1).max(1);
+        let lanes = resources
+            .lut_lanes
+            .get(table_id)
+            .copied()
+            .unwrap_or(1)
+            .max(1);
         let bindings = shout_cpu
             .get(table_id)
             .ok_or_else(|| format!("missing shout_cpu binding for table_id={table_id}"))?;

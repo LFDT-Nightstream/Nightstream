@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use p3_challenger::{FieldChallenger, GrindingChallenger};
 use p3_field::{ExtensionField, TwoAdicField};
-use p3_matrix::dense::DenseMatrix;
 use p3_merkle_tree::MerkleTree;
 use tracing::instrument;
 
@@ -16,7 +15,7 @@ use crate::{
     poly::multilinear::MultilinearPoint,
     sumcheck::sumcheck_single::SumcheckSingle,
     whir::{
-        committer::{RoundMerkleTree, Witness},
+        committer::{BaseDenseMatrix, RoundMerkleTree, Witness},
         constraints::statement::Statement,
         prover::Prover,
     },
@@ -97,7 +96,7 @@ where
     ///
     /// The extension field structure enables efficient constraint batching while
     /// preserving the Reed-Solomon proximity properties necessary for soundness.
-    pub merkle_prover_data: Option<RoundMerkleTree<F, EF, W, DIGEST_ELEMS>>,
+    pub merkle_prover_data: Option<RoundMerkleTree<F, W, DIGEST_ELEMS>>,
 
     /// Global randomness vector tracking all folding challenges across rounds.
     ///
@@ -127,7 +126,7 @@ where
 }
 
 #[allow(clippy::mismatching_type_param_order)]
-impl<EF, F, const DIGEST_ELEMS: usize> RoundState<EF, F, F, DenseMatrix<F>, DIGEST_ELEMS>
+impl<EF, F, const DIGEST_ELEMS: usize> RoundState<EF, F, F, BaseDenseMatrix<F>, DIGEST_ELEMS>
 where
     F: TwoAdicField + Ord,
     EF: ExtensionField<F> + TwoAdicField,
@@ -150,7 +149,7 @@ where
         prover: &Prover<'_, EF, F, MyChallenger, C, Challenger>,
         prover_state: &mut ProverState<F, EF, Challenger>,
         mut statement: Statement<EF>,
-        witness: Witness<EF, F, DenseMatrix<F>, DIGEST_ELEMS>,
+        witness: Witness<EF, F, BaseDenseMatrix<F>, DIGEST_ELEMS>,
     ) -> Result<Self, FiatShamirError>
     where
         Challenger: FieldChallenger<F> + GrindingChallenger<Witness = F>,

@@ -118,8 +118,12 @@ pub fn build_bus_layout_for_instances(
         m,
         m_in,
         chunk_size,
-        shout_ell_addrs.into_iter().map(|ell_addr| (ell_addr, 1usize)),
-        twist_ell_addrs.into_iter().map(|ell_addr| (ell_addr, 1usize)),
+        shout_ell_addrs
+            .into_iter()
+            .map(|ell_addr| (ell_addr, 1usize)),
+        twist_ell_addrs
+            .into_iter()
+            .map(|ell_addr| (ell_addr, 1usize)),
     )
 }
 
@@ -134,7 +138,9 @@ pub fn build_bus_layout_for_instances_with_twist_lanes(
         m,
         m_in,
         chunk_size,
-        shout_ell_addrs.into_iter().map(|ell_addr| (ell_addr, 1usize)),
+        shout_ell_addrs
+            .into_iter()
+            .map(|ell_addr| (ell_addr, 1usize)),
         twist_ell_addrs_and_lanes,
     )
 }

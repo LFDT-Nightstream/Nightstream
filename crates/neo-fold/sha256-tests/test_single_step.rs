@@ -3,9 +3,7 @@
 use std::time::Instant;
 
 use bellpepper::gadgets::boolean::{AllocatedBit, Boolean};
-use bellpepper_core::{
-    Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable,
-};
+use bellpepper_core::{Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable};
 use ff::PrimeField;
 use neo_ajtai::{set_global_pp_seeded, AjtaiSModule};
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SparsePoly, Term};
@@ -33,7 +31,7 @@ fn setup_ajtai_for_dims(m: usize) {
 }
 
 /// Calculate and print proof size statistics.
-/// 
+///
 /// Field element sizes:
 /// - F (Goldilocks base field): 8 bytes
 /// - K (quadratic extension): 2 * 8 = 16 bytes
@@ -41,15 +39,15 @@ fn setup_ajtai_for_dims(m: usize) {
 fn print_proof_size(proof: &ShardProof) {
     const F_BYTES: usize = 8;
     const K_BYTES: usize = 16; // 2 * 8 bytes for quadratic extension (K = F_{q^2})
-    
+
     let mut total_k_elements = 0usize;
     let mut total_f_elements = 0usize;
     let mut total_cmt_bytes = 0usize;
-    
+
     for step in &proof.steps {
         // FoldStep
         let fold = &step.fold;
-        
+
         // ccs_proof sumcheck_rounds: Vec<Vec<K>>
         for round in &fold.ccs_proof.sumcheck_rounds {
             total_k_elements += round.len();
@@ -58,7 +56,7 @@ fn print_proof_size(proof: &ShardProof) {
         total_k_elements += fold.ccs_proof.sumcheck_challenges.len();
         // sc_initial_sum: Option<K>, sumcheck_final: K
         total_k_elements += 2;
-        
+
         // ccs_out: Vec<MeInstance<Cmt, F, K>>
         for me in &fold.ccs_out {
             total_cmt_bytes += me.c.d * me.c.kappa * 8; // Commitment
@@ -68,12 +66,12 @@ fn print_proof_size(proof: &ShardProof) {
                 total_k_elements += y_vec.len();
             }
         }
-        
+
         // rlc_rhos: Vec<Mat<F>> (D x D matrices)
         for mat in &fold.rlc_rhos {
             total_f_elements += mat.rows() * mat.cols();
         }
-        
+
         // rlc_parent: MeInstance
         total_cmt_bytes += fold.rlc_parent.c.d * fold.rlc_parent.c.kappa * 8;
         total_f_elements += fold.rlc_parent.X.rows() * fold.rlc_parent.X.cols();
@@ -81,7 +79,7 @@ fn print_proof_size(proof: &ShardProof) {
         for y_vec in &fold.rlc_parent.y {
             total_k_elements += y_vec.len();
         }
-        
+
         // dec_children: Vec<MeInstance>
         for me in &fold.dec_children {
             total_cmt_bytes += me.c.d * me.c.kappa * 8;
@@ -91,7 +89,7 @@ fn print_proof_size(proof: &ShardProof) {
                 total_k_elements += y_vec.len();
             }
         }
-        
+
         // batched_time proof
         let bt = &step.batched_time;
         total_k_elements += bt.claimed_sums.len();
@@ -100,7 +98,7 @@ fn print_proof_size(proof: &ShardProof) {
                 total_k_elements += round.len();
             }
         }
-        
+
         // mem sidecar (usually empty for CCS-only)
         let mem = &step.mem;
         for me in &mem.cpu_me_claims_val {
@@ -118,7 +116,7 @@ fn print_proof_size(proof: &ShardProof) {
                 total_k_elements += round.len();
             }
         }
-        
+
         // val_fold (optional)
         if let Some(val_fold) = &step.val_fold {
             for mat in &val_fold.rlc_rhos {
@@ -140,17 +138,21 @@ fn print_proof_size(proof: &ShardProof) {
             }
         }
     }
-    
+
     let f_bytes = total_f_elements * F_BYTES;
     let k_bytes = total_k_elements * K_BYTES;
     let total_bytes = f_bytes + k_bytes + total_cmt_bytes;
-    
+
     println!("=== PROOF SIZE ===");
     println!("  F elements:   {:>8} ({:>10} bytes)", total_f_elements, f_bytes);
     println!("  K elements:   {:>8} ({:>10} bytes)", total_k_elements, k_bytes);
     println!("  Commitments:  {:>10} bytes", total_cmt_bytes);
     println!("  ---------------------------------");
-    println!("  TOTAL:        {:>10} bytes ({:.2} KB)", total_bytes, total_bytes as f64 / 1024.0);
+    println!(
+        "  TOTAL:        {:>10} bytes ({:.2} KB)",
+        total_bytes,
+        total_bytes as f64 / 1024.0
+    );
     println!("==================");
 }
 
@@ -189,11 +191,7 @@ impl TripletConstraintSystem {
         }
     }
 
-    fn push_lc_trips(
-        row: u32,
-        lc: &LinearCombination<FpGoldilocks>,
-        trips: &mut Vec<(u32, u32, F)>,
-    ) {
+    fn push_lc_trips(row: u32, lc: &LinearCombination<FpGoldilocks>, trips: &mut Vec<(u32, u32, F)>) {
         for (var, coeff) in lc.iter() {
             let value = fp_to_u64(coeff);
             if value == 0 {
@@ -305,8 +303,7 @@ fn test_sha256_circuit_is_satisfied() {
     // Verify that the packed public inputs match the SHA256 digest of the preimage.
     let digest = Sha256::digest(&preimage);
     let digest_bits = bellpepper::gadgets::multipack::bytes_to_bits(digest.as_ref());
-    let expected_inputs =
-        bellpepper::gadgets::multipack::compute_multipacking::<FpGoldilocks>(&digest_bits);
+    let expected_inputs = bellpepper::gadgets::multipack::compute_multipacking::<FpGoldilocks>(&digest_bits);
     assert!(cs.verify(&expected_inputs));
 }
 
@@ -349,8 +346,7 @@ fn test_sha256_preimage_len_bytes(preimage_len_bytes: usize) {
     let preimage = vec![0u8; preimage_len_bytes];
     let digest = Sha256::digest(&preimage);
     let digest_bits = bellpepper::gadgets::multipack::bytes_to_bits(digest.as_ref());
-    let expected_inputs_fp =
-        bellpepper::gadgets::multipack::compute_multipacking::<FpGoldilocks>(&digest_bits);
+    let expected_inputs_fp = bellpepper::gadgets::multipack::compute_multipacking::<FpGoldilocks>(&digest_bits);
     let expected_inputs: Vec<F> = expected_inputs_fp
         .iter()
         .map(|x| F::from_u64(fp_to_u64(x)))
@@ -358,8 +354,8 @@ fn test_sha256_preimage_len_bytes(preimage_len_bytes: usize) {
 
     let (step_ccs, witness) = bellpepper_sha256_circuit(preimage_len_bytes);
 
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(step_ccs.n)
-        .expect("goldilocks_auto_r1cs_ccs should find valid params");
+    let mut params =
+        NeoParams::goldilocks_auto_r1cs_ccs(step_ccs.n).expect("goldilocks_auto_r1cs_ccs should find valid params");
 
     params.b = 3;
 
@@ -439,10 +435,7 @@ struct Sha256Circuit {
 }
 
 impl Circuit<FpGoldilocks> for Sha256Circuit {
-    fn synthesize<CS: ConstraintSystem<FpGoldilocks>>(
-        self,
-        cs: &mut CS,
-    ) -> Result<(), SynthesisError> {
+    fn synthesize<CS: ConstraintSystem<FpGoldilocks>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
         // SHA256 expects a big-endian bit order within each byte.
         let bit_values: Vec<_> = bellpepper::gadgets::multipack::bytes_to_bits(&self.preimage)
             .into_iter()
@@ -459,8 +452,7 @@ impl Circuit<FpGoldilocks> for Sha256Circuit {
 
         // TODO: these would have to be added as outputs
         // it doesn't matter right now though
-        let hash_bits =
-            bellpepper::gadgets::sha256::sha256(cs.namespace(|| "sha256"), &preimage_bits)?;
+        let hash_bits = bellpepper::gadgets::sha256::sha256(cs.namespace(|| "sha256"), &preimage_bits)?;
 
         // Bind the SHA256 digest as compact public inputs.
         bellpepper::gadgets::multipack::pack_into_inputs(cs.namespace(|| "hash_out"), &hash_bits)?;
@@ -469,9 +461,7 @@ impl Circuit<FpGoldilocks> for Sha256Circuit {
     }
 }
 
-fn bellpepper_sha256_circuit(
-    preimage_len_bytes: usize,
-) -> (CcsStructure<F>, Vec<F>) {
+fn bellpepper_sha256_circuit(preimage_len_bytes: usize) -> (CcsStructure<F>, Vec<F>) {
     let mut cs = TripletConstraintSystem::new();
 
     let circuit = Sha256Circuit {
@@ -495,11 +485,7 @@ fn bellpepper_sha256_circuit(
     let num_aux = aux.len();
     let num_variables = num_inputs + num_aux;
 
-    println!(
-        "SHA256 CCS: n={}, m={}",
-        num_constraints,
-        num_inputs + num_aux
-    );
+    println!("SHA256 CCS: n={}, m={}", num_constraints, num_inputs + num_aux);
 
     let n = num_constraints.max(num_variables);
 

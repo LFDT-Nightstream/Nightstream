@@ -1,7 +1,9 @@
 use neo_ajtai::Commitment;
 use neo_ccs::{Mat, MeInstance};
-use neo_fold::bridge_digests::{compute_accumulator_digest_v2, compute_obligations_digest_v1};
-use neo_math::{F as NeoF, K as NeoK, KExtensions};
+use neo_fold::bridge_digests::{
+    compute_accumulator_digest_v2, compute_obligations_digest_v1, compute_obligations_digest_v2,
+};
+use neo_math::{KExtensions, F as NeoF, K as NeoK};
 use p3_field::PrimeCharacteristicRing;
 
 fn sample_me_instance(seed: u64) -> MeInstance<Commitment, NeoF, NeoK> {
@@ -62,8 +64,8 @@ fn accumulator_digest_v2_test_vector() {
 
     // NOTE: This is a regression test vector. If this changes, bump the domain/version.
     let expected = [
-        207, 238, 198, 127, 210, 249, 231, 207, 209, 224, 247, 132, 154, 19, 202, 223, 213, 64,
-        72, 172, 145, 238, 120, 25, 64, 163, 193, 132, 119, 172, 180, 84,
+        207, 238, 198, 127, 210, 249, 231, 207, 209, 224, 247, 132, 154, 19, 202, 223, 213, 64, 72, 172, 145, 238, 120,
+        25, 64, 163, 193, 132, 119, 172, 180, 84,
     ];
     assert_eq!(got, expected);
 }
@@ -90,8 +92,23 @@ fn obligations_digest_v1_test_vector() {
 
     // NOTE: This is a regression test vector. If this changes, bump the domain/version.
     let expected = [
-        173, 61, 162, 243, 57, 132, 202, 34, 177, 95, 106, 103, 27, 196, 88, 185, 8, 138, 113,
-        158, 147, 17, 10, 228, 114, 173, 127, 102, 204, 101, 129, 193,
+        173, 61, 162, 243, 57, 132, 202, 34, 177, 95, 106, 103, 27, 196, 88, 185, 8, 138, 113, 158, 147, 17, 10, 228,
+        114, 173, 127, 102, 204, 101, 129, 193,
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn obligations_digest_v2_test_vector() {
+    let acc_main = [1u8; 32];
+    let acc_val = [2u8; 32];
+    let pp_id = [3u8; 32];
+    let got = compute_obligations_digest_v2(acc_main, acc_val, pp_id);
+
+    // NOTE: This is a regression test vector. If this changes, bump the domain/version.
+    let expected = [
+        95, 110, 209, 255, 112, 175, 230, 206, 39, 113, 7, 145, 237, 173, 143, 81, 243, 90, 128, 122, 112, 71, 102,
+        234, 140, 234, 208, 64, 10, 170, 77, 215,
     ];
     assert_eq!(got, expected);
 }

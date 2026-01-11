@@ -147,32 +147,27 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[MeInstance<Cmt,
         tr.append_fields(b"c_data_in", &me.c.data);
         tr.append_u64s(b"m_in_in", &[me.m_in as u64]);
 
-        let r_field_len = me
-            .r
-            .len()
-            .checked_mul(k_coeffs_len)
-            .ok_or_else(|| PiCcsError::InvalidInput("ME.r length overflow".into()))?;
+        let r_field_len =
+            me.r.len()
+                .checked_mul(k_coeffs_len)
+                .ok_or_else(|| PiCcsError::InvalidInput("ME.r length overflow".into()))?;
         tr.append_fields_iter(
             b"r_in",
             r_field_len,
             me.r.iter().flat_map(|limb| limb.as_coeffs().into_iter()),
         );
 
-        let y_elem_count: usize = me
-            .y
-            .iter()
-            .try_fold(0usize, |acc, yj| {
-                acc.checked_add(yj.len())
-                    .ok_or_else(|| PiCcsError::InvalidInput("ME.y length overflow".into()))
-            })?;
+        let y_elem_count: usize = me.y.iter().try_fold(0usize, |acc, yj| {
+            acc.checked_add(yj.len())
+                .ok_or_else(|| PiCcsError::InvalidInput("ME.y length overflow".into()))
+        })?;
         let y_field_len = y_elem_count
             .checked_mul(k_coeffs_len)
             .ok_or_else(|| PiCcsError::InvalidInput("ME.y length overflow".into()))?;
         tr.append_fields_iter(
             b"y_elem",
             y_field_len,
-            me.y
-                .iter()
+            me.y.iter()
                 .flat_map(|yj| yj.iter().flat_map(|y_elem| y_elem.as_coeffs().into_iter())),
         );
     }

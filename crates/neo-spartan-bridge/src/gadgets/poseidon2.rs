@@ -2,8 +2,8 @@
 //!
 //! This is the exact permutation used by `neo_transcript::Poseidon2Transcript`.
 
-use bellpepper_core::{ConstraintSystem, SynthesisError};
 use bellpepper_core::num::AllocatedNum;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use once_cell::sync::Lazy;
 use p3_field::PrimeField64;
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks, MATRIX_DIAG_8_GOLDILOCKS};
@@ -31,8 +31,7 @@ fn to_circuit(x: Goldilocks) -> CircuitF {
 }
 
 static CONSTANTS_W8: Lazy<Poseidon2ConstantsW8> = Lazy::new(|| {
-    let (rounds_f, rounds_p) =
-        poseidon2_round_numbers_128::<Goldilocks>(WIDTH, SBOX_DEGREE).expect("round numbers");
+    let (rounds_f, rounds_p) = poseidon2_round_numbers_128::<Goldilocks>(WIDTH, SBOX_DEGREE).expect("round numbers");
     assert_eq!(rounds_f, 8, "expected WIDTH=8, D=7 full rounds = 8");
     assert_eq!(rounds_p, 22, "expected WIDTH=8, D=7 partial rounds = 22");
 
@@ -159,12 +158,7 @@ fn external_linear_layer_w8<CS: ConstraintSystem<CircuitF>>(
             acc += coeff * old_vals[col];
         }
         new_vals[row] = acc;
-        let out = alloc_linear_comb(
-            cs,
-            &format!("{label}_row_{row}"),
-            acc,
-            &terms,
-        )?;
+        let out = alloc_linear_comb(cs, &format!("{label}_row_{row}"), acc, &terms)?;
         state[row] = out;
     }
 
@@ -183,7 +177,10 @@ fn internal_linear_layer_w8<CS: ConstraintSystem<CircuitF>>(
     let old_vars = state.clone();
     let old_vals = *state_val;
 
-    let sum_val: CircuitF = old_vals.iter().copied().fold(CircuitF::from(0u64), |a, b| a + b);
+    let sum_val: CircuitF = old_vals
+        .iter()
+        .copied()
+        .fold(CircuitF::from(0u64), |a, b| a + b);
     let mut new_vals = [CircuitF::from(0u64); WIDTH];
 
     for i in 0..WIDTH {
@@ -200,12 +197,7 @@ fn internal_linear_layer_w8<CS: ConstraintSystem<CircuitF>>(
             };
             terms.push((coeff, &old_vars[j]));
         }
-        let out = alloc_linear_comb(
-            cs,
-            &format!("{label}_row_{i}"),
-            out_val,
-            &terms,
-        )?;
+        let out = alloc_linear_comb(cs, &format!("{label}_row_{i}"), out_val, &terms)?;
         state[i] = out;
     }
 

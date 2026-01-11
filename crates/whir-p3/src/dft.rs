@@ -29,11 +29,12 @@ use p3_dft::Butterfly;
 use p3_field::{BasedVectorSpace, Field, PackedField, TwoAdicField};
 use p3_matrix::{
     Matrix,
-    dense::{RowMajorMatrix, RowMajorMatrixViewMut},
+    dense::{DenseMatrix, DenseStorage, RowMajorMatrix, RowMajorMatrixViewMut},
     util::reverse_matrix_index_bits,
 };
 use p3_maybe_rayon::prelude::*;
 use p3_util::{log2_strict_usize, reverse_slice_index_bits};
+use std::borrow::BorrowMut;
 
 /// The number of layers to compute in each parallelization.
 const LAYERS_PER_GROUP: usize = 3;
@@ -147,9 +148,55 @@ impl<F: TwoAdicField> EvalsDft<F> {
         // Once the blocks are small enough, we can split the matrix
         // into chunks of size `chunk_size` and process them in parallel.
         // This avoids passing data between threads, which can be expensive.
-        par_remaining_layers(&mut mat.values, chunk_size, &root_table[..log_num_par_rows]);
+        par_remaining_layers(
+            mat.values.borrow_mut(),
+            chunk_size,
+            &root_table[..log_num_par_rows],
+        );
 
         // Finally we bit-reverse the matrix to ensure the output is in the correct order.
+        reverse_matrix_index_bits(&mut mat);
+        mat
+    }
+
+    pub fn dft_batch_by_evals_storage<S>(&self, mut mat: DenseMatrix<F, S>) -> DenseMatrix<F, S>
+    where
+        S: DenseStorage<F> + BorrowMut<[F]>,
+    {
+        let h = mat.height();
+        let w = mat.width();
+        let log_h = log2_strict_usize(h);
+
+        self.update_twiddles(h);
+        let root_table = self.twiddles.borrow();
+        let len = root_table.len();
+        let root_table = &root_table[len - log_h..];
+
+        let num_par_rows = estimate_num_rows_in_l1::<F>(h, w);
+        let log_num_par_rows = log2_strict_usize(num_par_rows);
+        let chunk_size = num_par_rows * w;
+
+        for (twiddles_0, twiddles_1, twiddles_2) in
+            root_table[log_num_par_rows..].iter().rev().tuples()
+        {
+            dit_layer_par_triple(&mut mat.as_view_mut(), twiddles_0, twiddles_1, twiddles_2);
+        }
+
+        if (log_h - log_num_par_rows) % LAYERS_PER_GROUP == 1 {
+            dit_layer_par(&mut mat.as_view_mut(), &root_table[log_num_par_rows]);
+        } else if (log_h - log_num_par_rows) % LAYERS_PER_GROUP == 2 {
+            dit_layer_par_double(
+                &mut mat.as_view_mut(),
+                &root_table[log_num_par_rows + 1],
+                &root_table[log_num_par_rows],
+            );
+        }
+
+        par_remaining_layers(
+            mat.values.borrow_mut(),
+            chunk_size,
+            &root_table[..log_num_par_rows],
+        );
         reverse_matrix_index_bits(&mut mat);
         mat
     }

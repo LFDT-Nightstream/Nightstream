@@ -77,8 +77,7 @@ where
         val_wits: Vec<neo_ccs::Mat<neo_math::F>>,
         bus: Option<neo_memory::cpu::BusLayout>,
     ) -> Result<Self, crate::PiCcsError> {
-        let dims =
-            neo_reductions::engines::utils::build_dims_and_policy(&params, ccs.as_ref())?;
+        let dims = neo_reductions::engines::utils::build_dims_and_policy(&params, ccs.as_ref())?;
         Ok(Self {
             params,
             ccs,
@@ -114,9 +113,8 @@ where
         }
 
         // 1) Boundedness: ||Z||_∞ < b.
-        neo_ajtai::assert_range_b(Z.as_slice(), self.params.b).map_err(|e| {
-            crate::PiCcsError::ProtocolError(format!("{label}: Ajtai range check failed: {e:?}"))
-        })?;
+        neo_ajtai::assert_range_b(Z.as_slice(), self.params.b)
+            .map_err(|e| crate::PiCcsError::ProtocolError(format!("{label}: Ajtai range check failed: {e:?}")))?;
 
         // 2) Commitment opening: c == Commit(pp, Z).
         let c_star = self.committer.commit(Z);
@@ -147,8 +145,13 @@ where
         }
 
         // 4) ME consistency: recompute (y, y_scalars) under optimized-engine padded-y semantics.
-        let (y_expected, y_scalars_expected) =
-            neo_reductions::common::compute_y_from_Z_and_r(self.ccs.as_ref(), Z, me.r.as_slice(), self.ell_d, self.params.b);
+        let (y_expected, y_scalars_expected) = neo_reductions::common::compute_y_from_Z_and_r(
+            self.ccs.as_ref(),
+            Z,
+            me.r.as_slice(),
+            self.ell_d,
+            self.params.b,
+        );
 
         let core_t = self.ccs.t();
         if y_expected.len() != core_t || y_scalars_expected.len() != core_t {
@@ -161,14 +164,10 @@ where
 
         if me.y.len() == core_t && me.y_scalars.len() == core_t {
             if me.y != y_expected {
-                return Err(crate::PiCcsError::ProtocolError(format!(
-                    "{label}: y mismatch"
-                )));
+                return Err(crate::PiCcsError::ProtocolError(format!("{label}: y mismatch")));
             }
             if me.y_scalars != y_scalars_expected {
-                return Err(crate::PiCcsError::ProtocolError(format!(
-                    "{label}: y_scalars mismatch"
-                )));
+                return Err(crate::PiCcsError::ProtocolError(format!("{label}: y_scalars mismatch")));
             }
         } else if me.y.len() > core_t {
             let bus = self.bus.as_ref().ok_or_else(|| {
@@ -253,7 +252,12 @@ where
             )));
         }
 
-        for (idx, (me, Z)) in obligations.main.iter().zip(self.main_wits.iter()).enumerate() {
+        for (idx, (me, Z)) in obligations
+            .main
+            .iter()
+            .zip(self.main_wits.iter())
+            .enumerate()
+        {
             self.check_one(me, Z, &format!("obligations.main[{idx}]"))?;
         }
         for (idx, (me, Z)) in obligations.val.iter().zip(self.val_wits.iter()).enumerate() {

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::cpu::bus_layout::{build_bus_layout_for_instances, BusLayout};
 use crate::plain::PlainMemLayout;
-use crate::riscv::lookups::{RAM_ID, PROG_ID};
+use crate::riscv::lookups::{PROG_ID, RAM_ID};
 
 use super::config::{derive_mem_ids_and_ell_addrs, derive_shout_ids_and_ell_addrs};
 
@@ -15,7 +15,7 @@ pub struct Rv32B1Layout {
     pub const_one: usize,
     // Public I/O (single values per chunk).
     pub pc0: usize,
-    pub regs0_start: usize,      // 32 cols
+    pub regs0_start: usize, // 32 cols
     pub pc_final: usize,
     pub regs_final_start: usize, // 32 cols
     pub halted_in: usize,

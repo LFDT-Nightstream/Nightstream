@@ -3,10 +3,10 @@ use crate::types::{Commitment, PP};
 use neo_ccs::Mat;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as Fq;
-use rayon::prelude::*;
 use rand::{CryptoRng, RngCore};
-use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha8Rng;
+use rayon::prelude::*;
 
 /// Bring in ring & S-action APIs from neo-math.
 use neo_math::ring::{cf, cf_inv as cf_unmap, Rq as RqEl, D, ETA};
@@ -645,21 +645,18 @@ pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
         let acc = row
             .par_iter()
             .zip(Z.par_chunks_exact(d))
-            .fold(
-                Acc::new,
-                |mut st, (&a_ij, z_col)| {
-                    precompute_rot_columns(a_ij, &mut st.cols);
-                    // Constant schedule: always loop over all t
-                    for t in 0..d {
-                        let mask = z_col[t];
-                        let col_t = &st.cols[t];
-                        for r in 0..d {
-                            st.acc[r] += col_t[r] * mask;
-                        }
+            .fold(Acc::new, |mut st, (&a_ij, z_col)| {
+                precompute_rot_columns(a_ij, &mut st.cols);
+                // Constant schedule: always loop over all t
+                for t in 0..d {
+                    let mask = z_col[t];
+                    let col_t = &st.cols[t];
+                    for r in 0..d {
+                        st.acc[r] += col_t[r] * mask;
                     }
-                    st
-                },
-            )
+                }
+                st
+            })
             .reduce_with(|mut a, b| {
                 for r in 0..d {
                     a.acc[r] += b.acc[r];
@@ -715,20 +712,17 @@ fn commit_precomp_ct_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
         let acc = row
             .par_iter()
             .enumerate()
-            .fold(
-                Acc::new,
-                |mut st, (j, &a_ij)| {
-                    precompute_rot_columns(a_ij, &mut st.cols);
-                    for t in 0..d {
-                        let mask = z_rows[t][j];
-                        let col_t = &st.cols[t];
-                        for r in 0..d {
-                            st.acc[r] += col_t[r] * mask;
-                        }
+            .fold(Acc::new, |mut st, (j, &a_ij)| {
+                precompute_rot_columns(a_ij, &mut st.cols);
+                for t in 0..d {
+                    let mask = z_rows[t][j];
+                    let col_t = &st.cols[t];
+                    for r in 0..d {
+                        st.acc[r] += col_t[r] * mask;
                     }
-                    st
-                },
-            )
+                }
+                st
+            })
             .reduce_with(|mut a, b| {
                 for r in 0..d {
                     a.acc[r] += b.acc[r];

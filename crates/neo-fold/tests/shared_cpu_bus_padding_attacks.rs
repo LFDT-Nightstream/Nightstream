@@ -225,7 +225,12 @@ fn has_write_flag_mismatch_wv_nonzero_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Zero;
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
 
     // ATTACK: has_write=0 but wv=99 (non-zero)
     let mut z = vec![F::ZERO; m];
@@ -341,7 +346,12 @@ fn has_write_flag_mismatch_inc_nonzero_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Zero;
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
 
     // ATTACK: has_write=0 but inc=50 (non-zero)
     let mut z = vec![F::ZERO; m];
@@ -457,7 +467,12 @@ fn has_read_flag_mismatch_ra_bits_nonzero_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Zero;
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
 
     // ATTACK: has_read=0 but ra_bit=1 (non-zero address bits when no read)
     let mut z = vec![F::ZERO; m];
@@ -573,7 +588,12 @@ fn has_write_flag_mismatch_wa_bits_nonzero_should_be_rejected() {
     let mixers = default_mixers();
 
     let mem_init = MemInit::Zero;
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
 
     // ATTACK: has_write=0 but wa_bit=1 (non-zero address bits when no write)
     let mut z = vec![F::ZERO; m];
@@ -740,7 +760,12 @@ fn has_lookup_flag_mismatch_val_nonzero_should_be_rejected() {
 
     let (lut_inst, lut_wit) = metadata_only_lut_instance(&lut_table, lut_trace.has_lookup.len());
 
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
     let mem_init = MemInit::Zero;
     let mem_trace = PlainMemTrace {
         steps: 1,
@@ -876,7 +901,12 @@ fn has_lookup_flag_mismatch_addr_bits_nonzero_should_be_rejected() {
 
     let (lut_inst, lut_wit) = metadata_only_lut_instance(&lut_table, lut_trace.has_lookup.len());
 
-    let mem_layout = PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1};
+    let mem_layout = PlainMemLayout {
+        k: 2,
+        d: 1,
+        n_side: 2,
+        lanes: 1,
+    };
     let mem_init = MemInit::Zero;
     let mem_trace = PlainMemTrace {
         steps: 1,

@@ -11,21 +11,40 @@
 
 #![forbid(unsafe_code)]
 
-use neo_math::{F, D};
-use rand_chacha::ChaCha8Rng;
-use rand_chacha::rand_core::SeedableRng;
+use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 /// Compute the row-major weight vector `w_u` for a seeded PP and vectors `u_vecs` (one per κ row).
 ///
 /// Returns a vector of length `D * m`, indexed as `w_u[row * m + col]`.
 pub fn compute_opening_weights_for_u_seeded(seed: [u8; 32], m: usize, u_vecs: &[[F; D]]) -> Vec<F> {
-    let kappa = u_vecs.len();
     let d = D;
 
     let mut w = vec![F::ZERO; d * m];
+    compute_opening_weights_for_u_seeded_into(seed, m, u_vecs, &mut w);
+    w
+}
+
+/// Compute the row-major weight vector `w_u` for a seeded PP and vectors `u_vecs` into a caller-provided buffer.
+///
+/// The output slice must have length `D * m` and is indexed as `out[row * m + col]`.
+///
+/// This is intended for streaming/low-memory backends that want to write into an `mmap`-backed slice.
+pub fn compute_opening_weights_for_u_seeded_into(seed: [u8; 32], m: usize, u_vecs: &[[F; D]], out: &mut [F]) {
+    let kappa = u_vecs.len();
+    let d = D;
+
+    assert_eq!(
+        out.len(),
+        d.saturating_mul(m),
+        "opening weights output length mismatch: out.len()={} expected={}",
+        out.len(),
+        d.saturating_mul(m)
+    );
     if m == 0 || kappa == 0 {
-        return w;
+        return;
     }
 
     let (chunk_size, chunk_seeds_by_row) = crate::commit::seeded_pp_chunk_seeds(seed, kappa, m);
@@ -46,13 +65,11 @@ pub fn compute_opening_weights_for_u_seeded(seed: [u8; 32], m: usize, u_vecs: &[
                     for r in 0..d {
                         dot += u_i[r] * rot_col[r];
                     }
-                    w[row * m + col_idx] += dot;
+                    out[row * m + col_idx] += dot;
                     crate::commit::rot_step(&rot_col, &mut nxt);
                     core::mem::swap(&mut rot_col, &mut nxt);
                 }
             }
         }
     }
-
-    w
 }

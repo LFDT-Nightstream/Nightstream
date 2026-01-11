@@ -7,7 +7,7 @@
 //! The goal is to keep transcript order *exactly* the same as native.
 
 use bellpepper_core::{ConstraintSystem, SynthesisError};
-use neo_math::{F as NeoF, K as NeoK, KExtensions};
+use neo_math::{KExtensions, F as NeoF, K as NeoK};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::gadgets::k_field::KNumVar;
@@ -23,7 +23,10 @@ fn k_to_circuit_coeffs(k: NeoK) -> [CircuitF; 2] {
     ]
 }
 
-fn k_from_allocated(c0: &bellpepper_core::num::AllocatedNum<CircuitF>, c1: &bellpepper_core::num::AllocatedNum<CircuitF>) -> NeoK {
+fn k_from_allocated(
+    c0: &bellpepper_core::num::AllocatedNum<CircuitF>,
+    c1: &bellpepper_core::num::AllocatedNum<CircuitF>,
+) -> NeoK {
     let c0_u64 = c0
         .get_value()
         .unwrap_or(CircuitF::from(0u64))
@@ -242,7 +245,10 @@ pub fn verify_batched_sumcheck_rounds_ds<CS: ConstraintSystem<CircuitF>>(
 
             let round_poly_vars = &round_polys_vars[claim_idx][round_idx];
             let round_poly_vals = &round_polys_vals[claim_idx][round_idx];
-            for (coeff_idx, (coeff_var, &coeff_val)) in round_poly_vars.iter().zip(round_poly_vals.iter()).enumerate()
+            for (coeff_idx, (coeff_var, &coeff_val)) in round_poly_vars
+                .iter()
+                .zip(round_poly_vals.iter())
+                .enumerate()
             {
                 let [c0, c1] = k_to_circuit_coeffs(coeff_val);
                 tr.append_fields_vars(

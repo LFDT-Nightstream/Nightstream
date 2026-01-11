@@ -49,10 +49,11 @@ use std::sync::Arc;
 
 use fib_twist_shout_vm::{fib_mod_q_u64, FibTwistShoutVm, MapShout, MapTwist};
 use neo_ajtai::{setup as ajtai_setup, AjtaiSModule};
+use neo_fold::output_binding::simple_output_config;
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::session::{CcsBuilder, FoldingSession, NeoCircuit, ShoutPort, SharedBusResources, TwistPort};
-use neo_fold::session::{Lane, Public, Scalar};
 use neo_fold::session::{preprocess_shared_bus_r1cs, witness_layout};
+use neo_fold::session::{CcsBuilder, FoldingSession, NeoCircuit, SharedBusResources, ShoutPort, TwistPort};
+use neo_fold::session::{Lane, Public, Scalar};
 use neo_fold::shard::MemOrLutProof;
 use neo_fold::shard::StepLinkingConfig;
 use neo_math::{D, F};
@@ -63,7 +64,6 @@ use p3_field::PrimeCharacteristicRing;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::time::Instant;
-use neo_fold::output_binding::simple_output_config;
 
 // We intentionally use a *large* chunk size here to better reflect “do more before folding” and to
 // avoid the worst-case overheads of `chunk_size=1`.
@@ -102,7 +102,12 @@ impl<const N: usize> NeoCircuit for FibCircuit<N> {
     fn resources(&self, resources: &mut SharedBusResources) {
         resources
             .twist(0)
-            .layout(PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1})
+            .layout(PlainMemLayout {
+                k: 2,
+                d: 1,
+                n_side: 2,
+                lanes: 1,
+            })
             .init_cell(0, F::ONE);
         resources.set_binary_table(0, vec![F::ZERO, F::ONE]);
     }
@@ -150,7 +155,11 @@ impl<const N: usize> NeoCircuit for FibCircuit<N> {
         Ok(())
     }
 
-    fn build_witness_prefix(&self, layout: &Self::Layout, chunk: &[neo_vm_trace::StepTrace<u64, u64>]) -> Result<Vec<F>, String> {
+    fn build_witness_prefix(
+        &self,
+        layout: &Self::Layout,
+        chunk: &[neo_vm_trace::StepTrace<u64, u64>],
+    ) -> Result<Vec<F>, String> {
         if chunk.len() != N {
             return Err(format!(
                 "FibCircuit witness builder expects full chunks (len {} != N {})",
@@ -283,7 +292,8 @@ fn twist_shout_fibonacci_cycle_trace() {
         twist.store(TwistId(0), 0, 1);
         let mut shout = MapShout { table: vec![0, 1] };
         for _ in 0..max_steps {
-            vm.step(&mut twist, &mut shout).expect("VM step should succeed");
+            vm.step(&mut twist, &mut shout)
+                .expect("VM step should succeed");
         }
         assert_eq!(vm.f_next, expected_next, "VM simulation mismatch");
     }
@@ -298,7 +308,10 @@ fn twist_shout_fibonacci_cycle_trace() {
         .fold_and_prove_with_output_binding_auto_simple(prover.ccs(), &ob_cfg)
         .expect("prove should succeed");
     let prove_dur = t_prove.elapsed();
-    assert!(run.output_proof.is_some(), "expected output binding proof to be attached");
+    assert!(
+        run.output_proof.is_some(),
+        "expected output binding proof to be attached"
+    );
 
     let outputs = run.compute_fold_outputs(&[]);
 
@@ -419,7 +432,12 @@ fn twist_shout_fibonacci_cycle_trace() {
                         println!(
                             "  proof[{idx}] Twist: addr_pre_claims={} addr_rounds={} r_addr_len={}",
                             twist_pf.addr_pre.claimed_sums.len(),
-                            twist_pf.addr_pre.round_polys.first().map(|v| v.len()).unwrap_or(0),
+                            twist_pf
+                                .addr_pre
+                                .round_polys
+                                .first()
+                                .map(|v| v.len())
+                                .unwrap_or(0),
                             twist_pf.addr_pre.r_addr.len()
                         );
                         if let Some(val) = &twist_pf.val_eval {

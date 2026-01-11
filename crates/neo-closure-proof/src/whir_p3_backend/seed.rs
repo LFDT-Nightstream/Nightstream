@@ -4,11 +4,7 @@
 
 use super::ClosureStatementV1;
 
-pub(super) fn derive_seed_v1(
-    label: &[u8],
-    stmt: &ClosureStatementV1,
-    commitment_root_u64: Option<&[u64]>,
-) -> [u8; 32] {
+pub(crate) fn derive_seed_v1(label: &[u8], stmt: &ClosureStatementV1, commitment_root_u64: Option<&[u64]>) -> [u8; 32] {
     let mut h = blake3::Hasher::new();
     h.update(b"neo/closure-proof/whir-p3/seed/v1");
     h.update(label);
@@ -23,10 +19,9 @@ pub(super) fn derive_seed_v1(
     *h.finalize().as_bytes()
 }
 
-pub(super) fn fixed_seed(label: &[u8]) -> [u8; 32] {
+pub(crate) fn fixed_seed(label: &[u8]) -> [u8; 32] {
     let mut h = blake3::Hasher::new();
     h.update(b"neo/closure-proof/whir-p3/fixed-seed/v1");
     h.update(label);
     *h.finalize().as_bytes()
 }
-

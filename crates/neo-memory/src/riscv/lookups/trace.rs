@@ -27,7 +27,7 @@ impl Default for TraceToProofConfig {
                 k: 16,
                 d: 1,
                 n_side: 256,
-            
+
                 lanes: 1,
             },
             opcode_tables: HashMap::new(),

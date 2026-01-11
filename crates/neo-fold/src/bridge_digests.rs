@@ -7,7 +7,7 @@
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::MeInstance;
-use neo_math::{F as NeoF, K as NeoK, KExtensions};
+use neo_math::{KExtensions, F as NeoF, K as NeoK};
 use p3_field::PrimeCharacteristicRing;
 
 /// Digest an accumulator (list of ME instances).
@@ -119,5 +119,59 @@ pub fn compute_obligations_digest_v1(
     h.update(&pp_id_digest);
     let mut out = [0u8; 32];
     out.copy_from_slice(h.finalize().as_bytes());
+    out
+}
+
+/// Digest binding for the final obligations list (ZK-friendly).
+///
+/// This uses Poseidon2 over Goldilocks so it can be recomputed inside ZK circuits/AIR.
+///
+/// This is the canonical definition used by `neo-spartan-bridge` (`obligations_digest/v2`).
+pub fn compute_obligations_digest_v2(
+    acc_final_main_digest: [u8; 32],
+    acc_final_val_digest: [u8; 32],
+    pp_id_digest: [u8; 32],
+) -> [u8; 32] {
+    use neo_ccs::crypto::poseidon2_goldilocks as p2;
+    use p3_field::PrimeField64;
+    use p3_symmetric::Permutation;
+
+    let perm = p2::permutation();
+    let mut st = [NeoF::ZERO; p2::WIDTH];
+    let mut absorbed = 0usize;
+
+    let mut absorb = |x: NeoF| {
+        if absorbed >= p2::RATE {
+            st = perm.permute(st);
+            absorbed = 0;
+        }
+        st[absorbed] = x;
+        absorbed += 1;
+    };
+
+    for &b in b"neo/spartan-bridge/obligations_digest/v2" {
+        absorb(NeoF::from_u64(b as u64));
+    }
+
+    // Absorb digests as 32-bit chunks (always < modulus; avoids lossy field reduction).
+    let mut absorb_digest_u32 = |d: &[u8; 32]| {
+        for chunk in d.chunks_exact(4) {
+            let mut limb = [0u8; 4];
+            limb.copy_from_slice(chunk);
+            absorb(NeoF::from_u64(u32::from_le_bytes(limb) as u64));
+        }
+    };
+    absorb_digest_u32(&acc_final_main_digest);
+    absorb_digest_u32(&acc_final_val_digest);
+    absorb_digest_u32(&pp_id_digest);
+
+    // Same squeeze gate as `neo_transcript::Poseidon2Transcript::digest32`.
+    absorb(NeoF::ONE);
+    st = perm.permute(st);
+
+    let mut out = [0u8; 32];
+    for i in 0..4 {
+        out[i * 8..(i + 1) * 8].copy_from_slice(&st[i].as_canonical_u64().to_le_bytes());
+    }
     out
 }

@@ -44,19 +44,22 @@ impl<const N: usize> NeoCircuit for MultiLookupImplicitSpecCircuit<N> {
     }
 
     fn resources(&self, resources: &mut SharedBusResources) {
-        resources
-            .shout(0)
-            .lanes(2)
-            .spec(LutTableSpec::RiscvOpcode {
-                opcode: RiscvOpcode::Add,
-                xlen: 32,
-            });
+        resources.shout(0).lanes(2).spec(LutTableSpec::RiscvOpcode {
+            opcode: RiscvOpcode::Add,
+            xlen: 32,
+        });
     }
 
     fn cpu_bindings(
         &self,
         layout: &Self::Layout,
-    ) -> Result<(HashMap<u32, Vec<ShoutCpuBinding>>, HashMap<u32, Vec<neo_memory::cpu::TwistCpuBinding>>), String> {
+    ) -> Result<
+        (
+            HashMap<u32, Vec<ShoutCpuBinding>>,
+            HashMap<u32, Vec<neo_memory::cpu::TwistCpuBinding>>,
+        ),
+        String,
+    > {
         Ok((
             HashMap::from([(
                 0u32,
@@ -160,7 +163,10 @@ impl VmCpu<u64, u64> for MultiLookupImplicitSpecVm {
         let _ = shout.lookup(ShoutId(0), key1);
 
         self.pc = self.pc.wrapping_add(4);
-        Ok(StepMeta { pc_after: self.pc, opcode: 0 })
+        Ok(StepMeta {
+            pc_after: self.pc,
+            opcode: 0,
+        })
     }
 }
 
@@ -187,7 +193,7 @@ fn shout_multi_lookup_implicit_table_spec_two_lookups_per_step_prove_verify() {
         base_params.d,
         base_params.kappa,
         base_params.m,
-        4,              // b
+        4,                 // b
         base_params.k_rho, // keep preset k_rho (can be bumped in heavier tests)
         base_params.T,
         base_params.s,
@@ -195,7 +201,9 @@ fn shout_multi_lookup_implicit_table_spec_two_lookups_per_step_prove_verify() {
     )
     .expect("params");
     let committer = setup_ajtai_committer(m, params.kappa as usize);
-    let prover = pre.into_prover(params.clone(), committer.clone()).expect("into_prover");
+    let prover = pre
+        .into_prover(params.clone(), committer.clone())
+        .expect("into_prover");
 
     let mut session = FoldingSession::new(FoldingMode::Optimized, params.clone(), committer);
     prover
@@ -211,7 +219,11 @@ fn shout_multi_lookup_implicit_table_spec_two_lookups_per_step_prove_verify() {
         )
         .expect("execute_into_session should succeed");
 
-    let run = session.fold_and_prove(prover.ccs()).expect("prove should succeed");
-    let ok = session.verify_collected(prover.ccs(), &run).expect("verify should run");
+    let run = session
+        .fold_and_prove(prover.ccs())
+        .expect("prove should succeed");
+    let ok = session
+        .verify_collected(prover.ccs(), &run)
+        .expect("verify should run");
     assert!(ok, "verification should pass");
 }

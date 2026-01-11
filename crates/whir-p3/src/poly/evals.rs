@@ -6,6 +6,7 @@ use p3_multilinear_util::eq_batch::{eval_eq_base_batch, eval_eq_batch};
 use tracing::instrument;
 
 use super::{coeffs::CoefficientList, multilinear::MultilinearPoint, wavelet::Radix2WaveletKernel};
+use crate::storage::{Buffer, MmapBuffer, mmap_threshold_bytes};
 use crate::{constant::MLE_RECURSION_THRESHOLD, utils::uninitialized_vec};
 
 const PARALLEL_THRESHOLD: usize = 4096;
@@ -18,7 +19,7 @@ const PARALLEL_THRESHOLD: usize = 4096;
 /// `self.len() = 2^n`.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[must_use]
-pub struct EvaluationsList<F>(Vec<F>);
+pub struct EvaluationsList<F: Copy>(Buffer<F>);
 
 impl<F> EvaluationsList<F>
 where
@@ -35,13 +36,41 @@ where
     /// # Panics
     /// Panics if `evals.len()` is not a power of two.
     #[inline]
-    pub const fn new(evals: Vec<F>) -> Self {
+    pub fn new(evals: Vec<F>) -> Self {
+        Self::from_buffer(Buffer::Vec(evals))
+    }
+
+    /// Constructs an `EvaluationsList` backed by an `mmap` buffer (disk-backed).
+    ///
+    /// Panics if allocation fails.
+    #[inline]
+    pub fn new_mmap_zeroed(len: usize) -> Self {
+        Self::from_buffer(Buffer::Mmap(
+            MmapBuffer::new_zeroed(len).expect("mmap allocation must succeed"),
+        ))
+    }
+
+    /// Constructs an `EvaluationsList` whose storage is chosen based on `storage::mmap_threshold_bytes()`.
+    ///
+    /// This is useful for large evaluation tables that should spill to disk rather than RAM.
+    #[inline]
+    pub fn new_zeroed(len: usize) -> Self {
+        let bytes = len.saturating_mul(std::mem::size_of::<F>());
+        if bytes >= mmap_threshold_bytes() {
+            // The backing file is zero-initialized by the OS; for field elements this matches `ZERO`.
+            Self::new_mmap_zeroed(len)
+        } else {
+            Self::from_buffer(Buffer::Vec(F::zero_vec(len)))
+        }
+    }
+
+    #[inline]
+    fn from_buffer(buf: Buffer<F>) -> Self {
         assert!(
-            evals.len().is_power_of_two(),
+            buf.len().is_power_of_two(),
             "Evaluation list length must be a power of two."
         );
-
-        Self(evals)
+        Self(buf)
     }
 
     /// Given a multilinear point `P`, compute the evaluation vector of the equality function `eq(P, X)`
@@ -49,13 +78,13 @@ where
     #[inline]
     pub fn new_from_point(point: &MultilinearPoint<F>, value: F) -> Self {
         let n = point.num_variables();
-        let mut evals = F::zero_vec(1 << n);
+        let mut evals = Self::new_zeroed(1 << n);
         eval_eq_batch::<_, _, false>(
             RowMajorMatrixView::new_col(point.as_slice()),
-            &mut evals,
+            evals.0.as_mut_slice(),
             &[value],
         );
-        Self(evals)
+        evals
     }
 
     /// Evaluates the polynomial as a constant.
@@ -68,7 +97,7 @@ where
     #[must_use]
     #[inline]
     pub fn as_constant(&self) -> Option<F> {
-        (self.num_evals() == 1).then_some(self.0[0])
+        (self.num_evals() == 1).then_some(self.as_slice()[0])
     }
 
     /// Given multiple multilinear points, compute the evaluation vectors of the equality functions
@@ -88,7 +117,7 @@ where
             .collect();
         let points_matrix = RowMajorMatrixView::new(&point_data, points.len());
 
-        eval_eq_batch::<_, _, true>(points_matrix, &mut self.0, values);
+        eval_eq_batch::<_, _, true>(points_matrix, self.0.as_mut_slice(), values);
     }
 
     /// Given multiple multilinear points in a base field, compute the evaluation vectors of the equality functions
@@ -114,7 +143,7 @@ where
             .collect();
         let points_matrix = RowMajorMatrixView::new(&point_data, points.len());
 
-        eval_eq_base_batch::<_, _, true>(points_matrix, &mut self.0, values);
+        eval_eq_base_batch::<_, _, true>(points_matrix, self.0.as_mut_slice(), values);
     }
 
     /// Returns the total number of stored evaluations.
@@ -145,7 +174,7 @@ where
     #[must_use]
     #[inline]
     pub fn evaluate<EF: ExtensionField<F>>(&self, point: &MultilinearPoint<EF>) -> EF {
-        eval_multilinear(&self.0, point)
+        eval_multilinear(self.as_slice(), point)
     }
 
     /// Folds a multilinear polynomial stored in evaluation form along the last `k` variables.
@@ -171,33 +200,42 @@ where
         EF: ExtensionField<F>,
     {
         let folding_factor = folding_randomness.num_variables();
-        let evals = self
-            .0
+        let out_len = self.num_evals() >> folding_factor;
+        let mut out = EvaluationsList::<EF>::new_zeroed(out_len);
+        self.as_slice()
             .par_chunks_exact(1 << folding_factor)
-            .map(|ev| eval_multilinear(ev, folding_randomness))
-            .collect();
-
-        EvaluationsList(evals)
+            .zip(out.as_mut_slice().par_iter_mut())
+            .for_each(|(chunk, dst)| {
+                *dst = eval_multilinear(chunk, folding_randomness);
+            });
+        out
     }
 
     /// Create a matrix representation of the evaluation list.
     #[inline]
     #[must_use]
     pub fn into_mat(self, width: usize) -> RowMajorMatrix<F> {
-        RowMajorMatrix::new(self.0, width)
+        RowMajorMatrix::new(self.0.into_vec(), width)
     }
 
     /// Returns a reference to the underlying slice of evaluations.
     #[inline]
     #[must_use]
     pub fn as_slice(&self) -> &[F] {
-        &self.0
+        self.0.as_slice()
+    }
+
+    /// Returns a mutable slice of the underlying evaluations.
+    #[inline]
+    #[must_use]
+    pub fn as_mut_slice(&mut self) -> &mut [F] {
+        self.0.as_mut_slice()
     }
 
     /// Returns an iterator over the evaluations.
     #[inline]
     pub fn iter(&self) -> std::slice::Iter<'_, F> {
-        self.0.iter()
+        self.as_slice().iter()
     }
 
     /// Convert from a list of evaluations to a list of multilinear coefficients.
@@ -209,7 +247,7 @@ where
         F: ExtensionField<B>,
     {
         let kernel = Radix2WaveletKernel::<B>::default();
-        let evals = kernel.inverse_wavelet_transform_algebra(self.0);
+        let evals = kernel.inverse_wavelet_transform_algebra(self.0.into_vec());
         CoefficientList::new(evals)
     }
 
@@ -229,24 +267,17 @@ where
         // Ensure the polynomial is not a constant (i.e., has variables to fold).
         assert_ne!(self.num_variables(), 0);
 
-        // For large inputs, we use a parallel, out-of-place strategy.
-        if self.num_evals() >= PARALLEL_THRESHOLD {
-            // Define the folding operation for a pair of elements.
-            let fold = |slice: &[F]| -> F { r * (slice[1] - slice[0]) + slice[0] };
-            // Execute the fold in parallel and collect into a new vector.
-            let folded = self.0.par_chunks_exact(2).map(fold).collect();
-            // Replace the old evaluations with the new, folded evaluations.
-            self.0 = folded;
-        } else {
-            // For smaller inputs, we use a sequential, in-place strategy.
-            let mid = self.num_evals() / 2;
-            for i in 0..mid {
-                let p0 = self.0[2 * i];
-                let p1 = self.0[2 * i + 1];
-                self.0[i] = r * (p1 - p0) + p0;
-            }
-            self.0.truncate(mid);
+        // Use an in-place, sequential strategy. This works for both in-memory and mmap-backed buffers.
+        //
+        // Parallel in-place folding is not safe without careful chunking because writes can overlap reads.
+        let mid = self.num_evals() / 2;
+        let evals = self.0.as_mut_slice();
+        for i in 0..mid {
+            let p0 = evals[2 * i];
+            let p1 = evals[2 * i + 1];
+            evals[i] = r * (p1 - p0) + p0;
         }
+        self.0.truncate(mid);
     }
 
     /// Folds a list of evaluations from a base field `F` into an extension field `EF`.
@@ -265,41 +296,35 @@ where
     #[instrument(skip_all)]
     pub fn compress_ext<EF: ExtensionField<F>>(&self, r: EF) -> EvaluationsList<EF> {
         assert_ne!(self.num_variables(), 0);
-
-        // Fold between base and extension field elements
-        let fold = |slice: &[F]| -> EF { r * (slice[1] - slice[0]) + slice[0] };
-
-        // Threshold below which sequential computation is faster
-        //
-        // This was chosen based on experiments with the `compress` function.
-        // It is possible that the threshold can be tuned further.
-        let folded = if self.num_evals() >= PARALLEL_THRESHOLD {
-            self.0.par_chunks_exact(2).map(fold).collect()
-        } else {
-            self.0.chunks_exact(2).map(fold).collect()
-        };
-
-        EvaluationsList::new(folded)
+        let out_len = self.num_evals() / 2;
+        let mut out = EvaluationsList::<EF>::new_zeroed(out_len);
+        self.as_slice()
+            .par_chunks_exact(2)
+            .zip(out.as_mut_slice().par_iter_mut())
+            .for_each(|(pair, dst)| {
+                *dst = r * (pair[1] - pair[0]) + pair[0];
+            });
+        out
     }
 }
 
-impl<'a, F> IntoIterator for &'a EvaluationsList<F> {
+impl<'a, F: Field> IntoIterator for &'a EvaluationsList<F> {
     type Item = &'a F;
     type IntoIter = std::slice::Iter<'a, F>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
+        self.as_slice().iter()
     }
 }
 
-impl<F> IntoIterator for EvaluationsList<F> {
+impl<F: Field> IntoIterator for EvaluationsList<F> {
     type Item = F;
     type IntoIter = std::vec::IntoIter<F>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.0.into_vec().into_iter()
     }
 }
 
@@ -527,10 +552,10 @@ mod tests {
         ];
         let evaluations_list = EvaluationsList::new(evals.clone());
 
-        assert_eq!(evaluations_list.0[0], evals[0]);
-        assert_eq!(evaluations_list.0[1], evals[1]);
-        assert_eq!(evaluations_list.0[2], evals[2]);
-        assert_eq!(evaluations_list.0[3], evals[3]);
+        assert_eq!(evaluations_list.as_slice()[0], evals[0]);
+        assert_eq!(evaluations_list.as_slice()[1], evals[1]);
+        assert_eq!(evaluations_list.as_slice()[2], evals[2]);
+        assert_eq!(evaluations_list.as_slice()[3], evals[3]);
     }
 
     #[test]
@@ -546,11 +571,11 @@ mod tests {
     fn test_mutability_of_evals() {
         let mut evals = EvaluationsList::new(vec![F::ZERO, F::ONE, F::ZERO, F::ONE]);
 
-        assert_eq!(evals.0[1], F::ONE);
+        assert_eq!(evals.as_slice()[1], F::ONE);
 
-        evals.0[1] = F::from_u64(5);
+        evals.as_mut_slice()[1] = F::from_u64(5);
 
-        assert_eq!(evals.0[1], F::from_u64(5));
+        assert_eq!(evals.as_slice()[1], F::from_u64(5));
     }
 
     #[test]

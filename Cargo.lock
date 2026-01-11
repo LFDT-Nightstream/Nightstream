@@ -1036,8 +1036,10 @@ dependencies = [
 name = "neo-closure-proof"
 version = "0.1.0"
 dependencies = [
+ "bellpepper-core",
  "bincode",
  "blake3",
+ "ff",
  "neo-ajtai",
  "neo-ccs",
  "neo-fold",
@@ -1045,13 +1047,16 @@ dependencies = [
  "neo-memory",
  "neo-params",
  "neo-reductions",
+ "once_cell",
  "p3-challenger",
  "p3-field 0.4.1",
  "p3-goldilocks 0.4.1",
+ "p3-poseidon2 0.4.1",
  "p3-symmetric 0.4.1",
  "rand 0.9.2",
  "rand_chacha",
  "serde",
+ "spartan2",
  "thiserror 2.0.17",
  "whir-p3",
 ]
@@ -2641,6 +2646,7 @@ dependencies = [
  "clap",
  "criterion 0.7.0",
  "itertools 0.14.0",
+ "memmap2",
  "p3-baby-bear",
  "p3-challenger",
  "p3-commit",
@@ -2659,6 +2665,7 @@ dependencies = [
  "rand 0.9.2",
  "rayon",
  "serde",
+ "tempfile",
  "thiserror 2.0.17",
  "tracing",
  "tracing-forest",

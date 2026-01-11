@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
-use neo_memory::cpu::{ShoutCpuBinding, TwistCpuBinding};
 use neo_math::F;
+use neo_memory::cpu::{ShoutCpuBinding, TwistCpuBinding};
 use neo_vm_trace::{StepTrace, TwistOpKind};
 use p3_field::PrimeCharacteristicRing;
 
@@ -514,15 +514,12 @@ impl<const N: usize> TwistPort<N> {
                             }
                             lane_idx
                         } else {
-                            reads
-                                .iter()
-                                .position(|x| x.is_none())
-                                .ok_or_else(|| {
-                                    format!(
-                                        "too many twist reads for twist_id={twist_id} in one step (j={j}): lanes={}",
-                                        lanes.len()
-                                    )
-                                })?
+                            reads.iter().position(|x| x.is_none()).ok_or_else(|| {
+                                format!(
+                                    "too many twist reads for twist_id={twist_id} in one step (j={j}): lanes={}",
+                                    lanes.len()
+                                )
+                            })?
                         };
                         reads[lane_idx] = Some((ev.addr, ev.value));
                     }
@@ -552,15 +549,12 @@ impl<const N: usize> TwistPort<N> {
                             }
                             lane_idx
                         } else {
-                            writes
-                                .iter()
-                                .position(|x| x.is_none())
-                                .ok_or_else(|| {
-                                    format!(
-                                        "too many twist writes for twist_id={twist_id} in one step (j={j}): lanes={}",
-                                        lanes.len()
-                                    )
-                                })?
+                            writes.iter().position(|x| x.is_none()).ok_or_else(|| {
+                                format!(
+                                    "too many twist writes for twist_id={twist_id} in one step (j={j}): lanes={}",
+                                    lanes.len()
+                                )
+                            })?
                         };
                         writes[lane_idx] = Some((ev.addr, ev.value));
                     }

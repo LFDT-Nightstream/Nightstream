@@ -6,8 +6,8 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::engines::optimized_engine::oracle::{OptimizedOracle, SparseCache};
 use neo_reductions::Challenges;
-use p3_field::PrimeField64;
 use p3_field::PrimeCharacteristicRing;
+use p3_field::PrimeField64;
 use std::sync::Arc;
 
 fn build_params_for_b(b: u32, m: usize) -> NeoParams {
@@ -57,9 +57,15 @@ fn build_oracle(b: u32) -> OptimizedOracle<'static, F> {
     let d_sc = 5usize;
 
     let ch = Challenges {
-        alpha: (0..ell_d).map(|i| K::from(F::from_u64((i as u64) + 1))).collect(),
-        beta_a: (0..ell_d).map(|i| K::from(F::from_u64((i as u64) + 11))).collect(),
-        beta_r: (0..ell_n).map(|i| K::from(F::from_u64((i as u64) + 21))).collect(),
+        alpha: (0..ell_d)
+            .map(|i| K::from(F::from_u64((i as u64) + 1)))
+            .collect(),
+        beta_a: (0..ell_d)
+            .map(|i| K::from(F::from_u64((i as u64) + 11)))
+            .collect(),
+        beta_r: (0..ell_n)
+            .map(|i| K::from(F::from_u64((i as u64) + 21)))
+            .collect(),
         gamma: K::from(F::from_u64(7)),
     };
 

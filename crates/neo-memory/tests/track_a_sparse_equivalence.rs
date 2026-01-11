@@ -125,11 +125,8 @@ fn lazy_bitness_oracle_sparse_binary_claim_zero_and_runs_sumcheck() {
         .map(|t| if t % 2 == 0 { K::ZERO } else { K::ONE })
         .collect::<Vec<_>>();
 
-    let oracle = LazyWeightedBitnessOracleSparseTime::new_with_cycle(
-        &r_cycle,
-        vec![dense_to_sparse(&col)],
-        vec![K::ONE],
-    );
+    let oracle =
+        LazyWeightedBitnessOracleSparseTime::new_with_cycle(&r_cycle, vec![dense_to_sparse(&col)], vec![K::ONE]);
     assert_sumcheck_ok(b"track_a/bitness/v1", oracle.degree_bound(), K::ZERO, oracle);
 }
 
@@ -163,12 +160,7 @@ fn lazy_weighted_bitness_oracle_sparse_multi_col_claim_matches_naive_and_runs_su
         naive += chi_at_index(&r_cycle, t) * inner;
     }
 
-    assert_sumcheck_ok(
-        b"track_a/bitness/multi/v1",
-        oracle.degree_bound(),
-        naive,
-        oracle,
-    );
+    assert_sumcheck_ok(b"track_a/bitness/multi/v1", oracle.degree_bound(), naive, oracle);
 }
 
 #[test]

@@ -175,7 +175,10 @@ pub fn direct_sum<F: Field>(
 
     let combined_f = SparsePoly::new(t_total, combined_terms);
 
-    Ok(crate::relations::CcsStructure::new_sparse(stacked_matrices, combined_f)?)
+    Ok(crate::relations::CcsStructure::new_sparse(
+        stacked_matrices,
+        combined_f,
+    )?)
 }
 
 /// Block-diagonal direct sum with transcript-bound mixing (CANCELLATION-RESISTANT).
@@ -215,7 +218,10 @@ pub fn direct_sum_mixed<F: Field>(
             });
         }
         let scaled_f = SparsePoly::new(ccs2.f.arity(), scaled_terms);
-        return Ok(crate::relations::CcsStructure::new_sparse(ccs2.matrices.clone(), scaled_f)?);
+        return Ok(crate::relations::CcsStructure::new_sparse(
+            ccs2.matrices.clone(),
+            scaled_f,
+        )?);
     }
     if ccs2.n == 0 || ccs2.m == 0 {
         return Ok(ccs1.clone());

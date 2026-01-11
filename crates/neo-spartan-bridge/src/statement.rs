@@ -7,7 +7,7 @@ use crate::CircuitF;
 use serde::{Deserialize, Serialize};
 
 /// Current public-statement version supported by this crate.
-pub const STATEMENT_VERSION: u32 = 6;
+pub const STATEMENT_VERSION: u32 = 7;
 
 // Statement public-IO layout (indices into `SpartanShardStatement::public_io()`).
 pub const STATEMENT_IO_VERSION: usize = 0;

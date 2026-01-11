@@ -3,7 +3,7 @@
 use neo_ajtai::{commit_row_major_seeded, setup_par, PP};
 use neo_ccs::Mat;
 use neo_math::ring::Rq as RqEl;
-use neo_math::{D, Fq};
+use neo_math::{Fq, D};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;

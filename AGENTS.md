@@ -2,6 +2,7 @@
 
 ## Code
 - Avoid extending files over 2,000 LOC
+- Never add new features / flags without explicit confirmation
 
 ## Testing
 - Never add tests in the same implementation file, always prefer to add them to a file inside tests/ (current or new)

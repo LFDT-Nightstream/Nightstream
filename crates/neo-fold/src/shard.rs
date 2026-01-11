@@ -111,10 +111,7 @@ impl StepLinkingConfig {
     }
 }
 
-pub fn check_step_linking(
-    steps: &[StepInstanceBundle<Cmt, F, K>],
-    cfg: &StepLinkingConfig,
-) -> Result<(), PiCcsError> {
+pub fn check_step_linking(steps: &[StepInstanceBundle<Cmt, F, K>], cfg: &StepLinkingConfig) -> Result<(), PiCcsError> {
     if steps.len() <= 1 || cfg.prev_next_equalities.is_empty() {
         return Ok(());
     }
@@ -390,10 +387,7 @@ where
     } else {
         // Fallback: non-seeded entry. This will materialize PP if needed.
         let pp = get_global_pp_for_dims(D, s.m).map_err(|e| {
-            PiCcsError::InvalidInput(format!(
-                "DEC: Ajtai PP unavailable for (d,m)=({},{}) ({})",
-                D, s.m, e
-            ))
+            PiCcsError::InvalidInput(format!("DEC: Ajtai PP unavailable for (d,m)=({},{}) ({})", D, s.m, e))
         })?;
         if pp.kappa == 0 {
             return Err(PiCcsError::InvalidInput("DEC: PP.kappa must be > 0".into()));
@@ -484,9 +478,9 @@ where
         commit: Vec<[F; D]>, // [digit][kappa] -> [D]
         y: Vec<[K; D]>,      // [digit][t] -> [D]
         any_nonzero: Vec<bool>,
-        vj: Vec<K>,               // scratch: t
-        digits: Vec<i32>,          // scratch: k*D (balanced digits)
-        rot_next: [F; D],          // scratch: rotation step output (written fully each time)
+        vj: Vec<K>,          // scratch: t
+        digits: Vec<i32>,    // scratch: k*D (balanced digits)
+        rot_next: [F; D],    // scratch: rotation step output (written fully each time)
         err: Option<String>, // first error wins
     }
 
@@ -1261,9 +1255,8 @@ where
 
     let Z_mix = Z_mix.as_ref();
 
-    let can_stream_dec = !want_witnesses
-        && has_global_pp_for_dims(D, s.m)
-        && !cpu_bus.map(|b| b.bus_cols > 0).unwrap_or(false);
+    let can_stream_dec =
+        !want_witnesses && has_global_pp_for_dims(D, s.m) && !cpu_bus.map(|b| b.bus_cols > 0).unwrap_or(false);
 
     let (mut dec_children, ok_y, ok_X, ok_c, maybe_wits) = if can_stream_dec {
         // Memory-optimized DEC: compute children + commitments without materializing Z_split.
@@ -1287,7 +1280,13 @@ where
         let child_cs: Vec<Cmt> = Z_split
             .par_iter()
             .enumerate()
-            .map(|(idx, Zi)| if digit_nonzero[idx] { l.commit(Zi) } else { zero_c.clone() })
+            .map(|(idx, Zi)| {
+                if digit_nonzero[idx] {
+                    l.commit(Zi)
+                } else {
+                    zero_c.clone()
+                }
+            })
             .collect();
         let (dec_children, ok_y, ok_X, ok_c) = ccs::dec_children_with_commit_cached(
             mode.clone(),
@@ -1326,9 +1325,7 @@ where
                 &mut rlc_parent,
             )?;
             for (child, Zi) in dec_children.iter_mut().zip(maybe_wits.iter()) {
-                crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(
-                    params, bus, core_t, Zi, child,
-                )?;
+                crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(params, bus, core_t, Zi, child)?;
             }
         }
     }
@@ -1764,13 +1761,11 @@ where
         Cow::Borrowed(s_me)
     } else {
         Cow::Owned(
-            s_me
-                .ensure_identity_first()
+            s_me.ensure_identity_first()
                 .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?,
         )
     };
-    let (s, cpu_bus) =
-        crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(s0.as_ref(), steps)?;
+    let (s, cpu_bus) = crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(s0.as_ref(), steps)?;
     // Route A terminal checks interpret `ME.y_scalars[0]` as MLE(column)(r_time), which requires M₀ = I.
     s.assert_m0_is_identity_for_nc()
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first (M₀=I) required: {e:?}")))?;
@@ -1999,7 +1994,9 @@ where
                 .ok_or_else(|| PiCcsError::ProtocolError("output binding mem_idx out of range for twist_pre".into()))?;
 
             if pre.decoded.lanes.is_empty() {
-                return Err(PiCcsError::ProtocolError("output binding: Twist decoded lanes empty".into()));
+                return Err(PiCcsError::ProtocolError(
+                    "output binding: Twist decoded lanes empty".into(),
+                ));
             }
 
             let mut oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
@@ -2110,13 +2107,7 @@ where
                 &mut ccs_out[0],
             )?;
             for (out, Z) in ccs_out.iter_mut().skip(1).zip(accumulator_wit.iter()) {
-                crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(
-                    params,
-                    &cpu_bus,
-                    core_t,
-                    Z,
-                    out,
-                )?;
+                crate::memory_sidecar::cpu_bus::append_bus_openings_to_me_instance(params, &cpu_bus, core_t, Z, out)?;
             }
         }
 
@@ -2529,13 +2520,11 @@ where
         Cow::Borrowed(s_me)
     } else {
         Cow::Owned(
-            s_me
-                .ensure_identity_first()
+            s_me.ensure_identity_first()
                 .map_err(|e| PiCcsError::InvalidInput(format!("identity-first required: {e:?}")))?,
         )
     };
-    let (s, cpu_bus) =
-        crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(s0.as_ref(), steps)?;
+    let (s, cpu_bus) = crate::memory_sidecar::cpu_bus::prepare_ccs_for_shared_cpu_bus_steps(s0.as_ref(), steps)?;
     // Route A terminal checks interpret `ME.y_scalars[0]` as MLE(column)(r_time), which requires M₀ = I.
     s.assert_m0_is_identity_for_nc()
         .map_err(|e| PiCcsError::InvalidInput(format!("identity-first (M₀=I) required: {e:?}")))?;

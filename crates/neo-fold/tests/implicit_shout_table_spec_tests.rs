@@ -182,16 +182,7 @@ fn route_a_shout_implicit_table_spec_verifies() {
     let bus_cols_total = inst.d * inst.ell + 2;
     let bus_base = ccs.m - bus_cols_total;
     let mut z = vec![F::ZERO; ccs.m];
-    write_shout_bus_row(
-        &mut z,
-        bus_base,
-        1,
-        0,
-        &inst,
-        addr,
-        F::from_u64(out),
-        F::ONE,
-    );
+    write_shout_bus_row(&mut z, bus_base, 1, 0, &inst, addr, F::from_u64(out), F::ONE);
 
     let (mcs, mcs_wit) = create_mcs_from_z(&params, &l, M_IN, z);
     let step_bundle = StepWitnessBundle {

@@ -1,8 +1,6 @@
 #![allow(non_snake_case)]
 
-use neo_ajtai::{
-    get_global_pp_for_dims, set_global_pp_seeded, unload_global_pp_for_dims, AjtaiSModule,
-};
+use neo_ajtai::{get_global_pp_for_dims, set_global_pp_seeded, unload_global_pp_for_dims, AjtaiSModule};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
 use neo_math::{D, F};

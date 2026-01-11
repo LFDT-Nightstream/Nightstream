@@ -1,23 +1,26 @@
 use std::ops::Deref;
 
 use p3_challenger::{FieldChallenger, GrindingChallenger};
-use p3_commit::{ExtensionMmcs, Mmcs};
+use p3_commit::Mmcs;
 use p3_field::{ExtensionField, Field, TwoAdicField};
 use p3_interpolation::interpolate_subgroup;
-use p3_matrix::dense::{DenseMatrix, RowMajorMatrix};
 use p3_merkle_tree::MerkleTreeMmcs;
 use p3_symmetric::{CryptographicHasher, PseudoCompressionFunction};
 use round_state::RoundState;
 use serde::{Deserialize, Serialize};
 use tracing::{info_span, instrument};
 
-use super::{committer::Witness, constraints::statement::Statement, parameters::WhirConfig};
+use super::{
+    committer::{BaseDenseMatrix, Witness},
+    constraints::statement::Statement,
+    parameters::WhirConfig,
+};
 use crate::{
     constant::K_SKIP_SUMCHECK,
     dft::EvalsDft,
     fiat_shamir::{errors::FiatShamirError, prover::ProverState},
     poly::{evals::EvaluationsList, multilinear::MultilinearPoint},
-    utils::parallel_repeat,
+    storage::{Buffer, MmapBuffer, mmap_threshold_bytes},
     whir::{
         parameters::RoundConfig,
         utils::{get_challenge_stir_queries, sample_ood_points},
@@ -48,6 +51,72 @@ where
     fn deref(&self) -> &Self::Target {
         self.0
     }
+}
+
+fn repeat_and_flatten_evals_to_base<F, EF>(
+    src: &[EF],
+    inv_rate: usize,
+) -> Result<Buffer<F>, FiatShamirError>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    assert!(inv_rate > 0, "inv_rate must be non-zero");
+
+    let dim = EF::DIMENSION;
+    let total_ext = src
+        .len()
+        .checked_mul(inv_rate)
+        .ok_or_else(|| FiatShamirError::Io("evals_repeated length overflow".to_string()))?;
+    let total_base = total_ext
+        .checked_mul(dim)
+        .ok_or_else(|| FiatShamirError::Io("evals_repeated length overflow".to_string()))?;
+
+    let bytes = total_base.saturating_mul(std::mem::size_of::<F>());
+    let threshold = mmap_threshold_bytes();
+
+    let mut out = if bytes >= threshold {
+        Buffer::Mmap(
+            MmapBuffer::new_zeroed(total_base).map_err(|e| FiatShamirError::Io(e.to_string()))?,
+        )
+    } else {
+        Buffer::Vec(F::zero_vec(total_base))
+    };
+
+    let block_len_base = src
+        .len()
+        .checked_mul(dim)
+        .ok_or_else(|| FiatShamirError::Io("evals_repeated length overflow".to_string()))?;
+    let dst = out.as_mut_slice();
+
+    for rep in 0..inv_rate {
+        let start = rep * block_len_base;
+        let end = start + block_len_base;
+        let rep_dst = &mut dst[start..end];
+        for (i, value) in src.iter().enumerate() {
+            let coeffs = value.as_basis_coefficients_slice();
+            rep_dst[i * dim..(i + 1) * dim].copy_from_slice(coeffs);
+        }
+    }
+
+    Ok(out)
+}
+
+fn reconstitute_flattened_extension_row<F, EF>(row: &[F]) -> Vec<EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    let dim = EF::DIMENSION;
+    assert!(
+        row.len() % dim == 0,
+        "row length must be a multiple of EF::DIMENSION"
+    );
+    row.chunks_exact(dim)
+        .map(|chunk| {
+            EF::from_basis_coefficients_slice(chunk).expect("chunk length must match EF::DIMENSION")
+        })
+        .collect()
 }
 
 impl<EF, F, H, C, Challenger> Prover<'_, EF, F, H, C, Challenger>
@@ -103,7 +172,7 @@ where
     /// - Panics if OOD data is non-empty despite `initial_statement = false`
     const fn validate_witness<const DIGEST_ELEMS: usize>(
         &self,
-        witness: &Witness<EF, F, DenseMatrix<F>, DIGEST_ELEMS>,
+        witness: &Witness<EF, F, BaseDenseMatrix<F>, DIGEST_ELEMS>,
     ) -> bool {
         assert!(witness.ood_points.len() == witness.ood_answers.len());
         if !self.0.initial_statement {
@@ -140,7 +209,7 @@ where
         dft: &EvalsDft<F>,
         prover_state: &mut ProverState<F, EF, Challenger>,
         statement: Statement<EF>,
-        witness: Witness<EF, F, DenseMatrix<F>, DIGEST_ELEMS>,
+        witness: Witness<EF, F, BaseDenseMatrix<F>, DIGEST_ELEMS>,
     ) -> Result<MultilinearPoint<EF>, FiatShamirError>
     where
         H: CryptographicHasher<F, [F; DIGEST_ELEMS]>
@@ -185,7 +254,7 @@ where
         round_index: usize,
         dft: &EvalsDft<F>,
         prover_state: &mut ProverState<F, EF, Challenger>,
-        round_state: &mut RoundState<EF, F, F, DenseMatrix<F>, DIGEST_ELEMS>,
+        round_state: &mut RoundState<EF, F, F, BaseDenseMatrix<F>, DIGEST_ELEMS>,
     ) -> Result<(), FiatShamirError>
     where
         H: CryptographicHasher<F, [F; DIGEST_ELEMS]>
@@ -215,29 +284,24 @@ where
         let new_domain_size = round_state.domain_size / domain_reduction;
         let inv_rate = new_domain_size / folded_evaluations.num_evals();
         let folded_matrix = info_span!("fold matrix").in_scope(|| {
-            let evals_repeated = info_span!("repeating evals")
-                .in_scope(|| parallel_repeat(folded_evaluations.as_slice(), inv_rate));
-            // Do DFT on only interleaved polys to be folded.
-            info_span!(
-                "dft",
-                height = evals_repeated.len() >> folding_factor_next,
-                width = 1 << folding_factor_next
-            )
-            .in_scope(|| {
-                dft.dft_algebra_batch_by_evals(RowMajorMatrix::new(
-                    evals_repeated,
-                    1 << folding_factor_next,
-                ))
-            })
-        });
+            let evals_repeated = info_span!("repeating evals").in_scope(|| {
+                repeat_and_flatten_evals_to_base::<F, EF>(folded_evaluations.as_slice(), inv_rate)
+            })?;
+
+            let width_base = (1 << folding_factor_next) * EF::DIMENSION;
+            let height = evals_repeated.len() / width_base;
+
+            Ok::<_, FiatShamirError>(info_span!("dft", height, width = width_base).in_scope(|| {
+                dft.dft_batch_by_evals_storage(BaseDenseMatrix::new(evals_repeated, width_base))
+            }))
+        })?;
 
         let mmcs = MerkleTreeMmcs::<F::Packing, F::Packing, H, C, DIGEST_ELEMS>::new(
             self.merkle_hash.clone(),
             self.merkle_compress.clone(),
         );
-        let extension_mmcs = ExtensionMmcs::new(mmcs.clone());
         let (root, prover_data) =
-            info_span!("commit matrix").in_scope(|| extension_mmcs.commit_matrix(folded_matrix));
+            info_span!("commit matrix").in_scope(|| mmcs.commit_matrix(folded_matrix));
 
         prover_state.add_base_scalars(root.as_ref());
 
@@ -367,14 +431,14 @@ where
                 let mut answers = Vec::with_capacity(stir_challenges_indexes.len());
                 let mut merkle_proofs = Vec::with_capacity(stir_challenges_indexes.len());
                 for challenge in &stir_challenges_indexes {
-                    let commitment = extension_mmcs.open_batch(*challenge, data);
+                    let commitment = mmcs.open_batch(*challenge, data);
                     answers.push(commitment.opened_values[0].clone());
                     merkle_proofs.push(commitment.opening_proof);
                 }
 
                 // merkle leaves
                 for answer in &answers {
-                    prover_state.hint_extension_scalars(answer);
+                    prover_state.hint_base_scalars(answer);
                 }
 
                 // merkle authentication proof
@@ -387,9 +451,9 @@ where
                 // Evaluate answers in the folding randomness.
                 let mut stir_evaluations = Vec::with_capacity(answers.len());
                 for answer in &answers {
+                    let ext_row = reconstitute_flattened_extension_row::<F, EF>(answer.as_slice());
                     stir_evaluations.push(
-                        EvaluationsList::new(answer.clone())
-                            .evaluate(&round_state.folding_randomness),
+                        EvaluationsList::new(ext_row).evaluate(&round_state.folding_randomness),
                     );
                 }
 
@@ -451,7 +515,7 @@ where
         &self,
         round_index: usize,
         prover_state: &mut ProverState<F, EF, Challenger>,
-        round_state: &mut RoundState<EF, F, F, DenseMatrix<F>, DIGEST_ELEMS>,
+        round_state: &mut RoundState<EF, F, F, BaseDenseMatrix<F>, DIGEST_ELEMS>,
     ) -> Result<(), FiatShamirError>
     where
         H: CryptographicHasher<F, [F; DIGEST_ELEMS]>
@@ -496,7 +560,6 @@ where
             self.merkle_hash.clone(),
             self.merkle_compress.clone(),
         );
-        let extension_mmcs = ExtensionMmcs::new(mmcs.clone());
 
         match &round_state.merkle_prover_data {
             None => {
@@ -527,14 +590,14 @@ where
                 let mut answers = Vec::with_capacity(final_challenge_indexes.len());
                 let mut merkle_proofs = Vec::with_capacity(final_challenge_indexes.len());
                 for challenge in final_challenge_indexes {
-                    let commitment = extension_mmcs.open_batch(challenge, data);
+                    let commitment = mmcs.open_batch(challenge, data);
                     answers.push(commitment.opened_values[0].clone());
                     merkle_proofs.push(commitment.opening_proof);
                 }
 
                 // merkle leaves
                 for answer in &answers {
-                    prover_state.hint_extension_scalars(answer);
+                    prover_state.hint_base_scalars(answer);
                 }
 
                 // merkle authentication proof
@@ -575,7 +638,7 @@ where
         &self,
         round_index: usize,
         prover_state: &mut ProverState<F, EF, Challenger>,
-        round_state: &RoundState<EF, F, F, DenseMatrix<F>, DIGEST_ELEMS>,
+        round_state: &RoundState<EF, F, F, BaseDenseMatrix<F>, DIGEST_ELEMS>,
         num_variables: usize,
         round_params: &RoundConfig<F>,
         ood_points: &[EF],

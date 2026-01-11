@@ -111,4 +111,3 @@ fn commit_row_major_matches_commit_over_column_major_buffer() {
         assert_eq!(c_row_major, c_col_major, "m={m}");
     }
 }
-

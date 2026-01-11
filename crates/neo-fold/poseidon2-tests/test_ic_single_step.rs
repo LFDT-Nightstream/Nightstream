@@ -80,9 +80,7 @@ fn pad_witness_to_m(mut z: Vec<F>, m_target: usize) -> Vec<F> {
 
 fn load_test_export(batch_size: usize) -> TestExport {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let json_path = manifest_dir.join(format!(
-        "poseidon2-tests/poseidon2_ic_circuit_batch_{batch_size}.json"
-    ));
+    let json_path = manifest_dir.join(format!("poseidon2-tests/poseidon2_ic_circuit_batch_{batch_size}.json"));
     let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON");
     serde_json::from_str(&json_content).expect("Failed to parse JSON")
 }
@@ -112,12 +110,7 @@ impl NeoStep for StepCircuit {
         self.step_spec.clone()
     }
 
-    fn synthesize_step(
-        &mut self,
-        step_idx: usize,
-        _y_prev: &[F],
-        _inputs: &Self::ExternalInputs,
-    ) -> StepArtifacts {
+    fn synthesize_step(&mut self, step_idx: usize, _y_prev: &[F], _inputs: &Self::ExternalInputs) -> StepArtifacts {
         let z = self.steps[step_idx].clone();
         let z_padded = pad_witness_to_m(z, self.step_ccs.m);
         StepArtifacts {
@@ -166,8 +159,7 @@ fn test_poseidon2_ic_batch_size(batch_size: usize) {
 
     let n = n.max(m);
 
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n)
-        .expect("goldilocks_auto_r1cs_ccs should find valid params");
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("goldilocks_auto_r1cs_ccs should find valid params");
 
     // TODO: needed for now for the decomposition to be bijective in pi_ccs
     //
@@ -199,7 +191,7 @@ fn test_poseidon2_ic_batch_size(batch_size: usize) {
 
     let mut session = FoldingSession::new(FoldingMode::Optimized, params, l.clone());
     let start = Instant::now();
-    
+
     for _ in 0..export.witness.len() {
         let step_start = Instant::now();
 
@@ -210,7 +202,6 @@ fn test_poseidon2_ic_batch_size(batch_size: usize) {
         println!("Add step duration: {:?}", step_start.elapsed());
     }
 
-    
     let run = session
         .fold_and_prove(step_ccs.as_ref())
         .expect("fold_and_prove should produce a FoldRun");

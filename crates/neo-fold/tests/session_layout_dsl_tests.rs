@@ -1,8 +1,8 @@
+use neo_fold::session::witness_layout;
 use neo_fold::session::{
     Lane, Public, Scalar, SharedBusResources, ShoutPort, TwistPort, TwistPortWithInc, WitnessLayout,
     WitnessLayoutAllocator,
 };
-use neo_fold::session::witness_layout;
 use neo_math::F;
 use neo_memory::riscv::lookups::RiscvOpcode;
 use neo_memory::witness::LutTableSpec;
@@ -117,11 +117,8 @@ fn lane_set_helpers_write_expected_cells() {
     l.a.set(&mut z, 2, F::from_u64(123));
     assert_eq!(z[l.a.at(2)], F::from_u64(123));
 
-    l.a.set_from_iter(
-        &mut z,
-        [F::from_u64(1), F::from_u64(2), F::from_u64(3), F::from_u64(4)],
-    )
-    .expect("set_from_iter should succeed");
+    l.a.set_from_iter(&mut z, [F::from_u64(1), F::from_u64(2), F::from_u64(3), F::from_u64(4)])
+        .expect("set_from_iter should succeed");
     assert_eq!(z[l.a.at(0)], F::from_u64(1));
     assert_eq!(z[l.a.at(3)], F::from_u64(4));
 

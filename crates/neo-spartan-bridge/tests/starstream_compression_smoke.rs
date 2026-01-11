@@ -14,7 +14,9 @@ use neo_fold::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
 use neo_math::{D, F};
 use neo_params::NeoParams;
 use neo_spartan_bridge::circuit::FoldRunWitness;
-use neo_spartan_bridge::{compute_vm_digest_v1, prove_fold_run, setup_fold_run, verify_fold_run, verify_fold_run_proof_only};
+use neo_spartan_bridge::{
+    compute_vm_digest_v1, prove_fold_run, setup_fold_run, verify_fold_run, verify_fold_run_proof_only,
+};
 use p3_field::PrimeCharacteristicRing;
 use serde::Deserialize;
 
@@ -89,7 +91,11 @@ fn build_step_ccs(r1cs: &R1csData) -> CcsStructure<F> {
 }
 
 fn extract_witness(witness_data: &WitnessData) -> Vec<F> {
-    witness_data.z_full.iter().map(|s| parse_field_element(s)).collect()
+    witness_data
+        .z_full
+        .iter()
+        .map(|s| parse_field_element(s))
+        .collect()
 }
 
 fn pad_witness_to_m(mut z: Vec<F>, m_target: usize) -> Vec<F> {
@@ -126,12 +132,7 @@ impl NeoStep for StarstreamStepCircuit {
         self.step_spec.clone()
     }
 
-    fn synthesize_step(
-        &mut self,
-        step_idx: usize,
-        _y_prev: &[F],
-        _inputs: &Self::ExternalInputs,
-    ) -> StepArtifacts {
+    fn synthesize_step(&mut self, step_idx: usize, _y_prev: &[F], _inputs: &Self::ExternalInputs) -> StepArtifacts {
         let z = extract_witness(&self.steps[step_idx].witness);
         let z_padded = pad_witness_to_m(z, self.step_ccs.m);
         StepArtifacts {
@@ -178,10 +179,7 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
     session
         .add_steps(&mut circuit, &inputs, steps_to_run)
         .expect("add_steps");
-    println!(
-        "timing: add_steps took {}ms",
-        t_add_steps.elapsed().as_millis()
-    );
+    println!("timing: add_steps took {}ms", t_add_steps.elapsed().as_millis());
 
     let t_fold_prove_verify = Instant::now();
     let run = session
@@ -212,18 +210,23 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
 
     let t_prove = Instant::now();
     let spartan = prove_fold_run(&pk, session.params(), step_ccs.as_ref(), witness).expect("prove_fold_run");
-    println!(
-        "timing: prove_fold_run took {}ms",
-        t_prove.elapsed().as_millis()
-    );
+    println!("timing: prove_fold_run took {}ms", t_prove.elapsed().as_millis());
 
     // Print proof size information
     let proof_bytes = spartan.proof_data.len();
     let serialized = bincode::serialize(&spartan).expect("serialize proof");
     let serialized_bytes = serialized.len();
     println!("Spartan proof size:");
-    println!("  proof_data:  {} bytes ({:.2} KB)", proof_bytes, proof_bytes as f64 / 1024.0);
-    println!("  serialized:  {} bytes ({:.2} KB)", serialized_bytes, serialized_bytes as f64 / 1024.0);
+    println!(
+        "  proof_data:  {} bytes ({:.2} KB)",
+        proof_bytes,
+        proof_bytes as f64 / 1024.0
+    );
+    println!(
+        "  serialized:  {} bytes ({:.2} KB)",
+        serialized_bytes,
+        serialized_bytes as f64 / 1024.0
+    );
 
     let t_verify_proof_only = Instant::now();
     let stmt = verify_fold_run_proof_only(&vk, &spartan).expect("verify_fold_run_proof_only");
@@ -235,8 +238,17 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
 
     let t_verify_full = Instant::now();
     assert!(
-        verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &vm_digest, &steps_public, None, &[], &spartan)
-            .expect("verify_fold_run"),
+        verify_fold_run(
+            &vk,
+            session.params(),
+            step_ccs.as_ref(),
+            &vm_digest,
+            &steps_public,
+            None,
+            &[],
+            &spartan
+        )
+        .expect("verify_fold_run"),
         "Spartan proof should verify"
     );
     println!(
@@ -245,13 +257,32 @@ fn test_starstream_tx_export_spartan_phase1_smoke() {
     );
     let wrong_vm_digest = compute_vm_digest_v1(b"wrong");
     assert!(
-        verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &wrong_vm_digest, &steps_public, None, &[], &spartan).is_err(),
+        verify_fold_run(
+            &vk,
+            session.params(),
+            step_ccs.as_ref(),
+            &wrong_vm_digest,
+            &steps_public,
+            None,
+            &[],
+            &spartan
+        )
+        .is_err(),
         "vm_digest mismatch must be rejected"
     );
 
     assert!(
-        verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &vm_digest, &steps_public, None, &[(0, 0)], &spartan)
-            .is_err(),
+        verify_fold_run(
+            &vk,
+            session.params(),
+            step_ccs.as_ref(),
+            &vm_digest,
+            &steps_public,
+            None,
+            &[(0, 0)],
+            &spartan
+        )
+        .is_err(),
         "mismatched step_linking policy must be rejected"
     );
 }
@@ -304,8 +335,17 @@ fn test_starstream_tx_export_spartan_phase1_tampering_is_rejected() {
         match prove_fold_run(&pk, session.params(), step_ccs.as_ref(), w) {
             Ok(proof) => {
                 assert!(
-                    verify_fold_run(&vk, session.params(), step_ccs.as_ref(), &vm_digest, &steps_public, None, &[], &proof)
-                        .is_err(),
+                    verify_fold_run(
+                        &vk,
+                        session.params(),
+                        step_ccs.as_ref(),
+                        &vm_digest,
+                        &steps_public,
+                        None,
+                        &[],
+                        &proof
+                    )
+                    .is_err(),
                     "tampered witness must not verify"
                 );
             }
@@ -346,7 +386,9 @@ fn test_starstream_tx_export_spartan_phase1_tampering_is_rejected() {
     let mut w_pattern = witness.clone();
     {
         use p3_field::PrimeCharacteristicRing;
-        w_pattern.fold_run.steps[0].fold.ccs_out[0].c_step_coords.push(F::ONE);
+        w_pattern.fold_run.steps[0].fold.ccs_out[0]
+            .c_step_coords
+            .push(F::ONE);
         w_pattern.fold_run.steps[0].fold.ccs_out[0].u_len = 1;
     }
     check_rejected(w_pattern);

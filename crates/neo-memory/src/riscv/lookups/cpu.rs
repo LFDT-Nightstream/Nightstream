@@ -105,10 +105,7 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
         S: Shout<u64>,
     {
         if (self.pc & 0b11) != 0 {
-            return Err(format!(
-                "PC not 4-byte aligned (no compressed): pc={:#x}",
-                self.pc
-            ));
+            return Err(format!("PC not 4-byte aligned (no compressed): pc={:#x}", self.pc));
         }
 
         let ram = super::RAM_ID;
@@ -294,8 +291,7 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
                 self.halted = true;
             }
 
-            RiscvInstruction::Nop => {
-            }
+            RiscvInstruction::Nop => {}
 
             // === RV64 W-suffix Operations ===
             RiscvInstruction::RAluw { op, rd, rs1, rs2 } => {

@@ -20,4 +20,3 @@ pub fn compute_pp_id_digest_v1(d: usize, m: usize, kappa: usize, seed: [u8; 32])
     h.update(&seed);
     *h.finalize().as_bytes()
 }
-

@@ -27,4 +27,3 @@ fn rv32m_mulh_sign_behavior_smoke() {
     let b = 3u64;
     assert_eq!(compute_op(RiscvOpcode::Mulh, a, b, xlen), u32::MAX as u64);
 }
-

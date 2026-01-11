@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use neo_ajtai::{setup as ajtai_setup, AjtaiSModule};
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::session::{preprocess_shared_bus_r1cs, witness_layout, FoldingSession, NeoCircuit, SharedBusResources, TwistPort};
+use neo_fold::session::{
+    preprocess_shared_bus_r1cs, witness_layout, FoldingSession, NeoCircuit, SharedBusResources, TwistPort,
+};
 use neo_fold::session::{Public, Scalar};
 use neo_fold::shard::StepLinkingConfig;
 use neo_math::{D, F};
@@ -43,14 +45,12 @@ impl<const N: usize> NeoCircuit for MultiWriteCircuit<N> {
     }
 
     fn resources(&self, resources: &mut SharedBusResources) {
-        resources
-            .twist(0)
-            .layout(PlainMemLayout {
-                k: 4,
-                d: 2,
-                n_side: 2,
-                lanes: 2,
-            });
+        resources.twist(0).layout(PlainMemLayout {
+            k: 4,
+            d: 2,
+            n_side: 2,
+            lanes: 2,
+        });
     }
 
     fn cpu_bindings(
@@ -65,7 +65,10 @@ impl<const N: usize> NeoCircuit for MultiWriteCircuit<N> {
     > {
         Ok((
             HashMap::new(),
-            HashMap::from([(0u32, vec![layout.twist0_lane0.cpu_binding(), layout.twist0_lane1.cpu_binding()])]),
+            HashMap::from([(
+                0u32,
+                vec![layout.twist0_lane0.cpu_binding(), layout.twist0_lane1.cpu_binding()],
+            )]),
         ))
     }
 
@@ -90,12 +93,7 @@ impl<const N: usize> NeoCircuit for MultiWriteCircuit<N> {
         let mut z = <Self::Layout as neo_fold::session::WitnessLayout>::zero_witness_prefix();
         z[layout.one] = F::ONE;
 
-        TwistPort::fill_lanes_from_trace(
-            &[layout.twist0_lane0, layout.twist0_lane1],
-            chunk,
-            0,
-            &mut z,
-        )?;
+        TwistPort::fill_lanes_from_trace(&[layout.twist0_lane0, layout.twist0_lane1], chunk, 0, &mut z)?;
 
         Ok(z)
     }
@@ -156,7 +154,10 @@ impl VmCpu<u64, u64> for MultiWriteVm {
         self.step += 1;
 
         self.pc = self.pc.wrapping_add(4);
-        Ok(StepMeta { pc_after: self.pc, opcode: 0 })
+        Ok(StepMeta {
+            pc_after: self.pc,
+            opcode: 0,
+        })
     }
 }
 
@@ -174,7 +175,9 @@ fn twist_multi_write_two_writes_per_step_prove_verify() {
 
     let params = NeoParams::goldilocks_auto_r1cs_ccs(m).expect("params");
     let committer = setup_ajtai_committer(m, params.kappa as usize);
-    let prover = pre.into_prover(params.clone(), committer.clone()).expect("into_prover");
+    let prover = pre
+        .into_prover(params.clone(), committer.clone())
+        .expect("into_prover");
 
     let mut session = FoldingSession::new(FoldingMode::Optimized, params.clone(), committer);
     prover
@@ -187,9 +190,13 @@ fn twist_multi_write_two_writes_per_step_prove_verify() {
         )
         .expect("execute_into_session should succeed");
 
-    let run = session.fold_and_prove(prover.ccs()).expect("prove should succeed");
+    let run = session
+        .fold_and_prove(prover.ccs())
+        .expect("prove should succeed");
     session.set_step_linking(StepLinkingConfig::new(vec![(0, 0)]));
-    let ok = session.verify_collected(prover.ccs(), &run).expect("verify should run");
+    let ok = session
+        .verify_collected(prover.ccs(), &run)
+        .expect("verify should run");
     assert!(ok, "verification should pass");
 }
 
@@ -239,12 +246,7 @@ fn twist_multi_write_duplicate_addr_rejected_by_lane_filler() {
         });
     }
 
-    let err = TwistPort::fill_lanes_from_trace(
-        &[layout.twist0_lane0, layout.twist0_lane1],
-        &chunk,
-        0,
-        &mut z,
-    )
-    .expect_err("expected duplicate write addr error");
+    let err = TwistPort::fill_lanes_from_trace(&[layout.twist0_lane0, layout.twist0_lane1], &chunk, 0, &mut z)
+        .expect_err("expected duplicate write addr error");
     assert!(err.contains("duplicate twist write addr"), "unexpected error: {err}");
 }

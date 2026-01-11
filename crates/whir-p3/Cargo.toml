@@ -65,6 +65,8 @@ tracing-subscriber = { version = "0.3.17", default-features = false, features = 
 ] }
 rand = "0.9"
 clap = { version = "4.5", features = ["derive"] }
+memmap2 = "0.9"
+tempfile = "3"
 
 [dev-dependencies]
 criterion = "0.7"

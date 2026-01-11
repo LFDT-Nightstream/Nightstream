@@ -288,13 +288,13 @@ where
                 let mut vj = vec![K::ZERO; self.s.m];
                 for row in 0..n_sz {
                     let wr = if row < self.s.n { chi_r[row] } else { K::ZERO };
-                        if wr == K::ZERO {
-                            continue;
-                        }
-                        for c in 0..self.s.m {
-                            vj[c] += K::from(Self::get_M(&self.s.matrices[j], row, c)) * wr;
-                        }
+                    if wr == K::ZERO {
+                        continue;
                     }
+                    for c in 0..self.s.m {
+                        vj[c] += K::from(Self::get_M(&self.s.matrices[j], row, c)) * wr;
+                    }
+                }
 
                 // i starts from the second instance (skip index 0)
                 for (i_abs, Zi) in self

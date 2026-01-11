@@ -27,4 +27,3 @@ pub fn compute_context_digest_v1(stmt: &SpartanShardStatement) -> [u8; 32] {
     out.copy_from_slice(h.finalize().as_bytes());
     out
 }
-

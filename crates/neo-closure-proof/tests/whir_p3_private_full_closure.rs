@@ -1,11 +1,9 @@
-#![cfg(all(feature = "whir-p3-backend", feature = "whir-p3-obligations-public"))]
-
 use neo_ajtai::{set_global_pp_seeded, AjtaiSModule};
-use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_closure_proof::{
-    compute_accumulator_digest_v2, compute_obligations_digest_v1, prove_explicit_obligation_closure_v1,
-    prove_whir_p3_full_closure_v1, verify_closure_v1_with_context_and_bus, ClosureStatementV1,
+    compute_accumulator_digest_v2, compute_obligations_digest_v2, prove_whir_p3_private_full_closure_v1,
+    verify_closure_v1_production_with_context_and_bus, ClosureProofV1, ClosureStatementV1,
 };
 use neo_fold::shard::ShardObligations;
 use neo_math::{D, F, K};
@@ -28,7 +26,7 @@ fn x_prefix(z: &Mat<F>, m_in: usize) -> Mat<F> {
 }
 
 #[test]
-fn explicit_and_whir_full_closure_accept_same_instances() {
+fn whir_p3_private_full_closure_roundtrip_and_tamper_reject() {
     let m = 16usize;
     let m_in = 4usize;
     let ccs = identity_ccs(m);
@@ -60,15 +58,14 @@ fn explicit_and_whir_full_closure_accept_same_instances() {
         K::from(F::from_u64(11)),
     ];
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let (y, y_scalars) =
-        neo_reductions::common::compute_y_from_Z_and_r(&ccs, &z, &r_point, ell_d, params.b);
+    let (y, y_scalars) = neo_reductions::common::compute_y_from_Z_and_r(&ccs, &z, &r_point, ell_d, params.b);
 
     let me = neo_ccs::MeInstance {
         c: cmt,
         X: x_prefix(&z, m_in),
         r: r_point,
         y,
-        y_scalars,
+        y_scalars: y_scalars.clone(),
         m_in,
         fold_digest: [0u8; 32],
         c_step_coords: Vec::new(),
@@ -84,37 +81,39 @@ fn explicit_and_whir_full_closure_accept_same_instances() {
     let pp_id_digest = neo_ajtai::compute_pp_id_digest_v1(D, m, params.kappa as usize, seed);
     let acc_main = compute_accumulator_digest_v2(params.b, obligations.main.as_slice());
     let acc_val = compute_accumulator_digest_v2(params.b, obligations.val.as_slice());
-    let obligations_digest = compute_obligations_digest_v1(acc_main, acc_val, pp_id_digest);
+    let obligations_digest = compute_obligations_digest_v2(acc_main, acc_val, pp_id_digest);
+
     let stmt = ClosureStatementV1::new([1u8; 32], pp_id_digest, obligations_digest);
+    let proof =
+        prove_whir_p3_private_full_closure_v1(&stmt, &params, &ccs, &obligations, &[z.clone()], &[], None)
+            .expect("prove");
 
-    let proof_explicit = prove_explicit_obligation_closure_v1(&stmt, &params, &obligations, &[z.clone()], &[])
-        .expect("explicit prove");
-    verify_closure_v1_with_context_and_bus(&stmt, &proof_explicit, Some(&params), Some(&ccs), None)
-        .expect("explicit verify");
+    // Basic roundtrip.
+    verify_closure_v1_production_with_context_and_bus(&stmt, &proof, Some(&params), Some(&ccs), None).expect("verify");
 
-    let proof_whir =
-        prove_whir_p3_full_closure_v1(&stmt, &params, &ccs, &obligations, &[z.clone()], &[], None)
-            .expect("whir prove");
-    verify_closure_v1_with_context_and_bus(&stmt, &proof_whir, Some(&params), Some(&ccs), None)
-        .expect("whir verify");
-
-    // Mutate the witness while keeping obligations/statement fixed. Both backends must reject.
-    let mut z_tampered = z;
-    z_tampered[(0, 0)] = if z_tampered[(0, 0)] == F::ZERO { F::ONE } else { F::ZERO };
-
-    let proof_explicit_bad =
-        prove_explicit_obligation_closure_v1(&stmt, &params, &obligations, &[z_tampered.clone()], &[])
-            .expect("explicit prove (tampered witness)");
+    // Regression guard: proof size stays bounded for this tiny instance.
+    let ClosureProofV1::OpaqueBytes { proof_bytes } = &proof;
     assert!(
-        verify_closure_v1_with_context_and_bus(&stmt, &proof_explicit_bad, Some(&params), Some(&ccs), None).is_err(),
-        "explicit backend must reject tampered witness"
+        proof_bytes.len() < 20 * 1024 * 1024,
+        "unexpectedly large proof: {} bytes",
+        proof_bytes.len()
     );
 
-    match prove_whir_p3_full_closure_v1(&stmt, &params, &ccs, &obligations, &[z_tampered], &[], None) {
-        Ok(proof_whir_bad) => assert!(
-            verify_closure_v1_with_context_and_bus(&stmt, &proof_whir_bad, Some(&params), Some(&ccs), None).is_err(),
-            "whir backend must reject tampered witness"
-        ),
-        Err(_) => {}
-    }
+    // Tamper statement digest: must fail (digest-binding is statement-bound).
+    let mut stmt_bad = stmt.clone();
+    stmt_bad.obligations_digest[0] ^= 1;
+    assert!(
+        verify_closure_v1_production_with_context_and_bus(&stmt_bad, &proof, Some(&params), Some(&ccs), None).is_err(),
+        "tampered statement must be rejected"
+    );
+
+    // Tamper proof bytes: must fail.
+    let mut proof_bad = proof.clone();
+    let ClosureProofV1::OpaqueBytes { proof_bytes } = &mut proof_bad;
+    let idx = proof_bytes.len() / 2;
+    proof_bytes[idx] ^= 1;
+    assert!(
+        verify_closure_v1_production_with_context_and_bus(&stmt, &proof_bad, Some(&params), Some(&ccs), None).is_err(),
+        "tampered proof bytes must be rejected"
+    );
 }

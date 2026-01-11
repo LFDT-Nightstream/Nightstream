@@ -127,4 +127,3 @@ pub(super) fn build_identity_first_r1cs_ccs(
 
     CcsStructure::new(vec![i_n, a, b, c], f).map_err(|e| format!("RV32 B1 CCS: invalid structure: {e:?}"))
 }
-

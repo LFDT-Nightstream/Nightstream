@@ -676,7 +676,10 @@ pub(crate) fn prove_shout_addr_pre_time(
                 pow2_cycle,
             )?;
 
-            let has_any_lookup = has_lookup.entries().iter().any(|&(_t, gate)| gate != K::ZERO);
+            let has_any_lookup = has_lookup
+                .entries()
+                .iter()
+                .any(|&(_t, gate)| gate != K::ZERO);
             let (addr_oracle, lane_sum): (Box<dyn RoundOracle>, K) = if has_any_lookup {
                 match &lut_inst.table_spec {
                     None => {
@@ -686,8 +689,13 @@ pub(crate) fn prove_shout_addr_pre_time(
                         (Box::new(o), sum)
                     }
                     Some(LutTableSpec::RiscvOpcode { opcode, xlen }) => {
-                        let (o, sum) =
-                            RiscvAddressLookupOracleSparse::new_sparse_time(*opcode, *xlen, &addr_bits, &has_lookup, r_cycle)?;
+                        let (o, sum) = RiscvAddressLookupOracleSparse::new_sparse_time(
+                            *opcode,
+                            *xlen,
+                            &addr_bits,
+                            &has_lookup,
+                            r_cycle,
+                        )?;
                         (Box::new(o), sum)
                     }
                 }
@@ -837,7 +845,12 @@ pub fn verify_shout_addr_pre_time(
 
     let labels_all: Vec<&'static [u8]> = vec![b"shout/addr_pre".as_slice(); total_lanes];
     tr.append_message(b"shout/addr_pre_time/step_idx", &(step_idx as u64).to_le_bytes());
-    bind_batched_claim_sums(tr, b"shout/addr_pre_time/claimed_sums", &proof.claimed_sums, &labels_all);
+    bind_batched_claim_sums(
+        tr,
+        b"shout/addr_pre_time/claimed_sums",
+        &proof.claimed_sums,
+        &labels_all,
+    );
 
     let degree_bounds = vec![2usize; total_lanes];
     let (r_addr, finals, ok) = verify_batched_sumcheck_rounds_ds(
@@ -1245,10 +1258,7 @@ pub fn append_route_a_shout_time_claims<'a>(
     }
 
     let mut lane_ranges_iter = guard.lane_ranges.iter();
-    let mut next_end = lane_ranges_iter
-        .next()
-        .expect("non-empty")
-        .end;
+    let mut next_end = lane_ranges_iter.next().expect("non-empty").end;
     let mut bitness_iter = guard.bitness.iter_mut();
 
     for (lane_idx, lane) in guard.lanes.iter_mut().enumerate() {
@@ -1891,7 +1901,10 @@ pub fn verify_route_a_memory_step(
             )));
         }
         for (idx, (prev_inst, inst)) in prev.mem_insts.iter().zip(step.mem_insts.iter()).enumerate() {
-            if prev_inst.d != inst.d || prev_inst.ell != inst.ell || prev_inst.k != inst.k || prev_inst.lanes != inst.lanes
+            if prev_inst.d != inst.d
+                || prev_inst.ell != inst.ell
+                || prev_inst.k != inst.k
+                || prev_inst.lanes != inst.lanes
             {
                 return Err(PiCcsError::InvalidInput(format!(
                     "Twist rollover requires stable geometry at mem_idx={}: prev (k={}, d={}, ell={}, lanes={}) vs cur (k={}, d={}, ell={}, lanes={})",
@@ -2079,9 +2092,7 @@ pub fn verify_route_a_memory_step(
             .ok_or_else(|| PiCcsError::ProtocolError("shout lane index overflow".into()))?
             > shout_pre.len()
         {
-            return Err(PiCcsError::ProtocolError(
-                "Shout pre-time lane indexing drift".into(),
-            ));
+            return Err(PiCcsError::ProtocolError("Shout pre-time lane indexing drift".into()));
         }
 
         // Route A Shout ordering in batched_time:
@@ -2101,7 +2112,9 @@ pub fn verify_route_a_memory_step(
             }
             let expected = chi_cycle_at_r_time * acc;
             if expected != batched_final_values[shout_claims.bitness] {
-                return Err(PiCcsError::ProtocolError("shout/bitness terminal value mismatch".into()));
+                return Err(PiCcsError::ProtocolError(
+                    "shout/bitness terminal value mismatch".into(),
+                ));
             }
         }
 
@@ -2124,9 +2137,7 @@ pub fn verify_route_a_memory_step(
 
             let expected_value_final = chi_cycle_at_r_time * lane.has_lookup * lane.val;
             if expected_value_final != value_final {
-                return Err(PiCcsError::ProtocolError(
-                    "shout value terminal value mismatch".into(),
-                ));
+                return Err(PiCcsError::ProtocolError("shout value terminal value mismatch".into()));
             }
 
             let eq_addr = eq_bits_prod(&lane.addr_bits, &pre.r_addr)?;
@@ -2145,9 +2156,7 @@ pub fn verify_route_a_memory_step(
 
             let expected_addr_final = pre.table_eval_at_r_addr * adapter_claim;
             if expected_addr_final != pre.addr_final {
-                return Err(PiCcsError::ProtocolError(
-                    "shout addr terminal value mismatch".into(),
-                ));
+                return Err(PiCcsError::ProtocolError("shout addr terminal value mismatch".into()));
             }
         }
 
@@ -2324,7 +2333,9 @@ pub fn verify_route_a_memory_step(
             }
             let expected = chi_cycle_at_r_time * acc;
             if expected != batched_final_values[twist_claims.bitness] {
-                return Err(PiCcsError::ProtocolError("twist/bitness terminal value mismatch".into()));
+                return Err(PiCcsError::ProtocolError(
+                    "twist/bitness terminal value mismatch".into(),
+                ));
             }
         }
 

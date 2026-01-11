@@ -117,8 +117,7 @@ fn test_build_ccs() {
 #[test]
 fn test_padding_constraints_generation() {
     let bus = build_bus_layout_for_instances(64, 0, 1, [], [4]).expect("layout");
-    let constraints: Vec<CpuConstraint<F>> =
-        create_twist_padding_constraints(&bus, &bus.twist_cols[0].lanes[0]);
+    let constraints: Vec<CpuConstraint<F>> = create_twist_padding_constraints(&bus, &bus.twist_cols[0].lanes[0]);
 
     // Should have:
     // - 1 for rv padding
@@ -195,7 +194,12 @@ fn test_twist_write_mirror_group_constraints() {
     }
 
     for c in builder.constraints() {
-        assert_eq!(eval_constraint(const_one_col, c, &z), F::ZERO, "constraint {:?} should hold", c.label);
+        assert_eq!(
+            eval_constraint(const_one_col, c, &z),
+            F::ZERO,
+            "constraint {:?} should hold",
+            c.label
+        );
     }
 
     // Break a mirrored column and ensure a violation is detected.

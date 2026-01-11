@@ -1,4 +1,4 @@
-use neo_ajtai::{set_global_pp, set_global_pp_seeded, unload_global_pp_for_dims, setup};
+use neo_ajtai::{set_global_pp, set_global_pp_seeded, setup, unload_global_pp_for_dims};
 use rand::SeedableRng;
 
 #[test]
@@ -36,4 +36,3 @@ fn unseeded_registry_refuses_to_unload() {
         "unexpected error message: {msg}"
     );
 }
-

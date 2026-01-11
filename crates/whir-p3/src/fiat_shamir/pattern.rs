@@ -1,10 +1,11 @@
 use p3_field::Field;
 
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum Pattern {
-    Sample,
-    Observe,
-    Hint,
+    Sample = 0,
+    Observe = 1,
+    Hint = 2,
 }
 
 impl Pattern {
@@ -16,16 +17,17 @@ impl Pattern {
 
 /// Labels for items that are sampled.
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum Sample {
-    InitialCombinationRandomness,
-    FoldingRandomnessSkip,
-    FoldingRandomness,
-    CombinationRandomness,
-    StirQueries,
-    FinalQueries,
-    PowQueries,
-    OodQuery,
-    Mock,
+    InitialCombinationRandomness = 0,
+    FoldingRandomnessSkip = 1,
+    FoldingRandomness = 2,
+    CombinationRandomness = 3,
+    StirQueries = 4,
+    FinalQueries = 5,
+    PowQueries = 6,
+    OodQuery = 7,
+    Mock = 255,
 }
 
 impl Sample {
@@ -37,15 +39,16 @@ impl Sample {
 
 /// Labels for items that are observed.
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum Observe {
-    MerkleDigest,
-    OodAnswers,
-    SumcheckPoly,
-    SumcheckPolySkip,
-    StirAnswers,
-    FinalCoeffs,
-    PowNonce,
-    Mock,
+    MerkleDigest = 0,
+    OodAnswers = 1,
+    SumcheckPoly = 2,
+    SumcheckPolySkip = 3,
+    StirAnswers = 4,
+    FinalCoeffs = 5,
+    PowNonce = 6,
+    Mock = 255,
 }
 
 impl Observe {
@@ -57,12 +60,13 @@ impl Observe {
 
 /// Labels for items that are hints.
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum Hint {
-    StirQueries,
-    StirAnswers,
-    MerkleProof,
-    DeferredWeightEvaluations,
-    Mock,
+    StirQueries = 0,
+    StirAnswers = 1,
+    MerkleProof = 2,
+    DeferredWeightEvaluations = 3,
+    Mock = 255,
 }
 
 impl Hint {

@@ -110,7 +110,15 @@ fn with_shared_cpu_bus_injects_constraints_and_forces_const_one() {
     );
 
     let mut mem_layouts: HashMap<u32, PlainMemLayout> = HashMap::new();
-    mem_layouts.insert(2, PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1});
+    mem_layouts.insert(
+        2,
+        PlainMemLayout {
+            k: 2,
+            d: 1,
+            n_side: 2,
+            lanes: 1,
+        },
+    );
 
     let cfg = SharedCpuBusConfig::<F> {
         mem_layouts,
@@ -407,10 +415,7 @@ fn shared_bus_rejects_shout_lane_overflow_in_one_step() {
     };
 
     let err = CpuArithmetization::build_ccs_steps(&cpu, &trace).expect_err("expected lane overflow");
-    assert!(
-        err.contains("too many shout events"),
-        "unexpected error: {err}"
-    );
+    assert!(err.contains("too many shout events"), "unexpected error: {err}");
 }
 
 #[test]
@@ -473,7 +478,15 @@ fn with_shared_cpu_bus_rejects_bindings_in_bus_tail() {
     );
 
     let mut mem_layouts: HashMap<u32, PlainMemLayout> = HashMap::new();
-    mem_layouts.insert(2, PlainMemLayout { k: 2, d: 1, n_side: 2 , lanes: 1});
+    mem_layouts.insert(
+        2,
+        PlainMemLayout {
+            k: 2,
+            d: 1,
+            n_side: 2,
+            lanes: 1,
+        },
+    );
 
     // One shout + one twist => bus_cols_total = (1*1 + 2) + (2*1*1 + 5) = 10, so bus_base = 64-10 = 54.
     let cfg = SharedCpuBusConfig::<F> {

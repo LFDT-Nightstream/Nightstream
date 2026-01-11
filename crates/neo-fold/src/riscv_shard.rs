@@ -9,13 +9,13 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
+use crate::output_binding::simple_output_config;
 use crate::pi_ccs::FoldingMode;
+use crate::session::FoldingSession;
 use crate::shard::{
     fold_shard_verify_with_output_binding_and_step_linking, fold_shard_verify_with_step_linking, CommitMixers,
     ShardFoldOutputs, ShardProof, StepLinkingConfig,
 };
-use crate::output_binding::simple_output_config;
-use crate::session::FoldingSession;
 use crate::PiCcsError;
 use neo_ajtai::{AjtaiSModule, Commitment as Cmt};
 use neo_ccs::{CcsStructure, Mat, MeInstance};
@@ -29,8 +29,8 @@ use neo_memory::riscv::ccs::{
 };
 use neo_memory::riscv::lookups::{decode_program, RiscvCpu, RiscvInstruction, RiscvOpcode, RiscvShoutTables, PROG_ID};
 use neo_memory::riscv::shard::{extract_boundary_state, Rv32BoundaryState};
-use neo_memory::witness::StepInstanceBundle;
 use neo_memory::witness::LutTableSpec;
+use neo_memory::witness::StepInstanceBundle;
 use neo_memory::R1csCpu;
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
@@ -64,9 +64,9 @@ pub fn rv32_b1_enforce_chunk0_mem_init_matches_statement<Cmt2, K2>(
     }
 
     for (idx, mem_id) in mem_ids.into_iter().enumerate() {
-        let layout = mem_layouts.get(&mem_id).ok_or_else(|| {
-            PiCcsError::InvalidInput(format!("missing PlainMemLayout for mem_id={mem_id}"))
-        })?;
+        let layout = mem_layouts
+            .get(&mem_id)
+            .ok_or_else(|| PiCcsError::InvalidInput(format!("missing PlainMemLayout for mem_id={mem_id}")))?;
         let expected = mem_init_from_initial_mem(mem_id, layout.k, statement_initial_mem)?;
         let got = &chunk0.mem_insts[idx].init;
         if *got != expected {
@@ -137,7 +137,16 @@ where
 {
     let step_linking = rv32_b1_step_linking_config(layout);
     fold_shard_verify_with_output_binding_and_step_linking(
-        mode, tr, params, s_me, steps, acc_init, proof, mixers, ob_cfg, &step_linking,
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        proof,
+        mixers,
+        ob_cfg,
+        &step_linking,
     )
 }
 
@@ -179,20 +188,16 @@ fn infer_required_shout_opcodes(program: &[RiscvInstruction]) -> HashSet<RiscvOp
                 ops.insert(RiscvOpcode::Add);
             }
             RiscvInstruction::Amo { op, .. } => match op {
-                neo_memory::riscv::lookups::RiscvMemOp::AmoaddW
-                | neo_memory::riscv::lookups::RiscvMemOp::AmoaddD => {
+                neo_memory::riscv::lookups::RiscvMemOp::AmoaddW | neo_memory::riscv::lookups::RiscvMemOp::AmoaddD => {
                     ops.insert(RiscvOpcode::Add);
                 }
-                neo_memory::riscv::lookups::RiscvMemOp::AmoxorW
-                | neo_memory::riscv::lookups::RiscvMemOp::AmoxorD => {
+                neo_memory::riscv::lookups::RiscvMemOp::AmoxorW | neo_memory::riscv::lookups::RiscvMemOp::AmoxorD => {
                     ops.insert(RiscvOpcode::Xor);
                 }
-                neo_memory::riscv::lookups::RiscvMemOp::AmoandW
-                | neo_memory::riscv::lookups::RiscvMemOp::AmoandD => {
+                neo_memory::riscv::lookups::RiscvMemOp::AmoandW | neo_memory::riscv::lookups::RiscvMemOp::AmoandD => {
                     ops.insert(RiscvOpcode::And);
                 }
-                neo_memory::riscv::lookups::RiscvMemOp::AmoorW
-                | neo_memory::riscv::lookups::RiscvMemOp::AmoorD => {
+                neo_memory::riscv::lookups::RiscvMemOp::AmoorW | neo_memory::riscv::lookups::RiscvMemOp::AmoorD => {
                     ops.insert(RiscvOpcode::Or);
                 }
                 _ => {}
@@ -355,13 +360,24 @@ impl Rv32B1 {
         );
         let shout = RiscvShoutTables::new(self.xlen);
 
-        let (prog_layout, initial_mem) =
-            neo_memory::riscv::rom_init::prog_rom_layout_and_init_words(PROG_ID, /*base_addr=*/ 0, &self.program_bytes)
-                .map_err(|e| PiCcsError::InvalidInput(format!("prog_rom_layout_and_init_words failed: {e}")))?;
+        let (prog_layout, initial_mem) = neo_memory::riscv::rom_init::prog_rom_layout_and_init_words(
+            PROG_ID,
+            /*base_addr=*/ 0,
+            &self.program_bytes,
+        )
+        .map_err(|e| PiCcsError::InvalidInput(format!("prog_rom_layout_and_init_words failed: {e}")))?;
 
         let (k_ram, d_ram) = pow2_ceil_k(self.ram_bytes.max(4));
         let mem_layouts = HashMap::from([
-            (neo_memory::riscv::lookups::RAM_ID.0, PlainMemLayout { k: k_ram, d: d_ram, n_side: 2 , lanes: 1}),
+            (
+                neo_memory::riscv::lookups::RAM_ID.0,
+                PlainMemLayout {
+                    k: k_ram,
+                    d: d_ram,
+                    n_side: 2,
+                    lanes: 1,
+                },
+            ),
             (PROG_ID.0, prog_layout),
         ]);
 
@@ -377,7 +393,13 @@ impl Rv32B1 {
         let mut table_specs: HashMap<u32, LutTableSpec> = HashMap::new();
         for op in shout_ops {
             let table_id = shout.opcode_to_id(op).0;
-            table_specs.insert(table_id, LutTableSpec::RiscvOpcode { opcode: op, xlen: self.xlen });
+            table_specs.insert(
+                table_id,
+                LutTableSpec::RiscvOpcode {
+                    opcode: op,
+                    xlen: self.xlen,
+                },
+            );
         }
         let mut shout_table_ids: Vec<u32> = table_specs.keys().copied().collect();
         shout_table_ids.sort_unstable();

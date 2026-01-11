@@ -2,8 +2,8 @@ use crate::{commit as ajtai_commit, setup_par, AjtaiError, Commitment, PP};
 use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_math::ring::Rq as RqEl;
 use neo_math::Fq;
-use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::{OnceLock, RwLock};
@@ -312,10 +312,7 @@ impl AjtaiSModule {
             ));
         }
         Ok(Self {
-            pp: PpSource::Global {
-                d,
-                m,
-            },
+            pp: PpSource::Global { d, m },
         })
     }
 
@@ -327,7 +324,11 @@ impl AjtaiSModule {
                 .read()
                 .ok()
                 .and_then(|r| r.get(&(*d, *m)).map(|e| e.kappa))
-                .unwrap_or_else(|| get_or_load_global_pp_for_dims(*d, *m).expect("Ajtai PP load").kappa),
+                .unwrap_or_else(|| {
+                    get_or_load_global_pp_for_dims(*d, *m)
+                        .expect("Ajtai PP load")
+                        .kappa
+                }),
         }
     }
 }

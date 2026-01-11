@@ -21,7 +21,10 @@ fn test_riscv_program_compiled_full_prove_verify() {
         .ram_bytes(0x200)
         .chunk_size(4)
         .shout_auto_minimal()
-        .output(/*output_addr=*/ 0x100, /*expected_output=*/ F::from_u64(0x100c))
+        .output(
+            /*output_addr=*/ 0x100,
+            /*expected_output=*/ F::from_u64(0x100c),
+        )
         .prove()
         .expect("prove");
 
@@ -34,7 +37,10 @@ fn test_riscv_program_compiled_full_prove_verify() {
 
     assert!(
         matches!(
-            run.verify_output_claim(/*output_addr=*/ 0x100, /*expected_output=*/ F::from_u64(0x100d)),
+            run.verify_output_claim(
+                /*output_addr=*/ 0x100,
+                /*expected_output=*/ F::from_u64(0x100d)
+            ),
             Ok(false) | Err(_)
         ),
         "wrong output claim must not verify"

@@ -62,11 +62,9 @@ fn test_session_single_fold_with_crosscheck() {
     };
 
     // Create session with crosscheck mode
-    let mut session = FoldingSession::<AjtaiSModule>::new_ajtai(
-        FoldingMode::OptimizedWithCrosscheck(crosscheck_cfg),
-        &ccs,
-    )
-    .expect("new_ajtai");
+    let mut session =
+        FoldingSession::<AjtaiSModule>::new_ajtai(FoldingMode::OptimizedWithCrosscheck(crosscheck_cfg), &ccs)
+            .expect("new_ajtai");
     session
         .add_step_io(&ccs, &public_input, &witness)
         .expect("add_step_io should succeed");

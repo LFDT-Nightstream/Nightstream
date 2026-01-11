@@ -38,4 +38,3 @@ fn decomp_b_row_major_roundtrips_balanced_b2() {
 
     assert_eq!(z, z_back, "decomp_b_row_major(b=2,Balanced) must round-trip");
 }
-

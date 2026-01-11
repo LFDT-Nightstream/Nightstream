@@ -58,4 +58,3 @@ fn trace_program_zero_max_steps_still_returns_empty_trace() {
     let trace = trace_program(HaltedCpu, NoopTwist, NoopShout, 0).expect("trace_program failed");
     assert_eq!(trace.steps.len(), 0);
 }
-

@@ -21,10 +21,13 @@ use neo_math::{KExtensions as _, F as NeoF, K as NeoK};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing as _;
 use p3_field::PrimeField64 as _;
+use rand::{RngCore, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use spartan2::traits::circuit::SpartanCircuit as SpartanCircuitTrait;
 use spartan2::traits::snark::R1CSSNARKTrait;
 
+use crate::whir_p3_backend::derive_seed_v1;
 use crate::{codec, ClosureProofError, ClosureStatementV1};
 
 type CircuitF = spartan2::provider::goldi::F;
@@ -208,15 +211,30 @@ struct DigestBindingCircuit {
     r_len: usize,
     y_len: usize,
     y_row_len: usize,
+    core_t: usize,
+    // Deterministic coefficients derived from `(stmt, commitment_root_z_u64)`.
+    u_vecs: Vec<Vec<NeoF>>,   // κ vectors in F^d
+    lambdas: Vec<NeoF>,       // per-obligation
+    gamma_x: NeoF,            // mixer
+    betas_x: Vec<NeoF>,       // per (obligation,row,col<m_in)
+    gamma_me: NeoF,           // mixer
+    delta_k: NeoF,            // K->F mixer
+    nu: Vec<NeoF>,            // row weights ν_ρ
+    mu_core: Vec<NeoF>,       // matrix weights μ_j (core)
+    mu_bus: Vec<NeoF>,        // matrix weights μ_bus[col_id]
     obligations: ShardObligations<Cmt, NeoF, NeoK>,
     // Public IO
     pp_id_u32: [u32; 8],
     obligations_digest_u64: [u64; 4],
+    claimed_sum_u64: u64,
 }
 
 impl DigestBindingCircuit {
     fn new(
         params: &NeoParams,
+        ccs_t: usize,
+        commitment_root_z_u64: &[u64],
+        claimed_sum_u64: u64,
         shape: DigestBindingShapeV1,
         obligations: ShardObligations<Cmt, NeoF, NeoK>,
         stmt: &ClosureStatementV1,
@@ -232,9 +250,88 @@ impl DigestBindingCircuit {
         if y_len > 0 && y_row_len < d {
             return Err("y_row_len < d".into());
         }
+        if y_len < ccs_t {
+            return Err("y_len < ccs.t()".into());
+        }
+        let bus_cols = y_len - ccs_t;
 
         let pp_id_u32 = digest_u32_chunks(stmt.pp_id_digest);
         let obligations_digest_u64 = digest_u64_limbs(stmt.obligations_digest);
+
+        let obligation_count = obligations.main.len() + obligations.val.len();
+        if obligation_count != shape.main_len as usize + shape.val_len as usize {
+            return Err("obligation_count mismatch vs declared shape".into());
+        }
+
+        // --- Derive deterministic coefficients for claimed_sum (must match `weights_claims.rs`) ---
+        let (u_vecs, lambdas) = {
+            let seed = derive_seed_v1(b"ajtai_opening_only/u_and_lambdas", stmt, Some(commitment_root_z_u64));
+            let mut rng = ChaCha8Rng::from_seed(seed);
+
+            let mut u_vecs = Vec::with_capacity(kappa);
+            for _ in 0..kappa {
+                let mut v = Vec::with_capacity(d);
+                for _ in 0..d {
+                    v.push(NeoF::from_u64(rng.next_u64()));
+                }
+                u_vecs.push(v);
+            }
+
+            let mut lambdas = Vec::with_capacity(obligation_count);
+            for _ in 0..obligation_count {
+                lambdas.push(NeoF::from_u64(rng.next_u64()));
+            }
+            (u_vecs, lambdas)
+        };
+
+        // X-projection RNG: mixer scalar γ_x and β coefficients for each X entry.
+        let (gamma_x, betas_x) = {
+            let seed = derive_seed_v1(b"ajtai_opening_plus_x/rng", stmt, Some(commitment_root_z_u64));
+            let mut rng = ChaCha8Rng::from_seed(seed);
+
+            let mut gamma_x = NeoF::from_u64(rng.next_u64());
+            if gamma_x == NeoF::ZERO {
+                gamma_x = NeoF::ONE;
+            }
+
+            let mut betas_x = Vec::with_capacity(obligation_count * d * m_in);
+            for _ in 0..(obligation_count * d * m_in) {
+                betas_x.push(NeoF::from_u64(rng.next_u64()));
+            }
+            (gamma_x, betas_x)
+        };
+
+        // ME-consistency RNG: mixer scalar γ_me, K->F mixer δ_k, ν vector, and μ weights.
+        let (gamma_me, delta_k, nu, mu_core, mu_bus) = {
+            let seed = derive_seed_v1(b"full_closure/rng", stmt, Some(commitment_root_z_u64));
+            let mut rng = ChaCha8Rng::from_seed(seed);
+
+            let mut gamma_me = NeoF::from_u64(rng.next_u64());
+            if gamma_me == NeoF::ZERO {
+                gamma_me = NeoF::ONE;
+            }
+
+            let mut delta_k = NeoF::from_u64(rng.next_u64());
+            if delta_k == NeoF::ZERO {
+                delta_k = NeoF::ONE;
+            }
+
+            let mut nu = Vec::with_capacity(d);
+            for _ in 0..d {
+                nu.push(NeoF::from_u64(rng.next_u64()));
+            }
+
+            let mut mu_core = Vec::with_capacity(ccs_t);
+            for _ in 0..ccs_t {
+                mu_core.push(NeoF::from_u64(rng.next_u64()));
+            }
+            let mut mu_bus = Vec::with_capacity(bus_cols);
+            for _ in 0..bus_cols {
+                mu_bus.push(NeoF::from_u64(rng.next_u64()));
+            }
+
+            (gamma_me, delta_k, nu, mu_core, mu_bus)
+        };
 
         Ok(Self {
             base_b: params.b,
@@ -244,9 +341,20 @@ impl DigestBindingCircuit {
             r_len,
             y_len,
             y_row_len,
+            core_t: ccs_t,
+            u_vecs,
+            lambdas,
+            gamma_x,
+            betas_x,
+            gamma_me,
+            delta_k,
+            nu,
+            mu_core,
+            mu_bus,
             obligations,
             pp_id_u32,
             obligations_digest_u64,
+            claimed_sum_u64,
         })
     }
 
@@ -264,6 +372,9 @@ impl DigestBindingCircuit {
                 AllocatedNum::alloc_input(cs.namespace(|| format!("obligations_digest_u64_{i}")), || Ok(CircuitF::from(x)))?;
             obligations_digest_vars.push(v);
         }
+
+        let claimed_sum_var =
+            AllocatedNum::alloc_input(cs.namespace(|| "claimed_sum_u64".to_string()), || Ok(CircuitF::from(self.claimed_sum_u64)))?;
 
         // Compute acc digests.
         let acc_main = acc_digest_v2(
@@ -307,13 +418,154 @@ impl DigestBindingCircuit {
             );
         }
 
+        // Compute and enforce the deterministic full-closure claimed_sum:
+        //   claimed_sum = Σ_i λ_i·<u, c_i> + γ_x·Σ β·X + γ_me·Σ λ_i·μ_j·⟨ν, mix(y_j,δ_k)⟩.
+        //
+        // This is linear in the obligations witness variables; all coefficients are derived
+        // deterministically from `(stmt, commitment_root_z)` in host code.
+        let obligation_count = self.obligations.main.len() + self.obligations.val.len();
+        if obligation_count != self.lambdas.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        if self.kappa != self.u_vecs.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        for v in self.u_vecs.iter() {
+            if v.len() != self.d {
+                return Err(SynthesisError::Unsatisfiable);
+            }
+        }
+
+        // Pre-allocate all obligation witness variables needed for claimed_sum into a flat term list.
+        let mut terms: Vec<(CircuitF, bellpepper_core::Variable)> = Vec::new();
+
+        let gamma_x = self.gamma_x;
+        let gamma_me = self.gamma_me;
+        let delta_k = self.delta_k;
+
+        let mut beta_idx = 0usize;
+        for (ob_idx, (me, lambda_i)) in self
+            .obligations
+            .main
+            .iter()
+            .chain(self.obligations.val.iter())
+            .zip(self.lambdas.iter().copied())
+            .enumerate()
+        {
+            // Commitment opening claim terms: λ_i * <u, c_i>
+            if me.c.d != self.d || me.c.kappa != self.kappa || me.c.data.len() != self.d * self.kappa {
+                return Err(SynthesisError::Unsatisfiable);
+            }
+            for col in 0..self.kappa {
+                for rho in 0..self.d {
+                    let c_val = me.c.data[col * self.d + rho];
+                    let c_var = alloc_witness_f(cs, &format!("claim_me_{ob_idx}_c_{col}_{rho}"), c_val)?;
+                    let coeff = lambda_i * self.u_vecs[col][rho];
+                    if coeff != NeoF::ZERO {
+                        terms.push((CircuitF::from(coeff.as_canonical_u64()), c_var.get_variable()));
+                    }
+                }
+            }
+
+            // X-projection claim terms: γ_x * Σ β * X
+            if me.X.rows() != self.d || me.X.cols() != self.m_in {
+                return Err(SynthesisError::Unsatisfiable);
+            }
+            for row in 0..self.d {
+                for col in 0..self.m_in {
+                    let beta = self
+                        .betas_x
+                        .get(beta_idx)
+                        .copied()
+                        .ok_or(SynthesisError::Unsatisfiable)?;
+                    beta_idx += 1;
+
+                    let x_val = me.X[(row, col)];
+                    let x_var = alloc_witness_f(cs, &format!("claim_me_{ob_idx}_X_{row}_{col}"), x_val)?;
+                    let coeff = gamma_x * beta;
+                    if coeff != NeoF::ZERO {
+                        terms.push((CircuitF::from(coeff.as_canonical_u64()), x_var.get_variable()));
+                    }
+                }
+            }
+
+            // ME-consistency claim terms (core + bus y rows).
+            if me.y.len() != self.y_len || me.y_scalars.len() != self.y_len {
+                return Err(SynthesisError::Unsatisfiable);
+            }
+            for (j, mu_j) in self.mu_core.iter().copied().enumerate() {
+                if mu_j == NeoF::ZERO {
+                    continue;
+                }
+                let yj = me.y.get(j).ok_or(SynthesisError::Unsatisfiable)?;
+                if yj.len() < self.d {
+                    return Err(SynthesisError::Unsatisfiable);
+                }
+                for rho in 0..self.d {
+                    let y = yj[rho];
+                    let [c0, c1] = alloc_witness_k_coeffs(cs, &format!("claim_me_{ob_idx}_y_{j}_{rho}"), y)?;
+                    let base = gamma_me * lambda_i * mu_j * self.nu[rho];
+                    if base != NeoF::ZERO {
+                        terms.push((CircuitF::from(base.as_canonical_u64()), c0.get_variable()));
+                        let base1 = base * delta_k;
+                        if base1 != NeoF::ZERO {
+                            terms.push((CircuitF::from(base1.as_canonical_u64()), c1.get_variable()));
+                        }
+                    }
+                }
+            }
+
+            for (bus_j, mu) in self.mu_bus.iter().copied().enumerate() {
+                if mu == NeoF::ZERO {
+                    continue;
+                }
+                let j = self
+                    .core_t
+                    .checked_add(bus_j)
+                    .ok_or(SynthesisError::Unsatisfiable)?;
+                let yj = me.y.get(j).ok_or(SynthesisError::Unsatisfiable)?;
+                if yj.len() < self.d {
+                    return Err(SynthesisError::Unsatisfiable);
+                }
+                for rho in 0..self.d {
+                    let y = yj[rho];
+                    let [c0, c1] = alloc_witness_k_coeffs(cs, &format!("claim_me_{ob_idx}_y_bus_{bus_j}_{rho}"), y)?;
+                    let base = gamma_me * lambda_i * mu * self.nu[rho];
+                    if base != NeoF::ZERO {
+                        terms.push((CircuitF::from(base.as_canonical_u64()), c0.get_variable()));
+                        let base1 = base * delta_k;
+                        if base1 != NeoF::ZERO {
+                            terms.push((CircuitF::from(base1.as_canonical_u64()), c1.get_variable()));
+                        }
+                    }
+                }
+            }
+        }
+        if beta_idx != self.betas_x.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+
+        cs.enforce(
+            || "claimed_sum_match",
+            |lc| {
+                let mut acc = lc;
+                for (coeff, var) in terms.iter().copied() {
+                    acc = acc + (coeff, var);
+                }
+                acc
+            },
+            |lc| lc + CS::one(),
+            |lc| lc + claimed_sum_var.get_variable(),
+        );
+
         Ok(())
     }
 
     fn public_io(&self) -> Vec<CircuitF> {
-        let mut out = Vec::with_capacity(12);
+        let mut out = Vec::with_capacity(13);
         out.extend(self.pp_id_u32.iter().copied().map(|x| CircuitF::from(x as u64)));
         out.extend(self.obligations_digest_u64.iter().copied().map(CircuitF::from));
+        out.push(CircuitF::from(self.claimed_sum_u64));
         out
     }
 }
@@ -356,12 +608,23 @@ impl SpartanCircuitTrait<SpartanEngine> for DigestBindingCircuit {
 pub fn prove_obligations_digest_binding_proof_v1(
     stmt: &ClosureStatementV1,
     params: &NeoParams,
+    ccs: &neo_ccs::CcsStructure<neo_math::F>,
     obligations: &ShardObligations<Cmt, NeoF, NeoK>,
+    commitment_root_z_u64: &[u64],
+    claimed_sum_u64: u64,
 ) -> Result<Vec<u8>, ClosureProofError> {
     let shape = DigestBindingShapeV1::from_obligations(params, obligations)
         .map_err(|e| ClosureProofError::Spartan2(format!("digest-binding shape extraction failed: {e}")))?;
 
-    let circuit = DigestBindingCircuit::new(params, shape.clone(), obligations.clone(), stmt)
+    let circuit = DigestBindingCircuit::new(
+        params,
+        ccs.t(),
+        commitment_root_z_u64,
+        claimed_sum_u64,
+        shape.clone(),
+        obligations.clone(),
+        stmt,
+    )
         .map_err(|e| ClosureProofError::Spartan2(format!("digest-binding circuit init failed: {e}")))?;
 
     let (pk, _vk): (SpartanProverKey, SpartanVerifierKey) = SpartanSnark::setup(circuit.clone())
@@ -383,22 +646,30 @@ pub fn prove_obligations_digest_binding_proof_v1(
 pub fn verify_obligations_digest_binding_proof_v1(
     stmt: &ClosureStatementV1,
     params: &NeoParams,
+    ccs: &neo_ccs::CcsStructure<neo_math::F>,
+    commitment_root_z_u64: &[u64],
     proof_bytes: &[u8],
 ) -> Result<(), ClosureProofError> {
-    let _shape = verify_obligations_digest_binding_proof_v1_with_shape(stmt, params, proof_bytes)?;
+    let (_shape, _claimed_sum) =
+        verify_obligations_digest_binding_proof_v1_with_shape_and_claimed_sum(stmt, params, ccs, commitment_root_z_u64, proof_bytes)?;
     Ok(())
 }
 
-pub(crate) fn verify_obligations_digest_binding_proof_v1_with_shape(
+pub(crate) fn verify_obligations_digest_binding_proof_v1_with_shape_and_claimed_sum(
     stmt: &ClosureStatementV1,
     params: &NeoParams,
+    ccs: &neo_ccs::CcsStructure<neo_math::F>,
+    commitment_root_z_u64: &[u64],
     proof_bytes: &[u8],
-) -> Result<DigestBindingShapeV1, ClosureProofError> {
+) -> Result<(DigestBindingShapeV1, u64), ClosureProofError> {
     let proof: DigestBindingProofV1 = codec::deserialize_payload(proof_bytes)?;
     proof
         .shape
         .require_matches_params(params)
         .map_err(|e| ClosureProofError::Spartan2(format!("digest-binding shape mismatch: {e}")))?;
+    if (proof.shape.y_len as usize) < ccs.t() {
+        return Err(ClosureProofError::Spartan2("digest-binding shape y_len < ccs.t()".into()));
+    }
 
     if proof.spartan_snark.len() > MAX_DIGEST_BINDING_PROOF_BYTES as usize {
         return Err(ClosureProofError::Spartan2(format!(
@@ -413,7 +684,15 @@ pub(crate) fn verify_obligations_digest_binding_proof_v1_with_shape(
     // This is the same pattern used by `neo-spartan-bridge` for pinned VK setup, but here the
     // shape is carried alongside the digest-binding proof bytes.
     let dummy_obligations = proof.shape.dummy_obligations();
-    let dummy_circuit = DigestBindingCircuit::new(params, proof.shape.clone(), dummy_obligations, stmt)
+    let dummy_circuit = DigestBindingCircuit::new(
+        params,
+        ccs.t(),
+        commitment_root_z_u64,
+        0,
+        proof.shape.clone(),
+        dummy_obligations,
+        stmt,
+    )
         .map_err(|e| ClosureProofError::Spartan2(format!("digest-binding dummy circuit init failed: {e}")))?;
     let (_pk, vk): (SpartanProverKey, SpartanVerifierKey) = SpartanSnark::setup(dummy_circuit)
         .map_err(|e| ClosureProofError::Spartan2(format!("Spartan2 setup (vk) failed: {e}")))?;
@@ -432,11 +711,15 @@ pub(crate) fn verify_obligations_digest_binding_proof_v1_with_shape(
     let io = snark
         .verify(&vk)
         .map_err(|e| ClosureProofError::Spartan2(format!("Spartan2 verification failed: {e}")))?;
-    if io != expected {
+    if io.len() != expected.len() + 1 {
+        return Err(ClosureProofError::Spartan2("Spartan2 public IO length mismatch".into()));
+    }
+    if io[..expected.len()] != expected {
         return Err(ClosureProofError::Spartan2("Spartan2 public IO mismatch".into()));
     }
 
-    Ok(proof.shape)
+    let claimed_sum_u64 = io[expected.len()].to_canonical_u64();
+    Ok((proof.shape, claimed_sum_u64))
 }
 
 /// Decode the public shape carried by a v1 digest-binding proof container.

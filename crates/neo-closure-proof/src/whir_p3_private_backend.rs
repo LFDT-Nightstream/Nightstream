@@ -77,9 +77,6 @@ pub fn prove_whir_p3_private_full_closure_bytes_v1(
         return Err(ClosureProofError::WhirP3("witness count mismatch".into()));
     }
 
-    // Milestone 3: digest binding proof (private obligations -> stmt.obligations_digest).
-    let digest_binding_proof = crate::prove_obligations_digest_binding_proof_v1(stmt, params, obligations)?;
-
     let d = params.d as usize;
     if d != NeoD {
         return Err(ClosureProofError::WhirP3(
@@ -208,6 +205,17 @@ pub fn prove_whir_p3_private_full_closure_bytes_v1(
         claimed_sum,
     );
 
+    // Milestone 3/4: digest binding proof, extended to also bind the sumcheck claimed_sum to the
+    // same private obligations witness.
+    let digest_binding_proof = crate::prove_obligations_digest_binding_proof_v1(
+        stmt,
+        params,
+        ccs,
+        obligations,
+        &commitment_root_z_u64,
+        sumcheck.claimed_sum_u64,
+    )?;
+
     // Recover the sumcheck challenge point from the proof so we can build the WHIR statement.
     let deg = 2usize * (params.b as usize);
     if sumcheck.round_evals_u64.len() != num_vars {
@@ -272,12 +280,9 @@ pub fn verify_whir_p3_private_full_closure_payload_v1(
 ) -> Result<(), ClosureProofError> {
     let payload: WhirP3PrivateFullClosurePayloadV1 = deserialize_payload(payload_bytes)?;
 
-    // Milestone 3: prove digest binding (private obligations -> stmt.obligations_digest).
-    let shape = crate::digest_binding::verify_obligations_digest_binding_proof_v1_with_shape(
-        stmt,
-        params,
-        &payload.digest_binding_proof,
-    )?;
+    // Decode the digest-binding shape first (without verifying the Spartan2 proof) so we can
+    // size the WHIR instance and parse commitment roots.
+    let shape_unverified = crate::digest_binding::decode_obligations_digest_binding_shape_v1(&payload.digest_binding_proof)?;
 
     let d = params.d as usize;
     if d != NeoD {
@@ -290,8 +295,8 @@ pub fn verify_whir_p3_private_full_closure_payload_v1(
     // Enforce that the loaded seeded PP matches the statement's pp_id_digest.
     contract::require_global_pp_matches_statement(stmt.pp_id_digest, params, d, m).map_err(ClosureProofError::WhirP3)?;
 
-    let obligation_count = (shape.main_len as usize)
-        .checked_add(shape.val_len as usize)
+    let obligation_count = (shape_unverified.main_len as usize)
+        .checked_add(shape_unverified.val_len as usize)
         .ok_or_else(|| ClosureProofError::WhirP3("obligation_count overflow".into()))?;
     let z_len = obligation_count
         .checked_mul(d)
@@ -333,6 +338,47 @@ pub fn verify_whir_p3_private_full_closure_payload_v1(
         .map(|x| x.as_canonical_u64())
         .collect();
 
+    // Milestone 3/4: verify the digest-binding Spartan2 proof *after* parsing the Z commitment
+    // root, since the claimed_sum binding coefficients are derived from `(stmt, root_z)`.
+    let (shape, claimed_sum_u64) = crate::digest_binding::verify_obligations_digest_binding_proof_v1_with_shape_and_claimed_sum(
+        stmt,
+        params,
+        ccs,
+        &commitment_root_z_u64,
+        &payload.digest_binding_proof,
+    )?;
+    if shape != shape_unverified {
+        return Err(ClosureProofError::WhirP3("digest-binding shape mismatch vs early decode".into()));
+    }
+
+    // Context sanity: ensure bus layout matches the obligation shape (prevents silent drift).
+    let core_t = ccs.t();
+    let y_len = shape.y_len as usize;
+    if y_len < core_t {
+        return Err(ClosureProofError::WhirP3("digest-binding shape y_len < ccs.t()".into()));
+    }
+    let bus_cols = y_len - core_t;
+    match bus {
+        None => {
+            if bus_cols != 0 {
+                return Err(ClosureProofError::WhirP3(
+                    "digest-binding shape implies bus openings but no BusLayout provided".into(),
+                ));
+            }
+        }
+        Some(bus) => {
+            if bus.bus_cols != bus_cols {
+                return Err(ClosureProofError::WhirP3("BusLayout bus_cols mismatch vs digest-binding shape".into()));
+            }
+            if bus.m != m {
+                return Err(ClosureProofError::WhirP3("BusLayout m mismatch vs CCS".into()));
+            }
+            if bus.m_in != shape.m_in as usize {
+                return Err(ClosureProofError::WhirP3("BusLayout m_in mismatch vs digest-binding shape".into()));
+            }
+        }
+    }
+
     // Range-check RNG (deterministic, statement-bound).
     let mut rng = ChaCha8Rng::from_seed(crate::whir_p3_backend::derive_seed_v1(
         b"full_closure/range_rng",
@@ -355,9 +401,11 @@ pub fn verify_whir_p3_private_full_closure_payload_v1(
         return Err(ClosureProofError::WhirP3("sumcheck rounds mismatch".into()));
     }
 
-    // In this backend, the initial sumcheck claim is not an externally verified scalar yet.
-    // Milestone 4 still requires binding the sumcheck claim (and weights) to the same private
-    // obligations. But the sumcheck transcript itself must still be well-formed and anchored.
+    // Milestone 4 (partial): bind the sumcheck claim to the same private obligations witness via
+    // the digest-binding proof. The remaining work is to similarly bind the committed/opened `W`.
+    if claimed_sum_u64 != payload.sumcheck.claimed_sum_u64 {
+        return Err(ClosureProofError::WhirP3("digest-binding claimed_sum mismatch vs sumcheck".into()));
+    }
     let mut claim = whir_f_from_canonical_u64(payload.sumcheck.claimed_sum_u64)?;
     let mut rands = Vec::with_capacity(num_vars);
     for (round, g_u64) in payload.sumcheck.round_evals_u64.iter().enumerate() {

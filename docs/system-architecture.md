@@ -1,6 +1,12 @@
-# Nightstream Lattice System Architecture (IVC with On‑Demand SNARK Emission)
+# Nightstream Lattice System Architecture
 
-This document describes the high‑level architecture of Nightstream's lattice SNARK pipeline, with emphasis on **Incrementally Verifiable Computation (IVC)** implemented via a **public‑ρ embedded verifier (EV)** and **on‑demand SNARK emission**. The pipeline separates **fast per‑step accumulation** from **expensive compression** (Spartan2/SuperSpartan), allowing you to emit proofs *every step*, *at checkpoints*, or only *once at the end*.
+This document describes the high-level architecture of Nightstream's lattice SNARK pipeline, built around a **two-phase design**:
+
+1. **Phase 1 (Shard Folding)**: Fast per-step accumulation via lattice-based folding with integrated Twist/Shout memory arguments. Produces ME (Matrix Evaluation) obligations.
+
+2. **Phase 2 (Closure Proof)**: WHIR + Spartan2 SNARK that proves the ME obligations are satisfied, with digest-binding to ensure the obligations match Phase 1.
+
+This separation allows **fast folding** (no per-step SNARK overhead) while still producing a **succinct final proof**.
 
 ---
 
@@ -16,237 +22,431 @@ This document describes the high‑level architecture of Nightstream's lattice S
             |
             v  (External to Nightstream)
 +-----------------------------+
-| Arithmetization to CCS/MCS  |
-| - Define CCS structure s    |
-| - Decompose z -> Z (digits) |
-| - Ajtai commit c = L(Z)     |
-|   (Π_Mat)                   |
+| Trace → Per-Step Witness    |
+| - Build StepWitnessBundle   |
+| - CPU MCS (CCS + commitment)|
+| - Twist instances (R/W mem) |
+| - Shout instances (lookups) |
 +-----------------------------+
             |
-            v  (pair with running ME claims for recursion)
-+-----------------------------+         Poseidon2 Transcript (off-circuit)
-| Stage 1: CCS Reduction      |<-------- ρ_t = H(step_no, step_X, y_prev, c_z_digest)
-| Π_CCS + Sumcheck            |          (publicly recomputable by verifier)
-| - Encode Q polynomial       |
-| - Sumcheck over hypercube   |
-| - Output: k ME claims       |
-|   + optional Shout/Twist    |
+            v  (Shard folding loop)
++-----------------------------+
+| Step i Processing           |
+| ┌─────────────────────────┐ |
+| │ k running ME claims     │ |
+| │ (carried from step i-1) │ |
+| └───────────┬─────────────┘ |
+|             │               |
+|   ┌─────────┼─────────┐     |
+|   │    Batched time   │     |
+|   │    sum-check at   │     |
+|   │    shared r_time  │     |
+|   └─────────┬─────────┘     |
+|             │               |
+|   ┌─────────┴─────────┐     |
+|   │  Π_CCS  Π_Twist   │     |
+|   │  Π_Shout  IDX     │     |
+|   └─────────┬─────────┘     |
+|             │               |
+|   ┌─────────┴─────────┐     |
+|   │ Fresh ME claims   │     |
+|   │ at r_time         │     |
+|   └─────────┬─────────┘     |
+|             │               |
+|   ┌─────────┴─────────┐     |
+|   │ Π_RLC → Π_DEC     │     |
+|   │ (main lane)       │     |
+|   └─────────┬─────────┘     |
+|             │               |
+|   ┌─────────┴─────────┐     |
+|   │ k ME children     │     |
+|   │ (to step i+1)     │     |
+|   └───────────────────┘     |
++-----------------------------+
+            |
+            v  (After all steps)
++-----------------------------+
+| ShardObligations            |
+| - main: ME claims @ r_time  |
+| - val: ME claims @ r_val    |
+|   (Twist value-eval lane)   |
++-----------------------------+
+            |
+            v  (Phase 2: Closure)
++-----------------------------+
+| Closure Proof               |
+| WHIR + Spartan2             |
+| - Digest binding (R1CS)     |
+| - Ajtai openings (batched)  |
+| - ME consistency (sumcheck) |
+| - Boundedness checks        |
 +-----------------------------+
             |
             v
 +-----------------------------+
-| Stage 2: Aggregation        |
-| Π_RLC                       |
-| - Random lin. combo via     |
-|   public ρ_t                |
-| - 1 high-norm ME            |
-+-----------------------------+
-            |
-            v
-+-----------------------------+
-| Stage 3: Decomposition      |
-| Π_DEC                       |
-| - Split high-norm Z to      |
-|   k-1 low-norm              |
-| - Output: k-1 ME claims     |
-+-----------------------------+
-            |
-            v
-+-----------------------------+  (Cheap per-step loop; no SNARK yet)
-| Stage 4: IVC Embedded       |
-| Verifier (EV, public-ρ)     |
-| - Enforce y_next =          |
-|     y_prev + ρ_t * y_step   |
-| - Update accumulator:       |
-|     (y_prev,c_prev,step)->  |
-|     (y_next,c_next,step+1)  |
-+-----------------------------+
-            |
-            |     Emission policy:
-            |     ┌───────────────────────────────────────────┐
-            |     │ EveryStep    -> compress now              │
-            |     │ Checkpoint(N)-> compress every N steps    │
-            |     │ FinalOnly    -> compress once at the end  │
-            |     └───────────────────────────────────────────┘
-            v
-+-----------------------------+     (On-demand, expensive)
-| Final SNARK Layer           |<---- batches of folded instances
-| Spartan/SuperSpartan +      |
-| FRI-derived MLE PCS         |
-| - Proves ME evaluations     |
-| - Produces lean proof       |
-+-----------------------------+
-            |
-            v
-+-----------------------------+
-| Output: Succinct Proof      |
-| - Transcript bindings       |
-| - MLE evals + FRI openings  |
-| - Lean (no embedded VK)     |
+| Output: ClosureProofV1      |
+| - ClosureStatementV1        |
+|   (context, pp, obligations |
+|    digests)                 |
+| - Opaque proof bytes        |
 +-----------------------------+
 ```
 
 ---
 
-## What’s New (vs. prior doc)
+## Core Architecture
 
-1. **Public‑ρ Embedded Verifier (EV) inside the step**
+### Shard-Level Folding
 
-   * Each step derives a **Fiat–Shamir challenge ρ** *off‑circuit* via a Poseidon2 transcript bound to **public data**: step number, step public input $X_t$, previous accumulator $y_{t}$, and previous commitment digest $c_z^{(t)}$.
-   * The EV CCS **enforces** $y_{t+1} = y_{t} + \rho_t \cdot y^{\text{step}}_t$ with **ρ as a public input**, so the verifier can **recompute ρ** and check soundness.
-   * This fixes the “folding with itself” pitfall by requiring **real** $y^{\text{step}}$ extracted from the step’s computation.
+Nightstream implements **shard-level folding** where each step processes one CCS chunk together with its matching Twist/Shout instances, all sharing sum-check challenges.
 
-2. **Decoupled Emission** (performance)
+**Key concepts:**
+- **Shard**: A trace segment represented as a collection of folding chunks
+- **Folding step/chunk**: The unit processed by one iteration of the folding loop
+- **StepWitnessBundle**: One MCS (CPU chunk) plus matching Twist/Shout instances for that chunk
 
-   * You **don’t** SNARK every step unless you want streaming proofs.
-   * Choose an **emission policy**:
+### Per-Step Processing Flow
 
-     * **EveryStep** — streaming verifiability, most expensive
-     * **Checkpoint(N)** — amortize compression across N steps
-     * **FinalOnly** — one proof at the end (classic Nova‑style)
-
-3. **Augmented CCS Structure (per-step)**
-
-   * Your step CCS is **augmented** with the EV (public‑ρ) constraints (and, where wired, Ajtai opening/lincomb gadgets for commitment evolution).
-   * No in‑circuit hash is required; **ρ is public** and recomputed by the verifier.
-
----
-
-## Core Stages (Detailed)
-
-### Input & Arithmetization
-
-* **CCS/MCS**: Represent the computation as a customizable constraint system.
-* **Decomposition**: Decompose the witness $z$ into digit matrix $Z$ (balanced base‑$b$ decomposition, $D$ digits).
-* **Ajtai Commitment (Π\_Mat)**: Commit to $Z$ to obtain $c = L(Z)$.
-
-  * Commitment coordinates can evolve with the accumulator (e.g., $c_{t+1} = c_t + \rho_t c_{\text{step}, t}$) via lincomb gadgets.
-
-### Stage 1 — Π\_CCS (with Sumcheck)
-
-* Encode the CCS into a **Q polynomial** and prove its correct evaluation via **sumcheck** over the hypercube.
-* Outputs **k ME claims** (multilinear evaluation claims).
-
-**Optional memory arguments** (compatible with Nightstream):
-
-* **Shout**: read‑only lookup folding
-* **Twist**: read/write memory folding
-
-### Stage 2 — Π\_RLC (Aggregation)
-
-* Combine $k$ claims into **one** using a random linear combination with **public ρ** (the per‑step challenge).
-* Reduces verification to a single high‑norm ME claim.
-
-### Stage 3 — Π\_DEC (Decomposition)
-
-* Split the high‑norm object into $(k-1)$ low‑norm parts, yielding **$(k-1)$ ME claims** that feed the next iteration.
-
-### Stage 4 — IVC Embedded Verifier (EV, public‑ρ)
-
-* **Challenge Derivation (off‑circuit)**:
-  $\rho_t \leftarrow \text{Poseidon2}( \text{“neo/ivc”},\ t,\ X_t,\ y_t,\ c^{(t)}_z )$
-  The verifier recomputes the same $\rho_t$ from the same public data.
-* **EV Constraints (in‑circuit)**:
-  Enforce $y_{t+1}[i] - y_t[i] - u_t[i] = 0$ and $u_t[i] = \rho_t \cdot y^{\text{step}}_t[i]$ for all $i$.
-  Public inputs: $[ \rho_t \ \Vert\ y_t \ \Vert\ y_{t+1} ]$.
-* **Accumulator Update**:
-  Update $(y_t, c^{(t)}_z, \text{step}) \to (y_{t+1}, c^{(t+1)}_z, \text{step}+1)$.
-  (Commitment evolution via opening/lincomb gadgets is supported in the augmentation when wired.)
-
-> **Why public‑ρ?**
-> It guarantees Fiat–Shamir soundness: the challenge is a function of **public transcript data** and is **recomputable** by the verifier. It avoids in‑circuit hash complexity and variable‑sharing pitfalls.
-
-### Emission Strategy — On Demand
-
-* The per‑step loop above is **cheap** (no SNARK compression).
-* You can emit a compressed proof according to one of the policies:
-
-| Policy        | When we compress     | Cost per step | Latency   | Who can verify mid‑stream? |
-| ------------- | -------------------- | ------------- | --------- | -------------------------- |
-| EveryStep     | After each step      | Highest       | Immediate | Anyone                     |
-| Checkpoint(N) | Every N steps        | \~1/N of ES   | Bounded   | At checkpoints             |
-| FinalOnly     | Once after last step | Lowest        | End only  | Only at the end            |
-
-“Compress” here means: fold the collected MCS instances and run **Spartan/SuperSpartan + FRI PCS** once to get a **lean proof**.
-
-### Stage 5 — Final SNARK (Spartan/SuperSpartan + FRI MLE PCS)
-
-* Not merely “compression”: the SNARK **establishes correctness** of the remaining **multilinear evaluation (ME)** claims using a polynomial IOP with a **transparent FRI‑derived PCS** (BaseFold/DeepFold).
-* Output is a **lean proof** (no embedded VK); verification uses a cached VK digest registry and checks the **context digest** binding to $(\text{CCS}, x)$.
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                                  Step i                                   │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│   ┌─────────────────┐                                                     │
+│   │  k running ME   │  ◄── Accumulator carried from step i-1              │
+│   └────────┬────────┘                                                     │
+│            │                                                              │
+│            │      ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│            │      │    Π_CCS     │  │   Π_Twist    │  │   Π_Shout    │    │
+│            │      │  (CPU chunk) │  │ (R/W memory) │  │  (lookups)   │    │
+│            │      └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │
+│            │             │                 │                 │            │
+│            │             └────────────┬────┴─────────────────┘            │
+│            │                          │                                   │
+│            │                          ▼                                   │
+│            │             ┌────────────────────────┐                       │
+│            │             │  Batched sum-check     │                       │
+│            │             │  (shared r_time)       │                       │
+│            │             └────────────┬───────────┘                       │
+│            │                          │                                   │
+│            │                          ▼                                   │
+│            │             ┌────────────────────────┐                       │
+│            │             │   Fresh ME claims      │                       │
+│            │             │ (CCS+Twist+Shout+IDX)  │                       │
+│            │             └────────────┬───────────┘                       │
+│            │                          │                                   │
+│            └──────────────────────────┤                                   │
+│                                       ▼                                   │
+│                    ┌──────────────────────────────────┐                   │
+│                    │ Main lane: Π_RLC → Π_DEC         │                   │
+│                    │ fold all ME@r_time → k children  │                   │
+│                    └─────────────────┬────────────────┘                   │
+│                                      │                                    │
+│            ┌─────────────────────────┴─────────────────────────┐          │
+│            │                                                   │          │
+│            ▼                                                   ▼          │
+│   ┌─────────────────┐                                ┌─────────────────┐  │
+│   │  k ME children  │                                │   Value lane    │  │
+│   │  (to step i+1)  │                                │ (Twist @ r_val) │  │
+│   └────────┬────────┘                                └────────┬────────┘  │
+│            │                                                  │           │
+└────────────┼──────────────────────────────────────────────────┼───────────┘
+             │                                                  │
+             ▼                                                  ▼
+    (next step i+1)                                   ┌─────────────────────┐
+                                                      │  value-lane         │
+                                                      │  obligations        │
+                                                      │  (must be enforced) │
+                                                      └─────────────────────┘
+```
 
 ---
 
-## Accumulator & Transcript (What is bound?)
+## Unified Folding Interface
 
-* **Accumulator state** per step: $(y_t, c^{(t)}_z, \text{step})$
-* **ρ derivation** binds to (all *public*):
+All arguments reduce to the same **ME(b, L)** relation:
 
-  * `step`: monotone step counter
-  * `step_X`: step’s public input (if any)
-  * `y_t`: compact accumulator vector
-  * `c_z_digest`: Poseidon2 digest of commitment coordinates
-* The **verifier recomputes ρ** from these public values; the EV CCS takes ρ as **public input**.
+```
+Π_CCS   : MCS(b, L)  ⟿  ME(b, L)^t_ccs
+Π_Twist : TWI(b, L)  ⟿  ME(b, L)^t_twi
+Π_Shout : SHO(b, L)  ⟿  ME(b, L)^t_sho
+```
 
----
-
-## Augmented CCS (per step)
-
-When we do compress a step (e.g., in streaming mode) or a batch (at checkpoint/final), the **augmented CCS** includes:
-
-1. **Step CCS** (your computation)
-2. **EV (public‑ρ)** enforcing $y_{t+1} = y_t + \rho_t y^{\text{step}}_t$ with $ρ_t$ recomputed by the verifier
-3. **Ajtai** gadgets (when enabled):
-
-   * Opening constraints for selected commitment coordinates
-   * Linear‑combination constraints for commitment evolution: $c_{t+1} = c_t + \rho_t c_{\text{step}}$
-
-All sub‑components share the **same ρ** (public input), ensuring consistency.
+At each step:
+```
+(k running ME + fresh CCS ME + Twist ME + Shout ME) → Π_RLC → ME^agg → Π_DEC → ME(b, L)^k
+```
 
 ---
 
-## Verifier Responsibilities
+## Two-Lane Folding
 
-* **EveryStep**: verify each step’s lean proof. Recompute ρ from transcript data and check the public‑ρ EV.
-* **Checkpoint(N)**: verify one proof per chunk; each proof attests N accumulated steps.
-* **FinalOnly**: verify one proof attesting the entire chain.
+Twist's val-eval subprotocol requires a separate evaluation point `r_val`, creating two parallel folding lanes:
 
-In all cases, the verifier also checks the **context digest** binding to $(\text{CCS}, x)$ to prevent replay across circuits or public inputs.
+| Lane | Evaluation Point | Contents |
+|------|-----------------|----------|
+| **Main** | `r_time` | CCS + Shout + Twist read/write checks |
+| **Value** | `r_val` | Twist value-evaluation claims |
+
+### Why Two Lanes?
+
+- Most claims are enforced at a single shared evaluation point `r_time` (sampled once per step via Fiat–Shamir)
+- Twist also needs a separate evaluation point `r_val` for its value-reconstruction subprotocol (fresh sum-check challenges)
+- Because Neo's ME is a single-point evaluation relation, `ME@r_time` and `ME@r_val` cannot be mixed in the same `Π_RLC` call
+
+**Result**: Each step can emit:
+- **Main obligations**: ME children at `r_time` (carried to the next step)
+- **Value-lane obligations**: ME children at `r_val` (must be carried forward to the final checker)
+
+---
+
+## Core Stages
+
+### Stage 1: Trace → Per-Step Witnesses
+
+**Entry point**: `neo_memory::builder::build_shard_witness_shared_cpu_bus`
+
+- Execute VM and generate execution trace
+- Build per-step `StepWitnessBundle` containing:
+  - CPU MCS (CCS witness + Ajtai commitment)
+  - Twist instances (R/W memory, metadata-only in shared-bus mode)
+  - Shout instances (lookup checks, metadata-only in shared-bus mode)
+
+### Stage 2: Π_CCS (CCS Reduction with Sumcheck)
+
+- Encode the CCS into a **Q polynomial** and prove its correct evaluation via **sum-check** over the hypercube
+- Runs as part of batched time sum-check with shared `r_time`
+- Outputs **ME claims** (multilinear evaluation claims)
+
+### Stage 3: Memory Sidecar (Twist/Shout)
+
+**Twist (R/W Memory)**:
+- Models memory via recurrence: `Val_{t+1} = Val_t + Inc_t`
+- Full memory vector `Val_t` is never committed; computed via sum-check
+- Produces ME claims at `r_time` (read/write checks) and `r_val` (value-eval)
+
+**Shout (Read-Only Lookups)**:
+- Proves that when `has_lookup[t] = 1`, the committed `val[t]` matches `table[addr[t]]`
+- Produces ME claims at `r_time`
+
+**IDX Adapter**:
+- Implements index-to-virtual-one-hot bridge
+- Addresses use compact bit-decomposition instead of one-hot vectors
+- ~32× reduction in committed address width
+
+### Stage 4: Π_RLC (Aggregation)
+
+- Combine all ME claims at the same evaluation point into **one** using random linear combination
+- Main lane: combines claims at `r_time`
+- Value lane: combines claims at `r_val` (when Twist is active)
+
+### Stage 5: Π_DEC (Decomposition)
+
+- Split the high-norm aggregated object into `k` low-norm parts
+- Yields **k ME claims** that feed the next iteration (main lane) or become obligations (value lane)
+
+---
+
+## Phase 2: Closure Proof (Spartan2 + WHIR)
+
+After shard folding produces `ShardObligations`, the **closure proof** (Phase 2) converts those ME obligations into a succinct SNARK. This is where the IVC-style verification happens.
+
+### Two-Phase Architecture
+
+| Phase | What it does | Output |
+|-------|-------------|--------|
+| **Phase 1** | Shard folding via Π_CCS/Π_RLC/Π_DEC | `ShardObligations` (ME claims) |
+| **Phase 2** | Closure proof (WHIR + Spartan2) | Succinct proof |
+
+### Closure Statement
+
+The closure proof binds to a public statement:
+
+```rust
+pub struct ClosureStatementV1 {
+    pub context_digest: [u8; 32],    // Binds to CCS/params
+    pub pp_id_digest: [u8; 32],      // Public parameters ID
+    pub obligations_digest: [u8; 32], // Hash of ME obligations
+}
+```
+
+### What Phase 2 Proves
+
+The WHIR-based closure backend proves:
+
+1. **Ajtai commitment openings** (batched)
+2. **Boundedness** of the witness matrices `Z`
+3. **ME consistency** (and bus openings when `BusLayout` is provided)
+4. **Digest binding**: private obligations → `obligations_digest` (via Poseidon2)
+
+### Digest Binding Proof (IVC-like Component)
+
+The **digest-binding proof** uses **Spartan2 with Bellpepper R1CS** to prove that the private obligations hash to the public `obligations_digest`. This is the IVC-style embedded verifier component:
+
+```
+Private Obligations → Poseidon2 Hash → obligations_digest (public)
+```
+
+This is proven via a Spartan2 R1CS circuit that:
+- Takes private obligations as witness
+- Computes the Poseidon2/Goldilocks digest
+- Constrains the output to match `stmt.obligations_digest`
+
+### Current Status (Phase 2)
+
+| Backend | ID | Status |
+|---------|-----|--------|
+| WHIR full closure (dev) | `5` | ✅ Working, but obligations are public in payload |
+| WHIR private closure | `6` | ⚠️ Exists, but not production-audit-ready |
+
+**Remaining work for production-ready Phase 2** (see `docs/spartan-compression-phase2-obligations-private.md`):
+- Prove that committed weights/claims are derived from the same private obligations
+- Remove obligations from proof payload while maintaining soundness
+
+---
+
+## Shared CPU-Bus Architecture
+
+In shared-bus mode, Twist and Shout do not have their own commitments. Instead, they consume bus fields opened from the CPU commitment:
+
+**Twist bus fields** (from CPU witness tail):
+- `ra_bits`, `wa_bits` (read/write address bits)
+- `has_read`, `has_write` (operation flags)
+- `rv`, `wv` (read/write values)
+- `inc_at_write_addr` (increment at write address)
+
+**Shout bus fields**:
+- `addr_bits` (lookup address bits)
+- `has_lookup` (lookup flag)
+- `val` (lookup value)
+
+**Key files**:
+- Bus layout: `crates/neo-memory/src/cpu/bus_layout.rs`
+- CPU↔bus constraints: `crates/neo-memory/src/cpu/constraints.rs`
+- Bus guardrails: `crates/neo-fold/src/memory_sidecar/cpu_bus.rs`
+
+---
+
+## Shard Obligations
+
+After shard verification, the verifier receives `ShardObligations`:
+
+```rust
+pub struct ShardObligations<C, FF, KK> {
+    pub main: Vec<MeInstance<C, FF, KK>>,  // ME claims at r_time
+    pub val: Vec<MeInstance<C, FF, KK>>,   // ME claims at r_val (Twist only)
+}
+```
+
+**Both lanes must be enforced by the final proof layer.** It is not sufficient to only check sum-check transcripts and folding algebra.
 
 ---
 
 ## Security Invariants
 
-* **Fiat–Shamir soundness** for per‑step folding: ρ is **publicly recomputable** from an off‑circuit Poseidon2 transcript bound to step number, $X_t$, $y_t$, and $c^{(t)}_z$.
-* **No “folding with itself”**: $y^{\text{step}}_t$ is extracted from **real step outputs**, not placeholders.
-* **Context binding**: final lean proof includes a **Poseidon2 context digest** of $(\text{CCS}, x)$, checked before Spartan verification.
-* **Transparent PCS**: FRI‑derived PCS underlies the Spartan/SuperSpartan layer.
-* **Post‑quantum assumptions**: lattice commitments and hash‑based transcripts.
+- **Fiat–Shamir soundness**: All challenges derived via Poseidon2 transcript bound to public data
+- **Transcript binding**: Domain separation across all phases
+- **ME claim alignment**: Validates `r`-point consistency before Π_RLC
+- **Two-lane obligation tracking**: Value-lane ME claims tracked separately and must be finalized
+- **Post-quantum assumptions**: Lattice commitments (Ajtai) and hash-based transcripts
 
 ---
 
-## Memory Handling (Optional)
+## Architecture Comparison: Phase 1 vs IVC Designs
 
-* **Shout** (read‑only lookup) and **Twist** (read/write memory) can be attached to Stage 1/2 to enforce memory semantics in CCS reduction and aggregation. They are orthogonal to the EV and emission policy.
+Nightstream uses a **two-phase design** that differs from pure IVC/Nova-style designs:
+
+### Phase 1 (Shard Folding) — No Embedded Verifier
+
+1. **No per-step in-circuit verifier**: The folding loop runs natively without proving a verifier circuit per step
+2. **Shard-level batching**: Multiple steps are folded together before any SNARK compression
+3. **Two-lane obligations**: Twist's value-eval creates a separate obligation stream
+
+### Phase 2 (Closure Proof) — IVC-Style Verification
+
+1. **Digest-binding circuit**: Uses Spartan2 + Bellpepper R1CS to prove obligations → digest binding
+2. **WHIR for ME closure**: Proves the ME evaluation claims via FRI-based polynomial commitments
+3. **Single compression**: One closure proof covers all obligations from Phase 1
+
+### Why This Design?
+
+- **Phase 1 is fast**: No per-step SNARK overhead; just algebraic folding
+- **Phase 2 amortizes**: One expensive proof covers the entire shard
+- **Flexible batching**: Choose shard size based on latency/throughput tradeoffs
 
 ---
 
-## Practical Notes
+## Code Entry Points
 
-* **Performance**: the major cost driver is **SNARK compression** (Spartan2). By using **Checkpoint(N)** or **FinalOnly**, you slash amortized cost per step by ≈N×.
-* **Determinism vs. entropy**: debug builds may use fixed RNG seeds for reproducibility; release builds should use CSPRNGs for PP setup.
-* **VK handling**: proofs are **lean** (no 51MB embedded VK). Verification uses a VK digest registry and checks digest equality.
+### Phase 1 (Shard Folding)
+
+| Component | Location |
+|-----------|----------|
+| Shard folding loop | `crates/neo-fold/src/shard.rs` |
+| Memory sidecar | `crates/neo-fold/src/memory_sidecar/memory.rs` |
+| Twist oracles | `crates/neo-memory/src/twist_oracle.rs` |
+| Shout oracles | `crates/neo-memory/src/shout.rs` |
+| CPU bus layout | `crates/neo-memory/src/cpu/bus_layout.rs` |
+| Witness building | `crates/neo-memory/src/builder.rs` |
+| Proof types | `crates/neo-fold/src/shard_proof_types.rs` |
+
+### Phase 2 (Closure Proof)
+
+| Component | Location |
+|-----------|----------|
+| Closure proof container | `crates/neo-closure-proof/src/lib.rs` |
+| Digest-binding (Spartan2 R1CS) | `crates/neo-closure-proof/src/digest_binding.rs` |
+| WHIR backend (dev) | `crates/neo-closure-proof/src/whir_p3_backend.rs` |
+| WHIR private backend | `crates/neo-closure-proof/src/whir_p3_private_backend.rs` |
+| Bridge digests | `crates/neo-fold/src/bridge_digests.rs` |
 
 ---
 
 ## Glossary
 
-* **CCS** — Customizable Constraint System
-* **MCS** — Matrix Commitment Scheme (Ajtai)
-* **ME claim** — Multilinear Evaluation claim
-* **EV** — Embedded Verifier for IVC (public‑ρ mode)
-* **PCS** — Polynomial Commitment Scheme (FRI‑derived)
-* **Checkpoint(N)** — Emit one SNARK proof after N steps
+| Term | Definition |
+|------|------------|
+| **CCS** | Customizable Constraint System — generalized arithmetization |
+| **MCS** | Matrix Constraint System — CCS with commitment columns |
+| **ME** | Matrix Evaluation — universal foldable single-point claim |
+| **MLE** | Multilinear Extension — polynomial representation of vectors |
+| **Π_RLC** | Random Linear Combination protocol — aggregates multiple ME claims |
+| **Π_DEC** | Decomposition protocol — splits aggregated ME back into children (norm control) |
+| **Obligation** | ME claim emitted by shard verification that must be enforced by the final layer |
+| `r_time` | Shared evaluation point for main-lane claims (CCS + Shout + Twist read/write) |
+| `r_val` | Separate evaluation point for Twist's value-eval subprotocol |
+| **Main lane** | Folding lane for claims at `r_time` |
+| **Value lane** | Folding lane for Twist value-eval claims at `r_val` |
+| **Twist** | R/W memory argument via sparse increments |
+| **Shout** | Read-only lookup argument |
+| **IDX** | Index-to-virtual-one-hot adapter |
+| **hash-MLE** | Merkle-tree based polynomial commitment (no trusted setup) |
+| **WHIR** | FRI-based polynomial commitment scheme (Plonky3) |
+| **Closure proof** | Phase 2 SNARK that proves ME obligations are satisfied |
+| **Digest binding** | Proof that private obligations hash to public `obligations_digest` |
 
 ---
 
-This updated architecture captures the **public‑ρ IVC** design and the **on‑demand emission** model: run the **cheap recursive loop** per step, and **compress** only when you need a verifiable artifact (every step, per checkpoint, or once at the end).
+## Current Status
+
+### Phase 1 (Shard Folding)
+- ✅ Shard prove/verify loop with shared transcript binding
+- ✅ Twist/Shout integrated per chunk, including two-lane obligations
+- ✅ End-to-end integration tests proving and verifying shards
+
+### Phase 2 (Closure Proof)
+- ✅ WHIR full closure backend (dev, backend id `5`) — working
+- ✅ Digest-binding proof via Spartan2 R1CS
+- ⚠️ WHIR private closure (backend id `6`) — exists but not production-audit-ready
+- ⚠️ Missing: obligations→(weights, claimed_sum) binding for full privacy
+
+### Overall
+- ⚠️ No audit; research-grade performance/side-channel posture
+
+---
+
+## References
+
+- **Neo**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields](https://eprint.iacr.org/2025/294)" (ePrint 2025/294)
+- **Twist/Shout integration**: `docs/neo-with-twist-and-shout/`
+- **Spartan**: Srinath Setty, "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020)

@@ -29,6 +29,17 @@ For a detailed, “junior-dev executable” implementation path, see `docs/spart
 
 ---
 
+## Status (docs vs code)
+
+This file is a requirements doc, but some of the Phase‑2 items described below are no longer “future work” in this repo.
+
+- **Phase 1 is implemented:** `crates/neo-spartan-bridge/` provides a Spartan2 proof whose public statement binds params/CCS/PP identity/VM/steps/output/step-linking and is verified either with full context (`verify_fold_run`) or in fully-compressed mode (`verify_fold_run_statement_only`).
+- **Phase 2 exists as a one-blob artifact:** `BridgeProofV2 = { spartan, closure }` is implemented in `crates/neo-spartan-bridge/src/bridge_proof_v2.rs`.
+- **Phase 2 has a correctness harness:** `crates/neo-fold/src/finalize.rs` defines the closure contract and a `ReferenceFinalizer`; `crates/neo-closure-proof/` provides an explicit backend that enforces full `verify_and_finalize` semantics for tests/oracles.
+- **Phase 2 succinct backend is not production-ready yet:** a WHIR-backed full-closure backend exists but is a dev milestone and still obligations-public (see `docs/spartan-compression-phase2-obligations-private.md`).
+
+---
+
 ## MUST (requirements)
 
 ### 1) Clear public statement (what the Spartan proof means)
@@ -140,13 +151,13 @@ This section is the concrete “what do we build next?” path implied by the MU
 - a **small shareable artifact** (target: low 100s KB), and
 - **no loss of guarantees** vs native verification (`verify_and_finalize` semantics).
 
-### Phase 1 (already shipping): verifier-equivalent compression up to obligations
+### Phase 1 (implemented): verifier-equivalent compression up to obligations
 
 Deliverable: a pinned-VK Spartan2 proof that implies the native shard verifier would accept a run, **up to** producing final `ShardObligations { main, val }`, under a replay-resistant statement (params/CCS/VM/output binding/step linking).
 
 This phase is about “verifier equivalence” (transcript, Route‑A, Twist/Shout, output binding), not about proving Ajtai openings.
 
-### Phase 2 (the missing piece): close obligations with a succinct closure proof
+### Phase 2 (implemented, not production): close obligations with a closure proof
 
 Core deliverable: upgrade the shareable artifact to imply **`verify_and_finalize` semantics**:
 1) shard verifier acceptance (what Phase 1 proves), and
@@ -159,7 +170,12 @@ Recommended architecture for the size goal:
 
 This keeps the artifact small without requiring Spartan to verify an entire FRI/STARK verifier inside R1CS (which is usually expensive).
 
-**Important sizing note:** avoid putting the explicit `ShardObligations` list (or per-obligation `MeInstance` objects) in the blob unless you have measured it stays under budget. Instead, treat obligations as *private witness* to the closure proof and bind them via a small `obligations_digest` that the Phase 1 Spartan circuit computes from the same obligations it derives during verification.
+**Important sizing note:** avoid putting the explicit `ShardObligations` list (or per-obligation `MeInstance` objects) in the blob unless you have measured it stays under budget. Instead, treat obligations as *private witness* to the closure proof and bind them via a small `obligations_digest` derived from the Phase 1 public statement (using a ZK-friendly hash, e.g. Poseidon2 over Goldilocks).
+
+**Current code reality:**
+- `BridgeProofV2` exists and derives the closure statement deterministically from the Spartan statement.
+- The closure contract and a reference oracle exist (`neo_fold::finalize::ReferenceFinalizer`).
+- A succinct closure backend exists as a dev milestone (WHIR) but still needs an “obligations-private” redesign for production.
 
 ### Phase 2 milestones (in order)
 
@@ -260,9 +276,9 @@ Target a “low 100s KB” shareable artifact for the fully closed proof (Phase 
 
 ---
 
-## Remaining open questions (Phase 2)
+## Remaining work (Phase 2 production profile)
 
-- **Closure contract details:** exact per-obligation predicate (bounds + Ajtai opening + ME-consistency), and a single canonical CCS “ME-consistency” function to avoid drift.
-- **Obligations binding format:** whether `obligations_digest` is computed from a canonical obligations list, or derived from existing Phase 1 endpoints (e.g., `acc_final_main_digest`/`acc_final_val_digest`) for a leaner interface.
-- **Closure proof choice + params:** pick the concrete transparent proof stack (STARK vs sumcheck+FRI), plus concrete security parameters that hit the “low 100s KB” budget with acceptable prover time.
-- **Optional later:** whether to SNARK-wrap the closure verifier in-circuit (single proof system) after Phase 2 size/time benchmarks.
+- **Obligations-private closure proof:** remove obligations from the closure payload while preserving binding to Phase 1 (`obligations_digest`) and verifier determinism; see `docs/spartan-compression-phase2-obligations-private.md`.
+- **Pinned parameters + security rationale:** especially for the WHIR backend (tuning, soundness target, and any PoW/grinding policy).
+- **Resource envelope:** prover RAM/disk assumptions and verifier size caps for the final artifact.
+- **Optional later:** SNARK-wrap the closure verifier in-circuit (single proof system) after Phase‑2 size/time numbers stabilize.

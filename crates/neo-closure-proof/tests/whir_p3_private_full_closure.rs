@@ -8,6 +8,7 @@ use neo_closure_proof::{
 };
 use neo_fold::shard::ShardObligations;
 use neo_math::{D, F, K};
+use bincode::Options;
 use p3_field::PrimeCharacteristicRing;
 
 fn identity_ccs(m: usize) -> CcsStructure<F> {
@@ -124,5 +125,67 @@ fn whir_p3_private_full_closure_roundtrip_and_tamper_reject() {
     assert!(
         verify_closure_v1_with_context_and_bus(&stmt, &proof_bad, Some(&params), Some(&ccs), None).is_err(),
         "tampered proof bytes must be rejected"
+    );
+
+    // Tamper the sumcheck claimed_sum (keeping the digest-binding proof untouched) and ensure
+    // the verifier rejects the mismatch.
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    struct SumcheckProofV2Mirror {
+        claimed_sum_u64: u64,
+        round_evals_u64: Vec<Vec<u64>>,
+        z_r_u64: u64,
+        w_r_u64: u64,
+    }
+
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    struct PrivatePayloadV1Mirror {
+        digest_binding_proof: Vec<u8>,
+        sumcheck: SumcheckProofV2Mirror,
+        whir_proof_data_u64: Vec<u64>,
+    }
+
+    fn decode_envelope(bytes: &[u8]) -> (u32, &[u8]) {
+        assert!(bytes.len() >= 16, "envelope too short");
+        assert_eq!(&bytes[0..4], b"NCLP", "bad magic");
+        let version = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
+        assert_eq!(version, 1, "unexpected envelope version");
+        let backend_id = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
+        let payload_len = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+        assert_eq!(bytes.len(), 16 + payload_len, "bad payload length");
+        (backend_id, &bytes[16..])
+    }
+
+    fn encode_envelope(backend_id: u32, payload: &[u8]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(16 + payload.len());
+        out.extend_from_slice(b"NCLP");
+        out.extend_from_slice(&1u32.to_le_bytes());
+        out.extend_from_slice(&backend_id.to_le_bytes());
+        out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        out.extend_from_slice(payload);
+        out
+    }
+
+    fn bincode_opts() -> impl Options {
+        bincode::DefaultOptions::new()
+            .with_fixint_encoding()
+            .reject_trailing_bytes()
+            .with_limit(64 * 1024 * 1024)
+    }
+
+    let ClosureProofV1::OpaqueBytes { proof_bytes } = &proof;
+    let (backend_id, payload_bytes) = decode_envelope(proof_bytes);
+    assert_eq!(backend_id, 6, "expected private backend id 6");
+
+    let mut payload: PrivatePayloadV1Mirror = bincode_opts().deserialize(payload_bytes).expect("payload decode");
+    payload.sumcheck.claimed_sum_u64 ^= 1;
+    let payload_bytes_bad = bincode_opts().serialize(&payload).expect("payload encode");
+    let proof_bytes_bad = encode_envelope(backend_id, &payload_bytes_bad);
+
+    let proof_bad = ClosureProofV1::OpaqueBytes { proof_bytes: proof_bytes_bad };
+    let err = verify_closure_v1_with_context_and_bus(&stmt, &proof_bad, Some(&params), Some(&ccs), None)
+        .expect_err("tampered claimed_sum must be rejected");
+    assert!(
+        matches!(err, ClosureProofError::WhirP3(ref s) if s.contains("claimed_sum mismatch")),
+        "expected claimed_sum mismatch error, got {err:?}"
     );
 }

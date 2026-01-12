@@ -3,7 +3,8 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_closure_proof::{
     compute_accumulator_digest_v2, compute_obligations_digest_v2, prove_whir_p3_private_full_closure_v1,
-    verify_closure_v1_production_with_context_and_bus, ClosureProofV1, ClosureStatementV1,
+    verify_closure_v1_production_with_context_and_bus, verify_closure_v1_with_context_and_bus, ClosureProofError,
+    ClosureProofV1, ClosureStatementV1,
 };
 use neo_fold::shard::ShardObligations;
 use neo_math::{D, F, K};
@@ -89,7 +90,15 @@ fn whir_p3_private_full_closure_roundtrip_and_tamper_reject() {
             .expect("prove");
 
     // Basic roundtrip.
-    verify_closure_v1_production_with_context_and_bus(&stmt, &proof, Some(&params), Some(&ccs), None).expect("verify");
+    verify_closure_v1_with_context_and_bus(&stmt, &proof, Some(&params), Some(&ccs), None).expect("verify");
+
+    // Production verifier currently fails closed until the obligations→weights/claims binding is implemented.
+    let err = verify_closure_v1_production_with_context_and_bus(&stmt, &proof, Some(&params), Some(&ccs), None)
+        .expect_err("production verifier must fail closed");
+    assert!(
+        matches!(err, ClosureProofError::BackendNotImplemented),
+        "expected BackendNotImplemented, got {err:?}"
+    );
 
     // Regression guard: proof size stays bounded for this tiny instance.
     let ClosureProofV1::OpaqueBytes { proof_bytes } = &proof;
@@ -103,7 +112,7 @@ fn whir_p3_private_full_closure_roundtrip_and_tamper_reject() {
     let mut stmt_bad = stmt.clone();
     stmt_bad.obligations_digest[0] ^= 1;
     assert!(
-        verify_closure_v1_production_with_context_and_bus(&stmt_bad, &proof, Some(&params), Some(&ccs), None).is_err(),
+        verify_closure_v1_with_context_and_bus(&stmt_bad, &proof, Some(&params), Some(&ccs), None).is_err(),
         "tampered statement must be rejected"
     );
 
@@ -113,7 +122,7 @@ fn whir_p3_private_full_closure_roundtrip_and_tamper_reject() {
     let idx = proof_bytes.len() / 2;
     proof_bytes[idx] ^= 1;
     assert!(
-        verify_closure_v1_production_with_context_and_bus(&stmt, &proof_bad, Some(&params), Some(&ccs), None).is_err(),
+        verify_closure_v1_with_context_and_bus(&stmt, &proof_bad, Some(&params), Some(&ccs), None).is_err(),
         "tampered proof bytes must be rejected"
     );
 }

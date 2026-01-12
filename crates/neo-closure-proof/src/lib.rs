@@ -6,7 +6,10 @@
 //! - backends, including:
 //!   - a WHIR-based (Plonky3) backend that proves full obligation closure.
 //!
-//! NOTE: The obligations-private backend is not implemented yet.
+//! NOTE: The obligations-private backend (id `6`) exists, but is not yet production-audit-ready
+//! because it still lacks the missing obligations→(weights, claimed_sum) binding described in
+//! `docs/spartan-compression-phase2-obligations-private.md`. The production verifier entrypoint is
+//! intentionally fail-closed until that work is complete.
 
 #![forbid(unsafe_code)]
 #![allow(non_snake_case)]
@@ -133,6 +136,10 @@ pub fn verify_closure_v1_with_context_and_bus(
 ///
 /// This rejects the current dev WHIR backend (backend id `5`) and only routes to the
 /// obligations-private backend (backend id `6`).
+///
+/// NOTE: The current obligations-private backend still does not prove the missing
+/// obligations→(weights, claimed_sum) binding described in
+/// `docs/spartan-compression-phase2-obligations-private.md`, so it is not yet production-audit-ready.
 pub fn verify_closure_v1_production_with_context_and_bus(
     stmt: &ClosureStatementV1,
     proof: &ClosureProofV1,
@@ -153,7 +160,8 @@ pub fn verify_closure_v1_production_with_context_and_bus(
         opaque::BackendIdV1::WhirP3PrivateFullClosureV1 => {
             let params = params.ok_or(ClosureProofError::MissingVerificationContext)?;
             let ccs = ccs.ok_or(ClosureProofError::MissingVerificationContext)?;
-            whir_p3_private_backend::verify_whir_p3_private_full_closure_payload_v1(stmt, payload, params, ccs, bus)
+            let _ = (stmt, payload, params, ccs, bus);
+            Err(ClosureProofError::BackendNotImplemented)
         }
     }
 }

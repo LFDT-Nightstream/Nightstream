@@ -79,6 +79,7 @@ mod payload_codec {
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     pub(super) struct SumcheckProofV2 {
+        pub claimed_sum_u64: u64,
         pub round_evals_u64: Vec<Vec<u64>>,
         pub z_r_u64: u64,
         pub w_r_u64: u64,

@@ -27,6 +27,437 @@ pub(crate) struct FullClosurePublicClaims {
     pub(crate) r0: Vec<F>,
 }
 
+pub(crate) fn compute_full_closure_public_w_r_expected_at_point(
+    stmt: &ClosureStatementV1,
+    params: &neo_params::NeoParams,
+    ccs: &neo_ccs::CcsStructure<neo_math::F>,
+    obligations: &neo_fold::shard::ShardObligations<NeoCmt, neo_math::F, neo_math::K>,
+    d: usize,
+    m: usize,
+    kappa: usize,
+    pp_seed: [u8; 32],
+    commitment_root_u64: &[u64],
+    z_len_padded: usize,
+    num_vars: usize,
+    point_msb: &[F],
+    bus: Option<&neo_memory::cpu::BusLayout>,
+) -> Result<F, ClosureProofError> {
+    let _ = params; // b is only used by the range-check term, not for W weights.
+    if d != NeoD {
+        return Err(ClosureProofError::WhirP3(format!(
+            "unexpected d (must match neo_math::D): got {d}, expected {NeoD}",
+        )));
+    }
+    if point_msb.len() != num_vars {
+        return Err(ClosureProofError::WhirP3("W(r) point length mismatch".into()));
+    }
+
+    let obligation_count = obligations.main.len() + obligations.val.len();
+    if obligation_count == 0 {
+        return Ok(F::ZERO);
+    }
+
+    let z_len = obligation_count
+        .checked_mul(d)
+        .and_then(|x| x.checked_mul(m))
+        .ok_or_else(|| ClosureProofError::WhirP3("z_len overflow".into()))?;
+    if z_len > z_len_padded {
+        return Err(ClosureProofError::WhirP3("z_len exceeds z_len_padded".into()));
+    }
+    let expected_padded = 1usize
+        .checked_shl(num_vars as u32)
+        .ok_or_else(|| ClosureProofError::WhirP3("z_len_padded overflow".into()))?;
+    if expected_padded != z_len_padded {
+        return Err(ClosureProofError::WhirP3("z_len_padded mismatch vs num_vars".into()));
+    }
+    if z_len > expected_padded {
+        return Err(ClosureProofError::WhirP3("z_len exceeds 2^num_vars".into()));
+    }
+
+    let (u_vecs, lambdas) = derive_u_and_lambdas(stmt, commitment_root_u64, kappa, obligation_count);
+
+    let w_u_len = d
+        .checked_mul(m)
+        .ok_or_else(|| ClosureProofError::WhirP3("w_u_len overflow".into()))?;
+    let w_u_bytes = w_u_len.saturating_mul(core::mem::size_of::<F>());
+    let mut w_u = if w_u_bytes >= DEFAULT_MMAP_THRESHOLD_BYTES {
+        Buffer::Mmap(
+            MmapBuffer::new_zeroed(w_u_len)
+                .map_err(|e| ClosureProofError::WhirP3(format!("mmap alloc w_u failed: {e}")))?,
+        )
+    } else {
+        Buffer::Vec(F::zero_vec(w_u_len))
+    };
+    neo_ajtai::compute_opening_weights_for_u_seeded_into(pp_seed, m, &u_vecs, w_u.as_mut_slice());
+
+    // X-projection RNG + mixer scalar.
+    let seed_x = derive_seed_v1(b"ajtai_opening_plus_x/rng", stmt, Some(commitment_root_u64));
+    let mut rng_x = ChaCha8Rng::from_seed(seed_x);
+    let mut gamma_x = NeoF::from_u64(rng_x.next_u64());
+    if gamma_x == NeoF::ZERO {
+        gamma_x = NeoF::ONE;
+    }
+    let gamma_x = neo_f_to_whir(gamma_x);
+
+    // ME-consistency RNG + mixer scalars/weights.
+    let seed_me = derive_seed_v1(b"full_closure/rng", stmt, Some(commitment_root_u64));
+    let mut rng_me = ChaCha8Rng::from_seed(seed_me);
+
+    let mut gamma_me = neo_math::F::from_u64(rng_me.next_u64());
+    if gamma_me == neo_math::F::ZERO {
+        gamma_me = neo_math::F::ONE;
+    }
+    let gamma_me = neo_f_to_whir(gamma_me);
+
+    let mut delta_k = neo_math::F::from_u64(rng_me.next_u64());
+    if delta_k == neo_math::F::ZERO {
+        delta_k = neo_math::F::ONE;
+    }
+
+    let mut nu = vec![neo_math::F::ZERO; d];
+    for rho in 0..d {
+        nu[rho] = neo_math::F::from_u64(rng_me.next_u64());
+    }
+
+    let core_t = ccs.t();
+    let mut bus_cols_expected: Option<usize> = None;
+    for me in obligations.main.iter().chain(obligations.val.iter()) {
+        if me.y.len() != me.y_scalars.len() {
+            return Err(ClosureProofError::WhirP3("ME y/y_scalars length mismatch".into()));
+        }
+        if me.y.len() < core_t {
+            return Err(ClosureProofError::WhirP3("ME y.len() < core_t".into()));
+        }
+        let bus_cols = me.y.len() - core_t;
+        match bus_cols_expected {
+            None => bus_cols_expected = Some(bus_cols),
+            Some(prev) if prev != bus_cols => {
+                return Err(ClosureProofError::WhirP3("ME bus_cols mismatch across obligations".into()));
+            }
+            _ => {}
+        }
+        if bus_cols > 0 {
+            let bus = bus
+                .ok_or_else(|| ClosureProofError::WhirP3("ME has bus openings but no BusLayout provided".into()))?;
+            if bus.bus_cols != bus_cols || bus.m != m {
+                return Err(ClosureProofError::WhirP3("BusLayout mismatch".into()));
+            }
+            if me.m_in != bus.m_in {
+                return Err(ClosureProofError::WhirP3("ME m_in != bus.m_in".into()));
+            }
+        }
+    }
+    let bus_cols = bus_cols_expected.unwrap_or(0);
+
+    let mut mu_core = vec![neo_math::F::ZERO; core_t];
+    for j in 0..core_t {
+        mu_core[j] = neo_math::F::from_u64(rng_me.next_u64());
+    }
+    let mut mu_bus = vec![neo_math::F::ZERO; bus_cols];
+    for col_id in 0..bus_cols {
+        mu_bus[col_id] = neo_math::F::from_u64(rng_me.next_u64());
+    }
+
+    fn compute_col_weights_for_me(
+        ccs: &neo_ccs::CcsStructure<neo_math::F>,
+        me: &neo_ccs::MeInstance<NeoCmt, neo_math::F, neo_math::K>,
+        d: usize,
+        m: usize,
+        delta_k: neo_math::F,
+        mu_core: &[neo_math::F],
+        mu_bus: &[neo_math::F],
+        bus_cols: usize,
+        bus: Option<&neo_memory::cpu::BusLayout>,
+    ) -> Result<Vec<neo_math::F>, ClosureProofError> {
+        let rb_mix = compute_rb_mix(&me.r, delta_k);
+        let n_eff = core::cmp::min(ccs.n, rb_mix.len());
+        let mut col_weights = vec![neo_math::F::ZERO; m];
+
+        for (j, mat) in ccs.matrices.iter().enumerate() {
+            let mu_j = mu_core
+                .get(j)
+                .copied()
+                .ok_or_else(|| ClosureProofError::WhirP3("mu_core count mismatch".into()))?;
+            if mu_j == neo_math::F::ZERO {
+                continue;
+            }
+            match mat {
+                neo_ccs::CcsMatrix::Identity { n } => {
+                    let cap = core::cmp::min(n_eff, *n);
+                    if cap > m {
+                        return Err(ClosureProofError::WhirP3("identity matrix n exceeds m".into()));
+                    }
+                    for idx in 0..cap {
+                        col_weights[idx] += mu_j * rb_mix[idx];
+                    }
+                }
+                neo_ccs::CcsMatrix::Csc(csc) => {
+                    if csc.ncols > m {
+                        return Err(ClosureProofError::WhirP3("CSC matrix ncols exceeds m".into()));
+                    }
+                    for c in 0..csc.ncols {
+                        let s0 = csc.col_ptr[c];
+                        let e0 = csc.col_ptr[c + 1];
+                        for k in s0..e0 {
+                            let row = csc.row_idx[k];
+                            if row >= n_eff {
+                                continue;
+                            }
+                            let wr = rb_mix[row];
+                            if wr == neo_math::F::ZERO {
+                                continue;
+                            }
+                            col_weights[c] += mu_j * wr * csc.vals[k];
+                        }
+                    }
+                }
+            }
+        }
+
+        if bus_cols > 0 {
+            let bus = bus
+                .ok_or_else(|| ClosureProofError::WhirP3("ME has bus openings but no BusLayout provided".into()))?;
+            for col_id in 0..bus_cols {
+                let mu = mu_bus[col_id];
+                if mu == neo_math::F::ZERO {
+                    continue;
+                }
+                for j in 0..bus.chunk_size {
+                    let row = bus.time_index(j);
+                    let w_time = chi_for_row_index(&me.r, row);
+                    let w_time_mix = mix_k_to_f(w_time, delta_k);
+                    let z_idx = bus.bus_cell(col_id, j);
+                    if z_idx >= m {
+                        return Err(ClosureProofError::WhirP3("bus_cell out of range".into()));
+                    }
+                    col_weights[z_idx] += mu * w_time_mix;
+                }
+            }
+        }
+
+        let _ = d; // used implicitly via `chi_for_row_index` and ME constraints.
+        Ok(col_weights)
+    }
+
+    // Enumerate eq(x, point) for x in [0, z_len) and accumulate W(x) * eq(x, point).
+    let mut out = F::ZERO;
+    let mut produced = 0usize;
+
+    let mes: Vec<_> = obligations.main.iter().chain(obligations.val.iter()).collect();
+    if mes.len() != obligation_count {
+        return Err(ClosureProofError::WhirP3("obligation count mismatch".into()));
+    }
+
+    struct WCursor {
+        obligation_idx: usize,
+        row: usize,
+        col: usize,
+    }
+    let mut cursor = WCursor {
+        obligation_idx: 0,
+        row: 0,
+        col: 0,
+    };
+
+    let mut col_weights = compute_col_weights_for_me(
+        ccs,
+        mes[0],
+        d,
+        m,
+        delta_k,
+        &mu_core,
+        &mu_bus,
+        bus_cols,
+        bus,
+    )?;
+
+    fn rec(
+        point_msb: &[F],
+        bit: usize,
+        acc: F,
+        limit: usize,
+        produced: &mut usize,
+        out: &mut F,
+        cursor: &mut WCursor,
+        obligations: &[&neo_ccs::MeInstance<NeoCmt, neo_math::F, neo_math::K>],
+        lambdas: &[neo_math::F],
+        d: usize,
+        m: usize,
+        w_u: &[F],
+        gamma_x: F,
+        rng_x: &mut ChaCha8Rng,
+        gamma_me: F,
+        nu: &[neo_math::F],
+        col_weights: &mut Vec<neo_math::F>,
+        ccs: &neo_ccs::CcsStructure<neo_math::F>,
+        delta_k: neo_math::F,
+        mu_core: &[neo_math::F],
+        mu_bus: &[neo_math::F],
+        bus_cols: usize,
+        bus: Option<&neo_memory::cpu::BusLayout>,
+    ) -> Result<(), ClosureProofError> {
+        if *produced >= limit {
+            return Ok(());
+        }
+        if bit == point_msb.len() {
+            let me = *obligations
+                .get(cursor.obligation_idx)
+                .ok_or_else(|| ClosureProofError::WhirP3("obligation index overflow".into()))?;
+            let lambda_i = lambdas
+                .get(cursor.obligation_idx)
+                .copied()
+                .ok_or_else(|| ClosureProofError::WhirP3("lambda count mismatch".into()))?;
+
+            // Base Ajtai opening weights.
+            let w_u_idx = cursor
+                .row
+                .checked_mul(m)
+                .and_then(|x| x.checked_add(cursor.col))
+                .ok_or_else(|| ClosureProofError::WhirP3("w_u index overflow".into()))?;
+            let w_u_entry = *w_u
+                .get(w_u_idx)
+                .ok_or_else(|| ClosureProofError::WhirP3("w_u index out of range".into()))?;
+            let mut w_entry = neo_f_to_whir(lambda_i) * w_u_entry;
+
+            // X projection weights: sample betas only for col < m_in.
+            if cursor.col < me.m_in {
+                let beta = neo_f_to_whir(NeoF::from_u64(rng_x.next_u64()));
+                w_entry += gamma_x * beta;
+            }
+
+            // ME consistency weights.
+            let nu_rho = nu
+                .get(cursor.row)
+                .copied()
+                .ok_or_else(|| ClosureProofError::WhirP3("nu index out of range".into()))?;
+            let cw = col_weights
+                .get(cursor.col)
+                .copied()
+                .ok_or_else(|| ClosureProofError::WhirP3("col_weights index out of range".into()))?;
+            w_entry += gamma_me * neo_f_to_whir(lambda_i * nu_rho * cw);
+
+            *out += acc * w_entry;
+            *produced += 1;
+
+            // Advance cursor.
+            cursor.col += 1;
+            if cursor.col == m {
+                cursor.col = 0;
+                cursor.row += 1;
+                if cursor.row == d {
+                    cursor.row = 0;
+                    cursor.obligation_idx += 1;
+                    if cursor.obligation_idx < obligations.len() {
+                        *col_weights = compute_col_weights_for_me(
+                            ccs,
+                            obligations[cursor.obligation_idx],
+                            d,
+                            m,
+                            delta_k,
+                            mu_core,
+                            mu_bus,
+                            bus_cols,
+                            bus,
+                        )?;
+                    }
+                }
+            }
+
+            return Ok(());
+        }
+
+        let r = point_msb[bit];
+        rec(
+            point_msb,
+            bit + 1,
+            acc * (F::ONE - r),
+            limit,
+            produced,
+            out,
+            cursor,
+            obligations,
+            lambdas,
+            d,
+            m,
+            w_u,
+            gamma_x,
+            rng_x,
+            gamma_me,
+            nu,
+            col_weights,
+            ccs,
+            delta_k,
+            mu_core,
+            mu_bus,
+            bus_cols,
+            bus,
+        )?;
+        rec(
+            point_msb,
+            bit + 1,
+            acc * r,
+            limit,
+            produced,
+            out,
+            cursor,
+            obligations,
+            lambdas,
+            d,
+            m,
+            w_u,
+            gamma_x,
+            rng_x,
+            gamma_me,
+            nu,
+            col_weights,
+            ccs,
+            delta_k,
+            mu_core,
+            mu_bus,
+            bus_cols,
+            bus,
+        )
+    }
+
+    // Validate X shapes once (keeps the cursor logic lean).
+    for me in mes.iter() {
+        if me.m_in > m {
+            return Err(ClosureProofError::WhirP3("m_in exceeds commitment width".into()));
+        }
+        if me.X.rows() != d || me.X.cols() != me.m_in {
+            return Err(ClosureProofError::WhirP3("X shape mismatch".into()));
+        }
+    }
+
+    rec(
+        point_msb,
+        0,
+        F::ONE,
+        z_len,
+        &mut produced,
+        &mut out,
+        &mut cursor,
+        mes.as_slice(),
+        &lambdas,
+        d,
+        m,
+        w_u.as_slice(),
+        gamma_x,
+        &mut rng_x,
+        gamma_me,
+        &nu,
+        &mut col_weights,
+        ccs,
+        delta_k,
+        &mu_core,
+        &mu_bus,
+        bus_cols,
+        bus,
+    )?;
+
+    Ok(out)
+}
+
 pub(crate) fn compute_full_closure_public_weights_and_claims(
     stmt: &ClosureStatementV1,
     params: &neo_params::NeoParams,

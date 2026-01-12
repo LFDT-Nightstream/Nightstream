@@ -385,6 +385,15 @@ pub fn verify_obligations_digest_binding_proof_v1(
     params: &NeoParams,
     proof_bytes: &[u8],
 ) -> Result<(), ClosureProofError> {
+    let _shape = verify_obligations_digest_binding_proof_v1_with_shape(stmt, params, proof_bytes)?;
+    Ok(())
+}
+
+pub(crate) fn verify_obligations_digest_binding_proof_v1_with_shape(
+    stmt: &ClosureStatementV1,
+    params: &NeoParams,
+    proof_bytes: &[u8],
+) -> Result<DigestBindingShapeV1, ClosureProofError> {
     let proof: DigestBindingProofV1 = codec::deserialize_payload(proof_bytes)?;
     proof
         .shape
@@ -427,7 +436,7 @@ pub fn verify_obligations_digest_binding_proof_v1(
         return Err(ClosureProofError::Spartan2("Spartan2 public IO mismatch".into()));
     }
 
-    Ok(())
+    Ok(proof.shape)
 }
 
 /// Decode the public shape carried by a v1 digest-binding proof container.

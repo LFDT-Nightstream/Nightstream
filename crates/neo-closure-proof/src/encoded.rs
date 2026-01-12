@@ -56,12 +56,12 @@ impl EncodedCommitment {
         Self {
             d: c.d as u32,
             kappa: c.kappa as u32,
-            data: c
-                .data
-                .iter()
-                .map(|x| x.as_canonical_u64())
-                .collect::<Vec<_>>()
-                .into(),
+            data: BoundedVec::from_vec_panicking(
+                c.data
+                    .iter()
+                    .map(|x| x.as_canonical_u64())
+                    .collect::<Vec<_>>(),
+            ),
         }
     }
 
@@ -96,12 +96,12 @@ impl EncodedMatF {
         Self {
             rows: m.rows() as u32,
             cols: m.cols() as u32,
-            data: m
-                .as_slice()
-                .iter()
-                .map(|x| x.as_canonical_u64())
-                .collect::<Vec<_>>()
-                .into(),
+            data: BoundedVec::from_vec_panicking(
+                m.as_slice()
+                    .iter()
+                    .map(|x| x.as_canonical_u64())
+                    .collect::<Vec<_>>(),
+            ),
         }
     }
 
@@ -138,19 +138,18 @@ impl EncodedMeInstance {
         Self {
             c: EncodedCommitment::encode(&me.c),
             X: EncodedMatF::encode(&me.X),
-            r: me.r.iter().map(EncodedK::encode).collect::<Vec<_>>().into(),
-            y: me
-                .y
-                .iter()
-                .map(|row| row.iter().map(EncodedK::encode).collect::<Vec<_>>().into())
-                .collect::<Vec<_>>()
-                .into(),
-            y_scalars: me
-                .y_scalars
-                .iter()
-                .map(EncodedK::encode)
-                .collect::<Vec<_>>()
-                .into(),
+            r: BoundedVec::from_vec_panicking(me.r.iter().map(EncodedK::encode).collect::<Vec<_>>()),
+            y: BoundedVec::from_vec_panicking(
+                me.y.iter()
+                    .map(|row| BoundedVec::from_vec_panicking(row.iter().map(EncodedK::encode).collect::<Vec<_>>()))
+                    .collect::<Vec<_>>(),
+            ),
+            y_scalars: BoundedVec::from_vec_panicking(
+                me.y_scalars
+                    .iter()
+                    .map(EncodedK::encode)
+                    .collect::<Vec<_>>(),
+            ),
             m_in: me.m_in as u32,
         }
     }
@@ -193,18 +192,18 @@ pub struct EncodedObligations {
 impl EncodedObligations {
     pub fn encode(obs: &neo_fold::shard::ShardObligations<Cmt, NeoF, NeoK>) -> Self {
         Self {
-            main: obs
-                .main
-                .iter()
-                .map(EncodedMeInstance::encode)
-                .collect::<Vec<_>>()
-                .into(),
-            val: obs
-                .val
-                .iter()
-                .map(EncodedMeInstance::encode)
-                .collect::<Vec<_>>()
-                .into(),
+            main: BoundedVec::from_vec_panicking(
+                obs.main
+                    .iter()
+                    .map(EncodedMeInstance::encode)
+                    .collect::<Vec<_>>(),
+            ),
+            val: BoundedVec::from_vec_panicking(
+                obs.val
+                    .iter()
+                    .map(EncodedMeInstance::encode)
+                    .collect::<Vec<_>>(),
+            ),
         }
     }
 

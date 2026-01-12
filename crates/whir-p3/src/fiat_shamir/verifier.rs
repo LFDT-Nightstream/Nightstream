@@ -93,7 +93,12 @@ where
     /// Returns `FiatShamirError::ExceededTranscript` if insufficient data remains.
     pub fn next_base_scalars_const<const N: usize>(&mut self) -> Result<[F; N], FiatShamirError> {
         // Delegate to vector-based reader, then convert to array.
-        Ok(self.next_base_scalars_vec(N)?.try_into().unwrap())
+        //
+        // The `try_into()` failure is unreachable if `next_base_scalars_vec(N)` returns a `Vec` of
+        // length `N`, but avoid panicking on attacker-controlled inputs.
+        self.next_base_scalars_vec(N)?
+            .try_into()
+            .map_err(|_| FiatShamirError::ExceededTranscript)
     }
 
     /// Consume and return `n` extension scalars from the proof data, observing them in the challenger.
@@ -121,7 +126,10 @@ where
     pub fn next_extension_scalars_const<const N: usize>(
         &mut self,
     ) -> Result<[EF; N], FiatShamirError> {
-        Ok(self.next_extension_scalars_vec(N)?.try_into().unwrap())
+        // Same reasoning as `next_base_scalars_const`.
+        self.next_extension_scalars_vec(N)?
+            .try_into()
+            .map_err(|_| FiatShamirError::ExceededTranscript)
     }
 
     /// Consume and return a single extension scalar, observing it in the challenger.

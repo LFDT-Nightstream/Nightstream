@@ -73,9 +73,12 @@ A closure proof can either:
 - include an explicit obligations encoding in the proof payload (convenient for debugging, but adds
   size and leaks additional intermediate data).
 
-Today the WHIR backend still includes encoded obligations in its payload as a dev convenience; this
-is one of the main remaining steps before calling it production-sized. Removing them requires the
-“obligations-private” redesign described in `docs/spartan-compression-phase2-obligations-private.md`.
+Today `neo-closure-proof` has:
+- a **dev** WHIR full-closure backend (opaque backend id `5`) that serializes obligations in the payload, and
+- an **obligations-private** backend (opaque backend id `6`) that does not serialize obligations and includes a digest-binding proof.
+
+The obligations-private backend is still **not production-audit-ready** until it also proves the missing
+obligations→(weights, claimed_sum) binding described in `docs/spartan-compression-phase2-obligations-private.md`.
 
 ### Tradeoffs of public proofs
 
@@ -133,7 +136,8 @@ WHIR-backed closure tests are included in `cargo test -p neo-spartan-bridge --re
 ### BridgeProofV2 API (Phase 1 + Phase 2)
 
 - Proving: `prove_bridge_proof_v2_whir_p3_full_closure` (WHIR full-closure; currently serializes obligations in the payload).
-- Verifying: `verify_bridge_proof_v2` (full context) or `verify_bridge_proof_v2_statement_only` (expected Phase-1 statement + pinned VK).
+- Verifying (dev policy): `verify_bridge_proof_v2` (full context) or `verify_bridge_proof_v2_statement_only` (expected Phase-1 statement + pinned VK).
+- Verifying (production policy): `verify_bridge_proof_v2_production` or `verify_bridge_proof_v2_statement_only_production` (currently fail-closed until Phase‑2 obligations-private is audit-ready).
 
 ### Phase 1 meaning
 

@@ -72,3 +72,27 @@ fn production_private_backend_requires_context() {
         "expected MissingVerificationContext, got {err:?}"
     );
 }
+
+#[test]
+fn production_rejects_private_backend_id_6_even_with_context() {
+    let stmt = ClosureStatementV1::new([1u8; 32], [2u8; 32], [3u8; 32]);
+    let proof = ClosureProofV1::OpaqueBytes {
+        proof_bytes: encode_envelope(/*backend_id=*/ 6, &[]),
+    };
+
+    // Dummy context is enough to get past MissingVerificationContext; production then fails closed.
+    let m = 1usize;
+    let params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs(m).expect("params");
+    let ccs = neo_ccs::CcsStructure::new(
+        vec![neo_ccs::Mat::identity(m)],
+        neo_ccs::SparsePoly::new(1, vec![]),
+    )
+    .expect("ccs");
+
+    let err = verify_closure_v1_production_with_context_and_bus(&stmt, &proof, Some(&params), Some(&ccs), None)
+        .expect_err("private backend must be rejected in production for now");
+    assert!(
+        matches!(err, ClosureProofError::BackendNotImplemented),
+        "expected BackendNotImplemented, got {err:?}"
+    );
+}

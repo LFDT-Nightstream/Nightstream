@@ -9,10 +9,9 @@ pub(crate) fn eval_lagrange_0_to_deg(evals: &[F], r: F) -> F {
     // Evaluate the unique degree-(evals.len()-1) polynomial matching:
     //   p(i) = evals[i] for i=0..deg
     // at the point r.
-    let deg = evals
-        .len()
-        .checked_sub(1)
-        .expect("eval_lagrange_0_to_deg: empty evals");
+    let Some(deg) = evals.len().checked_sub(1) else {
+        return F::ZERO;
+    };
 
     let mut out = F::ZERO;
     for i in 0..=deg {

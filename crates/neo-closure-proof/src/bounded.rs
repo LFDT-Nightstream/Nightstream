@@ -12,19 +12,44 @@ use core::ops::Deref;
 use serde::de::{self, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BoundedVecError;
+
+impl fmt::Display for BoundedVecError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "bounded sequence too large")
+    }
+}
+
+impl std::error::Error for BoundedVecError {}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(transparent)]
-pub(crate) struct BoundedVec<T, const MAX: usize>(pub Vec<T>);
+pub(crate) struct BoundedVec<T, const MAX: usize>(Vec<T>);
 
-impl<T, const MAX: usize> From<Vec<T>> for BoundedVec<T, MAX> {
-    fn from(value: Vec<T>) -> Self {
+impl<T, const MAX: usize> BoundedVec<T, MAX> {
+    pub(crate) fn try_from_vec(value: Vec<T>) -> Result<Self, BoundedVecError> {
+        if value.len() > MAX {
+            return Err(BoundedVecError);
+        }
+        Ok(Self(value))
+    }
+
+    pub(crate) fn from_vec_panicking(value: Vec<T>) -> Self {
+        if value.len() > MAX {
+            panic!("bounded sequence too large: {} > {}", value.len(), MAX);
+        }
         Self(value)
+    }
+
+    pub(crate) fn into_vec(self) -> Vec<T> {
+        self.0
     }
 }
 
 impl<T, const MAX: usize> From<BoundedVec<T, MAX>> for Vec<T> {
     fn from(value: BoundedVec<T, MAX>) -> Self {
-        value.0
+        value.into_vec()
     }
 }
 

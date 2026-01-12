@@ -11,8 +11,8 @@ use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_params::NeoParams;
 use neo_spartan_bridge::circuit::FoldRunWitness;
 use neo_spartan_bridge::{
-    prove_bridge_proof_v2_whir_p3_full_closure, setup_fold_run, verify_bridge_proof_v2,
-    verify_bridge_proof_v2_statement_only,
+    prove_bridge_proof_v2_whir_p3_full_closure, setup_fold_run, verify_bridge_proof_v2, verify_bridge_proof_v2_production,
+    verify_bridge_proof_v2_statement_only, verify_bridge_proof_v2_statement_only_production,
 };
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -107,6 +107,24 @@ fn bridge_proof_v2_whir_full_closure_roundtrip_and_tamper() {
         verify_bridge_proof_v2_statement_only(&vk, &proof.spartan.statement, &proof, Some(&params), Some(&ccs), None,)
             .expect("verify statement-only"),
         "BridgeProofV2 statement-only verification must succeed"
+    );
+
+    // Production verifier policy rejects the dev closure backend (id `5`) by design.
+    assert!(
+        verify_bridge_proof_v2_production(&vk, &params, &ccs, &vm_digest, &steps_instance, None, &[], &proof).is_err(),
+        "production verifier must reject dev closure backend"
+    );
+    assert!(
+        verify_bridge_proof_v2_statement_only_production(
+            &vk,
+            &proof.spartan.statement,
+            &proof,
+            Some(&params),
+            Some(&ccs),
+            None,
+        )
+        .is_err(),
+        "production statement-only verifier must reject dev closure backend"
     );
 
     // Tamper witness for closure proof: Phase-1 proof still verifies, closure must fail.

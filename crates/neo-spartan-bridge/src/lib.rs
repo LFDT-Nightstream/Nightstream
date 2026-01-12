@@ -35,7 +35,7 @@ pub use api::{
 
 pub use bridge_proof_v2::prove_bridge_proof_v2_whir_p3_full_closure;
 pub use bridge_proof_v2::{
-    deserialize_bridge_proof_v2, serialize_bridge_proof_v2, verify_bridge_proof_v2, verify_bridge_proof_v2_statement_only,
-    BridgeProofV2,
+    deserialize_bridge_proof_v2, serialize_bridge_proof_v2, verify_bridge_proof_v2, verify_bridge_proof_v2_production,
+    verify_bridge_proof_v2_statement_only, verify_bridge_proof_v2_statement_only_production, BridgeProofV2,
 };
 pub use digests::compute_context_digest_v1;

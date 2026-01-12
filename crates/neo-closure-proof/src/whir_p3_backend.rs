@@ -243,6 +243,10 @@ use crate::encoded::EncodedObligations;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SumcheckProofV2 {
+    /// Initial sumcheck claim (canonical u64 limb).
+    ///
+    /// Round 0 must satisfy `g(0) + g(1) == claimed_sum`. This anchors the sumcheck transcript.
+    pub(crate) claimed_sum_u64: u64,
     /// For each round, the prover sends g(0), g(1), ..., g(deg) as canonical u64 limbs.
     ///
     /// For the full-closure backend, `deg = 2*b` (mixing in a range-check term).
@@ -371,7 +375,8 @@ pub(crate) fn prove_sumcheck_full_closure(
         let z_r = *z_evals.first().unwrap_or(&F::ZERO);
         let w_r = *w_evals.as_slice().first().unwrap_or(&F::ZERO);
         return SumcheckProofV2 {
-            round_evals_u64: Vec::new().into(),
+            claimed_sum_u64: whir_f_to_u64(claimed_sum),
+            round_evals_u64: BoundedVec::from_vec_panicking(Vec::new()),
             z_r_u64: whir_f_to_u64(z_r),
             w_r_u64: whir_f_to_u64(w_r),
         };
@@ -441,11 +446,13 @@ pub(crate) fn prove_sumcheck_full_closure(
     let w_r = w_evals.as_slice()[0];
 
     SumcheckProofV2 {
-        round_evals_u64: round_evals_u64
-            .into_iter()
-            .map(Into::into)
-            .collect::<Vec<_>>()
-            .into(),
+        claimed_sum_u64: whir_f_to_u64(claimed_sum),
+        round_evals_u64: BoundedVec::from_vec_panicking(
+            round_evals_u64
+                .into_iter()
+                .map(BoundedVec::from_vec_panicking)
+                .collect::<Vec<_>>(),
+        ),
         z_r_u64: whir_f_to_u64(z_r),
         w_r_u64: whir_f_to_u64(w_r),
     }
@@ -655,7 +662,8 @@ pub fn prove_whir_p3_full_closure_bytes_v1(
     let payload = WhirP3FullClosurePayloadV1 {
         obligations: EncodedObligations::encode(obligations),
         sumcheck,
-        whir_proof_data_u64: encode_proof_data(prover_state.proof_data()).into(),
+        whir_proof_data_u64: BoundedVec::try_from_vec(encode_proof_data(prover_state.proof_data()))
+            .map_err(|_| ClosureProofError::WhirP3("WHIR proof_data_u64 too large".into()))?,
     };
     let payload_bytes = serialize_payload(&payload)?;
     opaque::encode_envelope(opaque::BackendIdV1::WhirP3FullClosureV1.as_u32(), &payload_bytes)
@@ -700,7 +708,7 @@ pub fn verify_whir_p3_full_closure_payload_v1(
     }
 
     // Enforce that the loaded seeded PP matches the statement's pp_id_digest.
-    let (kappa, _pp_seed) = contract::require_global_pp_matches_statement(stmt.pp_id_digest, params, d, m)
+    let (kappa, pp_seed) = contract::require_global_pp_matches_statement(stmt.pp_id_digest, params, d, m)
         .map_err(ClosureProofError::WhirP3)?;
 
     let proof_data = decode_proof_data_u64_checked(&payload.whir_proof_data_u64)?;
@@ -751,7 +759,11 @@ pub fn verify_whir_p3_full_closure_payload_v1(
     if payload.sumcheck.round_evals_u64.len() != num_vars {
         return Err(ClosureProofError::WhirP3("sumcheck rounds mismatch".into()));
     }
-    let mut claim = weights_claims.claimed_sum;
+    let claimed_sum = whir_f_from_canonical_u64(payload.sumcheck.claimed_sum_u64)?;
+    if claimed_sum != weights_claims.claimed_sum {
+        return Err(ClosureProofError::WhirP3("sumcheck claimed_sum mismatch".into()));
+    }
+    let mut claim = claimed_sum;
     let mut rands = Vec::with_capacity(num_vars);
     for (round, g_u64) in payload.sumcheck.round_evals_u64.iter().enumerate() {
         if g_u64.len() != deg + 1 {
@@ -798,6 +810,35 @@ pub fn verify_whir_p3_full_closure_payload_v1(
     verifier
         .verify::<WHIR_P3_DIGEST_ELEMS>(&mut verifier_state, &parsed_commitment_w, &stmt_w)
         .map_err(|e| ClosureProofError::WhirP3(format!("verify W failed: {e:?}")))?;
+
+    // Bind the committed W table to the obligations-derived weight computation.
+    //
+    // This is intentionally a dev-backend check: obligations are public in backend id `5`, so we
+    // can recompute the expected opened evaluation `W(r)` and compare it against the commitment
+    // opening, without materializing the full `2^n` weights table in memory.
+    //
+    // This closes a critical soundness gap where a malicious prover could previously commit to an
+    // arbitrary W table and satisfy the sumcheck algebraically.
+    let mut coords = rands;
+    coords.reverse();
+    let w_r_expected = weights_claims::compute_full_closure_public_w_r_expected_at_point(
+        stmt,
+        params,
+        ccs,
+        &obligations,
+        d,
+        m,
+        kappa,
+        pp_seed,
+        &commitment_root_z_u64,
+        z_len_padded,
+        num_vars,
+        &coords,
+        bus,
+    )?;
+    if w_r_expected != w_r {
+        return Err(ClosureProofError::WhirP3("W(r) mismatch vs obligations-derived weights".into()));
+    }
 
     // Extra explicit checks that are part of the closure contract but not enforced by the sumcheck.
     //

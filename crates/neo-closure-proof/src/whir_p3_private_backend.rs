@@ -5,6 +5,10 @@
 //! - `ClosureStatementV1`,
 //! - pinned context (`NeoParams`, CCS, optional `BusLayout`),
 //! - proof bytes.
+//!
+//! NOTE: This backend is not yet production-audit-ready until it proves the missing
+//! obligations→(weights, claimed_sum) binding described in
+//! `docs/spartan-compression-phase2-obligations-private.md`.
 
 #![forbid(unsafe_code)]
 
@@ -37,24 +41,13 @@ use whir_p3::{
 
 // Keep this aligned with `digest_binding::MAX_DIGEST_BINDING_PROOF_BYTES`.
 const MAX_DIGEST_BINDING_PROOF_BYTES: usize = 16 * 1024 * 1024; // 16 MiB
-const MAX_WEIGHTS_AND_CLAIMS_PROOF_BYTES: usize = 1 << 20; // 1 MiB (placeholder)
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct WhirP3PrivateFullClosurePayloadV1 {
-    /// Public initial claim for sumcheck verification.
-    ///
-    /// In the obligations-private backend, this must be proven correct by `weights_and_claims_proof`
-    /// (and bound to the same private obligations that bind to `stmt.obligations_digest`).
-    claimed_sum_u64: u64,
     /// Proof that private obligations hash to the public `stmt.obligations_digest`.
     ///
     /// Milestone 3 deliverable in `docs/spartan-compression-phase2-obligations-private.md`.
     digest_binding_proof: BoundedVec<u8, MAX_DIGEST_BINDING_PROOF_BYTES>,
-    /// Proof that the closure terminal values (e.g. `w(r)`) are correctly derived from the same
-    /// private obligations and transcript challenges (fixes the "arbitrary W" gap).
-    ///
-    /// Milestone 4+ deliverable in `docs/spartan-compression-phase2-obligations-private.md`.
-    weights_and_claims_proof: BoundedVec<u8, MAX_WEIGHTS_AND_CLAIMS_PROOF_BYTES>,
     /// Sumcheck proof for:
     ///   Σ_x [ Z(x)*W(x) + δ_range*Eq(x,r0)*Range(Z(x)) ] == claimed_sum.
     ///
@@ -260,11 +253,11 @@ pub fn prove_whir_p3_private_full_closure_bytes_v1(
         .map_err(|e| ClosureProofError::WhirP3(format!("WHIR prove W failed: {e:?}")))?;
 
     let payload = WhirP3PrivateFullClosurePayloadV1 {
-        claimed_sum_u64: claimed_sum.as_canonical_u64(),
-        digest_binding_proof: digest_binding_proof.into(),
-        weights_and_claims_proof: Vec::new().into(),
+        digest_binding_proof: BoundedVec::try_from_vec(digest_binding_proof)
+            .map_err(|_| ClosureProofError::WhirP3("digest_binding_proof too large".into()))?,
         sumcheck,
-        whir_proof_data_u64: crate::whir_p3_backend::encode_proof_data(prover_state.proof_data()).into(),
+        whir_proof_data_u64: BoundedVec::try_from_vec(crate::whir_p3_backend::encode_proof_data(prover_state.proof_data()))
+            .map_err(|_| ClosureProofError::WhirP3("WHIR proof_data_u64 too large".into()))?,
     };
     let payload_bytes = serialize_payload(&payload)?;
     opaque::encode_envelope(opaque::BackendIdV1::WhirP3PrivateFullClosureV1.as_u32(), &payload_bytes)
@@ -280,12 +273,11 @@ pub fn verify_whir_p3_private_full_closure_payload_v1(
     let payload: WhirP3PrivateFullClosurePayloadV1 = deserialize_payload(payload_bytes)?;
 
     // Milestone 3: prove digest binding (private obligations -> stmt.obligations_digest).
-    crate::verify_obligations_digest_binding_proof_v1(stmt, params, &payload.digest_binding_proof)?;
-    let shape = crate::decode_obligations_digest_binding_shape_v1(&payload.digest_binding_proof)?;
-
-    if !payload.weights_and_claims_proof.is_empty() {
-        return Err(ClosureProofError::BackendNotImplemented);
-    }
+    let shape = crate::digest_binding::verify_obligations_digest_binding_proof_v1_with_shape(
+        stmt,
+        params,
+        &payload.digest_binding_proof,
+    )?;
 
     let d = params.d as usize;
     if d != NeoD {
@@ -307,8 +299,6 @@ pub fn verify_whir_p3_private_full_closure_payload_v1(
         .ok_or_else(|| ClosureProofError::WhirP3("z_len overflow".into()))?;
     let z_len_padded = next_pow2_checked(z_len.max(1))?;
     let num_vars = z_len_padded.ilog2() as usize;
-
-    let claimed_sum = whir_f_from_canonical_u64(payload.claimed_sum_u64)?;
 
     // Decode WHIR proof data and verify commitments/openings for Z(r) and W(r).
     let proof_data = decode_proof_data_u64_checked(&payload.whir_proof_data_u64)?;
@@ -364,7 +354,11 @@ pub fn verify_whir_p3_private_full_closure_payload_v1(
     if payload.sumcheck.round_evals_u64.len() != num_vars {
         return Err(ClosureProofError::WhirP3("sumcheck rounds mismatch".into()));
     }
-    let mut claim = claimed_sum;
+
+    // In this backend, the initial sumcheck claim is not an externally verified scalar yet.
+    // Milestone 4 still requires binding the sumcheck claim (and weights) to the same private
+    // obligations. But the sumcheck transcript itself must still be well-formed and anchored.
+    let mut claim = whir_f_from_canonical_u64(payload.sumcheck.claimed_sum_u64)?;
     let mut rands = Vec::with_capacity(num_vars);
     for (round, g_u64) in payload.sumcheck.round_evals_u64.iter().enumerate() {
         if g_u64.len() != deg + 1 {
@@ -393,7 +387,8 @@ pub fn verify_whir_p3_private_full_closure_payload_v1(
     let eq_r = crate::whir_p3_backend::eq_poly_value(&coords, &r0)?;
     let rng_r = range_vanishing_poly(z_r, params.b);
 
-    if claim != z_r * w_r + delta_range * eq_r * rng_r {
+    let expected = z_r * w_r + delta_range * eq_r * rng_r;
+    if claim != expected {
         return Err(ClosureProofError::WhirP3("sumcheck final check failed".into()));
     }
 

@@ -147,6 +147,55 @@ pub fn verify_bridge_proof_v2(
     Ok(true)
 }
 
+/// Verify a `BridgeProofV2` under the production closure-verifier policy.
+///
+/// This:
+/// 1) verifies the Phase-1 Spartan proof, then
+/// 2) derives `ClosureStatementV1` from the Spartan statement, and
+/// 3) verifies the Phase-2 closure proof using `neo_closure_proof`'s production verifier entrypoint.
+///
+/// NOTE: This is expected to fail closed until the obligations-private closure backend is
+/// production-audit-ready.
+pub fn verify_bridge_proof_v2_production(
+    vk_spartan: &crate::api::SpartanVerifierKey,
+    params: &NeoParams,
+    ccs: &CcsStructure<NeoF>,
+    vm_digest: &[u8; 32],
+    steps_public: &[StepInstanceBundle<Commitment, NeoF, NeoK>],
+    output_binding: Option<&neo_fold::output_binding::OutputBindingConfig>,
+    step_linking: &[(usize, usize)],
+    proof: &BridgeProofV2,
+) -> Result<bool> {
+    let ok = verify_fold_run(
+        vk_spartan,
+        params,
+        ccs,
+        vm_digest,
+        steps_public,
+        output_binding,
+        step_linking,
+        &proof.spartan,
+    )?;
+    if !ok {
+        return Ok(false);
+    }
+
+    let closure_stmt = compute_closure_statement_v1(&proof.spartan.statement);
+
+    let bus = neo_fold::memory_sidecar::cpu_bus::try_infer_cpu_bus_layout_for_step_instances(ccs, steps_public)
+        .map_err(|e| SpartanBridgeError::InvalidInput(format!("BusLayout: {e:?}")))?;
+    neo_closure_proof::verify_closure_v1_production_with_context_and_bus(
+        &closure_stmt,
+        &proof.closure,
+        Some(params),
+        Some(ccs),
+        bus.as_ref(),
+    )
+    .map_err(|e| SpartanBridgeError::VerificationError(format!("closure proof verification failed: {e}")))?;
+
+    Ok(true)
+}
+
 /// Verify a `BridgeProofV2` using only an expected Spartan statement.
 ///
 /// This is the fully-compressed verifier entrypoint: the caller provides the pinned Spartan VK
@@ -168,6 +217,32 @@ pub fn verify_bridge_proof_v2_statement_only(
     let closure_stmt = compute_closure_statement_v1(expected_statement);
 
     neo_closure_proof::verify_closure_v1_with_context_and_bus(&closure_stmt, &proof.closure, params, ccs, bus)
+        .map_err(|e| SpartanBridgeError::VerificationError(format!("closure proof verification failed: {e}")))?;
+
+    Ok(true)
+}
+
+/// Verify a `BridgeProofV2` statement-only under the production closure-verifier policy.
+///
+/// This is the fully-compressed verifier entrypoint intended for production callers. It verifies
+/// the Phase-1 proof against the expected statement, then verifies Phase 2 via the production
+/// closure verifier.
+pub fn verify_bridge_proof_v2_statement_only_production(
+    vk_spartan: &crate::api::SpartanVerifierKey,
+    expected_statement: &SpartanShardStatement,
+    proof: &BridgeProofV2,
+    params: Option<&NeoParams>,
+    ccs: Option<&CcsStructure<NeoF>>,
+    bus: Option<&neo_memory::cpu::BusLayout>,
+) -> Result<bool> {
+    let ok = verify_fold_run_statement_only(vk_spartan, expected_statement, &proof.spartan)?;
+    if !ok {
+        return Ok(false);
+    }
+
+    let closure_stmt = compute_closure_statement_v1(expected_statement);
+
+    neo_closure_proof::verify_closure_v1_production_with_context_and_bus(&closure_stmt, &proof.closure, params, ccs, bus)
         .map_err(|e| SpartanBridgeError::VerificationError(format!("closure proof verification failed: {e}")))?;
 
     Ok(true)

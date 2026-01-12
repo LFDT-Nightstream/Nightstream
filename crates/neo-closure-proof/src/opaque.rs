@@ -79,12 +79,24 @@ pub fn decode_envelope(bytes: &[u8]) -> Result<(u32, &[u8]), ClosureProofError> 
     if bytes[0..4] != MAGIC {
         return Err(ClosureProofError::InvalidOpaqueProofEncoding);
     }
-    let version = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
+    let version = u32::from_le_bytes(
+        bytes[4..8]
+            .try_into()
+            .map_err(|_| ClosureProofError::InvalidOpaqueProofEncoding)?,
+    );
     if version != ENVELOPE_VERSION_V1 {
         return Err(ClosureProofError::InvalidOpaqueProofEncoding);
     }
-    let backend_id = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
-    let payload_len = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    let backend_id = u32::from_le_bytes(
+        bytes[8..12]
+            .try_into()
+            .map_err(|_| ClosureProofError::InvalidOpaqueProofEncoding)?,
+    );
+    let payload_len = u32::from_le_bytes(
+        bytes[12..16]
+            .try_into()
+            .map_err(|_| ClosureProofError::InvalidOpaqueProofEncoding)?,
+    ) as usize;
     if payload_len > MAX_CLOSURE_PAYLOAD_BYTES {
         return Err(ClosureProofError::InvalidOpaqueProofEncoding);
     }

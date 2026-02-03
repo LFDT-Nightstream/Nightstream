@@ -4,6 +4,10 @@
 //! but lives in this repo so we can generate params for outer compression proofs without
 //! relying on Midnight ledger tooling.
 //!
+//! If you don't have a `powers_of_tau` transcript, you can alternatively download
+//! pre-generated `bls_midnight_2p{k}` files and place them under:
+//! `crates/neo-midnight-bridge/testdata/kzg_params/`.
+//!
 //! Usage:
 //!   cargo run -p neo-midnight-bridge --example params_from_powers_of_tau -- \
 //!     <powers_of_tau_path> <out_dir> [k_max]
@@ -87,4 +91,3 @@ fn main() {
             .expect("write ParamsKZG");
     }
 }
-

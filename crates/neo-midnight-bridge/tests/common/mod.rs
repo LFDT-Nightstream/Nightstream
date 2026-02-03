@@ -30,6 +30,14 @@ const PARAMS_DIGEST_DOMAIN: &[u8] = b"neo/midnight-bridge/params-digest/v1";
 const ACC_DIGEST_DOMAIN: &[u8] = b"neo/midnight-bridge/acc-digest/v1";
 
 fn kzg_params_testdata_path(k: u32) -> PathBuf {
+    // To pre-populate this folder with Midnight-provided ParamsKZG files:
+    //
+    //   BASE_URL="https://midnight-s3-fileshare-dev-eu-west-1.s3.eu-west-1.amazonaws.com"
+    //   OUT_DIR="crates/neo-midnight-bridge/testdata/kzg_params"
+    //   mkdir -p "$OUT_DIR"
+    //   curl -L --fail -o "$OUT_DIR/bls_midnight_2p18" "$BASE_URL/bls_midnight_2p18"
+    //
+    // Then tests will use the downloaded file instead of generating a deterministic `unsafe_setup()`.
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
         .join("testdata")

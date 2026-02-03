@@ -1,7 +1,7 @@
+mod common;
+
 use blake2b_simd::State as TranscriptHash;
-use midnight_curves::Bls12;
 use midnight_proofs::dev::cost_model::circuit_model;
-use midnight_proofs::poly::kzg::params::ParamsKZG;
 use neo_math::{KExtensions, D};
 use neo_midnight_bridge::k_field::KRepr;
 use neo_midnight_bridge::relations::{PiCcsNcTerminalK1Instance, PiCcsNcTerminalK1Relation, PiCcsNcTerminalK1Witness};
@@ -110,10 +110,7 @@ fn plonk_kzg_pi_ccs_terminal_nc_k1_poseidon2_batch_40_roundtrip() {
         model.fixed_columns,
         model.lookups
     );
-    assert!(k <= 14, "expected Midnight k<=14 cap");
-
-    let rng = ChaCha20Rng::from_seed([51u8; 32]);
-    let params: ParamsKZG<Bls12> = ParamsKZG::unsafe_setup(k, rng);
+    let params = common::test_kzg_params(k);
 
     let vk = midnight_zk_stdlib::setup_vk(&params, &rel);
     let pk = midnight_zk_stdlib::setup_pk(&rel, &vk);

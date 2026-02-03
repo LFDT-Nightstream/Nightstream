@@ -18,6 +18,25 @@ use midnight_zk_stdlib::{Relation, ZkStdLib, ZkStdLibArch};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 
+fn write_relation_len_prefixed<W: Write, T: Serialize>(writer: &mut W, value: &T) -> std::io::Result<()> {
+    let bytes =
+        bincode::serialize(value).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    let len = u32::try_from(bytes.len())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "relation too large"))?;
+    writer.write_all(&len.to_le_bytes())?;
+    writer.write_all(&bytes)?;
+    Ok(())
+}
+
+fn read_relation_len_prefixed<R: Read, T: for<'de> Deserialize<'de>>(reader: &mut R) -> std::io::Result<T> {
+    let mut len_bytes = [0u8; 4];
+    reader.read_exact(&mut len_bytes)?;
+    let len = u32::from_le_bytes(len_bytes) as usize;
+    let mut bytes = vec![0u8; len];
+    reader.read_exact(&mut bytes)?;
+    bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+}
+
 /// Public statement: `z = x * y (mod p)` over Goldilocks.
 ///
 /// This is a minimal end-to-end “Option B” sanity check:
@@ -47,14 +66,11 @@ impl Relation for GoldilocksMulRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -121,14 +137,11 @@ impl Relation for SumcheckSingleRoundRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -230,14 +243,11 @@ impl Relation for PiCcsSumcheckRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -333,14 +343,11 @@ impl Relation for PiCcsSumcheckNcRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -454,14 +461,11 @@ impl Relation for PiCcsSumcheckPublicRoundsRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -663,14 +667,11 @@ impl Relation for PiCcsFeTerminalK1Relation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -799,14 +800,11 @@ impl Relation for PiCcsFeTerminalRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -1026,14 +1024,11 @@ impl Relation for PiCcsFeChunkRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -1227,14 +1222,11 @@ impl Relation for PiCcsFeTerminalAggregateRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -1406,7 +1398,7 @@ pub struct PiCcsFeChunkAggSumcheckInstance {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PiCcsFeChunkAggSumcheckWitness {
-    // Sumcheck witness.
+    /// FE sumcheck round polynomials (private): `rounds[round_idx][coeff_idx]`.
     pub rounds: Vec<Vec<KRepr>>,
     // ME input point r for eq(r',r).
     pub me_inputs_r: Vec<KRepr>,
@@ -1465,14 +1457,11 @@ impl Relation for PiCcsFeChunkAggSumcheckRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -1569,6 +1558,17 @@ impl Relation for PiCcsFeChunkAggSumcheckRelation {
             challenges.push(alloc_k_public(std_lib, layouter, ch)?);
         }
 
+        // Private witness: sumcheck rounds.
+        let mut rounds: Vec<Vec<KVar>> = Vec::with_capacity(self.n_rounds);
+        for r in 0..self.n_rounds {
+            let mut coeffs_r = Vec::with_capacity(self.poly_len);
+            for j in 0..self.poly_len {
+                let coeff = witness.as_ref().map(|w| w.rounds[r][j]);
+                coeffs_r.push(alloc_k_private(std_lib, layouter, coeff)?);
+            }
+            rounds.push(coeffs_r);
+        }
+
         let gamma = alloc_k_public(std_lib, layouter, instance.as_ref().map(|i| i.gamma))?;
 
         let mut alpha: Vec<KVar> = Vec::with_capacity(self.ell_d);
@@ -1596,16 +1596,6 @@ impl Relation for PiCcsFeChunkAggSumcheckRelation {
         let final_sum = alloc_k_public(std_lib, layouter, instance.as_ref().map(|i| i.final_sum))?;
 
         // --- Sumcheck ---
-        let mut rounds: Vec<Vec<_>> = Vec::with_capacity(self.n_rounds);
-        for r in 0..self.n_rounds {
-            let mut coeffs_r = Vec::with_capacity(self.poly_len);
-            for j in 0..self.poly_len {
-                let coeff = witness.as_ref().map(|w| w.rounds[r][j]);
-                coeffs_r.push(alloc_k_private(std_lib, layouter, coeff)?);
-            }
-            rounds.push(coeffs_r);
-        }
-
         let mut running_sum = initial_sum.clone();
         for r in 0..self.n_rounds {
             sumcheck_round_check(std_lib, layouter, &rounds[r], &running_sum)?;
@@ -1796,14 +1786,11 @@ impl Relation for PiCcsNcTerminalK1Relation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -1953,14 +1940,11 @@ impl Relation for PiCcsNcTerminalRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -2139,14 +2123,11 @@ impl Relation for PiCcsNcChunkRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -2305,14 +2286,11 @@ impl Relation for PiCcsNcTerminalAggregateRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -2385,9 +2363,11 @@ impl Relation for PiCcsNcTerminalAggregateRelation {
 
 /// Combines:
 /// - NC sumcheck verification, and
-/// - one NC terminal chunk proof that also performs the aggregate check.
+/// - (optionally) one NC terminal chunk proof that also performs the aggregate check.
 ///
 /// This lets a bundle drop the standalone NC sumcheck proof.
+///
+/// Set `count=0` to skip the chunk-binding section (sumcheck + aggregate only).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PiCcsNcChunkAggSumcheckRelation {
     // Sumcheck parameters.
@@ -2422,9 +2402,11 @@ pub struct PiCcsNcChunkAggSumcheckInstance {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PiCcsNcChunkAggSumcheckWitness {
-    // Sumcheck witness.
+    /// NC sumcheck round polynomials (private): `rounds[round_idx][coeff_idx]`.
     pub rounds: Vec<Vec<KRepr>>,
     // Digit columns for the designated chunk (length = count, each padded to 2^ell_d).
+    //
+    // If `count=0`, this must be empty and the chunk-binding section is skipped.
     pub y_zcol: Vec<Vec<KRepr>>,
 }
 
@@ -2473,14 +2455,11 @@ impl Relation for PiCcsNcChunkAggSumcheckRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(
@@ -2520,11 +2499,7 @@ impl Relation for PiCcsNcChunkAggSumcheckRelation {
                 "PiCcsNcChunkAggSumcheckRelation requires start_exp > 0".into(),
             ));
         }
-        if self.count == 0 {
-            return Err(Error::Synthesis(
-                "PiCcsNcChunkAggSumcheckRelation requires count > 0".into(),
-            ));
-        }
+        // `count=0` is allowed: skip chunk-binding and prove sumcheck + aggregate only.
         if self.n_chunks == 0 {
             return Err(Error::Synthesis(
                 "PiCcsNcChunkAggSumcheckRelation requires n_chunks > 0".into(),
@@ -2562,6 +2537,18 @@ impl Relation for PiCcsNcChunkAggSumcheckRelation {
             let ch = instance.as_ref().map(|i| i.sumcheck_challenges[r]);
             challenges.push(alloc_k_public(std_lib, layouter, ch)?);
         }
+
+        // Private witness: sumcheck rounds.
+        let mut rounds: Vec<Vec<KVar>> = Vec::with_capacity(self.n_rounds);
+        for r in 0..self.n_rounds {
+            let mut coeffs_r = Vec::with_capacity(self.poly_len);
+            for j in 0..self.poly_len {
+                let coeff = witness.as_ref().map(|w| w.rounds[r][j]);
+                coeffs_r.push(alloc_k_private(std_lib, layouter, coeff)?);
+            }
+            rounds.push(coeffs_r);
+        }
+
         let gamma = alloc_k_public(std_lib, layouter, instance.as_ref().map(|i| i.gamma))?;
 
         let mut beta_a: Vec<KVar> = Vec::with_capacity(self.ell_d);
@@ -2584,16 +2571,6 @@ impl Relation for PiCcsNcChunkAggSumcheckRelation {
         let final_sum_nc = alloc_k_public(std_lib, layouter, instance.as_ref().map(|i| i.final_sum_nc))?;
 
         // --- Sumcheck ---
-        let mut rounds: Vec<Vec<_>> = Vec::with_capacity(self.n_rounds);
-        for r in 0..self.n_rounds {
-            let mut coeffs_r = Vec::with_capacity(self.poly_len);
-            for j in 0..self.poly_len {
-                let coeff = witness.as_ref().map(|w| w.rounds[r][j]);
-                coeffs_r.push(alloc_k_private(std_lib, layouter, coeff)?);
-            }
-            rounds.push(coeffs_r);
-        }
-
         let mut running_sum = initial_sum.clone();
         for r in 0..self.n_rounds {
             sumcheck_round_check(std_lib, layouter, &rounds[r], &running_sum)?;
@@ -2604,75 +2581,77 @@ impl Relation for PiCcsNcChunkAggSumcheckRelation {
         // Split challenges into (s_col_prime, alpha_prime).
         let (s_col_prime, alpha_prime) = challenges.split_at(self.ell_m);
 
-        // --- NC terminal: recompute designated chunk sum ---
+        // --- NC terminal: (optional) recompute designated chunk sum ---
 
-        let d_pad = 1usize
-            .checked_shl(self.ell_d as u32)
-            .ok_or_else(|| Error::Synthesis("PiCcsNcChunkAggSumcheckRelation: 1<<ell_d overflow".into()))?;
+        if self.count > 0 {
+            let d_pad = 1usize
+                .checked_shl(self.ell_d as u32)
+                .ok_or_else(|| Error::Synthesis("PiCcsNcChunkAggSumcheckRelation: 1<<ell_d overflow".into()))?;
 
-        // g = γ^{start_exp}
-        let one = k_one(std_lib, layouter)?;
-        let mut g = one.clone();
-        for _ in 0..self.start_exp {
-            g = k_mul_mod_var(std_lib, layouter, &g, &gamma, K_DELTA_U64)?;
-        }
-
-        let mut weighted_terms: Vec<KVar> = Vec::with_capacity(self.count);
-        for out_idx in 0..self.count {
-            let mut y_zcol: Vec<KVar> = Vec::with_capacity(d_pad);
-            for i in 0..d_pad {
-                let v = witness.as_ref().map(|w| w.y_zcol[out_idx][i]);
-                y_zcol.push(alloc_k_private_u64(std_lib, layouter, v)?);
-            }
-
-            // y_eval = <y_zcol, χ_{α'}>.
-            let mut eval_vec = y_zcol;
-            for a in alpha_prime {
-                let next_len = eval_vec.len() / 2;
-                let mut next: Vec<KVar> = Vec::with_capacity(next_len);
-                for j in 0..next_len {
-                    let v0 = &eval_vec[2 * j];
-                    let v1 = &eval_vec[2 * j + 1];
-                    next.push(k_mle_fold_step(std_lib, layouter, v0, v1, a, K_DELTA_U64)?);
-                }
-                eval_vec = next;
-            }
-            if eval_vec.len() != 1 {
-                return Err(Error::Synthesis(format!(
-                    "PiCcsNcChunkAggSumcheckRelation: eval_vec len {} != 1 (ell_d={})",
-                    eval_vec.len(),
-                    self.ell_d
-                )));
-            }
-            let y_eval = eval_vec.first().expect("len checked").clone();
-
-            // range_product(y_eval) = ∏_{t=-(b-1)}^{b-1} (y_eval - t)
-            let lo = -((self.b as i64) - 1);
-            let hi = (self.b as i64) - 1;
-            let mut range_prod = one.clone();
-            for t in lo..=hi {
-                let t_u64 = if t >= 0 {
-                    t as u64
-                } else {
-                    GOLDILOCKS_P_U64
-                        .checked_sub((-t) as u64)
-                        .ok_or_else(|| Error::Synthesis("PiCcsNcChunkAggSumcheckRelation: t underflow".into()))?
-                };
-                let t_k = k_const(std_lib, layouter, t_u64, 0)?;
-                let term = k_sub_mod_var(std_lib, layouter, &y_eval, &t_k)?;
-                range_prod = k_mul_mod_var(std_lib, layouter, &range_prod, &term, K_DELTA_U64)?;
-            }
-
-            let weighted = k_mul_mod_var(std_lib, layouter, &g, &range_prod, K_DELTA_U64)?;
-            weighted_terms.push(weighted);
-
-            if out_idx + 1 < self.count {
+            // g = γ^{start_exp}
+            let one = k_one(std_lib, layouter)?;
+            let mut g = one.clone();
+            for _ in 0..self.start_exp {
                 g = k_mul_mod_var(std_lib, layouter, &g, &gamma, K_DELTA_U64)?;
             }
-        }
 
-        let acc = k_sum_mod_var(std_lib, layouter, &weighted_terms)?;
-        assert_k_eq(std_lib, layouter, &acc, &chunk_sums[self.chunk_index])?;
+            let mut weighted_terms: Vec<KVar> = Vec::with_capacity(self.count);
+            for out_idx in 0..self.count {
+                let mut y_zcol: Vec<KVar> = Vec::with_capacity(d_pad);
+                for i in 0..d_pad {
+                    let v = witness.as_ref().map(|w| w.y_zcol[out_idx][i]);
+                    y_zcol.push(alloc_k_private_u64(std_lib, layouter, v)?);
+                }
+
+                // y_eval = <y_zcol, χ_{α'}>.
+                let mut eval_vec = y_zcol;
+                for a in alpha_prime {
+                    let next_len = eval_vec.len() / 2;
+                    let mut next: Vec<KVar> = Vec::with_capacity(next_len);
+                    for j in 0..next_len {
+                        let v0 = &eval_vec[2 * j];
+                        let v1 = &eval_vec[2 * j + 1];
+                        next.push(k_mle_fold_step(std_lib, layouter, v0, v1, a, K_DELTA_U64)?);
+                    }
+                    eval_vec = next;
+                }
+                if eval_vec.len() != 1 {
+                    return Err(Error::Synthesis(format!(
+                        "PiCcsNcChunkAggSumcheckRelation: eval_vec len {} != 1 (ell_d={})",
+                        eval_vec.len(),
+                        self.ell_d
+                    )));
+                }
+                let y_eval = eval_vec.first().expect("len checked").clone();
+
+                // range_product(y_eval) = ∏_{t=-(b-1)}^{b-1} (y_eval - t)
+                let lo = -((self.b as i64) - 1);
+                let hi = (self.b as i64) - 1;
+                let mut range_prod = one.clone();
+                for t in lo..=hi {
+                    let t_u64 = if t >= 0 {
+                        t as u64
+                    } else {
+                        GOLDILOCKS_P_U64
+                            .checked_sub((-t) as u64)
+                            .ok_or_else(|| Error::Synthesis("PiCcsNcChunkAggSumcheckRelation: t underflow".into()))?
+                    };
+                    let t_k = k_const(std_lib, layouter, t_u64, 0)?;
+                    let term = k_sub_mod_var(std_lib, layouter, &y_eval, &t_k)?;
+                    range_prod = k_mul_mod_var(std_lib, layouter, &range_prod, &term, K_DELTA_U64)?;
+                }
+
+                let weighted = k_mul_mod_var(std_lib, layouter, &g, &range_prod, K_DELTA_U64)?;
+                weighted_terms.push(weighted);
+
+                if out_idx + 1 < self.count {
+                    g = k_mul_mod_var(std_lib, layouter, &g, &gamma, K_DELTA_U64)?;
+                }
+            }
+
+            let acc = k_sum_mod_var(std_lib, layouter, &weighted_terms)?;
+            assert_k_eq(std_lib, layouter, &acc, &chunk_sums[self.chunk_index])?;
+        }
 
         // Aggregate: final_sum_nc == eq((α',s'),(β_a,β_m)) * Σ chunk_sums.
         let eq_a = k_eq_points(std_lib, layouter, alpha_prime, &beta_a)?;
@@ -2736,14 +2715,11 @@ impl Relation for PiCcsNcChunkAggregateRelation {
     }
 
     fn write_relation<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = bincode::serialize(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        writer.write_all(&bytes)
+        write_relation_len_prefixed(writer, self)
     }
 
     fn read_relation<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-        bincode::deserialize(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        read_relation_len_prefixed(reader)
     }
 
     fn circuit(

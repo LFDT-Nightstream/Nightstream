@@ -6,6 +6,7 @@ use blake2b_simd::State as TranscriptHash;
 use midnight_curves::Bls12;
 use midnight_proofs::dev::cost_model::circuit_model;
 use midnight_proofs::poly::kzg::params::ParamsKZG;
+use midnight_proofs::utils::SerdeFormat;
 use midnight_zk_stdlib::Relation;
 use neo_math::{KExtensions, D, F, K};
 use neo_midnight_bridge::k_field::KRepr;
@@ -25,10 +26,39 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
-pub const MIDNIGHT_MAX_K: u32 = 14;
-
 const PARAMS_DIGEST_DOMAIN: &[u8] = b"neo/midnight-bridge/params-digest/v1";
 const ACC_DIGEST_DOMAIN: &[u8] = b"neo/midnight-bridge/acc-digest/v1";
+
+fn kzg_params_testdata_path(k: u32) -> PathBuf {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .join("testdata")
+        .join("kzg_params")
+        .join(format!("bls_midnight_2p{k}"))
+}
+
+fn kzg_params_unsafe_setup_deterministic(k: u32) -> ParamsKZG<Bls12> {
+    let mut seed = [0u8; 32];
+    seed[0] = 0xA5;
+    seed[1] = (k & 0xFF) as u8;
+    seed[2] = ((k >> 8) & 0xFF) as u8;
+    seed[3] = ((k >> 16) & 0xFF) as u8;
+    seed[4] = ((k >> 24) & 0xFF) as u8;
+    ParamsKZG::unsafe_setup(k, ChaCha20Rng::from_seed(seed))
+}
+
+fn try_read_kzg_params_from_testdata(k: u32) -> Option<ParamsKZG<Bls12>> {
+    let path = kzg_params_testdata_path(k);
+    let mut f = fs::File::open(&path).ok()?;
+    Some(
+        ParamsKZG::<Bls12>::read_custom(&mut f, SerdeFormat::RawBytes)
+            .unwrap_or_else(|e| panic!("read ParamsKZG from {path:?}: {e}")),
+    )
+}
+
+pub fn test_kzg_params(k: u32) -> ParamsKZG<Bls12> {
+    try_read_kzg_params_from_testdata(k).unwrap_or_else(|| kzg_params_unsafe_setup_deterministic(k))
+}
 
 fn params_digest32(params: &neo_params::NeoParams) -> [u8; 32] {
     let bytes = bincode::serialize(params).expect("NeoParams should be serializable");
@@ -66,49 +96,18 @@ struct KzgParamsCache {
 
 impl KzgParamsCache {
     fn get(&mut self, k: u32) -> &ParamsKZG<Bls12> {
-        self.by_k.entry(k).or_insert_with(|| {
-            let mut seed = [0u8; 32];
-            seed[0] = 0xA5;
-            seed[1] = (k & 0xFF) as u8;
-            seed[2] = ((k >> 8) & 0xFF) as u8;
-            seed[3] = ((k >> 16) & 0xFF) as u8;
-            seed[4] = ((k >> 24) & 0xFF) as u8;
-            ParamsKZG::unsafe_setup(k, ChaCha20Rng::from_seed(seed))
-        })
+        self.by_k.entry(k).or_insert_with(|| test_kzg_params(k))
     }
 }
 
-/// Find the maximum `count` in `[1..=max_count]` that fits `min_k <= MIDNIGHT_MAX_K`.
-///
-/// Assumes `min_k` is monotone non-decreasing in `count` (true for these relations because
-/// they scale linearly in `count`, so row count increases with `count`).
-fn choose_max_count_under_k(
+fn choose_max_count(
     max_count: usize,
     label: &str,
     mut model_for_count: impl FnMut(usize) -> (u32, usize),
 ) -> usize {
-    let mut lo = 1usize;
-    let mut hi = max_count;
-    let mut best = 1usize;
-    let mut best_k = u32::MAX;
-    let mut best_rows = 0usize;
-
-    while lo <= hi {
-        let mid = (lo + hi) / 2;
-        let (k, rows) = model_for_count(mid);
-        println!("{label} trial: count={mid} min_k={k} rows={rows}");
-        if k <= MIDNIGHT_MAX_K {
-            best = mid;
-            best_k = k;
-            best_rows = rows;
-            lo = mid + 1;
-        } else {
-            hi = mid - 1;
-        }
-    }
-
-    println!("Choosing count={best} (min_k={best_k} rows={best_rows}) for {label}");
-    best
+    let (k, rows) = model_for_count(max_count);
+    println!("{label}: count={max_count} min_k={k} rows={rows}");
+    max_count
 }
 
 fn k_to_repr(k: &neo_math::K) -> KRepr {
@@ -259,8 +258,8 @@ pub fn prove_step1_nc_bundle_poseidon2_batch_40() {
     let (s_col_prime, alpha_prime_nc) = pi.sumcheck_challenges_nc.split_at(ell_m);
     let gamma = pi.challenges_public.gamma;
 
-    // Choose the largest chunk size that fits the max-k cap (binary search).
-    let chunk_size = choose_max_count_under_k(k_total, "PiCcsNcChunkRelation", |count| {
+    // Choose the largest chunk size (one proof per step if possible).
+    let chunk_size = choose_max_count(k_total, "PiCcsNcChunkRelation", |count| {
         let rel_try = PiCcsNcChunkRelation {
             ell_d,
             b: params_b,
@@ -361,10 +360,6 @@ pub fn prove_step1_nc_bundle_poseidon2_batch_40() {
                 model.k,
                 model.rows
             );
-            assert!(
-                model.k <= MIDNIGHT_MAX_K,
-                "expected k<=MIDNIGHT_MAX_K for chunk+agg+sumcheck"
-            );
 
             total_statement_bytes += <PiCcsNcChunkAggSumcheckRelation as Relation>::format_instance(&inst_agg)
                 .expect("format_instance")
@@ -418,7 +413,6 @@ pub fn prove_step1_nc_bundle_poseidon2_batch_40() {
                 model.k,
                 model.rows
             );
-            assert!(model.k <= MIDNIGHT_MAX_K, "expected k<=MIDNIGHT_MAX_K per chunk");
 
             let params = params_cache.get(model.k);
             let vk = midnight_zk_stdlib::setup_vk(params, &rel);
@@ -530,8 +524,8 @@ pub fn prove_step1_full_bundle_poseidon2_batch_40() {
     let (_s_col_prime, alpha_prime_nc) = pi.sumcheck_challenges_nc.split_at(ell_m);
     let gamma = pi.challenges_public.gamma;
 
-    // Choose the largest chunk size that fits the max-k cap (binary search).
-    let chunk_size = choose_max_count_under_k(k_total, "PiCcsNcChunkRelation", |count| {
+    // Choose the largest chunk size (one proof per step if possible).
+    let chunk_size = choose_max_count(k_total, "PiCcsNcChunkRelation", |count| {
         let rel_try = PiCcsNcChunkRelation {
             ell_d,
             b: params_b,
@@ -630,10 +624,6 @@ pub fn prove_step1_full_bundle_poseidon2_batch_40() {
                 model.k,
                 model.rows
             );
-            assert!(
-                model.k <= MIDNIGHT_MAX_K,
-                "expected k<=MIDNIGHT_MAX_K for chunk+agg+sumcheck"
-            );
 
             nc_statement_bytes += <PiCcsNcChunkAggSumcheckRelation as Relation>::format_instance(&inst_nc_agg)
                 .expect("format_instance")
@@ -692,7 +682,6 @@ pub fn prove_step1_full_bundle_poseidon2_batch_40() {
                 model.k,
                 model.rows
             );
-            assert!(model.k <= MIDNIGHT_MAX_K, "expected k<=MIDNIGHT_MAX_K per chunk");
 
             let params = params_cache.get(model.k);
             let vk = midnight_zk_stdlib::setup_vk(params, &rel);
@@ -793,9 +782,9 @@ pub fn prove_step1_full_bundle_poseidon2_batch_40() {
     println!("FE y entries: total={total_y_entries} nonzero_c1={nonzero_c1} (c1==0 means base-field digit)");
     assert_eq!(y_rows_flat.len(), (k_total - 1) * t_fe);
 
-    // Choose the largest FE chunk size (in flattened (out_idx,j) pairs) that fits Midnight's cap.
+    // Choose the largest FE chunk size (in flattened (out_idx,j) pairs).
     let total_pairs = y_rows_flat.len();
-    let fe_chunk_size = choose_max_count_under_k(total_pairs, "PiCcsFeChunkRelation", |count| {
+    let fe_chunk_size = choose_max_count(total_pairs, "PiCcsFeChunkRelation", |count| {
         let rel_try = PiCcsFeChunkRelation {
             ell_d,
             k_total,
@@ -867,63 +856,54 @@ pub fn prove_step1_full_bundle_poseidon2_batch_40() {
             model.k, model.rows
         );
 
-        if model.k <= MIDNIGHT_MAX_K {
-            let instance = PiCcsFeChunkAggSumcheckInstance {
-                bundle_digest,
-                sumcheck_challenges: pi.sumcheck_challenges.iter().map(k_to_repr).collect(),
-                gamma: gamma_repr_fe,
-                alpha: pi.challenges_public.alpha.iter().map(k_to_repr).collect(),
-                beta_a: pi.challenges_public.beta_a.iter().map(k_to_repr).collect(),
-                beta_r: pi.challenges_public.beta_r.iter().map(k_to_repr).collect(),
-                chunk_sums: fe_chunk_instances.clone(),
-                initial_sum: initial_sum_fe,
-                final_sum: final_sum_fe,
-            };
-            let witness = PiCcsFeChunkAggSumcheckWitness {
-                rounds: pi
-                    .sumcheck_rounds
-                    .iter()
-                    .map(|r| r.iter().map(k_to_repr).collect())
-                    .collect(),
-                me_inputs_r: me_inputs_r.iter().map(k_to_repr).collect(),
-                y_scalars_0: out0.y_scalars.iter().map(k_to_repr).collect(),
-                y_rows: y_rows_flat
-                    .iter()
-                    .map(|row| row.iter().map(k_to_repr).collect::<Vec<_>>())
-                    .collect(),
-            };
+        let instance = PiCcsFeChunkAggSumcheckInstance {
+            bundle_digest,
+            sumcheck_challenges: pi.sumcheck_challenges.iter().map(k_to_repr).collect(),
+            gamma: gamma_repr_fe,
+            alpha: pi.challenges_public.alpha.iter().map(k_to_repr).collect(),
+            beta_a: pi.challenges_public.beta_a.iter().map(k_to_repr).collect(),
+            beta_r: pi.challenges_public.beta_r.iter().map(k_to_repr).collect(),
+            chunk_sums: fe_chunk_instances.clone(),
+            initial_sum: initial_sum_fe,
+            final_sum: final_sum_fe,
+        };
+        let witness = PiCcsFeChunkAggSumcheckWitness {
+            rounds: pi
+                .sumcheck_rounds
+                .iter()
+                .map(|r| r.iter().map(k_to_repr).collect())
+                .collect(),
+            me_inputs_r: me_inputs_r.iter().map(k_to_repr).collect(),
+            y_scalars_0: out0.y_scalars.iter().map(k_to_repr).collect(),
+            y_rows: y_rows_flat
+                .iter()
+                .map(|row| row.iter().map(k_to_repr).collect::<Vec<_>>())
+                .collect(),
+        };
 
-            fe_statement_bytes += <PiCcsFeChunkAggSumcheckRelation as Relation>::format_instance(&instance)
-                .expect("format_instance")
-                .len()
-                * 32;
+        fe_statement_bytes += <PiCcsFeChunkAggSumcheckRelation as Relation>::format_instance(&instance)
+            .expect("format_instance")
+            .len()
+            * 32;
 
-            let params = params_cache.get(model.k);
-            let vk = midnight_zk_stdlib::setup_vk(params, &rel);
-            let pk = midnight_zk_stdlib::setup_pk(&rel, &vk);
-            let proof = midnight_zk_stdlib::prove::<_, TranscriptHash>(
-                params,
-                &pk,
-                &rel,
-                &instance,
-                witness,
-                ChaCha20Rng::from_seed([141u8; 32]),
-            )
-            .expect("prove fe chunk+agg+sumcheck");
-            fe_bundle_bytes += proof.len();
+        let params = params_cache.get(model.k);
+        let vk = midnight_zk_stdlib::setup_vk(params, &rel);
+        let pk = midnight_zk_stdlib::setup_pk(&rel, &vk);
+        let proof = midnight_zk_stdlib::prove::<_, TranscriptHash>(
+            params,
+            &pk,
+            &rel,
+            &instance,
+            witness,
+            ChaCha20Rng::from_seed([141u8; 32]),
+        )
+        .expect("prove fe chunk+agg+sumcheck");
+        fe_bundle_bytes += proof.len();
 
-            let params_v = params.verifier_params();
-            midnight_zk_stdlib::verify::<PiCcsFeChunkAggSumcheckRelation, TranscriptHash>(
-                &params_v, &vk, &instance, None, &proof,
-            )
+        let params_v = params.verifier_params();
+        midnight_zk_stdlib::verify::<PiCcsFeChunkAggSumcheckRelation, TranscriptHash>(&params_v, &vk, &instance, None, &proof)
             .expect("verify fe chunk+agg+sumcheck");
-            did_one_shot_fe = true;
-        } else {
-            println!(
-                "FE one-shot requires min_k={} > MIDNIGHT_MAX_K={MIDNIGHT_MAX_K}; falling back to chunk + sumcheck+agg proofs.",
-                model.k
-            );
-        }
+        did_one_shot_fe = true;
     }
 
     if !did_one_shot_fe {
@@ -959,7 +939,6 @@ pub fn prove_step1_full_bundle_poseidon2_batch_40() {
                 model.k,
                 model.rows
             );
-            assert!(model.k <= MIDNIGHT_MAX_K, "expected k<=MIDNIGHT_MAX_K per FE chunk");
 
             let params = params_cache.get(model.k);
             let vk = midnight_zk_stdlib::setup_vk(params, &rel);
@@ -1024,10 +1003,6 @@ pub fn prove_step1_full_bundle_poseidon2_batch_40() {
         println!(
             "FE Sumcheck+Agg: n_chunks={n_chunks_fe} min_k={} rows={}",
             model_fe_sc_agg.k, model_fe_sc_agg.rows
-        );
-        assert!(
-            model_fe_sc_agg.k <= MIDNIGHT_MAX_K,
-            "expected k<=MIDNIGHT_MAX_K for FE sumcheck+agg"
         );
 
         let params_fe_sc_agg = params_cache.get(model_fe_sc_agg.k);

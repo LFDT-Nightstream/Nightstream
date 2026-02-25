@@ -1,0 +1,9 @@
+name = "superneo_lean"
+defaultTargets = ["SuperNeo"]
+
+[[lean_lib]]
+name = "SuperNeo"
+
+[[lean_exe]]
+name = "check"
+root = "Main"

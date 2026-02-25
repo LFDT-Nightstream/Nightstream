@@ -1,0 +1,10 @@
+[package]
+name = "superneo-rust-vectors"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+neo-math = { path = "../../../crates/neo-math" }
+p3-field = "0.4.1"

@@ -1,4 +1,4 @@
-import SuperNeo.Ring
+import SuperNeo.BarLift
 
 namespace SuperNeo
 
@@ -15,6 +15,17 @@ theorem cf_cfInv (v : Array F) : cf (cfInv v) = v := rfl
 theorem cf_size (a : Coeffs) : (cf a).size = a.size := rfl
 
 theorem cfInv_size (v : Array F) : (cfInv v).size = v.size := rfl
+
+theorem cf_vecAdd (a b : Coeffs) : cf (vecAdd a b) = vecAdd (cf a) (cf b) := rfl
+
+theorem cfInv_vecAdd (v w : Array F) :
+  cfInv (vecAdd v w) = vecAdd (cfInv v) (cfInv w) := rfl
+
+theorem cf_vecScale (s : F) (a : Coeffs) :
+  cf (vecScale s a) = vecScale s (cf a) := rfl
+
+theorem cfInv_vecScale (s : F) (v : Array F) :
+  cfInv (vecScale s v) = vecScale s (cfInv v) := rfl
 
 theorem ct_cf (a : Coeffs) : ct (cf a) = ct a := rfl
 
@@ -35,6 +46,15 @@ theorem ringMulShapeProp_cf_iff (a b : Coeffs) :
 
 theorem cfInv_mulRq_cf (a b : Coeffs) :
   cfInv (cf (mulRq a b)) = mulRq a b := rfl
+
+theorem cf_mulRq_cfInv (v w : Array F) :
+  cf (mulRq (cfInv v) (cfInv w)) = mulRq v w := rfl
+
+theorem cfInv_mulRq_cfInv (v w : Array F) :
+  cfInv (mulRq v w) = mulRq (cfInv v) (cfInv w) := rfl
+
+theorem ct_mulRq_cfInv (v w : Array F) :
+  ct (mulRq (cfInv v) (cfInv w)) = ct (mulRq v w) := rfl
 
 def coeffMapRoundTripProp (v : Coeffs) : Prop :=
   cfInv (cf v) = v ∧ cf (cfInv v) = v

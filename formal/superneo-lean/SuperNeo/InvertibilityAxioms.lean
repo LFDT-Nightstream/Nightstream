@@ -40,8 +40,6 @@ def withinInvertibilityWindow (a : Coeffs) : Bool :=
 def LowNormInvertibilityAssumption : Prop :=
   ∀ a : Coeffs, 0 < normInfCoeffs a → normInfCoeffs a < bInvApprox → ∃ b : Coeffs, mulRq a b = oneRq
 
-axiom lowNormInvertibility : LowNormInvertibilityAssumption
-
 /-- Concrete precondition checks for B.2 parameterization. -/
 def invertibilityPreconditionsSanity : Bool :=
   decide
@@ -60,23 +58,20 @@ theorem invertibilityPreconditionsSanity_sound
   exact decide_eq_true_eq.mp hOk
 
 theorem invertibilityPreconditions_from_constants : invertibilityPreconditionsProp := by
-  unfold invertibilityPreconditionsProp challengeCoeffMaxDiff bInvApprox
-  constructor
-  · exact rfl
-  constructor
-  · exact rfl
-  constructor
-  · decide
+  unfold invertibilityPreconditionsProp
+  refine ⟨Parameters.Goldilocks.b_eq_2, Parameters.Goldilocks.k_eq_14, ?_, ?_⟩
+  · exact Nat.lt_of_le_of_lt (by simpa [challengeCoeffMaxDiff_eq_four]) four_lt_bInvApprox
   ·
     have hB : Parameters.Goldilocks.B = 16384 := Parameters.Goldilocks.B_eq_16384
-    simp [hB]
+    simpa [hB, bInvApprox] using (show 16384 < bInvApprox by decide)
 
 theorem challengeCoeffMaxDiff_lt_bInvApprox : challengeCoeffMaxDiff < bInvApprox := by
-  simpa [challengeCoeffMaxDiff_eq_four] using four_lt_bInvApprox
+  rcases invertibilityPreconditions_from_constants with ⟨_, _, hDiff, _⟩
+  exact hDiff
 
 theorem goldilocksB_lt_bInvApprox : Parameters.Goldilocks.B < bInvApprox := by
-  have hB : Parameters.Goldilocks.B = 16384 := Parameters.Goldilocks.B_eq_16384
-  simp [hB, bInvApprox]
+  rcases invertibilityPreconditions_from_constants with ⟨_, _, _, hB⟩
+  exact hB
 
 theorem challengeCoeff_sub_norm_bound
   {x y : F}
@@ -139,36 +134,40 @@ theorem withinInvertibilityWindow_of_allChallenge_sub
   exact withinInvertibilityWindow_complete
     ⟨hPos, normInfCoeffs_sub_lt_bInvApprox_of_allChallenge hSize hAllA hAllB⟩
 
-theorem invertible_of_norm_bounds
+theorem invertible_of_norm_bounds_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
   {a : Coeffs}
   (hPos : 0 < normInfCoeffs a)
   (hLt : normInfCoeffs a < bInvApprox) :
   ∃ b : Coeffs, mulRq a b = oneRq := by
-  exact lowNormInvertibility a hPos hLt
+  exact hInv a hPos hLt
 
-theorem invertible_of_withinInvertibilityWindow
+theorem invertible_of_withinInvertibilityWindow_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
   {a : Coeffs}
   (hWin : withinInvertibilityWindow a = true) :
   ∃ b : Coeffs, mulRq a b = oneRq := by
   rcases withinInvertibilityWindow_sound hWin with ⟨hPos, hLt⟩
-  exact invertible_of_norm_bounds hPos hLt
+  exact invertible_of_norm_bounds_of_assumption hInv hPos hLt
 
-theorem invertible_of_allChallenge_nonzero
+theorem invertible_of_allChallenge_nonzero_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
   {a : Coeffs}
   (hAll : AllChallengeCoeffs a)
   (hPos : 0 < normInfCoeffs a) :
   ∃ b : Coeffs, mulRq a b = oneRq := by
-  exact invertible_of_withinInvertibilityWindow
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
     (withinInvertibilityWindow_of_allChallenge hAll hPos)
 
-theorem invertible_of_allChallenge_sub_nonzero
+theorem invertible_of_allChallenge_sub_nonzero_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
   {a b : Coeffs}
   (hSize : a.size = b.size)
   (hAllA : AllChallengeCoeffs a)
   (hAllB : AllChallengeCoeffs b)
   (hPos : 0 < normInfCoeffs (coeffSub a b)) :
   ∃ c : Coeffs, mulRq (coeffSub a b) c = oneRq := by
-  exact invertible_of_withinInvertibilityWindow
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
     (withinInvertibilityWindow_of_allChallenge_sub hSize hAllA hAllB hPos)
 
 end SuperNeo

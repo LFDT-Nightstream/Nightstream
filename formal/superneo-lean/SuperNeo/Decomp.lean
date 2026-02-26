@@ -76,6 +76,53 @@ def recomposeSplitDigits (digits : Array (Array F)) (b : Nat) : Array F :=
 def digitsWithinBase (digits : Array (Array F)) (b : Nat) : Bool :=
   digits.all (fun row => row.all (fun x => normInfF x < b))
 
+def digitsWithinBaseProp (digits : Array (Array F)) (b : Nat) : Prop :=
+  ∀ i (hi : i < digits.size) j (hj : j < (digits[i]'hi).size),
+    normInfF ((digits[i]'hi)[j]'hj) < b
+
+theorem digitsWithinBase_sound
+  {digits : Array (Array F)} {b : Nat}
+  (hOk : digitsWithinBase digits b = true) :
+  digitsWithinBaseProp digits b := by
+  intro i hi j hj
+  have hRow :
+      (digits[i]'hi).all (fun x => normInfF x < b) = true :=
+    (Array.all_eq_true.mp hOk) i hi
+  exact decide_eq_true_eq.mp ((Array.all_eq_true.mp hRow) j hj)
+
+theorem digitsWithinBase_complete
+  {digits : Array (Array F)} {b : Nat}
+  (hProp : digitsWithinBaseProp digits b) :
+  digitsWithinBase digits b = true := by
+  apply (Array.all_eq_true).2
+  intro i hi
+  apply (Array.all_eq_true).2
+  intro j hj
+  exact decide_eq_true (hProp i hi j hj)
+
+theorem digitsWithinBase_iff_prop
+  {digits : Array (Array F)} {b : Nat} :
+  digitsWithinBase digits b = true ↔ digitsWithinBaseProp digits b := by
+  constructor
+  · exact digitsWithinBase_sound
+  · exact digitsWithinBase_complete
+
+theorem digitsWithinBaseProp_mono
+  {digits : Array (Array F)} {b B : Nat}
+  (hDigits : digitsWithinBaseProp digits b)
+  (hMono : b ≤ B) :
+  digitsWithinBaseProp digits B := by
+  intro i hi j hj
+  exact Nat.lt_of_lt_of_le (hDigits i hi j hj) hMono
+
+theorem digitsWithinBase_mono
+  {digits : Array (Array F)} {b B : Nat}
+  (hDigits : digitsWithinBase digits b = true)
+  (hMono : b ≤ B) :
+  digitsWithinBase digits B = true := by
+  exact digitsWithinBase_complete
+    (digitsWithinBaseProp_mono (digitsWithinBase_sound hDigits) hMono)
+
 def splitRoundTrip (z : Array F) (b k : Nat) : Bool :=
   if b < 2 then
     false
@@ -112,6 +159,62 @@ theorem splitRoundTrip_complete
   rcases hRest with ⟨hRec, hDigits⟩
   unfold splitRoundTrip
   simp [hbNotLt, hRec, hDigits]
+
+theorem splitRoundTrip_sound_prop
+  {z : Array F} {b k : Nat}
+  (hOk : splitRoundTrip z b k = true) :
+  b ≥ 2 ∧
+    let digits := splitBalancedVec z b k
+    recomposeSplitDigits digits b = z ∧ digitsWithinBaseProp digits b := by
+  rcases splitRoundTrip_sound hOk with ⟨hbGe, hRest⟩
+  rcases hRest with ⟨hRec, hDigits⟩
+  exact ⟨hbGe, hRec, digitsWithinBase_sound hDigits⟩
+
+theorem splitRoundTrip_complete_prop
+  {z : Array F} {b k : Nat}
+  (hProp : b ≥ 2 ∧
+    let digits := splitBalancedVec z b k
+    recomposeSplitDigits digits b = z ∧ digitsWithinBaseProp digits b) :
+  splitRoundTrip z b k = true := by
+  rcases hProp with ⟨hbGe, hRest⟩
+  rcases hRest with ⟨hRec, hDigits⟩
+  exact splitRoundTrip_complete ⟨hbGe, hRec, digitsWithinBase_complete hDigits⟩
+
+theorem splitRoundTrip_iff_prop
+  {z : Array F} {b k : Nat} :
+  splitRoundTrip z b k = true ↔
+    (b ≥ 2 ∧
+      let digits := splitBalancedVec z b k
+      recomposeSplitDigits digits b = z ∧ digitsWithinBaseProp digits b) := by
+  constructor
+  · exact splitRoundTrip_sound_prop
+  · exact splitRoundTrip_complete_prop
+
+theorem splitRoundTrip_base_ge_two
+  {z : Array F} {b k : Nat}
+  (hOk : splitRoundTrip z b k = true) :
+  b ≥ 2 := by
+  exact (splitRoundTrip_sound_prop hOk).1
+
+theorem splitRoundTrip_recompose_eq
+  {z : Array F} {b k : Nat}
+  (hOk : splitRoundTrip z b k = true) :
+  recomposeSplitDigits (splitBalancedVec z b k) b = z := by
+  exact (splitRoundTrip_sound_prop hOk).2.1
+
+theorem splitRoundTrip_digitsWithinBaseProp
+  {z : Array F} {b k : Nat}
+  (hOk : splitRoundTrip z b k = true) :
+  digitsWithinBaseProp (splitBalancedVec z b k) b := by
+  exact (splitRoundTrip_sound_prop hOk).2.2
+
+theorem splitRoundTrip_digit_bound
+  {z : Array F} {b k i j : Nat}
+  (hOk : splitRoundTrip z b k = true)
+  (hi : i < (splitBalancedVec z b k).size)
+  (hj : j < ((splitBalancedVec z b k)[i]'hi).size) :
+  normInfF (((splitBalancedVec z b k)[i]'hi)[j]'hj) < b := by
+  exact splitRoundTrip_digitsWithinBaseProp hOk i hi j hj
 
 /-- Tiny sanity check for Definition 3 + split_b style decomposition. -/
 def decompSanity : Bool :=

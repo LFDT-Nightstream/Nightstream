@@ -39,6 +39,30 @@ theorem concreteParameters : sanityProp := by
   unfold sanityProp eta d nF b k Kmax B T modulus extDegreeK SuperNeo.eta SuperNeo.d q
   decide
 
+theorem eta_eq_81 : eta = 81 := by
+  rcases concreteParameters with ⟨hEta, _, _, _, _, _, _, _, _, _⟩
+  exact hEta
+
+theorem d_eq_54 : d = 54 := by
+  rcases concreteParameters with ⟨_, hD, _, _, _, _, _, _, _, _⟩
+  exact hD
+
+theorem nF_eq_1073741824 : nF = 1073741824 := by
+  rcases concreteParameters with ⟨_, _, hNF, _, _, _, _, _, _, _⟩
+  exact hNF
+
+theorem b_eq_2 : b = 2 := by
+  rcases concreteParameters with ⟨_, _, _, hB, _, _, _, _, _, _⟩
+  exact hB
+
+theorem k_eq_14 : k = 14 := by
+  rcases concreteParameters with ⟨_, _, _, _, hK, _, _, _, _, _⟩
+  exact hK
+
+theorem Kmax_eq_61 : Kmax = 61 := by
+  rcases concreteParameters with ⟨_, _, _, _, _, hKmax, _, _, _, _⟩
+  exact hKmax
+
 theorem b_lt_modulus_half : b < modulus / 2 := by
   rcases concreteParameters with ⟨_, _, _, _, _, _, _, _, hb, _⟩
   exact hb
@@ -46,6 +70,14 @@ theorem b_lt_modulus_half : b < modulus / 2 := by
 theorem B_eq_16384 : B = 16384 := by
   rcases concreteParameters with ⟨_, _, _, _, _, _, hB, _, _, _⟩
   exact hB
+
+theorem T_eq_216 : T = 216 := by
+  rcases concreteParameters with ⟨_, _, _, _, _, _, _, hT, _, _⟩
+  exact hT
+
+theorem extDegreeK_eq_2 : extDegreeK = 2 := by
+  rcases concreteParameters with ⟨_, _, _, _, _, _, _, _, _, hExt⟩
+  exact hExt
 
 theorem B_def : B = b ^ k := rfl
 

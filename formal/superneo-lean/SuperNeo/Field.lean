@@ -99,6 +99,9 @@ theorem canonical_default : Canonical (default : F) := by
   change 0 < q
   exact q_pos
 
+theorem default_eq_zero : (default : F) = (0 : F) := by
+  rfl
+
 theorem ofNat_val_eq_of_canonical {a : F} (ha : Canonical a) : ofNat a.val = a := by
   cases a with
   | mk v =>
@@ -152,6 +155,18 @@ theorem zero_add_of_canonical {a : F} (ha : Canonical a) : zero + a = a := by
 theorem add_zero_of_canonical {a : F} (ha : Canonical a) : a + zero = a := by
   change ofNat (a.val + 0) = a
   simpa using (ofNat_val_eq_of_canonical (a := a) ha)
+
+theorem sub_zero_of_canonical {a : F} (ha : Canonical a) : a - zero = a := by
+  cases a with
+  | mk v =>
+      unfold Canonical at ha
+      change ofNat (v + q - 0) = { val := v }
+      rw [Nat.sub_zero]
+      have hmod : (v + q) % q = v := by
+        rw [Nat.add_mod]
+        simp [Nat.mod_eq_of_lt ha]
+      unfold ofNat
+      simp [hmod]
 
 theorem one_mul_of_canonical {a : F} (ha : Canonical a) : one * a = a := by
   change ofNat (1 * a.val) = a

@@ -22,6 +22,21 @@ def rHat (r : Array F) (n : Nat) : Array F :=
       out := out.set! j (chiWeight r j)
     return out
 
+theorem rHat_size (r : Array F) (n : Nat) : (rHat r n).size = n := by
+  unfold rHat
+  have hFold :
+      ∀ (l : List Nat) (acc : Array F),
+        (List.foldl (fun b a => b.setIfInBounds a (chiWeight r a)) acc l).size = acc.size := by
+    intro l
+    induction l with
+    | nil =>
+        intro acc
+        simp
+    | cons x xs ih =>
+        intro acc
+        simp [ih, Array.size_setIfInBounds]
+  simpa using hFold (List.range' 0 n) (Array.replicate n (0 : F))
+
 def dotVec (a b : Array F) : F :=
   if a.size != b.size then
     0
@@ -62,6 +77,82 @@ def mleIdentity (v r : Array F) : Bool :=
     false
   else
     decide (mleByInnerProduct v r = mleByFolding v r)
+
+/-- Proposition-level counterpart of `mleIdentity`. -/
+def mleIdentityProp (v r : Array F) : Prop :=
+  (v.size != 2 ^ r.size) = false ∧
+    mleByInnerProduct v r = mleByFolding v r
+
+def mleIdentityPropEq (v r : Array F) : Prop :=
+  v.size = 2 ^ r.size ∧
+    mleByInnerProduct v r = mleByFolding v r
+
+theorem mleIdentity_sound
+  {v r : Array F}
+  (hOk : mleIdentity v r = true) :
+  mleIdentityProp v r := by
+  unfold mleIdentity at hOk
+  cases hSize : (v.size != 2 ^ r.size) with
+  | true =>
+      simp [hSize] at hOk
+  | false =>
+      simp [hSize] at hOk
+      exact ⟨hSize, hOk⟩
+
+theorem mleIdentity_complete
+  {v r : Array F}
+  (hProp : mleIdentityProp v r) :
+  mleIdentity v r = true := by
+  rcases hProp with ⟨hSize, hEq⟩
+  unfold mleIdentity
+  simp [hSize, decide_eq_true hEq]
+
+theorem mleIdentity_iff_prop
+  {v r : Array F} :
+  mleIdentity v r = true ↔ mleIdentityProp v r := by
+  constructor
+  · exact mleIdentity_sound
+  · exact mleIdentity_complete
+
+theorem mleIdentityPropEq_iff_prop
+  {v r : Array F} :
+  mleIdentityPropEq v r ↔ mleIdentityProp v r := by
+  constructor
+  · intro h
+    refine ⟨?_, h.2⟩
+    simp [h.1]
+  · intro h
+    refine ⟨?_, h.2⟩
+    have hSizeFalse : (v.size != 2 ^ r.size) = false := h.1
+    by_cases hSize : v.size = 2 ^ r.size
+    · exact hSize
+    · have hNeTrue : (v.size != 2 ^ r.size) = true := by simp [hSize]
+      rw [hNeTrue] at hSizeFalse
+      cases hSizeFalse
+
+theorem mleIdentity_sound_eq
+  {v r : Array F}
+  (hOk : mleIdentity v r = true) :
+  mleIdentityPropEq v r := by
+  exact (mleIdentityPropEq_iff_prop).2 (mleIdentity_sound hOk)
+
+theorem mleIdentity_complete_eq
+  {v r : Array F}
+  (hProp : mleIdentityPropEq v r) :
+  mleIdentity v r = true := by
+  exact mleIdentity_complete ((mleIdentityPropEq_iff_prop).1 hProp)
+
+theorem mleIdentity_size_eq
+  {v r : Array F}
+  (hOk : mleIdentity v r = true) :
+  v.size = 2 ^ r.size := by
+  exact (mleIdentity_sound_eq hOk).1
+
+theorem mleIdentity_eval_eq
+  {v r : Array F}
+  (hOk : mleIdentity v r = true) :
+  mleByInnerProduct v r = mleByFolding v r := by
+  exact (mleIdentity_sound hOk).2
 
 def mleSanity : Bool :=
   let v := #[3, 5, 7, 9]

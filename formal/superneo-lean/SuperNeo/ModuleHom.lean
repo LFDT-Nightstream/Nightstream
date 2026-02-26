@@ -124,4 +124,66 @@ theorem preservesScaleScalar_complete
   unfold preservesScaleScalar
   exact decide_eq_true hProp
 
+def vecModuleCheckPair (h : VecModuleHom) (s : F) (x y : Array F) : Prop :=
+  preservesAddVec h x y = true ∧ preservesScaleVec h s x = true
+
+def vecModulePropPair (h : VecModuleHom) (s : F) (x y : Array F) : Prop :=
+  h.map (vecAdd x y) = vecAdd (h.map x) (h.map y) ∧
+    h.map (vecScale s x) = vecScale s (h.map x)
+
+def scalarModuleCheckPair (h : ScalarModuleHom) (s : F) (x y : Array F) : Prop :=
+  preservesAddScalar h x y = true ∧ preservesScaleScalar h s x = true
+
+def scalarModulePropPair (h : ScalarModuleHom) (s : F) (x y : Array F) : Prop :=
+  h.map (vecAdd x y) = h.map x + h.map y ∧
+    h.map (vecScale s x) = s * h.map x
+
+theorem vecModulePropPair_of_checkPair
+  {h : VecModuleHom} {s : F} {x y : Array F}
+  (hCheck : vecModuleCheckPair h s x y) :
+  vecModulePropPair h s x y := by
+  exact ⟨preservesAddVec_sound hCheck.1, preservesScaleVec_sound hCheck.2⟩
+
+theorem vecModuleCheckPair_of_propPair
+  {h : VecModuleHom} {s : F} {x y : Array F}
+  (hSize : x.size = y.size)
+  (hProp : vecModulePropPair h s x y) :
+  vecModuleCheckPair h s x y := by
+  exact ⟨
+    preservesAddVec_complete hSize hProp.1,
+    preservesScaleVec_complete hProp.2
+  ⟩
+
+theorem vecModuleCheckPair_iff_propPair
+  {h : VecModuleHom} {s : F} {x y : Array F}
+  (hSize : x.size = y.size) :
+  vecModuleCheckPair h s x y ↔ vecModulePropPair h s x y := by
+  constructor
+  · exact vecModulePropPair_of_checkPair
+  · exact vecModuleCheckPair_of_propPair hSize
+
+theorem scalarModulePropPair_of_checkPair
+  {h : ScalarModuleHom} {s : F} {x y : Array F}
+  (hCheck : scalarModuleCheckPair h s x y) :
+  scalarModulePropPair h s x y := by
+  exact ⟨preservesAddScalar_sound hCheck.1, preservesScaleScalar_sound hCheck.2⟩
+
+theorem scalarModuleCheckPair_of_propPair
+  {h : ScalarModuleHom} {s : F} {x y : Array F}
+  (hSize : x.size = y.size)
+  (hProp : scalarModulePropPair h s x y) :
+  scalarModuleCheckPair h s x y := by
+  exact ⟨
+    preservesAddScalar_complete hSize hProp.1,
+    preservesScaleScalar_complete hProp.2
+  ⟩
+
+theorem scalarModuleCheckPair_iff_propPair
+  {h : ScalarModuleHom} {s : F} {x y : Array F}
+  (hSize : x.size = y.size) :
+  scalarModuleCheckPair h s x y ↔ scalarModulePropPair h s x y := by
+  constructor
+  · exact scalarModulePropPair_of_checkPair
+  · exact scalarModuleCheckPair_of_propPair hSize
+
 end SuperNeo

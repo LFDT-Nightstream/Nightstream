@@ -21,6 +21,13 @@ theorem vecAdd_size_of_eq
   unfold vecAdd
   simp [hSize]
 
+theorem vecAdd_size_of_ne
+  {a b : Array F}
+  (hSize : a.size ≠ b.size) :
+  (vecAdd a b).size = 0 := by
+  unfold vecAdd
+  simp [hSize]
+
 theorem vecScale_size
   (s : F) (a : Array F) :
   (vecScale s a).size = a.size := by

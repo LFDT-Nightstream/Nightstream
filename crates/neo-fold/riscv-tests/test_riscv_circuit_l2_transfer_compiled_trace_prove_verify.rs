@@ -9,69 +9,7 @@ use neo_fold::riscv_trace_shard::Rv32TraceWiring;
 use neo_memory::riscv::exec_table::Rv32ExecTable;
 use neo_memory::riscv::lookups::{decode_program, RiscvCpu, RiscvMemory, RiscvShoutTables, PROG_ID};
 use neo_vm_trace::{trace_program, TwistOpKind};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
-use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
-
-struct ProgressHeartbeat {
-    done: Arc<AtomicBool>,
-    handle: Option<JoinHandle<()>>,
-    label: &'static str,
-    started_at: Instant,
-}
-
-impl ProgressHeartbeat {
-    fn start(label: &'static str, tick: Duration) -> Self {
-        let done = Arc::new(AtomicBool::new(false));
-        let done_bg = done.clone();
-        let started_at = Instant::now();
-        let start_for_thread = started_at;
-        let handle = thread::spawn(move || loop {
-            thread::sleep(tick);
-            if done_bg.load(Ordering::Relaxed) {
-                break;
-            }
-            println!("{label}_progress elapsed={:?}", start_for_thread.elapsed());
-        });
-        Self {
-            done,
-            handle: Some(handle),
-            label,
-            started_at,
-        }
-    }
-
-    fn finish(mut self) {
-        self.done.store(true, Ordering::Relaxed);
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
-        println!("{}_wall_time={:?}", self.label, self.started_at.elapsed());
-    }
-}
-
-impl Drop for ProgressHeartbeat {
-    fn drop(&mut self) {
-        self.done.store(true, Ordering::Relaxed);
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
-    }
-}
-
-fn run_with_progress<T, F>(label: &'static str, tick: Duration, f: F) -> T
-where
-    F: FnOnce() -> T,
-{
-    println!("{label}_start");
-    let heartbeat = ProgressHeartbeat::start(label, tick);
-    let out = f();
-    heartbeat.finish();
-    out
-}
+use std::time::Instant;
 
 fn parse_row_idx(err: &str) -> Option<usize> {
     let marker = "row=";
@@ -157,7 +95,6 @@ fn test_riscv_circuit_l2_transfer_compiled_trace_prove_verify_with_metrics() {
     let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
     let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
     let static_instruction_words = program_bytes.len() / 4;
-    let chunk_rows = 256usize;
 
     let setup_wall_start = Instant::now();
     let decoded_program = decode_program(program_bytes).expect("decode circuit_l2_transfer ROM");
@@ -177,6 +114,10 @@ fn test_riscv_circuit_l2_transfer_compiled_trace_prove_verify_with_metrics() {
     let executed_steps = sim_trace.len();
     let min_trace_len = executed_steps;
     let max_steps = executed_steps;
+    // Poseidon local lane split requires t_len <= (ccs_m - m_in).
+    // For this circuit/profile that cap is 510, so pick the largest safe chunk automatically.
+    const MAX_SAFE_CHUNK_ROWS: usize = 510;
+    let chunk_rows = executed_steps.min(MAX_SAFE_CHUNK_ROWS);
 
     let wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
         .xlen(32)
@@ -187,7 +128,8 @@ fn test_riscv_circuit_l2_transfer_compiled_trace_prove_verify_with_metrics() {
     let setup_wall = setup_wall_start.elapsed();
 
     let prove_wall_start = Instant::now();
-    let prove_result = run_with_progress("prove", Duration::from_secs(15), || wiring.prove());
+    println!("prove_start");
+    let prove_result = wiring.prove();
     let prove_wall = prove_wall_start.elapsed();
 
     println!("==== circuit_l2_transfer metrics ====");
@@ -256,7 +198,8 @@ fn test_riscv_circuit_l2_transfer_compiled_trace_prove_verify_with_metrics() {
     println!("prove_time_total={:?}", run.prove_duration());
 
     let verify_wall_start = Instant::now();
-    let verify_result = run_with_progress("verify", Duration::from_secs(10), || run.verify());
+    println!("verify_start");
+    let verify_result = run.verify();
     let verify_wall = verify_wall_start.elapsed();
     println!("verify_time={:?}", run.verify_duration().unwrap_or(verify_wall));
     println!("verify_wall_time={:?}", verify_wall);

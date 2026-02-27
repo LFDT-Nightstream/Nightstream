@@ -85,6 +85,8 @@ mod ccs_only_batched;
 mod core_utils;
 #[path = "shard/mixed_batched.rs"]
 mod mixed_batched;
+#[path = "shard/poseidon_lane_helpers.rs"]
+mod poseidon_lane_helpers;
 #[path = "shard/prover.rs"]
 mod prover;
 #[path = "shard/rlc_dec.rs"]
@@ -102,6 +104,7 @@ pub use verifier_and_api::*;
 
 pub(crate) use core_utils::*;
 pub(crate) use mixed_batched::*;
+pub(crate) use poseidon_lane_helpers::*;
 pub(crate) use prover::*;
 pub(crate) use rlc_dec::*;
 pub(crate) use route_a_segment::*;

@@ -165,7 +165,6 @@ where
     let mut val_lane_wits: Vec<Mat<F>> = Vec::new();
     let mut prev_twist_decoded = initial_prev_twist_decoded;
     let mut output_proof: Option<neo_memory::output_check::OutputBindingProof> = None;
-
     if ob.is_some() && steps.is_empty() {
         return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
     }
@@ -309,14 +308,6 @@ where
         // --------------------------------------------------------------------
         // Route A: Shared-challenge batched sum-check for time/row rounds.
         // --------------------------------------------------------------------
-        //
-        // 1) Bind CCS header + ME inputs
-        // 2) Sample CCS challenges (α, β, γ) and bind initial sum
-        // 3) Build CCS oracle + lazy Twist/Shout oracles
-        // 4) Run ONE batched sum-check for the first ell_n rounds (row/time)
-        // 5) Finish CCS alone for remaining ell_d Ajtai rounds
-        // 6) Emit CCS + memory ME claims at the shared r_time and fold via RLC/DEC
-
         utils::bind_header_and_instances_with_digest(
             tr,
             params,
@@ -339,6 +330,136 @@ where
         ch.beta_m = utils::sample_beta_m(tr, ell_m)?;
         let ccs_initial_sum = claimed_initial_sum_from_inputs_with_k_mcs(&s, &ch, 1, &accumulator);
         tr.append_fields(b"sumcheck/initial_sum", &ccs_initial_sum.as_coeffs());
+
+        // Build Poseidon lanes and bind their commitments *before* sampling route_a/r_cycle.
+        let poseidon_setup = build_poseidon_prover_setup(tr, params, step, step_idx, ell_n)?;
+        let poseidon_cycle_enabled = poseidon_setup.cycle_enabled;
+        let poseidon_sidecar = poseidon_setup.sidecar;
+        let mut poseidon_cycle_wit = poseidon_setup.cycle_wit;
+        let poseidon_cycle_open_spec = poseidon_setup.cycle_open_spec;
+        let mut poseidon_cycle_wits: Option<Vec<Mat<F>>> = None;
+        let mut poseidon_cycle_open_specs: Option<Vec<(usize, usize, Vec<usize>)>> = None;
+        let mut poseidon_local_wit_full = poseidon_setup.local_wit_full;
+        let mut poseidon_local_wits = poseidon_setup.local_wits;
+        let mut poseidon_local_open_specs = poseidon_setup.local_open_specs;
+        let poseidon_local_t_len = poseidon_setup.local_t_len;
+        let poseidon_local_layout = poseidon_setup.local_layout;
+        let poseidon_local_ell = poseidon_setup.local_ell;
+        let mut poseidon_link_chals: Option<crate::memory_sidecar::memory::PoseidonLinkChallenges> = None;
+        let mut poseidon_cont_chals: Option<crate::memory_sidecar::memory::PoseidonContinuityChallenges> = None;
+        if poseidon_cycle_enabled {
+            let sidecar_ref = poseidon_sidecar
+                .as_ref()
+                .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon sidecar table".into()))?;
+            let cycle_open_spec = poseidon_cycle_open_spec
+                .as_ref()
+                .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon cycle opening spec".into()))?;
+            let local_t_len =
+                poseidon_local_t_len.ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local t_len".into()))?;
+            let local_layout = poseidon_local_layout
+                .as_ref()
+                .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local layout".into()))?;
+            let mcs_logical = neo_memory::ajtai::decode_vector_for_ccs_m(params, s.m, &mcs_wit.Z).map_err(|e| {
+                PiCcsError::ProtocolError(format!(
+                    "failed to decode packed main witness for poseidon lane prefix (m={}): {e}",
+                    s.m
+                ))
+            })?;
+            let link_chals = crate::memory_sidecar::memory::sample_poseidon_link_challenges(tr);
+            let cont_chals = crate::memory_sidecar::memory::sample_poseidon_continuity_challenges(tr);
+
+            let cycle_layout = crate::memory_sidecar::memory::PoseidonCycleTraceLayout::new();
+            let cycle_wit = poseidon_cycle_wit
+                .as_mut()
+                .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon cycle witness".into()))?;
+            crate::memory_sidecar::memory::populate_poseidon_cycle_link_aux_columns(
+                cycle_open_spec.1,
+                cycle_wit,
+                &cycle_layout,
+                sidecar_ref,
+                &link_chals,
+                &cont_chals,
+            )?;
+
+            let local_wit = poseidon_local_wit_full
+                .as_mut()
+                .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local witness".into()))?;
+            crate::memory_sidecar::memory::populate_poseidon_local_link_aux_column(
+                local_t_len,
+                local_wit,
+                local_layout,
+                sidecar_ref,
+                &link_chals,
+            )?;
+
+            let cycle_wit_ro = poseidon_cycle_wit
+                .as_ref()
+                .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon cycle witness".into()))?;
+            let (cycle_wits_built, cycle_cols_per_chunk) = split_poseidon_lane_wit_by_time_cols(
+                params,
+                cycle_wit_ro,
+                cycle_open_spec.2.len(),
+                cycle_open_spec.1,
+                cycle_open_spec.0,
+                Some(mcs_logical.as_slice()),
+                s.m,
+            )?;
+            let cycle_open_specs_built: Vec<(usize, usize, Vec<usize>)> = cycle_cols_per_chunk
+                .into_iter()
+                .map(|chunk_cols| (cycle_open_spec.0, cycle_open_spec.1, (0..chunk_cols).collect()))
+                .collect();
+            poseidon_cycle_wits = Some(cycle_wits_built);
+            poseidon_cycle_open_specs = Some(cycle_open_specs_built);
+
+            let (local_wits_built, local_cols_per_chunk) = split_poseidon_lane_wit_by_time_cols(
+                params,
+                local_wit,
+                local_layout.cols(),
+                local_t_len,
+                0,
+                None,
+                s.m,
+            )?;
+            let local_open_specs_built: Vec<(usize, usize, Vec<usize>)> = local_cols_per_chunk
+                .into_iter()
+                .map(|chunk_cols| (0, local_t_len, (0..chunk_cols).collect()))
+                .collect();
+            poseidon_local_wits = Some(local_wits_built);
+            poseidon_local_open_specs = Some(local_open_specs_built);
+            poseidon_link_chals = Some(link_chals);
+            poseidon_cont_chals = Some(cont_chals);
+        }
+
+        let (poseidon_cycle_commits, poseidon_local_commits) = if poseidon_cycle_enabled {
+            let cycle_wits_ref = poseidon_cycle_wits
+                .as_ref()
+                .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon cycle witness chunks".into()))?;
+            let local_wits_ref = poseidon_local_wits
+                .as_ref()
+                .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local witness chunks".into()))?;
+            let mut cycle_cs = Vec::with_capacity(cycle_wits_ref.len());
+            for z in cycle_wits_ref.iter() {
+                let cycle_committer = crate::shard::poseidon_lane_helpers::poseidon_lane_committer(
+                    params,
+                    z.cols(),
+                    "poseidon cycle commit",
+                )?;
+                cycle_cs.push(cycle_committer.commit(z));
+            }
+            let mut local_cs = Vec::with_capacity(local_wits_ref.len());
+            for z in local_wits_ref.iter() {
+                let local_committer = crate::shard::poseidon_lane_helpers::poseidon_lane_committer(
+                    params,
+                    z.cols(),
+                    "poseidon local commit",
+                )?;
+                local_cs.push(local_committer.commit(z));
+            }
+            absorb_poseidon_lane_commitments_prover(tr, &cycle_cs, &local_cs);
+            (Some(cycle_cs), Some(local_cs))
+        } else {
+            (None, None)
+        };
 
         // Route A memory checks use a separate transcript-derived cycle point `r_cycle`
         // to form χ_{r_cycle}(t) weights inside their sum-check polynomials.
@@ -552,6 +673,27 @@ where
                 label: b"control/writeback",
             });
         }
+        let poseidon_cycle_claims = build_poseidon_cycle_time_claims(
+            params,
+            step,
+            &r_cycle,
+            ell_n,
+            poseidon_cycle_enabled,
+            poseidon_sidecar.as_ref(),
+            poseidon_cycle_wit.as_ref(),
+            poseidon_cycle_open_spec.as_ref(),
+            poseidon_link_chals.as_ref(),
+            poseidon_cont_chals.as_ref(),
+        )?;
+        let poseidon_io_link_claim = poseidon_cycle_claims.io_link;
+        let poseidon_bitness_claim = poseidon_cycle_claims.bitness;
+        let poseidon_canonical_u64_claim = poseidon_cycle_claims.canonical_u64;
+        let poseidon_sidecar_link_claim = poseidon_cycle_claims.sidecar_link;
+        let poseidon_mode_claim = poseidon_cycle_claims.mode;
+        let poseidon_link_cycle_inv_claim = poseidon_cycle_claims.link_cycle_inv;
+        let poseidon_link_cycle_sum_claim = poseidon_cycle_claims.link_cycle_sum;
+        let poseidon_cont_inv_claim = poseidon_cycle_claims.cont_inv;
+        let poseidon_cont_sum_claim = poseidon_cycle_claims.cont_sum;
 
         if include_ob {
             let (cfg, _final_memory_state) =
@@ -614,8 +756,32 @@ where
             control_next_pc_control_claim,
             control_branch_semantics_claim,
             control_control_writeback_claim,
+            poseidon_io_link_claim,
+            poseidon_bitness_claim,
+            poseidon_canonical_u64_claim,
+            poseidon_sidecar_link_claim,
+            poseidon_mode_claim,
+            poseidon_link_cycle_inv_claim,
+            poseidon_link_cycle_sum_claim,
+            poseidon_cont_inv_claim,
+            poseidon_cont_sum_claim,
             ob_time_claim,
         )?;
+
+        let poseidon_local_artifacts = prove_poseidon_local_time_artifacts(
+            tr,
+            step_idx,
+            poseidon_cycle_enabled,
+            poseidon_local_ell,
+            poseidon_local_open_specs.as_ref(),
+            poseidon_local_t_len,
+            poseidon_local_layout,
+            poseidon_local_wit_full.as_ref(),
+            poseidon_link_chals.as_ref(),
+        )?;
+        let poseidon_local_time = poseidon_local_artifacts.local_time;
+        let poseidon_r_local = poseidon_local_artifacts.r_local;
+        ensure_poseidon_link_sums_match(poseidon_cycle_enabled, &batched_time, poseidon_local_time.as_ref())?;
 
         // Run CCS row rounds independently from Route-A batching.
         let mut ccs_time = RoundOraclePrefix::new(&mut ccs_oracle, ell_n);
@@ -959,7 +1125,27 @@ where
             let t = me.y_ring.len();
             normalize_me_claims(core::slice::from_mut(me), ell_t, ell_d, t)?;
         }
-
+        emit_poseidon_me_claims(
+            tr,
+            params,
+            &s,
+            &r_time,
+            ell_t,
+            ell_d,
+            &mut mem_proof,
+            PoseidonMeClaimsInputs {
+                poseidon_cycle_enabled,
+                poseidon_cycle_wits: poseidon_cycle_wits.as_ref(),
+                poseidon_cycle_commits: poseidon_cycle_commits.as_ref(),
+                poseidon_cycle_open_specs: poseidon_cycle_open_specs.as_ref(),
+                poseidon_local_wits: poseidon_local_wits.as_ref(),
+                poseidon_local_commits: poseidon_local_commits.as_ref(),
+                poseidon_local_open_specs: poseidon_local_open_specs.as_ref(),
+                poseidon_local_t_len,
+                poseidon_local_layout,
+                poseidon_r_local: poseidon_r_local.as_ref(),
+            },
+        )?;
         validate_me_batch_invariants(&ccs_out, "prove step ccs outputs")?;
 
         let want_main_wits = collect_val_lane_wits || idx + 1 < steps.len();
@@ -1586,6 +1772,26 @@ where
             }
         }
 
+        let poseidon_fold_lanes = prove_poseidon_fold_lanes(
+            &mode,
+            tr,
+            params,
+            &s,
+            ccs_sparse_cache.as_deref(),
+            &ring,
+            ell_d,
+            step_idx,
+            &mem_proof,
+            poseidon_cycle_wits.as_ref(),
+            poseidon_cycle_open_specs.as_ref(),
+            poseidon_local_wits.as_ref(),
+            poseidon_local_open_specs.as_ref(),
+            l,
+            mixers,
+        )?;
+        let poseidon_cycle_fold = poseidon_fold_lanes.cycle_fold;
+        let poseidon_local_fold = poseidon_fold_lanes.local_fold;
+
         accumulator = children.clone();
         accumulator_wit = if want_main_wits { Z_split } else { Vec::new() };
 
@@ -2118,6 +2324,9 @@ where
             },
             mem: mem_proof,
             batched_time,
+            poseidon_local_time,
+            poseidon_cycle_fold,
+            poseidon_local_fold,
             val_fold,
             wb_fold,
             wp_fold,

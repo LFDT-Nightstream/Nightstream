@@ -940,6 +940,7 @@ pub(crate) fn build_route_a_decode_time_claims(
             decode_value_at(decode.op_system, j)?,
             decode_value_at(decode.op_amo, j)?,
         ];
+        let op_custom = decode_value_at(decode.op_custom, j)?;
         let funct3_is = [
             decode_value_at(decode.funct3_is[0], j)?,
             decode_value_at(decode.funct3_is[1], j)?,
@@ -1012,6 +1013,7 @@ pub(crate) fn build_route_a_decode_time_claims(
             active,
             decode_opcode,
             opcode_flags,
+            op_custom,
             funct3_is,
             funct3_bits,
             opcode_flags[11],
@@ -1129,6 +1131,7 @@ pub(crate) fn build_route_a_decode_time_claims(
         decode.op_misc_mem,
         decode.op_system,
         decode.op_amo,
+        decode.op_custom,
         decode.funct3_is[0],
         decode.funct3_is[1],
         decode.funct3_is[2],
@@ -1231,6 +1234,7 @@ pub(crate) fn build_route_a_decode_time_claims(
                 ram_has_read: cursor.take(),
                 ram_has_write: cursor.take(),
                 opcode_flags: cursor.take_arr::<12>(),
+                op_custom: cursor.take(),
                 funct3_is: cursor.take_arr::<8>(),
                 funct3_bits: cursor.take_arr::<3>(),
                 funct7_bits: cursor.take_arr::<7>(),

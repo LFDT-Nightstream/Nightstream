@@ -9,6 +9,7 @@ description = "Memory and Lookup arguments (Twist/Shout) for Neo"
 [features]
 default = []
 debug-logs = ["neo-reductions/debug-logs"]
+poseidon-precompile = []
 
 [dependencies]
 serde = { workspace = true }
@@ -23,6 +24,7 @@ neo-reductions = { path = "../neo-reductions" }
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }
 p3-goldilocks = { workspace = true }
+p3-symmetric = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }

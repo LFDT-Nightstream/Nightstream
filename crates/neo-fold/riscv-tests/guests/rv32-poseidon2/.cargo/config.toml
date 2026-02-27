@@ -1,0 +1,10 @@
+[build]
+target = "riscv32im-unknown-none-elf"
+
+[target.riscv32im-unknown-none-elf]
+rustflags = ["-C", "link-arg=-T../../../../nightstream-sdk/guest/riscv32im-unknown-none-elf.ld"]
+
+[env]
+# The repo sets RUSTFLAGS (e.g. `-C target-cpu=native`) globally for host builds.
+# That breaks cross-compiling this guest, so override it locally.
+RUSTFLAGS = ""

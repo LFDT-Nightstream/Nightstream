@@ -55,6 +55,14 @@ use std::collections::{BTreeMap, BTreeSet};
 mod addr_pre_proofs;
 #[path = "memory/event_table_context.rs"]
 mod event_table_context;
+#[path = "memory/precompiles/poseidon2/claim_builders.rs"]
+mod poseidon_claim_builders;
+#[path = "memory/precompiles/poseidon2/link_claim_builders.rs"]
+mod poseidon_link_claim_builders;
+#[path = "memory/precompiles/poseidon2/local_commit.rs"]
+mod poseidon_local_commit;
+#[path = "memory/precompiles/poseidon2/terminal_checks.rs"]
+mod poseidon_terminal_checks;
 #[path = "memory/route_a_claim_builders.rs"]
 mod route_a_claim_builders;
 #[path = "memory/route_a_claims.rs"]
@@ -80,6 +88,10 @@ pub use transcript_and_common::{absorb_step_memory, TwistTimeLaneOpenings};
 
 pub(crate) use addr_pre_proofs::*;
 pub(crate) use event_table_context::*;
+pub(crate) use poseidon_claim_builders::*;
+pub(crate) use poseidon_link_claim_builders::*;
+pub(crate) use poseidon_local_commit::*;
+pub(crate) use poseidon_terminal_checks::*;
 pub(crate) use route_a_claim_builders::*;
 pub(crate) use route_a_claims::*;
 pub(crate) use route_a_finalize::*;

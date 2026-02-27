@@ -20,6 +20,9 @@ neo-vm-trace = { path = "../neo-vm-trace" }
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }
 p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
+rand = { workspace = true }
 rand_chacha = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -42,6 +45,7 @@ default = ["paper-exact"]
 profile-flame = ["pprof"]
 paper-exact = ["neo-reductions/paper-exact"]
 debug-logs = ["neo-reductions/debug-logs", "neo-memory/debug-logs"]
+poseidon-precompile = ["neo-memory/poseidon-precompile"]
 wasm-threads = ["neo-reductions/wasm-threads", "neo-ajtai/wasm-threads", "neo-ccs/wasm-threads"]
 
 [dev-dependencies]
@@ -73,6 +77,18 @@ path = "riscv-tests/test_riscv_u64_output_compiled_full_prove_verify.rs"
 [[test]]
 name = "test_riscv_circuit_l2_transfer_compiled_trace_prove_verify"
 path = "riscv-tests/test_riscv_circuit_l2_transfer_compiled_trace_prove_verify.rs"
+
+[[test]]
+name = "test_riscv_poseidon_stage_binding"
+path = "riscv-tests/test_riscv_poseidon_stage_binding.rs"
+
+[[test]]
+name = "test_riscv_poseidon_feature_gate"
+path = "riscv-tests/test_riscv_poseidon_feature_gate.rs"
+
+[[test]]
+name = "test_riscv_poseidon_elf_bench"
+path = "riscv-tests/test_riscv_poseidon_elf_bench.rs"
 
 [[test]]
 name = "test_riscv_program_crosscheck"

@@ -1,4 +1,7 @@
 use neo_vm_trace::{ShoutEvent, StepTrace, TwistEvent, TwistOpKind, VmTrace};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_goldilocks::Goldilocks;
+use p3_symmetric::Permutation;
 
 use crate::riscv::decomposition_semantics::{expected_virtual_decomposed_op, validate_virtual_row_semantics};
 use crate::riscv::instruction::{encode_lookup_key, operand_mode_keys_enabled, try_decode_lookup_operands};
@@ -1079,5 +1082,258 @@ impl Rv32RamEventTable {
         }
 
         Ok(Self { rows })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PoseidonSidecarMode {
+    Absorbing,
+    Finalized,
+}
+
+#[derive(Clone, Debug)]
+pub struct Rv32PoseidonCycleEventRow {
+    pub cycle: u64,
+    pub op_absorb: bool,
+    pub op_finalize: bool,
+    pub op_squeeze: bool,
+    /// Pre-instruction mode flag: true when the sponge is in `Finalized` mode.
+    pub mode_finalized: bool,
+    pub call_ctr: u64,
+    pub cursor_before: u8,
+    pub cursor_after: u8,
+    pub do_perm_slot0: bool,
+    pub do_perm_slot1: bool,
+    pub absorb_lo32: u32,
+    pub absorb_hi32: u32,
+    pub squeeze_idx: u8,
+    pub squeeze_word_u32: u32,
+    pub state_pre: [u64; 8],
+    pub state_post: [u64; 8],
+    pub canonical_lo_sum: u32,
+    pub canonical_hi_sum: u32,
+    pub canonical_c0: u32,
+    pub canonical_c1: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct Rv32PoseidonPermSlotMetaRow {
+    pub cycle: u64,
+    pub slot: u8,
+    pub call_ctr: u64,
+    pub state_in: [u64; 8],
+    pub state_out: [u64; 8],
+}
+
+#[derive(Clone, Debug)]
+pub struct Rv32PoseidonSidecarTable {
+    pub cycle_rows: Vec<Rv32PoseidonCycleEventRow>,
+    pub perm_rows: Vec<Rv32PoseidonPermSlotMetaRow>,
+}
+
+#[inline]
+fn poseidon_state_to_u64(state: &[Goldilocks; 8]) -> [u64; 8] {
+    let mut out = [0u64; 8];
+    for (i, x) in state.iter().enumerate() {
+        out[i] = x.as_canonical_u64();
+    }
+    out
+}
+
+#[inline]
+fn canonical_u64_lt_goldilocks_aux(v: u64) -> (u32, u32, u32, u32) {
+    let lo = v as u32;
+    let hi = (v >> 32) as u32;
+    let (lo_sum, c0) = lo.overflowing_add(0xFFFF_FFFF);
+    let (hi_sum, c1) = hi.overflowing_add(if c0 { 1 } else { 0 });
+    (lo_sum, hi_sum, u32::from(c0), u32::from(c1))
+}
+
+impl Rv32PoseidonSidecarTable {
+    pub fn from_exec_table(exec: &Rv32ExecTable) -> Result<Self, String> {
+        const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+        const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
+        const DIGEST_LEN: usize = neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
+
+        let perm = neo_ccs::crypto::poseidon2_goldilocks::permutation();
+        let mut mode = PoseidonSidecarMode::Absorbing;
+        let mut state = [Goldilocks::ZERO; WIDTH];
+        let mut absorb_cursor: usize = 0;
+        let mut digest_words = [0u32; DIGEST_LEN * 2];
+        let mut call_ctr = 0u64;
+
+        let mut cycle_rows = Vec::with_capacity(exec.rows.len());
+        let mut perm_rows: Vec<Rv32PoseidonPermSlotMetaRow> = Vec::new();
+
+        for row in exec.rows.iter().filter(|r| r.active) {
+            let state_pre = poseidon_state_to_u64(&state);
+            let mut out = Rv32PoseidonCycleEventRow {
+                cycle: row.cycle,
+                op_absorb: false,
+                op_finalize: false,
+                op_squeeze: false,
+                mode_finalized: mode == PoseidonSidecarMode::Finalized,
+                call_ctr,
+                cursor_before: absorb_cursor as u8,
+                cursor_after: absorb_cursor as u8,
+                do_perm_slot0: false,
+                do_perm_slot1: false,
+                absorb_lo32: 0,
+                absorb_hi32: 0,
+                squeeze_idx: 0,
+                squeeze_word_u32: 0,
+                state_pre,
+                state_post: state_pre,
+                canonical_lo_sum: 0,
+                canonical_hi_sum: 0,
+                canonical_c0: 0,
+                canonical_c1: 0,
+            };
+
+            if let Some(decoded) = row.decoded.as_ref() {
+                match decoded {
+                    RiscvInstruction::Poseidon2AbsorbElem { .. } => {
+                        out.op_absorb = true;
+                        if mode == PoseidonSidecarMode::Finalized {
+                            // Start a new message context.
+                            state.fill(Goldilocks::ZERO);
+                            absorb_cursor = 0;
+                            mode = PoseidonSidecarMode::Absorbing;
+                            digest_words.fill(0);
+                            call_ctr = call_ctr.wrapping_add(1);
+                            out.call_ctr = call_ctr;
+                            out.cursor_before = 0;
+                            out.state_pre = poseidon_state_to_u64(&state);
+                        }
+
+                        let rs1 = row
+                            .reg_read_lane0
+                            .as_ref()
+                            .ok_or_else(|| format!("poseidon absorb: missing rs1 read at cycle {}", row.cycle))?
+                            .value as u32;
+                        let rs2 = row
+                            .reg_read_lane1
+                            .as_ref()
+                            .ok_or_else(|| format!("poseidon absorb: missing rs2 read at cycle {}", row.cycle))?
+                            .value as u32;
+                        out.absorb_lo32 = rs1;
+                        out.absorb_hi32 = rs2;
+
+                        let elem_u64 = (rs1 as u64) | ((rs2 as u64) << 32);
+                        state[absorb_cursor] += Goldilocks::from_u64(elem_u64);
+                        absorb_cursor += 1;
+
+                        if absorb_cursor == RATE {
+                            out.do_perm_slot0 = true;
+                            let in_state = poseidon_state_to_u64(&state);
+                            state = perm.permute(state);
+                            let out_state = poseidon_state_to_u64(&state);
+                            perm_rows.push(Rv32PoseidonPermSlotMetaRow {
+                                cycle: row.cycle,
+                                slot: 0,
+                                call_ctr,
+                                state_in: in_state,
+                                state_out: out_state,
+                            });
+                            absorb_cursor = 0;
+                        }
+                        out.cursor_after = absorb_cursor as u8;
+                    }
+                    RiscvInstruction::Poseidon2Finalize => {
+                        out.op_finalize = true;
+                        if mode == PoseidonSidecarMode::Finalized {
+                            return Err(format!(
+                                "poseidon finalize called in Finalized mode at cycle {}",
+                                row.cycle
+                            ));
+                        }
+                        if absorb_cursor > 0 {
+                            out.do_perm_slot0 = true;
+                            let in_state = poseidon_state_to_u64(&state);
+                            state = perm.permute(state);
+                            let out_state = poseidon_state_to_u64(&state);
+                            perm_rows.push(Rv32PoseidonPermSlotMetaRow {
+                                cycle: row.cycle,
+                                slot: 0,
+                                call_ctr,
+                                state_in: in_state,
+                                state_out: out_state,
+                            });
+                            absorb_cursor = 0;
+                        }
+
+                        state[0] += Goldilocks::ONE;
+                        out.do_perm_slot1 = true;
+                        let in_state = poseidon_state_to_u64(&state);
+                        state = perm.permute(state);
+                        let out_state = poseidon_state_to_u64(&state);
+                        perm_rows.push(Rv32PoseidonPermSlotMetaRow {
+                            cycle: row.cycle,
+                            slot: 1,
+                            call_ctr,
+                            state_in: in_state,
+                            state_out: out_state,
+                        });
+
+                        for i in 0..DIGEST_LEN {
+                            let v = state[i].as_canonical_u64();
+                            digest_words[2 * i] = v as u32;
+                            digest_words[2 * i + 1] = (v >> 32) as u32;
+                        }
+                        mode = PoseidonSidecarMode::Finalized;
+                        out.cursor_after = 0;
+                    }
+                    RiscvInstruction::Poseidon2SqueezeWord { rd, idx } => {
+                        out.op_squeeze = true;
+                        if mode != PoseidonSidecarMode::Finalized {
+                            return Err(format!(
+                                "poseidon squeeze called before finalize at cycle {}",
+                                row.cycle
+                            ));
+                        }
+                        let idx_usize = *idx as usize;
+                        if idx_usize >= digest_words.len() {
+                            return Err(format!(
+                                "poseidon squeeze idx out of range at cycle {}: idx={}",
+                                row.cycle, idx
+                            ));
+                        }
+                        out.squeeze_idx = *idx;
+                        let word = digest_words[idx_usize];
+                        out.squeeze_word_u32 = word;
+                        if *rd != 0 {
+                            let write_word = row
+                                .reg_write_lane0
+                                .as_ref()
+                                .ok_or_else(|| format!("poseidon squeeze: missing rd write at cycle {}", row.cycle))?
+                                .value as u32;
+                            if write_word != word {
+                                return Err(format!(
+                                    "poseidon squeeze word mismatch at cycle {}: got={:#x}, expected={:#x}",
+                                    row.cycle, write_word, word
+                                ));
+                            }
+                        }
+
+                        let digest_elem_idx = idx_usize / 2;
+                        let digest_elem = state[digest_elem_idx].as_canonical_u64();
+                        let (lo_sum, hi_sum, c0, c1) = canonical_u64_lt_goldilocks_aux(digest_elem);
+                        out.canonical_lo_sum = lo_sum;
+                        out.canonical_hi_sum = hi_sum;
+                        out.canonical_c0 = c0;
+                        out.canonical_c1 = c1;
+                        out.cursor_after = absorb_cursor as u8;
+                    }
+                    _ => {
+                        out.cursor_after = absorb_cursor as u8;
+                    }
+                }
+            }
+
+            out.state_post = poseidon_state_to_u64(&state);
+            cycle_rows.push(out);
+        }
+
+        Ok(Self { cycle_rows, perm_rows })
     }
 }

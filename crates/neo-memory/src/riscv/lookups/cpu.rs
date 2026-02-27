@@ -1,4 +1,7 @@
 use neo_vm_trace::{Shout, Twist};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_goldilocks::Goldilocks;
+use p3_symmetric::Permutation;
 use std::collections::{HashMap, VecDeque};
 
 use crate::riscv::instruction::{compute_op, decomposition_sequence_for_instruction, encode_lookup_key, DecomposedOp};
@@ -12,6 +15,99 @@ use super::tables::RiscvShoutTables;
 struct PendingDecomposition {
     instr_word: u32,
     ops: VecDeque<DecomposedOp>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PoseidonMode {
+    Absorbing,
+    Finalized,
+}
+
+#[derive(Clone)]
+struct PoseidonPrecompileCtx {
+    state: [Goldilocks; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
+    absorb_cursor: usize,
+    mode: PoseidonMode,
+    final_digest_words: [u32; neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN * 2],
+    perm: &'static p3_goldilocks::Poseidon2Goldilocks<{ neo_ccs::crypto::poseidon2_goldilocks::WIDTH }>,
+}
+
+impl PoseidonPrecompileCtx {
+    fn new() -> Self {
+        Self {
+            state: [Goldilocks::ZERO; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
+            absorb_cursor: 0,
+            mode: PoseidonMode::Absorbing,
+            final_digest_words: [0; neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN * 2],
+            perm: neo_ccs::crypto::poseidon2_goldilocks::permutation(),
+        }
+    }
+
+    fn reset_message(&mut self) {
+        self.state.fill(Goldilocks::ZERO);
+        self.absorb_cursor = 0;
+        self.mode = PoseidonMode::Absorbing;
+        self.final_digest_words.fill(0);
+    }
+
+    fn permute(&mut self) {
+        self.state = self.perm.permute(self.state);
+    }
+
+    fn absorb_elem(&mut self, elem: Goldilocks) {
+        if self.mode == PoseidonMode::Finalized {
+            // Starting a new message after a finalized digest.
+            self.reset_message();
+        }
+
+        self.state[self.absorb_cursor] += elem;
+        self.absorb_cursor += 1;
+
+        if self.absorb_cursor == neo_ccs::crypto::poseidon2_goldilocks::RATE {
+            self.permute();
+            self.absorb_cursor = 0;
+        }
+    }
+
+    fn finalize(&mut self) -> Result<(), String> {
+        if self.mode == PoseidonMode::Finalized {
+            return Err("poseidon2 precompile: finalize called in Finalized mode".into());
+        }
+
+        // Match poseidon2_hash semantics exactly:
+        // - if there is a partial block, permute once
+        // - then add 1 to state[0] and permute again
+        if self.absorb_cursor > 0 {
+            self.permute();
+            self.absorb_cursor = 0;
+        }
+
+        self.state[0] += Goldilocks::ONE;
+        self.permute();
+
+        for i in 0..neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN {
+            let v = self.state[i].as_canonical_u64();
+            self.final_digest_words[2 * i] = v as u32;
+            self.final_digest_words[2 * i + 1] = (v >> 32) as u32;
+        }
+        self.mode = PoseidonMode::Finalized;
+        Ok(())
+    }
+
+    fn squeeze_word(&self, idx: u8) -> Result<u32, String> {
+        if self.mode != PoseidonMode::Finalized {
+            return Err("poseidon2 precompile: squeeze called before finalize".into());
+        }
+        let i = idx as usize;
+        if i >= self.final_digest_words.len() {
+            return Err(format!(
+                "poseidon2 precompile: squeeze idx out of range (idx={}, max={})",
+                idx,
+                self.final_digest_words.len() - 1
+            ));
+        }
+        Ok(self.final_digest_words[i])
+    }
 }
 
 /// A RISC-V CPU that can be traced using Neo's VmCpu trait.
@@ -38,6 +134,8 @@ pub struct RiscvCpu {
     pending_decomposition: Option<PendingDecomposition>,
     /// Virtual register values for the currently executing decomposition sequence.
     virtual_regs: HashMap<u64, u64>,
+    /// Single-slot Poseidon2 precompile state machine.
+    poseidon2_ctx: PoseidonPrecompileCtx,
 }
 
 impl RiscvCpu {
@@ -54,6 +152,7 @@ impl RiscvCpu {
             enable_runtime_decomposition: false,
             pending_decomposition: None,
             virtual_regs: HashMap::new(),
+            poseidon2_ctx: PoseidonPrecompileCtx::new(),
         }
     }
 
@@ -973,6 +1072,42 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
                 // Store new value
                 twist.store(ram, addr, self.mask_value(new_val));
+            }
+
+            // === Custom Poseidon2 precompile instructions ===
+            RiscvInstruction::Poseidon2AbsorbElem { rs1: _, rs2: _ } => {
+                if !cfg!(feature = "poseidon-precompile") {
+                    return Err(
+                        "poseidon2 precompile instruction executed but feature `poseidon-precompile` is disabled"
+                            .into(),
+                    );
+                }
+                let lo = rs1_val as u32 as u64;
+                let hi = rs2_val as u32 as u64;
+                let elem_u64 = lo | (hi << 32);
+                self.poseidon2_ctx
+                    .absorb_elem(Goldilocks::from_u64(elem_u64));
+            }
+
+            RiscvInstruction::Poseidon2Finalize => {
+                if !cfg!(feature = "poseidon-precompile") {
+                    return Err(
+                        "poseidon2 precompile instruction executed but feature `poseidon-precompile` is disabled"
+                            .into(),
+                    );
+                }
+                self.poseidon2_ctx.finalize()?;
+            }
+
+            RiscvInstruction::Poseidon2SqueezeWord { rd, idx } => {
+                if !cfg!(feature = "poseidon-precompile") {
+                    return Err(
+                        "poseidon2 precompile instruction executed but feature `poseidon-precompile` is disabled"
+                            .into(),
+                    );
+                }
+                let word = self.poseidon2_ctx.squeeze_word(idx)?;
+                self.write_reg(twist, rd, word as u64);
             }
 
             // === System Instructions ===

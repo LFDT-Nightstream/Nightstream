@@ -505,6 +505,8 @@ pub(crate) fn finalize_route_a_memory_prover(
         val_me_claims,
         wb_me_claims,
         wp_me_claims,
+        poseidon_cycle_me_claims: Vec::new(),
+        poseidon_local_me_claims: Vec::new(),
         shout_addr_pre: shout_addr_pre.clone(),
         proofs,
     })

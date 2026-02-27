@@ -492,6 +492,36 @@ pub enum RiscvInstruction {
         rs2: u8,
     },
 
+    // === Custom Precompiles (CUSTOM-0 / opcode 0x0B) ===
+    /// Poseidon2 precompile absorb step.
+    ///
+    /// Fixed encoding:
+    /// - opcode: CUSTOM-0 (0x0B)
+    /// - funct7: 0x00
+    /// - funct3: 0b000
+    /// - rd: x0
+    ///
+    /// Semantics: absorb one Goldilocks element reconstructed from
+    /// `rs1` (low 32 bits) and `rs2` (high 32 bits).
+    Poseidon2AbsorbElem { rs1: u8, rs2: u8 },
+    /// Poseidon2 precompile finalize step.
+    ///
+    /// Fixed encoding:
+    /// - opcode: CUSTOM-0 (0x0B)
+    /// - funct7: 0x01
+    /// - funct3: 0b000
+    /// - rd: x0
+    Poseidon2Finalize,
+    /// Poseidon2 precompile squeeze word.
+    ///
+    /// Fixed encoding:
+    /// - opcode: CUSTOM-0 (0x0B)
+    /// - funct7: 0x02
+    /// - funct3: idx (0..=7)
+    ///
+    /// Semantics: write digest word `idx` to register `rd`.
+    Poseidon2SqueezeWord { rd: u8, idx: u8 },
+
     // === System Instructions ===
     /// Environment Call (syscall)
     Ecall,

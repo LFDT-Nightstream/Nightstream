@@ -253,7 +253,7 @@ fn mixed_instruction_sequence() -> Vec<RiscvInstruction> {
 fn debug_trace_single_n_mixed_ops() {
     let n = env_usize("NS_DEBUG_N", 256);
     let chunk_rows = env_usize("NS_TRACE_CHUNK_ROWS", n + 1);
-    assert!(n > 0);
+
     assert!(chunk_rows > 0);
 
     let base = mixed_instruction_sequence();
@@ -308,7 +308,6 @@ fn debug_trace_single_n_mixed_ops() {
 #[ignore = "perf-style test: NS_DEBUG_N=256 cargo test -p neo-fold --release --test perf -- --ignored --nocapture debug_chunked_single_n_mixed_ops"]
 fn debug_chunked_single_n_mixed_ops() {
     let n = env_usize("NS_DEBUG_N", 256);
-    assert!(n > 0);
 
     let base = mixed_instruction_sequence();
     let mut program: Vec<RiscvInstruction> = (0..n).map(|i| base[i % base.len()].clone()).collect();
@@ -379,7 +378,7 @@ fn debug_trace_core_rows_per_cycle_equiv() {
 #[ignore = "W0 snapshot: NS_DEBUG_N=10 cargo test -p neo-fold --release --test perf -- --ignored --nocapture report_track_a_w0_w1_snapshot"]
 fn report_track_a_w0_w1_snapshot() {
     let n = env_usize("NS_DEBUG_N", 256);
-    assert!(n > 0);
+
     let chunk_rows = n + 1;
 
     let base = mixed_instruction_sequence();
@@ -805,7 +804,7 @@ fn report_track_a_w0_w1_snapshot() {
 fn debug_trace_vs_chunked_single_n_mixed_ops() {
     let n = env_usize("NS_DEBUG_N", 256);
     let chunk_rows = env_usize("NS_TRACE_CHUNK_ROWS", n + 1);
-    assert!(n > 0);
+
     assert!(chunk_rows > 0);
     let base = mixed_instruction_sequence();
     assert_eq!(base.len(), 10);

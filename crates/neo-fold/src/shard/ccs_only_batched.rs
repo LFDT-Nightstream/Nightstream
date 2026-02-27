@@ -48,6 +48,8 @@ fn empty_mem_sidecar_proof() -> MemSidecarProof<Cmt, F, K> {
         val_me_claims: Vec::new(),
         wb_me_claims: Vec::new(),
         wp_me_claims: Vec::new(),
+        poseidon_cycle_me_claims: Vec::new(),
+        poseidon_local_me_claims: Vec::new(),
         shout_addr_pre: Default::default(),
         proofs: Vec::new(),
     }
@@ -66,6 +68,8 @@ fn ensure_empty_sidecars_in_step_proof(step_idx: usize, step_proof: &StepProof) 
     if !step_proof.mem.val_me_claims.is_empty()
         || !step_proof.mem.wb_me_claims.is_empty()
         || !step_proof.mem.wp_me_claims.is_empty()
+        || !step_proof.mem.poseidon_cycle_me_claims.is_empty()
+        || !step_proof.mem.poseidon_local_me_claims.is_empty()
         || !step_proof.mem.shout_addr_pre.claimed_sums.is_empty()
         || !step_proof.mem.shout_addr_pre.groups.is_empty()
         || !step_proof.mem.proofs.is_empty()
@@ -88,6 +92,15 @@ fn ensure_empty_sidecars_in_step_proof(step_idx: usize, step_proof: &StepProof) 
     if !step_proof.val_fold.is_empty() || !step_proof.wb_fold.is_empty() || !step_proof.wp_fold.is_empty() {
         return Err(PiCcsError::ProtocolError(format!(
             "step {}: expected no auxiliary folding lanes for ccs-only batching",
+            step_idx
+        )));
+    }
+    if step_proof.poseidon_local_time.is_some()
+        || !step_proof.poseidon_cycle_fold.is_empty()
+        || !step_proof.poseidon_local_fold.is_empty()
+    {
+        return Err(PiCcsError::ProtocolError(format!(
+            "step {}: expected no poseidon artifacts for ccs-only batching",
             step_idx
         )));
     }
@@ -299,6 +312,9 @@ where
             },
             mem: empty_mem_sidecar_proof(),
             batched_time: empty_batched_time_proof(),
+            poseidon_local_time: None,
+            poseidon_cycle_fold: Vec::new(),
+            poseidon_local_fold: Vec::new(),
             val_fold: Vec::new(),
             wb_fold: Vec::new(),
             wp_fold: Vec::new(),

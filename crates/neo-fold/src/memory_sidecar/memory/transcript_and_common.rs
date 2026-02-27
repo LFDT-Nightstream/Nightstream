@@ -864,11 +864,12 @@ pub(crate) fn w2_decode_selector_residuals(
     active: K,
     decode_opcode: K,
     opcode_flags: [K; 12],
+    op_custom: K,
     funct3_is: [K; 8],
     funct3_bits: [K; 3],
     op_amo: K,
 ) -> [K; 8] {
-    let opcode_one_hot = opcode_flags.into_iter().fold(K::ZERO, |acc, v| acc + v) - active;
+    let opcode_one_hot = opcode_flags.into_iter().fold(K::ZERO, |acc, v| acc + v) + op_custom - active;
     let funct3_one_hot = funct3_is.into_iter().fold(K::ZERO, |acc, v| acc + v) - active;
     let funct3_bit0_link = (funct3_is[1] + funct3_is[3] + funct3_is[5] + funct3_is[7]) - funct3_bits[0];
     let funct3_bit1_link = (funct3_is[2] + funct3_is[3] + funct3_is[6] + funct3_is[7]) - funct3_bits[1];
@@ -888,6 +889,7 @@ pub(crate) fn w2_decode_selector_residuals(
         + opcode_flags[9] * K::from(F::from_u64(0x0f))
         + opcode_flags[10] * K::from(F::from_u64(0x73))
         + opcode_flags[11] * K::from(F::from_u64(0x2f))
+        + op_custom * K::from(F::from_u64(0x0b))
         - decode_opcode;
 
     [
@@ -1184,8 +1186,10 @@ pub(crate) fn control_next_pc_linear_residual(
     op_misc_mem: K,
     op_system: K,
     op_amo: K,
+    op_custom: K,
 ) -> K {
-    let op_linear = op_lui + op_auipc + op_load + op_store + op_alu_imm + op_alu_reg + op_misc_mem + op_system + op_amo;
+    let op_linear =
+        op_lui + op_auipc + op_load + op_store + op_alu_imm + op_alu_reg + op_misc_mem + op_system + op_amo + op_custom;
     let non_virtual = K::ONE - is_virtual;
     non_virtual * op_linear * (pc_after - pc_before - K::from(F::from_u64(4)))
 }

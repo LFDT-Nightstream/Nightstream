@@ -307,6 +307,10 @@ pub struct MemSidecarProof<C, FF, KK> {
     pub wb_me_claims: Vec<CeClaim<C, FF, KK>>,
     /// CPU ME openings at `r_time` used to bind WP quiescence terminals to committed trace columns.
     pub wp_me_claims: Vec<CeClaim<C, FF, KK>>,
+    /// Poseidon cycle-lane ME openings at `r_time` used to bind Poseidon Route-A cycle terminals.
+    pub poseidon_cycle_me_claims: Vec<CeClaim<C, FF, KK>>,
+    /// Poseidon local-lane ME openings used to bind local round/transition terminals.
+    pub poseidon_local_me_claims: Vec<CeClaim<C, FF, KK>>,
     /// Route A Shout address pre-time proofs batched across all Shout instances in the step.
     pub shout_addr_pre: ShoutAddrPreProof<KK>,
     pub proofs: Vec<MemOrLutProof>,
@@ -344,6 +348,12 @@ pub struct StepProof {
     pub fold: FoldStep,
     pub mem: MemSidecarProof<Cmt, F, K>,
     pub batched_time: BatchedTimeProof,
+    /// Optional Poseidon local-domain batched-time proof (ell = 6 for subperm+row).
+    pub poseidon_local_time: Option<BatchedTimeProof>,
+    /// Folding lane(s) for Poseidon cycle-lane ME claims evaluated at `r_time`.
+    pub poseidon_cycle_fold: Vec<RlcDecProof>,
+    /// Folding lane(s) for Poseidon local-lane ME claims.
+    pub poseidon_local_fold: Vec<RlcDecProof>,
     /// Optional folding lane(s) for ME claims evaluated at `r_val`.
     ///
     /// Each proof is an independent Π_RLC→Π_DEC lane (k=1 in current usage).
@@ -406,6 +416,12 @@ impl ShardProof {
             for inner in sub {
                 Self::extend_val_from_step(inner, out);
             }
+        }
+        for p in &step.poseidon_cycle_fold {
+            out.extend_from_slice(&p.dec_children);
+        }
+        for p in &step.poseidon_local_fold {
+            out.extend_from_slice(&p.dec_children);
         }
         for p in &step.val_fold {
             out.extend_from_slice(&p.dec_children);

@@ -648,6 +648,7 @@ pub(crate) fn build_route_a_control_time_claims(
         decode.op_misc_mem,
         decode.op_system,
         decode.op_amo,
+        decode.op_custom,
         decode.op_lui_write,
         decode.op_auipc_write,
         decode.op_jal_write,
@@ -799,6 +800,12 @@ pub(crate) fn build_route_a_control_time_claims(
             .get(&decode.op_amo)
             .and_then(|v| v.get(j))
             .ok_or_else(|| PiCcsError::ProtocolError("control(shared): missing op_amo row while validating".into()))?;
+        let op_custom = *decode_decoded
+            .get(&decode.op_custom)
+            .and_then(|v| v.get(j))
+            .ok_or_else(|| {
+                PiCcsError::ProtocolError("control(shared): missing op_custom row while validating".into())
+            })?;
         let residual = control_next_pc_linear_residual(
             pc_before,
             pc_after,
@@ -812,10 +819,11 @@ pub(crate) fn build_route_a_control_time_claims(
             op_misc_mem,
             op_system,
             op_amo,
+            op_custom,
         );
         if residual != K::ZERO {
             return Err(PiCcsError::ProtocolError(format!(
-                "control/next_pc_linear residual non-zero at row={j}, residual={residual}, is_virtual={is_virtual}, pc_before={pc_before}, pc_after={pc_after}, op_lui={op_lui}, op_auipc={op_auipc}, op_load={op_load}, op_store={op_store}, op_alu_imm={op_alu_imm}, op_alu_reg={op_alu_reg}, op_misc_mem={op_misc_mem}, op_system={op_system}, op_amo={op_amo}"
+                "control/next_pc_linear residual non-zero at row={j}, residual={residual}, is_virtual={is_virtual}, pc_before={pc_before}, pc_after={pc_after}, op_lui={op_lui}, op_auipc={op_auipc}, op_load={op_load}, op_store={op_store}, op_alu_imm={op_alu_imm}, op_alu_reg={op_alu_reg}, op_misc_mem={op_misc_mem}, op_system={op_system}, op_amo={op_amo}, op_custom={op_custom}"
             )));
         }
     }
@@ -1099,12 +1107,13 @@ pub(crate) fn build_route_a_control_time_claims(
         decode_col(decode.op_misc_mem)?,
         decode_col(decode.op_system)?,
         decode_col(decode.op_amo)?,
+        decode_col(decode.op_custom)?,
     ];
     let linear_weights = control_next_pc_linear_weight_vector(r_cycle, 1);
     let linear_oracle = FormulaOracleSparseTime::new(linear_sparse, 4, r_cycle, move |vals: &[K]| {
         let residual = control_next_pc_linear_residual(
             vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], vals[10],
-            vals[11],
+            vals[11], vals[12],
         );
         linear_weights[0] * residual
     });
@@ -1220,7 +1229,6 @@ pub(crate) fn build_route_a_control_time_claims(
         Some((Box::new(write_oracle), K::ZERO)),
     ))
 }
-
 pub(crate) fn emit_route_a_wb_wp_me_claims(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,

@@ -19,6 +19,8 @@ pub fn verify_route_a_memory_step(
     shout_pre: &[ShoutAddrPreVerifyData],
     twist_pre: &[TwistAddrPreVerifyData],
     step_idx: usize,
+    poseidon_link_chals: Option<&PoseidonLinkChallenges>,
+    poseidon_cont_chals: Option<&PoseidonContinuityChallenges>,
 ) -> Result<RouteAMemoryVerifyOutput, PiCcsError> {
     let chi_cycle_at_r_time = eq_points(r_time, r_cycle);
     let trace_mode = wb_wp_required_for_step_instance(step);
@@ -152,6 +154,7 @@ pub fn verify_route_a_memory_step(
     let w2_enabled = decode_stage_required_for_step_instance(step);
     let w3_enabled = width_stage_required_for_step_instance(step);
     let control_enabled = control_stage_required_for_step_instance(step);
+    let poseidon_cycle_enabled = RouteATimeClaimPlan::poseidon_stage_required_for_step_instance(step)?;
     let claim_plan = RouteATimeClaimPlan::build(
         step,
         claim_idx_start,
@@ -160,6 +163,7 @@ pub fn verify_route_a_memory_step(
         w2_enabled,
         w3_enabled,
         control_enabled,
+        poseidon_cycle_enabled,
     )?;
     if claim_plan.claim_idx_end > batched_final_values.len() {
         return Err(PiCcsError::InvalidInput(format!(
@@ -1344,7 +1348,17 @@ pub fn verify_route_a_memory_step(
         mem_proof,
         step_time_openings,
     )?;
-
+    verify_route_a_poseidon_cycle_terminals(
+        core_t,
+        step,
+        r_time,
+        r_cycle,
+        batched_final_values,
+        &claim_plan,
+        mem_proof,
+        poseidon_link_chals,
+        poseidon_cont_chals,
+    )?;
     Ok(RouteAMemoryVerifyOutput {
         claim_idx_end: claim_plan.claim_idx_end,
         twist_time_openings,

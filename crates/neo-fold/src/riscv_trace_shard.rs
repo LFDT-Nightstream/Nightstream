@@ -564,6 +564,17 @@ fn estimate_route_a_bus_cols(
     Ok(layout.bus_cols)
 }
 
+fn program_requires_poseidon_stage(program: &[RiscvInstruction]) -> bool {
+    program.iter().any(|instr| {
+        matches!(
+            instr,
+            RiscvInstruction::Poseidon2AbsorbElem { .. }
+                | RiscvInstruction::Poseidon2Finalize
+                | RiscvInstruction::Poseidon2SqueezeWord { .. }
+        )
+    })
+}
+
 fn rv32_trace_table_specs(shout_ops: &HashSet<RiscvOpcode>) -> Result<HashMap<u32, LutTableSpec>, PiCcsError> {
     let shout = RiscvShoutTables::new(32);
     let mut table_specs = HashMap::new();
@@ -1037,6 +1048,12 @@ impl Rv32TraceWiring {
 
         let program = decode_program(&self.program_bytes)
             .map_err(|e| PiCcsError::InvalidInput(format!("decode_program failed: {e}")))?;
+        let requires_poseidon_stage = program_requires_poseidon_stage(&program);
+        if requires_poseidon_stage && !cfg!(feature = "poseidon-precompile") {
+            return Err(PiCcsError::InvalidInput(
+                "program uses Poseidon2 precompile instructions, but feature `poseidon-precompile` is disabled".into(),
+            ));
+        }
         let using_default_max_steps = self.max_steps.is_none();
         let max_steps = match self.max_steps {
             Some(n) => {
@@ -1553,6 +1570,7 @@ impl Rv32TraceWiring {
             used_mem_ids,
             used_shout_table_ids,
             output_binding_cfg,
+            requires_poseidon_stage,
             prove_duration,
             prove_phase_durations,
             verify_duration: None,
@@ -1570,6 +1588,7 @@ pub struct Rv32TraceWiringRun {
     used_mem_ids: Vec<u32>,
     used_shout_table_ids: Vec<u32>,
     output_binding_cfg: Option<OutputBindingConfig>,
+    requires_poseidon_stage: bool,
     prove_duration: Duration,
     prove_phase_durations: Rv32TraceProvePhaseDurations,
     verify_duration: Option<Duration>,
@@ -1610,7 +1629,27 @@ impl Rv32TraceWiringRun {
         &self.used_shout_table_ids
     }
 
+    /// Whether static program scan requires Poseidon sidecar proof lanes.
+    pub fn requires_poseidon_stage(&self) -> bool {
+        self.requires_poseidon_stage
+    }
+
     pub fn verify_proof(&self, proof: &ShardProof) -> Result<(), PiCcsError> {
+        if !self.requires_poseidon_stage {
+            for (step_idx, step) in proof.steps.iter().enumerate() {
+                if step.poseidon_local_time.is_some()
+                    || !step.mem.poseidon_cycle_me_claims.is_empty()
+                    || !step.mem.poseidon_local_me_claims.is_empty()
+                    || !step.poseidon_cycle_fold.is_empty()
+                    || !step.poseidon_local_fold.is_empty()
+                {
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "step {}: poseidon proof artifacts present but stage is not required",
+                        step_idx
+                    )));
+                }
+            }
+        }
         let ok = match &self.output_binding_cfg {
             None => self.session.verify_collected(&self.ccs, proof)?,
             Some(cfg) => self

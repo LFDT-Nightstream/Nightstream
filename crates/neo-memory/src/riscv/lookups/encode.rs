@@ -1,4 +1,5 @@
 use super::isa::{BranchCondition, RiscvInstruction, RiscvMemOp, RiscvOpcode};
+use super::{POSEIDON2_ABSORB_FUNCT7, POSEIDON2_CUSTOM_OPCODE, POSEIDON2_FINALIZE_FUNCT7, POSEIDON2_SQUEEZE_FUNCT7};
 
 /// Assemble a single RISC-V instruction to its 32-bit encoding.
 ///
@@ -243,6 +244,24 @@ pub fn encode_instruction(instr: &RiscvInstruction) -> u32 {
                 | ((*rs1 as u32) << 15)
                 | ((*rs2 as u32) << 20)
                 | (funct5 << 27)
+        }
+
+        // === Custom Precompile Instructions (CUSTOM-0) ===
+        RiscvInstruction::Poseidon2AbsorbElem { rs1, rs2 } => {
+            // opcode=0x0B, funct7=0x00, funct3=0, rd=x0
+            POSEIDON2_CUSTOM_OPCODE | ((*rs1 as u32) << 15) | ((*rs2 as u32) << 20) | (POSEIDON2_ABSORB_FUNCT7 << 25)
+        }
+
+        RiscvInstruction::Poseidon2Finalize => {
+            // opcode=0x0B, funct7=0x01, funct3=0, rs1=x0, rs2=x0, rd=x0
+            POSEIDON2_CUSTOM_OPCODE | (POSEIDON2_FINALIZE_FUNCT7 << 25)
+        }
+
+        RiscvInstruction::Poseidon2SqueezeWord { rd, idx } => {
+            // opcode=0x0B, funct7=0x02, funct3=idx[2:0]
+            assert!(*idx < 8, "Poseidon2SqueezeWord idx must be in 0..=7 (got {})", idx);
+            let funct3 = *idx as u32;
+            POSEIDON2_CUSTOM_OPCODE | ((*rd as u32) << 7) | (funct3 << 12) | (POSEIDON2_SQUEEZE_FUNCT7 << 25)
         }
 
         // === System Instructions ===

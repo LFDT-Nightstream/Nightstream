@@ -242,6 +242,7 @@ pub(crate) fn verify_route_a_decode_terminals(
             decode_open_col(decode_layout.op_system)?,
             decode_open_col(decode_layout.op_amo)?,
         ];
+        let op_custom = decode_open_col(decode_layout.op_custom)?;
         let funct3_is = [
             decode_open_col(decode_layout.funct3_is[0])?,
             decode_open_col(decode_layout.funct3_is[1])?,
@@ -314,6 +315,7 @@ pub(crate) fn verify_route_a_decode_terminals(
             ram_has_read: decode_open_col(decode_layout.ram_has_read)?,
             ram_has_write: decode_open_col(decode_layout.ram_has_write)?,
             opcode_flags,
+            op_custom,
             funct3_is,
             funct3_bits,
             funct7_bits,
@@ -714,6 +716,7 @@ pub(crate) fn verify_route_a_control_terminals(
     let op_misc_mem = decode_open_col(decode.op_misc_mem)?;
     let op_system = decode_open_col(decode.op_system)?;
     let op_amo = decode_open_col(decode.op_amo)?;
+    let op_custom = decode_open_col(decode.op_custom)?;
     let rd_is_zero = decode_open_col(decode.rd_is_zero)?;
     let op_lui_write = op_lui * (K::ONE - rd_is_zero);
     let op_auipc_write = op_auipc * (K::ONE - rd_is_zero);
@@ -744,6 +747,7 @@ pub(crate) fn verify_route_a_control_terminals(
             op_misc_mem,
             op_system,
             op_amo,
+            op_custom,
         );
         let weights = control_next_pc_linear_weight_vector(r_cycle, 1);
         let expected = eq_points(r_time, r_cycle) * weights[0] * residual;

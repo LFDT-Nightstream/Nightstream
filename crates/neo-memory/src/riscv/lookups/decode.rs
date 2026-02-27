@@ -1,4 +1,5 @@
 use super::isa::{BranchCondition, RiscvInstruction, RiscvMemOp, RiscvOpcode};
+use super::{POSEIDON2_ABSORB_FUNCT7, POSEIDON2_CUSTOM_OPCODE, POSEIDON2_FINALIZE_FUNCT7, POSEIDON2_SQUEEZE_FUNCT7};
 
 /// RISC-V instruction format types.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -179,6 +180,67 @@ pub fn decode_instruction(instr: u32) -> Result<RiscvInstruction, String> {
         0b0010111 => {
             let imm = (instr >> 12) as i32;
             Ok(RiscvInstruction::Auipc { rd, imm })
+        }
+
+        // CUSTOM-0 (0001011) - Poseidon2 precompile instruction family
+        POSEIDON2_CUSTOM_OPCODE => {
+            if !cfg!(feature = "poseidon-precompile") {
+                return Err("Unsupported CUSTOM-0 instruction: poseidon-precompile feature is disabled".into());
+            }
+            match funct7 {
+                // P2_ABSORB_ELEM: funct7=0x00, funct3=0, rd=x0
+                POSEIDON2_ABSORB_FUNCT7 => {
+                    if funct3 != 0 {
+                        return Err(format!(
+                            "Invalid P2_ABSORB_ELEM encoding: funct3 must be 0 (got {:#x}, instr={:#x})",
+                            funct3, instr
+                        ));
+                    }
+                    if rd != 0 {
+                        return Err(format!(
+                            "Invalid P2_ABSORB_ELEM encoding: rd must be x0 (got x{}, instr={:#x})",
+                            rd, instr
+                        ));
+                    }
+                    Ok(RiscvInstruction::Poseidon2AbsorbElem { rs1, rs2 })
+                }
+                // P2_FINALIZE: funct7=0x01, funct3=0, rd=x0
+                POSEIDON2_FINALIZE_FUNCT7 => {
+                    if funct3 != 0 {
+                        return Err(format!(
+                            "Invalid P2_FINALIZE encoding: funct3 must be 0 (got {:#x}, instr={:#x})",
+                            funct3, instr
+                        ));
+                    }
+                    if rd != 0 {
+                        return Err(format!(
+                            "Invalid P2_FINALIZE encoding: rd must be x0 (got x{}, instr={:#x})",
+                            rd, instr
+                        ));
+                    }
+                    if rs1 != 0 || rs2 != 0 {
+                        return Err(format!(
+                            "Invalid P2_FINALIZE encoding: rs1/rs2 must be x0 (got rs1=x{}, rs2=x{}, instr={:#x})",
+                            rs1, rs2, instr
+                        ));
+                    }
+                    Ok(RiscvInstruction::Poseidon2Finalize)
+                }
+                // P2_SQUEEZE_WORD: funct7=0x02, funct3=idx[2:0], rd=destination
+                POSEIDON2_SQUEEZE_FUNCT7 => {
+                    if rs1 != 0 || rs2 != 0 {
+                        return Err(format!(
+                            "Invalid P2_SQUEEZE_WORD encoding: rs1/rs2 must be x0 (got rs1=x{}, rs2=x{}, instr={:#x})",
+                            rs1, rs2, instr
+                        ));
+                    }
+                    Ok(RiscvInstruction::Poseidon2SqueezeWord { rd, idx: funct3 as u8 })
+                }
+                _ => Err(format!(
+                    "Unsupported CUSTOM-0 instruction: funct7={:#x}, funct3={:#x}, instr={:#x}",
+                    funct7, funct3, instr
+                )),
+            }
         }
 
         // SYSTEM (1110011) - ECALL (trap/terminate in this VM)

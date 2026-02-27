@@ -1,0 +1,24 @@
+[package]
+name = "rv32-poseidon2-soft"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "rv32_poseidon2_soft"
+path = "src/main.rs"
+
+# Standalone guest project: do not inherit the repo workspace.
+[workspace]
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+nightstream-sdk = { path = "../../../../nightstream-sdk", default-features = false }
+qp-poseidon-core = { version = "1.0.7", default-features = false, features = ["p3"] }
+
+[patch.crates-io]
+p3-field = { path = "../circuit-l2-transfer/vendor/p3-field" }
+p3-matrix = { path = "../circuit-l2-transfer/vendor/p3-matrix" }
+p3-dft = { path = "../circuit-l2-transfer/vendor/p3-dft" }

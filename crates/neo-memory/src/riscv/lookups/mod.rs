@@ -107,6 +107,15 @@ pub const PROG_ID: TwistId = TwistId(1);
 /// This is used by the RV32 trace-wiring circuit in "regfile-as-Twist" mode.
 pub const REG_ID: TwistId = TwistId(2);
 
+/// RISC-V CUSTOM-0 opcode used by Poseidon2 precompile instructions.
+pub const POSEIDON2_CUSTOM_OPCODE: u32 = 0x0B;
+/// `funct7` selector for `P2_ABSORB_ELEM`.
+pub const POSEIDON2_ABSORB_FUNCT7: u32 = 0x00;
+/// `funct7` selector for `P2_FINALIZE`.
+pub const POSEIDON2_FINALIZE_FUNCT7: u32 = 0x01;
+/// `funct7` selector for `P2_SQUEEZE_WORD`.
+pub const POSEIDON2_SQUEEZE_FUNCT7: u32 = 0x02;
+
 pub use alu::{compute_op, lookup_entry};
 pub use bits::{interleave_bits, uninterleave_bits};
 pub use cpu::RiscvCpu;

@@ -624,6 +624,12 @@ where
         }
         tr.append_fields(b"sumcheck/initial_sum", &claimed_initial.as_coeffs());
 
+        let poseidon_runtime = prepare_poseidon_verifier_runtime(tr, step, step_proof, step_idx)?;
+        let poseidon_cycle_enabled = poseidon_runtime.cycle_enabled;
+        let poseidon_verify_setup = poseidon_runtime.verify_setup;
+        let poseidon_link_chals = poseidon_runtime.link_chals;
+        let poseidon_cont_chals = poseidon_runtime.cont_chals;
+
         // Route A memory checks use a separate transcript-derived cycle point `r_cycle`
         // to form χ_{r_cycle}(t) weights inside their sum-check polynomials.
         let route_steps = {
@@ -669,6 +675,7 @@ where
             decode_stage_enabled,
             width_stage_enabled,
             control_stage_enabled,
+            poseidon_cycle_enabled,
             ob_inc_total_degree_bound,
         )?;
         if route_r_time.len() != ell_t {
@@ -678,6 +685,14 @@ where
                 route_r_time.len()
             )));
         }
+
+        let poseidon_local_checked =
+            verify_poseidon_local_time_from_setup(tr, step_proof, step_idx, &poseidon_verify_setup)?;
+        ensure_poseidon_link_sums_match_verify(
+            poseidon_cycle_enabled,
+            &step_proof.batched_time,
+            step_proof.poseidon_local_time.as_ref(),
+        )?;
 
         // CCS proof structure consistency.
         let want_rounds_total = ell_n + ell_d;
@@ -1013,6 +1028,8 @@ where
             &shout_pre,
             &twist_pre,
             step_idx,
+            poseidon_link_chals.as_ref(),
+            poseidon_cont_chals.as_ref(),
         )?;
 
         let expected_consumed = if include_ob {
@@ -1028,6 +1045,17 @@ where
                 "step {}: batched claim index mismatch (consumed {}, expected {})",
                 idx, mem_out.claim_idx_end, expected_consumed
             )));
+        }
+        if let Some((r_local, local_final_values, local_anchor)) = poseidon_local_checked.as_ref() {
+            crate::memory_sidecar::memory::verify_route_a_poseidon_local_terminals(
+                s.t(),
+                ell_n,
+                r_local,
+                local_anchor,
+                local_final_values,
+                &step_proof.mem,
+                poseidon_link_chals.as_ref(),
+            )?;
         }
 
         if include_ob {
@@ -1273,6 +1301,19 @@ where
                 val_lane_obligations.extend_from_slice(&proof.dec_children);
             }
         }
+
+        verify_poseidon_fold_lanes(
+            tr,
+            params,
+            &s,
+            &ring,
+            ell_d,
+            mixers,
+            step_idx,
+            idx,
+            step_proof,
+            &mut val_lane_obligations,
+        )?;
 
         if has_stage8_artifacts || requires_stage8_openings {
             validate_step_time_opening_batches_with_transcript(tr, params, step_idx, step, step_proof, &cpu_bus)?;

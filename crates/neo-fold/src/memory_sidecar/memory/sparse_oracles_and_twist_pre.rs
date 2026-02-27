@@ -1101,6 +1101,79 @@ impl RoundOracle for ShoutGammaAdapterOracleSparseTime {
     }
 }
 
+/// Sparse-formula oracle over the full hypercube sum (no anchor chi weighting).
+///
+/// This is used for compressed-domain multiset/link claims where we need true
+/// \sum_j f(j), not f(r_anchor).
+pub(crate) struct FormulaOracleSparseSum {
+    cols: Vec<SparseIdxVec<K>>,
+    degree_bound: usize,
+    eval_fn: Box<dyn Fn(&[K]) -> K>,
+}
+
+impl FormulaOracleSparseSum {
+    pub(crate) fn new(cols: Vec<SparseIdxVec<K>>, degree_bound: usize, eval_fn: Box<dyn Fn(&[K]) -> K>) -> Self {
+        Self {
+            cols,
+            degree_bound,
+            eval_fn,
+        }
+    }
+}
+
+impl RoundOracle for FormulaOracleSparseSum {
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.cols.is_empty() {
+            return vec![K::ZERO; points.len()];
+        }
+
+        let mut pairs = Vec::new();
+        for col in self.cols.iter() {
+            pairs.extend(gather_pairs_from_sparse(col.entries()));
+        }
+        pairs.sort_unstable();
+        pairs.dedup();
+
+        let mut ys = vec![K::ZERO; points.len()];
+        let mut vals = vec![K::ZERO; self.cols.len()];
+        for &pair in pairs.iter() {
+            let child0 = 2 * pair;
+            let child1 = child0 + 1;
+            for (i, &x) in points.iter().enumerate() {
+                for (j, col) in self.cols.iter().enumerate() {
+                    vals[j] = interp(col.get(child0), col.get(child1), x);
+                }
+                let f_x = (self.eval_fn)(&vals);
+                if f_x == K::ZERO {
+                    continue;
+                }
+                ys[i] += f_x;
+            }
+        }
+        ys
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.cols
+            .first()
+            .map(|c| c.len().ilog2() as usize)
+            .unwrap_or(0)
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.degree_bound
+    }
+
+    fn fold(&mut self, r: K) {
+        if self.num_rounds() == 0 {
+            return;
+        }
+        for col in self.cols.iter_mut() {
+            col.fold_round_in_place(r);
+        }
+    }
+}
+
 #[inline]
 pub(crate) fn unpack_interleaved_halves_lsb(addr_bits: &[K]) -> Result<(K, K), PiCcsError> {
     if !addr_bits.len().is_multiple_of(2) {

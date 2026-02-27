@@ -485,7 +485,7 @@ pub(crate) fn verify_route_a_poseidon_cycle_terminals(
         }
         let a_pre = row_active * (K::ONE - is_first);
         let a_post = row_active * (K::ONE - is_last);
-        let call_post = call_pre + op_absorb * mode_pre;
+        let call_post = call_pre;
         let mode_post = op_finalize + (K::ONE - op_finalize - op_absorb) * mode_pre;
         let z_pre = poseidon_cont_compress_tuple(cycle, call_pre, mode_pre, cursor_pre, state_pre, &cont_chals.eta);
         let z_post = poseidon_cont_compress_tuple(

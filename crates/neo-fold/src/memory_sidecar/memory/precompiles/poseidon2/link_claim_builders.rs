@@ -186,10 +186,7 @@ pub(crate) fn populate_poseidon_cycle_link_aux_columns(
         }
     }
 
-    let first_cycle = sidecar.cycle_rows.first().map(|r| r.cycle);
-    let last_cycle = sidecar.cycle_rows.last().map(|r| r.cycle);
-
-    for cycle_row in sidecar.cycle_rows.iter() {
+    for (idx, cycle_row) in sidecar.cycle_rows.iter().enumerate() {
         let j = cycle_row.cycle as usize;
         if j >= t_len {
             return Err(PiCcsError::ProtocolError(format!(
@@ -242,8 +239,12 @@ pub(crate) fn populate_poseidon_cycle_link_aux_columns(
             zrow[cycle_layout.link_u_slot1 * t_len + j] = k_to_base_field(u, "poseidon cycle-link aux slot1")?;
         }
 
-        let is_first = Some(cycle_row.cycle) == first_cycle;
-        let is_last = Some(cycle_row.cycle) == last_cycle;
+        let is_first = idx == 0 || poseidon_cycle_continuity_break_before(cycle_row);
+        let is_last =
+            idx + 1 == sidecar.cycle_rows.len()
+                || poseidon_cycle_continuity_break_before(sidecar.cycle_rows.get(idx + 1).ok_or_else(|| {
+                    PiCcsError::ProtocolError("poseidon cycle-link aux next-row lookup failed".into())
+                })?);
         let a_pre = if is_first { K::ZERO } else { K::ONE };
         let a_post = if is_last { K::ZERO } else { K::ONE };
 
@@ -255,7 +256,7 @@ pub(crate) fn populate_poseidon_cycle_link_aux_columns(
         let cursor_post = K::from(F::from_u64(cycle_row.cursor_after as u64));
         let op_absorb = if cycle_row.op_absorb { K::ONE } else { K::ZERO };
         let op_finalize = if cycle_row.op_finalize { K::ONE } else { K::ZERO };
-        let call_post = call_pre + op_absorb * mode_pre;
+        let call_post = call_pre;
         let mode_post = op_finalize + (K::ONE - op_finalize - op_absorb) * mode_pre;
         let state_pre: [K; POSEIDON_WIDTH] = core::array::from_fn(|i| K::from(F::from_u64(cycle_row.state_pre[i])));
         let state_post: [K; POSEIDON_WIDTH] = core::array::from_fn(|i| K::from(F::from_u64(cycle_row.state_post[i])));
@@ -561,7 +562,7 @@ pub(crate) fn build_route_a_poseidon_cycle_continuity_claims(
             let op_finalize = vals[9];
             let a_pre = row_active * (K::ONE - is_first);
             let a_post = row_active * (K::ONE - is_last);
-            let call_post = call_pre + op_absorb * mode_pre;
+            let call_post = call_pre;
             let mode_post = op_finalize + (K::ONE - op_finalize - op_absorb) * mode_pre;
             let z_pre = poseidon_cont_compress_tuple(cycle_pre, call_pre, mode_pre, cursor_pre, pre_vals, &eta);
             let z_post =

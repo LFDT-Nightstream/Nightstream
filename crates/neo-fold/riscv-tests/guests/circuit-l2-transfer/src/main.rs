@@ -1,10 +1,6 @@
 #![no_std]
 #![no_main]
 
-extern crate alloc;
-
-use alloc::vec::Vec;
-
 type GlDigest = [u64; 4];
 
 const GL_ZERO: u64 = 0;
@@ -58,19 +54,7 @@ fn digest_eq(a: &GlDigest, b: &GlDigest) -> bool {
 
 #[inline]
 fn poseidon2_hash(input: &[u64]) -> GlDigest {
-    let mut bytes = Vec::with_capacity(input.len() * 8);
-    for &x in input {
-        bytes.extend_from_slice(&x.to_le_bytes());
-    }
-
-    let digest = qp_poseidon_core::hash_variable_length_bytes(&bytes);
-    let mut out = [0u64; 4];
-    for (i, chunk) in digest.chunks_exact(8).take(4).enumerate() {
-        let mut limb = [0u8; 8];
-        limb.copy_from_slice(chunk);
-        out[i] = u64::from_le_bytes(limb);
-    }
-    out
+    nightstream_sdk::poseidon2::poseidon2_hash(input)
 }
 
 const MAX_INS: usize = 4;

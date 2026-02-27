@@ -16,7 +16,6 @@ panic = "abort"
 
 [dependencies]
 nightstream-sdk = { path = "../../../../nightstream-sdk", default-features = false }
-qp-poseidon-core = { version = "1.0.7", default-features = false, features = ["p3"] }
 
 [patch.crates-io]
 p3-field = { path = "vendor/p3-field" }

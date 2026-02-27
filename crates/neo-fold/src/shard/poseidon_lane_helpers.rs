@@ -54,6 +54,7 @@ pub(crate) fn poseidon_lane_committer(
 
 #[inline]
 fn local_ell_from_t_len(t_len: usize) -> Result<usize, PiCcsError> {
+    const POSEIDON_LOCAL_MIN_ELL: usize = 5; // 32 in-slot rows => 5 selector bits.
     if t_len == 0 {
         return Err(PiCcsError::InvalidInput("poseidon local: t_len must be > 0".into()));
     }
@@ -62,7 +63,7 @@ fn local_ell_from_t_len(t_len: usize) -> Result<usize, PiCcsError> {
             "poseidon local: t_len must be a power of two, got {t_len}"
         )));
     }
-    Ok(t_len.trailing_zeros() as usize)
+    Ok(core::cmp::max(t_len.trailing_zeros() as usize, POSEIDON_LOCAL_MIN_ELL))
 }
 
 pub(crate) fn build_poseidon_prover_setup(
@@ -71,6 +72,7 @@ pub(crate) fn build_poseidon_prover_setup(
     step: &StepWitnessBundle<Cmt, F, K>,
     step_idx: usize,
     _ell_n: usize,
+    poseidon_carry: &mut crate::memory_sidecar::memory::PoseidonSidecarCarryState,
 ) -> Result<PoseidonProverSetup, PiCcsError> {
     let cycle_enabled =
         crate::memory_sidecar::claim_plan::RouteATimeClaimPlan::poseidon_stage_required_for_step_witness(step)?;
@@ -95,7 +97,8 @@ pub(crate) fn build_poseidon_prover_setup(
         });
     }
 
-    let sidecar = crate::memory_sidecar::memory::build_poseidon_sidecar_table_from_step_witness(params, step)?;
+    let sidecar =
+        crate::memory_sidecar::memory::build_poseidon_sidecar_table_from_step_witness(params, step, poseidon_carry)?;
     let (cycle_z_raw, cycle_m_in, cycle_t_len, cycle_open_cols) =
         crate::memory_sidecar::memory::build_poseidon_cycle_trace_matrix(step, &sidecar)?;
     let (local_z_raw, _local_m_in, local_t_len, local_layout) =

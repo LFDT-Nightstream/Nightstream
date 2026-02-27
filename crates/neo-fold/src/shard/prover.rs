@@ -164,6 +164,7 @@ where
     let mut step_proofs = Vec::with_capacity(steps.len());
     let mut val_lane_wits: Vec<Mat<F>> = Vec::new();
     let mut prev_twist_decoded = initial_prev_twist_decoded;
+    let mut poseidon_carry = crate::memory_sidecar::memory::PoseidonSidecarCarryState::new();
     let mut output_proof: Option<neo_memory::output_check::OutputBindingProof> = None;
     if ob.is_some() && steps.is_empty() {
         return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
@@ -332,7 +333,7 @@ where
         tr.append_fields(b"sumcheck/initial_sum", &ccs_initial_sum.as_coeffs());
 
         // Build Poseidon lanes and bind their commitments *before* sampling route_a/r_cycle.
-        let poseidon_setup = build_poseidon_prover_setup(tr, params, step, step_idx, ell_n)?;
+        let poseidon_setup = build_poseidon_prover_setup(tr, params, step, step_idx, ell_n, &mut poseidon_carry)?;
         let poseidon_cycle_enabled = poseidon_setup.cycle_enabled;
         let poseidon_sidecar = poseidon_setup.sidecar;
         let mut poseidon_cycle_wit = poseidon_setup.cycle_wit;

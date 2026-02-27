@@ -405,6 +405,35 @@ enum PoseidonSidecarBuildMode {
     Finalized,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct PoseidonSidecarCarryState {
+    pub mode_finalized: bool,
+    pub state: [Goldilocks; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
+    pub absorb_cursor: usize,
+    pub digest_words: [u32; neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN * 2],
+    pub call_ctr: u64,
+}
+
+impl PoseidonSidecarCarryState {
+    pub(crate) fn new() -> Self {
+        Self {
+            mode_finalized: false,
+            state: [Goldilocks::ZERO; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
+            absorb_cursor: 0,
+            digest_words: [0u32; neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN * 2],
+            call_ctr: 0,
+        }
+    }
+}
+
+#[inline]
+pub(crate) fn poseidon_cycle_continuity_break_before(row: &Rv32PoseidonCycleEventRow) -> bool {
+    // A new message starts when an absorb executes while the pre-row mode is Finalized.
+    // This row resets state/cursor and bumps call_ctr before applying the absorb, so
+    // continuity should not link across the boundary.
+    row.op_absorb && row.mode_finalized
+}
+
 #[inline]
 fn poseidon_state_to_u64_local(
     state: &[Goldilocks; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
@@ -428,10 +457,10 @@ fn canonical_u64_lt_goldilocks_aux_local(v: u64) -> (u32, u32, u32, u32) {
 pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
     params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
+    carry: &mut PoseidonSidecarCarryState,
 ) -> Result<Rv32PoseidonSidecarTable, PiCcsError> {
     use neo_memory::riscv::lookups::decode_instruction;
 
-    const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
     const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
     const DIGEST_LEN: usize = neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
 
@@ -468,11 +497,21 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
         .ok_or_else(|| PiCcsError::ProtocolError("poseidon sidecar build: missing rd_val column".into()))?;
 
     let perm = neo_ccs::crypto::poseidon2_goldilocks::permutation();
-    let mut mode = PoseidonSidecarBuildMode::Absorbing;
-    let mut state = [Goldilocks::ZERO; WIDTH];
-    let mut absorb_cursor: usize = 0;
-    let mut digest_words = [0u32; DIGEST_LEN * 2];
-    let mut call_ctr = 0u64;
+    let mut mode = if carry.mode_finalized {
+        PoseidonSidecarBuildMode::Finalized
+    } else {
+        PoseidonSidecarBuildMode::Absorbing
+    };
+    let mut state = carry.state;
+    let mut absorb_cursor: usize = carry.absorb_cursor;
+    let mut digest_words = carry.digest_words;
+    let mut call_ctr = carry.call_ctr;
+    if absorb_cursor > RATE {
+        return Err(PiCcsError::ProtocolError(format!(
+            "poseidon sidecar build: invalid carry absorb_cursor={} (rate={RATE})",
+            absorb_cursor
+        )));
+    }
 
     let mut cycle_rows: Vec<Rv32PoseidonCycleEventRow> = Vec::new();
     let mut perm_rows: Vec<Rv32PoseidonPermSlotMetaRow> = Vec::new();
@@ -638,6 +677,12 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
         cycle_rows.push(out);
     }
 
+    carry.mode_finalized = mode == PoseidonSidecarBuildMode::Finalized;
+    carry.state = state;
+    carry.absorb_cursor = absorb_cursor;
+    carry.digest_words = digest_words;
+    carry.call_ctr = call_ctr;
+
     Ok(Rv32PoseidonSidecarTable { cycle_rows, perm_rows })
 }
 
@@ -662,10 +707,7 @@ fn build_poseidon_cycle_col_values(
         }
     }
 
-    let first_cycle = sidecar.cycle_rows.first().map(|r| r.cycle);
-    let last_cycle = sidecar.cycle_rows.last().map(|r| r.cycle);
-
-    for row in sidecar.cycle_rows.iter() {
+    for (idx, row) in sidecar.cycle_rows.iter().enumerate() {
         let j = row.cycle as usize;
         if j >= t_len {
             return Err(PiCcsError::ProtocolError(format!(
@@ -679,20 +721,14 @@ fn build_poseidon_cycle_col_values(
             }
         };
         set(&mut by_col, layout.row_active, K::ONE);
-        set(
-            &mut by_col,
-            layout.is_first,
-            if Some(row.cycle) == first_cycle {
-                K::ONE
-            } else {
-                K::ZERO
-            },
-        );
-        set(
-            &mut by_col,
-            layout.is_last,
-            if Some(row.cycle) == last_cycle { K::ONE } else { K::ZERO },
-        );
+        let is_first = idx == 0 || poseidon_cycle_continuity_break_before(row);
+        let is_last =
+            idx + 1 == sidecar.cycle_rows.len()
+                || poseidon_cycle_continuity_break_before(sidecar.cycle_rows.get(idx + 1).ok_or_else(|| {
+                    PiCcsError::ProtocolError("poseidon cycle sidecar next-row lookup failed".into())
+                })?);
+        set(&mut by_col, layout.is_first, if is_first { K::ONE } else { K::ZERO });
+        set(&mut by_col, layout.is_last, if is_last { K::ONE } else { K::ZERO });
         set(&mut by_col, layout.cycle, K::from(F::from_u64(row.cycle)));
         set(
             &mut by_col,

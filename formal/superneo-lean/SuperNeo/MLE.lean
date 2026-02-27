@@ -1,5 +1,8 @@
 import SuperNeo.EqPoly
 
+/-! Multilinear extension utilities and theorem/check bridges. -/
+
+
 namespace SuperNeo
 
 open F
@@ -107,6 +110,23 @@ theorem mleIdentity_complete
   unfold mleIdentity
   simp [hSize, decide_eq_true hEq]
 
+theorem mleIdentityProp_size_eq
+  {v r : Array F}
+  (hProp : mleIdentityProp v r) :
+  v.size = 2 ^ r.size := by
+  have hSizeFalse : (v.size != 2 ^ r.size) = false := hProp.1
+  by_cases hEq : v.size = 2 ^ r.size
+  · exact hEq
+  · have hNeTrue : (v.size != 2 ^ r.size) = true := by simp [hEq]
+    rw [hNeTrue] at hSizeFalse
+    cases hSizeFalse
+
+theorem mleIdentityProp_eval_eq
+  {v r : Array F}
+  (hProp : mleIdentityProp v r) :
+  mleByInnerProduct v r = mleByFolding v r := by
+  exact hProp.2
+
 theorem mleIdentity_iff_prop
   {v r : Array F} :
   mleIdentity v r = true ↔ mleIdentityProp v r := by
@@ -141,6 +161,18 @@ theorem mleIdentity_complete_eq
   (hProp : mleIdentityPropEq v r) :
   mleIdentity v r = true := by
   exact mleIdentity_complete ((mleIdentityPropEq_iff_prop).1 hProp)
+
+theorem mleIdentityPropEq_size_eq
+  {v r : Array F}
+  (hProp : mleIdentityPropEq v r) :
+  v.size = 2 ^ r.size := by
+  exact hProp.1
+
+theorem mleIdentityPropEq_eval_eq
+  {v r : Array F}
+  (hProp : mleIdentityPropEq v r) :
+  mleByInnerProduct v r = mleByFolding v r := by
+  exact hProp.2
 
 theorem mleIdentity_size_eq
   {v r : Array F}

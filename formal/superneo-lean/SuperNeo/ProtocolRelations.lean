@@ -1,5 +1,8 @@
 import SuperNeo.P21
 
+/-! Shared protocol claim/witness/context relations and shape predicates. -/
+
+
 namespace SuperNeo
 
 open F
@@ -87,6 +90,70 @@ def CEValid (ctx : ProtocolCtx) (claim : CEClaim) (witness : CEWitness) : Prop :
     witness.z = claim.z ∧
     normInfCoeffs witness.z < ctx.ceNormBound
 
+/-- Paper-facing CCS relation surface (claim-only, no witness payload). -/
+def CCSRelation (ctx : ProtocolCtx) (claim : CEClaim) : Prop :=
+  IsDBarMatrix ctx.bar ∧
+    IsDVec claim.a ∧
+    IsDVec claim.b ∧
+    p10CoreProp ctx.bar claim.a claim.b
+
+/-- Paper-facing CE relation surface (evaluation claim + witness linkage + norm bound). -/
+def CERelation (ctx : ProtocolCtx) (claim : CEClaim) (witness : CEWitness) : Prop :=
+  EvalClaimValid ctx claim ∧
+    witness.z = claim.z ∧
+    normInfCoeffs witness.z < ctx.ceNormBound
+
+/-- Relaxed CE relation used by weak-reduction style interfaces (norm bound dropped). -/
+def CERelationRelaxed (ctx : ProtocolCtx) (claim : CEClaim) (witness : CEWitness) : Prop :=
+  EvalClaimValid ctx claim ∧
+    witness.z = claim.z
+
+theorem ceValid_iff_relations
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness} :
+  CEValid ctx claim witness ↔
+    CCSRelation ctx claim ∧ CERelation ctx claim witness := by
+  constructor
+  · intro h
+    rcases h with ⟨hEval, hBar, hA, hB, hP10, hWitness, hNorm⟩
+    exact ⟨⟨hBar, hA, hB, hP10⟩, ⟨hEval, hWitness, hNorm⟩⟩
+  · intro h
+    rcases h with ⟨hCCS, hCE⟩
+    rcases hCCS with ⟨hBar, hA, hB, hP10⟩
+    rcases hCE with ⟨hEval, hWitness, hNorm⟩
+    exact ⟨hEval, hBar, hA, hB, hP10, hWitness, hNorm⟩
+
+theorem ccsRelation_of_ceValid
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (h : CEValid ctx claim witness) :
+  CCSRelation ctx claim := by
+  exact (ceValid_iff_relations.mp h).1
+
+theorem ceRelation_of_ceValid
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (h : CEValid ctx claim witness) :
+  CERelation ctx claim witness := by
+  exact (ceValid_iff_relations.mp h).2
+
+theorem ceValid_of_relations
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (hCCS : CCSRelation ctx claim)
+  (hCE : CERelation ctx claim witness) :
+  CEValid ctx claim witness := by
+  exact (ceValid_iff_relations.mpr ⟨hCCS, hCE⟩)
+
+theorem ceRelationRelaxed_of_ceRelation
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (h : CERelation ctx claim witness) :
+  CERelationRelaxed ctx claim witness := by
+  exact ⟨h.1, h.2.1⟩
+
+theorem ceRelation_of_relaxed_and_norm
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (hRelaxed : CERelationRelaxed ctx claim witness)
+  (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
+  CERelation ctx claim witness := by
+  exact ⟨hRelaxed.1, hRelaxed.2, hNorm⟩
+
 theorem p21ProtocolTarget_to_ClaimArithmeticValid
   {ctx : ProtocolCtx} {claim : CEClaim}
   (hP21 : p21ProtocolTarget
@@ -141,6 +208,24 @@ theorem p21ProtocolTarget_to_CEValid
   CEValid ctx claim witness := by
   exact ⟨p21ProtocolTarget_to_EvalClaimValid hShape hP21, hBar, hA, hB, hP10, hWitness, hNorm⟩
 
+theorem p21ProtocolTarget_to_CERelation
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (hShape : ClaimShapeValid claim)
+  (hP21 : p21ProtocolTarget
+    ctx.bar
+    claim.m
+    claim.z claim.z1 claim.z2 claim.zDecomp claim.r
+    claim.rho1 claim.rho2
+    ctx.bSplit ctx.kSplit
+    claim.cset claim.samples claim.invDelta claim.qVals
+    claim.xs claim.ys claim.expectedCoeffs
+    claim.evalPoint claim.expectedEval
+    ctx.ell ctx.totalDegree ctx.setSize)
+  (hWitness : witness.z = claim.z)
+  (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
+  CERelation ctx claim witness := by
+  exact ⟨p21ProtocolTarget_to_EvalClaimValid hShape hP21, hWitness, hNorm⟩
+
 theorem p21ProtocolTarget_to_CEValid_with_invertibility
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
   (hShape : ClaimShapeValid claim)
@@ -188,6 +273,46 @@ theorem p21FullMathTarget_to_CEValid
   CEValid ctx claim witness := by
   rcases hFull with ⟨hP10, hP21⟩
   exact p21ProtocolTarget_to_CEValid hShape hBar hA hB hP21 hP10 hWitness hNorm
+
+theorem p21FullMathTarget_to_CCSRelation
+  {ctx : ProtocolCtx} {claim : CEClaim}
+  (hBar : IsDBarMatrix ctx.bar)
+  (hA : IsDVec claim.a)
+  (hB : IsDVec claim.b)
+  (hFull : p21FullMathTarget
+    ctx.bar
+    claim.a claim.b
+    claim.m
+    claim.z claim.z1 claim.z2 claim.zDecomp claim.r
+    claim.rho1 claim.rho2
+    ctx.bSplit ctx.kSplit
+    claim.cset claim.samples claim.invDelta claim.qVals
+    claim.xs claim.ys claim.expectedCoeffs
+    claim.evalPoint claim.expectedEval
+    ctx.ell ctx.totalDegree ctx.setSize) :
+  CCSRelation ctx claim := by
+  rcases hFull with ⟨hP10, _hP21⟩
+  exact ⟨hBar, hA, hB, hP10⟩
+
+theorem p21FullMathTarget_to_CERelation
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (hShape : ClaimShapeValid claim)
+  (hFull : p21FullMathTarget
+    ctx.bar
+    claim.a claim.b
+    claim.m
+    claim.z claim.z1 claim.z2 claim.zDecomp claim.r
+    claim.rho1 claim.rho2
+    ctx.bSplit ctx.kSplit
+    claim.cset claim.samples claim.invDelta claim.qVals
+    claim.xs claim.ys claim.expectedCoeffs
+    claim.evalPoint claim.expectedEval
+    ctx.ell ctx.totalDegree ctx.setSize)
+  (hWitness : witness.z = claim.z)
+  (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
+  CERelation ctx claim witness := by
+  rcases hFull with ⟨_hP10, hP21⟩
+  exact p21ProtocolTarget_to_CERelation hShape hP21 hWitness hNorm
 
 theorem p21FullMathTarget_to_CEValid_with_invertibility
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}

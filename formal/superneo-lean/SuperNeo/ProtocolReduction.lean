@@ -1,10 +1,15 @@
 import SuperNeo.ProtocolRelations
 
+/-! Claim-level protocol reduction constructors and CE-validity bridges. -/
+
+
 namespace SuperNeo
 
+/-- Claim-level wrapper exposing the P10 core proposition through `ProtocolCtx`/`CEClaim`. -/
 def p10ForClaim (ctx : ProtocolCtx) (claim : CEClaim) : Prop :=
   p10CoreProp ctx.bar claim.a claim.b
 
+/-- Claim-level wrapper exposing the full P20 arithmetic bundle obligations. -/
 def p20ForClaim (ctx : ProtocolCtx) (claim : CEClaim) : Prop :=
   p20ArithmeticBundle
     ctx.bar
@@ -17,6 +22,41 @@ def p20ForClaim (ctx : ProtocolCtx) (claim : CEClaim) : Prop :=
     claim.xs claim.ys claim.expectedCoeffs
     claim.evalPoint claim.expectedEval
     ctx.ell ctx.totalDegree ctx.setSize
+
+/-- Internal helper: derive the P12 matrix-transform equality for this claim from
+`thm3CoreAssumption` and `ClaimShapeValid` (no tuple-projection shape extraction). -/
+private theorem matrixTransformEq_of_thm3CoreAssumption_of_shape
+  {ctx : ProtocolCtx} {claim : CEClaim}
+  (hThm3 : thm3CoreAssumption ctx.bar)
+  (hShape : ClaimShapeValid claim) :
+  matrixVecDirect claim.m claim.z = matrixVecCtBar ctx.bar claim.m claim.z := by
+  exact matrixTransformEq_of_thm3CoreAssumption hThm3
+    (claimShapeValid_matrixRowsCompatible hShape)
+
+/-- Internal helper: from proposition-level P20 obligations, derive invertibility witness and CE validity. -/
+private theorem ceValid_with_invertibility_of_p20
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (hShape : ClaimShapeValid claim)
+  (hBar : IsDBarMatrix ctx.bar)
+  (hA : IsDVec claim.a)
+  (hB : IsDVec claim.b)
+  (hP10 : p10ForClaim ctx claim)
+  (hP20 : p20ForClaim ctx claim)
+  (hWitness : witness.z = claim.z)
+  (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
+  ∃ deltaInv : Coeffs, mulRq claim.invDelta deltaInv = oneRq ∧ CEValid ctx claim witness := by
+  have hP21 : p21ProtocolTarget
+      ctx.bar
+      claim.m
+      claim.z claim.z1 claim.z2 claim.zDecomp claim.r
+      claim.rho1 claim.rho2
+      ctx.bSplit ctx.kSplit
+      claim.cset claim.samples claim.invDelta claim.qVals
+      claim.xs claim.ys claim.expectedCoeffs
+      claim.evalPoint claim.expectedEval
+      ctx.ell ctx.totalDegree ctx.setSize := by
+    exact p21ProtocolTarget_of_p20 hP20
+  exact p21ProtocolTarget_to_CEValid_with_invertibility hShape hBar hA hB hP21 hP10 hWitness hNorm
 
 theorem p20ForClaim_of_props_with_thm3CoreAssumption
   {ctx : ProtocolCtx} {claim : CEClaim}
@@ -41,6 +81,147 @@ theorem p20ForClaim_of_props_with_thm3CoreAssumption
     (hP16 := invertibilityPreconditions_from_constants)
     (hP16Win := hP16Win)
     (hP17 := hP17)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ForClaim_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions
+  {ctx : ProtocolCtx} {claim : CEClaim}
+  (hP6 : p20DecompProp claim.zDecomp ctx.bSplit ctx.kSplit)
+  (hP12Rows : MatrixRowsCompatible claim.m claim.z)
+  (hP12Eq : matrixVecDirect claim.m claim.z = matrixVecCtBar ctx.bar claim.m claim.z)
+  (hP14 : p20EvalHomProp ctx.bar claim.m claim.z1 claim.z2 claim.r claim.rho1 claim.rho2)
+  (hP15Vec : p20VecModuleProp ctx.hVec claim.rho1 claim.z1 claim.z2)
+  (hP15Scal : p20ScalarModuleProp ctx.hScal claim.rho1 claim.z1 claim.z2)
+  (hP16Win : p20InvertibilityWindowProp claim.invDelta)
+  (hCset : ∀ i : Fin claim.cset.size, normInfCoeffs claim.cset[i] ≤ Parameters.Goldilocks.B)
+  (hSamples : ∀ j : Fin claim.samples.size, normInfCoeffs claim.samples[j] ≤ Parameters.Goldilocks.B)
+  (hRaw : GoldilocksRawNormBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption)
+  (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm claim.cset))
+  (hP18 : p20PolyProp claim.qVals ctx.ell ctx.totalDegree ctx.setSize)
+  (hP19 : p20InterpProp claim.xs claim.ys claim.expectedCoeffs claim.evalPoint claim.expectedEval) :
+  p20ForClaim ctx claim := by
+  exact p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := invertibilityPreconditions_from_constants)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := hRaw)
+    (hFieldOps := hFieldOps)
+    (hUpper := hUpper)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ForClaim_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions_inRange
+  {ctx : ProtocolCtx} {claim : CEClaim}
+  (hP6 : p20DecompProp claim.zDecomp ctx.bSplit ctx.kSplit)
+  (hP12Rows : MatrixRowsCompatible claim.m claim.z)
+  (hP12Eq : matrixVecDirect claim.m claim.z = matrixVecCtBar ctx.bar claim.m claim.z)
+  (hP14 : p20EvalHomProp ctx.bar claim.m claim.z1 claim.z2 claim.r claim.rho1 claim.rho2)
+  (hP15Vec : p20VecModuleProp ctx.hVec claim.rho1 claim.z1 claim.z2)
+  (hP15Scal : p20ScalarModuleProp ctx.hScal claim.rho1 claim.z1 claim.z2)
+  (hP16Win : p20InvertibilityWindowProp claim.invDelta)
+  (hCset : ∀ i : Fin claim.cset.size, normInfCoeffs claim.cset[i] ≤ Parameters.Goldilocks.B)
+  (hSamples : ∀ j : Fin claim.samples.size, normInfCoeffs claim.samples[j] ≤ Parameters.Goldilocks.B)
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption)
+  (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm claim.cset))
+  (hP18 : p20PolyProp claim.qVals ctx.ell ctx.totalDegree ctx.setSize)
+  (hP19 : p20InterpProp claim.xs claim.ys claim.expectedCoeffs claim.evalPoint claim.expectedEval) :
+  p20ForClaim ctx claim := by
+  exact p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions_inRange
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := invertibilityPreconditions_from_constants)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRawInRange := hRawInRange)
+    (hFieldOps := hFieldOps)
+    (hUpper := hUpper)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ForClaim_of_props_with_sampling_operand_fieldOp_assumptions
+  {ctx : ProtocolCtx} {claim : CEClaim}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp claim.zDecomp ctx.bSplit ctx.kSplit)
+  (hP12Rows : MatrixRowsCompatible claim.m claim.z)
+  (hP12Eq : matrixVecDirect claim.m claim.z = matrixVecCtBar ctx.bar claim.m claim.z)
+  (hP14 : p20EvalHomProp ctx.bar claim.m claim.z1 claim.z2 claim.r claim.rho1 claim.rho2)
+  (hP15Vec : p20VecModuleProp ctx.hVec claim.rho1 claim.z1 claim.z2)
+  (hP15Scal : p20ScalarModuleProp ctx.hScal claim.rho1 claim.z1 claim.z2)
+  (hP16Win : p20InvertibilityWindowProp claim.invDelta)
+  (hCset : ∀ i : Fin claim.cset.size, normInfCoeffs claim.cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin claim.samples.size, normInfCoeffs claim.samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB (theorem9UpperBound (maxRhoNorm claim.cset)))
+  (hOps :
+    rawFieldOpCollapseBound
+      (theorem9UpperBound (maxRhoNorm claim.cset))
+      (theorem9UpperBound (maxRhoNorm claim.cset)))
+  (hP18 : p20PolyProp claim.qVals ctx.ell ctx.totalDegree ctx.setSize)
+  (hP19 : p20InterpProp claim.xs claim.ys claim.expectedCoeffs claim.evalPoint claim.expectedEval) :
+  p20ForClaim ctx claim := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_fieldOp_assumptions
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := invertibilityPreconditions_from_constants)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := hRaw)
+    (hOps := hOps)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ForClaim_of_props_with_sampling_operand_fieldOp_assumptions_inRange
+  {ctx : ProtocolCtx} {claim : CEClaim}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp claim.zDecomp ctx.bSplit ctx.kSplit)
+  (hP12Rows : MatrixRowsCompatible claim.m claim.z)
+  (hP12Eq : matrixVecDirect claim.m claim.z = matrixVecCtBar ctx.bar claim.m claim.z)
+  (hP14 : p20EvalHomProp ctx.bar claim.m claim.z1 claim.z2 claim.r claim.rho1 claim.rho2)
+  (hP15Vec : p20VecModuleProp ctx.hVec claim.rho1 claim.z1 claim.z2)
+  (hP15Scal : p20ScalarModuleProp ctx.hScal claim.rho1 claim.z1 claim.z2)
+  (hP16Win : p20InvertibilityWindowProp claim.invDelta)
+  (hCset : ∀ i : Fin claim.cset.size, normInfCoeffs claim.cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin claim.samples.size, normInfCoeffs claim.samples[j] ≤ BB)
+  (hRawInRange :
+    mulRqRawInRangeBoundFromOperands BA BB (theorem9UpperBound (maxRhoNorm claim.cset)))
+  (hOps :
+    rawFieldOpCollapseBound
+      (theorem9UpperBound (maxRhoNorm claim.cset))
+      (theorem9UpperBound (maxRhoNorm claim.cset)))
+  (hP18 : p20PolyProp claim.qVals ctx.ell ctx.totalDegree ctx.setSize)
+  (hP19 : p20InterpProp claim.xs claim.ys claim.expectedCoeffs claim.evalPoint claim.expectedEval) :
+  p20ForClaim ctx claim := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_fieldOp_assumptions_inRange
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := invertibilityPreconditions_from_constants)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRawInRange := hRawInRange)
+    (hOps := hOps)
     (hP18 := hP18)
     (hP19 := hP19)
 
@@ -147,14 +328,15 @@ theorem p20ForClaim_of_props_with_evalHom_checkAssumption
   (hP18 : p20PolyProp claim.qVals ctx.ell ctx.totalDegree ctx.setSize)
   (hP19 : p20InterpProp claim.xs claim.ys claim.expectedCoeffs claim.evalPoint claim.expectedEval) :
   p20ForClaim ctx claim := by
-  exact p20ArithmeticBundle_of_props
+  exact p20ForClaim_of_props_with_evalHom_assumption
     (hP6 := hP6)
     (hP12Rows := hP12Rows)
     (hP12Eq := hP12Eq)
-    (hP14 := p20EvalHomProp_of_checkAssumption hP14Check hP14Size hP14Rows)
+    (hP14Assm := p14EvalHomAssumption_of_checkAssumption hP14Check)
+    (hP14Size := hP14Size)
+    (hP14Rows := hP14Rows)
     (hP15Vec := hP15Vec)
     (hP15Scal := hP15Scal)
-    (hP16 := invertibilityPreconditions_from_constants)
     (hP16Win := hP16Win)
     (hP17 := hP17)
     (hP18 := hP18)
@@ -301,6 +483,88 @@ theorem superneoMathProtocolSkeleton_of_props
       ctx.ell ctx.totalDegree ctx.setSize := by
     exact p21ProtocolTarget_of_p20 hP20
   exact p21ProtocolTarget_to_CEValid hShape hBar hA hB hP21 hP10 hWitness hNorm
+
+theorem superneoMathProtocolSkeleton_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (hShape : ClaimShapeValid claim)
+  (hBar : IsDBarMatrix ctx.bar)
+  (hA : IsDVec claim.a)
+  (hB : IsDVec claim.b)
+  (hP10 : p10ForClaim ctx claim)
+  (hP6 : p20DecompProp claim.zDecomp ctx.bSplit ctx.kSplit)
+  (hP12Eq : matrixVecDirect claim.m claim.z = matrixVecCtBar ctx.bar claim.m claim.z)
+  (hP14 : p20EvalHomProp ctx.bar claim.m claim.z1 claim.z2 claim.r claim.rho1 claim.rho2)
+  (hP15Vec : p20VecModuleProp ctx.hVec claim.rho1 claim.z1 claim.z2)
+  (hP15Scal : p20ScalarModuleProp ctx.hScal claim.rho1 claim.z1 claim.z2)
+  (hP16Win : p20InvertibilityWindowProp claim.invDelta)
+  (hCset : ∀ i : Fin claim.cset.size, normInfCoeffs claim.cset[i] ≤ Parameters.Goldilocks.B)
+  (hSamples : ∀ j : Fin claim.samples.size, normInfCoeffs claim.samples[j] ≤ Parameters.Goldilocks.B)
+  (hRaw : GoldilocksRawNormBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption)
+  (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm claim.cset))
+  (hP18 : p20PolyProp claim.qVals ctx.ell ctx.totalDegree ctx.setSize)
+  (hP19 : p20InterpProp claim.xs claim.ys claim.expectedCoeffs claim.evalPoint claim.expectedEval)
+  (hWitness : witness.z = claim.z)
+  (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
+  CEValid ctx claim witness := by
+  have hP20 : p20ForClaim ctx claim :=
+    p20ForClaim_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions
+      (hP6 := hP6)
+      (hP12Rows := claimShapeValid_matrixRowsCompatible hShape)
+      (hP12Eq := hP12Eq)
+      (hP14 := hP14)
+      (hP15Vec := hP15Vec)
+      (hP15Scal := hP15Scal)
+      (hP16Win := hP16Win)
+      (hCset := hCset)
+      (hSamples := hSamples)
+      (hRaw := hRaw)
+      (hFieldOps := hFieldOps)
+      (hUpper := hUpper)
+      (hP18 := hP18)
+      (hP19 := hP19)
+  exact superneoMathProtocolSkeleton_of_props hShape hBar hA hB hP10 hP20 hWitness hNorm
+
+theorem superneoMathProtocolSkeleton_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions_inRange
+  {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
+  (hShape : ClaimShapeValid claim)
+  (hBar : IsDBarMatrix ctx.bar)
+  (hA : IsDVec claim.a)
+  (hB : IsDVec claim.b)
+  (hP10 : p10ForClaim ctx claim)
+  (hP6 : p20DecompProp claim.zDecomp ctx.bSplit ctx.kSplit)
+  (hP12Eq : matrixVecDirect claim.m claim.z = matrixVecCtBar ctx.bar claim.m claim.z)
+  (hP14 : p20EvalHomProp ctx.bar claim.m claim.z1 claim.z2 claim.r claim.rho1 claim.rho2)
+  (hP15Vec : p20VecModuleProp ctx.hVec claim.rho1 claim.z1 claim.z2)
+  (hP15Scal : p20ScalarModuleProp ctx.hScal claim.rho1 claim.z1 claim.z2)
+  (hP16Win : p20InvertibilityWindowProp claim.invDelta)
+  (hCset : ∀ i : Fin claim.cset.size, normInfCoeffs claim.cset[i] ≤ Parameters.Goldilocks.B)
+  (hSamples : ∀ j : Fin claim.samples.size, normInfCoeffs claim.samples[j] ≤ Parameters.Goldilocks.B)
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption)
+  (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm claim.cset))
+  (hP18 : p20PolyProp claim.qVals ctx.ell ctx.totalDegree ctx.setSize)
+  (hP19 : p20InterpProp claim.xs claim.ys claim.expectedCoeffs claim.evalPoint claim.expectedEval)
+  (hWitness : witness.z = claim.z)
+  (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
+  CEValid ctx claim witness := by
+  have hP20 : p20ForClaim ctx claim :=
+    p20ForClaim_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions_inRange
+      (hP6 := hP6)
+      (hP12Rows := claimShapeValid_matrixRowsCompatible hShape)
+      (hP12Eq := hP12Eq)
+      (hP14 := hP14)
+      (hP15Vec := hP15Vec)
+      (hP15Scal := hP15Scal)
+      (hP16Win := hP16Win)
+      (hCset := hCset)
+      (hSamples := hSamples)
+      (hRawInRange := hRawInRange)
+      (hFieldOps := hFieldOps)
+      (hUpper := hUpper)
+      (hP18 := hP18)
+      (hP19 := hP19)
+  exact superneoMathProtocolSkeleton_of_props hShape hBar hA hB hP10 hP20 hWitness hNorm
 
 theorem superneoMathProtocolSkeleton_of_props_with_evalHom_assumption
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
@@ -530,18 +794,15 @@ theorem superneoMathProtocolSkeleton_of_props_with_evalHom_assumption_with_inver
       (hP17 := hP17)
       (hP18 := hP18)
       (hP19 := hP19)
-  have hP21 : p21ProtocolTarget
-      ctx.bar
-      claim.m
-      claim.z claim.z1 claim.z2 claim.zDecomp claim.r
-      claim.rho1 claim.rho2
-      ctx.bSplit ctx.kSplit
-      claim.cset claim.samples claim.invDelta claim.qVals
-      claim.xs claim.ys claim.expectedCoeffs
-      claim.evalPoint claim.expectedEval
-      ctx.ell ctx.totalDegree ctx.setSize := by
-    exact p21ProtocolTarget_of_p20 hP20
-  exact p21ProtocolTarget_to_CEValid_with_invertibility hShape hBar hA hB hP21 hP10 hWitness hNorm
+  exact ceValid_with_invertibility_of_p20
+    (hShape := hShape)
+    (hBar := hBar)
+    (hA := hA)
+    (hB := hB)
+    (hP10 := hP10)
+    (hP20 := hP20)
+    (hWitness := hWitness)
+    (hNorm := hNorm)
 
 theorem superneoMathProtocolSkeleton_of_props_with_evalHom_checkAssumption_with_invertibility
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
@@ -577,18 +838,15 @@ theorem superneoMathProtocolSkeleton_of_props_with_evalHom_checkAssumption_with_
       (hP17 := hP17)
       (hP18 := hP18)
       (hP19 := hP19)
-  have hP21 : p21ProtocolTarget
-      ctx.bar
-      claim.m
-      claim.z claim.z1 claim.z2 claim.zDecomp claim.r
-      claim.rho1 claim.rho2
-      ctx.bSplit ctx.kSplit
-      claim.cset claim.samples claim.invDelta claim.qVals
-      claim.xs claim.ys claim.expectedCoeffs
-      claim.evalPoint claim.expectedEval
-      ctx.ell ctx.totalDegree ctx.setSize := by
-    exact p21ProtocolTarget_of_p20 hP20
-  exact p21ProtocolTarget_to_CEValid_with_invertibility hShape hBar hA hB hP21 hP10 hWitness hNorm
+  exact ceValid_with_invertibility_of_p20
+    (hShape := hShape)
+    (hBar := hBar)
+    (hA := hA)
+    (hB := hB)
+    (hP10 := hP10)
+    (hP20 := hP20)
+    (hWitness := hWitness)
+    (hNorm := hNorm)
 
 theorem superneoMathProtocolSkeleton_of_props_with_matrixTransform_assumption_with_evalHom_assumption_with_invertibility
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
@@ -624,18 +882,15 @@ theorem superneoMathProtocolSkeleton_of_props_with_matrixTransform_assumption_wi
       (hP17 := hP17)
       (hP18 := hP18)
       (hP19 := hP19)
-  have hP21 : p21ProtocolTarget
-      ctx.bar
-      claim.m
-      claim.z claim.z1 claim.z2 claim.zDecomp claim.r
-      claim.rho1 claim.rho2
-      ctx.bSplit ctx.kSplit
-      claim.cset claim.samples claim.invDelta claim.qVals
-      claim.xs claim.ys claim.expectedCoeffs
-      claim.evalPoint claim.expectedEval
-      ctx.ell ctx.totalDegree ctx.setSize := by
-    exact p21ProtocolTarget_of_p20 hP20
-  exact p21ProtocolTarget_to_CEValid_with_invertibility hShape hBar hA hB hP21 hP10 hWitness hNorm
+  exact ceValid_with_invertibility_of_p20
+    (hShape := hShape)
+    (hBar := hBar)
+    (hA := hA)
+    (hB := hB)
+    (hP10 := hP10)
+    (hP20 := hP20)
+    (hWitness := hWitness)
+    (hNorm := hNorm)
 
 theorem superneoMathProtocolSkeleton_of_props_with_matrixTransform_checkAssumption_with_evalHom_checkAssumption_with_invertibility
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
@@ -671,18 +926,15 @@ theorem superneoMathProtocolSkeleton_of_props_with_matrixTransform_checkAssumpti
       (hP17 := hP17)
       (hP18 := hP18)
       (hP19 := hP19)
-  have hP21 : p21ProtocolTarget
-      ctx.bar
-      claim.m
-      claim.z claim.z1 claim.z2 claim.zDecomp claim.r
-      claim.rho1 claim.rho2
-      ctx.bSplit ctx.kSplit
-      claim.cset claim.samples claim.invDelta claim.qVals
-      claim.xs claim.ys claim.expectedCoeffs
-      claim.evalPoint claim.expectedEval
-      ctx.ell ctx.totalDegree ctx.setSize := by
-    exact p21ProtocolTarget_of_p20 hP20
-  exact p21ProtocolTarget_to_CEValid_with_invertibility hShape hBar hA hB hP21 hP10 hWitness hNorm
+  exact ceValid_with_invertibility_of_p20
+    (hShape := hShape)
+    (hBar := hBar)
+    (hA := hA)
+    (hB := hB)
+    (hP10 := hP10)
+    (hP20 := hP20)
+    (hWitness := hWitness)
+    (hNorm := hNorm)
 
 theorem superneoMathProtocolSkeleton_of_props_with_matrixTransform_assumption_with_evalHom_checkAssumption_with_invertibility
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
@@ -745,18 +997,7 @@ theorem superneoMathProtocolSkeleton_of_props_with_invertibility
   (hWitness : witness.z = claim.z)
   (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
   ∃ deltaInv : Coeffs, mulRq claim.invDelta deltaInv = oneRq ∧ CEValid ctx claim witness := by
-  have hP21 : p21ProtocolTarget
-      ctx.bar
-      claim.m
-      claim.z claim.z1 claim.z2 claim.zDecomp claim.r
-      claim.rho1 claim.rho2
-      ctx.bSplit ctx.kSplit
-      claim.cset claim.samples claim.invDelta claim.qVals
-      claim.xs claim.ys claim.expectedCoeffs
-      claim.evalPoint claim.expectedEval
-      ctx.ell ctx.totalDegree ctx.setSize := by
-    exact p21ProtocolTarget_of_p20 hP20
-  exact p21ProtocolTarget_to_CEValid_with_invertibility hShape hBar hA hB hP21 hP10 hWitness hNorm
+  exact ceValid_with_invertibility_of_p20 hShape hBar hA hB hP10 hP20 hWitness hNorm
 
 theorem superneoMathProtocolSkeleton_of_thm3_assumption
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
@@ -825,8 +1066,7 @@ theorem superneoMathProtocolSkeleton_of_thm3_assumption_with_evalHom_assumption_
     (hB := hB)
     (hThm3 := hThm3)
     (hP6 := hP6)
-    (hP12Eq := matrixTransformEq_of_thm3CoreAssumption hThm3
-      (claimShapeValid_matrixRowsCompatible hShape))
+    (hP12Eq := matrixTransformEq_of_thm3CoreAssumption_of_shape hThm3 hShape)
     (hP14Assm := hP14Assm)
     (hP15Vec := hP15Vec)
     (hP15Scal := hP15Scal)
@@ -890,8 +1130,7 @@ theorem superneoMathProtocolSkeleton_of_thm3_assumption_with_evalHom_checkAssump
     (hB := hB)
     (hThm3 := hThm3)
     (hP6 := hP6)
-    (hP12Eq := matrixTransformEq_of_thm3CoreAssumption hThm3
-      (claimShapeValid_matrixRowsCompatible hShape))
+    (hP12Eq := matrixTransformEq_of_thm3CoreAssumption_of_shape hThm3 hShape)
     (hP14Check := hP14Check)
     (hP15Vec := hP15Vec)
     (hP15Scal := hP15Scal)
@@ -1059,8 +1298,7 @@ theorem superneoMathProtocolSkeleton_of_thm3_assumption_with_evalHom_assumption_
     (hB := hB)
     (hThm3 := hThm3)
     (hP6 := hP6)
-    (hP12Eq := matrixTransformEq_of_thm3CoreAssumption hThm3
-      (claimShapeValid_matrixRowsCompatible hShape))
+    (hP12Eq := matrixTransformEq_of_thm3CoreAssumption_of_shape hThm3 hShape)
     (hP14Assm := hP14Assm)
     (hP15Vec := hP15Vec)
     (hP15Scal := hP15Scal)
@@ -1124,8 +1362,7 @@ theorem superneoMathProtocolSkeleton_of_thm3_assumption_with_evalHom_checkAssump
     (hB := hB)
     (hThm3 := hThm3)
     (hP6 := hP6)
-    (hP12Eq := matrixTransformEq_of_thm3CoreAssumption hThm3
-      (claimShapeValid_matrixRowsCompatible hShape))
+    (hP12Eq := matrixTransformEq_of_thm3CoreAssumption_of_shape hThm3 hShape)
     (hP14Check := hP14Check)
     (hP15Vec := hP15Vec)
     (hP15Scal := hP15Scal)
@@ -1303,24 +1540,39 @@ theorem superneoMathProtocolSkeleton_of_checks_with_invertibility
   (hWitness : witness.z = claim.z)
   (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
   ∃ deltaInv : Coeffs, mulRq claim.invDelta deltaInv = oneRq ∧ CEValid ctx claim witness := by
-  have hFull : p21FullMathTarget
-      ctx.bar
-      claim.a claim.b
-      claim.m
-      claim.z claim.z1 claim.z2 claim.zDecomp claim.r
-      claim.rho1 claim.rho2
-      ctx.bSplit ctx.kSplit
-      claim.cset claim.samples claim.invDelta claim.qVals
-      claim.xs claim.ys claim.expectedCoeffs
-      claim.evalPoint claim.expectedEval
-      ctx.ell ctx.totalDegree ctx.setSize := by
-    exact p21FullMathTarget_of_checks
-      (hP10 := hP10) (hP6 := hP6) (hP12 := hP12) (hP14 := hP14)
+  have hValid : CEValid ctx claim witness :=
+    superneoMathProtocolSkeleton_of_checks
+      (hShape := hShape)
+      (hBar := hBar)
+      (hA := hA)
+      (hB := hB)
+      (hP10 := hP10)
+      (hP6 := hP6)
+      (hP12 := hP12)
+      (hP14 := hP14)
+      (hVecAdd := hVecAdd)
+      (hVecScale := hVecScale)
+      (hScalAdd := hScalAdd)
+      (hScalScale := hScalScale)
+      (hP16Win := hP16Win)
+      (hP17 := hP17)
+      (hP18Eq := hP18Eq)
+      (hP18SZ := hP18SZ)
+      (hP19 := hP19)
+      (hWitness := hWitness)
+      (hNorm := hNorm)
+
+  have hP20 : p20ForClaim ctx claim := by
+    exact p20ArithmeticBundle_of_checks
+      (hP6 := hP6) (hP12 := hP12) (hP14 := hP14)
       (hVecAdd := hVecAdd) (hVecScale := hVecScale)
       (hScalAdd := hScalAdd) (hScalScale := hScalScale)
       (hP16Win := hP16Win)
       (hP17 := hP17) (hP18Eq := hP18Eq) (hP18SZ := hP18SZ) (hP19 := hP19)
-  exact p21FullMathTarget_to_CEValid_with_invertibility hShape hBar hA hB hFull hWitness hNorm
+
+  rcases p20InvertibilityWitness_of_assumption ctx.hLowNormInvertibility hP20 with
+    ⟨deltaInv, hMul⟩
+  exact ⟨deltaInv, hMul, hValid⟩
 
 /-- Compile-only smoke theorem: check-driven assumptions imply proposition-driven assumptions. -/
 theorem smoke_checks_imply_props
@@ -1569,7 +1821,8 @@ theorem smoke_p21_compose
   (hWitness : witness.z = claim.z)
   (hNorm : normInfCoeffs witness.z < ctx.ceNormBound) :
   CEValid ctx claim witness := by
-  exact superneoMathProtocolSkeleton_of_props hShape hBar hA hB hProps.1 hProps.2 hWitness hNorm
+  rcases hProps with ⟨hP10, hP20⟩
+  exact superneoMathProtocolSkeleton_of_props hShape hBar hA hB hP10 hP20 hWitness hNorm
 
 theorem protocol_props_to_CEValid
   {ctx : ProtocolCtx} {claim : CEClaim} {witness : CEWitness}
@@ -1588,5 +1841,77 @@ theorem p20ForClaim_invertibilityWitness
   (hP20 : p20ForClaim ctx claim) :
   ∃ deltaInv : Coeffs, mulRq claim.invDelta deltaInv = oneRq := by
   exact p20InvertibilityWitness_of_assumption ctx.hLowNormInvertibility hP20
+
+theorem p20ForClaim_invertibilityWitness_mulRq_of_goldilocks_operand_assumptions
+  {ctx : ProtocolCtx} {claim : CEClaim} {aDelta bDelta : Coeffs}
+  (hP20 : p20ForClaim ctx claim)
+  (hDeltaEq : claim.invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs bDelta ≤ Parameters.Goldilocks.B)
+  (hRaw : GoldilocksRawNormBoundAssumption)
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  ∃ deltaInv : Coeffs, mulRq claim.invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_assumptions_of_assumption
+    (hInv := ctx.hLowNormInvertibility)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRaw := hRaw)
+    (hCollapse := hCollapse)
+
+theorem p20ForClaim_invertibilityWitness_mulRq_of_goldilocks_operand_assumptions_inRange
+  {ctx : ProtocolCtx} {claim : CEClaim} {aDelta bDelta : Coeffs}
+  (hP20 : p20ForClaim ctx claim)
+  (hDeltaEq : claim.invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs bDelta ≤ Parameters.Goldilocks.B)
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption)
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  ∃ deltaInv : Coeffs, mulRq claim.invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_assumptions_inRange_of_assumption
+    (hInv := ctx.hLowNormInvertibility)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRawInRange := hRawInRange)
+    (hCollapse := hCollapse)
+
+theorem p20ForClaim_invertibilityWitness_mulRq_of_goldilocks_operand_fieldOp_assumptions
+  {ctx : ProtocolCtx} {claim : CEClaim} {aDelta bDelta : Coeffs}
+  (hP20 : p20ForClaim ctx claim)
+  (hDeltaEq : claim.invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs bDelta ≤ Parameters.Goldilocks.B)
+  (hRaw : GoldilocksRawNormBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
+  ∃ deltaInv : Coeffs, mulRq claim.invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_fieldOp_assumptions_of_assumption
+    (hInv := ctx.hLowNormInvertibility)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRaw := hRaw)
+    (hFieldOps := hFieldOps)
+
+theorem p20ForClaim_invertibilityWitness_mulRq_of_goldilocks_operand_fieldOp_assumptions_inRange
+  {ctx : ProtocolCtx} {claim : CEClaim} {aDelta bDelta : Coeffs}
+  (hP20 : p20ForClaim ctx claim)
+  (hDeltaEq : claim.invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs bDelta ≤ Parameters.Goldilocks.B)
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
+  ∃ deltaInv : Coeffs, mulRq claim.invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_fieldOp_assumptions_inRange_of_assumption
+    (hInv := ctx.hLowNormInvertibility)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRawInRange := hRawInRange)
+    (hFieldOps := hFieldOps)
 
 end SuperNeo

@@ -1,6 +1,9 @@
 import SuperNeo.MatrixTransform
 import SuperNeo.MLE
 
+/-! Links ring-vector evaluation with coefficient-row evaluation. -/
+
+
 namespace SuperNeo
 
 open F
@@ -38,13 +41,31 @@ def rowBarMzRing (bar : Array (Array F)) (row z : Array F) : Coeffs :=
 def barMzRing (bar : Array (Array F)) (m : Array (Array F)) (z : Array F) : Array Coeffs :=
   m.map (fun row => rowBarMzRing bar row z)
 
+/-- `barMzRing` preserves the matrix row count. -/
+theorem barMzRing_size (bar : Array (Array F)) (m : Array (Array F)) (z : Array F) :
+  (barMzRing bar m z).size = m.size := by
+  unfold barMzRing
+  simp
+
 /-- Coefficient-row view cf(ys)_ell of a ring vector ys. -/
 def coeffRowsOfRingVec (ys : Array Coeffs) : Array (Array F) :=
   Array.ofFn (fun ell : Fin d => ys.map (fun yi => yi[ell.1]!))
 
+/-- Coefficient-row view has exactly `d` rows. -/
+theorem coeffRowsOfRingVec_size (ys : Array Coeffs) :
+  (coeffRowsOfRingVec ys).size = d := by
+  unfold coeffRowsOfRingVec
+  simp
+
 /-- Evaluate each coefficient row independently with the same weights. -/
 def evalCoeffRows (rows : Array (Array F)) (weights : Array F) : Array F :=
   rows.map (fun row => dotF row weights)
+
+/-- Evaluating rows preserves row count. -/
+theorem evalCoeffRows_size (rows : Array (Array F)) (weights : Array F) :
+  (evalCoeffRows rows weights).size = rows.size := by
+  unfold evalCoeffRows
+  simp
 
 /-- Evaluate a ring-valued vector with scalar weights (inner product over rows). -/
 def evalRingVec (ys : Array Coeffs) (weights : Array F) : Coeffs :=
@@ -53,8 +74,30 @@ def evalRingVec (ys : Array Coeffs) (weights : Array F) : Coeffs :=
   else
     evalCoeffRows (coeffRowsOfRingVec ys) weights
 
+/-- Shape lemma for `evalRingVec` on size-compatible inputs. -/
+theorem evalRingVec_size_of_size_eq
+  {ys : Array Coeffs} {weights : Array F}
+  (hSize : ys.size = weights.size) :
+  (evalRingVec ys weights).size = d := by
+  unfold evalRingVec
+  simp [hSize, evalCoeffRows_size, coeffRowsOfRingVec_size]
+
+/-- Shape lemma for `evalRingVec` on size-mismatched inputs. -/
+theorem evalRingVec_size_of_size_ne
+  {ys : Array Coeffs} {weights : Array F}
+  (hSize : ys.size ≠ weights.size) :
+  (evalRingVec ys weights).size = 0 := by
+  unfold evalRingVec
+  simp [hSize]
+
 /-- Constant-term row projection ct(ys). -/
 def ctRow (ys : Array Coeffs) : Array F := ys.map (fun yi => yi[0]!)
+
+/-- Constant-term projection preserves row count. -/
+theorem ctRow_size (ys : Array Coeffs) :
+  (ctRow ys).size = ys.size := by
+  unfold ctRow
+  simp
 
 /-- Remark 2 computational identity for an already-built ring vector ys. -/
 def evalLinkIdentity (ys : Array Coeffs) (weights : Array F) : Bool :=
@@ -117,6 +160,34 @@ theorem evalLinkIdentity_complete
   unfold evalLinkIdentity
   simp [hsz, decide_eq_true hEq]
 
+theorem evalLinkIdentityProp_size_eq
+  {ys : Array Coeffs} {weights : Array F}
+  (hProp : evalLinkIdentityProp ys weights) :
+  ys.size = weights.size := by
+  have hSizeFalse : (ys.size != weights.size) = false := hProp.1
+  by_cases hEq : ys.size = weights.size
+  · exact hEq
+  · have hNeTrue : (ys.size != weights.size) = true := by
+      simp [hEq]
+    rw [hNeTrue] at hSizeFalse
+    cases hSizeFalse
+
+theorem evalLinkIdentityProp_eval_eq
+  {ys : Array Coeffs} {weights : Array F}
+  (hProp : evalLinkIdentityProp ys weights) :
+  let y := evalRingVec ys weights
+  let coeffSide := evalCoeffRows (coeffRowsOfRingVec ys) weights
+  y = coeffSide := by
+  exact hProp.2.1
+
+theorem evalLinkIdentityProp_ct_eq
+  {ys : Array Coeffs} {weights : Array F}
+  (hProp : evalLinkIdentityProp ys weights) :
+  let y := evalRingVec ys weights
+  let ctSide := dotF (ctRow ys) weights
+  ct y = ctSide := by
+  exact hProp.2.2
+
 theorem evalLinkIdentityProp_of_size_eq
   {ys : Array Coeffs} {weights : Array F}
   (hSize : ys.size = weights.size) :
@@ -134,6 +205,28 @@ theorem evalLinkIdentity_true_of_size_eq
   (hSize : ys.size = weights.size) :
   evalLinkIdentity ys weights = true := by
   exact evalLinkIdentity_complete (evalLinkIdentityProp_of_size_eq hSize)
+
+theorem evalLinkIdentity_size_eq
+  {ys : Array Coeffs} {weights : Array F}
+  (hOk : evalLinkIdentity ys weights = true) :
+  ys.size = weights.size := by
+  exact evalLinkIdentityProp_size_eq (evalLinkIdentity_sound_full hOk)
+
+theorem evalLinkIdentity_eval_eq
+  {ys : Array Coeffs} {weights : Array F}
+  (hOk : evalLinkIdentity ys weights = true) :
+  let y := evalRingVec ys weights
+  let coeffSide := evalCoeffRows (coeffRowsOfRingVec ys) weights
+  y = coeffSide := by
+  exact evalLinkIdentityProp_eval_eq (evalLinkIdentity_sound_full hOk)
+
+theorem evalLinkIdentity_ct_eq
+  {ys : Array Coeffs} {weights : Array F}
+  (hOk : evalLinkIdentity ys weights = true) :
+  let y := evalRingVec ys weights
+  let ctSide := dotF (ctRow ys) weights
+  ct y = ctSide := by
+  exact evalLinkIdentityProp_ct_eq (evalLinkIdentity_sound_full hOk)
 
 theorem evalLinkForMatrix_sound
   {bar : Array (Array F)} {m : Array (Array F)} {z r : Array F}

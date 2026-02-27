@@ -41,7 +41,7 @@ private def mulLine (idx : Nat) (a b : Coeffs) : String :=
   let c := mulRq a b
   s!"mul,{idx},{natArrayToCsvField (coeffVals a)},{natArrayToCsvField (coeffVals b)},{natArrayToCsvField (coeffVals c)},{(ct c).val}"
 
-def ringGoldenCaseCount : Nat := 48
+def ringGoldenCaseCount : Nat := 128
 
 def ringGoldenLines : Array String :=
   let as := genCoeffVecs 0x123456789ABCDEF0 ringGoldenCaseCount

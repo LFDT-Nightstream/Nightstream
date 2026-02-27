@@ -18,6 +18,12 @@ import SuperNeo.P20
 import SuperNeo.P21
 import SuperNeo.ProtocolRelations
 import SuperNeo.ProtocolReduction
+import SuperNeo.Sumcheck
+import SuperNeo.PiCCS
+import SuperNeo.PiRLC
+import SuperNeo.PiDEC
+import SuperNeo.InteractiveReductions
+import SuperNeo.ProtocolTheorem
 import SuperNeo.InvertibilityAxioms
 import SuperNeo.SamplingSet
 import SuperNeo.PolyLemmas

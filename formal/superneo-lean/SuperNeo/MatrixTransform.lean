@@ -1,6 +1,9 @@
 import SuperNeo.BarLift
 import SuperNeo.Thm3Core
 
+/-! Matrix-transform identities and theorem/check interfaces (P12). -/
+
+
 namespace SuperNeo
 
 open F
@@ -108,6 +111,18 @@ theorem matrixRowsCompatible_row_mod
   (i : Nat) (hi : i < m.size) :
   (m[i]'hi).size % d = 0 :=
   (hRows i hi).2
+
+theorem matrixRowsCompatible_of_size_eq
+  {m : Array (Array F)} {z1 z2 : Array F}
+  (hRows : MatrixRowsCompatible m z1)
+  (hSize : z1.size = z2.size) :
+  MatrixRowsCompatible m z2 := by
+  intro i hi
+  have hRow := hRows i hi
+  refine ⟨?_, hRow.2⟩
+  calc
+    (m[i]'hi).size = z1.size := hRow.1
+    _ = z2.size := hSize
 
 /-- Proposition-level counterpart of `matrixTransformIdentity`. -/
 def matrixTransformIdentityProp (bar : Array (Array F)) (m : Array (Array F)) (z : Array F) : Prop :=

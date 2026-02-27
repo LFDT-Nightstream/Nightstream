@@ -1,5 +1,7 @@
 namespace SuperNeo
 
+/-! Global protocol dimensions and shape constants used across SuperNeo. -/
+
 /-- Cyclotomic index used in the Goldilocks SuperNeo instantiation. -/
 def eta : Nat := 81
 

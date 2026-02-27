@@ -1,6 +1,9 @@
 import SuperNeo.CoeffMaps
 import SuperNeo.Dimensions
 
+/-! Vector/matrix embedding utilities for ring-to-field transport. -/
+
+
 namespace SuperNeo
 
 open F

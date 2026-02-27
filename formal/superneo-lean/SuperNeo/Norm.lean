@@ -1,5 +1,8 @@
 import SuperNeo.CoeffMaps
 
+/-! Norm bounds and collapse assumptions for field and ring operations. -/
+
+
 namespace SuperNeo
 
 /-- Half-modulus threshold for centered representatives in F_q. -/
@@ -20,6 +23,29 @@ def centeredAbsNat (x : Nat) : Nat :=
     xr
   else
     q - xr
+
+theorem halfQ_add_halfQ_lt_q : halfQ + halfQ < q := by
+  unfold halfQ q
+  decide
+
+theorem centeredAbsNat_mod (x : Nat) : centeredAbsNat (x % q) = centeredAbsNat x := by
+  unfold centeredAbsNat
+  simp
+
+theorem centeredAbsNat_le_mod (x : Nat) : centeredAbsNat x ≤ x % q := by
+  unfold centeredAbsNat
+  by_cases h : x % q ≤ halfQ
+  · simp [h]
+  · have hx : halfQ < x % q := Nat.lt_of_not_ge h
+    have hx_le : halfQ ≤ x % q := Nat.le_of_lt hx
+    have hx1 : halfQ + 1 ≤ x % q := Nat.succ_le_of_lt hx
+    have hsub : q - (x % q) ≤ q - (halfQ + 1) := Nat.sub_le_sub_left hx1 q
+    have hqr : q - (x % q) ≤ halfQ := by
+      simpa [q_sub_halfQ_succ_eq_halfQ] using hsub
+    simpa [h] using (Nat.le_trans hqr hx_le)
+
+theorem centeredAbsNat_le_self (x : Nat) : centeredAbsNat x ≤ x := by
+  exact Nat.le_trans (centeredAbsNat_le_mod x) (Nat.mod_le _ _)
 
 /-- Infinity norm of a field element in centered representation. -/
 def normInfF (a : F) : Nat := centeredAbsNat a.val
@@ -132,6 +158,31 @@ theorem normInfCoeffs_entry_le
       )
   have hIBang : normInfF (a[i]!) ≤ a.foldl (fun m x => Nat.max m (normInfF x)) 0 := hAll i hi
   simpa [hi] using hIBang
+
+theorem normInfF_getCoeff_le_of_normInfCoeffs
+  {a : Coeffs} {B : Nat}
+  (hA : normInfCoeffs a ≤ B)
+  (i : Nat) :
+  normInfF (getCoeff a i) ≤ B := by
+  by_cases hi : i < a.size
+  · have hEntry : normInfF (a[i]'hi) ≤ normInfCoeffs a :=
+      normInfCoeffs_entry_le (a := a) hi
+    exact Nat.le_trans (by simpa [getCoeff, hi] using hEntry) hA
+  · have hGe : a.size ≤ i := Nat.le_of_not_gt hi
+    have hZero : getCoeff a i = 0 := getCoeff_eq_zero_of_ge hGe
+    have hZeroEq : normInfF (0 : F) = 0 := by
+      native_decide
+    have hZeroLe : normInfF (0 : F) ≤ B := by
+      simpa [hZeroEq] using (Nat.zero_le B)
+    simpa [hZero] using hZeroLe
+
+theorem normInfF_getElemBang_le_of_normInfCoeffs
+  {a : Coeffs} {B : Nat}
+  (hA : normInfCoeffs a ≤ B)
+  (i : Nat) :
+  normInfF (a[i]!) ≤ B := by
+  simpa [getElemBang_eq_getCoeff] using
+    (normInfF_getCoeff_le_of_normInfCoeffs (a := a) (B := B) hA i)
 
 theorem normInfF_ofNat_le_halfQ
   (x : Nat)
@@ -347,6 +398,62 @@ theorem normInfCoeffs_vecScale_le_of_norm_bounds
     exact hMul s (a[i]'hi) hS
       (Nat.le_trans (normInfCoeffs_entry_le (a := a) hi) hA))
 
+/--
+Assumption bundle: operand norm bounds imply a bound on `vecAdd`.
+-/
+def vecAddNormBoundFromOperands (BA BB B : Nat) : Prop :=
+  ∀ a b : Coeffs,
+    a.size = b.size →
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfCoeffs (vecAdd a b) ≤ B
+
+/--
+Assumption bundle: operand norm bounds imply a bound on `coeffSub`.
+-/
+def coeffSubNormBoundFromOperands (BA BB B : Nat) : Prop :=
+  ∀ a b : Coeffs,
+    a.size = b.size →
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfCoeffs (coeffSub a b) ≤ B
+
+/--
+Assumption bundle: scalar/operand norm bounds imply a bound on `vecScale`.
+-/
+def vecScaleNormBoundFromOperands (BS BA B : Nat) : Prop :=
+  ∀ s : F, ∀ a : Coeffs,
+    normInfF s ≤ BS →
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs (vecScale s a) ≤ B
+
+theorem vecAddNormBoundFromOperands_of_opBound
+  {BA BB B : Nat}
+  (hAdd : ∀ x y, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x + y) ≤ B) :
+  vecAddNormBoundFromOperands BA BB B := by
+  intro a b hSize hA hB
+  exact normInfCoeffs_vecAdd_le_of_norm_bounds
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+    hSize hA hB hAdd
+
+theorem coeffSubNormBoundFromOperands_of_opBound
+  {BA BB B : Nat}
+  (hSub : ∀ x y, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x - y) ≤ B) :
+  coeffSubNormBoundFromOperands BA BB B := by
+  intro a b hSize hA hB
+  exact normInfCoeffs_coeffSub_le_of_norm_bounds
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+    hSize hA hB hSub
+
+theorem vecScaleNormBoundFromOperands_of_opBound
+  {BS BA B : Nat}
+  (hMul : ∀ x y, normInfF x ≤ BS → normInfF y ≤ BA → normInfF (x * y) ≤ B) :
+  vecScaleNormBoundFromOperands BS BA B := by
+  intro s a hS hA
+  exact normInfCoeffs_vecScale_le_of_norm_bounds
+    (s := s) (a := a) (BS := BS) (BA := BA) (B := B)
+    hS hA hMul
+
 theorem normInfCoeffs_mulRq_le_of_norm_bounds
   {a b : Coeffs} {BA BB B : Nat}
   (hA : normInfCoeffs a ≤ BA)
@@ -392,6 +499,59 @@ theorem normInfF_mulRqCoeffSpec_le_of_rawCoeffBound
         (hRaw k)
         (hRaw (k + 27))
 
+theorem normInfF_mulRqRawCoeffSpec_le_of_inRangeBound
+  {a b : Coeffs} {t BRaw : Nat}
+  (hRawInRange : ∀ u, u < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b u) ≤ BRaw) :
+  normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw := by
+  by_cases ht : t < 2 * D - 1
+  · exact hRawInRange t ht
+  · have hGe : 2 * D - 1 ≤ t := Nat.le_of_not_gt ht
+    have hZero : mulRqRawCoeffSpec a b t = 0 := mulRqRawCoeffSpec_eq_zero_of_ge hGe
+    have hZeroEq : normInfF (0 : F) = 0 := by
+      native_decide
+    have hZeroLe : normInfF (0 : F) ≤ BRaw := by
+      simpa [hZeroEq] using (Nat.zero_le BRaw)
+    simpa [hZero] using hZeroLe
+
+theorem normInfF_mulRqRawCoeffSpec_le_of_rawCoeffsNorm
+  {a b : Coeffs} {BRaw : Nat}
+  (hRawCoeffs : normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw)
+  (t : Nat) :
+  normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw := by
+  have hGet : normInfF ((mulRqRawCoeffs a b)[t]!) ≤ BRaw :=
+    normInfF_getElemBang_le_of_normInfCoeffs
+      (a := mulRqRawCoeffs a b) (B := BRaw) hRawCoeffs t
+  simpa [mulRqRawCoeffSpec_eq_rawCoeffs_getElemBang] using hGet
+
+theorem normInfF_mulRqRawCoeffSpec_le_of_rawCoeffsNorm_inRange
+  {a b : Coeffs} {BRaw : Nat}
+  (hRawCoeffs : normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw) :
+  ∀ t, t < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw := by
+  intro t _ht
+  exact normInfF_mulRqRawCoeffSpec_le_of_rawCoeffsNorm (a := a) (b := b) hRawCoeffs t
+
+theorem normInfCoeffs_mulRqRawCoeffs_le_of_inRangeBound
+  {a b : Coeffs} {BRaw : Nat}
+  (hRawInRange : ∀ t, t < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw) :
+  normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw := by
+  apply normInfCoeffs_le_of_entry_bound
+  intro i hi
+  have hiRange : i < 2 * D - 1 := by
+    simpa [mulRqRawCoeffs_size] using hi
+  have hI : normInfF (mulRqRawCoeffSpec a b i) ≤ BRaw := hRawInRange i hiRange
+  have hIBang : normInfF ((mulRqRawCoeffs a b)[i]!) ≤ BRaw := by
+    simpa [mulRqRawCoeffSpec_eq_rawCoeffs_getElemBang] using hI
+  simpa [hi] using hIBang
+
+theorem normInf_mulRqRawCoeffSpec_inRange_iff_rawCoeffsNorm
+  {a b : Coeffs} {BRaw : Nat} :
+  (∀ t, t < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw) ↔
+    normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw := by
+  constructor
+  · exact normInfCoeffs_mulRqRawCoeffs_le_of_inRangeBound
+  · intro hRawCoeffs
+    exact normInfF_mulRqRawCoeffSpec_le_of_rawCoeffsNorm_inRange hRawCoeffs
+
 theorem normInfCoeffs_mulRq_le_of_rawCoeffBound
   {a b : Coeffs} {BRaw B : Nat}
   (hRaw : ∀ t, normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw)
@@ -401,6 +561,27 @@ theorem normInfCoeffs_mulRq_le_of_rawCoeffBound
   exact normInfCoeffs_mulRq_le_of_coeffSpec_bound (a := a) (b := b) (B := B) (fun k hk => by
     exact normInfF_mulRqCoeffSpec_le_of_rawCoeffBound (a := a) (b := b) (k := k)
       hRaw hAddSub hSub)
+
+theorem normInfCoeffs_mulRq_le_of_rawCoeffInRangeBound
+  {a b : Coeffs} {BRaw B : Nat}
+  (hRawInRange : ∀ t, t < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_rawCoeffBound (a := a) (b := b) (BRaw := BRaw) (B := B)
+    (hRaw := fun t =>
+      normInfF_mulRqRawCoeffSpec_le_of_inRangeBound (a := a) (b := b) (t := t) hRawInRange)
+    hAddSub hSub
+
+theorem normInfCoeffs_mulRq_le_of_rawCoeffsNorm
+  {a b : Coeffs} {BRaw B : Nat}
+  (hRawCoeffs : normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_rawCoeffBound (a := a) (b := b) (BRaw := BRaw) (B := B)
+    (hRaw := fun t => normInfF_mulRqRawCoeffSpec_le_of_rawCoeffsNorm (a := a) (b := b) hRawCoeffs t)
+    hAddSub hSub
 
 theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeff
   {a b : Coeffs} {BA BB BRaw B : Nat}
@@ -415,10 +596,480 @@ theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeff
     (hRaw := fun t => hRawFromNorm t hA hB)
     hAddSub hSub
 
+theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeff_inRange
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromNormInRange :
+    ∀ t, t < 2 * D - 1 →
+      normInfCoeffs a ≤ BA →
+      normInfCoeffs b ≤ BB →
+      normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_rawCoeffInRangeBound (a := a) (b := b) (BRaw := BRaw) (B := B)
+    (hRawInRange := fun t ht => hRawFromNormInRange t ht hA hB)
+    hAddSub hSub
+
+theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeffsNorm
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffsFromNorm :
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_rawCoeffsNorm (a := a) (b := b) (BRaw := BRaw) (B := B)
+    (hRawCoeffs := hRawCoeffsFromNorm hA hB)
+    hAddSub hSub
+
+/--
+Assumption bundle: operand norm bounds imply a bound on the raw schoolbook product norm.
+-/
+def mulRqRawNormBoundFromOperands (BA BB BRaw : Nat) : Prop :=
+  ∀ a b : Coeffs,
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw
+
+/--
+Assumption bundle: operand norm bounds imply an in-range raw coefficient bound.
+-/
+def mulRqRawInRangeBoundFromOperands (BA BB BRaw : Nat) : Prop :=
+  ∀ a b : Coeffs, ∀ t, t < 2 * D - 1 →
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw
+
+/--
+Assumption bundle: operand norm bounds imply a bound on every raw schoolbook
+coefficient accessor (all Nat indices, out-of-range included via default semantics).
+-/
+def mulRqRawCoeffBoundFromOperands (BA BB BRaw : Nat) : Prop :=
+  ∀ a b : Coeffs, ∀ t : Nat,
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw
+
+/--
+Assumption bundle for collapsing the `x + y - z` step in `mulRqCoeffSpec`.
+-/
+def rawAddSubCollapseBound (BRaw B : Nat) : Prop :=
+  ∀ x y z : F,
+    normInfF x ≤ BRaw →
+    normInfF y ≤ BRaw →
+    normInfF z ≤ BRaw →
+    normInfF (x + y - z) ≤ B
+
+/--
+Assumption bundle for collapsing the `x - y` step in `mulRqCoeffSpec`.
+-/
+def rawSubCollapseBound (BRaw B : Nat) : Prop :=
+  ∀ x y : F,
+    normInfF x ≤ BRaw →
+    normInfF y ≤ BRaw →
+    normInfF (x - y) ≤ B
+
+/--
+Assumption bundle for collapsing the `x + y` step in `mulRqCoeffSpec`.
+-/
+def rawAddCollapseBound (BRaw B : Nat) : Prop :=
+  ∀ x y : F,
+    normInfF x ≤ BRaw →
+    normInfF y ≤ BRaw →
+    normInfF (x + y) ≤ B
+
+/--
+Convenience collapse surface: separate `x+y` and `x-y` bounds.
+This matches the typical "field-op" assumption boundary where addition and subtraction
+are handled directly, and then combined into the `x+y-z` step as needed.
+-/
+def rawFieldOpCollapseBound (BRaw B : Nat) : Prop :=
+  rawAddCollapseBound BRaw B ∧ rawSubCollapseBound BRaw B
+
+private theorem normInfF_zero_eq_zero_local : normInfF (0 : F) = 0 := by
+  native_decide
+
+theorem rawAddSubCollapseBound_of_add_and_sub
+  {BRaw BAdd B : Nat}
+  (hAdd : rawAddCollapseBound BRaw BAdd)
+  (hSub : ∀ u z, normInfF u ≤ BAdd → normInfF z ≤ BRaw → normInfF (u - z) ≤ B) :
+  rawAddSubCollapseBound BRaw B := by
+  intro x y z hx hy hz
+  exact hSub (x + y) z (hAdd x y hx hy) hz
+
+theorem rawAddCollapseBound_of_addSub
+  {BRaw B : Nat}
+  (hAddSub : rawAddSubCollapseBound BRaw B) :
+  rawAddCollapseBound BRaw B := by
+  intro x y hx hy
+  have hZero : normInfF (0 : F) ≤ BRaw := by
+    have hEq : normInfF (0 : F) = 0 := normInfF_zero_eq_zero_local
+    simpa [hEq] using (Nat.zero_le BRaw)
+  have hAddSub0 : normInfF (x + y - (0 : F)) ≤ B := hAddSub x y (0 : F) hx hy hZero
+  have hExpr : x + y - (0 : F) = x + y := by
+    exact F.sub_zero_of_canonical (a := x + y) (F.canonical_add x y)
+  exact hExpr ▸ hAddSub0
+
+theorem rawAddSubCollapseBound_of_add_and_sub_same
+  {BRaw : Nat}
+  (hAdd : rawAddCollapseBound BRaw BRaw)
+  (hSub : rawSubCollapseBound BRaw BRaw) :
+  rawAddSubCollapseBound BRaw BRaw := by
+  exact rawAddSubCollapseBound_of_add_and_sub
+    (BRaw := BRaw) (BAdd := BRaw) (B := BRaw)
+    hAdd (fun u z hu hz => hSub u z hu hz)
+
+theorem rawFieldOpCollapseBound_of_addSub_and_sub
+  {BRaw B : Nat}
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  rawFieldOpCollapseBound BRaw B := by
+  exact ⟨rawAddCollapseBound_of_addSub hAddSub, hSub⟩
+
+theorem rawAddSubCollapseBound_mono
+  {BRaw B B' : Nat}
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hLe : B ≤ B') :
+  rawAddSubCollapseBound BRaw B' := by
+  intro x y z hx hy hz
+  exact Nat.le_trans (hAddSub x y z hx hy hz) hLe
+
+theorem rawSubCollapseBound_mono
+  {BRaw B B' : Nat}
+  (hSub : rawSubCollapseBound BRaw B)
+  (hLe : B ≤ B') :
+  rawSubCollapseBound BRaw B' := by
+  intro x y hx hy
+  exact Nat.le_trans (hSub x y hx hy) hLe
+
+theorem rawAddCollapseBound_mono
+  {BRaw B B' : Nat}
+  (hAdd : rawAddCollapseBound BRaw B)
+  (hLe : B ≤ B') :
+  rawAddCollapseBound BRaw B' := by
+  intro x y hx hy
+  exact Nat.le_trans (hAdd x y hx hy) hLe
+
+theorem rawFieldOpCollapseBound_mono
+  {BRaw B B' : Nat}
+  (hOps : rawFieldOpCollapseBound BRaw B)
+  (hLe : B ≤ B') :
+  rawFieldOpCollapseBound BRaw B' := by
+  exact ⟨rawAddCollapseBound_mono hOps.1 hLe, rawSubCollapseBound_mono hOps.2 hLe⟩
+
+theorem mulRqRawNormBoundFromOperands_halfQ
+  (BA BB : Nat) :
+  mulRqRawNormBoundFromOperands BA BB halfQ := by
+  intro a b _hA _hB
+  simpa using (normInfCoeffs_le_halfQ (mulRqRawCoeffs a b))
+
+theorem mulRqRawInRangeBoundFromOperands_halfQ
+  (BA BB : Nat) :
+  mulRqRawInRangeBoundFromOperands BA BB halfQ := by
+  intro a b t _ht _hA _hB
+  simpa using (normInfF_le_halfQ (mulRqRawCoeffSpec a b t))
+
+theorem mulRqRawNormBoundFromOperands_mono
+  {BA BB BRaw BRaw' : Nat}
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hLe : BRaw ≤ BRaw') :
+  mulRqRawNormBoundFromOperands BA BB BRaw' := by
+  intro a b hA hB
+  exact Nat.le_trans (hRaw a b hA hB) hLe
+
+theorem mulRqRawInRangeBoundFromOperands_mono
+  {BA BB BRaw BRaw' : Nat}
+  (hRawInRange : mulRqRawInRangeBoundFromOperands BA BB BRaw)
+  (hLe : BRaw ≤ BRaw') :
+  mulRqRawInRangeBoundFromOperands BA BB BRaw' := by
+  intro a b t ht hA hB
+  exact Nat.le_trans (hRawInRange a b t ht hA hB) hLe
+
+theorem mulRqRawCoeffBoundFromOperands_mono
+  {BA BB BRaw BRaw' : Nat}
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hLe : BRaw ≤ BRaw') :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw' := by
+  intro a b t hA hB
+  exact Nat.le_trans (hRawCoeff a b t hA hB) hLe
+
+theorem mulRqRawNormBoundFromOperands_of_halfQ_le
+  {BA BB BRaw : Nat}
+  (hHalfQ : halfQ ≤ BRaw) :
+  mulRqRawNormBoundFromOperands BA BB BRaw := by
+  exact mulRqRawNormBoundFromOperands_mono
+    (mulRqRawNormBoundFromOperands_halfQ BA BB)
+    hHalfQ
+
+theorem mulRqRawInRangeBoundFromOperands_of_halfQ_le
+  {BA BB BRaw : Nat}
+  (hHalfQ : halfQ ≤ BRaw) :
+  mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  exact mulRqRawInRangeBoundFromOperands_mono
+    (mulRqRawInRangeBoundFromOperands_halfQ BA BB)
+    hHalfQ
+
+theorem vecAddNormBoundFromOperands_halfQ
+  (BA BB : Nat) :
+  vecAddNormBoundFromOperands BA BB halfQ := by
+  intro a b hSize _hA _hB
+  have : normInfCoeffs (vecAdd a b) ≤ halfQ := by
+    simpa using normInfCoeffs_vecAdd_le_halfQ a b
+  exact this
+
+theorem coeffSubNormBoundFromOperands_halfQ
+  (BA BB : Nat) :
+  coeffSubNormBoundFromOperands BA BB halfQ := by
+  intro a b hSize _hA _hB
+  have : normInfCoeffs (coeffSub a b) ≤ halfQ := by
+    simpa using normInfCoeffs_coeffSub_le_halfQ a b
+  exact this
+
+theorem vecScaleNormBoundFromOperands_halfQ
+  (BS BA : Nat) :
+  vecScaleNormBoundFromOperands BS BA halfQ := by
+  intro s a _hS _hA
+  simpa using normInfCoeffs_vecScale_le_halfQ s a
+
+theorem vecAddNormBoundFromOperands_of_halfQ_le
+  {BA BB B : Nat}
+  (hHalfQ : halfQ ≤ B) :
+  vecAddNormBoundFromOperands BA BB B := by
+  intro a b hSize hA hB
+  exact Nat.le_trans
+    ((vecAddNormBoundFromOperands_halfQ BA BB) a b hSize hA hB)
+    hHalfQ
+
+theorem coeffSubNormBoundFromOperands_of_halfQ_le
+  {BA BB B : Nat}
+  (hHalfQ : halfQ ≤ B) :
+  coeffSubNormBoundFromOperands BA BB B := by
+  intro a b hSize hA hB
+  exact Nat.le_trans
+    ((coeffSubNormBoundFromOperands_halfQ BA BB) a b hSize hA hB)
+    hHalfQ
+
+theorem vecScaleNormBoundFromOperands_of_halfQ_le
+  {BS BA B : Nat}
+  (hHalfQ : halfQ ≤ B) :
+  vecScaleNormBoundFromOperands BS BA B := by
+  intro s a hS hA
+  exact Nat.le_trans
+    ((vecScaleNormBoundFromOperands_halfQ BS BA) s a hS hA)
+    hHalfQ
+
+theorem mulRqRawNormBoundFromOperands_of_inRange
+  {BA BB BRaw : Nat}
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB BRaw) :
+  mulRqRawNormBoundFromOperands BA BB BRaw := by
+  intro a b hA hB
+  exact normInfCoeffs_mulRqRawCoeffs_le_of_inRangeBound
+    (a := a) (b := b)
+    (hRawInRange := fun t ht => hRawInRangeFromOperands a b t ht hA hB)
+
+theorem mulRqRawInRangeBoundFromOperands_of_norm
+  {BA BB BRaw : Nat}
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw) :
+  mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  intro a b t _ht hA hB
+  exact normInfF_mulRqRawCoeffSpec_le_of_rawCoeffsNorm
+    (a := a) (b := b)
+    (hRawCoeffs := hRawFromOperands a b hA hB)
+    t
+
+theorem mulRqRawNormBoundFromOperands_iff_inRange
+  {BA BB BRaw : Nat} :
+  mulRqRawNormBoundFromOperands BA BB BRaw ↔
+    mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  constructor
+  · exact mulRqRawInRangeBoundFromOperands_of_norm
+  · exact mulRqRawNormBoundFromOperands_of_inRange
+
+theorem mulRqRawCoeffBoundFromOperands_of_inRange
+  {BA BB BRaw : Nat}
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB BRaw) :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw := by
+  intro a b t hA hB
+  exact normInfF_mulRqRawCoeffSpec_le_of_inRangeBound
+    (a := a) (b := b) (t := t)
+    (hRawInRange := fun u hu => hRawInRangeFromOperands a b u hu hA hB)
+
+theorem mulRqRawInRangeBoundFromOperands_of_rawCoeff
+  {BA BB BRaw : Nat}
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw) :
+  mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  intro a b t _ht hA hB
+  exact hRawCoeffFromOperands a b t hA hB
+
+theorem mulRqRawNormBoundFromOperands_of_rawCoeff
+  {BA BB BRaw : Nat}
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw) :
+  mulRqRawNormBoundFromOperands BA BB BRaw := by
+  exact mulRqRawNormBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+
+theorem mulRqRawCoeffBoundFromOperands_halfQ
+  (BA BB : Nat) :
+  mulRqRawCoeffBoundFromOperands BA BB halfQ := by
+  intro a b t _hA _hB
+  simpa using normInfF_le_halfQ (mulRqRawCoeffSpec a b t)
+
+theorem mulRqRawCoeffBoundFromOperands_of_halfQ_le
+  {BA BB BRaw : Nat}
+  (hHalfQ : halfQ ≤ BRaw) :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw := by
+  exact mulRqRawCoeffBoundFromOperands_mono
+    (mulRqRawCoeffBoundFromOperands_halfQ BA BB)
+    hHalfQ
+
+theorem mulRqRawCoeffBoundFromOperands_iff_inRange
+  {BA BB BRaw : Nat} :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw ↔
+    mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  constructor
+  · exact mulRqRawInRangeBoundFromOperands_of_rawCoeff
+  · exact mulRqRawCoeffBoundFromOperands_of_inRange
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_rawCoeffsNorm
+    (a := a) (b := b) (BRaw := BRaw) (B := B)
+    (hRawCoeffs := hRawFromOperands a b hA hB)
+    (hAddSub := hAddSub)
+    (hSub := hSub)
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_inRange
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hA hB
+    (mulRqRawNormBoundFromOperands_of_inRange hRawInRangeFromOperands)
+    hAddSub hSub
+
+/--
+Field-op collapse variant: callers provide `x+y` and `x-y` bounds at the same `B`,
+and we internally derive the needed `x+y-z` bound.
+This is the common Goldilocks-style collapse surface (`BRaw = B`).
+-/
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_fieldOp
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  rcases hOps with ⟨hAdd, hSub⟩
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := B) (B := B)
+    hA hB hRawFromOperands
+    (rawAddSubCollapseBound_of_add_and_sub_same (BRaw := B) hAdd hSub)
+    hSub
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hA hB
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddSub hSub
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff_fieldOp
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_fieldOp
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+    hA hB
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hOps
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_fieldOp_inRange
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  rcases hOps with ⟨hAdd, hSub⟩
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_inRange
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := B) (B := B)
+    hA hB hRawInRangeFromOperands
+    (rawAddSubCollapseBound_of_add_and_sub_same (BRaw := B) hAdd hSub)
+    hSub
+
 theorem normInfF_add_sub_le_halfQ
   (x y z : F) :
   normInfF (x + y - z) ≤ halfQ := by
   exact normInfF_sub_le_halfQ (x + y) z
+
+theorem rawAddSubCollapseBound_halfQ :
+  rawAddSubCollapseBound halfQ halfQ := by
+  intro x y z _hx _hy _hz
+  exact normInfF_add_sub_le_halfQ x y z
+
+theorem rawAddCollapseBound_halfQ :
+  rawAddCollapseBound halfQ halfQ := by
+  intro x y _hx _hy
+  exact normInfF_add_le_halfQ x y
+
+theorem rawSubCollapseBound_halfQ :
+  rawSubCollapseBound halfQ halfQ := by
+  intro x y _hx _hy
+  exact normInfF_sub_le_halfQ x y
+
+theorem rawFieldOpCollapseBound_halfQ :
+  rawFieldOpCollapseBound halfQ halfQ := by
+  exact ⟨rawAddCollapseBound_halfQ, rawSubCollapseBound_halfQ⟩
+
+theorem rawAddSubCollapseBound_of_halfQ_le
+  {B : Nat}
+  (hHalfQ : halfQ ≤ B) :
+  rawAddSubCollapseBound halfQ B := by
+  exact rawAddSubCollapseBound_mono rawAddSubCollapseBound_halfQ hHalfQ
+
+theorem rawSubCollapseBound_of_halfQ_le
+  {B : Nat}
+  (hHalfQ : halfQ ≤ B) :
+  rawSubCollapseBound halfQ B := by
+  exact rawSubCollapseBound_mono rawSubCollapseBound_halfQ hHalfQ
+
+theorem rawAddCollapseBound_of_halfQ_le
+  {B : Nat}
+  (hHalfQ : halfQ ≤ B) :
+  rawAddCollapseBound halfQ B := by
+  exact rawAddCollapseBound_mono rawAddCollapseBound_halfQ hHalfQ
+
+theorem rawFieldOpCollapseBound_of_halfQ_le
+  {B : Nat}
+  (hHalfQ : halfQ ≤ B) :
+  rawFieldOpCollapseBound halfQ B := by
+  exact rawFieldOpCollapseBound_mono rawFieldOpCollapseBound_halfQ hHalfQ
 
 /--
 Concrete raw-coefficient fallback: in Goldilocks, every field element is centered-bounded
@@ -444,6 +1095,96 @@ theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeff_halfQ
     (hRawFromNorm := fun t _ _ => normInfF_mulRqRawCoeffSpec_le_halfQ a b t)
     (hAddSub := fun x y z _ _ _ => normInfF_add_sub_le_halfQ x y z)
     (hSub := fun x y _ _ => normInfF_sub_le_halfQ x y)
+
+theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeff_halfQ_inRange
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromNormInRange :
+    ∀ t, t < 2 * D - 1 →
+      normInfCoeffs a ≤ BA →
+      normInfCoeffs b ≤ BB →
+      normInfF (mulRqRawCoeffSpec a b t) ≤ halfQ) :
+  normInfCoeffs (mulRq a b) ≤ halfQ := by
+  exact normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeff_inRange
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := halfQ) (B := halfQ)
+    hA hB
+    hRawFromNormInRange
+    (hAddSub := fun x y z _ _ _ => normInfF_add_sub_le_halfQ x y z)
+    (hSub := fun x y _ _ => normInfF_sub_le_halfQ x y)
+
+theorem normInfCoeffs_mulRqRawCoeffs_le_halfQ
+  (a b : Coeffs) :
+  normInfCoeffs (mulRqRawCoeffs a b) ≤ halfQ := by
+  simpa using normInfCoeffs_le_halfQ (mulRqRawCoeffs a b)
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_halfQ
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB halfQ) :
+  normInfCoeffs (mulRq a b) ≤ halfQ := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := halfQ) (B := halfQ)
+    hA hB hRawFromOperands rawAddSubCollapseBound_halfQ rawSubCollapseBound_halfQ
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_halfQ_inRange
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB halfQ) :
+  normInfCoeffs (mulRq a b) ≤ halfQ := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_inRange
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := halfQ) (B := halfQ)
+    hA hB hRawInRangeFromOperands rawAddSubCollapseBound_halfQ rawSubCollapseBound_halfQ
+
+theorem normInfCoeffs_mulRq_le_of_rawCoeffInRangeBound_halfQ
+  {a b : Coeffs}
+  (hRawInRange : ∀ t, t < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b t) ≤ halfQ) :
+  normInfCoeffs (mulRq a b) ≤ halfQ := by
+  exact normInfCoeffs_mulRq_le_of_rawCoeffInRangeBound (a := a) (b := b) (BRaw := halfQ) (B := halfQ)
+    hRawInRange
+    (hAddSub := fun x y z _ _ _ => normInfF_add_sub_le_halfQ x y z)
+    (hSub := fun x y _ _ => normInfF_sub_le_halfQ x y)
+
+theorem normInfCoeffs_mulRq_le_of_rawCoeffsNorm_halfQ
+  {a b : Coeffs}
+  (hRawCoeffs : normInfCoeffs (mulRqRawCoeffs a b) ≤ halfQ) :
+  normInfCoeffs (mulRq a b) ≤ halfQ := by
+  exact normInfCoeffs_mulRq_le_of_rawCoeffsNorm (a := a) (b := b) (BRaw := halfQ) (B := halfQ)
+    hRawCoeffs
+    (hAddSub := fun x y z _ _ _ => normInfF_add_sub_le_halfQ x y z)
+    (hSub := fun x y _ _ => normInfF_sub_le_halfQ x y)
+
+theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeffsNorm_halfQ
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffsFromNorm :
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfCoeffs (mulRqRawCoeffs a b) ≤ halfQ) :
+  normInfCoeffs (mulRq a b) ≤ halfQ := by
+  exact normInfCoeffs_mulRq_le_of_rawCoeffsNorm_halfQ
+    (hRawCoeffs := hRawCoeffsFromNorm hA hB)
+
+theorem normInfCoeffs_mulRq_le_of_rawCoeffInRangeBound_halfQ_le
+  {a b : Coeffs} {B : Nat}
+  (hRawInRange : ∀ t, t < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b t) ≤ halfQ)
+  (hHalfQ : halfQ ≤ B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact Nat.le_trans
+    (normInfCoeffs_mulRq_le_of_rawCoeffInRangeBound_halfQ (a := a) (b := b) hRawInRange)
+    hHalfQ
+
+theorem normInfCoeffs_mulRq_le_of_rawCoeffsNorm_halfQ_le
+  {a b : Coeffs} {B : Nat}
+  (hRawCoeffs : normInfCoeffs (mulRqRawCoeffs a b) ≤ halfQ)
+  (hHalfQ : halfQ ≤ B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact Nat.le_trans
+    (normInfCoeffs_mulRq_le_of_rawCoeffsNorm_halfQ (a := a) (b := b) hRawCoeffs)
+    hHalfQ
 
 theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeff_halfQ_le
   {a b : Coeffs} {BA BB B : Nat}

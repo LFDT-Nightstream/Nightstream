@@ -2,6 +2,9 @@ import SuperNeo.Parameters
 import SuperNeo.Norm
 import SuperNeo.Ring
 
+/-! Invertibility-window lemmas and trusted low-norm invertibility boundary. -/
+
+
 namespace SuperNeo
 
 open F
@@ -73,6 +76,92 @@ theorem goldilocksB_lt_bInvApprox : Parameters.Goldilocks.B < bInvApprox := by
   rcases invertibilityPreconditions_from_constants with ⟨_, _, _, hB⟩
   exact hB
 
+/--
+Concrete operand-bound assumption shape at the Goldilocks proof bound `B`.
+This is a non-coarse (sub-`halfQ`) regime used to thread P5 bounds into P16.
+-/
+def GoldilocksRawNormBoundAssumption : Prop :=
+  mulRqRawNormBoundFromOperands Parameters.Goldilocks.B Parameters.Goldilocks.B Parameters.Goldilocks.B
+
+/--
+In-range raw coefficient variant of the Goldilocks operand-bound assumption.
+-/
+def GoldilocksRawInRangeBoundAssumption : Prop :=
+  mulRqRawInRangeBoundFromOperands Parameters.Goldilocks.B Parameters.Goldilocks.B Parameters.Goldilocks.B
+
+/--
+All-index raw coefficient accessor variant of the Goldilocks operand-bound assumption.
+-/
+def GoldilocksRawCoeffBoundAssumption : Prop :=
+  mulRqRawCoeffBoundFromOperands Parameters.Goldilocks.B Parameters.Goldilocks.B Parameters.Goldilocks.B
+
+/--
+Concrete collapse assumptions for `mulRqCoeffSpec` reduction steps at Goldilocks bound `B`.
+-/
+def GoldilocksRawCollapseAssumption : Prop :=
+  rawAddSubCollapseBound Parameters.Goldilocks.B Parameters.Goldilocks.B ∧
+  rawSubCollapseBound Parameters.Goldilocks.B Parameters.Goldilocks.B
+
+/--
+Alternative Goldilocks collapse surface: separate `x+y` and `x-y` bounds at `B`.
+This can be collapsed into `GoldilocksRawCollapseAssumption` via
+`rawAddSubCollapseBound_of_add_and_sub_same`.
+-/
+def GoldilocksFieldOpCollapseAssumption : Prop :=
+  rawAddCollapseBound Parameters.Goldilocks.B Parameters.Goldilocks.B ∧
+  rawSubCollapseBound Parameters.Goldilocks.B Parameters.Goldilocks.B
+
+theorem goldilocksRawCollapseAssumption_of_fieldOp
+  (hOps : GoldilocksFieldOpCollapseAssumption) :
+  GoldilocksRawCollapseAssumption := by
+  rcases hOps with ⟨hAdd, hSub⟩
+  exact ⟨rawAddSubCollapseBound_of_add_and_sub_same hAdd hSub, hSub⟩
+
+theorem goldilocksFieldOpCollapseAssumption_of_rawCollapse
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  GoldilocksFieldOpCollapseAssumption := by
+  rcases hCollapse with ⟨hAddSub, hSub⟩
+  exact rawFieldOpCollapseBound_of_addSub_and_sub hAddSub hSub
+
+theorem goldilocksCollapseAssumption_iff_fieldOp :
+  GoldilocksRawCollapseAssumption ↔ GoldilocksFieldOpCollapseAssumption := by
+  constructor
+  · exact goldilocksFieldOpCollapseAssumption_of_rawCollapse
+  · exact goldilocksRawCollapseAssumption_of_fieldOp
+
+theorem goldilocksRawNormBoundAssumption_of_inRange
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption) :
+  GoldilocksRawNormBoundAssumption := by
+  exact mulRqRawNormBoundFromOperands_of_inRange hRawInRange
+
+theorem goldilocksRawCoeffBoundAssumption_of_inRange
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption) :
+  GoldilocksRawCoeffBoundAssumption := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange hRawInRange
+
+theorem goldilocksRawInRangeBoundAssumption_of_norm
+  (hRaw : GoldilocksRawNormBoundAssumption) :
+  GoldilocksRawInRangeBoundAssumption := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm hRaw
+
+theorem goldilocksRawInRangeBoundAssumption_of_rawCoeff
+  (hRawCoeff : GoldilocksRawCoeffBoundAssumption) :
+  GoldilocksRawInRangeBoundAssumption := by
+  exact mulRqRawInRangeBoundFromOperands_of_rawCoeff hRawCoeff
+
+theorem goldilocksRawNormBoundAssumption_of_rawCoeff
+  (hRawCoeff : GoldilocksRawCoeffBoundAssumption) :
+  GoldilocksRawNormBoundAssumption := by
+  exact mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff
+
+theorem goldilocksRawNormBoundAssumption_iff_inRange :
+  GoldilocksRawNormBoundAssumption ↔ GoldilocksRawInRangeBoundAssumption := by
+  exact mulRqRawNormBoundFromOperands_iff_inRange
+
+theorem goldilocksRawCoeffBoundAssumption_iff_inRange :
+  GoldilocksRawCoeffBoundAssumption ↔ GoldilocksRawInRangeBoundAssumption := by
+  exact mulRqRawCoeffBoundFromOperands_iff_inRange
+
 theorem challengeCoeff_sub_norm_bound
   {x y : F}
   (hx : IsChallengeCoeff x)
@@ -116,6 +205,295 @@ theorem withinInvertibilityWindow_complete
   unfold withinInvertibilityWindow
   exact decide_eq_true h
 
+theorem withinInvertibilityWindow_iff_prop
+  {a : Coeffs} :
+  withinInvertibilityWindow a = true ↔
+    (0 < normInfCoeffs a ∧ normInfCoeffs a < bInvApprox) := by
+  constructor
+  · intro hOk
+    exact withinInvertibilityWindow_sound (a := a) hOk
+  · intro h
+    exact withinInvertibilityWindow_complete (a := a) h
+
+theorem normInfCoeffs_lt_bInvApprox_of_le
+  {a : Coeffs} {B : Nat}
+  (hLe : normInfCoeffs a ≤ B)
+  (hBLt : B < bInvApprox) :
+  normInfCoeffs a < bInvApprox := by
+  exact Nat.lt_of_le_of_lt hLe hBLt
+
+theorem withinInvertibilityWindow_of_norm_le_of_lt
+  {a : Coeffs} {B : Nat}
+  (hPos : 0 < normInfCoeffs a)
+  (hLe : normInfCoeffs a ≤ B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow a = true := by
+  exact withinInvertibilityWindow_complete
+    ⟨hPos, normInfCoeffs_lt_bInvApprox_of_le hLe hBLt⟩
+
+theorem withinInvertibilityWindow_mulRq_of_norm_le_of_lt
+  {a b : Coeffs} {B : Nat}
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hLe : normInfCoeffs (mulRq a b) ≤ B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_of_norm_le_of_lt hPos hLe hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_rawCoeffInRangeBound
+  {a b : Coeffs} {BRaw B : Nat}
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRange : ∀ t, t < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_rawCoeffInRangeBound
+      (a := a) (b := b) (BRaw := BRaw) (B := B)
+      hRawInRange hAddSub hSub)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_rawCoeffsNorm
+  {a b : Coeffs} {BRaw B : Nat}
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffs : normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_rawCoeffsNorm
+      (a := a) (b := b) (BRaw := BRaw) (B := B)
+      hRawCoeffs hAddSub hSub)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_norm_bounds_via_rawCoeffInRange
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromNormInRange :
+    ∀ t, t < 2 * D - 1 →
+      normInfCoeffs a ≤ BA →
+      normInfCoeffs b ≤ BB →
+      normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeff_inRange
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hRawFromNormInRange hAddSub hSub)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_norm_bounds_via_rawCoeffsNorm
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffsFromNorm :
+    normInfCoeffs a ≤ BA →
+      normInfCoeffs b ≤ BB →
+      normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeffsNorm
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hRawCoeffsFromNorm hAddSub hSub)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_operand_norm_assumptions
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hRawFromOperands hAddSub hSub)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_inRange
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_operand_norm_assumptions_inRange
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hRawInRangeFromOperands hAddSub hSub)
+    hBLt
+
+/--
+Field-op collapse variant of the P5->P16 window handoff.
+This avoids manual construction of `rawAddSubCollapseBound` when the caller already has
+separate `x+y` and `x-y` bounds at the same `B`.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_fieldOp
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  rcases hOps with ⟨hAdd, hSub⟩
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions
+    (a := a) (b := b)
+    (BA := BA) (BB := BB) (BRaw := B) (B := B)
+    hA hB hPos hRawFromOperands
+    (rawAddSubCollapseBound_of_add_and_sub_same (BRaw := B) hAdd hSub)
+    hSub
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_fieldOp_inRange
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  rcases hOps with ⟨hAdd, hSub⟩
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_inRange
+    (a := a) (b := b)
+    (BA := BA) (BB := BB) (BRaw := B) (B := B)
+    hA hB hPos hRawInRangeFromOperands
+    (rawAddSubCollapseBound_of_add_and_sub_same (BRaw := B) hAdd hSub)
+    hSub
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hRawCoeffFromOperands hAddSub hSub)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff_fieldOp
+      (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+      hA hB hRawCoeffFromOperands hOps)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_goldilocks_operand_assumptions
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRaw : GoldilocksRawNormBoundAssumption)
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  rcases hCollapse with ⟨hAddSub, hSub⟩
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions
+    (a := a) (b := b)
+    (BA := Parameters.Goldilocks.B)
+    (BB := Parameters.Goldilocks.B)
+    (BRaw := Parameters.Goldilocks.B)
+    (B := Parameters.Goldilocks.B)
+    hA hB hPos hRaw hAddSub hSub goldilocksB_lt_bInvApprox
+
+theorem withinInvertibilityWindow_mulRq_of_goldilocks_operand_assumptions_inRange
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption)
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  rcases hCollapse with ⟨hAddSub, hSub⟩
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_inRange
+    (a := a) (b := b)
+    (BA := Parameters.Goldilocks.B)
+    (BB := Parameters.Goldilocks.B)
+    (BRaw := Parameters.Goldilocks.B)
+    (B := Parameters.Goldilocks.B)
+    hA hB hPos hRawInRange hAddSub hSub goldilocksB_lt_bInvApprox
+
+theorem withinInvertibilityWindow_mulRq_of_goldilocks_operand_fieldOp_assumptions
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRaw : GoldilocksRawNormBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_goldilocks_operand_assumptions
+    (a := a) (b := b) hA hB hPos hRaw
+    (goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
+
+theorem withinInvertibilityWindow_mulRq_of_goldilocks_operand_fieldOp_assumptions_inRange
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_goldilocks_operand_assumptions_inRange
+    (a := a) (b := b) hA hB hPos hRawInRange
+    (goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
+
+theorem withinInvertibilityWindow_mulRq_of_goldilocks_operand_rawCoeff_assumptions
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeff : GoldilocksRawCoeffBoundAssumption)
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_goldilocks_operand_assumptions
+    (a := a) (b := b)
+    hA hB hPos
+    (goldilocksRawNormBoundAssumption_of_rawCoeff hRawCoeff)
+    hCollapse
+
+theorem withinInvertibilityWindow_mulRq_of_goldilocks_operand_rawCoeff_fieldOp_assumptions
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeff : GoldilocksRawCoeffBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_goldilocks_operand_rawCoeff_assumptions
+    (a := a) (b := b) hA hB hPos hRawCoeff
+    (goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
+
 theorem withinInvertibilityWindow_of_allChallenge
   {a : Coeffs}
   (hAll : AllChallengeCoeffs a)
@@ -150,6 +528,16 @@ theorem invertible_of_withinInvertibilityWindow_of_assumption
   rcases withinInvertibilityWindow_sound hWin with ⟨hPos, hLt⟩
   exact invertible_of_norm_bounds_of_assumption hInv hPos hLt
 
+theorem invertible_of_norm_le_of_lt_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a : Coeffs} {B : Nat}
+  (hPos : 0 < normInfCoeffs a)
+  (hLe : normInfCoeffs a ≤ B)
+  (hBLt : B < bInvApprox) :
+  ∃ b : Coeffs, mulRq a b = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_of_norm_le_of_lt hPos hLe hBLt)
+
 theorem invertible_of_allChallenge_nonzero_of_assumption
   (hInv : LowNormInvertibilityAssumption)
   {a : Coeffs}
@@ -169,5 +557,264 @@ theorem invertible_of_allChallenge_sub_nonzero_of_assumption
   ∃ c : Coeffs, mulRq (coeffSub a b) c = oneRq := by
   exact invertible_of_withinInvertibilityWindow_of_assumption hInv
     (withinInvertibilityWindow_of_allChallenge_sub hSize hAllA hAllB hPos)
+
+theorem invertible_mulRq_of_rawCoeffInRangeBound_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BRaw B : Nat}
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRange : ∀ t, t < 2 * D - 1 → normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_rawCoeffInRangeBound
+      (a := a) (b := b) (BRaw := BRaw) (B := B)
+      hPos hRawInRange hAddSub hSub hBLt)
+
+theorem invertible_mulRq_of_rawCoeffsNorm_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BRaw B : Nat}
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffs : normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_rawCoeffsNorm
+      (a := a) (b := b) (BRaw := BRaw) (B := B)
+      hPos hRawCoeffs hAddSub hSub hBLt)
+
+theorem invertible_mulRq_of_norm_bounds_via_rawCoeffInRange_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromNormInRange :
+    ∀ t, t < 2 * D - 1 →
+      normInfCoeffs a ≤ BA →
+      normInfCoeffs b ≤ BB →
+      normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_norm_bounds_via_rawCoeffInRange
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hPos hRawFromNormInRange hAddSub hSub hBLt)
+
+theorem invertible_mulRq_of_norm_bounds_via_rawCoeffsNorm_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffsFromNorm :
+    normInfCoeffs a ≤ BA →
+      normInfCoeffs b ≤ BB →
+      normInfCoeffs (mulRqRawCoeffs a b) ≤ BRaw)
+  (hAddSub : ∀ x y z, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF z ≤ BRaw → normInfF (x + y - z) ≤ B)
+  (hSub : ∀ x y, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x - y) ≤ B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_norm_bounds_via_rawCoeffsNorm
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hPos hRawCoeffsFromNorm hAddSub hSub hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hPos hRawFromOperands hAddSub hSub hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_inRange_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_inRange
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hPos hRawInRangeFromOperands hAddSub hSub hBLt)
+
+/--
+Field-op collapse variant of invertibility extraction for `mulRq a b`,
+keeping the trusted boundary explicit (`LowNormInvertibilityAssumption`).
+-/
+theorem invertible_mulRq_of_operand_norm_assumptions_fieldOp_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  rcases hOps with ⟨hAdd, hSub⟩
+  exact invertible_mulRq_of_operand_norm_assumptions_of_assumption
+    (hInv := hInv)
+    (a := a) (b := b)
+    (BA := BA) (BB := BB) (BRaw := B) (B := B)
+    hA hB hPos hRawFromOperands
+    (rawAddSubCollapseBound_of_add_and_sub_same (BRaw := B) hAdd hSub)
+    hSub
+    hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_fieldOp_inRange_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRangeFromOperands : mulRqRawInRangeBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  rcases hOps with ⟨hAdd, hSub⟩
+  exact invertible_mulRq_of_operand_norm_assumptions_inRange_of_assumption
+    (hInv := hInv)
+    (a := a) (b := b)
+    (BA := BA) (BB := BB) (BRaw := B) (B := B)
+    hA hB hPos hRawInRangeFromOperands
+    (rawAddSubCollapseBound_of_add_and_sub_same (BRaw := B) hAdd hSub)
+    hSub
+    hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_rawCoeff_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+      hA hB hPos hRawCoeffFromOperands hAddSub hSub hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp
+      (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+      hA hB hPos hRawCoeffFromOperands hOps hBLt)
+
+theorem invertible_mulRq_of_goldilocks_operand_assumptions_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRaw : GoldilocksRawNormBoundAssumption)
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_goldilocks_operand_assumptions
+      (a := a) (b := b) hA hB hPos hRaw hCollapse)
+
+theorem invertible_mulRq_of_goldilocks_operand_assumptions_inRange_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption)
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_goldilocks_operand_assumptions_of_assumption
+    (a := a) (b := b)
+    hInv hA hB hPos
+    (goldilocksRawNormBoundAssumption_of_inRange hRawInRange)
+    hCollapse
+
+theorem invertible_mulRq_of_goldilocks_operand_fieldOp_assumptions_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRaw : GoldilocksRawNormBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_goldilocks_operand_assumptions_of_assumption
+    (a := a) (b := b)
+    hInv hA hB hPos hRaw
+    (goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
+
+theorem invertible_mulRq_of_goldilocks_operand_fieldOp_assumptions_inRange_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawInRange : GoldilocksRawInRangeBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_goldilocks_operand_assumptions_inRange_of_assumption
+    (a := a) (b := b)
+    hInv hA hB hPos hRawInRange
+    (goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
+
+theorem invertible_mulRq_of_goldilocks_operand_rawCoeff_assumptions_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeff : GoldilocksRawCoeffBoundAssumption)
+  (hCollapse : GoldilocksRawCollapseAssumption) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_goldilocks_operand_assumptions_of_assumption
+    (a := a) (b := b)
+    hInv hA hB hPos
+    (goldilocksRawNormBoundAssumption_of_rawCoeff hRawCoeff)
+    hCollapse
+
+theorem invertible_mulRq_of_goldilocks_operand_rawCoeff_fieldOp_assumptions_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs}
+  (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
+  (hB : normInfCoeffs b ≤ Parameters.Goldilocks.B)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeff : GoldilocksRawCoeffBoundAssumption)
+  (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_goldilocks_operand_rawCoeff_assumptions_of_assumption
+    (a := a) (b := b)
+    hInv hA hB hPos hRawCoeff
+    (goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
 
 end SuperNeo

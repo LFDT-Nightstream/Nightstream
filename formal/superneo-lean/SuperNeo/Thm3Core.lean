@@ -1,6 +1,9 @@
 import SuperNeo.Ring
 import SuperNeo.Dimensions
 
+/-! Theorem-3 core assumptions and derived matrix-transform interfaces. -/
+
+
 namespace SuperNeo
 
 open F

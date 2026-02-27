@@ -1,5 +1,8 @@
 import SuperNeo.BarLift
 
+/-! Coefficient-row encodings and bridges between ring vectors and field matrices. -/
+
+
 namespace SuperNeo
 
 /-- Coefficient map cf : R_q -> F_q^d (concrete encoding). -/

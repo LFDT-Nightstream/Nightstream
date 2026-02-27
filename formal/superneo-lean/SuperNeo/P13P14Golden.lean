@@ -50,6 +50,16 @@ private def genMatrix (seed rows cols : Nat) : Array (Array F) :=
       out := out.push (genFVec (seedFor seed i) cols)
     return out
 
+private def dotF (a b : Array F) : F :=
+  if a.size != b.size then
+    0
+  else
+    Id.run do
+      let mut acc : F := 0
+      for i in [0:a.size] do
+        acc := acc + a[i]! * b[i]!
+      return acc
+
 def p13EvalLinkGoldenCaseCount : Nat := 20
 def p14EvalHomGoldenCaseCount : Nat := 20
 

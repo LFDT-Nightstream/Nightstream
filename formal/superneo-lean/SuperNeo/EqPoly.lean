@@ -1,5 +1,8 @@
 import SuperNeo.Field
 
+/-! Equality-polynomial and eq-lift lemmas used in P18. -/
+
+
 namespace SuperNeo
 
 open F
@@ -106,6 +109,43 @@ theorem eqHypercubeIndicator_complete
   · have hEqPoly : eqPoly x y = 0 := by simpa [hEq] using hCase
     have hDecEq : decide (x = y) = false := decide_eq_false hEq
     simp [hSize, hBool, hDecEq, hEqPoly]
+
+theorem eqHypercubeIndicatorProp_size_eq
+  {x y : Array F}
+  (hProp : eqHypercubeIndicatorProp x y) :
+  x.size = y.size := by
+  have hSizeFalse : (x.size != y.size) = false := hProp.1
+  by_cases hEq : x.size = y.size
+  · exact hEq
+  · have hNeTrue : (x.size != y.size) = true := by simp [hEq]
+    rw [hNeTrue] at hSizeFalse
+    cases hSizeFalse
+
+theorem eqHypercubeIndicatorProp_bool_rows
+  {x y : Array F}
+  (hProp : eqHypercubeIndicatorProp x y) :
+  x.all isBoolF = true ∧ y.all isBoolF = true := by
+  simpa [Bool.and_eq_true] using hProp.2.1
+
+theorem eqHypercubeIndicatorProp_eval_if
+  {x y : Array F}
+  (hProp : eqHypercubeIndicatorProp x y) :
+  (if x = y then eqPoly x y = 1 else eqPoly x y = 0) := by
+  exact hProp.2.2
+
+theorem eqHypercubeIndicatorProp_eval_eq
+  {x y : Array F}
+  (hProp : eqHypercubeIndicatorProp x y)
+  (hEq : x = y) :
+  eqPoly x y = 1 := by
+  simpa [hEq] using (eqHypercubeIndicatorProp_eval_if hProp)
+
+theorem eqHypercubeIndicatorProp_eval_ne
+  {x y : Array F}
+  (hProp : eqHypercubeIndicatorProp x y)
+  (hNe : x ≠ y) :
+  eqPoly x y = 0 := by
+  simpa [hNe] using (eqHypercubeIndicatorProp_eval_if hProp)
 
 theorem eqHypercubeIndicator_iff_prop
   {x y : Array F} :

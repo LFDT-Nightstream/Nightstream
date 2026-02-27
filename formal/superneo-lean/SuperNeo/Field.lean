@@ -1,5 +1,8 @@
 import Std
 
+/-! Prime-field model and canonicality lemmas. -/
+
+
 namespace SuperNeo
 
 def q : Nat := 18446744069414584321
@@ -31,17 +34,13 @@ instance : Add F where
   add a b := ofNat (a.val + b.val)
 
 instance : Sub F where
-  sub a b := ofNat (a.val + q - b.val)
+  sub a b := ofNat (a.val + q - (b.val % q))
 
 instance : Mul F where
   mul a b := ofNat (a.val * b.val)
 
 instance : Neg F where
-  neg a :=
-    if a.val = 0 then
-      zero
-    else
-      ⟨q - a.val⟩
+  neg a := ofNat (q - (a.val % q))
 
 partial def egcd (a b : Int) : Int × Int × Int :=
   if b = 0 then
@@ -115,8 +114,8 @@ theorem canonical_add (a b : F) : Canonical (a + b) := by
 
 theorem canonical_sub (a b : F) : Canonical (a - b) := by
   unfold Canonical
-  change (ofNat (a.val + q - b.val)).val < q
-  exact ofNat_val_lt_q (a.val + q - b.val)
+  change (ofNat (a.val + q - (b.val % q))).val < q
+  exact ofNat_val_lt_q (a.val + q - (b.val % q))
 
 theorem canonical_mul (a b : F) : Canonical (a * b) := by
   unfold Canonical

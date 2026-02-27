@@ -1,6 +1,9 @@
 import SuperNeo.Field
 import SuperNeo.Dimensions
 
+/-! Ring R_q operations, coefficient specs, and quotient-spec uniqueness. -/
+
+
 namespace SuperNeo
 
 open F
@@ -105,19 +108,25 @@ theorem ct_canonical_of_all
 
 private def schoolbookRaw (a b : Coeffs) : Array F :=
   Id.run do
+    -- Explicitly normalize representatives to degree < D (pad/truncate).
+    -- This matches the effective loop behavior but makes the contract explicit.
+    let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+    let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
     let mut tmp := Array.replicate (2 * D - 1) (0 : F)
     for i in [0:D] do
-      let ai := a[i]!
+      let ai := aD[i]!
       for j in [0:D] do
-        tmp := addAt tmp (i + j) (ai * b[j]!)
+        tmp := addAt tmp (i + j) (ai * bD[j]!)
     return tmp
 
 theorem schoolbookRaw_size (a b : Coeffs) :
   (schoolbookRaw a b).size = 2 * D - 1 := by
   unfold schoolbookRaw
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
   have hInner :
       ∀ (i : Nat) (inner : List Nat) (tmp : Array F),
-        (List.foldl (fun acc j => addAt acc (i + j) (a[i]! * b[j]!)) tmp inner).size =
+        (List.foldl (fun acc j => addAt acc (i + j) (aD[i]! * bD[j]!)) tmp inner).size =
           tmp.size := by
     intro i inner tmp
     induction inner generalizing tmp with
@@ -129,7 +138,7 @@ theorem schoolbookRaw_size (a b : Coeffs) :
       ∀ (outer : List Nat) (tmp : Array F),
         (List.foldl
             (fun acc i =>
-              List.foldl (fun acc' j => addAt acc' (i + j) (a[i]! * b[j]!)) acc (List.range' 0 D))
+              List.foldl (fun acc' j => addAt acc' (i + j) (aD[i]! * bD[j]!)) acc (List.range' 0 D))
             tmp
             outer).size =
           tmp.size := by
@@ -139,7 +148,7 @@ theorem schoolbookRaw_size (a b : Coeffs) :
         simp
     | cons i is ih =>
         simp [List.foldl_cons, hInner i (List.range' 0 D), ih]
-  simpa using hOuter (List.range' 0 D) (Array.replicate (2 * D - 1) (0 : F))
+  simpa [aD, bD] using hOuter (List.range' 0 D) (Array.replicate (2 * D - 1) (0 : F))
 
 private def takeFirstD (arr : Array F) : Coeffs :=
   Array.ofFn (fun i : Fin D => arr[i.1]!)
@@ -391,9 +400,32 @@ def mulRqCoeffSpec (a b : Coeffs) (k : Nat) : F :=
   else
     raw[k]! - raw[k + 27]!
 
+/-- Public array view of the unreduced schoolbook coefficients. -/
+def mulRqRawCoeffs (a b : Coeffs) : Coeffs :=
+  schoolbookRaw a b
+
+theorem mulRqRawCoeffs_size (a b : Coeffs) :
+  (mulRqRawCoeffs a b).size = 2 * D - 1 := by
+  unfold mulRqRawCoeffs
+  exact schoolbookRaw_size a b
+
 /-- Public accessor for coefficients of the unreduced schoolbook product. -/
 def mulRqRawCoeffSpec (a b : Coeffs) (k : Nat) : F :=
-  (schoolbookRaw a b)[k]!
+  (mulRqRawCoeffs a b)[k]!
+
+theorem mulRqRawCoeffSpec_eq_rawCoeffs_getElemBang
+  (a b : Coeffs) (k : Nat) :
+  mulRqRawCoeffSpec a b k = (mulRqRawCoeffs a b)[k]! := by
+  rfl
+
+theorem mulRqRawCoeffSpec_eq_zero_of_ge
+  {a b : Coeffs} {k : Nat}
+  (hk : 2 * D - 1 ≤ k) :
+  mulRqRawCoeffSpec a b k = 0 := by
+  unfold mulRqRawCoeffSpec
+  have hNotLt : ¬ k < (mulRqRawCoeffs a b).size :=
+    Nat.not_lt_of_ge (by simpa [mulRqRawCoeffs_size] using hk)
+  simp [hNotLt, F.default_eq_zero]
 
 theorem mulRqCoeffSpec_of_le25
   {a b : Coeffs} {k : Nat}
@@ -409,7 +441,7 @@ theorem mulRqCoeffSpec_of_le25_raw
   mulRqCoeffSpec a b k =
     mulRqRawCoeffSpec a b k + mulRqRawCoeffSpec a b (k + 81) - mulRqRawCoeffSpec a b (k + 54) := by
   rw [mulRqCoeffSpec_of_le25 (a := a) (b := b) (k := k) h25]
-  simp [mulRqRawCoeffSpec]
+  simp [mulRqRawCoeffSpec, mulRqRawCoeffs]
 
 theorem mulRqCoeffSpec_of_eq26
   {a b : Coeffs} {k : Nat}
@@ -425,7 +457,7 @@ theorem mulRqCoeffSpec_of_eq26_raw
   mulRqCoeffSpec a b k =
     mulRqRawCoeffSpec a b k - mulRqRawCoeffSpec a b (k + 54) := by
   rw [mulRqCoeffSpec_of_eq26 (a := a) (b := b) (k := k) h26]
-  simp [mulRqRawCoeffSpec]
+  simp [mulRqRawCoeffSpec, mulRqRawCoeffs]
 
 theorem mulRqCoeffSpec_of_ge27
   {a b : Coeffs} {k : Nat}
@@ -448,7 +480,7 @@ theorem mulRqCoeffSpec_of_ge27_raw
   mulRqCoeffSpec a b k =
     mulRqRawCoeffSpec a b k - mulRqRawCoeffSpec a b (k + 27) := by
   rw [mulRqCoeffSpec_of_ge27 (a := a) (b := b) (k := k) h27]
-  simp [mulRqRawCoeffSpec]
+  simp [mulRqRawCoeffSpec, mulRqRawCoeffs]
 
 theorem reducePhi81Coeff_eq_mulRqCoeffSpec
   {a b : Coeffs} {k : Nat}
@@ -1067,15 +1099,33 @@ structure Rq where
   coeffs : Coeffs
   shape : hasRingDegreeShape coeffs
 
+/-- Canonical ring-element wrapper (`size = D` and canonical coefficients). -/
+structure RqCanon where
+  coeffs : Coeffs
+  shape : hasRingDegreeShape coeffs
+  canon : coeffs.all F.Canonical = true
+
 def truncateToRing (a : Coeffs) : Rq :=
   { coeffs := takeFirstD a
     shape := takeFirstD_size a }
 
+def truncateToRingCanon (a : Coeffs) (hAll : a.all F.Canonical = true) : RqCanon :=
+  { coeffs := takeFirstD a
+    shape := takeFirstD_size a
+    canon := takeFirstD_allCanonical a hAll }
+
 def Rq.ct (a : Rq) : F := SuperNeo.ct a.coeffs
+
+def RqCanon.ct (a : RqCanon) : F := SuperNeo.ct a.coeffs
 
 def Rq.mul (a b : Rq) : Rq :=
   { coeffs := mulRq a.coeffs b.coeffs
     shape := hasRingDegreeShape_mulRq a.coeffs b.coeffs }
+
+def RqCanon.mul (a b : RqCanon) : RqCanon :=
+  { coeffs := mulRq a.coeffs b.coeffs
+    shape := hasRingDegreeShape_mulRq a.coeffs b.coeffs
+    canon := mulRq_allCanonical a.coeffs b.coeffs }
 
 def Rq.mulQuotientSpec (a b c : Rq) : Prop :=
   mulRqQuotientSpec a.coeffs b.coeffs c.coeffs

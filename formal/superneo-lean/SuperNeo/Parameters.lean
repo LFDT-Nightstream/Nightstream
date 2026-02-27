@@ -1,6 +1,9 @@
 import SuperNeo.Field
 import SuperNeo.Dimensions
 
+/-! Protocol and Goldilocks parameter declarations. -/
+
+
 namespace SuperNeo
 namespace Parameters
 namespace Goldilocks

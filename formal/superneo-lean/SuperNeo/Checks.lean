@@ -18,6 +18,9 @@ import SuperNeo.Parameters
 import SuperNeo.Interp
 import SuperNeo.Generated.Vectors
 
+/-! Executable boolean checks used as regression surfaces. -/
+
+
 namespace SuperNeo
 
 open F

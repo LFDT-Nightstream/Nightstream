@@ -184,21 +184,18 @@ for dir in "${dirs[@]}"; do
     echo "Processing directory: $dir"
     [ -e "$dir" ] || { echo "Skipping missing: $dir"; continue; }
 
-    # Build the find command with exclusions
-    find_cmd="find \"$dir\""
-    # First exclude the script itself and the output file
-    find_cmd="$find_cmd -name \"$script_name\" -prune -o -name \"$(basename \"$outfile\")\" -prune -o"
-    # Then add user-specified exclusions
+    # Build and run find with exclusions (array form avoids eval/quoting bugs).
+    find_cmd=(find "$dir" -name "$script_name" -prune -o -name "$(basename "$outfile")" -prune -o)
     for exclude in "${excludes[@]}"; do
         [ -z "$exclude" ] && continue
-        find_cmd="$find_cmd -name \"$exclude\" -prune -o"
+        find_cmd+=(-name "$exclude" -prune -o)
     done
-    find_cmd="$find_cmd -type f -print"
+    find_cmd+=(-type f -print)
 
     # Append results to files_to_process (avoid subshell to preserve array)
     while IFS= read -r file; do
         files_to_process+=("$file")
-    done < <(eval "$find_cmd")
+    done < <("${find_cmd[@]}")
 done
 
 # Deduplicate while preserving input order, then process.

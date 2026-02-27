@@ -1,6 +1,9 @@
 import SuperNeo.Ring
 import SuperNeo.Dimensions
 
+/-! Bar-lift operators and linearity lemmas used in P11. -/
+
+
 namespace SuperNeo
 
 open F

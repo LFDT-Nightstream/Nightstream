@@ -1,5 +1,8 @@
 import SuperNeo.EqPoly
 
+/-! Polynomial support lemmas used by P18-related results. -/
+
+
 namespace SuperNeo
 
 open F

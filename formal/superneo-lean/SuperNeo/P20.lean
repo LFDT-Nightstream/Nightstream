@@ -45,6 +45,32 @@ theorem p20EvalHomProp_of_checkAssumption
   exact p20EvalHomProp_of_assumption
     (p14EvalHomAssumption_of_checkAssumption hCheck) hSize hRows
 
+theorem p20EvalHomProp_of_p15EvalBarMzAtAssumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z1 z2 r : Array F}
+  {ρ1 ρ2 : F}
+  (hLin : p15EvalBarMzAtAssumption bar m r)
+  (hSize : z1.size = z2.size)
+  (hRows : MatrixRowsCompatible m z1) :
+  p20EvalHomProp bar m z1 z2 r ρ1 ρ2 := by
+  exact p20EvalHomProp_of_assumption
+    (p14EvalHomAssumption_of_p15EvalBarMzAtAssumption hLin)
+    hSize hRows
+
+theorem p20EvalHomProp_of_p15EvalBarMzAtCheckAssumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z1 z2 r : Array F}
+  {ρ1 ρ2 : F}
+  (hCheck : p15EvalBarMzAtCheckAssumption bar m r)
+  (hSize : z1.size = z2.size)
+  (hRows : MatrixRowsCompatible m z1) :
+  p20EvalHomProp bar m z1 z2 r ρ1 ρ2 := by
+  exact p20EvalHomProp_of_assumption
+    (p14EvalHomAssumption_of_p15EvalBarMzAtCheckAssumption hCheck)
+    hSize hRows
+
 theorem p20MatrixTransformProp_of_assumption
   {bar : Array (Array F)}
   {m : Array (Array F)}
@@ -235,6 +261,423 @@ theorem p20SamplingProp_of_operand_norm_assumptions_fieldOp_rawCoeff
       (hRawCoeff := hRawCoeffAtMax)
       (hOps := hOps))
 
+theorem p20SamplingProp_of_operand_norm_assumptions_via_schoolbook
+  {cset samples : Array Coeffs}
+  {BA BB BTerm BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  p20SamplingProp cset samples := by
+  have hMax : maxRhoNorm cset ≤ BA := maxRhoNorm_le_of_forall_norm_le hCset
+  have hMulAtMax :
+      ∀ x y : F,
+        normInfF x ≤ maxRhoNorm cset →
+        normInfF y ≤ BB →
+        normInfF (x * y) ≤ BTerm := by
+    intro x y hx hy
+    exact hMul x y (Nat.le_trans hx hMax) hy
+  exact p20SamplingProp_of_empirical_bound
+    (empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook
+      (cset := cset) (samples := samples) (BB := BB) (BTerm := BTerm) (BRaw := BRaw)
+      hSamples hMulAtMax hAdd hZero hAddSub hSub)
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_sum
+  {cset samples : Array Coeffs}
+  {BA BB BTerm : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hAddSub :
+    rawAddSubCollapseBound
+      ((D * D) * BTerm)
+      (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub :
+    rawSubCollapseBound
+      ((D * D) * BTerm)
+      (theorem9UpperBound (maxRhoNorm cset))) :
+  p20SamplingProp cset samples := by
+  have hMax : maxRhoNorm cset ≤ BA := maxRhoNorm_le_of_forall_norm_le hCset
+  have hMulAtMax :
+      ∀ x y : F,
+        normInfF x ≤ maxRhoNorm cset →
+        normInfF y ≤ BB →
+        normInfF (x * y) ≤ BTerm := by
+    intro x y hx hy
+    exact hMul x y (Nat.le_trans hx hMax) hy
+  exact p20SamplingProp_of_empirical_bound
+    (empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_sum
+      (cset := cset) (samples := samples) (BB := BB) (BTerm := BTerm)
+      hSamples hMulAtMax hAddTri hAddSub hSub)
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp
+  {cset samples : Array Coeffs}
+  {BA BB BTerm : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hOps : rawFieldOpCollapseBound ((D * D) * BTerm) ((D * D) * BTerm))
+  (hRawLe : ((D * D) * BTerm) ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  have hAddSubRaw : rawAddSubCollapseBound ((D * D) * BTerm) ((D * D) * BTerm) :=
+    rawAddSubCollapseBound_of_add_and_sub_same hOps.1 hOps.2
+  have hAddSub :
+      rawAddSubCollapseBound ((D * D) * BTerm) (theorem9UpperBound (maxRhoNorm cset)) :=
+    rawAddSubCollapseBound_mono hAddSubRaw hRawLe
+  have hSub :
+      rawSubCollapseBound ((D * D) * BTerm) (theorem9UpperBound (maxRhoNorm cset)) :=
+    rawSubCollapseBound_mono hOps.2 hRawLe
+  exact p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_sum
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (BTerm := BTerm)
+    hCset hSamples hMul hAddTri hAddSub hSub
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_fieldOp
+  {cset samples : Array Coeffs}
+  {BA BB BTerm : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd :
+    ∀ x y : F,
+      normInfF x ≤ theorem9UpperBound (maxRhoNorm cset) →
+      normInfF y ≤ BTerm →
+      normInfF (x + y) ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hZero : normInfF (0 : F) ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hOps :
+    rawFieldOpCollapseBound
+      (theorem9UpperBound (maxRhoNorm cset))
+      (theorem9UpperBound (maxRhoNorm cset))) :
+  p20SamplingProp cset samples := by
+  rcases hOps with ⟨hAddCollapse, hSub⟩
+  exact p20SamplingProp_of_operand_norm_assumptions_via_schoolbook
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (BTerm := BTerm)
+    (BRaw := theorem9UpperBound (maxRhoNorm cset))
+    hCset hSamples hMul hAdd hZero
+    (rawAddSubCollapseBound_of_add_and_sub_same hAddCollapse hSub)
+    hSub
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_of_term_le
+  {cset samples : Array Coeffs}
+  {BA BB BTerm BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  p20SamplingProp cset samples := by
+  have hMax : maxRhoNorm cset ≤ BA := maxRhoNorm_le_of_forall_norm_le hCset
+  have hMulAtMax :
+      ∀ x y : F,
+        normInfF x ≤ maxRhoNorm cset →
+        normInfF y ≤ BB →
+        normInfF (x * y) ≤ BTerm := by
+    intro x y hx hy
+    exact hMul x y (Nat.le_trans hx hMax) hy
+  exact p20SamplingProp_of_empirical_bound
+    (empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_of_term_le
+      (cset := cset) (samples := samples) (BB := BB) (BTerm := BTerm) (BRaw := BRaw)
+      hSamples hMulAtMax hTermLe hAddCollapse hAddSub hSub)
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_sameBound
+  {cset samples : Array Coeffs}
+  {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_of_term_le
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (BTerm := BRaw) (BRaw := BRaw)
+    hCset hSamples hMul (Nat.le_refl BRaw) hAddCollapse hAddSub hSub
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_sameBound_fieldOp
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ BA →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hOps :
+    rawFieldOpCollapseBound
+      (theorem9UpperBound (maxRhoNorm cset))
+      (theorem9UpperBound (maxRhoNorm cset))) :
+  p20SamplingProp cset samples := by
+  rcases hOps with ⟨hAddCollapse, hSub⟩
+  exact p20SamplingProp_of_operand_norm_assumptions_via_schoolbook_sameBound
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB)
+    (BRaw := theorem9UpperBound (maxRhoNorm cset))
+    hCset hSamples hMul hAddCollapse
+    (rawAddSubCollapseBound_of_add_and_sub_same hAddCollapse hSub)
+    hSub
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_empirical_bound
+    (empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hAddTri hSubTri hRawLe)
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers_tight
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_empirical_bound
+    (empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_tight
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hAddTri hSubTri hRawLe)
+
+/--
+Triangle-bundle variant of
+`p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers_tight`.
+-/
+theorem p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_empirical_bound
+    (empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hTri hRawLe)
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulUniv (schoolbookTriangleBounds_of_add hAddTri) hRawLe
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    hRawLe
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_centeredRep_mul_tight
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulRep centeredRepAddTriangleBound_theorem hRawLe
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_centeredRepMulAddBounds_tight
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRep : centeredRepMulAddBounds)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    (centeredRepMulAddBounds_mul hRep)
+    (centeredRepMulAddBounds_add hRep)
+    hRawLe
+
+/-- Assumption-free native P20 sampling constructor (`D^2` schoolbook path). -/
+theorem p20SamplingProp_of_operand_norm_assumptions_native
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawLe :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    schoolbookMulUniversalBound_theorem
+    (schoolbookTriangleBounds_add schoolbookTriangleBounds_theorem)
+    (schoolbookTriangleBounds_sub schoolbookTriangleBounds_theorem)
+    hRawLe
+
+/-- Assumption-free native-tight P20 sampling constructor (`3 * D * BA * BB` path). -/
+theorem p20SamplingProp_of_operand_norm_assumptions_native_tight
+  {cset samples : Array Coeffs}
+  {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+    hRawLe
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers_and_raw
+  {cset samples : Array Coeffs}
+  {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_empirical_bound
+    (empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_and_raw
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+      hCset hSamples hRaw hAddTri hSubTri hRawLe)
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers_and_rawCoeff
+  {cset samples : Array Coeffs}
+  {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddTri hSubTri hRawLe
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+  {cset samples : Array Coeffs}
+  {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw hAddTri (schoolbookSubTriangleBound_of_add hAddTri) hRawLe
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_add_and_rawCoeff
+  {cset samples : Array Coeffs}
+  {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddTri hRawLe
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+  {cset samples : Array Coeffs}
+  {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    hRawLe
+
+theorem p20SamplingProp_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_rawCoeff
+  {cset samples : Array Coeffs}
+  {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  p20SamplingProp cset samples := by
+  exact p20SamplingProp_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddRep hRawLe
+
 theorem p20SamplingProp_of_goldilocks_operand_assumptions
   {cset samples : Array Coeffs}
   (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ Parameters.Goldilocks.B)
@@ -255,10 +698,10 @@ theorem p20SamplingProp_of_goldilocks_operand_assumptions_inRange
   (hCollapse : GoldilocksRawCollapseAssumption)
   (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm cset)) :
   p20SamplingProp cset samples := by
-  exact p20SamplingProp_of_goldilocks_empirical_le
-    (empiricalExpansionFactor_le_of_goldilocks_operand_assumptions_inRange
-      hCset hSamples hRawInRange hCollapse)
-    hUpper
+  exact p20SamplingProp_of_goldilocks_operand_assumptions
+    hCset hSamples
+    (goldilocksRawNormBoundAssumption_of_inRange hRawInRange)
+    hCollapse hUpper
 
 theorem p20SamplingProp_of_goldilocks_operand_fieldOp_assumptions
   {cset samples : Array Coeffs}
@@ -268,9 +711,9 @@ theorem p20SamplingProp_of_goldilocks_operand_fieldOp_assumptions
   (hFieldOps : GoldilocksFieldOpCollapseAssumption)
   (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm cset)) :
   p20SamplingProp cset samples := by
-  exact p20SamplingProp_of_goldilocks_empirical_le
-    (empiricalExpansionFactor_le_of_goldilocks_operand_fieldOp_assumptions
-      hCset hSamples hRaw hFieldOps)
+  exact p20SamplingProp_of_goldilocks_operand_assumptions
+    hCset hSamples hRaw
+    (goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
     hUpper
 
 theorem p20SamplingProp_of_goldilocks_operand_fieldOp_assumptions_inRange
@@ -281,10 +724,10 @@ theorem p20SamplingProp_of_goldilocks_operand_fieldOp_assumptions_inRange
   (hFieldOps : GoldilocksFieldOpCollapseAssumption)
   (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm cset)) :
   p20SamplingProp cset samples := by
-  exact p20SamplingProp_of_goldilocks_empirical_le
-    (empiricalExpansionFactor_le_of_goldilocks_operand_fieldOp_assumptions_inRange
-      hCset hSamples hRawInRange hFieldOps)
-    hUpper
+  exact p20SamplingProp_of_goldilocks_operand_fieldOp_assumptions
+    hCset hSamples
+    (goldilocksRawNormBoundAssumption_of_inRange hRawInRange)
+    hFieldOps hUpper
 
 theorem p20SamplingProp_of_goldilocks_operand_rawCoeff_assumptions
   {cset samples : Array Coeffs}
@@ -294,11 +737,10 @@ theorem p20SamplingProp_of_goldilocks_operand_rawCoeff_assumptions
   (hCollapse : GoldilocksRawCollapseAssumption)
   (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm cset)) :
   p20SamplingProp cset samples := by
-  apply p20SamplingProp_of_empirical_bound
-  exact Nat.le_trans
-    (empiricalExpansionFactor_le_of_goldilocks_operand_rawCoeff_assumptions
-      hCset hSamples hRawCoeff hCollapse)
-    hUpper
+  exact p20SamplingProp_of_goldilocks_operand_assumptions
+    hCset hSamples
+    (goldilocksRawNormBoundAssumption_of_rawCoeff hRawCoeff)
+    hCollapse hUpper
 
 theorem p20SamplingProp_of_goldilocks_operand_rawCoeff_fieldOp_assumptions
   {cset samples : Array Coeffs}
@@ -308,11 +750,10 @@ theorem p20SamplingProp_of_goldilocks_operand_rawCoeff_fieldOp_assumptions
   (hFieldOps : GoldilocksFieldOpCollapseAssumption)
   (hUpper : Parameters.Goldilocks.B ≤ theorem9UpperBound (maxRhoNorm cset)) :
   p20SamplingProp cset samples := by
-  apply p20SamplingProp_of_empirical_bound
-  exact Nat.le_trans
-    (empiricalExpansionFactor_le_of_goldilocks_operand_rawCoeff_fieldOp_assumptions
-      hCset hSamples hRawCoeff hFieldOps)
-    hUpper
+  exact p20SamplingProp_of_goldilocks_operand_fieldOp_assumptions
+    hCset hSamples
+    (goldilocksRawNormBoundAssumption_of_rawCoeff hRawCoeff)
+    hFieldOps hUpper
 
 theorem p20SamplingProp_of_goldilocks_operand_assumptions_of_maxRhoNorm_ge
   {cset samples : Array Coeffs}
@@ -416,7 +857,7 @@ theorem p20DecompProp_recompose_size_eq
   {z : Array F} {b k : Nat}
   (hProp : p20DecompProp z b k) :
   (recomposeSplitDigits (splitBalancedVec z b k) b).size = z.size := by
-  simpa [p20DecompProp_recompose_eq hProp]
+  simp [p20DecompProp_recompose_eq hProp]
 
 theorem p20DecompProp_digitsWithinBaseProp
   {z : Array F} {b k : Nat}
@@ -851,6 +1292,759 @@ theorem p20ArithmeticBundle_of_props_with_sampling_operand_fieldOp_assumptions_i
     (hP18 := hP18)
     (hP19 := hP19)
 
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_blockers
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hP17 := p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hAddTri hSubTri hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_blockers_tight
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hP17 := p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers_tight
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hAddTri hSubTri hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+/--
+Triangle-bundle variant of
+`p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_blockers_tight`.
+-/
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_triangles_tight
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hP17 := p20SamplingProp_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hTri hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_add_tight
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_triangles_tight
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hMulUniv := hMulUniv)
+    (hTri := schoolbookTriangleBounds_of_add hAddTri)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_centeredRep_mul_and_add_tight
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_add_tight
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hMulUniv := schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (hAddTri := schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_centeredRepMulAddBounds_tight
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRep : centeredRepMulAddBounds)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_centeredRep_mul_and_add_tight
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hMulRep := centeredRepMulAddBounds_mul hRep)
+    (hAddRep := centeredRepMulAddBounds_add hRep)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+/--
+Assumption-free native P20 bundle constructor.
+Uses theorem-native P5 blockers proved in `Norm.lean`.
+-/
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_native
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawLe :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_blockers
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hMulUniv := schoolbookMulUniversalBound_theorem)
+    (hAddTri := schoolbookTriangleBounds_add schoolbookTriangleBounds_theorem)
+    (hSubTri := schoolbookTriangleBounds_sub schoolbookTriangleBounds_theorem)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+/--
+Assumption-free native-tight P20 bundle constructor.
+Uses theorem-native P5 blockers proved in `Norm.lean`.
+-/
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_native_tight
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_triangles_tight
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hMulUniv := schoolbookMulUniversalBound_theorem)
+    (hTri := schoolbookTriangleBounds_theorem)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_centeredRep_mul_tight
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_centeredRep_mul_and_add_tight
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hMulRep := hMulRep)
+    (hAddRep := centeredRepAddTriangleBound_theorem)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_blockers_and_raw
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hP17 := p20SamplingProp_of_operand_norm_assumptions_via_universal_blockers_and_raw
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+      hCset hSamples hRaw hAddTri hSubTri hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_blockers_and_rawCoeff
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_blockers_and_raw
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    (hAddTri := hAddTri)
+    (hSubTri := hSubTri)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_add_and_raw
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_blockers_and_raw
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := hRaw)
+    (hAddTri := hAddTri)
+    (hSubTri := schoolbookSubTriangleBound_of_add hAddTri)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_add_and_rawCoeff
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_add_and_raw
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    (hAddTri := hAddTri)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_centeredRep_mul_and_add_and_raw
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_universal_mul_and_add_and_raw
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := hRaw)
+    (hAddTri := schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+theorem p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_centeredRep_mul_and_add_and_rawCoeff
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14 : p20EvalHomProp bar m z1 z2 r ρ1 ρ2)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset))
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_sampling_operand_assumptions_via_centeredRep_mul_and_add_and_raw
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14 := hP14)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    (hAddRep := hAddRep)
+    (hRawLe := hRawLe)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
 theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_assumptions
   {bar : Array (Array F)}
   {m : Array (Array F)}
@@ -924,7 +2118,7 @@ theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_fieldOp_as
   (hP18 : p20PolyProp qVals ell totalDegree setSize)
   (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
   p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
-  exact p20ArithmeticBundle_of_props
+  exact p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_assumptions
     (hP6 := hP6)
     (hP12Rows := hP12Rows)
     (hP12Eq := hP12Eq)
@@ -933,7 +2127,11 @@ theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_fieldOp_as
     (hP15Scal := hP15Scal)
     (hP16 := hP16)
     (hP16Win := hP16Win)
-    (hP17 := p20SamplingProp_of_goldilocks_operand_fieldOp_assumptions hCset hSamples hRaw hFieldOps hUpper)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := hRaw)
+    (hCollapse := goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
+    (hUpper := hUpper)
     (hP18 := hP18)
     (hP19 := hP19)
 
@@ -967,7 +2165,7 @@ theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_fieldOp_as
   (hP18 : p20PolyProp qVals ell totalDegree setSize)
   (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
   p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
-  exact p20ArithmeticBundle_of_props
+  exact p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions
     (hP6 := hP6)
     (hP12Rows := hP12Rows)
     (hP12Eq := hP12Eq)
@@ -976,7 +2174,11 @@ theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_fieldOp_as
     (hP15Scal := hP15Scal)
     (hP16 := hP16)
     (hP16Win := hP16Win)
-    (hP17 := p20SamplingProp_of_goldilocks_operand_fieldOp_assumptions_inRange hCset hSamples hRawInRange hFieldOps hUpper)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := goldilocksRawNormBoundAssumption_of_inRange hRawInRange)
+    (hFieldOps := hFieldOps)
+    (hUpper := hUpper)
     (hP18 := hP18)
     (hP19 := hP19)
 
@@ -1010,7 +2212,7 @@ theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_rawCoeff_a
   (hP18 : p20PolyProp qVals ell totalDegree setSize)
   (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
   p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
-  exact p20ArithmeticBundle_of_props
+  exact p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_assumptions
     (hP6 := hP6)
     (hP12Rows := hP12Rows)
     (hP12Eq := hP12Eq)
@@ -1019,7 +2221,11 @@ theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_rawCoeff_a
     (hP15Scal := hP15Scal)
     (hP16 := hP16)
     (hP16Win := hP16Win)
-    (hP17 := p20SamplingProp_of_goldilocks_operand_rawCoeff_assumptions hCset hSamples hRawCoeff hCollapse hUpper)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := goldilocksRawNormBoundAssumption_of_rawCoeff hRawCoeff)
+    (hCollapse := hCollapse)
+    (hUpper := hUpper)
     (hP18 := hP18)
     (hP19 := hP19)
 
@@ -1053,7 +2259,7 @@ theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_rawCoeff_f
   (hP18 : p20PolyProp qVals ell totalDegree setSize)
   (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
   p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
-  exact p20ArithmeticBundle_of_props
+  exact p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_fieldOp_assumptions
     (hP6 := hP6)
     (hP12Rows := hP12Rows)
     (hP12Eq := hP12Eq)
@@ -1062,7 +2268,11 @@ theorem p20ArithmeticBundle_of_props_with_sampling_goldilocks_operand_rawCoeff_f
     (hP15Scal := hP15Scal)
     (hP16 := hP16)
     (hP16Win := hP16Win)
-    (hP17 := p20SamplingProp_of_goldilocks_operand_rawCoeff_fieldOp_assumptions hCset hSamples hRawCoeff hFieldOps hUpper)
+    (hCset := hCset)
+    (hSamples := hSamples)
+    (hRaw := goldilocksRawNormBoundAssumption_of_rawCoeff hRawCoeff)
+    (hFieldOps := hFieldOps)
+    (hUpper := hUpper)
     (hP18 := hP18)
     (hP19 := hP19)
 
@@ -1572,6 +2782,100 @@ theorem p20ArithmeticBundle_of_props_with_evalHom_checkAssumption
     (hP19 := hP19)
 
 /--
+Variant of the proposition-native P20 constructor where P14 is supplied through
+the P15-derived `evalBarMzAt` linearity assumption interface.
+-/
+theorem p20ArithmeticBundle_of_props_with_p15EvalBarMzAtAssumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14FromP15 : p15EvalBarMzAtAssumption bar m r)
+  (hP14Size : z1.size = z2.size)
+  (hP14Rows : MatrixRowsCompatible m z1)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hP17 : p20SamplingProp cset samples)
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_evalHom_assumption
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14Assm := p14EvalHomAssumption_of_p15EvalBarMzAtAssumption hP14FromP15)
+    (hP14Size := hP14Size)
+    (hP14Rows := hP14Rows)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hP17 := hP17)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+/--
+Variant of the proposition-native P20 constructor where P14 is supplied through
+the P15-derived `evalBarMzAt` check-assumption interface.
+-/
+theorem p20ArithmeticBundle_of_props_with_p15EvalBarMzAtCheckAssumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  (hP6 : p20DecompProp zDecomp b k)
+  (hP12Rows : MatrixRowsCompatible m z)
+  (hP12Eq : matrixVecDirect m z = matrixVecCtBar bar m z)
+  (hP14CheckFromP15 : p15EvalBarMzAtCheckAssumption bar m r)
+  (hP14Size : z1.size = z2.size)
+  (hP14Rows : MatrixRowsCompatible m z1)
+  (hP15Vec : p20VecModuleProp hVec ρ1 z1 z2)
+  (hP15Scal : p20ScalarModuleProp hScal ρ1 z1 z2)
+  (hP16 : invertibilityPreconditionsProp)
+  (hP16Win : p20InvertibilityWindowProp invDelta)
+  (hP17 : p20SamplingProp cset samples)
+  (hP18 : p20PolyProp qVals ell totalDegree setSize)
+  (hP19 : p20InterpProp xs ys expectedCoeffs evalPoint expectedEval) :
+  p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize := by
+  exact p20ArithmeticBundle_of_props_with_evalHom_assumption
+    (hP6 := hP6)
+    (hP12Rows := hP12Rows)
+    (hP12Eq := hP12Eq)
+    (hP14Assm := p14EvalHomAssumption_of_p15EvalBarMzAtCheckAssumption hP14CheckFromP15)
+    (hP14Size := hP14Size)
+    (hP14Rows := hP14Rows)
+    (hP15Vec := hP15Vec)
+    (hP15Scal := hP15Scal)
+    (hP16 := hP16)
+    (hP16Win := hP16Win)
+    (hP17 := hP17)
+    (hP18 := hP18)
+    (hP19 := hP19)
+
+/--
 Bridge theorem: executable checks imply the proposition-native P20 bundle.
 -/
 theorem p20ArithmeticBundle_checks_imply_props
@@ -1962,14 +3266,11 @@ theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_rawCoeff_of_as
   (hSub : rawSubCollapseBound BRaw B)
   (hBLt : B < bInvApprox) :
   ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
-  have hWin : withinInvertibilityWindow invDelta = true :=
-    p20ArithmeticBundle_invertibilityWindow (hP20 := hP20)
-  have hPosMul : 0 < normInfCoeffs (mulRq aDelta bDelta) :=
-    p20_pos_normInfCoeffs_mulRq_of_invertibilityWindow hWin hDeltaEq
-  have hInvMul : ∃ deltaInv : Coeffs, mulRq (mulRq aDelta bDelta) deltaInv = oneRq :=
-    invertible_mulRq_of_operand_norm_assumptions_rawCoeff_of_assumption
-      hInv hA hB hPosMul hRawCoeff hAddSub hSub hBLt
-  simpa [hDeltaEq] using hInvMul
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_rawCoeff_of_assumption
+    hInv hA hB hPosMul hRawCoeff hAddSub hSub hBLt
 
 /--
 Field-op collapse variant of generic operand/raw-coeff witness extraction when
@@ -1999,14 +3300,740 @@ theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_rawCoeff_field
   (hOps : rawFieldOpCollapseBound B B)
   (hBLt : B < bInvApprox) :
   ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
-  have hWin : withinInvertibilityWindow invDelta = true :=
-    p20ArithmeticBundle_invertibilityWindow (hP20 := hP20)
-  have hPosMul : 0 < normInfCoeffs (mulRq aDelta bDelta) :=
-    p20_pos_normInfCoeffs_mulRq_of_invertibilityWindow hWin hDeltaEq
-  have hInvMul : ∃ deltaInv : Coeffs, mulRq (mulRq aDelta bDelta) deltaInv = oneRq :=
-    invertible_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp_of_assumption
-      hInv hA hB hPosMul hRawCoeff hOps hBLt
-  simpa [hDeltaEq] using hInvMul
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp_of_assumption
+    hInv hA hB hPosMul hRawCoeff hOps hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_schoolbook_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BTerm BRaw B : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_of_assumption
+    hInv hA hB hPosMul hMul hAdd hZero hAddSub hSub hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_schoolbook_sum_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BTerm B : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hAddSub : rawAddSubCollapseBound ((D * D) * BTerm) B)
+  (hSub : rawSubCollapseBound ((D * D) * BTerm) B)
+  (hBLt : B < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_sum_of_assumption
+    hInv hA hB hPosMul hMul hAddTri hAddSub hSub hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BTerm : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hOps : rawFieldOpCollapseBound ((D * D) * BTerm) ((D * D) * BTerm))
+  (hBLt : ((D * D) * BTerm) < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp_of_assumption
+    hInv hA hB hPosMul hMul hAddTri hOps hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_schoolbook_fieldOp_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BTerm B : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ B → normInfF y ≤ BTerm → normInfF (x + y) ≤ B)
+  (hZero : normInfF (0 : F) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_fieldOp_of_assumption
+    hInv hA hB hPosMul hMul hAdd hZero hOps hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_schoolbook_of_term_le_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BTerm BRaw B : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_of_term_le_of_assumption
+    hInv hA hB hPosMul hMul hTermLe hAddCollapse hAddSub hSub hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw B : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound_of_assumption
+    hInv hA hB hPosMul hMul hAddCollapse hAddSub hSub hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound_fieldOp_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB B : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound_fieldOp_of_assumption
+    hInv hA hB hPosMul hMul hOps hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_blockers_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_of_assumption
+    hInv hA hB hPosMul hMulUniv hAddTri hSubTri hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_blockers_tight_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_tight_of_assumption
+    hInv hA hB hPosMul hMulUniv hAddTri hSubTri hBLt
+
+/--
+Triangle-bundle variant of
+`p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_blockers_tight_of_assumption`.
+-/
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight_of_assumption
+    hInv hA hB hPosMul hMulUniv hTri hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_tight_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_tight_of_assumption
+    hInv hA hB hPosMul hMulUniv hAddTri hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight_of_assumption
+    hInv hA hB hPosMul hMulRep hAddRep hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_centeredRepMulAddBounds_tight_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hRep : centeredRepMulAddBounds)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hMulRep := centeredRepMulAddBounds_mul hRep)
+    (hAddRep := centeredRepMulAddBounds_add hRep)
+    (hBLt := hBLt)
+
+/-- Assumption-free native invertibility-witness wrapper over a P20 bundle. -/
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_native_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hBLt :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_blockers_of_assumption
+    (hInv := hInv) (hP20 := hP20) (hDeltaEq := hDeltaEq)
+    (hA := hA) (hB := hB)
+    (hMulUniv := schoolbookMulUniversalBound_theorem)
+    (hAddTri := schoolbookTriangleBounds_add schoolbookTriangleBounds_theorem)
+    (hSubTri := schoolbookTriangleBounds_sub schoolbookTriangleBounds_theorem)
+    (hBLt := hBLt)
+
+/-- Assumption-free native-tight invertibility-witness wrapper over a P20 bundle. -/
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_native_tight_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight_of_assumption
+    (hInv := hInv) (hP20 := hP20) (hDeltaEq := hDeltaEq)
+    (hA := hA) (hB := hB)
+    (hMulUniv := schoolbookMulUniversalBound_theorem)
+    (hTri := schoolbookTriangleBounds_theorem)
+    (hBLt := hBLt)
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_tight_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hMulRep := hMulRep)
+    (hAddRep := centeredRepAddTriangleBound_theorem)
+    (hBLt := hBLt)
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw_of_assumption
+    hInv hA hB hPosMul hRawFromOperands hAddTri hSubTri hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_rawCoeff_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRawFromOperands := mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    (hAddTri := hAddTri)
+    (hSubTri := hSubTri)
+    (hBLt := hBLt)
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw_of_assumption
+    hInv hA hB hPosMul hRawFromOperands hAddTri hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_rawCoeff_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRawFromOperands := mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    (hAddTri := hAddTri)
+    (hBLt := hBLt)
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  refine p20InvertibilityWitness_mulRq_of_assumption_core
+    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
+  intro hPosMul
+  exact invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw_of_assumption
+    hInv hA hB hPosMul hRawFromOperands hAddRep hBLt
+
+theorem p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_rawCoeff_of_assumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {z z1 z2 zDecomp r : Array F}
+  {ρ1 ρ2 : F}
+  {b k : Nat}
+  {hVec : VecModuleHom}
+  {hScal : ScalarModuleHom}
+  {cset samples : Array Coeffs}
+  {invDelta aDelta bDelta : Coeffs}
+  {qVals : Array F}
+  {xs ys expectedCoeffs : Array F}
+  {evalPoint expectedEval : F}
+  {ell totalDegree setSize : Nat}
+  {BA BB BRaw : Nat}
+  (hInv : LowNormInvertibilityAssumption)
+  (hP20 : p20ArithmeticBundle bar m z z1 z2 zDecomp r ρ1 ρ2 b k hVec hScal cset samples invDelta qVals xs ys expectedCoeffs evalPoint expectedEval ell totalDegree setSize)
+  (hDeltaEq : invDelta = mulRq aDelta bDelta)
+  (hA : normInfCoeffs aDelta ≤ BA)
+  (hB : normInfCoeffs bDelta ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
+  exact p20InvertibilityWitness_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRawFromOperands := mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    (hAddRep := hAddRep)
+    (hBLt := hBLt)
 
 /--
 Concrete Goldilocks-bound witness extraction when the tracked `invDelta`
@@ -2065,11 +4092,14 @@ theorem p20InvertibilityWitness_mulRq_of_goldilocks_operand_assumptions_inRange_
   (hRawInRange : GoldilocksRawInRangeBoundAssumption)
   (hCollapse : GoldilocksRawCollapseAssumption) :
   ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
-  refine p20InvertibilityWitness_mulRq_of_assumption_core
-    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
-  intro hPosMul
-  exact invertible_mulRq_of_goldilocks_operand_assumptions_inRange_of_assumption
-    hInv hA hB hPosMul hRawInRange hCollapse
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_assumptions_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRaw := goldilocksRawNormBoundAssumption_of_inRange hRawInRange)
+    (hCollapse := hCollapse)
 
 /--
 Field-op-collapse variant of concrete Goldilocks-bound witness extraction when
@@ -2097,11 +4127,14 @@ theorem p20InvertibilityWitness_mulRq_of_goldilocks_operand_fieldOp_assumptions_
   (hRaw : GoldilocksRawNormBoundAssumption)
   (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
   ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
-  refine p20InvertibilityWitness_mulRq_of_assumption_core
-    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
-  intro hPosMul
-  exact invertible_mulRq_of_goldilocks_operand_fieldOp_assumptions_of_assumption
-    hInv hA hB hPosMul hRaw hFieldOps
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_assumptions_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRaw := hRaw)
+    (hCollapse := goldilocksRawCollapseAssumption_of_fieldOp hFieldOps)
 
 /--
 In-range raw-coefficient + field-op-collapse variant of concrete Goldilocks-bound
@@ -2129,11 +4162,14 @@ theorem p20InvertibilityWitness_mulRq_of_goldilocks_operand_fieldOp_assumptions_
   (hRawInRange : GoldilocksRawInRangeBoundAssumption)
   (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
   ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
-  refine p20InvertibilityWitness_mulRq_of_assumption_core
-    (hP20 := hP20) (hDeltaEq := hDeltaEq) ?_
-  intro hPosMul
-  exact invertible_mulRq_of_goldilocks_operand_fieldOp_assumptions_inRange_of_assumption
-    hInv hA hB hPosMul hRawInRange hFieldOps
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_fieldOp_assumptions_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRaw := goldilocksRawNormBoundAssumption_of_inRange hRawInRange)
+    (hFieldOps := hFieldOps)
 
 theorem p20InvertibilityWitness_mulRq_of_goldilocks_operand_rawCoeff_assumptions_of_assumption
   {bar : Array (Array F)}
@@ -2157,14 +4193,14 @@ theorem p20InvertibilityWitness_mulRq_of_goldilocks_operand_rawCoeff_assumptions
   (hRawCoeff : GoldilocksRawCoeffBoundAssumption)
   (hCollapse : GoldilocksRawCollapseAssumption) :
   ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
-  have hWin : withinInvertibilityWindow invDelta = true :=
-    p20ArithmeticBundle_invertibilityWindow (hP20 := hP20)
-  have hPosMul : 0 < normInfCoeffs (mulRq aDelta bDelta) :=
-    p20_pos_normInfCoeffs_mulRq_of_invertibilityWindow hWin hDeltaEq
-  have hInvMul : ∃ deltaInv : Coeffs, mulRq (mulRq aDelta bDelta) deltaInv = oneRq :=
-    invertible_mulRq_of_goldilocks_operand_rawCoeff_assumptions_of_assumption
-      hInv hA hB hPosMul hRawCoeff hCollapse
-  simpa [hDeltaEq] using hInvMul
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_assumptions_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRaw := goldilocksRawNormBoundAssumption_of_rawCoeff hRawCoeff)
+    (hCollapse := hCollapse)
 
 theorem p20InvertibilityWitness_mulRq_of_goldilocks_operand_rawCoeff_fieldOp_assumptions_of_assumption
   {bar : Array (Array F)}
@@ -2188,13 +4224,13 @@ theorem p20InvertibilityWitness_mulRq_of_goldilocks_operand_rawCoeff_fieldOp_ass
   (hRawCoeff : GoldilocksRawCoeffBoundAssumption)
   (hFieldOps : GoldilocksFieldOpCollapseAssumption) :
   ∃ deltaInv : Coeffs, mulRq invDelta deltaInv = oneRq := by
-  have hWin : withinInvertibilityWindow invDelta = true :=
-    p20ArithmeticBundle_invertibilityWindow (hP20 := hP20)
-  have hPosMul : 0 < normInfCoeffs (mulRq aDelta bDelta) :=
-    p20_pos_normInfCoeffs_mulRq_of_invertibilityWindow hWin hDeltaEq
-  have hInvMul : ∃ deltaInv : Coeffs, mulRq (mulRq aDelta bDelta) deltaInv = oneRq :=
-    invertible_mulRq_of_goldilocks_operand_rawCoeff_fieldOp_assumptions_of_assumption
-      hInv hA hB hPosMul hRawCoeff hFieldOps
-  simpa [hDeltaEq] using hInvMul
+  exact p20InvertibilityWitness_mulRq_of_goldilocks_operand_fieldOp_assumptions_of_assumption
+    (hInv := hInv)
+    (hP20 := hP20)
+    (hDeltaEq := hDeltaEq)
+    (hA := hA)
+    (hB := hB)
+    (hRaw := goldilocksRawNormBoundAssumption_of_rawCoeff hRawCoeff)
+    (hFieldOps := hFieldOps)
 
 end SuperNeo

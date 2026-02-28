@@ -122,6 +122,28 @@ theorem canonical_mul (a b : F) : Canonical (a * b) := by
   change (ofNat (a.val * b.val)).val < q
   exact ofNat_val_lt_q (a.val * b.val)
 
+theorem sub_eq_add_neg (a b : F) : a - b = a + (-b) := by
+  cases a with
+  | mk av =>
+      cases b with
+      | mk bv =>
+          change ofNat (av + q - (bv % q)) = ofNat (av + ((q - (bv % q)) % q))
+          by_cases h0 : bv % q = 0
+          · rw [h0]
+            change ofNat (av + q) = ofNat av
+            unfold ofNat
+            simp [Nat.add_mod]
+          · have hb_lt : bv % q < q := Nat.mod_lt bv q_pos
+            have hb_le : bv % q ≤ q := Nat.le_of_lt hb_lt
+            have hb_pos : 0 < bv % q := Nat.pos_of_ne_zero h0
+            have hqmr_lt : q - (bv % q) < q := by
+              have hEq : q - (bv % q) + (bv % q) = q := Nat.sub_add_cancel hb_le
+              have hlt : q - (bv % q) < q - (bv % q) + (bv % q) := Nat.lt_add_of_pos_right hb_pos
+              simpa [hEq] using hlt
+            have hqmr_mod : (q - (bv % q)) % q = q - (bv % q) := Nat.mod_eq_of_lt hqmr_lt
+            have hsplit : av + q - (bv % q) = av + (q - (bv % q)) := Nat.add_sub_assoc hb_le av
+            simpa [hsplit, hqmr_mod]
+
 theorem add_comm (a b : F) : a + b = b + a := by
   cases a with
   | mk av =>

@@ -410,6 +410,439 @@ theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff_fie
       hA hB hRawCoeffFromOperands hOps)
     hBLt
 
+/--
+Schoolbook-term wrapper for the P5 -> P16 window handoff.
+This packages the raw-coefficient assumption from theorem-native multiplication/addition
+bounds on schoolbook terms.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook
+  {a b : Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hA hB hPos
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+    hAddSub hSub hBLt
+
+/--
+Field-op-collapse variant of
+`withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook`.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_fieldOp
+  {a b : Coeffs} {BA BB BTerm B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ B → normInfF y ≤ BTerm → normInfF (x + y) ≤ B)
+  (hZero : normInfF (0 : F) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+    hA hB hPos
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+    hOps hBLt
+
+/--
+Sum-style schoolbook wrapper for the P5 -> P16 window handoff.
+Uses only per-term multiplication bounds + triangle addition, with derived
+raw bound `((D * D) * BTerm)`.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_sum
+  {a b : Coeffs} {BA BB BTerm B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hAddSub : rawAddSubCollapseBound ((D * D) * BTerm) B)
+  (hSub : rawSubCollapseBound ((D * D) * BTerm) B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := (D * D) * BTerm) (B := B)
+    hA hB hPos
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+    hAddSub hSub hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp
+  {a b : Coeffs} {BA BB BTerm : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hOps : rawFieldOpCollapseBound ((D * D) * BTerm) ((D * D) * BTerm))
+  (hBLt : ((D * D) * BTerm) < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := (D * D) * BTerm)
+    hA hB hPos
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+    hOps hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_of_term_le
+  {a b : Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hA hB hPos
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+      (hMul := hMul) (hTermLe := hTermLe) (hAddCollapse := hAddCollapse))
+    hAddSub hSub hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_of_term_le
+    (a := a) (b := b) (BA := BA) (BB := BB) (BTerm := BRaw) (BRaw := BRaw) (B := B)
+    hA hB hPos hMul (Nat.le_refl BRaw) hAddCollapse hAddSub hSub hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound_fieldOp
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+    hA hB hPos
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sameBound
+      (hMul := hMul) (hAddCollapse := hOps.1))
+    hOps hBLt
+
+/--
+Universal-blocker wrapper for the non-coarse P5 path into the P16 window check.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_universal_blockers
+      (a := a) (b := b) (BA := BA) (BB := BB)
+      hA hB hMulUniv hAddTri hSubTri)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_universal_blockers_tight
+      (a := a) (b := b) (BA := BA) (BB := BB)
+      hA hB hMulUniv hAddTri hSubTri)
+    hBLt
+
+/--
+Triangle-bundle variant of
+`withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers_tight`.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_tight
+      (a := a) (b := b) (BA := BA) (BB := BB)
+      hA hB hMulUniv hTri)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos hMulUniv (schoolbookTriangleBounds_of_add hAddTri) hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos hMulRep centeredRepAddTriangleBound_theorem hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_centeredRepMulAddBounds_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRep : centeredRepMulAddBounds)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos
+    (centeredRepMulAddBounds_mul hRep)
+    (centeredRepMulAddBounds_add hRep)
+    hBLt
+
+/--
+Assumption-free native P16 wrapper using the proved universal blocker theorems.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hBLt :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos
+    schoolbookMulUniversalBound_theorem
+    (schoolbookTriangleBounds_add schoolbookTriangleBounds_theorem)
+    (schoolbookTriangleBounds_sub schoolbookTriangleBounds_theorem)
+    hBLt
+
+/--
+Assumption-free native-tight P16 wrapper (`3 * D * BA * BB` path).
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+    hBLt
+
+/--
+Assumption-free native P16 wrapper for externally supplied raw schoolbook bounds.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_native_and_raw
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+      hA hB hRawFromOperands)
+    hBLt
+
+/--
+Raw-coeff native variant of `withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native_and_raw`.
+-/
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_norm_le_of_lt hPos
+    (normInfCoeffs_mulRq_le_of_universal_blockers_and_raw
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+      hA hB hRawFromOperands hAddTri hSubTri)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddTri hSubTri hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos hRawFromOperands hAddTri (schoolbookSubTriangleBound_of_add hAddTri) hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddTri hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos hRawFromOperands
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    hBLt
+
+theorem withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  withinInvertibilityWindow (mulRq a b) = true := by
+  exact withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddRep hBLt
+
 theorem withinInvertibilityWindow_mulRq_of_goldilocks_operand_assumptions
   {a b : Coeffs}
   (hA : normInfCoeffs a ≤ Parameters.Goldilocks.B)
@@ -731,6 +1164,426 @@ theorem invertible_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp_of_assumpt
     (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_rawCoeff_fieldOp
       (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
       hA hB hPos hRawCoeffFromOperands hOps hBLt)
+
+/--
+Schoolbook-term wrapper for invertibility extraction of `mulRq a b`, keeping the
+trusted invertibility boundary explicit.
+-/
+theorem invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook
+      (a := a) (b := b) (BA := BA) (BB := BB) (BTerm := BTerm) (BRaw := BRaw) (B := B)
+      hA hB hPos hMul hAdd hZero hAddSub hSub hBLt)
+
+/--
+Field-op-collapse variant of
+`invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_of_assumption`.
+-/
+theorem invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_fieldOp_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BTerm B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ B → normInfF y ≤ BTerm → normInfF (x + y) ≤ B)
+  (hZero : normInfF (0 : F) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_fieldOp
+      (a := a) (b := b) (BA := BA) (BB := BB) (BTerm := BTerm) (B := B)
+      hA hB hPos hMul hAdd hZero hOps hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_sum_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BTerm B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hAddSub : rawAddSubCollapseBound ((D * D) * BTerm) B)
+  (hSub : rawSubCollapseBound ((D * D) * BTerm) B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_sum
+      (a := a) (b := b) (BA := BA) (BB := BB) (BTerm := BTerm) (B := B)
+      hA hB hPos hMul hAddTri hAddSub hSub hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BTerm : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hOps : rawFieldOpCollapseBound ((D * D) * BTerm) ((D * D) * BTerm))
+  (hBLt : ((D * D) * BTerm) < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp
+      (a := a) (b := b) (BA := BA) (BB := BB) (BTerm := BTerm)
+      hA hB hPos hMul hAddTri hOps hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_of_term_le_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_of_term_le
+      (a := a) (b := b) (BA := BA) (BB := BB) (BTerm := BTerm) (BRaw := BRaw) (B := B)
+      hA hB hPos hMul hTermLe hAddCollapse hAddSub hSub hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_of_term_le_of_assumption
+    (hInv := hInv)
+    (a := a) (b := b)
+    (BA := BA) (BB := BB) (BTerm := BRaw) (BRaw := BRaw) (B := B)
+    hA hB hPos hMul (Nat.le_refl BRaw) hAddCollapse hAddSub hSub hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound_fieldOp_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B)
+  (hBLt : B < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_schoolbook_sameBound_fieldOp
+      (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+      hA hB hPos hMul hOps hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers
+      (a := a) (b := b) (BA := BA) (BB := BB)
+      hA hB hPos hMulUniv hAddTri hSubTri hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_tight_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers_tight
+      (a := a) (b := b) (BA := BA) (BB := BB)
+      hA hB hPos hMulUniv hAddTri hSubTri hBLt)
+
+/--
+Triangle-bundle variant of
+`invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_tight_of_assumption`.
+-/
+theorem invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+      (a := a) (b := b) (BA := BA) (BB := BB)
+      hA hB hPos hMulUniv hTri hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_tight_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos hMulUniv (schoolbookTriangleBounds_of_add hAddTri) hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_tight_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_tight_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos hMulRep centeredRepAddTriangleBound_theorem hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_centeredRepMulAddBounds_tight_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRep : centeredRepMulAddBounds)
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hPos
+    (centeredRepMulAddBounds_mul hRep)
+    (centeredRepMulAddBounds_add hRep)
+    hBLt
+
+/-- Assumption-free native invertibility wrapper (`D^2` schoolbook path). -/
+theorem invertible_mulRq_of_operand_norm_assumptions_native_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hBLt :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native
+      (a := a) (b := b) (BA := BA) (BB := BB)
+      hA hB hPos hBLt)
+
+/-- Assumption-free native-tight invertibility wrapper (`3 * D * BA * BB` path). -/
+theorem invertible_mulRq_of_operand_norm_assumptions_native_tight_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hBLt :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native_tight
+      (a := a) (b := b) (BA := BA) (BB := BB)
+      hA hB hPos hBLt)
+
+/-- Assumption-free native invertibility wrapper with externally supplied raw bounds. -/
+theorem invertible_mulRq_of_operand_norm_assumptions_native_and_raw_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_native_and_raw
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+      hA hB hPos hRawFromOperands hBLt)
+
+/-- Raw-coeff native invertibility variant of `...native_and_raw...`. -/
+theorem invertible_mulRq_of_operand_norm_assumptions_native_and_rawCoeff_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_native_and_raw_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_of_withinInvertibilityWindow_of_assumption hInv
+    (withinInvertibilityWindow_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw
+      (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+      hA hB hPos hRawFromOperands hAddTri hSubTri hBLt)
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_rawCoeff_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddTri hSubTri hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_blockers_and_raw_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos hRawFromOperands hAddTri (schoolbookSubTriangleBound_of_add hAddTri) hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_rawCoeff_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddTri hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos hRawFromOperands
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    hBLt
+
+theorem invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_rawCoeff_of_assumption
+  (hInv : LowNormInvertibilityAssumption)
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hPos : 0 < normInfCoeffs (mulRq a b))
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hBLt : BRaw + BRaw + BRaw < bInvApprox) :
+  ∃ c : Coeffs, mulRq (mulRq a b) c = oneRq := by
+  exact invertible_mulRq_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw_of_assumption
+    (hInv := hInv) (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hPos
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddRep hBLt
 
 theorem invertible_mulRq_of_goldilocks_operand_assumptions_of_assumption
   (hInv : LowNormInvertibilityAssumption)

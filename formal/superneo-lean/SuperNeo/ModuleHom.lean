@@ -332,6 +332,30 @@ def p15EvalBarMzAtAssumption
   (bar : Array (Array F)) (m : Array (Array F)) (r : Array F) : Prop :=
   p15VecModuleAssumption (evalBarMzAtVecHom bar m r)
 
+/-- Regression-oriented check surface specialized to `evalBarMzAt` in `z`. -/
+def p15EvalBarMzAtCheckAssumption
+  (bar : Array (Array F)) (m : Array (Array F)) (r : Array F) : Prop :=
+  p15VecModuleCheckAssumption (evalBarMzAtVecHom bar m r)
+
+theorem p15EvalBarMzAtAssumption_of_checkAssumption
+  {bar : Array (Array F)} {m : Array (Array F)} {r : Array F}
+  (hCheck : p15EvalBarMzAtCheckAssumption bar m r) :
+  p15EvalBarMzAtAssumption bar m r := by
+  exact p15VecModuleAssumption_of_checkAssumption hCheck
+
+theorem p15EvalBarMzAtCheckAssumption_of_assumption
+  {bar : Array (Array F)} {m : Array (Array F)} {r : Array F}
+  (hAssm : p15EvalBarMzAtAssumption bar m r) :
+  p15EvalBarMzAtCheckAssumption bar m r := by
+  exact p15VecModuleCheckAssumption_of_assumption hAssm
+
+theorem p15EvalBarMzAtAssumption_iff_checkAssumption
+  {bar : Array (Array F)} {m : Array (Array F)} {r : Array F} :
+  p15EvalBarMzAtAssumption bar m r ↔ p15EvalBarMzAtCheckAssumption bar m r := by
+  constructor
+  · exact p15EvalBarMzAtCheckAssumption_of_assumption
+  · exact p15EvalBarMzAtAssumption_of_checkAssumption
+
 theorem evalHom2Prop_of_p15EvalBarMzAtAssumption
   {bar : Array (Array F)}
   {m : Array (Array F)}
@@ -418,5 +442,25 @@ theorem p14EvalHomCheckAssumption_of_p15EvalBarMzAtAssumption
     (evalHom2Prop_of_p15EvalBarMzAtAssumption
       (bar := bar) (m := m) (z1 := z1) (z2 := z2) (r := r) (ρ1 := ρ1) (ρ2 := ρ2)
       hLin hSize hRows)
+
+theorem p14EvalHomAssumption_of_p15EvalBarMzAtCheckAssumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {r : Array F}
+  {ρ1 ρ2 : F}
+  (hCheck : p15EvalBarMzAtCheckAssumption bar m r) :
+  p14EvalHomAssumption bar m r ρ1 ρ2 := by
+  exact p14EvalHomAssumption_of_p15EvalBarMzAtAssumption
+    (p15EvalBarMzAtAssumption_of_checkAssumption hCheck)
+
+theorem p14EvalHomCheckAssumption_of_p15EvalBarMzAtCheckAssumption
+  {bar : Array (Array F)}
+  {m : Array (Array F)}
+  {r : Array F}
+  {ρ1 ρ2 : F}
+  (hCheck : p15EvalBarMzAtCheckAssumption bar m r) :
+  p14EvalHomCheckAssumption bar m r ρ1 ρ2 := by
+  exact p14EvalHomCheckAssumption_of_p15EvalBarMzAtAssumption
+    (p15EvalBarMzAtAssumption_of_checkAssumption hCheck)
 
 end SuperNeo

@@ -251,6 +251,133 @@ theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_fieldOp_rawCoeff
     (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
     hOps
 
+/--
+Schoolbook-term wrapper for empirical expansion bounds.
+This packages the raw-coefficient assumption from theorem-native term/addition bounds.
+-/
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook
+  {cset samples : Array Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  empiricalExpansionFactor cset samples ≤ B := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_rawCoeff
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hCset hSamples
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+    hAddSub hSub
+
+/--
+Field-op-collapse variant of
+`empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook`.
+-/
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook_fieldOp
+  {cset samples : Array Coeffs} {BA BB BTerm B : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ B → normInfF y ≤ BTerm → normInfF (x + y) ≤ B)
+  (hZero : normInfF (0 : F) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B) :
+  empiricalExpansionFactor cset samples ≤ B := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_fieldOp_rawCoeff
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (B := B)
+    hCset hSamples
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+    hOps
+
+/--
+Sum-style schoolbook wrapper for empirical expansion bounds.
+Uses per-term multiplication + triangle addition, with derived raw bound
+`((D * D) * BTerm)`.
+-/
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook_sum
+  {cset samples : Array Coeffs} {BA BB BTerm B : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hAddSub : rawAddSubCollapseBound ((D * D) * BTerm) B)
+  (hSub : rawSubCollapseBound ((D * D) * BTerm) B) :
+  empiricalExpansionFactor cset samples ≤ B := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_rawCoeff
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (BRaw := (D * D) * BTerm) (B := B)
+    hCset hSamples
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+    hAddSub hSub
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp
+  {cset samples : Array Coeffs} {BA BB BTerm : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hOps : rawFieldOpCollapseBound ((D * D) * BTerm) ((D * D) * BTerm)) :
+  empiricalExpansionFactor cset samples ≤ ((D * D) * BTerm) := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_fieldOp_rawCoeff
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (B := (D * D) * BTerm)
+    hCset hSamples
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+    hOps
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook_of_term_le
+  {cset samples : Array Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  empiricalExpansionFactor cset samples ≤ B := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_rawCoeff
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hCset hSamples
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+      (hMul := hMul) (hTermLe := hTermLe) (hAddCollapse := hAddCollapse))
+    hAddSub hSub
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook_sameBound
+  {cset samples : Array Coeffs} {BA BB BRaw B : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  empiricalExpansionFactor cset samples ≤ B := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook_of_term_le
+    (cset := cset) (samples := samples)
+    (BA := BA) (BB := BB) (BTerm := BRaw) (BRaw := BRaw) (B := B)
+    hCset hSamples hMul (Nat.le_refl BRaw) hAddCollapse hAddSub hSub
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_schoolbook_sameBound_fieldOp
+  {cset samples : Array Coeffs} {BA BB B : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B) :
+  empiricalExpansionFactor cset samples ≤ B := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_fieldOp_rawCoeff
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (B := B)
+    hCset hSamples
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sameBound
+      (hMul := hMul) (hAddCollapse := hOps.1))
+    hOps
+
 theorem empiricalExpansionFactor_le_of_goldilocks_operand_assumptions
   {cset samples : Array Coeffs}
   (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ Parameters.Goldilocks.B)
@@ -361,6 +488,556 @@ theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptio
       hRawInRange)
     hAddSub hSub
 
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook
+  {cset samples : Array Coeffs} {BB BTerm BRaw : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BTerm)
+  (hAdd :
+    ∀ x y : F,
+      normInfF x ≤ BRaw →
+      normInfF y ≤ BTerm →
+      normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions
+    (cset := cset) (samples := samples) (BB := BB) (BRaw := BRaw)
+    hSamples
+    (mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions
+      (BA := maxRhoNorm cset) (BB := BB) (BTerm := BTerm) (BRaw := BRaw)
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+    hAddSub hSub
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_sum
+  {cset samples : Array Coeffs} {BB BTerm : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hAddSub :
+    rawAddSubCollapseBound ((D * D) * BTerm) (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub :
+    rawSubCollapseBound ((D * D) * BTerm) (theorem9UpperBound (maxRhoNorm cset))) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions
+    (cset := cset) (samples := samples) (BB := BB) (BRaw := (D * D) * BTerm)
+    hSamples
+    (mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (BA := maxRhoNorm cset) (BB := BB) (BTerm := BTerm)
+      (hMul := hMul) (hAddTri := hAddTri))
+    hAddSub hSub
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp
+  {cset samples : Array Coeffs} {BB BTerm : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hOps : rawFieldOpCollapseBound ((D * D) * BTerm) ((D * D) * BTerm))
+  (hRawLe : ((D * D) * BTerm) ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  have hAddSubRaw : rawAddSubCollapseBound ((D * D) * BTerm) ((D * D) * BTerm) :=
+    rawAddSubCollapseBound_of_add_and_sub_same hOps.1 hOps.2
+  have hAddSub :
+      rawAddSubCollapseBound ((D * D) * BTerm) (theorem9UpperBound (maxRhoNorm cset)) :=
+    rawAddSubCollapseBound_mono hAddSubRaw hRawLe
+  have hSub :
+      rawSubCollapseBound ((D * D) * BTerm) (theorem9UpperBound (maxRhoNorm cset)) :=
+    rawSubCollapseBound_mono hOps.2 hRawLe
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_sum
+    (cset := cset) (samples := samples) (BB := BB) (BTerm := BTerm)
+    hSamples hMul hAddTri hAddSub hSub
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_of_term_le
+  {cset samples : Array Coeffs} {BB BTerm BRaw : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions
+    (cset := cset) (samples := samples) (BB := BB) (BRaw := BRaw)
+    hSamples
+    (mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+      (BA := maxRhoNorm cset) (BB := BB) (BTerm := BTerm) (BRaw := BRaw)
+      (hMul := hMul) (hTermLe := hTermLe) (hAddCollapse := hAddCollapse))
+    hAddSub hSub
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_sameBound
+  {cset samples : Array Coeffs} {BB BRaw : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_of_term_le
+    (cset := cset) (samples := samples) (BB := BB) (BTerm := BRaw) (BRaw := BRaw)
+    hSamples hMul (Nat.le_refl BRaw) hAddCollapse hAddSub hSub
+
+/--
+Universal-blocker wrapper for the non-coarse P5 path.
+This threads the blocker interface directly into the P17 empirical expansion bound.
+-/
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  empiricalExpansionFactor cset samples
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_mulRq_bound
+    (hMul := fun i j =>
+      normInfCoeffs_mulRq_le_of_universal_blockers
+        (a := cset[i]) (b := samples[j]) (BA := BA) (BB := BB)
+        (hA := hCset i) (hB := hSamples j)
+        hMulUniv hAddTri hSubTri)
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  empiricalExpansionFactor cset samples
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_mulRq_bound
+    (hMul := fun i j =>
+      normInfCoeffs_mulRq_le_of_universal_blockers_tight
+        (a := cset[i]) (b := samples[j]) (BA := BA) (BB := BB)
+        (hA := hCset i) (hB := hSamples j)
+        hMulUniv hAddTri hSubTri)
+
+/--
+Triangle-bundle variant of
+`empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers_tight`.
+-/
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  empiricalExpansionFactor cset samples
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_mulRq_bound
+    (hMul := fun i j =>
+      normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_tight
+        (a := cset[i]) (b := samples[j]) (BA := BA) (BB := BB)
+        (hA := hCset i) (hB := hSamples j)
+        hMulUniv hTri)
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  empiricalExpansionFactor cset samples
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulUniv (schoolbookTriangleBounds_of_add hAddTri)
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  empiricalExpansionFactor cset samples
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_centeredRep_mul_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)) :
+  empiricalExpansionFactor cset samples
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulRep centeredRepAddTriangleBound_theorem
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_centeredRepMulAddBounds_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRep : centeredRepMulAddBounds) :
+  empiricalExpansionFactor cset samples
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    (centeredRepMulAddBounds_mul hRep)
+    (centeredRepMulAddBounds_add hRep)
+
+/-- Assumption-free native P17 empirical bound (`D^2` schoolbook path). -/
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_native
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB) :
+  empiricalExpansionFactor cset samples
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    schoolbookMulUniversalBound_theorem
+    (schoolbookTriangleBounds_add schoolbookTriangleBounds_theorem)
+    (schoolbookTriangleBounds_sub schoolbookTriangleBounds_theorem)
+
+/-- Assumption-free native-tight P17 empirical bound (`3 * D * BA * BB` path). -/
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_native_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB) :
+  empiricalExpansionFactor cset samples
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact Nat.le_trans
+    (empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hAddTri hSubTri)
+    hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact Nat.le_trans
+    (empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers_tight
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hAddTri hSubTri)
+    hRawLe
+
+/--
+Triangle-bundle variant of
+`empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_tight`.
+-/
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact Nat.le_trans
+    (empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples hMulUniv hTri)
+    hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulUniv (schoolbookTriangleBounds_of_add hAddTri) hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulRep centeredRepAddTriangleBound_theorem hRawLe
+
+/-- Assumption-free native theorem9 lift (`D^2` schoolbook path). -/
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_native
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawLe :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact Nat.le_trans
+    (empiricalExpansionFactor_le_of_operand_norm_assumptions_native
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples)
+    hRawLe
+
+/-- Assumption-free native-tight theorem9 lift (`3 * D * BA * BB` path). -/
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_native_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact Nat.le_trans
+    (empiricalExpansionFactor_le_of_operand_norm_assumptions_native_tight
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+      hCset hSamples)
+    hRawLe
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  empiricalExpansionFactor cset samples ≤ BRaw + BRaw + BRaw := by
+  exact empiricalExpansionFactor_le_of_mulRq_bound
+    (hMul := fun i j =>
+      normInfCoeffs_mulRq_le_of_universal_blockers_and_raw
+        (a := cset[i]) (b := samples[j]) (BA := BA) (BB := BB) (BRaw := BRaw)
+        (hA := hCset i) (hB := hSamples j)
+        hRaw hAddTri hSubTri)
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  empiricalExpansionFactor cset samples ≤ BRaw + BRaw + BRaw := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddTri hSubTri
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound) :
+  empiricalExpansionFactor cset samples ≤ BRaw + BRaw + BRaw := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw hAddTri (schoolbookSubTriangleBound_of_add hAddTri)
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_add_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound) :
+  empiricalExpansionFactor cset samples ≤ BRaw + BRaw + BRaw := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddTri
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  empiricalExpansionFactor cset samples ≤ BRaw + BRaw + BRaw := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+
+theorem empiricalExpansionFactor_le_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  empiricalExpansionFactor cset samples ≤ BRaw + BRaw + BRaw := by
+  exact empiricalExpansionFactor_le_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddRep
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact Nat.le_trans
+    (empiricalExpansionFactor_le_of_operand_norm_assumptions_via_universal_blockers_and_raw
+      (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+      hCset hSamples hRaw hAddTri hSubTri)
+    hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddTri hSubTri hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw hAddTri (schoolbookSubTriangleBound_of_add hAddTri) hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddTri hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+    hRawLe
+
+theorem empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  empiricalExpansionFactor cset samples ≤ theorem9UpperBound (maxRhoNorm cset) := by
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddRep hRawLe
+
 theorem samplingSetBoundCheck_sound
   {cset : Array Coeffs} {samples : Array Coeffs}
   (hOk : samplingSetBoundCheck cset samples = true) :
@@ -408,6 +1085,329 @@ theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_inRange
   exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_inRange
     (cset := cset) (samples := samples) (BB := BB) (BRaw := BRaw)
     hSamples hRawInRange hAddSub hSub
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_schoolbook
+  {cset samples : Array Coeffs} {BB BTerm BRaw : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BTerm)
+  (hAdd :
+    ∀ x y : F,
+      normInfF x ≤ BRaw →
+      normInfF y ≤ BTerm →
+      normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook
+    (cset := cset) (samples := samples) (BB := BB) (BTerm := BTerm) (BRaw := BRaw)
+    hSamples hMul hAdd hZero hAddSub hSub
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_schoolbook_sum
+  {cset samples : Array Coeffs} {BB BTerm : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hAddSub :
+    rawAddSubCollapseBound ((D * D) * BTerm) (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub :
+    rawSubCollapseBound ((D * D) * BTerm) (theorem9UpperBound (maxRhoNorm cset))) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_sum
+    (cset := cset) (samples := samples) (BB := BB) (BTerm := BTerm)
+    hSamples hMul hAddTri hAddSub hSub
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp
+  {cset samples : Array Coeffs} {BB BTerm : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hOps : rawFieldOpCollapseBound ((D * D) * BTerm) ((D * D) * BTerm))
+  (hRawLe : ((D * D) * BTerm) ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp
+    (cset := cset) (samples := samples) (BB := BB) (BTerm := BTerm)
+    hSamples hMul hAddTri hOps hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_schoolbook_of_term_le
+  {cset samples : Array Coeffs} {BB BTerm BRaw : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_of_term_le
+    (cset := cset) (samples := samples) (BB := BB) (BTerm := BTerm) (BRaw := BRaw)
+    hSamples hMul hTermLe hAddCollapse hAddSub hSub
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_schoolbook_sameBound
+  {cset samples : Array Coeffs} {BB BRaw : Nat}
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMul :
+    ∀ x y : F,
+      normInfF x ≤ maxRhoNorm cset →
+      normInfF y ≤ BB →
+      normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset)))
+  (hSub : rawSubCollapseBound BRaw (theorem9UpperBound (maxRhoNorm cset))) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_schoolbook_sameBound
+    (cset := cset) (samples := samples) (BB := BB) (BRaw := BRaw)
+    hSamples hMul hAddCollapse hAddSub hSub
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_blockers
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulUniv hAddTri hSubTri hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_blockers_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulUniv hAddTri hSubTri hRawLe
+
+/--
+Triangle-bundle variant of
+`samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_blockers_tight`.
+-/
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_triangles_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulUniv hTri hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulUniv hAddTri hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulRep hAddRep hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_centeredRep_mul_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  exact samplingSetBoundCheck_true_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hMulRep centeredRepAddTriangleBound_theorem hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_centeredRepMulAddBounds_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRep : centeredRepMulAddBounds)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_and_add_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples
+    (centeredRepMulAddBounds_mul hRep)
+    (centeredRepMulAddBounds_add hRep)
+    hRawLe
+
+/-- Assumption-free native check bridge (`D^2` schoolbook path). -/
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_native
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawLe :
+    ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_native
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hRawLe
+
+/-- Assumption-free native-tight check bridge (`3 * D * BA * BB` path). -/
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_native_tight
+  {cset samples : Array Coeffs} {BA BB : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawLe :
+    (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB))
+      ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_native_tight
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB)
+    hCset hSamples hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_blockers_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw hAddTri hSubTri hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_blockers_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_blockers_and_rawCoeff
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRawCoeff hAddTri hSubTri hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw hAddTri hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_universal_mul_and_add_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_universal_mul_and_add_and_rawCoeff
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRawCoeff hAddTri hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRaw : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  apply samplingSetBoundCheck_complete
+  exact empiricalExpansionFactor_le_theorem9UpperBound_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples hRaw hAddRep hRawLe
+
+theorem samplingSetBoundCheck_true_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_rawCoeff
+  {cset samples : Array Coeffs} {BA BB BRaw : Nat}
+  (hCset : ∀ i : Fin cset.size, normInfCoeffs cset[i] ≤ BA)
+  (hSamples : ∀ j : Fin samples.size, normInfCoeffs samples[j] ≤ BB)
+  (hRawCoeff : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y))
+  (hRawLe : BRaw + BRaw + BRaw ≤ theorem9UpperBound (maxRhoNorm cset)) :
+  samplingSetBoundCheck cset samples = true := by
+  exact samplingSetBoundCheck_true_of_operand_norm_assumptions_via_centeredRep_mul_and_add_and_raw
+    (cset := cset) (samples := samples) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hCset hSamples
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeff)
+    hAddRep hRawLe
 
 theorem samplingSetBoundCheck_true_of_goldilocks_operand_assumptions
   {cset samples : Array Coeffs}

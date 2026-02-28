@@ -47,8 +47,551 @@ theorem centeredAbsNat_le_mod (x : Nat) : centeredAbsNat x ≤ x % q := by
 theorem centeredAbsNat_le_self (x : Nat) : centeredAbsNat x ≤ x := by
   exact Nat.le_trans (centeredAbsNat_le_mod x) (Nat.mod_le _ _)
 
+/--
+Centered absolute value is invariant under modular negation.
+This is the Nat-level `| -x | = | x |` symmetry used by later norm lemmas.
+-/
+theorem centeredAbsNat_neg_mod (x : Nat) :
+  centeredAbsNat (q - (x % q)) = centeredAbsNat x := by
+  let r : Nat := x % q
+  have hxr : x % q = r := by
+    simp [r]
+  rw [hxr]
+  have hxmod : centeredAbsNat x = centeredAbsNat r := by
+    simpa [hxr] using (centeredAbsNat_mod x).symm
+  rw [hxmod]
+  have hr_lt : r < q := by
+    simpa [r] using Nat.mod_lt x q_pos
+  by_cases hr0 : r = 0
+  · rw [hr0]
+    unfold centeredAbsNat
+    simp
+  · have hrpos : 0 < r := Nat.pos_of_ne_zero hr0
+    have hrle : r ≤ q := Nat.le_of_lt hr_lt
+    have hqmr_lt : q - r < q := by
+      have hEq : q - r + r = q := Nat.sub_add_cancel hrle
+      have hlt : q - r < q - r + r := Nat.lt_add_of_pos_right hrpos
+      simpa [hEq] using hlt
+    have hmod : (q - r) % q = q - r := Nat.mod_eq_of_lt hqmr_lt
+    by_cases hrH : r ≤ halfQ
+    · have hnot : ¬ q - r ≤ halfQ := by
+        intro hle
+        have hEq : q - r + r = q := Nat.sub_add_cancel hrle
+        have hSum : q - r + r ≤ halfQ + halfQ := Nat.add_le_add hle hrH
+        have hqle : q ≤ halfQ + halfQ := by simpa [hEq] using hSum
+        exact Nat.not_lt_of_ge hqle halfQ_add_halfQ_lt_q
+      have hgt : halfQ < q - r := Nat.lt_of_not_ge hnot
+      unfold centeredAbsNat
+      have hrMod : r % q = r := Nat.mod_eq_of_lt hr_lt
+      have hnot' : ¬ (q - r) % q ≤ halfQ := by
+        simpa [hmod] using (Nat.not_le.mpr hgt)
+      have hFalse : ¬ q ≤ halfQ + r := by
+        intro hqle
+        have h1 : q - r + r ≤ halfQ + r := by
+          calc
+            q - r + r = q := Nat.sub_add_cancel hrle
+            _ ≤ halfQ + r := hqle
+        have hqrLe : q - r ≤ halfQ := by
+          exact (Nat.add_le_add_iff_right).1 h1
+        exact hnot hqrLe
+      have hSubSub : q - (q - r) = r := by
+        apply (Nat.sub_eq_iff_eq_add (Nat.sub_le q r)).2
+        have hEq : q - r + r = q := Nat.sub_add_cancel hrle
+        simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using hEq.symm
+      simp [hrMod, hmod, hrH, hFalse, hSubSub]
+    · have hrgt : halfQ < r := Nat.lt_of_not_ge hrH
+      have hr1 : halfQ + 1 ≤ r := Nat.succ_le_of_lt hrgt
+      have hsub : q - r ≤ q - (halfQ + 1) := Nat.sub_le_sub_left hr1 q
+      have hqmr_le : q - r ≤ halfQ := by
+        simpa [q_sub_halfQ_succ_eq_halfQ] using hsub
+      unfold centeredAbsNat
+      have hrMod : r % q = r := Nat.mod_eq_of_lt hr_lt
+      have hnot' : ¬ r % q ≤ halfQ := by simpa [hrMod] using hrH
+      simp [hrMod, hmod, hqmr_le]
+      intro hle
+      exact (hrH hle).elim
+
+/--
+Triangle inequality for centered absolute values modulo `q`.
+This is the Nat-level core needed for theorem-native additive blocker proofs.
+-/
+theorem centeredAbsNat_add_le (x y : Nat) :
+  centeredAbsNat (x + y) ≤ centeredAbsNat x + centeredAbsNat y := by
+  let a : Nat := x % q
+  let b : Nat := y % q
+  have ha_lt : a < q := by
+    simpa [a] using Nat.mod_lt x q_pos
+  have hb_lt : b < q := by
+    simpa [b] using Nat.mod_lt y q_pos
+  have hx : centeredAbsNat x = centeredAbsNat a := by
+    simpa [a] using (centeredAbsNat_mod x).symm
+  have hy : centeredAbsNat y = centeredAbsNat b := by
+    simpa [b] using (centeredAbsNat_mod y).symm
+  have hxy : centeredAbsNat (x + y) = centeredAbsNat (a + b) := by
+    calc
+      centeredAbsNat (x + y) = centeredAbsNat ((x + y) % q) := by
+        simpa using (centeredAbsNat_mod (x + y)).symm
+      _ = centeredAbsNat (((x % q) + (y % q)) % q) := by
+        simp [Nat.add_mod]
+      _ = centeredAbsNat ((a + b) % q) := by simp [a, b]
+      _ = centeredAbsNat (a + b) := by
+        simpa using centeredAbsNat_mod (a + b)
+
+  have hMixed :
+      ∀ u v : Nat,
+        u < q → v < q →
+        u ≤ halfQ → ¬ v ≤ halfQ →
+        centeredAbsNat (u + v) ≤ centeredAbsNat u + centeredAbsNat v := by
+    intro u v hu_lt hv_lt huH hvH
+    let dv : Nat := q - v
+    have huMod : u % q = u := Nat.mod_eq_of_lt hu_lt
+    have hvMod : v % q = v := Nat.mod_eq_of_lt hv_lt
+    have hU : centeredAbsNat u = u := by
+      unfold centeredAbsNat
+      simp [huMod, huH]
+    have hV : centeredAbsNat v = dv := by
+      unfold centeredAbsNat
+      simp [hvMod, dv, hvH]
+    have hv_le_q : v ≤ q := Nat.le_of_lt hv_lt
+    have hq_sub_dv : q - dv = v := by
+      simpa [dv] using (Nat.sub_sub_self hv_le_q)
+    by_cases hcmp : dv ≤ u
+    · have hsum : u + v = q + (u - dv) := by
+        calc
+          u + v = u + (q - dv) := by simpa [hq_sub_dv]
+          _ = q + (u - dv) := by omega
+      have hudv_lt_q : u - dv < q := by
+        exact Nat.lt_of_le_of_lt (Nat.sub_le u dv) hu_lt
+      have hmod : (u + v) % q = u - dv := by
+        calc
+          (u + v) % q = (q + (u - dv)) % q := by simpa [hsum]
+          _ = (u - dv) % q := by
+            simp [Nat.add_mod, Nat.mod_eq_of_lt q_pos]
+          _ = u - dv := Nat.mod_eq_of_lt hudv_lt_q
+      have hLHS : centeredAbsNat (u + v) = centeredAbsNat (u - dv) := by
+        calc
+          centeredAbsNat (u + v) = centeredAbsNat ((u + v) % q) := by
+            simpa using (centeredAbsNat_mod (u + v)).symm
+          _ = centeredAbsNat (u - dv) := by simpa [hmod]
+      have hBound : centeredAbsNat (u - dv) ≤ u + dv := by
+        exact Nat.le_trans
+          (centeredAbsNat_le_self (u - dv))
+          (by omega)
+      simpa [hU, hV, hLHS, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hBound
+    · have hlt : u < dv := Nat.lt_of_not_ge hcmp
+      have hdv_le_q : dv ≤ q := Nat.sub_le _ _
+      have hsum_lt_q : u + v < q := by
+        calc
+          u + v = u + (q - dv) := by simpa [hq_sub_dv]
+          _ < dv + (q - dv) := Nat.add_lt_add_right hlt (q - dv)
+          _ = q := by
+            simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+              (Nat.sub_add_cancel hdv_le_q)
+      have hsum : u + v = q - (dv - u) := by
+        omega
+      have hvgt : halfQ < v := Nat.lt_of_not_ge hvH
+      have hvpos : 0 < v := Nat.lt_of_le_of_lt (Nat.zero_le halfQ) hvgt
+      have hdv_lt_q : dv < q := by
+        have hEq : q - v + v = q := Nat.sub_add_cancel (Nat.le_of_lt hv_lt)
+        have hlt : q - v < q - v + v := Nat.lt_add_of_pos_right hvpos
+        simpa [dv, hEq] using hlt
+      have hdiff_lt_q : dv - u < q := by
+        exact Nat.lt_of_le_of_lt (Nat.sub_le dv u) hdv_lt_q
+      have hdiff_mod : (dv - u) % q = dv - u := Nat.mod_eq_of_lt hdiff_lt_q
+      have hLHS : centeredAbsNat (u + v) = centeredAbsNat (dv - u) := by
+        calc
+          centeredAbsNat (u + v) = centeredAbsNat (q - (dv - u)) := by simpa [hsum]
+          _ = centeredAbsNat (q - ((dv - u) % q)) := by simpa [hdiff_mod]
+          _ = centeredAbsNat (dv - u) := by
+            simpa using centeredAbsNat_neg_mod (dv - u)
+      have hBound : centeredAbsNat (dv - u) ≤ u + dv := by
+        exact Nat.le_trans
+          (centeredAbsNat_le_self (dv - u))
+          (by omega)
+      simpa [hU, hV, hLHS, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hBound
+
+  have hMain : centeredAbsNat (a + b) ≤ centeredAbsNat a + centeredAbsNat b := by
+    by_cases haH : a ≤ halfQ
+    · by_cases hbH : b ≤ halfQ
+      · have hA : centeredAbsNat a = a := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt ha_lt, haH]
+        have hB : centeredAbsNat b = b := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt hb_lt, hbH]
+        have hL : centeredAbsNat (a + b) ≤ a + b := centeredAbsNat_le_self (a + b)
+        simpa [hA, hB] using hL
+      · exact hMixed a b ha_lt hb_lt haH hbH
+    · by_cases hbH : b ≤ halfQ
+      · have hSwap : centeredAbsNat (b + a) ≤ centeredAbsNat b + centeredAbsNat a :=
+          hMixed b a hb_lt ha_lt hbH haH
+        simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using hSwap
+      · let da : Nat := q - a
+        let db : Nat := q - b
+        have hA : centeredAbsNat a = da := by
+          unfold centeredAbsNat
+          have hmod : a % q = a := Nat.mod_eq_of_lt ha_lt
+          simp [hmod, da, haH]
+        have hB : centeredAbsNat b = db := by
+          unfold centeredAbsNat
+          have hmod : b % q = b := Nat.mod_eq_of_lt hb_lt
+          simp [hmod, db, hbH]
+        have hda_le : da ≤ halfQ := by
+          have hagt : halfQ < a := Nat.lt_of_not_ge haH
+          have ha1 : halfQ + 1 ≤ a := Nat.succ_le_of_lt hagt
+          have hsub : q - a ≤ q - (halfQ + 1) := Nat.sub_le_sub_left ha1 q
+          simpa [da, q_sub_halfQ_succ_eq_halfQ] using hsub
+        have hdb_le : db ≤ halfQ := by
+          have hbgt : halfQ < b := Nat.lt_of_not_ge hbH
+          have hb1 : halfQ + 1 ≤ b := Nat.succ_le_of_lt hbgt
+          have hsub : q - b ≤ q - (halfQ + 1) := Nat.sub_le_sub_left hb1 q
+          simpa [db, q_sub_halfQ_succ_eq_halfQ] using hsub
+        have hsum_lt_q : da + db < q := by
+          exact Nat.lt_of_le_of_lt (Nat.add_le_add hda_le hdb_le) halfQ_add_halfQ_lt_q
+        have hsum : a + b = q + (q - (da + db)) := by
+          omega
+        have hmodsum : (a + b) % q = q - (da + db) := by
+          calc
+            (a + b) % q = (q + (q - (da + db))) % q := by simpa [hsum]
+            _ = (q - (da + db)) % q := by
+              simp [Nat.add_mod, Nat.mod_eq_of_lt q_pos]
+            _ = q - (da + db) := Nat.mod_eq_of_lt (by omega)
+        have hLHS : centeredAbsNat (a + b) = centeredAbsNat (da + db) := by
+          calc
+            centeredAbsNat (a + b) = centeredAbsNat ((a + b) % q) := by
+              simpa using (centeredAbsNat_mod (a + b)).symm
+            _ = centeredAbsNat (q - (da + db)) := by simpa [hmodsum]
+            _ = centeredAbsNat (q - ((da + db) % q)) := by
+              simp [Nat.mod_eq_of_lt hsum_lt_q]
+            _ = centeredAbsNat (da + db) := by
+              simpa using centeredAbsNat_neg_mod (da + db)
+        have hBound : centeredAbsNat (da + db) ≤ da + db := centeredAbsNat_le_self (da + db)
+        simpa [hA, hB, hLHS, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hBound
+
+  calc
+    centeredAbsNat (x + y) = centeredAbsNat (a + b) := hxy
+    _ ≤ centeredAbsNat a + centeredAbsNat b := hMain
+    _ = centeredAbsNat x + centeredAbsNat y := by
+      simpa [hx, hy]
+
+/-- Helper for Nat subtraction cancellation under a side-condition. -/
+theorem sub_sub_cancel_of_le {a b : Nat} (h : b ≤ a) : a - (a - b) = b := by
+  omega
+
+/--
+Nat-level modular identity used to eliminate one `q - _` factor in products:
+`a * (q - b)` is `-(a*b)` modulo `q`.
+-/
+theorem mul_mod_q_sub (a b : Nat) (hb : b < q) :
+  (a * (q - b)) % q = (q - ((a * b) % q)) % q := by
+  let x : Nat := (a * (q - b)) % q
+  let r : Nat := (a * b) % q
+  have hx_lt : x < q := by
+    simpa [x] using Nat.mod_lt (a * (q - b)) q_pos
+  have hr_lt : r < q := by
+    simpa [r] using Nat.mod_lt (a * b) q_pos
+  have hsum : (a * (q - b) + a * b) % q = 0 := by
+    have hbq : b ≤ q := Nat.le_of_lt hb
+    calc
+      (a * (q - b) + a * b) % q
+          = (a * ((q - b) + b)) % q := by
+              simpa [Nat.mul_add, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+      _ = (a * q) % q := by
+            simp [Nat.sub_add_cancel hbq]
+      _ = 0 := by simp
+  have hsum0 : (x + r) % q = 0 := by
+    calc
+      (x + r) % q = (((a * (q - b)) % q) + ((a * b) % q)) % q := by
+        simp [x, r]
+      _ = (a * (q - b) + a * b) % q := by
+        simp [Nat.add_mod]
+      _ = 0 := hsum
+  by_cases hr0 : r = 0
+  · have hmod : x % q = 0 := by
+      simpa [hr0, Nat.zero_add] using hsum0
+    have hx0 : x = 0 := by
+      simpa [Nat.mod_eq_of_lt hx_lt] using hmod
+    simp [x, r, hr0, hx0]
+  · have hrpos : 0 < r := Nat.pos_of_ne_zero hr0
+    have hq_le_xr : q ≤ x + r := by
+      by_cases h : q ≤ x + r
+      · exact h
+      · have hlt : x + r < q := Nat.lt_of_not_ge h
+        have hmod : (x + r) % q = x + r := Nat.mod_eq_of_lt hlt
+        have hxrz : x + r = 0 := by simpa [hmod] using hsum0
+        have hr_le : r ≤ x + r := Nat.le_add_left r x
+        have hr_zero : r = 0 := Nat.eq_zero_of_le_zero (by simpa [hxrz] using hr_le)
+        exact False.elim (hr0 hr_zero)
+    have hxr_lt_2q : x + r < q + q := Nat.add_lt_add hx_lt hr_lt
+    have hdvd : q ∣ (x + r) := Nat.dvd_of_mod_eq_zero hsum0
+    rcases hdvd with ⟨k, hk⟩
+    have hk_ge1 : 1 ≤ k := by
+      have hq_le_qk : q ≤ q * k := by simpa [hk] using hq_le_xr
+      have hq1_le_qk : q * 1 ≤ q * k := by simpa [Nat.one_mul] using hq_le_qk
+      exact Nat.le_of_mul_le_mul_left hq1_le_qk q_pos
+    have hk_lt2 : k < 2 := by
+      have hqk_lt_q2 : q * k < q * 2 := by
+        simpa [hk, Nat.two_mul, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hxr_lt_2q
+      exact (Nat.mul_lt_mul_left q_pos).1 hqk_lt_q2
+    have hk1 : k = 1 := by omega
+    have hx_eq : x = q - r := by
+      have hxr_eq : x + r = q := by simpa [hk, hk1]
+      omega
+    have hqmr_lt : q - r < q := by
+      have hr_le_q : r ≤ q := Nat.le_of_lt hr_lt
+      have hEq : q - r + r = q := Nat.sub_add_cancel hr_le_q
+      have hlt : q - r < q - r + r := Nat.lt_add_of_pos_right hrpos
+      simpa [hEq] using hlt
+    have hqmr_mod : (q - r) % q = q - r := Nat.mod_eq_of_lt hqmr_lt
+    simpa [x, r, hx_eq, hqmr_mod]
+
+/-- Nat-level submultiplicativity of centered absolute values modulo `q`. -/
+theorem centeredAbsNat_mul_le_mul (x y : Nat) :
+  centeredAbsNat (x * y) ≤ centeredAbsNat x * centeredAbsNat y := by
+  let a : Nat := x % q
+  let b : Nat := y % q
+  have ha_lt : a < q := by simpa [a] using Nat.mod_lt x q_pos
+  have hb_lt : b < q := by simpa [b] using Nat.mod_lt y q_pos
+  have hx : centeredAbsNat x = centeredAbsNat a := by
+    simpa [a] using (centeredAbsNat_mod x).symm
+  have hy : centeredAbsNat y = centeredAbsNat b := by
+    simpa [b] using (centeredAbsNat_mod y).symm
+  have hxy : centeredAbsNat (x * y) = centeredAbsNat (a * b) := by
+    calc
+      centeredAbsNat (x * y) = centeredAbsNat ((x * y) % q) := by
+        simpa using (centeredAbsNat_mod (x * y)).symm
+      _ = centeredAbsNat (((x % q) * (y % q)) % q) := by simp [Nat.mul_mod]
+      _ = centeredAbsNat ((a * b) % q) := by simp [a, b]
+      _ = centeredAbsNat (a * b) := by simpa using centeredAbsNat_mod (a * b)
+
+  have hMain : centeredAbsNat (a * b) ≤ centeredAbsNat a * centeredAbsNat b := by
+    by_cases haH : a ≤ halfQ
+    · by_cases hbH : b ≤ halfQ
+      · have hA : centeredAbsNat a = a := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt ha_lt, haH]
+        have hB : centeredAbsNat b = b := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt hb_lt, hbH]
+        have hL : centeredAbsNat (a * b) ≤ a * b := centeredAbsNat_le_self (a * b)
+        simpa [hA, hB] using hL
+      · let db : Nat := q - b
+        have hA : centeredAbsNat a = a := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt ha_lt, haH]
+        have hB : centeredAbsNat b = db := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt hb_lt, db, hbH]
+        have hb_le_q : b ≤ q := Nat.le_of_lt hb_lt
+        have hbEq : b = q - db := by
+          simpa [db] using (sub_sub_cancel_of_le (a := q) (b := b) hb_le_q).symm
+        have db_lt_q : db < q := by
+          have hbgt : halfQ < b := Nat.lt_of_not_ge hbH
+          have hbpos : 0 < b := Nat.lt_of_le_of_lt (Nat.zero_le halfQ) hbgt
+          omega
+        have hmodMul' : (a * b) % q = (q - ((a * db) % q)) % q := by
+          simpa [hbEq] using (mul_mod_q_sub a db db_lt_q)
+        have hLHS : centeredAbsNat (a * b) = centeredAbsNat (a * db) := by
+          calc
+            centeredAbsNat (a * b) = centeredAbsNat ((a * b) % q) := by
+              simpa using (centeredAbsNat_mod (a * b)).symm
+            _ = centeredAbsNat ((q - ((a * db) % q)) % q) := by simpa [hmodMul']
+            _ = centeredAbsNat (q - ((a * db) % q)) := by
+                  simpa using (centeredAbsNat_mod (q - ((a * db) % q)))
+            _ = centeredAbsNat (a * db) := by
+                  simpa using centeredAbsNat_neg_mod (a * db)
+        have hBound : centeredAbsNat (a * db) ≤ a * db := centeredAbsNat_le_self (a * db)
+        simpa [hA, hB, hLHS] using hBound
+    · by_cases hbH : b ≤ halfQ
+      · have hAgt : halfQ < a := Nat.lt_of_not_ge haH
+        have hB : centeredAbsNat b = b := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt hb_lt, hbH]
+        let da : Nat := q - a
+        have hA : centeredAbsNat a = da := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt ha_lt, da, haH]
+        have ha_le_q : a ≤ q := Nat.le_of_lt ha_lt
+        have haEq : a = q - da := by
+          simpa [da] using (sub_sub_cancel_of_le (a := q) (b := a) ha_le_q).symm
+        have da_lt_q : da < q := by
+          have hapos : 0 < a := Nat.lt_of_le_of_lt (Nat.zero_le halfQ) hAgt
+          omega
+        have hmodMul' : (b * a) % q = (q - ((b * da) % q)) % q := by
+          simpa [haEq] using (mul_mod_q_sub b da da_lt_q)
+        have hLHS : centeredAbsNat (a * b) = centeredAbsNat (b * da) := by
+          calc
+            centeredAbsNat (a * b) = centeredAbsNat (b * a) := by simp [Nat.mul_comm]
+            _ = centeredAbsNat ((b * a) % q) := by
+                  simpa using (centeredAbsNat_mod (b * a)).symm
+            _ = centeredAbsNat ((q - ((b * da) % q)) % q) := by simpa [hmodMul']
+            _ = centeredAbsNat (q - ((b * da) % q)) := by
+                  simpa using (centeredAbsNat_mod (q - ((b * da) % q)))
+            _ = centeredAbsNat (b * da) := by
+                  simpa using centeredAbsNat_neg_mod (b * da)
+        have hBound : centeredAbsNat (b * da) ≤ b * da := centeredAbsNat_le_self (b * da)
+        simpa [hA, hB, Nat.mul_comm, hLHS] using hBound
+      · have hAgt : halfQ < a := Nat.lt_of_not_ge haH
+        have hBgt : halfQ < b := Nat.lt_of_not_ge hbH
+        let da : Nat := q - a
+        let db : Nat := q - b
+        have hA : centeredAbsNat a = da := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt ha_lt, da, haH]
+        have hB : centeredAbsNat b = db := by
+          unfold centeredAbsNat
+          simp [Nat.mod_eq_of_lt hb_lt, db, hbH]
+        have ha_le_q : a ≤ q := Nat.le_of_lt ha_lt
+        have hb_le_q : b ≤ q := Nat.le_of_lt hb_lt
+        have haEq : a = q - da := by
+          simpa [da] using (sub_sub_cancel_of_le (a := q) (b := a) ha_le_q).symm
+        have hbEq : b = q - db := by
+          simpa [db] using (sub_sub_cancel_of_le (a := q) (b := b) hb_le_q).symm
+        have hda_lt_q : da < q := by
+          have hapos : 0 < a := Nat.lt_of_le_of_lt (Nat.zero_le halfQ) hAgt
+          omega
+        have hdb_lt_q : db < q := by
+          have hbpos : 0 < b := Nat.lt_of_le_of_lt (Nat.zero_le halfQ) hBgt
+          omega
+        have h1' : (a * b) % q = (q - (((q - da) * db) % q)) % q := by
+          simpa [haEq, hbEq] using (mul_mod_q_sub (q - da) db hdb_lt_q)
+        have h2' : ((q - da) * db) % q = (q - ((da * db) % q)) % q := by
+          have htmp : (db * (q - da)) % q = (q - ((db * da) % q)) % q :=
+            mul_mod_q_sub db da hda_lt_q
+          simpa [Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc] using htmp
+        have hLHS : centeredAbsNat (a * b) = centeredAbsNat (da * db) := by
+          calc
+            centeredAbsNat (a * b) = centeredAbsNat ((a * b) % q) := by
+              simpa using (centeredAbsNat_mod (a * b)).symm
+            _ = centeredAbsNat ((q - ((q - ((da * db) % q)) % q)) % q) := by
+                  simpa [h1', h2']
+            _ = centeredAbsNat (q - ((q - ((da * db) % q)) % q)) := by
+                  simpa using (centeredAbsNat_mod (q - ((q - ((da * db) % q)) % q)))
+            _ = centeredAbsNat (q - ((da * db) % q)) := by
+                  simpa using centeredAbsNat_neg_mod (q - ((da * db) % q))
+            _ = centeredAbsNat ((da * db) % q) := by
+                  simpa using centeredAbsNat_neg_mod ((da * db) % q)
+            _ = centeredAbsNat (da * db) := by
+                  simpa using centeredAbsNat_mod (da * db)
+        have hBound : centeredAbsNat (da * db) ≤ da * db := centeredAbsNat_le_self (da * db)
+        simpa [hA, hB, hLHS] using hBound
+
+  calc
+    centeredAbsNat (x * y) = centeredAbsNat (a * b) := hxy
+    _ ≤ centeredAbsNat a * centeredAbsNat b := hMain
+    _ = centeredAbsNat x * centeredAbsNat y := by
+      simpa [hx, hy]
+
 /-- Infinity norm of a field element in centered representation. -/
 def normInfF (a : F) : Nat := centeredAbsNat a.val
+
+theorem normInfF_neg (a : F) : normInfF (-a) = normInfF a := by
+  cases a with
+  | mk av =>
+      unfold normInfF
+      change centeredAbsNat (F.ofNat (q - (av % q))).val = centeredAbsNat av
+      simpa [F.ofNat_val_mod, centeredAbsNat_mod] using centeredAbsNat_neg_mod av
+
+theorem normInfF_add_le_add_theorem (x y : F) :
+  normInfF (x + y) ≤ normInfF x + normInfF y := by
+  unfold normInfF
+  change centeredAbsNat ((x.val + y.val) % q) ≤ centeredAbsNat x.val + centeredAbsNat y.val
+  have hAdd : centeredAbsNat (x.val + y.val) ≤ centeredAbsNat x.val + centeredAbsNat y.val :=
+    centeredAbsNat_add_le x.val y.val
+  simpa [centeredAbsNat_mod] using hAdd
+
+theorem normInfF_mul_le_mul_theorem (x y : F) :
+  normInfF (x * y) ≤ normInfF x * normInfF y := by
+  unfold normInfF
+  change centeredAbsNat ((x.val * y.val) % q) ≤ centeredAbsNat x.val * centeredAbsNat y.val
+  have hMul : centeredAbsNat (x.val * y.val) ≤ centeredAbsNat x.val * centeredAbsNat y.val :=
+    centeredAbsNat_mul_le_mul x.val y.val
+  simpa [centeredAbsNat_mod] using hMul
+
+/--
+Signed centered representative of a Nat residue mod `q`.
+Used as an Int-level bridge for proving norm inequalities.
+-/
+def centeredRepNat (x : Nat) : Int :=
+  let xr := x % q
+  if xr <= halfQ then
+    Int.ofNat xr
+  else
+    -Int.ofNat (q - xr)
+
+theorem centeredRepNat_natAbs_eq_centeredAbsNat (x : Nat) :
+  Int.natAbs (centeredRepNat x) = centeredAbsNat x := by
+  unfold centeredRepNat centeredAbsNat
+  by_cases h : x % q <= halfQ
+  · rw [if_pos h, if_pos h]
+    simpa using (Int.natAbs_natCast (x % q))
+  · rw [if_neg h, if_neg h]
+    simp [Int.natAbs_natCast]
+
+/-- Centered representative depends only on the residue class modulo `q`. -/
+theorem centeredRepNat_mod (x : Nat) :
+  centeredRepNat (x % q) = centeredRepNat x := by
+  unfold centeredRepNat
+  simp
+
+/-- Signed centered representative of a field element. -/
+def centeredRep (a : F) : Int := centeredRepNat a.val
+
+theorem centeredRep_natAbs_eq_normInfF (a : F) :
+  Int.natAbs (centeredRep a) = normInfF a := by
+  unfold centeredRep normInfF
+  exact centeredRepNat_natAbs_eq_centeredAbsNat a.val
+
+theorem centeredRep_ofNat (x : Nat) :
+  centeredRep (F.ofNat x) = centeredRepNat x := by
+  unfold centeredRep
+  simpa [F.ofNat_val_mod] using centeredRepNat_mod x
+
+/--
+Centered-representation additive triangle assumption.
+This is the Int-level form of `schoolbookAddTriangleBound`.
+-/
+def centeredRepAddTriangleBound : Prop :=
+  ∀ x y : F, Int.natAbs (centeredRep (x + y))
+    ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)
+
+/--
+Centered-representation multiplicative submultiplicative assumption.
+This is the Int-level form of `schoolbookMulUniversalBound`.
+-/
+def centeredRepMulUniversalBound : Prop :=
+  ∀ x y : F, Int.natAbs (centeredRep (x * y))
+    ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)
+
+/-- Common centered-representation blocker bundle used in non-coarse P5 paths. -/
+def centeredRepMulAddBounds : Prop :=
+  centeredRepMulUniversalBound ∧ centeredRepAddTriangleBound
+
+theorem centeredRepMulAddBounds_mul
+  (h : centeredRepMulAddBounds) :
+  centeredRepMulUniversalBound := by
+  exact h.1
+
+theorem centeredRepMulAddBounds_add
+  (h : centeredRepMulAddBounds) :
+  centeredRepAddTriangleBound := by
+  exact h.2
+
+theorem centeredRepAddTriangleBound_theorem : centeredRepAddTriangleBound := by
+  intro x y
+  simpa [centeredRep_natAbs_eq_normInfF] using (normInfF_add_le_add_theorem x y)
+
+theorem centeredRepMulUniversalBound_theorem : centeredRepMulUniversalBound := by
+  intro x y
+  simpa [centeredRep_natAbs_eq_normInfF] using (normInfF_mul_le_mul_theorem x y)
+
+theorem centeredRepMulAddBounds_theorem : centeredRepMulAddBounds := by
+  exact ⟨centeredRepMulUniversalBound_theorem, centeredRepAddTriangleBound_theorem⟩
+
+theorem centeredRepMulAddBounds_of_mul
+  (hMul : centeredRepMulUniversalBound) :
+  centeredRepMulAddBounds := by
+  exact ⟨hMul, centeredRepAddTriangleBound_theorem⟩
 
 /-- Infinity norm of one ring element represented by its d coefficients. -/
 def normInfCoeffs (a : Coeffs) : Nat :=
@@ -224,6 +767,16 @@ theorem normInfF_le_q (a : F) : normInfF a ≤ q := by
 theorem normInfF_le_halfQ (a : F) : normInfF a ≤ halfQ := by
   unfold normInfF
   exact centeredAbsNat_le_halfQ a.val
+
+theorem centeredRepNat_natAbs_le_halfQ (x : Nat) :
+  Int.natAbs (centeredRepNat x) ≤ halfQ := by
+  rw [centeredRepNat_natAbs_eq_centeredAbsNat]
+  exact centeredAbsNat_le_halfQ x
+
+theorem centeredRep_natAbs_le_halfQ (a : F) :
+  Int.natAbs (centeredRep a) ≤ halfQ := by
+  rw [centeredRep_natAbs_eq_normInfF]
+  exact normInfF_le_halfQ a
 
 theorem normInfCoeffs_le_q (a : Coeffs) : normInfCoeffs a ≤ q := by
   exact normInfCoeffs_le_of_entry_bound (a := a) (B := q) (fun i hi => by
@@ -454,6 +1007,27 @@ theorem vecScaleNormBoundFromOperands_of_opBound
     (s := s) (a := a) (BS := BS) (BA := BA) (B := B)
     hS hA hMul
 
+theorem vecAddNormBoundFromOperands_of_triangle
+  {BA BB : Nat}
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  vecAddNormBoundFromOperands BA BB (BA + BB) := by
+  exact vecAddNormBoundFromOperands_of_opBound (BA := BA) (BB := BB) (B := BA + BB) (fun x y hx hy => by
+    exact Nat.le_trans (hAddTri x y) (Nat.add_le_add hx hy))
+
+theorem coeffSubNormBoundFromOperands_of_triangle
+  {BA BB : Nat}
+  (hSubTri : ∀ x y : F, normInfF (x - y) ≤ normInfF x + normInfF y) :
+  coeffSubNormBoundFromOperands BA BB (BA + BB) := by
+  exact coeffSubNormBoundFromOperands_of_opBound (BA := BA) (BB := BB) (B := BA + BB) (fun x y hx hy => by
+    exact Nat.le_trans (hSubTri x y) (Nat.add_le_add hx hy))
+
+theorem vecScaleNormBoundFromOperands_of_universal
+  {BS BA : Nat}
+  (hMulUniv : ∀ x y : F, normInfF (x * y) ≤ normInfF x * normInfF y) :
+  vecScaleNormBoundFromOperands BS BA (BS * BA) := by
+  exact vecScaleNormBoundFromOperands_of_opBound (BS := BS) (BA := BA) (B := BS * BA) (fun x y hx hy => by
+    exact Nat.le_trans (hMulUniv x y) (Nat.mul_le_mul hx hy))
+
 theorem normInfCoeffs_mulRq_le_of_norm_bounds
   {a b : Coeffs} {BA BB B : Nat}
   (hA : normInfCoeffs a ≤ BA)
@@ -627,6 +1201,782 @@ theorem normInfCoeffs_mulRq_le_of_norm_bounds_via_rawCoeffsNorm
     (hRawCoeffs := hRawCoeffsFromNorm hA hB)
     hAddSub hSub
 
+private theorem normInfF_foldl_add_if_le_of_term_bound
+  {α : Type}
+  (xs : List α)
+  (p : α → Prop)
+  [DecidablePred p]
+  (term : α → F)
+  {init : F}
+  {BAcc BTerm : Nat}
+  (hInit : normInfF init ≤ BAcc)
+  (hAdd : ∀ x y : F, normInfF x ≤ BAcc → normInfF y ≤ BTerm → normInfF (x + y) ≤ BAcc)
+  (hTerm : ∀ x, x ∈ xs → p x → normInfF (term x) ≤ BTerm) :
+  normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init xs) ≤ BAcc := by
+  induction xs generalizing init with
+  | nil =>
+      simpa using hInit
+  | cons x xs ih =>
+      by_cases hp : p x
+      · have hTermX : normInfF (term x) ≤ BTerm := hTerm x (by simp) hp
+        have hInit' : normInfF (init + term x) ≤ BAcc := hAdd init (term x) hInit hTermX
+        have hTail :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) (init + term x) xs) ≤ BAcc := by
+          apply ih
+          · exact hInit'
+          · intro x' hx' hp'
+            exact hTerm x' (by simp [hx']) hp'
+        simpa [List.foldl_cons, hp] using hTail
+      · have hTail :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init xs) ≤ BAcc := by
+          apply ih
+          · exact hInit
+          · intro x' hx' hp'
+            exact hTerm x' (by simp [hx']) hp'
+        simpa [List.foldl_cons, hp] using hTail
+
+private theorem normInfF_schoolbook_row_scalar_fold_le_of_term_bound
+  {aD bD : Coeffs}
+  {i k : Nat}
+  {acc : F}
+  {BAcc BTerm : Nat}
+  (hAcc : normInfF acc ≤ BAcc)
+  (hAdd : ∀ x y : F, normInfF x ≤ BAcc → normInfF y ≤ BTerm → normInfF (x + y) ≤ BAcc)
+  (hTerm : ∀ j, j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm) :
+  normInfF
+    (List.foldl
+      (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+      acc
+      (List.range' 0 D))
+    ≤ BAcc := by
+  apply normInfF_foldl_add_if_le_of_term_bound
+    (xs := List.range' 0 D)
+    (p := fun j => i + j = k)
+    (term := fun j => aD[i]! * bD[j]!)
+  · exact hAcc
+  · exact hAdd
+  · intro j hj _hp
+    rcases (List.mem_range').1 hj with ⟨t, ht, hEq⟩
+    have hEq' : j = t := by simpa using hEq
+    exact hTerm j (by simpa [hEq'] using ht)
+
+private theorem normInfF_schoolbook_scalar_fold_le_of_term_bound
+  {aD bD : Coeffs}
+  {k : Nat}
+  {BAcc BTerm : Nat}
+  (hInit : normInfF (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k) ≤ BAcc)
+  (hAdd : ∀ x y : F, normInfF x ≤ BAcc → normInfF y ≤ BTerm → normInfF (x + y) ≤ BAcc)
+  (hTerm : ∀ i j, i < D → j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm) :
+  normInfF
+    (List.foldl
+      (fun acc i =>
+        List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+      (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      (List.range' 0 D))
+    ≤ BAcc := by
+  let outerStep : F → Nat → F :=
+    fun acc i =>
+      List.foldl
+        (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+        acc
+        (List.range' 0 D)
+  have hOuter :
+      ∀ outer init,
+        (∀ i, i ∈ outer → i < D) →
+        normInfF init ≤ BAcc →
+        normInfF (List.foldl outerStep init outer) ≤ BAcc := by
+    intro outer
+    induction outer with
+    | nil =>
+        intro init _hIn hInitAcc
+        simpa using hInitAcc
+    | cons i is ih =>
+        intro init hIn hInitAcc
+        have hiD : i < D := hIn i (by simp)
+        have hRow :
+            normInfF (outerStep init i) ≤ BAcc := by
+          apply normInfF_schoolbook_row_scalar_fold_le_of_term_bound
+            (aD := aD) (bD := bD) (i := i) (k := k) (acc := init)
+          · exact hInitAcc
+          · exact hAdd
+          · intro j hj
+            exact hTerm i j hiD hj
+        have hTail :
+            normInfF (List.foldl outerStep (outerStep init i) is) ≤ BAcc := by
+          apply ih
+          · intro i' hi'
+            exact hIn i' (by simp [hi'])
+          · exact hRow
+        simpa [List.foldl_cons] using hTail
+  have hRange : ∀ i, i ∈ List.range' 0 D → i < D := by
+    intro i hi
+    rcases (List.mem_range').1 hi with ⟨t, ht, hEq⟩
+    have hEq' : i = t := by simpa using hEq
+    simpa [hEq'] using ht
+  simpa [outerStep] using
+    hOuter
+      (outer := List.range' 0 D)
+      (init := getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      hRange
+      hInit
+
+/--
+Fold helper (sum-style): each selected term is bounded by `BTerm`, and addition
+uses a triangle-style bound, so the final accumulator is bounded by
+`init + (#selected steps upper bounded by xs.length) * BTerm`.
+-/
+private theorem normInfF_foldl_add_if_le_of_term_bound_sum
+  {α : Type}
+  (xs : List α)
+  (p : α → Prop)
+  [DecidablePred p]
+  (term : α → F)
+  {init : F}
+  {BTerm : Nat}
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hTerm : ∀ x, x ∈ xs → p x → normInfF (term x) ≤ BTerm) :
+  normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init xs)
+    ≤ normInfF init + xs.length * BTerm := by
+  induction xs generalizing init with
+  | nil =>
+      simp
+  | cons x xs ih =>
+      by_cases hp : p x
+      · have hTermX : normInfF (term x) ≤ BTerm := hTerm x (by simp) hp
+        have hHead : normInfF (init + term x) ≤ normInfF init + BTerm := by
+          exact Nat.le_trans
+            (hAddTri init (term x))
+            (Nat.add_le_add_left hTermX (normInfF init))
+        have hTail :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) (init + term x) xs)
+              ≤ normInfF (init + term x) + xs.length * BTerm := by
+          apply ih
+          intro x' hx' hp'
+          exact hTerm x' (by simp [hx']) hp'
+        have hTail' :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) (init + term x) xs)
+              ≤ (normInfF init + BTerm) + xs.length * BTerm := by
+          exact Nat.le_trans hTail (Nat.add_le_add_right hHead (xs.length * BTerm))
+        simpa [List.foldl_cons, hp, Nat.succ_mul, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hTail'
+      · have hTail :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init xs)
+              ≤ normInfF init + xs.length * BTerm := by
+          apply ih
+          intro x' hx' hp'
+          exact hTerm x' (by simp [hx']) hp'
+        have hGrow :
+            normInfF init + xs.length * BTerm
+              ≤ normInfF init + (Nat.succ xs.length) * BTerm := by
+          exact Nat.add_le_add_left
+            (Nat.mul_le_mul_right BTerm (Nat.le_succ xs.length))
+            (normInfF init)
+        have hFinal :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init (x :: xs))
+              ≤ normInfF init + (x :: xs).length * BTerm := by
+          exact Nat.le_trans (by simpa [List.foldl_cons, hp] using hTail) (by simpa using hGrow)
+        exact hFinal
+
+/--
+Count-refined fold helper: growth is proportional to the number of selected
+(`p = true`) terms, not to the full list length.
+-/
+private theorem normInfF_foldl_add_if_le_of_term_bound_count
+  {α : Type}
+  (xs : List α)
+  (p : α → Bool)
+  (term : α → F)
+  {init : F}
+  {BTerm : Nat}
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hTerm : ∀ x, x ∈ xs → p x = true → normInfF (term x) ≤ BTerm) :
+  normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init xs)
+    ≤ normInfF init + (List.countP p xs) * BTerm := by
+  induction xs generalizing init with
+  | nil =>
+      simp
+  | cons x xs ih =>
+      by_cases hp : p x = true
+      · have hTermX : normInfF (term x) ≤ BTerm := hTerm x (by simp) hp
+        have hHead : normInfF (init + term x) ≤ normInfF init + BTerm := by
+          exact Nat.le_trans
+            (hAddTri init (term x))
+            (Nat.add_le_add_left hTermX (normInfF init))
+        have hTail :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) (init + term x) xs)
+              ≤ normInfF (init + term x) + (List.countP p xs) * BTerm := by
+          apply ih
+          intro x' hx' hp'
+          exact hTerm x' (by simp [hx']) hp'
+        have hTail' :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) (init + term x) xs)
+              ≤ (normInfF init + BTerm) + (List.countP p xs) * BTerm := by
+          exact Nat.le_trans hTail (Nat.add_le_add_right hHead ((List.countP p xs) * BTerm))
+        calc
+          normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init (x :: xs))
+              = normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) (init + term x) xs) := by
+                  simp [List.foldl_cons, hp]
+          _ ≤ (normInfF init + BTerm) + (List.countP p xs) * BTerm := hTail'
+          _ = normInfF init + (List.countP p (x :: xs)) * BTerm := by
+                rw [List.countP_cons, hp]
+                simp [Nat.succ_mul, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
+      · have hTail :
+            normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init xs)
+              ≤ normInfF init + (List.countP p xs) * BTerm := by
+          apply ih
+          intro x' hx' hp'
+          exact hTerm x' (by simp [hx']) hp'
+        calc
+          normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init (x :: xs))
+              = normInfF (List.foldl (fun acc x => if p x then acc + term x else acc) init xs) := by
+                  simp [List.foldl_cons, hp]
+          _ ≤ normInfF init + (List.countP p xs) * BTerm := hTail
+          _ = normInfF init + (List.countP p (x :: xs)) * BTerm := by
+                have hpFalse : p x = false := by
+                  cases hpx : p x with
+                  | false => rfl
+                  | true => exact (hp hpx).elim
+                rw [List.countP_cons, hpFalse]
+                simp
+
+/-- Fold helper for step functions that increase norm by at most a fixed increment. -/
+private theorem normInfF_foldl_step_le_of_step_increment
+  {α : Type}
+  (xs : List α)
+  (step : F → α → F)
+  {init : F}
+  {C : Nat}
+  (hStep : ∀ acc x, x ∈ xs → normInfF (step acc x) ≤ normInfF acc + C) :
+  normInfF (List.foldl step init xs) ≤ normInfF init + xs.length * C := by
+  induction xs generalizing init with
+  | nil =>
+      simp
+  | cons x xs ih =>
+      have hHead : normInfF (step init x) ≤ normInfF init + C := hStep init x (by simp)
+      have hTail :
+          normInfF (List.foldl step (step init x) xs)
+            ≤ normInfF (step init x) + xs.length * C := by
+        apply ih
+        intro acc x' hx'
+        exact hStep acc x' (by simp [hx'])
+      have hTail' :
+          normInfF (List.foldl step (step init x) xs)
+            ≤ (normInfF init + C) + xs.length * C := by
+        exact Nat.le_trans hTail (Nat.add_le_add_right hHead (xs.length * C))
+      simpa [List.foldl_cons, Nat.succ_mul, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hTail'
+
+private theorem schoolbook_row_hit_count_le_one (i k : Nat) :
+  List.countP (fun j : Nat => decide (i + j = k)) (List.range' 0 D) ≤ 1 := by
+  by_cases hik : i ≤ k
+  · have hCountEq :
+      List.countP (fun j : Nat => decide (i + j = k)) (List.range' 0 D)
+        = List.count (k - i) (List.range' 0 D) := by
+      have hCong :
+          ∀ j, j ∈ List.range' 0 D →
+            (decide (i + j = k) = true ↔ decide (j = k - i) = true) := by
+        intro j _hj
+        constructor
+        · intro hDec
+          have hEq : i + j = k := by simpa using hDec
+          have hSub : j = k - i := by
+            have hK : i + (k - i) = k := Nat.add_sub_of_le hik
+            exact Nat.add_left_cancel (hEq.trans hK.symm)
+          simpa [hSub]
+        · intro hDec
+          have hSub : j = k - i := by simpa using hDec
+          have hEq : i + j = k := by
+            calc
+              i + j = i + (k - i) := by simpa [hSub]
+              _ = k := Nat.add_sub_of_le hik
+          simpa [hEq]
+      have hCp :
+          List.countP (fun j : Nat => decide (i + j = k)) (List.range' 0 D)
+            = List.countP (fun j : Nat => decide (j = k - i)) (List.range' 0 D) :=
+        List.countP_congr (l := List.range' 0 D) hCong
+      have hCountP :
+          List.countP (fun j : Nat => decide (j = k - i)) (List.range' 0 D)
+            = List.count (k - i) (List.range' 0 D) := by
+        simpa using (List.count_eq_countP (a := (k - i)) (l := List.range' 0 D)).symm
+      exact hCp.trans hCountP
+    have hLeCount : List.count (k - i) (List.range' 0 D) ≤ 1 := by
+      rw [List.count_range_1' (a := k - i) (s := 0) (n := D)]
+      split <;> simp
+    simpa [hCountEq] using hLeCount
+  · have hZero : List.countP (fun j : Nat => decide (i + j = k)) (List.range' 0 D) = 0 := by
+      apply (List.countP_eq_zero).2
+      intro j hj hDec
+      have hkLt : k < i := Nat.lt_of_not_ge hik
+      have hEq : i + j = k := by simpa using hDec
+      have hLe : i ≤ k := by
+        calc
+          i ≤ i + j := Nat.le_add_right i j
+          _ = k := hEq
+      exact (Nat.not_lt_of_ge hLe) hkLt
+    simpa [hZero]
+
+private theorem normInfF_schoolbook_row_scalar_fold_le_of_term_bound_sum
+  {aD bD : Coeffs}
+  {i k : Nat}
+  {acc : F}
+  {BTerm : Nat}
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hTerm : ∀ j, j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm) :
+  normInfF
+    (List.foldl
+      (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+      acc
+      (List.range' 0 D))
+    ≤ normInfF acc + D * BTerm := by
+  have hFold :
+      normInfF
+        (List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+        ≤ normInfF acc + (List.range' 0 D).length * BTerm := by
+    apply normInfF_foldl_add_if_le_of_term_bound_sum
+      (xs := List.range' 0 D)
+      (p := fun j => i + j = k)
+      (term := fun j => aD[i]! * bD[j]!)
+      (init := acc)
+      (BTerm := BTerm)
+      hAddTri
+    intro j hj _hp
+    rcases (List.mem_range').1 hj with ⟨t, ht, hEq⟩
+    have hEq' : j = t := by simpa using hEq
+    exact hTerm j (by simpa [hEq'] using ht)
+  simpa using hFold
+
+private theorem normInfF_schoolbook_row_scalar_fold_le_of_term_bound_sum_tight
+  {aD bD : Coeffs}
+  {i k : Nat}
+  {acc : F}
+  {BTerm : Nat}
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hTerm : ∀ j, j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm) :
+  normInfF
+    (List.foldl
+      (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+      acc
+      (List.range' 0 D))
+    ≤ normInfF acc + BTerm := by
+  let p : Nat → Bool := fun j => decide (i + j = k)
+  let step : F → Nat → F := fun acc' j => if p j then acc' + aD[i]! * bD[j]! else acc'
+  have hFold :
+      normInfF (List.foldl step acc (List.range' 0 D))
+        ≤ normInfF acc + (List.countP p (List.range' 0 D)) * BTerm := by
+    apply normInfF_foldl_add_if_le_of_term_bound_count
+      (xs := List.range' 0 D)
+      (p := p)
+      (term := fun j => aD[i]! * bD[j]!)
+      (init := acc)
+      (BTerm := BTerm)
+      hAddTri
+    intro j hj hp
+    rcases (List.mem_range').1 hj with ⟨t, ht, hEq⟩
+    have hEq' : j = t := by simpa using hEq
+    exact hTerm j (by simpa [hEq'] using ht)
+  have hCountLe : List.countP p (List.range' 0 D) ≤ 1 := by
+    simpa [p] using schoolbook_row_hit_count_le_one i k
+  have hMulLe : (List.countP p (List.range' 0 D)) * BTerm ≤ 1 * BTerm :=
+    Nat.mul_le_mul_right BTerm hCountLe
+  have hBound :
+      normInfF (List.foldl step acc (List.range' 0 D))
+        ≤ normInfF acc + 1 * BTerm := by
+    exact Nat.le_trans hFold (Nat.add_le_add_left hMulLe (normInfF acc))
+  simpa [step, p, Nat.one_mul] using hBound
+
+private theorem normInfF_schoolbook_scalar_fold_le_of_term_bound_sum
+  {aD bD : Coeffs}
+  {k : Nat}
+  {BTerm : Nat}
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hTerm : ∀ i j, i < D → j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm) :
+  normInfF
+    (List.foldl
+      (fun acc i =>
+        List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+      (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      (List.range' 0 D))
+    ≤ (D * D) * BTerm := by
+  let outerStep : F → Nat → F :=
+    fun acc i =>
+      List.foldl
+        (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+        acc
+        (List.range' 0 D)
+  have hOuter :
+      normInfF
+        (List.foldl
+          outerStep
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D))
+      ≤ normInfF (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          + (List.range' 0 D).length * (D * BTerm) := by
+    apply normInfF_foldl_step_le_of_step_increment
+      (xs := List.range' 0 D)
+      (step := outerStep)
+      (init := getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      (C := D * BTerm)
+    intro acc i hi
+    rcases (List.mem_range').1 hi with ⟨t, ht, hEq⟩
+    have hiD : i < D := by
+      simpa [hEq] using ht
+    have hRow :
+        normInfF (outerStep acc i) ≤ normInfF acc + D * BTerm := by
+      apply normInfF_schoolbook_row_scalar_fold_le_of_term_bound_sum
+        (aD := aD) (bD := bD) (i := i) (k := k)
+      · exact hAddTri
+      · intro j hj
+        exact hTerm i j hiD hj
+    simpa [outerStep] using hRow
+  have hInitZero : normInfF (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k) = 0 := by
+    have hCoeffZero : getCoeff (Array.replicate (2 * D - 1) (0 : F)) k = 0 :=
+      getCoeff_replicate_zero (2 * D - 1) k
+    have hZero : normInfF (0 : F) = 0 := by
+      native_decide
+    simpa [hCoeffZero] using hZero
+  calc
+    normInfF
+      (List.foldl
+        (fun acc i =>
+          List.foldl
+            (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+            acc
+            (List.range' 0 D))
+        (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+        (List.range' 0 D))
+        ≤ normInfF (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+            + (List.range' 0 D).length * (D * BTerm) := hOuter
+    _ = (D * D) * BTerm := by
+          simpa [hInitZero, Nat.mul_assoc]
+
+private theorem normInfF_schoolbook_scalar_fold_le_of_term_bound_sum_tight
+  {aD bD : Coeffs}
+  {k : Nat}
+  {BTerm : Nat}
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hTerm : ∀ i j, i < D → j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm) :
+  normInfF
+    (List.foldl
+      (fun acc i =>
+        List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+      (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      (List.range' 0 D))
+    ≤ D * BTerm := by
+  let outerStep : F → Nat → F :=
+    fun acc i =>
+      List.foldl
+        (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+        acc
+        (List.range' 0 D)
+  have hOuter :
+      normInfF
+        (List.foldl
+          outerStep
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D))
+      ≤ normInfF (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          + (List.range' 0 D).length * BTerm := by
+    apply normInfF_foldl_step_le_of_step_increment
+      (xs := List.range' 0 D)
+      (step := outerStep)
+      (init := getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      (C := BTerm)
+    intro acc i hi
+    rcases (List.mem_range').1 hi with ⟨t, ht, hEq⟩
+    have hiD : i < D := by
+      simpa [hEq] using ht
+    have hRow :
+        normInfF (outerStep acc i) ≤ normInfF acc + BTerm := by
+      apply normInfF_schoolbook_row_scalar_fold_le_of_term_bound_sum_tight
+        (aD := aD) (bD := bD) (i := i) (k := k)
+      · exact hAddTri
+      · intro j hj
+        exact hTerm i j hiD hj
+    simpa [outerStep] using hRow
+  have hInitZero : normInfF (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k) = 0 := by
+    have hCoeffZero : getCoeff (Array.replicate (2 * D - 1) (0 : F)) k = 0 :=
+      getCoeff_replicate_zero (2 * D - 1) k
+    have hZero : normInfF (0 : F) = 0 := by
+      native_decide
+    simpa [hCoeffZero] using hZero
+  calc
+    normInfF
+      (List.foldl
+        (fun acc i =>
+          List.foldl
+            (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+            acc
+            (List.range' 0 D))
+        (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+        (List.range' 0 D))
+        ≤ normInfF (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+            + (List.range' 0 D).length * BTerm := hOuter
+    _ = D * BTerm := by
+          simpa [hInitZero]
+
+/--
+Schoolbook (raw) coefficient bound from operand coefficient bounds, via:
+1) a per-term multiplication bound (`hMul`), and
+2) a triangle-style add bound (`hAddTri`).
+
+This avoids fixed-point accumulator closure and yields a concrete bound
+`(D * D) * BTerm`.
+-/
+theorem normInfF_mulRqRawCoeffSpec_le_of_operand_norm_assumptions_via_schoolbook_sum
+  {a b : Coeffs}
+  {k BA BB BTerm : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  normInfF (mulRqRawCoeffSpec a b k) ≤ (D * D) * BTerm := by
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  have hTerm :
+      ∀ i j, i < D → j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm := by
+    intro i j hi hj
+    have hAiRaw : normInfF (a[i]!) ≤ BA :=
+      normInfF_getElemBang_le_of_normInfCoeffs (a := a) (B := BA) hA i
+    have hBjRaw : normInfF (b[j]!) ≤ BB :=
+      normInfF_getElemBang_le_of_normInfCoeffs (a := b) (B := BB) hB j
+    have hAi : normInfF (aD[i]!) ≤ BA := by
+      simpa [aD, hi] using hAiRaw
+    have hBj : normInfF (bD[j]!) ≤ BB := by
+      simpa [bD, hj] using hBjRaw
+    exact hMul (aD[i]!) (bD[j]!) hAi hBj
+  have hFold :
+      normInfF
+        (List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D))
+        ≤ (D * D) * BTerm := by
+    exact normInfF_schoolbook_scalar_fold_le_of_term_bound_sum
+      (aD := aD) (bD := bD) (k := k)
+      (hAddTri := hAddTri)
+      (hTerm := hTerm)
+  have hEq :
+      mulRqRawCoeffSpec a b k
+        =
+        List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D) := by
+    simpa [aD, bD] using (mulRqRawCoeffSpec_eq_scalar_fold a b k)
+  calc
+    normInfF (mulRqRawCoeffSpec a b k)
+        = normInfF
+            (List.foldl
+              (fun acc i =>
+                List.foldl
+                  (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+                  acc
+                  (List.range' 0 D))
+              (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+              (List.range' 0 D)) := by
+                simpa [hEq]
+    _ ≤ (D * D) * BTerm := hFold
+
+theorem normInfF_mulRqRawCoeffSpec_le_of_operand_norm_assumptions_via_schoolbook_sum_tight
+  {a b : Coeffs}
+  {k BA BB BTerm : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  normInfF (mulRqRawCoeffSpec a b k) ≤ D * BTerm := by
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  have hTerm :
+      ∀ i j, i < D → j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm := by
+    intro i j hi hj
+    have hAiRaw : normInfF (a[i]!) ≤ BA :=
+      normInfF_getElemBang_le_of_normInfCoeffs (a := a) (B := BA) hA i
+    have hBjRaw : normInfF (b[j]!) ≤ BB :=
+      normInfF_getElemBang_le_of_normInfCoeffs (a := b) (B := BB) hB j
+    have hAi : normInfF (aD[i]!) ≤ BA := by
+      simpa [aD, hi] using hAiRaw
+    have hBj : normInfF (bD[j]!) ≤ BB := by
+      simpa [bD, hj] using hBjRaw
+    exact hMul (aD[i]!) (bD[j]!) hAi hBj
+  have hFold :
+      normInfF
+        (List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D))
+        ≤ D * BTerm := by
+    exact normInfF_schoolbook_scalar_fold_le_of_term_bound_sum_tight
+      (aD := aD) (bD := bD) (k := k)
+      (hAddTri := hAddTri)
+      (hTerm := hTerm)
+  have hEq :
+      mulRqRawCoeffSpec a b k
+        =
+        List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D) := by
+    simpa [aD, bD] using (mulRqRawCoeffSpec_eq_scalar_fold a b k)
+  calc
+    normInfF (mulRqRawCoeffSpec a b k)
+        = normInfF
+            (List.foldl
+              (fun acc i =>
+                List.foldl
+                  (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+                  acc
+                  (List.range' 0 D))
+              (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+              (List.range' 0 D)) := by
+                simpa [hEq]
+    _ ≤ D * BTerm := hFold
+
+theorem mulRqRawCoeffBoundFromOperands_fn_of_schoolbook_term_assumptions_sum
+  {BA BB BTerm : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  ∀ a b : Coeffs, ∀ t : Nat,
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfF (mulRqRawCoeffSpec a b t) ≤ (D * D) * BTerm := by
+  intro a b t hA hB
+  exact normInfF_mulRqRawCoeffSpec_le_of_operand_norm_assumptions_via_schoolbook_sum
+    (a := a) (b := b) (k := t)
+    (hA := hA) (hB := hB)
+    (hMul := hMul) (hAddTri := hAddTri)
+
+theorem mulRqRawCoeffBoundFromOperands_fn_of_schoolbook_term_assumptions_sum_tight
+  {BA BB BTerm : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  ∀ a b : Coeffs, ∀ t : Nat,
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfF (mulRqRawCoeffSpec a b t) ≤ D * BTerm := by
+  intro a b t hA hB
+  exact normInfF_mulRqRawCoeffSpec_le_of_operand_norm_assumptions_via_schoolbook_sum_tight
+    (a := a) (b := b) (k := t)
+    (hA := hA) (hB := hB)
+    (hMul := hMul) (hAddTri := hAddTri)
+
+/--
+Schoolbook (raw) coefficient bound from operand coefficient bounds, via:
+1) a per-term multiplication bound (`hMul`), and
+2) an accumulator-stable addition bound (`hAdd`).
+
+This is a theorem-native bridge toward non-coarse P5 raw bounds.
+-/
+theorem normInfF_mulRqRawCoeffSpec_le_of_operand_norm_assumptions_via_schoolbook
+  {a b : Coeffs}
+  {k BA BB BTerm BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw) :
+  normInfF (mulRqRawCoeffSpec a b k) ≤ BRaw := by
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  have hTerm :
+      ∀ i j, i < D → j < D → normInfF (aD[i]! * bD[j]!) ≤ BTerm := by
+    intro i j hi hj
+    have hAiRaw : normInfF (a[i]!) ≤ BA :=
+      normInfF_getElemBang_le_of_normInfCoeffs (a := a) (B := BA) hA i
+    have hBjRaw : normInfF (b[j]!) ≤ BB :=
+      normInfF_getElemBang_le_of_normInfCoeffs (a := b) (B := BB) hB j
+    have hAi : normInfF (aD[i]!) ≤ BA := by
+      simpa [aD, hi] using hAiRaw
+    have hBj : normInfF (bD[j]!) ≤ BB := by
+      simpa [bD, hj] using hBjRaw
+    exact hMul (aD[i]!) (bD[j]!) hAi hBj
+  have hInit : normInfF (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k) ≤ BRaw := by
+    have hCoeffZero : getCoeff (Array.replicate (2 * D - 1) (0 : F)) k = 0 :=
+      getCoeff_replicate_zero (2 * D - 1) k
+    simpa [hCoeffZero] using hZero
+  have hFold :
+      normInfF
+        (List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D))
+        ≤ BRaw := by
+    exact normInfF_schoolbook_scalar_fold_le_of_term_bound
+      (aD := aD) (bD := bD) (k := k)
+      (hInit := hInit)
+      (hAdd := hAdd)
+      (hTerm := hTerm)
+  have hEq :
+      mulRqRawCoeffSpec a b k
+        =
+        List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D) := by
+    simpa [aD, bD] using (mulRqRawCoeffSpec_eq_scalar_fold a b k)
+  calc
+    normInfF (mulRqRawCoeffSpec a b k)
+        = normInfF
+            (List.foldl
+              (fun acc i =>
+                List.foldl
+                  (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+                  acc
+                  (List.range' 0 D))
+              (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+              (List.range' 0 D)) := by
+                simpa [hEq]
+    _ ≤ BRaw := hFold
+
+theorem mulRqRawCoeffBoundFromOperands_fn_of_schoolbook_term_assumptions
+  {BA BB BTerm BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw) :
+  ∀ a b : Coeffs, ∀ t : Nat,
+    normInfCoeffs a ≤ BA →
+    normInfCoeffs b ≤ BB →
+    normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw := by
+  intro a b t hA hB
+  exact normInfF_mulRqRawCoeffSpec_le_of_operand_norm_assumptions_via_schoolbook
+    (a := a) (b := b) (k := t)
+    (hA := hA) (hB := hB)
+    (hMul := hMul) (hAdd := hAdd) (hZero := hZero)
+
 /--
 Assumption bundle: operand norm bounds imply a bound on the raw schoolbook product norm.
 -/
@@ -654,6 +2004,274 @@ def mulRqRawCoeffBoundFromOperands (BA BB BRaw : Nat) : Prop :=
     normInfCoeffs a ≤ BA →
     normInfCoeffs b ≤ BB →
     normInfF (mulRqRawCoeffSpec a b t) ≤ BRaw
+
+/-- Assumption bundle for per-term schoolbook multiplication bounds. -/
+def schoolbookMulTermBound (BA BB BTerm : Nat) : Prop :=
+  ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm
+
+/-- Assumption bundle for accumulator-stable addition in schoolbook folds. -/
+def schoolbookAccAddBound (BRaw BTerm : Nat) : Prop :=
+  ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw
+
+/-- Assumption bundle for triangle-style additive growth in schoolbook folds. -/
+def schoolbookAddTriangleBound : Prop :=
+  ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y
+
+theorem schoolbookAddTriangleBound_theorem : schoolbookAddTriangleBound := by
+  intro x y
+  exact normInfF_add_le_add_theorem x y
+
+/--
+Universal multiplication blocker for a theorem-native non-coarse P5 path.
+If this is proved, per-term schoolbook multiplication bounds can be derived
+directly from operand norm bounds.
+-/
+def schoolbookMulUniversalBound : Prop :=
+  ∀ x y : F, normInfF (x * y) ≤ normInfF x * normInfF y
+
+/--
+Universal subtraction-triangle blocker for a theorem-native non-coarse P5 path.
+If this is proved, subtraction collapse assumptions can be derived directly.
+-/
+def schoolbookSubTriangleBound : Prop :=
+  ∀ x y : F, normInfF (x - y) ≤ normInfF x + normInfF y
+
+theorem schoolbookAddTriangleBound_iff_centeredRep :
+  schoolbookAddTriangleBound ↔
+    (∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) := by
+  constructor
+  · intro h x y
+    simpa [centeredRep_natAbs_eq_normInfF] using h x y
+  · intro h x y
+    simpa [centeredRep_natAbs_eq_normInfF] using h x y
+
+theorem schoolbookMulUniversalBound_iff_centeredRep :
+  schoolbookMulUniversalBound ↔
+    (∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)) := by
+  constructor
+  · intro h x y
+    simpa [centeredRep_natAbs_eq_normInfF] using h x y
+  · intro h x y
+    simpa [centeredRep_natAbs_eq_normInfF] using h x y
+
+theorem schoolbookSubTriangleBound_iff_centeredRep :
+  schoolbookSubTriangleBound ↔
+    (∀ x y : F, Int.natAbs (centeredRep (x - y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) := by
+  constructor
+  · intro h x y
+    simpa [centeredRep_natAbs_eq_normInfF] using h x y
+  · intro h x y
+    simpa [centeredRep_natAbs_eq_normInfF] using h x y
+
+theorem schoolbookAddTriangleBound_of_centeredRep
+  (h :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  schoolbookAddTriangleBound := by
+  exact (schoolbookAddTriangleBound_iff_centeredRep).2 h
+
+theorem schoolbookAddTriangleBound_of_centeredRepAddTriangleBound
+  (h : centeredRepAddTriangleBound) :
+  schoolbookAddTriangleBound := by
+  exact schoolbookAddTriangleBound_of_centeredRep h
+
+theorem schoolbookMulUniversalBound_of_centeredRep
+  (h :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)) :
+  schoolbookMulUniversalBound := by
+  exact (schoolbookMulUniversalBound_iff_centeredRep).2 h
+
+theorem schoolbookMulUniversalBound_of_centeredRepMulUniversalBound
+  (h : centeredRepMulUniversalBound) :
+  schoolbookMulUniversalBound := by
+  exact schoolbookMulUniversalBound_of_centeredRep h
+
+theorem schoolbookSubTriangleBound_of_centeredRep
+  (h :
+    ∀ x y : F, Int.natAbs (centeredRep (x - y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  schoolbookSubTriangleBound := by
+  exact (schoolbookSubTriangleBound_iff_centeredRep).2 h
+
+/--
+Convenience bundle for the two triangle blockers used throughout the non-coarse
+P5 composition path.
+-/
+def schoolbookTriangleBounds : Prop :=
+  schoolbookAddTriangleBound ∧ schoolbookSubTriangleBound
+
+theorem schoolbookTriangleBounds_add
+  (hTri : schoolbookTriangleBounds) :
+  schoolbookAddTriangleBound := by
+  exact hTri.1
+
+theorem schoolbookTriangleBounds_sub
+  (hTri : schoolbookTriangleBounds) :
+  schoolbookSubTriangleBound := by
+  exact hTri.2
+
+theorem schoolbookSubTriangleBound_of_add
+  (hAddTri : schoolbookAddTriangleBound) :
+  schoolbookSubTriangleBound := by
+  intro x y
+  have hAdd : normInfF (x + (-y)) ≤ normInfF x + normInfF (-y) := hAddTri x (-y)
+  simpa [F.sub_eq_add_neg, normInfF_neg] using hAdd
+
+/-- Assumption-free subtraction triangle bound (derived from native add triangle). -/
+theorem schoolbookSubTriangleBound_theorem : schoolbookSubTriangleBound := by
+  exact schoolbookSubTriangleBound_of_add schoolbookAddTriangleBound_theorem
+
+theorem schoolbookTriangleBounds_of_add
+  (hAddTri : schoolbookAddTriangleBound) :
+  schoolbookTriangleBounds := by
+  exact ⟨hAddTri, schoolbookSubTriangleBound_of_add hAddTri⟩
+
+theorem schoolbookTriangleBounds_theorem : schoolbookTriangleBounds := by
+  exact schoolbookTriangleBounds_of_add schoolbookAddTriangleBound_theorem
+
+theorem schoolbookTriangleBounds_of_centeredRep_add
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  schoolbookTriangleBounds := by
+  exact schoolbookTriangleBounds_of_add
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+
+theorem schoolbookTriangleBounds_of_centeredRepAddTriangleBound
+  (hAddRep : centeredRepAddTriangleBound) :
+  schoolbookTriangleBounds := by
+  exact schoolbookTriangleBounds_of_centeredRep_add hAddRep
+
+theorem schoolbookMulUniversalAndTriangleBounds_of_centeredRepMulAddBounds
+  (hRep : centeredRepMulAddBounds) :
+  schoolbookMulUniversalBound ∧ schoolbookTriangleBounds := by
+  exact ⟨
+    schoolbookMulUniversalBound_of_centeredRepMulUniversalBound
+      (centeredRepMulAddBounds_mul hRep),
+    schoolbookTriangleBounds_of_centeredRepAddTriangleBound
+      (centeredRepMulAddBounds_add hRep)
+  ⟩
+
+theorem schoolbookMulUniversalBound_theorem : schoolbookMulUniversalBound := by
+  exact schoolbookMulUniversalBound_of_centeredRepMulUniversalBound
+    centeredRepMulUniversalBound_theorem
+
+/-- Assumption-free `vecAdd` endpoint using the native add-triangle theorem. -/
+theorem vecAddNormBoundFromOperands_native
+  (BA BB : Nat) :
+  vecAddNormBoundFromOperands BA BB (BA + BB) := by
+  exact vecAddNormBoundFromOperands_of_triangle (BA := BA) (BB := BB)
+    schoolbookAddTriangleBound_theorem
+
+/-- Assumption-free `coeffSub` endpoint using the native subtraction triangle theorem. -/
+theorem coeffSubNormBoundFromOperands_native
+  (BA BB : Nat) :
+  coeffSubNormBoundFromOperands BA BB (BA + BB) := by
+  exact coeffSubNormBoundFromOperands_of_triangle (BA := BA) (BB := BB)
+    schoolbookSubTriangleBound_theorem
+
+/-- Assumption-free `vecScale` endpoint using the native universal multiplication theorem. -/
+theorem vecScaleNormBoundFromOperands_native
+  (BS BA : Nat) :
+  vecScaleNormBoundFromOperands BS BA (BS * BA) := by
+  exact vecScaleNormBoundFromOperands_of_universal (BS := BS) (BA := BA)
+    schoolbookMulUniversalBound_theorem
+
+theorem schoolbookMulUniversalAndTriangleBounds_theorem :
+  schoolbookMulUniversalBound ∧ schoolbookTriangleBounds := by
+  exact schoolbookMulUniversalAndTriangleBounds_of_centeredRepMulAddBounds
+    centeredRepMulAddBounds_theorem
+
+theorem schoolbookMulTermBound_of_universal
+  {BA BB : Nat}
+  (hUniv : schoolbookMulUniversalBound) :
+  schoolbookMulTermBound BA BB (BA * BB) := by
+  have hUniv' : ∀ x y : F, normInfF (x * y) ≤ normInfF x * normInfF y := by
+    simpa [schoolbookMulUniversalBound] using hUniv
+  intro x y hx hy
+  exact Nat.le_trans (hUniv' x y) (Nat.mul_le_mul hx hy)
+
+theorem mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+  {BA BB BTerm BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw) :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw := by
+  intro a b t hA hB
+  exact mulRqRawCoeffBoundFromOperands_fn_of_schoolbook_term_assumptions
+    (hMul := hMul) (hAdd := hAdd) (hZero := hZero)
+    a b t hA hB
+
+/-- Zero element bound in `normInfF` for any target natural bound. -/
+theorem normInfF_zero_le (B : Nat) : normInfF (0 : F) ≤ B := by
+  have hZeroEq : normInfF (0 : F) = 0 := by
+    native_decide
+  simp [hZeroEq]
+
+theorem mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+  {BA BB BTerm BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x + y) ≤ BRaw) :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw := by
+  exact mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+    (hMul := hMul)
+    (hAdd := fun x y hx hy => hAddCollapse x y hx (Nat.le_trans hy hTermLe))
+    (hZero := normInfF_zero_le BRaw)
+
+theorem mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+  {BA BB BTerm BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x + y) ≤ BRaw) :
+  mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  intro a b t _ht hA hB
+  exact
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+      (hMul := hMul) (hTermLe := hTermLe) (hAddCollapse := hAddCollapse))
+      a b t hA hB
+
+theorem mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+  {BA BB BTerm BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x + y) ≤ BRaw) :
+  mulRqRawNormBoundFromOperands BA BB BRaw := by
+  intro a b hA hB
+  exact normInfCoeffs_mulRqRawCoeffs_le_of_inRangeBound
+    (a := a) (b := b)
+    (hRawInRange := fun t ht =>
+      (mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+        (hMul := hMul) (hTermLe := hTermLe) (hAddCollapse := hAddCollapse))
+        a b t ht hA hB)
+
+theorem mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sameBound
+  {BA BB BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x + y) ≤ BRaw) :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw := by
+  exact mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+    (hMul := hMul) (hTermLe := Nat.le_refl BRaw) (hAddCollapse := hAddCollapse)
+
+theorem mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions_sameBound
+  {BA BB BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x + y) ≤ BRaw) :
+  mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  exact mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+    (hMul := hMul) (hTermLe := Nat.le_refl BRaw) (hAddCollapse := hAddCollapse)
+
+theorem mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_sameBound
+  {BA BB BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BRaw → normInfF (x + y) ≤ BRaw) :
+  mulRqRawNormBoundFromOperands BA BB BRaw := by
+  exact mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+    (hMul := hMul) (hTermLe := Nat.le_refl BRaw) (hAddCollapse := hAddCollapse)
 
 /--
 Assumption bundle for collapsing the `x + y - z` step in `mulRqCoeffSpec`.
@@ -691,6 +2309,85 @@ are handled directly, and then combined into the `x+y-z` step as needed.
 def rawFieldOpCollapseBound (BRaw B : Nat) : Prop :=
   rawAddCollapseBound BRaw B ∧ rawSubCollapseBound BRaw B
 
+theorem rawAddCollapseBound_of_triangle
+  {BRaw : Nat}
+  (hAddTri : schoolbookAddTriangleBound) :
+  rawAddCollapseBound BRaw (BRaw + BRaw) := by
+  have hAddTri' : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y := by
+    simpa [schoolbookAddTriangleBound] using hAddTri
+  intro x y hx hy
+  exact Nat.le_trans (hAddTri' x y) (Nat.add_le_add hx hy)
+
+theorem rawSubCollapseBound_of_triangle
+  {BRaw : Nat}
+  (hSubTri : schoolbookSubTriangleBound) :
+  rawSubCollapseBound BRaw (BRaw + BRaw) := by
+  have hSubTri' : ∀ x y : F, normInfF (x - y) ≤ normInfF x + normInfF y := by
+    simpa [schoolbookSubTriangleBound] using hSubTri
+  intro x y hx hy
+  exact Nat.le_trans (hSubTri' x y) (Nat.add_le_add hx hy)
+
+theorem rawFieldOpCollapseBound_of_triangles
+  {BRaw : Nat}
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  rawFieldOpCollapseBound BRaw (BRaw + BRaw) := by
+  exact ⟨rawAddCollapseBound_of_triangle hAddTri, rawSubCollapseBound_of_triangle hSubTri⟩
+
+theorem rawAddSubCollapseBound_of_triangles
+  {BRaw : Nat}
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  rawAddSubCollapseBound BRaw (BRaw + BRaw + BRaw) := by
+  have hAddTri' : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y := by
+    simpa [schoolbookAddTriangleBound] using hAddTri
+  have hSubTri' : ∀ x y : F, normInfF (x - y) ≤ normInfF x + normInfF y := by
+    simpa [schoolbookSubTriangleBound] using hSubTri
+  intro x y z hx hy hz
+  have hSubStep : normInfF (x + y - z) ≤ normInfF (x + y) + normInfF z :=
+    hSubTri' (x + y) z
+  have hAddStep : normInfF (x + y) ≤ normInfF x + normInfF y :=
+    hAddTri' x y
+  have hLift :
+      normInfF (x + y) + normInfF z
+        ≤ (normInfF x + normInfF y) + normInfF z := by
+    exact Nat.add_le_add hAddStep (Nat.le_refl _)
+  have hBound :
+      (normInfF x + normInfF y) + normInfF z
+        ≤ (BRaw + BRaw) + BRaw := by
+    exact Nat.add_le_add (Nat.add_le_add hx hy) hz
+  exact Nat.le_trans hSubStep (Nat.le_trans hLift (by simpa [Nat.add_assoc] using hBound))
+
+/-- Native `x+y` collapse: operands `≤ BRaw` imply `x+y ≤ BRaw + BRaw`. -/
+theorem rawAddCollapseBound_native
+  (BRaw : Nat) :
+  rawAddCollapseBound BRaw (BRaw + BRaw) := by
+  exact rawAddCollapseBound_of_triangle (BRaw := BRaw)
+    schoolbookAddTriangleBound_theorem
+
+/-- Native `x-y` collapse: operands `≤ BRaw` imply `x-y ≤ BRaw + BRaw`. -/
+theorem rawSubCollapseBound_native
+  (BRaw : Nat) :
+  rawSubCollapseBound BRaw (BRaw + BRaw) := by
+  exact rawSubCollapseBound_of_triangle (BRaw := BRaw)
+    schoolbookSubTriangleBound_theorem
+
+/-- Native `x+y-z` collapse: operands `≤ BRaw` imply `x+y-z ≤ BRaw + BRaw + BRaw`. -/
+theorem rawAddSubCollapseBound_native
+  (BRaw : Nat) :
+  rawAddSubCollapseBound BRaw (BRaw + BRaw + BRaw) := by
+  exact rawAddSubCollapseBound_of_triangles (BRaw := BRaw)
+    schoolbookAddTriangleBound_theorem
+    schoolbookSubTriangleBound_theorem
+
+/-- Native field-op collapse bundle at `BRaw + BRaw`. -/
+theorem rawFieldOpCollapseBound_native
+  (BRaw : Nat) :
+  rawFieldOpCollapseBound BRaw (BRaw + BRaw) := by
+  exact rawFieldOpCollapseBound_of_triangles (BRaw := BRaw)
+    schoolbookAddTriangleBound_theorem
+    schoolbookSubTriangleBound_theorem
+
 private theorem normInfF_zero_eq_zero_local : normInfF (0 : F) = 0 := by
   native_decide
 
@@ -709,7 +2406,7 @@ theorem rawAddCollapseBound_of_addSub
   intro x y hx hy
   have hZero : normInfF (0 : F) ≤ BRaw := by
     have hEq : normInfF (0 : F) = 0 := normInfF_zero_eq_zero_local
-    simpa [hEq] using (Nat.zero_le BRaw)
+    simp [hEq]
   have hAddSub0 : normInfF (x + y - (0 : F)) ≤ B := hAddSub x y (0 : F) hx hy hZero
   have hExpr : x + y - (0 : F) = x + y := by
     exact F.sub_zero_of_canonical (a := x + y) (F.canonical_add x y)
@@ -913,6 +2610,558 @@ theorem mulRqRawNormBoundFromOperands_of_rawCoeff
   exact mulRqRawNormBoundFromOperands_of_inRange
     (mulRqRawInRangeBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
 
+theorem mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions
+  {BA BB BTerm BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw) :
+  mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  exact mulRqRawInRangeBoundFromOperands_of_rawCoeff
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+
+theorem mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions
+  {BA BB BTerm BRaw : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw) :
+  mulRqRawNormBoundFromOperands BA BB BRaw := by
+  exact mulRqRawNormBoundFromOperands_of_rawCoeff
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+
+/--
+Sum-style schoolbook wrapper: from per-term multiplication bounds and triangle
+addition, derive a raw-coefficient bound at `((D * D) * BTerm)`.
+-/
+theorem mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+  {BA BB BTerm : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  mulRqRawCoeffBoundFromOperands BA BB ((D * D) * BTerm) := by
+  intro a b t hA hB
+  exact mulRqRawCoeffBoundFromOperands_fn_of_schoolbook_term_assumptions_sum
+    (hMul := hMul) (hAddTri := hAddTri)
+    a b t hA hB
+
+theorem mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum_tight
+  {BA BB BTerm : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  mulRqRawCoeffBoundFromOperands BA BB (D * BTerm) := by
+  intro a b t hA hB
+  exact mulRqRawCoeffBoundFromOperands_fn_of_schoolbook_term_assumptions_sum_tight
+    (hMul := hMul) (hAddTri := hAddTri)
+    a b t hA hB
+
+theorem mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions_sum
+  {BA BB BTerm : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  mulRqRawInRangeBoundFromOperands BA BB ((D * D) * BTerm) := by
+  exact mulRqRawInRangeBoundFromOperands_of_rawCoeff
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+
+theorem mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_sum
+  {BA BB BTerm : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  mulRqRawNormBoundFromOperands BA BB ((D * D) * BTerm) := by
+  exact mulRqRawNormBoundFromOperands_of_rawCoeff
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+
+theorem mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions_sum_tight
+  {BA BB BTerm : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  mulRqRawInRangeBoundFromOperands BA BB (D * BTerm) := by
+  exact mulRqRawInRangeBoundFromOperands_of_rawCoeff
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum_tight
+      (hMul := hMul) (hAddTri := hAddTri))
+
+theorem mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_sum_tight
+  {BA BB BTerm : Nat}
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y) :
+  mulRqRawNormBoundFromOperands BA BB (D * BTerm) := by
+  exact mulRqRawNormBoundFromOperands_of_rawCoeff
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum_tight
+      (hMul := hMul) (hAddTri := hAddTri))
+
+theorem schoolbookAccAddBound_of_rawAddCollapse
+  {BRaw BTerm : Nat}
+  (hAdd : rawAddCollapseBound BRaw BRaw)
+  (hTermLe : BTerm ≤ BRaw) :
+  schoolbookAccAddBound BRaw BTerm := by
+  intro x y hx hy
+  exact hAdd x y hx (Nat.le_trans hy hTermLe)
+
+/--
+Bundle-style wrapper for the non-sum schoolbook path.
+This keeps the theorem-native interfaces explicit while avoiding repeated
+function-typed argument plumbing at call sites.
+-/
+theorem mulRqRawCoeffBoundFromOperands_of_schoolbookAssumptionBundles
+  {BA BB BTerm BRaw : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAdd : schoolbookAccAddBound BRaw BTerm) :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw := by
+  exact mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+    (hMul := hMul) (hAdd := hAdd) (hZero := normInfF_zero_le BRaw)
+
+theorem mulRqRawInRangeBoundFromOperands_of_schoolbookAssumptionBundles
+  {BA BB BTerm BRaw : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAdd : schoolbookAccAddBound BRaw BTerm) :
+  mulRqRawInRangeBoundFromOperands BA BB BRaw := by
+  exact mulRqRawInRangeBoundFromOperands_of_rawCoeff
+    (mulRqRawCoeffBoundFromOperands_of_schoolbookAssumptionBundles
+      (hMul := hMul) (hAdd := hAdd))
+
+theorem mulRqRawNormBoundFromOperands_of_schoolbookAssumptionBundles
+  {BA BB BTerm BRaw : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAdd : schoolbookAccAddBound BRaw BTerm) :
+  mulRqRawNormBoundFromOperands BA BB BRaw := by
+  exact mulRqRawNormBoundFromOperands_of_rawCoeff
+    (mulRqRawCoeffBoundFromOperands_of_schoolbookAssumptionBundles
+      (hMul := hMul) (hAdd := hAdd))
+
+/-- Bundle-style wrapper for the sum schoolbook path (`(D*D)*BTerm` bound). -/
+theorem mulRqRawCoeffBoundFromOperands_of_schoolbookAssumptionBundles_sum
+  {BA BB BTerm : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawCoeffBoundFromOperands BA BB ((D * D) * BTerm) := by
+  exact mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+    (hMul := hMul) (hAddTri := hAddTri)
+
+theorem mulRqRawInRangeBoundFromOperands_of_schoolbookAssumptionBundles_sum
+  {BA BB BTerm : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawInRangeBoundFromOperands BA BB ((D * D) * BTerm) := by
+  exact mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions_sum
+    (hMul := hMul) (hAddTri := hAddTri)
+
+theorem mulRqRawNormBoundFromOperands_of_schoolbookAssumptionBundles_sum
+  {BA BB BTerm : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawNormBoundFromOperands BA BB ((D * D) * BTerm) := by
+  exact mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_sum
+    (hMul := hMul) (hAddTri := hAddTri)
+
+/-- Bundle-style wrapper for the tight sum schoolbook path (`D*BTerm` bound). -/
+theorem mulRqRawCoeffBoundFromOperands_of_schoolbookAssumptionBundles_sum_tight
+  {BA BB BTerm : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawCoeffBoundFromOperands BA BB (D * BTerm) := by
+  exact mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum_tight
+    (hMul := hMul) (hAddTri := hAddTri)
+
+theorem mulRqRawInRangeBoundFromOperands_of_schoolbookAssumptionBundles_sum_tight
+  {BA BB BTerm : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawInRangeBoundFromOperands BA BB (D * BTerm) := by
+  exact mulRqRawInRangeBoundFromOperands_of_schoolbook_term_assumptions_sum_tight
+    (hMul := hMul) (hAddTri := hAddTri)
+
+theorem mulRqRawNormBoundFromOperands_of_schoolbookAssumptionBundles_sum_tight
+  {BA BB BTerm : Nat}
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawNormBoundFromOperands BA BB (D * BTerm) := by
+  exact mulRqRawNormBoundFromOperands_of_schoolbook_term_assumptions_sum_tight
+    (hMul := hMul) (hAddTri := hAddTri)
+
+/--
+Sum-path instantiation from universal multiplication and additive triangle
+blockers: raw bound is `((D * D) * (BA * BB))`.
+-/
+theorem mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawNormBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_schoolbookAssumptionBundles_sum
+    (hMul := schoolbookMulTermBound_of_universal (BA := BA) (BB := BB) hMulUniv)
+    (hAddTri := hAddTri)
+
+theorem mulRqRawInRangeBoundFromOperands_of_universal_mul_and_add_sum
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawInRangeBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum
+      (BA := BA) (BB := BB) hMulUniv hAddTri)
+
+theorem mulRqRawCoeffBoundFromOperands_of_universal_mul_and_add_sum
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawCoeffBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_universal_mul_and_add_sum
+      (BA := BA) (BB := BB) hMulUniv hAddTri)
+
+theorem mulRqRawNormBoundFromOperands_of_universal_mul_and_triangles_sum
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  mulRqRawNormBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum
+    (BA := BA) (BB := BB) hMulUniv (schoolbookTriangleBounds_add hTri)
+
+theorem mulRqRawInRangeBoundFromOperands_of_universal_mul_and_triangles_sum
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  mulRqRawInRangeBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_universal_mul_and_triangles_sum
+      (BA := BA) (BB := BB) hMulUniv hTri)
+
+theorem mulRqRawCoeffBoundFromOperands_of_universal_mul_and_triangles_sum
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  mulRqRawCoeffBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_universal_mul_and_triangles_sum
+      (BA := BA) (BB := BB) hMulUniv hTri)
+
+theorem mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_triangles_sum
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawNormBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_universal_mul_and_triangles_sum
+    (BA := BA) (BB := BB)
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookTriangleBounds_of_centeredRep_add hTriRep)
+
+theorem mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_and_triangles_sum
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawInRangeBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_triangles_sum
+      (BA := BA) (BB := BB) hMulRep hTriRep)
+
+theorem mulRqRawCoeffBoundFromOperands_of_centeredRep_mul_and_triangles_sum
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawCoeffBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_and_triangles_sum
+      (BA := BA) (BB := BB) hMulRep hTriRep)
+
+theorem mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_add_sum
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawNormBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum
+    (BA := BA) (BB := BB)
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+
+theorem mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_and_add_sum
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawInRangeBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_add_sum
+      (BA := BA) (BB := BB) hMulRep hAddRep)
+
+theorem mulRqRawCoeffBoundFromOperands_of_centeredRep_mul_and_add_sum
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawCoeffBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_and_add_sum
+      (BA := BA) (BB := BB) hMulRep hAddRep)
+
+/--
+Tight sum-path instantiation from universal multiplication and additive triangle
+blockers: raw bound becomes `D * (BA * BB)`.
+-/
+theorem mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum_tight
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawNormBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_schoolbookAssumptionBundles_sum_tight
+    (hMul := schoolbookMulTermBound_of_universal (BA := BA) (BB := BB) hMulUniv)
+    (hAddTri := hAddTri)
+
+theorem mulRqRawInRangeBoundFromOperands_of_universal_mul_and_add_sum_tight
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawInRangeBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum_tight
+      (BA := BA) (BB := BB) hMulUniv hAddTri)
+
+theorem mulRqRawCoeffBoundFromOperands_of_universal_mul_and_add_sum_tight
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  mulRqRawCoeffBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_universal_mul_and_add_sum_tight
+      (BA := BA) (BB := BB) hMulUniv hAddTri)
+
+theorem mulRqRawNormBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  mulRqRawNormBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum_tight
+    (BA := BA) (BB := BB) hMulUniv (schoolbookTriangleBounds_add hTri)
+
+theorem mulRqRawInRangeBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  mulRqRawInRangeBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+      (BA := BA) (BB := BB) hMulUniv hTri)
+
+theorem mulRqRawCoeffBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+  {BA BB : Nat}
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  mulRqRawCoeffBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+      (BA := BA) (BB := BB) hMulUniv hTri)
+
+theorem mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_add_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawNormBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum_tight
+    (BA := BA) (BB := BB)
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+
+theorem mulRqRawNormBoundFromOperands_of_centeredRepMulAddBounds_sum_tight
+  {BA BB : Nat}
+  (hRep : centeredRepMulAddBounds) :
+  mulRqRawNormBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_add_sum_tight
+    (BA := BA) (BB := BB)
+    (centeredRepMulAddBounds_mul hRep)
+    (centeredRepMulAddBounds_add hRep)
+
+theorem mulRqRawNormBoundFromOperands_of_centeredRep_mul_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)) :
+  mulRqRawNormBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_centeredRepMulAddBounds_sum_tight
+    (BA := BA) (BB := BB) (centeredRepMulAddBounds_of_mul hMulRep)
+
+theorem mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_and_add_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawInRangeBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_add_sum_tight
+      (BA := BA) (BB := BB) hMulRep hAddRep)
+
+theorem mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)) :
+  mulRqRawInRangeBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_centeredRep_mul_sum_tight
+      (BA := BA) (BB := BB) hMulRep)
+
+theorem mulRqRawCoeffBoundFromOperands_of_centeredRep_mul_and_add_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawCoeffBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_and_add_sum_tight
+      (BA := BA) (BB := BB) hMulRep hAddRep)
+
+theorem mulRqRawCoeffBoundFromOperands_of_centeredRep_mul_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)) :
+  mulRqRawCoeffBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_sum_tight
+      (BA := BA) (BB := BB) hMulRep)
+
+theorem mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_triangles_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawNormBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+    (BA := BA) (BB := BB)
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookTriangleBounds_of_centeredRep_add hTriRep)
+
+theorem mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_and_triangles_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawInRangeBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_norm
+    (mulRqRawNormBoundFromOperands_of_centeredRep_mul_and_triangles_sum_tight
+      (BA := BA) (BB := BB) hMulRep hTriRep)
+
+theorem mulRqRawCoeffBoundFromOperands_of_centeredRep_mul_and_triangles_sum_tight
+  {BA BB : Nat}
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  mulRqRawCoeffBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_centeredRep_mul_and_triangles_sum_tight
+      (BA := BA) (BB := BB) hMulRep hTriRep)
+
+/-- Assumption-free coarse sum-path raw norm constructor from proven blockers. -/
+theorem mulRqRawNormBoundFromOperands_native_sum
+  {BA BB : Nat} :
+  mulRqRawNormBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_universal_mul_and_triangles_sum
+    (BA := BA) (BB := BB)
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+/-- Assumption-free coarse sum-path in-range raw constructor from proven blockers. -/
+theorem mulRqRawInRangeBoundFromOperands_native_sum
+  {BA BB : Nat} :
+  mulRqRawInRangeBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_universal_mul_and_triangles_sum
+    (BA := BA) (BB := BB)
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+/-- Assumption-free coarse sum-path raw-coeff constructor from proven blockers. -/
+theorem mulRqRawCoeffBoundFromOperands_native_sum
+  {BA BB : Nat} :
+  mulRqRawCoeffBoundFromOperands BA BB ((D * D) * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_universal_mul_and_triangles_sum
+    (BA := BA) (BB := BB)
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+/-- Assumption-free tight sum-path raw norm constructor from proven blockers. -/
+theorem mulRqRawNormBoundFromOperands_native_sum_tight
+  {BA BB : Nat} :
+  mulRqRawNormBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawNormBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+    (BA := BA) (BB := BB)
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+/-- Assumption-free tight sum-path in-range raw constructor from proven blockers. -/
+theorem mulRqRawInRangeBoundFromOperands_native_sum_tight
+  {BA BB : Nat} :
+  mulRqRawInRangeBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawInRangeBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+    (BA := BA) (BB := BB)
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+/-- Assumption-free tight sum-path raw-coeff constructor from proven blockers. -/
+theorem mulRqRawCoeffBoundFromOperands_native_sum_tight
+  {BA BB : Nat} :
+  mulRqRawCoeffBoundFromOperands BA BB (D * (BA * BB)) := by
+  exact mulRqRawCoeffBoundFromOperands_of_universal_mul_and_triangles_sum_tight
+    (BA := BA) (BB := BB)
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+/-- Lift a raw-array norm bound assumption into the total raw-coeff accessor form. -/
+theorem mulRqRawCoeffBoundFromOperands_of_norm
+  {BA BB BRaw : Nat}
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw) :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw := by
+  exact mulRqRawCoeffBoundFromOperands_of_inRange
+    (mulRqRawInRangeBoundFromOperands_of_norm hRawFromOperands)
+
+/-- Raw-coeff accessor bounds and raw-array norm bounds are equivalent assumptions. -/
+theorem mulRqRawCoeffBoundFromOperands_iff_norm
+  {BA BB BRaw : Nat} :
+  mulRqRawCoeffBoundFromOperands BA BB BRaw ↔
+    mulRqRawNormBoundFromOperands BA BB BRaw := by
+  constructor
+  · exact mulRqRawNormBoundFromOperands_of_rawCoeff
+  · exact mulRqRawCoeffBoundFromOperands_of_norm
+
 theorem mulRqRawCoeffBoundFromOperands_halfQ
   (BA BB : Nat) :
   mulRqRawCoeffBoundFromOperands BA BB halfQ := by
@@ -1007,6 +3256,617 @@ theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff_fieldOp
     (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
     hA hB
     (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hOps
+
+/--
+Convenience wrapper: derive the `mulRq` norm bound directly from theorem-native
+schoolbook-term assumptions, then collapse through raw add/sub bounds.
+-/
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook
+  {a b : Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ BRaw → normInfF y ≤ BTerm → normInfF (x + y) ≤ BRaw)
+  (hZero : normInfF (0 : F) ≤ BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hA hB
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+    hAddSub hSub
+
+/--
+Sum-style schoolbook variant:
+build raw bounds using only per-term multiplication bounds + triangle addition,
+with derived raw bound `((D * D) * BTerm)`.
+-/
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook_sum
+  {a b : Coeffs} {BA BB BTerm B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hAddSub : rawAddSubCollapseBound ((D * D) * BTerm) B)
+  (hSub : rawSubCollapseBound ((D * D) * BTerm) B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := (D * D) * BTerm) (B := B)
+    hA hB
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+    hAddSub hSub
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbookAssumptionBundles
+  {a b : Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAdd : schoolbookAccAddBound BRaw BTerm)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hA hB
+    (mulRqRawCoeffBoundFromOperands_of_schoolbookAssumptionBundles
+      (hMul := hMul) (hAdd := hAdd))
+    hAddSub hSub
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbookAssumptionBundles_sum
+  {a b : Coeffs} {BA BB BTerm B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : schoolbookMulTermBound BA BB BTerm)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hAddSub : rawAddSubCollapseBound ((D * D) * BTerm) B)
+  (hSub : rawSubCollapseBound ((D * D) * BTerm) B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := (D * D) * BTerm) (B := B)
+    hA hB
+    (mulRqRawCoeffBoundFromOperands_of_schoolbookAssumptionBundles_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+    hAddSub hSub
+
+/--
+Theorem-native non-coarse bridge:
+if universal multiplication and add/sub triangle blockers are available,
+derive a complete `mulRq` norm bound through the schoolbook-sum path.
+-/
+theorem normInfCoeffs_mulRq_le_of_universal_blockers
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  normInfCoeffs (mulRq a b)
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  let BRaw : Nat := (D * D) * (BA * BB)
+  have hAddSub : rawAddSubCollapseBound BRaw (BRaw + BRaw + BRaw) :=
+    rawAddSubCollapseBound_of_triangles (BRaw := BRaw) hAddTri hSubTri
+  have hSubBase : rawSubCollapseBound BRaw (BRaw + BRaw) :=
+    rawSubCollapseBound_of_triangle (BRaw := BRaw) hSubTri
+  have hSub : rawSubCollapseBound BRaw (BRaw + BRaw + BRaw) :=
+    rawSubCollapseBound_mono hSubBase (Nat.le_add_right (BRaw + BRaw) BRaw)
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := BRaw + BRaw + BRaw)
+    hA hB
+    (mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum
+      (BA := BA) (BB := BB) hMulUniv hAddTri)
+    hAddSub hSub
+
+/--
+Triangle-bundle variant of `normInfCoeffs_mulRq_le_of_universal_blockers`.
+-/
+theorem normInfCoeffs_mulRq_le_of_universal_mul_and_triangles
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  normInfCoeffs (mulRq a b)
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_blockers
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hMulUniv
+    (schoolbookTriangleBounds_add hTri)
+    (schoolbookTriangleBounds_sub hTri)
+
+theorem normInfCoeffs_mulRq_le_of_universal_mul_and_add
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  normInfCoeffs (mulRq a b)
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hMulUniv (schoolbookTriangleBounds_of_add hAddTri)
+
+/--
+Parameterized non-coarse bridge:
+if a tighter raw schoolbook bound `BRaw` is available from operand norms,
+combine it with universal add/sub triangle blockers to obtain a `mulRq` bound at
+`BRaw + BRaw + BRaw`.
+-/
+theorem normInfCoeffs_mulRq_le_of_universal_blockers_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  have hAddSub : rawAddSubCollapseBound BRaw (BRaw + BRaw + BRaw) :=
+    rawAddSubCollapseBound_of_triangles (BRaw := BRaw) hAddTri hSubTri
+  have hSubBase : rawSubCollapseBound BRaw (BRaw + BRaw) :=
+    rawSubCollapseBound_of_triangle (BRaw := BRaw) hSubTri
+  have hSub : rawSubCollapseBound BRaw (BRaw + BRaw + BRaw) :=
+    rawSubCollapseBound_mono hSubBase (Nat.le_add_right (BRaw + BRaw) BRaw)
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := BRaw + BRaw + BRaw)
+    hA hB hRawFromOperands hAddSub hSub
+
+/--
+Triangle-bundle variant of `normInfCoeffs_mulRq_le_of_universal_blockers_and_raw`.
+-/
+theorem normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hTri : schoolbookTriangleBounds) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_universal_blockers_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hRawFromOperands
+    (schoolbookTriangleBounds_add hTri)
+    (schoolbookTriangleBounds_sub hTri)
+
+theorem normInfCoeffs_mulRq_le_of_universal_mul_and_add_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hRawFromOperands (schoolbookTriangleBounds_of_add hAddTri)
+
+/--
+Tighter universal-blocker bridge:
+use the refined raw schoolbook coefficient bound `D * (BA * BB)` from the
+sum-tight path, then collapse to `3 * (D * (BA * BB))`.
+-/
+theorem normInfCoeffs_mulRq_le_of_universal_blockers_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  normInfCoeffs (mulRq a b)
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  let BRaw : Nat := D * (BA * BB)
+  exact normInfCoeffs_mulRq_le_of_universal_blockers_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB
+    (mulRqRawNormBoundFromOperands_of_universal_mul_and_add_sum_tight
+      (BA := BA) (BB := BB) hMulUniv hAddTri)
+    hAddTri hSubTri
+
+/--
+Triangle-bundle variant of `normInfCoeffs_mulRq_le_of_universal_blockers_tight`.
+-/
+theorem normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hTri : schoolbookTriangleBounds) :
+  normInfCoeffs (mulRq a b)
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_blockers_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hMulUniv
+    (schoolbookTriangleBounds_add hTri)
+    (schoolbookTriangleBounds_sub hTri)
+
+theorem normInfCoeffs_mulRq_le_of_universal_mul_and_add_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulUniv : schoolbookMulUniversalBound)
+  (hAddTri : schoolbookAddTriangleBound) :
+  normInfCoeffs (mulRq a b)
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hMulUniv (schoolbookTriangleBounds_of_add hAddTri)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_and_add_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b)
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_add_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRepMulAddBounds_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRep : centeredRepMulAddBounds) :
+  normInfCoeffs (mulRq a b)
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_centeredRep_mul_and_add_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB
+    (centeredRepMulAddBounds_mul hRep)
+    (centeredRepMulAddBounds_add hRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b)
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_centeredRepMulAddBounds_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB (centeredRepMulAddBounds_of_mul hMulRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_and_triangles_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b)
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookTriangleBounds_of_centeredRep_add hTriRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_and_triangles
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b)
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB
+    (schoolbookMulUniversalBound_of_centeredRep hMulRep)
+    (schoolbookTriangleBounds_of_centeredRep_add hTriRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_and_add
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y))
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b)
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_centeredRep_mul_and_triangles
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB hMulRep hAddRep
+
+theorem normInfCoeffs_mulRq_le_of_centeredRepMulAddBounds
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRep : centeredRepMulAddBounds) :
+  normInfCoeffs (mulRq a b)
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_centeredRep_mul_and_add
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB
+    (centeredRepMulAddBounds_mul hRep)
+    (centeredRepMulAddBounds_add hRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMulRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x * y))
+      ≤ Int.natAbs (centeredRep x) * Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b)
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_centeredRepMulAddBounds
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB (centeredRepMulAddBounds_of_mul hMulRep)
+
+/--
+Assumption-free coarse non-coarse-P5 `mulRq` norm bound from proven universal
+mul/add blockers.
+-/
+theorem normInfCoeffs_mulRq_le_native
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB) :
+  normInfCoeffs (mulRq a b)
+    ≤ ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) + ((D * D) * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+/--
+Assumption-free tight non-coarse-P5 `mulRq` norm bound from proven universal
+mul/add blockers.
+-/
+theorem normInfCoeffs_mulRq_le_native_tight
+  {a b : Coeffs} {BA BB : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB) :
+  normInfCoeffs (mulRq a b)
+    ≤ (D * (BA * BB)) + (D * (BA * BB)) + (D * (BA * BB)) := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_tight
+    (a := a) (b := b) (BA := BA) (BB := BB)
+    hA hB
+    schoolbookMulUniversalBound_theorem
+    schoolbookTriangleBounds_theorem
+
+/--
+Assumption-free collapse bridge for the parameterized raw-bound path:
+if callers provide a raw schoolbook bound `BRaw`, we close `mulRq` at `3 * BRaw`
+without extra triangle assumptions.
+-/
+theorem normInfCoeffs_mulRq_le_native_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hRawFromOperands
+    schoolbookTriangleBounds_theorem
+
+/--
+Raw-coeff form of `normInfCoeffs_mulRq_le_native_and_raw`.
+-/
+theorem normInfCoeffs_mulRq_le_native_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_native_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+
+/--
+Raw-coefficient variant of `normInfCoeffs_mulRq_le_of_universal_blockers_and_raw`.
+Useful when the tight schoolbook result is first established at `mulRqRawCoeffSpec`.
+-/
+theorem normInfCoeffs_mulRq_le_of_universal_blockers_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound)
+  (hSubTri : schoolbookSubTriangleBound) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_universal_blockers_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddTri hSubTri
+
+/--
+Triangle-bundle variant of `normInfCoeffs_mulRq_le_of_universal_blockers_and_rawCoeff`.
+-/
+theorem normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hTri : schoolbookTriangleBounds) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_universal_blockers_and_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hRawCoeffFromOperands
+    (schoolbookTriangleBounds_add hTri)
+    (schoolbookTriangleBounds_sub hTri)
+
+theorem normInfCoeffs_mulRq_le_of_universal_mul_and_add_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddTri : schoolbookAddTriangleBound) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_and_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hRawCoeffFromOperands (schoolbookTriangleBounds_of_add hAddTri)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_and_add_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_add_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hRawFromOperands
+    (schoolbookAddTriangleBound_of_centeredRep hAddRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRepMulAddBounds_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hRep : centeredRepMulAddBounds) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_centeredRep_mul_and_add_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hRawFromOperands
+    (centeredRepMulAddBounds_add hRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_and_triangles_and_raw
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawFromOperands : mulRqRawNormBoundFromOperands BA BB BRaw)
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_universal_mul_and_triangles_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB hRawFromOperands
+    (schoolbookTriangleBounds_of_centeredRep_add hTriRep)
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_and_add_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hAddRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_centeredRep_mul_and_add_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hAddRep
+
+theorem normInfCoeffs_mulRq_le_of_centeredRep_mul_and_triangles_and_rawCoeff
+  {a b : Coeffs} {BA BB BRaw : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hRawCoeffFromOperands : mulRqRawCoeffBoundFromOperands BA BB BRaw)
+  (hTriRep :
+    ∀ x y : F, Int.natAbs (centeredRep (x + y))
+      ≤ Int.natAbs (centeredRep x) + Int.natAbs (centeredRep y)) :
+  normInfCoeffs (mulRq a b) ≤ BRaw + BRaw + BRaw := by
+  exact normInfCoeffs_mulRq_le_of_centeredRep_mul_and_triangles_and_raw
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw)
+    hA hB
+    (mulRqRawNormBoundFromOperands_of_rawCoeff hRawCoeffFromOperands)
+    hTriRep
+
+/--
+Field-op-collapse variant of
+`normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook`.
+-/
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook_fieldOp
+  {a b : Coeffs} {BA BB BTerm B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAdd : ∀ x y : F, normInfF x ≤ B → normInfF y ≤ BTerm → normInfF (x + y) ≤ B)
+  (hZero : normInfF (0 : F) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff_fieldOp
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+    hA hB
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions
+      (hMul := hMul) (hAdd := hAdd) (hZero := hZero))
+    hOps
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook_sum_fieldOp
+  {a b : Coeffs} {BA BB BTerm : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hAddTri : ∀ x y : F, normInfF (x + y) ≤ normInfF x + normInfF y)
+  (hOps : rawFieldOpCollapseBound ((D * D) * BTerm) ((D * D) * BTerm)) :
+  normInfCoeffs (mulRq a b) ≤ ((D * D) * BTerm) := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff_fieldOp
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := (D * D) * BTerm)
+    hA hB
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sum
+      (hMul := hMul) (hAddTri := hAddTri))
+    hOps
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook_of_term_le
+  {a b : Coeffs} {BA BB BTerm BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BTerm)
+  (hTermLe : BTerm ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff
+    (a := a) (b := b) (BA := BA) (BB := BB) (BRaw := BRaw) (B := B)
+    hA hB
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_of_term_le
+      (hMul := hMul) (hTermLe := hTermLe) (hAddCollapse := hAddCollapse))
+    hAddSub hSub
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook_sameBound
+  {a b : Coeffs} {BA BB BRaw B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ BRaw)
+  (hAddCollapse : rawAddCollapseBound BRaw BRaw)
+  (hAddSub : rawAddSubCollapseBound BRaw B)
+  (hSub : rawSubCollapseBound BRaw B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook_of_term_le
+    (a := a) (b := b) (BA := BA) (BB := BB) (BTerm := BRaw) (BRaw := BRaw) (B := B)
+    hA hB hMul (Nat.le_refl BRaw) hAddCollapse hAddSub hSub
+
+theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_via_schoolbook_sameBound_fieldOp
+  {a b : Coeffs} {BA BB B : Nat}
+  (hA : normInfCoeffs a ≤ BA)
+  (hB : normInfCoeffs b ≤ BB)
+  (hMul : ∀ x y : F, normInfF x ≤ BA → normInfF y ≤ BB → normInfF (x * y) ≤ B)
+  (hOps : rawFieldOpCollapseBound B B) :
+  normInfCoeffs (mulRq a b) ≤ B := by
+  exact normInfCoeffs_mulRq_le_of_operand_norm_assumptions_rawCoeff_fieldOp
+    (a := a) (b := b) (BA := BA) (BB := BB) (B := B)
+    hA hB
+    (mulRqRawCoeffBoundFromOperands_of_schoolbook_term_assumptions_sameBound
+      (hMul := hMul)
+      (hAddCollapse := hOps.1))
     hOps
 
 theorem normInfCoeffs_mulRq_le_of_operand_norm_assumptions_fieldOp_inRange
@@ -1388,6 +4248,22 @@ theorem normInfF_mul_le_of_halfQ_le
   (hB : halfQ ≤ B) :
   normInfF (x * y) ≤ B := by
   exact Nat.le_trans (normInfF_mul_le_halfQ x y) hB
+
+/-- Coarse instantiation of `schoolbookMulTermBound` from the global `halfQ` bound. -/
+theorem schoolbookMulTermBound_of_halfQ_le
+  {BA BB BTerm : Nat}
+  (hHalfQ : halfQ ≤ BTerm) :
+  schoolbookMulTermBound BA BB BTerm := by
+  intro x y _hx _hy
+  exact normInfF_mul_le_of_halfQ_le (x := x) (y := y) hHalfQ
+
+/-- Coarse instantiation of `schoolbookAccAddBound` from the global `halfQ` bound. -/
+theorem schoolbookAccAddBound_of_halfQ_le
+  {BRaw BTerm : Nat}
+  (hHalfQ : halfQ ≤ BRaw) :
+  schoolbookAccAddBound BRaw BTerm := by
+  intro x y _hx _hy
+  exact normInfF_add_le_of_halfQ_le (x := x) (y := y) hHalfQ
 
 theorem normInfCoeffs_vecAdd_le_of_halfQ_le
   {a b : Coeffs} {B : Nat}

@@ -31,6 +31,36 @@ private def subAt (arr : Array F) (idx : Nat) (delta : F) : Array F :=
   unfold subAt
   simp
 
+private theorem addAt_getElemBang_eq_of_ne
+  (arr : Array F) (idx k : Nat) (delta : F)
+  (hNe : idx ≠ k) :
+  (addAt arr idx delta)[k]! = arr[k]! := by
+  unfold addAt
+  by_cases hk : k < arr.size
+  · have hkSet : k < (arr.set! idx (arr[idx]! + delta)).size := by
+      simpa [Array.set!_eq_setIfInBounds] using hk
+    have hSet :
+      (arr.set! idx (arr[idx]! + delta))[k]'hkSet = arr[k] := by
+      simpa [Array.set!_eq_setIfInBounds] using
+        (Array.getElem_setIfInBounds_ne
+          (xs := arr) (i := idx) (a := arr[idx]! + delta) (j := k) hk hNe)
+    simpa [hk, hkSet] using hSet
+  · simp [hk, F.default_eq_zero]
+
+private theorem addAt_getElemBang_eq_of_lt
+  (arr : Array F) (idx : Nat) (delta : F)
+  (hidx : idx < arr.size) :
+  (addAt arr idx delta)[idx]! = arr[idx]! + delta := by
+  unfold addAt
+  have hidxSet : idx < (arr.set! idx (arr[idx]! + delta)).size := by
+    simpa [Array.set!_eq_setIfInBounds] using hidx
+  have hSet :
+      (arr.set! idx (arr[idx]! + delta))[idx]'hidxSet = arr[idx]! + delta := by
+    simpa [Array.set!_eq_setIfInBounds] using
+      (Array.getElem_setIfInBounds_self
+        (xs := arr) (i := idx) (a := arr[idx]! + delta) hidx)
+  simpa [hidx, hidxSet] using hSet
+
 theorem setAt_allCanonical
   (arr : Array F) (idx : Nat) (val : F)
   (hVal : F.Canonical val)
@@ -215,6 +245,629 @@ theorem getElemBang_eq_getCoeff (a : Coeffs) (i : Nat) :
   · simp [getCoeff, hi]
   · have hNotLt : ¬ i < a.size := hi
     simp [getCoeff, hNotLt, F.default_eq_zero]
+
+theorem getCoeff_addAt_eq_of_ne
+  {arr : Array F} {idx k : Nat} {delta : F}
+  (hNe : idx ≠ k) :
+  getCoeff (addAt arr idx delta) k = getCoeff arr k := by
+  calc
+    getCoeff (addAt arr idx delta) k = (addAt arr idx delta)[k]! := by
+      symm
+      exact getElemBang_eq_getCoeff (addAt arr idx delta) k
+    _ = arr[k]! := addAt_getElemBang_eq_of_ne arr idx k delta hNe
+    _ = getCoeff arr k := getElemBang_eq_getCoeff arr k
+
+theorem getCoeff_addAt_eq_of_lt
+  {arr : Array F} {idx : Nat} {delta : F}
+  (hidx : idx < arr.size) :
+  getCoeff (addAt arr idx delta) idx = getCoeff arr idx + delta := by
+  calc
+    getCoeff (addAt arr idx delta) idx = (addAt arr idx delta)[idx]! := by
+      symm
+      exact getElemBang_eq_getCoeff (addAt arr idx delta) idx
+    _ = arr[idx]! + delta := addAt_getElemBang_eq_of_lt arr idx delta hidx
+    _ = getCoeff arr idx + delta := by
+      simp [getElemBang_eq_getCoeff]
+
+theorem getCoeff_addAt_eq_ite_of_lt
+  {arr : Array F} {idx k : Nat} {delta : F}
+  (hidx : idx < arr.size) :
+  getCoeff (addAt arr idx delta) k =
+    if idx = k then getCoeff arr k + delta else getCoeff arr k := by
+  by_cases hEq : idx = k
+  · subst hEq
+    simp [getCoeff_addAt_eq_of_lt, hidx]
+  · simp [getCoeff_addAt_eq_of_ne, hEq]
+
+theorem schoolbookRaw_index_lt
+  {i j : Nat}
+  (hi : i < D)
+  (hj : j < D) :
+  i + j < 2 * D - 1 := by
+  have hi54 : i < 54 := by simpa [D] using hi
+  have hj54 : j < 54 := by simpa [D] using hj
+  have hi53 : i ≤ 53 := Nat.le_of_lt_succ (by simpa using hi54)
+  have hsum : i + j ≤ 53 + j := Nat.add_le_add_right hi53 j
+  have hlt : 53 + j < 53 + 54 := Nat.add_lt_add_left hj54 53
+  have hfinal : i + j < 107 := Nat.lt_of_le_of_lt hsum (by simpa using hlt)
+  simpa [D] using hfinal
+
+/--
+Characterize exactly when row `i` has a schoolbook contribution to output index `k`.
+-/
+theorem schoolbook_row_hits_index_iff
+  {i k : Nat} :
+  (∃ j, j < D ∧ i + j = k) ↔ i ≤ k ∧ k < i + D := by
+  constructor
+  · intro h
+    rcases h with ⟨j, hj, hEq⟩
+    constructor
+    · calc
+        i ≤ i + j := Nat.le_add_right i j
+        _ = k := hEq
+    · calc
+        k = i + j := hEq.symm
+        _ < i + D := Nat.add_lt_add_left hj i
+  · intro h
+    rcases h with ⟨hik, hkD⟩
+    refine ⟨k - i, ?_, ?_⟩
+    · have hLt : i + (k - i) < i + D := by
+        simpa [Nat.add_sub_of_le hik] using hkD
+      exact Nat.lt_of_add_lt_add_left hLt
+    · exact Nat.add_sub_of_le hik
+
+theorem schoolbook_row_hit_unique
+  {i k j1 j2 : Nat}
+  (h1 : i + j1 = k)
+  (h2 : i + j2 = k) :
+  j1 = j2 := by
+  exact Nat.add_left_cancel (h1.trans h2.symm)
+
+/--
+Row `i` misses output index `k` exactly when `k` is outside `[i, i + D)`.
+-/
+theorem schoolbook_row_misses_index_iff
+  {i k : Nat} :
+  (∀ j, j < D → i + j ≠ k) ↔ (k < i ∨ i + D ≤ k) := by
+  constructor
+  · intro hMiss
+    by_cases hki : k < i
+    · exact Or.inl hki
+    · have hik : i ≤ k := Nat.le_of_not_gt hki
+      by_cases hkD : k < i + D
+      · exfalso
+        have hHit : ∃ j, j < D ∧ i + j = k :=
+          (schoolbook_row_hits_index_iff (i := i) (k := k)).2 ⟨hik, hkD⟩
+        rcases hHit with ⟨j, hj, hEq⟩
+        exact (hMiss j hj hEq).elim
+      · exact Or.inr (Nat.le_of_not_gt hkD)
+  · intro hOutside j hj
+    intro hEq
+    rcases hOutside with hkLt | hkGe
+    · have hLe : i ≤ i + j := Nat.le_add_right i j
+      have hLt : i + j < i := by simpa [hEq] using hkLt
+      exact (Nat.not_lt_of_ge hLe) hLt
+    · have hLt : i + j < i + D := Nat.add_lt_add_left hj i
+      have hGe : i + D ≤ i + j := by simpa [hEq] using hkGe
+      exact (Nat.not_lt_of_ge hGe) hLt
+
+theorem list_length_filter_le {α : Type} (p : α → Bool) (xs : List α) :
+  (xs.filter p).length ≤ xs.length := by
+  induction xs with
+  | nil =>
+      simp
+  | cons x xs ih =>
+      by_cases hp : p x
+      · simp [List.filter, hp, ih, Nat.succ_le_succ_iff]
+      · simp [List.filter, hp, Nat.le_trans ih (Nat.le_succ _)]
+
+theorem list_foldl_eq_foldl_filter_of_step_id
+  {α β : Type}
+  (step : β → α → β)
+  (p : α → Bool)
+  (init : β)
+  (xs : List α)
+  (hId : ∀ acc x, p x = false → step acc x = acc) :
+  List.foldl step init xs = List.foldl step init (xs.filter p) := by
+  induction xs generalizing init with
+  | nil =>
+      simp
+  | cons x xs ih =>
+      by_cases hp : p x = true
+      · simp [List.filter, hp, ih]
+      · have hpFalse : p x = false := by
+          cases hpx : p x with
+          | false => rfl
+          | true => exact (hp hpx).elim
+        have hStep : step init x = init := hId init x hpFalse
+        simp [List.filter, hpFalse, hStep, ih]
+
+/--
+For a fixed output index `k`, the number of candidate schoolbook positions
+`i in [0, D)` that pass a contribution predicate is at most `D`.
+-/
+theorem schoolbook_candidate_count_le_D (k : Nat) :
+  (List.filter (fun i => k - i < D) (List.range' 0 D)).length ≤ D := by
+  have hFilter :
+      (List.filter (fun i => k - i < D) (List.range' 0 D)).length ≤ (List.range' 0 D).length :=
+    list_length_filter_le (p := fun i => k - i < D) (xs := List.range' 0 D)
+  simpa using hFilter
+
+theorem schoolbook_row_active_true_iff
+  {i k : Nat} :
+  decide (i ≤ k ∧ k < i + D) = true ↔ i ≤ k ∧ k < i + D := by
+  simp
+
+theorem schoolbook_row_active_false_of_outside
+  {i k : Nat}
+  (hOutside : k < i ∨ i + D ≤ k) :
+  decide (i ≤ k ∧ k < i + D) = false := by
+  apply decide_eq_false_iff_not.mpr
+  intro hActive
+  rcases hOutside with hkLt | hkGe
+  · exact (Nat.not_lt_of_ge hActive.1) hkLt
+  · exact (Nat.not_lt_of_ge hkGe) hActive.2
+
+theorem schoolbook_active_row_count_le_D (k : Nat) :
+  ((List.range' 0 D).filter (fun i => decide (i ≤ k ∧ k < i + D))).length ≤ D := by
+  have hFilter :
+      ((List.range' 0 D).filter (fun i => decide (i ≤ k ∧ k < i + D))).length
+        ≤ (List.range' 0 D).length :=
+    list_length_filter_le
+      (p := fun i => decide (i ≤ k ∧ k < i + D))
+      (xs := List.range' 0 D)
+  simpa using hFilter
+
+theorem schoolbook_active_rows_nil_of_ge
+  {k : Nat}
+  (hk : 2 * D - 1 ≤ k) :
+  ((List.range' 0 D).filter (fun i => decide (i ≤ k ∧ k < i + D))) = [] := by
+  apply List.eq_nil_iff_forall_not_mem.mpr
+  intro i hiMem
+  have hFilter := List.mem_filter.mp hiMem
+  have hiRange : i ∈ List.range' 0 D := hFilter.1
+  have hActive : i ≤ k ∧ k < i + D := by
+    exact (schoolbook_row_active_true_iff (i := i) (k := k)).1 hFilter.2
+  have hiLtD : i < D := by
+    rcases (List.mem_range').1 hiRange with ⟨t, ht, hEq⟩
+    have hEq' : i = t := by simpa using hEq
+    simpa [hEq'] using ht
+  have hi54 : i < 54 := by simpa [D] using hiLtD
+  have hi53 : i ≤ 53 := Nat.le_of_lt_succ (by simpa using hi54)
+  have hiPlusLe : i + D ≤ 2 * D - 1 := by
+    have hLe : i + 54 ≤ 53 + 54 := Nat.add_le_add_right hi53 54
+    simpa [D] using hLe
+  have hGe : i + D ≤ k := Nat.le_trans hiPlusLe hk
+  exact (Nat.not_lt_of_ge hGe) hActive.2
+
+theorem getCoeff_addAt_schoolbook_index
+  {arr : Array F} {i j : Nat} {delta : F}
+  (hSize : arr.size = 2 * D - 1)
+  (hi : i < D)
+  (hj : j < D) :
+  getCoeff (addAt arr (i + j) delta) (i + j) = getCoeff arr (i + j) + delta := by
+  apply getCoeff_addAt_eq_of_lt
+  simpa [hSize] using schoolbookRaw_index_lt (i := i) (j := j) hi hj
+
+theorem getCoeff_addAt_schoolbook_index_eq_ite
+  {arr : Array F} {i j k : Nat} {delta : F}
+  (hSize : arr.size = 2 * D - 1)
+  (hi : i < D)
+  (hj : j < D) :
+  getCoeff (addAt arr (i + j) delta) k =
+    if i + j = k then getCoeff arr k + delta else getCoeff arr k := by
+  apply getCoeff_addAt_eq_ite_of_lt
+  simpa [hSize] using schoolbookRaw_index_lt (i := i) (j := j) hi hj
+
+theorem getCoeff_addAt_schoolbook_index_of_ne
+  {arr : Array F} {i j k : Nat} {delta : F}
+  (hNe : i + j ≠ k) :
+  getCoeff (addAt arr (i + j) delta) k = getCoeff arr k := by
+  exact getCoeff_addAt_eq_of_ne (arr := arr) (idx := i + j) (k := k) (delta := delta) hNe
+
+theorem getCoeff_replicate_zero (n k : Nat) :
+  getCoeff (Array.replicate n (0 : F)) k = 0 := by
+  by_cases hk : k < (Array.replicate n (0 : F)).size
+  · simp [getCoeff, Array.getElem_replicate]
+  · simp [getCoeff]
+
+/--
+For a fixed schoolbook row index `i`, folding all `j in [0, D)` only updates
+output positions in the interval `[i, i + D)`.
+Hence positions `k` outside that interval are unchanged.
+-/
+theorem getCoeff_schoolbook_row_fold_unchanged_of_outside
+  {aD bD : Coeffs} {i k : Nat} {tmp : Array F}
+  (hOutside : k < i ∨ i + D ≤ k) :
+  getCoeff
+      (List.foldl
+        (fun acc j => addAt acc (i + j) (aD[i]! * bD[j]!))
+        tmp
+        (List.range' 0 D))
+      k
+    = getCoeff tmp k := by
+  let step : Array F → Nat → Array F :=
+    fun acc j => addAt acc (i + j) (aD[i]! * bD[j]!)
+  have hStep :
+      ∀ inner acc,
+        (∀ j, j ∈ inner → j < D) →
+        getCoeff (List.foldl step acc inner) k = getCoeff acc k := by
+    intro inner
+    induction inner with
+    | nil =>
+        intro acc _hIn
+        simp [step]
+    | cons j js ih =>
+        intro acc hIn
+        have hjD : j < D := hIn j (by simp)
+        have hNe : i + j ≠ k := by
+          intro hEq
+          rcases hOutside with hkLt | hkGe
+          · have hLe : i ≤ i + j := Nat.le_add_right i j
+            have hLt : i + j < i := by simpa [hEq] using hkLt
+            exact (Nat.not_lt_of_ge hLe) hLt
+          · have hLt : i + j < i + D := Nat.add_lt_add_left hjD i
+            have hGe : i + D ≤ i + j := by simpa [hEq] using hkGe
+            exact (Nat.not_lt_of_ge hGe) hLt
+        have hHead :
+            getCoeff (step acc j) k = getCoeff acc k := by
+          exact getCoeff_addAt_eq_of_ne
+            (arr := acc) (idx := i + j) (k := k) (delta := aD[i]! * bD[j]!) hNe
+        have hTail :
+            getCoeff (List.foldl step (step acc j) js) k = getCoeff (step acc j) k := by
+          apply ih
+          intro j' hj'
+          exact hIn j' (by simp [hj'])
+        calc
+          getCoeff (List.foldl step acc (j :: js)) k
+              = getCoeff (List.foldl step (step acc j) js) k := by
+                  simp [List.foldl_cons]
+          _ = getCoeff (step acc j) k := hTail
+          _ = getCoeff acc k := hHead
+  have hRange : ∀ j, j ∈ List.range' 0 D → j < D := by
+    intro j hj
+    rcases (List.mem_range').1 hj with ⟨t, ht, hEq⟩
+    have hEq' : j = t := by simpa using hEq
+    simpa [hEq'] using ht
+  simpa [step] using hStep (inner := List.range' 0 D) (acc := tmp) hRange
+
+/--
+For fixed row `i` and output index `k`, the schoolbook inner fold rewrites to a
+scalar fold over contributions guarded by `i + j = k`.
+-/
+theorem getCoeff_schoolbook_row_fold_eq_scalar_fold
+  {aD bD : Coeffs} {i k : Nat} {tmp : Array F}
+  (hi : i < D)
+  (hSize : tmp.size = 2 * D - 1) :
+  getCoeff
+      (List.foldl
+        (fun acc j => addAt acc (i + j) (aD[i]! * bD[j]!))
+        tmp
+        (List.range' 0 D))
+      k
+    =
+    List.foldl
+      (fun acc j => if i + j = k then acc + aD[i]! * bD[j]! else acc)
+      (getCoeff tmp k)
+      (List.range' 0 D) := by
+  let step : Array F → Nat → Array F :=
+    fun acc j => addAt acc (i + j) (aD[i]! * bD[j]!)
+  let scalarStep : F → Nat → F :=
+    fun acc j => if i + j = k then acc + aD[i]! * bD[j]! else acc
+  have hInner :
+      ∀ inner acc,
+        acc.size = 2 * D - 1 →
+        (∀ j, j ∈ inner → j < D) →
+        getCoeff (List.foldl step acc inner) k =
+          List.foldl scalarStep (getCoeff acc k) inner := by
+    intro inner
+    induction inner with
+    | nil =>
+        intro acc _hSize _hIn
+        simp [step, scalarStep]
+    | cons j js ih =>
+        intro acc hSizeAcc hIn
+        have hjD : j < D := hIn j (by simp)
+        have hHead :
+            getCoeff (step acc j) k =
+              scalarStep (getCoeff acc k) j := by
+          have hIte :
+              getCoeff (step acc j) k =
+                if i + j = k then getCoeff acc k + aD[i]! * bD[j]! else getCoeff acc k := by
+            simpa [step] using
+              (getCoeff_addAt_schoolbook_index_eq_ite
+                (arr := acc) (i := i) (j := j) (k := k) (delta := aD[i]! * bD[j]!)
+                hSizeAcc hi hjD)
+          simpa [scalarStep] using hIte
+        have hSizeNext : (step acc j).size = 2 * D - 1 := by
+          simpa [step, hSizeAcc] using
+            (addAt_size (arr := acc) (idx := i + j) (delta := aD[i]! * bD[j]!))
+        have hTail :
+            getCoeff (List.foldl step (step acc j) js) k =
+              List.foldl scalarStep (getCoeff (step acc j) k) js := by
+          apply ih
+          · exact hSizeNext
+          · intro j' hj'
+            exact hIn j' (by simp [hj'])
+        calc
+          getCoeff (List.foldl step acc (j :: js)) k
+              = getCoeff (List.foldl step (step acc j) js) k := by
+                  simp [List.foldl_cons]
+          _ = List.foldl scalarStep (getCoeff (step acc j) k) js := hTail
+          _ = List.foldl scalarStep (scalarStep (getCoeff acc k) j) js := by
+                simp [hHead]
+          _ = List.foldl scalarStep (getCoeff acc k) (j :: js) := by
+                simp [List.foldl_cons]
+  have hRange : ∀ j, j ∈ List.range' 0 D → j < D := by
+    intro j hj
+    rcases (List.mem_range').1 hj with ⟨t, ht, hEq⟩
+    have hEq' : j = t := by simpa using hEq
+    simpa [hEq'] using ht
+  simpa [step, scalarStep] using
+    hInner (inner := List.range' 0 D) (acc := tmp) hSize hRange
+
+theorem schoolbook_row_fold_size
+  {aD bD : Coeffs} {i : Nat} {tmp : Array F} :
+  (List.foldl
+      (fun acc j => addAt acc (i + j) (aD[i]! * bD[j]!))
+      tmp
+      (List.range' 0 D)).size = tmp.size := by
+  have hInner :
+      ∀ inner acc,
+        (List.foldl
+          (fun acc' j => addAt acc' (i + j) (aD[i]! * bD[j]!))
+          acc
+          inner).size = acc.size := by
+    intro inner
+    induction inner with
+    | nil =>
+        intro acc
+        simp
+    | cons j js ih =>
+        intro acc
+        simp [List.foldl_cons, ih, addAt_size]
+  simpa using hInner (inner := List.range' 0 D) (acc := tmp)
+
+/--
+Scalarized form of the nested schoolbook folds for a fixed output index `k`.
+This rewrites array mutation (`addAt`) into guarded scalar accumulation.
+-/
+theorem getCoeff_schoolbook_outer_fold_eq_scalar_fold
+  {aD bD : Coeffs} {k : Nat} :
+  getCoeff
+      (List.foldl
+        (fun acc i =>
+          List.foldl (fun acc' j => addAt acc' (i + j) (aD[i]! * bD[j]!)) acc (List.range' 0 D))
+        (Array.replicate (2 * D - 1) (0 : F))
+        (List.range' 0 D))
+      k
+    =
+    List.foldl
+      (fun acc i =>
+        List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+      (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      (List.range' 0 D) := by
+  let outerStep : Array F → Nat → Array F :=
+    fun acc i =>
+      List.foldl (fun acc' j => addAt acc' (i + j) (aD[i]! * bD[j]!)) acc (List.range' 0 D)
+  let outerScalar : F → Nat → F :=
+    fun acc i =>
+      List.foldl (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc') acc (List.range' 0 D)
+  have hOuter :
+      ∀ outer acc,
+        acc.size = 2 * D - 1 →
+        (∀ i, i ∈ outer → i < D) →
+        getCoeff (List.foldl outerStep acc outer) k =
+          List.foldl outerScalar (getCoeff acc k) outer := by
+    intro outer
+    induction outer with
+    | nil =>
+        intro acc _hSize _hIn
+        simp [outerStep, outerScalar]
+    | cons i is ih =>
+        intro acc hSizeAcc hIn
+        have hi : i < D := hIn i (by simp)
+        have hHead :
+            getCoeff (outerStep acc i) k = outerScalar (getCoeff acc k) i := by
+          simpa [outerStep, outerScalar] using
+            (getCoeff_schoolbook_row_fold_eq_scalar_fold
+              (aD := aD) (bD := bD) (i := i) (k := k) (tmp := acc)
+              hi hSizeAcc)
+        have hSizeNext : (outerStep acc i).size = 2 * D - 1 := by
+          calc
+            (outerStep acc i).size = acc.size := by
+              simp [outerStep, schoolbook_row_fold_size]
+            _ = 2 * D - 1 := hSizeAcc
+        have hTail :
+            getCoeff (List.foldl outerStep (outerStep acc i) is) k =
+              List.foldl outerScalar (getCoeff (outerStep acc i) k) is := by
+          apply ih
+          · exact hSizeNext
+          · intro i' hi'
+            exact hIn i' (by simp [hi'])
+        calc
+          getCoeff (List.foldl outerStep acc (i :: is)) k
+              = getCoeff (List.foldl outerStep (outerStep acc i) is) k := by
+                  simp [List.foldl_cons]
+          _ = List.foldl outerScalar (getCoeff (outerStep acc i) k) is := hTail
+          _ = List.foldl outerScalar (outerScalar (getCoeff acc k) i) is := by
+                simp [hHead]
+          _ = List.foldl outerScalar (getCoeff acc k) (i :: is) := by
+                simp [List.foldl_cons]
+  have hRange : ∀ i, i ∈ List.range' 0 D → i < D := by
+    intro i hi
+    rcases (List.mem_range').1 hi with ⟨t, ht, hEq⟩
+    have hEq' : i = t := by simpa using hEq
+    simpa [hEq'] using ht
+  have hSizeInit : (Array.replicate (2 * D - 1) (0 : F)).size = 2 * D - 1 := by
+    simp
+  simpa [outerStep, outerScalar] using
+    hOuter (outer := List.range' 0 D) (acc := Array.replicate (2 * D - 1) (0 : F)) hSizeInit hRange
+
+theorem getCoeff_schoolbookRaw_eq_scalar_fold
+  (a b : Coeffs) (k : Nat) :
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  getCoeff (schoolbookRaw a b) k
+    =
+    List.foldl
+      (fun acc i =>
+        List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+      (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      (List.range' 0 D) := by
+  unfold schoolbookRaw
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  simpa [aD, bD] using
+    (getCoeff_schoolbook_outer_fold_eq_scalar_fold (aD := aD) (bD := bD) (k := k))
+
+theorem schoolbook_row_scalar_fold_eq_of_miss
+  {aD bD : Coeffs} {i k : Nat} {acc : F}
+  (hMiss : ∀ j, j < D → i + j ≠ k) :
+  List.foldl
+      (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+      acc
+      (List.range' 0 D)
+    = acc := by
+  have hInner :
+      ∀ inner acc0,
+        (∀ j, j ∈ inner → j < D) →
+        List.foldl
+            (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+            acc0
+            inner
+          = acc0 := by
+    intro inner
+    induction inner with
+    | nil =>
+        intro acc0 _hIn
+        simp
+    | cons j js ih =>
+        intro acc0 hIn
+        have hjD : j < D := hIn j (by simp)
+        have hNe : i + j ≠ k := hMiss j hjD
+        have hTail :
+            List.foldl
+                (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+                acc0
+                js
+              = acc0 := by
+          apply ih
+          intro j' hj'
+          exact hIn j' (by simp [hj'])
+        calc
+          List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc0
+              (j :: js)
+              =
+              List.foldl
+                (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+                (if i + j = k then acc0 + aD[i]! * bD[j]! else acc0)
+                js := by
+                  simp [List.foldl_cons]
+          _ =
+              List.foldl
+                (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+                acc0
+                js := by
+                  simp [hNe]
+          _ = acc0 := hTail
+  have hRange : ∀ j, j ∈ List.range' 0 D → j < D := by
+    intro j hj
+    rcases (List.mem_range').1 hj with ⟨t, ht, hEq⟩
+    have hEq' : j = t := by simpa using hEq
+    simpa [hEq'] using ht
+  simpa using hInner (inner := List.range' 0 D) (acc0 := acc) hRange
+
+theorem schoolbook_row_scalar_fold_eq_of_outside
+  {aD bD : Coeffs} {i k : Nat} {acc : F}
+  (hOutside : k < i ∨ i + D ≤ k) :
+  List.foldl
+      (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+      acc
+      (List.range' 0 D)
+    = acc := by
+  have hMiss : ∀ j, j < D → i + j ≠ k :=
+    (schoolbook_row_misses_index_iff (i := i) (k := k)).2 hOutside
+  exact schoolbook_row_scalar_fold_eq_of_miss (aD := aD) (bD := bD) (i := i) (k := k) (acc := acc) hMiss
+
+theorem getCoeff_schoolbookRaw_eq_scalar_fold_filtered
+  (a b : Coeffs) (k : Nat) :
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  getCoeff (schoolbookRaw a b) k
+    =
+    List.foldl
+      (fun acc i =>
+        List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+      (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      ((List.range' 0 D).filter (fun i => decide (i ≤ k ∧ k < i + D))) := by
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  let rowScalar : F → Nat → F :=
+    fun acc i =>
+      List.foldl
+        (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+        acc
+        (List.range' 0 D)
+  let rowActive : Nat → Bool := fun i => decide (i ≤ k ∧ k < i + D)
+  have hBase :
+      getCoeff (schoolbookRaw a b) k
+        =
+        List.foldl rowScalar
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D) := by
+    simpa [aD, bD, rowScalar] using
+      (getCoeff_schoolbookRaw_eq_scalar_fold a b k)
+  have hId :
+      ∀ acc i, rowActive i = false → rowScalar acc i = acc := by
+    intro acc i hInactive
+    have hNotActive : ¬ (i ≤ k ∧ k < i + D) := by
+      simpa [rowActive] using hInactive
+    have hOutside : k < i ∨ i + D ≤ k := by
+      by_cases hki : k < i
+      · exact Or.inl hki
+      · have hik : i ≤ k := Nat.le_of_not_gt hki
+        have hkNot : ¬ k < i + D := by
+          intro hkLt
+          exact hNotActive ⟨hik, hkLt⟩
+        exact Or.inr (Nat.le_of_not_gt hkNot)
+    simpa [rowScalar] using
+      (schoolbook_row_scalar_fold_eq_of_outside
+        (aD := aD) (bD := bD) (i := i) (k := k) (acc := acc) hOutside)
+  calc
+    getCoeff (schoolbookRaw a b) k
+        = List.foldl rowScalar
+            (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+            (List.range' 0 D) := hBase
+    _ = List.foldl rowScalar
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          ((List.range' 0 D).filter rowActive) := by
+          exact list_foldl_eq_foldl_filter_of_step_id
+            (step := rowScalar)
+            (p := rowActive)
+            (init := getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+            (xs := List.range' 0 D)
+            hId
+    _ = List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          ((List.range' 0 D).filter (fun i => decide (i ≤ k ∧ k < i + D))) := by
+          simp [rowScalar, rowActive]
 
 /-- Reduce modulo Phi_81(X)=X^54 + X^27 + 1, matching Rust logic. -/
 private def reducePhi81Coeff (coeffsIn : Array F) (k : Nat) : F :=
@@ -418,6 +1071,84 @@ theorem mulRqRawCoeffSpec_eq_rawCoeffs_getElemBang
   mulRqRawCoeffSpec a b k = (mulRqRawCoeffs a b)[k]! := by
   rfl
 
+/-- Raw-coefficient accessor rewritten through explicit OOB-zero semantics. -/
+theorem mulRqRawCoeffSpec_eq_getCoeff
+  (a b : Coeffs) (k : Nat) :
+  mulRqRawCoeffSpec a b k = getCoeff (mulRqRawCoeffs a b) k := by
+  unfold mulRqRawCoeffSpec
+  exact getElemBang_eq_getCoeff (mulRqRawCoeffs a b) k
+
+theorem mulRqRawCoeffSpec_eq_scalar_fold
+  (a b : Coeffs) (k : Nat) :
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  mulRqRawCoeffSpec a b k
+    =
+    List.foldl
+      (fun acc i =>
+        List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+      (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      (List.range' 0 D) := by
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  have hGet :
+      mulRqRawCoeffSpec a b k = getCoeff (schoolbookRaw a b) k := by
+    simpa [mulRqRawCoeffs] using (mulRqRawCoeffSpec_eq_getCoeff a b k)
+  calc
+    mulRqRawCoeffSpec a b k = getCoeff (schoolbookRaw a b) k := hGet
+    _ = List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          (List.range' 0 D) := by
+            simpa [aD, bD] using (getCoeff_schoolbookRaw_eq_scalar_fold a b k)
+
+theorem mulRqRawCoeffSpec_eq_scalar_fold_filtered
+  (a b : Coeffs) (k : Nat) :
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  mulRqRawCoeffSpec a b k
+    =
+    List.foldl
+      (fun acc i =>
+        List.foldl
+          (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+          acc
+          (List.range' 0 D))
+      (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+      ((List.range' 0 D).filter (fun i => decide (i ≤ k ∧ k < i + D))) := by
+  let aD : Coeffs := Array.ofFn (fun i : Fin D => a[i.1]!)
+  let bD : Coeffs := Array.ofFn (fun i : Fin D => b[i.1]!)
+  have hGet :
+      mulRqRawCoeffSpec a b k = getCoeff (schoolbookRaw a b) k := by
+    simpa [mulRqRawCoeffs] using (mulRqRawCoeffSpec_eq_getCoeff a b k)
+  calc
+    mulRqRawCoeffSpec a b k = getCoeff (schoolbookRaw a b) k := hGet
+    _ = List.foldl
+          (fun acc i =>
+            List.foldl
+              (fun acc' j => if i + j = k then acc' + aD[i]! * bD[j]! else acc')
+              acc
+              (List.range' 0 D))
+          (getCoeff (Array.replicate (2 * D - 1) (0 : F)) k)
+          ((List.range' 0 D).filter (fun i => decide (i ≤ k ∧ k < i + D))) := by
+            simpa [aD, bD] using (getCoeff_schoolbookRaw_eq_scalar_fold_filtered a b k)
+
+theorem mulRqRawCoeffSpec_eq_getElem_of_lt
+  {a b : Coeffs} {k : Nat}
+  (hk : k < (mulRqRawCoeffs a b).size) :
+  mulRqRawCoeffSpec a b k = (mulRqRawCoeffs a b)[k] := by
+  calc
+    mulRqRawCoeffSpec a b k = getCoeff (mulRqRawCoeffs a b) k :=
+      mulRqRawCoeffSpec_eq_getCoeff a b k
+    _ = (mulRqRawCoeffs a b)[k] := getCoeff_eq_getElem hk
+
 theorem mulRqRawCoeffSpec_eq_zero_of_ge
   {a b : Coeffs} {k : Nat}
   (hk : 2 * D - 1 ≤ k) :
@@ -426,6 +1157,12 @@ theorem mulRqRawCoeffSpec_eq_zero_of_ge
   have hNotLt : ¬ k < (mulRqRawCoeffs a b).size :=
     Nat.not_lt_of_ge (by simpa [mulRqRawCoeffs_size] using hk)
   simp [hNotLt, F.default_eq_zero]
+
+theorem mulRqRawCoeffSpec_eq_zero_of_ge_via_scalar_fold
+  {a b : Coeffs} {k : Nat}
+  (hk : 2 * D - 1 ≤ k) :
+  mulRqRawCoeffSpec a b k = 0 := by
+  exact mulRqRawCoeffSpec_eq_zero_of_ge hk
 
 theorem mulRqCoeffSpec_of_le25
   {a b : Coeffs} {k : Nat}

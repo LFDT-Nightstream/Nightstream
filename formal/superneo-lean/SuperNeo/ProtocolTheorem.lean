@@ -13,11 +13,11 @@ compose `Π_CCS`, `Π_RLC`, and `Π_DEC` reductions into CE validity.
 -/
 theorem superneoProtocolTheorem_of_assumptions
   (hRed : SuperNeoReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -30,13 +30,13 @@ theorem superneoProtocolTheorem_of_assumptions
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedL : SumcheckAcceptedProp instL trL)
-  (hAcceptedR : SumcheckAcceptedProp instR trR)
+  (hAcceptedL : PSSumcheckAccepted instL trL)
+  (hAcceptedR : PSSumcheckAccepted instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  CEValid ctx claimOut witOut := by
+  PSCEValid ctx claimOut witOut := by
   exact superneoReduction_ceValid_of_assumptions
     hRed.1 hRed.2.1 hRed.2.2
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -46,11 +46,11 @@ theorem superneoProtocolTheorem_of_assumptions
 
 theorem superneoProtocolTheorem_of_checkBundle_assumptions
   (hRed : SuperNeoCheckBundleReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -63,13 +63,13 @@ theorem superneoProtocolTheorem_of_checkBundle_assumptions
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedL : SumcheckAcceptedProp instL trL)
-  (hAcceptedR : SumcheckAcceptedProp instR trR)
+  (hAcceptedL : PSSumcheckAccepted instL trL)
+  (hAcceptedR : PSSumcheckAccepted instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  CEValid ctx claimOut witOut := by
+  PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_of_assumptions
     (superneoReductionAssumption_of_checkBundleReductionAssumption hRed)
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -78,11 +78,11 @@ theorem superneoProtocolTheorem_of_checkBundle_assumptions
 
 theorem superneoProtocolTheorem_of_assumptions_with_strongAccepted
   (hRed : SuperNeoReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -95,13 +95,13 @@ theorem superneoProtocolTheorem_of_assumptions_with_strongAccepted
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  CEValid ctx claimOut witOut := by
+  PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_of_assumptions hRed
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
     hP10L hP10R hP10Out
@@ -111,11 +111,11 @@ theorem superneoProtocolTheorem_of_assumptions_with_strongAccepted
 
 theorem superneoProtocolTheorem_of_checkBundle_assumptions_with_strongAccepted
   (hRed : SuperNeoCheckBundleReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -128,13 +128,13 @@ theorem superneoProtocolTheorem_of_checkBundle_assumptions_with_strongAccepted
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  CEValid ctx claimOut witOut := by
+  PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_of_assumptions_with_strongAccepted
     (superneoReductionAssumption_of_checkBundleReductionAssumption hRed)
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -147,11 +147,11 @@ End-to-end wrapper plus explicit invertibility witness for `invDelta`.
 -/
 theorem superneoProtocolTheorem_with_invertibility_of_assumptions
   (hRed : SuperNeoReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -164,30 +164,30 @@ theorem superneoProtocolTheorem_with_invertibility_of_assumptions
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedL : SumcheckAcceptedProp instL trL)
-  (hAcceptedR : SumcheckAcceptedProp instR trR)
+  (hAcceptedL : PSSumcheckAccepted instL trL)
+  (hAcceptedR : PSSumcheckAccepted instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ CEValid ctx claimOut witOut := by
-  have hCEValid : CEValid ctx claimOut witOut :=
+  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ PSCEValid ctx claimOut witOut := by
+  have hCEValid : PSCEValid ctx claimOut witOut :=
     superneoProtocolTheorem_of_assumptions hRed
       hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
       hP10L hP10R hP10Out
       hAcceptedL hAcceptedR
       hWitnessL hWitnessR hNormL hNormR
-  have hCE : CERelation ctx claimOut witOut := ceRelation_of_ceValid hCEValid
+  have hCE : PSCERelation ctx claimOut witOut := ceRelation_of_ceValid hCEValid
   rcases claimArithmetic_invertibilityWitness hCE.1.2 with ⟨deltaInv, hMul⟩
   exact ⟨deltaInv, hMul, hCEValid⟩
 
 theorem superneoProtocolTheorem_with_invertibility_of_checkBundle_assumptions
   (hRed : SuperNeoCheckBundleReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -200,13 +200,13 @@ theorem superneoProtocolTheorem_with_invertibility_of_checkBundle_assumptions
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedL : SumcheckAcceptedProp instL trL)
-  (hAcceptedR : SumcheckAcceptedProp instR trR)
+  (hAcceptedL : PSSumcheckAccepted instL trL)
+  (hAcceptedR : PSSumcheckAccepted instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ CEValid ctx claimOut witOut := by
+  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_with_invertibility_of_assumptions
     (superneoReductionAssumption_of_checkBundleReductionAssumption hRed)
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -215,11 +215,11 @@ theorem superneoProtocolTheorem_with_invertibility_of_checkBundle_assumptions
 
 theorem superneoProtocolTheorem_with_invertibility_of_assumptions_with_strongAccepted
   (hRed : SuperNeoReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -232,13 +232,13 @@ theorem superneoProtocolTheorem_with_invertibility_of_assumptions_with_strongAcc
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ CEValid ctx claimOut witOut := by
+  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_with_invertibility_of_assumptions hRed
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
     hP10L hP10R hP10Out
@@ -254,11 +254,11 @@ theorem superneoProtocolTheorem_of_strongCCS_assumptions
   (hCCSStrong : PiCCSStrongProtocolAssumption)
   (hRLC : PiRLCWeakRelationAssumption)
   (hDEC : PiDECUpgradeAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -271,28 +271,28 @@ theorem superneoProtocolTheorem_of_strongCCS_assumptions
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  CEValid ctx claimOut witOut := by
-  have hFinal : PiDECFinalTarget ctx claimOut witOut :=
+  PSCEValid ctx claimOut witOut := by
+  have hFinal : PSDECFinalTarget ctx claimOut witOut :=
     superneoReduction_chain_of_strongCCS_assumptions
       hCCSStrong hRLC hDEC
       hShapeL hShapeR hBar hAL hBL hAR hBR hP10L hP10R
       hAcceptedStrongL hAcceptedStrongR hWitnessL hWitnessR hNormL hNormR
-  have hCCSOut : CCSRelation ctx claimOut := ⟨hBar, hAOut, hBOut, hP10Out⟩
+  have hCCSOut : PSCCSRelation ctx claimOut := ⟨hBar, hAOut, hBOut, hP10Out⟩
   exact ceValid_of_relations hCCSOut hFinal.1
 
 theorem superneoProtocolTheorem_of_strongCCS_assumptionBundle
   (hRedStrong : SuperNeoStrongCCSReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -305,13 +305,13 @@ theorem superneoProtocolTheorem_of_strongCCS_assumptionBundle
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  CEValid ctx claimOut witOut := by
+  PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_of_strongCCS_assumptions
     hRedStrong.1 hRedStrong.2.1 hRedStrong.2.2
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -321,11 +321,11 @@ theorem superneoProtocolTheorem_of_strongCCS_assumptionBundle
 
 theorem superneoProtocolTheorem_of_strongCheckBundle_assumptions
   (hRedStrong : SuperNeoStrongCheckBundleReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -338,13 +338,13 @@ theorem superneoProtocolTheorem_of_strongCheckBundle_assumptions
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  CEValid ctx claimOut witOut := by
+  PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_of_strongCCS_assumptionBundle
     (superneoStrongCCSReductionAssumption_of_strongCheckBundleReductionAssumption hRedStrong)
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -354,11 +354,11 @@ theorem superneoProtocolTheorem_of_strongCheckBundle_assumptions
 
 theorem superneoProtocolTheorem_of_reductionAssumption_with_strongAccepted
   (hRed : SuperNeoReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -371,13 +371,13 @@ theorem superneoProtocolTheorem_of_reductionAssumption_with_strongAccepted
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  CEValid ctx claimOut witOut := by
+  PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_of_strongCCS_assumptionBundle
     (superneoStrongCCSReductionAssumption_of_reductionAssumption hRed)
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -389,11 +389,11 @@ theorem superneoProtocolTheorem_with_invertibility_of_strongCCS_assumptions
   (hCCSStrong : PiCCSStrongProtocolAssumption)
   (hRLC : PiRLCWeakRelationAssumption)
   (hDEC : PiDECUpgradeAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -406,31 +406,31 @@ theorem superneoProtocolTheorem_with_invertibility_of_strongCCS_assumptions
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ CEValid ctx claimOut witOut := by
-  have hCEValid : CEValid ctx claimOut witOut :=
+  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ PSCEValid ctx claimOut witOut := by
+  have hCEValid : PSCEValid ctx claimOut witOut :=
     superneoProtocolTheorem_of_strongCCS_assumptions
       hCCSStrong hRLC hDEC
       hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
       hP10L hP10R hP10Out
       hAcceptedStrongL hAcceptedStrongR
       hWitnessL hWitnessR hNormL hNormR
-  have hCE : CERelation ctx claimOut witOut := ceRelation_of_ceValid hCEValid
+  have hCE : PSCERelation ctx claimOut witOut := ceRelation_of_ceValid hCEValid
   rcases claimArithmetic_invertibilityWitness hCE.1.2 with ⟨deltaInv, hMul⟩
   exact ⟨deltaInv, hMul, hCEValid⟩
 
 theorem superneoProtocolTheorem_with_invertibility_of_strongCCS_assumptionBundle
   (hRedStrong : SuperNeoStrongCCSReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -443,13 +443,13 @@ theorem superneoProtocolTheorem_with_invertibility_of_strongCCS_assumptionBundle
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ CEValid ctx claimOut witOut := by
+  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_with_invertibility_of_strongCCS_assumptions
     hRedStrong.1 hRedStrong.2.1 hRedStrong.2.2
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -459,11 +459,11 @@ theorem superneoProtocolTheorem_with_invertibility_of_strongCCS_assumptionBundle
 
 theorem superneoProtocolTheorem_with_invertibility_of_strongCheckBundle_assumptions
   (hRedStrong : SuperNeoStrongCheckBundleReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -476,13 +476,13 @@ theorem superneoProtocolTheorem_with_invertibility_of_strongCheckBundle_assumpti
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ CEValid ctx claimOut witOut := by
+  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_with_invertibility_of_strongCCS_assumptionBundle
     (superneoStrongCCSReductionAssumption_of_strongCheckBundleReductionAssumption hRedStrong)
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut
@@ -492,11 +492,11 @@ theorem superneoProtocolTheorem_with_invertibility_of_strongCheckBundle_assumpti
 
 theorem superneoProtocolTheorem_with_invertibility_of_reductionAssumption_with_strongAccepted
   (hRed : SuperNeoReductionAssumption)
-  {ctx : ProtocolCtx}
-  {claimL claimR claimOut : CEClaim}
-  {witL witR witOut : CEWitness}
-  {instL instR : SumcheckInstance}
-  {trL trR : SumcheckTranscript}
+  {ctx : PSContext}
+  {claimL claimR claimOut : PSClaim}
+  {witL witR witOut : PSWitness}
+  {instL instR : PSSumcheckInstance}
+  {trL trR : PSSumcheckTranscript}
   (hShapeL : ClaimShapeValid claimL)
   (hShapeR : ClaimShapeValid claimR)
   (hBar : IsDBarMatrix ctx.bar)
@@ -509,13 +509,13 @@ theorem superneoProtocolTheorem_with_invertibility_of_reductionAssumption_with_s
   (hP10L : p10CoreProp ctx.bar claimL.a claimL.b)
   (hP10R : p10CoreProp ctx.bar claimR.a claimR.b)
   (hP10Out : p10CoreProp ctx.bar claimOut.a claimOut.b)
-  (hAcceptedStrongL : SumcheckAcceptedStrongProp instL trL)
-  (hAcceptedStrongR : SumcheckAcceptedStrongProp instR trR)
+  (hAcceptedStrongL : PSSumcheckAcceptedStrong instL trL)
+  (hAcceptedStrongR : PSSumcheckAcceptedStrong instR trR)
   (hWitnessL : witL.z = claimL.z)
   (hWitnessR : witR.z = claimR.z)
   (hNormL : normInfCoeffs witL.z < ctx.ceNormBound)
   (hNormR : normInfCoeffs witR.z < ctx.ceNormBound) :
-  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ CEValid ctx claimOut witOut := by
+  ∃ deltaInv : Coeffs, mulRq claimOut.invDelta deltaInv = oneRq ∧ PSCEValid ctx claimOut witOut := by
   exact superneoProtocolTheorem_with_invertibility_of_strongCCS_assumptionBundle
     (superneoStrongCCSReductionAssumption_of_reductionAssumption hRed)
     hShapeL hShapeR hBar hAL hBL hAR hBR hAOut hBOut

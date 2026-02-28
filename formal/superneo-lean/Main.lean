@@ -2,8 +2,36 @@ import SuperNeo
 
 open SuperNeo
 
+private def checkProofImportWall : IO Bool := do
+  let pattern := "^import SuperNeo\\.(Checks|Generated|Regression)"
+  let args := #[
+    "-n",
+    pattern,
+    "SuperNeo/ProofSystem",
+    "SuperNeo/Composition.lean",
+    "SuperNeo/ProtocolTrack.lean",
+    "SuperNeo/ProtocolBase.lean",
+    "SuperNeo/PaperMath.lean",
+    "SuperNeo/CoreMath.lean"
+  ]
+  let out ← IO.Process.output { cmd := "rg", args := args }
+  if out.exitCode == 1 then
+    pure true
+  else if out.exitCode == 0 then
+    IO.println "proof_import_wall_violations:"
+    IO.println out.stdout.trimAscii.toString
+    pure false
+  else
+    IO.println "proof_import_wall_check_error:"
+    if out.stderr.trimAscii.toString.isEmpty then
+      IO.println out.stdout.trimAscii.toString
+    else
+      IO.println out.stderr.trimAscii.toString
+    pure false
+
 
 def main : IO UInt32 := do
+  let okProofImportWall ← checkProofImportWall
   let okSuper := checkSuperNeoCases
   let okRing := checkRingMulCases
   let okNorm := checkNormCases
@@ -26,11 +54,12 @@ def main : IO UInt32 := do
   let okParams := checkParameterCases
   let okInterp := checkInterpCases
   let allOk :=
-    okSuper && okRing && okNorm && okSplit && okEq && okMle &&
+    okProofImportWall && okSuper && okRing && okNorm && okSplit && okEq && okMle &&
       okEmbeddingVec && okEmbeddingMatrix &&
       okBarLiftVec && okBarLiftMatrix && okMatrixTransform &&
       okEvalLink && okEvalHom && okModuleHom && okInvertibility && okSampling && okEqLift && okPolyLemmas &&
       okCoeffMaps && okParams && okInterp
+  IO.println s!"proof_import_wall={okProofImportWall}"
   IO.println s!"superneo_cases={okSuper}"
   IO.println s!"ring_mul_cases={okRing}"
   IO.println s!"norm_cases={okNorm}"

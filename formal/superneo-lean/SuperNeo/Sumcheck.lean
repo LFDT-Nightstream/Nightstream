@@ -2,6 +2,12 @@ import SuperNeo.Field
 
 /-! Sumcheck identities, checks, and reduction glue. -/
 
+/-!
+Third-party attribution policy for this module:
+- If code is copied/adapted from ArkLib, keep a local comment near the adapted
+  block with upstream repo/path/commit/license and a short modification note.
+- Do not import external text verbatim without attribution.
+-/
 
 namespace SuperNeo
 

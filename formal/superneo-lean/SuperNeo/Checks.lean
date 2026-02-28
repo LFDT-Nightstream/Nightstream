@@ -1,21 +1,4 @@
-import SuperNeo.Ring
-import SuperNeo.CoeffMaps
-import SuperNeo.Norm
-import SuperNeo.Decomp
-import SuperNeo.EqPoly
-import SuperNeo.MLE
-import SuperNeo.Embedding
-import SuperNeo.BarLift
-import SuperNeo.MatrixTransform
-import SuperNeo.EvalLink
-import SuperNeo.EvalHom
-import SuperNeo.ModuleHom
-import SuperNeo.InvertibilityAxioms
-import SuperNeo.SamplingSet
-import SuperNeo.PolyLemmas
-import SuperNeo.Dimensions
-import SuperNeo.Parameters
-import SuperNeo.Interp
+import SuperNeo.PaperMath
 import SuperNeo.Generated.Vectors
 
 /-! Executable boolean checks used as regression surfaces. -/

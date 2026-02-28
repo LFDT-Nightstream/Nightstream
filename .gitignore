@@ -10,3 +10,4 @@ profile-xctrace-user-sym.trace
 crates/neo-fold/sha256-tests/circuit-cache
 dist
 demos/ios-demo/TestingWasm.xcodeproj/project.xcworkspace/xcuserdata/nicolasarqueros.xcuserdatad/UserInterfaceState.xcuserstate
+profile-xctrace-poseidon.trace

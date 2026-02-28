@@ -3,7 +3,7 @@ set -eo pipefail
 
 # Profile a Rust test using Apple Instruments (xctrace) and export symbolicated results
 #
-# Usage: ./scripts/profile_xctrace.sh <package> <test_file> <test_function> [--ignored] [--template <name>]
+# Usage: ./scripts/profile_xctrace.sh <package> <test_file> <test_function> [--ignored] [--template <name>] [--features <csv>]
 #
 # Templates (run `xcrun xctrace list templates` for full list):
 #   Time Profiler (default), Allocations, Leaks, File Activity, System Trace, etc.
@@ -12,6 +12,7 @@ set -eo pipefail
 #   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored
 #   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Allocations
 #   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Leaks
+#   ./scripts/profile_xctrace.sh neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile --time-limit 20
 #
 # Output:
 #   - profile-xctrace.trace     : Open with `open profile-xctrace.trace` for Instruments GUI
@@ -27,7 +28,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 if [ $# -lt 3 ]; then
-  echo "Usage: $0 <package> <test_file> <test_function> [--ignored] [--template <name>]"
+  echo "Usage: $0 <package> <test_file> <test_function> [--ignored] [--template <name>] [--features <csv>] [--time-limit <N|Nms|Ns|Nm|Nh>]"
   echo ""
   echo "Templates: Time Profiler (default), Allocations, Leaks, File Activity, System Trace"
   echo "Run 'xcrun xctrace list templates' for full list"
@@ -35,6 +36,7 @@ if [ $# -lt 3 ]; then
   echo "Examples:"
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored"
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Allocations"
+  echo "  $0 neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile --time-limit 20"
   exit 1
 fi
 
@@ -46,6 +48,7 @@ shift 3
 IGNORED_FLAG=""
 TEMPLATE="Time Profiler"
 TIME_LIMIT=""
+FEATURES=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -61,11 +64,25 @@ while [ $# -gt 0 ]; do
       TIME_LIMIT="$2"
       shift 2
       ;;
+    --features)
+      FEATURES="$2"
+      shift 2
+      ;;
     *)
       shift
       ;;
   esac
 done
+
+# Normalize --time-limit: plain numbers default to seconds for xctrace.
+if [ -n "$TIME_LIMIT" ]; then
+  if [[ "$TIME_LIMIT" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    TIME_LIMIT="${TIME_LIMIT}s"
+  elif [[ ! "$TIME_LIMIT" =~ ^[0-9]+([.][0-9]+)?(ms|s|m|h)$ ]]; then
+    echo "❌ Invalid --time-limit '$TIME_LIMIT'. Use e.g. 20, 20s, 500ms, 2m."
+    exit 1
+  fi
+fi
 
 OUTPUT_FILE="$PROJECT_ROOT/profile-xctrace.txt"
 TRACE_FILE="$PROJECT_ROOT/profile-xctrace.trace"
@@ -75,6 +92,7 @@ echo "   Package: $PACKAGE"
 echo "   Test file: $TEST_FILE"
 echo "   Test function: $TEST_FUNCTION"
 echo "   Template: $TEMPLATE"
+[ -n "$FEATURES" ] && echo "   Features: $FEATURES"
 [ -n "$TIME_LIMIT" ] && echo "   Time limit: $TIME_LIMIT"
 echo ""
 
@@ -92,11 +110,16 @@ fi
 
 # Build with profiling profile (debug symbols + optimizations)
 echo "🔨 Building test with profiling profile..."
-cargo build --profile profiling -p "$PACKAGE" --test "$TEST_FILE" 2>&1 | tail -3
+CARGO_FEATURES_ARGS=()
+if [ -n "$FEATURES" ]; then
+  CARGO_FEATURES_ARGS=(--features "$FEATURES")
+fi
+
+cargo build --profile profiling -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATURES_ARGS[@]}" 2>&1 | tail -3
 
 # Find the test binary
 echo "🔎 Finding test binary..."
-TEST_BINARY=$(cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
+TEST_BINARY=$(cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATURES_ARGS[@]}" \
   --no-run --message-format=json 2>/dev/null | \
   jq -r 'select(.executable != null) | .executable' | head -1)
 
@@ -130,10 +153,24 @@ if [ -n "$TIME_LIMIT" ]; then
   TIME_LIMIT_ARG="--time-limit $TIME_LIMIT"
 fi
 
+# xctrace may return non-zero even after producing a valid trace
+# (e.g. target killed at time limit). Continue if output trace exists.
+set +e
 xcrun xctrace record --template "$TEMPLATE" \
   --output "$TRACE_FILE" \
   $TIME_LIMIT_ARG \
   --launch -- "$TEST_BINARY" $TEST_ARGS 2>&1 | tee "$TEST_OUTPUT_FILE"
+RECORD_STATUS=${PIPESTATUS[0]}
+set -e
+
+if [ ! -d "$TRACE_FILE" ]; then
+  echo "❌ xctrace did not produce trace output at $TRACE_FILE (status=$RECORD_STATUS)"
+  exit 1
+fi
+
+if [ "$RECORD_STATUS" -ne 0 ]; then
+  echo "⚠️  xctrace exited with status $RECORD_STATUS, but trace was produced; continuing."
+fi
 
 # Symbolicate the trace
 echo "📝 Symbolicating trace..."

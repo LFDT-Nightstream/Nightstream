@@ -993,36 +993,33 @@ where
             )));
         }
         let k_dec_poseidon = 64usize;
-        for (chunk_idx, ((me, cycle_wit), (cycle_m_in, cycle_t_len, cycle_open_cols))) in mem_proof
-            .poseidon_cycle_me_claims
-            .iter()
-            .zip(cycle_wits.iter())
-            .zip(cycle_open_specs.iter())
-            .enumerate()
-        {
-            let me_for_fold = poseidon_strip_me_for_fold(me, s.t())?;
-            let mut fold_one = prove_poseidon_lane_fold(
-                mode,
-                tr,
-                params,
-                s,
-                None,
-                ring,
-                ell_d,
-                k_dec_poseidon,
-                step_idx,
-                core::slice::from_ref(&me_for_fold),
-                cycle_wit,
-                (*cycle_m_in, *cycle_t_len, cycle_open_cols.as_slice()),
-                s.t(),
-                l,
-                mixers,
-            )
-            .map_err(|e| {
-                PiCcsError::ProtocolError(format!("poseidon cycle fold lane failed at chunk {chunk_idx}: {e}"))
-            })?;
-            cycle_fold.append(&mut fold_one);
+        let mut cycle_claims_for_fold: Vec<CeClaim<Cmt, F, K>> =
+            Vec::with_capacity(mem_proof.poseidon_cycle_me_claims.len());
+        for me in mem_proof.poseidon_cycle_me_claims.iter() {
+            cycle_claims_for_fold.push(poseidon_strip_me_for_fold(me, s.t())?);
         }
+        let cycle_open_specs_slim: Vec<(usize, usize, &[usize])> = cycle_open_specs
+            .iter()
+            .map(|(m_in, t_len, open_cols)| (*m_in, *t_len, open_cols.as_slice()))
+            .collect();
+        cycle_fold = prove_poseidon_lane_fold(
+            mode,
+            tr,
+            params,
+            s,
+            None,
+            ring,
+            ell_d,
+            k_dec_poseidon,
+            step_idx,
+            cycle_claims_for_fold.as_slice(),
+            cycle_wits.as_slice(),
+            cycle_open_specs_slim.as_slice(),
+            s.t(),
+            l,
+            mixers,
+        )
+        .map_err(|e| PiCcsError::ProtocolError(format!("poseidon cycle fold lane failed: {e}")))?;
     }
 
     let mut local_fold: Vec<RlcDecProof> = Vec::new();
@@ -1043,36 +1040,33 @@ where
             )));
         }
         let k_dec_poseidon = 64usize;
-        for (chunk_idx, ((me, local_wit), (local_m_in, local_t_len, local_open_cols))) in mem_proof
-            .poseidon_local_me_claims
-            .iter()
-            .zip(local_wits.iter())
-            .zip(local_open_specs.iter())
-            .enumerate()
-        {
-            let me_for_fold = poseidon_strip_me_for_fold(me, s.t())?;
-            let mut fold_one = prove_poseidon_lane_fold(
-                mode,
-                tr,
-                params,
-                s,
-                None,
-                ring,
-                ell_d,
-                k_dec_poseidon,
-                step_idx,
-                core::slice::from_ref(&me_for_fold),
-                local_wit,
-                (*local_m_in, *local_t_len, local_open_cols.as_slice()),
-                s.t(),
-                l,
-                mixers,
-            )
-            .map_err(|e| {
-                PiCcsError::ProtocolError(format!("poseidon local fold lane failed at chunk {chunk_idx}: {e}"))
-            })?;
-            local_fold.append(&mut fold_one);
+        let mut local_claims_for_fold: Vec<CeClaim<Cmt, F, K>> =
+            Vec::with_capacity(mem_proof.poseidon_local_me_claims.len());
+        for me in mem_proof.poseidon_local_me_claims.iter() {
+            local_claims_for_fold.push(poseidon_strip_me_for_fold(me, s.t())?);
         }
+        let local_open_specs_slim: Vec<(usize, usize, &[usize])> = local_open_specs
+            .iter()
+            .map(|(m_in, t_len, open_cols)| (*m_in, *t_len, open_cols.as_slice()))
+            .collect();
+        local_fold = prove_poseidon_lane_fold(
+            mode,
+            tr,
+            params,
+            s,
+            None,
+            ring,
+            ell_d,
+            k_dec_poseidon,
+            step_idx,
+            local_claims_for_fold.as_slice(),
+            local_wits.as_slice(),
+            local_open_specs_slim.as_slice(),
+            s.t(),
+            l,
+            mixers,
+        )
+        .map_err(|e| PiCcsError::ProtocolError(format!("poseidon local fold lane failed: {e}")))?;
     }
 
     Ok(PoseidonFoldLanes { cycle_fold, local_fold })
@@ -1248,8 +1242,8 @@ pub(crate) fn prove_poseidon_lane_fold<L, MR, MB>(
     k_dec: usize,
     step_idx: usize,
     me_claims: &[CeClaim<Cmt, F, K>],
-    lane_wit: &Mat<F>,
-    open_spec: (usize, usize, &[usize]),
+    lane_wits: &[Mat<F>],
+    open_specs: &[(usize, usize, &[usize])],
     _core_t: usize,
     _l: &L,
     mixers: CommitMixers<MR, MB>,
@@ -1259,33 +1253,51 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    let _open_spec = open_spec;
-    let mut out = Vec::with_capacity(me_claims.len());
-    let lane_committer = poseidon_lane_committer(params, lane_wit.cols(), "poseidon lane fold")?;
-    for me in me_claims.iter() {
-        let wit_refs: [&Mat<F>; 1] = [lane_wit];
-        let (proof, _dec_wits) = prove_rlc_dec_lane(
-            mode,
-            RlcLane::Val,
-            tr,
-            params,
-            s,
-            ccs_sparse_cache,
-            None,
-            ring,
-            ell_d,
-            k_dec,
-            step_idx,
-            None,
-            core::slice::from_ref(me),
-            wit_refs.as_slice(),
-            false,
-            &lane_committer,
-            mixers,
-        )?;
-        out.push(proof);
+    if me_claims.is_empty() {
+        return Ok(Vec::new());
     }
-    Ok(out)
+    if me_claims.len() != lane_wits.len() {
+        return Err(PiCcsError::ProtocolError(format!(
+            "poseidon fold lane shape mismatch (claims={}, wits={})",
+            me_claims.len(),
+            lane_wits.len()
+        )));
+    }
+    if me_claims.len() != open_specs.len() {
+        return Err(PiCcsError::ProtocolError(format!(
+            "poseidon fold lane shape mismatch (claims={}, open_specs={})",
+            me_claims.len(),
+            open_specs.len()
+        )));
+    }
+    let committer_cols = lane_wits[0].cols();
+    if lane_wits.iter().any(|z| z.cols() != committer_cols) {
+        return Err(PiCcsError::ProtocolError(
+            "poseidon fold lane expects equal packed witness width across chunks".into(),
+        ));
+    }
+    let lane_committer = poseidon_lane_committer(params, committer_cols, "poseidon lane fold")?;
+    let wit_refs: Vec<&Mat<F>> = lane_wits.iter().collect();
+    let (proof, _dec_wits) = prove_rlc_dec_lane(
+        mode,
+        RlcLane::Val,
+        tr,
+        params,
+        s,
+        ccs_sparse_cache,
+        None,
+        ring,
+        ell_d,
+        k_dec,
+        step_idx,
+        None,
+        me_claims,
+        wit_refs.as_slice(),
+        false,
+        &lane_committer,
+        mixers,
+    )?;
+    Ok(vec![proof])
 }
 
 pub(crate) fn verify_poseidon_lane_fold<MR, MB>(
@@ -1315,37 +1327,32 @@ where
         }
         return Ok(());
     }
-    if folds.len() != me_claims.len() {
+    if folds.len() != 1 {
         return Err(PiCcsError::ProtocolError(format!(
-            "step {}: {} fold count mismatch (have {}, expected {})",
+            "step {}: {} fold count mismatch (have {}, expected 1 batched proof)",
             idx,
             label,
             folds.len(),
-            me_claims.len()
         )));
     }
-    for (claim_idx, (me, proof)) in me_claims.iter().zip(folds.iter()).enumerate() {
-        verify_rlc_dec_lane(
-            RlcLane::Val,
-            tr,
-            params,
-            s,
-            ring,
-            ell_d,
-            mixers,
-            step_idx,
-            core::slice::from_ref(me),
-            &proof.rlc_rhos,
-            &proof.rlc_parent,
-            &proof.dec_children,
-        )
-        .map_err(|e| {
-            PiCcsError::ProtocolError(format!(
-                "step {} {} fold claim {} verify failed: {e:?}",
-                idx, label, claim_idx
-            ))
-        })?;
-        val_lane_obligations.extend_from_slice(&proof.dec_children);
-    }
+    let proof = folds
+        .first()
+        .ok_or_else(|| PiCcsError::ProtocolError(format!("step {}: missing {} fold proof", idx, label)))?;
+    verify_rlc_dec_lane(
+        RlcLane::Val,
+        tr,
+        params,
+        s,
+        ring,
+        ell_d,
+        mixers,
+        step_idx,
+        me_claims,
+        &proof.rlc_rhos,
+        &proof.rlc_parent,
+        &proof.dec_children,
+    )
+    .map_err(|e| PiCcsError::ProtocolError(format!("step {} {} batched fold verify failed: {e:?}", idx, label)))?;
+    val_lane_obligations.extend_from_slice(&proof.dec_children);
     Ok(())
 }

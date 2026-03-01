@@ -71,47 +71,45 @@ where
         debug_assert!(self.len >= 2, "cannot fold len < 2");
 
         let one_minus_r = R::ONE - r;
-        let mut out: Vec<(usize, R)> = Vec::with_capacity(self.entries.len());
+        let in_len = self.entries.len();
+        let mut read = 0usize;
+        let mut write = 0usize;
 
-        let mut i = 0usize;
-        while i < self.entries.len() {
-            let (idx, v) = self.entries[i];
+        while read < in_len {
+            let (idx, v) = self.entries[read];
             let parent = idx >> 1;
 
             let mut acc = R::ZERO;
             if (idx & 1) == 0 {
                 // Even child present.
                 acc += v * one_minus_r;
-                i += 1;
+                read += 1;
 
                 // If odd sibling is present, include it.
-                if i < self.entries.len() {
-                    let (idx2, v2) = self.entries[i];
+                if read < in_len {
+                    let (idx2, v2) = self.entries[read];
                     if idx2 == idx + 1 {
                         acc += v2 * r;
-                        i += 1;
+                        read += 1;
                     }
                 }
             } else {
                 // Odd child present without even sibling.
                 acc += v * r;
-                i += 1;
+                read += 1;
             }
 
             if acc != R::ZERO {
-                if let Some((last_p, last_v)) = out.last_mut() {
-                    if *last_p == parent {
-                        *last_v += acc;
-                    } else {
-                        out.push((parent, acc));
-                    }
+                if write > 0 && self.entries[write - 1].0 == parent {
+                    self.entries[write - 1].1 += acc;
                 } else {
-                    out.push((parent, acc));
+                    self.entries[write] = (parent, acc);
+                    write += 1;
                 }
             }
         }
 
-        self.entries = out;
+        self.entries.truncate(write);
         self.len >>= 1;
     }
 

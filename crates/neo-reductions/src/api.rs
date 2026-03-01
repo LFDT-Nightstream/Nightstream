@@ -15,6 +15,8 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+use rayon::prelude::*;
 
 use crate::engines::PiCcsEngine;
 use crate::error::PiCcsError;
@@ -637,29 +639,86 @@ where
     // X_out := Σ ρ_i · X_i
     let mut X = Mat::zero(d, m_in, F::ZERO);
     for (rho, inst) in rho_mats.iter().zip(inputs.iter()) {
-        let mut term = Mat::zero(d, m_in, F::ZERO);
-        left_mul_acc(&mut term, rho, &inst.X);
-        for r in 0..d {
-            for c in 0..m_in {
-                X[(r, c)] += term[(r, c)];
+        left_mul_acc(&mut X, rho, &inst.X);
+    }
+
+    // Precompute ρ entries in K once, laid out column-major by logical k:
+    // [rho(0,0)..rho(d-1,0), rho(0,1)..rho(d-1,1), ...].
+    // This gives contiguous access in the inner r-loop.
+    let rho_k_mats: Vec<Vec<K>> = rho_mats
+        .iter()
+        .map(|rho| {
+            let mut flat = Vec::with_capacity(d * d);
+            for k in 0..d {
+                for r in 0..d {
+                    flat.push(K::from(rho[(r, k)]));
+                }
+            }
+            flat
+        })
+        .collect();
+
+    // y_out[j] := Σ ρ_i · y_(i,j)  (first D digits, keep padding)
+    let mut y_ring = vec![vec![K::ZERO; d_pad]; t];
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && t >= 128;
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let allow_parallel = false;
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    if allow_parallel {
+        y_ring.par_iter_mut().enumerate().for_each(|(j, acc)| {
+            for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
+                let src = &inst.y_ring[j];
+                for k in 0..d {
+                    let yk = src[k];
+                    if yk == K::ZERO {
+                        continue;
+                    }
+                    let col_off = k * d;
+                    let col = &rho_k[col_off..col_off + d];
+                    for r in 0..d {
+                        acc[r] += col[r] * yk;
+                    }
+                }
+            }
+        });
+    } else {
+        for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
+            for (j, acc) in y_ring.iter_mut().enumerate() {
+                let src = &inst.y_ring[j];
+                for k in 0..d {
+                    let yk = src[k];
+                    if yk == K::ZERO {
+                        continue;
+                    }
+                    let col_off = k * d;
+                    let col = &rho_k[col_off..col_off + d];
+                    for r in 0..d {
+                        acc[r] += col[r] * yk;
+                    }
+                }
             }
         }
     }
-
-    // y_out[j] := Σ ρ_i · y_(i,j)  (first D digits, keep padding)
-    let mut y_ring = Vec::with_capacity(t);
-    for j in 0..t {
-        let mut acc = vec![K::ZERO; d_pad];
-        for (rho, inst) in rho_mats.iter().zip(inputs.iter()) {
-            for r in 0..D {
-                let mut sum = K::ZERO;
-                for k in 0..D {
-                    sum += K::from(rho[(r, k)]) * inst.y_ring[j][k];
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    {
+        for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
+            for (j, acc) in y_ring.iter_mut().enumerate() {
+                let src = &inst.y_ring[j];
+                for k in 0..d {
+                    let yk = src[k];
+                    if yk == K::ZERO {
+                        continue;
+                    }
+                    let col_off = k * d;
+                    let col = &rho_k[col_off..col_off + d];
+                    for r in 0..d {
+                        acc[r] += col[r] * yk;
+                    }
                 }
-                acc[r] += sum;
             }
         }
-        y_ring.push(acc);
     }
 
     // Optional NC channel: y_zcol := Σ ρ_i · y_zcol_i (same mixing as y_j, but independent of t).
@@ -692,13 +751,17 @@ where
         }
 
         let mut acc = vec![K::ZERO; d_pad];
-        for (rho, inst) in rho_mats.iter().zip(inputs.iter()) {
-            for r in 0..d {
-                let mut sum = K::ZERO;
-                for k in 0..d {
-                    sum += K::from(rho[(r, k)]) * inst.y_zcol[k];
+        for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
+            for k in 0..d {
+                let yk = inst.y_zcol[k];
+                if yk == K::ZERO {
+                    continue;
                 }
-                acc[r] += sum;
+                let col_off = k * d;
+                let col = &rho_k[col_off..col_off + d];
+                for r in 0..d {
+                    acc[r] += col[r] * yk;
+                }
             }
         }
         acc

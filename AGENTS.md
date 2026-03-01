@@ -6,6 +6,8 @@
 - Never modify this file without explicit approval.
 - No single file should ever exceed 1,500 lines of code unless explicitly confirmed by the user.
 - Heavily avoid bloat. We want to maintain a compact and lean codebase.
+- Proofs must remain compatible with on-chain verification targets. In proof/transcript/public-digest paths, use Poseidon2-only hashing unless explicitly approved otherwise.
+- Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
 
 ## Design & Architecture
 - When evaluating design or architectural decisions, think from first principles: reduce the problem to its irreducible truths—axioms, physical laws, hard constraints—and derive every conclusion strictly from those, rejecting inherited conventions and unstated assumptions.

@@ -438,6 +438,7 @@ where
                 ell,
                 table_spec: self.shout_specs.get(table_id).cloned(),
                 table: Vec::new(),
+                table_digest: None,
                 addr_group: cfg.shout_addr_groups.get(table_id).copied(),
                 selector_group: cfg.shout_selector_groups.get(table_id).copied(),
             });
@@ -460,6 +461,7 @@ where
                 lanes: layout.lanes.max(1),
                 ell,
                 init: MemInit::Zero,
+                init_digest: None,
             });
         }
 

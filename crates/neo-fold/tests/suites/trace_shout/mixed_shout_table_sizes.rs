@@ -98,6 +98,7 @@ fn make_shout_instance(
             ell,
             table_spec: None,
             table: table.content.clone(),
+            table_digest: None,
             addr_group: None,
             selector_group: None,
         },

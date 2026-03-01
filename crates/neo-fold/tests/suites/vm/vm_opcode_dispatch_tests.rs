@@ -283,6 +283,7 @@ fn metadata_only_mem_instance(
             lanes: layout.lanes.max(1),
             ell,
             init,
+            init_digest: None,
         },
         MemWitness { mats: Vec::new() },
     )
@@ -302,6 +303,7 @@ fn metadata_only_lut_instance(table: &LutTable<F>, steps: usize) -> (LutInstance
             ell,
             table_spec: None,
             table: table.content.clone(),
+            table_digest: None,
             addr_group: None,
             selector_group: None,
         },

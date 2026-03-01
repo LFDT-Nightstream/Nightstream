@@ -44,7 +44,6 @@ rand = { workspace = true }
 rand_chacha = { workspace = true }
 thiserror = { workspace = true }
 bincode = { workspace = true }
-blake3 = "1.5"
 
 # Diagnostic system dependencies (feature-gated)
 serde = { workspace = true, optional = true }

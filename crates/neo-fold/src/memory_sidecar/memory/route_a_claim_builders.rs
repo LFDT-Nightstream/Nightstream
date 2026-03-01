@@ -1,5 +1,32 @@
 use super::*;
 
+struct DenseCols<T> {
+    cols: Vec<Option<Vec<T>>>,
+}
+
+impl<T> DenseCols<T> {
+    fn from_cols(cols: Vec<Vec<T>>) -> Self {
+        Self {
+            cols: cols.into_iter().map(Some).collect(),
+        }
+    }
+
+    fn get(&self, col_id: &usize) -> Option<&Vec<T>> {
+        self.cols.get(*col_id).and_then(|v| v.as_ref())
+    }
+
+    fn get_mut(&mut self, col_id: &usize) -> Option<&mut Vec<T>> {
+        self.cols.get_mut(*col_id).and_then(|v| v.as_mut())
+    }
+
+    fn insert(&mut self, col_id: usize, vals: Vec<T>) {
+        if col_id >= self.cols.len() {
+            self.cols.resize_with(col_id + 1, || None);
+        }
+        self.cols[col_id] = Some(vals);
+    }
+}
+
 #[inline]
 fn time_mem_logical_col_id_for_step(
     step: &StepWitnessBundle<Cmt, F, K>,
@@ -155,7 +182,7 @@ pub(crate) fn build_route_a_width_time_claims(
     ];
     let main_decoded = decode_trace_col_values_batch(params, step, t_len, &main_col_ids)?;
     let width_col_ids = rv32_width_lookup_backed_cols(&width);
-    let width_decoded: BTreeMap<usize, Vec<K>> = {
+    let width_decoded: DenseCols<K> = {
         let width_bus_abs_cols = width_lookup_bus_val_cols_witness(step, t_len)?;
         let bus = build_bus_layout_for_step_witness(step, t_len)?;
         let mut width_bus_val_cols = Vec::with_capacity(width_bus_abs_cols.len());
@@ -175,7 +202,7 @@ pub(crate) fn build_route_a_width_time_claims(
             Some(&step.time_columns.mem_cols),
             &width_bus_val_cols,
         )?;
-        let mut by_col = BTreeMap::<usize, Vec<K>>::new();
+        let mut by_col = DenseCols::from_cols(Vec::new());
         for (idx, &col_id) in width_col_ids.iter().enumerate() {
             let bus_col_id = width_bus_val_cols[idx];
             let vals = lookup_vals.get(&bus_col_id).ok_or_else(|| {
@@ -208,7 +235,7 @@ pub(crate) fn build_route_a_width_time_claims(
                 active_vals.len()
             )));
         }
-        let mut decoded = BTreeMap::<usize, Vec<K>>::new();
+        let mut decoded = DenseCols::from_cols(Vec::new());
         for &col_id in decode_col_ids.iter() {
             decoded.insert(col_id, Vec::with_capacity(t_len));
         }
@@ -231,6 +258,7 @@ pub(crate) fn build_route_a_width_time_claims(
 
     // Defensive row-wise validation: width-sidecar residual families must vanish before
     // entering batched sumcheck. This turns opaque aggregate failures into actionable row/idx errors.
+    #[cfg(debug_assertions)]
     for j in 0..t_len {
         let rd_val = *main_decoded
             .get(&trace.rd_val)
@@ -733,6 +761,7 @@ pub(crate) fn build_route_a_control_time_claims(
         decoded
     };
 
+    #[cfg(debug_assertions)]
     for j in 0..t_len {
         let is_virtual = *main_decoded
             .get(&trace.is_virtual)
@@ -828,6 +857,7 @@ pub(crate) fn build_route_a_control_time_claims(
         }
     }
 
+    #[cfg(debug_assertions)]
     for j in 0..t_len {
         let active = *main_decoded
             .get(&trace.active)
@@ -922,6 +952,7 @@ pub(crate) fn build_route_a_control_time_claims(
         }
     }
 
+    #[cfg(debug_assertions)]
     for j in 0..t_len {
         let rd_val = *main_decoded
             .get(&trace.rd_val)

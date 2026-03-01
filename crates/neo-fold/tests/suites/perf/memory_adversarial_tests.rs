@@ -103,6 +103,7 @@ fn make_twist_instance(
             lanes: layout.lanes.max(1),
             ell,
             init,
+            init_digest: None,
         },
         neo_memory::witness::MemWitness { mats: Vec::new() },
     )

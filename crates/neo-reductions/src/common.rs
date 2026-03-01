@@ -68,6 +68,17 @@ fn balanced_divrem_i64(v: i64, b: i64) -> (i64, i64) {
 }
 
 #[inline]
+fn balanced_divrem_i64_base2(v: i64) -> (i64, i64) {
+    if (v & 1) == 0 {
+        (0, v >> 1)
+    } else if v > 0 {
+        (1, (v - 1) >> 1)
+    } else {
+        (-1, (v + 1) >> 1)
+    }
+}
+
+#[inline]
 fn build_balanced_digit_lut(b: u32) -> (i64, Vec<F>) {
     let half = (b as i64) / 2;
     let mut lut = Vec::with_capacity((2 * half + 1) as usize);
@@ -119,6 +130,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
 
         if B_u <= i64::MAX as u128 {
             let b_i64 = b as i64;
+            let fast_base2 = b == 2;
             for idx in 0..total {
                 let z_entry = z_data[idx];
                 if z_entry == F::ZERO {
@@ -166,7 +178,11 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                     if v == 0 {
                         break;
                     }
-                    let (r_i, q) = balanced_divrem_i64(v, b_i64);
+                    let (r_i, q) = if fast_base2 {
+                        balanced_divrem_i64_base2(v)
+                    } else {
+                        balanced_divrem_i64(v, b_i64)
+                    };
                     if r_i != 0 {
                         debug_assert!(r_i >= -digit_half && r_i <= digit_half);
                         let digit_f = digit_lut[(r_i + digit_half) as usize];
@@ -203,6 +219,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
             }
         } else {
             let b_i64 = b as i64;
+            let fast_base2 = b == 2;
             for idx in 0..total {
                 let z_entry = z_data[idx];
                 if z_entry == F::ZERO {
@@ -253,7 +270,11 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                         if v64 == 0 {
                             break;
                         }
-                        let (r_i, q) = balanced_divrem_i64(v64, b_i64);
+                        let (r_i, q) = if fast_base2 {
+                            balanced_divrem_i64_base2(v64)
+                        } else {
+                            balanced_divrem_i64(v64, b_i64)
+                        };
                         if r_i != 0 {
                             debug_assert!(r_i >= -digit_half && r_i <= digit_half);
                             let digit_f = digit_lut[(r_i + digit_half) as usize];

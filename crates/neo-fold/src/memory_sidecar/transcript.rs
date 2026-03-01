@@ -2,11 +2,7 @@ use neo_math::{KExtensions, F, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 
 pub fn digest_fields(label: &'static [u8], fs: &[F]) -> [u8; 32] {
-    let mut h = Poseidon2Transcript::new(b"memory/public_digest");
-    h.append_message(b"digest/label", label);
-    h.append_message(b"digest/len", &(fs.len() as u64).to_le_bytes());
-    h.append_fields(b"digest/fields", fs);
-    h.digest32()
+    neo_memory::memory_public_digest_fields(label, fs)
 }
 
 pub fn bind_batched_claim_sums(
@@ -43,7 +39,6 @@ pub fn bind_batched_dynamic_claims<L: AsRef<[u8]>>(
     debug_assert_eq!(claimed_sums.len(), labels.len());
     debug_assert_eq!(claimed_sums.len(), degree_bounds.len());
     debug_assert_eq!(claimed_sums.len(), claim_is_dynamic.len());
-
     tr.append_message(b"batched/dynamic_bind/len", &(claimed_sums.len() as u64).to_le_bytes());
     for (idx, (((sum, label), &deg), &dyn_ok)) in claimed_sums
         .iter()

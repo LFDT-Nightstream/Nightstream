@@ -9,25 +9,24 @@ pub(crate) fn bind_shout_table_spec(tr: &mut Poseidon2Transcript, spec: &Option<
         return;
     };
 
-    tr.append_message(b"shout/table_spec/tag", &[1u8]);
     match spec {
         LutTableSpec::RiscvOpcode { opcode, xlen } => {
             let opcode_id = neo_memory::riscv::lookups::RiscvShoutTables::new(*xlen)
                 .opcode_to_id(*opcode)
                 .0 as u64;
-
-            tr.append_message(b"shout/table_spec/riscv/tag", &[1u8]);
-            tr.append_message(b"shout/table_spec/riscv/opcode_id", &opcode_id.to_le_bytes());
-            tr.append_message(b"shout/table_spec/riscv/xlen", &(*xlen as u64).to_le_bytes());
+            tr.append_u64s(
+                b"shout/table_spec/meta_u64",
+                &[1u64 /* riscv */, opcode_id, *xlen as u64, 0u64],
+            );
         }
         LutTableSpec::RiscvOpcodePacked { opcode, xlen } => {
             let opcode_id = neo_memory::riscv::lookups::RiscvShoutTables::new(*xlen)
                 .opcode_to_id(*opcode)
                 .0 as u64;
-
-            tr.append_message(b"shout/table_spec/riscv_packed/tag", &[1u8]);
-            tr.append_message(b"shout/table_spec/riscv_packed/opcode_id", &opcode_id.to_le_bytes());
-            tr.append_message(b"shout/table_spec/riscv_packed/xlen", &(*xlen as u64).to_le_bytes());
+            tr.append_u64s(
+                b"shout/table_spec/meta_u64",
+                &[2u64 /* riscv_packed */, opcode_id, *xlen as u64, 0u64],
+            );
         }
         LutTableSpec::RiscvOpcodeEventTablePacked {
             opcode,
@@ -37,23 +36,33 @@ pub(crate) fn bind_shout_table_spec(tr: &mut Poseidon2Transcript, spec: &Option<
             let opcode_id = neo_memory::riscv::lookups::RiscvShoutTables::new(*xlen)
                 .opcode_to_id(*opcode)
                 .0 as u64;
-
-            tr.append_message(b"shout/table_spec/riscv_event_table_packed/tag", &[1u8]);
-            tr.append_message(
-                b"shout/table_spec/riscv_event_table_packed/opcode_id",
-                &opcode_id.to_le_bytes(),
-            );
-            tr.append_message(
-                b"shout/table_spec/riscv_event_table_packed/xlen",
-                &(*xlen as u64).to_le_bytes(),
-            );
-            tr.append_message(
-                b"shout/table_spec/riscv_event_table_packed/time_bits",
-                &(*time_bits as u64).to_le_bytes(),
+            tr.append_u64s(
+                b"shout/table_spec/meta_u64",
+                &[
+                    3u64, /* riscv_event_table_packed */
+                    opcode_id,
+                    *xlen as u64,
+                    *time_bits as u64,
+                ],
             );
         }
         LutTableSpec::IdentityU32 => {
-            tr.append_message(b"shout/table_spec/identity_u32/tag", &[1u8]);
+            tr.append_u64s(b"shout/table_spec/meta_u64", &[4u64 /* identity_u32 */, 0, 0, 0]);
+        }
+    }
+}
+
+#[inline]
+fn compute_mem_init_digest(init: &MemInit<F>) -> [u8; 32] {
+    match init {
+        MemInit::Zero => digest_fields(b"twist/init/zero", &[]),
+        MemInit::Sparse(pairs) => {
+            let mut fs = Vec::with_capacity(2 * pairs.len());
+            for (addr, val) in pairs.iter() {
+                fs.push(F::from_u64(*addr));
+                fs.push(*val);
+            }
+            digest_fields(b"twist/init/sparse", &fs)
         }
     }
 }
@@ -64,57 +73,87 @@ where
     MI: ExactSizeIterator<Item = &'a MemInstance<Cmt, F>>,
 {
     tr.append_message(b"step/absorb_memory_start", &[]);
-    tr.append_message(b"step/lut_count", &(lut_insts.len() as u64).to_le_bytes());
+    tr.append_u64s(b"step/lut_count", &[lut_insts.len() as u64]);
     for (i, inst) in lut_insts.by_ref().enumerate() {
         // Bind public LUT parameters before any challenges.
-        tr.append_message(b"step/lut_idx", &(i as u64).to_le_bytes());
-        tr.append_message(b"shout/table_id", &(inst.table_id as u64).to_le_bytes());
-        tr.append_message(b"shout/k", &(inst.k as u64).to_le_bytes());
-        tr.append_message(b"shout/d", &(inst.d as u64).to_le_bytes());
-        tr.append_message(b"shout/n_side", &(inst.n_side as u64).to_le_bytes());
-        tr.append_message(b"shout/steps", &(inst.steps as u64).to_le_bytes());
-        tr.append_message(b"shout/ell", &(inst.ell as u64).to_le_bytes());
-        tr.append_message(b"shout/lanes", &(inst.lanes.max(1) as u64).to_le_bytes());
+        tr.append_u64s(
+            b"step/lut_meta_u64",
+            &[
+                i as u64,
+                inst.table_id as u64,
+                inst.k as u64,
+                inst.d as u64,
+                inst.n_side as u64,
+                inst.steps as u64,
+                inst.ell as u64,
+                inst.lanes.max(1) as u64,
+            ],
+        );
         bind_shout_table_spec(tr, &inst.table_spec);
         let table_digest = digest_fields(b"shout/table", &inst.table);
-        tr.append_message(b"shout/table_digest", &table_digest);
+        tr.append_bytes_packed(b"shout/table_digest", &table_digest);
 
         // Bind commitments so Route-A challenges (r_cycle, addr/time points) are sampled after them.
-        tr.append_message(b"shout/comms_len", &(inst.comms.len() as u64).to_le_bytes());
-        for (j, comm) in inst.comms.iter().enumerate() {
-            tr.append_message(b"shout/comm_idx", &(j as u64).to_le_bytes());
-            tr.append_fields(b"shout/comm_data", &comm.data);
+        tr.append_u64s(b"shout/comms_len", &[inst.comms.len() as u64]);
+        if !inst.comms.is_empty() {
+            let comm_lens: Vec<u64> = inst
+                .comms
+                .iter()
+                .map(|comm| comm.data.len() as u64)
+                .collect();
+            tr.append_u64s(b"shout/comm_lens", &comm_lens);
+            let total_fields = inst.comms.iter().map(|comm| comm.data.len()).sum::<usize>();
+            #[cfg(debug_assertions)]
+            {
+                let lens_sum: usize = comm_lens.iter().map(|&x| x as usize).sum();
+                debug_assert_eq!(lens_sum, total_fields, "shout/comm_lens sum mismatch");
+            }
+            tr.append_fields_iter(
+                b"shout/comm_data_flat",
+                total_fields,
+                inst.comms.iter().flat_map(|comm| comm.data.iter().copied()),
+            );
         }
     }
-    tr.append_message(b"step/mem_count", &(mem_insts.len() as u64).to_le_bytes());
+    tr.append_u64s(b"step/mem_count", &[mem_insts.len() as u64]);
     for (i, inst) in mem_insts.by_ref().enumerate() {
         // Bind public memory parameters before any challenges.
-        tr.append_message(b"step/mem_idx", &(i as u64).to_le_bytes());
-        tr.append_message(b"twist/mem_id", &(inst.mem_id as u64).to_le_bytes());
-        tr.append_message(b"twist/k", &(inst.k as u64).to_le_bytes());
-        tr.append_message(b"twist/d", &(inst.d as u64).to_le_bytes());
-        tr.append_message(b"twist/n_side", &(inst.n_side as u64).to_le_bytes());
-        tr.append_message(b"twist/steps", &(inst.steps as u64).to_le_bytes());
-        tr.append_message(b"twist/ell", &(inst.ell as u64).to_le_bytes());
-        tr.append_message(b"twist/lanes", &(inst.lanes.max(1) as u64).to_le_bytes());
-        let init_digest = match &inst.init {
-            MemInit::Zero => digest_fields(b"twist/init/zero", &[]),
-            MemInit::Sparse(pairs) => {
-                let mut fs = Vec::with_capacity(2 * pairs.len());
-                for (addr, val) in pairs.iter() {
-                    fs.push(F::from_u64(*addr));
-                    fs.push(*val);
-                }
-                digest_fields(b"twist/init/sparse", &fs)
-            }
-        };
-        tr.append_message(b"twist/init_digest", &init_digest);
+        tr.append_u64s(
+            b"step/mem_meta_u64",
+            &[
+                i as u64,
+                inst.mem_id as u64,
+                inst.k as u64,
+                inst.d as u64,
+                inst.n_side as u64,
+                inst.steps as u64,
+                inst.ell as u64,
+                inst.lanes.max(1) as u64,
+            ],
+        );
+        let init_digest = compute_mem_init_digest(&inst.init);
+        tr.append_bytes_packed(b"twist/init_digest", &init_digest);
 
         // Bind commitments so Route-A challenges (r_cycle, addr/time points) are sampled after them.
-        tr.append_message(b"twist/comms_len", &(inst.comms.len() as u64).to_le_bytes());
-        for (j, comm) in inst.comms.iter().enumerate() {
-            tr.append_message(b"twist/comm_idx", &(j as u64).to_le_bytes());
-            tr.append_fields(b"twist/comm_data", &comm.data);
+        tr.append_u64s(b"twist/comms_len", &[inst.comms.len() as u64]);
+        if !inst.comms.is_empty() {
+            let comm_lens: Vec<u64> = inst
+                .comms
+                .iter()
+                .map(|comm| comm.data.len() as u64)
+                .collect();
+            tr.append_u64s(b"twist/comm_lens", &comm_lens);
+            let total_fields = inst.comms.iter().map(|comm| comm.data.len()).sum::<usize>();
+            #[cfg(debug_assertions)]
+            {
+                let lens_sum: usize = comm_lens.iter().map(|&x| x as usize).sum();
+                debug_assert_eq!(lens_sum, total_fields, "twist/comm_lens sum mismatch");
+            }
+            tr.append_fields_iter(
+                b"twist/comm_data_flat",
+                total_fields,
+                inst.comms.iter().flat_map(|comm| comm.data.iter().copied()),
+            );
         }
     }
     tr.append_message(b"step/absorb_memory_done", &[]);
@@ -125,11 +164,108 @@ pub fn absorb_step_memory(tr: &mut Poseidon2Transcript, step: &StepInstanceBundl
 }
 
 pub(crate) fn absorb_step_memory_witness(tr: &mut Poseidon2Transcript, step: &StepWitnessBundle<Cmt, F, K>) {
-    absorb_step_memory_impl(
-        tr,
-        step.lut_instances.iter().map(|(inst, _)| inst),
-        step.mem_instances.iter().map(|(inst, _)| inst),
-    );
+    tr.append_message(b"step/absorb_memory_start", &[]);
+    tr.append_u64s(b"step/lut_count", &[step.lut_instances.len() as u64]);
+    for (i, (inst, _)) in step.lut_instances.iter().enumerate() {
+        tr.append_u64s(
+            b"step/lut_meta_u64",
+            &[
+                i as u64,
+                inst.table_id as u64,
+                inst.k as u64,
+                inst.d as u64,
+                inst.n_side as u64,
+                inst.steps as u64,
+                inst.ell as u64,
+                inst.lanes.max(1) as u64,
+            ],
+        );
+        bind_shout_table_spec(tr, &inst.table_spec);
+        let table_digest = match inst.table_digest {
+            Some(d) => {
+                #[cfg(debug_assertions)]
+                {
+                    let computed = digest_fields(b"shout/table", &inst.table);
+                    debug_assert_eq!(d, computed, "LutInstance.table_digest mismatch");
+                }
+                d
+            }
+            None => digest_fields(b"shout/table", &inst.table),
+        };
+        tr.append_bytes_packed(b"shout/table_digest", &table_digest);
+
+        tr.append_u64s(b"shout/comms_len", &[inst.comms.len() as u64]);
+        if !inst.comms.is_empty() {
+            let comm_lens: Vec<u64> = inst
+                .comms
+                .iter()
+                .map(|comm| comm.data.len() as u64)
+                .collect();
+            tr.append_u64s(b"shout/comm_lens", &comm_lens);
+            let total_fields = inst.comms.iter().map(|comm| comm.data.len()).sum::<usize>();
+            #[cfg(debug_assertions)]
+            {
+                let lens_sum: usize = comm_lens.iter().map(|&x| x as usize).sum();
+                debug_assert_eq!(lens_sum, total_fields, "shout/comm_lens sum mismatch");
+            }
+            tr.append_fields_iter(
+                b"shout/comm_data_flat",
+                total_fields,
+                inst.comms.iter().flat_map(|comm| comm.data.iter().copied()),
+            );
+        }
+    }
+
+    tr.append_u64s(b"step/mem_count", &[step.mem_instances.len() as u64]);
+    for (i, (inst, _)) in step.mem_instances.iter().enumerate() {
+        tr.append_u64s(
+            b"step/mem_meta_u64",
+            &[
+                i as u64,
+                inst.mem_id as u64,
+                inst.k as u64,
+                inst.d as u64,
+                inst.n_side as u64,
+                inst.steps as u64,
+                inst.ell as u64,
+                inst.lanes.max(1) as u64,
+            ],
+        );
+        let init_digest = match inst.init_digest {
+            Some(d) => {
+                #[cfg(debug_assertions)]
+                {
+                    let computed = compute_mem_init_digest(&inst.init);
+                    debug_assert_eq!(d, computed, "MemInstance.init_digest mismatch");
+                }
+                d
+            }
+            None => compute_mem_init_digest(&inst.init),
+        };
+        tr.append_bytes_packed(b"twist/init_digest", &init_digest);
+
+        tr.append_u64s(b"twist/comms_len", &[inst.comms.len() as u64]);
+        if !inst.comms.is_empty() {
+            let comm_lens: Vec<u64> = inst
+                .comms
+                .iter()
+                .map(|comm| comm.data.len() as u64)
+                .collect();
+            tr.append_u64s(b"twist/comm_lens", &comm_lens);
+            let total_fields = inst.comms.iter().map(|comm| comm.data.len()).sum::<usize>();
+            #[cfg(debug_assertions)]
+            {
+                let lens_sum: usize = comm_lens.iter().map(|&x| x as usize).sum();
+                debug_assert_eq!(lens_sum, total_fields, "twist/comm_lens sum mismatch");
+            }
+            tr.append_fields_iter(
+                b"twist/comm_data_flat",
+                total_fields,
+                inst.comms.iter().flat_map(|comm| comm.data.iter().copied()),
+            );
+        }
+    }
+    tr.append_message(b"step/absorb_memory_done", &[]);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

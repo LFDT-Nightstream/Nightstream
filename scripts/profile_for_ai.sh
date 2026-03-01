@@ -3,10 +3,11 @@ set -eo pipefail
 # Note: not using -u to avoid issues with empty variables in pipes
 
 # Profile a test and output text-based analysis for AI review
-# Usage: ./scripts/profile_for_ai.sh <package> <test_file> <test_function> [--ignored]
+# Usage: ./scripts/profile_for_ai.sh <package> <test_file> <test_function> [--ignored] [--features <csv>]
 #
 # Examples:
 #   ./scripts/profile_for_ai.sh neo-fold test_sha256_single_step test_sha256_preimage_64_bytes --ignored
+#   ./scripts/profile_for_ai.sh neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile
 #   ./scripts/profile_for_ai.sh neo-fold test_starstream_tx_valid_optimized test_starstream_tx_valid_optimized
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +19,7 @@ if [ $# -lt 3 ]; then
   echo ""
   echo "Options (order doesn't matter):"
   echo "  --ignored    Run ignored tests"
+  echo "  --features   Cargo features (comma-separated)"
   echo "  <number>     Sample duration in seconds (default: 10)"
   echo ""
   echo "Examples:"
@@ -37,12 +39,17 @@ TEST_FUNCTION="$3"
 # Parse remaining arguments
 EXTRA_FLAGS=""
 SAMPLE_DURATION=10  # Default 10 seconds
+FEATURES=""
 
 shift 3
 while [ $# -gt 0 ]; do
   case "$1" in
     --ignored)
       EXTRA_FLAGS="--ignored"
+      ;;
+    --features)
+      FEATURES="$2"
+      shift
       ;;
     [0-9]*)
       SAMPLE_DURATION="$1"
@@ -59,6 +66,7 @@ echo "   Package: $PACKAGE"
 echo "   Test file: $TEST_FILE"
 echo "   Test function: $TEST_FUNCTION"
 echo "   Extra flags: $EXTRA_FLAGS"
+[ -n "$FEATURES" ] && echo "   Features: $FEATURES"
 echo ""
 
 # Check for jq
@@ -76,12 +84,18 @@ RUSTFLAGS_COMBINED="${RUSTFLAGS_COMBINED}-C force-frame-pointers=yes"
 
 # Build with profiling profile
 echo "🔨 Building test with profiling profile..."
+CARGO_FEATURES_ARGS=()
+if [ -n "$FEATURES" ]; then
+  CARGO_FEATURES_ARGS=(--features "$FEATURES")
+fi
+
 RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling \
-  -p "$PACKAGE" --test "$TEST_FILE" --no-run 2>&1 | tail -5
+  -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATURES_ARGS[@]}" --no-run 2>&1 | tail -5
 
 # Find the test binary
 echo "🔎 Finding test binary..."
 TEST_BINARY=$(RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
+  "${CARGO_FEATURES_ARGS[@]}" \
   --no-run --message-format=json 2>/dev/null | \
   jq -r 'select(.executable != null) | .executable' | head -1)
 

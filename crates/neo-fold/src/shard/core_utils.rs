@@ -253,32 +253,41 @@ pub(crate) fn bind_time_column_commitments(
     cpu_commitments: &[Cmt],
     mem_commitments: &[Cmt],
 ) {
-    tr.append_message(b"time_columns/commit_bind/v1", &[]);
-    tr.append_u64s(b"time_columns/commit_bind/step_idx", &[step_idx as u64]);
-    tr.append_u64s(b"time_columns/commit_bind/time_t", &[time_t as u64]);
-    tr.append_u64s(
-        b"time_columns/commit_bind/time_declared_len",
-        &[time_declared_len as u64],
-    );
-    tr.append_u64s(
-        b"time_columns/commit_bind/time_col_ids_len",
-        &[time_col_ids.len() as u64],
-    );
+    tr.append_message(b"time_columns/commit_bind/v2", &[]);
+    let header = [
+        step_idx as u64,
+        time_t as u64,
+        time_declared_len as u64,
+        time_col_ids.len() as u64,
+        cpu_commitments.len() as u64,
+        mem_commitments.len() as u64,
+        crate::time_opening::STAGE8_TIME_DECOMP_BASE as u64,
+    ];
+    tr.append_u64s(b"time_columns/commit_bind/header", &header);
     let time_col_ids_u64: Vec<u64> = time_col_ids.iter().map(|&id| id as u64).collect();
     tr.append_u64s(b"time_columns/commit_bind/time_col_ids", &time_col_ids_u64);
-    tr.append_u64s(b"time_columns/commit_bind/cpu_len", &[cpu_commitments.len() as u64]);
-    for (idx, c) in cpu_commitments.iter().enumerate() {
-        tr.append_u64s(b"time_columns/commit_bind/cpu_idx", &[idx as u64]);
-        tr.append_fields(b"time_columns/commit_bind/cpu_c_data", &c.data);
-    }
-    tr.append_u64s(b"time_columns/commit_bind/mem_len", &[mem_commitments.len() as u64]);
-    for (idx, c) in mem_commitments.iter().enumerate() {
-        tr.append_u64s(b"time_columns/commit_bind/mem_idx", &[idx as u64]);
-        tr.append_fields(b"time_columns/commit_bind/mem_c_data", &c.data);
-    }
-    tr.append_u64s(
-        b"time_columns/commit_bind/decomp_base",
-        &[crate::time_opening::STAGE8_TIME_DECOMP_BASE as u64],
+    let cpu_lens: Vec<u64> = cpu_commitments
+        .iter()
+        .map(|c| c.data.len() as u64)
+        .collect();
+    tr.append_u64s(b"time_columns/commit_bind/cpu_c_data_lens", &cpu_lens);
+    let cpu_data_len: usize = cpu_commitments.iter().map(|c| c.data.len()).sum();
+    tr.append_fields_iter(
+        b"time_columns/commit_bind/cpu_c_data_flat",
+        cpu_data_len,
+        cpu_commitments.iter().flat_map(|c| c.data.iter().copied()),
+    );
+
+    let mem_lens: Vec<u64> = mem_commitments
+        .iter()
+        .map(|c| c.data.len() as u64)
+        .collect();
+    tr.append_u64s(b"time_columns/commit_bind/mem_c_data_lens", &mem_lens);
+    let mem_data_len: usize = mem_commitments.iter().map(|c| c.data.len()).sum();
+    tr.append_fields_iter(
+        b"time_columns/commit_bind/mem_c_data_flat",
+        mem_data_len,
+        mem_commitments.iter().flat_map(|c| c.data.iter().copied()),
     );
 }
 
@@ -382,7 +391,7 @@ pub(crate) fn bind_time_opening_batches_and_sample_coeffs(
         out
     }
 
-    tr.append_message(b"time_openings/batch_bind/v1", &[]);
+    tr.append_message(b"time_openings/batch_bind/v2", &[]);
     tr.append_u64s(b"time_openings/batch_bind/step_idx", &[step_idx as u64]);
     tr.append_u64s(b"time_openings/batch_bind/proof_count", &[opening_proofs.len() as u64]);
 
@@ -392,6 +401,17 @@ pub(crate) fn bind_time_opening_batches_and_sample_coeffs(
     for (i, &c) in ring.phi_coeffs.iter().enumerate() {
         neg_phi_coeffs[i] = f_from_i64(-(c as i64));
     }
+
+    let mut point_field_lens = Vec::with_capacity(opening_proofs.len());
+    let mut col_id_lens = Vec::with_capacity(opening_proofs.len());
+    let mut eval_field_lens = Vec::with_capacity(opening_proofs.len());
+    let mut digit_row_lens = Vec::with_capacity(opening_proofs.len());
+    let mut digit_field_lens = Vec::with_capacity(opening_proofs.len());
+    let mut total_point_fields = 0usize;
+    let mut total_eval_fields = 0usize;
+    let mut total_digit_fields = 0usize;
+    let mut total_col_ids = 0usize;
+
     for (proof_idx, pf) in opening_proofs.iter().enumerate() {
         if pf.col_ids.len() != pf.evals.len() || pf.col_ids.len() != pf.digit_evals.len() {
             return Err(PiCcsError::ProtocolError(format!(
@@ -410,53 +430,103 @@ pub(crate) fn bind_time_opening_batches_and_sample_coeffs(
             }
         }
 
-        tr.append_u64s(b"time_openings/batch_bind/proof_idx", &[proof_idx as u64]);
-        tr.append_u64s(b"time_openings/batch_bind/point_len", &[pf.point.len() as u64]);
         let point_coeffs_per_elem = pf.point.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
-        tr.append_fields_iter(
-            b"time_openings/batch_bind/point",
-            pf.point
-                .len()
-                .checked_mul(point_coeffs_per_elem)
-                .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind point length overflow".into()))?,
-            pf.point.iter().flat_map(|v| v.as_coeffs()),
-        );
-        let col_ids_u64: Vec<u64> = pf.col_ids.iter().map(|&id| id as u64).collect();
-        tr.append_u64s(b"time_openings/batch_bind/col_ids", &col_ids_u64);
+        let point_len = pf
+            .point
+            .len()
+            .checked_mul(point_coeffs_per_elem)
+            .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind point length overflow".into()))?;
+
         let eval_coeffs_per_elem = pf.evals.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
-        tr.append_fields_iter(
-            b"time_openings/batch_bind/evals",
-            pf.evals
-                .len()
-                .checked_mul(eval_coeffs_per_elem)
-                .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind eval length overflow".into()))?,
-            pf.evals.iter().flat_map(|v| v.as_coeffs()),
-        );
+        let eval_len = pf
+            .evals
+            .len()
+            .checked_mul(eval_coeffs_per_elem)
+            .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind eval length overflow".into()))?;
         let digit_coeffs_per_elem = pf
             .digit_evals
             .first()
             .and_then(|row| row.first())
             .map(|v| v.as_coeffs().len())
             .unwrap_or(0);
-        tr.append_fields_iter(
-            b"time_openings/batch_bind/eval_digits",
-            pf.digit_evals
-                .len()
-                .checked_mul(D)
-                .and_then(|n| n.checked_mul(digit_coeffs_per_elem))
-                .ok_or_else(|| {
-                    PiCcsError::ProtocolError("time_openings/batch_bind digit eval length overflow".into())
-                })?,
-            pf.digit_evals
-                .iter()
-                .flat_map(|row| row.iter())
-                .flat_map(|v| v.as_coeffs()),
-        );
+        let digit_len = pf
+            .digit_evals
+            .len()
+            .checked_mul(D)
+            .and_then(|n| n.checked_mul(digit_coeffs_per_elem))
+            .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind digit eval length overflow".into()))?;
 
-        tr.append_message(b"time_openings/batch_bind/rho_base", &(proof_idx as u64).to_le_bytes());
-        let base = ccs::sample_rot_rhos_n(tr, params, &ring, 1)?
-            .pop()
-            .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind: missing sampled rho".into()))?;
+        point_field_lens.push(point_len as u64);
+        eval_field_lens.push(eval_len as u64);
+        digit_row_lens.push(pf.digit_evals.len() as u64);
+        digit_field_lens.push(digit_len as u64);
+        col_id_lens.push(pf.col_ids.len() as u64);
+        total_point_fields = total_point_fields
+            .checked_add(point_len)
+            .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind point total overflow".into()))?;
+        total_eval_fields = total_eval_fields
+            .checked_add(eval_len)
+            .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind eval total overflow".into()))?;
+        total_digit_fields = total_digit_fields
+            .checked_add(digit_len)
+            .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind digit total overflow".into()))?;
+        total_col_ids = total_col_ids
+            .checked_add(pf.col_ids.len())
+            .ok_or_else(|| PiCcsError::ProtocolError("time_openings/batch_bind col_id total overflow".into()))?;
+    }
+
+    tr.append_u64s(b"time_openings/batch_bind/point_field_lens", &point_field_lens);
+    tr.append_fields_iter(
+        b"time_openings/batch_bind/points_flat",
+        total_point_fields,
+        opening_proofs
+            .iter()
+            .flat_map(|pf| pf.point.iter())
+            .flat_map(|v| v.as_coeffs()),
+    );
+
+    tr.append_u64s(b"time_openings/batch_bind/col_id_lens", &col_id_lens);
+    let col_ids_u64: Vec<u64> = opening_proofs
+        .iter()
+        .flat_map(|pf| pf.col_ids.iter())
+        .map(|&id| id as u64)
+        .collect();
+    debug_assert_eq!(col_ids_u64.len(), total_col_ids);
+    tr.append_u64s(b"time_openings/batch_bind/col_ids_flat", &col_ids_u64);
+
+    tr.append_u64s(b"time_openings/batch_bind/eval_field_lens", &eval_field_lens);
+    tr.append_fields_iter(
+        b"time_openings/batch_bind/evals_flat",
+        total_eval_fields,
+        opening_proofs
+            .iter()
+            .flat_map(|pf| pf.evals.iter())
+            .flat_map(|v| v.as_coeffs()),
+    );
+
+    tr.append_u64s(b"time_openings/batch_bind/digit_row_lens", &digit_row_lens);
+    tr.append_u64s(b"time_openings/batch_bind/digit_field_lens", &digit_field_lens);
+    tr.append_fields_iter(
+        b"time_openings/batch_bind/eval_digits_flat",
+        total_digit_fields,
+        opening_proofs
+            .iter()
+            .flat_map(|pf| pf.digit_evals.iter())
+            .flat_map(|row| row.iter())
+            .flat_map(|v| v.as_coeffs()),
+    );
+
+    tr.append_message(b"time_openings/batch_bind/rho_bases/v2", &[]);
+    let bases = ccs::sample_rot_rhos_n(tr, params, &ring, opening_proofs.len())?;
+    if bases.len() != opening_proofs.len() {
+        return Err(PiCcsError::ProtocolError(format!(
+            "time_openings/batch_bind: sampled {} rho bases for {} proofs",
+            bases.len(),
+            opening_proofs.len()
+        )));
+    }
+
+    for (pf, base) in opening_proofs.iter().zip(bases.into_iter()) {
         let base_rq = rot_matrix_to_rq(&base)?;
         let mut coeffs = Vec::with_capacity(pf.col_ids.len());
         let mut cur_rq = neo_math::ring::Rq::one();
@@ -1777,80 +1847,150 @@ pub(crate) fn bind_rlc_inputs(
         RlcLane::Val => b"val",
     };
 
-    // v2: binds NC-channel fields (s_col, y_zcol) so RLC challenges depend on the full instance.
-    tr.append_message(b"fold/rlc_inputs/v2", lane_scope);
+    // v6: compact transcript binding via per-input Poseidon2 digest.
+    // Encoding update: K-coefficient width is encoded once per K-slice (not per K element).
+    tr.append_message(b"fold/rlc_inputs/v6", lane_scope);
     tr.append_u64s(b"step_idx", &[step_idx as u64]);
     tr.append_u64s(b"me_count", &[me_inputs.len() as u64]);
 
-    for me in me_inputs {
-        tr.append_fields(b"c_data", &me.c.data);
-        tr.append_u64s(b"m_in", &[me.m_in as u64]);
-        tr.append_message(b"me_fold_digest", &me.fold_digest);
+    #[inline]
+    fn extend_packed_bytes_as_fields(dst: &mut Vec<F>, bytes: &[u8]) {
+        const BYTES_PER_LIMB: usize = 7;
+        dst.push(F::from_u64(bytes.len() as u64));
+        for chunk in bytes.chunks(BYTES_PER_LIMB) {
+            let mut limb = [0u8; 8];
+            limb[..chunk.len()].copy_from_slice(chunk);
+            dst.push(F::from_u64(u64::from_le_bytes(limb)));
+        }
+    }
 
-        let r_coeffs_per_limb = me.r.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
-        tr.append_fields_iter(
-            b"r_limb",
-            me.r.len()
-                .checked_mul(r_coeffs_per_limb)
-                .ok_or_else(|| PiCcsError::ProtocolError("r_limb length overflow".into()))?,
-            me.r.iter().flat_map(|limb| limb.as_coeffs()),
-        );
+    #[inline]
+    fn extend_f_slice(dst: &mut Vec<F>, vals: &[F]) {
+        dst.push(F::from_u64(vals.len() as u64));
+        dst.extend_from_slice(vals);
+    }
 
-        tr.append_u64s(b"s_col_len", &[me.s_col.len() as u64]);
-        let s_col_coeffs_per_elem = me.s_col.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
-        tr.append_fields_iter(
-            b"s_col_elem",
-            me.s_col
-                .len()
-                .checked_mul(s_col_coeffs_per_elem)
-                .ok_or_else(|| PiCcsError::ProtocolError("s_col_elem length overflow".into()))?,
-            me.s_col.iter().flat_map(|sc| sc.as_coeffs()),
-        );
+    #[inline]
+    fn extend_k_slice(dst: &mut Vec<F>, vals: &[K]) {
+        dst.push(F::from_u64(vals.len() as u64));
+        let coeffs_len = vals.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
+        dst.push(F::from_u64(coeffs_len as u64));
+        for v in vals {
+            let coeffs = v.as_coeffs();
+            debug_assert_eq!(
+                coeffs.len(),
+                coeffs_len,
+                "non-uniform K coeff length in RLC ME digest encoding"
+            );
+            dst.extend(coeffs.iter().copied());
+        }
+    }
 
-        tr.append_u64s(b"y_zcol_len", &[me.y_zcol.len() as u64]);
-        let y_zcol_coeffs_per_elem = me.y_zcol.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
-        tr.append_fields_iter(
-            b"y_zcol_elem",
-            me.y_zcol
-                .len()
-                .checked_mul(y_zcol_coeffs_per_elem)
-                .ok_or_else(|| PiCcsError::ProtocolError("y_zcol_elem length overflow".into()))?,
-            me.y_zcol.iter().flat_map(|yz| yz.as_coeffs()),
-        );
+    #[inline]
+    fn poseidon_digest32_fields(input: &[F]) -> [u8; 32] {
+        let digest = neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(input);
+        let mut out = [0u8; 32];
+        for (i, limb) in digest.iter().enumerate() {
+            out[i * 8..(i + 1) * 8].copy_from_slice(&limb.as_canonical_u64().to_le_bytes());
+        }
+        out
+    }
 
-        tr.append_fields(b"X", me.X.as_slice());
+    #[inline]
+    fn packed_bytes_as_fields_len(bytes_len: usize) -> usize {
+        1 + bytes_len.div_ceil(7)
+    }
 
-        let y_elem_coeffs_per_elem = me
-            .y_ring
+    #[inline]
+    fn f_slice_as_fields_len(vals_len: usize) -> usize {
+        1 + vals_len
+    }
+
+    #[inline]
+    fn k_slice_as_fields_len(vals: &[K]) -> usize {
+        let coeffs_len = vals.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
+        2 + vals.len() * coeffs_len
+    }
+
+    #[inline]
+    fn me_digest_poseidon_input_capacity(lane_scope: &'static [u8], me: &CeClaim<Cmt, F, K>) -> usize {
+        let mut cap = 0usize;
+        cap += packed_bytes_as_fields_len(b"neo/fold/rlc_me_input_digest_poseidon/v2".len());
+        cap += packed_bytes_as_fields_len(lane_scope.len());
+        cap += f_slice_as_fields_len(me.c.data.len());
+        cap += f_slice_as_fields_len(me.X.as_slice().len());
+        cap += k_slice_as_fields_len(&me.r);
+        cap += k_slice_as_fields_len(&me.s_col);
+        cap += k_slice_as_fields_len(&me.y_zcol);
+        cap += 1; // y_ring.len marker
+        for row in &me.y_ring {
+            cap += k_slice_as_fields_len(row);
+        }
+        cap += k_slice_as_fields_len(&me.ct);
+        cap += k_slice_as_fields_len(&me.aux_openings);
+        cap += f_slice_as_fields_len(me.c_step_coords.len());
+        cap += 3; // m_in, u_offset, u_len
+        cap += packed_bytes_as_fields_len(me.fold_digest.len());
+        cap
+    }
+
+    #[inline]
+    fn me_digest_poseidon(lane_scope: &'static [u8], me: &CeClaim<Cmt, F, K>, capacity_hint: usize) -> [u8; 32] {
+        let mut digest_input = Vec::<F>::with_capacity(capacity_hint.max(256));
+        extend_packed_bytes_as_fields(&mut digest_input, b"neo/fold/rlc_me_input_digest_poseidon/v2");
+        extend_packed_bytes_as_fields(&mut digest_input, lane_scope);
+
+        extend_f_slice(&mut digest_input, &me.c.data);
+        extend_f_slice(&mut digest_input, me.X.as_slice());
+        extend_k_slice(&mut digest_input, &me.r);
+        extend_k_slice(&mut digest_input, &me.s_col);
+        extend_k_slice(&mut digest_input, &me.y_zcol);
+        digest_input.push(F::from_u64(me.y_ring.len() as u64));
+        for row in &me.y_ring {
+            extend_k_slice(&mut digest_input, row);
+        }
+        extend_k_slice(&mut digest_input, &me.ct);
+        extend_k_slice(&mut digest_input, &me.aux_openings);
+        extend_f_slice(&mut digest_input, &me.c_step_coords);
+        digest_input.push(F::from_u64(me.m_in as u64));
+        digest_input.push(F::from_u64(me.u_offset as u64));
+        digest_input.push(F::from_u64(me.u_len as u64));
+        extend_packed_bytes_as_fields(&mut digest_input, &me.fold_digest);
+
+        poseidon_digest32_fields(&digest_input)
+    }
+
+    let digest_capacity_hint = me_inputs
+        .first()
+        .map(|me| me_digest_poseidon_input_capacity(lane_scope, me))
+        .unwrap_or(256);
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none();
+    #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
+    let allow_parallel = false;
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let digests: Vec<[u8; 32]> = if allow_parallel && me_inputs.len() >= 8 {
+        use rayon::prelude::*;
+        me_inputs
+            .par_iter()
+            .map(|me| me_digest_poseidon(lane_scope, me, digest_capacity_hint))
+            .collect()
+    } else {
+        me_inputs
             .iter()
-            .find_map(|row| row.first())
-            .map(|v| v.as_coeffs().len())
-            .unwrap_or(0);
-        let y_elem_count = me.y_ring.iter().map(Vec::len).sum::<usize>();
-        tr.append_fields_iter(
-            b"y_elem",
-            y_elem_count
-                .checked_mul(y_elem_coeffs_per_elem)
-                .ok_or_else(|| PiCcsError::ProtocolError("y_elem length overflow".into()))?,
-            me.y_ring
-                .iter()
-                .flat_map(|row| row.iter().flat_map(|v| v.as_coeffs())),
-        );
+            .map(|me| me_digest_poseidon(lane_scope, me, digest_capacity_hint))
+            .collect()
+    };
+    #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
+    let digests: Vec<[u8; 32]> = me_inputs
+        .iter()
+        .map(|me| me_digest_poseidon(lane_scope, me, digest_capacity_hint))
+        .collect();
 
-        let y_scalar_coeffs_per_elem = me.ct.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
-        tr.append_fields_iter(
-            b"y_scalar",
-            me.ct
-                .len()
-                .checked_mul(y_scalar_coeffs_per_elem)
-                .ok_or_else(|| PiCcsError::ProtocolError("y_scalar length overflow".into()))?,
-            me.ct.iter().flat_map(|ysc| ysc.as_coeffs()),
-        );
-
-        tr.append_u64s(b"c_step_coords_len", &[me.c_step_coords.len() as u64]);
-        tr.append_fields(b"c_step_coords", &me.c_step_coords);
-        tr.append_u64s(b"u_offset", &[me.u_offset as u64]);
-        tr.append_u64s(b"u_len", &[me.u_len as u64]);
+    for digest in digests {
+        tr.append_bytes_packed(b"me/rlc_digest", &digest);
     }
 
     Ok(())

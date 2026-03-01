@@ -64,6 +64,64 @@ impl Poseidon2Transcript {
     }
 
     #[inline]
+    fn absorb_packed_bytes_with_len(&mut self, bytes: &[u8]) {
+        self.absorb_elem(Goldilocks::from_u64(bytes.len() as u64));
+
+        // Pack 7 bytes per limb so every encoded integer is < 2^56 < p_goldilocks.
+        // This preserves injectivity under Goldilocks::from_u64 reduction.
+        const BYTES_PER_LIMB: usize = 7;
+        const LIMB_CHUNK: usize = 64;
+        let mut packed = [Goldilocks::ZERO; LIMB_CHUNK];
+        let mut used = 0usize;
+        let mut i = 0usize;
+        let len = bytes.len();
+
+        while i + BYTES_PER_LIMB <= len {
+            let mut limb = [0u8; 8];
+            limb[..BYTES_PER_LIMB].copy_from_slice(&bytes[i..i + BYTES_PER_LIMB]);
+            packed[used] = Goldilocks::from_u64(u64::from_le_bytes(limb));
+            used += 1;
+            i += BYTES_PER_LIMB;
+
+            if used == LIMB_CHUNK {
+                self.absorb_slice(&packed);
+                used = 0;
+            }
+        }
+
+        if i < len {
+            let mut limb = [0u8; 8];
+            limb[..(len - i)].copy_from_slice(&bytes[i..]);
+            packed[used] = Goldilocks::from_u64(u64::from_le_bytes(limb));
+            used += 1;
+        }
+
+        if used > 0 {
+            self.absorb_slice(&packed[..used]);
+        }
+    }
+
+    #[inline]
+    fn absorb_u64_slice(&mut self, values: &[u64]) {
+        // Encode each u64 as two 32-bit limbs to preserve full-range injectivity.
+        const WORD_CHUNK: usize = 64;
+        let mut buf = [Goldilocks::ZERO; WORD_CHUNK * 2];
+        let mut i = 0usize;
+        while i < values.len() {
+            let take = (values.len() - i).min(WORD_CHUNK);
+            for j in 0..take {
+                let v = values[i + j];
+                let lo = (v & 0xFFFF_FFFF) as u64;
+                let hi = v >> 32;
+                buf[2 * j] = Goldilocks::from_u64(lo);
+                buf[2 * j + 1] = Goldilocks::from_u64(hi);
+            }
+            self.absorb_slice(&buf[..2 * take]);
+            i += take;
+        }
+    }
+
+    #[inline]
     fn permute(&mut self) {
         self.st = self.perm.permute(self.st);
         self.absorbed = 0;
@@ -89,13 +147,8 @@ impl Transcript for Poseidon2Transcript {
     }
 
     fn append_message(&mut self, label: &'static [u8], msg: &[u8]) {
-        for &b in label {
-            self.absorb_elem(Goldilocks::from_u64(b as u64));
-        }
-        self.absorb_elem(Goldilocks::from_u64(msg.len() as u64));
-        for &b in msg {
-            self.absorb_elem(Goldilocks::from_u64(b as u64));
-        }
+        self.absorb_packed_bytes_with_len(label);
+        self.absorb_packed_bytes_with_len(msg);
         #[cfg(feature = "debug-log")]
         self.log
             .push(crate::debug::Event::new("append_message", label, msg.len(), &self.st));
@@ -104,9 +157,7 @@ impl Transcript for Poseidon2Transcript {
     }
 
     fn append_fields(&mut self, label: &'static [u8], fs: &[F]) {
-        for &b in label {
-            self.absorb_elem(Goldilocks::from_u64(b as u64));
-        }
+        self.absorb_packed_bytes_with_len(label);
         self.absorb_elem(Goldilocks::from_u64(fs.len() as u64));
         self.absorb_slice(fs);
         #[cfg(feature = "debug-log")]
@@ -224,13 +275,9 @@ impl Poseidon2Transcript {
         }
     }
     pub fn append_u64s(&mut self, label: &'static [u8], us: &[u64]) {
-        for &b in label {
-            self.absorb_elem(Goldilocks::from_u64(b as u64));
-        }
+        self.absorb_packed_bytes_with_len(label);
         self.absorb_elem(Goldilocks::from_u64(us.len() as u64));
-        for &u in us {
-            self.absorb_elem(Goldilocks::from_u64(u));
-        }
+        self.absorb_u64_slice(us);
         #[cfg(feature = "debug-log")]
         self.log
             .push(crate::debug::Event::new("append_u64s", label, us.len(), &self.st));
@@ -240,24 +287,24 @@ impl Poseidon2Transcript {
     where
         I: IntoIterator<Item = F>,
     {
-        for &b in label {
-            self.absorb_elem(Goldilocks::from_u64(b as u64));
-        }
+        self.absorb_packed_bytes_with_len(label);
         self.absorb_elem(Goldilocks::from_u64(len as u64));
 
         const CHUNK: usize = 1024;
-        let mut buf = Vec::<F>::with_capacity(CHUNK);
+        let mut buf = [F::ZERO; CHUNK];
+        let mut used = 0usize;
         let mut seen = 0usize;
         for f in iter {
-            buf.push(f);
+            buf[used] = f;
+            used += 1;
             seen += 1;
-            if buf.len() == CHUNK {
+            if used == CHUNK {
                 self.absorb_slice(&buf);
-                buf.clear();
+                used = 0;
             }
         }
-        if !buf.is_empty() {
-            self.absorb_slice(&buf);
+        if used > 0 {
+            self.absorb_slice(&buf[..used]);
         }
 
         if seen != len {
@@ -272,17 +319,8 @@ impl Poseidon2Transcript {
     }
 
     pub fn append_bytes_packed(&mut self, label: &'static [u8], bytes: &[u8]) {
-        // Pack 8-bytes per field + absorb length at end for framing
-        for &b in label {
-            self.absorb_elem(Goldilocks::from_u64(b as u64));
-        }
-        // store byte len for framing
-        self.absorb_elem(Goldilocks::from_u64(bytes.len() as u64));
-        for chunk in bytes.chunks(8) {
-            let mut buf = [0u8; 8];
-            buf[..chunk.len()].copy_from_slice(chunk);
-            self.absorb_elem(Goldilocks::from_u64(u64::from_le_bytes(buf)));
-        }
+        self.absorb_packed_bytes_with_len(label);
+        self.absorb_packed_bytes_with_len(bytes);
         #[cfg(feature = "debug-log")]
         self.log.push(crate::debug::Event::new(
             "append_bytes_packed",
@@ -331,5 +369,41 @@ impl Poseidon2Transcript {
             );
         }
         self.log.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn append_message_bytes_packing_is_injective_against_modulus_wrap() {
+        let msg1 = [0u8; 8];
+        let msg2 = [0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF];
+
+        let mut t1 = <Poseidon2Transcript as crate::Transcript>::new(b"test/domain");
+        t1.append_message(b"m", &msg1);
+        let d1 = t1.digest32();
+
+        let mut t2 = <Poseidon2Transcript as crate::Transcript>::new(b"test/domain");
+        t2.append_message(b"m", &msg2);
+        let d2 = t2.digest32();
+
+        assert_ne!(d1, d2, "packed byte encoding must be injective");
+    }
+
+    #[test]
+    fn append_u64s_is_injective_over_full_u64_range() {
+        const GOLDILOCKS_P: u64 = 0xFFFF_FFFF_0000_0001;
+
+        let mut t1 = <Poseidon2Transcript as crate::Transcript>::new(b"test/domain");
+        t1.append_u64s(b"x", &[0u64]);
+        let d1 = t1.digest32();
+
+        let mut t2 = <Poseidon2Transcript as crate::Transcript>::new(b"test/domain");
+        t2.append_u64s(b"x", &[GOLDILOCKS_P]);
+        let d2 = t2.digest32();
+
+        assert_ne!(d1, d2, "u64 encoding must be injective");
     }
 }

@@ -31,6 +31,7 @@ pub mod mem_init;
 pub mod mle;
 pub mod output_check;
 pub mod plain;
+pub mod public_digest;
 pub mod riscv;
 pub mod shout;
 pub mod sparse_matrix;
@@ -52,5 +53,6 @@ pub use output_check::{
     OutputSumcheckProof, OutputSumcheckProver, OutputSumcheckState, ProgramIO,
 };
 pub use plain::*;
+pub use public_digest::memory_public_digest_fields;
 pub use sumcheck_proof::BatchedAddrProof;
 pub use witness::*;

@@ -454,6 +454,37 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
     tr: &mut Tr,
     claims: &mut [BatchedClaim<'_>],
 ) -> Result<(Vec<K>, Vec<BatchedClaimResult>), SumcheckError> {
+    #[inline]
+    fn append_batched_round_polys<Tr: Transcript>(
+        tr: &mut Tr,
+        per_claim_results: &[BatchedClaimResult],
+        round_idx: usize,
+        packed: &mut Vec<Fq>,
+    ) {
+        packed.clear();
+        packed.push(Fq::from_u64(per_claim_results.len() as u64));
+        for (claim_idx, result) in per_claim_results.iter().enumerate() {
+            let coeffs = result
+                .round_polys
+                .get(round_idx)
+                .expect("batched sumcheck: missing round polynomial");
+            let coeff_width = coeffs.first().map(|c| c.as_coeffs().len()).unwrap_or(0);
+            packed.push(Fq::from_u64(claim_idx as u64));
+            packed.push(Fq::from_u64(coeffs.len() as u64));
+            packed.push(Fq::from_u64(coeff_width as u64));
+            for coeff in coeffs {
+                let cs = coeff.as_coeffs();
+                debug_assert_eq!(
+                    cs.len(),
+                    coeff_width,
+                    "batched sumcheck non-uniform coeff width in round polynomial"
+                );
+                packed.extend(cs.iter().copied());
+            }
+        }
+        tr.append_fields(b"batched/round/polys", packed.as_slice());
+    }
+
     if claims.is_empty() {
         return Ok((vec![], vec![]));
     }
@@ -480,9 +511,18 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
         })
         .collect();
     let mut interp_cache = std::collections::BTreeMap::<usize, std::sync::Arc<InterpolationPlan>>::new();
+    let mut packed_round_poly = Vec::<Fq>::new();
 
     // Track running sums per claim
     let mut running_sums: Vec<K> = claims.iter().map(|c| c.claimed_sum).collect();
+
+    // Bind batched claim schedule once. Per-round payloads then only bind the
+    // round index and packed round polynomials in fixed claim order.
+    tr.append_message(b"batched/claims_len", &(claims.len() as u64).to_le_bytes());
+    for (claim_idx, claim) in claims.iter().enumerate() {
+        tr.append_message(b"batched/claim_label", claim.label);
+        tr.append_message(b"batched/claim_idx", &(claim_idx as u64).to_le_bytes());
+    }
 
     #[cfg(feature = "debug-logs")]
     eprintln!(
@@ -520,18 +560,8 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
             per_claim_results[claim_idx].round_polys.push(coeffs);
         }
 
-        // 2. Append ALL round polynomials to transcript (domain separated by claim)
-        for (claim_idx, claim) in claims.iter().enumerate() {
-            let coeffs = per_claim_results[claim_idx]
-                .round_polys
-                .last()
-                .expect("batched sumcheck: missing round polynomial");
-            tr.append_message(b"batched/claim_label", claim.label);
-            tr.append_message(b"batched/claim_idx", &(claim_idx as u64).to_le_bytes());
-            for &coeff in coeffs.iter() {
-                tr.append_fields(b"batched/round/coeff", &coeff.as_coeffs());
-            }
-        }
+        // 2. Append ALL round polynomials in one packed absorb.
+        append_batched_round_polys(tr, &per_claim_results, round_idx, &mut packed_round_poly);
 
         // 3. Derive ONE shared challenge from transcript
         let c = tr.challenge_field(b"batched/challenge/0");
@@ -587,6 +617,36 @@ pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
     per_claim_labels: &[&[u8]],
     degree_bounds: &[usize],
 ) -> (Vec<K>, Vec<K>, bool) {
+    #[inline]
+    fn append_batched_round_polys<Tr: Transcript>(
+        tr: &mut Tr,
+        per_claim_rounds: &[Vec<Vec<K>>],
+        round_idx: usize,
+        packed: &mut Vec<Fq>,
+    ) {
+        packed.clear();
+        packed.push(Fq::from_u64(per_claim_rounds.len() as u64));
+        for (claim_idx, claim_rounds) in per_claim_rounds.iter().enumerate() {
+            let coeffs = claim_rounds
+                .get(round_idx)
+                .expect("batched sumcheck verify: missing round polynomial");
+            let coeff_width = coeffs.first().map(|c| c.as_coeffs().len()).unwrap_or(0);
+            packed.push(Fq::from_u64(claim_idx as u64));
+            packed.push(Fq::from_u64(coeffs.len() as u64));
+            packed.push(Fq::from_u64(coeff_width as u64));
+            for coeff in coeffs {
+                let cs = coeff.as_coeffs();
+                debug_assert_eq!(
+                    cs.len(),
+                    coeff_width,
+                    "batched sumcheck verify non-uniform coeff width in round polynomial"
+                );
+                packed.extend(cs.iter().copied());
+            }
+        }
+        tr.append_fields(b"batched/round/polys", packed.as_slice());
+    }
+
     let num_claims = per_claim_rounds.len();
     if num_claims == 0 {
         return (vec![], vec![], true);
@@ -608,6 +668,14 @@ pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
 
     let mut shared_challenges = Vec::with_capacity(num_rounds);
     let mut running_sums = per_claim_sums.to_vec();
+    let mut packed_round_poly = Vec::<Fq>::new();
+
+    // Match prover: bind batched claim schedule once before round payloads.
+    tr.append_message(b"batched/claims_len", &(num_claims as u64).to_le_bytes());
+    for (claim_idx, label) in per_claim_labels.iter().enumerate() {
+        tr.append_message(b"batched/claim_label", label);
+        tr.append_message(b"batched/claim_idx", &(claim_idx as u64).to_le_bytes());
+    }
 
     for round_idx in 0..num_rounds {
         tr.append_message(b"batched/round_idx", &(round_idx as u64).to_le_bytes());
@@ -645,15 +713,8 @@ pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
             }
         }
 
-        // Append ALL round polynomials to transcript (same order as prover)
-        for (claim_idx, rounds) in per_claim_rounds.iter().enumerate() {
-            let round_poly = &rounds[round_idx];
-            tr.append_message(b"batched/claim_label", per_claim_labels[claim_idx]);
-            tr.append_message(b"batched/claim_idx", &(claim_idx as u64).to_le_bytes());
-            for &coeff in round_poly.iter() {
-                tr.append_fields(b"batched/round/coeff", &coeff.as_coeffs());
-            }
-        }
+        // Append ALL round polynomials to transcript (same order as prover).
+        append_batched_round_polys(tr, per_claim_rounds, round_idx, &mut packed_round_poly);
 
         // Derive shared challenge (must match prover)
         let c = tr.challenge_field(b"batched/challenge/0");

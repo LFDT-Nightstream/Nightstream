@@ -154,6 +154,9 @@ pub struct MemInstance<C, F> {
     pub ell: usize,
     /// Public initial memory state for cells [0..k).
     pub init: MemInit<F>,
+    /// Optional precomputed digest for transcript binding fast paths (prover-only optimization).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub init_digest: Option<[u8; 32]>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -232,6 +235,9 @@ pub struct LutInstance<C, F> {
     #[serde(default)]
     pub table_spec: Option<LutTableSpec>,
     pub table: Vec<F>,
+    /// Optional precomputed digest for transcript binding fast paths (prover-only optimization).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table_digest: Option<[u8; 32]>,
     /// Optional address-sharing group id for shared-bus column layout.
     #[serde(default)]
     pub addr_group: Option<u64>,

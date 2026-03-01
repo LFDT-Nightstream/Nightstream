@@ -8,6 +8,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::memory_sidecar::claim_plan::{poseidon_local_time_claim_metas, RouteATimeClaimPlan};
 use crate::memory_sidecar::memory::{RouteAMemoryOracles, ShoutRouteAProtocol, TimeBatchedClaims, TwistRouteAProtocol};
+use crate::memory_sidecar::route_a_compiler::shadow_assert_compiled_schedule_matches_metas;
 use crate::memory_sidecar::sumcheck_ds::{run_batched_sumcheck_prover_ds, verify_batched_sumcheck_rounds_ds};
 use crate::memory_sidecar::transcript::bind_batched_dynamic_claims;
 use crate::memory_sidecar::utils::RoundOraclePrefix;
@@ -398,6 +399,16 @@ pub fn prove_route_a_batched_time(
     let expected_labels: Vec<&'static [u8]> = metas.iter().map(|m| m.label).collect();
     let expected_dynamic: Vec<bool> = metas.iter().map(|m| m.is_dynamic).collect();
 
+    // Phase-1 Route-A claim compiler shadow check:
+    // validate that legacy assembled schedule matches canonical compiled schedule.
+    shadow_assert_compiled_schedule_matches_metas(
+        &labels,
+        &degree_bounds,
+        &claim_is_dynamic,
+        &metas,
+        "prove/route_a_batched_time",
+    )?;
+
     if degree_bounds != expected_degree_bounds {
         return Err(PiCcsError::ProtocolError("batched time degree bounds drift".into()));
     }
@@ -479,6 +490,16 @@ pub fn verify_route_a_batched_time(
     let expected_degree_bounds: Vec<usize> = metas.iter().map(|m| m.degree_bound).collect();
     let expected_labels: Vec<&'static [u8]> = metas.iter().map(|m| m.label).collect();
     let claim_is_dynamic: Vec<bool> = metas.iter().map(|m| m.is_dynamic).collect();
+
+    // Phase-1 Route-A claim compiler shadow check:
+    // verifier-side canonical schedule reconstruction must match proof-carried schedule metadata.
+    shadow_assert_compiled_schedule_matches_metas(
+        &proof.labels,
+        &proof.degree_bounds,
+        &claim_is_dynamic,
+        &metas,
+        "verify/route_a_batched_time",
+    )?;
 
     let expected_claims = claim_is_dynamic.len();
     if proof.round_polys.len() != expected_claims {

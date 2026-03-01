@@ -46,6 +46,7 @@ fn lut_inst(table_id: u32) -> LutInstance<(), F> {
         ell: 1,
         table_spec: None,
         table: vec![F::ZERO, F::ONE],
+        table_digest: None,
         addr_group: None,
         selector_group: None,
     }
@@ -62,6 +63,7 @@ fn mem_inst(mem_id: u32) -> MemInstance<(), F> {
         lanes: 1,
         ell: 1,
         init: MemInit::Zero,
+        init_digest: None,
     }
 }
 

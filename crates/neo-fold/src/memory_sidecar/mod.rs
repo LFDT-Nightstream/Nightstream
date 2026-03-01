@@ -1,6 +1,7 @@
 pub mod claim_plan;
 pub(crate) mod cpu_bus;
 pub mod memory;
+pub(crate) mod route_a_compiler;
 pub(crate) mod route_a_time;
 pub mod sumcheck_ds;
 pub mod transcript;

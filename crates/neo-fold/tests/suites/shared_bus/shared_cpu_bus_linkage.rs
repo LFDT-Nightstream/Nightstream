@@ -249,6 +249,7 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
         lanes: mem_layout.lanes.max(1),
         ell: mem_ell,
         init: mem_init,
+        init_digest: None,
     };
     let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
 
@@ -263,6 +264,7 @@ fn build_one_step_fixture(seed: u64) -> SharedBusFixture {
         ell: lut_ell,
         table_spec: None,
         table: lut_table.content.clone(),
+        table_digest: None,
         addr_group: None,
         selector_group: None,
     };

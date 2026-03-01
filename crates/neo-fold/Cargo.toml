@@ -46,6 +46,8 @@ profile-flame = ["pprof"]
 paper-exact = ["neo-reductions/paper-exact"]
 debug-logs = ["neo-reductions/debug-logs", "neo-memory/debug-logs"]
 poseidon-precompile = ["neo-memory/poseidon-precompile"]
+protocol-metrics = []
+route-a-compiler-shadow = []
 wasm-threads = ["neo-reductions/wasm-threads", "neo-ajtai/wasm-threads", "neo-ccs/wasm-threads"]
 
 [dev-dependencies]

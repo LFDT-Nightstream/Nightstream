@@ -1,6 +1,7 @@
 use crate::addr::for_each_addr_bit_dim_major_le;
 use crate::mem_init::mem_init_from_state_map;
 use crate::plain::{LutTable, PlainMemLayout};
+use crate::public_digest::memory_public_digest_fields;
 use crate::riscv::exec_table::{Rv32ExecRow, Rv32ExecTable};
 use crate::riscv::lookups::uninterleave_bits;
 use crate::riscv::packed::build_rv32_packed_cols;
@@ -812,6 +813,18 @@ where
         .collect();
     table_ids.sort_unstable();
     table_ids.dedup();
+    let precomputed_shout_table_digests: HashMap<u32, [u8; 32]> = table_ids
+        .iter()
+        .copied()
+        .map(|table_id| {
+            let digest = lut_tables
+                .get(&table_id)
+                .map(|table| memory_public_digest_fields(b"shout/table", &table.content))
+                .unwrap_or_else(|| memory_public_digest_fields(b"shout/table", &[]));
+            (table_id, digest)
+        })
+        .collect();
+    let zero_mem_init_digest = memory_public_digest_fields(b"twist/init/zero", &[]);
 
     // 3) CPU arithmetization chunks.
     let mcss = cpu_arith
@@ -883,6 +896,17 @@ where
                 .ok_or_else(|| ShardBuildError::MissingLayout(format!("missing state for twist_id {}", mem_id)))?;
             let init = mem_init_from_state_map(mem_id, layout.k, state)
                 .map_err(|e| ShardBuildError::InvalidInit(e.to_string()))?;
+            let init_digest = match &init {
+                crate::mem_init::MemInit::Zero => Some(zero_mem_init_digest),
+                crate::mem_init::MemInit::Sparse(pairs) => {
+                    let mut fs = Vec::with_capacity(2 * pairs.len());
+                    for (addr, val) in pairs.iter() {
+                        fs.push(Goldilocks::from_u64(*addr));
+                        fs.push(*val);
+                    }
+                    Some(memory_public_digest_fields(b"twist/init/sparse", &fs))
+                }
+            };
             let ell = ell_from_pow2_n_side(layout.n_side)?;
 
             let inst = MemInstance::<Cmt, Goldilocks> {
@@ -895,6 +919,7 @@ where
                 lanes: layout.lanes.max(1),
                 ell,
                 init,
+                init_digest,
             };
             let wit = MemWitness { mats: Vec::new() };
             mem_instances.push((inst, wit));
@@ -986,6 +1011,7 @@ where
                 ell,
                 table_spec,
                 table,
+                table_digest: precomputed_shout_table_digests.get(&table_id).copied(),
                 addr_group: cpu_arith.shout_addr_groups().get(&table_id).copied(),
                 selector_group: cpu_arith.shout_selector_groups().get(&table_id).copied(),
             };

@@ -163,41 +163,98 @@ pub fn bind_header_and_instances_with_digest(
 
 /// Bind ME inputs to transcript
 pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F, K>]) -> Result<(), PiCcsError> {
-    // v2 batches (r, y) coefficient absorption under a single label+len framing for performance.
-    // This is NOT transcript-equivalent to the previous per-limb/per-element `append_fields` loop.
-    tr.append_message(b"neo/ccs/me_inputs/v2", b"");
+    // v5: bind each ME input via a compact domain-separated Poseidon2 digest.
+    // Encoding update: K-coefficient width is encoded once per K-slice (not per K element).
+    tr.append_message(b"neo/ccs/me_inputs/v5", b"");
     tr.append_u64s(b"me_count", &[me_inputs.len() as u64]);
 
-    let k_coeffs_len = K::ONE.as_coeffs().len();
+    #[inline]
+    fn extend_packed_bytes_as_fields(dst: &mut Vec<F>, bytes: &[u8]) {
+        const BYTES_PER_LIMB: usize = 7;
+        dst.push(F::from_u64(bytes.len() as u64));
+        for chunk in bytes.chunks(BYTES_PER_LIMB) {
+            let mut limb = [0u8; 8];
+            limb[..chunk.len()].copy_from_slice(chunk);
+            dst.push(F::from_u64(u64::from_le_bytes(limb)));
+        }
+    }
 
-    for me in me_inputs {
-        tr.append_fields(b"c_data_in", &me.c.data);
-        tr.append_u64s(b"m_in_in", &[me.m_in as u64]);
+    #[inline]
+    fn extend_f_slice(dst: &mut Vec<F>, vals: &[F]) {
+        dst.push(F::from_u64(vals.len() as u64));
+        dst.extend_from_slice(vals);
+    }
 
-        let r_field_len =
-            me.r.len()
-                .checked_mul(k_coeffs_len)
-                .ok_or_else(|| PiCcsError::InvalidInput("ME.r length overflow".into()))?;
-        tr.append_fields_iter(
-            b"r_in",
-            r_field_len,
-            me.r.iter().flat_map(|limb| limb.as_coeffs().into_iter()),
-        );
+    #[inline]
+    fn extend_k_slice(dst: &mut Vec<F>, vals: &[K]) {
+        dst.push(F::from_u64(vals.len() as u64));
+        let coeffs_len = vals.first().map(|v| v.as_coeffs().len()).unwrap_or(0);
+        dst.push(F::from_u64(coeffs_len as u64));
+        for v in vals {
+            let coeffs = v.as_coeffs();
+            debug_assert_eq!(
+                coeffs.len(),
+                coeffs_len,
+                "non-uniform K coeff length in ME digest encoding"
+            );
+            dst.extend(coeffs.iter().copied());
+        }
+    }
 
-        let y_elem_count: usize = me.y_ring.iter().try_fold(0usize, |acc, yj| {
-            acc.checked_add(yj.len())
-                .ok_or_else(|| PiCcsError::InvalidInput("ME.y_ring length overflow".into()))
-        })?;
-        let y_field_len = y_elem_count
-            .checked_mul(k_coeffs_len)
-            .ok_or_else(|| PiCcsError::InvalidInput("ME.y_ring length overflow".into()))?;
-        tr.append_fields_iter(
-            b"y_elem",
-            y_field_len,
-            me.y_ring
-                .iter()
-                .flat_map(|yj| yj.iter().flat_map(|y_elem| y_elem.as_coeffs().into_iter())),
-        );
+    #[inline]
+    fn poseidon_digest32_fields(input: &[F]) -> [u8; 32] {
+        let digest = neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(input);
+        let mut out = [0u8; 32];
+        for (i, limb) in digest.iter().enumerate() {
+            out[i * 8..(i + 1) * 8].copy_from_slice(&limb.as_canonical_u64().to_le_bytes());
+        }
+        out
+    }
+
+    #[inline]
+    fn me_digest_poseidon(me: &CeClaim<Cmt, F, K>) -> [u8; 32] {
+        let mut digest_input = Vec::<F>::with_capacity(2048);
+        extend_packed_bytes_as_fields(&mut digest_input, b"neo/ccs/me_input_digest_poseidon/v2");
+
+        extend_f_slice(&mut digest_input, &me.c.data);
+        extend_f_slice(&mut digest_input, me.X.as_slice());
+        extend_k_slice(&mut digest_input, &me.r);
+        extend_k_slice(&mut digest_input, &me.s_col);
+        extend_k_slice(&mut digest_input, &me.y_zcol);
+
+        digest_input.push(F::from_u64(me.y_ring.len() as u64));
+        for row in &me.y_ring {
+            extend_k_slice(&mut digest_input, row);
+        }
+
+        extend_k_slice(&mut digest_input, &me.ct);
+        extend_k_slice(&mut digest_input, &me.aux_openings);
+        extend_f_slice(&mut digest_input, &me.c_step_coords);
+        digest_input.push(F::from_u64(me.m_in as u64));
+        digest_input.push(F::from_u64(me.u_offset as u64));
+        digest_input.push(F::from_u64(me.u_len as u64));
+        extend_packed_bytes_as_fields(&mut digest_input, &me.fold_digest);
+
+        poseidon_digest32_fields(&digest_input)
+    }
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none();
+    #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
+    let allow_parallel = false;
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let digests: Vec<[u8; 32]> = if allow_parallel && me_inputs.len() >= 8 {
+        use rayon::prelude::*;
+        me_inputs.par_iter().map(me_digest_poseidon).collect()
+    } else {
+        me_inputs.iter().map(me_digest_poseidon).collect()
+    };
+    #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
+    let digests: Vec<[u8; 32]> = me_inputs.iter().map(me_digest_poseidon).collect();
+
+    for digest in digests {
+        tr.append_bytes_packed(b"me_digest", &digest);
     }
 
     Ok(())
@@ -500,15 +557,108 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
     state[0..4].to_vec()
 }
 
-/// Compute the CCS matrix digest, optionally using a prebuilt sparse cache to avoid scanning dense zeros.
+/// Compute the CCS matrix digest, optionally using a prebuilt sparse cache.
 ///
-/// When `sparse` is provided, this function matches `digest_ccs_matrices` exactly (same digest),
-/// but enumerates non-zeros from the cache and sorts them into row-major order.
+/// This cache-aware variant uses a native CSC encoding (`v2-csc`) to avoid the expensive
+/// to avoid the expensive row-major reconstruction/allocation required by `digest_ccs_matrices`.
+/// Prover/verifier soundness is preserved because both sides bind this digest into transcript
+/// under the same domain and full structural content.
 pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64>(
     s: &CcsStructure<Ff>,
-    _sparse: Option<&crate::engines::optimized_engine::oracle::SparseCache<Ff>>,
+    sparse: Option<&crate::engines::optimized_engine::oracle::SparseCache<Ff>>,
 ) -> Vec<Goldilocks> {
-    digest_ccs_matrices(s)
+    use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
+
+    #[inline]
+    fn absorb_u64(poseidon2: &Poseidon2Goldilocks<16>, state: &mut [Goldilocks; 16], absorbed: &mut usize, v: u64) {
+        if *absorbed >= 15 {
+            poseidon2.permute_mut(state);
+            *absorbed = 0;
+        }
+        state[*absorbed] = Goldilocks::from_u64(v);
+        *absorbed += 1;
+    }
+
+    const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;
+    let mut rng = ChaCha8Rng::seed_from_u64(CCS_DIGEST_SEED);
+    let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
+
+    let mut state = [Goldilocks::ZERO; 16];
+    let mut absorbed = 0usize;
+    const DOMAIN_STRING: &[u8] = b"neo/ccs/matrices/v2-csc";
+    for &byte in DOMAIN_STRING {
+        absorb_u64(&poseidon2, &mut state, &mut absorbed, byte as u64);
+    }
+    absorb_u64(&poseidon2, &mut state, &mut absorbed, s.n as u64);
+    absorb_u64(&poseidon2, &mut state, &mut absorbed, s.m as u64);
+    absorb_u64(&poseidon2, &mut state, &mut absorbed, s.t() as u64);
+    poseidon2.permute_mut(&mut state);
+
+    for (j, matrix) in s.matrices.iter().enumerate() {
+        absorbed = 0;
+        absorb_u64(&poseidon2, &mut state, &mut absorbed, j as u64);
+
+        match matrix {
+            CcsMatrix::Identity { n } => {
+                absorb_u64(&poseidon2, &mut state, &mut absorbed, 1); // tag=identity
+                absorb_u64(&poseidon2, &mut state, &mut absorbed, *n as u64);
+            }
+            CcsMatrix::Csc(csc_from_s) => {
+                let cached_csc = sparse.and_then(|sp| sp.csc(j));
+                #[cfg(debug_assertions)]
+                if let Some(c) = cached_csc {
+                    debug_assert_eq!(c.nrows, csc_from_s.nrows, "CSC cache nrows mismatch for matrix {j}");
+                    debug_assert_eq!(c.ncols, csc_from_s.ncols, "CSC cache ncols mismatch for matrix {j}");
+                    debug_assert_eq!(
+                        c.col_ptr, csc_from_s.col_ptr,
+                        "CSC cache col_ptr mismatch for matrix {j}"
+                    );
+                    debug_assert_eq!(
+                        c.row_idx, csc_from_s.row_idx,
+                        "CSC cache row_idx mismatch for matrix {j}"
+                    );
+                    debug_assert_eq!(c.vals, csc_from_s.vals, "CSC cache vals mismatch for matrix {j}");
+                }
+                let (nrows, ncols, col_ptr, row_idx, vals) = if let Some(c) = cached_csc {
+                    (
+                        c.nrows,
+                        c.ncols,
+                        c.col_ptr.as_slice(),
+                        c.row_idx.as_slice(),
+                        c.vals.as_slice(),
+                    )
+                } else {
+                    (
+                        csc_from_s.nrows,
+                        csc_from_s.ncols,
+                        csc_from_s.col_ptr.as_slice(),
+                        csc_from_s.row_idx.as_slice(),
+                        csc_from_s.vals.as_slice(),
+                    )
+                };
+
+                absorb_u64(&poseidon2, &mut state, &mut absorbed, 2); // tag=CSC
+                absorb_u64(&poseidon2, &mut state, &mut absorbed, nrows as u64);
+                absorb_u64(&poseidon2, &mut state, &mut absorbed, ncols as u64);
+                absorb_u64(&poseidon2, &mut state, &mut absorbed, vals.len() as u64);
+                absorb_u64(&poseidon2, &mut state, &mut absorbed, col_ptr.len() as u64);
+
+                for &cp in col_ptr {
+                    absorb_u64(&poseidon2, &mut state, &mut absorbed, cp as u64);
+                }
+                for &r in row_idx {
+                    absorb_u64(&poseidon2, &mut state, &mut absorbed, r as u64);
+                }
+                for &v in vals {
+                    absorb_u64(&poseidon2, &mut state, &mut absorbed, v.as_canonical_u64());
+                }
+            }
+        }
+
+        poseidon2.permute_mut(&mut state);
+    }
+
+    state[0..4].to_vec()
 }
 
 fn absorb_sparse_polynomial(tr: &mut Poseidon2Transcript, f: &SparsePoly<F>) {

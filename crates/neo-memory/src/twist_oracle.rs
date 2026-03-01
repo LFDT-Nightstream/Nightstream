@@ -1770,12 +1770,85 @@ fn lt_eval_at_bool_index(idx: usize, point: &[K]) -> K {
     acc
 }
 
-fn val_pre_from_inc_terms(init_at_r_addr: K, inc_terms: &[(usize, K)], t_point: &[K]) -> K {
-    let mut acc = init_at_r_addr;
+fn build_lt_prefix_table(inc_terms: &[(usize, K)], ell_n: usize) -> Vec<K> {
+    let n = 1usize << ell_n;
+    let mut deltas = vec![K::ZERO; n];
     for &(u, inc_u) in inc_terms.iter() {
-        acc += inc_u * lt_eval_at_bool_index(u, t_point);
+        debug_assert!(u < n, "LT prefix table index out of range: u={u}, n={n}");
+        let next = u.saturating_add(1);
+        if next < n {
+            deltas[next] += inc_u;
+        }
+    }
+    let mut prefix = vec![K::ZERO; n];
+    let mut run = K::ZERO;
+    for i in 0..n {
+        run += deltas[i];
+        prefix[i] = run;
+    }
+    prefix
+}
+
+#[inline]
+fn fill_one_minus_point(out: &mut Vec<K>, point: &[K]) {
+    if out.len() != point.len() {
+        out.resize(point.len(), K::ZERO);
+    }
+    for (dst, &src) in out.iter_mut().zip(point.iter()) {
+        *dst = K::ONE - src;
+    }
+}
+
+#[inline]
+fn lt_eval_at_bool_index_with_one_minus(idx: usize, point: &[K], one_minus_point: &[K]) -> K {
+    debug_assert_eq!(point.len(), one_minus_point.len());
+    let mut suffix = K::ONE;
+    let mut acc = K::ZERO;
+    for i in (0..point.len()).rev() {
+        let bit = (idx >> i) & 1;
+        if bit == 0 {
+            acc += point[i] * suffix;
+            suffix *= one_minus_point[i];
+        } else {
+            suffix *= point[i];
+        }
     }
     acc
+}
+
+fn val_pre_from_inc_terms(init_at_r_addr: K, inc_terms: &[(usize, K)], t_point: &[K], t_one_minus: &[K]) -> K {
+    let mut acc = init_at_r_addr;
+    for &(u, inc_u) in inc_terms.iter() {
+        acc += inc_u * lt_eval_at_bool_index_with_one_minus(u, t_point, t_one_minus);
+    }
+    acc
+}
+
+#[inline]
+fn eval_dense_mle_with_scratch(table: &[K], point: &[K], scratch: &mut Vec<K>) -> K {
+    let n = table.len();
+    debug_assert!(n.is_power_of_two(), "dense MLE table length must be a power of two");
+    debug_assert_eq!(n, 1usize << point.len(), "dense MLE dimension mismatch");
+    if scratch.len() < n {
+        scratch.resize(n, K::ZERO);
+    }
+    scratch[..n].copy_from_slice(table);
+    let mut cur_n = n;
+    for &r in point.iter() {
+        let half = cur_n >> 1;
+        for i in 0..half {
+            let lo = scratch[2 * i];
+            let hi = scratch[2 * i + 1];
+            scratch[i] = lo + (hi - lo) * r;
+        }
+        cur_n = half;
+    }
+    scratch[0]
+}
+
+#[inline]
+fn val_pre_from_lt_prefix(init_at_r_addr: K, lt_prefix_table: &[K], t_point: &[K], scratch: &mut Vec<K>) -> K {
+    init_at_r_addr + eval_dense_mle_with_scratch(lt_prefix_table, t_point, scratch)
 }
 
 fn build_inc_terms_at_r_addr(
@@ -2137,13 +2210,19 @@ struct TwistTimeCheckOracleSparseTimeCore {
 
     init_at_r_addr: K,
     inc_terms_at_r_addr: Vec<(usize, K)>,
+    use_dense_lt_eval: bool,
+    lt_prefix_table: Vec<K>,
 
     t_child0: Vec<K>,
     t_child1: Vec<K>,
+    t_one_minus: Vec<K>,
+    lt_prefix_eval_scratch: Vec<K>,
     challenges: Vec<K>,
 }
 
 impl TwistTimeCheckOracleSparseTimeCore {
+    const MAX_DENSE_LT_LOG_N: usize = 20;
+
     #[allow(clippy::too_many_arguments)]
     fn new(
         kind: TwistTimeCheckKind,
@@ -2164,6 +2243,19 @@ impl TwistTimeCheckOracleSparseTimeCore {
             debug_assert_eq!(inc.len(), 1usize << ell_n);
         }
         debug_assert_eq!(addr_bits.len(), ell_addr);
+        let dense_cost = 1usize << ell_n;
+        let sparse_cost = inc_terms_at_r_addr.len().saturating_mul(ell_n.max(1));
+        let use_dense_lt_eval = ell_n <= Self::MAX_DENSE_LT_LOG_N && sparse_cost > dense_cost;
+        let lt_prefix_table = if use_dense_lt_eval {
+            build_lt_prefix_table(&inc_terms_at_r_addr, ell_n)
+        } else {
+            Vec::new()
+        };
+        let lt_prefix_eval_scratch = if use_dense_lt_eval {
+            vec![K::ZERO; 1usize << ell_n]
+        } else {
+            Vec::new()
+        };
 
         Self {
             kind,
@@ -2177,8 +2269,12 @@ impl TwistTimeCheckOracleSparseTimeCore {
             inc_at_write_addr,
             init_at_r_addr,
             inc_terms_at_r_addr,
+            use_dense_lt_eval,
+            lt_prefix_table,
             t_child0: vec![K::ZERO; ell_n],
             t_child1: vec![K::ZERO; ell_n],
+            t_one_minus: vec![K::ZERO; ell_n],
+            lt_prefix_eval_scratch,
             challenges: Vec::with_capacity(ell_n),
         }
     }
@@ -2190,7 +2286,22 @@ impl RoundOracle for TwistTimeCheckOracleSparseTimeCore {
         if self.gate.len() == 1 {
             let eq_addr = eq_addr_singleton(&self.addr_bits, &self.r_addr);
             let t_point = self.challenges.as_slice();
-            let val_pre = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, t_point);
+            let val_pre = if self.use_dense_lt_eval {
+                val_pre_from_lt_prefix(
+                    self.init_at_r_addr,
+                    &self.lt_prefix_table,
+                    t_point,
+                    &mut self.lt_prefix_eval_scratch,
+                )
+            } else {
+                fill_one_minus_point(&mut self.t_one_minus, t_point);
+                val_pre_from_inc_terms(
+                    self.init_at_r_addr,
+                    &self.inc_terms_at_r_addr,
+                    t_point,
+                    self.t_one_minus.as_slice(),
+                )
+            };
             let inc = self
                 .inc_at_write_addr
                 .as_ref()
@@ -2220,8 +2331,38 @@ impl RoundOracle for TwistTimeCheckOracleSparseTimeCore {
 
             fill_time_point(&mut self.t_child0, &self.challenges, self.bit_idx, K::ZERO, pair);
             fill_time_point(&mut self.t_child1, &self.challenges, self.bit_idx, K::ONE, pair);
-            let val_pre0 = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, &self.t_child0);
-            let val_pre1 = val_pre_from_inc_terms(self.init_at_r_addr, &self.inc_terms_at_r_addr, &self.t_child1);
+            let (val_pre0, val_pre1) = if self.use_dense_lt_eval {
+                (
+                    val_pre_from_lt_prefix(
+                        self.init_at_r_addr,
+                        &self.lt_prefix_table,
+                        &self.t_child0,
+                        &mut self.lt_prefix_eval_scratch,
+                    ),
+                    val_pre_from_lt_prefix(
+                        self.init_at_r_addr,
+                        &self.lt_prefix_table,
+                        &self.t_child1,
+                        &mut self.lt_prefix_eval_scratch,
+                    ),
+                )
+            } else {
+                fill_one_minus_point(&mut self.t_one_minus, &self.t_child0);
+                let pre0 = val_pre_from_inc_terms(
+                    self.init_at_r_addr,
+                    &self.inc_terms_at_r_addr,
+                    &self.t_child0,
+                    self.t_one_minus.as_slice(),
+                );
+                fill_one_minus_point(&mut self.t_one_minus, &self.t_child1);
+                let pre1 = val_pre_from_inc_terms(
+                    self.init_at_r_addr,
+                    &self.inc_terms_at_r_addr,
+                    &self.t_child1,
+                    self.t_one_minus.as_slice(),
+                );
+                (pre0, pre1)
+            };
 
             let value0 = self.value.get(child0);
             let value1 = self.value.get(child1);

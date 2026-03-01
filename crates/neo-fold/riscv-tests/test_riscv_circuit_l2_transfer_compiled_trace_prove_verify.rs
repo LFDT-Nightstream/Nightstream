@@ -9,9 +9,907 @@
 mod circuit_l2_transfer_rom;
 
 use neo_fold::riscv_trace_shard::Rv32TraceWiring;
+#[cfg(feature = "protocol-metrics")]
+use neo_fold::shard::{MemOrLutProof, ShardProof, StepProof};
 use neo_memory::riscv::lookups::{decode_program, RiscvCpu, RiscvMemory, RiscvShoutTables, PROG_ID, RAM_ID};
 use neo_vm_trace::{trace_program, Twist};
 use std::time::Instant;
+
+#[cfg(feature = "protocol-metrics")]
+#[derive(Clone, Copy, Debug, Default)]
+struct RouteAClaimBreakdown {
+    shout: usize,
+    twist: usize,
+    wb_wp: usize,
+    decode: usize,
+    width: usize,
+    control: usize,
+    poseidon: usize,
+    output: usize,
+    other: usize,
+}
+
+#[cfg(feature = "protocol-metrics")]
+impl RouteAClaimBreakdown {
+    fn add_label(&mut self, label: &[u8]) {
+        if label.starts_with(b"shout/") {
+            self.shout += 1;
+        } else if label.starts_with(b"twist/") {
+            self.twist += 1;
+        } else if label.starts_with(b"wb/") || label.starts_with(b"wp/") {
+            self.wb_wp += 1;
+        } else if label.starts_with(b"decode/") {
+            self.decode += 1;
+        } else if label.starts_with(b"width/") {
+            self.width += 1;
+        } else if label.starts_with(b"control/") {
+            self.control += 1;
+        } else if label.starts_with(b"poseidon/") {
+            self.poseidon += 1;
+        } else if label.starts_with(b"output/") {
+            self.output += 1;
+        } else {
+            self.other += 1;
+        }
+    }
+}
+
+#[cfg(feature = "protocol-metrics")]
+#[derive(Debug)]
+struct StepProtocolMetrics {
+    step_id: String,
+    compressed_substeps: usize,
+    ccs_variant: &'static str,
+    ccs_fe_rounds: usize,
+    ccs_fe_coeffs: usize,
+    ccs_nc_rounds: usize,
+    ccs_nc_coeffs: usize,
+    cpu_sumcheck_rounds: usize,
+    cpu_sumcheck_coeffs: usize,
+    shift_sumcheck_rounds: usize,
+    shift_sumcheck_coeffs: usize,
+    route_a_claims: usize,
+    route_a_rounds: usize,
+    route_a_coeffs: usize,
+    route_a_degree_max: usize,
+    route_a_breakdown: RouteAClaimBreakdown,
+    poseidon_local_claims: usize,
+    poseidon_local_rounds: usize,
+    poseidon_local_coeffs: usize,
+    ccs_out_claims: usize,
+    rlc_rhos: usize,
+    dec_children: usize,
+    val_me_claims: usize,
+    wb_me_claims: usize,
+    wp_me_claims: usize,
+    poseidon_cycle_me_claims: usize,
+    poseidon_local_me_claims: usize,
+    time_cpu_commitments: usize,
+    time_mem_commitments: usize,
+    stage8_joint_commitments: usize,
+    shout_proofs: usize,
+    twist_proofs: usize,
+    opening_points: usize,
+    opening_cols: usize,
+    opening_bound_proofs: usize,
+    opening_bound_cols: usize,
+    opening_reduction_groups: usize,
+    opening_unification_rounds: usize,
+    opening_unification_coeffs: usize,
+    opening_joint_groups: usize,
+    opening_joint_unified: usize,
+    val_fold_lanes: usize,
+    wb_fold_lanes: usize,
+    wp_fold_lanes: usize,
+    poseidon_cycle_fold_lanes: usize,
+    poseidon_local_fold_lanes: usize,
+    stage8_fold_lanes: usize,
+    fold_lane_dec_children: usize,
+    time_t: usize,
+}
+
+#[cfg(feature = "protocol-metrics")]
+#[derive(Debug, Default)]
+struct ProtocolFlowTotals {
+    route_a_breakdown: RouteAClaimBreakdown,
+    ccs_fe_rounds: usize,
+    ccs_fe_coeffs: usize,
+    ccs_nc_rounds: usize,
+    ccs_nc_coeffs: usize,
+    cpu_sumcheck_rounds: usize,
+    cpu_sumcheck_coeffs: usize,
+    shift_sumcheck_rounds: usize,
+    shift_sumcheck_coeffs: usize,
+    route_a_claims: usize,
+    route_a_rounds: usize,
+    route_a_coeffs: usize,
+    route_a_degree_max: usize,
+    poseidon_local_claims: usize,
+    poseidon_local_rounds: usize,
+    poseidon_local_coeffs: usize,
+    ccs_out_claims: usize,
+    rlc_rhos: usize,
+    dec_children: usize,
+    val_me_claims: usize,
+    wb_me_claims: usize,
+    wp_me_claims: usize,
+    poseidon_cycle_me_claims: usize,
+    poseidon_local_me_claims: usize,
+    time_cpu_commitments: usize,
+    time_mem_commitments: usize,
+    stage8_joint_commitments: usize,
+    shout_proofs: usize,
+    twist_proofs: usize,
+    opening_points: usize,
+    opening_cols: usize,
+    opening_bound_proofs: usize,
+    opening_bound_cols: usize,
+    opening_reduction_groups: usize,
+    opening_unification_rounds: usize,
+    opening_unification_coeffs: usize,
+    opening_joint_groups: usize,
+    opening_joint_unified: usize,
+    val_fold_lanes: usize,
+    wb_fold_lanes: usize,
+    wp_fold_lanes: usize,
+    poseidon_cycle_fold_lanes: usize,
+    poseidon_local_fold_lanes: usize,
+    stage8_fold_lanes: usize,
+    fold_lane_dec_children: usize,
+    max_time_t: usize,
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn coeffs_2d<T>(rounds: &[Vec<T>]) -> usize {
+    rounds.iter().map(Vec::len).sum()
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn coeffs_3d<T>(claims: &[Vec<Vec<T>>]) -> usize {
+    claims.iter().map(|claim| coeffs_2d(claim)).sum()
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn fold_dec_children_total(step: &StepProof) -> usize {
+    let mut total = step.fold.dec_children.len();
+    for lane in &step.val_fold {
+        total += lane.dec_children.len();
+    }
+    for lane in &step.wb_fold {
+        total += lane.dec_children.len();
+    }
+    for lane in &step.wp_fold {
+        total += lane.dec_children.len();
+    }
+    for lane in &step.poseidon_cycle_fold {
+        total += lane.dec_children.len();
+    }
+    for lane in &step.poseidon_local_fold {
+        total += lane.dec_children.len();
+    }
+    for lane in &step.stage8_fold {
+        total += lane.dec_children.len();
+    }
+    total
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn build_step_protocol_metrics(step_id: String, step: &StepProof) -> StepProtocolMetrics {
+    let mut route_a_breakdown = RouteAClaimBreakdown::default();
+    for label in &step.batched_time.labels {
+        route_a_breakdown.add_label(label);
+    }
+
+    let mut shout_proofs = 0usize;
+    let mut twist_proofs = 0usize;
+    for proof in &step.mem.proofs {
+        match proof {
+            MemOrLutProof::Shout(_) => shout_proofs += 1,
+            MemOrLutProof::Twist(_) => twist_proofs += 1,
+        }
+    }
+
+    let stage8_joint_commitments =
+        step.fold.joint_opening_lane.groups.len() + usize::from(step.fold.joint_opening_lane.unified_fold.is_some());
+    let opening_cols = step
+        .fold
+        .openings
+        .iter()
+        .map(|entry| entry.col_ids.len())
+        .sum();
+    let opening_bound_cols = step
+        .fold
+        .opening_proofs
+        .iter()
+        .map(|entry| entry.col_ids.len())
+        .sum();
+    let route_a_rounds = step.batched_time.round_polys.iter().map(Vec::len).sum();
+    let route_a_degree_max = step
+        .batched_time
+        .degree_bounds
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0);
+    let poseidon_local_claims = step
+        .poseidon_local_time
+        .as_ref()
+        .map(|proof| proof.labels.len())
+        .unwrap_or(0);
+    let poseidon_local_rounds = step
+        .poseidon_local_time
+        .as_ref()
+        .map(|proof| proof.round_polys.iter().map(Vec::len).sum())
+        .unwrap_or(0);
+    let poseidon_local_coeffs = step
+        .poseidon_local_time
+        .as_ref()
+        .map(|proof| coeffs_3d(&proof.round_polys))
+        .unwrap_or(0);
+
+    StepProtocolMetrics {
+        step_id,
+        compressed_substeps: step.compressed_substeps.as_ref().map_or(0, Vec::len),
+        ccs_variant: match step.fold.ccs_proof.variant {
+            neo_fold::optimized_engine::PiCcsProofVariant::SplitNcV1 => "SplitNcV1",
+        },
+        ccs_fe_rounds: step.fold.ccs_proof.sumcheck_rounds.len(),
+        ccs_fe_coeffs: coeffs_2d(&step.fold.ccs_proof.sumcheck_rounds),
+        ccs_nc_rounds: step.fold.ccs_proof.sumcheck_rounds_nc.len(),
+        ccs_nc_coeffs: coeffs_2d(&step.fold.ccs_proof.sumcheck_rounds_nc),
+        cpu_sumcheck_rounds: step.fold.cpu_sumcheck.round_polys.len(),
+        cpu_sumcheck_coeffs: coeffs_2d(&step.fold.cpu_sumcheck.round_polys),
+        shift_sumcheck_rounds: step.fold.shift_sumcheck.round_polys.len(),
+        shift_sumcheck_coeffs: coeffs_2d(&step.fold.shift_sumcheck.round_polys),
+        route_a_claims: step.batched_time.labels.len(),
+        route_a_rounds,
+        route_a_coeffs: coeffs_3d(&step.batched_time.round_polys),
+        route_a_degree_max,
+        route_a_breakdown,
+        poseidon_local_claims,
+        poseidon_local_rounds,
+        poseidon_local_coeffs,
+        ccs_out_claims: step.fold.ccs_out.len(),
+        rlc_rhos: step.fold.rlc_rhos.len(),
+        dec_children: step.fold.dec_children.len(),
+        val_me_claims: step.mem.val_me_claims.len(),
+        wb_me_claims: step.mem.wb_me_claims.len(),
+        wp_me_claims: step.mem.wp_me_claims.len(),
+        poseidon_cycle_me_claims: step.mem.poseidon_cycle_me_claims.len(),
+        poseidon_local_me_claims: step.mem.poseidon_local_me_claims.len(),
+        time_cpu_commitments: step.fold.time_cpu_commitments.len(),
+        time_mem_commitments: step.fold.time_mem_commitments.len(),
+        stage8_joint_commitments,
+        shout_proofs,
+        twist_proofs,
+        opening_points: step.fold.openings.len(),
+        opening_cols,
+        opening_bound_proofs: step.fold.opening_proofs.len(),
+        opening_bound_cols,
+        opening_reduction_groups: step.fold.opening_reduction.groups.len(),
+        opening_unification_rounds: step.fold.opening_unification.round_polys.len(),
+        opening_unification_coeffs: coeffs_2d(&step.fold.opening_unification.round_polys),
+        opening_joint_groups: step.fold.joint_opening_lane.groups.len(),
+        opening_joint_unified: usize::from(step.fold.joint_opening_lane.unified_fold.is_some()),
+        val_fold_lanes: step.val_fold.len(),
+        wb_fold_lanes: step.wb_fold.len(),
+        wp_fold_lanes: step.wp_fold.len(),
+        poseidon_cycle_fold_lanes: step.poseidon_cycle_fold.len(),
+        poseidon_local_fold_lanes: step.poseidon_local_fold.len(),
+        stage8_fold_lanes: step.stage8_fold.len(),
+        fold_lane_dec_children: fold_dec_children_total(step),
+        time_t: step.fold.time_t,
+    }
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn collect_step_protocol_metrics(step_id: String, step: &StepProof, out: &mut Vec<StepProtocolMetrics>) {
+    out.push(build_step_protocol_metrics(step_id.clone(), step));
+    if let Some(substeps) = &step.compressed_substeps {
+        for (idx, inner) in substeps.iter().enumerate() {
+            collect_step_protocol_metrics(format!("{step_id}.{idx}"), inner, out);
+        }
+    }
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn accumulate_totals(rows: &[StepProtocolMetrics]) -> ProtocolFlowTotals {
+    let mut totals = ProtocolFlowTotals::default();
+    for row in rows {
+        totals.route_a_breakdown.shout += row.route_a_breakdown.shout;
+        totals.route_a_breakdown.twist += row.route_a_breakdown.twist;
+        totals.route_a_breakdown.wb_wp += row.route_a_breakdown.wb_wp;
+        totals.route_a_breakdown.decode += row.route_a_breakdown.decode;
+        totals.route_a_breakdown.width += row.route_a_breakdown.width;
+        totals.route_a_breakdown.control += row.route_a_breakdown.control;
+        totals.route_a_breakdown.poseidon += row.route_a_breakdown.poseidon;
+        totals.route_a_breakdown.output += row.route_a_breakdown.output;
+        totals.route_a_breakdown.other += row.route_a_breakdown.other;
+        totals.ccs_fe_rounds += row.ccs_fe_rounds;
+        totals.ccs_fe_coeffs += row.ccs_fe_coeffs;
+        totals.ccs_nc_rounds += row.ccs_nc_rounds;
+        totals.ccs_nc_coeffs += row.ccs_nc_coeffs;
+        totals.cpu_sumcheck_rounds += row.cpu_sumcheck_rounds;
+        totals.cpu_sumcheck_coeffs += row.cpu_sumcheck_coeffs;
+        totals.shift_sumcheck_rounds += row.shift_sumcheck_rounds;
+        totals.shift_sumcheck_coeffs += row.shift_sumcheck_coeffs;
+        totals.route_a_claims += row.route_a_claims;
+        totals.route_a_rounds += row.route_a_rounds;
+        totals.route_a_coeffs += row.route_a_coeffs;
+        totals.route_a_degree_max = totals.route_a_degree_max.max(row.route_a_degree_max);
+        totals.poseidon_local_claims += row.poseidon_local_claims;
+        totals.poseidon_local_rounds += row.poseidon_local_rounds;
+        totals.poseidon_local_coeffs += row.poseidon_local_coeffs;
+        totals.ccs_out_claims += row.ccs_out_claims;
+        totals.rlc_rhos += row.rlc_rhos;
+        totals.dec_children += row.dec_children;
+        totals.val_me_claims += row.val_me_claims;
+        totals.wb_me_claims += row.wb_me_claims;
+        totals.wp_me_claims += row.wp_me_claims;
+        totals.poseidon_cycle_me_claims += row.poseidon_cycle_me_claims;
+        totals.poseidon_local_me_claims += row.poseidon_local_me_claims;
+        totals.time_cpu_commitments += row.time_cpu_commitments;
+        totals.time_mem_commitments += row.time_mem_commitments;
+        totals.stage8_joint_commitments += row.stage8_joint_commitments;
+        totals.shout_proofs += row.shout_proofs;
+        totals.twist_proofs += row.twist_proofs;
+        totals.opening_points += row.opening_points;
+        totals.opening_cols += row.opening_cols;
+        totals.opening_bound_proofs += row.opening_bound_proofs;
+        totals.opening_bound_cols += row.opening_bound_cols;
+        totals.opening_reduction_groups += row.opening_reduction_groups;
+        totals.opening_unification_rounds += row.opening_unification_rounds;
+        totals.opening_unification_coeffs += row.opening_unification_coeffs;
+        totals.opening_joint_groups += row.opening_joint_groups;
+        totals.opening_joint_unified += row.opening_joint_unified;
+        totals.val_fold_lanes += row.val_fold_lanes;
+        totals.wb_fold_lanes += row.wb_fold_lanes;
+        totals.wp_fold_lanes += row.wp_fold_lanes;
+        totals.poseidon_cycle_fold_lanes += row.poseidon_cycle_fold_lanes;
+        totals.poseidon_local_fold_lanes += row.poseidon_local_fold_lanes;
+        totals.stage8_fold_lanes += row.stage8_fold_lanes;
+        totals.fold_lane_dec_children += row.fold_lane_dec_children;
+        totals.max_time_t = totals.max_time_t.max(row.time_t);
+    }
+    totals
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn percent_of(part: usize, total: usize) -> f64 {
+    if total == 0 {
+        0.0
+    } else {
+        (part as f64) * 100.0 / (total as f64)
+    }
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn env_flag_true(var_name: &str) -> bool {
+    match std::env::var(var_name) {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
+        }
+        Err(_) => false,
+    }
+}
+
+#[cfg(feature = "protocol-metrics")]
+fn print_superneo_protocol_metrics(
+    proof: &ShardProof,
+    trace_len: usize,
+    fold_count: usize,
+    setup_duration: std::time::Duration,
+    chunk_commit_duration: std::time::Duration,
+    fold_and_prove_duration: std::time::Duration,
+    prove_wall: std::time::Duration,
+    verify_wall: std::time::Duration,
+    verify_run: Option<std::time::Duration>,
+) {
+    let mut rows = Vec::new();
+    for (idx, step) in proof.steps.iter().enumerate() {
+        collect_step_protocol_metrics(idx.to_string(), step, &mut rows);
+    }
+    let totals = accumulate_totals(&rows);
+    let public_steps = proof
+        .segment_meta
+        .as_ref()
+        .map(|meta| meta.iter().map(|entry| entry.public_steps).sum())
+        .unwrap_or(rows.len());
+    let proof_steps = proof.steps.len();
+    let compressed_containers = rows
+        .iter()
+        .filter(|row| row.compressed_substeps > 0)
+        .count();
+    let instructions = trace_len.max(1) as f64;
+    let public_steps_safe = public_steps.max(1) as f64;
+    let fold_steps_safe = fold_count.max(1) as f64;
+    let verify_run_duration = verify_run.unwrap_or(verify_wall);
+    let verbose = env_flag_true("NS_PROTOCOL_METRICS_VERBOSE");
+    let route_claim_total = totals.route_a_claims.max(1);
+    let pi_ccs_coeffs = totals.ccs_fe_coeffs + totals.ccs_nc_coeffs;
+    let route_a_coeffs = totals.route_a_coeffs + totals.cpu_sumcheck_coeffs + totals.shift_sumcheck_coeffs;
+    let stage8_coeffs = totals.opening_unification_coeffs;
+    let poseidon_local_coeffs = totals.poseidon_local_coeffs;
+    let coeff_proxy_total = (pi_ccs_coeffs + route_a_coeffs + stage8_coeffs + poseidon_local_coeffs).max(1);
+
+    if !env_flag_true("NS_PROTOCOL_METRICS_LEGACY") {
+        println!("  +-------------------------------------------------------------------------+");
+        println!("  | Protocol Metrics (SuperNEO Flow)                                        |");
+        println!("  +-------------------------------------------------------------------------+");
+        println!("  | Feature     | enabled (neo-fold/protocol-metrics)                       |");
+        println!("  | Reference   | SuperNEO Section 7 + Route-A/Stage-8                      |");
+        println!(
+            "  | Shape       | public={} proof={} expanded={} compressed={} folds={}           |",
+            public_steps,
+            proof_steps,
+            rows.len(),
+            compressed_containers,
+            fold_count
+        );
+        println!(
+            "  | CCS variant | {:<58} |",
+            rows.first().map(|row| row.ccs_variant).unwrap_or("n/a")
+        );
+        println!("  | Max time_t  | {:<58} |", totals.max_time_t);
+        println!("  | Out binding | {:<58} |", proof.output_proof.is_some());
+        println!("  +-------------------------------------------------------------------------+");
+
+        println!("  +-----------------------------+--------+--------+--------+----------+");
+        println!("  | Stage                       | Claims | Rounds | Coeffs | Extra    |");
+        println!("  +-----------------------------+--------+--------+--------+----------+");
+        println!(
+            "  | {:<27} | {:>6} | {:>6} | {:>6} | {:>8} |",
+            "pi_ccs_fe", "-", totals.ccs_fe_rounds, totals.ccs_fe_coeffs, "-"
+        );
+        println!(
+            "  | {:<27} | {:>6} | {:>6} | {:>6} | {:>8} |",
+            "pi_ccs_nc", "-", totals.ccs_nc_rounds, totals.ccs_nc_coeffs, "-"
+        );
+        println!(
+            "  | {:<27} | {:>6} | {:>6} | {:>6} | {:>8} |",
+            "route_a_batched_time",
+            totals.route_a_claims,
+            totals.route_a_rounds,
+            totals.route_a_coeffs,
+            totals.route_a_degree_max
+        );
+        println!(
+            "  | {:<27} | {:>6} | {:>6} | {:>6} | {:>8} |",
+            "route_a_cpu_shift",
+            "-",
+            totals.cpu_sumcheck_rounds + totals.shift_sumcheck_rounds,
+            totals.cpu_sumcheck_coeffs + totals.shift_sumcheck_coeffs,
+            "-"
+        );
+        println!(
+            "  | {:<27} | {:>6} | {:>6} | {:>6} | {:>8} |",
+            "poseidon_local_time",
+            totals.poseidon_local_claims,
+            totals.poseidon_local_rounds,
+            totals.poseidon_local_coeffs,
+            "-"
+        );
+        println!(
+            "  | {:<27} | {:>6} | {:>6} | {:>6} | {:>8} |",
+            "stage8_unification",
+            "-",
+            totals.opening_unification_rounds,
+            totals.opening_unification_coeffs,
+            totals.opening_reduction_groups
+        );
+        println!(
+            "  | {:<27} | {:>6} | {:>6} | {:>6} | {:>8} |",
+            "pi_rlc_dec_lanes", "-", "-", "-", totals.rlc_rhos
+        );
+        println!("  +-----------------------------+--------+--------+--------+----------+");
+
+        println!("  +----------------+--------+--------+");
+        println!("  | Route-A family | Claims | Share% |");
+        println!("  +----------------+--------+--------+");
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "shout",
+            totals.route_a_breakdown.shout,
+            percent_of(totals.route_a_breakdown.shout, route_claim_total)
+        );
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "twist",
+            totals.route_a_breakdown.twist,
+            percent_of(totals.route_a_breakdown.twist, route_claim_total)
+        );
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "wb/wp",
+            totals.route_a_breakdown.wb_wp,
+            percent_of(totals.route_a_breakdown.wb_wp, route_claim_total)
+        );
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "decode",
+            totals.route_a_breakdown.decode,
+            percent_of(totals.route_a_breakdown.decode, route_claim_total)
+        );
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "width",
+            totals.route_a_breakdown.width,
+            percent_of(totals.route_a_breakdown.width, route_claim_total)
+        );
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "control",
+            totals.route_a_breakdown.control,
+            percent_of(totals.route_a_breakdown.control, route_claim_total)
+        );
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "poseidon",
+            totals.route_a_breakdown.poseidon,
+            percent_of(totals.route_a_breakdown.poseidon, route_claim_total)
+        );
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "output",
+            totals.route_a_breakdown.output,
+            percent_of(totals.route_a_breakdown.output, route_claim_total)
+        );
+        println!(
+            "  | {:<14} | {:>6} | {:>6.1} |",
+            "other",
+            totals.route_a_breakdown.other,
+            percent_of(totals.route_a_breakdown.other, route_claim_total)
+        );
+        println!("  +----------------+--------+--------+");
+
+        println!(
+            "  lane_claims: ccs_out={} dec_children={} fold_dec_children_total={}",
+            totals.ccs_out_claims, totals.dec_children, totals.fold_lane_dec_children
+        );
+        println!(
+            "  me_claims: val={} wb={} wp={} poseidon_cycle={} poseidon_local={}",
+            totals.val_me_claims,
+            totals.wb_me_claims,
+            totals.wp_me_claims,
+            totals.poseidon_cycle_me_claims,
+            totals.poseidon_local_me_claims
+        );
+        println!(
+            "  commitments/openings: cpu={} mem={} stage8_joint={} open_points={} open_cols={} open_proofs={}",
+            totals.time_cpu_commitments,
+            totals.time_mem_commitments,
+            totals.stage8_joint_commitments,
+            totals.opening_points,
+            totals.opening_cols,
+            totals.opening_bound_proofs
+        );
+        println!(
+            "  folds: val={} wb={} wp={} poseidon_cycle={} poseidon_local={} stage8={}",
+            totals.val_fold_lanes,
+            totals.wb_fold_lanes,
+            totals.wp_fold_lanes,
+            totals.poseidon_cycle_fold_lanes,
+            totals.poseidon_local_fold_lanes,
+            totals.stage8_fold_lanes
+        );
+        println!(
+            "  proof_payloads: shout={} twist={}",
+            totals.shout_proofs, totals.twist_proofs
+        );
+
+        println!("  +-------------------------+--------------+");
+        println!("  | Timing metric           | Value (ms)   |");
+        println!("  +-------------------------+--------------+");
+        println!(
+            "  | {:<23} | {:>12.1} |",
+            "setup",
+            setup_duration.as_secs_f64() * 1000.0
+        );
+        println!(
+            "  | {:<23} | {:>12.1} |",
+            "chunk+commit",
+            chunk_commit_duration.as_secs_f64() * 1000.0
+        );
+        println!(
+            "  | {:<23} | {:>12.1} |",
+            "fold+prove",
+            fold_and_prove_duration.as_secs_f64() * 1000.0
+        );
+        println!(
+            "  | {:<23} | {:>12.1} |",
+            "prove_wall",
+            prove_wall.as_secs_f64() * 1000.0
+        );
+        println!(
+            "  | {:<23} | {:>12.1} |",
+            "verify_run",
+            verify_run_duration.as_secs_f64() * 1000.0
+        );
+        println!(
+            "  | {:<23} | {:>12.1} |",
+            "verify_wall",
+            verify_wall.as_secs_f64() * 1000.0
+        );
+        println!(
+            "  | {:<23} | {:>12.3} |",
+            "prove per instruction",
+            prove_wall.as_secs_f64() * 1000.0 / instructions
+        );
+        println!(
+            "  | {:<23} | {:>12.3} |",
+            "fold+prove per instr",
+            fold_and_prove_duration.as_secs_f64() * 1000.0 / instructions
+        );
+        println!(
+            "  | {:<23} | {:>12.3} |",
+            "verify per instruction",
+            verify_wall.as_secs_f64() * 1000.0 / instructions
+        );
+        println!(
+            "  | {:<23} | {:>12.3} |",
+            "fold+prove per public",
+            fold_and_prove_duration.as_secs_f64() * 1000.0 / public_steps_safe
+        );
+        println!(
+            "  | {:<23} | {:>12.3} |",
+            "fold+prove per fold",
+            fold_and_prove_duration.as_secs_f64() * 1000.0 / fold_steps_safe
+        );
+        println!("  +-------------------------+--------------+");
+
+        println!("  +-------------------------+------------+--------+");
+        println!("  | Coeff proxy component   | Count      | Share% |");
+        println!("  +-------------------------+------------+--------+");
+        println!(
+            "  | {:<23} | {:>10} | {:>6.1} |",
+            "route_a",
+            route_a_coeffs,
+            percent_of(route_a_coeffs, coeff_proxy_total)
+        );
+        println!(
+            "  | {:<23} | {:>10} | {:>6.1} |",
+            "pi_ccs",
+            pi_ccs_coeffs,
+            percent_of(pi_ccs_coeffs, coeff_proxy_total)
+        );
+        println!(
+            "  | {:<23} | {:>10} | {:>6.1} |",
+            "poseidon_local",
+            poseidon_local_coeffs,
+            percent_of(poseidon_local_coeffs, coeff_proxy_total)
+        );
+        println!(
+            "  | {:<23} | {:>10} | {:>6.1} |",
+            "stage8_unification",
+            stage8_coeffs,
+            percent_of(stage8_coeffs, coeff_proxy_total)
+        );
+        println!("  +-------------------------+------------+--------+");
+
+        if verbose {
+            println!("  per_step_flow (NS_PROTOCOL_METRICS_VERBOSE=1):");
+            for row in rows {
+                println!(
+                    "    step={} substeps={} ccs_rounds(fe/nc={} / {}) route_a(claims/rounds={} / {}) rlc_rhos={} dec_children={} commits(cpu/mem/joint={} / {} / {}) folds(val/wb/wp/p2c/p2l/s8={}/{}/{}/{}/{}/{})",
+                    row.step_id,
+                    row.compressed_substeps,
+                    row.ccs_fe_rounds,
+                    row.ccs_nc_rounds,
+                    row.route_a_claims,
+                    row.route_a_rounds,
+                    row.rlc_rhos,
+                    row.dec_children,
+                    row.time_cpu_commitments,
+                    row.time_mem_commitments,
+                    row.stage8_joint_commitments,
+                    row.val_fold_lanes,
+                    row.wb_fold_lanes,
+                    row.wp_fold_lanes,
+                    row.poseidon_cycle_fold_lanes,
+                    row.poseidon_local_fold_lanes,
+                    row.stage8_fold_lanes
+                );
+            }
+        } else {
+            println!("  per_step_flow=hidden (set NS_PROTOCOL_METRICS_VERBOSE=1 for details)");
+        }
+        return;
+    }
+
+    println!("  protocol_metrics_feature=enabled (neo-fold/protocol-metrics)");
+    println!("  protocol_flow_reference=SuperNEO Section 7 + Route-A/Stage-8");
+    println!(
+        "  protocol_shape: public_steps={} proof_steps={} expanded_steps={} compressed_containers={} fold_steps={}",
+        public_steps,
+        proof_steps,
+        rows.len(),
+        compressed_containers,
+        fold_count
+    );
+    println!(
+        "  ccs_variant={} max_time_t={} output_binding_present={}",
+        rows.first().map(|row| row.ccs_variant).unwrap_or("n/a"),
+        totals.max_time_t,
+        proof.output_proof.is_some()
+    );
+
+    println!("  stage_summary:");
+    println!(
+        "    {:<28} {:>8} {:>8} {:>8} {:>10}",
+        "stage", "claims", "rounds", "coeffs", "extra"
+    );
+    println!(
+        "    {:<28} {:>8} {:>8} {:>8} {:>10}",
+        "pi_ccs_fe", "-", totals.ccs_fe_rounds, totals.ccs_fe_coeffs, "-"
+    );
+    println!(
+        "    {:<28} {:>8} {:>8} {:>8} {:>10}",
+        "pi_ccs_nc", "-", totals.ccs_nc_rounds, totals.ccs_nc_coeffs, "-"
+    );
+    println!(
+        "    {:<28} {:>8} {:>8} {:>8} {:>10}",
+        "route_a_batched_time",
+        totals.route_a_claims,
+        totals.route_a_rounds,
+        totals.route_a_coeffs,
+        totals.route_a_degree_max
+    );
+    println!(
+        "    {:<28} {:>8} {:>8} {:>8} {:>10}",
+        "route_a_cpu_shift",
+        "-",
+        totals.cpu_sumcheck_rounds + totals.shift_sumcheck_rounds,
+        totals.cpu_sumcheck_coeffs + totals.shift_sumcheck_coeffs,
+        "-"
+    );
+    println!(
+        "    {:<28} {:>8} {:>8} {:>8} {:>10}",
+        "poseidon_local_time",
+        totals.poseidon_local_claims,
+        totals.poseidon_local_rounds,
+        totals.poseidon_local_coeffs,
+        "-"
+    );
+    println!(
+        "    {:<28} {:>8} {:>8} {:>8} {:>10}",
+        "stage8_unification",
+        "-",
+        totals.opening_unification_rounds,
+        totals.opening_unification_coeffs,
+        totals.opening_reduction_groups
+    );
+    println!(
+        "    {:<28} {:>8} {:>8} {:>8} {:>10}",
+        "pi_rlc_dec_lanes", "-", "-", "-", totals.rlc_rhos
+    );
+
+    println!("  route_a_claim_families:");
+    println!(
+        "    shout={:>3} ({:>5.1}%)  twist={:>3} ({:>5.1}%)  wb/wp={:>3} ({:>5.1}%)",
+        totals.route_a_breakdown.shout,
+        percent_of(totals.route_a_breakdown.shout, route_claim_total),
+        totals.route_a_breakdown.twist,
+        percent_of(totals.route_a_breakdown.twist, route_claim_total),
+        totals.route_a_breakdown.wb_wp,
+        percent_of(totals.route_a_breakdown.wb_wp, route_claim_total),
+    );
+    println!(
+        "    decode={:>3} ({:>5.1}%)  width={:>3} ({:>5.1}%)  control={:>3} ({:>5.1}%)",
+        totals.route_a_breakdown.decode,
+        percent_of(totals.route_a_breakdown.decode, route_claim_total),
+        totals.route_a_breakdown.width,
+        percent_of(totals.route_a_breakdown.width, route_claim_total),
+        totals.route_a_breakdown.control,
+        percent_of(totals.route_a_breakdown.control, route_claim_total),
+    );
+    println!(
+        "    poseidon={:>3} ({:>5.1}%)  output={:>3} ({:>5.1}%)  other={:>3} ({:>5.1}%)",
+        totals.route_a_breakdown.poseidon,
+        percent_of(totals.route_a_breakdown.poseidon, route_claim_total),
+        totals.route_a_breakdown.output,
+        percent_of(totals.route_a_breakdown.output, route_claim_total),
+        totals.route_a_breakdown.other,
+        percent_of(totals.route_a_breakdown.other, route_claim_total),
+    );
+
+    println!(
+        "  lane_claims: ccs_out={} dec_children={} fold_dec_children_total={}",
+        totals.ccs_out_claims, totals.dec_children, totals.fold_lane_dec_children
+    );
+    println!(
+        "  me_claims: val={} wb={} wp={} poseidon_cycle={} poseidon_local={}",
+        totals.val_me_claims,
+        totals.wb_me_claims,
+        totals.wp_me_claims,
+        totals.poseidon_cycle_me_claims,
+        totals.poseidon_local_me_claims
+    );
+    println!(
+        "  commitments_openings: time_cpu={} time_mem={} stage8_joint={} opening_points={} opening_cols={} opening_proofs={} opening_proof_cols={}",
+        totals.time_cpu_commitments,
+        totals.time_mem_commitments,
+        totals.stage8_joint_commitments,
+        totals.opening_points,
+        totals.opening_cols,
+        totals.opening_bound_proofs,
+        totals.opening_bound_cols
+    );
+    println!(
+        "  folds: val={} wb={} wp={} poseidon_cycle={} poseidon_local={} stage8={}",
+        totals.val_fold_lanes,
+        totals.wb_fold_lanes,
+        totals.wp_fold_lanes,
+        totals.poseidon_cycle_fold_lanes,
+        totals.poseidon_local_fold_lanes,
+        totals.stage8_fold_lanes
+    );
+    println!(
+        "  proof_payloads: shout_proofs={} twist_proofs={}",
+        totals.shout_proofs, totals.twist_proofs
+    );
+
+    println!(
+        "  timings_ms: setup={:.1} chunk+commit={:.1} fold+prove={:.1} prove_wall={:.1} verify_run={:.1} verify_wall={:.1}",
+        setup_duration.as_secs_f64() * 1000.0,
+        chunk_commit_duration.as_secs_f64() * 1000.0,
+        fold_and_prove_duration.as_secs_f64() * 1000.0,
+        prove_wall.as_secs_f64() * 1000.0,
+        verify_run_duration.as_secs_f64() * 1000.0,
+        verify_wall.as_secs_f64() * 1000.0
+    );
+    println!(
+        "  per_instruction_ms: prove={:.3} fold+prove={:.3} verify={:.3}",
+        prove_wall.as_secs_f64() * 1000.0 / instructions,
+        fold_and_prove_duration.as_secs_f64() * 1000.0 / instructions,
+        verify_wall.as_secs_f64() * 1000.0 / instructions
+    );
+    println!(
+        "  per_step_ms: public={:.3} fold={:.3}",
+        fold_and_prove_duration.as_secs_f64() * 1000.0 / public_steps_safe,
+        fold_and_prove_duration.as_secs_f64() * 1000.0 / fold_steps_safe
+    );
+    println!("  coeff_proxy_share (higher means heavier):");
+    println!(
+        "    route_a={:>8} ({:>5.1}%)  pi_ccs={:>8} ({:>5.1}%)  poseidon_local={:>8} ({:>5.1}%)  stage8={:>8} ({:>5.1}%)",
+        route_a_coeffs,
+        percent_of(route_a_coeffs, coeff_proxy_total),
+        pi_ccs_coeffs,
+        percent_of(pi_ccs_coeffs, coeff_proxy_total),
+        poseidon_local_coeffs,
+        percent_of(poseidon_local_coeffs, coeff_proxy_total),
+        stage8_coeffs,
+        percent_of(stage8_coeffs, coeff_proxy_total),
+    );
+
+    if verbose {
+        println!("  per_step_flow (NS_PROTOCOL_METRICS_VERBOSE=1):");
+        for row in rows {
+            println!(
+                "    step={} substeps={} ccs_rounds(fe/nc={} / {}) route_a(claims/rounds={} / {}) rlc_rhos={} dec_children={} commits(cpu/mem/joint={} / {} / {}) folds(val/wb/wp/p2c/p2l/s8={}/{}/{}/{}/{}/{})",
+                row.step_id,
+                row.compressed_substeps,
+                row.ccs_fe_rounds,
+                row.ccs_nc_rounds,
+                row.route_a_claims,
+                row.route_a_rounds,
+                row.rlc_rhos,
+                row.dec_children,
+                row.time_cpu_commitments,
+                row.time_mem_commitments,
+                row.stage8_joint_commitments,
+                row.val_fold_lanes,
+                row.wb_fold_lanes,
+                row.wp_fold_lanes,
+                row.poseidon_cycle_fold_lanes,
+                row.poseidon_local_fold_lanes,
+                row.stage8_fold_lanes
+            );
+        }
+    } else {
+        println!("  per_step_flow=hidden (set NS_PROTOCOL_METRICS_VERBOSE=1 for details)");
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Real note-spend transfer: 1-input, 1-output self-transfer with valid witness
@@ -433,6 +1331,20 @@ fn test_note_spend_1in_1out_transfer_prove_verify() {
         run.verify_duration().unwrap_or(verify_wall).as_secs_f64() * 1000.0
     );
     println!("    verify_wall:    {:.1} ms", verify_wall.as_secs_f64() * 1000.0);
+    #[cfg(feature = "protocol-metrics")]
+    print_superneo_protocol_metrics(
+        run.proof(),
+        run.trace_len(),
+        run.fold_count(),
+        phases.setup,
+        phases.chunk_build_commit,
+        phases.fold_and_prove,
+        prove_wall,
+        verify_wall,
+        run.verify_duration(),
+    );
+    #[cfg(not(feature = "protocol-metrics"))]
+    println!("  protocol_metrics_feature=disabled (enable with --features protocol-metrics)");
     println!("=============================================\n");
 
     if let Err(err) = verify_result {

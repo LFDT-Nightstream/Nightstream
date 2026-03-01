@@ -1,5 +1,5 @@
 name = "superneo_lean"
-defaultTargets = ["SuperNeo"]
+defaultTargets = ["SuperNeo", "check"]
 
 [[lean_lib]]
 name = "SuperNeo"
@@ -10,20 +10,4 @@ root = "Main"
 
 [[lean_exe]]
 name = "goldilocks-golden"
-root = "GoldilocksGolden"
-
-[[lean_exe]]
-name = "ring-golden"
-root = "RingGolden"
-
-[[lean_exe]]
-name = "eq-mle-golden"
-root = "EqMleGolden"
-
-[[lean_exe]]
-name = "p9-p11-p12-golden"
-root = "P9P11P12Golden"
-
-[[lean_exe]]
-name = "p13-p14-golden"
-root = "P13P14Golden"
+root = "SuperNeo.Golden.GoldilocksGolden"

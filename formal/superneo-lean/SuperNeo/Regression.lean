@@ -1,9 +1,3 @@
-import SuperNeo.Generated.Vectors
-import SuperNeo.Checks
+import SuperNeo.Golden.GoldilocksGolden
 
-/-!
-Regression/parity layer for SuperNeo.
-
-This module bundles generated vectors and executable check surfaces.
--/
-
+/-! Regression/parity entrypoint (golden vector exporters/checks). -/

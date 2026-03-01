@@ -3,6 +3,7 @@ import SuperNeo.Field
 namespace SuperNeo
 
 open F
+open Goldilocks
 
 private def u64Mod : Nat := 2 ^ (64 : Nat)
 
@@ -84,3 +85,6 @@ def goldilocksGoldenMain : IO UInt32 := do
   pure 0
 
 end SuperNeo
+
+def main : IO UInt32 :=
+  SuperNeo.goldilocksGoldenMain

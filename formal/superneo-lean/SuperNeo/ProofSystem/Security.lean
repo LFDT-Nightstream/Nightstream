@@ -1,52 +1,49 @@
-/-!
-Security-model surfaces for paper-faithful protocol theorems.
+import SuperNeo.ProofSystem.Negligible
 
-This file is intentionally lightweight: it provides theorem statement interfaces
-for probability and negligible error accounting without forcing a specific
-probability encoding yet.
--/
+namespace SuperNeo.ProofSystem
 
-namespace SuperNeo.ProofSystem.Security
-
-/-- Security parameter (typically denoted `λ`). -/
-abbrev SecurityParam := Nat
-
-/-- Error function indexed by the security parameter. -/
-abbrev ErrorFn := SecurityParam → Rat
-
-/-- Event over an outcome space. -/
-abbrev Event (α : Type) := α → Prop
-
-/--
-Minimal probability-model interface used by theorem statements.
-Concrete measure-theoretic laws are intentionally deferred.
--/
+/-- Abstract probability model surface used by protocol theorem statements. -/
 structure ProbModel where
-  Dist : Type → Type
-  Pr : {α : Type} → Dist α → Event α → Rat
+  Pr : Prop → Rat
+  prNonneg : ∀ P : Prop, 0 ≤ Pr P
+  prLeOne : ∀ P : Prop, Pr P ≤ 1
 
-/--
-Standard negligible-function shape over `Nat -> Rat`.
--/
-def IsNegligible (f : ErrorFn) : Prop :=
-  ∀ c : Nat, ∃ N : Nat, ∀ n : Nat, n ≥ N → f n ≤ (1 : Rat) / (((n + 1) ^ c : Nat) : Rat)
+private def zeroError : ErrorFn := fun _ => 0
 
-/--
-Protocol error budget registry used by paper-facing final theorem statements.
+private theorem negligible_zeroError : IsNegligible zeroError := by
+  simp [zeroError]
 
-Each component is tracked separately plus an explicit total error function.
--/
+/-- Error accounting model with explicit source terms and total term. -/
 structure ErrorModel where
-  ε_sumcheck : ErrorFn
-  ε_schwartzZippel : ErrorFn
-  ε_binding : ErrorFn
-  ε_relaxedBinding : ErrorFn
-  ε_total : ErrorFn
-  hNeg_sumcheck : IsNegligible ε_sumcheck
-  hNeg_schwartzZippel : IsNegligible ε_schwartzZippel
-  hNeg_binding : IsNegligible ε_binding
-  hNeg_relaxedBinding : IsNegligible ε_relaxedBinding
-  hNeg_total : IsNegligible ε_total
+  epsSumcheck : ErrorFn
+  epsSchwartzZippel : ErrorFn
+  epsBinding : ErrorFn
+  epsRelaxedBinding : ErrorFn
+  epsTotal : ErrorFn
+  epsTotal_decomp :
+    ∀ n,
+      epsTotal n =
+        epsSumcheck n + epsSchwartzZippel n + epsBinding n + epsRelaxedBinding n
+  negligibleSumcheck : IsNegligible epsSumcheck
+  negligibleSchwartzZippel : IsNegligible epsSchwartzZippel
+  negligibleBinding : IsNegligible epsBinding
+  negligibleRelaxedBinding : IsNegligible epsRelaxedBinding
+  negligibleTotal : IsNegligible epsTotal
 
-end SuperNeo.ProofSystem.Security
+/-- A canonical zero-error model used as a default scaffold value. -/
+def zeroErrorModel : ErrorModel where
+  epsSumcheck := zeroError
+  epsSchwartzZippel := zeroError
+  epsBinding := zeroError
+  epsRelaxedBinding := zeroError
+  epsTotal := zeroError
+  epsTotal_decomp := by
+    intro n
+    simp [zeroError]
+  negligibleSumcheck := negligible_zeroError
+  negligibleSchwartzZippel := negligible_zeroError
+  negligibleBinding := negligible_zeroError
+  negligibleRelaxedBinding := negligible_zeroError
+  negligibleTotal := negligible_zeroError
 
+end SuperNeo.ProofSystem

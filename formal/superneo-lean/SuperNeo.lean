@@ -4,4 +4,3 @@ import SuperNeo.ProtocolBase
 import SuperNeo.ProtocolTrack
 import SuperNeo.Composition
 import SuperNeo.ProofSystem
-import SuperNeo.Regression

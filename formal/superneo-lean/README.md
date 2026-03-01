@@ -300,40 +300,35 @@ Or single facade:
     ALGEBRA                      NORMS                   POLYNOMIALS
 ------------------           -----------------       ------------------
 
-Field/Ring (P1) --> Coeff maps (P3)    Field/Ring (P1) --> Norm (P5)       Field/Ring (P1) --> Eq poly (P7)
-Field/Ring (P1) --> Ring arith (P4)                        |                                    |
-                    Coeff maps (P3) --> Embedding (P9)     v                                    v
-                                             |    Norm (P5) --> split_b (P6)           Eq poly (P7) --> MLE (P8)
-                                             v                                                          |
-Thm 3: inner product (P10) <-- Params (P2)                                                             v
-         |                          Params (P2) + Norm (P5) --> Thm 8: invertibility (P16)     MLE (P8) --> SZ lemmas (P18)
-         v                                                              |                                    |
-Def 8: bar-lift (P11)                                                   v                                    v
-         |                                                   Thm 9: sampling (P17)              Interpolation (P19)
-         v
-Thm 4: Mz = ct(bar(M)z) (P12)
-         |
-         v                              Coeff maps (P3) --> Module hom (P15)
-Remark 2: eval/ct link (P13)                                     |
-         |                                                        |
-         +-----------------------+ Module hom (P15) --> Thm 5: eval hom (P14)
+Goldilocks --> Field (P1)            Ring (P4) --> Norm (P5)         Field (P1) --> Eq poly (P7)
+Field (P1) --> Ring (P4)                               |                              |
+                                             Norm --> split_b (P6)          Eq poly --> MLE (P8)
+Ring (P4) --> Embedding (P9)                  Norm --> Thm 8: invertibility (P16)      |
+Ring (P4) --> Module hom (P15)                Norm --> Thm 9: sampling (P17)   MLE + Eq poly --> SumCheck (M21)
+                |                                                                     |
+        Embedding --> Def 8: bar-lift (P11)                              Field (P1) --> Interpolation (P19)
+                            |
+                  BarLift --> Thm 3: inner product (P10)
+                  BarLift --> Thm 4: Mz = ct(bar(M)z) (P12)
+                                        |
+                                  Remark 2: eval/ct link (P13)
+                                        |
+                              EvalLink + Module hom --> Thm 5: eval hom (P14)
 
 
 ===============================================================
-Arithmetic obligations (P20)  <-- split_b, Thm 4, Thm 5, Thm 8, Thm 9, SZ, Interp
+ArithmeticObligations  <-- split_b, Thm 4, Thm 5, Module hom,
+                           Thm 8, Thm 9, MLE, Interp
          |
          v
-Protocol target (P21)  <-- Thm 3, Thm 4, Thm 5, Thm 8, Thm 9, SZ, Interp, P20
+ProtocolTarget  <-- Thm 3 + ArithmeticObligations
 ===============================================================
 
 
-    PROTOCOL REDUCTIONS (paper-faithful end-to-end target)
+    PROTOCOL REDUCTIONS
 ----------------------------------------------------------------
-CCS/CE relations (M22) <-- Eq poly, MLE, SZ, Interp, Thm 3, Thm 4, Thm 5, Thm 8, Thm 9, P20, P21
+ProtocolRelations (M22)  <-- ProtocolTarget + SumCheck (M21)
 
-SumCheck (M21)
-     |
-     v
 Π_CCS: strong IR (M23)
      |
      v
@@ -343,44 +338,47 @@ SumCheck (M21)
 Π_DEC: reduction of knowledge (M25)
      |
      v
-Strong/Weak composition — paper Thm 6 (M26)
+InteractiveReductions: strong/weak composition (M26)
      |
      v
-Final SuperNeo theorem (M27)
+ProtocolTheorem: final SuperNeo theorem (M27)
+     |
+     v
+ProofSystem/Protocol (paper-facing facade)
 ```
 
 ## Status Summary
 
-| ID | Paper concept | Status | Remaining gap |
+| ID | Concept / module | Status | Remaining gap |
 |---|---|---|---|
-| P1 | Field/ring dimensions | Done | — |
+| P1 | Goldilocks + Field core | Done | — |
 | P2 | Concrete parameters | Done | — |
 | P3 | Coefficient maps and `ct` bridge | Done | — |
-| P4 | Quotient-ring arithmetic | Done | — |
+| P4 | Ring arithmetic (`Ring.lean`) | Done | — |
 | P5 | Centered norm theorem layer | Done | Tighten downstream usage cleanup |
-| P6 | `split_b` decomposition | In progress | Extend constructive closure beyond native base-2 challenge path (`k ≥ 8`) |
-| P7 | `eq` selector behavior | Done | Full integration across protocol proofs |
-| P8 | MLE identity | In progress | Fully quantified theorem closure |
-| P9 | Embedding bijection/linearity | In progress | Complete theorem-native linearity suite |
-| P10 | Theorem 3 inner-product transform | In progress | Universal derivation from foundations |
-| P11 | Definition 8 bar-lift | In progress | Universal theorem closure |
-| P12 | Theorem 4 matrix transform | In progress | Universal theorem closure |
-| P13 | Remark 2 eval/`ct` linkage | In progress | Strong theorem-native integration |
-| P14 | Theorem 5 eval homomorphism | In progress | Full theorem-native proof |
-| P15 | Module-hom abstraction | In progress | Rich abstract theorem layer |
-| P16 | Theorem 8 invertibility | In progress | Prove or keep explicit trusted boundary |
-| P17 | Theorem 9 sampling expansion | In progress | Universal theorem |
-| P18 | SZ and eq-lift lemmas | In progress | Full quantified lemma set |
-| P19 | Interpolation correctness | In progress | Uniqueness/correctness theorem package |
-| P20 | Arithmetic obligations bundle | In progress | Remove remaining compatibility wrappers |
-| P21 | Protocol target composition | In progress | Paper-exact theorem phrasing and closure |
-| M21 | SumCheck formalization | In progress | Paper-exact rounds + theorem-level soundness bound statement (error term explicit) + completeness |
-| M22 | CCS/CE relations | In progress | Complete paper-definition alignment |
-| M23 | `Π_CCS` strong IR theorem | In progress | Full paper instantiation |
-| M24 | `Π_RLC` weak IR theorem | In progress | Full paper instantiation |
-| M25 | `Π_DEC` RoK theorem | In progress | Extractor-grade final theorem |
-| M26 | Strong/weak composition (Thm 6) | In progress | Generic theorem-level composition closure |
-| M27 | Final SuperNeo theorem | In progress | End-to-end paper-faithful statement/proof |
+| P6 | `split_b` decomposition (`Decomp.lean`) | In progress | Extend constructive closure beyond native base-2 challenge path (`k ≥ 8`) |
+| P7 | Eq polynomial (`EqPoly.lean`) | Done | Full integration across protocol proofs |
+| P8 | MLE (`MLE.lean`) | In progress | Fully quantified theorem closure |
+| P9 | Embedding (`Embedding.lean`) | In progress | Complete theorem-native linearity suite |
+| P10 | Theorem 3 / `Thm3Core.lean` | In progress | Universal derivation from foundations |
+| P11 | Bar-lift (`BarLift.lean`) | In progress | Universal theorem closure |
+| P12 | Matrix transform (`MatrixTransform.lean`) | In progress | Universal theorem closure |
+| P13 | Eval/`ct` link (`EvalLink.lean`) | In progress | Strong theorem-native integration |
+| P14 | Eval hom (`EvalHom.lean`) | In progress | Full theorem-native proof |
+| P15 | Module hom (`ModuleHom.lean`) | In progress | Rich abstract theorem layer |
+| P16 | Invertibility (`InvertibilityAxioms.lean`) | In progress | Prove or keep explicit trusted boundary |
+| P17 | Sampling (`SamplingSet.lean`) | In progress | Universal theorem |
+| P18 | SZ + eq-lift lemmas | In progress | Full quantified lemma set |
+| P19 | Interpolation (`Interp.lean`) | In progress | Uniqueness/correctness theorem package |
+| P20 | Arithmetic obligations (`ArithmeticObligations.lean`) | In progress | Replace boundary-style fields with fully derived theorem chain |
+| P21 | Protocol target (`ProtocolTarget.lean`) | In progress | Paper-exact theorem phrasing and closure |
+| M21 | SumCheck (`SumCheck.lean`) | In progress | Paper-exact rounds + theorem-level soundness bound statement (error term explicit) + completeness |
+| M22 | Protocol relations (`ProtocolRelations.lean`) | In progress | Complete paper-definition alignment |
+| M23 | `Π_CCS` (`PiCCS.lean`) | In progress | Full paper instantiation |
+| M24 | `Π_RLC` (`PiRLC.lean`) | In progress | Full paper instantiation |
+| M25 | `Π_DEC` (`PiDEC.lean`) | In progress | Extractor-grade final theorem |
+| M26 | Interactive reductions (`InteractiveReductions.lean`) | In progress | Generic theorem-level composition closure |
+| M27 | Final theorem (`ProtocolTheorem.lean` / `ProofSystem.Protocol`) | In progress | End-to-end paper-faithful statement/proof |
 
 ## Full-Proof Completion Contract
 

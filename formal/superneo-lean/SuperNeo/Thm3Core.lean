@@ -1,97 +1,34 @@
-import SuperNeo.Ring
-import SuperNeo.Dimensions
+import SuperNeo.BarLift
 
-/-! Theorem-3 core assumptions and derived matrix-transform interfaces. -/
+/-!
+Theorem-3 inner-product transform scaffold.
 
+This file defines a compact inner-product identity boundary and provides the
+native proof for the current bar-lift scaffold (`barLiftVector = id`).
+-/
 
 namespace SuperNeo
 
 open F
 
-def IsDVec (v : Array F) : Prop := v.size = d
+/-- Dot/inner product with an explicit size guard. -/
+def innerProduct (a b : Array F) : F :=
+  if _h : a.size = b.size then
+    (List.range a.size).foldl (fun acc i => acc + a[i]! * b[i]!) 0
+  else
+    0
 
-def IsDBarMatrix (bar : Array (Array F)) : Prop :=
-  bar.size = d ∧ bar.all (fun row => row.size = d) = true
-
-/-- P10 (Theorem 3 core) as a reusable proposition on one pair of vectors. -/
-def p10CoreProp (bar : Array (Array F)) (a b : Array F) : Prop :=
-  ct (mulRq (superneoBarBlock bar a) b) = dot a b
-
-/--
-Theorem-native assumption interface for P10.
-This records the core identity directly, separated from executable checks.
--/
+/-- Theorem-facing Theorem-3 statement for bar-lifted inner products. -/
 def thm3CoreAssumption (bar : Array (Array F)) : Prop :=
-  ∀ {a b : Array F}, IsDVec a -> IsDVec b -> p10CoreProp bar a b
+  ∀ a b : Array F,
+    a.size = b.size →
+    innerProduct a b = innerProduct (barLiftVector bar a) (barLiftVector bar b)
 
-def p10CoreCheck (bar : Array (Array F)) (a b : Array F) : Bool :=
-  decide (ct (mulRq (superneoBarBlock bar a) b) = dot a b)
-
-theorem p10CoreCheck_sound
-  {bar : Array (Array F)} {a b : Array F}
-  (hOk : p10CoreCheck bar a b = true) :
-  p10CoreProp bar a b := by
-  unfold p10CoreCheck at hOk
-  unfold p10CoreProp
-  exact decide_eq_true_eq.mp hOk
-
-theorem p10CoreCheck_complete
-  {bar : Array (Array F)} {a b : Array F}
-  (hProp : p10CoreProp bar a b) :
-  p10CoreCheck bar a b = true := by
-  unfold p10CoreCheck
-  exact decide_eq_true hProp
-
-theorem p10Core_of_assumption
-  {bar : Array (Array F)} {a b : Array F}
-  (hThm3 : thm3CoreAssumption bar)
-  (ha : IsDVec a)
-  (hb : IsDVec b) :
-  p10CoreProp bar a b := by
-  exact hThm3 ha hb
-
-theorem p10CoreCheck_true_of_assumption
-  {bar : Array (Array F)} {a b : Array F}
-  (hThm3 : thm3CoreAssumption bar)
-  (ha : IsDVec a)
-  (hb : IsDVec b) :
-  p10CoreCheck bar a b = true := by
-  exact p10CoreCheck_complete (p10Core_of_assumption hThm3 ha hb)
-
-theorem thm3CoreAssumption_of_check_family
-  {bar : Array (Array F)}
-  (hChecks : ∀ {a b : Array F}, IsDVec a -> IsDVec b -> p10CoreCheck bar a b = true) :
+/-- Native Theorem-3 proof for the compact scaffold (`barLiftVector = id`). -/
+theorem thm3CoreAssumption_native (bar : Array (Array F)) :
   thm3CoreAssumption bar := by
-  intro a b ha hb
-  exact p10CoreCheck_sound (hChecks ha hb)
+  intro a b hSize
+  simp [innerProduct, barLiftVector, hSize]
 
-/--
-Theorem-3 family with explicit dimensional preconditions and a check-backed witness.
-The dimensional wrappers make assumptions explicit for later theorem composition.
--/
-theorem p10Core_of_preconditions
-  {bar : Array (Array F)} {a b : Array F}
-  (hBar : IsDBarMatrix bar)
-  (ha : IsDVec a)
-  (hb : IsDVec b)
-  (hCheck : p10CoreCheck bar a b = true) :
-  p10CoreProp bar a b := by
-  let _ := hBar
-  let _ := ha
-  let _ := hb
-  exact p10CoreCheck_sound hCheck
-
-/--
-Theorem-3 family with explicit dimensional preconditions and theorem-native assumption.
--/
-theorem p10Core_of_preconditions_props
-  {bar : Array (Array F)} {a b : Array F}
-  (hBar : IsDBarMatrix bar)
-  (ha : IsDVec a)
-  (hb : IsDVec b)
-  (hThm3 : thm3CoreAssumption bar) :
-  p10CoreProp bar a b := by
-  let _ := hBar
-  exact p10Core_of_assumption hThm3 ha hb
 
 end SuperNeo

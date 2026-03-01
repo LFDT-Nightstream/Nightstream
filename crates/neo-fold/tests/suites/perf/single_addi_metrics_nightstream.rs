@@ -582,7 +582,7 @@ fn report_track_a_w0_w1_snapshot() {
     let mut other_claims = Vec::new();
 
     for i in 0..bt.labels.len() {
-        let label = std::str::from_utf8(bt.labels[i]).unwrap_or("<invalid>");
+        let label = std::str::from_utf8(&bt.labels[i]).unwrap_or("<invalid>");
         let deg = bt.degree_bounds[i];
         let entry = (label.to_string(), deg);
         if label.starts_with("ccs/") {

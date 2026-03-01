@@ -322,7 +322,7 @@ pub(crate) fn ensure_poseidon_link_sums_match_verify(
     let cycle_sum_idx = batched_time
         .labels
         .iter()
-        .position(|l| (*l as &[u8]) == b"poseidon/link_cycle_sum")
+        .position(|l| l.as_slice() == b"poseidon/link_cycle_sum")
         .ok_or_else(|| {
             PiCcsError::ProtocolError("missing poseidon/link_cycle_sum claim in batched_time proof".into())
         })?;
@@ -331,7 +331,7 @@ pub(crate) fn ensure_poseidon_link_sums_match_verify(
     let local_sum_idx = local_proof
         .labels
         .iter()
-        .position(|l| (*l as &[u8]) == b"poseidon/link_local_sum")
+        .position(|l| l.as_slice() == b"poseidon/link_local_sum")
         .ok_or_else(|| {
             PiCcsError::ProtocolError("missing poseidon/link_local_sum claim in poseidon_local_time proof".into())
         })?;
@@ -634,7 +634,7 @@ pub(crate) fn ensure_poseidon_link_sums_match(
     let cycle_sum_idx = batched_time
         .labels
         .iter()
-        .position(|l| (*l as &[u8]) == b"poseidon/link_cycle_sum")
+        .position(|l| l.as_slice() == b"poseidon/link_cycle_sum")
         .ok_or_else(|| {
             PiCcsError::ProtocolError("missing poseidon/link_cycle_sum claim in batched_time proof".into())
         })?;
@@ -643,7 +643,7 @@ pub(crate) fn ensure_poseidon_link_sums_match(
     let local_sum_idx = local_proof
         .labels
         .iter()
-        .position(|l| (*l as &[u8]) == b"poseidon/link_local_sum")
+        .position(|l| l.as_slice() == b"poseidon/link_local_sum")
         .ok_or_else(|| {
             PiCcsError::ProtocolError("missing poseidon/link_local_sum claim in poseidon_local_time proof".into())
         })?;

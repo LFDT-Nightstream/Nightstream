@@ -408,7 +408,7 @@ pub(crate) fn validate_time_sumcheck_metadata(
 
     let control_idx = labels
         .iter()
-        .position(|label| (*label as &[u8]) == b"control/next_pc_linear");
+        .position(|label| label.as_slice() == b"control/next_pc_linear");
     match control_idx {
         Some(expected_shift_idx) => {
             let expected_shift_sum = *claimed_sums.get(expected_shift_idx).ok_or_else(|| {

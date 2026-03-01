@@ -22,7 +22,7 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
 /// Challenges sampled in Step 1 of the protocol
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Challenges {
     /// α ∈ K^{log d} - for Ajtai dimension
     pub alpha: Vec<K>,

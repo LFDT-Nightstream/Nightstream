@@ -448,7 +448,7 @@ pub fn prove_route_a_batched_time(
     let proof = BatchedTimeProof {
         claimed_sums: claimed_sums.clone(),
         degree_bounds: degree_bounds.clone(),
-        labels: labels.clone(),
+        labels: labels.iter().map(|label| label.to_vec()).collect(),
         round_polys: per_claim_results
             .into_iter()
             .map(|r| r.round_polys)
@@ -490,11 +490,24 @@ pub fn verify_route_a_batched_time(
     let expected_degree_bounds: Vec<usize> = metas.iter().map(|m| m.degree_bound).collect();
     let expected_labels: Vec<&'static [u8]> = metas.iter().map(|m| m.label).collect();
     let claim_is_dynamic: Vec<bool> = metas.iter().map(|m| m.is_dynamic).collect();
+    let proof_labels_static: Vec<&'static [u8]> = proof
+        .labels
+        .iter()
+        .map(|label| {
+            metas
+                .iter()
+                .find(|meta| meta.label == label.as_slice())
+                .map(|meta| meta.label)
+                .ok_or_else(|| {
+                    PiCcsError::ProtocolError(format!("verify/route_a_batched_time: unknown proof label {:?}", label))
+                })
+        })
+        .collect::<Result<_, _>>()?;
 
     // Phase-1 Route-A claim compiler shadow check:
     // verifier-side canonical schedule reconstruction must match proof-carried schedule metadata.
     shadow_assert_compiled_schedule_matches_metas(
-        &proof.labels,
+        &proof_labels_static,
         &proof.degree_bounds,
         &claim_is_dynamic,
         &metas,
@@ -544,7 +557,7 @@ pub fn verify_route_a_batched_time(
         )));
     }
     for (i, (got, exp)) in proof.labels.iter().zip(expected_labels.iter()).enumerate() {
-        if (*got as &[u8]) != *exp {
+        if got.as_slice() != *exp {
             return Err(PiCcsError::ProtocolError(format!(
                 "step {}: batched_time label mismatch at claim {}",
                 step_idx, i
@@ -736,7 +749,7 @@ pub fn prove_poseidon_local_time(
     let proof = BatchedTimeProof {
         claimed_sums: claimed_sums.clone(),
         degree_bounds: degree_bounds.clone(),
-        labels: labels.clone(),
+        labels: labels.iter().map(|label| label.to_vec()).collect(),
         round_polys: per_claim_results
             .iter()
             .map(|r| r.round_polys.clone())
@@ -787,7 +800,7 @@ pub fn verify_poseidon_local_time(
         )));
     }
     for (i, (got, exp)) in proof.labels.iter().zip(expected_labels.iter()).enumerate() {
-        if (*got as &[u8]) != *exp {
+        if got.as_slice() != *exp {
             return Err(PiCcsError::ProtocolError(format!(
                 "step {}: poseidon_local_time label mismatch at claim {}",
                 step_idx, i

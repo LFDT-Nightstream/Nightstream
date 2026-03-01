@@ -337,7 +337,7 @@ fn tamper_batched_time_label_fails() {
     )
     .expect("prove should succeed");
 
-    proof.steps[0].batched_time.labels[0] = b"bad/label".as_slice();
+    proof.steps[0].batched_time.labels[0] = b"bad/label".to_vec();
 
     let mut tr_verify = Poseidon2Transcript::new(b"soundness/tamper-batched-time-label");
     let steps_public = [StepInstanceBundle::from(&step_bundle)];

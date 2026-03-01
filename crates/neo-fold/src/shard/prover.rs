@@ -37,7 +37,7 @@ fn shift_sumcheck_from_batched_time(
     let control_idx = batched_time
         .labels
         .iter()
-        .position(|label| (*label as &[u8]) == b"control/next_pc_linear");
+        .position(|label| label.as_slice() == b"control/next_pc_linear");
     let idx = match (control_required, control_idx) {
         (true, Some(i)) | (false, Some(i)) => i,
         (true, None) => {
@@ -2308,7 +2308,7 @@ where
                 time_t: step.time_columns.t,
                 time_declared_len,
                 time_col_ids: step.time_columns.col_ids.clone(),
-                memory_time_proofs: batched_time.labels.iter().copied().collect(),
+                memory_time_proofs: batched_time.labels.clone(),
                 openings: fold_openings,
                 opening_proofs,
                 opening_manifest,

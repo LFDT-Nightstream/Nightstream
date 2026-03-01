@@ -575,7 +575,7 @@ where
 }
 
 /// Typed Π_RLC challenge: a validated ring-scalar rotation matrix.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RotRho(pub(crate) Mat<F>);
 
 impl RotRho {

@@ -8,21 +8,21 @@ use neo_memory::output_check::OutputBindingProof;
 pub type TwistProofK = neo_memory::twist::TwistProof<K>;
 pub type ShoutProofK = neo_memory::shout::ShoutProof<K>;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct CpuTimeSumcheckProof {
     pub claimed_sum: K,
     pub round_polys: Vec<Vec<K>>,
     pub r_time: Vec<K>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct ShiftTimeSumcheckProof {
     pub claimed_sum: K,
     pub round_polys: Vec<Vec<K>>,
     pub r_time: Vec<K>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TimeOpeningSource {
     /// Invalid placeholder; prover must never emit this in canonical proofs.
     #[default]
@@ -33,7 +33,7 @@ pub enum TimeOpeningSource {
     VirtualReducedOpening,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct TimePointOpening {
     pub point: Vec<K>,
     pub col_ids: Vec<usize>,
@@ -42,7 +42,7 @@ pub struct TimePointOpening {
 }
 
 /// Proof that a batch of named openings at one point is bound to the committed time columns.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct TimeOpeningProof {
     pub point: Vec<K>,
     pub col_ids: Vec<usize>,
@@ -54,14 +54,14 @@ pub struct TimeOpeningProof {
     pub digit_evals: Vec<Vec<K>>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub enum OpeningDomain {
     #[default]
     Cpu,
     Mem,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OpeningClaimEntry {
     pub point: Vec<K>,
     pub col_ids: Vec<usize>,
@@ -69,13 +69,13 @@ pub struct OpeningClaimEntry {
     pub domain: OpeningDomain,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OpeningClaimManifest {
     pub entries: Vec<OpeningClaimEntry>,
     pub digest: [u8; 32],
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OpeningReductionGroup {
     pub point: Vec<K>,
     pub domain: OpeningDomain,
@@ -84,12 +84,12 @@ pub struct OpeningReductionGroup {
     pub group_digest: [u8; 32],
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OpeningReductionProof {
     pub groups: Vec<OpeningReductionGroup>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OpeningUnificationProof {
     /// Claimed total sum over the deterministic reduction-group table.
     pub claimed_sum: K,
@@ -99,7 +99,7 @@ pub struct OpeningUnificationProof {
     pub r_unify: Vec<K>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct JointOpeningGroupProof {
     pub point: Vec<K>,
     pub domain: OpeningDomain,
@@ -118,13 +118,13 @@ pub struct JointOpeningGroupProof {
     pub opening_ccs_proof: Option<crate::PiCcsProof>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum JointClaimKind {
     #[default]
     VectorPartial,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct JointOpeningLaneProof {
     pub claim_kind: JointClaimKind,
     pub groups: Vec<JointOpeningGroupProof>,
@@ -132,7 +132,7 @@ pub struct JointOpeningLaneProof {
     pub unified_fold: Option<JointOpeningGroupProof>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct FoldingLanes {
     pub main_children: usize,
     pub val_children: usize,
@@ -153,7 +153,7 @@ pub struct FoldingLanes {
 /// Within each group, when a Shout lane is provably inactive for a step (no lookups), we can
 /// skip its address-domain sumcheck entirely. We still bind all `claimed_sums` to the transcript,
 /// but we include sumcheck rounds only for the active subset.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ShoutAddrPreProof<KK> {
     /// Claimed sums per Shout lane.
     ///
@@ -166,7 +166,7 @@ pub struct ShoutAddrPreProof<KK> {
     pub groups: Vec<ShoutAddrPreGroupProof<KK>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ShoutAddrPreGroupProof<KK> {
     /// Address-bit width (sumcheck round count) for this group.
     pub ell_addr: u32,
@@ -192,7 +192,7 @@ impl<KK> Default for ShoutAddrPreProof<KK> {
 }
 
 /// One fold step’s artifacts (Π_CCS → Π_RLC → Π_DEC).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct TimeFoldStep {
     /// Π_CCS outputs (k ME(b,L) instances)
     pub ccs_out: Vec<CeClaim<Cmt, F, K>>,
@@ -219,7 +219,7 @@ pub struct TimeFoldStep {
     /// Logical column ids in the same order as `time_cpu_commitments || time_mem_commitments`.
     pub time_col_ids: Vec<usize>,
     /// Memory time-proof labels for this step (new path).
-    pub memory_time_proofs: Vec<&'static [u8]>,
+    pub memory_time_proofs: Vec<Vec<u8>>,
     /// Named column openings grouped by evaluation point (new path).
     pub openings: Vec<TimePointOpening>,
     /// Commitment-bound opening proofs for named time openings.
@@ -238,7 +238,11 @@ pub struct TimeFoldStep {
 
 pub type FoldStep = TimeFoldStep;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "C: serde::Serialize, FF: serde::Serialize, KK: serde::Serialize",
+    deserialize = "C: serde::de::DeserializeOwned, FF: serde::de::DeserializeOwned, KK: serde::de::DeserializeOwned + Default"
+))]
 #[must_use]
 pub struct ShardObligations<C, FF, KK> {
     pub main: Vec<CeClaim<C, FF, KK>>,
@@ -277,13 +281,17 @@ impl<C, FF, KK> ShardObligations<C, FF, KK> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "C: serde::Serialize, FF: serde::Serialize, KK: serde::Serialize",
+    deserialize = "C: serde::de::DeserializeOwned, FF: serde::de::DeserializeOwned, KK: serde::de::DeserializeOwned + Default"
+))]
 #[must_use]
 pub struct ShardFoldOutputs<C, FF, KK> {
     pub obligations: ShardObligations<C, FF, KK>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ShardFoldWitnesses<FF> {
     /// Witnesses for `ShardFoldOutputs::obligations.main` (one per ME instance).
     pub final_main_wits: Vec<Mat<FF>>,
@@ -291,13 +299,17 @@ pub struct ShardFoldWitnesses<FF> {
     pub val_lane_wits: Vec<Mat<FF>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum MemOrLutProof {
     Twist(TwistProofK),
     Shout(ShoutProofK),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "C: serde::Serialize, FF: serde::Serialize, KK: serde::Serialize",
+    deserialize = "C: serde::de::DeserializeOwned, FF: serde::de::DeserializeOwned, KK: serde::de::DeserializeOwned + Default"
+))]
 pub struct MemSidecarProof<C, FF, KK> {
     /// ME claims evaluated at `r_val` (Twist val-eval terminal point).
     ///
@@ -320,20 +332,20 @@ pub struct MemSidecarProof<C, FF, KK> {
 ///
 /// This batches CCS (row/time rounds) with Twist/Shout time-domain oracles so all
 /// protocols share the same transcript-derived `r` (enabling Π_RLC folding).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct BatchedTimeProof {
     /// Claimed sums per participating oracle (in the same order as `round_polys`).
     pub claimed_sums: Vec<K>,
     /// Degree bounds per participating oracle.
     pub degree_bounds: Vec<usize>,
     /// Domain-separation labels per participating oracle.
-    pub labels: Vec<&'static [u8]>,
+    pub labels: Vec<Vec<u8>>,
     /// Per-claim sum-check messages: `round_polys[claim][round] = coeffs`.
     pub round_polys: Vec<Vec<Vec<K>>>,
 }
 
 /// Proof data for a standalone Π_RLC → Π_DEC lane (no Π_CCS).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct RlcDecProof {
     /// RLC mixing matrices ρ_i ∈ S ⊆ F^{D×D}
     pub rlc_rhos: Vec<RotRho>,
@@ -343,7 +355,7 @@ pub struct RlcDecProof {
     pub dec_children: Vec<CeClaim<Cmt, F, K>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct StepProof {
     pub fold: FoldStep,
     pub mem: MemSidecarProof<Cmt, F, K>,
@@ -371,13 +383,13 @@ pub struct StepProof {
     pub stage8_fold: Vec<RlcDecProof>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ShardSegmentKind {
     CcsOnly,
     RouteA,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ShardSegmentMeta {
     /// Segment kind derived from step content.
     pub kind: ShardSegmentKind,
@@ -390,7 +402,7 @@ pub struct ShardSegmentMeta {
     pub proof_steps: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ShardProof {
     pub steps: Vec<StepProof>,
     /// Optional output binding proof (proves final memory matches claimed outputs).
@@ -461,5 +473,29 @@ impl ShardProof {
         ShardFoldOutputs {
             obligations: ShardObligations { main, val },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use p3_field::PrimeCharacteristicRing;
+
+    #[test]
+    fn batched_time_proof_bincode_roundtrip_keeps_labels() {
+        let proof = BatchedTimeProof {
+            claimed_sums: vec![K::ONE, K::ZERO],
+            degree_bounds: vec![3, 5],
+            labels: vec![b"shout/value".to_vec(), b"control/next_pc_linear".to_vec()],
+            round_polys: vec![vec![vec![K::ONE]], vec![vec![K::ZERO, K::ONE]]],
+        };
+
+        let bytes = bincode::serialize(&proof).expect("serialize BatchedTimeProof");
+        let decoded: BatchedTimeProof = bincode::deserialize(&bytes).expect("deserialize BatchedTimeProof");
+
+        assert_eq!(decoded.claimed_sums, proof.claimed_sums);
+        assert_eq!(decoded.degree_bounds, proof.degree_bounds);
+        assert_eq!(decoded.labels, proof.labels);
+        assert_eq!(decoded.round_polys, proof.round_polys);
     }
 }

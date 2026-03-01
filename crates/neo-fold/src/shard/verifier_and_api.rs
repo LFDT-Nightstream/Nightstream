@@ -1069,7 +1069,13 @@ where
                 .len()
                 .checked_sub(1)
                 .ok_or_else(|| PiCcsError::ProtocolError("missing inc_total claim".into()))?;
-            if step_proof.batched_time.labels.get(inc_idx).copied() != Some(crate::output_binding::OB_INC_TOTAL_LABEL) {
+            if step_proof
+                .batched_time
+                .labels
+                .get(inc_idx)
+                .map(|l| l.as_slice())
+                != Some(crate::output_binding::OB_INC_TOTAL_LABEL)
+            {
                 return Err(PiCcsError::ProtocolError("output binding claim not last".into()));
             }
 

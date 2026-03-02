@@ -152,6 +152,52 @@ fn rv32_trace_wiring_mode_wrong_reg_output_claim_fails_verify() {
 }
 
 #[test]
+fn rv32_trace_wiring_mode_mismatched_output_binding_cfg_fails_verify_proof() {
+    // Program: ADDI x1, x0, 7; SW x1, 16(x0); HALT
+    let program = vec![
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 1,
+            rs1: 0,
+            imm: 7,
+        },
+        RiscvInstruction::Store {
+            op: neo_memory::riscv::lookups::RiscvMemOp::Sw,
+            rs1: 0,
+            rs2: 1,
+            imm: 16,
+        },
+        RiscvInstruction::Halt,
+    ];
+    let program_bytes = encode_program(&program);
+
+    // Prove with the canonical output claim.
+    let run_ok = Rv32TraceWiring::from_rom(/*program_base=*/ 0, &program_bytes)
+        .output_claim(/*addr=*/ 16, /*value=*/ neo_math::F::from_u64(7))
+        .prove()
+        .expect("trace wiring prove with canonical RAM output claim");
+
+    // Build a verifier context with a mismatched output-claim template.
+    let run_mismatch = Rv32TraceWiring::from_rom(/*program_base=*/ 0, &program_bytes)
+        .output_claim(/*addr=*/ 16, /*value=*/ neo_math::F::from_u64(8))
+        .prove()
+        .expect("trace wiring prove with mismatched RAM output claim");
+
+    let err = run_mismatch
+        .verify_proof(run_ok.proof())
+        .expect_err("verification should fail when proof is checked under mismatched output binding config");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("challenges_public mismatch")
+            || msg.contains("Π_CCS challenges_public mismatch")
+            || msg.contains("output sumcheck failed")
+            || msg.contains("output binding final check failed")
+            || msg.contains("output sparse final check failed"),
+        "unexpected verify error: {msg}"
+    );
+}
+
+#[test]
 fn rv32_trace_wiring_mode_allows_without_insecure_ack() {
     let program_bytes = trace_mode_program_bytes();
 

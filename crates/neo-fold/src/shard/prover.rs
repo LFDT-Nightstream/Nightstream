@@ -86,12 +86,14 @@ pub(crate) fn fold_shard_prove_impl<L, MR, MB>(
     mut step_prove_ms_out: Option<&mut Vec<f64>>,
     initial_prev_step: Option<&StepWitnessBundle<Cmt, F, K>>,
     initial_prev_twist_decoded: Option<Vec<crate::memory_sidecar::memory::TwistDecodedColsSparse>>,
+    initial_poseidon_carry: Option<crate::memory_sidecar::memory::PoseidonSidecarCarryState>,
 ) -> Result<
     (
         ShardProof,
         Vec<Mat<F>>,
         Vec<Mat<F>>,
         Option<Vec<crate::memory_sidecar::memory::TwistDecodedColsSparse>>,
+        crate::memory_sidecar::memory::PoseidonSidecarCarryState,
     ),
     PiCcsError,
 >
@@ -164,7 +166,8 @@ where
     let mut step_proofs = Vec::with_capacity(steps.len());
     let mut val_lane_wits: Vec<Mat<F>> = Vec::new();
     let mut prev_twist_decoded = initial_prev_twist_decoded;
-    let mut poseidon_carry = crate::memory_sidecar::memory::PoseidonSidecarCarryState::new();
+    let mut poseidon_carry =
+        initial_poseidon_carry.unwrap_or_else(crate::memory_sidecar::memory::PoseidonSidecarCarryState::new);
     let mut output_proof: Option<neo_memory::output_check::OutputBindingProof> = None;
     if ob.is_some() && steps.is_empty() {
         return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
@@ -2402,5 +2405,6 @@ where
         accumulator_wit,
         val_lane_wits,
         prev_twist_decoded,
+        poseidon_carry,
     ))
 }

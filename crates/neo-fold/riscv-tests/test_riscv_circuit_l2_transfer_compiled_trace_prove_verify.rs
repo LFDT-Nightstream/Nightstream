@@ -4,6 +4,7 @@
 //! 1-input / 1-output self-transfer witness (including Merkle path, nullifier,
 //! enforce-product, and blacklist non-membership proof), writes it to RAM, then
 //! proves + verifies and emits detailed metrics.
+#![cfg(feature = "poseidon-precompile")]
 
 #[path = "binaries/circuit_l2_transfer_rom.rs"]
 mod circuit_l2_transfer_rom;
@@ -59,6 +60,7 @@ impl RouteAClaimBreakdown {
     }
 }
 
+#[cfg(feature = "poseidon-precompile")]
 fn simulate_exec_with_witness(
     program_base: u64,
     program_bytes: &[u8],
@@ -80,6 +82,7 @@ fn simulate_exec_with_witness(
     Rv32ExecTable::from_trace_padded(&sim, sim.steps.len()).map_err(|e| format!("exec table build failed: {e}"))
 }
 
+#[cfg(feature = "poseidon-precompile")]
 fn derive_output_claims_for_addresses(
     exec: &Rv32ExecTable,
     ram_pairs: &[(u64, u32)],
@@ -1277,6 +1280,7 @@ mod witness_builder {
     }
 }
 
+#[cfg(feature = "poseidon-precompile")]
 #[derive(Clone, Deserialize)]
 struct FixtureNoteSpendWitness {
     domain: [u8; 32],
@@ -1294,6 +1298,7 @@ struct FixtureNoteSpendWitness {
     viewers: Vec<FixtureViewer>,
 }
 
+#[cfg(feature = "poseidon-precompile")]
 #[derive(Clone, Deserialize)]
 struct FixtureInput {
     value: u64,
@@ -1304,6 +1309,7 @@ struct FixtureInput {
     nullifier: [u8; 32],
 }
 
+#[cfg(feature = "poseidon-precompile")]
 #[derive(Clone, Deserialize)]
 struct FixtureOutput {
     value: u64,
@@ -1313,6 +1319,7 @@ struct FixtureOutput {
     cm: [u8; 32],
 }
 
+#[cfg(feature = "poseidon-precompile")]
 #[derive(Clone, Deserialize)]
 struct FixtureBlacklistProof {
     bucket_entries: Vec<[u8; 32]>,
@@ -1320,6 +1327,7 @@ struct FixtureBlacklistProof {
     siblings: Vec<[u8; 32]>,
 }
 
+#[cfg(feature = "poseidon-precompile")]
 #[derive(Clone, Deserialize)]
 struct FixtureViewer {
     fvk_commitment: [u8; 32],
@@ -1327,12 +1335,14 @@ struct FixtureViewer {
     per_output: Vec<FixtureViewerOutput>,
 }
 
+#[cfg(feature = "poseidon-precompile")]
 #[derive(Clone, Deserialize)]
 struct FixtureViewerOutput {
     ct_hash: [u8; 32],
     mac: [u8; 32],
 }
 
+#[cfg(feature = "poseidon-precompile")]
 fn build_transfer_witness_from_fixture(f: &FixtureNoteSpendWitness) -> witness_builder::TransferWitness {
     struct RamWordWriter {
         addr: u64,
@@ -1679,7 +1689,11 @@ fn test_note_spend_depth16_poseidon_geometry_regression_is_reproducible() {
 
     let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 300_000)
         .expect("simulate depth16 note-spend witness");
-    let output_addrs: Vec<u64> = witness.output_claims.iter().map(|(addr, _)| *addr).collect();
+    let output_addrs: Vec<u64> = witness
+        .output_claims
+        .iter()
+        .map(|(addr, _)| *addr)
+        .collect();
     let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
     witness.output_claims = simulated_claims;
 
@@ -1703,29 +1717,27 @@ fn test_note_spend_depth16_poseidon_geometry_regression_is_reproducible() {
         wiring = wiring.output_claim(addr, F::from_u64(val as u64));
     }
 
-    let msg = match wiring.prove() {
-        Ok(_) => panic!("expected depth16 regression to fail under poseidon-precompile geometry"),
-        Err(err) => err.to_string(),
-    };
-    assert!(
-        msg.contains("poseidon split")
-            || msg.contains("ccs_m too small for one time-column")
-            || msg.contains("poseidon sidecar build"),
-        "unexpected error (chunk_rows={chunk_rows}): {msg}"
-    );
+    let mut run = wiring
+        .prove()
+        .expect("depth16 poseidon geometry regression should prove after carry fix");
+    run.verify()
+        .expect("depth16 poseidon geometry regression should verify after carry fix");
 }
 
 #[cfg(feature = "poseidon-precompile")]
 #[test]
-#[ignore = "repro helper: intentionally fails at prove() for depth16 poseidon geometry"]
-fn test_note_spend_depth16_poseidon_geometry_repro_fails_at_prove() {
+fn test_note_spend_depth16_poseidon_geometry_repro_prove_verify() {
     let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
     let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
     let mut witness = witness_builder::build_1in_1out_transfer_with_depth(16);
 
     let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 300_000)
         .expect("simulate depth16 note-spend witness");
-    let output_addrs: Vec<u64> = witness.output_claims.iter().map(|(addr, _)| *addr).collect();
+    let output_addrs: Vec<u64> = witness
+        .output_claims
+        .iter()
+        .map(|(addr, _)| *addr)
+        .collect();
     let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
     witness.output_claims = simulated_claims;
 
@@ -1749,15 +1761,15 @@ fn test_note_spend_depth16_poseidon_geometry_repro_fails_at_prove() {
         wiring = wiring.output_claim(addr, F::from_u64(val as u64));
     }
 
-    // Intentionally do not catch the error: this test is a raw failing repro.
-    let _run = wiring
+    let mut run = wiring
         .prove()
-        .expect("expected raw repro to fail at prove() with poseidon split/sidecar error");
+        .expect("depth16 poseidon geometry repro should prove after carry fix");
+    run.verify()
+        .expect("depth16 poseidon geometry repro should verify after carry fix");
 }
 
 #[cfg(feature = "poseidon-precompile")]
 #[test]
-#[ignore = "repro helper: intentionally fails with stale output-binding claims"]
 fn test_note_spend_stale_output_claims_repro_fails_at_verify() {
     let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
     let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
@@ -1782,26 +1794,35 @@ fn test_note_spend_stale_output_claims_repro_fails_at_verify() {
         wiring = wiring.output_claim(addr, F::from_u64(val as u64));
     }
 
-    // Stale claims can still produce a proof under this path, but verification should fail.
-    // Intentionally assert success to keep this as a raw failing repro.
     let mut run = wiring
         .prove()
-        .expect("expected prove() to succeed even with stale output claims in this repro path");
-    run.verify()
-        .expect("expected stale output-claim repro to fail at verify()");
+        .expect("stale output-claim repro should still prove");
+    let err = run
+        .verify()
+        .expect_err("stale output-claim repro must fail at verify()");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("output sparse final check failed")
+            || msg.contains("output binding final check failed")
+            || msg.contains("output sumcheck failed"),
+        "unexpected stale-output verify error: {msg}"
+    );
 }
 
 #[cfg(feature = "poseidon-precompile")]
 #[test]
-#[ignore = "repro helper: intentionally fails for depth16 chunk-17 poseidon geometry"]
-fn test_note_spend_depth16_poseidon_chunk17_repro_fails_at_prove() {
+fn test_note_spend_depth16_poseidon_chunk17_repro_prove_verify() {
     let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
     let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
     let mut witness = witness_builder::build_1in_1out_transfer_with_depth(16);
 
     let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 300_000)
         .expect("simulate depth16 note-spend witness");
-    let output_addrs: Vec<u64> = witness.output_claims.iter().map(|(addr, _)| *addr).collect();
+    let output_addrs: Vec<u64> = witness
+        .output_claims
+        .iter()
+        .map(|(addr, _)| *addr)
+        .collect();
     let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
     witness.output_claims = simulated_claims;
 
@@ -1821,20 +1842,19 @@ fn test_note_spend_depth16_poseidon_chunk17_repro_fails_at_prove() {
         wiring = wiring.output_claim(addr, F::from_u64(val as u64));
     }
 
-    // Intentionally raw fail path.
-    let _run = wiring
+    let mut run = wiring
         .prove()
-        .expect("expected depth16 chunk-17 poseidon repro to fail at prove()");
+        .expect("depth16 chunk-17 poseidon repro should prove after carry fix");
+    run.verify()
+        .expect("depth16 chunk-17 poseidon repro should verify after carry fix");
 }
 
 #[cfg(feature = "poseidon-precompile")]
 #[test]
-#[ignore = "repro helper: intentionally fails using captured Sovereign witness fixture"]
-fn test_note_spend_sovereign_fixture_repro_fails_at_prove() {
-    let fixture: FixtureNoteSpendWitness = serde_json::from_str(include_str!(
-        "fixtures/nightstream_note_spend_poseidon_fail.json"
-    ))
-    .expect("parse fixture JSON");
+fn test_note_spend_sovereign_fixture_repro_prove_verify() {
+    let fixture: FixtureNoteSpendWitness =
+        serde_json::from_str(include_str!("fixtures/nightstream_note_spend_poseidon_fail.json"))
+            .expect("parse fixture JSON");
 
     let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
     let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
@@ -1842,7 +1862,11 @@ fn test_note_spend_sovereign_fixture_repro_fails_at_prove() {
 
     let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 400_000)
         .expect("simulate fixture witness");
-    let output_addrs: Vec<u64> = witness.output_claims.iter().map(|(addr, _)| *addr).collect();
+    let output_addrs: Vec<u64> = witness
+        .output_claims
+        .iter()
+        .map(|(addr, _)| *addr)
+        .collect();
     let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
     witness.output_claims = simulated_claims;
 
@@ -1866,8 +1890,9 @@ fn test_note_spend_sovereign_fixture_repro_fails_at_prove() {
         wiring = wiring.output_claim(addr, F::from_u64(val as u64));
     }
 
-    // Intentionally raw fail path.
-    let _run = wiring
+    let mut run = wiring
         .prove()
-        .expect("expected Sovereign fixture repro to fail at prove()");
+        .expect("Sovereign fixture repro should prove after carry fix");
+    run.verify()
+        .expect("Sovereign fixture repro should verify after carry fix");
 }

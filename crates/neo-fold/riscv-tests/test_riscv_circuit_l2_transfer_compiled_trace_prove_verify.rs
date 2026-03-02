@@ -16,6 +16,7 @@ use neo_memory::riscv::exec_table::Rv32ExecTable;
 use neo_memory::riscv::lookups::{decode_program, RiscvCpu, RiscvMemory, RiscvShoutTables, PROG_ID, RAM_ID};
 use neo_vm_trace::{trace_program, Twist, TwistOpKind};
 use p3_field::PrimeCharacteristicRing;
+use serde::Deserialize;
 use std::collections::{BTreeSet, HashMap};
 use std::time::Instant;
 
@@ -1084,6 +1085,12 @@ mod witness_builder {
 
     /// Build the complete RAM witness for a 1-input, 1-output self-transfer.
     pub fn build_1in_1out_transfer() -> TransferWitness {
+        build_1in_1out_transfer_with_depth(2)
+    }
+
+    /// Build the complete RAM witness for a 1-input, 1-output self-transfer
+    /// at an arbitrary Merkle depth for input inclusion.
+    pub fn build_1in_1out_transfer_with_depth(depth: u32) -> TransferWitness {
         let mut ram = RamWriter::new(INPUT_ADDR);
 
         // --- Deterministic keys ---
@@ -1127,32 +1134,30 @@ mod witness_builder {
         cm_input[14..18].copy_from_slice(&sender_id_gl);
         let cm_gl = h(&cm_input);
 
-        // --- Merkle tree (depth=2, leaf at position 0) ---
-        let depth: u32 = 2;
-        let sib0 = ZERO_DIGEST;
-        let node_left = {
+        // --- Merkle tree (leaf at position 0 with deterministic default-empty siblings) ---
+        assert!(depth > 0, "depth must be > 0");
+        let mut siblings: Vec<GlDigest> = Vec::with_capacity(depth as usize);
+        siblings.push(ZERO_DIGEST);
+        for lvl in 1..depth {
+            let prev = siblings[(lvl - 1) as usize];
             let mut inp = [Goldilocks::ZERO; 10];
             inp[0] = gl(TAG_MT_NODE);
-            inp[1] = gl(0);
-            inp[2..6].copy_from_slice(&cm_gl);
-            inp[6..10].copy_from_slice(&sib0);
-            h(&inp)
-        };
-        let sib1 = {
-            let mut inp = [Goldilocks::ZERO; 10];
-            inp[0] = gl(TAG_MT_NODE);
-            inp[1] = gl(0);
-            inp[2..6].copy_from_slice(&ZERO_DIGEST);
-            inp[6..10].copy_from_slice(&ZERO_DIGEST);
-            h(&inp)
-        };
+            inp[1] = gl((lvl - 1) as u64);
+            inp[2..6].copy_from_slice(&prev);
+            inp[6..10].copy_from_slice(&prev);
+            siblings.push(h(&inp));
+        }
         let anchor_gl = {
-            let mut inp = [Goldilocks::ZERO; 10];
-            inp[0] = gl(TAG_MT_NODE);
-            inp[1] = gl(1);
-            inp[2..6].copy_from_slice(&node_left);
-            inp[6..10].copy_from_slice(&sib1);
-            h(&inp)
+            let mut cur = cm_gl;
+            for (lvl, sib) in siblings.iter().enumerate() {
+                let mut inp = [Goldilocks::ZERO; 10];
+                inp[0] = gl(TAG_MT_NODE);
+                inp[1] = gl(lvl as u64);
+                inp[2..6].copy_from_slice(&cur);
+                inp[6..10].copy_from_slice(sib);
+                cur = h(&inp);
+            }
+            cur
         };
 
         // nullifier = H(TAG_PRF_NF, domain, nf_key, rho)
@@ -1204,8 +1209,9 @@ mod witness_builder {
         ram.write_gl_digest(&rho_gl);
         ram.write_gl_digest(&sender_id_gl);
         ram.write_u32(0); // position
-        ram.write_gl_digest(&sib0); // sibling level 0
-        ram.write_gl_digest(&sib1); // sibling level 1
+        for sib in &siblings {
+            ram.write_gl_digest(sib);
+        }
 
         // Nullifier (separate loop in circuit)
         ram.write_gl_digest(&nullifier_gl);
@@ -1268,6 +1274,190 @@ mod witness_builder {
             ram_pairs: ram.pairs,
             output_claims: out.pairs,
         }
+    }
+}
+
+#[derive(Clone, Deserialize)]
+struct FixtureNoteSpendWitness {
+    domain: [u8; 32],
+    spend_sk: [u8; 32],
+    pk_ivk_owner: [u8; 32],
+    depth: u32,
+    anchor: [u8; 32],
+    inputs: Vec<FixtureInput>,
+    withdraw_amount: u64,
+    withdraw_to: [u8; 32],
+    outputs: Vec<FixtureOutput>,
+    inv_enforce: [u8; 32],
+    blacklist_root: [u8; 32],
+    blacklist_proofs: Vec<FixtureBlacklistProof>,
+    viewers: Vec<FixtureViewer>,
+}
+
+#[derive(Clone, Deserialize)]
+struct FixtureInput {
+    value: u64,
+    rho: [u8; 32],
+    sender_id: [u8; 32],
+    position: u32,
+    siblings: Vec<[u8; 32]>,
+    nullifier: [u8; 32],
+}
+
+#[derive(Clone, Deserialize)]
+struct FixtureOutput {
+    value: u64,
+    rho: [u8; 32],
+    pk_spend: [u8; 32],
+    pk_ivk: [u8; 32],
+    cm: [u8; 32],
+}
+
+#[derive(Clone, Deserialize)]
+struct FixtureBlacklistProof {
+    bucket_entries: Vec<[u8; 32]>,
+    bucket_inv: [u8; 32],
+    siblings: Vec<[u8; 32]>,
+}
+
+#[derive(Clone, Deserialize)]
+struct FixtureViewer {
+    fvk_commitment: [u8; 32],
+    fvk: [u8; 32],
+    per_output: Vec<FixtureViewerOutput>,
+}
+
+#[derive(Clone, Deserialize)]
+struct FixtureViewerOutput {
+    ct_hash: [u8; 32],
+    mac: [u8; 32],
+}
+
+fn build_transfer_witness_from_fixture(f: &FixtureNoteSpendWitness) -> witness_builder::TransferWitness {
+    struct RamWordWriter {
+        addr: u64,
+        pairs: Vec<(u64, u32)>,
+    }
+    impl RamWordWriter {
+        fn new(start: u64) -> Self {
+            Self {
+                addr: start,
+                pairs: Vec::new(),
+            }
+        }
+        fn write_u32(&mut self, val: u32) {
+            self.pairs.push((self.addr, val));
+            self.addr += 4;
+        }
+        fn write_u64(&mut self, val: u64) {
+            self.write_u32(val as u32);
+            self.write_u32((val >> 32) as u32);
+        }
+        fn write_hash32(&mut self, d: &[u8; 32]) {
+            for i in 0..4 {
+                let mut word = [0u8; 8];
+                word.copy_from_slice(&d[i * 8..(i + 1) * 8]);
+                self.write_u64(u64::from_le_bytes(word));
+            }
+        }
+    }
+
+    const INPUT_ADDR: u64 = 0x104;
+    const OUTPUT_ADDR: u64 = 0x100;
+
+    let mut in_w = RamWordWriter::new(INPUT_ADDR);
+    in_w.write_hash32(&f.domain);
+    in_w.write_hash32(&f.spend_sk);
+    in_w.write_hash32(&f.pk_ivk_owner);
+    in_w.write_u32(f.depth);
+    in_w.write_hash32(&f.anchor);
+    in_w.write_u32(f.inputs.len() as u32);
+
+    for input in &f.inputs {
+        in_w.write_u64(input.value);
+        in_w.write_hash32(&input.rho);
+        in_w.write_hash32(&input.sender_id);
+        in_w.write_u32(input.position);
+        for sib in &input.siblings {
+            in_w.write_hash32(sib);
+        }
+    }
+    for input in &f.inputs {
+        in_w.write_hash32(&input.nullifier);
+    }
+
+    in_w.write_u64(f.withdraw_amount);
+    in_w.write_hash32(&f.withdraw_to);
+    in_w.write_u32(f.outputs.len() as u32);
+
+    for output in &f.outputs {
+        in_w.write_u64(output.value);
+        in_w.write_hash32(&output.rho);
+        in_w.write_hash32(&output.pk_spend);
+        in_w.write_hash32(&output.pk_ivk);
+    }
+    for output in &f.outputs {
+        in_w.write_hash32(&output.cm);
+    }
+
+    let mut inv_enforce_lo = [0u8; 8];
+    inv_enforce_lo.copy_from_slice(&f.inv_enforce[..8]);
+    in_w.write_u64(u64::from_le_bytes(inv_enforce_lo));
+
+    in_w.write_hash32(&f.blacklist_root);
+    for proof in &f.blacklist_proofs {
+        for entry in &proof.bucket_entries {
+            in_w.write_hash32(entry);
+        }
+        let mut inv_lo = [0u8; 8];
+        inv_lo.copy_from_slice(&proof.bucket_inv[..8]);
+        in_w.write_u64(u64::from_le_bytes(inv_lo));
+        for sib in &proof.siblings {
+            in_w.write_hash32(sib);
+        }
+    }
+
+    in_w.write_u32(f.viewers.len() as u32);
+    for viewer in &f.viewers {
+        in_w.write_hash32(&viewer.fvk_commitment);
+        in_w.write_hash32(&viewer.fvk);
+        for out_w in &viewer.per_output {
+            in_w.write_hash32(&out_w.ct_hash);
+            in_w.write_hash32(&out_w.mac);
+        }
+    }
+
+    let mut out_w = RamWordWriter::new(OUTPUT_ADDR);
+    out_w.write_hash32(&f.anchor);
+    out_w.write_u32(f.inputs.len() as u32);
+    for input in &f.inputs {
+        out_w.write_hash32(&input.nullifier);
+    }
+    out_w.write_u64(f.withdraw_amount);
+    out_w.write_hash32(&f.withdraw_to);
+    out_w.write_u32(f.outputs.len() as u32);
+    for output in &f.outputs {
+        out_w.write_hash32(&output.cm);
+    }
+    out_w.write_hash32(&f.blacklist_root);
+    out_w.write_u32(f.viewers.len() as u32);
+    for viewer in &f.viewers {
+        assert_eq!(
+            viewer.per_output.len(),
+            f.outputs.len(),
+            "fixture viewer/per_output length must match n_out"
+        );
+        for (out_witness, output) in viewer.per_output.iter().zip(&f.outputs) {
+            out_w.write_hash32(&output.cm);
+            out_w.write_hash32(&viewer.fvk_commitment);
+            out_w.write_hash32(&out_witness.ct_hash);
+            out_w.write_hash32(&out_witness.mac);
+        }
+    }
+
+    witness_builder::TransferWitness {
+        ram_pairs: in_w.pairs,
+        output_claims: out_w.pairs,
     }
 }
 
@@ -1478,4 +1668,206 @@ fn test_note_spend_output_claim_template_mismatch_is_detected() {
         mismatches > 0,
         "expected this test to detect template-vs-sim output mismatches; got {mismatches}"
     );
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+fn test_note_spend_depth16_poseidon_geometry_regression_is_reproducible() {
+    let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
+    let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
+    let mut witness = witness_builder::build_1in_1out_transfer_with_depth(16);
+
+    let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 300_000)
+        .expect("simulate depth16 note-spend witness");
+    let output_addrs: Vec<u64> = witness.output_claims.iter().map(|(addr, _)| *addr).collect();
+    let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
+    witness.output_claims = simulated_claims;
+
+    let chunk_rows = std::env::var("NS_DEPTH16_CHUNK_ROWS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(42);
+
+    let executed_steps = exec.rows.len();
+    let mut wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
+        .xlen(32)
+        .min_trace_len(executed_steps)
+        .chunk_rows(chunk_rows)
+        .max_steps(executed_steps)
+        .shout_auto_minimal();
+    for &(addr, val) in &witness.ram_pairs {
+        wiring = wiring.ram_init_u32(addr, val);
+    }
+    for &(addr, val) in &witness.output_claims {
+        wiring = wiring.output_claim(addr, F::from_u64(val as u64));
+    }
+
+    let msg = match wiring.prove() {
+        Ok(_) => panic!("expected depth16 regression to fail under poseidon-precompile geometry"),
+        Err(err) => err.to_string(),
+    };
+    assert!(
+        msg.contains("poseidon split")
+            || msg.contains("ccs_m too small for one time-column")
+            || msg.contains("poseidon sidecar build"),
+        "unexpected error (chunk_rows={chunk_rows}): {msg}"
+    );
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+#[ignore = "repro helper: intentionally fails at prove() for depth16 poseidon geometry"]
+fn test_note_spend_depth16_poseidon_geometry_repro_fails_at_prove() {
+    let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
+    let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
+    let mut witness = witness_builder::build_1in_1out_transfer_with_depth(16);
+
+    let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 300_000)
+        .expect("simulate depth16 note-spend witness");
+    let output_addrs: Vec<u64> = witness.output_claims.iter().map(|(addr, _)| *addr).collect();
+    let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
+    witness.output_claims = simulated_claims;
+
+    let chunk_rows = std::env::var("NS_DEPTH16_CHUNK_ROWS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(42);
+
+    let executed_steps = exec.rows.len();
+    let mut wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
+        .xlen(32)
+        .min_trace_len(executed_steps)
+        .chunk_rows(chunk_rows)
+        .max_steps(executed_steps)
+        .shout_auto_minimal();
+    for &(addr, val) in &witness.ram_pairs {
+        wiring = wiring.ram_init_u32(addr, val);
+    }
+    for &(addr, val) in &witness.output_claims {
+        wiring = wiring.output_claim(addr, F::from_u64(val as u64));
+    }
+
+    // Intentionally do not catch the error: this test is a raw failing repro.
+    let _run = wiring
+        .prove()
+        .expect("expected raw repro to fail at prove() with poseidon split/sidecar error");
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+#[ignore = "repro helper: intentionally fails with stale output-binding claims"]
+fn test_note_spend_stale_output_claims_repro_fails_at_verify() {
+    let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
+    let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
+    let witness = witness_builder::build_1in_1out_transfer();
+
+    // Keep template output claims as-is (do NOT reconcile against simulation).
+    let executed_steps = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 200_000)
+        .expect("simulate note-spend witness")
+        .rows
+        .len();
+
+    let mut wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
+        .xlen(32)
+        .min_trace_len(executed_steps)
+        .chunk_rows(510)
+        .max_steps(executed_steps)
+        .shout_auto_minimal();
+    for &(addr, val) in &witness.ram_pairs {
+        wiring = wiring.ram_init_u32(addr, val);
+    }
+    for &(addr, val) in &witness.output_claims {
+        wiring = wiring.output_claim(addr, F::from_u64(val as u64));
+    }
+
+    // Stale claims can still produce a proof under this path, but verification should fail.
+    // Intentionally assert success to keep this as a raw failing repro.
+    let mut run = wiring
+        .prove()
+        .expect("expected prove() to succeed even with stale output claims in this repro path");
+    run.verify()
+        .expect("expected stale output-claim repro to fail at verify()");
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+#[ignore = "repro helper: intentionally fails for depth16 chunk-17 poseidon geometry"]
+fn test_note_spend_depth16_poseidon_chunk17_repro_fails_at_prove() {
+    let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
+    let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
+    let mut witness = witness_builder::build_1in_1out_transfer_with_depth(16);
+
+    let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 300_000)
+        .expect("simulate depth16 note-spend witness");
+    let output_addrs: Vec<u64> = witness.output_claims.iter().map(|(addr, _)| *addr).collect();
+    let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
+    witness.output_claims = simulated_claims;
+
+    // Fixed geometry profile that currently fails in this branch's poseidon path.
+    let chunk_rows = 17usize;
+    let executed_steps = exec.rows.len();
+    let mut wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
+        .xlen(32)
+        .min_trace_len(executed_steps)
+        .chunk_rows(chunk_rows)
+        .max_steps(executed_steps)
+        .shout_auto_minimal();
+    for &(addr, val) in &witness.ram_pairs {
+        wiring = wiring.ram_init_u32(addr, val);
+    }
+    for &(addr, val) in &witness.output_claims {
+        wiring = wiring.output_claim(addr, F::from_u64(val as u64));
+    }
+
+    // Intentionally raw fail path.
+    let _run = wiring
+        .prove()
+        .expect("expected depth16 chunk-17 poseidon repro to fail at prove()");
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+#[ignore = "repro helper: intentionally fails using captured Sovereign witness fixture"]
+fn test_note_spend_sovereign_fixture_repro_fails_at_prove() {
+    let fixture: FixtureNoteSpendWitness = serde_json::from_str(include_str!(
+        "fixtures/nightstream_note_spend_poseidon_fail.json"
+    ))
+    .expect("parse fixture JSON");
+
+    let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
+    let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
+    let mut witness = build_transfer_witness_from_fixture(&fixture);
+
+    let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 400_000)
+        .expect("simulate fixture witness");
+    let output_addrs: Vec<u64> = witness.output_claims.iter().map(|(addr, _)| *addr).collect();
+    let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
+    witness.output_claims = simulated_claims;
+
+    let chunk_rows = std::env::var("NS_FIXTURE_CHUNK_ROWS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(42);
+
+    let executed_steps = exec.rows.len();
+    let mut wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
+        .xlen(32)
+        .min_trace_len(executed_steps)
+        .chunk_rows(chunk_rows)
+        .max_steps(executed_steps)
+        .shout_auto_minimal();
+    for &(addr, val) in &witness.ram_pairs {
+        wiring = wiring.ram_init_u32(addr, val);
+    }
+    for &(addr, val) in &witness.output_claims {
+        wiring = wiring.output_claim(addr, F::from_u64(val as u64));
+    }
+
+    // Intentionally raw fail path.
+    let _run = wiring
+        .prove()
+        .expect("expected Sovereign fixture repro to fail at prove()");
 }

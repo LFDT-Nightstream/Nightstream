@@ -13,9 +13,10 @@
 //! neo_fold::shard::fold_shard_verify_with_output_binding(..., &proof, ..., &ob_cfg)?;
 //! ```
 
-use neo_math::{F, K};
+use neo_math::{from_complex, F, K};
 use neo_memory::bit_ops::eq_bit_affine;
 use neo_memory::output_check::{OutputCheckError, ProgramIO};
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 /// Configuration for output binding.
@@ -53,6 +54,30 @@ impl OutputBindingConfig {
     }
 }
 
+pub(crate) fn addr_bits_as_k(addr: u64, num_bits: usize) -> Vec<K> {
+    (0..num_bits)
+        .map(|bit| if ((addr >> bit) & 1) == 1 { K::ONE } else { K::ZERO })
+        .collect()
+}
+
+pub(crate) fn sample_output_lincomb_weights(
+    tr: &mut Poseidon2Transcript,
+    program_io: &ProgramIO<F>,
+) -> Vec<(u64, F, K)> {
+    program_io.absorb_into_transcript(tr);
+    program_io
+        .claims()
+        .map(|(addr, value)| {
+            tr.append_message(b"output_binding/lincomb/addr", &addr.to_le_bytes());
+            let alpha = from_complex(
+                tr.challenge_field(b"output_binding/lincomb/alpha/re"),
+                tr.challenge_field(b"output_binding/lincomb/alpha/im"),
+            );
+            (addr, value, alpha)
+        })
+        .collect()
+}
+
 pub(crate) fn val_init_from_mem_init(
     init: &neo_memory::MemInit<F>,
     k: usize,
@@ -81,6 +106,34 @@ pub(crate) fn inc_terminal_from_time_openings(
         }
 
         total += lane.has_write * lane.inc_at_write_addr * eq;
+    }
+    Ok(total)
+}
+
+pub(crate) fn weighted_inc_terminal_from_time_openings(
+    open: &crate::memory_sidecar::memory::TwistTimeLaneOpenings,
+    addr_weights: &[(Vec<K>, K)],
+) -> Result<K, OutputCheckError> {
+    let mut total = K::ZERO;
+    for (r_addr, weight) in addr_weights {
+        if *weight == K::ZERO {
+            continue;
+        }
+        let mut per_addr_total = K::ZERO;
+        for lane in open.lanes.iter() {
+            if lane.wa_bits.len() != r_addr.len() {
+                return Err(OutputCheckError::DimensionMismatch {
+                    expected: r_addr.len(),
+                    got: lane.wa_bits.len(),
+                });
+            }
+            let mut eq = K::ONE;
+            for (bit, &u) in lane.wa_bits.iter().zip(r_addr.iter()) {
+                eq *= eq_bit_affine(*bit, u);
+            }
+            per_addr_total += lane.has_write * lane.inc_at_write_addr * eq;
+        }
+        total += *weight * per_addr_total;
     }
     Ok(total)
 }

@@ -16,7 +16,12 @@ use std::collections::BTreeMap;
 // Constants & Transcript Helpers
 // ============================================================================
 
-const MAX_NUM_BITS: usize = 30;
+/// Maximum address-bit width supported by dense output sumcheck generation.
+///
+/// This path materializes vectors of size `2^num_bits`.
+pub const OUTPUT_SUMCHECK_MAX_NUM_BITS: usize = 30;
+/// Maximum address-bit width supported by sparse output-binding point checks.
+pub const OUTPUT_POINT_CHECK_MAX_NUM_BITS: usize = 63;
 
 fn sample_k_challenge(tr: &mut Poseidon2Transcript) -> K {
     from_complex(
@@ -144,19 +149,7 @@ impl<F: Field> ProgramIO<F> {
     }
 
     pub fn validate(&self, num_bits: usize) -> Result<(), OutputCheckError> {
-        if num_bits > MAX_NUM_BITS {
-            return Err(OutputCheckError::NumBitsTooLarge {
-                num_bits,
-                max: MAX_NUM_BITS,
-            });
-        }
-        let max_addr = 1u64 << num_bits;
-        for &addr in self.claims.keys() {
-            if addr >= max_addr {
-                return Err(OutputCheckError::AddressOutOfDomain { addr, max_addr });
-            }
-        }
-        Ok(())
+        validate_claim_domain_with_cap(self, num_bits, OUTPUT_SUMCHECK_MAX_NUM_BITS)
     }
 
     pub fn absorb_into_transcript(&self, tr: &mut Poseidon2Transcript)
@@ -169,6 +162,37 @@ impl<F: Field> ProgramIO<F> {
             tr.append_fields(b"output_check/value", &[value.into()]);
         }
     }
+}
+
+fn validate_claim_domain_with_cap<F: Field>(
+    program_io: &ProgramIO<F>,
+    num_bits: usize,
+    max_bits: usize,
+) -> Result<(), OutputCheckError> {
+    if num_bits > max_bits {
+        return Err(OutputCheckError::NumBitsTooLarge {
+            num_bits,
+            max: max_bits,
+        });
+    }
+    let max_addr = if num_bits == 64 { u64::MAX } else { 1u64 << num_bits };
+    for &addr in program_io.claims.keys() {
+        if addr >= max_addr {
+            return Err(OutputCheckError::AddressOutOfDomain { addr, max_addr });
+        }
+    }
+    Ok(())
+}
+
+/// Validate output-claim addresses for the output-binding point-check path.
+///
+/// This path supports up to 63 address bits because it does not require materializing
+/// dense tables of size `2^num_bits`.
+pub fn validate_output_binding_domain<F: Field>(
+    program_io: &ProgramIO<F>,
+    num_bits: usize,
+) -> Result<(), OutputCheckError> {
+    validate_claim_domain_with_cap(program_io, num_bits, OUTPUT_POINT_CHECK_MAX_NUM_BITS)
 }
 
 // ============================================================================
@@ -644,6 +668,38 @@ pub struct OutputSumcheckState {
     pub eq_eval: K,
     pub io_mask_eval: K,
     pub val_io_eval: K,
+}
+
+#[derive(Clone, Debug)]
+pub struct OutputPointCheckState {
+    pub r_addr: Vec<K>,
+    pub io_mask_eval: K,
+    pub val_io_eval: K,
+}
+
+/// Sample output-binding address point and evaluate claimed I/O polynomials at that point.
+///
+/// This is a lightweight path used when `num_bits` exceeds the dense sumcheck limit.
+pub fn sample_output_point_state<F: Field + Into<K> + Into<neo_math::F> + Copy>(
+    tr: &mut Poseidon2Transcript,
+    num_bits: usize,
+    program_io: ProgramIO<F>,
+) -> Result<OutputPointCheckState, OutputCheckError> {
+    validate_output_binding_domain(&program_io, num_bits)?;
+    program_io.absorb_into_transcript(tr);
+    let r_addr: Vec<K> = (0..num_bits)
+        .map(|i| {
+            tr.append_message(b"output_check/r_addr/idx", &(i as u64).to_le_bytes());
+            sample_k_challenge(tr)
+        })
+        .collect();
+    let io_mask_eval = eval_io_mask(&program_io, &r_addr, num_bits);
+    let val_io_eval = eval_claimed_io(&program_io, &r_addr, num_bits);
+    Ok(OutputPointCheckState {
+        r_addr,
+        io_mask_eval,
+        val_io_eval,
+    })
 }
 
 /// Verify output sumcheck rounds and return state needed for an external final check.

@@ -243,6 +243,37 @@ fn test_num_bits_too_large() {
 }
 
 #[test]
+fn test_repro_num_bits_32_fails_in_output_sumcheck_generation() {
+    // Minimal reproduction of the L2 output-binding failure class:
+    // RAM-style output binding tries num_bits=32, but output_check caps at 30.
+    let mut tr = Poseidon2Transcript::new(b"output_check_num_bits_32_repro");
+    let program_io: ProgramIO<F> = ProgramIO::new().with_output(0x100, F::from_u64(1));
+    let final_memory_state: Vec<F> = Vec::new();
+
+    let err = neo_memory::output_check::generate_output_sumcheck_proof_and_challenges(
+        &mut tr,
+        32,
+        program_io,
+        &final_memory_state,
+    )
+    .expect_err("num_bits=32 must fail with OutputCheckError::NumBitsTooLarge");
+
+    assert!(
+        matches!(err, OutputCheckError::NumBitsTooLarge { num_bits: 32, max: 30 }),
+        "unexpected error for num_bits=32: {err:?}"
+    );
+}
+
+#[test]
+fn test_output_point_check_supports_32_bit_addresses() {
+    let mut tr = Poseidon2Transcript::new(b"output_check_point_32_support");
+    let program_io: ProgramIO<F> = ProgramIO::new().with_output(0xFFFF_FFFC, F::from_u64(7));
+    let state = neo_memory::output_check::sample_output_point_state(&mut tr, 32, program_io)
+        .expect("point-check path should support 32-bit output binding domains");
+    assert_eq!(state.r_addr.len(), 32);
+}
+
+#[test]
 fn test_dimension_mismatch_detection() {
     let params = make_test_params(4, &[(0, 100)]);
     let wrong_size_state = vec![F::ZERO; 8];

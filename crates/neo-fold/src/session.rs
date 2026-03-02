@@ -1494,6 +1494,10 @@ where
                 expected_k, mem_inst.k
             )));
         }
+        if ob_cfg.num_bits > neo_memory::output_check::OUTPUT_SUMCHECK_MAX_NUM_BITS {
+            // Sparse point-check path does not require a dense final memory vector.
+            return Ok(Vec::new());
+        }
 
         let mem_id = aux.mem_ids[ob_cfg.mem_idx];
         let mut final_memory_state = vec![F::ZERO; expected_k];

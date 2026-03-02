@@ -1525,19 +1525,45 @@ impl Rv32TraceWiring {
         let (proof, output_binding_cfg) = if output_claims.is_empty() {
             (session.fold_and_prove(&ccs)?, None)
         } else {
-            let (ob_mem_idx, ob_num_bits, final_memory_state) = match output_target {
+            let (ob_mem_idx, ob_num_bits, ob_max_addr) = match output_target {
                 OutputTarget::Ram => (
                     ram_ob_mem_idx.ok_or_else(|| {
                         PiCcsError::ProtocolError("missing RAM mem instance for output binding".into())
                     })?,
                     ram_d,
-                    final_ram_state_dense(&exec, &ram_init_map, ram_k)?,
+                    max_ram_addr,
                 ),
-                OutputTarget::Reg => (
-                    reg_ob_mem_idx,
-                    reg_d,
-                    final_reg_state_dense(&exec, &reg_init_map, reg_k)?,
-                ),
+                OutputTarget::Reg => (reg_ob_mem_idx, reg_d, max_reg_addr),
+            };
+            let use_dense_output_sumcheck = ob_num_bits <= neo_memory::output_check::OUTPUT_SUMCHECK_MAX_NUM_BITS;
+            if use_dense_output_sumcheck {
+                output_claims.validate(ob_num_bits).map_err(|e| {
+                    let target = match output_target {
+                        OutputTarget::Ram => "RAM",
+                        OutputTarget::Reg => "REG",
+                    };
+                    PiCcsError::InvalidInput(format!(
+                        "output binding invalid for {target} target (num_bits={ob_num_bits}, max_addr={ob_max_addr}): {e}"
+                    ))
+                })?;
+            } else {
+                neo_memory::output_check::validate_output_binding_domain(&output_claims, ob_num_bits).map_err(|e| {
+                    let target = match output_target {
+                        OutputTarget::Ram => "RAM",
+                        OutputTarget::Reg => "REG",
+                    };
+                    PiCcsError::InvalidInput(format!(
+                        "output binding invalid for {target} target (num_bits={ob_num_bits}, max_addr={ob_max_addr}) in sparse point-check mode: {e}"
+                    ))
+                })?;
+            }
+            let final_memory_state = if use_dense_output_sumcheck {
+                match output_target {
+                    OutputTarget::Ram => final_ram_state_dense(&exec, &ram_init_map, ram_k)?,
+                    OutputTarget::Reg => final_reg_state_dense(&exec, &reg_init_map, reg_k)?,
+                }
+            } else {
+                Vec::new()
             };
             let ob_cfg = OutputBindingConfig::new(ob_num_bits, output_claims).with_mem_idx(ob_mem_idx);
             let proof = session.fold_and_prove_with_output_binding_simple(&ccs, &ob_cfg, &final_memory_state)?;

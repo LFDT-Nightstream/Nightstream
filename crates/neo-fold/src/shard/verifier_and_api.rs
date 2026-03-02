@@ -424,6 +424,8 @@ where
 
         let include_ob = ob_cfg.is_some() && (idx + 1 == steps.len());
         let mut ob_state: Option<neo_memory::output_check::OutputSumcheckState> = None;
+        let mut ob_sparse_addr_weights: Option<Vec<(Vec<K>, K)>> = None;
+        let mut ob_sparse_val_offset: Option<K> = None;
         let mut ob_inc_total_degree_bound: Option<usize> = None;
 
         if include_ob {
@@ -462,15 +464,38 @@ where
             tr.append_u64s(b"output_binding/mem_idx", &[cfg.mem_idx as u64]);
             tr.append_u64s(b"output_binding/num_bits", &[cfg.num_bits as u64]);
 
-            let state = neo_memory::output_check::verify_output_sumcheck_rounds_get_state(
-                tr,
-                cfg.num_bits,
-                cfg.program_io.clone(),
-                &ob_proof.output_sc,
-            )
-            .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
+            let use_dense_output_sumcheck = cfg.num_bits <= neo_memory::output_check::OUTPUT_SUMCHECK_MAX_NUM_BITS;
+            if use_dense_output_sumcheck {
+                let state = neo_memory::output_check::verify_output_sumcheck_rounds_get_state(
+                    tr,
+                    cfg.num_bits,
+                    cfg.program_io.clone(),
+                    &ob_proof.output_sc,
+                )
+                .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
+                ob_state = Some(state);
+            } else {
+                if !ob_proof.output_sc.round_polys.is_empty() {
+                    return Err(PiCcsError::ProtocolError(
+                        "output sparse binding expects empty output sumcheck rounds".into(),
+                    ));
+                }
+                let sampled = crate::output_binding::sample_output_lincomb_weights(tr, &cfg.program_io);
+                let mut addr_weights = Vec::with_capacity(sampled.len());
+                let mut val_offset = K::ZERO;
+                for (addr, claimed_value, alpha) in sampled {
+                    let addr_bits = crate::output_binding::addr_bits_as_k(addr, cfg.num_bits);
+                    let val_init =
+                        crate::output_binding::val_init_from_mem_init(&mem_inst.init, mem_inst.k, &addr_bits)
+                            .map_err(|e| PiCcsError::ProtocolError(format!("MemInit eval failed: {e:?}")))?;
+                    addr_weights.push((addr_bits, alpha));
+                    let claimed_k: K = claimed_value.into();
+                    val_offset += alpha * (val_init - claimed_k);
+                }
+                ob_sparse_addr_weights = Some(addr_weights);
+                ob_sparse_val_offset = Some(val_offset);
+            }
             ob_inc_total_degree_bound = Some(2 + ell_addr);
-            ob_state = Some(state);
         }
 
         let mcs_inst = &step.mcs_inst;
@@ -1061,9 +1086,7 @@ where
         if include_ob {
             let cfg =
                 ob_cfg.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
-            let ob_state = ob_state
-                .take()
-                .ok_or_else(|| PiCcsError::ProtocolError("output sumcheck state missing".into()))?;
+            let use_dense_output_sumcheck = cfg.num_bits <= neo_memory::output_check::OUTPUT_SUMCHECK_MAX_NUM_BITS;
 
             let inc_idx = final_values
                 .len()
@@ -1092,39 +1115,62 @@ where
                 .twist_time_openings
                 .get(cfg.mem_idx)
                 .ok_or_else(|| PiCcsError::ProtocolError("missing twist_time_openings for mem_idx".into()))?;
-            let inc_terminal = crate::output_binding::inc_terminal_from_time_openings(twist_open, &ob_state.r_prime)
-                .map_err(|e| PiCcsError::ProtocolError(format!("inc_total terminal mismatch: {e:?}")))?;
-            if inc_total_final != inc_terminal {
-                return Err(PiCcsError::ProtocolError("inc_total terminal mismatch".into()));
-            }
+            if use_dense_output_sumcheck {
+                let ob_state = ob_state
+                    .take()
+                    .ok_or_else(|| PiCcsError::ProtocolError("output sumcheck state missing".into()))?;
+                let inc_terminal =
+                    crate::output_binding::inc_terminal_from_time_openings(twist_open, &ob_state.r_prime)
+                        .map_err(|e| PiCcsError::ProtocolError(format!("inc_total terminal mismatch: {e:?}")))?;
+                if inc_total_final != inc_terminal {
+                    return Err(PiCcsError::ProtocolError("inc_total terminal mismatch".into()));
+                }
 
-            let mem_inst = step
-                .mem_insts
-                .get(cfg.mem_idx)
-                .ok_or_else(|| PiCcsError::InvalidInput("output binding mem_idx out of range".into()))?;
-            let expected_k = 1usize
-                .checked_shl(cfg.num_bits as u32)
-                .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^num_bits overflow".into()))?;
-            if mem_inst.k != expected_k {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "output binding: cfg.num_bits implies k={}, but mem_inst.k={}",
-                    expected_k, mem_inst.k
-                )));
-            }
-            let ell_addr = mem_inst.twist_layout().lanes[0].ell_addr;
-            if ell_addr != cfg.num_bits {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
-                    cfg.num_bits, ell_addr
-                )));
-            }
-            let val_init = crate::output_binding::val_init_from_mem_init(&mem_inst.init, mem_inst.k, &ob_state.r_prime)
-                .map_err(|e| PiCcsError::ProtocolError(format!("MemInit eval failed: {e:?}")))?;
-
-            let val_final_at_r_prime = val_init + inc_total_claim;
-            let expected_out = ob_state.eq_eval * ob_state.io_mask_eval * (val_final_at_r_prime - ob_state.val_io_eval);
-            if expected_out != ob_state.output_final {
-                return Err(PiCcsError::ProtocolError("output binding final check failed".into()));
+                let mem_inst = step
+                    .mem_insts
+                    .get(cfg.mem_idx)
+                    .ok_or_else(|| PiCcsError::InvalidInput("output binding mem_idx out of range".into()))?;
+                let expected_k = 1usize
+                    .checked_shl(cfg.num_bits as u32)
+                    .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^num_bits overflow".into()))?;
+                if mem_inst.k != expected_k {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "output binding: cfg.num_bits implies k={}, but mem_inst.k={}",
+                        expected_k, mem_inst.k
+                    )));
+                }
+                let ell_addr = mem_inst.twist_layout().lanes[0].ell_addr;
+                if ell_addr != cfg.num_bits {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
+                        cfg.num_bits, ell_addr
+                    )));
+                }
+                let val_init =
+                    crate::output_binding::val_init_from_mem_init(&mem_inst.init, mem_inst.k, &ob_state.r_prime)
+                        .map_err(|e| PiCcsError::ProtocolError(format!("MemInit eval failed: {e:?}")))?;
+                let val_final_at_r_prime = val_init + inc_total_claim;
+                let expected_out =
+                    ob_state.eq_eval * ob_state.io_mask_eval * (val_final_at_r_prime - ob_state.val_io_eval);
+                if expected_out != ob_state.output_final {
+                    return Err(PiCcsError::ProtocolError("output binding final check failed".into()));
+                }
+            } else {
+                let addr_weights = ob_sparse_addr_weights
+                    .take()
+                    .ok_or_else(|| PiCcsError::ProtocolError("output sparse addr/weight set missing".into()))?;
+                let val_offset = ob_sparse_val_offset
+                    .take()
+                    .ok_or_else(|| PiCcsError::ProtocolError("output sparse value offset missing".into()))?;
+                let inc_terminal =
+                    crate::output_binding::weighted_inc_terminal_from_time_openings(twist_open, &addr_weights)
+                        .map_err(|e| PiCcsError::ProtocolError(format!("inc_total terminal mismatch: {e:?}")))?;
+                if inc_total_final != inc_terminal {
+                    return Err(PiCcsError::ProtocolError("inc_total terminal mismatch".into()));
+                }
+                if val_offset + inc_total_claim != K::ZERO {
+                    return Err(PiCcsError::ProtocolError("output sparse final check failed".into()));
+                }
             }
         }
 

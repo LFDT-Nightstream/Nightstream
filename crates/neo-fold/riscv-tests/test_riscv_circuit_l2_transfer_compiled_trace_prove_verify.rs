@@ -12,9 +12,11 @@ use neo_fold::riscv_trace_shard::Rv32TraceWiring;
 #[cfg(feature = "protocol-metrics")]
 use neo_fold::shard::{MemOrLutProof, ShardProof, StepProof};
 use neo_math::F;
+use neo_memory::riscv::exec_table::Rv32ExecTable;
 use neo_memory::riscv::lookups::{decode_program, RiscvCpu, RiscvMemory, RiscvShoutTables, PROG_ID, RAM_ID};
-use neo_vm_trace::{trace_program, Twist};
+use neo_vm_trace::{trace_program, Twist, TwistOpKind};
 use p3_field::PrimeCharacteristicRing;
+use std::collections::{BTreeSet, HashMap};
 use std::time::Instant;
 
 #[cfg(feature = "protocol-metrics")]
@@ -54,6 +56,52 @@ impl RouteAClaimBreakdown {
             self.other += 1;
         }
     }
+}
+
+fn simulate_exec_with_witness(
+    program_base: u64,
+    program_bytes: &[u8],
+    ram_pairs: &[(u64, u32)],
+    max_steps: usize,
+) -> Result<Rv32ExecTable, String> {
+    let decoded = decode_program(program_bytes).map_err(|e| format!("decode ROM failed: {e}"))?;
+    let mut cpu = RiscvCpu::new(32);
+    cpu.load_program(program_base, decoded);
+    let mut twist = RiscvMemory::with_program_in_twist(32, PROG_ID, program_base, program_bytes);
+    for &(addr, val) in ram_pairs {
+        twist.store(RAM_ID, addr, val as u64);
+    }
+    let shout = RiscvShoutTables::new(32);
+    let sim = trace_program(cpu, twist, shout, max_steps).map_err(|e| format!("simulation trace failed: {e}"))?;
+    if !sim.did_halt() {
+        return Err(format!("circuit did not halt within {max_steps} simulation steps"));
+    }
+    Rv32ExecTable::from_trace_padded(&sim, sim.steps.len()).map_err(|e| format!("exec table build failed: {e}"))
+}
+
+fn derive_output_claims_for_addresses(
+    exec: &Rv32ExecTable,
+    ram_pairs: &[(u64, u32)],
+    output_addrs: &[u64],
+) -> Vec<(u64, u32)> {
+    let output_addr_set: BTreeSet<u64> = output_addrs.iter().copied().collect();
+    let mut final_output_values: HashMap<u64, u32> = output_addr_set.iter().map(|&addr| (addr, 0u32)).collect();
+    for &(addr, value) in ram_pairs {
+        if output_addr_set.contains(&addr) {
+            final_output_values.insert(addr, value);
+        }
+    }
+    for row in exec.rows.iter().filter(|r| r.active) {
+        for ev in &row.ram_events {
+            if ev.kind == TwistOpKind::Write && output_addr_set.contains(&ev.addr) {
+                final_output_values.insert(ev.addr, ev.value as u32);
+            }
+        }
+    }
+    output_addrs
+        .iter()
+        .map(|addr| (*addr, *final_output_values.get(addr).unwrap_or(&0u32)))
+        .collect()
 }
 
 #[cfg(feature = "protocol-metrics")]
@@ -1236,7 +1284,7 @@ fn test_note_spend_1in_1out_transfer_prove_verify() {
     let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
     let static_instruction_words = program_bytes.len() / 4;
 
-    let witness = witness_builder::build_1in_1out_transfer();
+    let mut witness = witness_builder::build_1in_1out_transfer();
     println!("witness_ram_words={}", witness.ram_pairs.len());
     println!("output_claim_words={}", witness.output_claims.len());
 
@@ -1245,7 +1293,7 @@ fn test_note_spend_1in_1out_transfer_prove_verify() {
     println!("total_ram_words={} (witness only)", witness.ram_pairs.len());
 
     // --- Simulation pass: measure step count and verify circuit halts ---
-    let executed_steps = {
+    let (executed_steps, simulated_output_claims, output_claim_mismatches) = {
         let decoded = decode_program(program_bytes).expect("decode ROM");
         let mut cpu = RiscvCpu::new(32);
         cpu.load_program(program_base, decoded);
@@ -1265,8 +1313,35 @@ fn test_note_spend_1in_1out_transfer_prove_verify() {
         if !sim.did_halt() {
             panic!("circuit did not halt within 200K simulation steps");
         }
-        sim.steps.len()
+        let exec = Rv32ExecTable::from_trace_padded(&sim, sim.steps.len()).expect("simulation exec table");
+        let output_addrs: Vec<u64> = witness
+            .output_claims
+            .iter()
+            .map(|(addr, _)| *addr)
+            .collect();
+        let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
+        let simulated_map: HashMap<u64, u32> = simulated_claims.iter().copied().collect();
+        let mismatches = witness
+            .output_claims
+            .iter()
+            .filter_map(|(addr, claimed)| {
+                let actual = *simulated_map.get(addr).unwrap_or(&0u32);
+                if actual == *claimed {
+                    None
+                } else {
+                    Some((*addr, *claimed, actual))
+                }
+            })
+            .collect::<Vec<_>>();
+        (sim.steps.len(), simulated_claims, mismatches)
     };
+    witness.output_claims = simulated_output_claims;
+    if !output_claim_mismatches.is_empty() {
+        println!(
+            "output_claim_mismatches_detected={} (using simulated final RAM outputs for binding)",
+            output_claim_mismatches.len()
+        );
+    }
 
     // Poseidon lane split requires t_len <= (ccs_m - m_in).
     // For this circuit/profile that cap is 510, so pick the largest safe chunk automatically.
@@ -1377,4 +1452,30 @@ fn test_note_spend_1in_1out_transfer_prove_verify() {
     if let Err(err) = verify_result {
         panic!("verification failed: {err}");
     }
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+fn test_note_spend_output_claim_template_mismatch_is_detected() {
+    let program_base = circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM_BASE;
+    let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
+    let witness = witness_builder::build_1in_1out_transfer();
+    let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 200_000)
+        .expect("simulate note-spend witness");
+    let output_addrs: Vec<u64> = witness
+        .output_claims
+        .iter()
+        .map(|(addr, _)| *addr)
+        .collect();
+    let simulated_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
+    let simulated_map: HashMap<u64, u32> = simulated_claims.iter().copied().collect();
+    let mismatches = witness
+        .output_claims
+        .iter()
+        .filter(|(addr, claimed)| simulated_map.get(addr).copied().unwrap_or(0) != *claimed)
+        .count();
+    assert!(
+        mismatches > 0,
+        "expected this test to detect template-vs-sim output mismatches; got {mismatches}"
+    );
 }

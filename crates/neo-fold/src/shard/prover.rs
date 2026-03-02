@@ -196,6 +196,7 @@ where
             None;
         let mut ob_time_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
         let mut ob_r_prime: Option<Vec<K>> = None;
+        let mut ob_sparse_addr_weights: Option<Vec<(Vec<K>, K)>> = None;
 
         // Output binding is injected only on the final step, and must run before sampling Route-A `r_time`.
         if include_ob {
@@ -214,13 +215,6 @@ where
             let expected_k = 1usize
                 .checked_shl(cfg.num_bits as u32)
                 .ok_or_else(|| PiCcsError::InvalidInput("output binding: 2^num_bits overflow".into()))?;
-            if final_memory_state.len() != expected_k {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "output binding: final_memory_state.len()={} != 2^num_bits={}",
-                    final_memory_state.len(),
-                    expected_k
-                )));
-            }
             let mem_inst = &step.mem_instances[cfg.mem_idx].0;
             if mem_inst.k != expected_k {
                 return Err(PiCcsError::InvalidInput(format!(
@@ -240,16 +234,37 @@ where
             tr.append_u64s(b"output_binding/mem_idx", &[cfg.mem_idx as u64]);
             tr.append_u64s(b"output_binding/num_bits", &[cfg.num_bits as u64]);
 
-            let (output_sc, r_prime) = neo_memory::output_check::generate_output_sumcheck_proof_and_challenges(
-                tr,
-                cfg.num_bits,
-                cfg.program_io.clone(),
-                final_memory_state,
-            )
-            .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
-
-            output_proof = Some(neo_memory::output_check::OutputBindingProof { output_sc });
-            ob_r_prime = Some(r_prime);
+            let use_dense_output_sumcheck = cfg.num_bits <= neo_memory::output_check::OUTPUT_SUMCHECK_MAX_NUM_BITS;
+            if use_dense_output_sumcheck {
+                if final_memory_state.len() != expected_k {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "output binding: final_memory_state.len()={} != 2^num_bits={}",
+                        final_memory_state.len(),
+                        expected_k
+                    )));
+                }
+                let (output_sc, r_prime) = neo_memory::output_check::generate_output_sumcheck_proof_and_challenges(
+                    tr,
+                    cfg.num_bits,
+                    cfg.program_io.clone(),
+                    final_memory_state,
+                )
+                .map_err(|e| PiCcsError::ProtocolError(format!("output sumcheck failed: {e:?}")))?;
+                output_proof = Some(neo_memory::output_check::OutputBindingProof { output_sc });
+                ob_r_prime = Some(r_prime);
+            } else {
+                let sampled = crate::output_binding::sample_output_lincomb_weights(tr, &cfg.program_io);
+                let addr_weights = sampled
+                    .into_iter()
+                    .map(|(addr, _claim_value, alpha)| {
+                        (crate::output_binding::addr_bits_as_k(addr, cfg.num_bits), alpha)
+                    })
+                    .collect::<Vec<_>>();
+                output_proof = Some(neo_memory::output_check::OutputBindingProof {
+                    output_sc: neo_memory::output_check::OutputSumcheckProof::default(),
+                });
+                ob_sparse_addr_weights = Some(addr_weights);
+            }
         }
 
         let (mcs_inst, mcs_wit) = &step.mcs;
@@ -699,9 +714,6 @@ where
         if include_ob {
             let (cfg, _final_memory_state) =
                 ob.ok_or_else(|| PiCcsError::InvalidInput("output binding enabled but config missing".into()))?;
-            let r_prime = ob_r_prime
-                .as_ref()
-                .ok_or_else(|| PiCcsError::ProtocolError("output binding r_prime missing".into()))?;
             let pre = twist_pre
                 .get(cfg.mem_idx)
                 .ok_or_else(|| PiCcsError::ProtocolError("output binding mem_idx out of range for twist_pre".into()))?;
@@ -712,17 +724,57 @@ where
                 ));
             }
 
-            let mut oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
+            let mut oracles: Vec<Box<dyn RoundOracle>> = Vec::new();
             let mut claimed_sum = K::ZERO;
-            for lane in pre.decoded.lanes.iter() {
-                let (oracle, claim) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
-                    lane.wa_bits.clone(),
-                    lane.has_write.clone(),
-                    lane.inc_at_write_addr.clone(),
-                    r_prime,
-                );
-                oracles.push(Box::new(oracle));
-                claimed_sum += claim;
+            let use_dense_output_sumcheck = cfg.num_bits <= neo_memory::output_check::OUTPUT_SUMCHECK_MAX_NUM_BITS;
+            if use_dense_output_sumcheck {
+                let r_prime = ob_r_prime
+                    .as_ref()
+                    .ok_or_else(|| PiCcsError::ProtocolError("output binding r_prime missing".into()))?;
+                oracles.reserve(pre.decoded.lanes.len());
+                for lane in pre.decoded.lanes.iter() {
+                    let (oracle, claim) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
+                        lane.wa_bits.clone(),
+                        lane.has_write.clone(),
+                        lane.inc_at_write_addr.clone(),
+                        r_prime,
+                    );
+                    oracles.push(Box::new(oracle));
+                    claimed_sum += claim;
+                }
+            } else {
+                let addr_weights = ob_sparse_addr_weights
+                    .as_ref()
+                    .ok_or_else(|| PiCcsError::ProtocolError("output binding sparse addr/weight set missing".into()))?;
+                oracles.reserve(pre.decoded.lanes.len().saturating_mul(addr_weights.len()));
+                for lane in pre.decoded.lanes.iter() {
+                    for (r_addr, alpha) in addr_weights.iter() {
+                        if *alpha == K::ZERO {
+                            continue;
+                        }
+                        let scaled_inc = neo_memory::sparse_time::SparseIdxVec::from_entries(
+                            lane.inc_at_write_addr.len(),
+                            lane.inc_at_write_addr
+                                .entries()
+                                .iter()
+                                .map(|(idx, val)| (*idx, *val * *alpha))
+                                .collect(),
+                        );
+                        let (oracle, claim) = neo_memory::twist_oracle::TwistTotalIncOracleSparseTime::new(
+                            lane.wa_bits.clone(),
+                            lane.has_write.clone(),
+                            scaled_inc,
+                            r_addr,
+                        );
+                        oracles.push(Box::new(oracle));
+                        claimed_sum += claim;
+                    }
+                }
+            }
+            if oracles.is_empty() {
+                return Err(PiCcsError::ProtocolError(
+                    "output binding produced zero active Twist increment oracles".into(),
+                ));
             }
             let oracle = crate::memory_sidecar::memory::SumRoundOracle::new(oracles)?;
 

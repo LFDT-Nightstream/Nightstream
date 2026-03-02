@@ -11,8 +11,10 @@ mod circuit_l2_transfer_rom;
 use neo_fold::riscv_trace_shard::Rv32TraceWiring;
 #[cfg(feature = "protocol-metrics")]
 use neo_fold::shard::{MemOrLutProof, ShardProof, StepProof};
+use neo_math::F;
 use neo_memory::riscv::lookups::{decode_program, RiscvCpu, RiscvMemory, RiscvShoutTables, PROG_ID, RAM_ID};
 use neo_vm_trace::{trace_program, Twist};
+use p3_field::PrimeCharacteristicRing;
 use std::time::Instant;
 
 #[cfg(feature = "protocol-metrics")]
@@ -937,6 +939,12 @@ mod witness_builder {
     pub const BL_DEPTH: u32 = 16;
     pub const BL_BUCKET_SIZE: usize = 12;
     pub const INPUT_ADDR: u64 = 0x104;
+    pub const OUTPUT_ADDR: u64 = 0x100;
+
+    pub struct TransferWitness {
+        pub ram_pairs: Vec<(u64, u32)>,
+        pub output_claims: Vec<(u64, u32)>,
+    }
 
     pub fn gl(v: u64) -> Goldilocks {
         Goldilocks::from_u64(v)
@@ -1027,7 +1035,7 @@ mod witness_builder {
     }
 
     /// Build the complete RAM witness for a 1-input, 1-output self-transfer.
-    pub fn build_1in_1out_transfer() -> Vec<(u64, u32)> {
+    pub fn build_1in_1out_transfer() -> TransferWitness {
         let mut ram = RamWriter::new(INPUT_ADDR);
 
         // --- Deterministic keys ---
@@ -1196,7 +1204,22 @@ mod witness_builder {
         // Viewers: n_viewers = 0
         ram.write_u32(0);
 
-        ram.pairs
+        // === Expected public outputs at OUTPUT_ADDR ===
+        let mut out = RamWriter::new(OUTPUT_ADDR);
+        out.write_gl_digest(&anchor_gl);
+        out.write_u32(1); // n_in
+        out.write_gl_digest(&nullifier_gl); // one input
+        out.write_u64(0); // withdraw_amount
+        out.write_gl_digest(&ZERO_DIGEST); // withdraw_to
+        out.write_u32(1); // n_out
+        out.write_gl_digest(&out_cm_gl); // one output commitment
+        out.write_gl_digest(&bl_root_gl);
+        out.write_u32(0); // n_viewers
+
+        TransferWitness {
+            ram_pairs: ram.pairs,
+            output_claims: out.pairs,
+        }
     }
 }
 
@@ -1213,12 +1236,13 @@ fn test_note_spend_1in_1out_transfer_prove_verify() {
     let program_bytes: &[u8] = &circuit_l2_transfer_rom::CIRCUIT_L2_TRANSFER_ROM;
     let static_instruction_words = program_bytes.len() / 4;
 
-    let ram_pairs = witness_builder::build_1in_1out_transfer();
-    println!("witness_ram_words={}", ram_pairs.len());
+    let witness = witness_builder::build_1in_1out_transfer();
+    println!("witness_ram_words={}", witness.ram_pairs.len());
+    println!("output_claim_words={}", witness.output_claims.len());
 
     // This ROM export currently includes only code bytes, so there is no separate
     // rodata blob to preload here.
-    println!("total_ram_words={} (witness only)", ram_pairs.len());
+    println!("total_ram_words={} (witness only)", witness.ram_pairs.len());
 
     // --- Simulation pass: measure step count and verify circuit halts ---
     let executed_steps = {
@@ -1226,7 +1250,7 @@ fn test_note_spend_1in_1out_transfer_prove_verify() {
         let mut cpu = RiscvCpu::new(32);
         cpu.load_program(program_base, decoded);
         let mut twist = RiscvMemory::with_program_in_twist(32, PROG_ID, program_base, program_bytes);
-        for &(addr, val) in &ram_pairs {
+        for &(addr, val) in &witness.ram_pairs {
             twist.store(RAM_ID, addr, val as u64);
         }
         let shout = RiscvShoutTables::new(32);
@@ -1259,8 +1283,11 @@ fn test_note_spend_1in_1out_transfer_prove_verify() {
         .max_steps(max_steps)
         .shout_auto_minimal();
 
-    for &(addr, val) in &ram_pairs {
+    for &(addr, val) in &witness.ram_pairs {
         wiring = wiring.ram_init_u32(addr, val);
+    }
+    for &(addr, val) in &witness.output_claims {
+        wiring = wiring.output_claim(addr, F::from_u64(val as u64));
     }
     let setup_wall = setup_wall_start.elapsed();
 

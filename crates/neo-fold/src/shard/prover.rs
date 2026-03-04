@@ -414,7 +414,7 @@ where
             let cycle_wit_ro = poseidon_cycle_wit
                 .as_ref()
                 .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon cycle witness".into()))?;
-            let (cycle_wits_built, cycle_cols_per_chunk) = split_poseidon_lane_wit_by_time_cols(
+            let (cycle_wits_built, cycle_open_specs_built) = split_poseidon_lane_wit_by_time_cols(
                 params,
                 cycle_wit_ro,
                 cycle_open_spec.2.len(),
@@ -423,14 +423,10 @@ where
                 Some(mcs_logical.as_slice()),
                 s.m,
             )?;
-            let cycle_open_specs_built: Vec<(usize, usize, Vec<usize>)> = cycle_cols_per_chunk
-                .into_iter()
-                .map(|chunk_cols| (cycle_open_spec.0, cycle_open_spec.1, (0..chunk_cols).collect()))
-                .collect();
             poseidon_cycle_wits = Some(cycle_wits_built);
             poseidon_cycle_open_specs = Some(cycle_open_specs_built);
 
-            let (local_wits_built, local_cols_per_chunk) = split_poseidon_lane_wit_by_time_cols(
+            let (local_wits_built, local_open_specs_built) = split_poseidon_lane_wit_by_time_cols(
                 params,
                 local_wit,
                 local_layout.cols(),
@@ -439,10 +435,6 @@ where
                 None,
                 s.m,
             )?;
-            let local_open_specs_built: Vec<(usize, usize, Vec<usize>)> = local_cols_per_chunk
-                .into_iter()
-                .map(|chunk_cols| (0, local_t_len, (0..chunk_cols).collect()))
-                .collect();
             poseidon_local_wits = Some(local_wits_built);
             poseidon_local_open_specs = Some(local_open_specs_built);
             poseidon_link_chals = Some(link_chals);

@@ -7,40 +7,63 @@ fn poseidon_cycle_openings_from_me(core_t: usize, side_mes: &[&CeClaim<Cmt, F, K
         ));
     }
     let mut out = vec![K::ZERO; layout.cols()];
-    let mut cursor = 0usize;
-    for side_me in side_mes.iter() {
-        if side_me.ct.len() < core_t {
-            return Err(PiCcsError::ProtocolError(format!(
-                "poseidon cycle ME opening too short (got {}, need at least core_t={core_t})",
-                side_me.ct.len()
-            )));
+    let mut idx = 0usize;
+    let mut prev_tile_start: Option<usize> = None;
+    while idx < side_mes.len() {
+        let tile_start = side_mes[idx].m_in;
+        if let Some(prev) = prev_tile_start {
+            if tile_start <= prev {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "poseidon cycle ME tiles must be strictly increasing in m_in (prev={}, next={})",
+                    prev, tile_start
+                )));
+            }
         }
-        let chunk_len = side_me.ct.len() - core_t;
-        if chunk_len == 0 {
-            return Err(PiCcsError::ProtocolError(
-                "poseidon cycle ME opening chunk has zero appended cols".into(),
-            ));
+        prev_tile_start = Some(tile_start);
+
+        let mut tile_vals = vec![K::ZERO; layout.cols()];
+        let mut cursor = 0usize;
+        while idx < side_mes.len() && side_mes[idx].m_in == tile_start {
+            let side_me = side_mes[idx];
+            if side_me.ct.len() < core_t {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "poseidon cycle ME opening too short (got {}, need at least core_t={core_t})",
+                    side_me.ct.len()
+                )));
+            }
+            let chunk_len = side_me.ct.len() - core_t;
+            if chunk_len == 0 {
+                return Err(PiCcsError::ProtocolError(
+                    "poseidon cycle ME opening chunk has zero appended cols".into(),
+                ));
+            }
+            let next = cursor
+                .checked_add(chunk_len)
+                .ok_or_else(|| PiCcsError::InvalidInput("poseidon cycle opening cursor overflow".into()))?;
+            if next > tile_vals.len() {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "poseidon cycle ME openings exceed layout cols for tile m_in={} (cursor={}, chunk_len={}, layout_cols={})",
+                    tile_start,
+                    cursor,
+                    chunk_len,
+                    tile_vals.len()
+                )));
+            }
+            tile_vals[cursor..next].copy_from_slice(&side_me.ct[core_t..]);
+            cursor = next;
+            idx += 1;
         }
-        let next = cursor
-            .checked_add(chunk_len)
-            .ok_or_else(|| PiCcsError::InvalidInput("poseidon cycle opening cursor overflow".into()))?;
-        if next > out.len() {
+        if cursor != tile_vals.len() {
             return Err(PiCcsError::ProtocolError(format!(
-                "poseidon cycle ME openings exceed layout cols (cursor={}, chunk_len={}, layout_cols={})",
+                "poseidon cycle ME tile openings incomplete for m_in={} (filled {}, expected {})",
+                tile_start,
                 cursor,
-                chunk_len,
-                out.len()
+                tile_vals.len()
             )));
         }
-        out[cursor..next].copy_from_slice(&side_me.ct[core_t..]);
-        cursor = next;
-    }
-    if cursor != out.len() {
-        return Err(PiCcsError::ProtocolError(format!(
-            "poseidon cycle ME openings incomplete (filled {}, expected {})",
-            cursor,
-            out.len()
-        )));
+        for (dst, src) in out.iter_mut().zip(tile_vals.iter()) {
+            *dst += *src;
+        }
     }
     Ok(out)
 }
@@ -549,40 +572,63 @@ fn poseidon_local_openings_from_me(
         return Err(PiCcsError::ProtocolError("poseidon local ME claims missing".into()));
     }
     let mut out = vec![K::ZERO; layout.cols()];
-    let mut cursor = 0usize;
-    for me in local_me_claims.iter() {
-        if me.ct.len() < core_t {
-            return Err(PiCcsError::ProtocolError(format!(
-                "poseidon local ME opening too short (got {}, need at least core_t={core_t})",
-                me.ct.len()
-            )));
+    let mut idx = 0usize;
+    let mut prev_tile_start: Option<usize> = None;
+    while idx < local_me_claims.len() {
+        let tile_start = local_me_claims[idx].m_in;
+        if let Some(prev) = prev_tile_start {
+            if tile_start <= prev {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "poseidon local ME tiles must be strictly increasing in m_in (prev={}, next={})",
+                    prev, tile_start
+                )));
+            }
         }
-        let chunk_len = me.ct.len() - core_t;
-        if chunk_len == 0 {
-            return Err(PiCcsError::ProtocolError(
-                "poseidon local ME opening chunk has zero appended cols".into(),
-            ));
+        prev_tile_start = Some(tile_start);
+
+        let mut tile_vals = vec![K::ZERO; layout.cols()];
+        let mut cursor = 0usize;
+        while idx < local_me_claims.len() && local_me_claims[idx].m_in == tile_start {
+            let me = &local_me_claims[idx];
+            if me.ct.len() < core_t {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "poseidon local ME opening too short (got {}, need at least core_t={core_t})",
+                    me.ct.len()
+                )));
+            }
+            let chunk_len = me.ct.len() - core_t;
+            if chunk_len == 0 {
+                return Err(PiCcsError::ProtocolError(
+                    "poseidon local ME opening chunk has zero appended cols".into(),
+                ));
+            }
+            let next = cursor
+                .checked_add(chunk_len)
+                .ok_or_else(|| PiCcsError::InvalidInput("poseidon local opening cursor overflow".into()))?;
+            if next > tile_vals.len() {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "poseidon local ME openings exceed layout cols for tile m_in={} (cursor={}, chunk_len={}, layout_cols={})",
+                    tile_start,
+                    cursor,
+                    chunk_len,
+                    tile_vals.len()
+                )));
+            }
+            tile_vals[cursor..next].copy_from_slice(&me.ct[core_t..]);
+            cursor = next;
+            idx += 1;
         }
-        let next = cursor
-            .checked_add(chunk_len)
-            .ok_or_else(|| PiCcsError::InvalidInput("poseidon local opening cursor overflow".into()))?;
-        if next > out.len() {
+        if cursor != tile_vals.len() {
             return Err(PiCcsError::ProtocolError(format!(
-                "poseidon local ME openings exceed layout cols (cursor={}, chunk_len={}, layout_cols={})",
+                "poseidon local ME tile openings incomplete for m_in={} (filled {}, expected {})",
+                tile_start,
                 cursor,
-                chunk_len,
-                out.len()
+                tile_vals.len()
             )));
         }
-        out[cursor..next].copy_from_slice(&me.ct[core_t..]);
-        cursor = next;
-    }
-    if cursor != out.len() {
-        return Err(PiCcsError::ProtocolError(format!(
-            "poseidon local ME openings incomplete (filled {}, expected {})",
-            cursor,
-            out.len()
-        )));
+        for (dst, src) in out.iter_mut().zip(tile_vals.iter()) {
+            *dst += *src;
+        }
     }
     Ok(out)
 }

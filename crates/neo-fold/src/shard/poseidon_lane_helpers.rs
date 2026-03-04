@@ -755,6 +755,11 @@ pub(crate) fn emit_poseidon_me_claims(
             cycle_cs.len()
         )));
     }
+    let cycle_col_base = cycle_open_specs
+        .iter()
+        .map(|(chunk_m_in, _, _)| *chunk_m_in)
+        .min()
+        .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon cycle opening specs".into()))?;
     let mut cycle_ell = ell_t.max(r_time.len());
     for (cycle_m_in, cycle_t_len, _) in cycle_open_specs.iter() {
         cycle_ell = core::cmp::max(
@@ -796,7 +801,7 @@ pub(crate) fn emit_poseidon_me_claims(
             cycle_z,
             *cycle_t_len,
             cycle_open_cols,
-            *cycle_m_in,
+            cycle_col_base,
             "poseidon cycle ME openings",
         )?;
         crate::memory_sidecar::cpu_bus::append_time_columns_openings_to_me_instance(
@@ -821,7 +826,7 @@ pub(crate) fn emit_poseidon_me_claims(
     let local_t_len = input
         .poseidon_local_t_len
         .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local t_len".into()))?;
-    let local_layout = input
+    let _local_layout = input
         .poseidon_local_layout
         .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local layout".into()))?;
     let local_open_specs = input
@@ -838,6 +843,11 @@ pub(crate) fn emit_poseidon_me_claims(
             local_cs.len()
         )));
     }
+    let local_col_base = local_open_specs
+        .iter()
+        .map(|(chunk_m_in, _, _)| *chunk_m_in)
+        .min()
+        .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local opening specs".into()))?;
     let r_local = input
         .poseidon_r_local
         .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local r_local".into()))?;
@@ -866,21 +876,20 @@ pub(crate) fn emit_poseidon_me_claims(
         .checked_shl(local_ell as u32)
         .ok_or_else(|| PiCcsError::InvalidInput("poseidon local n overflow".into()))?;
     let mut local_claims: Vec<CeClaim<Cmt, F, K>> = Vec::new();
-    let mut total_open_cols = 0usize;
     for ((local_z, (local_m_in, local_t, local_cols)), local_c) in local_z_chunks
         .iter()
         .zip(local_open_specs.iter())
         .zip(local_cs.iter())
     {
-        if *local_t != local_t_len {
+        let local_end = local_m_in
+            .checked_add(*local_t)
+            .ok_or_else(|| PiCcsError::InvalidInput("poseidon local chunk time span overflow".into()))?;
+        if local_end > local_t_len {
             return Err(PiCcsError::ProtocolError(format!(
-                "poseidon local chunk t_len mismatch (chunk={}, expected={})",
-                local_t, local_t_len
+                "poseidon local chunk time span out of range (m_in={}, t_len={}, local_t_len={})",
+                local_m_in, local_t, local_t_len
             )));
         }
-        total_open_cols = total_open_cols
-            .checked_add(local_cols.len())
-            .ok_or_else(|| PiCcsError::InvalidInput("poseidon local open cols overflow".into()))?;
         let mut chunk_claims = ts::emit_me_claims_for_mats(
             tr,
             b"poseidon/me_local_time",
@@ -903,7 +912,7 @@ pub(crate) fn emit_poseidon_me_claims(
             local_z,
             *local_t,
             local_cols,
-            *local_m_in,
+            local_col_base,
             "poseidon local ME openings",
         )?;
         crate::memory_sidecar::cpu_bus::append_time_columns_openings_to_me_instance(
@@ -920,13 +929,6 @@ pub(crate) fn emit_poseidon_me_claims(
         normalize_me_claims(core::slice::from_mut(&mut me), local_ell, ell_d, t)?;
         local_claims.push(me);
     }
-    if total_open_cols != local_layout.cols() {
-        return Err(PiCcsError::ProtocolError(format!(
-            "poseidon local chunk openings mismatch (opened {}, expected {})",
-            total_open_cols,
-            local_layout.cols()
-        )));
-    }
     mem_proof.poseidon_local_me_claims = local_claims;
 
     Ok(())
@@ -937,7 +939,11 @@ pub(crate) struct PoseidonFoldLanes {
     pub local_fold: Vec<RlcDecProof>,
 }
 
-fn poseidon_strip_me_for_fold(me: &CeClaim<Cmt, F, K>, core_t: usize) -> Result<CeClaim<Cmt, F, K>, PiCcsError> {
+fn poseidon_strip_me_for_fold(
+    me: &CeClaim<Cmt, F, K>,
+    core_t: usize,
+    fold_m_in: usize,
+) -> Result<CeClaim<Cmt, F, K>, PiCcsError> {
     if me.y_ring.len() < core_t || me.ct.len() < core_t {
         return Err(PiCcsError::ProtocolError(format!(
             "poseidon fold expects ME core rows at least core_t={} (y.len()={}, ct.len()={})",
@@ -947,6 +953,23 @@ fn poseidon_strip_me_for_fold(me: &CeClaim<Cmt, F, K>, core_t: usize) -> Result<
         )));
     }
     let mut out = me.clone();
+    out.m_in = fold_m_in;
+    if out.X.cols() < fold_m_in {
+        return Err(PiCcsError::ProtocolError(format!(
+            "poseidon fold strip cannot normalize X width: X.cols()={} < fold_m_in={}",
+            out.X.cols(),
+            fold_m_in
+        )));
+    }
+    if out.X.cols() != fold_m_in {
+        let mut x_norm = Mat::zero(out.X.rows(), fold_m_in, F::ZERO);
+        for r in 0..out.X.rows() {
+            for c in 0..fold_m_in {
+                x_norm[(r, c)] = out.X[(r, c)];
+            }
+        }
+        out.X = x_norm;
+    }
     out.y_ring.truncate(core_t);
     out.ct.truncate(core_t);
     out.aux_openings.clear();
@@ -993,10 +1016,16 @@ where
             )));
         }
         let k_dec_poseidon = 64usize;
+        let cycle_fold_m_in = mem_proof
+            .poseidon_cycle_me_claims
+            .iter()
+            .map(|me| me.m_in)
+            .min()
+            .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon cycle ME claim(s)".into()))?;
         let mut cycle_claims_for_fold: Vec<CeClaim<Cmt, F, K>> =
             Vec::with_capacity(mem_proof.poseidon_cycle_me_claims.len());
         for me in mem_proof.poseidon_cycle_me_claims.iter() {
-            cycle_claims_for_fold.push(poseidon_strip_me_for_fold(me, s.t())?);
+            cycle_claims_for_fold.push(poseidon_strip_me_for_fold(me, s.t(), cycle_fold_m_in)?);
         }
         let cycle_open_specs_slim: Vec<(usize, usize, &[usize])> = cycle_open_specs
             .iter()
@@ -1040,10 +1069,16 @@ where
             )));
         }
         let k_dec_poseidon = 64usize;
+        let local_fold_m_in = mem_proof
+            .poseidon_local_me_claims
+            .iter()
+            .map(|me| me.m_in)
+            .min()
+            .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local ME claim(s)".into()))?;
         let mut local_claims_for_fold: Vec<CeClaim<Cmt, F, K>> =
             Vec::with_capacity(mem_proof.poseidon_local_me_claims.len());
         for me in mem_proof.poseidon_local_me_claims.iter() {
-            local_claims_for_fold.push(poseidon_strip_me_for_fold(me, s.t())?);
+            local_claims_for_fold.push(poseidon_strip_me_for_fold(me, s.t(), local_fold_m_in)?);
         }
         let local_open_specs_slim: Vec<(usize, usize, &[usize])> = local_open_specs
             .iter()
@@ -1113,9 +1148,14 @@ where
             continue;
         }
         tr.append_message(start_label, &(step_idx as u64).to_le_bytes());
+        let fold_m_in = me_claims
+            .iter()
+            .map(|me| me.m_in)
+            .min()
+            .ok_or_else(|| PiCcsError::ProtocolError(format!("step {}: missing {lane_label} ME claim(s)", idx)))?;
         let mut stripped_claims = Vec::with_capacity(me_claims.len());
         for me in me_claims.iter() {
-            stripped_claims.push(poseidon_strip_me_for_fold(me, s.t())?);
+            stripped_claims.push(poseidon_strip_me_for_fold(me, s.t(), fold_m_in)?);
         }
         verify_poseidon_lane_fold(
             tr,
@@ -1143,7 +1183,7 @@ pub(crate) fn split_poseidon_lane_wit_by_time_cols(
     m_in: usize,
     public_prefix_vals: Option<&[F]>,
     ccs_m: usize,
-) -> Result<(Vec<Mat<F>>, Vec<usize>), PiCcsError> {
+) -> Result<(Vec<Mat<F>>, Vec<(usize, usize, Vec<usize>)>), PiCcsError> {
     if t_len == 0 {
         return Err(PiCcsError::InvalidInput("poseidon split: t_len must be > 0".into()));
     }
@@ -1178,57 +1218,110 @@ pub(crate) fn split_poseidon_lane_wit_by_time_cols(
             )));
         }
     }
-    let max_logical_per_chunk = (ccs_m - m_in) / t_len;
-    if max_logical_per_chunk == 0 {
+    let available_raw = ccs_m - m_in;
+    if available_raw == 0 {
         return Err(PiCcsError::ProtocolError(format!(
-            "poseidon split: ccs_m too small for one time-column after m_in offset (ccs_m={}, m_in={}, t_len={})",
+            "poseidon split: ccs_m too small after m_in offset (ccs_m={}, m_in={}, t_len={})",
             ccs_m, m_in, t_len
         )));
     }
 
     let packed_cols = ccs_m.div_ceil(neo_math::D);
     let mut chunk_wits: Vec<Mat<F>> = Vec::new();
-    let mut chunk_logical_cols: Vec<usize> = Vec::new();
-    let mut start_logical = 0usize;
-    while start_logical < logical_cols {
-        let this_logical = core::cmp::min(max_logical_per_chunk, logical_cols - start_logical);
-        let raw_start = start_logical * t_len;
-        let raw_len = this_logical
-            .checked_mul(t_len)
-            .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: chunk raw len overflow".into()))?;
-        let raw_end = raw_start
-            .checked_add(raw_len)
-            .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: chunk raw end overflow".into()))?;
-        if raw_end > z.cols() {
+    let mut chunk_specs: Vec<(usize, usize, Vec<usize>)> = Vec::new();
+    let row0 = z.row(0);
+
+    // 2D tiling over time and columns. Each tile satisfies:
+    //   chunk_cols * chunk_t_len <= ccs_m - m_in
+    // which removes the old hard dependency `ccs_m - m_in >= t_len`.
+    let mut time_start = 0usize;
+    while time_start < t_len {
+        let time_remaining = t_len - time_start;
+        let chunk_t_len = core::cmp::min(time_remaining, available_raw);
+        if chunk_t_len == 0 {
+            return Err(PiCcsError::ProtocolError(
+                "poseidon split: computed zero chunk_t_len".into(),
+            ));
+        }
+        let max_cols_for_time = available_raw / chunk_t_len;
+        if max_cols_for_time == 0 {
             return Err(PiCcsError::ProtocolError(format!(
-                "poseidon split: chunk span out of range (raw_start={}, raw_end={}, z.cols()={})",
-                raw_start,
-                raw_end,
-                z.cols()
+                "poseidon split: no capacity for any column at chunk_t_len={} (ccs_m={}, m_in={})",
+                chunk_t_len, ccs_m, m_in
             )));
         }
 
-        let mut logical = vec![F::ZERO; ccs_m];
-        if let Some(prefix_vals) = public_prefix_vals {
-            logical[..m_in].copy_from_slice(&prefix_vals[..m_in]);
+        let mut col_start = 0usize;
+        while col_start < logical_cols {
+            let chunk_cols = core::cmp::min(max_cols_for_time, logical_cols - col_start);
+            let mut logical = vec![F::ZERO; ccs_m];
+            if let Some(prefix_vals) = public_prefix_vals {
+                logical[..m_in].copy_from_slice(&prefix_vals[..m_in]);
+            }
+
+            for local_col in 0..chunk_cols {
+                let global_col = col_start
+                    .checked_add(local_col)
+                    .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: global col overflow".into()))?;
+                let src_start = global_col
+                    .checked_mul(t_len)
+                    .and_then(|v| v.checked_add(time_start))
+                    .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: src start overflow".into()))?;
+                let src_end = src_start
+                    .checked_add(chunk_t_len)
+                    .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: src end overflow".into()))?;
+                if src_end > row0.len() {
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "poseidon split: src span out of range (src_start={}, src_end={}, row_len={})",
+                        src_start,
+                        src_end,
+                        row0.len()
+                    )));
+                }
+
+                let dst_start = m_in
+                    .checked_add(
+                        local_col
+                            .checked_mul(chunk_t_len)
+                            .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: dst mul overflow".into()))?,
+                    )
+                    .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: dst start overflow".into()))?;
+                let dst_end = dst_start
+                    .checked_add(chunk_t_len)
+                    .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: dst end overflow".into()))?;
+                if dst_end > logical.len() {
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "poseidon split: dst span out of range (dst_start={}, dst_end={}, ccs_m={})",
+                        dst_start,
+                        dst_end,
+                        logical.len()
+                    )));
+                }
+                logical[dst_start..dst_end].copy_from_slice(&row0[src_start..src_end]);
+            }
+
+            let mut chunk = Mat::zero(neo_math::D, packed_cols, F::ZERO);
+            for (c, &v) in logical.iter().enumerate() {
+                let blk = c / neo_math::D;
+                let off = c % neo_math::D;
+                chunk[(off, blk)] = v;
+            }
+            chunk_wits.push(chunk);
+            chunk_specs.push((
+                m_in.checked_add(time_start)
+                    .ok_or_else(|| PiCcsError::InvalidInput("poseidon split: chunk m_in overflow".into()))?,
+                chunk_t_len,
+                (0..chunk_cols).collect(),
+            ));
+            col_start += chunk_cols;
         }
-        let row0 = z.row(0);
-        logical[m_in..m_in + raw_len].copy_from_slice(&row0[raw_start..raw_end]);
-        let mut chunk = Mat::zero(neo_math::D, packed_cols, F::ZERO);
-        for (c, &v) in logical.iter().enumerate() {
-            let blk = c / neo_math::D;
-            let off = c % neo_math::D;
-            chunk[(off, blk)] = v;
-        }
-        chunk_wits.push(chunk);
-        chunk_logical_cols.push(this_logical);
-        start_logical += this_logical;
+        time_start += chunk_t_len;
     }
 
     if chunk_wits.is_empty() {
         return Err(PiCcsError::ProtocolError("poseidon split: produced zero chunks".into()));
     }
-    Ok((chunk_wits, chunk_logical_cols))
+    Ok((chunk_wits, chunk_specs))
 }
 
 pub(crate) fn prove_poseidon_lane_fold<L, MR, MB>(

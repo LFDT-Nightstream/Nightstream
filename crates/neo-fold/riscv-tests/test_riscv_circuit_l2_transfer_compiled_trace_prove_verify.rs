@@ -2073,7 +2073,7 @@ fn test_note_spend_sovereign_fixture_repro_prove_verify() {
 
 #[cfg(feature = "poseidon-precompile")]
 #[test]
-fn test_sovereign_note_spend_rom_fixture_repro_fails_with_poseidon_split_tlen_798() {
+fn test_sovereign_note_spend_rom_fixture_repro_passes_with_poseidon_2d_tiling_tlen_798() {
     let fixture: FixtureNoteSpendWitness = serde_json::from_str(include_str!(
         "fixtures/sovereign_note_spend_poseidon_split_tlen798.json"
     ))
@@ -2102,18 +2102,11 @@ fn test_sovereign_note_spend_rom_fixture_repro_fails_with_poseidon_split_tlen_79
         wiring = wiring.output_claim(addr, F::from_u64(val as u64));
     }
 
-    let err = match wiring.prove() {
-        Ok(_) => panic!("sovereign note-spend fixture must reproduce poseidon split failure"),
-        Err(err) => err,
-    };
-    let msg = err.to_string();
-    assert!(
-        msg.contains("poseidon split: ccs_m too small for one time-column after m_in offset")
-            && msg.contains("ccs_m=518")
-            && msg.contains("m_in=5")
-            && msg.contains("t_len=798"),
-        "unexpected prove error for sovereign poseidon-split repro: {msg}"
-    );
+    let mut run = wiring
+        .prove()
+        .expect("sovereign note-spend fixture should prove with 2D poseidon tiling");
+    run.verify()
+        .expect("sovereign note-spend fixture should verify with 2D poseidon tiling");
 }
 
 #[cfg(feature = "poseidon-precompile")]
@@ -2157,7 +2150,7 @@ fn test_sovereign_note_spend_slow_proving_repro() {
         &witness.ram_pairs,
         &output_claims,
         executed_steps,
-        510,
+        65_536,
         8,
     )
     .expect("sovereign note-spend slow repro should prove");
@@ -2219,7 +2212,7 @@ fn test_sovereign_note_deposit_slow_proving_repro() {
         &witness.ram_pairs,
         &output_claims,
         executed_steps,
-        510,
+        65_536,
         8,
     )
     .expect("sovereign note-deposit slow repro should prove");

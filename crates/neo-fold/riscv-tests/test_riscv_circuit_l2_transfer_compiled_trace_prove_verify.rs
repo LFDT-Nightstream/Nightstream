@@ -8,6 +8,10 @@
 
 #[path = "binaries/circuit_l2_transfer_rom.rs"]
 mod circuit_l2_transfer_rom;
+#[path = "binaries/sovereign_note_deposit_rom.rs"]
+mod sovereign_note_deposit_rom;
+#[path = "binaries/sovereign_note_spend_rom.rs"]
+mod sovereign_note_spend_rom;
 
 use neo_fold::riscv_trace_shard::Rv32TraceWiring;
 #[cfg(feature = "protocol-metrics")]
@@ -106,6 +110,92 @@ fn derive_output_claims_for_addresses(
         .iter()
         .map(|addr| (*addr, *final_output_values.get(addr).unwrap_or(&0u32)))
         .collect()
+}
+
+#[cfg(feature = "poseidon-precompile")]
+fn parse_usize_after(msg: &str, key: &str) -> Option<usize> {
+    let start = msg.find(key)? + key.len();
+    let rest = &msg[start..];
+    let digits_end = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
+    if digits_end == 0 {
+        return None;
+    }
+    rest[..digits_end].parse::<usize>().ok()
+}
+
+#[cfg(feature = "poseidon-precompile")]
+fn next_chunk_rows_from_poseidon_split(msg: &str, current_chunk_rows: usize) -> Option<usize> {
+    if !msg.contains("poseidon split") {
+        return None;
+    }
+    let ccs_m = parse_usize_after(msg, "ccs_m=")?;
+    let m_in = parse_usize_after(msg, "m_in=")?;
+    let t_len = parse_usize_after(msg, "t_len=")?;
+    let t_cap = ccs_m.saturating_sub(m_in).max(1);
+    if t_len <= t_cap {
+        return None;
+    }
+    let mut next = current_chunk_rows
+        .saturating_mul(t_cap)
+        .checked_div(t_len)
+        .unwrap_or(0)
+        .max(1);
+    if next >= current_chunk_rows {
+        next = current_chunk_rows.saturating_sub(1).max(1);
+    }
+    (next < current_chunk_rows).then_some(next)
+}
+
+#[cfg(feature = "poseidon-precompile")]
+fn prove_with_poseidon_retry(
+    program_base: u64,
+    program_bytes: &[u8],
+    ram_pairs: &[(u64, u32)],
+    output_claims: &[(u64, u32)],
+    executed_steps: usize,
+    initial_chunk_rows: usize,
+    max_retries: usize,
+) -> Result<(neo_fold::riscv_trace_shard::Rv32TraceWiringRun, usize), String> {
+    let mut chunk_rows = initial_chunk_rows.max(1);
+    let mut retry_idx = 0usize;
+    loop {
+        let mut wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
+            .xlen(32)
+            .min_trace_len(executed_steps)
+            .chunk_rows(chunk_rows)
+            .max_steps(executed_steps)
+            .shout_auto_minimal();
+        for &(addr, val) in ram_pairs {
+            wiring = wiring.ram_init_u32(addr, val);
+        }
+        for &(addr, val) in output_claims {
+            wiring = wiring.output_claim(addr, F::from_u64(val as u64));
+        }
+
+        match wiring.prove() {
+            Ok(run) => return Ok((run, chunk_rows)),
+            Err(err) => {
+                let msg = err.to_string();
+                if retry_idx < max_retries {
+                    if let Some(next_chunk_rows) = next_chunk_rows_from_poseidon_split(&msg, chunk_rows) {
+                        println!(
+                            "poseidon_split_retry: chunk_rows {} -> {} (attempt {}/{})",
+                            chunk_rows,
+                            next_chunk_rows,
+                            retry_idx + 1,
+                            max_retries
+                        );
+                        chunk_rows = next_chunk_rows;
+                        retry_idx += 1;
+                        continue;
+                    }
+                }
+                return Err(format!("prove failed at chunk_rows={chunk_rows}: {err}"));
+            }
+        }
+    }
 }
 
 #[cfg(feature = "protocol-metrics")]
@@ -1094,7 +1184,17 @@ mod witness_builder {
     /// Build the complete RAM witness for a 1-input, 1-output self-transfer
     /// at an arbitrary Merkle depth for input inclusion.
     pub fn build_1in_1out_transfer_with_depth(depth: u32) -> TransferWitness {
-        let mut ram = RamWriter::new(INPUT_ADDR);
+        build_1in_1out_transfer_with_depth_and_addrs(depth, INPUT_ADDR, OUTPUT_ADDR)
+    }
+
+    /// Build the complete RAM witness for a 1-input, 1-output self-transfer
+    /// with explicit input/output memory addresses (used by Sovereign ROMs).
+    pub fn build_1in_1out_transfer_with_depth_and_addrs(
+        depth: u32,
+        input_addr: u64,
+        output_addr: u64,
+    ) -> TransferWitness {
+        let mut ram = RamWriter::new(input_addr);
 
         // --- Deterministic keys ---
         let domain_gl: GlDigest = [gl(1), gl(1), gl(1), gl(1)];
@@ -1262,7 +1362,7 @@ mod witness_builder {
         ram.write_u32(0);
 
         // === Expected public outputs at OUTPUT_ADDR ===
-        let mut out = RamWriter::new(OUTPUT_ADDR);
+        let mut out = RamWriter::new(output_addr);
         out.write_gl_digest(&anchor_gl);
         out.write_u32(1); // n_in
         out.write_gl_digest(&nullifier_gl); // one input
@@ -1272,6 +1372,74 @@ mod witness_builder {
         out.write_gl_digest(&out_cm_gl); // one output commitment
         out.write_gl_digest(&bl_root_gl);
         out.write_u32(0); // n_viewers
+
+        TransferWitness {
+            ram_pairs: ram.pairs,
+            output_claims: out.pairs,
+        }
+    }
+
+    /// Build a note-deposit witness in the exact RAM/output layout expected by
+    /// the Sovereign note_deposit circuit.
+    pub fn build_note_deposit_with_addrs(input_addr: u64, output_addr: u64) -> TransferWitness {
+        let mut ram = RamWriter::new(input_addr);
+
+        let domain_gl: GlDigest = [gl(1), gl(1), gl(1), gl(1)];
+        let value: u64 = 777;
+        let rho_gl: GlDigest = [gl(200), gl(201), gl(202), gl(203)];
+        let pk_spend_gl: GlDigest = [gl(42), gl(43), gl(44), gl(45)];
+        let pk_ivk_gl: GlDigest = [gl(100), gl(101), gl(102), gl(103)];
+
+        // recipient = H(TAG_ADDR, domain, pk_spend, pk_ivk)
+        let recipient_gl = {
+            let mut inp = [Goldilocks::ZERO; 13];
+            inp[0] = gl(TAG_ADDR);
+            inp[1..5].copy_from_slice(&domain_gl);
+            inp[5..9].copy_from_slice(&pk_spend_gl);
+            inp[9..13].copy_from_slice(&pk_ivk_gl);
+            h(&inp)
+        };
+
+        // Deposit notes bind sender_id := recipient.
+        let cm_out_gl = {
+            let mut inp = [Goldilocks::ZERO; 18];
+            inp[0] = gl(TAG_NOTE);
+            inp[1..5].copy_from_slice(&domain_gl);
+            inp[5] = gl(value);
+            inp[6..10].copy_from_slice(&rho_gl);
+            inp[10..14].copy_from_slice(&recipient_gl);
+            inp[14..18].copy_from_slice(&recipient_gl);
+            h(&inp)
+        };
+
+        let (bl_root_gl, bl_nodes) = default_blacklist_root();
+        let empty_bucket = [ZERO_DIGEST; BL_BUCKET_SIZE];
+        let recipient_bl_inv = compute_bucket_inv(&recipient_gl, &empty_bucket);
+
+        // Input layout: domain, value, rho, pk_spend, pk_ivk, cm_out, blacklist_root,
+        // then bucket entries, bucket_inv, siblings.
+        ram.write_gl_digest(&domain_gl);
+        ram.write_u64(value);
+        ram.write_gl_digest(&rho_gl);
+        ram.write_gl_digest(&pk_spend_gl);
+        ram.write_gl_digest(&pk_ivk_gl);
+        ram.write_gl_digest(&cm_out_gl);
+        ram.write_gl_digest(&bl_root_gl);
+        for _ in 0..BL_BUCKET_SIZE {
+            ram.write_gl_digest(&ZERO_DIGEST);
+        }
+        ram.write_u64(recipient_bl_inv.as_canonical_u64());
+        for node in bl_nodes.iter().take(BL_DEPTH as usize) {
+            ram.write_gl_digest(node);
+        }
+
+        // Output layout: domain, value, recipient, cm_out, blacklist_root.
+        let mut out = RamWriter::new(output_addr);
+        out.write_gl_digest(&domain_gl);
+        out.write_u64(value);
+        out.write_gl_digest(&recipient_gl);
+        out.write_gl_digest(&cm_out_gl);
+        out.write_gl_digest(&bl_root_gl);
 
         TransferWitness {
             ram_pairs: ram.pairs,
@@ -1344,6 +1512,15 @@ struct FixtureViewerOutput {
 
 #[cfg(feature = "poseidon-precompile")]
 fn build_transfer_witness_from_fixture(f: &FixtureNoteSpendWitness) -> witness_builder::TransferWitness {
+    build_transfer_witness_from_fixture_with_addrs(f, 0x104, 0x100)
+}
+
+#[cfg(feature = "poseidon-precompile")]
+fn build_transfer_witness_from_fixture_with_addrs(
+    f: &FixtureNoteSpendWitness,
+    input_addr: u64,
+    output_addr: u64,
+) -> witness_builder::TransferWitness {
     struct RamWordWriter {
         addr: u64,
         pairs: Vec<(u64, u32)>,
@@ -1372,10 +1549,7 @@ fn build_transfer_witness_from_fixture(f: &FixtureNoteSpendWitness) -> witness_b
         }
     }
 
-    const INPUT_ADDR: u64 = 0x104;
-    const OUTPUT_ADDR: u64 = 0x100;
-
-    let mut in_w = RamWordWriter::new(INPUT_ADDR);
+    let mut in_w = RamWordWriter::new(input_addr);
     in_w.write_hash32(&f.domain);
     in_w.write_hash32(&f.spend_sk);
     in_w.write_hash32(&f.pk_ivk_owner);
@@ -1437,7 +1611,7 @@ fn build_transfer_witness_from_fixture(f: &FixtureNoteSpendWitness) -> witness_b
         }
     }
 
-    let mut out_w = RamWordWriter::new(OUTPUT_ADDR);
+    let mut out_w = RamWordWriter::new(output_addr);
     out_w.write_hash32(&f.anchor);
     out_w.write_u32(f.inputs.len() as u32);
     for input in &f.inputs {
@@ -1895,4 +2069,173 @@ fn test_note_spend_sovereign_fixture_repro_prove_verify() {
         .expect("Sovereign fixture repro should prove after carry fix");
     run.verify()
         .expect("Sovereign fixture repro should verify after carry fix");
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+fn test_sovereign_note_spend_rom_fixture_repro_fails_with_poseidon_split_tlen_798() {
+    let fixture: FixtureNoteSpendWitness = serde_json::from_str(include_str!(
+        "fixtures/sovereign_note_spend_poseidon_split_tlen798.json"
+    ))
+    .expect("parse sovereign note-spend poseidon-split fixture JSON");
+
+    let program_base = sovereign_note_spend_rom::NOTE_SPEND_ROM_BASE;
+    let program_bytes: &[u8] = &sovereign_note_spend_rom::NOTE_SPEND_ROM;
+    let witness = build_transfer_witness_from_fixture_with_addrs(&fixture, 0x4104, 0x4100);
+
+    let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 400_000)
+        .expect("simulate sovereign note-spend fixture witness");
+
+    let executed_steps = exec.rows.len();
+
+    let chunk_rows = 42usize;
+    let mut wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
+        .xlen(32)
+        .min_trace_len(executed_steps)
+        .chunk_rows(chunk_rows)
+        .max_steps(executed_steps)
+        .shout_auto_minimal();
+    for &(addr, val) in &witness.ram_pairs {
+        wiring = wiring.ram_init_u32(addr, val);
+    }
+    for &(addr, val) in &witness.output_claims {
+        wiring = wiring.output_claim(addr, F::from_u64(val as u64));
+    }
+
+    let err = match wiring.prove() {
+        Ok(_) => panic!("sovereign note-spend fixture must reproduce poseidon split failure"),
+        Err(err) => err,
+    };
+    let msg = err.to_string();
+    assert!(
+        msg.contains("poseidon split: ccs_m too small for one time-column after m_in offset")
+            && msg.contains("ccs_m=518")
+            && msg.contains("m_in=5")
+            && msg.contains("t_len=798"),
+        "unexpected prove error for sovereign poseidon-split repro: {msg}"
+    );
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+#[ignore = "slow sovereign-like note_spend proving repro"]
+fn test_sovereign_note_spend_slow_proving_repro() {
+    let program_base = sovereign_note_spend_rom::NOTE_SPEND_ROM_BASE;
+    let program_bytes: &[u8] = &sovereign_note_spend_rom::NOTE_SPEND_ROM;
+
+    let witness = witness_builder::build_1in_1out_transfer_with_depth_and_addrs(2, 0x4104, 0x4100);
+    println!(
+        "sovereign_note_spend_slow: witness_ram_words={} output_claim_words={}",
+        witness.ram_pairs.len(),
+        witness.output_claims.len()
+    );
+
+    let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 400_000)
+        .expect("simulate sovereign note-spend witness");
+    let executed_steps = exec.rows.len();
+    let output_addrs: Vec<u64> = witness
+        .output_claims
+        .iter()
+        .map(|(addr, _)| *addr)
+        .collect();
+    let output_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
+    let mismatch_count = witness
+        .output_claims
+        .iter()
+        .zip(output_claims.iter())
+        .filter(|((_, expected), (_, actual))| expected != actual)
+        .count();
+    println!(
+        "sovereign_note_spend_slow: simulated_steps={} output_claim_mismatches={}",
+        executed_steps, mismatch_count
+    );
+
+    let t_prove = Instant::now();
+    let (mut run, final_chunk_rows) = prove_with_poseidon_retry(
+        program_base,
+        program_bytes,
+        &witness.ram_pairs,
+        &output_claims,
+        executed_steps,
+        510,
+        8,
+    )
+    .expect("sovereign note-spend slow repro should prove");
+    let prove_ms = t_prove.elapsed().as_millis();
+
+    let t_verify = Instant::now();
+    run.verify()
+        .expect("sovereign note-spend slow repro should verify");
+    let verify_ms = t_verify.elapsed().as_millis();
+
+    println!(
+        "sovereign_note_spend_slow: prove_ms={} verify_ms={} steps={} folds={} chunk_rows={}",
+        prove_ms,
+        verify_ms,
+        run.trace_len(),
+        run.fold_count(),
+        final_chunk_rows
+    );
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[test]
+#[ignore = "slow sovereign-like note_deposit proving repro"]
+fn test_sovereign_note_deposit_slow_proving_repro() {
+    let program_base = sovereign_note_deposit_rom::NOTE_DEPOSIT_ROM_BASE;
+    let program_bytes: &[u8] = &sovereign_note_deposit_rom::NOTE_DEPOSIT_ROM;
+
+    let witness = witness_builder::build_note_deposit_with_addrs(0x4104, 0x4100);
+    println!(
+        "sovereign_note_deposit_slow: witness_ram_words={} output_claim_words={}",
+        witness.ram_pairs.len(),
+        witness.output_claims.len()
+    );
+
+    let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 400_000)
+        .expect("simulate sovereign note-deposit witness");
+    let executed_steps = exec.rows.len();
+    let output_addrs: Vec<u64> = witness
+        .output_claims
+        .iter()
+        .map(|(addr, _)| *addr)
+        .collect();
+    let output_claims = derive_output_claims_for_addresses(&exec, &witness.ram_pairs, &output_addrs);
+    let mismatch_count = witness
+        .output_claims
+        .iter()
+        .zip(output_claims.iter())
+        .filter(|((_, expected), (_, actual))| expected != actual)
+        .count();
+    println!(
+        "sovereign_note_deposit_slow: simulated_steps={} output_claim_mismatches={}",
+        executed_steps, mismatch_count
+    );
+
+    let t_prove = Instant::now();
+    let (mut run, final_chunk_rows) = prove_with_poseidon_retry(
+        program_base,
+        program_bytes,
+        &witness.ram_pairs,
+        &output_claims,
+        executed_steps,
+        510,
+        8,
+    )
+    .expect("sovereign note-deposit slow repro should prove");
+    let prove_ms = t_prove.elapsed().as_millis();
+
+    let t_verify = Instant::now();
+    run.verify()
+        .expect("sovereign note-deposit slow repro should verify");
+    let verify_ms = t_verify.elapsed().as_millis();
+
+    println!(
+        "sovereign_note_deposit_slow: prove_ms={} verify_ms={} steps={} folds={} chunk_rows={}",
+        prove_ms,
+        verify_ms,
+        run.trace_len(),
+        run.fold_count(),
+        final_chunk_rows
+    );
 }

@@ -663,7 +663,7 @@ where
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && t >= 128;
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let allow_parallel = false;
+    let _allow_parallel = false;
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     if allow_parallel {

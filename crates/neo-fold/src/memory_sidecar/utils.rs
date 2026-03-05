@@ -7,12 +7,12 @@ use p3_field::PrimeCharacteristicRing;
 /// Used for Route A batching: some oracles have extra rounds (e.g. Shout lookup has
 /// time+address rounds) but we batch only the first `ell_n` time rounds.
 pub struct RoundOraclePrefix<'a> {
-    inner: &'a mut dyn RoundOracle,
+    inner: &'a mut (dyn RoundOracle + Send),
     num_rounds: usize,
 }
 
 impl<'a> RoundOraclePrefix<'a> {
-    pub fn new(inner: &'a mut dyn RoundOracle, num_rounds: usize) -> Self {
+    pub fn new(inner: &'a mut (dyn RoundOracle + Send), num_rounds: usize) -> Self {
         Self { inner, num_rounds }
     }
 }

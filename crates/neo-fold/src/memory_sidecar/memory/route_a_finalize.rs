@@ -187,7 +187,7 @@ pub(crate) fn finalize_route_a_memory_prover(
         let claims_per_mem = plan.claims_per_mem;
         let claim_count = plan.claim_count;
 
-        let mut val_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(claim_count);
+        let mut val_oracles: Vec<Box<dyn RoundOracle + Send>> = Vec::with_capacity(claim_count);
         let mut bind_claims: Vec<(u8, K)> = Vec::with_capacity(claim_count);
         let mut claimed_sums: Vec<K> = Vec::with_capacity(claim_count);
 
@@ -208,7 +208,7 @@ pub(crate) fn finalize_route_a_memory_prover(
                 )));
             }
 
-            let mut lt_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(decoded.lanes.len());
+            let mut lt_oracles: Vec<Box<dyn RoundOracle + Send>> = Vec::with_capacity(decoded.lanes.len());
             let mut claimed_inc_sum_lt = K::ZERO;
             for lane in decoded.lanes.iter() {
                 let (oracle, claim) = TwistValEvalOracleSparseTime::new(
@@ -221,9 +221,9 @@ pub(crate) fn finalize_route_a_memory_prover(
                 lt_oracles.push(Box::new(oracle));
                 claimed_inc_sum_lt += claim;
             }
-            let oracle_lt: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(lt_oracles)?);
+            let oracle_lt: Box<dyn RoundOracle + Send> = Box::new(SumRoundOracle::new(lt_oracles)?);
 
-            let mut total_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(decoded.lanes.len());
+            let mut total_oracles: Vec<Box<dyn RoundOracle + Send>> = Vec::with_capacity(decoded.lanes.len());
             let mut claimed_inc_sum_total = K::ZERO;
             for lane in decoded.lanes.iter() {
                 let (oracle, claim) = TwistTotalIncOracleSparseTime::new(
@@ -235,7 +235,7 @@ pub(crate) fn finalize_route_a_memory_prover(
                 total_oracles.push(Box::new(oracle));
                 claimed_inc_sum_total += claim;
             }
-            let oracle_total: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(total_oracles)?);
+            let oracle_total: Box<dyn RoundOracle + Send> = Box::new(SumRoundOracle::new(total_oracles)?);
 
             val_oracles.push(oracle_lt);
             bind_claims.push((plan.bind_tags[claim_idx], claimed_inc_sum_lt));
@@ -283,7 +283,8 @@ pub(crate) fn finalize_route_a_memory_prover(
                     ));
                 }
 
-                let mut prev_total_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(prev_decoded.lanes.len());
+                let mut prev_total_oracles: Vec<Box<dyn RoundOracle + Send>> =
+                    Vec::with_capacity(prev_decoded.lanes.len());
                 let mut claimed_prev_total = K::ZERO;
                 for lane in prev_decoded.lanes.iter() {
                     let (oracle, claim) = TwistTotalIncOracleSparseTime::new(
@@ -295,7 +296,7 @@ pub(crate) fn finalize_route_a_memory_prover(
                     prev_total_oracles.push(Box::new(oracle));
                     claimed_prev_total += claim;
                 }
-                let oracle_prev_total: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(prev_total_oracles)?);
+                let oracle_prev_total: Box<dyn RoundOracle + Send> = Box::new(SumRoundOracle::new(prev_total_oracles)?);
 
                 val_oracles.push(oracle_prev_total);
                 bind_claims.push((plan.bind_tags[claim_idx], claimed_prev_total));

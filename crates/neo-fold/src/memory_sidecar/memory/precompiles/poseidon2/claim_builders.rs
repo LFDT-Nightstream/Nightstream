@@ -211,12 +211,18 @@ impl PoseidonCycleTraceLayout {
     }
 }
 
+pub(crate) fn poseidon_cycle_open_col_ids(layout: &PoseidonCycleTraceLayout) -> Vec<usize> {
+    // Keep cycle-lane ME openings canonical and complete: prover and verifier both
+    // reconstruct the same full logical column vector from this list.
+    (0..layout.cols()).collect()
+}
+
 pub(crate) type PoseidonCycleClaims = (
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
 );
 
 pub(crate) const POSEIDON_IO_LINK_RESIDUAL_COUNT: usize = 11;
@@ -224,6 +230,22 @@ pub(crate) const POSEIDON_BITNESS_RESIDUAL_COUNT: usize = 13;
 pub(crate) const POSEIDON_CANONICAL_RESIDUAL_COUNT: usize = 10;
 pub(crate) const POSEIDON_SIDECAR_LINK_RESIDUAL_COUNT: usize = 21;
 pub(crate) const POSEIDON_MODE_RESIDUAL_COUNT: usize = 2;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn poseidon_cycle_open_cols_cover_full_layout() {
+        let layout = PoseidonCycleTraceLayout::new();
+        let open_cols = poseidon_cycle_open_col_ids(&layout);
+        let expected: Vec<usize> = (0..layout.cols()).collect();
+        assert_eq!(
+            open_cols, expected,
+            "poseidon cycle open columns must cover full layout in order"
+        );
+    }
+}
 
 #[inline]
 pub(crate) fn poseidon_io_link_weight_vector(r_cycle: &[K], len: usize) -> Vec<K> {
@@ -933,7 +955,7 @@ pub(crate) fn build_poseidon_cycle_trace_matrix(
     }
 
     let z = Mat::from_row_major(neo_math::D, m, data);
-    let open_cols: Vec<usize> = (0..cols).collect();
+    let open_cols = poseidon_cycle_open_col_ids(&layout);
     Ok((z, m_in, t_len, open_cols))
 }
 

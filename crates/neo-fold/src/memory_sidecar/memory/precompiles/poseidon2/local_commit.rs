@@ -110,6 +110,12 @@ impl PoseidonLocalTraceLayout {
 }
 
 #[inline]
+pub(crate) fn poseidon_local_open_col_ids(layout: &PoseidonLocalTraceLayout) -> Vec<usize> {
+    // Explicit helper so prover and verifier share one deterministic column set.
+    (0..layout.cols()).collect()
+}
+
+#[inline]
 pub(crate) fn poseidon_local_round_weight_vector(r_cycle: &[K], len: usize) -> Vec<K> {
     bitness_weights(r_cycle, len, 0x5032_4C52_4F55_4E44u64)
 }
@@ -349,9 +355,9 @@ fn build_poseidon_local_sparse_cols(
 }
 
 pub(crate) type PoseidonLocalClaims = (
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
 );
 
 #[derive(Clone)]

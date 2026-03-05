@@ -69,6 +69,39 @@ fn shift_sumcheck_from_batched_time(
     })
 }
 
+#[inline]
+fn commit_poseidon_lane_wits_batched(params: &NeoParams, wits: &[Mat<F>], label: &str) -> Result<Vec<Cmt>, PiCcsError> {
+    if wits.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut by_cols: std::collections::BTreeMap<usize, Vec<(usize, &Mat<F>)>> = std::collections::BTreeMap::new();
+    for (idx, z) in wits.iter().enumerate() {
+        by_cols.entry(z.cols()).or_default().push((idx, z));
+    }
+    let mut out: Vec<Option<Cmt>> = vec![None; wits.len()];
+    for (cols, grouped) in by_cols.into_iter() {
+        let committer = crate::shard::poseidon_lane_helpers::poseidon_lane_committer(params, cols, label)?;
+        let refs: Vec<&Mat<F>> = grouped.iter().map(|(_, z)| *z).collect();
+        let commits = committer.commit_many(&refs);
+        if commits.len() != refs.len() {
+            return Err(PiCcsError::ProtocolError(format!(
+                "{label}: commit_many returned {} commitments for {} matrices",
+                commits.len(),
+                refs.len()
+            )));
+        }
+        for ((idx, _), c) in grouped.into_iter().zip(commits.into_iter()) {
+            out[idx] = Some(c);
+        }
+    }
+    out.into_iter()
+        .enumerate()
+        .map(|(idx, c)| {
+            c.ok_or_else(|| PiCcsError::ProtocolError(format!("{label}: missing commitment at index {idx}")))
+        })
+        .collect()
+}
+
 pub(crate) fn fold_shard_prove_impl<L, MR, MB>(
     collect_val_lane_wits: bool,
     mode: FoldingMode,
@@ -417,7 +450,7 @@ where
             let (cycle_wits_built, cycle_open_specs_built) = split_poseidon_lane_wit_by_time_cols(
                 params,
                 cycle_wit_ro,
-                cycle_open_spec.2.len(),
+                cycle_open_spec.2.as_slice(),
                 cycle_open_spec.1,
                 cycle_open_spec.0,
                 Some(mcs_logical.as_slice()),
@@ -426,10 +459,11 @@ where
             poseidon_cycle_wits = Some(cycle_wits_built);
             poseidon_cycle_open_specs = Some(cycle_open_specs_built);
 
+            let local_open_cols = crate::memory_sidecar::memory::poseidon_local_open_col_ids(local_layout);
             let (local_wits_built, local_open_specs_built) = split_poseidon_lane_wit_by_time_cols(
                 params,
                 local_wit,
-                local_layout.cols(),
+                local_open_cols.as_slice(),
                 local_t_len,
                 0,
                 None,
@@ -448,24 +482,8 @@ where
             let local_wits_ref = poseidon_local_wits
                 .as_ref()
                 .ok_or_else(|| PiCcsError::ProtocolError("missing poseidon local witness chunks".into()))?;
-            let mut cycle_cs = Vec::with_capacity(cycle_wits_ref.len());
-            for z in cycle_wits_ref.iter() {
-                let cycle_committer = crate::shard::poseidon_lane_helpers::poseidon_lane_committer(
-                    params,
-                    z.cols(),
-                    "poseidon cycle commit",
-                )?;
-                cycle_cs.push(cycle_committer.commit(z));
-            }
-            let mut local_cs = Vec::with_capacity(local_wits_ref.len());
-            for z in local_wits_ref.iter() {
-                let local_committer = crate::shard::poseidon_lane_helpers::poseidon_lane_committer(
-                    params,
-                    z.cols(),
-                    "poseidon local commit",
-                )?;
-                local_cs.push(local_committer.commit(z));
-            }
+            let cycle_cs = commit_poseidon_lane_wits_batched(params, cycle_wits_ref, "poseidon cycle commit")?;
+            let local_cs = commit_poseidon_lane_wits_batched(params, local_wits_ref, "poseidon local commit")?;
             absorb_poseidon_lane_commitments_prover(tr, &cycle_cs, &local_cs);
             (Some(cycle_cs), Some(local_cs))
         } else {
@@ -719,7 +737,7 @@ where
                 ));
             }
 
-            let mut oracles: Vec<Box<dyn RoundOracle>> = Vec::new();
+            let mut oracles: Vec<Box<dyn RoundOracle + Send>> = Vec::new();
             let mut claimed_sum = K::ZERO;
             let use_dense_output_sumcheck = cfg.num_bits <= neo_memory::output_check::OUTPUT_SUMCHECK_MAX_NUM_BITS;
             if use_dense_output_sumcheck {
@@ -1486,39 +1504,68 @@ where
                     mixers.mix_rhos_commits,
                 );
                 let k_dec_lane = core::cmp::max(k_dec, required_dec_digits_for_matrix(params, &z_mix)?);
-                let (dec_wits, digit_nonzero) = ccs::split_b_matrix_k_with_nonzero_flags(&z_mix, k_dec_lane, params.b)?;
-                let zero_c = Cmt::zeros(mcs_inst.c.d, mcs_inst.c.kappa);
-                let mut child_cs: Vec<Cmt> = vec![zero_c.clone(); dec_wits.len()];
-                let nonzero_idx: Vec<usize> = digit_nonzero
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(idx, &nz)| nz.then_some(idx))
-                    .collect();
-                if !nonzero_idx.is_empty() {
-                    let mats: Vec<&Mat<F>> = nonzero_idx.iter().map(|&idx| &dec_wits[idx]).collect();
-                    let commits = l.commit_many(&mats);
-                    if commits.len() != mats.len() {
-                        return Err(PiCcsError::ProtocolError(format!(
-                            "WB DEC commit_many returned {} commitments for {} matrices",
-                            commits.len(),
-                            mats.len()
-                        )));
+                let materialize_wb_lane =
+                    || -> Result<(Vec<Mat<F>>, Vec<CeClaim<Cmt, F, K>>, bool, bool, bool), PiCcsError> {
+                        let (dec_wits, digit_nonzero) =
+                            ccs::split_b_matrix_k_with_nonzero_flags(&z_mix, k_dec_lane, params.b)?;
+                        let zero_c = Cmt::zeros(mcs_inst.c.d, mcs_inst.c.kappa);
+                        let mut child_cs: Vec<Cmt> = vec![zero_c.clone(); dec_wits.len()];
+                        let nonzero_idx: Vec<usize> = digit_nonzero
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, &nz)| nz.then_some(idx))
+                            .collect();
+                        if !nonzero_idx.is_empty() {
+                            let mats: Vec<&Mat<F>> = nonzero_idx.iter().map(|&idx| &dec_wits[idx]).collect();
+                            let commits = l.commit_many(&mats);
+                            if commits.len() != mats.len() {
+                                return Err(PiCcsError::ProtocolError(format!(
+                                    "WB DEC commit_many returned {} commitments for {} matrices",
+                                    commits.len(),
+                                    mats.len()
+                                )));
+                            }
+                            for (pos, &idx) in nonzero_idx.iter().enumerate() {
+                                child_cs[idx] = commits[pos].clone();
+                            }
+                        }
+                        let (dec_children, ok_y, ok_x, ok_c) = ccs::dec_children_with_commit_cached(
+                            mode.clone(),
+                            &s_lane,
+                            params,
+                            &rlc_parent,
+                            &dec_wits,
+                            ell_d,
+                            &child_cs,
+                            mixers.combine_b_pows,
+                            ccs_sparse_cache.as_deref(),
+                        );
+                        Ok((dec_wits, dec_children, ok_y, ok_x, ok_c))
+                    };
+
+                let (mut dec_children, wb_dec_wits, ok_y, ok_x, ok_c) = if !collect_val_lane_wits {
+                    match dec_stream_no_witness(
+                        params,
+                        &s_lane,
+                        &rlc_parent,
+                        &z_mix,
+                        ell_d,
+                        k_dec_lane,
+                        mixers.combine_b_pows,
+                        ccs_sparse_cache.as_deref(),
+                    ) {
+                        Ok((children, _child_cs, ok_y, ok_x, ok_c)) if ok_y && ok_x && ok_c => {
+                            (children, None, ok_y, ok_x, ok_c)
+                        }
+                        Ok(_) | Err(_) => {
+                            let (dec_wits, children, ok_y, ok_x, ok_c) = materialize_wb_lane()?;
+                            (children, Some(dec_wits), ok_y, ok_x, ok_c)
+                        }
                     }
-                    for (pos, &idx) in nonzero_idx.iter().enumerate() {
-                        child_cs[idx] = commits[pos].clone();
-                    }
-                }
-                let (mut dec_children, ok_y, ok_x, ok_c) = ccs::dec_children_with_commit_cached(
-                    mode.clone(),
-                    &s_lane,
-                    params,
-                    &rlc_parent,
-                    &dec_wits,
-                    ell_d,
-                    &child_cs,
-                    mixers.combine_b_pows,
-                    ccs_sparse_cache.as_deref(),
-                );
+                } else {
+                    let (dec_wits, children, ok_y, ok_x, ok_c) = materialize_wb_lane()?;
+                    (children, Some(dec_wits), ok_y, ok_x, ok_c)
+                };
                 if !(ok_y && ok_x && ok_c) {
                     return Err(PiCcsError::ProtocolError(format!(
                         "DEC(wb lane) public check failed at step {} claim_idx={} (y={}, X={}, c={}, me.r.len()={}, parent.r.len()={}, s_lane.n={})",
@@ -1532,13 +1579,24 @@ where
                         s_lane.n
                     )));
                 }
-                if dec_children.len() != dec_wits.len() {
-                    return Err(PiCcsError::ProtocolError(format!(
-                        "step {}: WB fold requires materialized DEC witnesses (children={}, wits={})",
-                        step_idx,
-                        dec_children.len(),
-                        dec_wits.len()
-                    )));
+                if let Some(dec_wits) = wb_dec_wits.as_ref() {
+                    if dec_children.len() != dec_wits.len() {
+                        return Err(PiCcsError::ProtocolError(format!(
+                            "step {}: WB fold requires materialized DEC witnesses (children={}, wits={})",
+                            step_idx,
+                            dec_children.len(),
+                            dec_wits.len()
+                        )));
+                    }
+                }
+                if collect_val_lane_wits {
+                    let dec_wits = wb_dec_wits.as_ref().ok_or_else(|| {
+                        PiCcsError::ProtocolError(format!(
+                            "step {}: WB fold expected materialized DEC witnesses for witness collection",
+                            step_idx
+                        ))
+                    })?;
+                    val_lane_wits.extend(dec_wits.iter().cloned());
                 }
                 let want_len = core_t
                     .checked_add(wb_cols.len())
@@ -1585,9 +1643,6 @@ where
                             want_len
                         )));
                     }
-                }
-                if collect_val_lane_wits {
-                    val_lane_wits.extend(dec_wits.iter().cloned());
                 }
                 wb_fold.push(RlcDecProof {
                     rlc_rhos,
@@ -1709,39 +1764,68 @@ where
                     mixers.mix_rhos_commits,
                 );
                 let k_dec_lane = core::cmp::max(k_dec, required_dec_digits_for_matrix(params, &z_mix)?);
-                let (dec_wits, digit_nonzero) = ccs::split_b_matrix_k_with_nonzero_flags(&z_mix, k_dec_lane, params.b)?;
-                let zero_c = Cmt::zeros(mcs_inst.c.d, mcs_inst.c.kappa);
-                let mut child_cs: Vec<Cmt> = vec![zero_c.clone(); dec_wits.len()];
-                let nonzero_idx: Vec<usize> = digit_nonzero
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(idx, &nz)| nz.then_some(idx))
-                    .collect();
-                if !nonzero_idx.is_empty() {
-                    let mats: Vec<&Mat<F>> = nonzero_idx.iter().map(|&idx| &dec_wits[idx]).collect();
-                    let commits = l.commit_many(&mats);
-                    if commits.len() != mats.len() {
-                        return Err(PiCcsError::ProtocolError(format!(
-                            "WP DEC commit_many returned {} commitments for {} matrices",
-                            commits.len(),
-                            mats.len()
-                        )));
+                let materialize_wp_lane =
+                    || -> Result<(Vec<Mat<F>>, Vec<CeClaim<Cmt, F, K>>, bool, bool, bool), PiCcsError> {
+                        let (dec_wits, digit_nonzero) =
+                            ccs::split_b_matrix_k_with_nonzero_flags(&z_mix, k_dec_lane, params.b)?;
+                        let zero_c = Cmt::zeros(mcs_inst.c.d, mcs_inst.c.kappa);
+                        let mut child_cs: Vec<Cmt> = vec![zero_c.clone(); dec_wits.len()];
+                        let nonzero_idx: Vec<usize> = digit_nonzero
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, &nz)| nz.then_some(idx))
+                            .collect();
+                        if !nonzero_idx.is_empty() {
+                            let mats: Vec<&Mat<F>> = nonzero_idx.iter().map(|&idx| &dec_wits[idx]).collect();
+                            let commits = l.commit_many(&mats);
+                            if commits.len() != mats.len() {
+                                return Err(PiCcsError::ProtocolError(format!(
+                                    "WP DEC commit_many returned {} commitments for {} matrices",
+                                    commits.len(),
+                                    mats.len()
+                                )));
+                            }
+                            for (pos, &idx) in nonzero_idx.iter().enumerate() {
+                                child_cs[idx] = commits[pos].clone();
+                            }
+                        }
+                        let (dec_children, ok_y, ok_x, ok_c) = ccs::dec_children_with_commit_cached(
+                            mode.clone(),
+                            &s_lane,
+                            params,
+                            &rlc_parent,
+                            &dec_wits,
+                            ell_d,
+                            &child_cs,
+                            mixers.combine_b_pows,
+                            ccs_sparse_cache.as_deref(),
+                        );
+                        Ok((dec_wits, dec_children, ok_y, ok_x, ok_c))
+                    };
+
+                let (mut dec_children, wp_dec_wits, ok_y, ok_x, ok_c) = if !collect_val_lane_wits {
+                    match dec_stream_no_witness(
+                        params,
+                        &s_lane,
+                        &rlc_parent,
+                        &z_mix,
+                        ell_d,
+                        k_dec_lane,
+                        mixers.combine_b_pows,
+                        ccs_sparse_cache.as_deref(),
+                    ) {
+                        Ok((children, _child_cs, ok_y, ok_x, ok_c)) if ok_y && ok_x && ok_c => {
+                            (children, None, ok_y, ok_x, ok_c)
+                        }
+                        Ok(_) | Err(_) => {
+                            let (dec_wits, children, ok_y, ok_x, ok_c) = materialize_wp_lane()?;
+                            (children, Some(dec_wits), ok_y, ok_x, ok_c)
+                        }
                     }
-                    for (pos, &idx) in nonzero_idx.iter().enumerate() {
-                        child_cs[idx] = commits[pos].clone();
-                    }
-                }
-                let (mut dec_children, ok_y, ok_x, ok_c) = ccs::dec_children_with_commit_cached(
-                    mode.clone(),
-                    &s_lane,
-                    params,
-                    &rlc_parent,
-                    &dec_wits,
-                    ell_d,
-                    &child_cs,
-                    mixers.combine_b_pows,
-                    ccs_sparse_cache.as_deref(),
-                );
+                } else {
+                    let (dec_wits, children, ok_y, ok_x, ok_c) = materialize_wp_lane()?;
+                    (children, Some(dec_wits), ok_y, ok_x, ok_c)
+                };
                 if !(ok_y && ok_x && ok_c) {
                     return Err(PiCcsError::ProtocolError(format!(
                         "DEC(wp lane) public check failed at step {} claim_idx={} (y={}, X={}, c={}, me.r.len()={}, parent.r.len()={}, s_lane.n={})",
@@ -1755,13 +1839,24 @@ where
                         s_lane.n
                     )));
                 }
-                if dec_children.len() != dec_wits.len() {
-                    return Err(PiCcsError::ProtocolError(format!(
-                        "step {}: WP fold requires materialized DEC witnesses (children={}, wits={})",
-                        step_idx,
-                        dec_children.len(),
-                        dec_wits.len()
-                    )));
+                if let Some(dec_wits) = wp_dec_wits.as_ref() {
+                    if dec_children.len() != dec_wits.len() {
+                        return Err(PiCcsError::ProtocolError(format!(
+                            "step {}: WP fold requires materialized DEC witnesses (children={}, wits={})",
+                            step_idx,
+                            dec_children.len(),
+                            dec_wits.len()
+                        )));
+                    }
+                }
+                if collect_val_lane_wits {
+                    let dec_wits = wp_dec_wits.as_ref().ok_or_else(|| {
+                        PiCcsError::ProtocolError(format!(
+                            "step {}: WP fold expected materialized DEC witnesses for witness collection",
+                            step_idx
+                        ))
+                    })?;
+                    val_lane_wits.extend(dec_wits.iter().cloned());
                 }
                 let want_len = core_t
                     .checked_add(wp_open_cols.len())
@@ -1808,9 +1903,6 @@ where
                             want_len
                         )));
                     }
-                }
-                if collect_val_lane_wits {
-                    val_lane_wits.extend(dec_wits.iter().cloned());
                 }
                 wp_fold.push(RlcDecProof {
                     rlc_rhos,

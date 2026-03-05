@@ -21,14 +21,14 @@ pub struct RouteABatchedTimeProverOutput {
 }
 
 pub struct ExtraBatchedTimeClaim {
-    pub oracle: Box<dyn RoundOracle>,
+    pub oracle: Box<dyn RoundOracle + Send>,
     pub claimed_sum: K,
     pub label: &'static [u8],
 }
 
 fn split_extra_claim(
     claim: Option<ExtraBatchedTimeClaim>,
-) -> (Option<Box<dyn RoundOracle>>, Option<&'static [u8]>, Option<K>) {
+) -> (Option<Box<dyn RoundOracle + Send>>, Option<&'static [u8]>, Option<K>) {
     match claim {
         Some(extra) => (Some(extra.oracle), Some(extra.label), Some(extra.claimed_sum)),
         None => (None, None, None),
@@ -36,7 +36,7 @@ fn split_extra_claim(
 }
 
 fn append_optional_claim<'a>(
-    oracle: &'a mut Option<Box<dyn RoundOracle>>,
+    oracle: &'a mut Option<Box<dyn RoundOracle + Send>>,
     label: Option<&'static [u8]>,
     claimed_sum: Option<K>,
     is_dynamic: bool,

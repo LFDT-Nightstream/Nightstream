@@ -62,6 +62,38 @@ where
         }
     }
 
+    /// Monotonic lookup helper for sequential index scans.
+    ///
+    /// `hint` stores the current cursor into `entries`. For nondecreasing `idx` queries,
+    /// this runs in amortized O(1) per lookup instead of binary search.
+    #[inline]
+    pub fn get_with_hint(&self, idx: usize, hint: &mut usize) -> R {
+        let entries = self.entries.as_slice();
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(
+                *hint <= entries.len(),
+                "SparseIdxVec::get_with_hint invalid cursor (hint={}, len={})",
+                *hint,
+                entries.len()
+            );
+            if *hint > 0 {
+                debug_assert!(
+                    idx >= entries[*hint - 1].0,
+                    "SparseIdxVec::get_with_hint requires nondecreasing idx for a shared hint cursor"
+                );
+            }
+        }
+        while *hint < entries.len() && entries[*hint].0 < idx {
+            *hint += 1;
+        }
+        if *hint < entries.len() && entries[*hint].0 == idx {
+            entries[*hint].1
+        } else {
+            R::ZERO
+        }
+    }
+
     /// One multilinear folding round on the least-significant index bit:
     ///
     /// For each parent index `p`:

@@ -955,6 +955,22 @@ pub(crate) fn append_time_columns_openings_to_me_instance<Cmt>(
 where
     Cmt: Clone,
 {
+    append_time_columns_openings_to_me_instance_with_row_base(params, m_in, m_in, t_len, cpu_cols, cols, core_t, me)
+}
+
+pub(crate) fn append_time_columns_openings_to_me_instance_with_row_base<Cmt>(
+    params: &NeoParams,
+    m_in: usize,
+    row_base: usize,
+    t_len: usize,
+    cpu_cols: &[Vec<F>],
+    cols: &[usize],
+    core_t: usize,
+    me: &mut CeClaim<Cmt, F, K>,
+) -> Result<(), PiCcsError>
+where
+    Cmt: Clone,
+{
     if cols.is_empty() {
         return Ok(());
     }
@@ -981,12 +997,12 @@ where
         .checked_shl(me.r.len() as u32)
         .ok_or_else(|| PiCcsError::InvalidInput("2^ell_n overflow".into()))?;
     for j in 0..t_len {
-        let row = m_in
+        let row = row_base
             .checked_add(j)
             .ok_or_else(|| PiCcsError::InvalidInput("m_in + j overflow".into()))?;
         if row >= n_pad {
             return Err(PiCcsError::InvalidInput(format!(
-                "time row index out of range: (m_in + j)={row} out of range for ell_n={} (n_pad={})",
+                "time row index out of range: (row_base + j)={row} out of range for ell_n={} (n_pad={})",
                 me.r.len(),
                 n_pad
             )));
@@ -1016,7 +1032,7 @@ where
         }
     }
 
-    let time_weights = precompute_contiguous_time_weights(&me.r, m_in, t_len, n_pad)?;
+    let time_weights = precompute_contiguous_time_weights(&me.r, row_base, t_len, n_pad)?;
     let weighted_rows: Vec<(usize, K)> = time_weights
         .into_iter()
         .enumerate()

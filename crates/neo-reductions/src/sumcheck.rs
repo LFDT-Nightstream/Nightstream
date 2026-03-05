@@ -291,7 +291,7 @@ pub fn run_sumcheck_prover<O: RoundOracle, Tr: Transcript>(
             .zip(ys.iter())
             .all(|(&x, &y)| poly_eval_k(&coeffs, x) == y));
 
-        // Commit coefficients to the transcript
+        // Commit coefficients to the transcript.
         for &coeff in coeffs.iter() {
             tr.append_fields(b"sumcheck/round/coeff", &coeff.as_coeffs());
         }
@@ -380,7 +380,7 @@ pub fn verify_sumcheck_rounds<Tr: Transcript>(
             return (challenges, running_sum, false);
         }
 
-        // Append round polynomial to transcript
+        // Append round polynomial to transcript.
         for &coeff in round_poly.iter() {
             tr.append_fields(b"sumcheck/round/coeff", &coeff.as_coeffs());
         }
@@ -419,7 +419,7 @@ pub fn verify_sumcheck_rounds<Tr: Transcript>(
 /// all oracles receive the same transcript-derived challenges.
 pub struct BatchedClaim<'a> {
     /// The oracle for this claim
-    pub oracle: &'a mut dyn RoundOracle,
+    pub oracle: &'a mut (dyn RoundOracle + Send),
     /// Claimed sum for this protocol
     pub claimed_sum: K,
     /// Label for this claim (for transcript domain separation)
@@ -512,9 +512,13 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
         .collect();
     let mut interp_cache = std::collections::BTreeMap::<usize, std::sync::Arc<InterpolationPlan>>::new();
     let mut packed_round_poly = Vec::<Fq>::new();
-
     // Track running sums per claim
     let mut running_sums: Vec<K> = claims.iter().map(|c| c.claimed_sum).collect();
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let allow_parallel =
+        rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && claims.len() >= 8;
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let _allow_parallel = false;
 
     // Bind batched claim schedule once. Per-round payloads then only bind the
     // round index and packed round polynomials in fixed claim order.
@@ -535,29 +539,91 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
         tr.append_message(b"batched/round_idx", &(round_idx as u64).to_le_bytes());
 
         // 1. Collect round polynomials from all claims.
-        for claim_idx in 0..claims.len() {
-            let claim = &mut claims[claim_idx];
-            let deg = claim.oracle.degree_bound();
-            let plan = interp_cache
-                .entry(deg)
-                .or_insert_with(|| interpolation_plan_for_degree_cached(deg));
-            let ys = claim.oracle.evals_at(plan.xs.as_slice());
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        if allow_parallel {
+            use rayon::prelude::*;
 
-            // Check invariant: p(0) + p(1) = running_sum
-            let sum_at_01 = ys[0] + ys[1];
-            if sum_at_01 != running_sums[claim_idx] {
-                return Err(SumcheckError::BatchedInvariant {
-                    round: round_idx,
-                    claim_idx,
-                    label: claim.label,
-                    expected: running_sums[claim_idx],
-                    actual: sum_at_01,
-                });
+            let round_polys: Result<Vec<Vec<K>>, SumcheckError> = claims
+                .par_iter_mut()
+                .enumerate()
+                .map(|(claim_idx, claim)| {
+                    let deg = claim.oracle.degree_bound();
+                    let plan = interpolation_plan_for_degree_cached(deg);
+                    let ys = claim.oracle.evals_at(plan.xs.as_slice());
+
+                    // Check invariant: p(0) + p(1) = running_sum
+                    let sum_at_01 = ys[0] + ys[1];
+                    if sum_at_01 != running_sums[claim_idx] {
+                        return Err(SumcheckError::BatchedInvariant {
+                            round: round_idx,
+                            claim_idx,
+                            label: claim.label,
+                            expected: running_sums[claim_idx],
+                            actual: sum_at_01,
+                        });
+                    }
+
+                    Ok(interpolate_from_evals_with_plan(plan.as_ref(), &ys))
+                })
+                .collect();
+
+            let round_polys = round_polys?;
+            debug_assert_eq!(round_polys.len(), per_claim_results.len());
+            for (claim_idx, coeffs) in round_polys.into_iter().enumerate() {
+                per_claim_results[claim_idx].round_polys.push(coeffs);
             }
+        } else {
+            for claim_idx in 0..claims.len() {
+                let claim = &mut claims[claim_idx];
+                let deg = claim.oracle.degree_bound();
+                let plan = interp_cache
+                    .entry(deg)
+                    .or_insert_with(|| interpolation_plan_for_degree_cached(deg));
+                let ys = claim.oracle.evals_at(plan.xs.as_slice());
 
-            // Interpolate to get polynomial coefficients
-            let coeffs = interpolate_from_evals_with_plan(plan.as_ref(), &ys);
-            per_claim_results[claim_idx].round_polys.push(coeffs);
+                // Check invariant: p(0) + p(1) = running_sum
+                let sum_at_01 = ys[0] + ys[1];
+                if sum_at_01 != running_sums[claim_idx] {
+                    return Err(SumcheckError::BatchedInvariant {
+                        round: round_idx,
+                        claim_idx,
+                        label: claim.label,
+                        expected: running_sums[claim_idx],
+                        actual: sum_at_01,
+                    });
+                }
+
+                // Interpolate to get polynomial coefficients
+                let coeffs = interpolate_from_evals_with_plan(plan.as_ref(), &ys);
+                per_claim_results[claim_idx].round_polys.push(coeffs);
+            }
+        }
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        {
+            for claim_idx in 0..claims.len() {
+                let claim = &mut claims[claim_idx];
+                let deg = claim.oracle.degree_bound();
+                let plan = interp_cache
+                    .entry(deg)
+                    .or_insert_with(|| interpolation_plan_for_degree_cached(deg));
+                let ys = claim.oracle.evals_at(plan.xs.as_slice());
+
+                // Check invariant: p(0) + p(1) = running_sum
+                let sum_at_01 = ys[0] + ys[1];
+                if sum_at_01 != running_sums[claim_idx] {
+                    return Err(SumcheckError::BatchedInvariant {
+                        round: round_idx,
+                        claim_idx,
+                        label: claim.label,
+                        expected: running_sums[claim_idx],
+                        actual: sum_at_01,
+                    });
+                }
+
+                // Interpolate to get polynomial coefficients
+                let coeffs = interpolate_from_evals_with_plan(plan.as_ref(), &ys);
+                per_claim_results[claim_idx].round_polys.push(coeffs);
+            }
         }
 
         // 2. Append ALL round polynomials in one packed absorb.

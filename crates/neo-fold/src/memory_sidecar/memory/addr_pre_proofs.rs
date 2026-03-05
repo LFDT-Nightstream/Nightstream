@@ -30,7 +30,7 @@ pub(crate) fn prove_shout_addr_pre_time(
     struct AddrPreGroupBuilder {
         active_lanes: Vec<u32>,
         active_claimed_sums: Vec<K>,
-        addr_oracles: Vec<Box<dyn RoundOracle>>,
+        addr_oracles: Vec<Box<dyn RoundOracle + Send>>,
     }
 
     // Group Shout addr-pre claims by `ell_addr` so we can run one batched sumcheck per group.
@@ -227,7 +227,7 @@ pub(crate) fn prove_shout_addr_pre_time(
             };
 
             if has_any_lookup && !is_packed_spec {
-                let (addr_oracle, lane_sum): (Box<dyn RoundOracle>, K) = match &lut_inst.table_spec {
+                let (addr_oracle, lane_sum): (Box<dyn RoundOracle + Send>, K) = match &lut_inst.table_spec {
                     None => {
                         let table_k: Vec<K> = lut_inst.table.iter().map(|&v| v.into()).collect();
                         let (o, sum) =

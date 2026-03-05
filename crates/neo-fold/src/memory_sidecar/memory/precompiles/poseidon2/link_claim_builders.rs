@@ -20,9 +20,15 @@ pub struct PoseidonContinuityChallenges {
     pub beta: K,
 }
 
-pub(crate) type PoseidonCycleLinkClaims = (Option<(Box<dyn RoundOracle>, K)>, Option<(Box<dyn RoundOracle>, K)>);
+pub(crate) type PoseidonCycleLinkClaims = (
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+);
 
-pub(crate) type PoseidonLocalLinkClaims = (Option<(Box<dyn RoundOracle>, K)>, Option<(Box<dyn RoundOracle>, K)>);
+pub(crate) type PoseidonLocalLinkClaims = (
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+);
 
 pub(crate) const POSEIDON_LINK_CYCLE_INV_RESIDUAL_COUNT: usize = 6;
 pub(crate) const POSEIDON_LINK_LOCAL_INV_RESIDUAL_COUNT: usize = 3;

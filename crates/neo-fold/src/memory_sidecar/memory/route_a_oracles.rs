@@ -155,7 +155,7 @@ pub(crate) fn build_route_a_memory_oracles(
                     _ => (Vec::new(), Vec::new()),
                 };
 
-                let value_oracle: Box<dyn RoundOracle> = match op {
+                let value_oracle: Box<dyn RoundOracle + Send> = match op {
                     Rv32PackedShoutOp::And => Box::new(Rv32PackedAndOracleSparseTime::new(
                         r_cycle,
                         lane.has_lookup.clone(),
@@ -523,7 +523,7 @@ pub(crate) fn build_route_a_memory_oracles(
                         lane.val.clone(),
                     )),
                 };
-                let adapter_oracle: Box<dyn RoundOracle> = match op {
+                let adapter_oracle: Box<dyn RoundOracle + Send> = match op {
                     Rv32PackedShoutOp::And
                     | Rv32PackedShoutOp::Andn
                     | Rv32PackedShoutOp::Or
@@ -944,7 +944,7 @@ pub(crate) fn build_route_a_memory_oracles(
                         event_beta,
                         event_gamma,
                     );
-                    (Some(Box::new(oracle) as Box<dyn RoundOracle>), Some(claim))
+                    (Some(Box::new(oracle) as Box<dyn RoundOracle + Send>), Some(claim))
                 } else {
                     (None, None)
                 };
@@ -984,7 +984,7 @@ pub(crate) fn build_route_a_memory_oracles(
             }
         }
 
-        let bitness: Vec<Box<dyn RoundOracle>> = if is_packed {
+        let bitness: Vec<Box<dyn RoundOracle + Send>> = if is_packed {
             // Packed RV32: boolean columns depend on the packed op.
             let mut bit_cols: Vec<SparseIdxVec<K>> = Vec::new();
             for lane in decoded.lanes.iter() {
@@ -1434,7 +1434,7 @@ pub(crate) fn build_route_a_memory_oracles(
         let shared_addr_cols =
             shared_addr_cols.ok_or_else(|| PiCcsError::ProtocolError("empty shout gamma group".into()))?;
 
-        let value_oracle: Box<dyn RoundOracle> = if has_shared {
+        let value_oracle: Box<dyn RoundOracle + Send> = if has_shared {
             Box::new(ShoutGammaValueSharedOracleSparseTime::new(
                 shared_has_col.clone(),
                 value_val_cols.clone(),
@@ -1455,7 +1455,7 @@ pub(crate) fn build_route_a_memory_oracles(
         let ell_addr = g.ell_addr;
         let adapter_eq_alpha: Vec<K> = adapter_r_addr.iter().map(|&u| u + u - K::ONE).collect();
         let adapter_eq_beta: Vec<K> = adapter_r_addr.iter().map(|&u| K::ONE - u).collect();
-        let adapter_oracle: Box<dyn RoundOracle> = if has_shared {
+        let adapter_oracle: Box<dyn RoundOracle + Send> = if has_shared {
             let coeff_sum = adapter_coeffs
                 .iter()
                 .copied()
@@ -1524,12 +1524,15 @@ pub(crate) fn build_route_a_memory_oracles(
             )));
         }
 
-        let inc_terms_at_r_addr = build_twist_inc_terms_at_r_addr(&pre.decoded.lanes, &pre.addr_pre.r_addr);
+        let inc_terms_at_r_addr = std::sync::Arc::new(build_twist_inc_terms_at_r_addr(
+            &pre.decoded.lanes,
+            &pre.addr_pre.r_addr,
+        ));
 
-        let mut read_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
-        let mut write_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
+        let mut read_oracles: Vec<Box<dyn RoundOracle + Send>> = Vec::with_capacity(pre.decoded.lanes.len());
+        let mut write_oracles: Vec<Box<dyn RoundOracle + Send>> = Vec::with_capacity(pre.decoded.lanes.len());
         for lane in pre.decoded.lanes.iter() {
-            read_oracles.push(Box::new(TwistReadCheckOracleSparseTime::new_with_inc_terms(
+            read_oracles.push(Box::new(TwistReadCheckOracleSparseTime::new_with_inc_terms_shared(
                 r_cycle,
                 lane.has_read.clone(),
                 lane.rv.clone(),
@@ -1538,7 +1541,7 @@ pub(crate) fn build_route_a_memory_oracles(
                 init_at_r_addr,
                 inc_terms_at_r_addr.clone(),
             )));
-            write_oracles.push(Box::new(TwistWriteCheckOracleSparseTime::new_with_inc_terms(
+            write_oracles.push(Box::new(TwistWriteCheckOracleSparseTime::new_with_inc_terms_shared(
                 r_cycle,
                 lane.has_write.clone(),
                 lane.wv.clone(),
@@ -1549,8 +1552,8 @@ pub(crate) fn build_route_a_memory_oracles(
                 inc_terms_at_r_addr.clone(),
             )));
         }
-        let read_check: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(read_oracles)?);
-        let write_check: Box<dyn RoundOracle> = Box::new(SumRoundOracle::new(write_oracles)?);
+        let read_check: Box<dyn RoundOracle + Send> = Box::new(SumRoundOracle::new(read_oracles)?);
+        let write_check: Box<dyn RoundOracle + Send> = Box::new(SumRoundOracle::new(write_oracles)?);
 
         let lane_count = pre.decoded.lanes.len();
         let mut bit_cols: Vec<SparseIdxVec<K>> = Vec::with_capacity(lane_count * (2 * ell_addr + 2));
@@ -1562,12 +1565,12 @@ pub(crate) fn build_route_a_memory_oracles(
         }
         let weights = bitness_weights(r_cycle, bit_cols.len(), 0x5457_4953_54u64 + mem_idx as u64);
         let bitness_oracle = LazyWeightedBitnessOracleSparseTime::new_with_cycle(r_cycle, bit_cols, weights);
-        let bitness: Vec<Box<dyn RoundOracle>> = vec![Box::new(bitness_oracle)];
+        let bitness: Vec<Box<dyn RoundOracle + Send>> = vec![Box::new(bitness_oracle)];
         let (virtual_write_domain, nonvirtual_arch_domain) = if mem_inst.mem_id == neo_memory::riscv::lookups::REG_ID.0
         {
             if let Some(is_virtual) = trace_is_virtual_sparse.as_ref() {
-                let mut vd_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len());
-                let mut nvd_oracles: Vec<Box<dyn RoundOracle>> = Vec::with_capacity(pre.decoded.lanes.len() * 2);
+                let mut vd_oracles: Vec<Box<dyn RoundOracle + Send>> = Vec::with_capacity(pre.decoded.lanes.len());
+                let mut nvd_oracles: Vec<Box<dyn RoundOracle + Send>> = Vec::with_capacity(pre.decoded.lanes.len() * 2);
                 for lane in pre.decoded.lanes.iter() {
                     let wa_bit5 = lane
                         .wa_bits
@@ -1601,8 +1604,8 @@ pub(crate) fn build_route_a_memory_oracles(
                 let vd_sum = SumRoundOracle::new(vd_oracles)?;
                 let nvd_sum = SumRoundOracle::new(nvd_oracles)?;
                 (
-                    Some(Box::new(vd_sum) as Box<dyn RoundOracle>),
-                    Some(Box::new(nvd_sum) as Box<dyn RoundOracle>),
+                    Some(Box::new(vd_sum) as Box<dyn RoundOracle + Send>),
+                    Some(Box::new(nvd_sum) as Box<dyn RoundOracle + Send>),
                 )
             } else {
                 (None, None)

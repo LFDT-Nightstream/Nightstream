@@ -629,10 +629,10 @@ pub(crate) fn build_route_a_width_time_claims(
 }
 
 type ControlTimeClaims = (
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
 );
 
 pub(crate) fn build_route_a_control_time_claims(

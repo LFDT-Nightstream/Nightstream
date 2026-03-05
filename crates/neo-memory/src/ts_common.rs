@@ -11,6 +11,8 @@ use neo_params::NeoParams;
 use neo_reductions::error::PiCcsError;
 use neo_transcript::{Poseidon2Transcript, Transcript, TranscriptProtocol};
 use p3_field::{PrimeCharacteristicRing, PrimeField};
+#[cfg(not(target_arch = "wasm32"))]
+use rayon::prelude::*;
 
 use crate::ajtai::decode_vector_for_ccs_m as ajtai_decode_vector_for_ccs_m;
 
@@ -71,10 +73,7 @@ pub fn absorb_ajtai_commitments(
 // CCS padding + ME opening
 // ============================================================================
 
-pub fn require_mat_layout_for_ccs_width(
-    mat: &Mat<BaseField>,
-    target_cols: usize,
-) -> Result<Mat<BaseField>, PiCcsError> {
+pub fn require_mat_layout_for_ccs_width(mat: &Mat<BaseField>, target_cols: usize) -> Result<(), PiCcsError> {
     // Keep this helper as the single shape gate for Route-A claim emission:
     // it now enforces the same strict layout policy as reductions.
     neo_reductions::common::witness_mat_layout(mat, target_cols).map_err(|e| {
@@ -82,7 +81,7 @@ pub fn require_mat_layout_for_ccs_width(
             "require_mat_layout_for_ccs_width: witness shape incompatible with logical CCS width m={target_cols}: {e}"
         ))
     })?;
-    Ok(mat.clone())
+    Ok(())
 }
 
 /// Shared ME-opening constructor.
@@ -102,23 +101,48 @@ where
     KOut: From<KElem> + Clone,
     Cmt: Clone,
 {
+    let rb = neo_ccs::utils::tensor_point::<KElem>(r);
+    let superneo_cache = neo_reductions::superneo_eval::build_superneo_eval_cache(s);
+    let fold_digest = {
+        let mut fork = tr.fork(digest_label);
+        fork.digest32()
+    };
+    mk_me_opening_with_ccs_precomputed(params, s, comm, mat, m_in, r, &rb, superneo_cache.as_ref(), fold_digest)
+}
+
+fn mk_me_opening_with_ccs_precomputed<Cmt, KOut>(
+    params: &NeoParams,
+    s: &CcsStructure<BaseField>,
+    comm: &Cmt,
+    mat: &Mat<BaseField>,
+    m_in: usize,
+    r: &[KElem],
+    rb: &[KElem],
+    superneo_cache: Option<&neo_reductions::superneo_eval::SuperneoEvalCache>,
+    fold_digest: [u8; 32],
+) -> Result<CeClaim<Cmt, BaseField, KOut>, PiCcsError>
+where
+    KOut: From<KElem> + Clone,
+    Cmt: Clone,
+{
     let d = params.d as usize;
     let t = s.t();
     let y_pad = d.next_power_of_two();
     let ell_d = y_pad.trailing_zeros() as usize;
 
     // Pad witness to CCS width
-    let z_padded = require_mat_layout_for_ccs_width(mat, s.m)?;
+    require_mat_layout_for_ccs_width(mat, s.m)?;
 
     // X = L_x(Z) over logical witness columns.
-    let x_mat = neo_reductions::common::project_x_from_witness_mat(&z_padded, s.m, m_in).map_err(|e| {
+    let x_mat = neo_reductions::common::project_x_from_witness_mat(mat, s.m, m_in).map_err(|e| {
         PiCcsError::InvalidInput(format!(
             "mk_me_opening_with_ccs: X projection failed for m={}, m_in={}: {e}",
             s.m, m_in
         ))
     })?;
 
-    let (mut y_ring_k, mut ct_k) = neo_reductions::common::compute_y_from_Z_and_r(s, &z_padded, r, ell_d, params.b);
+    let (mut y_ring_k, mut ct_k) =
+        neo_reductions::common::compute_y_from_Z_and_rb_with_cache(s, mat, rb, ell_d, superneo_cache);
     y_ring_k.resize_with(t, || vec![KElem::ZERO; y_pad]);
     ct_k.resize(t, KElem::ZERO);
     let y_ring: Vec<Vec<KOut>> = y_ring_k
@@ -127,11 +151,6 @@ where
         .collect();
 
     let ct: Vec<KOut> = ct_k.into_iter().map(KOut::from).collect();
-
-    let fold_digest = {
-        let mut fork = tr.fork(digest_label);
-        fork.digest32()
-    };
 
     Ok(CeClaim {
         c: comm.clone(),
@@ -205,7 +224,48 @@ pub fn emit_me_claims_for_mats<Cmt>(
     m_in: usize,
 ) -> Result<Vec<CeClaim<Cmt, BaseField, KElem>>, PiCcsError>
 where
-    Cmt: Clone,
+    Cmt: Clone + Send + Sync,
+{
+    let ctx = precompute_me_claims_context(tr, digest_label, s, r);
+    emit_me_claims_for_mats_with_context(params, s, comms, mats, r, m_in, &ctx)
+}
+
+pub struct MeClaimsContext {
+    rb: Vec<KElem>,
+    superneo_cache: Option<neo_reductions::superneo_eval::SuperneoEvalCache>,
+    fold_digest: [u8; 32],
+}
+
+pub fn precompute_me_claims_context(
+    tr: &Poseidon2Transcript,
+    digest_label: &'static [u8],
+    s: &CcsStructure<BaseField>,
+    r: &[KElem],
+) -> MeClaimsContext {
+    let rb = neo_ccs::utils::tensor_point::<KElem>(r);
+    let superneo_cache = neo_reductions::superneo_eval::build_superneo_eval_cache(s);
+    let fold_digest = {
+        let mut fork = tr.fork(digest_label);
+        fork.digest32()
+    };
+    MeClaimsContext {
+        rb,
+        superneo_cache,
+        fold_digest,
+    }
+}
+
+pub fn emit_me_claims_for_mats_with_context<Cmt>(
+    params: &NeoParams,
+    s: &CcsStructure<BaseField>,
+    comms: &[Cmt],
+    mats: &[Mat<BaseField>],
+    r: &[KElem],
+    m_in: usize,
+    ctx: &MeClaimsContext,
+) -> Result<Vec<CeClaim<Cmt, BaseField, KElem>>, PiCcsError>
+where
+    Cmt: Clone + Send + Sync,
 {
     if comms.len() < mats.len() {
         return Err(PiCcsError::InvalidInput(format!(
@@ -215,17 +275,44 @@ where
         )));
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let allow_parallel =
+            rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && mats.len() >= 8;
+        if allow_parallel {
+            let out: Result<Vec<_>, PiCcsError> = mats
+                .par_iter()
+                .enumerate()
+                .map(|(i, mat)| {
+                    mk_me_opening_with_ccs_precomputed::<Cmt, KElem>(
+                        params,
+                        s,
+                        &comms[i],
+                        mat,
+                        m_in,
+                        r,
+                        &ctx.rb,
+                        ctx.superneo_cache.as_ref(),
+                        ctx.fold_digest,
+                    )
+                })
+                .collect();
+            return out;
+        }
+    }
+
     let mut out = Vec::with_capacity(mats.len());
     for (i, mat) in mats.iter().enumerate() {
-        out.push(mk_me_opening_with_ccs::<Cmt, KElem>(
-            tr,
-            digest_label,
+        out.push(mk_me_opening_with_ccs_precomputed::<Cmt, KElem>(
             params,
             s,
             &comms[i],
             mat,
-            r,
             m_in,
+            r,
+            &ctx.rb,
+            ctx.superneo_cache.as_ref(),
+            ctx.fold_digest,
         )?);
     }
     Ok(out)

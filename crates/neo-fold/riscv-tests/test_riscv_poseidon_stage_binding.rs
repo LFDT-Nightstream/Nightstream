@@ -38,6 +38,32 @@ fn poseidon_program_proves_and_verifies_with_committed_local_lane() {
     let step = &run.proof().steps[0];
     assert!(!step.mem.poseidon_cycle_me_claims.is_empty());
     assert!(!step.mem.poseidon_local_me_claims.is_empty());
+    for me in step.mem.poseidon_cycle_me_claims.iter() {
+        assert!(me.u_len > 0, "cycle ME claim must carry u_len metadata");
+    }
+    for me in step.mem.poseidon_local_me_claims.iter() {
+        assert!(me.u_len > 0, "local ME claim must carry u_len metadata");
+    }
+    let mut cycle_prev = None;
+    for me in step.mem.poseidon_cycle_me_claims.iter() {
+        if let Some(prev) = cycle_prev {
+            assert!(
+                me.u_offset >= prev,
+                "cycle ME claims must be emitted in nondecreasing u_offset order"
+            );
+        }
+        cycle_prev = Some(me.u_offset);
+    }
+    let mut local_prev = None;
+    for me in step.mem.poseidon_local_me_claims.iter() {
+        if let Some(prev) = local_prev {
+            assert!(
+                me.u_offset >= prev,
+                "local ME claims must be emitted in nondecreasing u_offset order"
+            );
+        }
+        local_prev = Some(me.u_offset);
+    }
     assert!(!step.poseidon_cycle_fold.is_empty());
     assert!(step.poseidon_local_time.is_some());
     assert!(!step.poseidon_local_fold.is_empty());

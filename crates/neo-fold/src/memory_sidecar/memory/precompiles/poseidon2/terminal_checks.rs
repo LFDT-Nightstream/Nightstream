@@ -1,6 +1,7 @@
 use super::*;
 fn poseidon_cycle_openings_from_me(core_t: usize, side_mes: &[&CeClaim<Cmt, F, K>]) -> Result<Vec<K>, PiCcsError> {
     let layout = PoseidonCycleTraceLayout::new();
+    let open_col_ids = poseidon_cycle_open_col_ids(&layout);
     if side_mes.is_empty() {
         return Err(PiCcsError::ProtocolError(
             "poseidon cycle ME openings missing (no cycle-lane ME claims)".into(),
@@ -10,21 +11,26 @@ fn poseidon_cycle_openings_from_me(core_t: usize, side_mes: &[&CeClaim<Cmt, F, K
     let mut idx = 0usize;
     let mut prev_tile_start: Option<usize> = None;
     while idx < side_mes.len() {
-        let tile_start = side_mes[idx].m_in;
+        let tile_start = side_mes[idx].u_offset;
         if let Some(prev) = prev_tile_start {
             if tile_start <= prev {
                 return Err(PiCcsError::ProtocolError(format!(
-                    "poseidon cycle ME tiles must be strictly increasing in m_in (prev={}, next={})",
+                    "poseidon cycle ME tiles must be strictly increasing in u_offset (prev={}, next={})",
                     prev, tile_start
                 )));
             }
         }
         prev_tile_start = Some(tile_start);
 
-        let mut tile_vals = vec![K::ZERO; layout.cols()];
+        let mut tile_vals = vec![K::ZERO; open_col_ids.len()];
         let mut cursor = 0usize;
-        while idx < side_mes.len() && side_mes[idx].m_in == tile_start {
+        while idx < side_mes.len() && side_mes[idx].u_offset == tile_start {
             let side_me = side_mes[idx];
+            if side_me.u_len == 0 {
+                return Err(PiCcsError::ProtocolError(
+                    "poseidon cycle ME claim has zero u_len (likely stripped fold-claim used in terminal path)".into(),
+                ));
+            }
             if side_me.ct.len() < core_t {
                 return Err(PiCcsError::ProtocolError(format!(
                     "poseidon cycle ME opening too short (got {}, need at least core_t={core_t})",
@@ -42,7 +48,7 @@ fn poseidon_cycle_openings_from_me(core_t: usize, side_mes: &[&CeClaim<Cmt, F, K
                 .ok_or_else(|| PiCcsError::InvalidInput("poseidon cycle opening cursor overflow".into()))?;
             if next > tile_vals.len() {
                 return Err(PiCcsError::ProtocolError(format!(
-                    "poseidon cycle ME openings exceed layout cols for tile m_in={} (cursor={}, chunk_len={}, layout_cols={})",
+                    "poseidon cycle ME openings exceed layout cols for tile u_offset={} (cursor={}, chunk_len={}, layout_cols={})",
                     tile_start,
                     cursor,
                     chunk_len,
@@ -55,14 +61,14 @@ fn poseidon_cycle_openings_from_me(core_t: usize, side_mes: &[&CeClaim<Cmt, F, K
         }
         if cursor != tile_vals.len() {
             return Err(PiCcsError::ProtocolError(format!(
-                "poseidon cycle ME tile openings incomplete for m_in={} (filled {}, expected {})",
+                "poseidon cycle ME tile openings incomplete for u_offset={} (filled {}, expected {})",
                 tile_start,
                 cursor,
                 tile_vals.len()
             )));
         }
-        for (dst, src) in out.iter_mut().zip(tile_vals.iter()) {
-            *dst += *src;
+        for (open_idx, src) in tile_vals.iter().enumerate() {
+            out[open_col_ids[open_idx]] += *src;
         }
     }
     Ok(out)
@@ -568,6 +574,7 @@ fn poseidon_local_openings_from_me(
     local_me_claims: &[CeClaim<Cmt, F, K>],
 ) -> Result<Vec<K>, PiCcsError> {
     let layout = PoseidonLocalTraceLayout::new();
+    let open_col_ids = poseidon_local_open_col_ids(&layout);
     if local_me_claims.is_empty() {
         return Err(PiCcsError::ProtocolError("poseidon local ME claims missing".into()));
     }
@@ -575,21 +582,26 @@ fn poseidon_local_openings_from_me(
     let mut idx = 0usize;
     let mut prev_tile_start: Option<usize> = None;
     while idx < local_me_claims.len() {
-        let tile_start = local_me_claims[idx].m_in;
+        let tile_start = local_me_claims[idx].u_offset;
         if let Some(prev) = prev_tile_start {
             if tile_start <= prev {
                 return Err(PiCcsError::ProtocolError(format!(
-                    "poseidon local ME tiles must be strictly increasing in m_in (prev={}, next={})",
+                    "poseidon local ME tiles must be strictly increasing in u_offset (prev={}, next={})",
                     prev, tile_start
                 )));
             }
         }
         prev_tile_start = Some(tile_start);
 
-        let mut tile_vals = vec![K::ZERO; layout.cols()];
+        let mut tile_vals = vec![K::ZERO; open_col_ids.len()];
         let mut cursor = 0usize;
-        while idx < local_me_claims.len() && local_me_claims[idx].m_in == tile_start {
+        while idx < local_me_claims.len() && local_me_claims[idx].u_offset == tile_start {
             let me = &local_me_claims[idx];
+            if me.u_len == 0 {
+                return Err(PiCcsError::ProtocolError(
+                    "poseidon local ME claim has zero u_len (likely stripped fold-claim used in terminal path)".into(),
+                ));
+            }
             if me.ct.len() < core_t {
                 return Err(PiCcsError::ProtocolError(format!(
                     "poseidon local ME opening too short (got {}, need at least core_t={core_t})",
@@ -607,7 +619,7 @@ fn poseidon_local_openings_from_me(
                 .ok_or_else(|| PiCcsError::InvalidInput("poseidon local opening cursor overflow".into()))?;
             if next > tile_vals.len() {
                 return Err(PiCcsError::ProtocolError(format!(
-                    "poseidon local ME openings exceed layout cols for tile m_in={} (cursor={}, chunk_len={}, layout_cols={})",
+                    "poseidon local ME openings exceed layout cols for tile u_offset={} (cursor={}, chunk_len={}, layout_cols={})",
                     tile_start,
                     cursor,
                     chunk_len,
@@ -620,14 +632,14 @@ fn poseidon_local_openings_from_me(
         }
         if cursor != tile_vals.len() {
             return Err(PiCcsError::ProtocolError(format!(
-                "poseidon local ME tile openings incomplete for m_in={} (filled {}, expected {})",
+                "poseidon local ME tile openings incomplete for u_offset={} (filled {}, expected {})",
                 tile_start,
                 cursor,
                 tile_vals.len()
             )));
         }
-        for (dst, src) in out.iter_mut().zip(tile_vals.iter()) {
-            *dst += *src;
+        for (open_idx, src) in tile_vals.iter().enumerate() {
+            out[open_col_ids[open_idx]] += *src;
         }
     }
     Ok(out)
@@ -809,4 +821,59 @@ pub(crate) fn verify_route_a_poseidon_local_terminals(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stripped_poseidon_me_claim(u_offset: usize) -> CeClaim<Cmt, F, K> {
+        CeClaim {
+            c: Cmt::zeros(1, 1),
+            X: neo_ccs::Mat::zero(neo_math::D, 0, F::ZERO),
+            r: Vec::new(),
+            s_col: Vec::new(),
+            y_ring: Vec::new(),
+            ct: vec![K::ZERO],
+            aux_openings: Vec::new(),
+            y_zcol: Vec::new(),
+            m_in: 0,
+            fold_digest: [0u8; 32],
+            c_step_coords: Vec::new(),
+            u_offset,
+            u_len: 0,
+        }
+    }
+
+    #[test]
+    fn poseidon_cycle_openings_rejects_stripped_fold_claim() {
+        let claim = stripped_poseidon_me_claim(0);
+        let err = poseidon_cycle_openings_from_me(0, &[&claim])
+            .expect_err("cycle terminal path must reject stripped fold claims");
+        match err {
+            PiCcsError::ProtocolError(msg) => {
+                assert!(
+                    msg.contains("zero u_len"),
+                    "unexpected cycle stripped-claim error: {msg}"
+                );
+            }
+            other => panic!("unexpected error variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn poseidon_local_openings_rejects_stripped_fold_claim() {
+        let claim = stripped_poseidon_me_claim(0);
+        let err = poseidon_local_openings_from_me(0, &[claim])
+            .expect_err("local terminal path must reject stripped fold claims");
+        match err {
+            PiCcsError::ProtocolError(msg) => {
+                assert!(
+                    msg.contains("zero u_len"),
+                    "unexpected local stripped-claim error: {msg}"
+                );
+            }
+            other => panic!("unexpected error variant: {other:?}"),
+        }
+    }
 }

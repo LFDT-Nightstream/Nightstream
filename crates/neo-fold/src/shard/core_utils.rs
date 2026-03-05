@@ -1968,7 +1968,7 @@ pub(crate) fn bind_rlc_inputs(
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none();
     #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
-    let allow_parallel = false;
+    let _allow_parallel = false;
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let digests: Vec<[u8; 32]> = if allow_parallel && me_inputs.len() >= 8 {

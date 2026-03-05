@@ -407,13 +407,13 @@ pub(crate) struct TwistDecodedColsSparse {
 }
 
 pub(crate) struct SumRoundOracle {
-    oracles: Vec<Box<dyn RoundOracle>>,
+    oracles: Vec<Box<dyn RoundOracle + Send>>,
     num_rounds: usize,
     degree_bound: usize,
 }
 
 impl SumRoundOracle {
-    pub(crate) fn new(oracles: Vec<Box<dyn RoundOracle>>) -> Result<Self, PiCcsError> {
+    pub(crate) fn new(oracles: Vec<Box<dyn RoundOracle + Send>>) -> Result<Self, PiCcsError> {
         if oracles.is_empty() {
             return Err(PiCcsError::ProtocolError(
                 "SumRoundOracle requires at least one oracle".into(),
@@ -727,34 +727,34 @@ pub(crate) fn build_twist_inc_terms_at_r_addr(lanes: &[TwistLaneSparseCols], r_a
 
 pub struct RouteAShoutTimeOracles {
     pub lanes: Vec<RouteAShoutTimeLaneOracles>,
-    pub bitness: Vec<Box<dyn RoundOracle>>,
+    pub bitness: Vec<Box<dyn RoundOracle + Send>>,
 }
 
 pub struct RouteAShoutTimeLaneOracles {
-    pub value: Box<dyn RoundOracle>,
+    pub value: Box<dyn RoundOracle + Send>,
     pub value_claim: K,
-    pub adapter: Box<dyn RoundOracle>,
+    pub adapter: Box<dyn RoundOracle + Send>,
     pub adapter_claim: K,
-    pub event_table_hash: Option<Box<dyn RoundOracle>>,
+    pub event_table_hash: Option<Box<dyn RoundOracle + Send>>,
     pub event_table_hash_claim: Option<K>,
     pub gamma_group: Option<usize>,
     pub transport_only: bool,
 }
 
 pub struct RouteAShoutGammaGroupOracles {
-    pub value: Box<dyn RoundOracle>,
+    pub value: Box<dyn RoundOracle + Send>,
     pub value_claim: K,
-    pub adapter: Box<dyn RoundOracle>,
+    pub adapter: Box<dyn RoundOracle + Send>,
     pub adapter_claim: K,
-    pub bitness: Box<dyn RoundOracle>,
+    pub bitness: Box<dyn RoundOracle + Send>,
 }
 
 pub struct RouteATwistTimeOracles {
-    pub read_check: Box<dyn RoundOracle>,
-    pub write_check: Box<dyn RoundOracle>,
-    pub bitness: Vec<Box<dyn RoundOracle>>,
-    pub virtual_write_domain: Option<Box<dyn RoundOracle>>,
-    pub nonvirtual_arch_domain: Option<Box<dyn RoundOracle>>,
+    pub read_check: Box<dyn RoundOracle + Send>,
+    pub write_check: Box<dyn RoundOracle + Send>,
+    pub bitness: Vec<Box<dyn RoundOracle + Send>>,
+    pub virtual_write_domain: Option<Box<dyn RoundOracle + Send>>,
+    pub nonvirtual_arch_domain: Option<Box<dyn RoundOracle + Send>>,
 }
 
 pub struct RouteAMemoryOracles {
@@ -765,7 +765,7 @@ pub struct RouteAMemoryOracles {
 }
 
 pub struct RouteAShoutEventTraceHashOracle {
-    pub oracle: Box<dyn RoundOracle>,
+    pub oracle: Box<dyn RoundOracle + Send>,
     pub claim: K,
 }
 

@@ -902,9 +902,27 @@ where
 {
     let layout = witness_mat_layout(Z, expected_m)?;
     let mut X = Mat::zero(D, m_in, Ff::ZERO);
-    for rho in 0..D {
-        for c in 0..m_in {
-            X[(rho, c)] = witness_mat_get_f(Z, layout, expected_m, rho, c);
+    let active_cols = core::cmp::min(m_in, expected_m);
+    match layout {
+        WitnessMatLayout::SuperneoPacked => {
+            let max_blk = core::cmp::min(active_cols.div_ceil(D), Z.cols());
+            for blk in 0..max_blk {
+                let c0 = blk * D;
+                for rho in 0..D {
+                    let c = c0 + rho;
+                    if c >= active_cols {
+                        break;
+                    }
+                    X[(rho, c)] = Z[(rho, blk)];
+                }
+            }
+        }
+        WitnessMatLayout::DenseUnpacked => {
+            for rho in 0..D {
+                let dst = X.row_mut(rho);
+                let src = Z.row(rho);
+                dst[..active_cols].copy_from_slice(&src[..active_cols]);
+            }
         }
     }
     Ok(X)
@@ -1227,19 +1245,38 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
+    let rb = neo_ccs::utils::tensor_point::<K>(r);
+    let superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s);
+    compute_y_from_Z_and_rb_with_cache(s, Z, &rb, ell_d, superneo_cache.as_ref())
+}
+
+/// Compute y from Z and a precomputed row tensor point `r^b`.
+///
+/// This variant enables callers to amortize the tensor-point and SuperNeo matrix-cache
+/// construction across many ME claims that share `(s, r)`.
+pub fn compute_y_from_Z_and_rb_with_cache<Ff>(
+    s: &CcsStructure<Ff>,
+    Z: &Mat<Ff>,
+    rb: &[K],
+    ell_d: usize,
+    superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
+) -> (Vec<Vec<K>>, Vec<K>)
+where
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
+    K: From<Ff>,
+{
     use neo_ccs::CcsMatrix;
     let d_pad = 1usize << ell_d;
     let mut y_new: Vec<Vec<K>> = Vec::with_capacity(s.t());
     let z_layout = witness_mat_layout(Z, s.m)
         .unwrap_or_else(|e| panic!("compute_y_from_Z_and_r: invalid witness shape for m={}: {e}", s.m));
-    // Build r^b over rows
-    let rb = neo_ccs::utils::tensor_point::<K>(r);
-    if let Some(cache) = crate::superneo_eval::build_superneo_eval_cache(s) {
+    if let Some(cache) = superneo_cache {
         // SuperNeo fast path: evaluate cached transformed rows against decoded packed witness.
         let n_eff = core::cmp::min(s.n, rb.len());
         let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m)
             .unwrap_or_else(|e| panic!("compute_y_from_Z_and_r: failed to decode packed witness coefficients: {e}"));
-        let y_ring = crate::superneo_eval::eval_all_mats_ring_cached(&cache, &z_vec, &rb, n_eff);
+        let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_vec);
+        let y_ring = crate::superneo_eval::eval_all_mats_ring_cached_with_blocks(cache, &z_blocks, rb, n_eff);
         for coeffs in y_ring.into_iter().take(s.t()) {
             let mut yj_pad = coeffs.to_vec();
             if d_pad > yj_pad.len() {

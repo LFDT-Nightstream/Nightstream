@@ -214,7 +214,7 @@ impl RoundOracle for WeightedMaskOracleSparseTime {
 
 pub(crate) struct FormulaOracleSparseTime<EF>
 where
-    EF: Fn(&[K]) -> K,
+    EF: FnMut(&[K]) -> K,
 {
     bit_idx: usize,
     r_cycle: Vec<K>,
@@ -255,7 +255,7 @@ fn sparse_union_support(cols: &[SparseIdxVec<K>]) -> SparseIdxVec<K> {
 
 impl<EF> FormulaOracleSparseTime<EF>
 where
-    EF: Fn(&[K]) -> K,
+    EF: FnMut(&[K]) -> K,
 {
     pub(crate) fn new(cols: Vec<SparseIdxVec<K>>, degree_bound: usize, r_cycle: &[K], eval_fn: EF) -> Self {
         let col_count = cols.len();
@@ -280,7 +280,7 @@ where
 
 impl<EF> RoundOracle for FormulaOracleSparseTime<EF>
 where
-    EF: Fn(&[K]) -> K,
+    EF: FnMut(&[K]) -> K,
 {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
         if self.cols.is_empty() {
@@ -1108,11 +1108,15 @@ impl RoundOracle for ShoutGammaAdapterOracleSparseTime {
 pub(crate) struct FormulaOracleSparseSum {
     cols: Vec<SparseIdxVec<K>>,
     degree_bound: usize,
-    eval_fn: Box<dyn Fn(&[K]) -> K>,
+    eval_fn: Box<dyn Fn(&[K]) -> K + Send + Sync>,
 }
 
 impl FormulaOracleSparseSum {
-    pub(crate) fn new(cols: Vec<SparseIdxVec<K>>, degree_bound: usize, eval_fn: Box<dyn Fn(&[K]) -> K>) -> Self {
+    pub(crate) fn new(
+        cols: Vec<SparseIdxVec<K>>,
+        degree_bound: usize,
+        eval_fn: Box<dyn Fn(&[K]) -> K + Send + Sync>,
+    ) -> Self {
         Self {
             cols,
             degree_bound,

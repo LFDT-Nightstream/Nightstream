@@ -23,7 +23,7 @@ use neo_vm_trace::{trace_program, Twist, TwistOpKind};
 use p3_field::PrimeCharacteristicRing;
 use serde::Deserialize;
 use std::collections::{BTreeSet, HashMap};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 #[cfg(feature = "protocol-metrics")]
 #[derive(Clone, Copy, Debug, Default)]
@@ -74,6 +74,8 @@ fn simulate_exec_with_witness(
     let decoded = decode_program(program_bytes).map_err(|e| format!("decode ROM failed: {e}"))?;
     let mut cpu = RiscvCpu::new(32);
     cpu.load_program(program_base, decoded);
+    // Keep simulation geometry aligned with prover path.
+    cpu.set_runtime_decomposition_enabled(true);
     let mut twist = RiscvMemory::with_program_in_twist(32, PROG_ID, program_base, program_bytes);
     for &(addr, val) in ram_pairs {
         twist.store(RAM_ID, addr, val as u64);
@@ -149,6 +151,35 @@ fn next_chunk_rows_from_poseidon_split(msg: &str, current_chunk_rows: usize) -> 
 }
 
 #[cfg(feature = "poseidon-precompile")]
+fn summarize_error_for_log(msg: &str) -> String {
+    const MAX_CHARS: usize = 180;
+    let compact = msg.replace('\n', " ");
+    let mut out = compact.chars().take(MAX_CHARS).collect::<String>();
+    if compact.chars().count() > MAX_CHARS {
+        out.push_str("...");
+    }
+    out
+}
+
+#[cfg(feature = "poseidon-precompile")]
+#[derive(Debug, Clone)]
+struct ProveAttemptMetrics {
+    attempt: usize,
+    chunk_rows: usize,
+    prove_wall: Duration,
+    succeeded: bool,
+    next_chunk_rows: Option<usize>,
+    error_summary: Option<String>,
+}
+
+#[cfg(feature = "poseidon-precompile")]
+struct ProveWithRetryResult {
+    run: neo_fold::riscv_trace_shard::Rv32TraceWiringRun,
+    final_chunk_rows: usize,
+    attempts: Vec<ProveAttemptMetrics>,
+}
+
+#[cfg(feature = "poseidon-precompile")]
 fn prove_with_poseidon_retry(
     program_base: u64,
     program_bytes: &[u8],
@@ -157,9 +188,15 @@ fn prove_with_poseidon_retry(
     executed_steps: usize,
     initial_chunk_rows: usize,
     max_retries: usize,
-) -> Result<(neo_fold::riscv_trace_shard::Rv32TraceWiringRun, usize), String> {
-    let mut chunk_rows = initial_chunk_rows.max(1);
+) -> Result<ProveWithRetryResult, String> {
+    // Always attempt single-fold first; only shrink on explicit split geometry errors.
+    let mut chunk_rows = executed_steps.max(1);
+    let configured_initial = initial_chunk_rows.max(1);
+    if configured_initial < chunk_rows {
+        chunk_rows = configured_initial;
+    }
     let mut retry_idx = 0usize;
+    let mut attempts = Vec::new();
     loop {
         let mut wiring = Rv32TraceWiring::from_rom(program_base, program_bytes)
             .xlen(32)
@@ -174,28 +211,173 @@ fn prove_with_poseidon_retry(
             wiring = wiring.output_claim(addr, F::from_u64(val as u64));
         }
 
+        let attempt_start = Instant::now();
         match wiring.prove() {
-            Ok(run) => return Ok((run, chunk_rows)),
+            Ok(run) => {
+                attempts.push(ProveAttemptMetrics {
+                    attempt: retry_idx + 1,
+                    chunk_rows,
+                    prove_wall: attempt_start.elapsed(),
+                    succeeded: true,
+                    next_chunk_rows: None,
+                    error_summary: None,
+                });
+                return Ok(ProveWithRetryResult {
+                    run,
+                    final_chunk_rows: chunk_rows,
+                    attempts,
+                });
+            }
             Err(err) => {
                 let msg = err.to_string();
-                if retry_idx < max_retries {
-                    if let Some(next_chunk_rows) = next_chunk_rows_from_poseidon_split(&msg, chunk_rows) {
-                        println!(
-                            "poseidon_split_retry: chunk_rows {} -> {} (attempt {}/{})",
-                            chunk_rows,
-                            next_chunk_rows,
-                            retry_idx + 1,
-                            max_retries
-                        );
-                        chunk_rows = next_chunk_rows;
-                        retry_idx += 1;
-                        continue;
-                    }
+                let next_chunk_rows = if retry_idx < max_retries {
+                    next_chunk_rows_from_poseidon_split(&msg, chunk_rows)
+                } else {
+                    None
+                };
+                attempts.push(ProveAttemptMetrics {
+                    attempt: retry_idx + 1,
+                    chunk_rows,
+                    prove_wall: attempt_start.elapsed(),
+                    succeeded: false,
+                    next_chunk_rows,
+                    error_summary: Some(summarize_error_for_log(&msg)),
+                });
+                if let Some(next_chunk_rows) = next_chunk_rows {
+                    println!(
+                        "poseidon_split_retry: chunk_rows {} -> {} (attempt {}/{})",
+                        chunk_rows,
+                        next_chunk_rows,
+                        retry_idx + 1,
+                        max_retries
+                    );
+                    chunk_rows = next_chunk_rows;
+                    retry_idx += 1;
+                    continue;
                 }
                 return Err(format!("prove failed at chunk_rows={chunk_rows}: {err}"));
             }
         }
     }
+}
+
+#[cfg(feature = "poseidon-precompile")]
+fn print_prove_retry_attempts(tag: &str, attempts: &[ProveAttemptMetrics]) {
+    println!("  prove_retry_attempts={} ({tag})", attempts.len());
+    for attempt in attempts {
+        let status = if attempt.succeeded {
+            "ok"
+        } else if attempt.next_chunk_rows.is_some() {
+            "retry"
+        } else {
+            "fail"
+        };
+        println!(
+            "    attempt={} chunk_rows={} status={} prove_wall={:.1} ms next_chunk_rows={:?} err={}",
+            attempt.attempt,
+            attempt.chunk_rows,
+            status,
+            attempt.prove_wall.as_secs_f64() * 1000.0,
+            attempt.next_chunk_rows,
+            attempt.error_summary.as_deref().unwrap_or("-")
+        );
+    }
+}
+
+#[cfg(feature = "poseidon-precompile")]
+fn print_slow_repro_metrics(
+    title: &str,
+    test_tag: &str,
+    program_base: u64,
+    program_bytes: &[u8],
+    witness_ram_words: usize,
+    output_claim_words: usize,
+    simulated_steps: usize,
+    simulated_twist_events: usize,
+    simulated_shout_events: usize,
+    output_claim_mismatches: usize,
+    initial_chunk_rows: usize,
+    max_retries: usize,
+    attempts: &[ProveAttemptMetrics],
+    run: &neo_fold::riscv_trace_shard::Rv32TraceWiringRun,
+    final_chunk_rows: usize,
+    prove_wall: Duration,
+    verify_wall: Duration,
+) {
+    let phases = run.prove_phase_durations();
+    let layout = run.layout();
+    let static_instruction_words = program_bytes.len() / 4;
+    let instructions = run.trace_len().max(1) as f64;
+    let verify_run = run.verify_duration().unwrap_or(verify_wall);
+
+    println!("\n=============================================");
+    println!("  {title}");
+    println!("=============================================");
+    println!(
+        "  test_tag={} program_base={} rom_bytes={} static_instruction_words={}",
+        test_tag,
+        program_base,
+        program_bytes.len(),
+        static_instruction_words
+    );
+    println!(
+        "  witness_ram_words={} output_claim_words={} output_claim_mismatches={}",
+        witness_ram_words, output_claim_words, output_claim_mismatches
+    );
+    println!(
+        "  trace_sim_steps={} trace_sim_total_twist_events={} trace_sim_total_shout_events={}",
+        simulated_steps, simulated_twist_events, simulated_shout_events
+    );
+    println!(
+        "  retry_config: initial_chunk_rows={} max_retries={} final_chunk_rows={}",
+        initial_chunk_rows, max_retries, final_chunk_rows
+    );
+    print_prove_retry_attempts(test_tag, attempts);
+    println!("  RISC-V steps:     {}", run.trace_len());
+    println!("  trace_hit_max_steps_cap={}", run.trace_len() == simulated_steps);
+    println!("  CCS constraints:  {}", run.ccs_num_constraints());
+    println!("  CCS variables:    {}", run.ccs_num_variables());
+    println!(
+        "  layout_t={} layout_m_in={} layout_m={}",
+        layout.t, layout.m_in, layout.m
+    );
+    println!("  used_memory_ids={:?}", run.used_memory_ids());
+    println!("  used_shout_table_ids={:?}", run.used_shout_table_ids());
+    println!("  Folding steps:    {}", run.fold_count());
+    println!("  Chunk rows:       {}", final_chunk_rows);
+    println!("  Prove wall:       {:.1} ms", prove_wall.as_secs_f64() * 1000.0);
+    println!("    setup:          {:.1} ms", phases.setup.as_secs_f64() * 1000.0);
+    println!(
+        "    chunk+commit:   {:.1} ms",
+        phases.chunk_build_commit.as_secs_f64() * 1000.0
+    );
+    println!(
+        "    fold+prove:     {:.1} ms",
+        phases.fold_and_prove.as_secs_f64() * 1000.0
+    );
+    println!("  Verify wall:      {:.1} ms", verify_wall.as_secs_f64() * 1000.0);
+    println!("    verify_run:     {:.1} ms", verify_run.as_secs_f64() * 1000.0);
+    println!(
+        "  Per instruction:  prove={:.3} ms fold+prove={:.3} ms verify={:.3} ms",
+        prove_wall.as_secs_f64() * 1000.0 / instructions,
+        phases.fold_and_prove.as_secs_f64() * 1000.0 / instructions,
+        verify_wall.as_secs_f64() * 1000.0 / instructions
+    );
+    #[cfg(feature = "protocol-metrics")]
+    print_superneo_protocol_metrics(
+        run.proof(),
+        run.trace_len(),
+        run.fold_count(),
+        phases.setup,
+        phases.chunk_build_commit,
+        phases.fold_and_prove,
+        prove_wall,
+        verify_wall,
+        run.verify_duration(),
+    );
+    #[cfg(not(feature = "protocol-metrics"))]
+    println!("  protocol_metrics_feature=disabled (enable with --features protocol-metrics)");
+    println!("=============================================\n");
 }
 
 #[cfg(feature = "protocol-metrics")]
@@ -2115,6 +2297,7 @@ fn test_sovereign_note_spend_rom_fixture_repro_passes_with_poseidon_2d_tiling_tl
 fn test_sovereign_note_spend_slow_proving_repro() {
     let program_base = sovereign_note_spend_rom::NOTE_SPEND_ROM_BASE;
     let program_bytes: &[u8] = &sovereign_note_spend_rom::NOTE_SPEND_ROM;
+    let max_retries = 8usize;
 
     let witness = witness_builder::build_1in_1out_transfer_with_depth_and_addrs(2, 0x4104, 0x4100);
     println!(
@@ -2126,6 +2309,7 @@ fn test_sovereign_note_spend_slow_proving_repro() {
     let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 400_000)
         .expect("simulate sovereign note-spend witness");
     let executed_steps = exec.rows.len();
+    let initial_chunk_rows = executed_steps.max(1);
     let output_addrs: Vec<u64> = witness
         .output_claims
         .iter()
@@ -2138,37 +2322,59 @@ fn test_sovereign_note_spend_slow_proving_repro() {
         .zip(output_claims.iter())
         .filter(|((_, expected), (_, actual))| expected != actual)
         .count();
+    let sim_twist_events: usize = exec.rows.iter().map(|row| row.ram_events.len()).sum();
+    let sim_shout_events: usize = exec.rows.iter().map(|row| row.shout_events.len()).sum();
     println!(
-        "sovereign_note_spend_slow: simulated_steps={} output_claim_mismatches={}",
-        executed_steps, mismatch_count
+        "sovereign_note_spend_slow: simulated_steps={} simulated_twist_events={} simulated_shout_events={} output_claim_mismatches={}",
+        executed_steps,
+        sim_twist_events,
+        sim_shout_events,
+        mismatch_count
     );
 
+    println!("prove_start");
     let t_prove = Instant::now();
-    let (mut run, final_chunk_rows) = prove_with_poseidon_retry(
+    let prove_result = prove_with_poseidon_retry(
         program_base,
         program_bytes,
         &witness.ram_pairs,
         &output_claims,
         executed_steps,
-        65_536,
-        8,
+        initial_chunk_rows,
+        max_retries,
     )
     .expect("sovereign note-spend slow repro should prove");
-    let prove_ms = t_prove.elapsed().as_millis();
+    let prove_wall = t_prove.elapsed();
+    let final_chunk_rows = prove_result.final_chunk_rows;
+    let attempts = prove_result.attempts;
+    let mut run = prove_result.run;
 
+    println!("verify_start");
     let t_verify = Instant::now();
-    run.verify()
-        .expect("sovereign note-spend slow repro should verify");
-    let verify_ms = t_verify.elapsed().as_millis();
-
-    println!(
-        "sovereign_note_spend_slow: prove_ms={} verify_ms={} steps={} folds={} chunk_rows={}",
-        prove_ms,
-        verify_ms,
-        run.trace_len(),
-        run.fold_count(),
-        final_chunk_rows
+    let verify_result = run.verify();
+    let verify_wall = t_verify.elapsed();
+    print_slow_repro_metrics(
+        "Sovereign Note Spend Slow Repro",
+        "sovereign_note_spend_slow",
+        program_base,
+        program_bytes,
+        witness.ram_pairs.len(),
+        witness.output_claims.len(),
+        executed_steps,
+        sim_twist_events,
+        sim_shout_events,
+        mismatch_count,
+        initial_chunk_rows,
+        max_retries,
+        &attempts,
+        &run,
+        final_chunk_rows,
+        prove_wall,
+        verify_wall,
     );
+    if let Err(err) = verify_result {
+        panic!("sovereign note-spend slow repro should verify: {err}");
+    }
 }
 
 #[cfg(feature = "poseidon-precompile")]
@@ -2177,6 +2383,7 @@ fn test_sovereign_note_spend_slow_proving_repro() {
 fn test_sovereign_note_deposit_slow_proving_repro() {
     let program_base = sovereign_note_deposit_rom::NOTE_DEPOSIT_ROM_BASE;
     let program_bytes: &[u8] = &sovereign_note_deposit_rom::NOTE_DEPOSIT_ROM;
+    let max_retries = 8usize;
 
     let witness = witness_builder::build_note_deposit_with_addrs(0x4104, 0x4100);
     println!(
@@ -2188,6 +2395,7 @@ fn test_sovereign_note_deposit_slow_proving_repro() {
     let exec = simulate_exec_with_witness(program_base, program_bytes, &witness.ram_pairs, 400_000)
         .expect("simulate sovereign note-deposit witness");
     let executed_steps = exec.rows.len();
+    let initial_chunk_rows = executed_steps.max(1);
     let output_addrs: Vec<u64> = witness
         .output_claims
         .iter()
@@ -2200,35 +2408,57 @@ fn test_sovereign_note_deposit_slow_proving_repro() {
         .zip(output_claims.iter())
         .filter(|((_, expected), (_, actual))| expected != actual)
         .count();
+    let sim_twist_events: usize = exec.rows.iter().map(|row| row.ram_events.len()).sum();
+    let sim_shout_events: usize = exec.rows.iter().map(|row| row.shout_events.len()).sum();
     println!(
-        "sovereign_note_deposit_slow: simulated_steps={} output_claim_mismatches={}",
-        executed_steps, mismatch_count
+        "sovereign_note_deposit_slow: simulated_steps={} simulated_twist_events={} simulated_shout_events={} output_claim_mismatches={}",
+        executed_steps,
+        sim_twist_events,
+        sim_shout_events,
+        mismatch_count
     );
 
+    println!("prove_start");
     let t_prove = Instant::now();
-    let (mut run, final_chunk_rows) = prove_with_poseidon_retry(
+    let prove_result = prove_with_poseidon_retry(
         program_base,
         program_bytes,
         &witness.ram_pairs,
         &output_claims,
         executed_steps,
-        65_536,
-        8,
+        initial_chunk_rows,
+        max_retries,
     )
     .expect("sovereign note-deposit slow repro should prove");
-    let prove_ms = t_prove.elapsed().as_millis();
+    let prove_wall = t_prove.elapsed();
+    let final_chunk_rows = prove_result.final_chunk_rows;
+    let attempts = prove_result.attempts;
+    let mut run = prove_result.run;
 
+    println!("verify_start");
     let t_verify = Instant::now();
-    run.verify()
-        .expect("sovereign note-deposit slow repro should verify");
-    let verify_ms = t_verify.elapsed().as_millis();
-
-    println!(
-        "sovereign_note_deposit_slow: prove_ms={} verify_ms={} steps={} folds={} chunk_rows={}",
-        prove_ms,
-        verify_ms,
-        run.trace_len(),
-        run.fold_count(),
-        final_chunk_rows
+    let verify_result = run.verify();
+    let verify_wall = t_verify.elapsed();
+    print_slow_repro_metrics(
+        "Sovereign Note Deposit Slow Repro",
+        "sovereign_note_deposit_slow",
+        program_base,
+        program_bytes,
+        witness.ram_pairs.len(),
+        witness.output_claims.len(),
+        executed_steps,
+        sim_twist_events,
+        sim_shout_events,
+        mismatch_count,
+        initial_chunk_rows,
+        max_retries,
+        &attempts,
+        &run,
+        final_chunk_rows,
+        prove_wall,
+        verify_wall,
     );
+    if let Err(err) = verify_result {
+        panic!("sovereign note-deposit slow repro should verify: {err}");
+    }
 }

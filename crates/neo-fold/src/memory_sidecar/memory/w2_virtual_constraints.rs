@@ -45,6 +45,66 @@ fn w2_virtual_table_ids() -> &'static W2VirtualTableIds {
 }
 
 #[derive(Clone, Copy, Debug)]
+struct W2VirtualConstantsK {
+    alu_table_weights: [K; 7],
+    branch_base_10: K,
+    branch_sub_5: K,
+    movsign_rhs: K,
+    v0: K,
+    v1: K,
+    v2: K,
+    two_pow_32: K,
+    rv32_all_ones: K,
+    add_table_id: K,
+    xor_table_id: K,
+    sub_table_id: K,
+    sltu_table_id: K,
+    eq_table_id: K,
+    sra_table_id: K,
+    mul_table_id: K,
+    mulh_table_id: K,
+    mulhu_table_id: K,
+    div_table_id: K,
+    divu_table_id: K,
+}
+
+#[inline]
+fn k_u64(v: u64) -> K {
+    K::from(F::from_u64(v))
+}
+
+#[inline]
+fn w2_virtual_constants_k() -> &'static W2VirtualConstantsK {
+    static CONSTS: OnceLock<W2VirtualConstantsK> = OnceLock::new();
+    CONSTS.get_or_init(|| {
+        let table_ids = w2_virtual_table_ids();
+        let two_pow_32 = k_u64(1u64 << 32);
+        W2VirtualConstantsK {
+            alu_table_weights: [k_u64(3), k_u64(7), k_u64(5), k_u64(6), k_u64(1), k_u64(8), k_u64(2)],
+            branch_base_10: k_u64(10),
+            branch_sub_5: k_u64(5),
+            movsign_rhs: k_u64(31),
+            v0: k_u64(32),
+            v1: k_u64(33),
+            v2: k_u64(34),
+            two_pow_32,
+            rv32_all_ones: two_pow_32 - K::ONE,
+            add_table_id: k_u64(table_ids.add),
+            xor_table_id: k_u64(table_ids.xor),
+            sub_table_id: k_u64(table_ids.sub),
+            sltu_table_id: k_u64(table_ids.sltu),
+            eq_table_id: k_u64(table_ids.eq),
+            sra_table_id: k_u64(table_ids.sra),
+            mul_table_id: k_u64(table_ids.mul),
+            mulh_table_id: k_u64(table_ids.mulh),
+            mulhu_table_id: k_u64(table_ids.mulhu),
+            div_table_id: k_u64(table_ids.div),
+            divu_table_id: k_u64(table_ids.divu),
+        }
+    })
+}
+
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct W2DecodeFieldsOpenings {
     pub active: K,
     pub halted: K,
@@ -83,6 +143,16 @@ pub(crate) struct W2DecodeFieldsOpenings {
 
 #[inline]
 pub(crate) fn w2_decode_fields_weighted_residual(openings: &W2DecodeFieldsOpenings, fields_weights: &[K]) -> K {
+    let mut alu_branch_residuals = Vec::with_capacity(W2_ALU_BRANCH_RESIDUAL_COUNT);
+    w2_decode_fields_weighted_residual_with_scratch(openings, fields_weights, &mut alu_branch_residuals)
+}
+
+#[inline]
+pub(crate) fn w2_decode_fields_weighted_residual_with_scratch(
+    openings: &W2DecodeFieldsOpenings,
+    fields_weights: &[K],
+    alu_branch_residuals: &mut Vec<K>,
+) -> K {
     debug_assert_eq!(
         fields_weights.len(),
         W2_FIELDS_RESIDUAL_COUNT,
@@ -115,7 +185,7 @@ pub(crate) fn w2_decode_fields_weighted_residual(openings: &W2DecodeFieldsOpenin
         openings.opcode_flags[11],
     );
     let bitness_residuals = w2_decode_bitness_residuals(openings.opcode_flags, openings.funct3_is);
-    let alu_branch_residuals = w2_alu_branch_lookup_residuals(
+    w2_alu_branch_lookup_residuals_into(
         openings.active,
         openings.is_virtual,
         openings.virtual_sequence_remaining,
@@ -152,6 +222,7 @@ pub(crate) fn w2_decode_fields_weighted_residual(openings: &W2DecodeFieldsOpenin
         openings.decode_rs2_addr,
         openings.imm_i,
         openings.imm_s,
+        alu_branch_residuals,
     );
     debug_assert!(
         alu_branch_residuals.len() <= W2_ALU_BRANCH_RESIDUAL_COUNT,
@@ -171,7 +242,7 @@ pub(crate) fn w2_decode_fields_weighted_residual(openings: &W2DecodeFieldsOpenin
         w_idx += 1;
     }
     let alu_branch_len = alu_branch_residuals.len();
-    for r in alu_branch_residuals {
+    for &r in alu_branch_residuals.iter() {
         weighted += fields_weights[w_idx] * r;
         w_idx += 1;
     }
@@ -284,6 +355,7 @@ fn push_virtual_stage_sparse_row(residuals: &mut Vec<K>, gate: K, row: VirtualSt
 }
 
 #[inline]
+#[cfg(debug_assertions)]
 pub(crate) fn w2_alu_branch_lookup_residuals(
     active: K,
     is_virtual: K,
@@ -322,6 +394,89 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     imm_i: K,
     imm_s: K,
 ) -> Vec<K> {
+    let mut residuals = Vec::with_capacity(W2_ALU_BRANCH_RESIDUAL_COUNT);
+    w2_alu_branch_lookup_residuals_into(
+        active,
+        is_virtual,
+        virtual_sequence_remaining,
+        halted,
+        shout_has_lookup,
+        shout_lhs,
+        shout_rhs,
+        shout_add_sub_key,
+        shout_table_id,
+        trace_rs1_addr,
+        trace_rs2_addr,
+        trace_rd_addr,
+        decode_rs1_addr,
+        decode_rs2_addr,
+        decode_rd_addr,
+        rs1_val,
+        rs2_val,
+        trace_rd_has_write,
+        decode_rd_has_write,
+        rd_is_zero,
+        rd_val,
+        ram_has_read,
+        ram_has_write,
+        ram_addr,
+        shout_val,
+        funct3_bits,
+        funct7_bits,
+        opcode_flags,
+        op_write_flags,
+        funct3_is,
+        alu_reg_table_delta,
+        alu_imm_table_delta,
+        alu_imm_shift_rhs_delta,
+        rs2_decode_addr,
+        imm_i,
+        imm_s,
+        &mut residuals,
+    );
+    residuals
+}
+
+#[inline]
+pub(crate) fn w2_alu_branch_lookup_residuals_into(
+    active: K,
+    is_virtual: K,
+    virtual_sequence_remaining: K,
+    halted: K,
+    shout_has_lookup: K,
+    shout_lhs: K,
+    shout_rhs: K,
+    shout_add_sub_key: K,
+    shout_table_id: K,
+    trace_rs1_addr: K,
+    trace_rs2_addr: K,
+    trace_rd_addr: K,
+    decode_rs1_addr: K,
+    decode_rs2_addr: K,
+    decode_rd_addr: K,
+    rs1_val: K,
+    rs2_val: K,
+    trace_rd_has_write: K,
+    decode_rd_has_write: K,
+    rd_is_zero: K,
+    rd_val: K,
+    ram_has_read: K,
+    ram_has_write: K,
+    ram_addr: K,
+    shout_val: K,
+    funct3_bits: [K; 3],
+    funct7_bits: [K; 7],
+    opcode_flags: [K; 12],
+    op_write_flags: [K; 6],
+    funct3_is: [K; 8],
+    alu_reg_table_delta: K,
+    alu_imm_table_delta: K,
+    alu_imm_shift_rhs_delta: K,
+    rs2_decode_addr: K,
+    imm_i: K,
+    imm_s: K,
+    residuals: &mut Vec<K>,
+) {
     let op_lui = opcode_flags[0];
     let op_auipc = opcode_flags[1];
     let op_jal = opcode_flags[2];
@@ -345,18 +500,18 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
         op_lui + op_auipc + op_jal + op_jalr + op_branch + op_alu_imm + op_alu_reg + op_misc_mem + op_system;
     let mem_lookup_ops = op_load + op_store;
     let add_lookup_ops = op_load + op_store + op_jalr;
-    let table_ids = w2_virtual_table_ids();
-    let add_table_id = K::from(F::from_u64(table_ids.add));
+    let k_consts = w2_virtual_constants_k();
+    let add_table_id = k_consts.add_table_id;
 
-    let alu_table_base = K::from(F::from_u64(3)) * funct3_is[0]
-        + K::from(F::from_u64(7)) * funct3_is[1]
-        + K::from(F::from_u64(5)) * funct3_is[2]
-        + K::from(F::from_u64(6)) * funct3_is[3]
-        + K::from(F::from_u64(1)) * funct3_is[4]
-        + K::from(F::from_u64(8)) * funct3_is[5]
-        + K::from(F::from_u64(2)) * funct3_is[6];
+    let alu_table_base = k_consts.alu_table_weights[0] * funct3_is[0]
+        + k_consts.alu_table_weights[1] * funct3_is[1]
+        + k_consts.alu_table_weights[2] * funct3_is[2]
+        + k_consts.alu_table_weights[3] * funct3_is[3]
+        + k_consts.alu_table_weights[4] * funct3_is[4]
+        + k_consts.alu_table_weights[5] * funct3_is[5]
+        + k_consts.alu_table_weights[6] * funct3_is[6];
     let branch_table_expected =
-        K::from(F::from_u64(10)) - K::from(F::from_u64(5)) * funct3_bits[2] + (funct3_bits[1] * funct3_bits[2]);
+        k_consts.branch_base_10 - k_consts.branch_sub_5 * funct3_bits[2] + (funct3_bits[1] * funct3_bits[2]);
     let shift_selector = funct3_is[1] + funct3_is[5];
     let funct7_m_tail =
         funct7_bits[1] + funct7_bits[2] + funct7_bits[3] + funct7_bits[4] + funct7_bits[5] + funct7_bits[6];
@@ -368,7 +523,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     let op_mul_reg = op_alu_reg * funct3_is[0] * funct7_bits[0];
     let op_mulhu_reg = op_alu_reg * funct3_is[3] * funct7_bits[0];
     let op_add_total = add_lookup_ops + op_add_imm + op_add_reg;
-    let two_pow_32 = K::from(F::from_u64(1u64 << 32));
+    let two_pow_32 = k_consts.two_pow_32;
     let add_key_delta = shout_lhs + shout_rhs - shout_add_sub_key;
     let sub_key_delta = shout_lhs - shout_rhs - shout_add_sub_key;
     let mul_key_delta = shout_lhs * shout_rhs - shout_add_sub_key;
@@ -443,7 +598,10 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
         op_store * (ram_addr - shout_val),
     ];
     let non_virtual = K::ONE - is_virtual;
-    let mut residuals = Vec::with_capacity(W2_ALU_BRANCH_RESIDUAL_COUNT);
+    residuals.clear();
+    if residuals.capacity() < W2_ALU_BRANCH_RESIDUAL_COUNT {
+        residuals.reserve(W2_ALU_BRANCH_RESIDUAL_COUNT - residuals.capacity());
+    }
     for r in raw {
         residuals.push(non_virtual * r);
     }
@@ -460,21 +618,21 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     let op_remu = is_rv32m * funct3_is[7];
     let op_virtual_decomp = op_mul + op_mulh + op_mulhu + op_mulhsu + op_div + op_divu + op_rem + op_remu;
     let rem = virtual_sequence_remaining;
-    let v0 = K::from(F::from_u64(32));
-    let v1 = K::from(F::from_u64(33));
-    let v2 = K::from(F::from_u64(34));
-    let movsign_rhs = K::from(F::from_u64(31));
-    let sra_table_id = K::from(F::from_u64(table_ids.sra));
-    let mul_table_id = K::from(F::from_u64(table_ids.mul));
-    let mulh_table_id = K::from(F::from_u64(table_ids.mulh));
-    let mulhu_table_id = K::from(F::from_u64(table_ids.mulhu));
-    let xor_table_id = K::from(F::from_u64(table_ids.xor));
-    let sub_table_id = K::from(F::from_u64(table_ids.sub));
-    let sltu_table_id = K::from(F::from_u64(table_ids.sltu));
-    let eq_table_id = K::from(F::from_u64(table_ids.eq));
-    let div_table_id = K::from(F::from_u64(table_ids.div));
-    let divu_table_id = K::from(F::from_u64(table_ids.divu));
-    let rv32_all_ones = two_pow_32 - K::ONE;
+    let v0 = k_consts.v0;
+    let v1 = k_consts.v1;
+    let v2 = k_consts.v2;
+    let movsign_rhs = k_consts.movsign_rhs;
+    let sra_table_id = k_consts.sra_table_id;
+    let mul_table_id = k_consts.mul_table_id;
+    let mulh_table_id = k_consts.mulh_table_id;
+    let mulhu_table_id = k_consts.mulhu_table_id;
+    let xor_table_id = k_consts.xor_table_id;
+    let sub_table_id = k_consts.sub_table_id;
+    let sltu_table_id = k_consts.sltu_table_id;
+    let eq_table_id = k_consts.eq_table_id;
+    let div_table_id = k_consts.div_table_id;
+    let divu_table_id = k_consts.divu_table_id;
+    let rv32_all_ones = k_consts.rv32_all_ones;
 
     let virtual_mulh = is_virtual * op_mulh;
     let virtual_mulhsu = is_virtual * op_mulhsu;
@@ -491,7 +649,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
 
     residuals.push(is_virtual * (K::ONE - op_virtual_decomp));
     if !has_virtual_stage {
-        return residuals;
+        return;
     }
 
     let mut stage_gate_7 = [K::ZERO; W2_STAGE_GATE_TABLE_CAP];
@@ -608,7 +766,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     ];
     for row in mulh_rows {
         let gate = virtual_mulh * stage_gate_7[row.remaining as usize];
-        push_virtual_stage_row(&mut residuals, gate, row);
+        push_virtual_stage_row(residuals, gate, row);
     }
 
     // MULHSU virtual rows (remaining = 11..1), Jolt-equivalent expanded sequence.
@@ -762,7 +920,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     ];
     for row in mulhsu_rows {
         let gate = virtual_mulhsu * stage_gate_11[row.remaining as usize];
-        push_virtual_stage_row(&mut residuals, gate, row);
+        push_virtual_stage_row(residuals, gate, row);
     }
 
     // DIV/DIVU/REM/REMU virtual-stage shape + semantic constraints.
@@ -1017,7 +1175,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     ];
     for row in div_rows {
         let gate = virtual_div * stage_gate_18[row.remaining as usize];
-        push_virtual_stage_sparse_row(&mut residuals, gate, row);
+        push_virtual_stage_sparse_row(residuals, gate, row);
     }
 
     // REM (remaining = 19..1), Jolt-style signed path with final virtual self-moves:
@@ -1273,7 +1431,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     ];
     for row in rem_rows {
         let gate = virtual_rem * stage_gate_19[row.remaining as usize];
-        push_virtual_stage_sparse_row(&mut residuals, gate, row);
+        push_virtual_stage_sparse_row(residuals, gate, row);
     }
 
     // DIVU (remaining = 8..1), v_q=v0..v_rem=v2.
@@ -1385,7 +1543,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     ];
     for row in divu_rows {
         let gate = virtual_divu * stage_gate_8[row.remaining as usize];
-        push_virtual_stage_row(&mut residuals, gate, row);
+        push_virtual_stage_row(residuals, gate, row);
     }
 
     // REMU (remaining = 7..1), v_q=v0..v_rem=v2.
@@ -1484,7 +1642,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
     ];
     for row in remu_rows {
         let gate = virtual_remu * stage_gate_7[row.remaining as usize];
-        push_virtual_stage_row(&mut residuals, gate, row);
+        push_virtual_stage_row(residuals, gate, row);
     }
 
     debug_assert_eq!(
@@ -1494,6 +1652,4 @@ pub(crate) fn w2_alu_branch_lookup_residuals(
         W2_ALU_BRANCH_RESIDUAL_COUNT,
         residuals.len()
     );
-
-    residuals
 }

@@ -63,7 +63,7 @@ pub struct RouteAShoutTimeClaimsGuard<'a> {
     pub lane_ranges: Vec<core::ops::Range<usize>>,
     pub lanes: Vec<RouteAShoutTimeLaneClaims<'a>>,
     pub gamma_groups: Vec<RouteAShoutTimeGammaGroupClaims<'a>>,
-    pub bitness: Vec<Vec<Box<dyn RoundOracle>>>,
+    pub bitness: Vec<Vec<Box<dyn RoundOracle + Send>>>,
 }
 
 pub struct RouteAShoutTimeLaneClaims<'a> {
@@ -93,7 +93,7 @@ pub fn build_route_a_shout_time_claims_guard<'a>(
     let mut lane_ranges: Vec<core::ops::Range<usize>> = Vec::with_capacity(shout_oracles.len());
     let mut lanes: Vec<RouteAShoutTimeLaneClaims<'a>> = Vec::new();
     let mut gamma_groups: Vec<RouteAShoutTimeGammaGroupClaims<'a>> = Vec::with_capacity(shout_gamma_groups.len());
-    let mut bitness: Vec<Vec<Box<dyn RoundOracle>>> = Vec::with_capacity(shout_oracles.len());
+    let mut bitness: Vec<Vec<Box<dyn RoundOracle + Send>>> = Vec::with_capacity(shout_oracles.len());
 
     for o in shout_oracles.iter_mut() {
         bitness.push(core::mem::take(&mut o.bitness));
@@ -303,7 +303,7 @@ pub struct RouteATwistTimeClaimsGuard<'a> {
     pub write_check_prefixes: Vec<RoundOraclePrefix<'a>>,
     pub read_check_claims: Vec<K>,
     pub write_check_claims: Vec<K>,
-    pub bitness: Vec<Vec<Box<dyn RoundOracle>>>,
+    pub bitness: Vec<Vec<Box<dyn RoundOracle + Send>>>,
     pub virtual_write_domain_prefixes: Vec<Option<RoundOraclePrefix<'a>>>,
     pub nonvirtual_arch_domain_prefixes: Vec<Option<RoundOraclePrefix<'a>>>,
 }
@@ -316,7 +316,7 @@ pub fn build_route_a_twist_time_claims_guard<'a>(
 ) -> Result<RouteATwistTimeClaimsGuard<'a>, PiCcsError> {
     let mut read_check_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(twist_oracles.len());
     let mut write_check_prefixes: Vec<RoundOraclePrefix<'a>> = Vec::with_capacity(twist_oracles.len());
-    let mut bitness: Vec<Vec<Box<dyn RoundOracle>>> = Vec::with_capacity(twist_oracles.len());
+    let mut bitness: Vec<Vec<Box<dyn RoundOracle + Send>>> = Vec::with_capacity(twist_oracles.len());
     let mut virtual_write_domain_prefixes: Vec<Option<RoundOraclePrefix<'a>>> = Vec::with_capacity(twist_oracles.len());
     let mut nonvirtual_arch_domain_prefixes: Vec<Option<RoundOraclePrefix<'a>>> =
         Vec::with_capacity(twist_oracles.len());
@@ -625,7 +625,13 @@ pub(crate) fn build_route_a_wb_wp_time_claims(
     params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
     r_cycle: &[K],
-) -> Result<(Option<(Box<dyn RoundOracle>, K)>, Option<(Box<dyn RoundOracle>, K)>), PiCcsError> {
+) -> Result<
+    (
+        Option<(Box<dyn RoundOracle + Send>, K)>,
+        Option<(Box<dyn RoundOracle + Send>, K)>,
+    ),
+    PiCcsError,
+> {
     if !wb_wp_required_for_step_witness(step) {
         return Ok((None, None));
     }
@@ -677,7 +683,13 @@ pub(crate) fn build_route_a_decode_time_claims(
     params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
     r_cycle: &[K],
-) -> Result<(Option<(Box<dyn RoundOracle>, K)>, Option<(Box<dyn RoundOracle>, K)>), PiCcsError> {
+) -> Result<
+    (
+        Option<(Box<dyn RoundOracle + Send>, K)>,
+        Option<(Box<dyn RoundOracle + Send>, K)>,
+    ),
+    PiCcsError,
+> {
     if !decode_stage_required_for_step_witness(step) {
         return Ok((None, None));
     }
@@ -1596,6 +1608,7 @@ pub(crate) fn build_route_a_decode_time_claims(
         .ok_or_else(|| PiCcsError::InvalidInput("W2: 2^ell_n overflow".into()))?;
     let active_zero = SparseIdxVec::from_entries(pow2_cycle, Vec::new());
     let fields_weights = w2_decode_pack_weight_vector(r_cycle, W2_FIELDS_RESIDUAL_COUNT);
+    let mut alu_branch_residuals_scratch = Vec::with_capacity(W2_FIELDS_RESIDUAL_COUNT);
     let fields_oracle = FormulaOracleSparseTime::new(
         fields_sparse_cols,
         // Virtual-stage shape+semantic selectors introduce higher multiplicative degree;
@@ -1640,7 +1653,11 @@ pub(crate) fn build_route_a_decode_time_claims(
                 imm_s: cursor.take(),
             };
             debug_assert_eq!(cursor.consumed(), vals.len());
-            w2_decode_fields_weighted_residual(&decode_inputs, &fields_weights)
+            w2_decode_fields_weighted_residual_with_scratch(
+                &decode_inputs,
+                &fields_weights,
+                &mut alu_branch_residuals_scratch,
+            )
         },
     );
     let imm_oracle = WeightedMaskOracleSparseTime::new(
@@ -1657,9 +1674,9 @@ pub(crate) fn build_route_a_decode_time_claims(
 }
 
 pub(crate) type W3TimeClaims = (
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
-    Option<(Box<dyn RoundOracle>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
+    Option<(Box<dyn RoundOracle + Send>, K)>,
 );

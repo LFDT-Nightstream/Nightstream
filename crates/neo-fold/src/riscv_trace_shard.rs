@@ -1143,7 +1143,14 @@ impl Rv32TraceWiring {
             (HashMap::new(), 0usize)
         };
 
-        let requested_chunk_rows_arch = self.chunk_rows.unwrap_or(DEFAULT_RV32_TRACE_CHUNK_ROWS);
+        // Default policy:
+        // - Poseidon-precompile programs should try a single-fold geometry first.
+        // - Other programs keep the historical default chunk size.
+        let requested_chunk_rows_arch = match self.chunk_rows {
+            Some(rows) => rows,
+            None if requires_poseidon_stage => exec.rows.len().max(1),
+            None => DEFAULT_RV32_TRACE_CHUNK_ROWS,
+        };
         if requested_chunk_rows_arch == 0 {
             return Err(PiCcsError::InvalidInput("trace chunk_rows must be non-zero".into()));
         }

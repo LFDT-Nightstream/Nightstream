@@ -4,6 +4,9 @@
 //! 1-input / 1-output self-transfer witness (including Merkle path, nullifier,
 //! enforce-product, and blacklist non-membership proof), writes it to RAM, then
 //! proves + verifies and emits detailed metrics.
+//!
+//! Legacy note-circuit repro path: the canonical maintained note repros now live
+//! in `test_rv64_note_from_elf.rs` and exercise the real RV64IM ELF flow.
 #![cfg(feature = "poseidon-precompile")]
 
 #[path = "binaries/circuit_l2_transfer_rom.rs"]

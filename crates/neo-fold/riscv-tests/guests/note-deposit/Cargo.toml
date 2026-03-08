@@ -1,0 +1,22 @@
+[package]
+name = "note-deposit"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "note_deposit"
+path = "src/main.rs"
+
+[workspace]
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+nightstream-sdk = { path = "../../../../nightstream-sdk", default-features = false }
+
+[patch.crates-io]
+p3-field = { path = "../circuit-l2-transfer/vendor/p3-field" }
+p3-matrix = { path = "../circuit-l2-transfer/vendor/p3-matrix" }
+p3-dft = { path = "../circuit-l2-transfer/vendor/p3-dft" }

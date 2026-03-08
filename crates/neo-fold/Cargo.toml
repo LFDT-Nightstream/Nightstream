@@ -93,6 +93,18 @@ name = "test_riscv_poseidon_elf_bench"
 path = "riscv-tests/test_riscv_poseidon_elf_bench.rs"
 
 [[test]]
+name = "test_rv64_trace_wiring_foundation"
+path = "riscv-tests/test_rv64_trace_wiring_foundation.rs"
+
+[[test]]
+name = "test_rv64_trace_wiring_prove_verify"
+path = "riscv-tests/test_rv64_trace_wiring_prove_verify.rs"
+
+[[test]]
+name = "test_rv64_note_from_elf"
+path = "riscv-tests/test_rv64_note_from_elf.rs"
+
+[[test]]
 name = "test_riscv_program_crosscheck"
 path = "riscv-tests/test_riscv_program_crosscheck.rs"
 

@@ -71,6 +71,10 @@ mod route_a_claims;
 mod route_a_finalize;
 #[path = "memory/route_a_oracles.rs"]
 mod route_a_oracles;
+#[path = "memory/route_a_rv64_fullword.rs"]
+mod route_a_rv64_fullword;
+#[path = "memory/route_a_rv64_reg_output.rs"]
+mod route_a_rv64_reg_output;
 #[path = "memory/route_a_terminal_checks.rs"]
 mod route_a_terminal_checks;
 #[path = "memory/route_a_verify.rs"]
@@ -96,6 +100,8 @@ pub(crate) use route_a_claim_builders::*;
 pub(crate) use route_a_claims::*;
 pub(crate) use route_a_finalize::*;
 pub(crate) use route_a_oracles::*;
+pub(crate) use route_a_rv64_fullword::*;
+pub(crate) use route_a_rv64_reg_output::*;
 pub(crate) use route_a_terminal_checks::*;
 pub(crate) use sparse_oracles_and_twist_pre::*;
 pub(crate) use transcript_and_common::*;

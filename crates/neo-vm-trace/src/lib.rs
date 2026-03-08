@@ -131,16 +131,16 @@ impl<Addr: fmt::Debug, Word: fmt::Debug> fmt::Display for TwistEvent<Addr, Word>
 /// Used for operations like byte decomposition, range checks, or any
 /// precomputed function that the VM needs to query.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ShoutEvent<Word> {
+pub struct ShoutEvent<Key, Word = Key> {
     /// Which Shout table was queried.
     pub shout_id: ShoutId,
     /// The lookup key (index or encoded tuple).
-    pub key: Word,
+    pub key: Key,
     /// The value returned from the table.
     pub value: Word,
 }
 
-impl<Word: fmt::Debug> fmt::Display for ShoutEvent<Word> {
+impl<Key: fmt::Debug, Word: fmt::Debug> fmt::Display for ShoutEvent<Key, Word> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}[{:?}] = {:?}", self.shout_id, self.key, self.value)
     }
@@ -165,7 +165,7 @@ impl<Word: fmt::Debug> fmt::Display for ShoutEvent<Word> {
 /// circuits may require you to provision enough access "lanes" (ports) and will
 /// reject steps that exceed that capacity.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StepTrace<Addr, Word> {
+pub struct StepTrace<Addr, Word, Key = Word> {
     /// The cycle number (0-indexed).
     pub cycle: u64,
     /// Program counter before executing this instruction.
@@ -187,12 +187,12 @@ pub struct StepTrace<Addr, Word> {
     /// Twist events (memory reads and writes) during this step.
     pub twist_events: Vec<TwistEvent<Addr, Word>>,
     /// Shout events (lookups) during this step.
-    pub shout_events: Vec<ShoutEvent<Word>>,
+    pub shout_events: Vec<ShoutEvent<Key, Word>>,
     /// True if this step executed a halt instruction.
     pub halted: bool,
 }
 
-impl<Addr, Word> StepTrace<Addr, Word> {
+impl<Addr, Word, Key> StepTrace<Addr, Word, Key> {
     /// Returns the number of Twist reads in this step.
     pub fn num_reads(&self) -> usize {
         self.twist_events
@@ -224,12 +224,12 @@ impl<Addr, Word> StepTrace<Addr, Word> {
 /// A shard is a contiguous sequence of VM steps (up to `max_steps`).
 /// This trace is the input to the Neo proving pipeline.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct VmTrace<Addr, Word> {
+pub struct VmTrace<Addr, Word, Key = Word> {
     /// The sequence of step traces.
-    pub steps: Vec<StepTrace<Addr, Word>>,
+    pub steps: Vec<StepTrace<Addr, Word, Key>>,
 }
 
-impl<Addr, Word> VmTrace<Addr, Word> {
+impl<Addr, Word, Key> VmTrace<Addr, Word, Key> {
     /// Creates an empty trace.
     pub fn new() -> Self {
         Self { steps: Vec::new() }
@@ -261,7 +261,7 @@ impl<Addr, Word> VmTrace<Addr, Word> {
     }
 }
 
-impl<Addr, Word> Default for VmTrace<Addr, Word> {
+impl<Addr, Word, Key> Default for VmTrace<Addr, Word, Key> {
     fn default() -> Self {
         Self::new()
     }
@@ -452,24 +452,25 @@ where
 ///
 /// - `lookup` must be deterministic: same key always returns same value.
 /// - Tables are immutable during execution.
-pub trait Shout<Word> {
+pub trait Shout<Key, Word = Key> {
     /// Look up a value in a table.
-    fn lookup(&mut self, shout_id: ShoutId, key: Word) -> Word;
+    fn lookup(&mut self, shout_id: ShoutId, key: Key) -> Word;
 }
 
 /// A tracing wrapper around any `Shout` implementation.
 ///
 /// Intercepts all lookup calls and records them as `ShoutEvent`s.
 /// Use `take_events()` after each step to collect the events.
-pub struct TracingShout<S, Word> {
+pub struct TracingShout<S, Key, Word = Key> {
     /// The underlying Shout implementation.
     pub inner: S,
     /// Events accumulated during the current step.
-    pub current_step_events: Vec<ShoutEvent<Word>>,
+    pub current_step_events: Vec<ShoutEvent<Key, Word>>,
 }
 
-impl<S, Word> TracingShout<S, Word>
+impl<S, Key, Word> TracingShout<S, Key, Word>
 where
+    Key: Copy,
     Word: Copy,
 {
     /// Wrap a Shout implementation with tracing.
@@ -483,7 +484,7 @@ where
     /// Take all events accumulated since the last call to `take_events`.
     ///
     /// Call this after each CPU step to collect Shout events for that step.
-    pub fn take_events(&mut self) -> Vec<ShoutEvent<Word>> {
+    pub fn take_events(&mut self) -> Vec<ShoutEvent<Key, Word>> {
         std::mem::take(&mut self.current_step_events)
     }
 
@@ -498,12 +499,13 @@ where
     }
 }
 
-impl<S, Word> Shout<Word> for TracingShout<S, Word>
+impl<S, Key, Word> Shout<Key, Word> for TracingShout<S, Key, Word>
 where
-    S: Shout<Word>,
+    S: Shout<Key, Word>,
+    Key: Copy,
     Word: Copy,
 {
-    fn lookup(&mut self, shout_id: ShoutId, key: Word) -> Word {
+    fn lookup(&mut self, shout_id: ShoutId, key: Key) -> Word {
         let v = self.inner.lookup(shout_id, key);
         self.current_step_events.push(ShoutEvent {
             shout_id,
@@ -569,7 +571,7 @@ pub struct StepMeta<Addr> {
 ///     }
 /// }
 /// ```
-pub trait VmCpu<Addr, Word> {
+pub trait VmCpu<Addr, Word, Key = Word> {
     /// The error type for step execution failures.
     type Error: std::fmt::Debug + std::fmt::Display;
 
@@ -599,7 +601,7 @@ pub trait VmCpu<Addr, Word> {
     fn step<T, S>(&mut self, twist: &mut T, shout: &mut S) -> Result<StepMeta<Addr>, Self::Error>
     where
         T: Twist<Addr, Word>,
-        S: Shout<Word>;
+        S: Shout<Key, Word>;
 }
 
 // ============================================================================
@@ -634,17 +636,18 @@ pub trait VmCpu<Addr, Word> {
 ///     println!("CPU halted normally");
 /// }
 /// ```
-pub fn trace_program<Cpu, Tw, Sh, Addr, Word>(
+pub fn trace_program<Cpu, Tw, Sh, Addr, Word, Key>(
     mut cpu: Cpu,
     twist: Tw,
     shout: Sh,
     max_steps: usize,
-) -> Result<VmTrace<Addr, Word>, Cpu::Error>
+) -> Result<VmTrace<Addr, Word, Key>, Cpu::Error>
 where
-    Cpu: VmCpu<Addr, Word>,
+    Cpu: VmCpu<Addr, Word, Key>,
     Tw: Twist<Addr, Word>,
-    Sh: Shout<Word>,
+    Sh: Shout<Key, Word>,
     Addr: Copy,
+    Key: Copy,
     Word: Copy,
 {
     let mut trace = VmTrace::new();

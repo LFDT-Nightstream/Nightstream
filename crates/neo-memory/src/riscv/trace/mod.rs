@@ -3,6 +3,8 @@ use crate::riscv::instruction::operand_mode_keys_enabled;
 pub mod air;
 pub mod decode_lookup;
 pub mod layout;
+pub mod rv64;
+pub mod rv64_width_sidecar;
 pub mod sidecar_extract;
 pub mod width_sidecar;
 pub mod witness;
@@ -16,6 +18,13 @@ pub use decode_lookup::{
     RV32_TRACE_DECODE_LOOKUP_GROUPED_TABLE_ID, RV32_TRACE_DECODE_LOOKUP_TABLE_BASE,
 };
 pub use layout::Rv32TraceLayout;
+pub use rv64::{Rv64TraceLayout, Rv64TraceWitness};
+pub use rv64_width_sidecar::{
+    rv64_is_width_lookup_grouped_table_id, rv64_is_width_lookup_table_id, rv64_width_lookup_addr_group_for_table_id,
+    rv64_width_lookup_backed_cols, rv64_width_lookup_table_id_for_col, rv64_width_lookup_transport_n_vals,
+    rv64_width_lookup_val_slot_for_col, rv64_width_sidecar_witness_from_exec_table, Rv64WidthSidecarLayout,
+    Rv64WidthSidecarWitness, RV64_TRACE_WIDTH_LOOKUP_GROUPED_TABLE_ID, RV64_TRACE_WIDTH_LOOKUP_TABLE_BASE,
+};
 pub use sidecar_extract::{
     extract_shout_lanes_over_time, extract_twist_lanes_over_time, ShoutLaneOverTime, TraceTwistLanesOverTime,
     TwistLaneOverTime,
@@ -59,6 +68,7 @@ pub fn rv32_trace_lookup_addr_group_for_table_id(table_id: u32) -> Option<u32> {
     } else {
         rv32_decode_lookup_addr_group_for_table_id(table_id)
             .or_else(|| rv32_width_lookup_addr_group_for_table_id(table_id))
+            .or_else(|| rv64_width_lookup_addr_group_for_table_id(table_id))
     }
 }
 
@@ -66,7 +76,7 @@ pub fn rv32_trace_lookup_addr_group_for_table_id(table_id: u32) -> Option<u32> {
 pub fn rv32_trace_lookup_selector_group_for_table_id(table_id: u32) -> Option<u32> {
     if rv32_is_decode_lookup_table_id(table_id) {
         Some(RV32_TRACE_DECODE_SELECTOR_GROUP)
-    } else if rv32_is_width_lookup_table_id(table_id) {
+    } else if rv32_is_width_lookup_table_id(table_id) || rv64_is_width_lookup_table_id(table_id) {
         Some(RV32_TRACE_WIDTH_SELECTOR_GROUP)
     } else {
         None
@@ -79,6 +89,8 @@ pub fn rv32_trace_lookup_n_vals_for_table_id(table_id: u32) -> usize {
         rv32_decode_lookup_transport_n_vals()
     } else if rv32_is_width_lookup_grouped_table_id(table_id) {
         rv32_width_lookup_transport_n_vals()
+    } else if rv64_is_width_lookup_grouped_table_id(table_id) {
+        rv64_width_lookup_transport_n_vals()
     } else {
         1
     };

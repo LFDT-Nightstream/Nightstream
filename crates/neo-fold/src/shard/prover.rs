@@ -221,6 +221,7 @@ where
             None;
         let mut width_bitness_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
         let mut width_quiescence_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
+        let mut width_selector_linkage_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
         let mut width_load_semantics_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
         let mut width_store_semantics_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
         let mut control_next_pc_linear_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
@@ -230,9 +231,15 @@ where
             None;
         let mut control_control_writeback_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> =
             None;
+        let mut ob_reg_exact_linkage_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
         let mut ob_time_claim: Option<crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim> = None;
         let mut ob_r_prime: Option<Vec<K>> = None;
         let mut ob_sparse_addr_weights: Option<Vec<(Vec<K>, K)>> = None;
+        let exact_reg_output_binding_active = include_ob
+            && ob
+                .as_ref()
+                .map(|(cfg, _)| step.mem_instances[cfg.mem_idx].0.mem_id == neo_memory::riscv::lookups::REG_EXACT_ID.0)
+                .unwrap_or(false);
 
         // Output binding is injected only on the final step, and must run before sampling Route-A `r_time`.
         if include_ob {
@@ -614,7 +621,7 @@ where
         let (
             width_bitness_built,
             width_quiescence_built,
-            _width_selector_linkage_built,
+            width_selector_linkage_built,
             width_load_semantics_built,
             width_store_semantics_built,
         ) = crate::memory_sidecar::memory::build_route_a_width_time_claims(params, step, &r_cycle)?;
@@ -641,6 +648,13 @@ where
                 oracle,
                 claimed_sum: K::ZERO,
                 label: b"width/quiescence",
+            });
+        }
+        if let Some((oracle, _claimed_sum)) = width_selector_linkage_built {
+            width_selector_linkage_claim = Some(crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim {
+                oracle,
+                claimed_sum: K::ZERO,
+                label: b"width/selector_linkage",
             });
         }
         if let Some((oracle, _claimed_sum)) = width_load_semantics_built {
@@ -796,6 +810,20 @@ where
                 claimed_sum,
                 label: crate::output_binding::OB_INC_TOTAL_LABEL,
             });
+            if exact_reg_output_binding_active {
+                let (oracle, claimed_sum) =
+                    crate::memory_sidecar::memory::build_rv64_reg_exact_output_linkage_claim(step, &r_cycle)?
+                        .ok_or_else(|| {
+                            PiCcsError::ProtocolError(
+                                "RV64 exact register output binding requires REG_EXACT linkage oracle".into(),
+                            )
+                        })?;
+                ob_reg_exact_linkage_claim = Some(crate::memory_sidecar::route_a_time::ExtraBatchedTimeClaim {
+                    oracle,
+                    claimed_sum,
+                    label: crate::output_binding::OB_REG_EXACT_LINKAGE_LABEL,
+                });
+            }
         }
 
         let crate::memory_sidecar::route_a_time::RouteABatchedTimeProverOutput {
@@ -815,7 +843,7 @@ where
             decode_decode_immediates_claim,
             width_bitness_claim,
             width_quiescence_claim,
-            None,
+            width_selector_linkage_claim,
             width_load_semantics_claim,
             width_store_semantics_claim,
             control_next_pc_linear_claim,
@@ -831,6 +859,7 @@ where
             poseidon_link_cycle_sum_claim,
             poseidon_cont_inv_claim,
             poseidon_cont_sum_claim,
+            ob_reg_exact_linkage_claim,
             ob_time_claim,
         )?;
 
@@ -1657,7 +1686,12 @@ where
         if !mem_proof.wp_me_claims.is_empty() {
             let trace = Rv32TraceLayout::new();
             let t_len = crate::memory_sidecar::memory::infer_rv32_trace_t_len_for_wb_wp(step, &trace)?;
+            let rv64_exact_words =
+                crate::memory_sidecar::memory::trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
             let mut wp_open_cols = crate::memory_sidecar::memory::rv32_trace_wp_opening_columns(&trace);
+            if rv64_exact_words {
+                wp_open_cols.extend(crate::memory_sidecar::memory::rv64_trace_exact_word_opening_columns());
+            }
             if control_required {
                 wp_open_cols.extend(crate::memory_sidecar::memory::rv32_trace_control_extra_opening_columns(
                     &trace,
@@ -1729,10 +1763,15 @@ where
                     wp_open_cols.push(logical_col);
                 }
             }
-            if width_required {
+            if width_required
+                && !crate::memory_sidecar::memory::rv64_fullword_width_stage_required_for_step_witness(step)
+            {
                 wp_open_cols.extend(crate::memory_sidecar::memory::width_lookup_bus_val_cols_witness(
                     step, t_len,
                 )?);
+            }
+            if crate::memory_sidecar::memory::rv64_fullword_width_stage_required_for_step_witness(step) {
+                wp_open_cols.extend(crate::memory_sidecar::memory::rv64_fullword_wp_opening_columns());
             }
             let core_t = s.t();
             tr.append_message(b"fold/wp_lane_start", &(step_idx as u64).to_le_bytes());
@@ -2121,11 +2160,19 @@ where
             }
             if let Some(wp_me) = mem_proof.wp_me_claims.first() {
                 let trace = Rv32TraceLayout::new();
+                let rv64_exact_words =
+                    crate::memory_sidecar::memory::trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
                 let mut wp_cols = crate::memory_sidecar::memory::rv32_trace_wp_opening_columns(&trace);
+                if rv64_exact_words {
+                    wp_cols.extend(crate::memory_sidecar::memory::rv64_trace_exact_word_opening_columns());
+                }
                 if control_required {
                     wp_cols.extend(crate::memory_sidecar::memory::rv32_trace_control_extra_opening_columns(
                         &trace,
                     ));
+                }
+                if crate::memory_sidecar::memory::rv64_fullword_width_stage_required_for_step_witness(step) {
+                    wp_cols.extend(crate::memory_sidecar::memory::rv64_fullword_wp_opening_columns());
                 }
                 let mut seen_wp_cols = std::collections::BTreeSet::new();
                 wp_cols.retain(|col_id| seen_wp_cols.insert(*col_id));
@@ -2173,6 +2220,56 @@ where
                 out.push(crate::shard_proof_types::TimePointOpening {
                     point: wp_me.r.clone(),
                     col_ids: wp_cols,
+                    evals,
+                    source: crate::shard_proof_types::TimeOpeningSource::CommittedOpening,
+                });
+            }
+            if exact_reg_output_binding_active {
+                let trace = neo_memory::riscv::trace::Rv64TraceLayout::new();
+                let reg_exact_cols = vec![
+                    trace.rd_addr,
+                    trace.rd_has_write,
+                    trace.is_virtual,
+                    trace.rd_val_lo32,
+                    trace.rd_val_hi32,
+                ];
+                let can_use_time_cpu_cols = step.time_columns.t > 0
+                    && !step.time_columns.cpu_cols.is_empty()
+                    && reg_exact_cols
+                        .iter()
+                        .all(|&col_id| col_id < step.time_columns.cpu_cols.len());
+                if !can_use_time_cpu_cols {
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "named openings reg_exact: canonical time cpu columns are required (time_t={}, cpu_cols={}, reg_exact_cols={})",
+                        step.time_columns.t,
+                        step.time_columns.cpu_cols.len(),
+                        reg_exact_cols.len()
+                    )));
+                }
+                if !has_committed_time_cpu {
+                    return Err(PiCcsError::ProtocolError(
+                        "named openings reg_exact: canonical time-column path requires committed time cpu columns"
+                            .into(),
+                    ));
+                }
+                let trace_map = crate::memory_sidecar::cpu_bus::time_columns_openings_from_time_columns_at_point(
+                    mcs_inst.m_in,
+                    step.time_columns.t,
+                    &step.time_columns.cpu_cols,
+                    &reg_exact_cols,
+                    r_time.as_slice(),
+                    "named openings reg_exact",
+                )?;
+                let mut evals = Vec::with_capacity(reg_exact_cols.len());
+                for &col_id in reg_exact_cols.iter() {
+                    let v = trace_map.get(&col_id).copied().ok_or_else(|| {
+                        PiCcsError::ProtocolError(format!("named openings reg_exact: missing col_id={col_id}"))
+                    })?;
+                    evals.push(v);
+                }
+                out.push(crate::shard_proof_types::TimePointOpening {
+                    point: r_time.clone(),
+                    col_ids: reg_exact_cols,
                     evals,
                     source: crate::shard_proof_types::TimeOpeningSource::CommittedOpening,
                 });
@@ -2484,6 +2581,8 @@ where
         ShardProof {
             steps: step_proofs,
             output_proof,
+            riscv_profile: None,
+            riscv_memory_layout: None,
             segment_meta: None,
         },
         accumulator_wit,

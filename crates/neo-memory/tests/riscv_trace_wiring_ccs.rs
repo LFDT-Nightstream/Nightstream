@@ -15,12 +15,12 @@ fn rv32_trace_layout_tracks_shout_table_id_and_virtual_linkage_columns() {
     let layout = Rv32TraceCcsLayout::new(/*t=*/ 4).expect("trace CCS layout");
 
     assert_eq!(
-        layout.trace.cols, 30,
-        "trace width regression: expected 30 columns after adding shout_table_id + virtual linkage columns"
+        layout.trace.cols, 31,
+        "trace width regression: expected 31 columns after adding current-row virtual commit ownership"
     );
     assert_eq!(
         layout.trace.cols,
-        layout.trace.virtual_commit_link + 1,
+        layout.trace.virtual_commit_from_prev + 1,
         "trace layout should remain densely packed"
     );
 }

@@ -283,8 +283,8 @@ fn boundary_splits_virtual_sequence(exec: &Rv32ExecTable, chunk_rows: usize) -> 
 
 fn rv32_trace_chunk_to_witness(
     layout: Rv32TraceCcsLayout,
-) -> Box<dyn Fn(&[StepTrace<u64, u64>]) -> Vec<F> + Send + Sync> {
-    Box::new(move |chunk: &[StepTrace<u64, u64>]| {
+) -> Box<dyn Fn(&[StepTrace<u64, u64, u128>]) -> Vec<F> + Send + Sync> {
+    Box::new(move |chunk: &[StepTrace<u64, u64, u128>]| {
         rv32_trace_chunk_to_witness_checked(&layout, chunk)
             .unwrap_or_else(|e| panic!("rv32_trace_chunk_to_witness failed for chunk_len={}: {e}", chunk.len()))
     })
@@ -292,7 +292,7 @@ fn rv32_trace_chunk_to_witness(
 
 fn rv32_trace_chunk_to_witness_checked(
     layout: &Rv32TraceCcsLayout,
-    chunk: &[StepTrace<u64, u64>],
+    chunk: &[StepTrace<u64, u64, u128>],
 ) -> Result<Vec<F>, String> {
     if chunk.is_empty() {
         return Err("trace chunk witness: chunk must contain at least one step".into());
@@ -373,7 +373,7 @@ fn rv32_canonical_shout_opcode_families() -> &'static [RiscvOpcode] {
     ]
 }
 
-fn validate_trace_opcode_lookup_one_hot(trace: &VmTrace<u64, u64>, xlen: usize) -> Result<(), PiCcsError> {
+fn validate_trace_opcode_lookup_one_hot(trace: &VmTrace<u64, u64, u128>, xlen: usize) -> Result<(), PiCcsError> {
     let shout = RiscvShoutTables::new(xlen);
     for (step_idx, step) in trace.steps.iter().enumerate() {
         let mut seen_table_id: Option<u32> = None;
@@ -676,7 +676,7 @@ fn build_rv32_decode_lookup_tables(
 }
 
 fn inject_rv32_decode_lookup_events_into_trace(
-    trace: &mut VmTrace<u64, u64>,
+    trace: &mut VmTrace<u64, u64, u128>,
     prog_layout: &PlainMemLayout,
     prog_init_words: &HashMap<(u32, u64), F>,
 ) -> Result<(), PiCcsError> {
@@ -708,7 +708,7 @@ fn inject_rv32_decode_lookup_events_into_trace(
         for &col_id in decode_cols.iter() {
             step.shout_events.push(ShoutEvent {
                 shout_id: ShoutId(rv32_decode_lookup_table_id_for_col(col_id)),
-                key: addr,
+                key: u128::from(addr),
                 value: row[col_id].as_canonical_u64(),
             });
         }
@@ -809,7 +809,7 @@ fn build_rv32_width_lookup_tables(
 }
 
 fn inject_rv32_width_lookup_events_into_trace(
-    trace: &mut VmTrace<u64, u64>,
+    trace: &mut VmTrace<u64, u64, u128>,
     exec: &Rv32ExecTable,
     width_layout: &Rv32WidthSidecarLayout,
 ) -> Result<(), PiCcsError> {
@@ -831,7 +831,7 @@ fn inject_rv32_width_lookup_events_into_trace(
         for &col_id in width_cols.iter() {
             step.shout_events.push(ShoutEvent {
                 shout_id: ShoutId(rv32_width_lookup_table_id_for_col(col_id)),
-                key: cycle,
+                key: u128::from(cycle),
                 value: wit.cols[col_id][i].as_canonical_u64(),
             });
         }

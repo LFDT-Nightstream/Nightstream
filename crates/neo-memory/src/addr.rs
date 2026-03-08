@@ -21,6 +21,27 @@ pub fn for_each_addr_bit_dim_major_le(addr: u64, d: usize, n_side: usize, ell: u
     }
 }
 
+pub fn for_each_addr_bit_dim_major_le_u128(
+    addr: u128,
+    d: usize,
+    n_side: usize,
+    ell: usize,
+    mut f: impl FnMut(usize, bool),
+) {
+    assert!(n_side > 0, "n_side must be > 0");
+    let base = n_side as u128;
+    let mut tmp = addr;
+    for dim in 0..d {
+        let comp = tmp % base;
+        tmp /= base;
+        for bit in 0..ell {
+            let idx = dim * ell + bit;
+            let is_one = ((comp >> bit) & 1) == 1;
+            f(idx, is_one);
+        }
+    }
+}
+
 pub fn write_addr_bits_dim_major_le<F: PrimeCharacteristicRing>(
     out_bits: &mut [F],
     addr: u64,
@@ -46,6 +67,23 @@ pub fn write_addr_bits_dim_major_le_into_bus<F: PrimeCharacteristicRing>(
 ) {
     assert_eq!(bit_cols.end - bit_cols.start, d * ell, "addr_bits bus range mismatch");
     for_each_addr_bit_dim_major_le(addr, d, n_side, ell, |idx, is_one| {
+        let col_id = bit_cols.start + idx;
+        z[bus.bus_cell(col_id, j)] = if is_one { F::ONE } else { F::ZERO };
+    });
+}
+
+pub fn write_addr_bits_dim_major_le_u128_into_bus<F: PrimeCharacteristicRing>(
+    z: &mut [F],
+    bus: &BusLayout,
+    bit_cols: Range<usize>,
+    j: usize,
+    addr: u128,
+    d: usize,
+    n_side: usize,
+    ell: usize,
+) {
+    assert_eq!(bit_cols.end - bit_cols.start, d * ell, "addr_bits bus range mismatch");
+    for_each_addr_bit_dim_major_le_u128(addr, d, n_side, ell, |idx, is_one| {
         let col_id = bit_cols.start + idx;
         z[bus.bus_cell(col_id, j)] = if is_one { F::ONE } else { F::ZERO };
     });
@@ -141,14 +179,9 @@ pub fn validate_shout_bit_addressing<Cmt, F>(inst: &LutInstance<Cmt, F>) -> Resu
                 }
             }
             LutTableSpec::RiscvOpcodePacked { opcode, xlen } => {
-                if *xlen != 32 {
-                    return Err(PiCcsError::InvalidInput(format!(
-                        "Shout(RISC-V packed): expected xlen=32, got xlen={xlen}"
-                    )));
-                }
-                let expected_d = crate::riscv::packed::rv32_packed_d(*opcode)?;
+                let expected_d = crate::riscv::packed::rv_packed_d(*opcode, *xlen)?;
                 // Packed-key Shout lanes are not bit-addressed: we repurpose the addr-bit slice as
-                // `[lhs_u32, rhs_u32, aux...]` and keep `[has_lookup, val_u32]`.
+                // `[lhs, rhs, aux...]` and keep `[has_lookup, val]`.
                 if inst.n_side != 2 || inst.ell != 1 {
                     return Err(PiCcsError::InvalidInput(format!(
                         "Shout(RISC-V packed): expected n_side=2, ell=1, got n_side={}, ell={}",
@@ -182,7 +215,7 @@ pub fn validate_shout_bit_addressing<Cmt, F>(inst: &LutInstance<Cmt, F>) -> Resu
                         "Shout(RISC-V event-table packed): time_bits={time_bits} too large (max 64)"
                     )));
                 }
-                let base_d = crate::riscv::packed::rv32_packed_d(*opcode)?;
+                let base_d = crate::riscv::packed::rv_packed_d(*opcode, *xlen)?;
                 let expected_d = time_bits
                     .checked_add(base_d)
                     .ok_or_else(|| PiCcsError::InvalidInput("Shout(RISC-V event-table packed): d overflow".into()))?;

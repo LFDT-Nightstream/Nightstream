@@ -77,6 +77,39 @@ fn rv32_trace_air_accepts_virtual_commit_with_rd_x0() {
 }
 
 #[test]
+fn trace_air_accepts_rv64_mulw_virtual_decomposition() {
+    let program = vec![
+        RiscvInstruction::RAluw {
+            op: RiscvOpcode::Mulw,
+            rd: 5,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::Halt,
+    ];
+    let program_bytes = encode_program(&program);
+
+    let decoded_program = decode_program(&program_bytes).expect("decode_program");
+    let mut cpu = RiscvCpu::new(/*xlen=*/ 64);
+    cpu.load_program(/*base=*/ 0, decoded_program);
+    cpu.set_runtime_decomposition_enabled(true);
+    let mut twist =
+        RiscvMemory::with_program_in_twist(/*xlen=*/ 64, PROG_ID, /*base_addr=*/ 0, &program_bytes);
+    twist.store(REG_ID, 1, 3);
+    twist.store(REG_ID, 2, 5);
+    let shout = RiscvShoutTables::new(/*xlen=*/ 64);
+
+    let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
+    let exec = Rv32ExecTable::from_trace_padded_pow2_with_xlen(&trace, /*min_len=*/ 8, /*machine_xlen=*/ 64)
+        .expect("from_trace_padded_pow2_with_xlen");
+
+    let air = Rv32TraceAir::new_with_xlen(/*machine_xlen=*/ 64);
+    let wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
+    air.assert_satisfied(&wit)
+        .expect("rv64 Mulw decomposed rows must satisfy AIR under machine_xlen=64");
+}
+
+#[test]
 fn rv32_trace_air_rejects_halted_tail_reactivation() {
     // Program with at least one active transition after row 0.
     let program = vec![
@@ -484,6 +517,49 @@ fn rv32_trace_air_rejects_virtual_transition_without_last_virtual_write() {
         .expect_err("mutated witness should violate virtual-transition write invariant");
     assert!(
         err.contains("expected register write") || err.contains("virtual_transition requires last virtual row write"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn rv32_trace_air_rejects_virtual_commit_from_prev_linkage_break() {
+    let program = vec![
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Mulh,
+            rd: 5,
+            rs1: 1,
+            rs2: 2,
+        },
+        RiscvInstruction::Halt,
+    ];
+    let program_bytes = encode_program(&program);
+
+    let decoded_program = decode_program(&program_bytes).expect("decode_program");
+    let mut cpu = RiscvCpu::new(/*xlen=*/ 32);
+    cpu.load_program(/*base=*/ 0, decoded_program);
+    cpu.set_runtime_decomposition_enabled(true);
+    let mut twist =
+        RiscvMemory::with_program_in_twist(/*xlen=*/ 32, PROG_ID, /*base_addr=*/ 0, &program_bytes);
+    twist.store(REG_ID, 1, 0x8000_0000);
+    twist.store(REG_ID, 2, 0xFFFF_FFFF);
+    let shout = RiscvShoutTables::new(/*xlen=*/ 32);
+
+    let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
+    let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
+
+    let air = Rv32TraceAir::new();
+    let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
+
+    let commit_row = (1..wit.t)
+        .find(|&i| wit.cols[air.layout.virtual_commit_from_prev][i] == F::ONE)
+        .expect("expected commit row with virtual_commit_from_prev");
+    wit.cols[air.layout.virtual_commit_from_prev][commit_row] = F::ZERO;
+
+    let err = air
+        .assert_satisfied(&wit)
+        .expect_err("mutated witness should violate virtual_commit_from_prev linkage");
+    assert!(
+        err.contains("virtual_commit_from_prev linkage mismatch"),
         "unexpected error: {err}"
     );
 }

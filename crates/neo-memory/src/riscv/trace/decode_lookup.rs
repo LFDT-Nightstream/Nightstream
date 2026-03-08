@@ -354,7 +354,7 @@ fn imm_j_from_word(instr_word: u32) -> u32 {
 
 #[inline]
 fn opcode_writes_rd(opcode_u64: u64) -> bool {
-    matches!(opcode_u64, 0x37 | 0x17 | 0x6F | 0x67 | 0x03 | 0x13 | 0x33)
+    matches!(opcode_u64, 0x37 | 0x17 | 0x6F | 0x67 | 0x03 | 0x13 | 0x1B | 0x33 | 0x3B)
 }
 
 pub fn rv32_decode_lookup_backed_row_from_instr_word(
@@ -413,8 +413,16 @@ pub fn rv32_decode_lookup_backed_row_from_instr_word(
     row[layout.op_branch] = is(0x63);
     row[layout.op_load] = is(0x03);
     row[layout.op_store] = is(0x23);
-    row[layout.op_alu_imm] = is(0x13);
-    row[layout.op_alu_reg] = is(0x33);
+    row[layout.op_alu_imm] = if opcode_u64 == 0x13 || opcode_u64 == 0x1B {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    row[layout.op_alu_reg] = if opcode_u64 == 0x33 || opcode_u64 == 0x3B {
+        F::ONE
+    } else {
+        F::ZERO
+    };
     row[layout.op_misc_mem] = is(0x0F);
     row[layout.op_system] = is(0x73);
     row[layout.op_amo] = is(0x2F);
@@ -492,10 +500,26 @@ pub fn rv32_decode_lookup_backed_row_from_instr_word(
     };
     let branch_table_expected: u64 =
         10 - 5 * ((funct3_u64 >> 2) & 1) + (((funct3_u64 >> 1) & 1) * ((funct3_u64 >> 2) & 1));
+    let alu_reg_w_table_id = match funct3_u64 {
+        0 => 20 + funct7_b5,
+        1 => 22,
+        5 => 23 + funct7_b5,
+        _ => 0,
+    };
+    let alu_imm_w_table_id = match funct3_u64 {
+        0 => 20,
+        1 => 22,
+        5 => 23 + funct7_b5,
+        _ => 0,
+    };
     row[layout.shout_table_id] = if opcode_u64 == 0x33 {
         F::from_u64(alu_reg_table_id)
+    } else if opcode_u64 == 0x3B {
+        F::from_u64(alu_reg_w_table_id)
     } else if opcode_u64 == 0x13 {
         F::from_u64(alu_table_base + (funct7_b5 * f3_is_5))
+    } else if opcode_u64 == 0x1B {
+        F::from_u64(alu_imm_w_table_id)
     } else if opcode_u64 == 0x63 {
         F::from_u64(branch_table_expected)
     } else if matches!(opcode_u64, 0x03 | 0x23 | 0x67 | 0x17) {

@@ -65,7 +65,7 @@ fn ccs_matrix_has_any_nonzero(mat: &CcsMatrix<F>) -> bool {
     }
 }
 
-fn one_empty_step_trace() -> VmTrace<u64, u64> {
+fn one_empty_step_trace() -> VmTrace<u64, u64, u128> {
     VmTrace {
         steps: vec![StepTrace {
             cycle: 0,
@@ -108,7 +108,7 @@ fn with_shared_cpu_bus_injects_constraints_and_forces_const_one() {
         /*m_in=*/ 1,
         &tables,
         &HashMap::new(),
-        Box::new(|_step| vec![F::ZERO]),
+        Box::new(|_step: &[neo_vm_trace::StepTrace<u64, u64, u128>]| vec![F::ZERO]),
     )
     .expect("R1csCpu::new");
 
@@ -201,7 +201,7 @@ fn with_shared_cpu_bus_accepts_empty_shout_bindings_for_padding_only_mode() {
         /*m_in=*/ 1,
         &tables,
         &HashMap::new(),
-        Box::new(|_step| vec![F::ZERO]),
+        Box::new(|_step: &[neo_vm_trace::StepTrace<u64, u64, u128>]| vec![F::ZERO]),
     )
     .expect("R1csCpu::new");
 
@@ -532,7 +532,7 @@ fn with_shared_cpu_bus_rejects_non_public_const_one() {
         /*m_in=*/ 1,
         &tables,
         &HashMap::new(),
-        Box::new(|_step| vec![F::ZERO]),
+        Box::new(|_step: &[neo_vm_trace::StepTrace<u64, u64, u128>]| vec![F::ZERO]),
     )
     .expect("R1csCpu::new");
 
@@ -577,7 +577,7 @@ fn with_shared_cpu_bus_rejects_bindings_in_bus_tail() {
         /*m_in=*/ 1,
         &tables,
         &HashMap::new(),
-        Box::new(|_step| vec![F::ZERO]),
+        Box::new(|_step: &[neo_vm_trace::StepTrace<u64, u64, u128>]| vec![F::ZERO]),
     )
     .expect("R1csCpu::new");
 

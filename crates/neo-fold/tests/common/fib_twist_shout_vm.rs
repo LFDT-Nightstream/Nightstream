@@ -22,8 +22,8 @@ pub struct MapShout {
     pub table: Vec<u64>,
 }
 
-impl Shout<u64> for MapShout {
-    fn lookup(&mut self, id: ShoutId, key: u64) -> u64 {
+impl Shout<u128, u64> for MapShout {
+    fn lookup(&mut self, id: ShoutId, key: u128) -> u64 {
         assert_eq!(id.0, 0, "this test only supports shout_id=0");
         self.table.get(key as usize).copied().unwrap_or(0)
     }
@@ -57,7 +57,7 @@ impl FibTwistShoutVm {
     }
 }
 
-impl VmCpu<u64, u64> for FibTwistShoutVm {
+impl VmCpu<u64, u64, u128> for FibTwistShoutVm {
     type Error = String;
 
     fn snapshot_regs(&self) -> Vec<u64> {
@@ -75,9 +75,9 @@ impl VmCpu<u64, u64> for FibTwistShoutVm {
     fn step<TW, SH>(&mut self, twist: &mut TW, shout: &mut SH) -> Result<StepMeta<u64>, Self::Error>
     where
         TW: Twist<u64, u64>,
-        SH: Shout<u64>,
+        SH: Shout<u128, u64>,
     {
-        let _one = shout.lookup(ShoutId(0), 1);
+        let _one = shout.lookup(ShoutId(0), 1u128);
 
         let mem_id = TwistId(0);
         let mem_next = twist.load(mem_id, 0);

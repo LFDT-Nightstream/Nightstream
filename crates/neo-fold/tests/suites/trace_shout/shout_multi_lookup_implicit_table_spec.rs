@@ -80,7 +80,11 @@ impl<const N: usize> NeoCircuit for MultiLookupImplicitSpecCircuit<N> {
         Ok(())
     }
 
-    fn build_witness_prefix(&self, layout: &Self::Layout, chunk: &[StepTrace<u64, u64>]) -> Result<Vec<F>, String> {
+    fn build_witness_prefix(
+        &self,
+        layout: &Self::Layout,
+        chunk: &[StepTrace<u64, u64, u128>],
+    ) -> Result<Vec<F>, String> {
         if chunk.len() != N {
             return Err(format!(
                 "MultiLookupImplicitSpecCircuit witness builder expects full chunks (len {} != N {})",
@@ -120,10 +124,12 @@ struct RiscvOpcodeShout {
     xlen: usize,
 }
 
-impl Shout<u64> for RiscvOpcodeShout {
-    fn lookup(&mut self, _shout_id: ShoutId, key: u64) -> u64 {
+impl Shout<u128, u64> for RiscvOpcodeShout {
+    fn lookup(&mut self, _shout_id: ShoutId, key: u128) -> u64 {
         match self.opcode {
-            RiscvOpcode::Add | RiscvOpcode::Sub => mask_to_xlen(key, self.xlen),
+            RiscvOpcode::Add | RiscvOpcode::Sub => {
+                mask_to_xlen(u64::try_from(key).expect("combined 32-bit key fits in u64"), self.xlen)
+            }
             _ => panic!("test shout supports only ADD/SUB combined-key mode"),
         }
     }
@@ -134,7 +140,7 @@ struct MultiLookupImplicitSpecVm {
     pc: u64,
 }
 
-impl VmCpu<u64, u64> for MultiLookupImplicitSpecVm {
+impl VmCpu<u64, u64, u128> for MultiLookupImplicitSpecVm {
     type Error = String;
 
     fn snapshot_regs(&self) -> Vec<u64> {
@@ -152,7 +158,7 @@ impl VmCpu<u64, u64> for MultiLookupImplicitSpecVm {
     fn step<T, S>(&mut self, _twist: &mut T, shout: &mut S) -> Result<StepMeta<u64>, Self::Error>
     where
         T: Twist<u64, u64>,
-        S: Shout<u64>,
+        S: Shout<u128, u64>,
     {
         let rs1_a = 0x1234_5678u64;
         let rs2_a = 0x1111_2222u64;

@@ -8,6 +8,7 @@ use std::ops::Range;
 
 use crate::mem_init::MemInit;
 use crate::riscv::lookups::RiscvOpcode;
+use crate::AffineWordAddressRemap;
 
 fn default_one_usize() -> usize {
     1
@@ -157,6 +158,9 @@ pub struct MemInstance<C, F> {
     /// Optional precomputed digest for transcript binding fast paths (prover-only optimization).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub init_digest: Option<[u8; 32]>,
+    /// Optional guest->logical address remap metadata for memory-side linkage checks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guest_addr_remap: Option<AffineWordAddressRemap>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

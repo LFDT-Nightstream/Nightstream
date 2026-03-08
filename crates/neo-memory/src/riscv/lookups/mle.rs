@@ -338,6 +338,158 @@ pub fn evaluate_sra_mle<F: Field>(r: &[F], xlen: usize) -> F {
     result
 }
 
+#[inline]
+fn sign_extend_word_result<F: Field>(low_word: F, sign_bit: F) -> F {
+    low_word + F::from_u64(0xFFFF_FFFF_0000_0000) * sign_bit
+}
+
+fn evaluate_addw_components<F: Field>(r: &[F]) -> (F, F) {
+    debug_assert_eq!(r.len(), 128);
+    let low = &r[..64];
+    let mut result = F::ZERO;
+    let mut carry = F::ZERO;
+    let mut sign_bit = F::ZERO;
+
+    for i in 0..32 {
+        let x_i = low[2 * i];
+        let y_i = low[2 * i + 1];
+        let coeff = F::from_u64(1u64 << i);
+        let sum_bit = x_i + y_i + carry
+            - x_i * y_i * F::from_u64(2)
+            - x_i * carry * F::from_u64(2)
+            - y_i * carry * F::from_u64(2)
+            + x_i * y_i * carry * F::from_u64(4);
+        result += coeff * sum_bit;
+        if i == 31 {
+            sign_bit = sum_bit;
+        }
+        carry = x_i * y_i + x_i * carry + y_i * carry - x_i * y_i * carry * F::from_u64(2);
+    }
+
+    (result, sign_bit)
+}
+
+fn evaluate_subw_components<F: Field>(r: &[F]) -> (F, F) {
+    debug_assert_eq!(r.len(), 128);
+    let low = &r[..64];
+    let mut result = F::ZERO;
+    let mut carry = F::ONE;
+    let mut sign_bit = F::ZERO;
+
+    for i in 0..32 {
+        let x_i = low[2 * i];
+        let y_i = low[2 * i + 1];
+        let y_comp = F::ONE - y_i;
+        let coeff = F::from_u64(1u64 << i);
+        let sum_bit = x_i + y_comp + carry
+            - x_i * y_comp * F::from_u64(2)
+            - x_i * carry * F::from_u64(2)
+            - y_comp * carry * F::from_u64(2)
+            + x_i * y_comp * carry * F::from_u64(4);
+        result += coeff * sum_bit;
+        if i == 31 {
+            sign_bit = sum_bit;
+        }
+        carry = x_i * y_comp + x_i * carry + y_comp * carry - x_i * y_comp * carry * F::from_u64(2);
+    }
+
+    (result, sign_bit)
+}
+
+fn build_shift_word_eq_table<F: Field>(r: &[F]) -> Vec<F> {
+    debug_assert_eq!(r.len(), 128);
+    let low = &r[..64];
+    let mut y_bits = Vec::with_capacity(5);
+    for k in 0..5 {
+        y_bits.push(low[2 * k + 1]);
+    }
+
+    let mut eq_s = vec![F::ZERO; 32];
+    for s in 0..32 {
+        let mut eq = F::ONE;
+        for (k, y_k) in y_bits.iter().enumerate() {
+            eq *= if ((s >> k) & 1) == 1 { *y_k } else { F::ONE - *y_k };
+        }
+        eq_s[s] = eq;
+    }
+    eq_s
+}
+
+pub fn evaluate_addw_mle<F: Field>(r: &[F]) -> F {
+    let (low_word, sign_bit) = evaluate_addw_components(r);
+    sign_extend_word_result(low_word, sign_bit)
+}
+
+pub fn evaluate_subw_mle<F: Field>(r: &[F]) -> F {
+    let (low_word, sign_bit) = evaluate_subw_components(r);
+    sign_extend_word_result(low_word, sign_bit)
+}
+
+pub fn evaluate_sllw_mle<F: Field>(r: &[F]) -> F {
+    debug_assert_eq!(r.len(), 128);
+    let low = &r[..64];
+    let eq_s = build_shift_word_eq_table(r);
+    let mut result = F::ZERO;
+    let mut sign_bit = F::ZERO;
+
+    for i in 0..32 {
+        let mut out_bit = F::ZERO;
+        for s in 0..=i {
+            out_bit += eq_s[s] * low[2 * (i - s)];
+        }
+        if i == 31 {
+            sign_bit = out_bit;
+        }
+        result += F::from_u64(1u64 << i) * out_bit;
+    }
+
+    sign_extend_word_result(result, sign_bit)
+}
+
+pub fn evaluate_srlw_mle<F: Field>(r: &[F]) -> F {
+    debug_assert_eq!(r.len(), 128);
+    let low = &r[..64];
+    let eq_s = build_shift_word_eq_table(r);
+    let mut result = F::ZERO;
+    let mut sign_bit = F::ZERO;
+
+    for i in 0..32 {
+        let mut out_bit = F::ZERO;
+        for s in 0..(32 - i) {
+            out_bit += eq_s[s] * low[2 * (i + s)];
+        }
+        if i == 31 {
+            sign_bit = out_bit;
+        }
+        result += F::from_u64(1u64 << i) * out_bit;
+    }
+
+    sign_extend_word_result(result, sign_bit)
+}
+
+pub fn evaluate_sraw_mle<F: Field>(r: &[F]) -> F {
+    debug_assert_eq!(r.len(), 128);
+    let low = &r[..64];
+    let eq_s = build_shift_word_eq_table(r);
+    let sign = low[62];
+    let mut result = F::ZERO;
+    let mut sign_bit = F::ZERO;
+
+    for i in 0..32 {
+        let mut out_bit = F::ZERO;
+        for s in 0..32 {
+            let bit = if i + s < 32 { low[2 * (i + s)] } else { sign };
+            out_bit += eq_s[s] * bit;
+        }
+        if i == 31 {
+            sign_bit = out_bit;
+        }
+        result += F::from_u64(1u64 << i) * out_bit;
+    }
+
+    sign_extend_word_result(result, sign_bit)
+}
+
 /// Evaluate the MLE of a RISC-V opcode at a random point.
 ///
 /// This dispatches to the appropriate MLE evaluation function based on the opcode.
@@ -368,6 +520,11 @@ pub fn evaluate_opcode_mle<F: Field>(op: RiscvOpcode, r: &[F], xlen: usize) -> F
         RiscvOpcode::Sll => evaluate_sll_mle(r, xlen),
         RiscvOpcode::Srl => evaluate_srl_mle(r, xlen),
         RiscvOpcode::Sra => evaluate_sra_mle(r, xlen),
+        RiscvOpcode::Addw => evaluate_addw_mle(r),
+        RiscvOpcode::Subw => evaluate_subw_mle(r),
+        RiscvOpcode::Sllw => evaluate_sllw_mle(r),
+        RiscvOpcode::Srlw => evaluate_srlw_mle(r),
+        RiscvOpcode::Sraw => evaluate_sraw_mle(r),
         // For shift and other opcodes, use the naive MLE evaluation when available.
         // Note: naive evaluation is O(2^{2*xlen}) and intentionally limited to tiny xlen.
         _ => {

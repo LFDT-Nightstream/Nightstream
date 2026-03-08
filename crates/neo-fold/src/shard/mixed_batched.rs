@@ -313,6 +313,8 @@ where
         ShardProof {
             steps: merged_steps,
             output_proof,
+            riscv_profile: None,
+            riscv_memory_layout: None,
             segment_meta: Some(segment_meta),
         },
         accumulator_wit,
@@ -498,6 +500,8 @@ where
             } else {
                 None
             },
+            riscv_profile: None,
+            riscv_memory_layout: None,
             segment_meta: if is_ccs_only {
                 None
             } else {

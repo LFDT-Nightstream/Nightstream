@@ -596,19 +596,21 @@ pub(crate) fn decode_stage_required_for_step_witness(step: &StepWitnessBundle<Cm
 #[inline]
 pub(crate) fn width_stage_required_for_step_instance(step: &StepInstanceBundle<Cmt, F, K>) -> bool {
     wb_wp_required_for_step_instance(step)
-        && step
+        && (step
             .lut_insts
             .iter()
             .any(|inst| rv32_is_width_lookup_table_id(inst.table_id))
+            || rv64_fullword_width_stage_required_for_step_instance(step))
 }
 
 #[inline]
 pub(crate) fn width_stage_required_for_step_witness(step: &StepWitnessBundle<Cmt, F, K>) -> bool {
     wb_wp_required_for_step_witness(step)
-        && step
+        && (step
             .lut_instances
             .iter()
             .any(|(inst, _)| rv32_is_width_lookup_table_id(inst.table_id))
+            || rv64_fullword_width_stage_required_for_step_witness(step))
 }
 
 #[inline]
@@ -695,16 +697,23 @@ pub(crate) fn build_route_a_decode_time_claims(
     }
 
     let trace = Rv32TraceLayout::new();
+    let rv64_exact_words = trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
+    let _rv64_trace = if rv64_exact_words {
+        Some(neo_memory::riscv::trace::Rv64TraceLayout::new())
+    } else {
+        None
+    };
     let decode = Rv32DecodeSidecarLayout::new();
     let t_len = infer_rv32_trace_t_len_for_wb_wp(step, &trace)?;
     let m_in = step.mcs.0.m_in;
     let ell_n = r_cycle.len();
 
-    let cpu_cols = vec![
+    let mut cpu_cols = vec![
         trace.active,
         trace.halted,
         trace.is_virtual,
         trace.virtual_sequence_remaining,
+        trace.virtual_commit_from_prev,
         trace.instr_word,
         trace.rs1_addr,
         trace.rs2_addr,
@@ -721,6 +730,9 @@ pub(crate) fn build_route_a_decode_time_claims(
         trace.shout_rhs,
         trace.shout_add_sub_key,
     ];
+    if rv64_exact_words {
+        cpu_cols.extend(rv64_trace_exact_word_opening_columns());
+    }
     let cpu_decoded = decode_trace_col_values_batch(params, step, t_len, &cpu_cols)?;
 
     let decode_decoded = {
@@ -1125,6 +1137,15 @@ pub(crate) fn build_route_a_decode_time_claims(
             ))
         })?;
     #[cfg(debug_assertions)]
+    let cpu_virtual_commit_from_prev_vals = cpu_decoded
+        .get(&trace.virtual_commit_from_prev)
+        .ok_or_else(|| {
+            PiCcsError::ProtocolError(format!(
+                "W2 missing CPU decoded column {}",
+                trace.virtual_commit_from_prev
+            ))
+        })?;
+    #[cfg(debug_assertions)]
     let cpu_rs1_addr_vals = cpu_decoded
         .get(&trace.rs1_addr)
         .ok_or_else(|| PiCcsError::ProtocolError(format!("W2 missing CPU decoded column {}", trace.rs1_addr)))?;
@@ -1380,6 +1401,7 @@ pub(crate) fn build_route_a_decode_time_claims(
             let halted = cpu_halted_vals[j];
             let is_virtual = cpu_is_virtual_vals[j];
             let virtual_sequence_remaining = cpu_virtual_sequence_remaining_vals[j];
+            let virtual_commit_from_prev = cpu_virtual_commit_from_prev_vals[j];
             let trace_rs1_addr = cpu_rs1_addr_vals[j];
             let trace_rs2_addr = cpu_rs2_addr_vals[j];
             let trace_rd_addr = cpu_rd_addr_vals[j];
@@ -1393,15 +1415,81 @@ pub(crate) fn build_route_a_decode_time_claims(
             let rs1_val = cpu_rs1_val_vals[j];
             let rs2_val = cpu_rs2_val_vals[j];
             let rd_val = cpu_rd_val_vals[j];
-            let ram_has_read = decode_ram_has_read_vals[j];
-            let ram_has_write = decode_ram_has_write_vals[j];
-            let ram_addr = cpu_ram_addr_vals[j];
             let shout_has_lookup = cpu_shout_has_lookup_vals[j];
             let shout_table_id = cpu_shout_table_id_vals[j];
             let shout_val = cpu_shout_val_vals[j];
             let shout_lhs = cpu_shout_lhs_vals[j];
             let shout_rhs = cpu_shout_rhs_vals[j];
             let shout_add_sub_key = cpu_shout_add_sub_key_vals[j];
+            let rs1_word = if let Some(rv64_trace) = _rv64_trace.as_ref() {
+                cpu_decoded.get(&rv64_trace.rs1_val_lo32).ok_or_else(|| {
+                    PiCcsError::ProtocolError(format!("W2 missing CPU decoded column {}", rv64_trace.rs1_val_lo32))
+                })?[j]
+            } else {
+                rs1_val
+            };
+            let rs2_word = if let Some(rv64_trace) = _rv64_trace.as_ref() {
+                cpu_decoded.get(&rv64_trace.rs2_val_lo32).ok_or_else(|| {
+                    PiCcsError::ProtocolError(format!("W2 missing CPU decoded column {}", rv64_trace.rs2_val_lo32))
+                })?[j]
+            } else {
+                rs2_val
+            };
+            let shout_lhs_word = if let Some(rv64_trace) = _rv64_trace.as_ref() {
+                cpu_decoded.get(&rv64_trace.shout_lhs_lo32).ok_or_else(|| {
+                    PiCcsError::ProtocolError(format!("W2 missing CPU decoded column {}", rv64_trace.shout_lhs_lo32))
+                })?[j]
+            } else {
+                shout_lhs
+            };
+            let shout_lhs_hi = if let Some(rv64_trace) = _rv64_trace.as_ref() {
+                cpu_decoded.get(&rv64_trace.shout_lhs_hi32).ok_or_else(|| {
+                    PiCcsError::ProtocolError(format!("W2 missing CPU decoded column {}", rv64_trace.shout_lhs_hi32))
+                })?[j]
+            } else {
+                K::ZERO
+            };
+            let shout_rhs_word = if let Some(rv64_trace) = _rv64_trace.as_ref() {
+                cpu_decoded.get(&rv64_trace.shout_rhs_lo32).ok_or_else(|| {
+                    PiCcsError::ProtocolError(format!("W2 missing CPU decoded column {}", rv64_trace.shout_rhs_lo32))
+                })?[j]
+            } else {
+                shout_rhs
+            };
+            let shout_rhs_hi = if let Some(rv64_trace) = _rv64_trace.as_ref() {
+                cpu_decoded.get(&rv64_trace.shout_rhs_hi32).ok_or_else(|| {
+                    PiCcsError::ProtocolError(format!("W2 missing CPU decoded column {}", rv64_trace.shout_rhs_hi32))
+                })?[j]
+            } else {
+                K::ZERO
+            };
+            let shout_add_sub_key_word = if let Some(rv64_trace) = _rv64_trace.as_ref() {
+                cpu_decoded
+                    .get(&rv64_trace.shout_add_sub_key_lo32)
+                    .ok_or_else(|| {
+                        PiCcsError::ProtocolError(format!(
+                            "W2 missing CPU decoded column {}",
+                            rv64_trace.shout_add_sub_key_lo32
+                        ))
+                    })?[j]
+            } else {
+                shout_add_sub_key
+            };
+            let shout_add_sub_key_hi = if let Some(rv64_trace) = _rv64_trace.as_ref() {
+                cpu_decoded
+                    .get(&rv64_trace.shout_add_sub_key_hi32)
+                    .ok_or_else(|| {
+                        PiCcsError::ProtocolError(format!(
+                            "W2 missing CPU decoded column {}",
+                            rv64_trace.shout_add_sub_key_hi32
+                        ))
+                    })?[j]
+            } else {
+                K::ZERO
+            };
+            let ram_has_read = decode_ram_has_read_vals[j];
+            let ram_has_write = decode_ram_has_write_vals[j];
+            let ram_addr = cpu_ram_addr_vals[j];
             let opcode_flags = [
                 decode_op_lui_vals[j],
                 decode_op_auipc_vals[j],
@@ -1450,15 +1538,18 @@ pub(crate) fn build_route_a_decode_time_claims(
             );
             let bitness_residuals = w2_decode_bitness_residuals(opcode_flags, funct3_is);
             let alu_branch_residuals = w2_alu_branch_lookup_residuals(
+                rv64_exact_words,
                 active,
                 is_virtual,
                 virtual_sequence_remaining,
+                virtual_commit_from_prev,
                 halted,
                 shout_has_lookup,
                 shout_lhs,
                 shout_rhs,
                 shout_add_sub_key,
                 shout_table_id,
+                decode_opcode,
                 trace_rs1_addr,
                 trace_rs2_addr,
                 trace_rd_addr,
@@ -1467,6 +1558,14 @@ pub(crate) fn build_route_a_decode_time_claims(
                 decode_rd_addr,
                 rs1_val,
                 rs2_val,
+                rs1_word,
+                rs2_word,
+                shout_lhs_word,
+                shout_lhs_hi,
+                shout_rhs_word,
+                shout_rhs_hi,
+                shout_add_sub_key_word,
+                shout_add_sub_key_hi,
                 trace_rd_has_write,
                 decode_rd_has_write,
                 rd_is_zero,
@@ -1521,17 +1620,23 @@ pub(crate) fn build_route_a_decode_time_claims(
         }
     }
 
-    let main_field_cols = vec![
+    let mut main_field_cols = vec![
         trace.active,
         trace.halted,
         trace.is_virtual,
         trace.virtual_sequence_remaining,
+        trace.virtual_commit_from_prev,
         trace.rs1_addr,
         trace.rs2_addr,
         trace.rd_addr,
         trace.rs1_val,
         trace.rs2_val,
         trace.rd_val,
+    ];
+    if rv64_exact_words {
+        main_field_cols.extend(rv64_trace_exact_word_opening_columns());
+    }
+    main_field_cols.extend([
         trace.rd_has_write,
         trace.ram_addr,
         trace.shout_has_lookup,
@@ -1540,7 +1645,7 @@ pub(crate) fn build_route_a_decode_time_claims(
         trace.shout_lhs,
         trace.shout_rhs,
         trace.shout_add_sub_key,
-    ];
+    ]);
     let decode_field_cols = vec![
         decode.opcode,
         decode.rs1,
@@ -1609,57 +1714,311 @@ pub(crate) fn build_route_a_decode_time_claims(
     let active_zero = SparseIdxVec::from_entries(pow2_cycle, Vec::new());
     let fields_weights = w2_decode_pack_weight_vector(r_cycle, W2_FIELDS_RESIDUAL_COUNT);
     let mut alu_branch_residuals_scratch = Vec::with_capacity(W2_FIELDS_RESIDUAL_COUNT);
-    let fields_oracle = FormulaOracleSparseTime::new(
-        fields_sparse_cols,
-        // Virtual-stage shape+semantic selectors introduce higher multiplicative degree;
-        // use the shared decode/fields bound with one slack degree.
-        W2_FIELDS_DEGREE_BOUND,
-        r_cycle,
-        move |vals: &[K]| {
-            let mut cursor = ValueCursor::new(vals);
-            let decode_inputs = W2DecodeFieldsOpenings {
-                active: cursor.take(),
-                halted: cursor.take(),
-                is_virtual: cursor.take(),
-                virtual_sequence_remaining: cursor.take(),
-                trace_rs1_addr: cursor.take(),
-                trace_rs2_addr: cursor.take(),
-                trace_rd_addr: cursor.take(),
-                rs1_val: cursor.take(),
-                rs2_val: cursor.take(),
-                rd_val: cursor.take(),
-                trace_rd_has_write: cursor.take(),
-                ram_addr: cursor.take(),
-                shout_has_lookup: cursor.take(),
-                shout_table_id: cursor.take(),
-                shout_val: cursor.take(),
-                shout_lhs: cursor.take(),
-                shout_rhs: cursor.take(),
-                shout_add_sub_key: cursor.take(),
-                decode_opcode: cursor.take(),
-                decode_rs1_addr: cursor.take(),
-                decode_rs2_addr: cursor.take(),
-                decode_rd_addr: cursor.take(),
-                rd_is_zero: cursor.take(),
-                decode_rd_has_write: cursor.take(),
-                ram_has_read: cursor.take(),
-                ram_has_write: cursor.take(),
-                opcode_flags: cursor.take_arr::<12>(),
-                op_custom: cursor.take(),
-                funct3_is: cursor.take_arr::<8>(),
-                funct3_bits: cursor.take_arr::<3>(),
-                funct7_bits: cursor.take_arr::<7>(),
-                imm_i: cursor.take(),
-                imm_s: cursor.take(),
-            };
-            debug_assert_eq!(cursor.consumed(), vals.len());
-            w2_decode_fields_weighted_residual_with_scratch(
-                &decode_inputs,
-                &fields_weights,
-                &mut alu_branch_residuals_scratch,
-            )
-        },
-    );
+    let eval_fields_openings = move |vals: &[K]| {
+        let mut cursor = ValueCursor::new(vals);
+        let mut decode_inputs = W2DecodeFieldsOpenings {
+            rv64_exact_words,
+            active: cursor.take(),
+            halted: cursor.take(),
+            is_virtual: cursor.take(),
+            virtual_sequence_remaining: cursor.take(),
+            virtual_commit_from_prev: cursor.take(),
+            trace_rs1_addr: cursor.take(),
+            trace_rs2_addr: cursor.take(),
+            trace_rd_addr: cursor.take(),
+            rs1_val: cursor.take(),
+            rs2_val: cursor.take(),
+            rd_val: cursor.take(),
+            rs1_word: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            rs2_word: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            rd_word: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            shout_lhs_word: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            shout_lhs_hi: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            shout_rhs_word: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            shout_rhs_hi: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            shout_add_sub_key_word: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            shout_add_sub_key_hi: if rv64_exact_words { cursor.take() } else { K::ZERO },
+            trace_rd_has_write: cursor.take(),
+            ram_addr: cursor.take(),
+            shout_has_lookup: cursor.take(),
+            shout_table_id: cursor.take(),
+            shout_val: cursor.take(),
+            shout_lhs: cursor.take(),
+            shout_rhs: cursor.take(),
+            shout_add_sub_key: cursor.take(),
+            decode_opcode: cursor.take(),
+            decode_rs1_addr: cursor.take(),
+            decode_rs2_addr: cursor.take(),
+            decode_rd_addr: cursor.take(),
+            rd_is_zero: cursor.take(),
+            decode_rd_has_write: cursor.take(),
+            ram_has_read: cursor.take(),
+            ram_has_write: cursor.take(),
+            opcode_flags: cursor.take_arr::<12>(),
+            op_custom: cursor.take(),
+            funct3_is: cursor.take_arr::<8>(),
+            funct3_bits: cursor.take_arr::<3>(),
+            funct7_bits: cursor.take_arr::<7>(),
+            imm_i: cursor.take(),
+            imm_s: cursor.take(),
+        };
+        if !rv64_exact_words {
+            decode_inputs.rs1_word = decode_inputs.rs1_val;
+            decode_inputs.rs2_word = decode_inputs.rs2_val;
+            decode_inputs.rd_word = decode_inputs.rd_val;
+            decode_inputs.shout_lhs_word = decode_inputs.shout_lhs;
+            decode_inputs.shout_rhs_word = decode_inputs.shout_rhs;
+            decode_inputs.shout_add_sub_key_word = decode_inputs.shout_add_sub_key;
+        }
+        let consumed = cursor.consumed();
+        if consumed != vals.len() {
+            panic!(
+                "decode/fields cursor length mismatch: consumed={}, vals={}",
+                consumed,
+                vals.len()
+            );
+        }
+        decode_inputs
+    };
+    let mut eval_fields = move |vals: &[K]| {
+        let decode_inputs = eval_fields_openings(vals);
+        w2_decode_fields_weighted_residual_with_scratch(
+            &decode_inputs,
+            &fields_weights,
+            &mut alu_branch_residuals_scratch,
+        )
+    };
+    let pair_domain = pow2_cycle >> 1;
+    let mut pair_vals0 = vec![K::ZERO; fields_sparse_cols.len()];
+    let mut pair_vals1 = vec![K::ZERO; fields_sparse_cols.len()];
+    for pair in 0..pair_domain {
+        let child0 = 2 * pair;
+        let child1 = child0 + 1;
+        for (col_idx, col) in fields_sparse_cols.iter().enumerate() {
+            pair_vals0[col_idx] = col.get(child0);
+            pair_vals1[col_idx] = col.get(child1);
+        }
+        let pair_sum = eval_fields(&pair_vals0) + eval_fields(&pair_vals1);
+        if pair_sum != K::ZERO {
+            let row0 = eval_fields_openings(&pair_vals0);
+            let row1 = eval_fields_openings(&pair_vals1);
+            let row0_selector = w2_decode_selector_residuals(
+                row0.active,
+                row0.decode_opcode,
+                row0.opcode_flags,
+                row0.op_custom,
+                row0.funct3_is,
+                row0.funct3_bits,
+                row0.opcode_flags[11],
+            );
+            let row1_selector = w2_decode_selector_residuals(
+                row1.active,
+                row1.decode_opcode,
+                row1.opcode_flags,
+                row1.op_custom,
+                row1.funct3_is,
+                row1.funct3_bits,
+                row1.opcode_flags[11],
+            );
+            let row0_bitness = w2_decode_bitness_residuals(row0.opcode_flags, row0.funct3_is);
+            let row1_bitness = w2_decode_bitness_residuals(row1.opcode_flags, row1.funct3_is);
+            let row0_op_write_flags = [
+                row0.opcode_flags[0] * (K::ONE - row0.rd_is_zero),
+                row0.opcode_flags[1] * (K::ONE - row0.rd_is_zero),
+                row0.opcode_flags[2] * (K::ONE - row0.rd_is_zero),
+                row0.opcode_flags[3] * (K::ONE - row0.rd_is_zero),
+                row0.opcode_flags[7] * (K::ONE - row0.rd_is_zero),
+                row0.opcode_flags[8] * (K::ONE - row0.rd_is_zero),
+            ];
+            let row1_op_write_flags = [
+                row1.opcode_flags[0] * (K::ONE - row1.rd_is_zero),
+                row1.opcode_flags[1] * (K::ONE - row1.rd_is_zero),
+                row1.opcode_flags[2] * (K::ONE - row1.rd_is_zero),
+                row1.opcode_flags[3] * (K::ONE - row1.rd_is_zero),
+                row1.opcode_flags[7] * (K::ONE - row1.rd_is_zero),
+                row1.opcode_flags[8] * (K::ONE - row1.rd_is_zero),
+            ];
+            let mut row0_alu = Vec::with_capacity(W2_FIELDS_RESIDUAL_COUNT);
+            w2_alu_branch_lookup_residuals_into(
+                row0.rv64_exact_words,
+                row0.active,
+                row0.is_virtual,
+                row0.virtual_sequence_remaining,
+                row0.virtual_commit_from_prev,
+                row0.halted,
+                row0.shout_has_lookup,
+                row0.shout_lhs,
+                row0.shout_rhs,
+                row0.shout_add_sub_key,
+                row0.shout_table_id,
+                row0.decode_opcode,
+                row0.trace_rs1_addr,
+                row0.trace_rs2_addr,
+                row0.trace_rd_addr,
+                row0.decode_rs1_addr,
+                row0.decode_rs2_addr,
+                row0.decode_rd_addr,
+                row0.rs1_val,
+                row0.rs2_val,
+                row0.rs1_word,
+                row0.rs2_word,
+                row0.shout_lhs_word,
+                row0.shout_lhs_hi,
+                row0.shout_rhs_word,
+                row0.shout_rhs_hi,
+                row0.shout_add_sub_key_word,
+                row0.shout_add_sub_key_hi,
+                row0.trace_rd_has_write,
+                row0.decode_rd_has_write,
+                row0.rd_is_zero,
+                row0.rd_val,
+                row0.ram_has_read,
+                row0.ram_has_write,
+                row0.ram_addr,
+                row0.shout_val,
+                row0.funct3_bits,
+                row0.funct7_bits,
+                row0.opcode_flags,
+                row0_op_write_flags,
+                row0.funct3_is,
+                w2_alu_reg_table_delta_from_bits(row0.funct7_bits, row0.funct3_is),
+                row0.funct7_bits[5] * row0.funct3_is[5],
+                (row0.funct3_is[1] + row0.funct3_is[5]) * (row0.decode_rs2_addr - row0.imm_i),
+                row0.decode_rs2_addr,
+                row0.imm_i,
+                row0.imm_s,
+                &mut row0_alu,
+            );
+            let mut row1_alu = Vec::with_capacity(W2_FIELDS_RESIDUAL_COUNT);
+            w2_alu_branch_lookup_residuals_into(
+                row1.rv64_exact_words,
+                row1.active,
+                row1.is_virtual,
+                row1.virtual_sequence_remaining,
+                row1.virtual_commit_from_prev,
+                row1.halted,
+                row1.shout_has_lookup,
+                row1.shout_lhs,
+                row1.shout_rhs,
+                row1.shout_add_sub_key,
+                row1.shout_table_id,
+                row1.decode_opcode,
+                row1.trace_rs1_addr,
+                row1.trace_rs2_addr,
+                row1.trace_rd_addr,
+                row1.decode_rs1_addr,
+                row1.decode_rs2_addr,
+                row1.decode_rd_addr,
+                row1.rs1_val,
+                row1.rs2_val,
+                row1.rs1_word,
+                row1.rs2_word,
+                row1.shout_lhs_word,
+                row1.shout_lhs_hi,
+                row1.shout_rhs_word,
+                row1.shout_rhs_hi,
+                row1.shout_add_sub_key_word,
+                row1.shout_add_sub_key_hi,
+                row1.trace_rd_has_write,
+                row1.decode_rd_has_write,
+                row1.rd_is_zero,
+                row1.rd_val,
+                row1.ram_has_read,
+                row1.ram_has_write,
+                row1.ram_addr,
+                row1.shout_val,
+                row1.funct3_bits,
+                row1.funct7_bits,
+                row1.opcode_flags,
+                row1_op_write_flags,
+                row1.funct3_is,
+                w2_alu_reg_table_delta_from_bits(row1.funct7_bits, row1.funct3_is),
+                row1.funct7_bits[5] * row1.funct3_is[5],
+                (row1.funct3_is[1] + row1.funct3_is[5]) * (row1.decode_rs2_addr - row1.imm_i),
+                row1.decode_rs2_addr,
+                row1.imm_i,
+                row1.imm_s,
+                &mut row1_alu,
+            );
+            let row0_selector_nz: Vec<_> = row0_selector
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, v)| *v != K::ZERO)
+                .collect();
+            let row1_selector_nz: Vec<_> = row1_selector
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, v)| *v != K::ZERO)
+                .collect();
+            let row0_bitness_nz: Vec<_> = row0_bitness
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, v)| *v != K::ZERO)
+                .collect();
+            let row1_bitness_nz: Vec<_> = row1_bitness
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, v)| *v != K::ZERO)
+                .collect();
+            let row0_alu_nz: Vec<_> = row0_alu
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, v)| *v != K::ZERO)
+                .collect();
+            let row1_alu_nz: Vec<_> = row1_alu
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, v)| *v != K::ZERO)
+                .collect();
+            return Err(PiCcsError::ProtocolError(format!(
+                "decode/fields round0 local invariant mismatch at pair={pair}, rows=({child0},{child1}), \
+                active=({:?}, {:?}), rs1_addr=({:?}, {:?}), rs2_addr=({:?}, {:?}), rd_addr=({:?}, {:?}), \
+                decode_rs1_addr=({:?}, {:?}), decode_rs2_addr=({:?}, {:?}), decode_rd_addr=({:?}, {:?}), trace_rd_has_write=({:?}, {:?}), decode_rd_has_write=({:?}, {:?}), \
+                rs1_val=({:?}, {:?}), rs2_val=({:?}, {:?}), rd_val=({:?}, {:?}), \
+                decode_opcode=({:?}, {:?}), shout_has_lookup=({:?}, {:?}), shout_table_id=({:?}, {:?}), \
+                shout_val=({:?}, {:?}), shout_lhs=({:?}, {:?}), shout_rhs=({:?}, {:?}), shout_add_sub_key=({:?}, {:?}), \
+                imm_i=({:?}, {:?}), imm_s=({:?}, {:?}), \
+                row0_selector_nz={:?}, row1_selector_nz={:?}, row0_bitness_nz={:?}, row1_bitness_nz={:?}, row0_alu_nz={:?}, row1_alu_nz={:?}, \
+                is_virtual=({:?}, {:?}), remaining=({:?}, {:?})",
+                row0.active, row1.active,
+                row0.trace_rs1_addr, row1.trace_rs1_addr,
+                row0.trace_rs2_addr, row1.trace_rs2_addr,
+                row0.trace_rd_addr, row1.trace_rd_addr,
+                row0.decode_rs1_addr, row1.decode_rs1_addr,
+                row0.decode_rs2_addr, row1.decode_rs2_addr,
+                row0.decode_rd_addr, row1.decode_rd_addr,
+                row0.trace_rd_has_write, row1.trace_rd_has_write,
+                row0.decode_rd_has_write, row1.decode_rd_has_write,
+                row0.rs1_val, row1.rs1_val,
+                row0.rs2_val, row1.rs2_val,
+                row0.rd_val, row1.rd_val,
+                row0.decode_opcode, row1.decode_opcode,
+                row0.shout_has_lookup, row1.shout_has_lookup,
+                row0.shout_table_id, row1.shout_table_id,
+                row0.shout_val, row1.shout_val,
+                row0.shout_lhs, row1.shout_lhs,
+                row0.shout_rhs, row1.shout_rhs,
+                row0.shout_add_sub_key, row1.shout_add_sub_key,
+                row0.imm_i, row1.imm_i,
+                row0.imm_s, row1.imm_s,
+                row0_selector_nz,
+                row1_selector_nz,
+                row0_bitness_nz,
+                row1_bitness_nz,
+                row0_alu_nz,
+                row1_alu_nz,
+                row0.is_virtual, row1.is_virtual,
+                row0.virtual_sequence_remaining, row1.virtual_sequence_remaining,
+            )));
+        }
+    }
+    let fields_oracle = FormulaOracleSparseTime::new(fields_sparse_cols, W2_FIELDS_DEGREE_BOUND, r_cycle, eval_fields);
     let imm_oracle = WeightedMaskOracleSparseTime::new(
         active_zero,
         imm_sparse_cols,

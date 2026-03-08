@@ -207,7 +207,7 @@ impl RoundOracle for WeightedMaskOracleSparseTime {
         for col in self.cols.iter_mut() {
             col.fold_round_in_place(r);
         }
-        self.support.fold_round_in_place(r);
+        self.support.fold_support_round_in_place();
         self.bit_idx += 1;
     }
 }
@@ -363,7 +363,7 @@ where
         for col in self.cols.iter_mut() {
             col.fold_round_in_place(r);
         }
-        self.support.fold_round_in_place(r);
+        self.support.fold_support_round_in_place();
         self.bit_idx += 1;
     }
 }
@@ -511,7 +511,7 @@ impl RoundOracle for ShoutGammaValueSharedOracleSparseTime {
         for col in self.val_cols.iter_mut() {
             col.fold_round_in_place(r);
         }
-        self.support.fold_round_in_place(r);
+        self.support.fold_support_round_in_place();
         self.bit_idx += 1;
     }
 }
@@ -670,7 +670,7 @@ impl RoundOracle for ShoutGammaValueOracleSparseTime {
         for col in self.val_cols.iter_mut() {
             col.fold_round_in_place(r);
         }
-        self.support.fold_round_in_place(r);
+        self.support.fold_support_round_in_place();
         self.bit_idx += 1;
     }
 }
@@ -766,17 +766,19 @@ impl RoundOracle for ShoutGammaAdapterSharedOracleSparseTime {
         }
 
         let mut ys = vec![K::ZERO; points.len()];
+        let mut addr_hints = vec![0usize; self.addr_cols.len()];
+        let mut has_hint = 0usize;
         for &pair in self.pair_scratch.iter() {
             let child0 = 2 * pair;
             let child1 = child0 + 1;
-            let has0 = self.has_col.get(child0);
-            let has1 = self.has_col.get(child1);
+            let has0 = self.has_col.get_with_hint(child0, &mut has_hint);
+            let has1 = self.has_col.get_with_hint(child1, &mut has_hint);
             if has0 == K::ZERO && has1 == K::ZERO {
                 continue;
             }
             for i in 0..self.addr_cols.len() {
-                self.addr_child0[i] = self.addr_cols[i].get(child0);
-                self.addr_child1[i] = self.addr_cols[i].get(child1);
+                self.addr_child0[i] = self.addr_cols[i].get_with_hint(child0, &mut addr_hints[i]);
+                self.addr_child1[i] = self.addr_cols[i].get_with_hint(child1, &mut addr_hints[i]);
             }
             let (chi0, chi1) = chi_cycle_children(&self.r_cycle, self.bit_idx, self.prefix_eq, pair);
             for (pi, &x) in points.iter().enumerate() {
@@ -828,7 +830,7 @@ impl RoundOracle for ShoutGammaAdapterSharedOracleSparseTime {
         for col in self.addr_cols.iter_mut() {
             col.fold_round_in_place(r);
         }
-        self.support.fold_round_in_place(r);
+        self.support.fold_support_round_in_place();
         self.bit_idx += 1;
     }
 }
@@ -953,16 +955,18 @@ impl RoundOracle for ShoutGammaAdapterOracleSparseTime {
         }
 
         let mut ys = vec![K::ZERO; point_len];
+        let mut addr_hints = vec![0usize; self.addr_cols.len()];
+        let mut has_hints = vec![0usize; self.has_cols.len()];
         for &pair in self.pair_scratch.iter() {
             let child0 = 2 * pair;
             let child1 = child0 + 1;
             for i in 0..self.addr_cols.len() {
-                self.addr_child0[i] = self.addr_cols[i].get(child0);
-                self.addr_child1[i] = self.addr_cols[i].get(child1);
+                self.addr_child0[i] = self.addr_cols[i].get_with_hint(child0, &mut addr_hints[i]);
+                self.addr_child1[i] = self.addr_cols[i].get_with_hint(child1, &mut addr_hints[i]);
             }
             for i in 0..self.has_cols.len() {
-                self.has_child0[i] = self.has_cols[i].get(child0);
-                self.has_child1[i] = self.has_cols[i].get(child1);
+                self.has_child0[i] = self.has_cols[i].get_with_hint(child0, &mut has_hints[i]);
+                self.has_child1[i] = self.has_cols[i].get_with_hint(child1, &mut has_hints[i]);
             }
 
             let (chi0, chi1) = chi_cycle_children(&self.r_cycle, self.bit_idx, self.prefix_eq, pair);
@@ -1096,7 +1100,7 @@ impl RoundOracle for ShoutGammaAdapterOracleSparseTime {
         for col in self.has_cols.iter_mut() {
             col.fold_round_in_place(r);
         }
-        self.support.fold_round_in_place(r);
+        self.support.fold_support_round_in_place();
         self.bit_idx += 1;
     }
 }

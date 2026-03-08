@@ -278,6 +278,11 @@ impl SuperneoZBlocks {
             }
         }
     }
+
+    #[inline]
+    pub fn imag_all_zero(&self) -> bool {
+        self.imag_all_zero
+    }
 }
 
 impl SuperneoMatrixCache {
@@ -432,6 +437,50 @@ impl SuperneoMatrixCache {
             for i in 0..D {
                 out[i] += w * row_coeffs[i];
             }
+        }
+        out
+    }
+
+    #[inline]
+    fn eval_mle_ring_with_blocks_split_chi(
+        &self,
+        z_blocks: &SuperneoZBlocks,
+        chi_re: &[F],
+        chi_im: &[F],
+        n_eff: usize,
+    ) -> [K; D] {
+        debug_assert_eq!(
+            self.cols.div_ceil(D),
+            z_blocks.re.len(),
+            "SuperneoMatrixCache::eval_mle_ring_with_blocks_split_chi: block count mismatch"
+        );
+        debug_assert_eq!(
+            chi_re.len(),
+            chi_im.len(),
+            "SuperneoMatrixCache::eval_mle_ring_with_blocks_split_chi: chi coeff length mismatch"
+        );
+        let row_cap = min(min(self.rows, n_eff), chi_re.len());
+        let mut out_re = [F::ZERO; D];
+        let mut out_im = [F::ZERO; D];
+        let z_re = &z_blocks.re;
+        for row in 0..row_cap {
+            let w_re = chi_re[row];
+            let w_im = chi_im[row];
+            if w_re == F::ZERO && w_im == F::ZERO {
+                continue;
+            }
+            for rb in &self.row_blocks[row] {
+                let prod_re = rb.bar.mul(&z_re[rb.blk]);
+                for i in 0..D {
+                    let v = prod_re.0[i];
+                    out_re[i] += w_re * v;
+                    out_im[i] += w_im * v;
+                }
+            }
+        }
+        let mut out = [K::ZERO; D];
+        for i in 0..D {
+            out[i] = K::from_coeffs([out_re[i], out_im[i]]);
         }
         out
     }
@@ -617,6 +666,22 @@ pub fn eval_all_mats_ring_cached_with_blocks(
     chi_r: &[K],
     n_eff: usize,
 ) -> Vec<[K; D]> {
+    if z_blocks.imag_all_zero {
+        let row_cap = min(n_eff, chi_r.len());
+        let mut chi_re = Vec::with_capacity(row_cap);
+        let mut chi_im = Vec::with_capacity(row_cap);
+        for &w in chi_r.iter().take(row_cap) {
+            let [re, im] = w.as_coeffs();
+            chi_re.push(re);
+            chi_im.push(im);
+        }
+        let mut out = Vec::with_capacity(cache.mats.len());
+        for m in &cache.mats {
+            out.push(m.eval_mle_ring_with_blocks_split_chi(z_blocks, &chi_re, &chi_im, n_eff));
+        }
+        return out;
+    }
+
     let mut out = Vec::with_capacity(cache.mats.len());
     for m in &cache.mats {
         out.push(m.eval_mle_ring_with_blocks(z_blocks, chi_r, n_eff));

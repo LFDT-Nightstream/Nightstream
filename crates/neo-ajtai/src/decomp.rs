@@ -116,29 +116,38 @@ pub fn decomp_b(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec<Fq> {
 /// but avoids the extra allocation and transpose pass.
 #[allow(non_snake_case)]
 pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec<Fq> {
+    let mut out = Vec::new();
+    decomp_b_row_major_into(z, b, d, style, &mut out);
+    out
+}
+
+/// Reuse-capable variant of [`decomp_b_row_major`].
+#[allow(non_snake_case)]
+pub fn decomp_b_row_major_into(z: &[Fq], b: u32, d: usize, style: DecompStyle, out: &mut Vec<Fq>) {
     let m = z.len();
+    out.clear();
+    out.reserve(d.saturating_mul(m));
     if b == 2 {
         // Row-major output: write contiguously by iterating rows outermost.
         let mut a_vals: Vec<i64> = z.iter().copied().map(to_balanced_i64).collect();
-        let mut Z = Vec::with_capacity(d * m);
         match style {
             DecompStyle::NonNegative => {
                 for row in 0..d {
                     let mut any_next_nonzero = false;
                     for a in a_vals.iter_mut() {
                         if *a == 0 {
-                            Z.push(Fq::ZERO);
+                            out.push(Fq::ZERO);
                             continue;
                         }
                         let digit = (*a & 1) as u64;
-                        Z.push(Fq::from_u64(digit));
+                        out.push(Fq::from_u64(digit));
                         *a >>= 1;
                         any_next_nonzero |= *a != 0;
                     }
                     if !any_next_nonzero {
                         let rem_rows = d - row - 1;
                         if rem_rows > 0 {
-                            Z.resize(Z.len() + rem_rows * m, Fq::ZERO);
+                            out.resize(out.len() + rem_rows * m, Fq::ZERO);
                         }
                         break;
                     }
@@ -152,7 +161,7 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                     for a in a_vals.iter_mut() {
                         let a0 = *a;
                         if a0 == 0 {
-                            Z.push(Fq::ZERO);
+                            out.push(Fq::ZERO);
                             continue;
                         }
                         let digit = if (a0 & 1) == 0 {
@@ -162,7 +171,7 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                         } else {
                             -1i64
                         };
-                        Z.push(match digit {
+                        out.push(match digit {
                             -1 => neg_one,
                             0 => Fq::ZERO,
                             1 => one,
@@ -174,19 +183,18 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                     if !any_next_nonzero {
                         let rem_rows = d - row - 1;
                         if rem_rows > 0 {
-                            Z.resize(Z.len() + rem_rows * m, Fq::ZERO);
+                            out.resize(out.len() + rem_rows * m, Fq::ZERO);
                         }
                         break;
                     }
                 }
             }
         }
-        return Z;
+        return;
     }
     if b == 3 {
         // Fast path: constant divisor enables LLVM to optimize division/mod by 3.
         let mut a_vals: Vec<i64> = z.iter().copied().map(to_balanced_i64).collect();
-        let mut Z = Vec::with_capacity(d * m);
         match style {
             DecompStyle::NonNegative => {
                 let two = Fq::from_u64(2);
@@ -194,11 +202,11 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                     let mut any_next_nonzero = false;
                     for a in a_vals.iter_mut() {
                         if *a == 0 {
-                            Z.push(Fq::ZERO);
+                            out.push(Fq::ZERO);
                             continue;
                         }
                         let r = a.rem_euclid(3);
-                        Z.push(match r {
+                        out.push(match r {
                             0 => Fq::ZERO,
                             1 => Fq::ONE,
                             2 => two,
@@ -210,7 +218,7 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                     if !any_next_nonzero {
                         let rem_rows = d - row - 1;
                         if rem_rows > 0 {
-                            Z.resize(Z.len() + rem_rows * m, Fq::ZERO);
+                            out.resize(out.len() + rem_rows * m, Fq::ZERO);
                         }
                         break;
                     }
@@ -223,7 +231,7 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                     let mut any_next_nonzero = false;
                     for a in a_vals.iter_mut() {
                         if *a == 0 {
-                            Z.push(Fq::ZERO);
+                            out.push(Fq::ZERO);
                             continue;
                         }
                         let mut r = *a % 3;
@@ -233,7 +241,7 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                         if r < -1 {
                             r += 3;
                         }
-                        Z.push(match r {
+                        out.push(match r {
                             -1 => neg_one,
                             0 => Fq::ZERO,
                             1 => one,
@@ -245,34 +253,33 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                     if !any_next_nonzero {
                         let rem_rows = d - row - 1;
                         if rem_rows > 0 {
-                            Z.resize(Z.len() + rem_rows * m, Fq::ZERO);
+                            out.resize(out.len() + rem_rows * m, Fq::ZERO);
                         }
                         break;
                     }
                 }
             }
         }
-        return Z;
+        return;
     }
     let b_i64 = b as i64;
     // Row-major output: write contiguously by iterating rows outermost. This avoids the
     // strided stores of the column-outer decomposition and also avoids zero-filling a
     // ~d*m buffer up front.
     let mut a_vals: Vec<i64> = z.iter().copied().map(to_balanced_i64).collect();
-    let mut Z = Vec::with_capacity(d * m);
     match style {
         DecompStyle::NonNegative => {
             for row in 0..d {
                 let mut any_next_nonzero = false;
                 for a in a_vals.iter_mut() {
                     if *a == 0 {
-                        Z.push(Fq::ZERO);
+                        out.push(Fq::ZERO);
                         continue;
                     }
                     let r = a.rem_euclid(b_i64);
                     let q = a.div_euclid(b_i64);
                     let digit = r as i32;
-                    Z.push(if digit >= 0 {
+                    out.push(if digit >= 0 {
                         Fq::from_u64(digit as u64)
                     } else {
                         Fq::ZERO - Fq::from_u64((-digit) as u64)
@@ -283,7 +290,7 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                 if !any_next_nonzero {
                     let rem_rows = d - row - 1;
                     if rem_rows > 0 {
-                        Z.resize(Z.len() + rem_rows * m, Fq::ZERO);
+                        out.resize(out.len() + rem_rows * m, Fq::ZERO);
                     }
                     break;
                 }
@@ -296,7 +303,7 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                 let mut any_next_nonzero = false;
                 for a in a_vals.iter_mut() {
                     if *a == 0 {
-                        Z.push(Fq::ZERO);
+                        out.push(Fq::ZERO);
                         continue;
                     }
                     let mut r = *a % b_i64;
@@ -307,7 +314,7 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                         r += b_i64;
                     }
                     let digit = r as i32;
-                    Z.push(if digit >= 0 {
+                    out.push(if digit >= 0 {
                         Fq::from_u64(digit as u64)
                     } else {
                         Fq::ZERO - Fq::from_u64((-digit) as u64)
@@ -318,14 +325,13 @@ pub fn decomp_b_row_major(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec
                 if !any_next_nonzero {
                     let rem_rows = d - row - 1;
                     if rem_rows > 0 {
-                        Z.resize(Z.len() + rem_rows * m, Fq::ZERO);
+                        out.resize(out.len() + rem_rows * m, Fq::ZERO);
                     }
                     break;
                 }
             }
         }
     }
-    Z
 }
 
 /// split_b: matrix Z (d×m) with ||Z||∞ < b^k → (Z1..Zk), each ||Zi||∞ < b and Σ b^{i-1} Zi = Z (Def. 11).

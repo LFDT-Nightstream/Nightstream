@@ -243,6 +243,7 @@ fn ccs_only_mcs_batched_rejects_sidecars() {
             ell: 1,
             init: MemInit::Zero,
             init_digest: None,
+            guest_addr_remap: None,
         },
         MemWitness { mats: Vec::new() },
     ));

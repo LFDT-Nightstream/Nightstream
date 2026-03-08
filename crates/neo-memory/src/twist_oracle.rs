@@ -180,6 +180,11 @@ fn pow2_weights_32() -> &'static [K] {
     W.get_or_init(|| std::array::from_fn(|i| K::from_u64(1u64 << i)))
 }
 
+fn pow2_weights_64() -> &'static [K] {
+    static W: OnceLock<[K; 64]> = OnceLock::new();
+    W.get_or_init(|| std::array::from_fn(|i| K::from_u64(1u64 << i)))
+}
+
 fn pow2_weights_5() -> &'static [K] {
     static W: OnceLock<[K; 5]> = OnceLock::new();
     W.get_or_init(|| std::array::from_fn(|i| K::from_u64(1u64 << i)))
@@ -429,6 +434,22 @@ fn expr_rv32_packed_mulhu(cols: &[K; 3], limb_sum: K) -> K {
     let rhs = cols[1];
     let val = cols[2];
     lhs * rhs - limb_sum - val * K::from_u64(1u64 << 32)
+}
+
+fn expr_rv64_packed_mul(cols: &[K; 3], limb_sum: K) -> K {
+    let lhs = cols[0];
+    let rhs = cols[1];
+    let val = cols[2];
+    let two64_mod = K::from_u64(u32::MAX as u64);
+    lhs * rhs - val - limb_sum * two64_mod
+}
+
+fn expr_rv64_packed_mulhu(cols: &[K; 3], limb_sum: K) -> K {
+    let lhs = cols[0];
+    let rhs = cols[1];
+    let val = cols[2];
+    let two64_mod = K::from_u64(u32::MAX as u64);
+    lhs * rhs - limb_sum - val * two64_mod
 }
 
 struct SparseShiftRemBoundOracle {
@@ -990,6 +1011,14 @@ fn expr_rv32_packed_mulhu_bw0(cols: &[K; 3], _bits: &[K], bit_sum: K, _w: &[K; 0
     expr_rv32_packed_mulhu(cols, bit_sum)
 }
 
+fn expr_rv64_packed_mul_bw0(cols: &[K; 3], _bits: &[K], bit_sum: K, _w: &[K; 0]) -> K {
+    expr_rv64_packed_mul(cols, bit_sum)
+}
+
+fn expr_rv64_packed_mulhu_bw0(cols: &[K; 3], _bits: &[K], bit_sum: K, _w: &[K; 0]) -> K {
+    expr_rv64_packed_mulhu(cols, bit_sum)
+}
+
 fn expr_rv32_packed_eq_adapter_bw0(cols: &[K; 3], _bits: &[K], bit_sum: K, _w: &[K; 0]) -> K {
     expr_rv32_packed_eq_adapter(cols, bit_sum)
 }
@@ -1184,6 +1213,66 @@ define_weighted_bits32_oracle3_bits_before_last!(
     expr_rv32_packed_mulhu_bw0,
     4
 );
+
+pub struct Rv64PackedMulOracleSparseTime {
+    core: SparseColsBitsExprOracle<3, 0>,
+}
+
+impl Rv64PackedMulOracleSparseTime {
+    pub fn new(
+        r_cycle: &[K],
+        has_lookup: SparseIdxVec<K>,
+        lhs: SparseIdxVec<K>,
+        rhs: SparseIdxVec<K>,
+        carry_bits: Vec<SparseIdxVec<K>>,
+        val: SparseIdxVec<K>,
+    ) -> Self {
+        debug_assert_eq!(carry_bits.len(), 64);
+        Self {
+            core: SparseColsBitsExprOracle::new(
+                r_cycle,
+                has_lookup,
+                [lhs, rhs, val],
+                carry_bits,
+                Cow::Borrowed(pow2_weights_64()),
+                [],
+                4,
+                expr_rv64_packed_mul_bw0,
+            ),
+        }
+    }
+}
+impl_round_oracle_via_core!(Rv64PackedMulOracleSparseTime);
+
+pub struct Rv64PackedMulhuOracleSparseTime {
+    core: SparseColsBitsExprOracle<3, 0>,
+}
+
+impl Rv64PackedMulhuOracleSparseTime {
+    pub fn new(
+        r_cycle: &[K],
+        has_lookup: SparseIdxVec<K>,
+        lhs: SparseIdxVec<K>,
+        rhs: SparseIdxVec<K>,
+        lo_bits: Vec<SparseIdxVec<K>>,
+        val: SparseIdxVec<K>,
+    ) -> Self {
+        debug_assert_eq!(lo_bits.len(), 64);
+        Self {
+            core: SparseColsBitsExprOracle::new(
+                r_cycle,
+                has_lookup,
+                [lhs, rhs, val],
+                lo_bits,
+                Cow::Borrowed(pow2_weights_64()),
+                [],
+                4,
+                expr_rv64_packed_mulhu_bw0,
+            ),
+        }
+    }
+}
+impl_round_oracle_via_core!(Rv64PackedMulhuOracleSparseTime);
 
 pub struct Rv32PackedMulhAdapterOracleSparseTime {
     core: SparseColsBitsExprOracle<7, 2>,
@@ -2208,12 +2297,13 @@ impl RoundOracle for LazyWeightedBitnessOracleSparseTime {
         }
 
         let mut ys = vec![K::ZERO; points.len()];
+        let mut col_hints = vec![0usize; self.cols.len()];
         for &pair in self.pair_scratch.iter() {
             let child0 = 2 * pair;
             let child1 = child0 + 1;
             for (j, col) in self.cols.iter().enumerate() {
-                self.col_child0[j] = col.get(child0);
-                self.col_child1[j] = col.get(child1);
+                self.col_child0[j] = col.get_with_hint(child0, &mut col_hints[j]);
+                self.col_child1[j] = col.get_with_hint(child1, &mut col_hints[j]);
             }
 
             let (chi0, chi1) = chi_cycle_children(&self.r_cycle, self.bit_idx, self.prefix_eq, pair);
@@ -2260,7 +2350,7 @@ impl RoundOracle for LazyWeightedBitnessOracleSparseTime {
         for col in self.cols.iter_mut() {
             col.fold_round_in_place(r);
         }
-        self.support.fold_round_in_place(r);
+        self.support.fold_support_round_in_place();
         self.bit_idx += 1;
     }
 }

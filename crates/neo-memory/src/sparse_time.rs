@@ -145,6 +145,35 @@ where
         self.len >>= 1;
     }
 
+    /// Structural folding for support sets.
+    ///
+    /// Unlike `fold_round_in_place`, this ignores entry values and keeps one
+    /// parent entry for every parent index that had at least one child present.
+    /// This is the correct operation for sparse support masks used only to
+    /// enumerate active parent pairs during sumcheck evaluation.
+    pub fn fold_support_round_in_place(&mut self) {
+        debug_assert!(self.len.is_power_of_two());
+        debug_assert!(self.len >= 2, "cannot fold len < 2");
+
+        let in_len = self.entries.len();
+        let mut read = 0usize;
+        let mut write = 0usize;
+
+        while read < in_len {
+            let (idx, _) = self.entries[read];
+            let parent = idx >> 1;
+            read += 1;
+            while read < in_len && (self.entries[read].0 >> 1) == parent {
+                read += 1;
+            }
+            self.entries[write] = (parent, R::ONE);
+            write += 1;
+        }
+
+        self.entries.truncate(write);
+        self.len >>= 1;
+    }
+
     /// Only valid when `len == 1`.
     pub fn singleton_value(&self) -> R {
         debug_assert_eq!(self.len, 1);

@@ -104,6 +104,7 @@ fn output_binding_e2e_wrong_claim_fails() -> Result<(), PiCcsError> {
         ell: 2,
         init: MemInit::Zero,
         init_digest: None,
+        guest_addr_remap: None,
     };
     let mem_wit = MemWitness { mats: Vec::new() };
 

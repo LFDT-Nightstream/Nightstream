@@ -102,6 +102,6 @@ fn rv32_trace_shout_event_table_mulh_key_matches_operands() {
         .find(|row| row.opcode == Some(RiscvOpcode::Mulh))
         .expect("expected MULH row");
 
-    let expected_key = interleave_bits(/*lhs=*/ 3, /*rhs=*/ 5) as u64;
+    let expected_key = interleave_bits(/*lhs=*/ 3, /*rhs=*/ 5);
     assert_eq!(mulh_row.key, expected_key, "MULH key must encode rs1/rs2 values");
 }

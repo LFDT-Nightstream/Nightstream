@@ -69,7 +69,7 @@ fn write_shout_bus_row(
     chunk_size: usize,
     j: usize,
     inst: &LutInstance<Cmt, F>,
-    addr: u64,
+    addr: u128,
     val: F,
     has_lookup: F,
 ) {
@@ -80,8 +80,8 @@ fn write_shout_bus_row(
     if has_lookup == F::ONE {
         let mut tmp = addr;
         for _dim in 0..inst.d {
-            let comp = (tmp % (inst.n_side as u64)) as u64;
-            tmp /= inst.n_side as u64;
+            let comp = (tmp % (inst.n_side as u128)) as u64;
+            tmp /= inst.n_side as u128;
             for bit in 0..inst.ell {
                 z[bus_base + col_id * chunk_size + j] = if (comp >> bit) & 1 == 1 { F::ONE } else { F::ZERO };
                 col_id += 1;
@@ -176,7 +176,7 @@ fn route_a_shout_implicit_table_spec_verifies() {
     let bus_cols_total = inst.d * inst.ell + 2;
     let bus_base = ccs.m - bus_cols_total;
     let mut z = vec![F::ZERO; ccs.m];
-    write_shout_bus_row(&mut z, bus_base, 1, 0, &inst, addr, F::from_u64(out), F::ONE);
+    write_shout_bus_row(&mut z, bus_base, 1, 0, &inst, addr.into(), F::from_u64(out), F::ONE);
 
     let (mcs, mcs_wit) = create_mcs_from_z(&params, &l, M_IN, z);
     let step_bundle = crate::common_setup::canonicalize_step_time_columns(StepWitnessBundle {
@@ -271,7 +271,7 @@ fn route_a_shout_implicit_identity_u32_table_spec_verifies() {
     let bus_cols_total = inst.d * inst.ell + 2;
     let bus_base = ccs.m - bus_cols_total;
     let mut z = vec![F::ZERO; ccs.m];
-    write_shout_bus_row(&mut z, bus_base, 1, 0, &inst, addr, F::from_u64(out), F::ONE);
+    write_shout_bus_row(&mut z, bus_base, 1, 0, &inst, addr.into(), F::from_u64(out), F::ONE);
 
     let (mcs, mcs_wit) = create_mcs_from_z(&params, &l, M_IN, z);
     let step_bundle = crate::common_setup::canonicalize_step_time_columns(StepWitnessBundle {

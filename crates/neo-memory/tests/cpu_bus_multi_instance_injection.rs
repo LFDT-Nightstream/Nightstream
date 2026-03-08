@@ -64,6 +64,7 @@ fn mem_inst(mem_id: u32) -> MemInstance<(), F> {
         ell: 1,
         init: MemInit::Zero,
         init_digest: None,
+        guest_addr_remap: None,
     }
 }
 

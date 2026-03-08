@@ -14,7 +14,7 @@ use crate::riscv::lookups::{PROG_ID, RAM_ID, REG_ID};
 use crate::riscv::trace::{
     rv32_decode_lookup_table_id_for_col, rv32_decode_lookup_val_slot_for_col, rv32_is_decode_lookup_table_id,
     rv32_is_width_lookup_table_id, rv32_trace_lookup_addr_group_for_table_id,
-    rv32_trace_lookup_selector_group_for_table_id, Rv32DecodeSidecarLayout,
+    rv32_trace_lookup_selector_group_for_table_id, rv64_is_width_lookup_table_id, Rv32DecodeSidecarLayout,
 };
 
 use super::constants::{
@@ -49,7 +49,7 @@ fn trace_shout_binding(layout: &Rv32TraceCcsLayout, table_id: u32) -> Option<Sho
             addr: Some(trace_cpu_col(layout, layout.trace.pc_before)),
             val: CPU_BUS_COL_DISABLED,
         })
-    } else if rv32_is_width_lookup_table_id(table_id) {
+    } else if rv32_is_width_lookup_table_id(table_id) || rv64_is_width_lookup_table_id(table_id) {
         // Width helper lookup families are keyed by cycle index.
         Some(ShoutCpuBinding {
             has_lookup: CPU_BUS_COL_DISABLED,

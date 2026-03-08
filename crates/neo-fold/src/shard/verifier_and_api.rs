@@ -426,6 +426,7 @@ where
         let mut ob_state: Option<neo_memory::output_check::OutputSumcheckState> = None;
         let mut ob_sparse_addr_weights: Option<Vec<(Vec<K>, K)>> = None;
         let mut ob_sparse_val_offset: Option<K> = None;
+        let mut ob_reg_exact_linkage_degree_bound: Option<usize> = None;
         let mut ob_inc_total_degree_bound: Option<usize> = None;
 
         if include_ob {
@@ -458,6 +459,10 @@ where
                     "output binding: cfg.num_bits={}, but twist_layout.ell_addr={}",
                     cfg.num_bits, ell_addr
                 )));
+            }
+            if mem_inst.mem_id == neo_memory::riscv::lookups::REG_EXACT_ID.0 {
+                ob_reg_exact_linkage_degree_bound =
+                    Some(crate::memory_sidecar::memory::RV64_REG_EXACT_LINKAGE_DEGREE_BOUND);
             }
 
             tr.append_message(b"shard/output_binding_start", &(step_idx as u64).to_le_bytes());
@@ -684,7 +689,11 @@ where
         let wb_enabled = crate::memory_sidecar::memory::wb_wp_required_for_step_instance(step);
         let wp_enabled = crate::memory_sidecar::memory::wb_wp_required_for_step_instance(step);
         let decode_stage_enabled = crate::memory_sidecar::memory::decode_stage_required_for_step_instance(step);
-        let width_stage_enabled = crate::memory_sidecar::memory::width_stage_required_for_step_instance(step);
+        let width_stage_enabled = crate::memory_sidecar::memory::width_stage_required_for_step_instance(step)
+            || crate::memory_sidecar::memory::rv64_fullword_width_stage_required_from_proof(
+                step,
+                &step_proof.batched_time,
+            );
         let control_stage_enabled = crate::memory_sidecar::memory::control_stage_required_for_step_instance(step);
         let crate::memory_sidecar::route_a_time::RouteABatchedTimeVerifyOutput {
             r_time: route_r_time,
@@ -701,6 +710,7 @@ where
             width_stage_enabled,
             control_stage_enabled,
             poseidon_cycle_enabled,
+            ob_reg_exact_linkage_degree_bound,
             ob_inc_total_degree_bound,
         )?;
         if route_r_time.len() != ell_t {
@@ -1046,6 +1056,10 @@ where
             &r_cycle,
             &final_values,
             &step_proof.batched_time.claimed_sums,
+            crate::memory_sidecar::memory::rv64_fullword_width_stage_required_from_proof(
+                step,
+                &step_proof.batched_time,
+            ),
             0,
             &step_proof.mem,
             &step_proof.fold.openings,
@@ -1057,7 +1071,16 @@ where
             poseidon_cont_chals.as_ref(),
         )?;
 
-        let expected_consumed = if include_ob {
+        let exact_reg_output_binding_active = include_ob
+            && ob_cfg
+                .map(|cfg| step.mem_insts[cfg.mem_idx].mem_id == neo_memory::riscv::lookups::REG_EXACT_ID.0)
+                .unwrap_or(false);
+        let expected_consumed = if exact_reg_output_binding_active {
+            final_values
+                .len()
+                .checked_sub(2)
+                .ok_or_else(|| PiCcsError::ProtocolError("missing output binding claims".into()))?
+        } else if include_ob {
             final_values
                 .len()
                 .checked_sub(1)
@@ -1092,6 +1115,32 @@ where
                 .len()
                 .checked_sub(1)
                 .ok_or_else(|| PiCcsError::ProtocolError("missing inc_total claim".into()))?;
+            if exact_reg_output_binding_active {
+                let exact_idx = inc_idx
+                    .checked_sub(1)
+                    .ok_or_else(|| PiCcsError::ProtocolError("missing reg_exact linkage claim".into()))?;
+                if step_proof
+                    .batched_time
+                    .labels
+                    .get(exact_idx)
+                    .map(|l| l.as_slice())
+                    != Some(crate::output_binding::OB_REG_EXACT_LINKAGE_LABEL)
+                {
+                    return Err(PiCcsError::ProtocolError(
+                        "output binding exact-register linkage claim must be penultimate".into(),
+                    ));
+                }
+                crate::memory_sidecar::memory::verify_rv64_reg_exact_output_linkage_terminal(
+                    step,
+                    &route_r_time,
+                    &r_cycle,
+                    &final_values,
+                    exact_idx,
+                    &step_proof.fold.openings,
+                    &mem_out.twist_time_openings,
+                    cfg.mem_idx,
+                )?;
+            }
             if step_proof
                 .batched_time
                 .labels

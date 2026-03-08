@@ -3,7 +3,7 @@ use crate::PiCcsProof;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{matrix::Mat, CeClaim};
 use neo_math::{F, K};
-use neo_memory::output_check::OutputBindingProof;
+use neo_memory::{output_check::OutputBindingProof, RiscvGuestMemoryLayout, RiscvProofProfileConfig};
 
 pub type TwistProofK = neo_memory::twist::TwistProof<K>;
 pub type ShoutProofK = neo_memory::shout::ShoutProof<K>;
@@ -408,6 +408,12 @@ pub struct ShardProof {
     /// Optional output binding proof (proves final memory matches claimed outputs).
     /// Twist linkage is proven as an extra Route-A batched-time claim on the final step.
     pub output_proof: Option<OutputBindingProof>,
+    /// Optional verifier-visible RISC-V proof profile metadata.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub riscv_profile: Option<RiscvProofProfileConfig>,
+    /// Optional deterministic guest-memory layout bound to the proof.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub riscv_memory_layout: Option<RiscvGuestMemoryLayout>,
     /// Segment metadata for mixed CCS-only/Route-A proving.
     ///
     /// Mixed verification requires this metadata and uses it to partition

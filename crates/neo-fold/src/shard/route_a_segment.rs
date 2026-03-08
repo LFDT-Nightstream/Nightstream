@@ -153,6 +153,8 @@ where
             ShardProof {
                 steps: Vec::new(),
                 output_proof: None,
+                riscv_profile: None,
+                riscv_memory_layout: None,
                 segment_meta: None,
             },
             acc_wit_init.to_vec(),
@@ -204,6 +206,8 @@ where
         let ShardProof {
             steps: chunk_steps,
             output_proof: chunk_output_proof,
+            riscv_profile: _,
+            riscv_memory_layout: _,
             segment_meta: _,
         } = chunk_proof;
         if chunk_steps.len() != chunk.len() {
@@ -247,6 +251,8 @@ where
     let proof = ShardProof {
         steps: merged_steps,
         output_proof: merged_output_proof,
+        riscv_profile: None,
+        riscv_memory_layout: None,
         segment_meta: Some(route_chunk_meta),
     };
     if ob.is_some() != proof.output_proof.is_some() {
@@ -373,6 +379,8 @@ where
             } else {
                 None
             },
+            riscv_profile: None,
+            riscv_memory_layout: None,
             segment_meta: None,
         };
         let chunk_ob_cfg = if chunk_is_final { ob_cfg } else { None };

@@ -1,4 +1,6 @@
 use super::*;
+use neo_memory::riscv::lookups::RiscvOpcode;
+use neo_memory::twist_oracle::{Rv64PackedMulOracleSparseTime, Rv64PackedMulhuOracleSparseTime};
 
 pub(crate) fn build_route_a_memory_oracles(
     params: &NeoParams,
@@ -106,8 +108,13 @@ pub(crate) fn build_route_a_memory_oracles(
         }
 
         let packed_layout = rv32_packed_shout_layout(&lut_inst.table_spec)?;
-        let packed_op = packed_layout.map(|(op, _time_bits)| op);
-        let packed_time_bits = packed_layout.map(|(_op, time_bits)| time_bits).unwrap_or(0);
+        let packed_op = packed_layout.map(|(op, _xlen, _time_bits)| op);
+        let packed_xlen = packed_layout
+            .map(|(_op, xlen, _time_bits)| xlen)
+            .unwrap_or(0);
+        let packed_time_bits = packed_layout
+            .map(|(_op, _xlen, time_bits)| time_bits)
+            .unwrap_or(0);
         let is_packed = packed_op.is_some();
         if packed_time_bits != 0 && packed_time_bits != ell_n {
             return Err(PiCcsError::InvalidInput(format!(
@@ -238,37 +245,61 @@ pub(crate) fn build_route_a_memory_oracles(
                     )),
                     Rv32PackedShoutOp::Mul => {
                         let carry_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(2).cloned().collect();
-                        if carry_bits.len() != 32 {
+                        let expected_bits = if packed_xlen == 64 { 64 } else { 32 };
+                        if carry_bits.len() != expected_bits {
                             return Err(PiCcsError::InvalidInput(format!(
-                                "packed RV32 MUL: expected 32 carry bits, got {}",
+                                "packed RISC-V MUL: expected {expected_bits} carry bits, got {}",
                                 carry_bits.len()
                             )));
                         }
-                        Box::new(Rv32PackedMulOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs.clone(),
-                            rhs.clone(),
-                            carry_bits,
-                            lane.val.clone(),
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedMulOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                carry_bits,
+                                lane.val.clone(),
+                            ))
+                        } else {
+                            Box::new(Rv32PackedMulOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                carry_bits,
+                                lane.val.clone(),
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Mulhu => {
                         let lo_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(2).cloned().collect();
-                        if lo_bits.len() != 32 {
+                        let expected_bits = if packed_xlen == 64 { 64 } else { 32 };
+                        if lo_bits.len() != expected_bits {
                             return Err(PiCcsError::InvalidInput(format!(
-                                "packed RV32 MULHU: expected 32 lo bits, got {}",
+                                "packed RISC-V MULHU: expected {expected_bits} lo bits, got {}",
                                 lo_bits.len()
                             )));
                         }
-                        Box::new(Rv32PackedMulhuOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs.clone(),
-                            rhs.clone(),
-                            lo_bits,
-                            lane.val.clone(),
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedMulhuOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                lo_bits,
+                                lane.val.clone(),
+                            ))
+                        } else {
+                            Box::new(Rv32PackedMulhuOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                lo_bits,
+                                lane.val.clone(),
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Mulh => {
                         let hi = packed_cols
@@ -996,6 +1027,22 @@ pub(crate) fn build_route_a_memory_oracles(
                     .addr_bits
                     .get(packed_time_bits..)
                     .ok_or_else(|| PiCcsError::InvalidInput("packed RV32: missing packed cols".into()))?;
+                if packed_xlen == 64 && matches!(packed_op, Some(Rv32PackedShoutOp::Mul | Rv32PackedShoutOp::Mulhu)) {
+                    let opcode = match packed_op.expect("packed_op present when is_packed=true") {
+                        Rv32PackedShoutOp::Mul => RiscvOpcode::Mul,
+                        Rv32PackedShoutOp::Mulhu => RiscvOpcode::Mulhu,
+                        _ => unreachable!(),
+                    };
+                    let mut lane_terms = neo_memory::riscv::packed::rv_collect_packed_bitness_terms(
+                        opcode,
+                        64,
+                        packed_cols,
+                        lane.has_lookup.clone(),
+                        lane.val.clone(),
+                    )?;
+                    bit_cols.append(&mut lane_terms);
+                    continue;
+                }
                 match packed_op {
                     Some(
                         Rv32PackedShoutOp::And
@@ -1464,17 +1511,17 @@ pub(crate) fn build_route_a_memory_oracles(
                 shared_has_col.clone(),
                 shared_addr_cols.clone(),
                 coeff_sum,
-                adapter_eq_alpha,
-                adapter_eq_beta,
+                adapter_eq_alpha.clone(),
+                adapter_eq_beta.clone(),
                 r_cycle,
             ))
         } else {
             Box::new(ShoutGammaAdapterOracleSparseTime::new(
                 shared_addr_cols.clone(),
                 value_has_cols.clone(),
-                adapter_coeffs,
-                adapter_eq_alpha,
-                adapter_eq_beta,
+                adapter_coeffs.clone(),
+                adapter_eq_alpha.clone(),
+                adapter_eq_beta.clone(),
                 r_cycle,
             ))
         };

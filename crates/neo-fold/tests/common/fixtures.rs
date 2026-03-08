@@ -304,6 +304,7 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
         ell: mem_ell,
         init: mem_init0,
         init_digest: None,
+        guest_addr_remap: None,
     };
     let mem_wit0 = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst0 = neo_memory::witness::LutInstance::<Cmt, F> {
@@ -334,6 +335,7 @@ fn build_twist_shout_2step_fixture_inner(seed: u64, bad_lookup_step1: bool) -> S
         ell: mem_ell,
         init: mem_init1,
         init_digest: None,
+        guest_addr_remap: None,
     };
     let mem_wit1 = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst1 = neo_memory::witness::LutInstance::<Cmt, F> {

@@ -104,6 +104,7 @@ fn make_twist_instance(
             ell,
             init,
             init_digest: None,
+            guest_addr_remap: None,
         },
         neo_memory::witness::MemWitness { mats: Vec::new() },
     )

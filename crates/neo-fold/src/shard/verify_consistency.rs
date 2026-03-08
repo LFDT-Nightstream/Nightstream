@@ -340,13 +340,24 @@ pub(crate) fn validate_step_time_openings_consistency(
 
     if let Some(wp_me) = step_proof.mem.wp_me_claims.first() {
         let trace = neo_memory::riscv::trace::Rv32TraceLayout::new();
+        let rv64_exact_words =
+            crate::memory_sidecar::memory::trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
         let mut wp_cols = crate::memory_sidecar::memory::rv32_trace_wp_opening_columns(&trace);
+        if rv64_exact_words {
+            wp_cols.extend(crate::memory_sidecar::memory::rv64_trace_exact_word_opening_columns());
+        }
         if crate::memory_sidecar::memory::control_stage_required_for_step_instance(step) {
             wp_cols.extend(crate::memory_sidecar::memory::rv32_trace_control_extra_opening_columns(
                 &trace,
             ));
         }
-        let opening_entry = crate::memory_sidecar::memory::require_time_opening_entry_for_point(
+        if crate::memory_sidecar::memory::rv64_fullword_width_stage_required_from_proof(step, &step_proof.batched_time)
+        {
+            wp_cols.extend(crate::memory_sidecar::memory::rv64_fullword_wp_opening_columns());
+        }
+        let mut seen_wp_cols = std::collections::BTreeSet::new();
+        wp_cols.retain(|col_id| seen_wp_cols.insert(*col_id));
+        let (opening_entry, _opening_map) = crate::memory_sidecar::memory::require_time_openings_covering_point(
             openings,
             wp_me.r.as_slice(),
             &wp_cols,

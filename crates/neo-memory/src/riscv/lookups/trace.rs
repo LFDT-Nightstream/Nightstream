@@ -39,7 +39,7 @@ impl Default for TraceToProofConfig {
 ///
 /// This extracts all memory read/write events from the trace and formats them
 /// for Neo's Twist (read/write memory) argument.
-pub fn trace_to_plain_mem_trace<F: PrimeField64>(trace: &VmTrace<u64, u64>) -> PlainMemTrace<F> {
+pub fn trace_to_plain_mem_trace<F: PrimeField64, Key>(trace: &VmTrace<u64, u64, Key>) -> PlainMemTrace<F> {
     let steps = trace.len();
 
     let mut has_read = vec![F::ZERO; steps];
@@ -96,7 +96,11 @@ pub fn trace_to_plain_mem_trace<F: PrimeField64>(trace: &VmTrace<u64, u64>) -> P
 /// # Note
 /// Currently assumes a single unified lookup table. For multiple opcode-specific
 /// tables, use `trace_to_plain_lut_traces_by_opcode`.
-pub fn trace_to_plain_lut_trace<F: PrimeField64>(trace: &VmTrace<u64, u64>) -> PlainLutTrace<F> {
+pub fn trace_to_plain_lut_trace<F: PrimeField64, Key>(trace: &VmTrace<u64, u64, Key>) -> PlainLutTrace<F>
+where
+    Key: Copy + TryInto<u64>,
+    <Key as TryInto<u64>>::Error: std::fmt::Debug,
+{
     let steps = trace.len();
 
     let mut has_lookup = vec![F::ZERO; steps];
@@ -107,7 +111,10 @@ pub fn trace_to_plain_lut_trace<F: PrimeField64>(trace: &VmTrace<u64, u64>) -> P
         // Take the first Shout event if any
         if let Some(event) = step.shout_events.first() {
             has_lookup[j] = F::ONE;
-            addr[j] = event.key;
+            addr[j] = event
+                .key
+                .try_into()
+                .expect("plain lookup traces require u64-addressable keys");
             val[j] = F::from_u64(event.value);
         }
     }
@@ -119,10 +126,14 @@ pub fn trace_to_plain_lut_trace<F: PrimeField64>(trace: &VmTrace<u64, u64>) -> P
 ///
 /// This separates lookup events by their ShoutId, allowing different
 /// opcodes to use different lookup tables.
-pub fn trace_to_plain_lut_traces_by_opcode<F: PrimeField64>(
-    trace: &VmTrace<u64, u64>,
+pub fn trace_to_plain_lut_traces_by_opcode<F: PrimeField64, Key>(
+    trace: &VmTrace<u64, u64, Key>,
     num_tables: usize,
-) -> Vec<PlainLutTrace<F>> {
+) -> Vec<PlainLutTrace<F>>
+where
+    Key: Copy + TryInto<u64>,
+    <Key as TryInto<u64>>::Error: std::fmt::Debug,
+{
     let steps = trace.len();
 
     // Initialize a trace for each table
@@ -139,7 +150,10 @@ pub fn trace_to_plain_lut_traces_by_opcode<F: PrimeField64>(
             let table_id = event.shout_id.0 as usize;
             if table_id < num_tables {
                 traces[table_id].has_lookup[j] = F::ONE;
-                traces[table_id].addr[j] = event.key;
+                traces[table_id].addr[j] = event
+                    .key
+                    .try_into()
+                    .expect("plain lookup traces require u64-addressable keys");
                 traces[table_id].val[j] = F::from_u64(event.value);
             }
         }
@@ -153,7 +167,9 @@ pub fn trace_to_plain_lut_traces_by_opcode<F: PrimeField64>(
 /// This creates a `LutTable` that can be used with Neo's Shout encoding.
 pub fn build_opcode_lut_table<F: PrimeField64>(table_id: u32, opcode: RiscvOpcode, xlen: usize) -> LutTable<F> {
     let table: RiscvLookupTable<F> = RiscvLookupTable::new(opcode, xlen);
-    let size = table.size();
+    let size = table
+        .size()
+        .expect("build_opcode_lut_table requires an enumerable lookup domain");
     let k = (size as f64).log2().ceil() as usize;
 
     LutTable {

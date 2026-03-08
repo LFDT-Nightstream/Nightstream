@@ -67,6 +67,7 @@ fn metadata_only_mem_instance(
             ell,
             init,
             init_digest: None,
+            guest_addr_remap: None,
         },
         MemWitness { mats: Vec::new() },
     )

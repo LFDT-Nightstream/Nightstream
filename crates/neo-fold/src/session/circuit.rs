@@ -46,7 +46,7 @@ pub trait NeoCircuit: Send + Sync + 'static {
     fn build_witness_prefix(
         &self,
         layout: &Self::Layout,
-        chunk: &[StepTrace<u64, u64>],
+        chunk: &[StepTrace<u64, u64, u128>],
     ) -> Result<Vec<super::F>, String>;
 }
 
@@ -82,14 +82,14 @@ impl<C: NeoCircuit> SharedBusR1csPreprocessing<C> {
         let chunk_to_witness = {
             let circuit = Arc::clone(&self.circuit);
             let layout = self.layout.clone();
-            Box::new(move |chunk: &[StepTrace<u64, u64>]| {
+            Box::new(move |chunk: &[StepTrace<u64, u64, u128>]| {
                 circuit
                     .build_witness_prefix(&layout, chunk)
                     .unwrap_or_else(|e| panic!("build_witness_prefix failed: {e}"))
             })
         };
 
-        let cpu = R1csCpu::<super::F, super::Cmt, _>::new(
+        let cpu = R1csCpu::<super::F, super::Cmt, _, u128>::new(
             self.base_ccs,
             params.clone(),
             committer.clone(),
@@ -133,7 +133,7 @@ where
     pub circuit: Arc<C>,
     pub layout: C::Layout,
     pub resources: SharedBusResources,
-    pub cpu: R1csCpu<super::F, super::Cmt, L>,
+    pub cpu: R1csCpu<super::F, super::Cmt, L, u128>,
     pub params: NeoParams,
     pub committer: L,
 }
@@ -158,9 +158,9 @@ where
         max_steps: usize,
     ) -> Result<(), PiCcsError>
     where
-        V: neo_vm_trace::VmCpu<u64, u64>,
+        V: neo_vm_trace::VmCpu<u64, u64, u128>,
         Tw: neo_vm_trace::Twist<u64, u64>,
-        Sh: neo_vm_trace::Shout<u64>,
+        Sh: neo_vm_trace::Shout<u128, u64>,
     {
         session.set_shared_bus_resources(self.resources.clone());
         session.execute_shard_shared_cpu_bus_configured(
@@ -290,12 +290,7 @@ fn shout_meta_for_bus(
                 Ok((d, 2usize))
             }
             LutTableSpec::RiscvOpcodePacked { opcode, xlen } => {
-                if *xlen != 32 {
-                    return Err(format!(
-                        "RiscvOpcodePacked requires xlen=32 in shared-bus circuits (got xlen={xlen})"
-                    ));
-                }
-                let d = neo_memory::riscv::packed::rv32_packed_d(*opcode)
+                let d = neo_memory::riscv::packed::rv_packed_d(*opcode, *xlen)
                     .map_err(|e| format!("invalid packed opcode spec: {e}"))?;
                 Ok((d, 2usize))
             }

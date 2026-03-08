@@ -35,6 +35,11 @@ fn simulate_decomposition_sequence(seq: &[DecomposedOp], regs: &mut [u64; 32], x
 
     for op in seq {
         match *op {
+            DecomposedOp::MovSignWord { dst, src } => {
+                let x = read(src, regs, &vregs) as u32 as u64;
+                let sign_mask = if ((x >> 31) & 1) == 1 { 0xFFFF_FFFF } else { 0 };
+                write(dst, sign_mask, regs, &mut vregs);
+            }
             DecomposedOp::MovSign { dst, src } => {
                 let x = read(src, regs, &vregs) & mask;
                 let sign_set = if xlen == 32 {
@@ -44,6 +49,11 @@ fn simulate_decomposition_sequence(seq: &[DecomposedOp], regs: &mut [u64; 32], x
                 };
                 let sign_mask = if sign_set { mask } else { 0 };
                 write(dst, sign_mask, regs, &mut vregs);
+            }
+            DecomposedOp::ComposeU64FromLoHi32 { dst, lo_src, hi_src } => {
+                let lo = read(lo_src, regs, &vregs) as u32 as u64;
+                let hi = read(hi_src, regs, &vregs) as u32 as u64;
+                write(dst, lo | (hi << 32), regs, &mut vregs);
             }
             DecomposedOp::Move { dst, src } => {
                 let x = read(src, regs, &vregs);
@@ -116,57 +126,209 @@ fn operand_mode_key_helpers_preserve_compat_and_define_rollout_behavior() {
     // Compatibility mode keeps canonical interleaved keys for all opcodes.
     let add_key_compat =
         encode_lookup_key_with_mode(RiscvOpcode::Add, lhs, rhs, 32, /*use_operand_mode_keys=*/ false);
-    assert_eq!(add_key_compat, interleave_bits(lhs, rhs) as u64);
+    assert_eq!(add_key_compat, interleave_bits(lhs, rhs));
     assert_eq!(
-        try_decode_lookup_operands(RiscvOpcode::Add, add_key_compat, /*use_operand_mode_keys=*/ false),
+        try_decode_lookup_operands(
+            RiscvOpcode::Add,
+            add_key_compat as u128,
+            /*use_operand_mode_keys=*/ false,
+            /*xlen=*/ 32
+        ),
         Some((lhs, rhs))
     );
 
     // Rollout mode: ADD/SUB move to combined keys and are no longer key-decodable.
     let add_key_rollout =
         encode_lookup_key_with_mode(RiscvOpcode::Add, lhs, rhs, 32, /*use_operand_mode_keys=*/ true);
-    assert_eq!(add_key_rollout, lhs.wrapping_add(rhs));
+    assert_eq!(add_key_rollout, lhs.wrapping_add(rhs) as u128);
     assert_eq!(
-        try_decode_lookup_operands(RiscvOpcode::Add, add_key_rollout, /*use_operand_mode_keys=*/ true),
+        try_decode_lookup_operands(
+            RiscvOpcode::Add,
+            add_key_rollout as u128,
+            /*use_operand_mode_keys=*/ true,
+            /*xlen=*/ 32
+        ),
         None
     );
 
     let sub_key_rollout =
         encode_lookup_key_with_mode(RiscvOpcode::Sub, lhs, rhs, 32, /*use_operand_mode_keys=*/ true);
-    assert_eq!(sub_key_rollout, lhs.wrapping_sub(rhs));
+    assert_eq!(sub_key_rollout, lhs.wrapping_sub(rhs) as u128);
     assert_eq!(
-        try_decode_lookup_operands(RiscvOpcode::Sub, sub_key_rollout, /*use_operand_mode_keys=*/ true),
+        try_decode_lookup_operands(
+            RiscvOpcode::Sub,
+            sub_key_rollout as u128,
+            /*use_operand_mode_keys=*/ true,
+            /*xlen=*/ 32
+        ),
         None
     );
 
     // Interleaved-mode opcodes stay decodable in rollout mode.
     let xor_key_rollout =
         encode_lookup_key_with_mode(RiscvOpcode::Xor, lhs, rhs, 32, /*use_operand_mode_keys=*/ true);
-    assert_eq!(xor_key_rollout, interleave_bits(lhs, rhs) as u64);
+    assert_eq!(xor_key_rollout, interleave_bits(lhs, rhs));
     assert_eq!(
-        try_decode_lookup_operands(RiscvOpcode::Xor, xor_key_rollout, /*use_operand_mode_keys=*/ true),
+        try_decode_lookup_operands(
+            RiscvOpcode::Xor,
+            xor_key_rollout as u128,
+            /*use_operand_mode_keys=*/ true,
+            /*xlen=*/ 32
+        ),
         Some((lhs, rhs))
     );
 
     // MUL/MULHU stay interleaved in rollout mode.
     let mul_key_rollout =
         encode_lookup_key_with_mode(RiscvOpcode::Mul, lhs, rhs, 32, /*use_operand_mode_keys=*/ true);
-    assert_eq!(mul_key_rollout, interleave_bits(lhs, rhs) as u64);
+    assert_eq!(mul_key_rollout, interleave_bits(lhs, rhs));
     assert_eq!(
-        try_decode_lookup_operands(RiscvOpcode::Mul, mul_key_rollout, /*use_operand_mode_keys=*/ true),
+        try_decode_lookup_operands(
+            RiscvOpcode::Mul,
+            mul_key_rollout as u128,
+            /*use_operand_mode_keys=*/ true,
+            /*xlen=*/ 32
+        ),
         Some((lhs, rhs))
     );
 
     let mulhu_key_rollout =
         encode_lookup_key_with_mode(RiscvOpcode::Mulhu, lhs, rhs, 32, /*use_operand_mode_keys=*/ true);
-    assert_eq!(mulhu_key_rollout, interleave_bits(lhs, rhs) as u64);
+    assert_eq!(mulhu_key_rollout, interleave_bits(lhs, rhs));
     assert_eq!(
         try_decode_lookup_operands(
             RiscvOpcode::Mulhu,
-            mulhu_key_rollout,
-            /*use_operand_mode_keys=*/ true
+            mulhu_key_rollout as u128,
+            /*use_operand_mode_keys=*/ true,
+            /*xlen=*/ 32
         ),
         Some((lhs, rhs))
+    );
+}
+
+#[test]
+fn rv64_virtual_word_helper_keys_are_normalized_to_low32_operands() {
+    let lhs = 0xFFFF_FFFF_8000_0001u64;
+    let rhs = 0x1234_5678_FFFF_FFFEu64;
+    let lhs32 = lhs as u32 as u64;
+    let rhs32 = rhs as u32 as u64;
+
+    for op in [
+        RiscvOpcode::VirtualMulWord,
+        RiscvOpcode::VirtualDivuWord,
+        RiscvOpcode::VirtualRemuWord,
+        RiscvOpcode::VirtualDivWord,
+        RiscvOpcode::VirtualRemWord,
+        RiscvOpcode::VirtualMovsignWord,
+    ] {
+        let key = encode_lookup_key_with_mode(op, lhs, rhs, 64, /*use_operand_mode_keys=*/ true);
+        assert_eq!(
+            key,
+            interleave_bits(lhs32, rhs32),
+            "helper op {op:?} must key on low-32 operands only"
+        );
+        assert_eq!(
+            try_decode_lookup_operands(op, key as u128, /*use_operand_mode_keys=*/ true, /*xlen=*/ 64),
+            Some((lhs32, rhs32)),
+            "helper op {op:?} must decode low-32 operands from its key"
+        );
+    }
+}
+
+#[test]
+fn rv64_direct_64bit_lookup_keys_are_exact_under_u128_transport() {
+    let lhs = 1u64;
+    let rhs = 0x1_0000_0001u64;
+    let key1 = encode_lookup_key_with_mode(RiscvOpcode::Eq, lhs, lhs, 64, /*use_operand_mode_keys=*/ true);
+    let key2 = encode_lookup_key_with_mode(RiscvOpcode::Eq, lhs, rhs, 64, /*use_operand_mode_keys=*/ true);
+    assert_ne!(
+        key1, key2,
+        "u128 transport must distinguish full-width RV64 operand pairs"
+    );
+    assert_eq!(
+        try_decode_lookup_operands(
+            RiscvOpcode::Eq,
+            key2,
+            /*use_operand_mode_keys=*/ true,
+            /*xlen=*/ 64
+        ),
+        Some((lhs, rhs)),
+        "RV64 direct lookup key must round-trip exact operands under u128 transport"
+    );
+}
+
+#[test]
+#[should_panic(expected = "use u128 shout keys")]
+fn rv64_legacy_u64_shout_transport_rejects_full_width_direct_keys() {
+    let mut shout = RiscvShoutTables::new(64);
+    let key = encode_lookup_key_with_mode(
+        RiscvOpcode::Eq,
+        1,
+        0x1_0000_0001,
+        64,
+        /*use_operand_mode_keys=*/ true,
+    );
+    let key_u64 = key as u64;
+    let eq_id = shout.opcode_to_id(RiscvOpcode::Eq);
+    let _ = neo_vm_trace::Shout::lookup(&mut shout, eq_id, key_u64);
+}
+
+#[test]
+fn rv64_helper_owned_w_ops_have_no_direct_shout_ids() {
+    let shout = RiscvShoutTables::new(64);
+    for op in [
+        RiscvOpcode::Mulw,
+        RiscvOpcode::Divw,
+        RiscvOpcode::Divuw,
+        RiscvOpcode::Remw,
+        RiscvOpcode::Remuw,
+    ] {
+        assert_eq!(
+            shout.try_opcode_to_id(op),
+            None,
+            "helper-owned RV64 W op {op:?} must not expose a direct Shout table id"
+        );
+    }
+}
+
+#[test]
+fn rv64_virtual_word_helper_lookup_results_ignore_high64_signfill() {
+    let lhs = 0xFFFF_FFFF_8000_0000u64;
+    let rhs = 0xFFFF_FFFF_FFFF_FFFDu64;
+    let lhs32 = lhs as u32 as u64;
+    let rhs32 = rhs as u32 as u64;
+
+    let mut shout = RiscvShoutTables::new(64);
+    for op in [
+        RiscvOpcode::VirtualMulWord,
+        RiscvOpcode::VirtualDivuWord,
+        RiscvOpcode::VirtualRemuWord,
+        RiscvOpcode::VirtualDivWord,
+        RiscvOpcode::VirtualRemWord,
+    ] {
+        let shout_id = shout.opcode_to_id(op);
+        let key = encode_lookup_key_with_mode(op, lhs, rhs, 64, /*use_operand_mode_keys=*/ true);
+        let out = neo_vm_trace::Shout::lookup(&mut shout, shout_id, key);
+        assert_eq!(
+            out,
+            compute_op(op, lhs32, rhs32, 64),
+            "helper op {op:?} must evaluate from low-32 normalized operands"
+        );
+    }
+
+    let movsign_id = shout.opcode_to_id(RiscvOpcode::VirtualMovsignWord);
+    let movsign_key = encode_lookup_key_with_mode(
+        RiscvOpcode::VirtualMovsignWord,
+        lhs,
+        rhs,
+        64,
+        /*use_operand_mode_keys=*/ true,
+    );
+    let movsign_out = neo_vm_trace::Shout::lookup(&mut shout, movsign_id, movsign_key);
+    let expected_movsign = if ((lhs32 >> 31) & 1) == 1 { 0xFFFF_FFFF } else { 0 };
+    assert_eq!(
+        movsign_out, expected_movsign,
+        "VMOVSIGNW must emit the low-word sign mask"
     );
 }
 
@@ -293,6 +455,206 @@ fn mulhu_decomposition_sequence_matches_shape() {
     );
     assert_eq!(
         seq[1],
+        DecomposedOp::Move {
+            dst: 7,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+}
+
+#[test]
+fn mulw_decomposition_sequence_uses_helper_mask_then_local_compose() {
+    let mut alloc = VirtualRegisterAllocator::new();
+    let seq = neo_memory::riscv::instruction::mulw::decomposition_sequence(
+        /*rd=*/ 7, /*rs1=*/ 1, /*rs2=*/ 2, &mut alloc,
+    );
+    assert_eq!(seq.len(), 4);
+    assert_eq!(
+        seq[0],
+        DecomposedOp::AdviceQuotient {
+            dst: VIRTUAL_REG_BASE,
+            op: RiscvOpcode::VirtualMulWord,
+            lhs: 1,
+            rhs: 2
+        }
+    );
+    assert_eq!(
+        seq[1],
+        DecomposedOp::MovSignWord {
+            dst: VIRTUAL_REG_BASE + 1,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+    assert_eq!(
+        seq[2],
+        DecomposedOp::ComposeU64FromLoHi32 {
+            dst: VIRTUAL_REG_BASE,
+            lo_src: VIRTUAL_REG_BASE,
+            hi_src: VIRTUAL_REG_BASE + 1
+        }
+    );
+    assert_eq!(
+        seq[3],
+        DecomposedOp::Move {
+            dst: 7,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+}
+
+#[test]
+fn divuw_decomposition_sequence_uses_helper_mask_then_local_compose() {
+    let mut alloc = VirtualRegisterAllocator::new();
+    let seq = neo_memory::riscv::instruction::divuw::decomposition_sequence(
+        /*rd=*/ 7, /*rs1=*/ 1, /*rs2=*/ 2, &mut alloc,
+    );
+    assert_eq!(seq.len(), 4);
+    assert_eq!(
+        seq[0],
+        DecomposedOp::AdviceQuotient {
+            dst: VIRTUAL_REG_BASE,
+            op: RiscvOpcode::VirtualDivuWord,
+            lhs: 1,
+            rhs: 2
+        }
+    );
+    assert_eq!(
+        seq[1],
+        DecomposedOp::MovSignWord {
+            dst: VIRTUAL_REG_BASE + 1,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+    assert_eq!(
+        seq[2],
+        DecomposedOp::ComposeU64FromLoHi32 {
+            dst: VIRTUAL_REG_BASE,
+            lo_src: VIRTUAL_REG_BASE,
+            hi_src: VIRTUAL_REG_BASE + 1
+        }
+    );
+    assert_eq!(
+        seq[3],
+        DecomposedOp::Move {
+            dst: 7,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+}
+
+#[test]
+fn divw_decomposition_sequence_uses_helper_mask_then_local_compose() {
+    let mut alloc = VirtualRegisterAllocator::new();
+    let seq = neo_memory::riscv::instruction::divw::decomposition_sequence(
+        /*rd=*/ 7, /*rs1=*/ 1, /*rs2=*/ 2, &mut alloc,
+    );
+    assert_eq!(seq.len(), 4);
+    assert_eq!(
+        seq[0],
+        DecomposedOp::AdviceQuotient {
+            dst: VIRTUAL_REG_BASE,
+            op: RiscvOpcode::VirtualDivWord,
+            lhs: 1,
+            rhs: 2
+        }
+    );
+    assert_eq!(
+        seq[1],
+        DecomposedOp::MovSignWord {
+            dst: VIRTUAL_REG_BASE + 1,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+    assert_eq!(
+        seq[2],
+        DecomposedOp::ComposeU64FromLoHi32 {
+            dst: VIRTUAL_REG_BASE,
+            lo_src: VIRTUAL_REG_BASE,
+            hi_src: VIRTUAL_REG_BASE + 1
+        }
+    );
+    assert_eq!(
+        seq[3],
+        DecomposedOp::Move {
+            dst: 7,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+}
+
+#[test]
+fn remuw_decomposition_sequence_uses_helper_mask_then_local_compose() {
+    let mut alloc = VirtualRegisterAllocator::new();
+    let seq = neo_memory::riscv::instruction::remuw::decomposition_sequence(
+        /*rd=*/ 7, /*rs1=*/ 1, /*rs2=*/ 2, &mut alloc,
+    );
+    assert_eq!(seq.len(), 4);
+    assert_eq!(
+        seq[0],
+        DecomposedOp::AdviceQuotient {
+            dst: VIRTUAL_REG_BASE,
+            op: RiscvOpcode::VirtualRemuWord,
+            lhs: 1,
+            rhs: 2
+        }
+    );
+    assert_eq!(
+        seq[1],
+        DecomposedOp::MovSignWord {
+            dst: VIRTUAL_REG_BASE + 1,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+    assert_eq!(
+        seq[2],
+        DecomposedOp::ComposeU64FromLoHi32 {
+            dst: VIRTUAL_REG_BASE,
+            lo_src: VIRTUAL_REG_BASE,
+            hi_src: VIRTUAL_REG_BASE + 1
+        }
+    );
+    assert_eq!(
+        seq[3],
+        DecomposedOp::Move {
+            dst: 7,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+}
+
+#[test]
+fn remw_decomposition_sequence_uses_helper_mask_then_local_compose() {
+    let mut alloc = VirtualRegisterAllocator::new();
+    let seq = neo_memory::riscv::instruction::remw::decomposition_sequence(
+        /*rd=*/ 7, /*rs1=*/ 1, /*rs2=*/ 2, &mut alloc,
+    );
+    assert_eq!(seq.len(), 4);
+    assert_eq!(
+        seq[0],
+        DecomposedOp::AdviceQuotient {
+            dst: VIRTUAL_REG_BASE,
+            op: RiscvOpcode::VirtualRemWord,
+            lhs: 1,
+            rhs: 2
+        }
+    );
+    assert_eq!(
+        seq[1],
+        DecomposedOp::MovSignWord {
+            dst: VIRTUAL_REG_BASE + 1,
+            src: VIRTUAL_REG_BASE
+        }
+    );
+    assert_eq!(
+        seq[2],
+        DecomposedOp::ComposeU64FromLoHi32 {
+            dst: VIRTUAL_REG_BASE,
+            lo_src: VIRTUAL_REG_BASE,
+            hi_src: VIRTUAL_REG_BASE + 1
+        }
+    );
+    assert_eq!(
+        seq[3],
         DecomposedOp::Move {
             dst: 7,
             src: VIRTUAL_REG_BASE

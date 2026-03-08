@@ -64,6 +64,11 @@ impl Rv32TraceWitness {
             wit.cols[layout.virtual_sequence_remaining][i] = F::from_u64(cols.virtual_sequence_remaining[i]);
             wit.cols[layout.virtual_transition][i] = if cols.virtual_transition[i] { F::ONE } else { F::ZERO };
             wit.cols[layout.virtual_commit_link][i] = if cols.virtual_commit_link[i] { F::ONE } else { F::ZERO };
+            wit.cols[layout.virtual_commit_from_prev][i] = if cols.virtual_commit_from_prev[i] {
+                F::ONE
+            } else {
+                F::ZERO
+            };
             wit.cols[layout.cycle][i] = F::from_u64(cols.cycle[i]);
             wit.cols[layout.pc_before][i] = F::from_u64(cols.pc_before[i]);
             wit.cols[layout.pc_after][i] = F::from_u64(cols.pc_after[i]);
@@ -164,7 +169,7 @@ impl Rv32TraceWitness {
                     lookup_operands_from_decoded(decoded, cols.rs1_val[i], cols.rs2_val[i], cols.pc_before[i])
                 });
                 let (lhs, rhs) = if let Some(op) = op {
-                    try_decode_lookup_operands(op, ev.key, operand_mode_keys_enabled())
+                    try_decode_lookup_operands(op, ev.key as u128, operand_mode_keys_enabled(), /*xlen=*/ 32)
                         .or(decoded_fallback)
                         .unwrap_or((fallback_lhs, fallback_rhs))
                 } else {
@@ -185,7 +190,9 @@ impl Rv32TraceWitness {
 
                 let is_combined_mode = op.map(opcode_uses_combined_lookup_key).unwrap_or(false);
                 if is_combined_mode {
-                    wit.cols[layout.shout_add_sub_key][i] = F::from_u64(ev.key);
+                    let key = u64::try_from(ev.key)
+                        .map_err(|_| format!("combined shout key does not fit u64 at row {i}: {}", ev.key))?;
+                    wit.cols[layout.shout_add_sub_key][i] = F::from_u64(key);
                 } else {
                     wit.cols[layout.shout_link_lhs][i] = F::from_u64(lhs);
                     wit.cols[layout.shout_link_rhs][i] = F::from_u64(rhs);

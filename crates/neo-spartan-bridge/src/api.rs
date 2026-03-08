@@ -89,6 +89,8 @@ fn materialize_fold_run_for_circuit(fold_run: &FoldRun) -> Result<FoldRun> {
     Ok(FoldRun {
         steps: materialized_steps,
         output_proof: fold_run.output_proof.clone(),
+        riscv_profile: fold_run.riscv_profile.clone(),
+        riscv_memory_layout: fold_run.riscv_memory_layout.clone(),
         segment_meta: None,
     })
 }

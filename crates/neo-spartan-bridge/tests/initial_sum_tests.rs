@@ -115,6 +115,8 @@ fn claimed_initial_sum_gadget_matches_paper_exact_for_tiny_instance() {
     let fold_run = FoldRun {
         steps: Vec::new(),
         output_proof: None,
+        riscv_profile: None,
+        riscv_memory_layout: None,
         segment_meta: None,
     };
     let witness = FoldRunWitness {

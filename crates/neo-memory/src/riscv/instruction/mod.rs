@@ -21,13 +21,18 @@ pub mod xor;
 
 pub mod mul;
 pub mod mulhu;
+pub mod mulw;
 
 pub mod div;
 pub mod divu;
+pub mod divuw;
+pub mod divw;
 pub mod mulh;
 pub mod mulhsu;
 pub mod rem;
 pub mod remu;
+pub mod remuw;
+pub mod remw;
 
 pub mod virtual_advice;
 pub mod virtual_assert_eq;
@@ -75,6 +80,15 @@ pub fn mask_to_xlen(value: u64, xlen: usize) -> u64 {
 #[inline]
 fn sign_extend_32(x: u32) -> u64 {
     (x as i32) as i64 as u64
+}
+
+#[inline]
+fn sign_mask_word(x: u64) -> u64 {
+    if ((x >> 31) & 1) == 1 {
+        0xFFFF_FFFF
+    } else {
+        0
+    }
 }
 
 /// Sign-extend a value from `xlen` bits to `i64`.
@@ -323,6 +337,49 @@ pub fn compute_op(op: RiscvOpcode, x: u64, y: u64, xlen: usize) -> u64 {
             }
         }
 
+        RiscvOpcode::VirtualMulWord => ((x as u32).wrapping_mul(y as u32)) as u64,
+        RiscvOpcode::VirtualDivuWord => {
+            let x32 = x as u32;
+            let y32 = y as u32;
+            if y32 == 0 {
+                u32::MAX as u64
+            } else {
+                (x32 / y32) as u64
+            }
+        }
+        RiscvOpcode::VirtualRemuWord => {
+            let x32 = x as u32;
+            let y32 = y as u32;
+            if y32 == 0 {
+                x32 as u64
+            } else {
+                (x32 % y32) as u64
+            }
+        }
+        RiscvOpcode::VirtualDivWord => {
+            let x32 = x as i32;
+            let y32 = y as i32;
+            if y32 == 0 {
+                u32::MAX as u64
+            } else if x32 == i32::MIN && y32 == -1 {
+                (x32 as u32) as u64
+            } else {
+                ((x32 / y32) as u32) as u64
+            }
+        }
+        RiscvOpcode::VirtualRemWord => {
+            let x32 = x as i32;
+            let y32 = y as i32;
+            if y32 == 0 {
+                (x32 as u32) as u64
+            } else if x32 == i32::MIN && y32 == -1 {
+                0
+            } else {
+                ((x32 % y32) as u32) as u64
+            }
+        }
+        RiscvOpcode::VirtualMovsignWord => sign_mask_word(x),
+
         RiscvOpcode::Andn => x & !y,
     };
 
@@ -370,9 +427,18 @@ pub enum DecomposedOp {
         lhs: u64,
         rhs: u64,
     },
+    MovSignWord {
+        dst: u64,
+        src: u64,
+    },
     MovSign {
         dst: u64,
         src: u64,
+    },
+    ComposeU64FromLoHi32 {
+        dst: u64,
+        lo_src: u64,
+        hi_src: u64,
     },
     Move {
         dst: u64,
@@ -460,6 +526,39 @@ pub trait InstructionDescriptor {
     }
 }
 
+pub fn rv64_word_helper_decomposition(
+    rd: u8,
+    rs1: u8,
+    rs2: u8,
+    helper_op: RiscvOpcode,
+    alloc: &mut VirtualRegisterAllocator,
+) -> Vec<DecomposedOp> {
+    let rd = rd as u64;
+    let rs1 = rs1 as u64;
+    let rs2 = rs2 as u64;
+    let v_out = alloc.allocate();
+    let v_sign = alloc.allocate();
+
+    vec![
+        DecomposedOp::AdviceQuotient {
+            dst: v_out,
+            op: helper_op,
+            lhs: rs1,
+            rhs: rs2,
+        },
+        DecomposedOp::MovSignWord {
+            dst: v_sign,
+            src: v_out,
+        },
+        DecomposedOp::ComposeU64FromLoHi32 {
+            dst: v_out,
+            lo_src: v_out,
+            hi_src: v_sign,
+        },
+        DecomposedOp::Move { dst: rd, src: v_out },
+    ]
+}
+
 /// Operand mode for a concrete architectural opcode in the Step-1/2 scaffold.
 pub fn opcode_operand_mode(op: RiscvOpcode) -> OperandMode {
     match op {
@@ -477,7 +576,12 @@ pub fn opcode_operand_mode(op: RiscvOpcode) -> OperandMode {
         | RiscvOpcode::Divw
         | RiscvOpcode::Divuw
         | RiscvOpcode::Remw
-        | RiscvOpcode::Remuw => OperandMode::MultiplyOperands,
+        | RiscvOpcode::Remuw
+        | RiscvOpcode::VirtualMulWord
+        | RiscvOpcode::VirtualDivuWord
+        | RiscvOpcode::VirtualRemuWord
+        | RiscvOpcode::VirtualDivWord
+        | RiscvOpcode::VirtualRemWord => OperandMode::MultiplyOperands,
         _ => OperandMode::Interleaved,
     }
 }
@@ -553,6 +657,46 @@ pub fn decomposition_sequence_for_instruction(instr: &RiscvInstruction) -> Optio
         } => Some(crate::riscv::instruction::rem::decomposition_sequence(
             *rd, *rs1, *rs2, &mut alloc,
         )),
+        RiscvInstruction::RAluw {
+            op: RiscvOpcode::Mulw,
+            rd,
+            rs1,
+            rs2,
+        } => Some(crate::riscv::instruction::mulw::decomposition_sequence(
+            *rd, *rs1, *rs2, &mut alloc,
+        )),
+        RiscvInstruction::RAluw {
+            op: RiscvOpcode::Divw,
+            rd,
+            rs1,
+            rs2,
+        } => Some(crate::riscv::instruction::divw::decomposition_sequence(
+            *rd, *rs1, *rs2, &mut alloc,
+        )),
+        RiscvInstruction::RAluw {
+            op: RiscvOpcode::Divuw,
+            rd,
+            rs1,
+            rs2,
+        } => Some(crate::riscv::instruction::divuw::decomposition_sequence(
+            *rd, *rs1, *rs2, &mut alloc,
+        )),
+        RiscvInstruction::RAluw {
+            op: RiscvOpcode::Remw,
+            rd,
+            rs1,
+            rs2,
+        } => Some(crate::riscv::instruction::remw::decomposition_sequence(
+            *rd, *rs1, *rs2, &mut alloc,
+        )),
+        RiscvInstruction::RAluw {
+            op: RiscvOpcode::Remuw,
+            rd,
+            rs1,
+            rs2,
+        } => Some(crate::riscv::instruction::remuw::decomposition_sequence(
+            *rd, *rs1, *rs2, &mut alloc,
+        )),
         _ => None,
     }
 }
@@ -563,8 +707,37 @@ pub fn decomposition_sequence_for_instruction(instr: &RiscvInstruction) -> Optio
 /// When the toggle is off, this returns the canonical interleaved `(lhs, rhs)` key
 /// for all opcodes.
 #[inline]
-pub fn encode_lookup_key(op: RiscvOpcode, lhs: u64, rhs: u64, xlen: usize) -> u64 {
+pub fn encode_lookup_key(op: RiscvOpcode, lhs: u64, rhs: u64, xlen: usize) -> u128 {
     encode_lookup_key_with_mode(op, lhs, rhs, xlen, ENABLE_OPERAND_MODE_KEYS)
+}
+
+#[inline]
+pub fn opcode_lookup_xlen(op: RiscvOpcode, xlen: usize) -> usize {
+    match op {
+        RiscvOpcode::Addw
+        | RiscvOpcode::Subw
+        | RiscvOpcode::Sllw
+        | RiscvOpcode::Srlw
+        | RiscvOpcode::Sraw
+        | RiscvOpcode::Mulw
+        | RiscvOpcode::Divw
+        | RiscvOpcode::Divuw
+        | RiscvOpcode::Remw
+        | RiscvOpcode::Remuw
+        | RiscvOpcode::VirtualMulWord
+        | RiscvOpcode::VirtualDivuWord
+        | RiscvOpcode::VirtualRemuWord
+        | RiscvOpcode::VirtualDivWord
+        | RiscvOpcode::VirtualRemWord
+        | RiscvOpcode::VirtualMovsignWord => 32,
+        _ => xlen,
+    }
+}
+
+#[inline]
+fn normalized_lookup_operands(op: RiscvOpcode, lhs: u64, rhs: u64, xlen: usize) -> (u64, u64, usize) {
+    let key_xlen = opcode_lookup_xlen(op, xlen);
+    (mask_to_xlen(lhs, key_xlen), mask_to_xlen(rhs, key_xlen), key_xlen)
 }
 
 /// Encode a Shout lookup key with an explicit rollout toggle.
@@ -575,35 +748,48 @@ pub fn encode_lookup_key_with_mode(
     rhs: u64,
     xlen: usize,
     use_operand_mode_keys: bool,
-) -> u64 {
+) -> u128 {
+    let (lhs, rhs, key_xlen) = normalized_lookup_operands(op, lhs, rhs, xlen);
+
     if !use_operand_mode_keys {
-        return interleave_bits(lhs, rhs) as u64;
+        return interleave_bits(lhs, rhs);
     }
 
     match opcode_operand_mode(op) {
-        OperandMode::Interleaved => interleave_bits(lhs, rhs) as u64,
-        OperandMode::AddOperands => mask_to_xlen(lhs.wrapping_add(rhs), xlen),
-        OperandMode::SubtractOperands => mask_to_xlen(lhs.wrapping_sub(rhs), xlen),
-        OperandMode::MultiplyOperands => interleave_bits(lhs, rhs) as u64,
-        OperandMode::Advice => interleave_bits(lhs, rhs) as u64,
+        OperandMode::Interleaved => interleave_bits(lhs, rhs),
+        OperandMode::AddOperands => mask_to_xlen(lhs.wrapping_add(rhs), key_xlen) as u128,
+        OperandMode::SubtractOperands => mask_to_xlen(lhs.wrapping_sub(rhs), key_xlen) as u128,
+        OperandMode::MultiplyOperands => interleave_bits(lhs, rhs),
+        OperandMode::Advice => interleave_bits(lhs, rhs),
     }
 }
 
 #[inline]
-pub fn decode_interleaved_lookup_key(key: u64) -> (u64, u64) {
-    uninterleave_bits(key as u128)
+pub fn decode_interleaved_lookup_key(key: u128) -> (u64, u64) {
+    uninterleave_bits(key)
 }
 
 /// Decode `(lhs, rhs)` operands from a key when the opcode still uses interleaved keying.
 #[inline]
-pub fn try_decode_lookup_operands(op: RiscvOpcode, key: u64, use_operand_mode_keys: bool) -> Option<(u64, u64)> {
+pub fn try_decode_lookup_operands(
+    op: RiscvOpcode,
+    key: u128,
+    use_operand_mode_keys: bool,
+    xlen: usize,
+) -> Option<(u64, u64)> {
+    let decode_interleaved_for_opcode = || {
+        let (lhs, rhs) = decode_interleaved_lookup_key(key);
+        let key_xlen = opcode_lookup_xlen(op, xlen);
+        (mask_to_xlen(lhs, key_xlen), mask_to_xlen(rhs, key_xlen))
+    };
+
     if !use_operand_mode_keys {
-        return Some(decode_interleaved_lookup_key(key));
+        return Some(decode_interleaved_for_opcode());
     }
 
     match opcode_operand_mode(op) {
-        OperandMode::Interleaved => Some(decode_interleaved_lookup_key(key)),
-        OperandMode::MultiplyOperands => Some(decode_interleaved_lookup_key(key)),
+        OperandMode::Interleaved => Some(decode_interleaved_for_opcode()),
+        OperandMode::MultiplyOperands => Some(decode_interleaved_for_opcode()),
         OperandMode::AddOperands | OperandMode::SubtractOperands | OperandMode::Advice => None,
     }
 }

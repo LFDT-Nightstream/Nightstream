@@ -295,7 +295,7 @@ pub(crate) enum Rv32PackedShoutOp {
 
 pub(crate) fn rv32_packed_shout_layout(
     spec: &Option<LutTableSpec>,
-) -> Result<Option<(Rv32PackedShoutOp, usize)>, PiCcsError> {
+) -> Result<Option<(Rv32PackedShoutOp, usize, usize)>, PiCcsError> {
     let (opcode, xlen, time_bits) = match spec {
         Some(LutTableSpec::RiscvOpcodePacked { opcode, xlen }) => (*opcode, *xlen, 0usize),
         Some(LutTableSpec::RiscvOpcodeEventTablePacked {
@@ -306,9 +306,9 @@ pub(crate) fn rv32_packed_shout_layout(
         _ => return Ok(None),
     };
 
-    if xlen != 32 {
+    if !matches!(xlen, 32 | 64) {
         return Err(PiCcsError::InvalidInput(format!(
-            "packed RISC-V Shout is only supported for RV32 (xlen=32) in Route A (got xlen={xlen})"
+            "packed RISC-V Shout requires xlen=32 or 64 in Route A (got xlen={xlen})"
         )));
     }
     if time_bits == 0 {
@@ -318,38 +318,63 @@ pub(crate) fn rv32_packed_shout_layout(
                 "RiscvOpcodeEventTablePacked requires time_bits >= 1".into(),
             ));
         }
+    } else if xlen != 32 {
+        return Err(PiCcsError::InvalidInput(
+            "packed RV64 Shout does not support event-table mode in Route A".into(),
+        ));
     }
 
-    let op = match opcode {
-        neo_memory::riscv::lookups::RiscvOpcode::And => Rv32PackedShoutOp::And,
-        neo_memory::riscv::lookups::RiscvOpcode::Andn => Rv32PackedShoutOp::Andn,
-        neo_memory::riscv::lookups::RiscvOpcode::Add => Rv32PackedShoutOp::Add,
-        neo_memory::riscv::lookups::RiscvOpcode::Or => Rv32PackedShoutOp::Or,
-        neo_memory::riscv::lookups::RiscvOpcode::Sub => Rv32PackedShoutOp::Sub,
-        neo_memory::riscv::lookups::RiscvOpcode::Xor => Rv32PackedShoutOp::Xor,
-        neo_memory::riscv::lookups::RiscvOpcode::Eq => Rv32PackedShoutOp::Eq,
-        neo_memory::riscv::lookups::RiscvOpcode::Neq => Rv32PackedShoutOp::Neq,
-        neo_memory::riscv::lookups::RiscvOpcode::Slt => Rv32PackedShoutOp::Slt,
-        neo_memory::riscv::lookups::RiscvOpcode::Sll => Rv32PackedShoutOp::Sll,
-        neo_memory::riscv::lookups::RiscvOpcode::Srl => Rv32PackedShoutOp::Srl,
-        neo_memory::riscv::lookups::RiscvOpcode::Sra => Rv32PackedShoutOp::Sra,
-        neo_memory::riscv::lookups::RiscvOpcode::Sltu => Rv32PackedShoutOp::Sltu,
-        neo_memory::riscv::lookups::RiscvOpcode::Mul => Rv32PackedShoutOp::Mul,
-        neo_memory::riscv::lookups::RiscvOpcode::Mulh => Rv32PackedShoutOp::Mulh,
-        neo_memory::riscv::lookups::RiscvOpcode::Mulhu => Rv32PackedShoutOp::Mulhu,
-        neo_memory::riscv::lookups::RiscvOpcode::Mulhsu => Rv32PackedShoutOp::Mulhsu,
-        neo_memory::riscv::lookups::RiscvOpcode::Div => Rv32PackedShoutOp::Div,
-        neo_memory::riscv::lookups::RiscvOpcode::Divu => Rv32PackedShoutOp::Divu,
-        neo_memory::riscv::lookups::RiscvOpcode::Rem => Rv32PackedShoutOp::Rem,
-        neo_memory::riscv::lookups::RiscvOpcode::Remu => Rv32PackedShoutOp::Remu,
-        _ => {
-            return Err(PiCcsError::InvalidInput(format!(
-                "packed RISC-V Shout is only supported for selected RV32 ops in Route A (got opcode={opcode:?})"
-            )));
-        }
-    };
+    let op =
+        match opcode {
+            neo_memory::riscv::lookups::RiscvOpcode::And => Rv32PackedShoutOp::And,
+            neo_memory::riscv::lookups::RiscvOpcode::Andn => Rv32PackedShoutOp::Andn,
+            neo_memory::riscv::lookups::RiscvOpcode::Add => Rv32PackedShoutOp::Add,
+            neo_memory::riscv::lookups::RiscvOpcode::Or => Rv32PackedShoutOp::Or,
+            neo_memory::riscv::lookups::RiscvOpcode::Sub => Rv32PackedShoutOp::Sub,
+            neo_memory::riscv::lookups::RiscvOpcode::Xor => Rv32PackedShoutOp::Xor,
+            neo_memory::riscv::lookups::RiscvOpcode::Eq => Rv32PackedShoutOp::Eq,
+            neo_memory::riscv::lookups::RiscvOpcode::Neq => Rv32PackedShoutOp::Neq,
+            neo_memory::riscv::lookups::RiscvOpcode::Slt => Rv32PackedShoutOp::Slt,
+            neo_memory::riscv::lookups::RiscvOpcode::Sll => Rv32PackedShoutOp::Sll,
+            neo_memory::riscv::lookups::RiscvOpcode::Srl => Rv32PackedShoutOp::Srl,
+            neo_memory::riscv::lookups::RiscvOpcode::Sra
+            | neo_memory::riscv::lookups::RiscvOpcode::VirtualMovsignWord => Rv32PackedShoutOp::Sra,
+            neo_memory::riscv::lookups::RiscvOpcode::Sltu => Rv32PackedShoutOp::Sltu,
+            neo_memory::riscv::lookups::RiscvOpcode::Mul | neo_memory::riscv::lookups::RiscvOpcode::VirtualMulWord => {
+                Rv32PackedShoutOp::Mul
+            }
+            neo_memory::riscv::lookups::RiscvOpcode::Mulh => Rv32PackedShoutOp::Mulh,
+            neo_memory::riscv::lookups::RiscvOpcode::Mulhu => Rv32PackedShoutOp::Mulhu,
+            neo_memory::riscv::lookups::RiscvOpcode::Mulhsu => Rv32PackedShoutOp::Mulhsu,
+            neo_memory::riscv::lookups::RiscvOpcode::Div | neo_memory::riscv::lookups::RiscvOpcode::VirtualDivWord => {
+                Rv32PackedShoutOp::Div
+            }
+            neo_memory::riscv::lookups::RiscvOpcode::Divu
+            | neo_memory::riscv::lookups::RiscvOpcode::VirtualDivuWord => Rv32PackedShoutOp::Divu,
+            neo_memory::riscv::lookups::RiscvOpcode::Rem | neo_memory::riscv::lookups::RiscvOpcode::VirtualRemWord => {
+                Rv32PackedShoutOp::Rem
+            }
+            neo_memory::riscv::lookups::RiscvOpcode::Remu
+            | neo_memory::riscv::lookups::RiscvOpcode::VirtualRemuWord => Rv32PackedShoutOp::Remu,
+            _ => {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "packed RISC-V Shout is unsupported in Route A for opcode={opcode:?}, xlen={xlen}"
+                )));
+            }
+        };
 
-    Ok(Some((op, time_bits)))
+    if xlen == 64
+        && !matches!(
+            opcode,
+            neo_memory::riscv::lookups::RiscvOpcode::Mul | neo_memory::riscv::lookups::RiscvOpcode::Mulhu
+        )
+    {
+        return Err(PiCcsError::InvalidInput(format!(
+            "packed RV64 Shout is currently only supported for Mul/Mulhu in Route A (got opcode={opcode:?})"
+        )));
+    }
+
+    Ok(Some((op, xlen, time_bits)))
 }
 
 pub(crate) fn rv32_shout_table_id_from_spec(spec: &Option<LutTableSpec>) -> Result<u32, PiCcsError> {
@@ -369,9 +394,9 @@ pub(crate) fn rv32_shout_table_id_from_spec(spec: &Option<LutTableSpec>) -> Resu
         }
     };
 
-    if xlen != 32 {
+    if !matches!(xlen, 32 | 64) {
         return Err(PiCcsError::InvalidInput(format!(
-            "trace linkage expects RV32 shout specs (got xlen={xlen})"
+            "trace linkage expects RISC-V shout specs with xlen=32 or 64 (got xlen={xlen})"
         )));
     }
     Ok(neo_memory::riscv::lookups::RiscvShoutTables::new(xlen)
@@ -812,8 +837,10 @@ pub struct TwistAddrPreVerifyData {
 
 #[derive(Clone, Debug)]
 pub struct TwistTimeLaneOpeningsLane {
+    pub has_read: K,
     pub wa_bits: Vec<K>,
     pub has_write: K,
+    pub wv: K,
     pub inc_at_write_addr: K,
 }
 
@@ -975,10 +1002,10 @@ pub(crate) fn rv32_trace_wb_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
     vec![layout.active, layout.halted, layout.shout_has_lookup]
 }
 
-// Selector(8) + bitness(20) + ALU/branch/decomposition(682).
-pub(crate) const W2_FIELDS_RESIDUAL_COUNT: usize = 710;
+// Selector(8) + bitness(20) + ALU/branch/decomposition(824).
+pub(crate) const W2_FIELDS_RESIDUAL_COUNT: usize = 852;
 // Virtual DIV/REM stage selectors (up to rem=19) raise decode/fields multiplicative degree.
-pub(crate) const W2_FIELDS_DEGREE_BOUND: usize = 25;
+pub(crate) const W2_FIELDS_DEGREE_BOUND: usize = 64;
 pub(crate) const W2_IMM_RESIDUAL_COUNT: usize = 4;
 
 #[inline]
@@ -1013,20 +1040,19 @@ pub(crate) fn w2_decode_selector_residuals(
     let branch_f3b1_link = (funct3_is[6] + funct3_is[7]) - (funct3_bits[1] * funct3_bits[2]);
     // Tier-2.1 trace mode lock: op_amo must be zero on every row.
     let amo_forbidden = op_amo;
-    let opcode_value_link = opcode_flags[0] * K::from(F::from_u64(0x37))
-        + opcode_flags[1] * K::from(F::from_u64(0x17))
-        + opcode_flags[2] * K::from(F::from_u64(0x6f))
-        + opcode_flags[3] * K::from(F::from_u64(0x67))
-        + opcode_flags[4] * K::from(F::from_u64(0x63))
-        + opcode_flags[5] * K::from(F::from_u64(0x03))
-        + opcode_flags[6] * K::from(F::from_u64(0x23))
-        + opcode_flags[7] * K::from(F::from_u64(0x13))
-        + opcode_flags[8] * K::from(F::from_u64(0x33))
-        + opcode_flags[9] * K::from(F::from_u64(0x0f))
-        + opcode_flags[10] * K::from(F::from_u64(0x73))
-        + opcode_flags[11] * K::from(F::from_u64(0x2f))
-        + op_custom * K::from(F::from_u64(0x0b))
-        - decode_opcode;
+    let opcode_value_link = opcode_flags[0] * (decode_opcode - K::from(F::from_u64(0x37)))
+        + opcode_flags[1] * (decode_opcode - K::from(F::from_u64(0x17)))
+        + opcode_flags[2] * (decode_opcode - K::from(F::from_u64(0x6f)))
+        + opcode_flags[3] * (decode_opcode - K::from(F::from_u64(0x67)))
+        + opcode_flags[4] * (decode_opcode - K::from(F::from_u64(0x63)))
+        + opcode_flags[5] * (decode_opcode - K::from(F::from_u64(0x03)))
+        + opcode_flags[6] * (decode_opcode - K::from(F::from_u64(0x23)))
+        + opcode_flags[7] * (decode_opcode - K::from(F::from_u64(0x13))) * (decode_opcode - K::from(F::from_u64(0x1b)))
+        + opcode_flags[8] * (decode_opcode - K::from(F::from_u64(0x33))) * (decode_opcode - K::from(F::from_u64(0x3b)))
+        + opcode_flags[9] * (decode_opcode - K::from(F::from_u64(0x0f)))
+        + opcode_flags[10] * (decode_opcode - K::from(F::from_u64(0x73)))
+        + opcode_flags[11] * (decode_opcode - K::from(F::from_u64(0x2f)))
+        + op_custom * (decode_opcode - K::from(F::from_u64(0x0b)));
 
     [
         opcode_one_hot,
@@ -1309,6 +1335,23 @@ pub(crate) fn control_imm_u_from_bits(
 }
 
 #[inline]
+pub(crate) fn control_imm_u_value_from_bits(
+    funct3_bits: [K; 3],
+    rs1_bits: [K; 5],
+    rs2_bits: [K; 5],
+    funct7_bits: [K; 7],
+    machine_xlen: usize,
+) -> K {
+    let imm_u = control_imm_u_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits);
+    if machine_xlen != 64 {
+        return imm_u;
+    }
+    let two32 = K::from(F::from_u64(1u64 << 32));
+    let sign_fill_hi32 = (two32 - K::ONE) * funct7_bits[6];
+    imm_u + sign_fill_hi32 * two32
+}
+
+#[inline]
 pub(crate) fn control_next_pc_linear_residual(
     pc_before: K,
     pc_after: K,
@@ -1406,6 +1449,7 @@ pub(crate) fn rv32_trace_wp_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
     vec![
         layout.is_virtual,
         layout.virtual_sequence_remaining,
+        layout.virtual_commit_from_prev,
         layout.instr_word,
         layout.rs1_addr,
         layout.rs1_val,
@@ -1424,6 +1468,26 @@ pub(crate) fn rv32_trace_wp_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
         layout.shout_rhs,
         layout.shout_add_sub_key,
         layout.jalr_drop_bit,
+    ]
+}
+
+#[inline]
+pub(crate) fn trace_uses_rv64_exact_words(cpu_cols_len: usize) -> bool {
+    cpu_cols_len >= neo_memory::riscv::trace::Rv64TraceLayout::new().cols
+}
+
+pub(crate) fn rv64_trace_exact_word_opening_columns() -> Vec<usize> {
+    let layout = neo_memory::riscv::trace::Rv64TraceLayout::new();
+    vec![
+        layout.rs1_val_lo32,
+        layout.rs2_val_lo32,
+        layout.rd_val_lo32,
+        layout.shout_lhs_lo32,
+        layout.shout_lhs_hi32,
+        layout.shout_rhs_lo32,
+        layout.shout_rhs_hi32,
+        layout.shout_add_sub_key_lo32,
+        layout.shout_add_sub_key_hi32,
     ]
 }
 
@@ -1638,9 +1702,9 @@ pub(crate) fn infer_rv32_trace_t_len_for_wb_wp(
             "WB/WP requires canonical time columns with t >= 1".into(),
         ));
     }
-    if step.time_columns.cpu_cols.len() != trace.cols {
+    if step.time_columns.cpu_cols.len() < trace.cols {
         return Err(PiCcsError::InvalidInput(format!(
-            "WB/WP requires canonical RV32 time cpu columns (got {}, expected {})",
+            "WB/WP requires canonical RV32 time cpu prefix columns (got {}, expected at least {})",
             step.time_columns.cpu_cols.len(),
             trace.cols
         )));

@@ -43,7 +43,7 @@ pub struct TraceTwistLanesOverTime {
 #[derive(Clone, Debug)]
 pub struct ShoutLaneOverTime {
     pub has_lookup: Vec<bool>,
-    pub key: Vec<u64>,
+    pub key: Vec<u128>,
     pub value: Vec<u64>,
 }
 
@@ -307,8 +307,9 @@ pub fn extract_shout_lanes_over_time(
                     if matches!(op, RiscvOpcode::Sll | RiscvOpcode::Srl | RiscvOpcode::Sra) {
                         let fallback_lhs = r.reg_read_lane0.as_ref().map(|io| io.value).unwrap_or(0);
                         let fallback_rhs = r.reg_read_lane1.as_ref().map(|io| io.value).unwrap_or(0);
-                        let (lhs, rhs) = try_decode_lookup_operands(op, key, operand_mode_keys_enabled())
-                            .unwrap_or((fallback_lhs, fallback_rhs));
+                        let (lhs, rhs) =
+                            try_decode_lookup_operands(op, key, operand_mode_keys_enabled(), /*xlen=*/ 32)
+                                .unwrap_or((fallback_lhs, fallback_rhs));
                         let rhs_masked = rhs & 0x1F;
                         key = encode_lookup_key(op, lhs, rhs_masked, /*xlen=*/ 32);
                     }

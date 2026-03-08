@@ -107,6 +107,13 @@ pub const PROG_ID: TwistId = TwistId(1);
 /// This is used by the RV32 trace-wiring circuit in "regfile-as-Twist" mode.
 pub const REG_ID: TwistId = TwistId(2);
 
+/// Canonical Twist instance id for exact RV64 public register-output binding.
+///
+/// This synthetic memory uses two lanes:
+/// - lane 0 writes register low limbs at addresses `0..31`
+/// - lane 1 writes register high limbs at addresses `32..63`
+pub const REG_EXACT_ID: TwistId = TwistId(3);
+
 /// RISC-V CUSTOM-0 opcode used by Poseidon2 precompile instructions.
 pub const POSEIDON2_CUSTOM_OPCODE: u32 = 0x0B;
 /// `funct7` selector for `P2_ABSORB_ELEM`.
@@ -119,7 +126,9 @@ pub const POSEIDON2_SQUEEZE_FUNCT7: u32 = 0x02;
 pub use alu::{compute_op, lookup_entry};
 pub use bits::{interleave_bits, uninterleave_bits};
 pub use cpu::RiscvCpu;
-pub use decode::{decode_compressed_instruction, decode_instruction, decode_program, RiscvFormat};
+pub use decode::{
+    decode_compressed_instruction, decode_instruction, decode_instruction_with_xlen, decode_program, RiscvFormat,
+};
 pub use encode::{encode_instruction, encode_program};
 pub use isa::{BranchCondition, RiscvInstruction, RiscvMemOp, RiscvOpcode};
 pub use memory::{RiscvMemory, RiscvMemoryEvent};

@@ -8,12 +8,18 @@ use super::{layout::Rv32TraceLayout, witness::Rv32TraceWitness};
 #[derive(Clone, Debug)]
 pub struct Rv32TraceAir {
     pub layout: Rv32TraceLayout,
+    pub machine_xlen: usize,
 }
 
 impl Rv32TraceAir {
     pub fn new() -> Self {
+        Self::new_with_xlen(/*machine_xlen=*/ 32)
+    }
+
+    pub fn new_with_xlen(machine_xlen: usize) -> Self {
         Self {
             layout: Rv32TraceLayout::new(),
+            machine_xlen,
         }
     }
 
@@ -66,6 +72,7 @@ impl Rv32TraceAir {
             let virtual_sequence_remaining = col(l.virtual_sequence_remaining, i);
             let virtual_transition = col(l.virtual_transition, i);
             let virtual_commit_link = col(l.virtual_commit_link, i);
+            let virtual_commit_from_prev = col(l.virtual_commit_from_prev, i);
             let rd_has_write = col(l.rd_has_write, i);
             let shout_has_lookup = col(l.shout_has_lookup, i);
 
@@ -76,6 +83,7 @@ impl Rv32TraceAir {
                 ("is_virtual", is_virtual),
                 ("virtual_transition", virtual_transition),
                 ("virtual_commit_link", virtual_commit_link),
+                ("virtual_commit_from_prev", virtual_commit_from_prev),
                 ("rd_has_write", rd_has_write),
                 ("shout_has_lookup", shout_has_lookup),
             ] {
@@ -101,6 +109,9 @@ impl Rv32TraceAir {
             if !Self::is_zero(Self::gated_zero(is_virtual, halted)) {
                 return Err(format!("row {i}: virtual row cannot be halted"));
             }
+            if i == 0 && !Self::is_zero(virtual_commit_from_prev) {
+                return Err("row 0: virtual_commit_from_prev must be 0".into());
+            }
             if is_virtual == F::ONE {
                 let instr_word_u64 = col(l.instr_word, i).as_canonical_u64();
                 let instr_word = u32::try_from(instr_word_u64).map_err(|_| {
@@ -109,7 +120,8 @@ impl Rv32TraceAir {
                 let remaining_u64 = virtual_sequence_remaining.as_canonical_u64();
                 let remaining = u32::try_from(remaining_u64)
                     .map_err(|_| format!("row {i}: virtual_sequence_remaining does not fit u32: {remaining_u64}"))?;
-                let op = expected_virtual_decomposed_op(instr_word, remaining).map_err(|e| format!("row {i}: {e}"))?;
+                let op = expected_virtual_decomposed_op(instr_word, remaining, self.machine_xlen)
+                    .map_err(|e| format!("row {i}: {e}"))?;
                 validate_virtual_row_semantics(
                     op,
                     col(l.rs1_addr, i).as_canonical_u64(),
@@ -119,6 +131,7 @@ impl Rv32TraceAir {
                     rd_has_write == F::ONE,
                     col(l.rd_addr, i).as_canonical_u64(),
                     col(l.rd_val, i).as_canonical_u64(),
+                    self.machine_xlen,
                 )
                 .map_err(|e| format!("row {i}: {e}"))?;
             }
@@ -130,6 +143,7 @@ impl Rv32TraceAir {
                 ("virtual_sequence_remaining", l.virtual_sequence_remaining),
                 ("virtual_transition", l.virtual_transition),
                 ("virtual_commit_link", l.virtual_commit_link),
+                ("virtual_commit_from_prev", l.virtual_commit_from_prev),
                 ("rs1_addr", l.rs1_addr),
                 ("rs1_val", l.rs1_val),
                 ("rs2_addr", l.rs2_addr),
@@ -222,6 +236,8 @@ impl Rv32TraceAir {
             let is_virtual_next = col(l.is_virtual, i + 1);
             let virtual_transition = col(l.virtual_transition, i);
             let virtual_commit_link = col(l.virtual_commit_link, i);
+            let virtual_commit_from_prev = col(l.virtual_commit_from_prev, i);
+            let virtual_commit_from_prev_next = col(l.virtual_commit_from_prev, i + 1);
             let rd_has_write = col(l.rd_has_write, i);
             let rd_has_write_next = col(l.rd_has_write, i + 1);
             let rd_val = col(l.rd_val, i);
@@ -259,6 +275,12 @@ impl Rv32TraceAir {
             }
             if !Self::is_zero(virtual_commit_link * (rd_val_next - rd_val)) {
                 return Err(format!("virtual commit value mismatch at row {i}"));
+            }
+            if !Self::is_zero(virtual_commit_from_prev_next - virtual_commit_link) {
+                return Err(format!("virtual_commit_from_prev linkage mismatch at row {i}"));
+            }
+            if !Self::is_zero(virtual_commit_from_prev * is_virtual) {
+                return Err(format!("virtual_commit_from_prev must be 0 on virtual row {i}"));
             }
 
             // Once inactive, remain inactive.

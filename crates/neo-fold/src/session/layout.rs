@@ -281,7 +281,16 @@ impl<const N: usize> ShoutPort<N> {
     /// Fill CPU binding columns from `StepTrace` events (common case).
     ///
     /// If no event is present for a lane, fills selector/address/value with zeros.
-    pub fn fill_from_trace(&self, chunk: &[StepTrace<u64, u64>], shout_id: u32, z: &mut [F]) -> Result<(), String> {
+    pub fn fill_from_trace<Key>(
+        &self,
+        chunk: &[StepTrace<u64, u64, Key>],
+        shout_id: u32,
+        z: &mut [F],
+    ) -> Result<(), String>
+    where
+        Key: Copy + TryInto<u64>,
+        <Key as TryInto<u64>>::Error: std::fmt::Debug,
+    {
         if chunk.len() != N {
             return Err(format!(
                 "ShoutPort::fill_from_trace: chunk len {} != expected {}",
@@ -295,7 +304,11 @@ impl<const N: usize> ShoutPort<N> {
                 if ev.shout_id.0 != shout_id {
                     continue;
                 }
-                if found.replace((ev.key, ev.value)).is_some() {
+                let key = ev
+                    .key
+                    .try_into()
+                    .map_err(|_| format!("shout key does not fit u64 for shout_id={shout_id} in one step (j={j})"))?;
+                if found.replace((key, ev.value)).is_some() {
                     return Err(format!(
                         "multiple shout events for shout_id={shout_id} in one step (j={j})"
                     ));
@@ -318,12 +331,16 @@ impl<const N: usize> ShoutPort<N> {
     ///
     /// Each lane supports at most one lookup per VM step. If the trace contains more lookups than
     /// lanes can support, this returns an error.
-    pub fn fill_lanes_from_trace(
+    pub fn fill_lanes_from_trace<Key>(
         lanes: &[ShoutPort<N>],
-        chunk: &[StepTrace<u64, u64>],
+        chunk: &[StepTrace<u64, u64, Key>],
         shout_id: u32,
         z: &mut [F],
-    ) -> Result<(), String> {
+    ) -> Result<(), String>
+    where
+        Key: Copy + TryInto<u64>,
+        <Key as TryInto<u64>>::Error: std::fmt::Debug,
+    {
         if lanes.is_empty() {
             return Err("ShoutPort::fill_lanes_from_trace: lanes must be non-empty".into());
         }
@@ -351,7 +368,11 @@ impl<const N: usize> ShoutPort<N> {
                         lanes.len()
                     ));
                 }
-                lookups[used] = Some((ev.key, ev.value));
+                let key = ev
+                    .key
+                    .try_into()
+                    .map_err(|_| format!("shout key does not fit u64 for shout_id={shout_id} in one step (j={j})"))?;
+                lookups[used] = Some((key, ev.value));
                 used += 1;
             }
 
@@ -399,7 +420,12 @@ impl<const N: usize> TwistPort<N> {
     /// Fill CPU binding columns from `StepTrace` events (common case).
     ///
     /// If no read/write event is present for a lane, fills selector/address/value with zeros.
-    pub fn fill_from_trace(&self, chunk: &[StepTrace<u64, u64>], twist_id: u32, z: &mut [F]) -> Result<(), String> {
+    pub fn fill_from_trace<Key>(
+        &self,
+        chunk: &[StepTrace<u64, u64, Key>],
+        twist_id: u32,
+        z: &mut [F],
+    ) -> Result<(), String> {
         if chunk.len() != N {
             return Err(format!(
                 "TwistPort::fill_from_trace: chunk len {} != expected {}",
@@ -465,9 +491,9 @@ impl<const N: usize> TwistPort<N> {
     ///
     /// Each lane supports at most one read and at most one write per VM step. If the trace contains
     /// more operations than lanes can support, this returns an error.
-    pub fn fill_lanes_from_trace(
+    pub fn fill_lanes_from_trace<Key>(
         lanes: &[TwistPort<N>],
-        chunk: &[StepTrace<u64, u64>],
+        chunk: &[StepTrace<u64, u64, Key>],
         twist_id: u32,
         z: &mut [F],
     ) -> Result<(), String> {
@@ -616,7 +642,12 @@ impl<const N: usize> TwistPortWithInc<N> {
     /// Fill CPU binding columns from `StepTrace` events.
     ///
     /// Note: This does **not** currently compute `inc`; it is set to 0 for all lanes.
-    pub fn fill_from_trace(&self, chunk: &[StepTrace<u64, u64>], twist_id: u32, z: &mut [F]) -> Result<(), String> {
+    pub fn fill_from_trace<Key>(
+        &self,
+        chunk: &[StepTrace<u64, u64, Key>],
+        twist_id: u32,
+        z: &mut [F],
+    ) -> Result<(), String> {
         if chunk.len() != N {
             return Err(format!(
                 "TwistPortWithInc::fill_from_trace: chunk len {} != expected {}",
@@ -676,6 +707,136 @@ impl<const N: usize> TwistPortWithInc<N> {
             }
             z[self.inc.at(j)] = F::ZERO;
         }
+        Ok(())
+    }
+
+    /// Fill multiple Twist access lanes from a single `twist_id` trace stream.
+    ///
+    /// Each lane supports at most one read and at most one write per VM step. If the trace contains
+    /// more operations than lanes can support, this returns an error.
+    ///
+    /// Note: CPU-side `inc` is currently set to 0 for all lanes.
+    pub fn fill_lanes_from_trace<Key>(
+        lanes: &[TwistPortWithInc<N>],
+        chunk: &[StepTrace<u64, u64, Key>],
+        twist_id: u32,
+        z: &mut [F],
+    ) -> Result<(), String> {
+        if lanes.is_empty() {
+            return Err("TwistPortWithInc::fill_lanes_from_trace: lanes must be non-empty".into());
+        }
+        if chunk.len() != N {
+            return Err(format!(
+                "TwistPortWithInc::fill_lanes_from_trace: chunk len {} != expected {}",
+                chunk.len(),
+                N
+            ));
+        }
+
+        let mut reads: Vec<Option<(u64, u64)>> = vec![None; lanes.len()];
+        let mut writes: Vec<Option<(u64, u64)>> = vec![None; lanes.len()];
+
+        for (j, step) in chunk.iter().enumerate() {
+            reads.fill(None);
+            writes.fill(None);
+
+            for ev in &step.twist_events {
+                if ev.twist_id.0 != twist_id {
+                    continue;
+                }
+                match ev.kind {
+                    TwistOpKind::Read => {
+                        let lane_idx = if let Some(lane) = ev.lane {
+                            let lane_idx = usize::try_from(lane).map_err(|_| {
+                                format!(
+                                    "invalid twist read lane for twist_id={twist_id} in one step (j={j}): lane={lane}"
+                                )
+                            })?;
+                            if lane_idx >= reads.len() {
+                                return Err(format!(
+                                    "twist read lane out of range for twist_id={twist_id} in one step (j={j}): lane={lane_idx}, lanes={}",
+                                    lanes.len()
+                                ));
+                            }
+                            if reads[lane_idx].is_some() {
+                                return Err(format!(
+                                    "multiple twist reads for twist_id={twist_id} in one step (j={j}) in lane={lane_idx}"
+                                ));
+                            }
+                            lane_idx
+                        } else {
+                            reads.iter().position(|x| x.is_none()).ok_or_else(|| {
+                                format!(
+                                    "too many twist reads for twist_id={twist_id} in one step (j={j}): lanes={}",
+                                    lanes.len()
+                                )
+                            })?
+                        };
+                        reads[lane_idx] = Some((ev.addr, ev.value));
+                    }
+                    TwistOpKind::Write => {
+                        if writes.iter().flatten().any(|(addr, _)| *addr == ev.addr) {
+                            return Err(format!(
+                                "duplicate twist write addr for twist_id={twist_id} in one step (j={j}): addr={}",
+                                ev.addr
+                            ));
+                        }
+                        let lane_idx = if let Some(lane) = ev.lane {
+                            let lane_idx = usize::try_from(lane).map_err(|_| {
+                                format!(
+                                    "invalid twist write lane for twist_id={twist_id} in one step (j={j}): lane={lane}"
+                                )
+                            })?;
+                            if lane_idx >= writes.len() {
+                                return Err(format!(
+                                    "twist write lane out of range for twist_id={twist_id} in one step (j={j}): lane={lane_idx}, lanes={}",
+                                    lanes.len()
+                                ));
+                            }
+                            if writes[lane_idx].is_some() {
+                                return Err(format!(
+                                    "multiple twist writes for twist_id={twist_id} in one step (j={j}) in lane={lane_idx}"
+                                ));
+                            }
+                            lane_idx
+                        } else {
+                            writes.iter().position(|x| x.is_none()).ok_or_else(|| {
+                                format!(
+                                    "too many twist writes for twist_id={twist_id} in one step (j={j}): lanes={}",
+                                    lanes.len()
+                                )
+                            })?
+                        };
+                        writes[lane_idx] = Some((ev.addr, ev.value));
+                    }
+                }
+            }
+
+            for (lane_idx, port) in lanes.iter().enumerate() {
+                if let Some((addr, val)) = reads[lane_idx] {
+                    z[port.has_read.at(j)] = F::ONE;
+                    z[port.read_addr.at(j)] = F::from_u64(addr);
+                    z[port.rv.at(j)] = F::from_u64(val);
+                } else {
+                    z[port.has_read.at(j)] = F::ZERO;
+                    z[port.read_addr.at(j)] = F::ZERO;
+                    z[port.rv.at(j)] = F::ZERO;
+                }
+
+                if let Some((addr, val)) = writes[lane_idx] {
+                    z[port.has_write.at(j)] = F::ONE;
+                    z[port.write_addr.at(j)] = F::from_u64(addr);
+                    z[port.wv.at(j)] = F::from_u64(val);
+                } else {
+                    z[port.has_write.at(j)] = F::ZERO;
+                    z[port.write_addr.at(j)] = F::ZERO;
+                    z[port.wv.at(j)] = F::ZERO;
+                }
+
+                z[port.inc.at(j)] = F::ZERO;
+            }
+        }
+
         Ok(())
     }
 }

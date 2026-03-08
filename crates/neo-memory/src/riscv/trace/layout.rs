@@ -41,6 +41,8 @@ pub struct Rv32TraceLayout {
     pub virtual_transition: usize,
     /// `virtual_transition(i) * rd_has_write(i)` helper for virtual commit linkage.
     pub virtual_commit_link: usize,
+    /// `virtual_commit_link(i-1)` exposed on row `i` for current-row helper-owned commit constraints.
+    pub virtual_commit_from_prev: usize,
 }
 
 impl Rv32TraceLayout {
@@ -85,8 +87,9 @@ impl Rv32TraceLayout {
         let jalr_drop_bit = take();
         let virtual_transition = take();
         let virtual_commit_link = take();
+        let virtual_commit_from_prev = take();
 
-        debug_assert_eq!(next, 30, "RV32 trace width drift after virtual-step metadata columns");
+        debug_assert_eq!(next, 31, "RV32 trace width drift after virtual-step metadata columns");
 
         Self {
             cols: next,
@@ -120,6 +123,7 @@ impl Rv32TraceLayout {
             jalr_drop_bit,
             virtual_transition,
             virtual_commit_link,
+            virtual_commit_from_prev,
         }
     }
 }

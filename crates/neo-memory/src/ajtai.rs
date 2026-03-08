@@ -1,4 +1,4 @@
-use neo_ajtai::{decomp_b_row_major, DecompStyle};
+use neo_ajtai::{decomp_b_row_major, decomp_b_row_major_into, DecompStyle};
 use neo_ccs::matrix::Mat;
 use neo_math::balanced::to_balanced_i128;
 use neo_math::{D, F as BaseField};
@@ -44,6 +44,24 @@ pub fn encode_vector_balanced_to_mat_with_base(params: &NeoParams, z: &[BaseFiel
     // Row-major digits of shape d×m, balanced so recomposition equals z mod p.
     let row_major = decomp_b_row_major(z, base, d, DecompStyle::Balanced);
     Mat::from_row_major(d, m, row_major)
+}
+
+/// Reuse-capable row-major encoding for callers that immediately consume the digit slice.
+pub fn encode_vector_balanced_to_row_major_with_base_into(
+    params: &NeoParams,
+    z: &[BaseField],
+    base: u32,
+    out: &mut Vec<BaseField>,
+) {
+    let d = params.d as usize;
+    debug_assert_eq!(
+        d,
+        neo_math::D,
+        "Ajtai d mismatch: params.d={}, neo_math::D={}",
+        params.d,
+        neo_math::D
+    );
+    decomp_b_row_major_into(z, base, d, DecompStyle::Balanced, out);
 }
 
 /// Returns true when the CCS width can be represented in SuperNeo packed layout.

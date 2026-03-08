@@ -3,7 +3,7 @@
 //! This module provides an adapter that implements `CpuArithmetization` for a generic
 //! R1CS-based CPU, allowing integration with Neo's shared CPU bus architecture.
 
-use crate::addr::write_addr_bits_dim_major_le_into_bus;
+use crate::addr::{write_addr_bits_dim_major_le_into_bus, write_addr_bits_dim_major_le_u128_into_bus};
 use crate::ajtai::encode_vector_for_ccs_m;
 use crate::builder::CpuArithmetization;
 use crate::cpu::bus_layout::{
@@ -16,7 +16,6 @@ use crate::mem_init::MemInit;
 use crate::plain::LutTable;
 use crate::plain::PlainMemLayout;
 use crate::riscv::lookups::uninterleave_bits;
-use crate::riscv::packed::{build_rv32_packed_cols, rv32_packed_d};
 use crate::riscv::trace::rv32_trace_lookup_n_vals_for_table_id;
 use crate::witness::{LutInstance, LutTableSpec, MemInstance};
 use neo_ccs::relations::{CcsClaim, CcsStructure, CcsWitness};
@@ -84,7 +83,7 @@ struct SharedCpuBusState<F> {
 /// 1. The CCS structure (wrapped R1CS matrices).
 /// 2. A witness builder function that maps a `StepTrace` to the R1CS witness vector `w`.
 /// 3. Shout tables to verify trace correctness.
-pub struct R1csCpu<F, Cmt, L>
+pub struct R1csCpu<F, Cmt, L, Key = u64>
 where
     F: PrimeField + PrimeField64,
     L: SModuleHomomorphism<F, Cmt>,
@@ -113,15 +112,16 @@ where
 
     /// Function to map a trace chunk (up to `chunk_size` steps) to the full witness z = (x, w).
     /// The witness MUST satisfy the CCS relation.
-    pub chunk_to_witness: Box<dyn Fn(&[StepTrace<u64, u64>]) -> Vec<F> + Send + Sync>,
+    pub chunk_to_witness: Box<dyn Fn(&[StepTrace<u64, u64, Key>]) -> Vec<F> + Send + Sync>,
 
     _phantom: PhantomData<Cmt>,
 }
 
-impl<F, Cmt, L> R1csCpu<F, Cmt, L>
+impl<F, Cmt, L, Key> R1csCpu<F, Cmt, L, Key>
 where
     F: PrimeField + PrimeField64 + Copy,
     L: SModuleHomomorphism<F, Cmt>,
+    Key: Copy + Send + Sync + 'static,
 {
     pub fn new(
         ccs: CcsStructure<F>,
@@ -130,7 +130,7 @@ where
         m_in: usize,
         tables: &HashMap<u32, LutTable<F>>,
         table_specs: &HashMap<u32, LutTableSpec>,
-        chunk_to_witness: Box<dyn Fn(&[StepTrace<u64, u64>]) -> Vec<F> + Send + Sync>,
+        chunk_to_witness: Box<dyn Fn(&[StepTrace<u64, u64, Key>]) -> Vec<F> + Send + Sync>,
     ) -> Result<Self, String> {
         let mut shout_meta = HashMap::new();
         let mut shout_specs = HashMap::new();
@@ -140,17 +140,11 @@ where
         for (id, spec) in table_specs {
             let (d, n_side) = match spec {
                 LutTableSpec::RiscvOpcode { xlen, .. } => (xlen.saturating_mul(2), 2usize),
-                LutTableSpec::RiscvOpcodePacked { opcode, xlen } => {
-                    if *xlen != 32 {
-                        return Err(format!(
-                            "RiscvOpcodePacked requires xlen=32 in shared-bus R1csCpu path (got xlen={xlen})"
-                        ));
-                    }
-                    (
-                        rv32_packed_d(*opcode).map_err(|e| format!("invalid packed opcode spec: {e}"))?,
-                        2usize,
-                    )
-                }
+                LutTableSpec::RiscvOpcodePacked { opcode, xlen } => (
+                    crate::riscv::packed::rv_packed_d(*opcode, *xlen)
+                        .map_err(|e| format!("invalid packed opcode spec: {e}"))?,
+                    2usize,
+                ),
                 LutTableSpec::RiscvOpcodeEventTablePacked { .. } => {
                     return Err("RiscvOpcodeEventTablePacked is not supported in the shared-bus R1csCpu path".into());
                 }
@@ -462,6 +456,7 @@ where
                 ell,
                 init: MemInit::Zero,
                 init_digest: None,
+                guest_addr_remap: None,
             });
         }
 
@@ -493,13 +488,15 @@ where
 // We need to cast F to Goldilocks if possible, or restrict F to Goldilocks.
 // Given neo-ajtai is hardcoded to Goldilocks (Fq), we should restrict here.
 
-impl<Cmt, L> CpuArithmetization<Goldilocks, Cmt> for R1csCpu<Goldilocks, Cmt, L>
+impl<Cmt, L, Key> CpuArithmetization<Goldilocks, Cmt, Key> for R1csCpu<Goldilocks, Cmt, L, Key>
 where
     L: SModuleHomomorphism<Goldilocks, Cmt>,
+    Key: Copy + TryInto<u128> + Eq + Send + Sync + 'static,
+    <Key as TryInto<u128>>::Error: std::fmt::Debug,
 {
     fn build_ccs_chunks(
         &self,
-        trace: &VmTrace<u64, u64>,
+        trace: &VmTrace<u64, u64, Key>,
         chunk_size: usize,
     ) -> Result<Vec<(CcsClaim<Cmt, Goldilocks>, CcsWitness<Goldilocks>)>, Self::Error> {
         if chunk_size == 0 {
@@ -599,7 +596,7 @@ where
                 // Scratch buffers for per-step event lookup (avoid per-step HashMap allocation).
                 #[derive(Clone)]
                 struct ShoutLaneEvent {
-                    key: u64,
+                    key: u128,
                     vals: Vec<Option<Goldilocks>>,
                 }
                 let mut shout_events: Vec<Vec<Option<ShoutLaneEvent>>> = shared
@@ -637,6 +634,10 @@ where
                     // Collect Shout events keyed by (sorted) table_id list.
                     for ev in &step.shout_events {
                         let id = ev.shout_id.0;
+                        let key = ev
+                            .key
+                            .try_into()
+                            .expect("shared-bus shout lane keys must fit in u128");
                         let idx = shared.table_ids.binary_search(&id).map_err(|_| {
                             format!("unexpected shout_id={id} in one step (chunk_start={chunk_start}, j={j})")
                         })?;
@@ -661,13 +662,13 @@ where
                         let lane_idx = slot_idx / n_vals;
                         let val_slot = slot_idx % n_vals;
                         let lane_entry = shout_events[idx][lane_idx].get_or_insert_with(|| ShoutLaneEvent {
-                            key: ev.key,
+                            key,
                             vals: vec![None; n_vals],
                         });
-                        if lane_entry.key != ev.key {
+                        if lane_entry.key != key {
                             return Err(format!(
                                 "mixed shout keys for shout_id={id} in one step (chunk_start={chunk_start}, j={j}, lane={lane_idx}): first_key={}, new_key={}",
-                                lane_entry.key, ev.key
+                                lane_entry.key, key
                             ));
                         }
                         if lane_entry.vals[val_slot].is_some() {
@@ -803,24 +804,21 @@ where
                                     })?;
                                 match self.shout_specs.get(table_id) {
                                     Some(LutTableSpec::RiscvOpcodePacked { opcode, xlen }) => {
-                                        if *xlen != 32 {
-                                            return Err(format!(
-                                                "packed shout table_id={table_id} requires xlen=32 (got xlen={xlen})"
-                                            ));
-                                        }
                                         // Packed lanes should be derived from architectural operands, not key encoding.
                                         // This keeps packed synthesis correct when some opcodes migrate to combined keys.
-                                        let (lhs, rhs) = reg_read_pair_u32.unwrap_or_else(|| {
-                                            let (lhs_raw, rhs_raw) = uninterleave_bits(key as u128);
-                                            (lhs_raw as u32, rhs_raw as u32)
-                                        });
                                         let val_u64 = primary_val.as_canonical_u64();
-                                        if val_u64 > u32::MAX as u64 {
-                                            return Err(format!(
-                                                "packed shout value out of u32 range for table_id={table_id} at step j={j}: val={val_u64}"
-                                            ));
-                                        }
-                                        let packed_cols = build_rv32_packed_cols::<Goldilocks>(*opcode, lhs, rhs, val_u64 as u32)
+                                        let (lhs, rhs) = if *xlen == 32 {
+                                            let (lhs, rhs) = reg_read_pair_u32.unwrap_or_else(|| {
+                                                let (lhs_raw, rhs_raw) = uninterleave_bits(key as u128);
+                                                (lhs_raw as u32, rhs_raw as u32)
+                                            });
+                                            (lhs as u64, rhs as u64)
+                                        } else {
+                                            uninterleave_bits(key as u128)
+                                        };
+                                        let packed_cols = crate::riscv::packed::build_rv_packed_cols::<Goldilocks>(
+                                            *opcode, lhs, rhs, val_u64, *xlen,
+                                        )
                                             .map_err(|e| {
                                                 format!(
                                                     "packed shout column synthesis failed for table_id={table_id}, opcode={opcode:?}, step_j={j}: {e}"
@@ -844,7 +842,7 @@ where
                                         ));
                                     }
                                     _ => {
-                                        write_addr_bits_dim_major_le_into_bus(
+                                        write_addr_bits_dim_major_le_u128_into_bus(
                                             &mut z_vec,
                                             &shared.layout,
                                             shout_cols.addr_bits.clone(),
@@ -993,7 +991,7 @@ where
 
     fn build_ccs_steps(
         &self,
-        trace: &VmTrace<u64, u64>,
+        trace: &VmTrace<u64, u64, Key>,
     ) -> Result<Vec<(CcsClaim<Cmt, Goldilocks>, CcsWitness<Goldilocks>)>, Self::Error> {
         self.build_ccs_chunks(trace, 1)
     }

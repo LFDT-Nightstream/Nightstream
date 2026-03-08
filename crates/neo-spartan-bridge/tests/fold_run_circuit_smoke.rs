@@ -166,6 +166,8 @@ fn build_trivial_fold_run_and_instance() -> (FoldRunInstance, FoldRunWitness) {
             stage8_fold: Vec::new(),
         }],
         output_proof: None,
+        riscv_profile: None,
+        riscv_memory_layout: None,
         segment_meta: None,
     };
 

@@ -1,248 +1,158 @@
 #![allow(non_snake_case)]
 
-use std::collections::HashMap;
-use std::sync::Arc;
+#[path = "../../common/twist_low_level_fixtures.rs"]
+mod twist_low_level_fixtures;
 
-use neo_ajtai::{setup as ajtai_setup, AjtaiSModule};
+use neo_ajtai::Commitment as Cmt;
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::session::{
-    preprocess_shared_bus_r1cs, witness_layout, FoldingSession, NeoCircuit, SharedBusResources, TwistPort,
-};
-use neo_fold::session::{Public, Scalar};
-use neo_fold::shard::StepLinkingConfig;
-use neo_math::{D, F};
-use neo_memory::ajtai::commit_cols_for_ccs_m;
-use neo_memory::plain::PlainMemLayout;
+use neo_fold::session::{witness_layout, TwistPortWithInc, WitnessLayout};
+use neo_fold::shard::{fold_shard_prove, fold_shard_verify};
+use neo_math::{F, K};
+use neo_memory::plain::{PlainMemLayout, PlainMemTrace};
+use neo_memory::witness::StepInstanceBundle;
+use neo_memory::MemInit;
 use neo_params::NeoParams;
-use neo_vm_trace::{Shout, ShoutId, StepMeta, StepTrace, Twist, TwistId, VmCpu};
+use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_vm_trace::{StepTrace, TwistEvent, TwistId, TwistOpKind};
 use p3_field::PrimeCharacteristicRing;
-use rand::SeedableRng;
-use rand_chacha::ChaCha8Rng;
-
-const CHUNK_SIZE: usize = 2;
-const N_STEPS: usize = CHUNK_SIZE * 2;
 
 witness_layout! {
     #[derive(Clone, Debug)]
     pub MultiWriteCols<const N: usize> {
-        pub one: Public<Scalar>,
-        pub twist0_lane0: TwistPort<N>,
-        pub twist0_lane1: TwistPort<N>,
+        pub twist0_lane0: TwistPortWithInc<N>,
+        pub twist0_lane1: TwistPortWithInc<N>,
     }
-}
-
-#[derive(Clone, Debug, Default)]
-struct MultiWriteCircuit<const N: usize>;
-
-impl<const N: usize> NeoCircuit for MultiWriteCircuit<N> {
-    type Layout = MultiWriteCols<N>;
-
-    fn chunk_size(&self) -> usize {
-        N
-    }
-
-    fn const_one_col(&self, layout: &Self::Layout) -> usize {
-        layout.one
-    }
-
-    fn resources(&self, resources: &mut SharedBusResources) {
-        resources.twist(0).layout(PlainMemLayout {
-            k: 4,
-            d: 2,
-            n_side: 2,
-            lanes: 2,
-        });
-    }
-
-    fn cpu_bindings(
-        &self,
-        layout: &Self::Layout,
-    ) -> Result<
-        (
-            HashMap<u32, Vec<neo_memory::cpu::ShoutCpuBinding>>,
-            HashMap<u32, Vec<neo_memory::cpu::TwistCpuBinding>>,
-        ),
-        String,
-    > {
-        Ok((
-            HashMap::new(),
-            HashMap::from([(
-                0u32,
-                vec![layout.twist0_lane0.cpu_binding(), layout.twist0_lane1.cpu_binding()],
-            )]),
-        ))
-    }
-
-    fn define_cpu_constraints(
-        &self,
-        cs: &mut neo_fold::session::CcsBuilder<F>,
-        layout: &Self::Layout,
-    ) -> Result<(), String> {
-        cs.eq(layout.one, layout.one);
-        Ok(())
-    }
-
-    fn build_witness_prefix(&self, layout: &Self::Layout, chunk: &[StepTrace<u64, u64>]) -> Result<Vec<F>, String> {
-        if chunk.len() != N {
-            return Err(format!(
-                "MultiWriteCircuit witness builder expects full chunks (len {} != N {})",
-                chunk.len(),
-                N
-            ));
-        }
-
-        let mut z = <Self::Layout as neo_fold::session::WitnessLayout>::zero_witness_prefix();
-        z[layout.one] = F::ONE;
-
-        TwistPort::fill_lanes_from_trace(&[layout.twist0_lane0, layout.twist0_lane1], chunk, 0, &mut z)?;
-
-        Ok(z)
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-struct SimpleTwistMem {
-    data: HashMap<(TwistId, u64), u64>,
-}
-
-impl Twist<u64, u64> for SimpleTwistMem {
-    fn load(&mut self, twist_id: TwistId, addr: u64) -> u64 {
-        self.data.get(&(twist_id, addr)).copied().unwrap_or(0)
-    }
-
-    fn store(&mut self, twist_id: TwistId, addr: u64, value: u64) {
-        self.data.insert((twist_id, addr), value);
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-struct DummyShout;
-
-impl Shout<u64> for DummyShout {
-    fn lookup(&mut self, _shout_id: ShoutId, _key: u64) -> u64 {
-        0
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-struct MultiWriteVm {
-    pc: u64,
-    step: u64,
-}
-
-impl VmCpu<u64, u64> for MultiWriteVm {
-    type Error = String;
-
-    fn snapshot_regs(&self) -> Vec<u64> {
-        Vec::new()
-    }
-
-    fn pc(&self) -> u64 {
-        self.pc
-    }
-
-    fn halted(&self) -> bool {
-        false
-    }
-
-    fn step<T, S>(&mut self, twist: &mut T, _shout: &mut S) -> Result<StepMeta<u64>, Self::Error>
-    where
-        T: Twist<u64, u64>,
-        S: Shout<u64>,
-    {
-        twist.store(TwistId(0), 0, self.step + 1);
-        twist.store(TwistId(0), 1, self.step + 2);
-        self.step += 1;
-
-        self.pc = self.pc.wrapping_add(4);
-        Ok(StepMeta {
-            pc_after: self.pc,
-            opcode: 0,
-            is_virtual: false,
-            virtual_sequence_remaining: None,
-        })
-    }
-}
-
-fn setup_ajtai_committer(m: usize, kappa: usize) -> AjtaiSModule {
-    let m_commit = commit_cols_for_ccs_m(m);
-    let mut rng = ChaCha8Rng::seed_from_u64(42);
-    let pp = ajtai_setup(&mut rng, D, kappa, m_commit).expect("Ajtai setup");
-    AjtaiSModule::new(Arc::new(pp))
 }
 
 #[test]
 fn twist_multi_write_two_writes_per_step_prove_verify() {
-    let circuit = Arc::new(MultiWriteCircuit::<CHUNK_SIZE>::default());
-    let pre = preprocess_shared_bus_r1cs(Arc::clone(&circuit)).expect("preprocess_shared_bus_r1cs");
-    let m = pre.m();
+    let t = 2usize;
+    let mem_layout = PlainMemLayout {
+        k: 4,
+        d: 2,
+        n_side: 2,
+        lanes: 2,
+    };
+    let bus_cols = mem_layout.lanes * (2 * mem_layout.d * 1 + 5);
+    let ccs = twist_low_level_fixtures::create_identity_ccs(bus_cols * t);
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.m).expect("params");
+    params.k_rho = 16;
+    let l = twist_low_level_fixtures::setup_ajtai_committer(ccs.m, params.kappa as usize);
 
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(m).expect("params");
-    let committer = setup_ajtai_committer(m, params.kappa as usize);
-    let prover = pre
-        .into_prover(params.clone(), committer.clone())
-        .expect("into_prover");
+    let (mem_inst, mem_wit) = twist_low_level_fixtures::make_twist_instance(0, &mem_layout, MemInit::Zero, t);
+    let step = twist_low_level_fixtures::create_step_with_bus(
+        &params,
+        &ccs,
+        &l,
+        0,
+        vec![],
+        vec![],
+        vec![],
+        vec![(
+            mem_inst,
+            mem_wit,
+            vec![
+                PlainMemTrace {
+                    steps: t,
+                    has_read: vec![F::ZERO; t],
+                    has_write: vec![F::ONE; t],
+                    read_addr: vec![0; t],
+                    write_addr: vec![0; t],
+                    read_val: vec![F::ZERO; t],
+                    write_val: vec![F::ONE, F::from_u64(2)],
+                    inc_at_write_addr: vec![F::ONE, F::ONE],
+                },
+                PlainMemTrace {
+                    steps: t,
+                    has_read: vec![F::ZERO; t],
+                    has_write: vec![F::ONE; t],
+                    read_addr: vec![0; t],
+                    write_addr: vec![1; t],
+                    read_val: vec![F::ZERO; t],
+                    write_val: vec![F::from_u64(2), F::from_u64(3)],
+                    inc_at_write_addr: vec![F::from_u64(2), F::ONE],
+                },
+            ],
+        )],
+    );
 
-    let mut session = FoldingSession::new(FoldingMode::Optimized, params.clone(), committer);
-    prover
-        .execute_into_session(
-            &mut session,
-            MultiWriteVm::default(),
-            SimpleTwistMem::default(),
-            DummyShout::default(),
-            N_STEPS,
-        )
-        .expect("execute_into_session should succeed");
+    let steps_witness = vec![step];
+    let steps_instance: Vec<StepInstanceBundle<Cmt, F, K>> =
+        steps_witness.iter().map(StepInstanceBundle::from).collect();
+    let mixers = crate::common_setup::default_mixers();
+    let mut tr_prove = Poseidon2Transcript::new(b"twist/multi_write");
+    let proof = fold_shard_prove(
+        FoldingMode::Optimized,
+        &mut tr_prove,
+        &params,
+        &ccs,
+        &steps_witness,
+        &[],
+        &[],
+        &l,
+        mixers,
+    )
+    .expect("prove should succeed");
 
-    let run = session
-        .fold_and_prove(prover.ccs())
-        .expect("prove should succeed");
-    session.set_step_linking(StepLinkingConfig::new(vec![(0, 0)]));
-    let ok = session
-        .verify_collected(prover.ccs(), &run)
-        .expect("verify should run");
-    assert!(ok, "verification should pass");
+    let mut tr_verify = Poseidon2Transcript::new(b"twist/multi_write");
+    let outputs = fold_shard_verify(
+        FoldingMode::Optimized,
+        &mut tr_verify,
+        &params,
+        &ccs,
+        &steps_instance,
+        &[],
+        &proof,
+        mixers,
+    )
+    .expect("verify should succeed");
+
+    assert!(
+        !outputs.obligations.val.is_empty(),
+        "twist proving should emit val-lane obligations"
+    );
 }
 
 #[test]
 fn twist_multi_write_duplicate_addr_rejected_by_lane_filler() {
-    let layout = <MultiWriteCols<CHUNK_SIZE> as neo_fold::session::WitnessLayout>::new_layout();
-    let mut z = <MultiWriteCols<CHUNK_SIZE> as neo_fold::session::WitnessLayout>::zero_witness_prefix();
+    const N: usize = 2;
+    let layout = <MultiWriteCols<N> as WitnessLayout>::new_layout();
+    let mut z = <MultiWriteCols<N> as WitnessLayout>::zero_witness_prefix();
 
-    let mut chunk: Vec<StepTrace<u64, u64>> = Vec::with_capacity(CHUNK_SIZE);
-    chunk.push(StepTrace {
-        cycle: 0,
-        pc_before: 0,
-        pc_after: 4,
-        opcode: 0,
-        is_virtual: false,
-        virtual_sequence_remaining: None,
-        regs_before: Vec::new(),
-        regs_after: Vec::new(),
-        twist_events: vec![
-            neo_vm_trace::TwistEvent {
-                twist_id: TwistId(0),
-                kind: neo_vm_trace::TwistOpKind::Write,
-                addr: 0,
-                value: 1,
-                lane: None,
-            },
-            neo_vm_trace::TwistEvent {
-                twist_id: TwistId(0),
-                kind: neo_vm_trace::TwistOpKind::Write,
-                addr: 0,
-                value: 2,
-                lane: None,
-            },
-        ],
-        shout_events: Vec::new(),
-        halted: false,
-    });
-    for i in 1..CHUNK_SIZE {
-        chunk.push(StepTrace {
-            cycle: i as u64,
-            pc_before: 4 * i as u64,
-            pc_after: 4 * (i as u64 + 1),
+    let chunk: Vec<StepTrace<u64, u64, u128>> = vec![
+        StepTrace {
+            cycle: 0,
+            halted: false,
+            pc_before: 0,
+            pc_after: 4,
+            opcode: 0,
+            is_virtual: false,
+            virtual_sequence_remaining: None,
+            regs_before: Vec::new(),
+            regs_after: Vec::new(),
+            twist_events: vec![
+                TwistEvent {
+                    twist_id: TwistId(0),
+                    kind: TwistOpKind::Write,
+                    addr: 0,
+                    value: 1,
+                    lane: None,
+                },
+                TwistEvent {
+                    twist_id: TwistId(0),
+                    kind: TwistOpKind::Write,
+                    addr: 0,
+                    value: 2,
+                    lane: None,
+                },
+            ],
+            shout_events: Vec::new(),
+        },
+        StepTrace {
+            cycle: 1,
+            halted: false,
+            pc_before: 4,
+            pc_after: 8,
             opcode: 0,
             is_virtual: false,
             virtual_sequence_remaining: None,
@@ -250,11 +160,10 @@ fn twist_multi_write_duplicate_addr_rejected_by_lane_filler() {
             regs_after: Vec::new(),
             twist_events: Vec::new(),
             shout_events: Vec::new(),
-            halted: false,
-        });
-    }
+        },
+    ];
 
-    let err = TwistPort::fill_lanes_from_trace(&[layout.twist0_lane0, layout.twist0_lane1], &chunk, 0, &mut z)
-        .expect_err("expected duplicate write addr error");
+    let err = TwistPortWithInc::fill_lanes_from_trace(&[layout.twist0_lane0, layout.twist0_lane1], &chunk, 0, &mut z)
+        .expect_err("duplicate addr must fail");
     assert!(err.contains("duplicate twist write addr"), "unexpected error: {err}");
 }

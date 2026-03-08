@@ -225,6 +225,7 @@ fn cpu_semantic_shadow_fork_attack_should_be_rejected() {
         ell: mem_layout.n_side.trailing_zeros() as usize,
         init: mem_init,
         init_digest: None,
+        guest_addr_remap: None,
     };
     let mem_wit = MemWitness { mats: Vec::new() };
 
@@ -426,6 +427,7 @@ fn cpu_semantic_fork_splice_attack_should_be_rejected() {
         ell: mem_layout.n_side.trailing_zeros() as usize,
         init: mem_init,
         init_digest: None,
+        guest_addr_remap: None,
     };
     let mem_wit = MemWitness { mats: Vec::new() };
 
@@ -643,6 +645,7 @@ fn cpu_lookup_shadow_fork_attack_should_be_rejected() {
         ell: mem_layout.n_side.trailing_zeros() as usize,
         init: mem_init,
         init_digest: None,
+        guest_addr_remap: None,
     };
     let mem_wit = MemWitness { mats: Vec::new() };
 

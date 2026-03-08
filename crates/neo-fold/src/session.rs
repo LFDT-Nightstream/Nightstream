@@ -37,12 +37,14 @@ use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
 use neo_memory::ajtai::{commit_cols_for_ccs_m, decode_vector_for_ccs_m, encode_vector_for_ccs_m};
 use neo_memory::builder::{
-    build_shard_witness_shared_cpu_bus_from_trace_with_aux, build_shard_witness_shared_cpu_bus_with_aux,
+    build_shard_witness_shared_cpu_bus_from_trace_with_aux,
+    build_shard_witness_shared_cpu_bus_from_trace_with_aux_and_mem_remaps, build_shard_witness_shared_cpu_bus_with_aux,
     CpuArithmetization, ShardWitnessAux,
 };
 use neo_memory::plain::{LutTable, PlainMemLayout};
 use neo_memory::witness::LutTableSpec;
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
+use neo_memory::AffineWordAddressRemap;
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -642,10 +644,10 @@ where
         cpu_arith: &A,
     ) -> Result<(), PiCcsError>
     where
-        V: neo_vm_trace::VmCpu<u64, u64>,
+        V: neo_vm_trace::VmCpu<u64, u64, u128>,
         Tw: neo_vm_trace::Twist<u64, u64>,
-        Sh: neo_vm_trace::Shout<u64>,
-        A: CpuArithmetization<F, Cmt>,
+        Sh: neo_vm_trace::Shout<u128, u64>,
+        A: CpuArithmetization<F, Cmt, u128>,
     {
         let (bundles, aux) = {
             let resources = self.shared_bus_resources.as_ref().ok_or_else(|| {
@@ -965,10 +967,10 @@ where
         cpu_arith: &A,
     ) -> Result<(), PiCcsError>
     where
-        V: neo_vm_trace::VmCpu<u64, u64>,
+        V: neo_vm_trace::VmCpu<u64, u64, u128>,
         Tw: neo_vm_trace::Twist<u64, u64>,
-        Sh: neo_vm_trace::Shout<u64>,
-        A: CpuArithmetization<F, Cmt>,
+        Sh: neo_vm_trace::Shout<u128, u64>,
+        A: CpuArithmetization<F, Cmt, u128>,
     {
         let (bundles, aux) = build_shard_witness_shared_cpu_bus_with_aux(
             vm,
@@ -993,9 +995,9 @@ where
     /// Add shared-CPU-bus step bundles from an already-executed trace.
     ///
     /// This avoids re-running `trace_program` when the caller already has a `VmTrace`.
-    pub fn execute_shard_shared_cpu_bus_from_trace<A>(
+    pub fn execute_shard_shared_cpu_bus_from_trace<A, Key>(
         &mut self,
-        trace: &VmTrace<u64, u64>,
+        trace: &VmTrace<u64, u64, Key>,
         max_steps: usize,
         chunk_size: usize,
         mem_layouts: &HashMap<u32, PlainMemLayout>,
@@ -1006,7 +1008,9 @@ where
         cpu_arith: &A,
     ) -> Result<(), PiCcsError>
     where
-        A: CpuArithmetization<F, Cmt>,
+        A: CpuArithmetization<F, Cmt, Key>,
+        Key: Copy + TryInto<u128> + Eq,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
     {
         let (bundles, aux) = build_shard_witness_shared_cpu_bus_from_trace_with_aux(
             trace,
@@ -1017,6 +1021,43 @@ where
             lut_table_specs,
             lut_lanes,
             initial_mem,
+            cpu_arith,
+        )
+        .map_err(|e| PiCcsError::InvalidInput(format!("shared-bus witness build failed: {e:?}")))?;
+
+        self.add_step_bundles(bundles);
+        self.shared_bus_aux = Some(aux);
+        Ok(())
+    }
+
+    pub fn execute_shard_shared_cpu_bus_from_trace_with_mem_remaps<A, Key>(
+        &mut self,
+        trace: &VmTrace<u64, u64, Key>,
+        max_steps: usize,
+        chunk_size: usize,
+        mem_layouts: &HashMap<u32, PlainMemLayout>,
+        lut_tables: &HashMap<u32, LutTable<F>>,
+        lut_table_specs: &HashMap<u32, LutTableSpec>,
+        lut_lanes: &HashMap<u32, usize>,
+        initial_mem: &HashMap<(u32, u64), F>,
+        mem_addr_remaps: &HashMap<u32, AffineWordAddressRemap>,
+        cpu_arith: &A,
+    ) -> Result<(), PiCcsError>
+    where
+        A: CpuArithmetization<F, Cmt, Key>,
+        Key: Copy + TryInto<u128> + Eq,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
+        let (bundles, aux) = build_shard_witness_shared_cpu_bus_from_trace_with_aux_and_mem_remaps(
+            trace,
+            max_steps,
+            chunk_size,
+            mem_layouts,
+            lut_tables,
+            lut_table_specs,
+            lut_lanes,
+            initial_mem,
+            mem_addr_remaps,
             cpu_arith,
         )
         .map_err(|e| PiCcsError::InvalidInput(format!("shared-bus witness build failed: {e:?}")))?;

@@ -330,6 +330,8 @@ where
         ShardProof {
             steps: step_proofs,
             output_proof: None,
+            riscv_profile: None,
+            riscv_memory_layout: None,
             segment_meta: None,
         },
         accumulator,

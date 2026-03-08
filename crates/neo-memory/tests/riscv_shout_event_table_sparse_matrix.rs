@@ -8,7 +8,7 @@ use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
-fn chi_at_u64_index(r: &[K], idx: u64) -> K {
+fn chi_at_index(r: &[K], idx: u128) -> K {
     let mut acc = K::ONE;
     for (bit, &ri) in r.iter().enumerate() {
         let is_one = ((idx >> bit) & 1) == 1;
@@ -92,8 +92,8 @@ fn shout_event_table_sparse_ra_val_mle_matches_direct_sum() {
     let mut expected_val = K::ZERO;
     for row in events.rows.iter() {
         let addr = row.key;
-        let cycle = row.row_idx as u64;
-        let w = chi_at_u64_index(&r_addr, addr) * chi_at_u64_index(&r_cycle, cycle);
+        let cycle = row.row_idx as u128;
+        let w = chi_at_index(&r_addr, addr) * chi_at_index(&r_cycle, cycle);
         expected_ra += w;
         expected_val += K::from_u64(row.value) * w;
     }

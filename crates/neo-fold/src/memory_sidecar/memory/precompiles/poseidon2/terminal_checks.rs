@@ -76,12 +76,14 @@ fn poseidon_cycle_openings_from_me(core_t: usize, side_mes: &[&CeClaim<Cmt, F, K
 
 pub(crate) fn verify_route_a_poseidon_cycle_terminals(
     core_t: usize,
+    cpu_bus: &BusLayout,
     step: &StepInstanceBundle<Cmt, F, K>,
     r_time: &[K],
     r_cycle: &[K],
     batched_final_values: &[K],
     claim_plan: &RouteATimeClaimPlan,
     mem_proof: &MemSidecarProof<Cmt, F, K>,
+    step_time_openings: &[crate::shard_proof_types::TimePointOpening],
     poseidon_link_chals: Option<&PoseidonLinkChallenges>,
     poseidon_cont_chals: Option<&PoseidonContinuityChallenges>,
 ) -> Result<(), PiCcsError> {
@@ -135,62 +137,33 @@ pub(crate) fn verify_route_a_poseidon_cycle_terminals(
         ));
     }
 
-    let trace = Rv32TraceLayout::new();
     let decode = Rv32DecodeSidecarLayout::new();
-    let wp_base_cols = rv32_trace_wp_opening_columns(&trace);
-    let control_extra_cols = if control_stage_required_for_step_instance(step) {
-        rv32_trace_control_extra_opening_columns(&trace)
-    } else {
-        Vec::new()
-    };
-
-    let wp_open_start = core_t;
-    let wp_open_end = wp_open_start
-        .checked_add(wp_base_cols.len())
-        .and_then(|v| v.checked_add(control_extra_cols.len()))
-        .ok_or_else(|| PiCcsError::InvalidInput("poseidon cycle WP opening end overflow".into()))?;
-    if wp_me.ct.len() < wp_open_end {
-        return Err(PiCcsError::ProtocolError(format!(
-            "poseidon cycle WP openings missing (got {}, need at least {wp_open_end})",
-            wp_me.ct.len()
-        )));
-    }
-    let wp_open = &wp_me.ct[wp_open_start..wp_open_end];
-    let wp_open_col = |col_id: usize| -> Result<K, PiCcsError> {
-        if let Some(idx) = wp_base_cols.iter().position(|&c| c == col_id) {
-            return Ok(wp_open[idx]);
-        }
-        if let Some(extra_idx) = control_extra_cols.iter().position(|&c| c == col_id) {
-            let idx = wp_base_cols
-                .len()
-                .checked_add(extra_idx)
-                .ok_or_else(|| PiCcsError::InvalidInput("poseidon cycle WP extra index overflow".into()))?;
-            return wp_open.get(idx).copied().ok_or_else(|| {
-                PiCcsError::ProtocolError(format!("poseidon cycle missing WP extra opening column {col_id}"))
-            });
-        }
-        Err(PiCcsError::ProtocolError(format!(
-            "poseidon cycle missing WP opening column {col_id}"
-        )))
-    };
-
-    let decode_open_cols = neo_memory::riscv::trace::rv32_decode_lookup_backed_cols(&decode);
-    let decode_open_start = wp_open_end;
-    let decode_open_end = decode_open_start
-        .checked_add(decode_open_cols.len())
-        .ok_or_else(|| PiCcsError::InvalidInput("poseidon cycle decode opening end overflow".into()))?;
-    if wp_me.ct.len() < decode_open_end {
-        return Err(PiCcsError::ProtocolError(format!(
-            "poseidon cycle decode openings missing on WP ME claim (got {}, need at least {decode_open_end})",
-            wp_me.ct.len()
-        )));
-    }
-    let decode_open = &wp_me.ct[decode_open_start..decode_open_end];
-    let decode_open_map: BTreeMap<usize, K> = decode_open_cols
-        .iter()
-        .copied()
-        .zip(decode_open.iter().copied())
-        .collect();
+    let cpu_cols = poseidon_cpu_word_cols_for_cpu_len(step.time_columns.cpu_cols.len());
+    let mut wp_required_cols = vec![
+        cpu_cols.active,
+        cpu_cols.instr_word,
+        cpu_cols.rs1_word,
+        cpu_cols.rs2_word,
+        cpu_cols.rd_word,
+        cpu_cols.shout_has_lookup,
+    ];
+    wp_required_cols.sort_unstable();
+    wp_required_cols.dedup();
+    let (_wp_entry, wp_open_map) = require_time_openings_covering_point(
+        step_time_openings,
+        wp_me.r.as_slice(),
+        &wp_required_cols,
+        "poseidon cycle WP",
+    )?;
+    let wp_open_col =
+        |col_id: usize| -> Result<K, PiCcsError> { named_opening(&wp_open_map, col_id, "poseidon cycle WP") };
+    let decode_open_map = decode_lookup_open_map_from_committed_openings(
+        step,
+        cpu_bus,
+        r_time,
+        step_time_openings,
+        "poseidon cycle decode",
+    )?;
     let decode_open_col = |col_id: usize| -> Result<K, PiCcsError> {
         decode_open_map.get(&col_id).copied().ok_or_else(|| {
             PiCcsError::ProtocolError(format!("poseidon(shared) missing decode opening col_id={col_id}"))
@@ -210,7 +183,7 @@ pub(crate) fn verify_route_a_poseidon_cycle_terminals(
     let rd_is_zero = decode_open_col(decode.rd_is_zero)?;
     let ram_has_read = decode_open_col(decode.ram_has_read)?;
     let ram_has_write = decode_open_col(decode.ram_has_write)?;
-    let shout_has_lookup = wp_open_col(trace.shout_has_lookup)?;
+    let shout_has_lookup = wp_open_col(cpu_cols.shout_has_lookup)?;
     let funct3_bits = [
         decode_open_col(decode.funct3_bit[0])?,
         decode_open_col(decode.funct3_bit[1])?,
@@ -225,9 +198,9 @@ pub(crate) fn verify_route_a_poseidon_cycle_terminals(
         decode_open_col(decode.funct7_bit[5])?,
         decode_open_col(decode.funct7_bit[6])?,
     ];
-    let rs1_val = wp_open_col(trace.rs1_val)?;
-    let rs2_val = wp_open_col(trace.rs2_val)?;
-    let rd_val = wp_open_col(trace.rd_val)?;
+    let rs1_val = wp_open_col(cpu_cols.rs1_word)?;
+    let rs2_val = wp_open_col(cpu_cols.rs2_word)?;
+    let rd_val = wp_open_col(cpu_cols.rd_word)?;
 
     if let Some(claim_idx) = claim_plan.poseidon_io_link {
         if claim_idx >= batched_final_values.len() {

@@ -487,7 +487,7 @@ fn rv32m_virtual_semantics_validator_rejects_tampered_exec_row() {
     lane0.addr = lane0.addr.wrapping_add(1);
 
     let err = exec
-        .validate_virtual_decomposition_semantics()
+        .validate_virtual_decomposition_semantics(/*machine_xlen=*/ 32)
         .expect_err("tampered virtual row should fail semantic validation");
     assert!(err.contains("read addr mismatch"), "unexpected error: {err}");
 }

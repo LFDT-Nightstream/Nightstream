@@ -33,13 +33,13 @@ use p3_field::PrimeCharacteristicRing;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
-type Mixers = CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>;
+pub(crate) type Mixers = CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>;
 
 const TEST_N: usize = 32;
 const M_IN: usize = 0;
 
 /// Setup real Ajtai public parameters for tests.
-fn setup_ajtai_pp(m: usize, seed: u64) -> AjtaiSModule {
+pub(crate) fn setup_ajtai_pp(m: usize, seed: u64) -> AjtaiSModule {
     let d = D;
     let m_commit = neo_memory::ajtai::commit_cols_for_ccs_m(m);
     if neo_ajtai::has_global_pp_for_dims(d, m_commit) {
@@ -59,17 +59,17 @@ fn setup_ajtai_pp(m: usize, seed: u64) -> AjtaiSModule {
     AjtaiSModule::from_global_for_dims(d, m_commit).expect("from_global_for_dims")
 }
 
-fn default_mixers() -> Mixers {
+pub(crate) fn default_mixers() -> Mixers {
     crate::common_setup::default_mixers()
 }
 
-fn create_identity_ccs(n: usize) -> CcsStructure<F> {
+pub(crate) fn create_identity_ccs(n: usize) -> CcsStructure<F> {
     let mat = Mat::identity(n);
     let f = SparsePoly::new(1, vec![]);
     CcsStructure::new(vec![mat], f).expect("CCS")
 }
 
-fn create_mcs_from_z(
+pub(crate) fn create_mcs_from_z(
     params: &NeoParams,
     l: &AjtaiSModule,
     m_in: usize,
@@ -83,7 +83,7 @@ fn create_mcs_from_z(
     (CcsClaim { c, x, m_in }, CcsWitness { w, Z })
 }
 
-fn make_shout_instance(
+pub(crate) fn make_shout_instance(
     table: &LutTable<F>,
     steps: usize,
 ) -> (
@@ -111,7 +111,7 @@ fn make_shout_instance(
     )
 }
 
-fn write_shout_bus_step(
+pub(crate) fn write_shout_bus_step(
     z: &mut [F],
     bus_base: usize,
     chunk_size: usize,
@@ -143,7 +143,7 @@ fn write_shout_bus_step(
     *col_id += 1;
 }
 
-fn create_step_with_shout_bus(
+pub(crate) fn create_step_with_shout_bus(
     params: &NeoParams,
     ccs: &CcsStructure<F>,
     l: &AjtaiSModule,
@@ -180,6 +180,61 @@ fn create_step_with_shout_bus(
     crate::common_setup::canonicalize_step_time_columns(StepWitnessBundle {
         mcs: (mcs, mcs_wit),
         lut_instances,
+        mem_instances: vec![],
+        time_columns: crate::common_setup::empty_time_columns(),
+        _phantom: PhantomData::<K>,
+    })
+}
+
+pub(crate) fn create_step_with_shout_bus_lanes(
+    params: &NeoParams,
+    ccs: &CcsStructure<F>,
+    l: &AjtaiSModule,
+    tag: u64,
+    table: &LutTable<F>,
+    lane_traces: &[PlainLutTrace<F>],
+) -> StepWitnessBundle<Cmt, F, K> {
+    let chunk_size = 1usize;
+    assert!(!lane_traces.is_empty(), "need at least one lane trace");
+    let steps = lane_traces[0].has_lookup.len();
+    assert_eq!(steps, chunk_size);
+    let ell = table.n_side.trailing_zeros() as usize;
+
+    let inst = neo_memory::witness::LutInstance::<Cmt, F> {
+        table_id: table.table_id,
+        comms: Vec::new(),
+        k: table.k,
+        d: table.d,
+        n_side: table.n_side,
+        steps,
+        lanes: lane_traces.len(),
+        ell,
+        table_spec: None,
+        table: table.content.clone(),
+        table_digest: None,
+        addr_group: None,
+        selector_group: None,
+    };
+    let wit = neo_memory::witness::LutWitness { mats: Vec::new() };
+
+    let bus_cols_total = lane_traces.len() * (inst.d * inst.ell + 2);
+    let bus_base = ccs.m - bus_cols_total * chunk_size;
+    let mut z = vec![F::ZERO; ccs.m];
+    z[0] = F::from_u64(tag);
+
+    let mut col_id = 0usize;
+    for trace in lane_traces {
+        assert_eq!(trace.has_lookup.len(), chunk_size);
+        assert_eq!(trace.addr.len(), chunk_size);
+        assert_eq!(trace.val.len(), chunk_size);
+        write_shout_bus_step(&mut z, bus_base, chunk_size, 0, &inst, trace, &mut col_id);
+    }
+    debug_assert_eq!(col_id, bus_cols_total);
+
+    let (mcs, mcs_wit) = create_mcs_from_z(params, l, M_IN, z);
+    crate::common_setup::canonicalize_step_time_columns(StepWitnessBundle {
+        mcs: (mcs, mcs_wit),
+        lut_instances: vec![(inst, wit)],
         mem_instances: vec![],
         time_columns: crate::common_setup::empty_time_columns(),
         _phantom: PhantomData::<K>,

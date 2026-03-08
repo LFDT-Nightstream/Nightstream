@@ -201,12 +201,17 @@ pub(crate) fn verify_route_a_decode_terminals(
         return Err(PiCcsError::ProtocolError("W2 WP ME claim m_in mismatch".into()));
     }
     let trace = Rv32TraceLayout::new();
+    let rv64_exact_words = trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
+    let rv64_trace = neo_memory::riscv::trace::Rv64TraceLayout::new();
     let wb_me = &mem_proof.wb_me_claims[0];
     let wb_cols = rv32_trace_wb_columns(&trace);
     let wb_open_map = require_time_openings_for_point(step_time_openings, wb_me.r.as_slice(), &wb_cols, "W2 WB")?;
     let wb_open_col = |col_id: usize| -> Result<K, PiCcsError> { named_opening(&wb_open_map, col_id, "W2 WB") };
 
-    let wp_cols = rv32_trace_wp_opening_columns(&trace);
+    let mut wp_cols = rv32_trace_wp_opening_columns(&trace);
+    if rv64_exact_words {
+        wp_cols.extend(rv64_trace_exact_word_opening_columns());
+    }
     let (_wp_entry, wp_open_map) =
         require_time_openings_covering_point(step_time_openings, wp_me.r.as_slice(), &wp_cols, "W2 WP")?;
     let wp_open_col = |col_id: usize| -> Result<K, PiCcsError> { named_opening(&wp_open_map, col_id, "W2 WP") };
@@ -287,17 +292,64 @@ pub(crate) fn verify_route_a_decode_terminals(
         let rd_is_zero = decode_open_col(decode_layout.rd_is_zero)?;
         let decode_rd_has_write = decode_open_col(decode_layout.rd_has_write)?;
         let imm_i = decode_open_col(decode_layout.imm_i)?;
-        let decode_inputs = W2DecodeFieldsOpenings {
+        let mut decode_inputs = W2DecodeFieldsOpenings {
+            rv64_exact_words,
             active: wp_open_col(trace.active)?,
             halted: wb_open_col(trace.halted)?,
             is_virtual: wp_open_col(trace.is_virtual)?,
             virtual_sequence_remaining: wp_open_col(trace.virtual_sequence_remaining)?,
+            virtual_commit_from_prev: wp_open_col(trace.virtual_commit_from_prev)?,
             trace_rs1_addr: wp_open_col(trace.rs1_addr)?,
             trace_rs2_addr: wp_open_col(trace.rs2_addr)?,
             trace_rd_addr: wp_open_col(trace.rd_addr)?,
             rs1_val: wp_open_col(trace.rs1_val)?,
             rs2_val: wp_open_col(trace.rs2_val)?,
             rd_val: wp_open_col(trace.rd_val)?,
+            rs1_word: if rv64_exact_words {
+                wp_open_col(rv64_trace.rs1_val_lo32)?
+            } else {
+                K::ZERO
+            },
+            rs2_word: if rv64_exact_words {
+                wp_open_col(rv64_trace.rs2_val_lo32)?
+            } else {
+                K::ZERO
+            },
+            rd_word: if rv64_exact_words {
+                wp_open_col(rv64_trace.rd_val_lo32)?
+            } else {
+                K::ZERO
+            },
+            shout_lhs_word: if rv64_exact_words {
+                wp_open_col(rv64_trace.shout_lhs_lo32)?
+            } else {
+                K::ZERO
+            },
+            shout_lhs_hi: if rv64_exact_words {
+                wp_open_col(rv64_trace.shout_lhs_hi32)?
+            } else {
+                K::ZERO
+            },
+            shout_rhs_word: if rv64_exact_words {
+                wp_open_col(rv64_trace.shout_rhs_lo32)?
+            } else {
+                K::ZERO
+            },
+            shout_rhs_hi: if rv64_exact_words {
+                wp_open_col(rv64_trace.shout_rhs_hi32)?
+            } else {
+                K::ZERO
+            },
+            shout_add_sub_key_word: if rv64_exact_words {
+                wp_open_col(rv64_trace.shout_add_sub_key_lo32)?
+            } else {
+                K::ZERO
+            },
+            shout_add_sub_key_hi: if rv64_exact_words {
+                wp_open_col(rv64_trace.shout_add_sub_key_hi32)?
+            } else {
+                K::ZERO
+            },
             trace_rd_has_write: wp_open_col(trace.rd_has_write)?,
             ram_addr: wp_open_col(trace.ram_addr)?,
             shout_has_lookup: wp_open_col(trace.shout_has_lookup)?,
@@ -322,6 +374,14 @@ pub(crate) fn verify_route_a_decode_terminals(
             imm_i,
             imm_s: decode_open_col(decode_layout.imm_s)?,
         };
+        if !rv64_exact_words {
+            decode_inputs.rs1_word = decode_inputs.rs1_val;
+            decode_inputs.rs2_word = decode_inputs.rs2_val;
+            decode_inputs.rd_word = decode_inputs.rd_val;
+            decode_inputs.shout_lhs_word = decode_inputs.shout_lhs;
+            decode_inputs.shout_rhs_word = decode_inputs.shout_rhs;
+            decode_inputs.shout_add_sub_key_word = decode_inputs.shout_add_sub_key;
+        }
         let weights = w2_decode_pack_weight_vector(r_cycle, W2_FIELDS_RESIDUAL_COUNT);
         let weighted = w2_decode_fields_weighted_residual(&decode_inputs, &weights);
         let expected = eq_points(r_time, r_cycle) * weighted;
@@ -404,6 +464,7 @@ pub(crate) fn verify_route_a_width_terminals(
     claim_plan: &RouteATimeClaimPlan,
     mem_proof: &MemSidecarProof<Cmt, F, K>,
     step_time_openings: &[crate::shard_proof_types::TimePointOpening],
+    rv64_fullword_width_stage_from_proof: bool,
 ) -> Result<(), PiCcsError> {
     let any_w3_claim = claim_plan.width_bitness.is_some()
         || claim_plan.width_quiescence.is_some()
@@ -412,6 +473,19 @@ pub(crate) fn verify_route_a_width_terminals(
         || claim_plan.width_store_semantics.is_some();
     if !any_w3_claim {
         return Ok(());
+    }
+
+    if rv64_fullword_width_stage_required_for_step_instance(step) || rv64_fullword_width_stage_from_proof {
+        return verify_route_a_rv64_fullword_terminals(
+            cpu_bus,
+            step,
+            r_time,
+            r_cycle,
+            batched_final_values,
+            claim_plan,
+            mem_proof,
+            step_time_openings,
+        );
     }
 
     if mem_proof.wp_me_claims.len() != 1 {
@@ -630,6 +704,11 @@ pub(crate) fn verify_route_a_control_terminals(
             "control stage requires WP ME openings for main-trace terminals".into(),
         ));
     }
+    let machine_xlen = if step.time_columns.cpu_cols.len() >= neo_memory::riscv::trace::Rv64TraceLayout::new().cols {
+        64
+    } else {
+        32
+    };
     let trace = Rv32TraceLayout::new();
     let decode = Rv32DecodeSidecarLayout::new();
 
@@ -653,8 +732,8 @@ pub(crate) fn verify_route_a_control_terminals(
     let control_extra_cols = rv32_trace_control_extra_opening_columns(&trace);
     let mut wp_all_cols = wp_base_cols.clone();
     wp_all_cols.extend(control_extra_cols.iter().copied());
-    let wp_open_map =
-        require_time_openings_for_point(step_time_openings, wp_me.r.as_slice(), &wp_all_cols, "control stage WP")?;
+    let (_wp_entry, wp_open_map) =
+        require_time_openings_covering_point(step_time_openings, wp_me.r.as_slice(), &wp_all_cols, "control stage WP")?;
     let wp_open_col =
         |col_id: usize| -> Result<K, PiCcsError> { named_opening(&wp_open_map, col_id, "control stage WP") };
     let decode_open_map = decode_lookup_open_map_from_committed_openings(
@@ -827,7 +906,7 @@ pub(crate) fn verify_route_a_control_terminals(
                 "control/writeback claim index out of range".into(),
             ));
         }
-        let imm_u = control_imm_u_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits);
+        let imm_u = control_imm_u_value_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
         let residuals = control_writeback_residuals(
             rd_val,
             pc_before,

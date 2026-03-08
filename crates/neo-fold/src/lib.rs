@@ -27,6 +27,8 @@ pub mod finalize;
 pub mod shard;
 
 pub mod riscv_trace_shard;
+mod rv64_ram_bridge;
+pub mod rv64_trace_shard;
 
 // Output binding integration
 pub mod output_binding;

@@ -68,7 +68,7 @@ fn rv32_shout_event_table_matches_fixed_lane_extract() {
     let table = Rv32ShoutEventTable::from_exec_table(&exec).expect("Rv32ShoutEventTable::from_exec_table");
 
     // Index events by (row_idx, shout_id); fixed-lane policy should make this unique.
-    let mut by_row: HashMap<(usize, u32), (u64, u64)> = HashMap::new();
+    let mut by_row: HashMap<(usize, u32), (u128, u64)> = HashMap::new();
     for e in table.rows.iter() {
         assert!(
             by_row

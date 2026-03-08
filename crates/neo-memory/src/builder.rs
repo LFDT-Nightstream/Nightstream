@@ -1,14 +1,16 @@
-use crate::addr::for_each_addr_bit_dim_major_le;
+use crate::addr::for_each_addr_bit_dim_major_le_u128;
 use crate::mem_init::mem_init_from_state_map;
 use crate::plain::{LutTable, PlainMemLayout};
 use crate::public_digest::memory_public_digest_fields;
 use crate::riscv::exec_table::{Rv32ExecRow, Rv32ExecTable};
 use crate::riscv::lookups::uninterleave_bits;
-use crate::riscv::packed::build_rv32_packed_cols;
 use crate::witness::{LutInstance, LutTableSpec, LutWitness, MemInstance, MemWitness, StepWitnessBundle, TimeColumns};
 use crate::{
     cpu::{build_bus_layout_for_instances_with_shout_shapes_and_twist_lanes, ShoutInstanceShape},
-    riscv::trace::{rv32_trace_lookup_n_vals_for_table_id, Rv32TraceLayout, Rv32TraceWitness},
+    riscv::trace::{
+        rv32_trace_lookup_n_vals_for_table_id, Rv32TraceLayout, Rv32TraceWitness, Rv64TraceLayout, Rv64TraceWitness,
+    },
+    AffineWordAddressRemap,
 };
 use neo_vm_trace::{StepTrace, TwistOpKind, VmTrace};
 
@@ -20,18 +22,18 @@ use std::marker::PhantomData;
 use std::ops::Range;
 
 // Placeholder for CPU arithmetization interface
-pub trait CpuArithmetization<F, Cmt> {
+pub trait CpuArithmetization<F, Cmt, Key = u64> {
     type Error: std::fmt::Debug + std::fmt::Display;
 
     fn build_ccs_chunks(
         &self,
-        trace: &VmTrace<u64, u64>,
+        trace: &VmTrace<u64, u64, Key>,
         chunk_size: usize,
     ) -> Result<Vec<(CcsClaim<Cmt, F>, CcsWitness<F>)>, Self::Error>;
 
     fn build_ccs_steps(
         &self,
-        trace: &VmTrace<u64, u64>,
+        trace: &VmTrace<u64, u64, Key>,
     ) -> Result<Vec<(CcsClaim<Cmt, F>, CcsWitness<F>)>, Self::Error> {
         self.build_ccs_chunks(trace, 1)
     }
@@ -112,7 +114,7 @@ fn write_addr_bits_into_mem_cols(
     mem_cols: &mut [Vec<Goldilocks>],
     bit_cols: Range<usize>,
     j: usize,
-    addr: u64,
+    addr: u128,
     d: usize,
     n_side: usize,
     ell: usize,
@@ -124,7 +126,7 @@ fn write_addr_bits_into_mem_cols(
             d * ell
         )));
     }
-    for_each_addr_bit_dim_major_le(addr, d, n_side, ell, |idx, is_one| {
+    for_each_addr_bit_dim_major_le_u128(addr, d, n_side, ell, |idx, is_one| {
         let col_id = bit_cols.start + idx;
         mem_cols[col_id][j] = if is_one { Goldilocks::ONE } else { Goldilocks::ZERO };
     });
@@ -204,12 +206,17 @@ fn build_shared_bus_layout_for_time_columns<Cmt>(
     .map_err(ShardBuildError::CcsError)
 }
 
-fn build_mem_time_columns_for_step<Cmt>(
-    chunk_steps: &[StepTrace<u64, u64>],
+fn build_mem_time_columns_for_step<Cmt, Key>(
+    chunk_steps: &[StepTrace<u64, u64, Key>],
     chunk_size: usize,
     lut_instances: &[(LutInstance<Cmt, Goldilocks>, LutWitness<Goldilocks>)],
     mem_instances: &[(MemInstance<Cmt, Goldilocks>, MemWitness<Goldilocks>)],
-) -> Result<Vec<Vec<Goldilocks>>, ShardBuildError> {
+    mem_addr_remaps: &HashMap<u32, AffineWordAddressRemap>,
+) -> Result<Vec<Vec<Goldilocks>>, ShardBuildError>
+where
+    Key: Copy + TryInto<u128> + Eq,
+    <Key as TryInto<u128>>::Error: std::fmt::Debug,
+{
     if lut_instances.is_empty() && mem_instances.is_empty() {
         return Ok(Vec::new());
     }
@@ -260,7 +267,7 @@ fn build_mem_time_columns_for_step<Cmt>(
 
     #[derive(Clone)]
     struct ShoutLaneEvent {
-        key: u64,
+        key: u128,
         vals: Vec<Option<Goldilocks>>,
     }
 
@@ -295,6 +302,10 @@ fn build_mem_time_columns_for_step<Cmt>(
 
         for ev in &step.shout_events {
             let table_id = ev.shout_id.0;
+            let key = ev
+                .key
+                .try_into()
+                .expect("shared-bus shout lane keys must fit in u128");
             let idx = shout_idx_by_id.get(&table_id).copied().ok_or_else(|| {
                 ShardBuildError::MissingTable(format!("trace shout event references unknown table_id={table_id}"))
             })?;
@@ -320,13 +331,13 @@ fn build_mem_time_columns_for_step<Cmt>(
             let lane_idx = slot_idx / n_vals;
             let val_idx = slot_idx % n_vals;
             let lane_entry = shout_events[idx][lane_idx].get_or_insert_with(|| ShoutLaneEvent {
-                key: ev.key,
+                key,
                 vals: vec![None; n_vals],
             });
-            if lane_entry.key != ev.key {
+            if lane_entry.key != key {
                 return Err(ShardBuildError::InvalidChunkSize(format!(
                     "mixed shout keys for table_id={table_id} at chunk row j={j}, lane={lane_idx}: first_key={}, new_key={}",
-                    lane_entry.key, ev.key
+                    lane_entry.key, key
                 )));
             }
             if lane_entry.vals[val_idx].is_some() {
@@ -343,6 +354,7 @@ fn build_mem_time_columns_for_step<Cmt>(
             let idx = mem_idx_by_id.get(&mem_id).copied().ok_or_else(|| {
                 ShardBuildError::MissingLayout(format!("trace twist event references unknown mem_id={mem_id}"))
             })?;
+            let mapped_addr = remap_twist_addr(mem_id, ev.addr, mem_addr_remaps)?;
             match ev.kind {
                 TwistOpKind::Read => {
                     let lanes = twist_reads.get_mut(idx).ok_or_else(|| {
@@ -374,16 +386,15 @@ fn build_mem_time_columns_for_step<Cmt>(
                             ))
                         })?
                     };
-                    lanes[lane_idx] = Some((ev.addr, Goldilocks::from_u64(ev.value)));
+                    lanes[lane_idx] = Some((mapped_addr, Goldilocks::from_u64(ev.value)));
                 }
                 TwistOpKind::Write => {
                     let lanes = twist_writes.get_mut(idx).ok_or_else(|| {
                         ShardBuildError::MissingLayout(format!("missing write lanes for mem_id={mem_id}"))
                     })?;
-                    if lanes.iter().flatten().any(|(addr, _)| *addr == ev.addr) {
+                    if lanes.iter().flatten().any(|(addr, _)| *addr == mapped_addr) {
                         return Err(ShardBuildError::InvalidChunkSize(format!(
-                            "duplicate twist write addr in one step for mem_id={mem_id}: addr={}",
-                            ev.addr
+                            "duplicate twist write addr in one step for mem_id={mem_id}: addr={mapped_addr}",
                         )));
                     }
                     let lane_idx = if let Some(lane) = ev.lane {
@@ -412,7 +423,7 @@ fn build_mem_time_columns_for_step<Cmt>(
                             ))
                         })?
                     };
-                    lanes[lane_idx] = Some((ev.addr, Goldilocks::from_u64(ev.value)));
+                    lanes[lane_idx] = Some((mapped_addr, Goldilocks::from_u64(ev.value)));
                 }
             }
         }
@@ -444,24 +455,12 @@ fn build_mem_time_columns_for_step<Cmt>(
                     })?;
                     match &inst.table_spec {
                         Some(LutTableSpec::RiscvOpcodePacked { opcode, xlen }) => {
-                            if *xlen != 32 {
-                                return Err(ShardBuildError::InvalidInit(format!(
-                                    "packed shout requires xlen=32 (table_id={})",
-                                    inst.table_id
-                                )));
-                            }
                             let (lhs_raw, rhs_raw) = uninterleave_bits(key as u128);
-                            let lhs = lhs_raw as u32;
-                            let rhs = rhs_raw as u32;
                             let val_u64 = primary_val.as_canonical_u64();
-                            if val_u64 > u32::MAX as u64 {
-                                return Err(ShardBuildError::InvalidChunkSize(format!(
-                                    "packed shout value out of u32 range for table_id={}: {}",
-                                    inst.table_id, val_u64
-                                )));
-                            }
-                            let packed_cols = build_rv32_packed_cols::<Goldilocks>(*opcode, lhs, rhs, val_u64 as u32)
-                                .map_err(|e| ShardBuildError::CcsError(e.to_string()))?;
+                            let packed_cols = crate::riscv::packed::build_rv_packed_cols::<Goldilocks>(
+                                *opcode, lhs_raw, rhs_raw, val_u64, *xlen,
+                            )
+                            .map_err(|e| ShardBuildError::CcsError(e.to_string()))?;
                             if packed_cols.len() != (shout_cols.addr_bits.end - shout_cols.addr_bits.start) {
                                 return Err(ShardBuildError::CcsError(format!(
                                     "packed shout width mismatch for table_id={}: packed_cols={} bus_cols={}",
@@ -534,7 +533,7 @@ fn build_mem_time_columns_for_step<Cmt>(
                         &mut mem_cols,
                         twist_cols.ra_bits.clone(),
                         j,
-                        ra,
+                        u128::from(ra),
                         inst.d,
                         inst.n_side,
                         inst.ell,
@@ -559,7 +558,7 @@ fn build_mem_time_columns_for_step<Cmt>(
                         &mut mem_cols,
                         twist_cols.wa_bits.clone(),
                         j,
-                        wa,
+                        u128::from(wa),
                         inst.d,
                         inst.n_side,
                         inst.ell,
@@ -588,42 +587,58 @@ fn build_mem_time_columns_for_step<Cmt>(
     Ok(mem_cols)
 }
 
-fn build_time_columns_for_step<Cmt>(
+fn build_time_columns_for_step<Cmt, Key>(
     _mcs: &(CcsClaim<Cmt, Goldilocks>, CcsWitness<Goldilocks>),
     chunk_size: usize,
     chunk_len: usize,
-    chunk_steps: &[StepTrace<u64, u64>],
+    chunk_steps: &[StepTrace<u64, u64, Key>],
     lut_instances: &[(LutInstance<Cmt, Goldilocks>, LutWitness<Goldilocks>)],
     mem_instances: &[(MemInstance<Cmt, Goldilocks>, MemWitness<Goldilocks>)],
-) -> Result<TimeColumns<Goldilocks>, ShardBuildError> {
-    fn cpu_cols_from_chunk_steps(
-        chunk_steps: &[StepTrace<u64, u64>],
+    mem_addr_remaps: &HashMap<u32, AffineWordAddressRemap>,
+) -> Result<TimeColumns<Goldilocks>, ShardBuildError>
+where
+    Key: Copy + TryInto<u128> + Eq,
+    <Key as TryInto<u128>>::Error: std::fmt::Debug,
+{
+    fn cpu_cols_from_chunk_steps<Key>(
+        chunk_steps: &[StepTrace<u64, u64, Key>],
         chunk_size: usize,
+        expected_cpu_cols: usize,
         strict_rv32: bool,
-    ) -> Result<Vec<Vec<Goldilocks>>, ShardBuildError> {
+    ) -> Result<Vec<Vec<Goldilocks>>, ShardBuildError>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
         if chunk_steps.len() > chunk_size {
             return Err(ShardBuildError::InvalidChunkSize(format!(
                 "chunk_steps.len()={} > chunk_size={chunk_size}",
                 chunk_steps.len()
             )));
         }
-
-        let trace_layout = Rv32TraceLayout::new();
-        if chunk_steps.is_empty() {
-            return Ok(vec![vec![Goldilocks::ZERO; chunk_size]; trace_layout.cols]);
+        if expected_cpu_cols == 0 {
+            return Ok(Vec::new());
         }
+        let machine_xlen = if expected_cpu_cols == Rv64TraceLayout::new().cols {
+            64
+        } else {
+            32
+        };
 
         let mut rows = Vec::with_capacity(chunk_size);
         for step in chunk_steps {
-            match Rv32ExecRow::from_step(step) {
+            match Rv32ExecRow::from_step_with_xlen(step, machine_xlen) {
                 Ok(row) => rows.push(row),
                 Err(_e) if !strict_rv32 => {
                     // Non-RV32 harness callers may use opaque instruction words.
                     // For those callers, we only need a shape-compatible time-column payload.
-                    return Ok(vec![vec![Goldilocks::ZERO; chunk_size]; trace_layout.cols]);
+                    return Ok(vec![vec![Goldilocks::ZERO; chunk_size]; expected_cpu_cols]);
                 }
                 Err(e) => return Err(ShardBuildError::CcsError(format!("step->exec conversion failed: {e}"))),
             }
+        }
+        if chunk_steps.is_empty() {
+            return Ok(vec![vec![Goldilocks::ZERO; chunk_size]; expected_cpu_cols]);
         }
         let mut cycle = rows
             .last()
@@ -638,13 +653,55 @@ fn build_time_columns_for_step<Cmt>(
             rows.push(Rv32ExecRow::inactive(cycle, pad_pc, pad_halted));
         }
         let exec = Rv32ExecTable { rows };
-        let wit = Rv32TraceWitness::from_exec_table(&trace_layout, &exec)
-            .map_err(|e| ShardBuildError::CcsError(format!("trace witness build failed: {e}")))?;
-        Ok(wit.cols)
+        if expected_cpu_cols == Rv32TraceLayout::new().cols {
+            let trace_layout = Rv32TraceLayout::new();
+            let wit = Rv32TraceWitness::from_exec_table(&trace_layout, &exec)
+                .map_err(|e| ShardBuildError::CcsError(format!("RV32 time trace witness build failed: {e}")))?;
+            Ok(wit.cols)
+        } else if expected_cpu_cols == Rv64TraceLayout::new().cols {
+            let trace_layout = Rv64TraceLayout::new();
+            let wit = Rv64TraceWitness::from_exec_table(&trace_layout, &exec)
+                .map_err(|e| ShardBuildError::CcsError(format!("RV64 time trace witness build failed: {e}")))?;
+            Ok(wit.cols)
+        } else {
+            Err(ShardBuildError::CcsError(format!(
+                "unsupported CPU time-column profile width {expected_cpu_cols} (expected {} or {})",
+                Rv32TraceLayout::new().cols,
+                Rv64TraceLayout::new().cols
+            )))
+        }
     }
-
-    let cpu_cols = cpu_cols_from_chunk_steps(chunk_steps, chunk_size, /*strict_rv32=*/ _mcs.0.m_in == 5)?;
-    let mem_cols = build_mem_time_columns_for_step(chunk_steps, chunk_size, lut_instances, mem_instances)?;
+    let mem_cols =
+        build_mem_time_columns_for_step(chunk_steps, chunk_size, lut_instances, mem_instances, mem_addr_remaps)?;
+    let logical_m = _mcs
+        .0
+        .m_in
+        .checked_add(_mcs.1.w.len())
+        .ok_or_else(|| ShardBuildError::CcsError("time-column builder logical m overflow".into()))?;
+    let payload_cols = logical_m.checked_sub(_mcs.0.m_in).ok_or_else(|| {
+        ShardBuildError::CcsError(format!(
+            "time-column builder logical width underflow: logical_m={}, m_in={}",
+            logical_m, _mcs.0.m_in
+        ))
+    })?;
+    let expected_cpu_cols = if payload_cols == 0 {
+        0
+    } else {
+        payload_cols.checked_sub(mem_cols.len()).ok_or_else(|| {
+            ShardBuildError::CcsError(format!(
+                "time-column builder width underflow: logical_m={}, m_in={}, mem_cols={}",
+                logical_m,
+                _mcs.0.m_in,
+                mem_cols.len()
+            ))
+        })?
+    };
+    let cpu_cols = cpu_cols_from_chunk_steps(
+        chunk_steps,
+        chunk_size,
+        expected_cpu_cols,
+        /*strict_rv32=*/ _mcs.0.m_in == 5,
+    )?;
 
     if chunk_len > chunk_size {
         return Err(ShardBuildError::InvalidChunkSize(format!(
@@ -693,10 +750,10 @@ pub fn build_shard_witness_shared_cpu_bus<V, Cmt, K, A, Tw, Sh>(
     cpu_arith: &A,
 ) -> Result<Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardBuildError>
 where
-    V: neo_vm_trace::VmCpu<u64, u64>,
+    V: neo_vm_trace::VmCpu<u64, u64, u128>,
     Tw: neo_vm_trace::Twist<u64, u64>,
-    Sh: neo_vm_trace::Shout<u64>,
-    A: CpuArithmetization<Goldilocks, Cmt>,
+    Sh: neo_vm_trace::Shout<u128, u64>,
+    A: CpuArithmetization<Goldilocks, Cmt, u128>,
 {
     bundles_only(build_shard_witness_shared_cpu_bus_with_aux(
         vm,
@@ -717,8 +774,8 @@ where
 ///
 /// This is equivalent to `build_shard_witness_shared_cpu_bus(...)`, but avoids re-running the VM
 /// when the caller already has a `VmTrace` available.
-pub fn build_shard_witness_shared_cpu_bus_from_trace<Cmt, K, A>(
-    trace: &VmTrace<u64, u64>,
+pub fn build_shard_witness_shared_cpu_bus_from_trace<Cmt, K, A, Key>(
+    trace: &VmTrace<u64, u64, Key>,
     max_steps: usize,
     chunk_size: usize,
     mem_layouts: &HashMap<u32, PlainMemLayout>,
@@ -729,7 +786,9 @@ pub fn build_shard_witness_shared_cpu_bus_from_trace<Cmt, K, A>(
     cpu_arith: &A,
 ) -> Result<Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardBuildError>
 where
-    A: CpuArithmetization<Goldilocks, Cmt>,
+    A: CpuArithmetization<Goldilocks, Cmt, Key>,
+    Key: Copy + TryInto<u128> + Eq,
+    <Key as TryInto<u128>>::Error: std::fmt::Debug,
 {
     bundles_only(build_shard_witness_shared_cpu_bus_from_trace_with_aux(
         trace,
@@ -744,10 +803,56 @@ where
     ))
 }
 
+fn remap_twist_addr(
+    mem_id: u32,
+    addr: u64,
+    mem_addr_remaps: &HashMap<u32, AffineWordAddressRemap>,
+) -> Result<u64, ShardBuildError> {
+    let Some(remap) = mem_addr_remaps.get(&mem_id) else {
+        return Ok(addr);
+    };
+    remap.remap_guest_addr(addr).map_err(|e| {
+        ShardBuildError::InvalidInit(format!(
+            "twist address remap failed for mem_id={mem_id}, guest_addr={addr:#x}: {e}"
+        ))
+    })
+}
+
+pub fn build_shard_witness_shared_cpu_bus_from_trace_with_aux_and_mem_remaps<Cmt, K, A, Key>(
+    trace: &VmTrace<u64, u64, Key>,
+    max_steps: usize,
+    chunk_size: usize,
+    mem_layouts: &HashMap<u32, PlainMemLayout>,
+    lut_tables: &HashMap<u32, LutTable<Goldilocks>>,
+    lut_table_specs: &HashMap<u32, LutTableSpec>,
+    lut_lanes: &HashMap<u32, usize>,
+    initial_mem: &HashMap<(u32, u64), Goldilocks>,
+    mem_addr_remaps: &HashMap<u32, AffineWordAddressRemap>,
+    cpu_arith: &A,
+) -> Result<(Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardWitnessAux), ShardBuildError>
+where
+    A: CpuArithmetization<Goldilocks, Cmt, Key>,
+    Key: Copy + TryInto<u128> + Eq,
+    <Key as TryInto<u128>>::Error: std::fmt::Debug,
+{
+    build_shard_witness_shared_cpu_bus_from_trace_with_aux_impl(
+        trace,
+        max_steps,
+        chunk_size,
+        mem_layouts,
+        lut_tables,
+        lut_table_specs,
+        lut_lanes,
+        initial_mem,
+        mem_addr_remaps,
+        cpu_arith,
+    )
+}
+
 /// Like `build_shard_witness_shared_cpu_bus_from_trace`, but also returns auxiliary outputs useful
 /// for higher-level APIs (e.g. output binding that needs terminal Twist memory states).
-pub fn build_shard_witness_shared_cpu_bus_from_trace_with_aux<Cmt, K, A>(
-    trace: &VmTrace<u64, u64>,
+pub fn build_shard_witness_shared_cpu_bus_from_trace_with_aux<Cmt, K, A, Key>(
+    trace: &VmTrace<u64, u64, Key>,
     max_steps: usize,
     chunk_size: usize,
     mem_layouts: &HashMap<u32, PlainMemLayout>,
@@ -758,7 +863,40 @@ pub fn build_shard_witness_shared_cpu_bus_from_trace_with_aux<Cmt, K, A>(
     cpu_arith: &A,
 ) -> Result<(Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardWitnessAux), ShardBuildError>
 where
-    A: CpuArithmetization<Goldilocks, Cmt>,
+    A: CpuArithmetization<Goldilocks, Cmt, Key>,
+    Key: Copy + TryInto<u128> + Eq,
+    <Key as TryInto<u128>>::Error: std::fmt::Debug,
+{
+    build_shard_witness_shared_cpu_bus_from_trace_with_aux_impl(
+        trace,
+        max_steps,
+        chunk_size,
+        mem_layouts,
+        lut_tables,
+        lut_table_specs,
+        lut_lanes,
+        initial_mem,
+        &HashMap::new(),
+        cpu_arith,
+    )
+}
+
+fn build_shard_witness_shared_cpu_bus_from_trace_with_aux_impl<Cmt, K, A, Key>(
+    trace: &VmTrace<u64, u64, Key>,
+    max_steps: usize,
+    chunk_size: usize,
+    mem_layouts: &HashMap<u32, PlainMemLayout>,
+    lut_tables: &HashMap<u32, LutTable<Goldilocks>>,
+    lut_table_specs: &HashMap<u32, LutTableSpec>,
+    lut_lanes: &HashMap<u32, usize>,
+    initial_mem: &HashMap<(u32, u64), Goldilocks>,
+    mem_addr_remaps: &HashMap<u32, AffineWordAddressRemap>,
+    cpu_arith: &A,
+) -> Result<(Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardWitnessAux), ShardBuildError>
+where
+    A: CpuArithmetization<Goldilocks, Cmt, Key>,
+    Key: Copy + TryInto<u128> + Eq,
+    <Key as TryInto<u128>>::Error: std::fmt::Debug,
 {
     let chunk_size = canonical_chunk_size_pow2(chunk_size)?;
     if trace.steps.len() > max_steps {
@@ -920,6 +1058,7 @@ where
                 ell,
                 init,
                 init_digest,
+                guest_addr_remap: mem_addr_remaps.get(&mem_id).cloned(),
             };
             let wit = MemWitness { mats: Vec::new() };
             mem_instances.push((inst, wit));
@@ -934,7 +1073,7 @@ where
                     if ev.twist_id.0 != mem_id || ev.kind != TwistOpKind::Write {
                         continue;
                     }
-                    let addr = ev.addr;
+                    let addr = remap_twist_addr(mem_id, ev.addr, mem_addr_remaps)?;
                     let Ok(addr_usize) = usize::try_from(addr) else {
                         continue;
                     };
@@ -973,12 +1112,7 @@ where
                         (0usize, d, n_side, ell, Vec::new())
                     }
                     LutTableSpec::RiscvOpcodePacked { opcode, xlen } => {
-                        if *xlen != 32 {
-                            return Err(ShardBuildError::InvalidInit(format!(
-                                "RiscvOpcodePacked requires xlen=32 in shared-bus mode (got xlen={xlen})"
-                            )));
-                        }
-                        let d = crate::riscv::packed::rv32_packed_d(*opcode)
+                        let d = crate::riscv::packed::rv_packed_d(*opcode, *xlen)
                             .map_err(|e| ShardBuildError::InvalidInit(format!("invalid packed opcode spec: {e}")))?;
                         let n_side = 2usize;
                         let ell = 1usize;
@@ -1020,8 +1154,15 @@ where
         }
 
         let chunk_steps = &trace.steps[chunk_start..chunk_end];
-        let time_columns =
-            build_time_columns_for_step(&mcs, chunk_size, chunk_len, chunk_steps, &lut_instances, &mem_instances)?;
+        let time_columns = build_time_columns_for_step(
+            &mcs,
+            chunk_size,
+            chunk_len,
+            chunk_steps,
+            &lut_instances,
+            &mem_instances,
+            mem_addr_remaps,
+        )?;
         step_bundles.push(StepWitnessBundle {
             mcs,
             lut_instances,
@@ -1060,10 +1201,10 @@ pub fn build_shard_witness_shared_cpu_bus_with_aux<V, Cmt, K, A, Tw, Sh>(
     cpu_arith: &A,
 ) -> Result<(Vec<StepWitnessBundle<Cmt, Goldilocks, K>>, ShardWitnessAux), ShardBuildError>
 where
-    V: neo_vm_trace::VmCpu<u64, u64>,
+    V: neo_vm_trace::VmCpu<u64, u64, u128>,
     Tw: neo_vm_trace::Twist<u64, u64>,
-    Sh: neo_vm_trace::Shout<u64>,
-    A: CpuArithmetization<Goldilocks, Cmt>,
+    Sh: neo_vm_trace::Shout<u128, u64>,
+    A: CpuArithmetization<Goldilocks, Cmt, u128>,
 {
     let chunk_size = canonical_chunk_size_pow2(chunk_size)?;
 

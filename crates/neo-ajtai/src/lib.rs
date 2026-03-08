@@ -31,7 +31,7 @@ pub use commit::{
     commit, commit_masked_ct, commit_precomp_ct, commit_row_major, precompute_rot_columns, s_lincomb, s_mul, setup,
     setup_par, try_commit, try_commit_row_major, verify_open, verify_split_open,
 };
-pub use decomp::{assert_range_b, decomp_b, decomp_b_row_major, split_b, DecompStyle};
+pub use decomp::{assert_range_b, decomp_b, decomp_b_row_major, decomp_b_row_major_into, split_b, DecompStyle};
 pub use error::{AjtaiError, AjtaiResult};
 pub use types::{Commitment, PP};
 

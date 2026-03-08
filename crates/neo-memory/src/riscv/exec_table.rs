@@ -6,7 +6,7 @@ use p3_symmetric::Permutation;
 use crate::riscv::decomposition_semantics::{expected_virtual_decomposed_op, validate_virtual_row_semantics};
 use crate::riscv::instruction::{encode_lookup_key, operand_mode_keys_enabled, try_decode_lookup_operands};
 use crate::riscv::lookups::{
-    compute_op, decode_instruction, RiscvInstruction, RiscvOpcode, RiscvShoutTables, PROG_ID, RAM_ID, REG_ID,
+    compute_op, decode_instruction_with_xlen, RiscvInstruction, RiscvOpcode, RiscvShoutTables, PROG_ID, RAM_ID, REG_ID,
 };
 use std::collections::HashMap;
 
@@ -80,7 +80,7 @@ pub struct Rv32ExecRow {
     pub ram_events: Vec<TwistEvent<u64, u64>>,
 
     /// Shout events for this step.
-    pub shout_events: Vec<ShoutEvent<u64>>,
+    pub shout_events: Vec<ShoutEvent<u128, u64>>,
 }
 
 #[derive(Clone, Debug)]
@@ -90,6 +90,7 @@ pub struct Rv32ExecColumns {
     pub virtual_sequence_remaining: Vec<u64>,
     pub virtual_transition: Vec<bool>,
     pub virtual_commit_link: Vec<bool>,
+    pub virtual_commit_from_prev: Vec<bool>,
     pub cycle: Vec<u64>,
     pub pc_before: Vec<u64>,
     pub pc_after: Vec<u64>,
@@ -124,17 +125,45 @@ pub struct Rv32ExecTable {
 }
 
 impl Rv32ExecTable {
-    pub fn from_trace(trace: &VmTrace<u64, u64>) -> Result<Self, String> {
+    pub fn from_trace<Key>(trace: &VmTrace<u64, u64, Key>) -> Result<Self, String>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
+        Self::from_trace_with_xlen(trace, /*machine_xlen=*/ 32)
+    }
+
+    pub fn from_trace_with_xlen<Key>(trace: &VmTrace<u64, u64, Key>, machine_xlen: usize) -> Result<Self, String>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
         let mut rows = Vec::with_capacity(trace.steps.len());
         for step in &trace.steps {
-            rows.push(Rv32ExecRow::from_step(step)?);
+            rows.push(Rv32ExecRow::from_step_with_xlen(step, machine_xlen)?);
         }
         let out = Self { rows };
-        out.validate_virtual_decomposition_semantics()?;
+        out.validate_virtual_decomposition_semantics(machine_xlen)?;
         Ok(out)
     }
 
-    pub fn from_trace_padded(trace: &VmTrace<u64, u64>, padded_len: usize) -> Result<Self, String> {
+    pub fn from_trace_padded<Key>(trace: &VmTrace<u64, u64, Key>, padded_len: usize) -> Result<Self, String>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
+        Self::from_trace_padded_with_xlen(trace, padded_len, /*machine_xlen=*/ 32)
+    }
+
+    pub fn from_trace_padded_with_xlen<Key>(
+        trace: &VmTrace<u64, u64, Key>,
+        padded_len: usize,
+        machine_xlen: usize,
+    ) -> Result<Self, String>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
         if padded_len < trace.steps.len() {
             return Err(format!(
                 "padded_len must be >= trace length (padded_len={} trace_len={})",
@@ -145,7 +174,7 @@ impl Rv32ExecTable {
 
         let mut rows = Vec::with_capacity(padded_len);
         for step in &trace.steps {
-            rows.push(Rv32ExecRow::from_step(step)?);
+            rows.push(Rv32ExecRow::from_step_with_xlen(step, machine_xlen)?);
         }
         if rows.is_empty() {
             if padded_len == 0 {
@@ -167,14 +196,30 @@ impl Rv32ExecTable {
         }
 
         let out = Self { rows };
-        out.validate_virtual_decomposition_semantics()?;
+        out.validate_virtual_decomposition_semantics(machine_xlen)?;
         Ok(out)
     }
 
-    pub fn from_trace_padded_pow2(trace: &VmTrace<u64, u64>, min_len: usize) -> Result<Self, String> {
+    pub fn from_trace_padded_pow2<Key>(trace: &VmTrace<u64, u64, Key>, min_len: usize) -> Result<Self, String>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
+        Self::from_trace_padded_pow2_with_xlen(trace, min_len, /*machine_xlen=*/ 32)
+    }
+
+    pub fn from_trace_padded_pow2_with_xlen<Key>(
+        trace: &VmTrace<u64, u64, Key>,
+        min_len: usize,
+        machine_xlen: usize,
+    ) -> Result<Self, String>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
         let steps = trace.steps.len();
         let target = steps.max(min_len).next_power_of_two();
-        Self::from_trace_padded(trace, target)
+        Self::from_trace_padded_with_xlen(trace, target, machine_xlen)
     }
 
     pub fn validate_pc_chain(&self) -> Result<(), String> {
@@ -265,7 +310,7 @@ impl Rv32ExecTable {
     ///
     /// This is a trace extraction hardening check and mirrors the virtual-op
     /// semantics enforced by `Rv32TraceAir`.
-    pub fn validate_virtual_decomposition_semantics(&self) -> Result<(), String> {
+    pub fn validate_virtual_decomposition_semantics(&self, machine_xlen: usize) -> Result<(), String> {
         for (row_idx, r) in self.rows.iter().enumerate() {
             if !r.active || !r.is_virtual {
                 continue;
@@ -273,8 +318,8 @@ impl Rv32ExecTable {
             let remaining = r
                 .virtual_sequence_remaining
                 .ok_or_else(|| format!("row {row_idx}: virtual row missing virtual_sequence_remaining"))?;
-            let op =
-                expected_virtual_decomposed_op(r.instr_word, remaining).map_err(|e| format!("row {row_idx}: {e}"))?;
+            let op = expected_virtual_decomposed_op(r.instr_word, remaining, machine_xlen)
+                .map_err(|e| format!("row {row_idx}: {e}"))?;
             let rs1 = r
                 .reg_read_lane0
                 .as_ref()
@@ -297,6 +342,7 @@ impl Rv32ExecTable {
                 rd_has_write,
                 rd_addr,
                 rd_val,
+                machine_xlen,
             )
             .map_err(|e| format!("row {row_idx}: {e}"))?;
         }
@@ -445,6 +491,7 @@ impl Rv32ExecTable {
             virtual_sequence_remaining: Vec::with_capacity(n),
             virtual_transition: Vec::with_capacity(n),
             virtual_commit_link: Vec::with_capacity(n),
+            virtual_commit_from_prev: Vec::with_capacity(n),
             cycle: Vec::with_capacity(n),
             pc_before: Vec::with_capacity(n),
             pc_after: Vec::with_capacity(n),
@@ -539,16 +586,32 @@ impl Rv32ExecTable {
             let next_has_write = if i + 1 < n { out.rd_has_write[i + 1] } else { false };
             out.virtual_commit_link.push(transition && next_has_write);
         }
+        for i in 0..n {
+            let from_prev = if i > 0 { out.virtual_commit_link[i - 1] } else { false };
+            out.virtual_commit_from_prev.push(from_prev);
+        }
 
         out
     }
 }
 
 impl Rv32ExecRow {
-    pub fn from_step(step: &StepTrace<u64, u64>) -> Result<Self, String> {
+    pub fn from_step<Key>(step: &StepTrace<u64, u64, Key>) -> Result<Self, String>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
+        Self::from_step_with_xlen(step, /*machine_xlen=*/ 32)
+    }
+
+    pub fn from_step_with_xlen<Key>(step: &StepTrace<u64, u64, Key>, machine_xlen: usize) -> Result<Self, String>
+    where
+        Key: Copy + TryInto<u128>,
+        <Key as TryInto<u128>>::Error: std::fmt::Debug,
+    {
         let instr_word = step.opcode;
         let fields = Rv32InstrFields::from_word(instr_word);
-        let decoded = decode_instruction(instr_word).map_err(|e| {
+        let decoded = decode_instruction_with_xlen(instr_word, machine_xlen).map_err(|e| {
             format!(
                 "decode_instruction failed at cycle {} pc={:#x} word={:#x}: {e}",
                 step.cycle, step.pc_before, instr_word
@@ -741,7 +804,22 @@ impl Rv32ExecRow {
             .collect();
 
         // Shout events
-        let mut shout_events = step.shout_events.clone();
+        let mut shout_events: Vec<ShoutEvent<u128, u64>> = step
+            .shout_events
+            .iter()
+            .map(|ev| {
+                Ok(ShoutEvent {
+                    shout_id: ev.shout_id,
+                    key: ev.key.try_into().map_err(|_| {
+                        format!(
+                            "shout key does not fit u128 at cycle {} pc={:#x}",
+                            step.cycle, step.pc_before
+                        )
+                    })?,
+                    value: ev.value,
+                })
+            })
+            .collect::<Result<_, String>>()?;
         if shout_events.is_empty() && !relax_reg_field_checks {
             // Backfill RV32M shout events for trace/event-table consumers.
             //
@@ -822,7 +900,7 @@ pub struct Rv32ShoutEventRow {
     pub shout_id: u32,
     pub opcode: Option<RiscvOpcode>,
     /// Canonicalized key: for shift ops, `rhs` is masked to 5 bits.
-    pub key: u64,
+    pub key: u128,
     pub lhs: u64,
     pub rhs: u64,
     pub value: u64,
@@ -847,7 +925,7 @@ impl Rv32ShoutEventTable {
                 let fallback_lhs = r.reg_read_lane0.as_ref().map(|io| io.value).unwrap_or(0);
                 let fallback_rhs = r.reg_read_lane1.as_ref().map(|io| io.value).unwrap_or(0);
                 let (lhs, rhs_raw) = if let Some(op) = opcode {
-                    try_decode_lookup_operands(op, ev.key, operand_mode_keys_enabled())
+                    try_decode_lookup_operands(op, ev.key, operand_mode_keys_enabled(), /*xlen=*/ 32)
                         .unwrap_or((fallback_lhs, fallback_rhs))
                 } else {
                     (fallback_lhs, fallback_rhs)

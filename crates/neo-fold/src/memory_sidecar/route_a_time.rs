@@ -95,6 +95,7 @@ pub fn prove_route_a_batched_time(
     poseidon_link_cycle_sum_claim: Option<ExtraBatchedTimeClaim>,
     poseidon_cont_inv_claim: Option<ExtraBatchedTimeClaim>,
     poseidon_cont_sum_claim: Option<ExtraBatchedTimeClaim>,
+    ob_reg_exact_linkage: Option<ExtraBatchedTimeClaim>,
     ob_inc_total: Option<ExtraBatchedTimeClaim>,
 ) -> Result<RouteABatchedTimeProverOutput, PiCcsError> {
     let mut claimed_sums: Vec<K> = Vec::new();
@@ -359,6 +360,14 @@ pub fn prove_route_a_batched_time(
         "missing poseidon/cont_sum label",
         "missing poseidon/cont_sum claimed_sum"
     );
+    append_zero_optional_claim!(
+        ob_reg_exact_linkage,
+        ob_reg_exact_linkage_degree_bound,
+        ob_reg_exact_linkage_oracle,
+        ob_reg_exact_linkage_label,
+        "missing ob_reg_exact_linkage label",
+        "missing ob_reg_exact_linkage claimed_sum"
+    );
     append_dynamic_optional_claim!(
         ob_inc_total,
         ob_inc_total_degree_bound,
@@ -393,6 +402,7 @@ pub fn prove_route_a_batched_time(
             || poseidon_link_cycle_sum_degree_bound.is_some()
             || poseidon_cont_inv_degree_bound.is_some()
             || poseidon_cont_sum_degree_bound.is_some(),
+        ob_reg_exact_linkage_degree_bound,
         ob_inc_total_degree_bound,
     );
     let expected_degree_bounds: Vec<usize> = metas.iter().map(|m| m.degree_bound).collect();
@@ -475,6 +485,7 @@ pub fn verify_route_a_batched_time(
     width_stage_enabled: bool,
     control_stage_enabled: bool,
     poseidon_cycle_enabled: bool,
+    ob_reg_exact_linkage_degree_bound: Option<usize>,
     ob_inc_total_degree_bound: Option<usize>,
 ) -> Result<RouteABatchedTimeVerifyOutput, PiCcsError> {
     let metas = RouteATimeClaimPlan::time_claim_metas_for_step(
@@ -485,6 +496,7 @@ pub fn verify_route_a_batched_time(
         width_stage_enabled,
         control_stage_enabled,
         poseidon_cycle_enabled,
+        ob_reg_exact_linkage_degree_bound,
         ob_inc_total_degree_bound,
     );
     let expected_degree_bounds: Vec<usize> = metas.iter().map(|m| m.degree_bound).collect();

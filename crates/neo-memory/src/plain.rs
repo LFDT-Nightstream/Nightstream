@@ -42,8 +42,8 @@ pub struct LutTable<F> {
     pub content: Vec<F>,
 }
 
-pub fn build_plain_mem_traces<F: PrimeField64>(
-    trace: &VmTrace<u64, u64>,
+pub fn build_plain_mem_traces<F: PrimeField64, Key>(
+    trace: &VmTrace<u64, u64, Key>,
     layouts: &HashMap<u32, PlainMemLayout>,
     initial_mem: &HashMap<(u32, u64), F>,
 ) -> HashMap<u32, PlainMemTrace<F>> {
@@ -125,10 +125,14 @@ pub fn build_plain_mem_traces<F: PrimeField64>(
     results
 }
 
-pub fn build_plain_lut_traces<F: PrimeField64>(
-    trace: &VmTrace<u64, u64>,
+pub fn build_plain_lut_traces<F: PrimeField64, Key>(
+    trace: &VmTrace<u64, u64, Key>,
     table_sizes: &HashMap<u32, (usize, usize)>,
-) -> HashMap<u32, PlainLutTrace<F>> {
+) -> HashMap<u32, PlainLutTrace<F>>
+where
+    Key: Copy + TryInto<u64>,
+    <Key as TryInto<u64>>::Error: std::fmt::Debug,
+{
     let empty: HashMap<u32, usize> = HashMap::new();
     let multi = build_plain_lut_traces_with_lanes(trace, table_sizes, &empty);
     multi
@@ -146,11 +150,15 @@ pub fn build_plain_lut_traces<F: PrimeField64>(
 ///
 /// `table_lanes` specifies how many independent lanes are available for each `table_id`.
 /// If a `table_id` is missing from `table_lanes`, it defaults to 1 lane.
-pub fn build_plain_lut_traces_with_lanes<F: PrimeField64>(
-    trace: &VmTrace<u64, u64>,
+pub fn build_plain_lut_traces_with_lanes<F: PrimeField64, Key>(
+    trace: &VmTrace<u64, u64, Key>,
     table_sizes: &HashMap<u32, (usize, usize)>,
     table_lanes: &HashMap<u32, usize>,
-) -> HashMap<u32, Vec<PlainLutTrace<F>>> {
+) -> HashMap<u32, Vec<PlainLutTrace<F>>>
+where
+    Key: Copy + TryInto<u64>,
+    <Key as TryInto<u64>>::Error: std::fmt::Debug,
+{
     let mut results: HashMap<u32, Vec<PlainLutTrace<F>>> = HashMap::new();
     let steps_len = trace.steps.len();
 
@@ -196,7 +204,10 @@ pub fn build_plain_lut_traces_with_lanes<F: PrimeField64>(
                 j
             );
             t.has_lookup[j] = F::ONE;
-            t.addr[j] = shout.key;
+            t.addr[j] = shout
+                .key
+                .try_into()
+                .expect("plain shout traces require u64-addressable lookup keys");
             t.val[j] = F::from_u64(shout.value);
 
             *lane_idx += 1;

@@ -7,6 +7,7 @@ use neo_memory::cpu::{
 use neo_memory::riscv::lookups::{PROG_ID, REG_ID};
 use neo_memory::riscv::trace::{
     rv32_is_decode_lookup_table_id, rv32_is_width_lookup_table_id, rv32_trace_lookup_n_vals_for_table_id,
+    Rv32TraceLayout, Rv64TraceLayout,
 };
 use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle, StepWitnessBundle};
@@ -330,15 +331,18 @@ pub(crate) fn prepare_ccs_for_shared_cpu_bus_steps<'a, Cmt, S: BusStepView<Cmt>>
                 && step.time_mem_cols_len() == steps[0].time_mem_cols_len()
                 && step.time_cpu_cols_len() == steps[0].time_cpu_cols_len()
         });
-    let route_a_uniform_mode = using_time_columns && uniform_width_matches_ccs && m_in == 5;
+    let rv32_trace_cpu_cols = Rv32TraceLayout::new().cols;
+    let rv64_trace_cpu_cols = Rv64TraceLayout::new().cols;
+    let canonical_trace_mode = !steps.is_empty()
+        && m_in == 5
+        && matches!(steps[0].time_cpu_cols_len(), n if n == rv32_trace_cpu_cols || n == rv64_trace_cpu_cols);
+    let route_a_uniform_mode = using_time_columns && uniform_width_matches_ccs && canonical_trace_mode;
     if route_a_uniform_mode && !has_physical_bus_refs {
-        // Canonical uniform Route-A kernel: no active CCS matrix references any physical
-        // bus-tail coordinates, so shared-bus padding/binding constraints are not required.
+        // Only the canonical RV32/RV64 trace-wiring paths are allowed to satisfy shared-bus
+        // linkage purely through committed time columns. Ad hoc test bundles may also synthesize
+        // `time_columns`, but those columns are not authoritative and must still satisfy the
+        // physical-tail guardrails below.
         return Ok((s0, bus));
-    }
-    if using_time_columns {
-        // Physical bus coordinates are referenced by active CCS matrices; enforce canonical
-        // shared-bus binding/padding invariants.
     }
     let padding_rows = ensure_ccs_has_shared_bus_padding_for_steps(s0, &bus, steps)?;
     ensure_ccs_binds_shared_bus_for_steps(s0, &bus, &padding_rows, steps)?;

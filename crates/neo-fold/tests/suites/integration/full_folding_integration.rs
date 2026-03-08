@@ -480,6 +480,7 @@ fn build_single_chunk_inputs() -> (
         ell: mem_layout.n_side.trailing_zeros() as usize,
         init: mem_init.clone(),
         init_digest: None,
+        guest_addr_remap: None,
     };
     let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {
@@ -655,6 +656,7 @@ fn full_folding_integration_multi_step_chunk() {
         ell: mem_layout.n_side.trailing_zeros() as usize,
         init: mem_init.clone(),
         init_digest: None,
+        guest_addr_remap: None,
     };
     let mem_wit = neo_memory::witness::MemWitness { mats: Vec::new() };
     let lut_inst = neo_memory::witness::LutInstance::<Cmt, F> {

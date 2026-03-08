@@ -6,7 +6,7 @@ use std::collections::{HashMap, VecDeque};
 
 use crate::riscv::instruction::{compute_op, decomposition_sequence_for_instruction, encode_lookup_key, DecomposedOp};
 
-use super::decode::decode_instruction;
+use super::decode::decode_instruction_with_xlen;
 use super::encode::encode_instruction;
 use super::isa::{BranchCondition, RiscvInstruction, RiscvMemOp, RiscvOpcode};
 use super::tables::RiscvShoutTables;
@@ -126,6 +126,8 @@ pub struct RiscvCpu {
     pub halted: bool,
     /// Program to execute (list of instructions).
     program: Vec<RiscvInstruction>,
+    /// Sparse program image keyed by absolute PC for ELF-style execution.
+    sparse_program: Option<HashMap<u64, RiscvInstruction>>,
     /// Base address of the program.
     program_base: u64,
     /// Enable runtime Jolt-style decomposition rows for selected opcodes.
@@ -148,6 +150,7 @@ impl RiscvCpu {
             xlen,
             halted: false,
             program: Vec::new(),
+            sparse_program: None,
             program_base: 0,
             enable_runtime_decomposition: false,
             pending_decomposition: None,
@@ -160,6 +163,17 @@ impl RiscvCpu {
     pub fn load_program(&mut self, base: u64, program: Vec<RiscvInstruction>) {
         self.program_base = base;
         self.program = program;
+        self.sparse_program = None;
+        self.pc = base;
+        self.pending_decomposition = None;
+        self.virtual_regs.clear();
+    }
+
+    /// Load a sparse program keyed by absolute instruction address.
+    pub fn load_program_sparse(&mut self, base: u64, program: Vec<(u64, RiscvInstruction)>) {
+        self.program_base = base;
+        self.program.clear();
+        self.sparse_program = Some(program.into_iter().collect());
         self.pc = base;
         self.pending_decomposition = None;
         self.virtual_regs.clear();
@@ -204,10 +218,20 @@ impl RiscvCpu {
         }
     }
 
+    #[inline]
+    fn upper_imm_value(&self, imm: i32) -> u64 {
+        let u_imm = (((imm as u32) << 12) as i32 as i64) as u64;
+        self.mask_value(u_imm)
+    }
+
     /// Get the current instruction (if any).
     fn current_instruction(&self) -> Option<&RiscvInstruction> {
-        let index = (self.pc - self.program_base) / 4;
-        self.program.get(index as usize)
+        if let Some(program) = &self.sparse_program {
+            program.get(&self.pc)
+        } else {
+            let index = (self.pc - self.program_base) / 4;
+            self.program.get(index as usize)
+        }
     }
 
     fn handle_ecall(&mut self) {
@@ -258,12 +282,27 @@ impl RiscvCpu {
     }
 
     #[inline]
-    fn lookup_key_for_opcode(&self, op: RiscvOpcode, lhs: u64, rhs: u64) -> u64 {
+    fn lookup_key_for_opcode(&self, op: RiscvOpcode, lhs: u64, rhs: u64) -> u128 {
         encode_lookup_key(op, lhs, rhs, self.xlen)
     }
 
+    #[inline]
+    fn helper_owned_rv64_word_opcode(op: RiscvOpcode) -> bool {
+        matches!(
+            op,
+            RiscvOpcode::Mulw | RiscvOpcode::Divw | RiscvOpcode::Divuw | RiscvOpcode::Remw | RiscvOpcode::Remuw
+        )
+    }
+
     fn start_decomposition_for_instruction(&mut self, instr_word: u32, instr: &RiscvInstruction) -> Option<()> {
-        if self.xlen != 32 {
+        let rv64_supported = matches!(
+            instr,
+            RiscvInstruction::RAluw {
+                op: RiscvOpcode::Mulw | RiscvOpcode::Divw | RiscvOpcode::Divuw | RiscvOpcode::Remw | RiscvOpcode::Remuw,
+                ..
+            }
+        );
+        if self.xlen != 32 && !(self.xlen == 64 && rv64_supported) {
             return None;
         }
 
@@ -341,7 +380,7 @@ impl RiscvCpu {
     ) -> Result<Option<neo_vm_trace::StepMeta<u64>>, String>
     where
         T: Twist<u64, u64>,
-        S: Shout<u64>,
+        S: Shout<u128, u64>,
     {
         let Some((op, is_virtual, virtual_sequence_remaining, next_pc)) =
             self.pop_pending_decomposition_step(instr_word)?
@@ -370,7 +409,7 @@ impl RiscvCpu {
     ) -> Result<(), String>
     where
         T: Twist<u64, u64>,
-        S: Shout<u64>,
+        S: Shout<u128, u64>,
     {
         let lhs_val = self.read_reg_addr(twist, lhs, /*lane=*/ 0);
         let rhs_val = self.read_reg_addr(twist, rhs, /*lane=*/ 1);
@@ -391,7 +430,7 @@ impl RiscvCpu {
     ) -> Result<(), String>
     where
         T: Twist<u64, u64>,
-        S: Shout<u64>,
+        S: Shout<u128, u64>,
     {
         match op {
             DecomposedOp::Advice { dst } => {
@@ -413,6 +452,14 @@ impl RiscvCpu {
             DecomposedOp::AdviceQuotient { dst, op, lhs, rhs } => {
                 self.exec_lookup_write_decomposed(twist, shout, shout_tables, op, dst, lhs, rhs, is_virtual)?;
             }
+            DecomposedOp::MovSignWord { dst, src } => {
+                let x = self.read_reg_addr(twist, src, /*lane=*/ 0);
+                let _ = self.read_reg_addr(twist, 0, /*lane=*/ 1);
+                let shout_id = shout_tables.opcode_to_id(RiscvOpcode::VirtualMovsignWord);
+                let key = self.lookup_key_for_opcode(RiscvOpcode::VirtualMovsignWord, x, 31);
+                let sign_mask = shout.lookup(shout_id, key);
+                self.write_reg_addr_checked(twist, dst, sign_mask, is_virtual)?;
+            }
             DecomposedOp::MovSign { dst, src } => {
                 let x = self.read_reg_addr(twist, src, /*lane=*/ 0);
                 let _ = self.read_reg_addr(twist, 0, /*lane=*/ 1);
@@ -422,31 +469,56 @@ impl RiscvCpu {
                 let sign_mask = shout.lookup(shout_id, key);
                 self.write_reg_addr_checked(twist, dst, sign_mask, is_virtual)?;
             }
+            DecomposedOp::ComposeU64FromLoHi32 { dst, lo_src, hi_src } => {
+                let lo = self.read_reg_addr(twist, lo_src, /*lane=*/ 0) as u32 as u64;
+                let hi = self.read_reg_addr(twist, hi_src, /*lane=*/ 1) as u32 as u64;
+                let composed = lo | (hi << 32);
+                self.write_reg_addr_checked(twist, dst, composed, is_virtual)?;
+            }
             DecomposedOp::Move { dst, src } => {
                 if !is_virtual && src >= 32 {
-                    // Commit rows must stay architecturally shaped (rs1/rs2 lane reads + canonical Shout).
-                    // The actual writeback value comes from the virtual accumulator.
+                    // Commit rows stay architecturally shaped (rs1/rs2 lane reads). Most
+                    // decompositions also keep a native architectural Shout lookup here.
+                    // Helper-owned RV64 W ops link the commit row to the previous helper rows,
+                    // so we validate the architectural result locally and keep the row lookup-free.
                     let (op, rs1, rs2) = match instr {
                         RiscvInstruction::RAlu { op, rs1, rs2, .. } => (*op, *rs1 as u64, *rs2 as u64),
+                        RiscvInstruction::RAluw { op, rs1, rs2, .. } => (*op, *rs1 as u64, *rs2 as u64),
                         other => {
                             return Err(format!(
-                                "non-virtual virtual-move commit requires RAlu context (got {other:?})"
+                                "non-virtual virtual-move commit requires RAlu/RAluw context (got {other:?})"
                             ));
                         }
                     };
                     let lhs_val = self.read_reg_addr(twist, rs1, /*lane=*/ 0);
                     let rhs_val = self.read_reg_addr(twist, rs2, /*lane=*/ 1);
-                    let shout_id = shout_tables.opcode_to_id(op);
-                    let key = self.lookup_key_for_opcode(op, lhs_val, rhs_val);
-                    let shout_out = shout.lookup(shout_id, key);
                     let x = *self
                         .virtual_regs
                         .get(&src)
                         .ok_or_else(|| format!("missing virtual accumulator value for commit src={src}"))?;
-                    if x != shout_out {
-                        return Err(format!(
-                            "virtual commit mismatch for {op:?}: v_acc={x:#x}, shout={shout_out:#x}"
-                        ));
+                    if matches!(
+                        op,
+                        RiscvOpcode::Mulw
+                            | RiscvOpcode::Divw
+                            | RiscvOpcode::Divuw
+                            | RiscvOpcode::Remw
+                            | RiscvOpcode::Remuw
+                    ) {
+                        let expected = compute_op(op, lhs_val, rhs_val, self.xlen);
+                        if x != expected {
+                            return Err(format!(
+                                "helper-owned virtual commit mismatch for {op:?}: v_acc={x:#x}, expected={expected:#x}"
+                            ));
+                        }
+                    } else {
+                        let shout_id = shout_tables.opcode_to_id(op);
+                        let key = self.lookup_key_for_opcode(op, lhs_val, rhs_val);
+                        let shout_out = shout.lookup(shout_id, key);
+                        if x != shout_out {
+                            return Err(format!(
+                                "virtual commit mismatch for {op:?}: v_acc={x:#x}, shout={shout_out:#x}"
+                            ));
+                        }
                     }
                     self.write_reg_addr_checked(twist, dst, x, is_virtual)?;
                 } else {
@@ -651,7 +723,7 @@ impl RiscvCpu {
     }
 }
 
-impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
+impl neo_vm_trace::VmCpu<u64, u64, u128> for RiscvCpu {
     type Error = String;
 
     fn snapshot_regs(&self) -> Vec<u64> {
@@ -669,7 +741,7 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
     fn step<T, S>(&mut self, twist: &mut T, shout: &mut S) -> Result<neo_vm_trace::StepMeta<u64>, Self::Error>
     where
         T: Twist<u64, u64>,
-        S: Shout<u64>,
+        S: Shout<u128, u64>,
     {
         if (self.pc & 0b11) != 0 {
             return Err(format!("PC not 4-byte aligned (no compressed): pc={:#x}", self.pc));
@@ -704,7 +776,7 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
             }
         }
 
-        let instr = decode_instruction(instr_word_u32).map_err(|e| {
+        let instr = decode_instruction_with_xlen(instr_word_u32, self.xlen).map_err(|e| {
             format!(
                 "Failed to decode instruction at PC {:#x} (word {:#x}): {e}",
                 self.pc, instr_word_u32
@@ -911,13 +983,13 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
             RiscvInstruction::Lui { rd, imm } => {
                 // rd = imm << 12 (upper 20 bits)
-                let value = (imm as i64 as u64) << 12;
+                let value = self.upper_imm_value(imm);
                 self.write_reg(twist, rd, value);
             }
 
             RiscvInstruction::Auipc { rd, imm } => {
                 // rd = pc + (imm << 12) (via Shout ADD for modular RV32 semantics)
-                let imm_u = self.mask_value((imm as i64 as u64) << 12);
+                let imm_u = self.upper_imm_value(imm);
                 let index = self.lookup_key_for_opcode(RiscvOpcode::Add, self.pc, imm_u);
                 let value = shout.lookup(add_shout_id, index);
                 self.write_reg(twist, rd, value);
@@ -932,9 +1004,16 @@ impl neo_vm_trace::VmCpu<u64, u64> for RiscvCpu {
 
             // === RV64 W-suffix Operations ===
             RiscvInstruction::RAluw { op, rd, rs1: _, rs2: _ } => {
-                let shout_id = shout_tables.opcode_to_id(op);
-                let index = self.lookup_key_for_opcode(op, rs1_val, rs2_val);
-                let result = shout.lookup(shout_id, index);
+                let result = if self.xlen == 64 && Self::helper_owned_rv64_word_opcode(op) {
+                    // Helper-owned RV64 W arithmetic is proven through decomposition helpers.
+                    // Keep direct execution available for non-decomposed runs without emitting a
+                    // fake direct architectural lookup dependency.
+                    compute_op(op, rs1_val, rs2_val, self.xlen)
+                } else {
+                    let shout_id = shout_tables.opcode_to_id(op);
+                    let index = self.lookup_key_for_opcode(op, rs1_val, rs2_val);
+                    shout.lookup(shout_id, index)
+                };
 
                 self.write_reg(twist, rd, result);
             }

@@ -1,7 +1,11 @@
 use super::*;
 use neo_ccs::Mat;
 use neo_memory::riscv::exec_table::{Rv32PoseidonCycleEventRow, Rv32PoseidonPermSlotMetaRow, Rv32PoseidonSidecarTable};
-use neo_memory::riscv::lookups::RiscvInstruction;
+use neo_memory::riscv::lookups::{
+    RiscvInstruction, POSEIDON2_ABSORB_FUNCT7, POSEIDON2_CUSTOM_OPCODE, POSEIDON2_FINALIZE_FUNCT7,
+    POSEIDON2_SQUEEZE_FUNCT7,
+};
+use neo_memory::riscv::trace::Rv64TraceLayout;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use p3_symmetric::Permutation;
@@ -476,17 +480,79 @@ fn canonical_u64_lt_goldilocks_aux_local(v: u64) -> (u32, u32, u32, u32) {
     (lo_sum, hi_sum, u32::from(c0), u32::from(c1))
 }
 
+#[inline]
+fn decode_poseidon_precompile_word(instr_word: u32) -> Option<RiscvInstruction> {
+    let opcode = instr_word & 0x7f;
+    if opcode != POSEIDON2_CUSTOM_OPCODE {
+        return None;
+    }
+    let rd = ((instr_word >> 7) & 0x1f) as u8;
+    let funct3 = ((instr_word >> 12) & 0x07) as u8;
+    let rs1 = ((instr_word >> 15) & 0x1f) as u8;
+    let rs2 = ((instr_word >> 20) & 0x1f) as u8;
+    let funct7 = ((instr_word >> 25) & 0x7f) as u8;
+    match funct7 as u32 {
+        POSEIDON2_ABSORB_FUNCT7 if funct3 == 0 && rd == 0 => Some(RiscvInstruction::Poseidon2AbsorbElem { rs1, rs2 }),
+        POSEIDON2_FINALIZE_FUNCT7 if funct3 == 0 && rd == 0 && rs1 == 0 && rs2 == 0 => {
+            Some(RiscvInstruction::Poseidon2Finalize)
+        }
+        POSEIDON2_SQUEEZE_FUNCT7 if rs1 == 0 && rs2 == 0 && funct3 < 8 => {
+            Some(RiscvInstruction::Poseidon2SqueezeWord { rd, idx: funct3 })
+        }
+        _ => None,
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PoseidonCpuWordCols {
+    pub(crate) active: usize,
+    pub(crate) instr_word: usize,
+    pub(crate) rs1_word: usize,
+    pub(crate) rs2_word: usize,
+    pub(crate) rd_word: usize,
+    pub(crate) shout_has_lookup: usize,
+}
+
+#[inline]
+pub(crate) fn poseidon_cpu_word_cols_for_cpu_len(cpu_cols_len: usize) -> PoseidonCpuWordCols {
+    let rv32 = Rv32TraceLayout::new();
+    if cpu_cols_len >= Rv64TraceLayout::new().cols {
+        let rv64 = Rv64TraceLayout::new();
+        PoseidonCpuWordCols {
+            active: rv64.active,
+            instr_word: rv64.instr_word,
+            rs1_word: rv64.rs1_val_lo32,
+            rs2_word: rv64.rs2_val_lo32,
+            rd_word: rv64.rd_val_lo32,
+            shout_has_lookup: rv64.shout_has_lookup,
+        }
+    } else {
+        PoseidonCpuWordCols {
+            active: rv32.active,
+            instr_word: rv32.instr_word,
+            rs1_word: rv32.rs1_val,
+            rs2_word: rv32.rs2_val,
+            rd_word: rv32.rd_val,
+            shout_has_lookup: rv32.shout_has_lookup,
+        }
+    }
+}
+
+#[inline]
+fn poseidon_cpu_word_cols(step: &StepWitnessBundle<Cmt, F, K>) -> PoseidonCpuWordCols {
+    poseidon_cpu_word_cols_for_cpu_len(step.time_columns.cpu_cols.len())
+}
+
 pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
     params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
     carry: &mut PoseidonSidecarCarryState,
 ) -> Result<Rv32PoseidonSidecarTable, PiCcsError> {
-    use neo_memory::riscv::lookups::decode_instruction;
-
     const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
     const DIGEST_LEN: usize = neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
 
     let trace = Rv32TraceLayout::new();
+    let cpu_cols = poseidon_cpu_word_cols(step);
     let t_len = infer_rv32_trace_t_len_for_wb_wp(step, &trace)?;
     if t_len == 0 {
         return Err(PiCcsError::InvalidInput(
@@ -495,27 +561,27 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
     }
 
     let col_ids = [
-        trace.active,
-        trace.instr_word,
-        trace.rs1_val,
-        trace.rs2_val,
-        trace.rd_val,
+        cpu_cols.active,
+        cpu_cols.instr_word,
+        cpu_cols.rs1_word,
+        cpu_cols.rs2_word,
+        cpu_cols.rd_word,
     ];
     let decoded = decode_trace_col_values_batch(params, step, t_len, &col_ids)?;
     let active_vals = decoded
-        .get(&trace.active)
+        .get(&cpu_cols.active)
         .ok_or_else(|| PiCcsError::ProtocolError("poseidon sidecar build: missing active column".into()))?;
     let instr_vals = decoded
-        .get(&trace.instr_word)
+        .get(&cpu_cols.instr_word)
         .ok_or_else(|| PiCcsError::ProtocolError("poseidon sidecar build: missing instr_word column".into()))?;
     let rs1_vals = decoded
-        .get(&trace.rs1_val)
+        .get(&cpu_cols.rs1_word)
         .ok_or_else(|| PiCcsError::ProtocolError("poseidon sidecar build: missing rs1_val column".into()))?;
     let rs2_vals = decoded
-        .get(&trace.rs2_val)
+        .get(&cpu_cols.rs2_word)
         .ok_or_else(|| PiCcsError::ProtocolError("poseidon sidecar build: missing rs2_val column".into()))?;
     let rd_vals = decoded
-        .get(&trace.rd_val)
+        .get(&cpu_cols.rd_word)
         .ok_or_else(|| PiCcsError::ProtocolError("poseidon sidecar build: missing rd_val column".into()))?;
 
     let perm = neo_ccs::crypto::poseidon2_goldilocks::permutation();
@@ -568,15 +634,8 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
         };
 
         let instr_word = decode_k_to_u32(instr_vals[j], "poseidon sidecar build/instr_word")?;
-        let instr = decode_instruction(instr_word).map_err(|e| {
-            PiCcsError::ProtocolError(format!(
-                "poseidon sidecar build: decode_instruction failed at cycle {} (word={instr_word:#x}): {e}",
-                cycle
-            ))
-        })?;
-
-        match instr {
-            RiscvInstruction::Poseidon2AbsorbElem { .. } => {
+        match decode_poseidon_precompile_word(instr_word) {
+            Some(RiscvInstruction::Poseidon2AbsorbElem { .. }) => {
                 out.op_absorb = true;
                 if mode == PoseidonSidecarBuildMode::Finalized {
                     state.fill(Goldilocks::ZERO);
@@ -612,7 +671,7 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
                 }
                 out.cursor_after = absorb_cursor as u8;
             }
-            RiscvInstruction::Poseidon2Finalize => {
+            Some(RiscvInstruction::Poseidon2Finalize) => {
                 out.op_finalize = true;
                 if mode == PoseidonSidecarBuildMode::Finalized {
                     return Err(PiCcsError::ProtocolError(format!(
@@ -654,7 +713,7 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
                 mode = PoseidonSidecarBuildMode::Finalized;
                 out.cursor_after = 0;
             }
-            RiscvInstruction::Poseidon2SqueezeWord { rd, idx } => {
+            Some(RiscvInstruction::Poseidon2SqueezeWord { rd, idx }) => {
                 out.op_squeeze = true;
                 if mode != PoseidonSidecarBuildMode::Finalized {
                     return Err(PiCcsError::ProtocolError(format!(
@@ -973,6 +1032,7 @@ pub(crate) fn build_route_a_poseidon_cycle_claims(
         sidecar.ok_or_else(|| PiCcsError::ProtocolError("poseidon cycle claims require sidecar table".into()))?;
 
     let trace = Rv32TraceLayout::new();
+    let cpu_cols = poseidon_cpu_word_cols(step);
     let decode = Rv32DecodeSidecarLayout::new();
     let layout = PoseidonCycleTraceLayout::new();
     let m_in = step.mcs.0.m_in;
@@ -985,12 +1045,12 @@ pub(crate) fn build_route_a_poseidon_cycle_claims(
     }
 
     let main_col_ids = vec![
-        trace.active,
-        trace.instr_word,
-        trace.rs1_val,
-        trace.rs2_val,
-        trace.rd_val,
-        trace.shout_has_lookup,
+        cpu_cols.active,
+        cpu_cols.instr_word,
+        cpu_cols.rs1_word,
+        cpu_cols.rs2_word,
+        cpu_cols.rd_word,
+        cpu_cols.shout_has_lookup,
     ];
     let main_decoded = decode_trace_col_values_batch(params, step, t_len, &main_col_ids)?;
 
@@ -1013,10 +1073,10 @@ pub(crate) fn build_route_a_poseidon_cycle_claims(
     ];
     let decode_decoded = {
         let instr_vals = main_decoded
-            .get(&trace.instr_word)
+            .get(&cpu_cols.instr_word)
             .ok_or_else(|| PiCcsError::ProtocolError("poseidon(shared): missing instr_word decode column".into()))?;
         let active_vals = main_decoded
-            .get(&trace.active)
+            .get(&cpu_cols.active)
             .ok_or_else(|| PiCcsError::ProtocolError("poseidon(shared): missing active decode column".into()))?;
         if instr_vals.len() != t_len || active_vals.len() != t_len {
             return Err(PiCcsError::ProtocolError(format!(
@@ -1097,7 +1157,7 @@ pub(crate) fn build_route_a_poseidon_cycle_claims(
             decode_col(decode.rd_is_zero)?,
             decode_col(decode.ram_has_read)?,
             decode_col(decode.ram_has_write)?,
-            main_col(trace.shout_has_lookup)?,
+            main_col(cpu_cols.shout_has_lookup)?,
             decode_col(decode.funct3_bit[0])?,
             decode_col(decode.funct3_bit[1])?,
             decode_col(decode.funct3_bit[2])?,
@@ -1223,9 +1283,9 @@ pub(crate) fn build_route_a_poseidon_cycle_claims(
             decode_col(decode.funct7_bit[4])?,
             decode_col(decode.funct7_bit[5])?,
             decode_col(decode.funct7_bit[6])?,
-            main_col(trace.rs1_val)?,
-            main_col(trace.rs2_val)?,
-            main_col(trace.rd_val)?,
+            main_col(cpu_cols.rs1_word)?,
+            main_col(cpu_cols.rs2_word)?,
+            main_col(cpu_cols.rd_word)?,
             side_col(layout.op_absorb)?,
             side_col(layout.op_finalize)?,
             side_col(layout.op_squeeze)?,

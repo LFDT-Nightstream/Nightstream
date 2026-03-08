@@ -37,6 +37,9 @@ pub struct OutputBindingConfig {
 
 /// Label for the optional Route-A batched time claim that binds output sumcheck to Twist increments.
 pub const OB_INC_TOTAL_LABEL: &'static [u8] = b"output_binding/inc_total";
+/// Label for the optional Route-A batched time claim that binds synthetic exact RV64
+/// register-output writes back to the CPU writeback columns.
+pub const OB_REG_EXACT_LINKAGE_LABEL: &'static [u8] = b"output_binding/reg_exact_linkage";
 
 impl OutputBindingConfig {
     /// Create a new output binding config with just the I/O claims.

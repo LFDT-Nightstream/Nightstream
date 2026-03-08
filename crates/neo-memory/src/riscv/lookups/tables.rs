@@ -2,8 +2,8 @@ use neo_vm_trace::{Shout, ShoutId};
 use p3_field::Field;
 
 use crate::riscv::instruction::{
-    encode_lookup_key, mask_to_xlen, opcode_operand_mode, operand_mode_keys_enabled, try_decode_lookup_operands,
-    OperandMode,
+    encode_lookup_key, mask_to_xlen, opcode_lookup_xlen, opcode_operand_mode, operand_mode_keys_enabled,
+    try_decode_lookup_operands, OperandMode,
 };
 
 use super::alu::compute_op;
@@ -12,7 +12,7 @@ use super::isa::RiscvOpcode;
 use super::mle::evaluate_opcode_mle;
 
 #[inline]
-fn combined_key_lookup_result(op: RiscvOpcode, key: u64, xlen: usize) -> Option<u64> {
+fn combined_key_lookup_result(op: RiscvOpcode, key: u128, xlen: usize) -> Option<u64> {
     if !operand_mode_keys_enabled() {
         return None;
     }
@@ -22,7 +22,7 @@ fn combined_key_lookup_result(op: RiscvOpcode, key: u64, xlen: usize) -> Option<
             if matches!(op, RiscvOpcode::Add | RiscvOpcode::Sub) =>
         {
             // ADD/SUB combined-key mode: table behaves as low-word identity.
-            Some(mask_to_xlen(key, xlen))
+            Some(mask_to_xlen(key as u64, xlen))
         }
         _ => None,
     }
@@ -30,14 +30,12 @@ fn combined_key_lookup_result(op: RiscvOpcode, key: u64, xlen: usize) -> Option<
 
 #[inline]
 fn lookup_result_for_key(op: RiscvOpcode, key: u128, xlen: usize) -> u64 {
-    let key_u64 = key as u64;
-
-    if let Some(result) = combined_key_lookup_result(op, key_u64, xlen) {
+    if let Some(result) = combined_key_lookup_result(op, key, xlen) {
         return result;
     }
 
-    let (rs1, rs2) =
-        try_decode_lookup_operands(op, key_u64, operand_mode_keys_enabled()).unwrap_or_else(|| uninterleave_bits(key));
+    let (rs1, rs2) = try_decode_lookup_operands(op, key, operand_mode_keys_enabled(), xlen)
+        .unwrap_or_else(|| uninterleave_bits(key));
     compute_op(op, rs1, rs2, xlen)
 }
 
@@ -51,8 +49,10 @@ fn lookup_result_for_key(op: RiscvOpcode, key: u128, xlen: usize) -> u64 {
 pub struct RiscvLookupTable<F> {
     /// The RISC-V opcode this table implements.
     pub opcode: RiscvOpcode,
-    /// Word size in bits (8, 32, or 64).
-    pub xlen: usize,
+    /// Architectural word size in bits.
+    pub arch_xlen: usize,
+    /// Lookup-key width in bits.
+    pub key_xlen: usize,
     /// Precomputed table values (only for small tables).
     /// For large tables, values are computed on-demand.
     pub values: Option<Vec<F>>,
@@ -64,8 +64,9 @@ impl<F: Field> RiscvLookupTable<F> {
     /// For xlen <= 8, precomputes all table entries.
     /// For larger word sizes, entries are computed on-demand.
     pub fn new(opcode: RiscvOpcode, xlen: usize) -> Self {
-        let values = if xlen <= 8 {
-            let table_size = 1usize << (2 * xlen);
+        let key_xlen = opcode_lookup_xlen(opcode, xlen);
+        let values = if key_xlen <= 8 {
+            let table_size = 1usize << (2 * key_xlen);
             Some(
                 (0..table_size)
                     .map(|idx| {
@@ -78,12 +79,20 @@ impl<F: Field> RiscvLookupTable<F> {
             None
         };
 
-        Self { opcode, xlen, values }
+        Self {
+            opcode,
+            arch_xlen: xlen,
+            key_xlen,
+            values,
+        }
     }
 
-    /// Get the table size (K = 2^{2*xlen}).
-    pub fn size(&self) -> usize {
-        1usize << (2 * self.xlen)
+    /// Get the table size (K = 2^{2*key_xlen}) when it fits in `usize`.
+    pub fn size(&self) -> Option<usize> {
+        if 2 * self.key_xlen >= usize::BITS as usize {
+            return None;
+        }
+        Some(1usize << (2 * self.key_xlen))
     }
 
     /// Look up a value by index.
@@ -91,20 +100,21 @@ impl<F: Field> RiscvLookupTable<F> {
         if let Some(ref values) = self.values {
             values[index as usize]
         } else {
-            let entry = lookup_result_for_key(self.opcode, index, self.xlen);
+            let entry = lookup_result_for_key(self.opcode, index, self.arch_xlen);
             F::from_u64(entry)
         }
     }
 
     /// Look up a value by operands.
     pub fn lookup_operands(&self, x: u64, y: u64) -> F {
-        let key = encode_lookup_key(self.opcode, x, y, self.xlen);
-        self.lookup(key as u128)
+        let key = encode_lookup_key(self.opcode, x, y, self.arch_xlen);
+        self.lookup(key)
     }
 
     /// Evaluate the MLE at a random point.
     pub fn evaluate_mle(&self, r: &[F]) -> F {
-        evaluate_opcode_mle(self.opcode, r, self.xlen)
+        debug_assert_eq!(r.len(), 2 * self.key_xlen);
+        evaluate_opcode_mle(self.opcode, r, self.key_xlen)
     }
 
     /// Get the content as a vector of field elements (for Shout encoding).
@@ -112,7 +122,9 @@ impl<F: Field> RiscvLookupTable<F> {
         if let Some(ref values) = self.values {
             values.clone()
         } else {
-            let table_size = self.size();
+            let table_size = self
+                .size()
+                .expect("lookup table domain too large to enumerate");
             (0..table_size)
                 .map(|idx| self.lookup(idx as u128))
                 .collect()
@@ -149,7 +161,7 @@ impl RiscvLookupEvent {
 
     /// Get the lookup index for this event.
     pub fn lookup_index(&self, xlen: usize) -> u128 {
-        encode_lookup_key(self.opcode, self.rs1, self.rs2, xlen) as u128
+        encode_lookup_key(self.opcode, self.rs1, self.rs2, xlen)
     }
 }
 
@@ -251,61 +263,89 @@ impl RiscvShoutTables {
             22 => Some(RiscvOpcode::Sllw),
             23 => Some(RiscvOpcode::Srlw),
             24 => Some(RiscvOpcode::Sraw),
-            25 => Some(RiscvOpcode::Mulw),
-            26 => Some(RiscvOpcode::Divw),
-            27 => Some(RiscvOpcode::Divuw),
-            28 => Some(RiscvOpcode::Remw),
-            29 => Some(RiscvOpcode::Remuw),
+            25 => None,
+            26 => None,
+            27 => None,
+            28 => None,
+            29 => None,
             // Bitmanip
             30 => Some(RiscvOpcode::Andn),
+            31 => Some(RiscvOpcode::VirtualMulWord),
+            32 => Some(RiscvOpcode::VirtualDivuWord),
+            33 => Some(RiscvOpcode::VirtualRemuWord),
+            34 => Some(RiscvOpcode::VirtualDivWord),
+            35 => Some(RiscvOpcode::VirtualRemWord),
+            36 => Some(RiscvOpcode::VirtualMovsignWord),
             _ => None,
+        }
+    }
+
+    pub fn try_opcode_to_id(&self, op: RiscvOpcode) -> Option<ShoutId> {
+        match op {
+            RiscvOpcode::And => Some(ShoutId(0)),
+            RiscvOpcode::Xor => Some(ShoutId(1)),
+            RiscvOpcode::Or => Some(ShoutId(2)),
+            RiscvOpcode::Add => Some(ShoutId(3)),
+            RiscvOpcode::Sub => Some(ShoutId(4)),
+            RiscvOpcode::Slt => Some(ShoutId(5)),
+            RiscvOpcode::Sltu => Some(ShoutId(6)),
+            RiscvOpcode::Sll => Some(ShoutId(7)),
+            RiscvOpcode::Srl => Some(ShoutId(8)),
+            RiscvOpcode::Sra => Some(ShoutId(9)),
+            RiscvOpcode::Eq => Some(ShoutId(10)),
+            RiscvOpcode::Neq => Some(ShoutId(11)),
+            RiscvOpcode::Mul => Some(ShoutId(12)),
+            RiscvOpcode::Mulh => Some(ShoutId(13)),
+            RiscvOpcode::Mulhu => Some(ShoutId(14)),
+            RiscvOpcode::Mulhsu => Some(ShoutId(15)),
+            RiscvOpcode::Div => Some(ShoutId(16)),
+            RiscvOpcode::Divu => Some(ShoutId(17)),
+            RiscvOpcode::Rem => Some(ShoutId(18)),
+            RiscvOpcode::Remu => Some(ShoutId(19)),
+            RiscvOpcode::Addw => Some(ShoutId(20)),
+            RiscvOpcode::Subw => Some(ShoutId(21)),
+            RiscvOpcode::Sllw => Some(ShoutId(22)),
+            RiscvOpcode::Srlw => Some(ShoutId(23)),
+            RiscvOpcode::Sraw => Some(ShoutId(24)),
+            RiscvOpcode::Mulw | RiscvOpcode::Divw | RiscvOpcode::Divuw | RiscvOpcode::Remw | RiscvOpcode::Remuw => None,
+            RiscvOpcode::Andn => Some(ShoutId(30)),
+            RiscvOpcode::VirtualMulWord => Some(ShoutId(31)),
+            RiscvOpcode::VirtualDivuWord => Some(ShoutId(32)),
+            RiscvOpcode::VirtualRemuWord => Some(ShoutId(33)),
+            RiscvOpcode::VirtualDivWord => Some(ShoutId(34)),
+            RiscvOpcode::VirtualRemWord => Some(ShoutId(35)),
+            RiscvOpcode::VirtualMovsignWord => Some(ShoutId(36)),
         }
     }
 
     /// Get the ShoutId for a given opcode.
     pub fn opcode_to_id(&self, op: RiscvOpcode) -> ShoutId {
-        match op {
-            RiscvOpcode::And => ShoutId(0),
-            RiscvOpcode::Xor => ShoutId(1),
-            RiscvOpcode::Or => ShoutId(2),
-            RiscvOpcode::Add => ShoutId(3),
-            RiscvOpcode::Sub => ShoutId(4),
-            RiscvOpcode::Slt => ShoutId(5),
-            RiscvOpcode::Sltu => ShoutId(6),
-            RiscvOpcode::Sll => ShoutId(7),
-            RiscvOpcode::Srl => ShoutId(8),
-            RiscvOpcode::Sra => ShoutId(9),
-            RiscvOpcode::Eq => ShoutId(10),
-            RiscvOpcode::Neq => ShoutId(11),
-            // M Extension
-            RiscvOpcode::Mul => ShoutId(12),
-            RiscvOpcode::Mulh => ShoutId(13),
-            RiscvOpcode::Mulhu => ShoutId(14),
-            RiscvOpcode::Mulhsu => ShoutId(15),
-            RiscvOpcode::Div => ShoutId(16),
-            RiscvOpcode::Divu => ShoutId(17),
-            RiscvOpcode::Rem => ShoutId(18),
-            RiscvOpcode::Remu => ShoutId(19),
-            // RV64 W-suffix
-            RiscvOpcode::Addw => ShoutId(20),
-            RiscvOpcode::Subw => ShoutId(21),
-            RiscvOpcode::Sllw => ShoutId(22),
-            RiscvOpcode::Srlw => ShoutId(23),
-            RiscvOpcode::Sraw => ShoutId(24),
-            RiscvOpcode::Mulw => ShoutId(25),
-            RiscvOpcode::Divw => ShoutId(26),
-            RiscvOpcode::Divuw => ShoutId(27),
-            RiscvOpcode::Remw => ShoutId(28),
-            RiscvOpcode::Remuw => ShoutId(29),
-            // Bitmanip
-            RiscvOpcode::Andn => ShoutId(30),
+        self.try_opcode_to_id(op)
+            .unwrap_or_else(|| panic!("opcode {op:?} has no direct Shout table; use helper-owned decomposition"))
+    }
+}
+
+impl Shout<u128, u64> for RiscvShoutTables {
+    fn lookup(&mut self, shout_id: ShoutId, key: u128) -> u64 {
+        if let Some(op) = self.id_to_opcode(shout_id) {
+            lookup_result_for_key(op, key, self.xlen)
+        } else {
+            0 // Unknown table
         }
     }
 }
 
-impl Shout<u64> for RiscvShoutTables {
+impl Shout<u64, u64> for RiscvShoutTables {
     fn lookup(&mut self, shout_id: ShoutId, key: u64) -> u64 {
         if let Some(op) = self.id_to_opcode(shout_id) {
+            let key_xlen = opcode_lookup_xlen(op, self.xlen);
+            let combined = crate::riscv::instruction::opcode_uses_combined_lookup_key(op);
+            assert!(
+                key_xlen <= 32 || combined,
+                "RiscvShoutTables<u64> cannot soundly transport RV{} {:?} lookup keys (key_xlen={key_xlen}); use u128 shout keys",
+                self.xlen,
+                op,
+            );
             lookup_result_for_key(op, key as u128, self.xlen)
         } else {
             0 // Unknown table

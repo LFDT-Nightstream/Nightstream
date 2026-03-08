@@ -30,6 +30,7 @@ fn build_claim_witness_from_step(
 ) -> Result<Mat<F>, PiCcsError> {
     let t = step.time_columns.t;
     let mut out = Mat::zero(D, t, F::ZERO);
+    let mut z_col_row_major = Vec::new();
     for (i, &col_id) in open_pf.col_ids.iter().enumerate() {
         let abs_pos = logical_col_pos.get(&col_id).copied().ok_or_else(|| {
             PiCcsError::ProtocolError(format!("time/opening joint/prove: logical col_id={} missing", col_id))
@@ -63,18 +64,24 @@ fn build_claim_witness_from_step(
                 ))
             })?
         };
-        let z_col = neo_memory::ajtai::encode_vector_balanced_to_mat_with_base(
+        neo_memory::ajtai::encode_vector_balanced_to_row_major_with_base_into(
             params,
             col,
             crate::time_opening::STAGE8_TIME_DECOMP_BASE,
+            &mut z_col_row_major,
         );
-        left_mul_add_into(&mut out, &coeffs[i], &z_col)?;
+        left_mul_add_row_major_into(&mut out, &coeffs[i], z_col_row_major.as_slice(), t)?;
     }
     Ok(out)
 }
 
 #[inline]
 fn left_mul_add_into(dst: &mut Mat<F>, rho: &Mat<F>, src: &Mat<F>) -> Result<(), PiCcsError> {
+    left_mul_add_row_major_into(dst, rho, src.as_slice(), src.cols())
+}
+
+#[inline]
+fn left_mul_add_row_major_into(dst: &mut Mat<F>, rho: &Mat<F>, src_data: &[F], m: usize) -> Result<(), PiCcsError> {
     if rho.rows() != D || rho.cols() != D {
         return Err(PiCcsError::InvalidInput(format!(
             "time/opening joint: rho must be {D}x{D} (got {}x{})",
@@ -82,21 +89,18 @@ fn left_mul_add_into(dst: &mut Mat<F>, rho: &Mat<F>, src: &Mat<F>) -> Result<(),
             rho.cols()
         )));
     }
-    if src.rows() != D || dst.rows() != D || src.cols() != dst.cols() {
+    if dst.rows() != D || dst.cols() != m || src_data.len() != D * m {
         return Err(PiCcsError::InvalidInput(format!(
-            "time/opening joint: matrix shape mismatch (dst={}x{}, src={}x{})",
+            "time/opening joint: matrix shape mismatch (dst={}x{}, src={} entries)",
             dst.rows(),
             dst.cols(),
-            src.rows(),
-            src.cols()
+            src_data.len(),
         )));
     }
-    let m = src.cols();
     if m == 0 {
         return Ok(());
     }
     let rho_data = rho.as_slice();
-    let src_data = src.as_slice();
     const BLOCK_COLS: usize = 512;
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]

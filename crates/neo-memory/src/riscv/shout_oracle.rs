@@ -11,21 +11,18 @@ use neo_reductions::sumcheck::RoundOracle;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::mle::build_chi_table;
-use crate::riscv::instruction::{
-    mask_to_xlen, opcode_uses_combined_lookup_key, operand_mode_keys_enabled, try_decode_lookup_operands,
-};
+use crate::riscv::instruction::{mask_to_xlen, opcode_uses_combined_lookup_key};
 use crate::sparse_time::SparseIdxVec;
 
 use super::lookups::{compute_op, evaluate_opcode_mle, uninterleave_bits, RiscvOpcode};
 
 #[inline]
-fn implicit_table_eval_at_addr(opcode: RiscvOpcode, addr: u64, xlen: usize) -> u64 {
+fn implicit_table_eval_at_addr(opcode: RiscvOpcode, addr: u128, xlen: usize) -> u64 {
     if opcode_uses_combined_lookup_key(opcode) {
-        return mask_to_xlen(addr, xlen);
+        return mask_to_xlen(addr as u64, xlen);
     }
 
-    let (rs1, rs2) = try_decode_lookup_operands(opcode, addr, operand_mode_keys_enabled())
-        .unwrap_or_else(|| uninterleave_bits(addr as u128));
+    let (rs1, rs2) = uninterleave_bits(addr);
     compute_op(opcode, rs1, rs2, xlen)
 }
 
@@ -50,15 +47,15 @@ pub struct RiscvAddressLookupOracleSparse {
     bound_prefix: Vec<K>,
     /// Sparse truth table of `weight` on the remaining Boolean hypercube.
     /// Keys are indices in little-endian order over the remaining variables.
-    weights: HashMap<u64, K>,
+    weights: HashMap<u128, K>,
 }
 
 impl RiscvAddressLookupOracleSparse {
     pub fn validate_spec(opcode: RiscvOpcode, xlen: usize) -> Result<(), PiCcsError> {
-        if xlen != 32 {
-            return Err(PiCcsError::InvalidInput(
-                "RISC-V implicit Shout tables currently support xlen=32 only".into(),
-            ));
+        if !matches!(xlen, 32 | 64) {
+            return Err(PiCcsError::InvalidInput(format!(
+                "RISC-V implicit Shout tables currently support xlen=32 or 64 only (got xlen={xlen})"
+            )));
         }
         match opcode {
             RiscvOpcode::And
@@ -72,9 +69,12 @@ impl RiscvAddressLookupOracleSparse {
             | RiscvOpcode::Eq
             | RiscvOpcode::Neq
             | RiscvOpcode::Slt
-            | RiscvOpcode::Sltu
-            | RiscvOpcode::Mul
-            | RiscvOpcode::Mulhu => Ok(()),
+            | RiscvOpcode::Sltu => Ok(()),
+            RiscvOpcode::Addw | RiscvOpcode::Subw | RiscvOpcode::Sllw | RiscvOpcode::Srlw | RiscvOpcode::Sraw
+                if xlen == 64 =>
+            {
+                Ok(())
+            }
             _ => Err(PiCcsError::InvalidInput(format!(
                 "RISC-V implicit Shout table MLE not implemented for opcode {opcode:?} at xlen={xlen}"
             ))),
@@ -101,9 +101,9 @@ impl RiscvAddressLookupOracleSparse {
                 ell_total
             )));
         }
-        if ell_total > 64 {
+        if ell_total > 128 {
             return Err(PiCcsError::InvalidInput(
-                "RISC-V implicit Shout: ell_total > 64 not supported (key does not fit u64)".into(),
+                "RISC-V implicit Shout: ell_total > 128 not supported (key does not fit u128)".into(),
             ));
         }
 
@@ -126,18 +126,18 @@ impl RiscvAddressLookupOracleSparse {
         let chi_cycle_table = build_chi_table(r_cycle);
 
         // Build sparse weight table: weight[a] = Σ_t eq(r_cycle, t) * has_lookup(t) for steps hitting address a.
-        let mut weights: HashMap<u64, K> = HashMap::new();
+        let mut weights: HashMap<u128, K> = HashMap::new();
         for t in 0..pow2_cycle {
             let gate = has_lookup[t];
             if gate == K::ZERO {
                 continue;
             }
 
-            // Decode address bits at time t into a u64 key.
-            let mut addr_t: u64 = 0;
+            // Decode address bits at time t into a u128 key.
+            let mut addr_t: u128 = 0;
             for b in 0..ell_total {
                 if addr_bits[b][t] == K::ONE {
-                    addr_t |= 1u64 << b;
+                    addr_t |= 1u128 << b;
                 }
             }
 
@@ -187,9 +187,9 @@ impl RiscvAddressLookupOracleSparse {
                 ell_total
             )));
         }
-        if ell_total > 64 {
+        if ell_total > 128 {
             return Err(PiCcsError::InvalidInput(
-                "RISC-V implicit Shout: ell_total > 64 not supported (key does not fit u64)".into(),
+                "RISC-V implicit Shout: ell_total > 128 not supported (key does not fit u128)".into(),
             ));
         }
 
@@ -212,16 +212,16 @@ impl RiscvAddressLookupOracleSparse {
         }
 
         // Build sparse weight table: weight[a] = Σ_t χ(r_cycle,t) * has_lookup(t) for steps hitting address a.
-        let mut weights: HashMap<u64, K> = HashMap::new();
+        let mut weights: HashMap<u128, K> = HashMap::new();
         for &(t, gate) in has_lookup.entries() {
             if gate == K::ZERO {
                 continue;
             }
 
-            let mut addr_t: u64 = 0;
+            let mut addr_t: u128 = 0;
             for b in 0..ell_total {
                 if addr_bits[b].get(t) == K::ONE {
-                    addr_t |= 1u64 << b;
+                    addr_t |= 1u128 << b;
                 }
             }
 
@@ -251,7 +251,7 @@ impl RiscvAddressLookupOracleSparse {
         ))
     }
 
-    fn table_endpoint(&self, cur_bit: u64, rest_bits: u64) -> K {
+    fn table_endpoint(&self, cur_bit: u64, rest_bits: u128) -> K {
         debug_assert!(self.rounds_remaining > 0);
         let bound_len = self.bound_prefix.len();
         let rest_len = self.rounds_remaining - 1;
@@ -261,7 +261,7 @@ impl RiscvAddressLookupOracleSparse {
         r.extend_from_slice(&self.bound_prefix);
         r.push(if cur_bit == 1 { K::ONE } else { K::ZERO });
         for j in 0..rest_len {
-            let bit = (rest_bits >> j) & 1;
+            let bit = ((rest_bits >> j) & 1) as u64;
             r.push(if bit == 1 { K::ONE } else { K::ZERO });
         }
         debug_assert_eq!(r.len(), self.ell_total);
@@ -280,7 +280,7 @@ impl RoundOracle for RiscvAddressLookupOracleSparse {
         }
 
         // Group weights by (rest_bits = idx >> 1) into (w0, w1).
-        let mut pair_weights: HashMap<u64, (K, K)> = HashMap::new();
+        let mut pair_weights: HashMap<u128, (K, K)> = HashMap::new();
         for (&idx, &w) in self.weights.iter() {
             let pair = idx >> 1;
             let entry = pair_weights.entry(pair).or_insert((K::ZERO, K::ZERO));
@@ -333,7 +333,7 @@ impl RoundOracle for RiscvAddressLookupOracleSparse {
         }
 
         let one_minus_r = K::ONE - r;
-        let mut next: HashMap<u64, K> = HashMap::with_capacity(self.weights.len());
+        let mut next: HashMap<u128, K> = HashMap::with_capacity(self.weights.len());
         for (&idx, &w) in self.weights.iter() {
             let pair = idx >> 1;
             let contrib = if (idx & 1) == 0 { w * one_minus_r } else { w * r };

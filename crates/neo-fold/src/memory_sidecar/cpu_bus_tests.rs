@@ -188,6 +188,7 @@ fn minimal_bus_steps(
         ell: twist_ell,
         init: MemInit::Zero,
         init_digest: None,
+        guest_addr_remap: None,
     };
 
     let mut step: StepInstanceBundle<Commitment, F, K> = StepInstanceBundle::from(mcs_inst);

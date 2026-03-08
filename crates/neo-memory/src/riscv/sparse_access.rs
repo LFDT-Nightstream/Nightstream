@@ -49,7 +49,8 @@ pub fn rv32_shout_event_table_to_sparse_ra_and_val(
             ));
         }
 
-        let addr = row.key;
+        let addr = u64::try_from(row.key)
+            .map_err(|_| "rv32_shout_event_table_to_sparse_ra_and_val: key does not fit u64".to_string())?;
         ra_entries.push(SparseMatEntry {
             row: addr,
             col: cycle,
@@ -112,7 +113,7 @@ pub fn rv32_shout_event_table_ra_val_mle_eval_chunked(
         ));
     }
 
-    let mask: u64 = (1u64 << log_k_chunk) - 1;
+    let mask: u128 = (1u128 << log_k_chunk) - 1;
     let n_chunks = 64 / log_k_chunk;
 
     let mut eq_evals_by_chunk: Vec<Vec<K>> = Vec::with_capacity(n_chunks);

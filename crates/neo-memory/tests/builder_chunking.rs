@@ -33,6 +33,12 @@ impl Shout<u64> for NoopShout {
     }
 }
 
+impl Shout<u128, u64> for NoopShout {
+    fn lookup(&mut self, _id: ShoutId, _key: u128) -> u64 {
+        0
+    }
+}
+
 struct ScriptCpu {
     pc: u64,
     step: usize,
@@ -49,7 +55,7 @@ impl ScriptCpu {
     }
 }
 
-impl VmCpu<u64, u64> for ScriptCpu {
+impl VmCpu<u64, u64, u128> for ScriptCpu {
     type Error = String;
 
     fn snapshot_regs(&self) -> Vec<u64> {
@@ -67,7 +73,7 @@ impl VmCpu<u64, u64> for ScriptCpu {
     fn step<TW, SH>(&mut self, twist_mem: &mut TW, _shout_tbl: &mut SH) -> Result<StepMeta<u64>, Self::Error>
     where
         TW: Twist<u64, u64>,
-        SH: Shout<u64>,
+        SH: Shout<u128, u64>,
     {
         let mem = TwistId(0);
         match self.step {
@@ -96,12 +102,12 @@ impl VmCpu<u64, u64> for ScriptCpu {
 #[derive(Default)]
 struct DummyCpuArith;
 
-impl CpuArithmetization<Goldilocks, ()> for DummyCpuArith {
+impl CpuArithmetization<Goldilocks, (), u128> for DummyCpuArith {
     type Error = String;
 
     fn build_ccs_chunks(
         &self,
-        trace: &neo_vm_trace::VmTrace<u64, u64>,
+        trace: &neo_vm_trace::VmTrace<u64, u64, u128>,
         chunk_size: usize,
     ) -> Result<Vec<(CcsClaim<(), Goldilocks>, CcsWitness<Goldilocks>)>, Self::Error> {
         if chunk_size == 0 {

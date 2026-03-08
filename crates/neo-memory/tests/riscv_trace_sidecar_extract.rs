@@ -107,7 +107,7 @@ fn trace_sidecar_extract_rejects_multiple_shout_events() {
         .iter()
         .position(|r| r.active)
         .expect("must have active rows");
-    let ev = neo_vm_trace::ShoutEvent::<u64> {
+    let ev = neo_vm_trace::ShoutEvent::<u128, u64> {
         shout_id: neo_vm_trace::ShoutId(shout_table_ids[0]),
         key: 0,
         value: 0,

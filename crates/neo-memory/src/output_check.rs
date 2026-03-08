@@ -717,6 +717,12 @@ pub fn verify_output_sumcheck_rounds_get_state<F: Field + Into<K> + Into<neo_mat
         params.degree_bound() + 1,
         b"output_check/round_coeff",
     )?;
+    if r_prime.len() != params.num_bits {
+        return Err(OutputCheckError::DimensionMismatch {
+            expected: params.num_bits,
+            got: r_prime.len(),
+        });
+    }
 
     let eq_eval = eq_points(&params.r_addr, &r_prime);
     let io_mask_eval = eval_io_mask(&params.program_io, &r_prime, params.num_bits);
@@ -749,6 +755,12 @@ pub fn verify_output_sumcheck<F: Field + Into<K> + Into<neo_math::F> + Clone + C
         params.degree_bound() + 1,
         b"output_check/round_coeff",
     )?;
+    if r_prime.len() != params.num_bits {
+        return Err(OutputCheckError::DimensionMismatch {
+            expected: params.num_bits,
+            got: r_prime.len(),
+        });
+    }
 
     let eq_eval = eq_points(&params.r_addr, &r_prime);
     let io_mask_eval = eval_io_mask(&params.program_io, &r_prime, num_bits);

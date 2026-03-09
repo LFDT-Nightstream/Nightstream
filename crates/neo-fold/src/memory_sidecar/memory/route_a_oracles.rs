@@ -1,6 +1,11 @@
 use super::*;
 use neo_memory::riscv::lookups::RiscvOpcode;
-use neo_memory::twist_oracle::{Rv64PackedMulOracleSparseTime, Rv64PackedMulhuOracleSparseTime};
+use neo_memory::twist_oracle::{
+    Rv64PackedDivOracleSparseTime, Rv64PackedDivRemAdapterOracleSparseTime, Rv64PackedDivRemuAdapterOracleSparseTime,
+    Rv64PackedDivuOracleSparseTime, Rv64PackedMulHiOracleSparseTime, Rv64PackedMulOracleSparseTime,
+    Rv64PackedMulhAdapterOracleSparseTime, Rv64PackedMulhsuAdapterOracleSparseTime, Rv64PackedMulhuOracleSparseTime,
+    Rv64PackedRemOracleSparseTime, Rv64PackedRemuOracleSparseTime,
+};
 
 pub(crate) fn build_route_a_memory_oracles(
     params: &NeoParams,
@@ -307,20 +312,32 @@ pub(crate) fn build_route_a_memory_oracles(
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 MULH: missing hi opening".into()))?
                             .clone();
                         let lo_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(6).cloned().collect();
-                        if lo_bits.len() != 32 {
+                        let expected_bits = if packed_xlen == 64 { 64 } else { 32 };
+                        if lo_bits.len() != expected_bits {
                             return Err(PiCcsError::InvalidInput(format!(
-                                "packed RV32 MULH: expected 32 lo bits, got {}",
+                                "packed RISC-V MULH: expected {expected_bits} lo bits, got {}",
                                 lo_bits.len()
                             )));
                         }
-                        Box::new(Rv32PackedMulHiOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs.clone(),
-                            rhs.clone(),
-                            lo_bits,
-                            hi,
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedMulHiOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                lo_bits,
+                                hi,
+                            ))
+                        } else {
+                            Box::new(Rv32PackedMulHiOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                lo_bits,
+                                hi,
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Mulhsu => {
                         let hi = packed_cols
@@ -328,20 +345,32 @@ pub(crate) fn build_route_a_memory_oracles(
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 MULHSU: missing hi opening".into()))?
                             .clone();
                         let lo_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(5).cloned().collect();
-                        if lo_bits.len() != 32 {
+                        let expected_bits = if packed_xlen == 64 { 64 } else { 32 };
+                        if lo_bits.len() != expected_bits {
                             return Err(PiCcsError::InvalidInput(format!(
-                                "packed RV32 MULHSU: expected 32 lo bits, got {}",
+                                "packed RISC-V MULHSU: expected {expected_bits} lo bits, got {}",
                                 lo_bits.len()
                             )));
                         }
-                        Box::new(Rv32PackedMulHiOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs.clone(),
-                            rhs.clone(),
-                            lo_bits,
-                            hi,
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedMulHiOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                lo_bits,
+                                hi,
+                            ))
+                        } else {
+                            Box::new(Rv32PackedMulHiOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                lo_bits,
+                                hi,
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Slt => {
                         let lhs_sign = packed_cols
@@ -376,15 +405,27 @@ pub(crate) fn build_route_a_memory_oracles(
                             .get(3)
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 DIVU: missing rhs_is_zero".into()))?
                             .clone();
-                        Box::new(Rv32PackedDivuOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs.clone(),
-                            rhs.clone(),
-                            rem,
-                            rhs_is_zero,
-                            lane.val.clone(),
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedDivuOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                rem,
+                                rhs_is_zero,
+                                lane.val.clone(),
+                            ))
+                        } else {
+                            Box::new(Rv32PackedDivuOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                rem,
+                                rhs_is_zero,
+                                lane.val.clone(),
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Remu => {
                         let quot = packed_cols
@@ -395,15 +436,27 @@ pub(crate) fn build_route_a_memory_oracles(
                             .get(3)
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 REMU: missing rhs_is_zero".into()))?
                             .clone();
-                        Box::new(Rv32PackedRemuOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs.clone(),
-                            rhs.clone(),
-                            quot,
-                            rhs_is_zero,
-                            lane.val.clone(),
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedRemuOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                quot,
+                                rhs_is_zero,
+                                lane.val.clone(),
+                            ))
+                        } else {
+                            Box::new(Rv32PackedRemuOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                rhs.clone(),
+                                quot,
+                                rhs_is_zero,
+                                lane.val.clone(),
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Div => {
                         let rhs_is_zero = packed_cols
@@ -426,16 +479,29 @@ pub(crate) fn build_route_a_memory_oracles(
                             .get(7)
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 DIV: missing q_is_zero".into()))?
                             .clone();
-                        Box::new(Rv32PackedDivOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs_sign,
-                            rhs_sign,
-                            rhs_is_zero,
-                            q_abs,
-                            q_is_zero,
-                            lane.val.clone(),
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedDivOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs_sign,
+                                rhs_sign,
+                                rhs_is_zero,
+                                q_abs,
+                                q_is_zero,
+                                lane.val.clone(),
+                            ))
+                        } else {
+                            Box::new(Rv32PackedDivOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs_sign,
+                                rhs_sign,
+                                rhs_is_zero,
+                                q_abs,
+                                q_is_zero,
+                                lane.val.clone(),
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Rem => {
                         let rhs_is_zero = packed_cols
@@ -454,16 +520,29 @@ pub(crate) fn build_route_a_memory_oracles(
                             .get(7)
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 REM: missing r_is_zero".into()))?
                             .clone();
-                        Box::new(Rv32PackedRemOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs.clone(),
-                            lhs_sign,
-                            rhs_is_zero,
-                            r_abs,
-                            r_is_zero,
-                            lane.val.clone(),
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedRemOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                lhs_sign,
+                                rhs_is_zero,
+                                r_abs,
+                                r_is_zero,
+                                lane.val.clone(),
+                            ))
+                        } else {
+                            Box::new(Rv32PackedRemOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs.clone(),
+                                lhs_sign,
+                                rhs_is_zero,
+                                r_abs,
+                                r_is_zero,
+                                lane.val.clone(),
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Sll => {
                         let shamt_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(1).take(5).cloned().collect();
@@ -594,18 +673,33 @@ pub(crate) fn build_route_a_memory_oracles(
                             .clone();
                         let weights = bitness_weights(r_cycle, 2, 0x4D55_4C48_4144_5054u64 + lut_idx as u64);
                         let w = [weights[0], weights[1]];
-                        Box::new(Rv32PackedMulhAdapterOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs,
-                            rhs,
-                            lhs_sign,
-                            rhs_sign,
-                            hi,
-                            k,
-                            lane.val.clone(),
-                            w,
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedMulhAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs,
+                                rhs,
+                                lhs_sign,
+                                rhs_sign,
+                                hi,
+                                k,
+                                lane.val.clone(),
+                                w,
+                            ))
+                        } else {
+                            Box::new(Rv32PackedMulhAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs,
+                                rhs,
+                                lhs_sign,
+                                rhs_sign,
+                                hi,
+                                k,
+                                lane.val.clone(),
+                                w,
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Mulhsu => {
                         let hi = packed_cols
@@ -620,16 +714,29 @@ pub(crate) fn build_route_a_memory_oracles(
                             .get(4)
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 MULHSU: missing borrow".into()))?
                             .clone();
-                        Box::new(Rv32PackedMulhsuAdapterOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs,
-                            rhs,
-                            lhs_sign,
-                            hi,
-                            borrow,
-                            lane.val.clone(),
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedMulhsuAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs,
+                                rhs,
+                                lhs_sign,
+                                hi,
+                                borrow,
+                                lane.val.clone(),
+                            ))
+                        } else {
+                            Box::new(Rv32PackedMulhsuAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs,
+                                rhs,
+                                lhs_sign,
+                                hi,
+                                borrow,
+                                lane.val.clone(),
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Divu => {
                         let rem = packed_cols
@@ -645,24 +752,38 @@ pub(crate) fn build_route_a_memory_oracles(
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 DIVU: missing diff".into()))?
                             .clone();
                         let diff_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(5).cloned().collect();
-                        if diff_bits.len() != 32 {
+                        let expected_bits = if packed_xlen == 64 { 64 } else { 32 };
+                        if diff_bits.len() != expected_bits {
                             return Err(PiCcsError::InvalidInput(format!(
-                                "packed RV32 DIVU: expected 32 diff bits, got {}",
+                                "packed RISC-V DIVU: expected {expected_bits} diff bits, got {}",
                                 diff_bits.len()
                             )));
                         }
                         let weights = bitness_weights(r_cycle, 4, 0x4449_5655_4144_5054u64 + lut_idx as u64);
                         let w = [weights[0], weights[1], weights[2], weights[3]];
-                        Box::new(Rv32PackedDivRemuAdapterOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            rhs,
-                            rhs_is_zero,
-                            rem,
-                            diff,
-                            diff_bits,
-                            w,
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedDivRemuAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                rhs,
+                                rhs_is_zero,
+                                rem,
+                                diff,
+                                diff_bits,
+                                w,
+                            ))
+                        } else {
+                            Box::new(Rv32PackedDivRemuAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                rhs,
+                                rhs_is_zero,
+                                rem,
+                                diff,
+                                diff_bits,
+                                w,
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Remu => {
                         let rhs_is_zero = packed_cols
@@ -674,24 +795,38 @@ pub(crate) fn build_route_a_memory_oracles(
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 REMU: missing diff".into()))?
                             .clone();
                         let diff_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(5).cloned().collect();
-                        if diff_bits.len() != 32 {
+                        let expected_bits = if packed_xlen == 64 { 64 } else { 32 };
+                        if diff_bits.len() != expected_bits {
                             return Err(PiCcsError::InvalidInput(format!(
-                                "packed RV32 REMU: expected 32 diff bits, got {}",
+                                "packed RISC-V REMU: expected {expected_bits} diff bits, got {}",
                                 diff_bits.len()
                             )));
                         }
                         let weights = bitness_weights(r_cycle, 4, 0x4449_5655_4144_5054u64 + lut_idx as u64);
                         let w = [weights[0], weights[1], weights[2], weights[3]];
-                        Box::new(Rv32PackedDivRemuAdapterOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            rhs,
-                            rhs_is_zero,
-                            lane.val.clone(),
-                            diff,
-                            diff_bits,
-                            w,
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedDivRemuAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                rhs,
+                                rhs_is_zero,
+                                lane.val.clone(),
+                                diff,
+                                diff_bits,
+                                w,
+                            ))
+                        } else {
+                            Box::new(Rv32PackedDivRemuAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                rhs,
+                                rhs_is_zero,
+                                lane.val.clone(),
+                                diff,
+                                diff_bits,
+                                w,
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Div => {
                         let rhs_is_zero = packed_cols
@@ -723,9 +858,10 @@ pub(crate) fn build_route_a_memory_oracles(
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 DIV: missing diff".into()))?
                             .clone();
                         let diff_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(9).cloned().collect();
-                        if diff_bits.len() != 32 {
+                        let expected_bits = if packed_xlen == 64 { 64 } else { 32 };
+                        if diff_bits.len() != expected_bits {
                             return Err(PiCcsError::InvalidInput(format!(
-                                "packed RV32 DIV: expected 32 diff bits, got {}",
+                                "packed RISC-V DIV: expected {expected_bits} diff bits, got {}",
                                 diff_bits.len()
                             )));
                         }
@@ -733,22 +869,41 @@ pub(crate) fn build_route_a_memory_oracles(
                         let w = [
                             weights[0], weights[1], weights[2], weights[3], weights[4], weights[5], weights[6],
                         ];
-                        Box::new(Rv32PackedDivRemAdapterOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs,
-                            rhs,
-                            rhs_is_zero,
-                            lhs_sign,
-                            rhs_sign,
-                            q_abs.clone(),
-                            r_abs,
-                            q_abs,
-                            q_is_zero,
-                            diff,
-                            diff_bits,
-                            w,
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedDivRemAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs,
+                                rhs,
+                                rhs_is_zero,
+                                lhs_sign,
+                                rhs_sign,
+                                q_abs.clone(),
+                                r_abs,
+                                q_abs,
+                                q_is_zero,
+                                diff,
+                                diff_bits,
+                                w,
+                            ))
+                        } else {
+                            Box::new(Rv32PackedDivRemAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs,
+                                rhs,
+                                rhs_is_zero,
+                                lhs_sign,
+                                rhs_sign,
+                                q_abs.clone(),
+                                r_abs,
+                                q_abs,
+                                q_is_zero,
+                                diff,
+                                diff_bits,
+                                w,
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Rem => {
                         let rhs_is_zero = packed_cols
@@ -780,9 +935,10 @@ pub(crate) fn build_route_a_memory_oracles(
                             .ok_or_else(|| PiCcsError::InvalidInput("packed RV32 REM: missing diff".into()))?
                             .clone();
                         let diff_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(9).cloned().collect();
-                        if diff_bits.len() != 32 {
+                        let expected_bits = if packed_xlen == 64 { 64 } else { 32 };
+                        if diff_bits.len() != expected_bits {
                             return Err(PiCcsError::InvalidInput(format!(
-                                "packed RV32 REM: expected 32 diff bits, got {}",
+                                "packed RISC-V REM: expected {expected_bits} diff bits, got {}",
                                 diff_bits.len()
                             )));
                         }
@@ -790,22 +946,41 @@ pub(crate) fn build_route_a_memory_oracles(
                         let w = [
                             weights[0], weights[1], weights[2], weights[3], weights[4], weights[5], weights[6],
                         ];
-                        Box::new(Rv32PackedDivRemAdapterOracleSparseTime::new(
-                            r_cycle,
-                            lane.has_lookup.clone(),
-                            lhs,
-                            rhs,
-                            rhs_is_zero,
-                            lhs_sign,
-                            rhs_sign,
-                            q_abs,
-                            r_abs.clone(),
-                            r_abs,
-                            r_is_zero,
-                            diff,
-                            diff_bits,
-                            w,
-                        ))
+                        if packed_xlen == 64 {
+                            Box::new(Rv64PackedDivRemAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs,
+                                rhs,
+                                rhs_is_zero,
+                                lhs_sign,
+                                rhs_sign,
+                                q_abs,
+                                r_abs.clone(),
+                                r_abs,
+                                r_is_zero,
+                                diff,
+                                diff_bits,
+                                w,
+                            ))
+                        } else {
+                            Box::new(Rv32PackedDivRemAdapterOracleSparseTime::new(
+                                r_cycle,
+                                lane.has_lookup.clone(),
+                                lhs,
+                                rhs,
+                                rhs_is_zero,
+                                lhs_sign,
+                                rhs_sign,
+                                q_abs,
+                                r_abs.clone(),
+                                r_abs,
+                                r_is_zero,
+                                diff,
+                                diff_bits,
+                                w,
+                            ))
+                        }
                     }
                     Rv32PackedShoutOp::Slt => {
                         let diff_bits: Vec<SparseIdxVec<K>> = packed_cols.iter().skip(5).cloned().collect();
@@ -1027,10 +1202,30 @@ pub(crate) fn build_route_a_memory_oracles(
                     .addr_bits
                     .get(packed_time_bits..)
                     .ok_or_else(|| PiCcsError::InvalidInput("packed RV32: missing packed cols".into()))?;
-                if packed_xlen == 64 && matches!(packed_op, Some(Rv32PackedShoutOp::Mul | Rv32PackedShoutOp::Mulhu)) {
+                if packed_xlen == 64
+                    && matches!(
+                        packed_op,
+                        Some(
+                            Rv32PackedShoutOp::Mul
+                                | Rv32PackedShoutOp::Mulh
+                                | Rv32PackedShoutOp::Mulhu
+                                | Rv32PackedShoutOp::Mulhsu
+                                | Rv32PackedShoutOp::Div
+                                | Rv32PackedShoutOp::Divu
+                                | Rv32PackedShoutOp::Rem
+                                | Rv32PackedShoutOp::Remu
+                        )
+                    )
+                {
                     let opcode = match packed_op.expect("packed_op present when is_packed=true") {
                         Rv32PackedShoutOp::Mul => RiscvOpcode::Mul,
+                        Rv32PackedShoutOp::Mulh => RiscvOpcode::Mulh,
                         Rv32PackedShoutOp::Mulhu => RiscvOpcode::Mulhu,
+                        Rv32PackedShoutOp::Mulhsu => RiscvOpcode::Mulhsu,
+                        Rv32PackedShoutOp::Div => RiscvOpcode::Div,
+                        Rv32PackedShoutOp::Divu => RiscvOpcode::Divu,
+                        Rv32PackedShoutOp::Rem => RiscvOpcode::Rem,
+                        Rv32PackedShoutOp::Remu => RiscvOpcode::Remu,
                         _ => unreachable!(),
                     };
                     let mut lane_terms = neo_memory::riscv::packed::rv_collect_packed_bitness_terms(

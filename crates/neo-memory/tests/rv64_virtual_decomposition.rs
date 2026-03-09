@@ -252,6 +252,7 @@ fn divw_runtime_trace_decomposes_positive_rv64_word_result() {
     let lhs = 21u64;
     let rhs = 5u64;
     let trace = run_divw_trace(lhs, rhs);
+    assert_no_direct_w_arith_shout_events(&trace);
 
     assert_eq!(trace.steps.len(), 5);
     assert!(trace.steps[0].is_virtual);
@@ -274,6 +275,7 @@ fn remuw_runtime_trace_decomposes_positive_rv64_word_result() {
     let lhs = 21u64;
     let rhs = 5u64;
     let trace = run_remuw_trace(lhs, rhs);
+    assert_no_direct_w_arith_shout_events(&trace);
 
     assert_eq!(trace.steps.len(), 5);
     assert!(trace.steps[0].is_virtual);
@@ -296,6 +298,7 @@ fn remw_runtime_trace_decomposes_positive_rv64_word_result() {
     let lhs = 21u64;
     let rhs = 5u64;
     let trace = run_remw_trace(lhs, rhs);
+    assert_no_direct_w_arith_shout_events(&trace);
 
     assert_eq!(trace.steps.len(), 5);
     assert!(trace.steps[0].is_virtual);

@@ -67,12 +67,13 @@ struct W2VirtualConstantsK {
     alu_table_weights: [K; 7],
     branch_base_10: K,
     branch_sub_5: K,
-    movsign_rhs: K,
+    movsign_rhs_word: K,
+    movsign_rhs_exact: K,
     v0: K,
     v1: K,
     v2: K,
     two_pow_32: K,
-    rv32_all_ones: K,
+    rv64_all_ones: K,
     add_table_id: K,
     addw_table_id: K,
     vmovsignw_table_id: K,
@@ -110,12 +111,13 @@ fn w2_virtual_constants_k() -> &'static W2VirtualConstantsK {
             alu_table_weights: [k_u64(3), k_u64(7), k_u64(5), k_u64(6), k_u64(1), k_u64(8), k_u64(2)],
             branch_base_10: k_u64(10),
             branch_sub_5: k_u64(5),
-            movsign_rhs: k_u64(31),
+            movsign_rhs_word: k_u64(31),
+            movsign_rhs_exact: k_u64(63),
             v0: k_u64(32),
             v1: k_u64(33),
             v2: k_u64(34),
             two_pow_32,
-            rv32_all_ones: two_pow_32 - K::ONE,
+            rv64_all_ones: k_u64(u64::MAX),
             add_table_id: k_u64(table_ids.add),
             addw_table_id: k_u64(table_ids.addw),
             vmovsignw_table_id: k_u64(table_ids.vmovsignw),
@@ -630,12 +632,32 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
     let helper_divuw_commit = virtual_commit_from_prev * op_alu_reg_wide * op_alu_reg * funct7_bits[0] * funct3_is[5];
     let helper_remw_commit = virtual_commit_from_prev * op_alu_reg_wide * op_alu_reg * funct7_bits[0] * funct3_is[6];
     let helper_remuw_commit = virtual_commit_from_prev * op_alu_reg_wide * op_alu_reg * funct7_bits[0] * funct3_is[7];
+    let helper_mulh_commit = virtual_commit_from_prev * op_alu_reg_base_only * funct7_bits[0] * funct3_is[1];
+    let helper_mulhsu_commit = virtual_commit_from_prev * op_alu_reg_base_only * funct7_bits[0] * funct3_is[2];
+    let helper_div_commit = virtual_commit_from_prev * op_alu_reg_base_only * funct7_bits[0] * funct3_is[4];
+    let helper_divu_commit = virtual_commit_from_prev * op_alu_reg_base_only * funct7_bits[0] * funct3_is[5];
+    let helper_rem_commit = virtual_commit_from_prev * op_alu_reg_base_only * funct7_bits[0] * funct3_is[6];
+    let helper_remu_commit = virtual_commit_from_prev * op_alu_reg_base_only * funct7_bits[0] * funct3_is[7];
+    let helper_rv32m_commit = helper_mulh_commit
+        + helper_mulhsu_commit
+        + helper_div_commit
+        + helper_divu_commit
+        + helper_rem_commit
+        + helper_remu_commit;
     let helper_rv64w_commit =
         helper_mulw_commit + helper_divw_commit + helper_divuw_commit + helper_remw_commit + helper_remuw_commit;
-    let op_alu_reg_lookup = op_alu_reg - helper_rv64w_commit;
-    let op_alu_reg_write_lookup = op_alu_reg_write - helper_rv64w_commit;
+    let helper_lookup_free_commit = helper_rv32m_commit + helper_rv64w_commit;
+    let op_alu_reg_lookup = op_alu_reg - helper_lookup_free_commit;
+    let op_alu_reg_write_lookup = op_alu_reg_write - helper_lookup_free_commit;
+    let op_alu_reg_base_only_lookup = op_alu_reg_base_only - helper_rv32m_commit;
     let op_alu_reg_wide_lookup = op_alu_reg_wide - helper_rv64w_commit;
     let op_mul_reg_lookup = op_mul_reg - helper_mulw_commit;
+    let nonvirtual = K::ONE - is_virtual;
+    let op_alu_reg_lookup_nonvirtual = op_alu_reg_lookup * nonvirtual;
+    let op_alu_reg_write_lookup_nonvirtual = op_alu_reg_write_lookup * nonvirtual;
+    let op_alu_reg_base_only_lookup_nonvirtual = op_alu_reg_base_only_lookup * nonvirtual;
+    let op_alu_reg_wide_lookup_nonvirtual = op_alu_reg_wide_lookup * nonvirtual;
+    let op_mul_reg_lookup_nonvirtual = op_mul_reg_lookup * nonvirtual;
     let op_add_total = add_lookup_ops + op_add_imm + op_add_reg;
     let two_pow_32 = k_consts.two_pow_32;
     let inv_two_pow_32 = two_pow_32.inverse();
@@ -667,11 +689,12 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
 
     let raw = [
         (op_alu_imm + op_load + op_jalr) * (shout_has_lookup - K::ONE),
-        (op_alu_reg_lookup + op_store) * (shout_has_lookup - K::ONE) + helper_rv64w_commit * shout_has_lookup,
+        (op_alu_reg_lookup_nonvirtual + op_store) * (shout_has_lookup - K::ONE)
+            + helper_lookup_free_commit * shout_has_lookup,
         op_branch * (shout_has_lookup - K::ONE),
         (K::ONE - shout_has_lookup) * shout_table_id,
-        (op_alu_imm + op_alu_reg_lookup + op_branch + mem_lookup_ops + op_jalr) * (shout_lhs - rs1_val)
-            + helper_rv64w_commit * shout_lhs,
+        (op_alu_imm + op_alu_reg_lookup_nonvirtual + op_branch + mem_lookup_ops + op_jalr) * (shout_lhs - rs1_val)
+            + helper_lookup_free_commit * shout_lhs,
         alu_imm_shift_rhs_delta - shift_selector * (rs2_decode_addr - imm_i),
         op_alu_imm
             * ((if rv64_exact_words { shout_rhs_word } else { shout_rhs })
@@ -679,14 +702,14 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
                 - alu_imm_shift_rhs_delta
                 - rv64_shift_imm_bit5)
             + (op_load + op_jalr) * ((if rv64_exact_words { shout_rhs_word } else { shout_rhs }) - imm_i),
-        op_alu_reg_lookup * (shout_rhs - rs2_val)
+        op_alu_reg_lookup_nonvirtual * (shout_rhs - rs2_val)
             + op_store * ((if rv64_exact_words { shout_rhs_word } else { shout_rhs }) - imm_s)
-            + helper_rv64w_commit * shout_rhs,
+            + helper_lookup_free_commit * shout_rhs,
         op_branch * (shout_rhs - rs2_val),
         op_alu_imm_write * (rd_val - shout_val),
-        op_alu_reg_write_lookup * (rd_val - shout_val) + helper_rv64w_commit * shout_val,
-        op_alu_reg_base_only * (shout_table_id - alu_table_base - alu_reg_table_delta)
-            + op_alu_reg_wide_lookup * (shout_table_id - alu_w_table_base - alu_reg_table_delta)
+        op_alu_reg_write_lookup_nonvirtual * (rd_val - shout_val) + helper_lookup_free_commit * shout_val,
+        op_alu_reg_base_only_lookup_nonvirtual * (shout_table_id - alu_table_base - alu_reg_table_delta)
+            + op_alu_reg_wide_lookup_nonvirtual * (shout_table_id - alu_w_table_base - alu_reg_table_delta)
             + op_store * (shout_table_id - add_table_id),
         op_alu_imm_base_only * (shout_table_id - alu_table_base - alu_imm_table_delta)
             + op_alu_imm_wide * (shout_table_id - alu_w_table_base - alu_imm_table_delta)
@@ -711,8 +734,8 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
         } else {
             add_sub_combined_key_mode * op_sub_reg * sub_key_delta * (sub_key_delta + two_pow_32)
         },
-        mul_combined_key_mode * (op_mul_reg_lookup + op_mulhu_reg) * mul_key_delta,
-        helper_rv64w_commit * shout_add_sub_key,
+        mul_combined_key_mode * (op_mul_reg_lookup_nonvirtual + op_mulhu_reg * nonvirtual) * mul_key_delta,
+        helper_lookup_free_commit * shout_add_sub_key,
         trace_rs1_addr - decode_rs1_addr,
         trace_rs2_addr - decode_rs2_addr,
         // `rd` field bits are not semantically an architectural destination on opcodes
@@ -772,7 +795,12 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
     let v0 = k_consts.v0;
     let v1 = k_consts.v1;
     let v2 = k_consts.v2;
-    let movsign_rhs = k_consts.movsign_rhs;
+    let movsign_rhs_word = k_consts.movsign_rhs_word;
+    let movsign_rhs_exact = if rv64_exact_words {
+        k_consts.movsign_rhs_exact
+    } else {
+        k_consts.movsign_rhs_word
+    };
     let sra_table_id = k_consts.sra_table_id;
     let mul_table_id = k_consts.mul_table_id;
     let mulh_table_id = k_consts.mulh_table_id;
@@ -788,7 +816,11 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
     let eq_table_id = k_consts.eq_table_id;
     let div_table_id = k_consts.div_table_id;
     let divu_table_id = k_consts.divu_table_id;
-    let rv32_all_ones = k_consts.rv32_all_ones;
+    let word_all_ones = if rv64_exact_words {
+        k_consts.rv64_all_ones
+    } else {
+        k_u64(u32::MAX as u64)
+    };
 
     let virtual_mulh = is_virtual * op_mulh;
     let virtual_mulhsu = is_virtual * op_mulhsu;
@@ -826,8 +858,20 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
     residuals.push(virtual_mulh * rem_poly_7);
     residuals.push(virtual_mulhsu * rem_poly_11);
 
-    let add_stage_key = add_sub_combined_key_mode * add_key_delta * (add_key_delta - two_pow_32);
-    let sub_stage_key = add_sub_combined_key_mode * sub_key_delta * (sub_key_delta + two_pow_32);
+    let add_stage_key = if rv64_exact_words {
+        add_sub_combined_key_mode
+            * (add_key_delta_lo * (add_key_delta_lo - two_pow_32)
+                + add_key_delta_hi * (add_key_delta_hi - two_pow_32))
+    } else {
+        add_sub_combined_key_mode * add_key_delta * (add_key_delta - two_pow_32)
+    };
+    let sub_stage_key = if rv64_exact_words {
+        add_sub_combined_key_mode
+            * (sub_key_delta_lo * (sub_key_delta_lo + two_pow_32)
+                + sub_key_delta_hi * (sub_key_delta_hi + two_pow_32))
+    } else {
+        add_sub_combined_key_mode * sub_key_delta * (sub_key_delta + two_pow_32)
+    };
     let mul_stage_key = mul_combined_key_mode * mul_key_delta;
 
     let mulw_rows = [
@@ -853,7 +897,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: shout_table_id - vmovsignw_table_id,
             lhs: shout_lhs - rs1_val,
-            rhs: shout_rhs - movsign_rhs,
+            rhs: shout_rhs - movsign_rhs_word,
             rd_val: rd_val - shout_val,
             extra: None,
         },
@@ -899,7 +943,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: shout_table_id - vmovsignw_table_id,
             lhs: shout_lhs - rs1_val,
-            rhs: shout_rhs - movsign_rhs,
+            rhs: shout_rhs - movsign_rhs_word,
             rd_val: rd_val - shout_val,
             extra: None,
         },
@@ -945,7 +989,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: shout_table_id - vmovsignw_table_id,
             lhs: shout_lhs - rs1_val,
-            rhs: shout_rhs - movsign_rhs,
+            rhs: shout_rhs - movsign_rhs_word,
             rd_val: rd_val - shout_val,
             extra: None,
         },
@@ -991,7 +1035,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: shout_table_id - vmovsignw_table_id,
             lhs: shout_lhs - rs1_val,
-            rhs: shout_rhs - movsign_rhs,
+            rhs: shout_rhs - movsign_rhs_word,
             rd_val: rd_val - shout_val,
             extra: None,
         },
@@ -1037,7 +1081,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: shout_table_id - vmovsignw_table_id,
             lhs: shout_lhs - rs1_val,
-            rhs: shout_rhs - movsign_rhs,
+            rhs: shout_rhs - movsign_rhs_word,
             rd_val: rd_val - shout_val,
             extra: None,
         },
@@ -1071,7 +1115,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: shout_table_id - sra_table_id,
             lhs: shout_lhs - rs1_val,
-            rhs: shout_rhs - movsign_rhs,
+            rhs: shout_rhs - movsign_rhs_exact,
             rd_val: rd_val - shout_val,
             extra: None,
         },
@@ -1084,7 +1128,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: shout_table_id - sra_table_id,
             lhs: shout_lhs - rs1_val,
-            rhs: shout_rhs - movsign_rhs,
+            rhs: shout_rhs - movsign_rhs_exact,
             rd_val: rd_val - shout_val,
             extra: None,
         },
@@ -1172,7 +1216,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: shout_table_id - sra_table_id,
             lhs: shout_lhs - rs1_val,
-            rhs: shout_rhs - movsign_rhs,
+            rhs: shout_rhs - movsign_rhs_exact,
             rd_val: rd_val - shout_val,
             extra: None,
         },
@@ -1364,7 +1408,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             table_id: Some(shout_table_id - eq_table_id),
             lhs: Some(shout_lhs - rs1_val),
             rhs: Some(shout_rhs),
-            rd_val: Some(shout_val * (rs2_val - rv32_all_ones)),
+            rd_val: Some(shout_val * (rs2_val - word_all_ones)),
             extra: None,
         },
         VirtualStageSparseRow {
@@ -1377,7 +1421,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             table_id: None,
             lhs: None,
             rhs: None,
-            rd_val: Some((rd_val - rs2_val) * (rs2_val - rv32_all_ones)),
+            rd_val: Some((rd_val - rs2_val) * (rs2_val - word_all_ones)),
             extra: Some((rd_val - rs2_val) * (rd_val - K::ONE)),
         },
         VirtualStageSparseRow {
@@ -1415,7 +1459,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: Some(shout_table_id - sra_table_id),
             lhs: Some(shout_lhs - rs1_val),
-            rhs: Some(shout_rhs - movsign_rhs),
+            rhs: Some(shout_rhs - movsign_rhs_exact),
             rd_val: Some(rd_val - shout_val),
             extra: None,
         },
@@ -1441,7 +1485,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: Some(shout_table_id - sra_table_id),
             lhs: Some(shout_lhs - rs1_val),
-            rhs: Some(shout_rhs - movsign_rhs),
+            rhs: Some(shout_rhs - movsign_rhs_exact),
             rd_val: Some(rd_val - shout_val),
             extra: None,
         },
@@ -1469,7 +1513,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             lhs: Some(shout_lhs - rs1_val),
             rhs: Some(shout_rhs - rs2_val),
             rd_val: Some(rd_val - shout_val),
-            extra: Some(add_sub_combined_key_mode * sub_key_delta * (sub_key_delta + two_pow_32)),
+            extra: Some(sub_stage_key),
         },
         VirtualStageSparseRow {
             remaining: 7,
@@ -1482,7 +1526,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             lhs: Some(shout_lhs - rs1_val),
             rhs: Some(shout_rhs - rs2_val),
             rd_val: Some(rd_val - shout_val),
-            extra: Some(add_sub_combined_key_mode * add_key_delta * (add_key_delta - two_pow_32)),
+            extra: Some(add_stage_key),
         },
         VirtualStageSparseRow {
             remaining: 6,
@@ -1506,7 +1550,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: Some(shout_table_id - sra_table_id),
             lhs: Some(shout_lhs - rs1_val),
-            rhs: Some(shout_rhs - movsign_rhs),
+            rhs: Some(shout_rhs - movsign_rhs_exact),
             rd_val: Some(rd_val - shout_val),
             extra: None,
         },
@@ -1534,7 +1578,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             lhs: Some(shout_lhs - rs1_val),
             rhs: Some(shout_rhs - rs2_val),
             rd_val: Some(rd_val - shout_val),
-            extra: Some(add_sub_combined_key_mode * sub_key_delta * (sub_key_delta + two_pow_32)),
+            extra: Some(sub_stage_key),
         },
         VirtualStageSparseRow {
             remaining: 2,
@@ -1607,7 +1651,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             table_id: Some(shout_table_id - eq_table_id),
             lhs: Some(shout_lhs - rs1_val),
             rhs: Some(shout_rhs),
-            rd_val: Some(shout_val * (rs2_val - rv32_all_ones)),
+            rd_val: Some(shout_val * (rs2_val - word_all_ones)),
             extra: None,
         },
         VirtualStageSparseRow {
@@ -1620,7 +1664,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             table_id: None,
             lhs: None,
             rhs: None,
-            rd_val: Some((rd_val - rs2_val) * (rs2_val - rv32_all_ones)),
+            rd_val: Some((rd_val - rs2_val) * (rs2_val - word_all_ones)),
             extra: Some((rd_val - rs2_val) * (rd_val - K::ONE)),
         },
         VirtualStageSparseRow {
@@ -1658,7 +1702,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: Some(shout_table_id - sra_table_id),
             lhs: Some(shout_lhs - rs1_val),
-            rhs: Some(shout_rhs - movsign_rhs),
+            rhs: Some(shout_rhs - movsign_rhs_exact),
             rd_val: Some(rd_val - shout_val),
             extra: None,
         },
@@ -1684,7 +1728,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: Some(shout_table_id - sra_table_id),
             lhs: Some(shout_lhs - rs1_val),
-            rhs: Some(shout_rhs - movsign_rhs),
+            rhs: Some(shout_rhs - movsign_rhs_exact),
             rd_val: Some(rd_val - shout_val),
             extra: None,
         },
@@ -1712,7 +1756,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             lhs: Some(shout_lhs - rs1_val),
             rhs: Some(shout_rhs - rs2_val),
             rd_val: Some(rd_val - shout_val),
-            extra: Some(add_sub_combined_key_mode * sub_key_delta * (sub_key_delta + two_pow_32)),
+            extra: Some(sub_stage_key),
         },
         VirtualStageSparseRow {
             remaining: 8,
@@ -1725,7 +1769,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             lhs: Some(shout_lhs - rs1_val),
             rhs: Some(shout_rhs - rs2_val),
             rd_val: Some(rd_val - shout_val),
-            extra: Some(add_sub_combined_key_mode * add_key_delta * (add_key_delta - two_pow_32)),
+            extra: Some(add_stage_key),
         },
         VirtualStageSparseRow {
             remaining: 7,
@@ -1749,7 +1793,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             has_lookup: shout_has_lookup - K::ONE,
             table_id: Some(shout_table_id - sra_table_id),
             lhs: Some(shout_lhs - rs1_val),
-            rhs: Some(shout_rhs - movsign_rhs),
+            rhs: Some(shout_rhs - movsign_rhs_exact),
             rd_val: Some(rd_val - shout_val),
             extra: None,
         },
@@ -1777,7 +1821,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             lhs: Some(shout_lhs - rs1_val),
             rhs: Some(shout_rhs - rs2_val),
             rd_val: Some(rd_val - shout_val),
-            extra: Some(add_sub_combined_key_mode * sub_key_delta * (sub_key_delta + two_pow_32)),
+            extra: Some(sub_stage_key),
         },
         VirtualStageSparseRow {
             remaining: 3,
@@ -1849,7 +1893,7 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
             table_id: shout_table_id - eq_table_id,
             lhs: shout_lhs - rs1_val,
             rhs: shout_rhs,
-            rd_val: shout_val * (rs2_val - rv32_all_ones),
+            rd_val: shout_val * (rs2_val - word_all_ones),
             extra: None,
         },
         VirtualStageRow {

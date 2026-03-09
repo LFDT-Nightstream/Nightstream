@@ -454,7 +454,9 @@ impl Rv64TraceWitness {
                 )?;
                 let rhs = if let Some(op) = shout_tables.id_to_opcode(ev.shout_id) {
                     if matches!(op, RiscvOpcode::Sll | RiscvOpcode::Srl | RiscvOpcode::Sra) {
-                        rhs & 0x3F
+                        rhs & 0x3F // base RV64 shifts use 6-bit shamt
+                    } else if matches!(op, RiscvOpcode::Sllw | RiscvOpcode::Srlw | RiscvOpcode::Sraw) {
+                        rhs & 0x1F // W-suffix shifts use 5-bit shamt
                     } else {
                         rhs
                     }

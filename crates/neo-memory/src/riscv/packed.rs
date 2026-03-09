@@ -11,20 +11,27 @@ pub enum PackedBitnessRole {
 }
 
 #[inline]
-fn field_from_u64_injective<F: PrimeField64>(value: u64, label: &str) -> Result<F, PiCcsError> {
-    if value >= F::ORDER_U64 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "packed RISC-V requires injective scalar transport for {label} (value={value})"
-        )));
-    }
-    Ok(F::from_u64(value))
+fn field_from_u64_exact_transport<F: PrimeField64>(value: u64) -> F {
+    let lo = (value as u32) as u64;
+    let hi = value >> 32;
+    F::from_u64(lo) + F::from_u64(hi) * F::from_u64(1u64 << 32)
 }
 
 #[inline]
 pub fn rv_packed_supported_opcode(op: RiscvOpcode, xlen: usize) -> bool {
     match xlen {
         32 => rv32_packed_supported_opcode(op),
-        64 => matches!(op, RiscvOpcode::Mul | RiscvOpcode::Mulhu),
+        64 => matches!(
+            op,
+            RiscvOpcode::Mul
+                | RiscvOpcode::Mulh
+                | RiscvOpcode::Mulhu
+                | RiscvOpcode::Mulhsu
+                | RiscvOpcode::Div
+                | RiscvOpcode::Divu
+                | RiscvOpcode::Rem
+                | RiscvOpcode::Remu
+        ),
         _ => false,
     }
 }
@@ -33,7 +40,17 @@ pub fn rv_packed_supported_opcode(op: RiscvOpcode, xlen: usize) -> bool {
 pub fn rv_packed_rollout_opcode(op: RiscvOpcode, xlen: usize) -> bool {
     match xlen {
         32 => rv32_packed_rollout_opcode(op),
-        64 => matches!(op, RiscvOpcode::Mul | RiscvOpcode::Mulhu),
+        64 => matches!(
+            op,
+            RiscvOpcode::Mul
+                | RiscvOpcode::Mulh
+                | RiscvOpcode::Mulhu
+                | RiscvOpcode::Mulhsu
+                | RiscvOpcode::Div
+                | RiscvOpcode::Divu
+                | RiscvOpcode::Rem
+                | RiscvOpcode::Remu
+        ),
         _ => false,
     }
 }
@@ -121,6 +138,12 @@ pub fn rv_packed_d(op: RiscvOpcode, xlen: usize) -> Result<usize, PiCcsError> {
         32 => rv32_packed_d(op),
         64 => match op {
             RiscvOpcode::Mul | RiscvOpcode::Mulhu => Ok(66usize),
+            RiscvOpcode::Mulh => Ok(70usize),
+            RiscvOpcode::Mulhsu => Ok(69usize),
+            // Exact RV64 packed Div/Rem currently synthesize 73 transport columns:
+            // lo/hi limbs, sign/corner-case helpers, and 64-bit diff witness bits.
+            RiscvOpcode::Div | RiscvOpcode::Rem => Ok(73usize),
+            RiscvOpcode::Divu | RiscvOpcode::Remu => Ok(69usize),
             _ => Err(PiCcsError::InvalidInput(format!(
                 "packed RV64 opcode is unsupported: opcode={op:?}"
             ))),
@@ -255,6 +278,39 @@ pub fn rv_packed_bitness_roles(op: RiscvOpcode, xlen: usize) -> Result<Vec<Packe
             let mut out = Vec::with_capacity(65);
             out.push(PackedBitnessRole::HasLookup);
             push_col_range(&mut out, 2, 64);
+            Ok(out)
+        }
+        (RiscvOpcode::Mulh, 64) => {
+            let mut out = Vec::with_capacity(67);
+            out.push(PackedBitnessRole::HasLookup);
+            out.push(PackedBitnessRole::PackedCol(3));
+            out.push(PackedBitnessRole::PackedCol(4));
+            push_col_range(&mut out, 6, 64);
+            Ok(out)
+        }
+        (RiscvOpcode::Mulhsu, 64) => {
+            let mut out = Vec::with_capacity(67);
+            out.push(PackedBitnessRole::HasLookup);
+            out.push(PackedBitnessRole::PackedCol(3));
+            out.push(PackedBitnessRole::PackedCol(4));
+            push_col_range(&mut out, 5, 64);
+            Ok(out)
+        }
+        (RiscvOpcode::Divu | RiscvOpcode::Remu, 64) => {
+            let mut out = Vec::with_capacity(66);
+            out.push(PackedBitnessRole::HasLookup);
+            out.push(PackedBitnessRole::PackedCol(3));
+            push_col_range(&mut out, 5, 64);
+            Ok(out)
+        }
+        (RiscvOpcode::Div | RiscvOpcode::Rem, 64) => {
+            let mut out = Vec::with_capacity(69);
+            out.push(PackedBitnessRole::HasLookup);
+            out.push(PackedBitnessRole::PackedCol(4));
+            out.push(PackedBitnessRole::PackedCol(5));
+            out.push(PackedBitnessRole::PackedCol(6));
+            out.push(PackedBitnessRole::PackedCol(7));
+            push_col_range(&mut out, 9, 64);
             Ok(out)
         }
         _ => Err(PiCcsError::InvalidInput(format!(
@@ -605,11 +661,54 @@ pub fn build_rv_packed_cols<F: Field + PrimeCharacteristicRing + PrimeField64>(
                 let wide = (lhs as u128) * (rhs as u128);
                 let hi = (wide >> 64) as u64;
                 let mut packed = Vec::with_capacity(66);
-                packed.push(field_from_u64_injective::<F>(lhs, "rv64 packed mul lhs")?);
-                packed.push(field_from_u64_injective::<F>(rhs, "rv64 packed mul rhs")?);
-                let _ = field_from_u64_injective::<F>(val, "rv64 packed mul val")?;
+                // The RV64 packed MUL/MULHU Route-A oracles consume lhs/rhs/val from the main
+                // trace/bus transport and only use these leading packed columns as placeholders
+                // before the 64 witness bits. Use exact field transport here so virtual div/rem
+                // helper rows can carry non-injective 64-bit words without weakening the packed
+                // oracle semantics.
+                packed.push(field_from_u64_exact_transport::<F>(lhs));
+                packed.push(field_from_u64_exact_transport::<F>(rhs));
                 for bit in 0..64usize {
                     packed.push(f_bool::<F>(((hi >> bit) & 1) == 1));
+                }
+                Ok(packed)
+            }
+            RiscvOpcode::Mulh => {
+                let expected = compute_op(op, lhs, rhs, 64);
+                if val != expected {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 MULH col synthesis value mismatch: got={val:#x}, expected={expected:#x}"
+                    )));
+                }
+                let uprod = (lhs as u128) * (rhs as u128);
+                let lo = uprod as u64;
+                let hi = (uprod >> 64) as u64;
+                let lhs_sign = (lhs >> 63) & 1;
+                let rhs_sign = (rhs >> 63) & 1;
+                let diff = (val as i128) - (hi as i128)
+                    + (lhs_sign as i128) * (rhs as i128)
+                    + (rhs_sign as i128) * (lhs as i128);
+                let two64 = 1_i128 << 64;
+                if diff < 0 || diff % two64 != 0 {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 MULH helper: invalid k decomposition (diff={diff})"
+                    )));
+                }
+                let k = (diff / two64) as u64;
+                if k > 2 {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 MULH helper: k out of range (k={k})"
+                    )));
+                }
+                let mut packed = Vec::with_capacity(70);
+                packed.push(field_from_u64_exact_transport::<F>(lhs));
+                packed.push(field_from_u64_exact_transport::<F>(rhs));
+                packed.push(field_from_u64_exact_transport::<F>(hi));
+                packed.push(f_bool::<F>(lhs_sign == 1));
+                packed.push(f_bool::<F>(rhs_sign == 1));
+                packed.push(F::from_u64(k));
+                for bit in 0..64usize {
+                    packed.push(f_bool::<F>(((lo >> bit) & 1) == 1));
                 }
                 Ok(packed)
             }
@@ -623,11 +722,167 @@ pub fn build_rv_packed_cols<F: Field + PrimeCharacteristicRing + PrimeField64>(
                 let wide = (lhs as u128) * (rhs as u128);
                 let lo = wide as u64;
                 let mut packed = Vec::with_capacity(66);
-                packed.push(field_from_u64_injective::<F>(lhs, "rv64 packed mulhu lhs")?);
-                packed.push(field_from_u64_injective::<F>(rhs, "rv64 packed mulhu rhs")?);
-                let _ = field_from_u64_injective::<F>(val, "rv64 packed mulhu val")?;
+                packed.push(field_from_u64_exact_transport::<F>(lhs));
+                packed.push(field_from_u64_exact_transport::<F>(rhs));
                 for bit in 0..64usize {
                     packed.push(f_bool::<F>(((lo >> bit) & 1) == 1));
+                }
+                Ok(packed)
+            }
+            RiscvOpcode::Mulhsu => {
+                let expected = compute_op(op, lhs, rhs, 64);
+                if val != expected {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 MULHSU col synthesis value mismatch: got={val:#x}, expected={expected:#x}"
+                    )));
+                }
+                let uprod = (lhs as u128) * (rhs as u128);
+                let lo = uprod as u64;
+                let hi = (uprod >> 64) as u64;
+                let lhs_sign = (lhs >> 63) & 1;
+                let diff = (val as i128) - (hi as i128) + (lhs_sign as i128) * (rhs as i128);
+                let two64 = 1_i128 << 64;
+                if diff < 0 || diff % two64 != 0 {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 MULHSU helper: invalid borrow decomposition (diff={diff})"
+                    )));
+                }
+                let borrow = (diff / two64) as u64;
+                if borrow > 1 {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 MULHSU helper: borrow out of range (borrow={borrow})"
+                    )));
+                }
+                let mut packed = Vec::with_capacity(69);
+                packed.push(field_from_u64_exact_transport::<F>(lhs));
+                packed.push(field_from_u64_exact_transport::<F>(rhs));
+                packed.push(field_from_u64_exact_transport::<F>(hi));
+                packed.push(f_bool::<F>(lhs_sign == 1));
+                packed.push(f_bool::<F>(borrow == 1));
+                for bit in 0..64usize {
+                    packed.push(f_bool::<F>(((lo >> bit) & 1) == 1));
+                }
+                Ok(packed)
+            }
+            RiscvOpcode::Divu => {
+                let expected = compute_op(op, lhs, rhs, 64);
+                if val != expected {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 DIVU col synthesis value mismatch: got={val:#x}, expected={expected:#x}"
+                    )));
+                }
+                let rhs_is_zero = rhs == 0;
+                let rem = if rhs_is_zero { 0 } else { lhs % rhs };
+                let diff = rem.wrapping_sub(rhs);
+                let mut packed = Vec::with_capacity(69);
+                packed.push(field_from_u64_exact_transport::<F>(lhs));
+                packed.push(field_from_u64_exact_transport::<F>(rhs));
+                packed.push(field_from_u64_exact_transport::<F>(rem));
+                packed.push(f_bool::<F>(rhs_is_zero));
+                packed.push(field_from_u64_exact_transport::<F>(diff));
+                for bit in 0..64usize {
+                    packed.push(f_bool::<F>(((diff >> bit) & 1) == 1));
+                }
+                Ok(packed)
+            }
+            RiscvOpcode::Remu => {
+                let expected = compute_op(op, lhs, rhs, 64);
+                if val != expected {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 REMU col synthesis value mismatch: got={val:#x}, expected={expected:#x}"
+                    )));
+                }
+                let rhs_is_zero = rhs == 0;
+                let quot = if rhs_is_zero { 0 } else { lhs / rhs };
+                let diff = val.wrapping_sub(rhs);
+                let mut packed = Vec::with_capacity(69);
+                packed.push(field_from_u64_exact_transport::<F>(lhs));
+                packed.push(field_from_u64_exact_transport::<F>(rhs));
+                packed.push(field_from_u64_exact_transport::<F>(quot));
+                packed.push(f_bool::<F>(rhs_is_zero));
+                packed.push(field_from_u64_exact_transport::<F>(diff));
+                for bit in 0..64usize {
+                    packed.push(f_bool::<F>(((diff >> bit) & 1) == 1));
+                }
+                Ok(packed)
+            }
+            RiscvOpcode::Div => {
+                let expected = compute_op(op, lhs, rhs, 64);
+                if val != expected {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 DIV col synthesis value mismatch: got={val:#x}, expected={expected:#x}"
+                    )));
+                }
+                let lhs_sign = (lhs >> 63) & 1;
+                let rhs_sign = (rhs >> 63) & 1;
+                let rhs_is_zero = rhs == 0;
+                let lhs_abs = if lhs_sign == 0 { lhs } else { lhs.wrapping_neg() };
+                let rhs_abs = if rhs_is_zero {
+                    0
+                } else if rhs_sign == 0 {
+                    rhs
+                } else {
+                    rhs.wrapping_neg()
+                };
+                let (q_abs, r_abs) = if rhs_is_zero {
+                    (0, 0)
+                } else {
+                    (lhs_abs / rhs_abs, lhs_abs % rhs_abs)
+                };
+                let q_is_zero = q_abs == 0;
+                let diff = if rhs_is_zero { 0 } else { r_abs.wrapping_sub(rhs_abs) };
+                let mut packed = Vec::with_capacity(74);
+                packed.push(field_from_u64_exact_transport::<F>(lhs));
+                packed.push(field_from_u64_exact_transport::<F>(rhs));
+                packed.push(field_from_u64_exact_transport::<F>(q_abs));
+                packed.push(field_from_u64_exact_transport::<F>(r_abs));
+                packed.push(f_bool::<F>(rhs_is_zero));
+                packed.push(f_bool::<F>(lhs_sign == 1));
+                packed.push(f_bool::<F>(rhs_sign == 1));
+                packed.push(f_bool::<F>(q_is_zero));
+                packed.push(field_from_u64_exact_transport::<F>(diff));
+                for bit in 0..64usize {
+                    packed.push(f_bool::<F>(((diff >> bit) & 1) == 1));
+                }
+                Ok(packed)
+            }
+            RiscvOpcode::Rem => {
+                let expected = compute_op(op, lhs, rhs, 64);
+                if val != expected {
+                    return Err(PiCcsError::InvalidInput(format!(
+                        "packed RV64 REM col synthesis value mismatch: got={val:#x}, expected={expected:#x}"
+                    )));
+                }
+                let lhs_sign = (lhs >> 63) & 1;
+                let rhs_sign = (rhs >> 63) & 1;
+                let rhs_is_zero = rhs == 0;
+                let lhs_abs = if lhs_sign == 0 { lhs } else { lhs.wrapping_neg() };
+                let rhs_abs = if rhs_is_zero {
+                    0
+                } else if rhs_sign == 0 {
+                    rhs
+                } else {
+                    rhs.wrapping_neg()
+                };
+                let (q_abs, r_abs) = if rhs_is_zero {
+                    (0, 0)
+                } else {
+                    (lhs_abs / rhs_abs, lhs_abs % rhs_abs)
+                };
+                let r_is_zero = r_abs == 0;
+                let diff = if rhs_is_zero { 0 } else { r_abs.wrapping_sub(rhs_abs) };
+                let mut packed = Vec::with_capacity(74);
+                packed.push(field_from_u64_exact_transport::<F>(lhs));
+                packed.push(field_from_u64_exact_transport::<F>(rhs));
+                packed.push(field_from_u64_exact_transport::<F>(q_abs));
+                packed.push(field_from_u64_exact_transport::<F>(r_abs));
+                packed.push(f_bool::<F>(rhs_is_zero));
+                packed.push(f_bool::<F>(lhs_sign == 1));
+                packed.push(f_bool::<F>(rhs_sign == 1));
+                packed.push(f_bool::<F>(r_is_zero));
+                packed.push(field_from_u64_exact_transport::<F>(diff));
+                for bit in 0..64usize {
+                    packed.push(f_bool::<F>(((diff >> bit) & 1) == 1));
                 }
                 Ok(packed)
             }

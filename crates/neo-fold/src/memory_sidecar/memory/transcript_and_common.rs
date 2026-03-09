@@ -366,11 +366,18 @@ pub(crate) fn rv32_packed_shout_layout(
     if xlen == 64
         && !matches!(
             opcode,
-            neo_memory::riscv::lookups::RiscvOpcode::Mul | neo_memory::riscv::lookups::RiscvOpcode::Mulhu
+            neo_memory::riscv::lookups::RiscvOpcode::Mul
+                | neo_memory::riscv::lookups::RiscvOpcode::Mulh
+                | neo_memory::riscv::lookups::RiscvOpcode::Mulhu
+                | neo_memory::riscv::lookups::RiscvOpcode::Mulhsu
+                | neo_memory::riscv::lookups::RiscvOpcode::Div
+                | neo_memory::riscv::lookups::RiscvOpcode::Divu
+                | neo_memory::riscv::lookups::RiscvOpcode::Rem
+                | neo_memory::riscv::lookups::RiscvOpcode::Remu
         )
     {
         return Err(PiCcsError::InvalidInput(format!(
-            "packed RV64 Shout is currently only supported for Mul/Mulhu in Route A (got opcode={opcode:?})"
+            "packed RV64 Shout is currently only supported for exact base M-family ops in Route A (got opcode={opcode:?})"
         )));
     }
 

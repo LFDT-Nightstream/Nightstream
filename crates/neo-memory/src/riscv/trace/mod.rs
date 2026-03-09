@@ -167,7 +167,7 @@ pub fn riscv_trace_shared_width_lookup_val_slot_for_col(col: usize) -> Option<us
 
 #[inline]
 pub fn riscv_trace_shared_width_lookup_addr_group_for_table_id(table_id: u32) -> Option<u32> {
-    rv32_width_lookup_addr_group_for_table_id(table_id)
+    rv32_width_lookup_addr_group_for_table_id(table_id).or_else(|| rv64_width_lookup_addr_group_for_table_id(table_id))
 }
 
 #[inline]

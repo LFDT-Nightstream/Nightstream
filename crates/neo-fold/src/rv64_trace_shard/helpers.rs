@@ -232,7 +232,48 @@ pub(super) fn validate_rv64_trace_proving_subset(
                         "RV64 trace proving slice does not yet support opcode {op:?}"
                     )));
                 }
-                ops.insert(*op);
+                match op {
+                    RiscvOpcode::Mulh => {
+                        // MULH is helper-owned in the current RV64 slice:
+                        // MOVSIGN(rs1), MOVSIGN(rs2), MUL, MULHU, ADD, ADD, then a local
+                        // commit check against the architectural result.
+                        ops.insert(RiscvOpcode::Sra);
+                        ops.insert(RiscvOpcode::Mul);
+                        ops.insert(RiscvOpcode::Mulhu);
+                        ops.insert(RiscvOpcode::Add);
+                    }
+                    RiscvOpcode::Mulhsu => {
+                        ops.insert(RiscvOpcode::Sra);
+                        ops.insert(RiscvOpcode::Sub);
+                        ops.insert(RiscvOpcode::Xor);
+                        ops.insert(RiscvOpcode::Add);
+                        ops.insert(RiscvOpcode::Mul);
+                        ops.insert(RiscvOpcode::Mulhu);
+                        ops.insert(RiscvOpcode::Sltu);
+                    }
+                    RiscvOpcode::Div | RiscvOpcode::Rem => {
+                        ops.insert(RiscvOpcode::Div);
+                        ops.insert(RiscvOpcode::Eq);
+                        ops.insert(RiscvOpcode::Mulh);
+                        ops.insert(RiscvOpcode::Mul);
+                        ops.insert(RiscvOpcode::Sra);
+                        ops.insert(RiscvOpcode::Xor);
+                        ops.insert(RiscvOpcode::Sub);
+                        ops.insert(RiscvOpcode::Add);
+                        ops.insert(RiscvOpcode::Sltu);
+                    }
+                    RiscvOpcode::Divu | RiscvOpcode::Remu => {
+                        ops.insert(RiscvOpcode::Divu);
+                        ops.insert(RiscvOpcode::Eq);
+                        ops.insert(RiscvOpcode::Mulhu);
+                        ops.insert(RiscvOpcode::Mul);
+                        ops.insert(RiscvOpcode::Sltu);
+                        ops.insert(RiscvOpcode::Sub);
+                    }
+                    _ => {
+                        ops.insert(*op);
+                    }
+                }
             }
             RiscvInstruction::IAlu { op, .. } => {
                 if !rv64_trace_supported_opcode(*op) {
@@ -256,6 +297,7 @@ pub(super) fn validate_rv64_trace_proving_subset(
             }
             RiscvInstruction::Lui { .. }
             | RiscvInstruction::Jal { .. }
+            | RiscvInstruction::Fence { .. }
             | RiscvInstruction::Halt
             | RiscvInstruction::Nop
             | RiscvInstruction::Ecall => {}
@@ -323,7 +365,6 @@ pub(super) fn validate_rv64_trace_proving_subset(
             | RiscvInstruction::StoreConditional { .. }
             | RiscvInstruction::Amo { .. }
             | RiscvInstruction::Ebreak
-            | RiscvInstruction::Fence { .. }
             | RiscvInstruction::FenceI => {
                 return Err(PiCcsError::InvalidInput(format!(
                     "RV64 trace proving slice does not yet support instruction {instruction:?}"
@@ -345,12 +386,19 @@ pub(super) fn rv64_trace_supported_opcode(op: RiscvOpcode) -> bool {
             | RiscvOpcode::Xor
             | RiscvOpcode::Sll
             | RiscvOpcode::Srl
+            | RiscvOpcode::Sra
             | RiscvOpcode::Slt
             | RiscvOpcode::Sltu
             | RiscvOpcode::Eq
             | RiscvOpcode::Neq
             | RiscvOpcode::Mul
+            | RiscvOpcode::Mulh
             | RiscvOpcode::Mulhu
+            | RiscvOpcode::Mulhsu
+            | RiscvOpcode::Div
+            | RiscvOpcode::Divu
+            | RiscvOpcode::Rem
+            | RiscvOpcode::Remu
             | RiscvOpcode::Addw
             | RiscvOpcode::Subw
             | RiscvOpcode::Sllw
@@ -401,7 +449,14 @@ pub(super) fn rv64_trace_table_specs(shout_ops: &HashSet<RiscvOpcode>) -> HashMa
     let mut table_specs = HashMap::new();
     for &op in shout_ops {
         let spec = match op {
-            RiscvOpcode::Mul | RiscvOpcode::Mulhu => LutTableSpec::RiscvOpcodePacked { opcode: op, xlen: 64 },
+            RiscvOpcode::Mul
+            | RiscvOpcode::Mulh
+            | RiscvOpcode::Mulhu
+            | RiscvOpcode::Mulhsu
+            | RiscvOpcode::Div
+            | RiscvOpcode::Divu
+            | RiscvOpcode::Rem
+            | RiscvOpcode::Remu => LutTableSpec::RiscvOpcodePacked { opcode: op, xlen: 64 },
             RiscvOpcode::VirtualMulWord
             | RiscvOpcode::VirtualMovsignWord
             | RiscvOpcode::VirtualDivWord
@@ -780,9 +835,15 @@ pub(super) fn trace_lookup_addr_group_for_table_shape(table_id: u32, ell_addr: u
         riscv_trace_lookup_addr_group_for_table_id(table_id).map(|v| v as u64)
     } else if table_id <= 19 && ell_addr == 66 {
         Some(RV64_PACKED_MUL_ADDR_GROUP)
+    } else if table_id <= 19 && ell_addr == 69 {
+        Some(RV64_PACKED_MULHSU_DIVU_REMU_ADDR_GROUP)
+    } else if table_id <= 19 && ell_addr == 70 {
+        Some(RV64_PACKED_MULH_ADDR_GROUP)
+    } else if table_id <= 19 && ell_addr == 73 {
+        Some(RV64_PACKED_DIV_REM_ADDR_GROUP)
     } else {
         riscv_trace_lookup_addr_group_for_table_id(table_id)
-            .filter(|_| ell_addr != RV64_OPCODE_ELL_ADDR && ell_addr != 66)
+            .filter(|_| !matches!(ell_addr, RV64_OPCODE_ELL_ADDR | 66 | 69 | 70 | 73))
             .map(|v| v as u64)
     }
 }

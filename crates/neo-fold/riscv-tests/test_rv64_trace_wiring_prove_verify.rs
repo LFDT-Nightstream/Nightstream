@@ -61,6 +61,183 @@ fn test_rv64_trace_wiring_base_subset_prove_verify() {
     );
 }
 
+#[test]
+fn test_rv64_trace_wiring_fence_nop_prove_verify() {
+    let elf = build_text_elf64(
+        0x2000,
+        &[
+            RiscvInstruction::IAlu {
+                op: RiscvOpcode::Add,
+                rd: 1,
+                rs1: 0,
+                imm: 7,
+            },
+            RiscvInstruction::Fence { pred: 0xF, succ: 0xF },
+            RiscvInstruction::RAlu {
+                op: RiscvOpcode::Add,
+                rd: 2,
+                rs1: 1,
+                rs2: 0,
+            },
+            RiscvInstruction::Halt,
+        ],
+    );
+
+    let mut run = Rv64TraceWiring::from_elf(&elf)
+        .expect("from_elf")
+        .mode(FoldingMode::Optimized)
+        .chunk_rows(4)
+        .max_steps(16)
+        .reg_output_claim_exact_u64(2, 7)
+        .prove()
+        .expect("prove");
+
+    run.verify().expect("verify");
+}
+
+#[test]
+fn test_rv64_trace_wiring_base_div_rem_subset_prove_verify() {
+    let cases = [
+        (RiscvOpcode::Div, -7i64 as u64, 3u64, -2i64 as u64),
+        (RiscvOpcode::Rem, -7i64 as u64, 3u64, -1i64 as u64),
+        (RiscvOpcode::Divu, 20u64, 3u64, 6u64),
+        (RiscvOpcode::Remu, 20u64, 3u64, 2u64),
+    ];
+
+    for (op, lhs, rhs, expected) in cases {
+        let elf = build_text_elf64(
+            0x3000,
+            &[
+                RiscvInstruction::IAlu {
+                    op: RiscvOpcode::Add,
+                    rd: 1,
+                    rs1: 0,
+                    imm: lhs as i32,
+                },
+                RiscvInstruction::IAlu {
+                    op: RiscvOpcode::Add,
+                    rd: 2,
+                    rs1: 0,
+                    imm: rhs as i32,
+                },
+                RiscvInstruction::RAlu {
+                    op,
+                    rd: 3,
+                    rs1: 1,
+                    rs2: 2,
+                },
+                RiscvInstruction::Halt,
+            ],
+        );
+
+        let mut run = Rv64TraceWiring::from_elf(&elf)
+            .expect("from_elf")
+            .mode(FoldingMode::Optimized)
+            .chunk_rows(4)
+            .max_steps(32)
+            .reg_output_claim_exact_u64(3, expected)
+            .prove()
+            .expect("prove");
+
+        run.verify().expect("verify");
+    }
+}
+
+#[test]
+fn test_rv64_trace_wiring_mulh_positive_subset_prove_verify() {
+    let elf = build_text_elf64(
+        0x3000,
+        &[
+            RiscvInstruction::RAlu {
+                op: RiscvOpcode::Mulh,
+                rd: 3,
+                rs1: 1,
+                rs2: 2,
+            },
+            RiscvInstruction::Halt,
+        ],
+    );
+
+    let mut run = Rv64TraceWiring::from_elf(&elf)
+        .expect("from_elf")
+        .mode(FoldingMode::Optimized)
+        .chunk_rows(4)
+        .max_steps(16)
+        .reg_init_u64(1, 1u64 << 32)
+        .reg_init_u64(2, 1u64 << 32)
+        .reg_output_claim_exact_u64(3, 1)
+        .prove()
+        .expect("prove");
+
+    run.verify().expect("verify");
+}
+
+#[test]
+fn test_rv64_trace_wiring_mulhsu_positive_subset_prove_verify() {
+    let elf = build_text_elf64(
+        0x3000,
+        &[
+            RiscvInstruction::RAlu {
+                op: RiscvOpcode::Mulhsu,
+                rd: 3,
+                rs1: 1,
+                rs2: 2,
+            },
+            RiscvInstruction::Halt,
+        ],
+    );
+
+    let mut run = Rv64TraceWiring::from_elf(&elf)
+        .expect("from_elf")
+        .mode(FoldingMode::Optimized)
+        .chunk_rows(4)
+        .max_steps(16)
+        .reg_init_u64(1, 1u64 << 32)
+        .reg_init_u64(2, 1u64 << 32)
+        .reg_output_claim_exact_u64(3, 1)
+        .prove()
+        .expect("prove");
+
+    run.verify().expect("verify");
+}
+
+#[test]
+fn test_rv64_trace_wiring_rejects_andn_in_rv64im_profile() {
+    let panic = std::panic::catch_unwind(|| {
+        build_text_elf64(
+            0x2000,
+            &[
+                RiscvInstruction::IAlu {
+                    op: RiscvOpcode::Add,
+                    rd: 1,
+                    rs1: 0,
+                    imm: 7,
+                },
+                RiscvInstruction::RAlu {
+                    op: RiscvOpcode::Andn,
+                    rd: 2,
+                    rs1: 1,
+                    rs2: 0,
+                },
+                RiscvInstruction::Halt,
+            ],
+        )
+    })
+    .expect_err("ANDN must be rejected before ELF construction for the RV64IM profile");
+
+    let msg = if let Some(s) = panic.downcast_ref::<&'static str>() {
+        s.to_string()
+    } else if let Some(s) = panic.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        String::new()
+    };
+    assert!(
+        msg.contains("unsupported R-type opcode for encoder: Andn"),
+        "unexpected panic message: {msg}"
+    );
+}
+
 #[cfg(feature = "poseidon-precompile")]
 #[test]
 fn test_rv64_trace_wiring_poseidon_precompile_prove_verify() {

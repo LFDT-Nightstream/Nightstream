@@ -344,15 +344,14 @@ fn sign_extend_word_result<F: Field>(low_word: F, sign_bit: F) -> F {
 }
 
 fn evaluate_addw_components<F: Field>(r: &[F]) -> (F, F) {
-    debug_assert_eq!(r.len(), 128);
-    let low = &r[..64];
+    debug_assert_eq!(r.len(), 64);
     let mut result = F::ZERO;
     let mut carry = F::ZERO;
     let mut sign_bit = F::ZERO;
 
     for i in 0..32 {
-        let x_i = low[2 * i];
-        let y_i = low[2 * i + 1];
+        let x_i = r[2 * i];
+        let y_i = r[2 * i + 1];
         let coeff = F::from_u64(1u64 << i);
         let sum_bit = x_i + y_i + carry
             - x_i * y_i * F::from_u64(2)
@@ -370,15 +369,14 @@ fn evaluate_addw_components<F: Field>(r: &[F]) -> (F, F) {
 }
 
 fn evaluate_subw_components<F: Field>(r: &[F]) -> (F, F) {
-    debug_assert_eq!(r.len(), 128);
-    let low = &r[..64];
+    debug_assert_eq!(r.len(), 64);
     let mut result = F::ZERO;
     let mut carry = F::ONE;
     let mut sign_bit = F::ZERO;
 
     for i in 0..32 {
-        let x_i = low[2 * i];
-        let y_i = low[2 * i + 1];
+        let x_i = r[2 * i];
+        let y_i = r[2 * i + 1];
         let y_comp = F::ONE - y_i;
         let coeff = F::from_u64(1u64 << i);
         let sum_bit = x_i + y_comp + carry
@@ -397,11 +395,10 @@ fn evaluate_subw_components<F: Field>(r: &[F]) -> (F, F) {
 }
 
 fn build_shift_word_eq_table<F: Field>(r: &[F]) -> Vec<F> {
-    debug_assert_eq!(r.len(), 128);
-    let low = &r[..64];
+    debug_assert_eq!(r.len(), 64);
     let mut y_bits = Vec::with_capacity(5);
     for k in 0..5 {
-        y_bits.push(low[2 * k + 1]);
+        y_bits.push(r[2 * k + 1]);
     }
 
     let mut eq_s = vec![F::ZERO; 32];
@@ -426,8 +423,7 @@ pub fn evaluate_subw_mle<F: Field>(r: &[F]) -> F {
 }
 
 pub fn evaluate_sllw_mle<F: Field>(r: &[F]) -> F {
-    debug_assert_eq!(r.len(), 128);
-    let low = &r[..64];
+    debug_assert_eq!(r.len(), 64);
     let eq_s = build_shift_word_eq_table(r);
     let mut result = F::ZERO;
     let mut sign_bit = F::ZERO;
@@ -435,7 +431,7 @@ pub fn evaluate_sllw_mle<F: Field>(r: &[F]) -> F {
     for i in 0..32 {
         let mut out_bit = F::ZERO;
         for s in 0..=i {
-            out_bit += eq_s[s] * low[2 * (i - s)];
+            out_bit += eq_s[s] * r[2 * (i - s)];
         }
         if i == 31 {
             sign_bit = out_bit;
@@ -447,8 +443,7 @@ pub fn evaluate_sllw_mle<F: Field>(r: &[F]) -> F {
 }
 
 pub fn evaluate_srlw_mle<F: Field>(r: &[F]) -> F {
-    debug_assert_eq!(r.len(), 128);
-    let low = &r[..64];
+    debug_assert_eq!(r.len(), 64);
     let eq_s = build_shift_word_eq_table(r);
     let mut result = F::ZERO;
     let mut sign_bit = F::ZERO;
@@ -456,7 +451,7 @@ pub fn evaluate_srlw_mle<F: Field>(r: &[F]) -> F {
     for i in 0..32 {
         let mut out_bit = F::ZERO;
         for s in 0..(32 - i) {
-            out_bit += eq_s[s] * low[2 * (i + s)];
+            out_bit += eq_s[s] * r[2 * (i + s)];
         }
         if i == 31 {
             sign_bit = out_bit;
@@ -468,17 +463,16 @@ pub fn evaluate_srlw_mle<F: Field>(r: &[F]) -> F {
 }
 
 pub fn evaluate_sraw_mle<F: Field>(r: &[F]) -> F {
-    debug_assert_eq!(r.len(), 128);
-    let low = &r[..64];
+    debug_assert_eq!(r.len(), 64);
     let eq_s = build_shift_word_eq_table(r);
-    let sign = low[62];
+    let sign = r[62];
     let mut result = F::ZERO;
     let mut sign_bit = F::ZERO;
 
     for i in 0..32 {
         let mut out_bit = F::ZERO;
         for s in 0..32 {
-            let bit = if i + s < 32 { low[2 * (i + s)] } else { sign };
+            let bit = if i + s < 32 { r[2 * (i + s)] } else { sign };
             out_bit += eq_s[s] * bit;
         }
         if i == 31 {

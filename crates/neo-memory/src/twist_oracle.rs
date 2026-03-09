@@ -384,7 +384,26 @@ fn expr_rv32_packed_divu(cols: &[K; 5]) -> K {
     z * (quot - all_ones) + (K::ONE - z) * (lhs - rhs * quot - rem)
 }
 
+fn expr_rv64_packed_divu(cols: &[K; 5]) -> K {
+    let lhs = cols[0];
+    let rhs = cols[1];
+    let rem = cols[2];
+    let z = cols[3];
+    let quot = cols[4];
+    let all_ones = K::from_u64(u64::MAX);
+    z * (quot - all_ones) + (K::ONE - z) * (lhs - rhs * quot - rem)
+}
+
 fn expr_rv32_packed_remu(cols: &[K; 5]) -> K {
+    let lhs = cols[0];
+    let rhs = cols[1];
+    let quot = cols[2];
+    let z = cols[3];
+    let rem = cols[4];
+    z * (rem - lhs) + (K::ONE - z) * (lhs - rhs * quot - rem)
+}
+
+fn expr_rv64_packed_remu(cols: &[K; 5]) -> K {
     let lhs = cols[0];
     let rhs = cols[1];
     let quot = cols[2];
@@ -409,6 +428,22 @@ fn expr_rv32_packed_div(cols: &[K; 6]) -> K {
     z * (val - all_ones) + (K::ONE - z) * (val - q_signed)
 }
 
+fn expr_rv64_packed_div(cols: &[K; 6]) -> K {
+    let lhs_sign = cols[0];
+    let rhs_sign = cols[1];
+    let z = cols[2];
+    let q_abs = cols[3];
+    let q_is_zero = cols[4];
+    let val = cols[5];
+    let two = K::from_u64(2);
+    let two64_mod = K::from_u64(u32::MAX as u64);
+    let all_ones = K::from_u64(u64::MAX);
+    let div_sign = lhs_sign + rhs_sign - two * lhs_sign * rhs_sign;
+    let neg_q = (K::ONE - q_is_zero) * (two64_mod - q_abs);
+    let q_signed = (K::ONE - div_sign) * q_abs + div_sign * neg_q;
+    z * (val - all_ones) + (K::ONE - z) * (val - q_signed)
+}
+
 fn expr_rv32_packed_rem(cols: &[K; 6]) -> K {
     let lhs = cols[0];
     let lhs_sign = cols[1];
@@ -418,6 +453,19 @@ fn expr_rv32_packed_rem(cols: &[K; 6]) -> K {
     let val = cols[5];
     let two32 = K::from_u64(1u64 << 32);
     let neg_r = (K::ONE - r_is_zero) * (two32 - r_abs);
+    let r_signed = (K::ONE - lhs_sign) * r_abs + lhs_sign * neg_r;
+    z * (val - lhs) + (K::ONE - z) * (val - r_signed)
+}
+
+fn expr_rv64_packed_rem(cols: &[K; 6]) -> K {
+    let lhs = cols[0];
+    let lhs_sign = cols[1];
+    let z = cols[2];
+    let r_abs = cols[3];
+    let r_is_zero = cols[4];
+    let val = cols[5];
+    let two64_mod = K::from_u64(u32::MAX as u64);
+    let neg_r = (K::ONE - r_is_zero) * (two64_mod - r_abs);
     let r_signed = (K::ONE - lhs_sign) * r_abs + lhs_sign * neg_r;
     z * (val - lhs) + (K::ONE - z) * (val - r_signed)
 }
@@ -955,6 +1003,20 @@ fn expr_rv32_packed_mulh_adapter(cols: &[K; 7], _bits: &[K], _bit_sum: K, w: &[K
     w[0] * eq_expr + w[1] * range
 }
 
+fn expr_rv64_packed_mulh_adapter(cols: &[K; 7], _bits: &[K], _bit_sum: K, w: &[K; 2]) -> K {
+    let lhs = cols[0];
+    let rhs = cols[1];
+    let lhs_sign = cols[2];
+    let rhs_sign = cols[3];
+    let hi = cols[4];
+    let k = cols[5];
+    let val = cols[6];
+    let two64_mod = K::from_u64(u32::MAX as u64);
+    let eq_expr = hi - lhs_sign * rhs - rhs_sign * lhs + k * two64_mod - val;
+    let range = k * (k - K::ONE) * (k - K::from_u64(2));
+    w[0] * eq_expr + w[1] * range
+}
+
 fn expr_rv32_packed_divremu_adapter(cols: &[K; 4], _bits: &[K], bit_sum: K, w: &[K; 4]) -> K {
     let rhs = cols[0];
     let z = cols[1];
@@ -963,6 +1025,19 @@ fn expr_rv32_packed_divremu_adapter(cols: &[K; 4], _bits: &[K], bit_sum: K, w: &
     let c0 = z * (K::ONE - z);
     let c1 = z * rhs;
     let c2 = (K::ONE - z) * (rem - rhs - diff + K::from_u64(1u64 << 32));
+    let c3 = diff - bit_sum;
+    w[0] * c0 + w[1] * c1 + w[2] * c2 + w[3] * c3
+}
+
+fn expr_rv64_packed_divremu_adapter(cols: &[K; 4], _bits: &[K], bit_sum: K, w: &[K; 4]) -> K {
+    let rhs = cols[0];
+    let z = cols[1];
+    let rem = cols[2];
+    let diff = cols[3];
+    let two64_mod = K::from_u64(u32::MAX as u64);
+    let c0 = z * (K::ONE - z);
+    let c1 = z * rhs;
+    let c2 = (K::ONE - z) * (rem - rhs - diff + two64_mod);
     let c3 = diff - bit_sum;
     w[0] * c0 + w[1] * c1 + w[2] * c2 + w[3] * c3
 }
@@ -992,11 +1067,46 @@ fn expr_rv32_packed_divrem_adapter(cols: &[K; 10], _bits: &[K], bit_sum: K, w: &
     w[0] * c0 + w[1] * c1 + w[2] * c2 + w[3] * c3 + w[4] * c4 + w[5] * c5 + w[6] * c6
 }
 
+fn expr_rv64_packed_divrem_adapter(cols: &[K; 10], _bits: &[K], bit_sum: K, w: &[K; 7]) -> K {
+    let lhs = cols[0];
+    let rhs = cols[1];
+    let z = cols[2];
+    let lhs_sign = cols[3];
+    let rhs_sign = cols[4];
+    let q_abs = cols[5];
+    let r_abs = cols[6];
+    let mag = cols[7];
+    let mag_z = cols[8];
+    let diff = cols[9];
+    let two = K::from_u64(2);
+    let two64_mod = K::from_u64(u32::MAX as u64);
+    let lhs_abs = lhs + lhs_sign * (two64_mod - two * lhs);
+    let rhs_abs = rhs + rhs_sign * (two64_mod - two * rhs);
+    let c0 = z * (K::ONE - z);
+    let c1 = z * rhs;
+    let c2 = mag_z * (K::ONE - mag_z);
+    let c3 = mag_z * mag;
+    let c4 = (K::ONE - z) * (lhs_abs - rhs_abs * q_abs - r_abs);
+    let c5 = (K::ONE - z) * (r_abs - rhs_abs - diff + two64_mod);
+    let c6 = diff - bit_sum;
+    w[0] * c0 + w[1] * c1 + w[2] * c2 + w[3] * c3 + w[4] * c4 + w[5] * c5 + w[6] * c6
+}
+
 fn expr_rv32_packed_eq_adapter(cols: &[K; 3], diff: K) -> K {
     let lhs = cols[0];
     let rhs = cols[1];
     let borrow = cols[2];
     lhs - rhs - diff + borrow * K::from_u64(1u64 << 32)
+}
+
+fn expr_rv64_packed_mulhsu_adapter(cols: &[K; 6]) -> K {
+    let rhs = cols[1];
+    let lhs_sign = cols[2];
+    let hi = cols[3];
+    let borrow = cols[4];
+    let val = cols[5];
+    let two64_mod = K::from_u64(u32::MAX as u64);
+    hi - lhs_sign * rhs - val + borrow * two64_mod
 }
 
 fn expr_u_decomp(cols: &[K; 1], sum: K) -> K {
@@ -1274,6 +1384,36 @@ impl Rv64PackedMulhuOracleSparseTime {
 }
 impl_round_oracle_via_core!(Rv64PackedMulhuOracleSparseTime);
 
+pub struct Rv64PackedMulHiOracleSparseTime {
+    core: SparseColsBitsExprOracle<3, 0>,
+}
+
+impl Rv64PackedMulHiOracleSparseTime {
+    pub fn new(
+        r_cycle: &[K],
+        has_lookup: SparseIdxVec<K>,
+        lhs: SparseIdxVec<K>,
+        rhs: SparseIdxVec<K>,
+        lo_bits: Vec<SparseIdxVec<K>>,
+        hi: SparseIdxVec<K>,
+    ) -> Self {
+        debug_assert_eq!(lo_bits.len(), 64);
+        Self {
+            core: SparseColsBitsExprOracle::new(
+                r_cycle,
+                has_lookup,
+                [lhs, rhs, hi],
+                lo_bits,
+                Cow::Borrowed(pow2_weights_64()),
+                [],
+                4,
+                expr_rv64_packed_mulhu_bw0,
+            ),
+        }
+    }
+}
+impl_round_oracle_via_core!(Rv64PackedMulHiOracleSparseTime);
+
 pub struct Rv32PackedMulhAdapterOracleSparseTime {
     core: SparseColsBitsExprOracle<7, 2>,
 }
@@ -1307,11 +1447,52 @@ impl Rv32PackedMulhAdapterOracleSparseTime {
 }
 impl_round_oracle_via_core!(Rv32PackedMulhAdapterOracleSparseTime);
 
+pub struct Rv64PackedMulhAdapterOracleSparseTime {
+    core: SparseColsBitsExprOracle<7, 2>,
+}
+
+impl Rv64PackedMulhAdapterOracleSparseTime {
+    pub fn new(
+        r_cycle: &[K],
+        has_lookup: SparseIdxVec<K>,
+        lhs: SparseIdxVec<K>,
+        rhs: SparseIdxVec<K>,
+        lhs_sign: SparseIdxVec<K>,
+        rhs_sign: SparseIdxVec<K>,
+        hi: SparseIdxVec<K>,
+        k: SparseIdxVec<K>,
+        val: SparseIdxVec<K>,
+        weights: [K; 2],
+    ) -> Self {
+        Self {
+            core: SparseColsBitsExprOracle::new(
+                r_cycle,
+                has_lookup,
+                [lhs, rhs, lhs_sign, rhs_sign, hi, k, val],
+                Vec::new(),
+                Cow::Borrowed(&[]),
+                weights,
+                5,
+                expr_rv64_packed_mulh_adapter,
+            ),
+        }
+    }
+}
+impl_round_oracle_via_core!(Rv64PackedMulhAdapterOracleSparseTime);
+
 define_sparse_time_expr_oracle!(
     Rv32PackedMulhsuAdapterOracleSparseTime,
     6,
     4,
     expr_rv32_packed_mulhsu_adapter,
+    [lhs, rhs, lhs_sign, hi, borrow, val]
+);
+
+define_sparse_time_expr_oracle!(
+    Rv64PackedMulhsuAdapterOracleSparseTime,
+    6,
+    4,
+    expr_rv64_packed_mulhsu_adapter,
     [lhs, rhs, lhs_sign, hi, borrow, val]
 );
 
@@ -1486,10 +1667,26 @@ define_sparse_time_expr_oracle!(
 );
 
 define_sparse_time_expr_oracle!(
+    Rv64PackedDivuOracleSparseTime,
+    5,
+    5,
+    expr_rv64_packed_divu,
+    [lhs, rhs, rem, rhs_is_zero, quot]
+);
+
+define_sparse_time_expr_oracle!(
     Rv32PackedRemuOracleSparseTime,
     5,
     5,
     expr_rv32_packed_remu,
+    [lhs, rhs, quot, rhs_is_zero, rem]
+);
+
+define_sparse_time_expr_oracle!(
+    Rv64PackedRemuOracleSparseTime,
+    5,
+    5,
+    expr_rv64_packed_remu,
     [lhs, rhs, quot, rhs_is_zero, rem]
 );
 
@@ -1535,6 +1732,48 @@ define_bits_and_weights32_oracle!(
     expr_rv32_packed_divremu_adapter
 );
 
+macro_rules! define_bits_and_weights64_oracle {
+    ($name:ident, $n:expr, $m:expr, [$($col:ident),+ $(,)?], $degree:expr, $expr:expr) => {
+        pub struct $name {
+            core: SparseColsBitsExprOracle<$n, $m>,
+        }
+
+        impl $name {
+            pub fn new(
+                r_cycle: &[K],
+                has_lookup: SparseIdxVec<K>,
+                $($col: SparseIdxVec<K>,)+
+                diff_bits: Vec<SparseIdxVec<K>>,
+                weights: [K; $m],
+            ) -> Self {
+                debug_assert_eq!(diff_bits.len(), 64);
+                Self {
+                    core: SparseColsBitsExprOracle::new(
+                        r_cycle,
+                        has_lookup,
+                        [$($col),+],
+                        diff_bits,
+                        Cow::Borrowed(pow2_weights_64()),
+                        weights,
+                        $degree,
+                        $expr,
+                    ),
+                }
+            }
+        }
+        impl_round_oracle_via_core!($name);
+    };
+}
+
+define_bits_and_weights64_oracle!(
+    Rv64PackedDivRemuAdapterOracleSparseTime,
+    4,
+    4,
+    [rhs, rhs_is_zero, rem, diff],
+    4,
+    expr_rv64_packed_divremu_adapter
+);
+
 define_sparse_time_expr_oracle!(
     Rv32PackedDivOracleSparseTime,
     6,
@@ -1544,10 +1783,26 @@ define_sparse_time_expr_oracle!(
 );
 
 define_sparse_time_expr_oracle!(
+    Rv64PackedDivOracleSparseTime,
+    6,
+    7,
+    expr_rv64_packed_div,
+    [lhs_sign, rhs_sign, rhs_is_zero, q_abs, q_is_zero, val]
+);
+
+define_sparse_time_expr_oracle!(
     Rv32PackedRemOracleSparseTime,
     6,
     7,
     expr_rv32_packed_rem,
+    [lhs, lhs_sign, rhs_is_zero, r_abs, r_is_zero, val]
+);
+
+define_sparse_time_expr_oracle!(
+    Rv64PackedRemOracleSparseTime,
+    6,
+    7,
+    expr_rv64_packed_rem,
     [lhs, lhs_sign, rhs_is_zero, r_abs, r_is_zero, val]
 );
 
@@ -1569,6 +1824,26 @@ define_bits_and_weights32_oracle!(
     ],
     6,
     expr_rv32_packed_divrem_adapter
+);
+
+define_bits_and_weights64_oracle!(
+    Rv64PackedDivRemAdapterOracleSparseTime,
+    10,
+    7,
+    [
+        lhs,
+        rhs,
+        rhs_is_zero,
+        lhs_sign,
+        rhs_sign,
+        q_abs,
+        r_abs,
+        mag,
+        mag_is_zero,
+        diff
+    ],
+    6,
+    expr_rv64_packed_divrem_adapter
 );
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

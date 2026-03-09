@@ -105,6 +105,12 @@ pub(crate) fn extend_layout_with_guest_addresses(
     add_public_region(layout, group_start, group_end)
 }
 
+/// Materialize byte-addressed guest RAM into width-byte overlapping windows.
+///
+/// This is intentionally per-byte, not per-word:
+/// the current RV64 RAM proof domain is byte-addressed, so a load/store at any
+/// guest byte address needs the little-endian width-byte window beginning at
+/// that address. Existing foundation tests assert this overlapping-window model.
 pub(crate) fn segment_backed_ram_words(loaded_program: &LoadedProgram, xlen: usize) -> HashMap<u64, u64> {
     let mut out = HashMap::new();
     let width = xlen / 8;

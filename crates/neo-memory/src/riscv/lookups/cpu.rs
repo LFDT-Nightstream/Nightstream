@@ -287,17 +287,35 @@ impl RiscvCpu {
     }
 
     #[inline]
-    fn helper_owned_rv64_word_opcode(op: RiscvOpcode) -> bool {
+    fn helper_owned_rv64_decomposed_opcode(op: RiscvOpcode) -> bool {
         matches!(
             op,
-            RiscvOpcode::Mulw | RiscvOpcode::Divw | RiscvOpcode::Divuw | RiscvOpcode::Remw | RiscvOpcode::Remuw
+            RiscvOpcode::Mulh
+                | RiscvOpcode::Mulhsu
+                | RiscvOpcode::Div
+                | RiscvOpcode::Divu
+                | RiscvOpcode::Rem
+                | RiscvOpcode::Remu
+                | RiscvOpcode::Mulw
+                | RiscvOpcode::Divw
+                | RiscvOpcode::Divuw
+                | RiscvOpcode::Remw
+                | RiscvOpcode::Remuw
         )
     }
 
     fn start_decomposition_for_instruction(&mut self, instr_word: u32, instr: &RiscvInstruction) -> Option<()> {
         let rv64_supported = matches!(
             instr,
-            RiscvInstruction::RAluw {
+            RiscvInstruction::RAlu {
+                op: RiscvOpcode::Mulh
+                    | RiscvOpcode::Mulhsu
+                    | RiscvOpcode::Div
+                    | RiscvOpcode::Divu
+                    | RiscvOpcode::Rem
+                    | RiscvOpcode::Remu,
+                ..
+            } | RiscvInstruction::RAluw {
                 op: RiscvOpcode::Mulw | RiscvOpcode::Divw | RiscvOpcode::Divuw | RiscvOpcode::Remw | RiscvOpcode::Remuw,
                 ..
             }
@@ -496,14 +514,7 @@ impl RiscvCpu {
                         .virtual_regs
                         .get(&src)
                         .ok_or_else(|| format!("missing virtual accumulator value for commit src={src}"))?;
-                    if matches!(
-                        op,
-                        RiscvOpcode::Mulw
-                            | RiscvOpcode::Divw
-                            | RiscvOpcode::Divuw
-                            | RiscvOpcode::Remw
-                            | RiscvOpcode::Remuw
-                    ) {
+                    if Self::helper_owned_rv64_decomposed_opcode(op) {
                         let expected = compute_op(op, lhs_val, rhs_val, self.xlen);
                         if x != expected {
                             return Err(format!(
@@ -1004,7 +1015,7 @@ impl neo_vm_trace::VmCpu<u64, u64, u128> for RiscvCpu {
 
             // === RV64 W-suffix Operations ===
             RiscvInstruction::RAluw { op, rd, rs1: _, rs2: _ } => {
-                let result = if self.xlen == 64 && Self::helper_owned_rv64_word_opcode(op) {
+                let result = if self.xlen == 64 && Self::helper_owned_rv64_decomposed_opcode(op) {
                     // Helper-owned RV64 W arithmetic is proven through decomposition helpers.
                     // Keep direct execution available for non-decomposed runs without emitting a
                     // fake direct architectural lookup dependency.

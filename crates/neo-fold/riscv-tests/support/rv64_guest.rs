@@ -17,7 +17,7 @@ fn guest_dir(name: &str) -> PathBuf {
         .join(name)
 }
 
-pub fn build_circuit_l2_transfer_rv64im_elf() -> Result<Vec<u8>, String> {
+pub fn build_note_spend_rv64im_elf() -> Result<Vec<u8>, String> {
     build_guest_rv64im_elf("circuit-l2-transfer", "circuit_l2_transfer")
 }
 

@@ -73,6 +73,27 @@ cargo test -p neo-memory --release
 cargo test -p neo-reductions --release
 ```
 
+### Canonical RV64IM Note Repros
+
+The maintained note-circuit proving path is the **real ELF RV64IM** flow through
+`Rv64TraceWiring::from_elf(...)`, exercised by:
+
+```bash
+cargo test -p neo-fold --release --features poseidon-precompile \
+  --test test_rv64_note_from_elf \
+  test_rv64_note_spend_from_elf_perf_repro -- --ignored --nocapture --test-threads=1
+
+cargo test -p neo-fold --release --features poseidon-precompile \
+  --test test_rv64_note_from_elf \
+  test_rv64_note_deposit_from_elf_perf_repro -- --ignored --nocapture --test-threads=1
+```
+
+This canonical path currently targets the supported **RV64IM** product profile:
+- compressed instructions (`C`) are not supported
+- atomics (`A`) are not supported
+- broader arbitrary-RV64IM program coverage is still being expanded beyond the
+  maintained note repro flow
+
 ### Paper-exact Reference Mode
 
 ```bash

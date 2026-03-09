@@ -76,9 +76,6 @@ path = "riscv-tests/test_riscv_fibonacci_compiled_full_prove_verify.rs"
 name = "test_riscv_u64_output_compiled_full_prove_verify"
 path = "riscv-tests/test_riscv_u64_output_compiled_full_prove_verify.rs"
 
-[[test]]
-name = "test_riscv_circuit_l2_transfer_compiled_trace_prove_verify"
-path = "riscv-tests/test_riscv_circuit_l2_transfer_compiled_trace_prove_verify.rs"
 
 [[test]]
 name = "test_riscv_poseidon_stage_binding"

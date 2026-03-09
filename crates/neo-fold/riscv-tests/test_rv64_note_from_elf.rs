@@ -1,14 +1,13 @@
 //! Canonical real-ELF RV64IM note repro tests.
 //!
 //! These are the maintained end-to-end note-circuit prove/verify perf repros.
-//! The older RV32 compiled-ROM note tests remain in-tree as legacy reference
-//! paths, but new note-circuit validation and perf work should target this file.
+//! New note-circuit validation and perf work should target this file.
 #![cfg(feature = "poseidon-precompile")]
 
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::rv64_trace_shard::{Rv64TraceWiring, Rv64TraceWiringRun};
 use neo_math::F;
-use neo_memory::riscv::exec_table::Rv32ExecTable;
+use neo_memory::riscv::exec_table::RiscvExecTable;
 use neo_vm_trace::TwistOpKind;
 use p3_field::PrimeCharacteristicRing;
 use std::collections::{BTreeSet, HashMap};
@@ -25,7 +24,7 @@ fn simulate_exec_with_witness_rv64(
     elf: &[u8],
     ram_pairs: &[(u64, u32)],
     max_steps: usize,
-) -> Result<Rv32ExecTable, String> {
+) -> Result<RiscvExecTable, String> {
     let mut wiring = Rv64TraceWiring::from_elf(elf)
         .map_err(|e| format!("from_elf failed: {e}"))?
         .mode(FoldingMode::Optimized)
@@ -39,12 +38,12 @@ fn simulate_exec_with_witness_rv64(
     if !trace.did_halt() {
         return Err(format!("RV64 note guest did not halt within {max_steps} steps"));
     }
-    Rv32ExecTable::from_trace_padded_with_xlen(&trace, trace.steps.len(), 64)
+    RiscvExecTable::from_trace_padded_with_xlen(&trace, trace.steps.len(), 64)
         .map_err(|e| format!("exec table build failed: {e}"))
 }
 
 fn derive_output_claims_for_addresses(
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
     ram_pairs: &[(u64, u32)],
     output_addrs: &[u64],
 ) -> Vec<(u64, u32)> {
@@ -316,7 +315,7 @@ fn run_rv64_note_case(
 #[test]
 #[ignore = "slow RV64IM note-spend ELF perf repro"]
 fn test_rv64_note_spend_from_elf_perf_repro() {
-    let elf = rv64_guest::build_circuit_l2_transfer_rv64im_elf().expect("build RV64IM note guest ELF");
+    let elf = rv64_guest::build_note_spend_rv64im_elf().expect("build RV64IM note guest ELF");
     let witness = note_spend_fixture::build_note_spend_fixture_witness();
     run_rv64_note_case(
         "rv64_note_spend_elf",

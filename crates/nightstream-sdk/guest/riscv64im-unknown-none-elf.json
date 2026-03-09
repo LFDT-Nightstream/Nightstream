@@ -2,7 +2,6 @@
   "arch": "riscv64",
   "cpu": "generic-rv64",
   "code-model": "medium",
-  "crt-objects-fallback": "false",
   "data-layout": "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128",
   "eh-frame-header": false,
   "emit-debug-gdb-scripts": false,
@@ -12,7 +11,7 @@
   "linker-flavor": "gnu-lld",
   "llvm-abiname": "lp64",
   "llvm-target": "riscv64",
-  "max-atomic-width": 64,
+  "max-atomic-width": 0,
   "metadata": {
     "description": "Bare RISC-V (RV64IM ISA)",
     "host_tools": false,

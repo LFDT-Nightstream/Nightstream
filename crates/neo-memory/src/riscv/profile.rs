@@ -139,6 +139,7 @@ fn supports_rv64im_instruction(instruction: &RiscvInstruction, poseidon_precompi
         | RiscvInstruction::Jalr { .. }
         | RiscvInstruction::Lui { .. }
         | RiscvInstruction::Auipc { .. }
+        | RiscvInstruction::Fence { .. }
         | RiscvInstruction::Halt
         | RiscvInstruction::Nop
         | RiscvInstruction::Ecall => true,
@@ -164,7 +165,6 @@ fn supports_rv64im_instruction(instruction: &RiscvInstruction, poseidon_precompi
         | RiscvInstruction::StoreConditional { .. }
         | RiscvInstruction::Amo { .. }
         | RiscvInstruction::Ebreak
-        | RiscvInstruction::Fence { .. }
         | RiscvInstruction::FenceI => false,
     }
 }
@@ -202,7 +202,6 @@ fn supports_rv64im_opcode(op: RiscvOpcode) -> bool {
             | RiscvOpcode::Divuw
             | RiscvOpcode::Remw
             | RiscvOpcode::Remuw
-            | RiscvOpcode::Andn
     )
 }
 

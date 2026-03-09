@@ -7,6 +7,9 @@
 //! Legacy internal A/C coverage lives in `riscv_legacy_ac_validation.rs`.
 
 use neo_memory::riscv::lookups::*;
+use neo_memory::riscv::packed::{build_rv_packed_cols, rv_packed_supported_opcode};
+use neo_memory::RiscvProofProfile;
+use p3_goldilocks::Goldilocks;
 #[path = "common/riscv_exec_helpers.rs"]
 mod riscv_exec_helpers;
 
@@ -398,26 +401,44 @@ fn test_m_multiply() {
 }
 
 #[test]
-fn test_m_mulh_unsigned() {
-    // Test high bits of unsigned multiplication with large numbers
+fn test_m_mulhu_unsigned() {
+    // Test high bits of unsigned multiplication.
+    // Use values large enough that the 128-bit product has non-zero upper 64 bits.
+    // 0x1_0000_0000 * 0x1_0000_0000 = 0x1_0000_0000_0000_0000 (upper 64 bits = 1).
     let program = vec![
-        RiscvInstruction::Lui { rd: 1, imm: 0x10000 }, // x1 = 0x10000_000
-        RiscvInstruction::Lui { rd: 2, imm: 0x10000 }, // x2 = 0x10000_000
+        // Build 0x1_0000_0000 in x1:  ADDI x1, x0, 1  then  SLLI x1, x1, 32
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Add,
+            rd: 1,
+            rs1: 0,
+            imm: 1,
+        },
+        RiscvInstruction::IAlu {
+            op: RiscvOpcode::Sll,
+            rd: 1,
+            rs1: 1,
+            imm: 32,
+        }, // x1 = 0x1_0000_0000
+        // Copy to x2
+        RiscvInstruction::RAlu {
+            op: RiscvOpcode::Add,
+            rd: 2,
+            rs1: 1,
+            rs2: 0,
+        }, // x2 = 0x1_0000_0000
         RiscvInstruction::RAlu {
             op: RiscvOpcode::Mulhu,
             rd: 3,
             rs1: 1,
             rs2: 2,
-        }, // high bits
+        }, // x3 = upper 64 bits of (0x1_0000_0000 * 0x1_0000_0000) = 1
         RiscvInstruction::Halt,
     ];
 
     let regs = run_program(program, 64);
-    // Large multiplication should produce non-zero high bits
-    // 0x10000000 * 0x10000000 = 0x100_0000_0000_0000 in 128 bits
-    // Upper 64 bits would be 0x100 = 256 (if using 32-bit interpretation)
-    // Just check it computed something
-    assert!(regs[1] != 0 && regs[2] != 0, "Operands loaded");
+    assert_eq!(regs[1], 0x1_0000_0000u64, "x1 operand");
+    assert_eq!(regs[2], 0x1_0000_0000u64, "x2 operand");
+    assert_eq!(regs[3], 1u64, "MULHU result: upper 64 bits of 2^64 should be 1");
 }
 
 #[test]
@@ -643,6 +664,65 @@ fn test_fence_nop() {
     let regs = run_program(program, 64);
     assert_eq!(regs[1], 42);
     assert_eq!(regs[2], 100);
+}
+
+#[test]
+fn test_rv64im_profile_accepts_mulh_and_mulhsu() {
+    let profile = RiscvProofProfile::rv64im();
+    for op in [RiscvOpcode::Mulh, RiscvOpcode::Mulhsu] {
+        let inst = RiscvInstruction::RAlu {
+            op,
+            rd: 1,
+            rs1: 2,
+            rs2: 3,
+        };
+        assert!(
+            profile.supports_instruction(&inst),
+            "helper-owned RV64 multiply-high op should be part of the current RV64IM proving profile: {op:?}"
+        );
+    }
+}
+
+#[test]
+fn test_rv64im_profile_accepts_base_div_rem_ops() {
+    let profile = RiscvProofProfile::rv64im();
+    for op in [RiscvOpcode::Div, RiscvOpcode::Divu, RiscvOpcode::Rem, RiscvOpcode::Remu] {
+        let inst = RiscvInstruction::RAlu {
+            op,
+            rd: 1,
+            rs1: 2,
+            rs2: 3,
+        };
+        assert!(
+            profile.supports_instruction(&inst),
+            "base RV64 div/rem op should be part of the current RV64IM proving profile: {op:?}"
+        );
+    }
+}
+
+#[test]
+fn test_rv64_packed_support_covers_exact_base_m_path() {
+    assert!(rv_packed_supported_opcode(RiscvOpcode::Mul, 64));
+    assert!(rv_packed_supported_opcode(RiscvOpcode::Mulh, 64));
+    assert!(rv_packed_supported_opcode(RiscvOpcode::Mulhu, 64));
+    assert!(rv_packed_supported_opcode(RiscvOpcode::Mulhsu, 64));
+    assert!(rv_packed_supported_opcode(RiscvOpcode::Div, 64));
+    assert!(rv_packed_supported_opcode(RiscvOpcode::Divu, 64));
+    assert!(rv_packed_supported_opcode(RiscvOpcode::Rem, 64));
+    assert!(rv_packed_supported_opcode(RiscvOpcode::Remu, 64));
+
+    assert!(!rv_packed_supported_opcode(RiscvOpcode::Add, 64));
+}
+
+#[test]
+fn test_rv64_packed_mul_cols_allow_non_injective_transport_values() {
+    let lhs = (-2i64) as u64;
+    let rhs = 3u64;
+    let val = lhs.wrapping_mul(rhs);
+
+    let cols = build_rv_packed_cols::<Goldilocks>(RiscvOpcode::Mul, lhs, rhs, val, 64)
+        .expect("rv64 packed mul cols should use exact field transport for non-injective words");
+    assert_eq!(cols.len(), 66);
 }
 
 // =============================================================================

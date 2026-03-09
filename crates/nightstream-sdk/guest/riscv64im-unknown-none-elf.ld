@@ -7,7 +7,7 @@ SECTIONS
   /* Keep the guest ABI addresses stable while giving RV64 guests a much larger stack/heap. */
   PROVIDE(_STACK_PTR = 0x800000);
   PROVIDE(_NEO_OUTPUT_ADDR = 0x100);
-  PROVIDE(_NEO_INPUT_ADDR  = 0x104);
+  PROVIDE(_NEO_INPUT_ADDR  = 0x108);
   PROVIDE(_NEO_HEAP_START = 0x2000);
   PROVIDE(_NEO_HEAP_END   = 0x400000);
 

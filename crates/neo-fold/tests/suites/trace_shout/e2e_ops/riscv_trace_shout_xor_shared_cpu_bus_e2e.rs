@@ -208,7 +208,7 @@ fn riscv_trace_wiring_ccs_shared_cpu_bus_shout_xor_paged_prove_verify() {
     // Shout instance: XOR table, 1 lane, bit-addressed (ell_addr=64) → paged across multiple mats.
     let t = exec.rows.len();
     let shout_table_ids = vec![RiscvShoutTables::new(32).opcode_to_id(RiscvOpcode::Xor).0];
-    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids).expect("extract shout lanes");
+    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids, /*xlen=*/ 32).expect("extract shout lanes");
 
     let ell_addr = 64usize;
     let lanes = 1usize;

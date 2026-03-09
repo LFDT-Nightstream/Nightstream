@@ -262,6 +262,7 @@ pub fn extract_twist_lanes_over_time(
 pub fn extract_shout_lanes_over_time(
     exec: &RiscvExecTable,
     shout_table_ids: &[u32],
+    xlen: usize,
 ) -> Result<Vec<ShoutLaneOverTime>, String> {
     let t = exec.rows.len();
 
@@ -301,17 +302,23 @@ pub fn extract_shout_lanes_over_time(
                     })?;
                 lanes[idx].has_lookup[row_idx] = true;
                 let mut key = ev.key;
-                if let Some(op) = RiscvShoutTables::new(/*xlen=*/ 32).id_to_opcode(ev.shout_id) {
-                    // Canonicalize shift keys: RISC-V shifts use only the low 5 bits of `rhs`.
-                    // This shrinks the key space and keeps trace/sidecar linkage stable across packed / bit-addressed encodings.
-                    if matches!(op, RiscvOpcode::Sll | RiscvOpcode::Srl | RiscvOpcode::Sra) {
+                if let Some(op) = RiscvShoutTables::new(xlen).id_to_opcode(ev.shout_id) {
+                    // Canonicalize shift keys: RISC-V shifts use only the low bits of `rhs`.
+                    // Base shifts (SLL/SRL/SRA) use log2(xlen) bits; W-suffix shifts use 5 bits.
+                    let shift_mask = if matches!(op, RiscvOpcode::Sll | RiscvOpcode::Srl | RiscvOpcode::Sra) {
+                        Some(if xlen == 64 { 0x3F } else { 0x1F })
+                    } else if matches!(op, RiscvOpcode::Sllw | RiscvOpcode::Srlw | RiscvOpcode::Sraw) {
+                        Some(0x1F)
+                    } else {
+                        None
+                    };
+                    if let Some(mask) = shift_mask {
                         let fallback_lhs = r.reg_read_lane0.as_ref().map(|io| io.value).unwrap_or(0);
                         let fallback_rhs = r.reg_read_lane1.as_ref().map(|io| io.value).unwrap_or(0);
-                        let (lhs, rhs) =
-                            try_decode_lookup_operands(op, key, operand_mode_keys_enabled(), /*xlen=*/ 32)
-                                .unwrap_or((fallback_lhs, fallback_rhs));
-                        let rhs_masked = rhs & 0x1F;
-                        key = encode_lookup_key(op, lhs, rhs_masked, /*xlen=*/ 32);
+                        let (lhs, rhs) = try_decode_lookup_operands(op, key, operand_mode_keys_enabled(), xlen)
+                            .unwrap_or((fallback_lhs, fallback_rhs));
+                        let rhs_masked = rhs & mask;
+                        key = encode_lookup_key(op, lhs, rhs_masked, xlen);
                     }
                 }
                 lanes[idx].key[row_idx] = key;

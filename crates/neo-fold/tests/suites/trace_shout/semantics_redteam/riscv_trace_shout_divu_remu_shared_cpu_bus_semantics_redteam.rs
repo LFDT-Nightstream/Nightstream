@@ -388,7 +388,7 @@ fn riscv_trace_wiring_ccs_shared_cpu_bus_shout_divu_remu_semantics_redteam() {
     // Shout instances: DIVU and REMU packed, 1 lane each (tamper DIVU diff_bit0).
     let t = exec.rows.len();
     let shout_table_ids = vec![divu_id.0, remu_id.0];
-    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids).expect("extract shout lanes");
+    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids, /*xlen=*/ 32).expect("extract shout lanes");
     assert_eq!(shout_lanes.len(), 2);
 
     let divu_inst = LutInstance::<Cmt, F> {

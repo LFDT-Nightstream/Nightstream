@@ -62,7 +62,7 @@ fn rv32_shout_event_table_matches_fixed_lane_extract() {
         RiscvShoutTables::new(32).opcode_to_id(RiscvOpcode::Sll).0,
         RiscvShoutTables::new(32).opcode_to_id(RiscvOpcode::Or).0,
     ];
-    let lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids).expect("extract shout lanes");
+    let lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids, /*xlen=*/ 32).expect("extract shout lanes");
     assert_eq!(lanes.len(), shout_table_ids.len());
 
     let table = Rv32ShoutEventTable::from_exec_table(&exec).expect("Rv32ShoutEventTable::from_exec_table");

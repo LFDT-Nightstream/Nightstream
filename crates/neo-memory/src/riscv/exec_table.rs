@@ -971,6 +971,78 @@ impl Rv32ShoutEventTable {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Rv64ShoutEventRow {
+    /// Row index within the padded exec table (0..t).
+    pub row_idx: usize,
+    pub cycle: u64,
+    pub pc: u64,
+    pub shout_id: u32,
+    pub opcode: Option<RiscvOpcode>,
+    /// Canonicalized key: base shifts use 6-bit rhs masking, W-shifts use 5-bit rhs masking.
+    pub key: u128,
+    pub lhs: u64,
+    pub rhs: u64,
+    pub value: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct Rv64ShoutEventTable {
+    pub rows: Vec<Rv64ShoutEventRow>,
+}
+
+impl Rv64ShoutEventTable {
+    pub fn from_exec_table(exec: &RiscvExecTable) -> Result<Self, String> {
+        let shout_tables = RiscvShoutTables::new(/*xlen=*/ 64);
+        let mut rows = Vec::new();
+
+        for (row_idx, r) in exec.rows.iter().enumerate() {
+            if !r.active {
+                continue;
+            }
+            for ev in &r.shout_events {
+                let opcode = shout_tables.id_to_opcode(ev.shout_id);
+                let fallback_lhs = r.reg_read_lane0.as_ref().map(|io| io.value).unwrap_or(0);
+                let fallback_rhs = r.reg_read_lane1.as_ref().map(|io| io.value).unwrap_or(0);
+                let (lhs, rhs_raw) = if let Some(op) = opcode {
+                    try_decode_lookup_operands(op, ev.key, operand_mode_keys_enabled(), /*xlen=*/ 64)
+                        .unwrap_or((fallback_lhs, fallback_rhs))
+                } else {
+                    (fallback_lhs, fallback_rhs)
+                };
+                let rhs = match opcode {
+                    Some(RiscvOpcode::Sll | RiscvOpcode::Srl | RiscvOpcode::Sra) => rhs_raw & 0x3F,
+                    Some(RiscvOpcode::Sllw | RiscvOpcode::Srlw | RiscvOpcode::Sraw) => rhs_raw & 0x1F,
+                    _ => rhs_raw,
+                };
+                let key = if rhs != rhs_raw {
+                    if let Some(op) = opcode {
+                        encode_lookup_key(op, lhs, rhs, /*xlen=*/ 64)
+                    } else {
+                        ev.key
+                    }
+                } else {
+                    ev.key
+                };
+
+                rows.push(Rv64ShoutEventRow {
+                    row_idx,
+                    cycle: r.cycle,
+                    pc: r.pc_before,
+                    shout_id: ev.shout_id.0,
+                    opcode,
+                    key,
+                    lhs,
+                    rhs,
+                    value: ev.value,
+                });
+            }
+        }
+
+        Ok(Self { rows })
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rv32RegEventKind {
     ReadLane0,

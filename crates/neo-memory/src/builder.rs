@@ -16,7 +16,7 @@ use crate::{
 use neo_vm_trace::{StepTrace, TwistOpKind, VmTrace};
 
 use neo_ccs::relations::{CcsClaim, CcsWitness};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -269,7 +269,7 @@ where
     #[derive(Clone)]
     struct ShoutLaneEvent {
         key: u128,
-        vals: Vec<Option<Goldilocks>>,
+        vals: Vec<Option<(u64, Goldilocks)>>,
     }
 
     let mut shout_events: Vec<Vec<Option<ShoutLaneEvent>>> = bus
@@ -346,7 +346,7 @@ where
                     "duplicate shout value slot for table_id={table_id} at chunk row j={j}, lane={lane_idx}, val_slot={val_idx}"
                 )));
             }
-            lane_entry.vals[val_idx] = Some(Goldilocks::from_u64(ev.value));
+            lane_entry.vals[val_idx] = Some((ev.value, Goldilocks::from_u64(ev.value)));
             used_shout[idx] += 1;
         }
 
@@ -448,18 +448,22 @@ where
                             shout_cols.vals.len()
                         )));
                     }
-                    let primary_val = lane_event.vals.first().and_then(|v| *v).ok_or_else(|| {
-                        ShardBuildError::InvalidChunkSize(format!(
-                            "missing primary shout value for table_id={} at chunk row j={j}, lane={lane_idx}",
-                            inst.table_id
-                        ))
-                    })?;
+                    let (primary_val_u64, _primary_val_field) =
+                        lane_event.vals.first().and_then(|v| *v).ok_or_else(|| {
+                            ShardBuildError::InvalidChunkSize(format!(
+                                "missing primary shout value for table_id={} at chunk row j={j}, lane={lane_idx}",
+                                inst.table_id
+                            ))
+                        })?;
                     match &inst.table_spec {
                         Some(LutTableSpec::RiscvOpcodePacked { opcode, xlen }) => {
                             let (lhs_raw, rhs_raw) = uninterleave_bits(key as u128);
-                            let val_u64 = primary_val.as_canonical_u64();
                             let packed_cols = crate::riscv::packed::build_rv_packed_cols::<Goldilocks>(
-                                *opcode, lhs_raw, rhs_raw, val_u64, *xlen,
+                                *opcode,
+                                lhs_raw,
+                                rhs_raw,
+                                primary_val_u64,
+                                *xlen,
                             )
                             .map_err(|e| ShardBuildError::CcsError(e.to_string()))?;
                             if packed_cols.len() != (shout_cols.addr_bits.end - shout_cols.addr_bits.start) {
@@ -494,13 +498,13 @@ where
                     }
                     mem_cols[shout_cols.has_lookup][j] = Goldilocks::ONE;
                     for (val_slot, &col_id) in shout_cols.vals.iter().enumerate() {
-                        let slot_val = lane_event.vals[val_slot].ok_or_else(|| {
+                        let (_slot_val_u64, slot_val_field) = lane_event.vals[val_slot].ok_or_else(|| {
                             ShardBuildError::InvalidChunkSize(format!(
                                 "missing shout value for table_id={} at chunk row j={j}, lane={lane_idx}, val_slot={val_slot}",
                                 inst.table_id
                             ))
                         })?;
-                        mem_cols[col_id][j] = slot_val;
+                        mem_cols[col_id][j] = slot_val_field;
                     }
                 }
             }

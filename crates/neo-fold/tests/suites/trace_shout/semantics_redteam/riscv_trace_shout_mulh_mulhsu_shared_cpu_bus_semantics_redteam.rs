@@ -392,7 +392,7 @@ fn riscv_trace_wiring_ccs_shared_cpu_bus_shout_mulh_mulhsu_semantics_redteam() {
     // Shout instances: MULH and MULHSU packed, 1 lane each (tamper MULH lo bit 0).
     let t = exec.rows.len();
     let shout_table_ids = vec![mulh_id.0, mulhsu_id.0];
-    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids).expect("extract shout lanes");
+    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids, /*xlen=*/ 32).expect("extract shout lanes");
     assert_eq!(shout_lanes.len(), 2);
 
     let mulh_inst = LutInstance::<Cmt, F> {

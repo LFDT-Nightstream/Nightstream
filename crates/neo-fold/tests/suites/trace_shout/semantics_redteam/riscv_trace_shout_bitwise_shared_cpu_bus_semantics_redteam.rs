@@ -171,7 +171,7 @@ fn riscv_trace_wiring_ccs_shared_cpu_bus_shout_bitwise_packed_semantics_redteam(
         RiscvShoutTables::new(32).opcode_to_id(RiscvOpcode::Xor).0,
         RiscvShoutTables::new(32).opcode_to_id(RiscvOpcode::Andn).0,
     ];
-    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids).expect("extract shout lanes");
+    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids, /*xlen=*/ 32).expect("extract shout lanes");
     assert_eq!(shout_lanes.len(), 4);
 
     // Tamper the OR packed witness: flip lhs_digit[0] at the first OR lookup row.

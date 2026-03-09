@@ -66,7 +66,7 @@ fn trace_sidecar_extract_smoke() {
     let init_ram: HashMap<u64, u64> = HashMap::new();
     let twist =
         extract_twist_lanes_over_time(&exec, &init_regs, &init_ram, /*ram_ell_addr=*/ 2).expect("twist extract");
-    let shout = extract_shout_lanes_over_time(&exec, &shout_table_ids).expect("shout extract");
+    let shout = extract_shout_lanes_over_time(&exec, &shout_table_ids, /*xlen=*/ 32).expect("shout extract");
 
     assert_eq!(twist.prog.has_read.len(), exec.rows.len());
     assert_eq!(twist.reg_lane0.has_read.len(), exec.rows.len());
@@ -115,7 +115,7 @@ fn trace_sidecar_extract_rejects_multiple_shout_events() {
     exec.rows[first_active].shout_events.push(ev.clone());
     exec.rows[first_active].shout_events.push(ev);
 
-    let err = extract_shout_lanes_over_time(&exec, &shout_table_ids).unwrap_err();
+    let err = extract_shout_lanes_over_time(&exec, &shout_table_ids, /*xlen=*/ 32).unwrap_err();
     assert!(err.contains("multiple Shout events"), "{err}");
 }
 

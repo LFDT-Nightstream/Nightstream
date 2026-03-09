@@ -597,7 +597,7 @@ where
                 #[derive(Clone)]
                 struct ShoutLaneEvent {
                     key: u128,
-                    vals: Vec<Option<Goldilocks>>,
+                    vals: Vec<Option<(u64, Goldilocks)>>,
                 }
                 let mut shout_events: Vec<Vec<Option<ShoutLaneEvent>>> = shared
                     .layout
@@ -676,7 +676,7 @@ where
                                 "duplicate shout value slot for shout_id={id} in one step (chunk_start={chunk_start}, j={j}, lane={lane_idx}, val_slot={val_slot})"
                             ));
                         }
-                        lane_entry.vals[val_slot] = Some(Goldilocks::from_u64(ev.value));
+                        lane_entry.vals[val_slot] = Some((ev.value, Goldilocks::from_u64(ev.value)));
                         used_shout[idx] += 1;
                     }
 
@@ -793,7 +793,7 @@ where
                         for (lane_idx, shout_cols) in inst_cols.lanes.iter().enumerate() {
                             if let Some(ref lane_event) = shout_events[i][lane_idx] {
                                 let key = lane_event.key;
-                                let primary_val = lane_event
+                                let (primary_val_u64, _primary_val_field) = lane_event
                                     .vals
                                     .first()
                                     .and_then(|slot| *slot)
@@ -806,7 +806,6 @@ where
                                     Some(LutTableSpec::RiscvOpcodePacked { opcode, xlen }) => {
                                         // Packed lanes should be derived from architectural operands, not key encoding.
                                         // This keeps packed synthesis correct when some opcodes migrate to combined keys.
-                                        let val_u64 = primary_val.as_canonical_u64();
                                         let (lhs, rhs) = if *xlen == 32 {
                                             let (lhs, rhs) = reg_read_pair_u32.unwrap_or_else(|| {
                                                 let (lhs_raw, rhs_raw) = uninterleave_bits(key as u128);
@@ -817,7 +816,7 @@ where
                                             uninterleave_bits(key as u128)
                                         };
                                         let packed_cols = crate::riscv::packed::build_rv_packed_cols::<Goldilocks>(
-                                            *opcode, lhs, rhs, val_u64, *xlen,
+                                            *opcode, lhs, rhs, primary_val_u64, *xlen,
                                         )
                                             .map_err(|e| {
                                                 format!(
@@ -863,12 +862,12 @@ where
                                     ));
                                 }
                                 for (val_slot, &col_id) in shout_cols.vals.iter().enumerate() {
-                                    let slot_val = lane_event.vals[val_slot].ok_or_else(|| {
+                                    let (_slot_val_u64, slot_val_field) = lane_event.vals[val_slot].ok_or_else(|| {
                                         format!(
                                             "missing shout value for table_id={table_id} at step j={j}, lane={lane_idx}, val_slot={val_slot}"
                                         )
                                     })?;
-                                    z_vec[shared.layout.bus_cell(col_id, j)] = slot_val;
+                                    z_vec[shared.layout.bus_cell(col_id, j)] = slot_val_field;
                                 }
                             }
                         }

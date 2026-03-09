@@ -172,7 +172,7 @@ fn riscv_trace_shared_cpu_bus_shout_sub_linkage_redteam() {
     // Shout instance: SUB table, 1 lane (honest sidecar witness).
     let t = exec.rows.len();
     let shout_table_ids = vec![RiscvShoutTables::new(32).opcode_to_id(RiscvOpcode::Sub).0];
-    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids).expect("extract shout lanes");
+    let shout_lanes = extract_shout_lanes_over_time(&exec, &shout_table_ids, /*xlen=*/ 32).expect("extract shout lanes");
 
     let sub_lut_inst = LutInstance::<Cmt, F> {
         table_id: 0,

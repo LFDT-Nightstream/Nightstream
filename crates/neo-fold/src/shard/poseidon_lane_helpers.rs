@@ -66,6 +66,26 @@ fn local_ell_from_t_len(t_len: usize) -> Result<usize, PiCcsError> {
     Ok(core::cmp::max(t_len.trailing_zeros() as usize, POSEIDON_LOCAL_MIN_ELL))
 }
 
+#[inline]
+fn poseidon_lane_k_dec_lower_bound(params: &NeoParams) -> Result<usize, PiCcsError> {
+    if params.b < 2 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "poseidon lane fold: invalid decomposition base b={}",
+            params.b
+        )));
+    }
+    let base = params.b as u64;
+    let mut k = 0usize;
+    let mut acc = 1u64;
+    while let Some(next) = acc.checked_mul(base) {
+        acc = next;
+        k = k
+            .checked_add(1)
+            .ok_or_else(|| PiCcsError::InvalidInput("poseidon lane fold: k_dec overflow".into()))?;
+    }
+    Ok(k.max(1))
+}
+
 pub(crate) fn build_poseidon_prover_setup(
     _tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -1111,7 +1131,7 @@ where
                 cycle_open_specs.len()
             )));
         }
-        let k_dec_poseidon = 64usize;
+        let k_dec_poseidon = poseidon_lane_k_dec_lower_bound(params)?;
         let cycle_fold_m_in = mem_proof
             .poseidon_cycle_me_claims
             .iter()
@@ -1164,7 +1184,7 @@ where
                 local_open_specs.len()
             )));
         }
-        let k_dec_poseidon = 64usize;
+        let k_dec_poseidon = poseidon_lane_k_dec_lower_bound(params)?;
         let local_fold_m_in = mem_proof
             .poseidon_local_me_claims
             .iter()

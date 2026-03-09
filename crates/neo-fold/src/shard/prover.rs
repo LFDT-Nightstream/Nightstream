@@ -1694,6 +1694,9 @@ where
             }
             if control_required {
                 wp_open_cols.extend(crate::memory_sidecar::memory::riscv_trace_control_extra_opening_columns(&trace));
+                if rv64_exact_words {
+                    wp_open_cols.extend(crate::memory_sidecar::memory::rv64_trace_control_exact_opening_columns());
+                }
             }
             if decode_required {
                 let decode_layout = Rv32DecodeSidecarLayout::new();
@@ -2166,6 +2169,9 @@ where
                 }
                 if control_required {
                     wp_cols.extend(crate::memory_sidecar::memory::riscv_trace_control_extra_opening_columns(&trace));
+                    if rv64_exact_words {
+                        wp_cols.extend(crate::memory_sidecar::memory::rv64_trace_control_exact_opening_columns());
+                    }
                 }
                 if crate::memory_sidecar::memory::rv64_fullword_width_stage_required_for_step_witness(step) {
                     wp_cols.extend(crate::memory_sidecar::memory::rv64_fullword_wp_opening_columns());

@@ -659,6 +659,8 @@ pub(crate) fn build_route_a_control_time_claims(
         trace_rd_val,
         trace_shout_val,
         trace_jalr_drop_bit,
+        trace_rd_val_lo32,
+        trace_rd_val_hi32,
     ) = if machine_xlen == 64 {
         let trace = neo_memory::riscv::trace::Rv64TraceLayout::new();
         (
@@ -672,6 +674,8 @@ pub(crate) fn build_route_a_control_time_claims(
             trace.rd_val,
             trace.shout_val,
             trace.jalr_drop_bit,
+            Some(trace.rd_val_lo32),
+            Some(trace.rd_val_hi32),
         )
     } else {
         let trace = Rv32TraceLayout::new();
@@ -686,6 +690,8 @@ pub(crate) fn build_route_a_control_time_claims(
             trace.rd_val,
             trace.shout_val,
             trace.jalr_drop_bit,
+            None,
+            None,
         )
     };
     let decode = Rv32DecodeSidecarLayout::new();
@@ -719,6 +725,11 @@ pub(crate) fn build_route_a_control_time_claims(
         trace_shout_val,
         trace_jalr_drop_bit,
     ];
+    let mut main_col_ids = main_col_ids;
+    if let (Some(rd_lo32), Some(rd_hi32)) = (trace_rd_val_lo32, trace_rd_val_hi32) {
+        main_col_ids.push(rd_lo32);
+        main_col_ids.push(rd_hi32);
+    }
     let decode_col_ids = vec![
         decode.op_lui,
         decode.op_auipc,
@@ -1009,10 +1020,6 @@ pub(crate) fn build_route_a_control_time_claims(
 
     #[cfg(debug_assertions)]
     for j in 0..t_len {
-        let rd_val = *main_decoded
-            .get(&trace_rd_val)
-            .and_then(|v| v.get(j))
-            .ok_or_else(|| PiCcsError::ProtocolError("control(shared): missing rd_val row while validating".into()))?;
         let pc_before = *main_decoded
             .get(&trace_pc_before)
             .and_then(|v| v.get(j))
@@ -1131,23 +1138,66 @@ pub(crate) fn build_route_a_control_time_claims(
                 .and_then(|v| v.get(j))
                 .ok_or_else(|| PiCcsError::ProtocolError("control(shared): missing funct7_bit[6] row".into()))?,
         ];
-        let imm_u = control_imm_u_value_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
         let op_lui_write = op_lui * (K::ONE - rd_is_zero);
         let op_auipc_write = op_auipc * (K::ONE - rd_is_zero);
         let op_jal_write = op_jal * (K::ONE - rd_is_zero);
         let op_jalr_write = op_jalr * (K::ONE - rd_is_zero);
-        let residuals = control_writeback_residuals(
-            rd_val,
-            pc_before,
-            imm_u,
-            op_lui_write,
-            op_auipc_write,
-            op_jal_write,
-            op_jalr_write,
-        );
+        let residuals = if machine_xlen == 64 {
+            let rd_lo32 = trace_rd_val_lo32.ok_or_else(|| {
+                PiCcsError::ProtocolError("control(shared): missing RV64 rd_val_lo32 column id".into())
+            })?;
+            let rd_hi32 = trace_rd_val_hi32.ok_or_else(|| {
+                PiCcsError::ProtocolError("control(shared): missing RV64 rd_val_hi32 column id".into())
+            })?;
+            let rd_lo = *main_decoded
+                .get(&rd_lo32)
+                .and_then(|v| v.get(j))
+                .ok_or_else(|| {
+                    PiCcsError::ProtocolError("control(shared): missing rd_val_lo32 row while validating".into())
+                })?;
+            let rd_hi = *main_decoded
+                .get(&rd_hi32)
+                .and_then(|v| v.get(j))
+                .ok_or_else(|| {
+                    PiCcsError::ProtocolError("control(shared): missing rd_val_hi32 row while validating".into())
+                })?;
+            let (imm_u_lo, imm_u_hi) =
+                control_imm_u_lo_hi_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
+            control_writeback_residuals_rv64_exact(
+                rd_lo,
+                rd_hi,
+                pc_before,
+                imm_u_lo,
+                imm_u_hi,
+                op_lui_write,
+                op_auipc_write,
+                op_jal_write,
+                op_jalr_write,
+            )
+            .to_vec()
+        } else {
+            let rd_val = *main_decoded
+                .get(&trace_rd_val)
+                .and_then(|v| v.get(j))
+                .ok_or_else(|| {
+                    PiCcsError::ProtocolError("control(shared): missing rd_val row while validating".into())
+                })?;
+            let imm_u =
+                control_imm_u_value_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
+            control_writeback_residuals(
+                rd_val,
+                pc_before,
+                imm_u,
+                op_lui_write,
+                op_auipc_write,
+                op_jal_write,
+                op_jalr_write,
+            )
+            .to_vec()
+        };
         if let Some((idx, _)) = residuals.iter().enumerate().find(|(_, r)| **r != K::ZERO) {
             return Err(PiCcsError::ProtocolError(format!(
-                "control/writeback residual non-zero at row={j}, idx={idx}, rd_val={rd_val}, pc_before={pc_before}, imm_u={imm_u}, op_lui={op_lui}, op_auipc={op_auipc}, op_jal={op_jal}, op_jalr={op_jalr}, rd_is_zero={rd_is_zero}"
+                "control/writeback residual non-zero at row={j}, idx={idx}, pc_before={pc_before}, op_lui={op_lui}, op_auipc={op_auipc}, op_jal={op_jal}, op_jalr={op_jalr}, rd_is_zero={rd_is_zero}"
             )));
         }
     }
@@ -1253,18 +1303,40 @@ pub(crate) fn build_route_a_control_time_claims(
         weighted
     });
 
-    let mut write_sparse = vec![
-        main_col(trace_rd_val)?,
-        main_col(trace_pc_before)?,
-        decode_col(decode.op_lui)?,
-        decode_col(decode.op_auipc)?,
-        decode_col(decode.op_jal)?,
-        decode_col(decode.op_jalr)?,
-        decode_col(decode.rd_is_zero)?,
-        decode_col(decode.funct3_bit[0])?,
-        decode_col(decode.funct3_bit[1])?,
-        decode_col(decode.funct3_bit[2])?,
-    ];
+    let mut write_sparse = if machine_xlen == 64 {
+        let rd_lo32 = trace_rd_val_lo32.ok_or_else(|| {
+            PiCcsError::ProtocolError("control stage missing RV64 rd_val_lo32 column id".into())
+        })?;
+        let rd_hi32 = trace_rd_val_hi32.ok_or_else(|| {
+            PiCcsError::ProtocolError("control stage missing RV64 rd_val_hi32 column id".into())
+        })?;
+        vec![
+            main_col(rd_lo32)?,
+            main_col(rd_hi32)?,
+            main_col(trace_pc_before)?,
+            decode_col(decode.op_lui)?,
+            decode_col(decode.op_auipc)?,
+            decode_col(decode.op_jal)?,
+            decode_col(decode.op_jalr)?,
+            decode_col(decode.rd_is_zero)?,
+            decode_col(decode.funct3_bit[0])?,
+            decode_col(decode.funct3_bit[1])?,
+            decode_col(decode.funct3_bit[2])?,
+        ]
+    } else {
+        vec![
+            main_col(trace_rd_val)?,
+            main_col(trace_pc_before)?,
+            decode_col(decode.op_lui)?,
+            decode_col(decode.op_auipc)?,
+            decode_col(decode.op_jal)?,
+            decode_col(decode.op_jalr)?,
+            decode_col(decode.rd_is_zero)?,
+            decode_col(decode.funct3_bit[0])?,
+            decode_col(decode.funct3_bit[1])?,
+            decode_col(decode.funct3_bit[2])?,
+        ]
+    };
     for &col_id in decode.rs1_bit.iter() {
         write_sparse.push(decode_col(col_id)?);
     }
@@ -1274,35 +1346,75 @@ pub(crate) fn build_route_a_control_time_claims(
     for &col_id in decode.funct7_bit.iter() {
         write_sparse.push(decode_col(col_id)?);
     }
-    let write_weights = control_writeback_weight_vector(r_cycle, 4);
+    let write_weights = control_writeback_weight_vector(r_cycle, if machine_xlen == 64 { 8 } else { 4 });
     let write_oracle = FormulaOracleSparseTime::new(write_sparse, 5, r_cycle, move |vals: &[K]| {
-        let rd_val = vals[0];
-        let pc_before = vals[1];
-        let op_lui = vals[2];
-        let op_auipc = vals[3];
-        let op_jal = vals[4];
-        let op_jalr = vals[5];
-        let rd_is_zero = vals[6];
-        let op_lui_write = op_lui * (K::ONE - rd_is_zero);
-        let op_auipc_write = op_auipc * (K::ONE - rd_is_zero);
-        let op_jal_write = op_jal * (K::ONE - rd_is_zero);
-        let op_jalr_write = op_jalr * (K::ONE - rd_is_zero);
-        let funct3_bits = [vals[7], vals[8], vals[9]];
-        let rs1_bits = [vals[10], vals[11], vals[12], vals[13], vals[14]];
-        let rs2_bits = [vals[15], vals[16], vals[17], vals[18], vals[19]];
-        let funct7_bits = [vals[20], vals[21], vals[22], vals[23], vals[24], vals[25], vals[26]];
-        let imm_u = control_imm_u_value_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
-        let residuals = control_writeback_residuals(
-            rd_val,
-            pc_before,
-            imm_u,
-            op_lui_write,
-            op_auipc_write,
-            op_jal_write,
-            op_jalr_write,
-        );
+        let (residuals, weights): (Vec<K>, &[K]) = if machine_xlen == 64 {
+            let rd_lo = vals[0];
+            let rd_hi = vals[1];
+            let pc_before = vals[2];
+            let op_lui = vals[3];
+            let op_auipc = vals[4];
+            let op_jal = vals[5];
+            let op_jalr = vals[6];
+            let rd_is_zero = vals[7];
+            let op_lui_write = op_lui * (K::ONE - rd_is_zero);
+            let op_auipc_write = op_auipc * (K::ONE - rd_is_zero);
+            let op_jal_write = op_jal * (K::ONE - rd_is_zero);
+            let op_jalr_write = op_jalr * (K::ONE - rd_is_zero);
+            let funct3_bits = [vals[8], vals[9], vals[10]];
+            let rs1_bits = [vals[11], vals[12], vals[13], vals[14], vals[15]];
+            let rs2_bits = [vals[16], vals[17], vals[18], vals[19], vals[20]];
+            let funct7_bits = [vals[21], vals[22], vals[23], vals[24], vals[25], vals[26], vals[27]];
+            let (imm_u_lo, imm_u_hi) =
+                control_imm_u_lo_hi_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
+            (
+                control_writeback_residuals_rv64_exact(
+                    rd_lo,
+                    rd_hi,
+                    pc_before,
+                    imm_u_lo,
+                    imm_u_hi,
+                    op_lui_write,
+                    op_auipc_write,
+                    op_jal_write,
+                    op_jalr_write,
+                )
+                .to_vec(),
+                write_weights.as_slice(),
+            )
+        } else {
+            let rd_val = vals[0];
+            let pc_before = vals[1];
+            let op_lui = vals[2];
+            let op_auipc = vals[3];
+            let op_jal = vals[4];
+            let op_jalr = vals[5];
+            let rd_is_zero = vals[6];
+            let op_lui_write = op_lui * (K::ONE - rd_is_zero);
+            let op_auipc_write = op_auipc * (K::ONE - rd_is_zero);
+            let op_jal_write = op_jal * (K::ONE - rd_is_zero);
+            let op_jalr_write = op_jalr * (K::ONE - rd_is_zero);
+            let funct3_bits = [vals[7], vals[8], vals[9]];
+            let rs1_bits = [vals[10], vals[11], vals[12], vals[13], vals[14]];
+            let rs2_bits = [vals[15], vals[16], vals[17], vals[18], vals[19]];
+            let funct7_bits = [vals[20], vals[21], vals[22], vals[23], vals[24], vals[25], vals[26]];
+            let imm_u = control_imm_u_value_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
+            (
+                control_writeback_residuals(
+                    rd_val,
+                    pc_before,
+                    imm_u,
+                    op_lui_write,
+                    op_auipc_write,
+                    op_jal_write,
+                    op_jalr_write,
+                )
+                .to_vec(),
+                write_weights.as_slice(),
+            )
+        };
         let mut weighted = K::ZERO;
-        for (r, w) in residuals.iter().zip(write_weights.iter()) {
+        for (r, w) in residuals.iter().zip(weights.iter()) {
             weighted += *w * *r;
         }
         weighted
@@ -1390,6 +1502,9 @@ pub(crate) fn emit_route_a_wb_wp_me_claims(
     }
     if control_stage_required_for_step_witness(step) {
         wp_cols.extend(riscv_trace_control_extra_opening_columns(&trace));
+        if rv64_exact_words {
+            wp_cols.extend(rv64_trace_control_exact_opening_columns());
+        }
     }
     if decode_stage_required_for_step_witness(step) {
         let decode_layout = Rv32DecodeSidecarLayout::new();

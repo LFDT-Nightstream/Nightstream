@@ -348,6 +348,9 @@ pub(crate) fn validate_step_time_openings_consistency(
         }
         if crate::memory_sidecar::memory::control_stage_required_for_step_instance(step) {
             wp_cols.extend(crate::memory_sidecar::memory::riscv_trace_control_extra_opening_columns(&trace));
+            if rv64_exact_words {
+                wp_cols.extend(crate::memory_sidecar::memory::rv64_trace_control_exact_opening_columns());
+            }
         }
         if crate::memory_sidecar::memory::rv64_fullword_width_stage_required_from_proof(step, &step_proof.batched_time)
         {

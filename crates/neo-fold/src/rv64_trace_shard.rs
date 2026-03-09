@@ -550,8 +550,23 @@ impl Rv64TraceWiring {
 
         let ccs = build_rv64_trace_wiring_ccs(&layout)
             .map_err(|e| PiCcsError::InvalidInput(format!("build_rv64_trace_wiring_ccs failed: {e}")))?;
-        let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n.max(ccs.m))
+        let base_params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n.max(ccs.m))
             .map_err(|e| PiCcsError::InvalidInput(format!("NeoParams::goldilocks_auto_r1cs_ccs failed: {e}")))?;
+        // Use b=4 so the RV64 witness encoder can represent full-width Goldilocks
+        // coefficients without requiring a separate D=64 ring migration.
+        let params = NeoParams::new(
+            base_params.q,
+            base_params.eta,
+            base_params.d,
+            base_params.kappa,
+            base_params.m,
+            4,
+            base_params.k_rho,
+            base_params.T,
+            base_params.s,
+            base_params.lambda,
+        )
+        .map_err(|e| PiCcsError::InvalidInput(format!("NeoParams::new (RV64 b=4) failed: {e}")))?;
         let m_commit = neo_memory::ajtai::commit_cols_for_ccs_m(ccs.m);
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
         let pp = neo_ajtai::setup_par(&mut rng, D, params.kappa as usize, m_commit)

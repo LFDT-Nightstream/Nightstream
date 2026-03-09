@@ -1364,6 +1364,23 @@ pub(crate) fn control_imm_u_value_from_bits(
 }
 
 #[inline]
+pub(crate) fn control_imm_u_lo_hi_from_bits(
+    funct3_bits: [K; 3],
+    rs1_bits: [K; 5],
+    rs2_bits: [K; 5],
+    funct7_bits: [K; 7],
+    machine_xlen: usize,
+) -> (K, K) {
+    let imm_u_lo = control_imm_u_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits);
+    if machine_xlen != 64 {
+        return (imm_u_lo, K::ZERO);
+    }
+    let two32 = K::from(F::from_u64(1u64 << 32));
+    let imm_u_hi = (two32 - K::ONE) * funct7_bits[6];
+    (imm_u_lo, imm_u_hi)
+}
+
+#[inline]
 pub(crate) fn control_next_pc_linear_residual(
     pc_before: K,
     pc_after: K,
@@ -1457,6 +1474,40 @@ pub(crate) fn control_writeback_residuals(
     ]
 }
 
+#[inline]
+pub(crate) fn control_writeback_residuals_rv64_exact(
+    rd_lo: K,
+    rd_hi: K,
+    pc_before: K,
+    imm_u_lo: K,
+    imm_u_hi: K,
+    op_lui_write: K,
+    op_auipc_write: K,
+    op_jal_write: K,
+    op_jalr_write: K,
+) -> [K; 8] {
+    let four = K::from(F::from_u64(4));
+    let two32 = K::from(F::from_u64(1u64 << 32));
+    let inv_two32 = two32.inv();
+
+    let auipc_delta_lo = rd_lo - pc_before - imm_u_lo;
+    let auipc_carry = -auipc_delta_lo * inv_two32;
+    let auipc_delta_hi = rd_hi - imm_u_hi - auipc_carry;
+    let jal_delta_lo = rd_lo - pc_before - four;
+    let jal_carry = -jal_delta_lo * inv_two32;
+
+    [
+        op_lui_write * (rd_lo - imm_u_lo),
+        op_lui_write * (rd_hi - imm_u_hi),
+        op_auipc_write * auipc_delta_lo * (auipc_delta_lo + two32),
+        op_auipc_write * auipc_delta_hi * (auipc_delta_hi + two32),
+        op_jal_write * jal_delta_lo * (jal_delta_lo + two32),
+        op_jal_write * (rd_hi - jal_carry),
+        op_jalr_write * jal_delta_lo * (jal_delta_lo + two32),
+        op_jalr_write * (rd_hi - jal_carry),
+    ]
+}
+
 pub(crate) fn rv32_trace_wp_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
     vec![
         layout.is_virtual,
@@ -1506,6 +1557,11 @@ pub(crate) fn rv64_trace_exact_word_opening_columns() -> Vec<usize> {
         layout.shout_add_sub_key_lo32,
         layout.shout_add_sub_key_hi32,
     ]
+}
+
+pub(crate) fn rv64_trace_control_exact_opening_columns() -> Vec<usize> {
+    let layout = neo_memory::riscv::trace::Rv64TraceLayout::new();
+    vec![layout.rd_val_hi32]
 }
 
 pub(crate) fn rv32_trace_wp_opening_columns(layout: &Rv32TraceLayout) -> Vec<usize> {

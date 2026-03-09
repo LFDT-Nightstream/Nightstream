@@ -707,6 +707,7 @@ pub(crate) fn verify_route_a_control_terminals(
     let machine_xlen =
         neo_memory::riscv::trace::infer_riscv_trace_machine_xlen(step.time_columns.cpu_cols.len()).unwrap_or(32);
     let trace = Rv32TraceLayout::new();
+    let rv64_trace = (machine_xlen == 64).then(neo_memory::riscv::trace::Rv64TraceLayout::new);
     let decode = Rv32DecodeSidecarLayout::new();
 
     let wp_me = &mem_proof.wp_me_claims[0];
@@ -728,6 +729,10 @@ pub(crate) fn verify_route_a_control_terminals(
     let wp_base_cols = riscv_trace_wp_opening_columns(&trace);
     let control_extra_cols = riscv_trace_control_extra_opening_columns(&trace);
     let mut wp_all_cols = wp_base_cols.clone();
+    if machine_xlen == 64 {
+        wp_all_cols.extend(rv64_trace_exact_word_opening_columns());
+        wp_all_cols.extend(rv64_trace_control_exact_opening_columns());
+    }
     wp_all_cols.extend(control_extra_cols.iter().copied());
     let (_wp_entry, wp_open_map) =
         require_time_openings_covering_point(step_time_openings, wp_me.r.as_slice(), &wp_all_cols, "control stage WP")?;
@@ -749,6 +754,16 @@ pub(crate) fn verify_route_a_control_terminals(
     let pc_after = wp_open_col(trace.pc_after)?;
     let rs1_val = wp_open_col(trace.rs1_val)?;
     let rd_val = wp_open_col(trace.rd_val)?;
+    let rd_lo = if let Some(rv64_trace) = rv64_trace.as_ref() {
+        wp_open_col(rv64_trace.rd_val_lo32)?
+    } else {
+        K::ZERO
+    };
+    let rd_hi = if let Some(rv64_trace) = rv64_trace.as_ref() {
+        wp_open_col(rv64_trace.rd_val_hi32)?
+    } else {
+        K::ZERO
+    };
     let jalr_drop_bit = wp_open_col(trace.jalr_drop_bit)?;
     let shout_val = wp_open_col(trace.shout_val)?;
     let funct3_bits = [
@@ -903,16 +918,35 @@ pub(crate) fn verify_route_a_control_terminals(
                 "control/writeback claim index out of range".into(),
             ));
         }
-        let imm_u = control_imm_u_value_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
-        let residuals = control_writeback_residuals(
-            rd_val,
-            pc_before,
-            imm_u,
-            op_lui_write,
-            op_auipc_write,
-            op_jal_write,
-            op_jalr_write,
-        );
+        let residuals = if machine_xlen == 64 {
+            let (imm_u_lo, imm_u_hi) =
+                control_imm_u_lo_hi_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
+            control_writeback_residuals_rv64_exact(
+                rd_lo,
+                rd_hi,
+                pc_before,
+                imm_u_lo,
+                imm_u_hi,
+                op_lui_write,
+                op_auipc_write,
+                op_jal_write,
+                op_jalr_write,
+            )
+            .to_vec()
+        } else {
+            let imm_u =
+                control_imm_u_value_from_bits(funct3_bits, rs1_bits, rs2_bits, funct7_bits, machine_xlen);
+            control_writeback_residuals(
+                rd_val,
+                pc_before,
+                imm_u,
+                op_lui_write,
+                op_auipc_write,
+                op_jal_write,
+                op_jalr_write,
+            )
+            .to_vec()
+        };
         let weights = control_writeback_weight_vector(r_cycle, residuals.len());
         let mut weighted = K::ZERO;
         for (r, w) in residuals.iter().zip(weights.iter()) {

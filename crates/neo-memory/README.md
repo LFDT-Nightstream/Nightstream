@@ -1,13 +1,13 @@
 # neo-memory
 
-Twist & Shout memory/lookup protocols, shared CPU-bus integration, and RV64IMAC RISC-V helpers.
+Twist & Shout memory/lookup protocols, shared CPU-bus integration, and RV64IM RISC-V helpers.
 
 ## What’s In This Crate
 
 - **Twist**: read/write memory argument (Route A)
 - **Shout**: read-only lookup argument (Route A)
 - **Shared CPU bus integration**: bind CPU semantics to Twist/Shout fields inside the CPU witness
-- **RISC-V RV64IMAC**: instruction decode/execute + lookup-table helpers (kept in `riscv/`)
+- **RISC-V RV64IM**: instruction decode/execute + lookup-table helpers (kept in `riscv/`)
 - **Output binding**: output sumcheck utilities for binding program I/O to proofs
 
 ## Modules
@@ -22,7 +22,7 @@ Twist & Shout memory/lookup protocols, shared CPU-bus integration, and RV64IMAC 
 | `builder.rs` | Build per-step witness bundles from a `VmTrace` |
 | `riscv/elf_loader.rs` | Load ELF and raw RISC-V binaries |
 | `output_check.rs` | Output sumcheck (bind program I/O) |
-| `riscv/lookups/` | RV64IMAC decode/execute + lookup tables |
+| `riscv/lookups/` | RV64IM decode/execute + lookup tables |
 | `riscv/ccs.rs` | RISC-V CCS helpers |
 | `riscv/shout_oracle.rs` | RISC-V-specific Shout oracle helpers |
 | `witness.rs` | Witness/instance data structures |

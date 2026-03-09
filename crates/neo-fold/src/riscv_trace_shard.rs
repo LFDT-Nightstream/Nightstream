@@ -1,10 +1,15 @@
-//! Convenience runner for RV32 trace-wiring CCS (time-in-rows).
+//! Legacy convenience runner for RV32 trace-wiring CCS (time-in-rows).
 //!
 //! This is an ergonomic wrapper around the existing trace wiring artifacts:
 //! - `neo_memory::riscv::trace` for execution-table extraction, and
 //! - `neo_memory::riscv::ccs::trace` for fixed-width trace wiring CCS.
 //!
-//! The runner intentionally targets the current Tier 2.1 scope:
+//! It remains useful for RV32-specific internal regression/reference coverage,
+//! but it is not a supported product-facing path. The maintained note repros go
+//! through `crate::rv64_trace_shard::Rv64TraceWiring::from_elf` and target the
+//! RV64IM-only product contract.
+//!
+//! The runner intentionally targets the retained Tier 2.1 scope:
 //! - fixed-width trace-wiring CCS steps with PROG/REG/RAM sidecar instances,
 //! - no decode/semantics sidecar proofs in this wrapper yet.
 

@@ -6,8 +6,7 @@ use thiserror::Error;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RiscvTraceProfileKind {
-    Rv32LegacyTrace,
-    Rv64NoteCircuitsPhase1,
+    Rv64Im,
 }
 
 /// Minimal verifier-visible profile configuration.
@@ -29,11 +28,11 @@ pub struct RiscvProofProfile {
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum RiscvProofProfileError {
-    #[error("unsupported xlen {0}; expected 32 or 64")]
+    #[error("unsupported xlen {0}; expected 64 for the supported RV64IM profile")]
     UnsupportedXlen(usize),
-    #[error("RV64 note-circuit profile does not support compressed instructions")]
+    #[error("RV64IM profile does not support compressed instructions")]
     CompressedNotSupported,
-    #[error("RV64 note-circuit profile does not support atomics")]
+    #[error("RV64IM profile does not support atomics")]
     AtomicsNotSupported,
     #[error("invalid lowering_version {got}; expected {expected}")]
     InvalidLoweringVersion { got: u32, expected: u32 },
@@ -42,23 +41,20 @@ pub enum RiscvProofProfileError {
         profile_xlen: usize,
         program_xlen: usize,
     },
-    #[error("compressed instructions are present in executable ELF segments")]
+    #[error(
+        "compressed instructions are present in executable ELF segments; the current RV64IM profile does not support C"
+    )]
     CompressedProgramNotSupported,
-    #[error("unsupported instruction for profile: {0}")]
+    #[error("unsupported instruction for the current RV64IM profile: {0}")]
     UnsupportedInstruction(String),
 }
 
 impl RiscvProofProfile {
-    pub const RV64_NOTE_CIRCUITS_LOWERING_VERSION: u32 = 1;
+    pub const RV64IM_LOWERING_VERSION: u32 = 1;
 
     pub fn new(config: RiscvProofProfileConfig) -> Result<Self, RiscvProofProfileError> {
         match config.trace_profile {
-            RiscvTraceProfileKind::Rv32LegacyTrace => {
-                if config.xlen != 32 {
-                    return Err(RiscvProofProfileError::UnsupportedXlen(config.xlen));
-                }
-            }
-            RiscvTraceProfileKind::Rv64NoteCircuitsPhase1 => {
+            RiscvTraceProfileKind::Rv64Im => {
                 if config.xlen != 64 {
                     return Err(RiscvProofProfileError::UnsupportedXlen(config.xlen));
                 }
@@ -68,10 +64,10 @@ impl RiscvProofProfile {
                 if config.atomics {
                     return Err(RiscvProofProfileError::AtomicsNotSupported);
                 }
-                if config.lowering_version != Self::RV64_NOTE_CIRCUITS_LOWERING_VERSION {
+                if config.lowering_version != Self::RV64IM_LOWERING_VERSION {
                     return Err(RiscvProofProfileError::InvalidLoweringVersion {
                         got: config.lowering_version,
-                        expected: Self::RV64_NOTE_CIRCUITS_LOWERING_VERSION,
+                        expected: Self::RV64IM_LOWERING_VERSION,
                     });
                 }
             }
@@ -79,30 +75,17 @@ impl RiscvProofProfile {
         Ok(Self { config })
     }
 
-    pub fn rv32_legacy_trace() -> Self {
-        Self::new(RiscvProofProfileConfig {
-            xlen: 32,
-            compressed: false,
-            atomics: false,
-            poseidon_precompile: cfg!(feature = "poseidon-precompile"),
-            lowering_version: 0,
-            memory_layout_kind: ProofAddressRemapKind::Identity,
-            trace_profile: RiscvTraceProfileKind::Rv32LegacyTrace,
-        })
-        .expect("legacy RV32 trace profile is valid")
-    }
-
-    pub fn rv64_note_circuits_phase1() -> Self {
+    pub fn rv64im() -> Self {
         Self::new(RiscvProofProfileConfig {
             xlen: 64,
             compressed: false,
             atomics: false,
             poseidon_precompile: cfg!(feature = "poseidon-precompile"),
-            lowering_version: Self::RV64_NOTE_CIRCUITS_LOWERING_VERSION,
+            lowering_version: Self::RV64IM_LOWERING_VERSION,
             memory_layout_kind: ProofAddressRemapKind::SegmentedWordAddress,
-            trace_profile: RiscvTraceProfileKind::Rv64NoteCircuitsPhase1,
+            trace_profile: RiscvTraceProfileKind::Rv64Im,
         })
-        .expect("phase-1 RV64 profile is valid")
+        .expect("RV64IM profile is valid")
     }
 
     pub fn config(&self) -> &RiscvProofProfileConfig {
@@ -142,18 +125,15 @@ impl RiscvProofProfile {
 
     pub fn supports_instruction(&self, instruction: &RiscvInstruction) -> bool {
         match self.config.trace_profile {
-            RiscvTraceProfileKind::Rv32LegacyTrace => true,
-            RiscvTraceProfileKind::Rv64NoteCircuitsPhase1 => {
-                supports_rv64_phase1_instruction(instruction, self.config.poseidon_precompile)
-            }
+            RiscvTraceProfileKind::Rv64Im => supports_rv64im_instruction(instruction, self.config.poseidon_precompile),
         }
     }
 }
 
-fn supports_rv64_phase1_instruction(instruction: &RiscvInstruction, poseidon_precompile: bool) -> bool {
+fn supports_rv64im_instruction(instruction: &RiscvInstruction, poseidon_precompile: bool) -> bool {
     match instruction {
-        RiscvInstruction::RAlu { op, .. } | RiscvInstruction::IAlu { op, .. } => supports_phase1_opcode(*op),
-        RiscvInstruction::Load { op, .. } | RiscvInstruction::Store { op, .. } => supports_phase1_mem_op(*op),
+        RiscvInstruction::RAlu { op, .. } | RiscvInstruction::IAlu { op, .. } => supports_rv64im_opcode(*op),
+        RiscvInstruction::Load { op, .. } | RiscvInstruction::Store { op, .. } => supports_rv64im_mem_op(*op),
         RiscvInstruction::Branch { .. }
         | RiscvInstruction::Jal { .. }
         | RiscvInstruction::Jalr { .. }
@@ -189,7 +169,7 @@ fn supports_rv64_phase1_instruction(instruction: &RiscvInstruction, poseidon_pre
     }
 }
 
-fn supports_phase1_opcode(op: RiscvOpcode) -> bool {
+fn supports_rv64im_opcode(op: RiscvOpcode) -> bool {
     matches!(
         op,
         RiscvOpcode::And
@@ -226,7 +206,7 @@ fn supports_phase1_opcode(op: RiscvOpcode) -> bool {
     )
 }
 
-fn supports_phase1_mem_op(op: RiscvMemOp) -> bool {
+fn supports_rv64im_mem_op(op: RiscvMemOp) -> bool {
     matches!(
         op,
         RiscvMemOp::Lb

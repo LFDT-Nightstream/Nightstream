@@ -10,6 +10,42 @@ pub(super) fn field_from_u64_injective(value: u64, label: &str) -> Result<F, PiC
 }
 
 #[inline]
+pub(super) fn validate_rv64_reg_index(reg: u64, label: &str) -> Result<(), PiCcsError> {
+    if reg >= 32 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: register index out of range: reg={reg} (expected 0..32)"
+        )));
+    }
+    Ok(())
+}
+
+pub(super) fn validate_rv64_reg_init_words(reg_init: &HashMap<u64, u64>) -> Result<(), PiCcsError> {
+    for (&reg, &value) in reg_init {
+        validate_rv64_reg_index(reg, "reg_init_u64")?;
+        if reg == 0 && value != 0 {
+            return Err(PiCcsError::InvalidInput(
+                "reg_init_u64: x0 must be 0 (non-zero init is forbidden)".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_rv64_reg_output_claims(claims: &ProgramIO<F>, label: &str) -> Result<(), PiCcsError> {
+    for (reg, _) in claims.claims() {
+        validate_rv64_reg_index(reg, label)?;
+    }
+    Ok(())
+}
+
+pub(super) fn validate_rv64_exact_reg_output_words(outputs: &BTreeMap<u64, u64>) -> Result<(), PiCcsError> {
+    for &reg in outputs.keys() {
+        validate_rv64_reg_index(reg, "reg_output_claim_exact_u64")?;
+    }
+    Ok(())
+}
+
+#[inline]
 pub(super) fn field_from_u64_exact_transport(value: u64) -> F {
     let lo = (value as u32) as u64;
     let hi = value >> 32;
@@ -35,7 +71,7 @@ pub(super) fn required_bits_for_max_addr(max_addr: u64) -> usize {
     (u64::BITS - max_addr.leading_zeros()) as usize
 }
 
-pub(super) fn max_consecutive_pc_run(exec: &Rv32ExecTable) -> usize {
+pub(super) fn max_consecutive_pc_run(exec: &RiscvExecTable) -> usize {
     let mut best = 1usize;
     let mut cur = 0usize;
     let mut prev_pc: Option<u64> = None;
@@ -52,9 +88,9 @@ pub(super) fn max_consecutive_pc_run(exec: &Rv32ExecTable) -> usize {
 }
 
 pub(super) fn split_exec_into_fixed_chunks(
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
     chunk_rows: usize,
-) -> Result<Vec<Rv32ExecTable>, PiCcsError> {
+) -> Result<Vec<RiscvExecTable>, PiCcsError> {
     if chunk_rows == 0 {
         return Err(PiCcsError::InvalidInput("trace chunk_rows must be non-zero".into()));
     }
@@ -65,7 +101,7 @@ pub(super) fn split_exec_into_fixed_chunks(
         return Ok(vec![exec.clone()]);
     }
 
-    let mut out = Vec::<Rv32ExecTable>::new();
+    let mut out = Vec::<RiscvExecTable>::new();
     let total = exec.rows.len();
     let mut start = 0usize;
     while start < total {
@@ -83,16 +119,16 @@ pub(super) fn split_exec_into_fixed_chunks(
                 cycle = cycle
                     .checked_add(1)
                     .ok_or_else(|| PiCcsError::InvalidInput("cycle overflow while chunk-padding trace".into()))?;
-                rows.push(Rv32ExecRow::inactive(cycle, pad_pc, pad_halted));
+                rows.push(RiscvExecRow::inactive(cycle, pad_pc, pad_halted));
             }
         }
-        out.push(Rv32ExecTable { rows });
+        out.push(RiscvExecTable { rows });
         start = end;
     }
     Ok(out)
 }
 
-pub(super) fn boundary_splits_virtual_sequence(exec: &Rv32ExecTable, chunk_rows: usize) -> bool {
+pub(super) fn boundary_splits_virtual_sequence(exec: &RiscvExecTable, chunk_rows: usize) -> bool {
     if chunk_rows == 0 || exec.rows.len() <= chunk_rows {
         return false;
     }
@@ -137,7 +173,7 @@ pub(super) fn rv64_trace_chunk_to_witness_checked(
 
     let mut rows = Vec::with_capacity(layout.t);
     for step in chunk {
-        rows.push(Rv32ExecRow::from_step_with_xlen(step, /*machine_xlen=*/ 64)?);
+        rows.push(RiscvExecRow::from_step_with_xlen(step, /*machine_xlen=*/ 64)?);
     }
 
     let mut cycle = rows
@@ -153,10 +189,10 @@ pub(super) fn rv64_trace_chunk_to_witness_checked(
         cycle = cycle
             .checked_add(1)
             .ok_or_else(|| "trace chunk witness: cycle overflow while padding".to_string())?;
-        rows.push(Rv32ExecRow::inactive(cycle, pad_pc, pad_halted));
+        rows.push(RiscvExecRow::inactive(cycle, pad_pc, pad_halted));
     }
 
-    let exec = Rv32ExecTable { rows };
+    let exec = RiscvExecTable { rows };
     let (x, w) = rv64_trace_ccs_witness_from_exec_table(layout, &exec)?;
     Ok(x.into_iter().chain(w).collect())
 }
@@ -329,7 +365,7 @@ pub(super) fn rv64_trace_supported_opcode(op: RiscvOpcode) -> bool {
 }
 
 pub(super) fn validate_rv64_trace_field_injectivity(
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
     prepared: &Rv64PreparedProgram,
 ) -> Result<(), PiCcsError> {
     let _ = prepared;
@@ -381,7 +417,7 @@ pub(super) fn rv64_trace_table_specs(shout_ops: &HashSet<RiscvOpcode>) -> HashMa
 
 pub(super) fn build_rv64_width_lookup_tables(
     width_layout: &Rv64WidthSidecarLayout,
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
     trace_steps: usize,
 ) -> Result<(HashMap<u32, LutTable<F>>, usize), PiCcsError> {
     let max_cycle = exec
@@ -475,13 +511,13 @@ pub(super) fn build_decode_lookup_tables(
     prog_init_words: &HashMap<(u32, u64), F>,
 ) -> HashMap<u32, LutTable<F>> {
     let decode_layout = Rv32DecodeSidecarLayout::new();
-    let decode_cols = rv32_decode_lookup_transport_cols(&decode_layout);
+    let decode_cols = riscv_decode_lookup_transport_cols(&decode_layout);
     if decode_cols.is_empty() {
         return HashMap::new();
     }
     let mut unique_table_ids: Vec<u32> = decode_cols
         .iter()
-        .map(|&col_id| rv32_decode_lookup_table_id_for_col(col_id))
+        .map(|&col_id| riscv_decode_lookup_table_id_for_col(col_id))
         .collect();
     unique_table_ids.sort_unstable();
     unique_table_ids.dedup();
@@ -496,7 +532,7 @@ pub(super) fn build_decode_lookup_tables(
                 .copied()
                 .unwrap_or(F::ZERO)
                 .as_canonical_u64() as u32;
-            let row = rv32_decode_lookup_backed_row_from_instr_word(&decode_layout, instr_word, true);
+            let row = riscv_decode_lookup_backed_row_from_instr_word(&decode_layout, instr_word, true);
             let base = addr * n_vals;
             for (val_slot, &col_id) in decode_cols.iter().enumerate() {
                 content[base + val_slot] = row[col_id];
@@ -516,7 +552,7 @@ pub(super) fn build_decode_lookup_tables(
     }
 
     for &col_id in decode_cols.iter() {
-        let table_id = rv32_decode_lookup_table_id_for_col(col_id);
+        let table_id = riscv_decode_lookup_table_id_for_col(col_id);
         let mut content = vec![F::ZERO; prog_layout.k];
         for addr in 0..prog_layout.k {
             let instr_word = prog_init_words
@@ -524,7 +560,7 @@ pub(super) fn build_decode_lookup_tables(
                 .copied()
                 .unwrap_or(F::ZERO)
                 .as_canonical_u64() as u32;
-            let row = rv32_decode_lookup_backed_row_from_instr_word(&decode_layout, instr_word, true);
+            let row = riscv_decode_lookup_backed_row_from_instr_word(&decode_layout, instr_word, true);
             content[addr] = row[col_id];
         }
         out.insert(
@@ -547,7 +583,7 @@ pub(super) fn inject_decode_lookup_events_into_trace(
     prog_init_words: &HashMap<(u32, u64), F>,
 ) -> Result<(), PiCcsError> {
     let decode_layout = Rv32DecodeSidecarLayout::new();
-    let decode_cols = rv32_decode_lookup_transport_cols(&decode_layout);
+    let decode_cols = riscv_decode_lookup_transport_cols(&decode_layout);
     if decode_cols.is_empty() {
         return Ok(());
     }
@@ -564,10 +600,10 @@ pub(super) fn inject_decode_lookup_events_into_trace(
             .copied()
             .unwrap_or(F::ZERO)
             .as_canonical_u64() as u32;
-        let row = rv32_decode_lookup_backed_row_from_instr_word(&decode_layout, instr_word, true);
+        let row = riscv_decode_lookup_backed_row_from_instr_word(&decode_layout, instr_word, true);
         for &col_id in &decode_cols {
             step.shout_events.push(neo_vm_trace::ShoutEvent {
-                shout_id: ShoutId(rv32_decode_lookup_table_id_for_col(col_id)),
+                shout_id: ShoutId(riscv_decode_lookup_table_id_for_col(col_id)),
                 key: u128::from(pc),
                 value: row[col_id].as_canonical_u64(),
             });
@@ -578,7 +614,7 @@ pub(super) fn inject_decode_lookup_events_into_trace(
 
 pub(super) fn inject_rv64_width_lookup_events_into_trace(
     trace: &mut VmTrace<u64, u64, u128>,
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
     width_layout: &Rv64WidthSidecarLayout,
 ) -> Result<(), PiCcsError> {
     if trace.steps.len() > exec.rows.len() {
@@ -671,7 +707,7 @@ pub(super) fn estimate_route_a_bus_cols(
         let ell_addr = table_ell_addr_for_shared_bus(table_id, table_specs, lut_tables)?;
         let lanes = lut_lanes.get(&table_id).copied().unwrap_or(1).max(1);
         let shout_lane_cols = ell_addr
-            .checked_add(1 + rv32_trace_lookup_n_vals_for_table_id(table_id).max(1))
+            .checked_add(1 + riscv_trace_lookup_n_vals_for_table_id(table_id).max(1))
             .ok_or_else(|| PiCcsError::InvalidInput("shout lane width overflow".into()))?;
         shout_upper_cols = shout_upper_cols
             .checked_add(
@@ -683,9 +719,9 @@ pub(super) fn estimate_route_a_bus_cols(
         shout_shapes.push(ShoutInstanceShape {
             ell_addr,
             lanes,
-            n_vals: rv32_trace_lookup_n_vals_for_table_id(table_id).max(1),
+            n_vals: riscv_trace_lookup_n_vals_for_table_id(table_id).max(1),
             addr_group: trace_lookup_addr_group_for_table_shape(table_id, ell_addr),
-            selector_group: rv32_trace_lookup_selector_group_for_table_id(table_id).map(|v| v as u64),
+            selector_group: riscv_trace_lookup_selector_group_for_table_id(table_id).map(|v| v as u64),
         });
     }
 
@@ -741,11 +777,11 @@ pub(super) fn estimate_route_a_bus_cols(
 
 pub(super) fn trace_lookup_addr_group_for_table_shape(table_id: u32, ell_addr: usize) -> Option<u64> {
     if table_id <= 19 && ell_addr == RV64_OPCODE_ELL_ADDR {
-        rv32_trace_lookup_addr_group_for_table_id(table_id).map(|v| v as u64)
+        riscv_trace_lookup_addr_group_for_table_id(table_id).map(|v| v as u64)
     } else if table_id <= 19 && ell_addr == 66 {
         Some(RV64_PACKED_MUL_ADDR_GROUP)
     } else {
-        rv32_trace_lookup_addr_group_for_table_id(table_id)
+        riscv_trace_lookup_addr_group_for_table_id(table_id)
             .filter(|_| ell_addr != RV64_OPCODE_ELL_ADDR && ell_addr != 66)
             .map(|v| v as u64)
     }
@@ -796,22 +832,13 @@ pub(super) fn inject_exact_reg_writes_into_trace(trace: &mut VmTrace<u64, u64, u
 }
 
 pub(super) fn final_reg_state_dense_injective(
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
     reg_init: &HashMap<u64, u64>,
     k: usize,
 ) -> Result<Vec<F>, PiCcsError> {
     let mut regs = vec![0u64; k];
+    validate_rv64_reg_init_words(reg_init)?;
     for (&reg, &value) in reg_init {
-        if reg >= 32 {
-            return Err(PiCcsError::InvalidInput(format!(
-                "reg_init_u64: register index out of range: reg={reg} (expected 0..32)"
-            )));
-        }
-        if reg == 0 && value != 0 {
-            return Err(PiCcsError::InvalidInput(
-                "reg_init_u64: x0 must be 0 (non-zero init is forbidden)".into(),
-            ));
-        }
         regs[reg as usize] = value;
     }
     regs[0] = 0;

@@ -4,7 +4,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::cpu::BusLayout;
 use crate::riscv::shout_oracle::RiscvAddressLookupOracleSparse;
-use crate::riscv::trace::rv32_trace_lookup_n_vals_for_table_id;
+use crate::riscv::trace::riscv_trace_lookup_n_vals_for_table_id;
 use crate::witness::{LutInstance, LutTableSpec, MemInstance};
 
 pub fn for_each_addr_bit_dim_major_le(addr: u64, d: usize, n_side: usize, ell: usize, mut f: impl FnMut(usize, bool)) {
@@ -256,7 +256,7 @@ pub fn validate_shout_bit_addressing<Cmt, F>(inst: &LutInstance<Cmt, F>) -> Resu
 
     // Explicit table mode (legacy).
     validate_pow2_bit_addressing("Shout", inst.n_side, inst.d, inst.ell, inst.k)?;
-    let n_vals = rv32_trace_lookup_n_vals_for_table_id(inst.table_id);
+    let n_vals = riscv_trace_lookup_n_vals_for_table_id(inst.table_id);
     let expected_len = inst.k.checked_mul(n_vals).ok_or_else(|| {
         PiCcsError::InvalidInput(format!(
             "Shout: table length overflow for k={} and n_vals={n_vals}",

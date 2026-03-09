@@ -2,7 +2,7 @@ use neo_ccs::relations::CcsStructure;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
-use crate::riscv::exec_table::Rv32ExecTable;
+use crate::riscv::exec_table::RiscvExecTable;
 use crate::riscv::trace::{Rv64TraceLayout, Rv64TraceWitness};
 
 use super::constraint_builder::{build_r1cs_ccs, Constraint};
@@ -83,7 +83,7 @@ impl Rv64TraceCcsLayout {
 
 pub fn rv64_trace_ccs_witness_from_exec_table(
     layout: &Rv64TraceCcsLayout,
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
 ) -> Result<(Vec<F>, Vec<F>), String> {
     let wit = Rv64TraceWitness::from_exec_table(&layout.trace, exec)?;
     rv64_trace_ccs_witness_from_trace_witness(layout, &wit)

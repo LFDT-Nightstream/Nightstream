@@ -1,6 +1,8 @@
 use super::*;
 use neo_ccs::Mat;
-use neo_memory::riscv::exec_table::{Rv32PoseidonCycleEventRow, Rv32PoseidonPermSlotMetaRow, Rv32PoseidonSidecarTable};
+use neo_memory::riscv::exec_table::{
+    RiscvPoseidonCycleEventRow, RiscvPoseidonPermSlotMetaRow, RiscvPoseidonSidecarTable,
+};
 use neo_memory::riscv::lookups::{
     RiscvInstruction, POSEIDON2_ABSORB_FUNCT7, POSEIDON2_CUSTOM_OPCODE, POSEIDON2_FINALIZE_FUNCT7,
     POSEIDON2_SQUEEZE_FUNCT7,
@@ -453,7 +455,7 @@ impl PoseidonSidecarCarryState {
 }
 
 #[inline]
-pub(crate) fn poseidon_cycle_continuity_break_before(row: &Rv32PoseidonCycleEventRow) -> bool {
+pub(crate) fn poseidon_cycle_continuity_break_before(row: &RiscvPoseidonCycleEventRow) -> bool {
     // A new message starts when an absorb executes while the pre-row mode is Finalized.
     // This row resets state/cursor and bumps call_ctr before applying the absorb, so
     // continuity should not link across the boundary.
@@ -516,7 +518,7 @@ pub(crate) struct PoseidonCpuWordCols {
 #[inline]
 pub(crate) fn poseidon_cpu_word_cols_for_cpu_len(cpu_cols_len: usize) -> PoseidonCpuWordCols {
     let rv32 = Rv32TraceLayout::new();
-    if cpu_cols_len >= Rv64TraceLayout::new().cols {
+    if neo_memory::riscv::trace::infer_riscv_trace_machine_xlen(cpu_cols_len) == Some(64) {
         let rv64 = Rv64TraceLayout::new();
         PoseidonCpuWordCols {
             active: rv64.active,
@@ -547,7 +549,7 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
     params: &NeoParams,
     step: &StepWitnessBundle<Cmt, F, K>,
     carry: &mut PoseidonSidecarCarryState,
-) -> Result<Rv32PoseidonSidecarTable, PiCcsError> {
+) -> Result<RiscvPoseidonSidecarTable, PiCcsError> {
     const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
     const DIGEST_LEN: usize = neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
 
@@ -601,8 +603,8 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
         )));
     }
 
-    let mut cycle_rows: Vec<Rv32PoseidonCycleEventRow> = Vec::new();
-    let mut perm_rows: Vec<Rv32PoseidonPermSlotMetaRow> = Vec::new();
+    let mut cycle_rows: Vec<RiscvPoseidonCycleEventRow> = Vec::new();
+    let mut perm_rows: Vec<RiscvPoseidonPermSlotMetaRow> = Vec::new();
 
     for j in 0..t_len {
         if active_vals[j] == K::ZERO {
@@ -610,7 +612,7 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
         }
         let cycle = j as u64;
         let state_pre = poseidon_state_to_u64_local(&state);
-        let mut out = Rv32PoseidonCycleEventRow {
+        let mut out = RiscvPoseidonCycleEventRow {
             cycle,
             op_absorb: false,
             op_finalize: false,
@@ -660,7 +662,7 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
                     let in_state = poseidon_state_to_u64_local(&state);
                     state = perm.permute(state);
                     let out_state = poseidon_state_to_u64_local(&state);
-                    perm_rows.push(Rv32PoseidonPermSlotMetaRow {
+                    perm_rows.push(RiscvPoseidonPermSlotMetaRow {
                         cycle,
                         slot: 0,
                         call_ctr,
@@ -684,7 +686,7 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
                     let in_state = poseidon_state_to_u64_local(&state);
                     state = perm.permute(state);
                     let out_state = poseidon_state_to_u64_local(&state);
-                    perm_rows.push(Rv32PoseidonPermSlotMetaRow {
+                    perm_rows.push(RiscvPoseidonPermSlotMetaRow {
                         cycle,
                         slot: 0,
                         call_ctr,
@@ -698,7 +700,7 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
                 let in_state = poseidon_state_to_u64_local(&state);
                 state = perm.permute(state);
                 let out_state = poseidon_state_to_u64_local(&state);
-                perm_rows.push(Rv32PoseidonPermSlotMetaRow {
+                perm_rows.push(RiscvPoseidonPermSlotMetaRow {
                     cycle,
                     slot: 1,
                     call_ctr,
@@ -764,12 +766,12 @@ pub(crate) fn build_poseidon_sidecar_table_from_step_witness(
     carry.digest_words = digest_words;
     carry.call_ctr = call_ctr;
 
-    Ok(Rv32PoseidonSidecarTable { cycle_rows, perm_rows })
+    Ok(RiscvPoseidonSidecarTable { cycle_rows, perm_rows })
 }
 
 fn build_poseidon_cycle_col_values(
     t_len: usize,
-    sidecar: &Rv32PoseidonSidecarTable,
+    sidecar: &RiscvPoseidonSidecarTable,
 ) -> Result<BTreeMap<usize, Vec<K>>, PiCcsError> {
     let layout = PoseidonCycleTraceLayout::new();
     let mut by_col: BTreeMap<usize, Vec<K>> = BTreeMap::new();
@@ -777,7 +779,7 @@ fn build_poseidon_cycle_col_values(
         by_col.insert(col_id, vec![K::ZERO; t_len]);
     }
 
-    let mut perm_by_cycle_slot: BTreeMap<(u64, u8), &Rv32PoseidonPermSlotMetaRow> = BTreeMap::new();
+    let mut perm_by_cycle_slot: BTreeMap<(u64, u8), &RiscvPoseidonPermSlotMetaRow> = BTreeMap::new();
     for perm in sidecar.perm_rows.iter() {
         let key = (perm.cycle, perm.slot);
         if perm_by_cycle_slot.insert(key, perm).is_some() {
@@ -969,7 +971,7 @@ fn build_poseidon_cycle_col_values(
 
 pub(crate) fn build_poseidon_cycle_trace_matrix(
     step: &StepWitnessBundle<Cmt, F, K>,
-    sidecar: &Rv32PoseidonSidecarTable,
+    sidecar: &RiscvPoseidonSidecarTable,
 ) -> Result<(Mat<F>, usize, usize, Vec<usize>), PiCcsError> {
     let trace = Rv32TraceLayout::new();
     let layout = PoseidonCycleTraceLayout::new();
@@ -1023,7 +1025,7 @@ pub(crate) fn build_route_a_poseidon_cycle_claims(
     step: &StepWitnessBundle<Cmt, F, K>,
     r_cycle: &[K],
     enabled: bool,
-    sidecar: Option<&Rv32PoseidonSidecarTable>,
+    sidecar: Option<&RiscvPoseidonSidecarTable>,
 ) -> Result<PoseidonCycleClaims, PiCcsError> {
     if !enabled {
         return Ok((None, None, None, None, None));
@@ -1092,7 +1094,7 @@ pub(crate) fn build_route_a_poseidon_cycle_claims(
         for j in 0..t_len {
             let instr_word = decode_k_to_u32(instr_vals[j], "poseidon(shared)/instr_word")?;
             let active = active_vals[j] != K::ZERO;
-            let mut row = rv32_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
+            let mut row = riscv_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
             if !active {
                 row.fill(F::ZERO);
             }

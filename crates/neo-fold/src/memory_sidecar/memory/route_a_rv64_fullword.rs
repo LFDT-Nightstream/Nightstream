@@ -66,7 +66,7 @@ pub(crate) fn rv64_fullword_width_stage_required_from_proof(
         && !step
             .lut_insts
             .iter()
-            .any(|inst| rv32_is_width_lookup_table_id(inst.table_id))
+            .any(|inst| riscv_trace_uses_shared_width_lookup_table_id(inst.table_id))
         && batched_time
             .labels
             .iter()
@@ -77,7 +77,7 @@ pub(crate) fn rv64_fullword_width_stage_required_from_proof(
 pub(crate) fn rv64_fullword_wp_opening_columns() -> Vec<usize> {
     let trace32 = Rv32TraceLayout::new();
     let trace64 = Rv64TraceLayout::new();
-    let mut wp_cols = rv32_trace_wp_opening_columns(&trace32);
+    let mut wp_cols = riscv_trace_wp_opening_columns(&trace32);
     wp_cols.extend([
         trace64.rd_val_lo32,
         trace64.rd_val_hi32,
@@ -616,7 +616,7 @@ pub(crate) fn build_route_a_rv64_fullword_time_claims(
         for j in 0..t_len {
             let instr_word = decode_k_to_u32(instr_vals[j], "W3(rv64)/instr_word")?;
             let active = active_vals[j] != K::ZERO;
-            let mut row = rv32_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
+            let mut row = riscv_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
             if !active {
                 row.fill(F::ZERO);
             }

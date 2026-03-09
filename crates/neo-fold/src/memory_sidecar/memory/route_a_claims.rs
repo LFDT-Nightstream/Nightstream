@@ -485,16 +485,16 @@ impl<'o> TimeBatchedClaims for TwistRouteAProtocol<'o> {
 
 #[inline]
 pub(crate) fn has_trace_lookup_families_instance(step: &StepInstanceBundle<Cmt, F, K>) -> bool {
-    step.lut_insts
-        .iter()
-        .any(|inst| rv32_is_decode_lookup_table_id(inst.table_id) || rv32_is_width_lookup_table_id(inst.table_id))
+    step.lut_insts.iter().any(|inst| {
+        riscv_is_decode_lookup_table_id(inst.table_id) || riscv_trace_is_width_lookup_table_id(inst.table_id)
+    })
 }
 
 #[inline]
 pub(crate) fn has_trace_lookup_families_witness(step: &StepWitnessBundle<Cmt, F, K>) -> bool {
-    step.lut_instances
-        .iter()
-        .any(|(inst, _)| rv32_is_decode_lookup_table_id(inst.table_id) || rv32_is_width_lookup_table_id(inst.table_id))
+    step.lut_instances.iter().any(|(inst, _)| {
+        riscv_is_decode_lookup_table_id(inst.table_id) || riscv_trace_is_width_lookup_table_id(inst.table_id)
+    })
 }
 
 #[inline]
@@ -543,7 +543,7 @@ pub(crate) fn build_bus_layout_for_step_witness(
         .map(|(inst, _)| ShoutInstanceShape {
             ell_addr: inst.d * inst.ell,
             lanes: inst.lanes.max(1),
-            n_vals: neo_memory::riscv::trace::rv32_trace_lookup_n_vals_for_table_id(inst.table_id),
+            n_vals: neo_memory::riscv::trace::riscv_trace_lookup_n_vals_for_table_id(inst.table_id),
             addr_group: inst.addr_group,
             selector_group: inst.selector_group,
         })
@@ -581,7 +581,7 @@ pub(crate) fn decode_stage_required_for_step_instance(step: &StepInstanceBundle<
         && step
             .lut_insts
             .iter()
-            .any(|inst| rv32_is_decode_lookup_table_id(inst.table_id))
+            .any(|inst| riscv_is_decode_lookup_table_id(inst.table_id))
 }
 
 #[inline]
@@ -590,7 +590,7 @@ pub(crate) fn decode_stage_required_for_step_witness(step: &StepWitnessBundle<Cm
         && step
             .lut_instances
             .iter()
-            .any(|(inst, _)| rv32_is_decode_lookup_table_id(inst.table_id))
+            .any(|(inst, _)| riscv_is_decode_lookup_table_id(inst.table_id))
 }
 
 #[inline]
@@ -599,7 +599,7 @@ pub(crate) fn width_stage_required_for_step_instance(step: &StepInstanceBundle<C
         && (step
             .lut_insts
             .iter()
-            .any(|inst| rv32_is_width_lookup_table_id(inst.table_id))
+            .any(|inst| riscv_trace_uses_shared_width_lookup_table_id(inst.table_id))
             || rv64_fullword_width_stage_required_for_step_instance(step))
 }
 
@@ -609,7 +609,7 @@ pub(crate) fn width_stage_required_for_step_witness(step: &StepWitnessBundle<Cmt
         && (step
             .lut_instances
             .iter()
-            .any(|(inst, _)| rv32_is_width_lookup_table_id(inst.table_id))
+            .any(|(inst, _)| riscv_trace_uses_shared_width_lookup_table_id(inst.table_id))
             || rv64_fullword_width_stage_required_for_step_witness(step))
 }
 
@@ -642,8 +642,8 @@ pub(crate) fn build_route_a_wb_wp_time_claims(
     let t_len = infer_rv32_trace_t_len_for_wb_wp(step, &trace)?;
     let m_in = step.mcs.0.m_in;
     let ell_n = r_cycle.len();
-    let wb_bool_cols = rv32_trace_wb_columns(&trace);
-    let wp_cols = rv32_trace_wp_columns(&trace);
+    let wb_bool_cols = riscv_trace_wb_columns(&trace);
+    let wp_cols = riscv_trace_wp_columns(&trace);
 
     let mut decode_cols = Vec::with_capacity(1 + wb_bool_cols.len() + wp_cols.len());
     decode_cols.push(trace.active);
@@ -662,7 +662,7 @@ pub(crate) fn build_route_a_wb_wp_time_claims(
 
     let wb_oracle = LazyWeightedBitnessOracleSparseTime::new_with_cycle(r_cycle, wb_bool_sparse_cols, wb_weights);
 
-    let wp_cols = rv32_trace_wp_columns(&trace);
+    let wp_cols = riscv_trace_wp_columns(&trace);
     let weights = wp_weight_vector(r_cycle, wp_cols.len());
     let active_vals = decoded
         .get(&trace.active)
@@ -755,7 +755,7 @@ pub(crate) fn build_route_a_decode_time_claims(
         for j in 0..t_len {
             let instr_word = decode_k_to_u32(instr_vals[j], "W2(shared)/instr_word")?;
             let active = active_vals[j] != K::ZERO;
-            let mut row = rv32_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
+            let mut row = riscv_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
             if !active {
                 row.fill(F::ZERO);
             }

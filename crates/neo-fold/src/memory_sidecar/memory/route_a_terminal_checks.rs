@@ -8,12 +8,12 @@ pub(crate) fn decode_lookup_open_map_from_committed_openings(
     label: &str,
 ) -> Result<BTreeMap<usize, K>, PiCcsError> {
     let decode_layout = Rv32DecodeSidecarLayout::new();
-    let decode_open_cols = rv32_decode_lookup_transport_cols(&decode_layout);
+    let decode_open_cols = riscv_decode_lookup_transport_cols(&decode_layout);
     let bus_logical_cols = bus_logical_col_ids_for_step_instance(step, cpu_bus, label)?;
     let mut decode_col_to_logical = Vec::with_capacity(decode_open_cols.len());
     for &col_id in decode_open_cols.iter() {
-        let table_id = rv32_decode_lookup_table_id_for_col(col_id);
-        let val_slot = rv32_decode_lookup_val_slot_for_col(col_id).ok_or_else(|| {
+        let table_id = riscv_decode_lookup_table_id_for_col(col_id);
+        let val_slot = riscv_decode_lookup_val_slot_for_col(col_id).ok_or_else(|| {
             PiCcsError::ProtocolError(format!(
                 "{label}: decode col_id={col_id} is not part of decode lookup transport slot map"
             ))
@@ -95,12 +95,12 @@ fn width_lookup_open_map_from_committed_openings(
     label: &str,
 ) -> Result<BTreeMap<usize, K>, PiCcsError> {
     let width = Rv32WidthSidecarLayout::new();
-    let width_open_cols = rv32_width_lookup_backed_cols(&width);
+    let width_open_cols = riscv_trace_shared_width_lookup_backed_cols(&width);
     let bus_logical_cols = bus_logical_col_ids_for_step_instance(step, cpu_bus, label)?;
     let mut width_col_to_logical = Vec::with_capacity(width_open_cols.len());
     for &col_id in width_open_cols.iter() {
-        let table_id = rv32_width_lookup_table_id_for_col(col_id);
-        let val_slot = rv32_width_lookup_val_slot_for_col(col_id).ok_or_else(|| {
+        let table_id = riscv_trace_shared_width_lookup_table_id_for_col(col_id);
+        let val_slot = riscv_trace_shared_width_lookup_val_slot_for_col(col_id).ok_or_else(|| {
             PiCcsError::ProtocolError(format!(
                 "{label}: width col_id={col_id} is not part of width lookup transport slot map"
             ))
@@ -204,11 +204,11 @@ pub(crate) fn verify_route_a_decode_terminals(
     let rv64_exact_words = trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
     let rv64_trace = neo_memory::riscv::trace::Rv64TraceLayout::new();
     let wb_me = &mem_proof.wb_me_claims[0];
-    let wb_cols = rv32_trace_wb_columns(&trace);
+    let wb_cols = riscv_trace_wb_columns(&trace);
     let wb_open_map = require_time_openings_for_point(step_time_openings, wb_me.r.as_slice(), &wb_cols, "W2 WB")?;
     let wb_open_col = |col_id: usize| -> Result<K, PiCcsError> { named_opening(&wb_open_map, col_id, "W2 WB") };
 
-    let mut wp_cols = rv32_trace_wp_opening_columns(&trace);
+    let mut wp_cols = riscv_trace_wp_opening_columns(&trace);
     if rv64_exact_words {
         wp_cols.extend(rv64_trace_exact_word_opening_columns());
     }
@@ -510,7 +510,7 @@ pub(crate) fn verify_route_a_width_terminals(
     if wp_me.m_in != step.mcs_inst.m_in {
         return Err(PiCcsError::ProtocolError("W3 WP ME claim m_in mismatch".into()));
     }
-    let wp_cols = rv32_trace_wp_opening_columns(&trace);
+    let wp_cols = riscv_trace_wp_opening_columns(&trace);
     let (_wp_entry, wp_open_map) =
         require_time_openings_covering_point(step_time_openings, wp_me.r.as_slice(), &wp_cols, "W3 WP")?;
     let wp_open_col = |col_id: usize| -> Result<K, PiCcsError> { named_opening(&wp_open_map, col_id, "W3 WP") };
@@ -704,11 +704,8 @@ pub(crate) fn verify_route_a_control_terminals(
             "control stage requires WP ME openings for main-trace terminals".into(),
         ));
     }
-    let machine_xlen = if step.time_columns.cpu_cols.len() >= neo_memory::riscv::trace::Rv64TraceLayout::new().cols {
-        64
-    } else {
-        32
-    };
+    let machine_xlen =
+        neo_memory::riscv::trace::infer_riscv_trace_machine_xlen(step.time_columns.cpu_cols.len()).unwrap_or(32);
     let trace = Rv32TraceLayout::new();
     let decode = Rv32DecodeSidecarLayout::new();
 
@@ -728,8 +725,8 @@ pub(crate) fn verify_route_a_control_terminals(
             "control stage WP ME claim m_in mismatch".into(),
         ));
     }
-    let wp_base_cols = rv32_trace_wp_opening_columns(&trace);
-    let control_extra_cols = rv32_trace_control_extra_opening_columns(&trace);
+    let wp_base_cols = riscv_trace_wp_opening_columns(&trace);
+    let control_extra_cols = riscv_trace_control_extra_opening_columns(&trace);
     let mut wp_all_cols = wp_base_cols.clone();
     wp_all_cols.extend(control_extra_cols.iter().copied());
     let (_wp_entry, wp_open_map) =

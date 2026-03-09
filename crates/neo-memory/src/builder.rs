@@ -2,13 +2,14 @@ use crate::addr::for_each_addr_bit_dim_major_le_u128;
 use crate::mem_init::mem_init_from_state_map;
 use crate::plain::{LutTable, PlainMemLayout};
 use crate::public_digest::memory_public_digest_fields;
-use crate::riscv::exec_table::{Rv32ExecRow, Rv32ExecTable};
+use crate::riscv::exec_table::{RiscvExecRow, RiscvExecTable};
 use crate::riscv::lookups::uninterleave_bits;
 use crate::witness::{LutInstance, LutTableSpec, LutWitness, MemInstance, MemWitness, StepWitnessBundle, TimeColumns};
 use crate::{
     cpu::{build_bus_layout_for_instances_with_shout_shapes_and_twist_lanes, ShoutInstanceShape},
     riscv::trace::{
-        rv32_trace_lookup_n_vals_for_table_id, Rv32TraceLayout, Rv32TraceWitness, Rv64TraceLayout, Rv64TraceWitness,
+        infer_riscv_trace_machine_xlen, riscv_trace_lookup_n_vals_for_table_id, rv32_trace_cpu_cols,
+        rv64_trace_cpu_cols, Rv32TraceLayout, Rv32TraceWitness, Rv64TraceLayout, Rv64TraceWitness,
     },
     AffineWordAddressRemap,
 };
@@ -135,7 +136,7 @@ fn write_addr_bits_into_mem_cols(
 
 #[inline]
 fn shout_n_vals_for_table_id(table_id: u32) -> usize {
-    rv32_trace_lookup_n_vals_for_table_id(table_id).max(1)
+    riscv_trace_lookup_n_vals_for_table_id(table_id).max(1)
 }
 
 fn build_shared_bus_layout_for_time_columns<Cmt>(
@@ -619,15 +620,11 @@ where
         if expected_cpu_cols == 0 {
             return Ok(Vec::new());
         }
-        let machine_xlen = if expected_cpu_cols == Rv64TraceLayout::new().cols {
-            64
-        } else {
-            32
-        };
+        let machine_xlen = infer_riscv_trace_machine_xlen(expected_cpu_cols).unwrap_or(32);
 
         let mut rows = Vec::with_capacity(chunk_size);
         for step in chunk_steps {
-            match Rv32ExecRow::from_step_with_xlen(step, machine_xlen) {
+            match RiscvExecRow::from_step_with_xlen(step, machine_xlen) {
                 Ok(row) => rows.push(row),
                 Err(_e) if !strict_rv32 => {
                     // Non-RV32 harness callers may use opaque instruction words.
@@ -650,15 +647,15 @@ where
             cycle = cycle
                 .checked_add(1)
                 .ok_or_else(|| ShardBuildError::CcsError("cycle overflow while padding chunk rows".into()))?;
-            rows.push(Rv32ExecRow::inactive(cycle, pad_pc, pad_halted));
+            rows.push(RiscvExecRow::inactive(cycle, pad_pc, pad_halted));
         }
-        let exec = Rv32ExecTable { rows };
-        if expected_cpu_cols == Rv32TraceLayout::new().cols {
+        let exec = RiscvExecTable { rows };
+        if expected_cpu_cols == rv32_trace_cpu_cols() {
             let trace_layout = Rv32TraceLayout::new();
             let wit = Rv32TraceWitness::from_exec_table(&trace_layout, &exec)
                 .map_err(|e| ShardBuildError::CcsError(format!("RV32 time trace witness build failed: {e}")))?;
             Ok(wit.cols)
-        } else if expected_cpu_cols == Rv64TraceLayout::new().cols {
+        } else if expected_cpu_cols == rv64_trace_cpu_cols() {
             let trace_layout = Rv64TraceLayout::new();
             let wit = Rv64TraceWitness::from_exec_table(&trace_layout, &exec)
                 .map_err(|e| ShardBuildError::CcsError(format!("RV64 time trace witness build failed: {e}")))?;
@@ -666,8 +663,8 @@ where
         } else {
             Err(ShardBuildError::CcsError(format!(
                 "unsupported CPU time-column profile width {expected_cpu_cols} (expected {} or {})",
-                Rv32TraceLayout::new().cols,
-                Rv64TraceLayout::new().cols
+                rv32_trace_cpu_cols(),
+                rv64_trace_cpu_cols()
             )))
         }
     }

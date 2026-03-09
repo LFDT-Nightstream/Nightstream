@@ -4,9 +4,7 @@ use neo_memory::riscv::lookups::{
     RiscvOpcode, POSEIDON2_ABSORB_FUNCT7, POSEIDON2_CUSTOM_OPCODE, POSEIDON2_FINALIZE_FUNCT7, POSEIDON2_SQUEEZE_FUNCT7,
     PROG_ID, RAM_ID, REG_ID,
 };
-use neo_memory::riscv::trace::{
-    rv32_is_decode_lookup_table_id, rv32_is_width_lookup_table_id, rv64_is_width_lookup_table_id,
-};
+use neo_memory::riscv::trace::{riscv_is_decode_lookup_table_id, riscv_trace_is_width_lookup_table_id};
 use neo_memory::witness::{LutInstance, LutTableSpec, MemInstance, StepInstanceBundle, StepWitnessBundle};
 use p3_field::PrimeField64;
 
@@ -196,9 +194,7 @@ pub struct RouteATimeClaimPlan {
 impl RouteATimeClaimPlan {
     #[inline]
     pub(crate) fn route_a_transport_only_shout_table(table_id: u32) -> bool {
-        rv32_is_decode_lookup_table_id(table_id)
-            || rv32_is_width_lookup_table_id(table_id)
-            || rv64_is_width_lookup_table_id(table_id)
+        riscv_is_decode_lookup_table_id(table_id) || riscv_trace_is_width_lookup_table_id(table_id)
     }
 
     fn is_poseidon_precompile_word(word: u32) -> bool {

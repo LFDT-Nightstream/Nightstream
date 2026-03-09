@@ -6,8 +6,8 @@ use neo_memory::cpu::{
 };
 use neo_memory::riscv::lookups::{PROG_ID, REG_ID};
 use neo_memory::riscv::trace::{
-    rv32_is_decode_lookup_table_id, rv32_is_width_lookup_table_id, rv32_trace_lookup_n_vals_for_table_id,
-    Rv32TraceLayout, Rv64TraceLayout,
+    riscv_is_decode_lookup_table_id, riscv_trace_is_width_lookup_table_id, riscv_trace_lookup_n_vals_for_table_id,
+    rv32_trace_cpu_cols, rv64_trace_cpu_cols,
 };
 use neo_memory::sparse_time::SparseIdxVec;
 use neo_memory::witness::{LutInstance, MemInstance, StepInstanceBundle, StepWitnessBundle};
@@ -157,7 +157,7 @@ fn infer_bus_layout_for_steps<Cmt, S: BusStepView<Cmt>>(
         })
         .collect();
     let base_shout_n_vals: Vec<usize> = (0..steps[0].lut_insts_len())
-        .map(|i| rv32_trace_lookup_n_vals_for_table_id(steps[0].lut_inst(i).table_id))
+        .map(|i| riscv_trace_lookup_n_vals_for_table_id(steps[0].lut_inst(i).table_id))
         .collect();
     let base_shout_addr_groups: Vec<Option<u64>> = (0..steps[0].lut_insts_len())
         .map(|i| steps[0].lut_inst(i).addr_group)
@@ -192,7 +192,7 @@ fn infer_bus_layout_for_steps<Cmt, S: BusStepView<Cmt>>(
             })
             .collect();
         let cur_shout_n_vals: Vec<usize> = (0..step.lut_insts_len())
-            .map(|j| rv32_trace_lookup_n_vals_for_table_id(step.lut_inst(j).table_id))
+            .map(|j| riscv_trace_lookup_n_vals_for_table_id(step.lut_inst(j).table_id))
             .collect();
         let cur_shout_addr_groups: Vec<Option<u64>> = (0..step.lut_insts_len())
             .map(|j| step.lut_inst(j).addr_group)
@@ -331,8 +331,8 @@ pub(crate) fn prepare_ccs_for_shared_cpu_bus_steps<'a, Cmt, S: BusStepView<Cmt>>
                 && step.time_mem_cols_len() == steps[0].time_mem_cols_len()
                 && step.time_cpu_cols_len() == steps[0].time_cpu_cols_len()
         });
-    let rv32_trace_cpu_cols = Rv32TraceLayout::new().cols;
-    let rv64_trace_cpu_cols = Rv64TraceLayout::new().cols;
+    let rv32_trace_cpu_cols = rv32_trace_cpu_cols();
+    let rv64_trace_cpu_cols = rv64_trace_cpu_cols();
     let canonical_trace_mode = !steps.is_empty()
         && m_in == 5
         && matches!(steps[0].time_cpu_cols_len(), n if n == rv32_trace_cpu_cols || n == rv64_trace_cpu_cols);
@@ -1662,7 +1662,7 @@ fn required_bus_binding_cols_for_layout<Cmt, S: BusStepView<Cmt>>(layout: &BusLa
     if let Some(step0) = steps.first() {
         let has_trace_lookup_families = (0..step0.lut_insts_len()).any(|idx| {
             let table_id = step0.lut_inst(idx).table_id;
-            rv32_is_decode_lookup_table_id(table_id) || rv32_is_width_lookup_table_id(table_id)
+            riscv_is_decode_lookup_table_id(table_id) || riscv_trace_is_width_lookup_table_id(table_id)
         });
         if has_trace_lookup_families {
             for (mem_idx, inst) in layout.twist_cols.iter().enumerate() {

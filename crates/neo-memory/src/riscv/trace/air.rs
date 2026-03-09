@@ -6,12 +6,12 @@ use crate::riscv::decomposition_semantics::{expected_virtual_decomposed_op, vali
 use super::{layout::Rv32TraceLayout, witness::Rv32TraceWitness};
 
 #[derive(Clone, Debug)]
-pub struct Rv32TraceAir {
+pub struct RiscvTraceAir {
     pub layout: Rv32TraceLayout,
     pub machine_xlen: usize,
 }
 
-impl Rv32TraceAir {
+impl RiscvTraceAir {
     pub fn new() -> Self {
         Self::new_with_xlen(/*machine_xlen=*/ 32)
     }
@@ -316,3 +316,5 @@ impl Rv32TraceAir {
         Ok(())
     }
 }
+
+pub type Rv32TraceAir = RiscvTraceAir;

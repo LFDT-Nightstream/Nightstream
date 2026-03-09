@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
-use crate::riscv::exec_table::Rv32ExecTable;
+use crate::riscv::exec_table::RiscvExecTable;
 use crate::riscv::instruction::{encode_lookup_key, operand_mode_keys_enabled, try_decode_lookup_operands};
 use crate::riscv::lookups::{RiscvOpcode, RiscvShoutTables};
 
@@ -57,7 +57,7 @@ impl ShoutLaneOverTime {
     }
 }
 
-/// Extract fixed-lane Twist-style memories over time from `Rv32ExecTable`.
+/// Extract fixed-lane Twist-style memories over time from `RiscvExecTable`.
 ///
 /// Layout/policy:
 /// - PROG: lane0 read-only (exactly one read per active row)
@@ -66,7 +66,7 @@ impl ShoutLaneOverTime {
 ///
 /// `init_regs` and `init_ram` are used to compute `inc_at_write_addr` and to sanity-check read values.
 pub fn extract_twist_lanes_over_time(
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
     init_regs: &HashMap<u64, u64>,
     init_ram: &HashMap<u64, u64>,
     ram_ell_addr: usize,
@@ -260,7 +260,7 @@ pub fn extract_twist_lanes_over_time(
 /// - At most 1 Shout event per active row.
 /// - Inactive rows must have no shout events.
 pub fn extract_shout_lanes_over_time(
-    exec: &Rv32ExecTable,
+    exec: &RiscvExecTable,
     shout_table_ids: &[u32],
 ) -> Result<Vec<ShoutLaneOverTime>, String> {
     let t = exec.rows.len();

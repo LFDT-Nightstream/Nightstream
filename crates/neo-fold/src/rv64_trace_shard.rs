@@ -1,7 +1,18 @@
-//! Narrow RV64 trace proving slice built on the existing shared-bus shard prover.
+//! Canonical RV64IM real-ELF trace proving path built on the shared-bus shard prover.
 //!
-//! This path is intentionally conservative and only enables the subset that is
+//! This is the maintained note-circuit entrypoint:
+//! - build guest code to RV64IM ELF,
+//! - load it with `Rv64TraceWiring::from_elf(...)`,
+//! - bind public RAM or exact register outputs,
+//! - then prove/verify through the shared-bus shard flow.
+//!
+//! The path is intentionally conservative and only enables the subset that is
 //! already sound under the current Goldilocks-backed trace arithmetization.
+//! Supported product contract:
+//! - ISA: RV64IM
+//! - not supported: compressed instructions (`C`) and atomics (`A`)
+//! - broader arbitrary-RV64IM program coverage remains an explicit follow-on
+//!   expansion beyond the maintained note repro path.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -25,16 +36,16 @@ use neo_memory::riscv::ccs::{
     build_rv64_trace_wiring_ccs, rv64_trace_ccs_witness_from_exec_table, Rv64TraceCcsLayout, TraceShoutBusSpec,
 };
 use neo_memory::riscv::elf_loader::{load_elf, ElfLoadSegment, LoadedProgram};
-use neo_memory::riscv::exec_table::{Rv32ExecRow, Rv32ExecTable};
+use neo_memory::riscv::exec_table::{RiscvExecRow, RiscvExecTable};
 use neo_memory::riscv::lookups::{
     RiscvCpu, RiscvInstruction, RiscvMemOp, RiscvMemory, RiscvOpcode, RiscvShoutTables, PROG_ID, RAM_ID, REG_EXACT_ID,
     REG_ID,
 };
 use neo_memory::riscv::rom_init::prog_rom_layout_and_init_words;
 use neo_memory::riscv::trace::{
-    rv32_decode_lookup_backed_row_from_instr_word, rv32_decode_lookup_table_id_for_col,
-    rv32_decode_lookup_transport_cols, rv32_trace_lookup_addr_group_for_table_id,
-    rv32_trace_lookup_n_vals_for_table_id, rv32_trace_lookup_selector_group_for_table_id,
+    riscv_decode_lookup_backed_row_from_instr_word, riscv_decode_lookup_table_id_for_col,
+    riscv_decode_lookup_transport_cols, riscv_trace_lookup_addr_group_for_table_id,
+    riscv_trace_lookup_n_vals_for_table_id, riscv_trace_lookup_selector_group_for_table_id,
     rv64_width_lookup_backed_cols, rv64_width_lookup_table_id_for_col, rv64_width_sidecar_witness_from_exec_table,
     Rv32DecodeSidecarLayout, Rv64WidthSidecarLayout,
 };
@@ -139,7 +150,7 @@ pub struct Rv64TraceWiringRun {
     session: FoldingSession<AjtaiSModule>,
     ccs: CcsStructure<F>,
     layout: Rv64TraceCcsLayout,
-    exec: Rv32ExecTable,
+    exec: RiscvExecTable,
     proof: ShardProof,
     used_mem_ids: Vec<u32>,
     used_shout_table_ids: Vec<u32>,
@@ -158,7 +169,7 @@ impl Rv64TraceWiring {
         Ok(Self {
             elf_bytes: elf_bytes.to_vec(),
             loaded_program,
-            profile: RiscvProofProfile::rv64_note_circuits_phase1(),
+            profile: RiscvProofProfile::rv64im(),
             max_steps: None,
             min_trace_len: 4,
             chunk_rows: None,
@@ -253,6 +264,12 @@ impl Rv64TraceWiring {
         self.profile
             .validate_loaded_program(&self.loaded_program)
             .map_err(profile_err_to_piccs)?;
+        validate_rv64_reg_init_words(&self.reg_init)?;
+        match self.output_target {
+            OutputTarget::Ram => {}
+            OutputTarget::Reg => validate_rv64_reg_output_claims(&self.output_claims, "reg_output_claim")?,
+            OutputTarget::RegExact => validate_rv64_exact_reg_output_words(&self.exact_reg_output_words)?,
+        }
 
         let lowered_program = lower_loaded_program(&self.loaded_program, &self.profile)
             .map_err(|e| PiCcsError::InvalidInput(e.to_string()))?;
@@ -352,8 +369,8 @@ impl Rv64TraceWiring {
                 .map_err(|e| PiCcsError::InvalidInput(format!("prog_rom_layout_and_init_words failed: {e}")))?;
         inject_decode_lookup_events_into_trace(&mut trace, &prog_layout, &prog_init_words)?;
 
-        let exec = Rv32ExecTable::from_trace_padded_with_xlen(&trace, target_len, /*machine_xlen=*/ 64)
-            .map_err(|e| PiCcsError::InvalidInput(format!("Rv32ExecTable::from_trace_padded failed: {e}")))?;
+        let exec = RiscvExecTable::from_trace_padded_with_xlen(&trace, target_len, /*machine_xlen=*/ 64)
+            .map_err(|e| PiCcsError::InvalidInput(format!("RiscvExecTable::from_trace_padded failed: {e}")))?;
         exec.validate_cycle_chain()
             .map_err(|e| PiCcsError::InvalidInput(format!("validate_cycle_chain failed: {e}")))?;
         exec.validate_pc_chain()
@@ -462,10 +479,10 @@ impl Rv64TraceWiring {
 
         let decode_lookup_tables = build_decode_lookup_tables(&prog_layout, &prog_init_words);
         let decode_layout = Rv32DecodeSidecarLayout::new();
-        let decode_lookup_cols = rv32_decode_lookup_transport_cols(&decode_layout);
+        let decode_lookup_cols = riscv_decode_lookup_transport_cols(&decode_layout);
         let mut decode_table_ids: Vec<u32> = decode_lookup_cols
             .iter()
-            .map(|&col_id| rv32_decode_lookup_table_id_for_col(col_id))
+            .map(|&col_id| riscv_decode_lookup_table_id_for_col(col_id))
             .collect();
         decode_table_ids.sort_unstable();
         decode_table_ids.dedup();
@@ -486,7 +503,7 @@ impl Rv64TraceWiring {
         } else {
             for &col_id in decode_lookup_cols.iter() {
                 shout_bus_specs.push(TraceShoutBusSpec {
-                    table_id: rv32_decode_lookup_table_id_for_col(col_id),
+                    table_id: riscv_decode_lookup_table_id_for_col(col_id),
                     ell_addr: prog_layout.d,
                     n_vals: 1,
                 });
@@ -591,7 +608,7 @@ impl Rv64TraceWiring {
             if let Some(group) = trace_lookup_addr_group_for_table_shape(table_id, ell_addr) {
                 lookup_addr_groups.insert(table_id, group);
             }
-            if let Some(group) = rv32_trace_lookup_selector_group_for_table_id(table_id) {
+            if let Some(group) = riscv_trace_lookup_selector_group_for_table_id(table_id) {
                 lookup_selector_groups.insert(table_id, group as u64);
             }
         }
@@ -911,7 +928,7 @@ impl Rv64TraceWiringRun {
         &self.layout
     }
 
-    pub fn exec_table(&self) -> &Rv32ExecTable {
+    pub fn exec_table(&self) -> &RiscvExecTable {
         &self.exec
     }
 

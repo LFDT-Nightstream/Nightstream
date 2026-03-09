@@ -44,7 +44,7 @@ use crate::cpu::bus_layout::{
     build_bus_layout_for_instances_with_shout_shapes_and_twist_lanes, BusLayout, ShoutCols, ShoutInstanceShape,
     TwistCols,
 };
-use crate::riscv::trace::rv32_trace_lookup_n_vals_for_table_id;
+use crate::riscv::trace::riscv_trace_lookup_n_vals_for_table_id;
 use crate::witness::{LutInstance, LutTableSpec, MemInstance};
 
 /// CPU column layout for binding to the bus.
@@ -1158,7 +1158,7 @@ pub fn extend_ccs_with_shared_cpu_bus_constraints_optional_shout<
         lut_insts.iter().map(|inst| ShoutInstanceShape {
             ell_addr: inst.d * inst.ell,
             lanes: inst.lanes.max(1),
-            n_vals: rv32_trace_lookup_n_vals_for_table_id(inst.table_id),
+            n_vals: riscv_trace_lookup_n_vals_for_table_id(inst.table_id),
             addr_group: shout_addr_groups.get(&inst.table_id).copied(),
             selector_group: shout_selector_groups.get(&inst.table_id).copied(),
         }),

@@ -1502,7 +1502,7 @@ where
         let mut wb_fold: Vec<RlcDecProof> = Vec::new();
         if !mem_proof.wb_me_claims.is_empty() {
             let trace = Rv32TraceLayout::new();
-            let wb_cols = crate::memory_sidecar::memory::rv32_trace_wb_columns(&trace);
+            let wb_cols = crate::memory_sidecar::memory::riscv_trace_wb_columns(&trace);
             let core_t = s.t();
             tr.append_message(b"fold/wb_lane_start", &(step_idx as u64).to_le_bytes());
             for (claim_idx, me) in mem_proof.wb_me_claims.iter().enumerate() {
@@ -1688,14 +1688,12 @@ where
             let t_len = crate::memory_sidecar::memory::infer_rv32_trace_t_len_for_wb_wp(step, &trace)?;
             let rv64_exact_words =
                 crate::memory_sidecar::memory::trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
-            let mut wp_open_cols = crate::memory_sidecar::memory::rv32_trace_wp_opening_columns(&trace);
+            let mut wp_open_cols = crate::memory_sidecar::memory::riscv_trace_wp_opening_columns(&trace);
             if rv64_exact_words {
                 wp_open_cols.extend(crate::memory_sidecar::memory::rv64_trace_exact_word_opening_columns());
             }
             if control_required {
-                wp_open_cols.extend(crate::memory_sidecar::memory::rv32_trace_control_extra_opening_columns(
-                    &trace,
-                ));
+                wp_open_cols.extend(crate::memory_sidecar::memory::riscv_trace_control_extra_opening_columns(&trace));
             }
             if decode_required {
                 let decode_layout = Rv32DecodeSidecarLayout::new();
@@ -2109,7 +2107,7 @@ where
             }
             if let Some(wb_me) = mem_proof.wb_me_claims.first() {
                 let trace = Rv32TraceLayout::new();
-                let wb_cols = crate::memory_sidecar::memory::rv32_trace_wb_columns(&trace);
+                let wb_cols = crate::memory_sidecar::memory::riscv_trace_wb_columns(&trace);
                 let can_use_time_cpu_cols = step.time_columns.t > 0
                     && !step.time_columns.cpu_cols.is_empty()
                     && wb_cols
@@ -2162,14 +2160,12 @@ where
                 let trace = Rv32TraceLayout::new();
                 let rv64_exact_words =
                     crate::memory_sidecar::memory::trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
-                let mut wp_cols = crate::memory_sidecar::memory::rv32_trace_wp_opening_columns(&trace);
+                let mut wp_cols = crate::memory_sidecar::memory::riscv_trace_wp_opening_columns(&trace);
                 if rv64_exact_words {
                     wp_cols.extend(crate::memory_sidecar::memory::rv64_trace_exact_word_opening_columns());
                 }
                 if control_required {
-                    wp_cols.extend(crate::memory_sidecar::memory::rv32_trace_control_extra_opening_columns(
-                        &trace,
-                    ));
+                    wp_cols.extend(crate::memory_sidecar::memory::riscv_trace_control_extra_opening_columns(&trace));
                 }
                 if crate::memory_sidecar::memory::rv64_fullword_width_stage_required_for_step_witness(step) {
                     wp_cols.extend(crate::memory_sidecar::memory::rv64_fullword_wp_opening_columns());

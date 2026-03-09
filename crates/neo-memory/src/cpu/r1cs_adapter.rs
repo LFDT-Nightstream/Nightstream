@@ -16,7 +16,7 @@ use crate::mem_init::MemInit;
 use crate::plain::LutTable;
 use crate::plain::PlainMemLayout;
 use crate::riscv::lookups::uninterleave_bits;
-use crate::riscv::trace::rv32_trace_lookup_n_vals_for_table_id;
+use crate::riscv::trace::riscv_trace_lookup_n_vals_for_table_id;
 use crate::witness::{LutInstance, LutTableSpec, MemInstance};
 use neo_ccs::relations::{CcsClaim, CcsStructure, CcsWitness};
 use neo_ccs::traits::SModuleHomomorphism;
@@ -227,7 +227,7 @@ where
             shout_shapes.push(ShoutInstanceShape {
                 ell_addr,
                 lanes,
-                n_vals: rv32_trace_lookup_n_vals_for_table_id(*table_id),
+                n_vals: riscv_trace_lookup_n_vals_for_table_id(*table_id),
                 addr_group: bus.shout_addr_groups.get(table_id).copied(),
                 selector_group: bus.shout_selector_groups.get(table_id).copied(),
             });

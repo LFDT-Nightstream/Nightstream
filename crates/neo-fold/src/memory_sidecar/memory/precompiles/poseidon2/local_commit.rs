@@ -1,6 +1,6 @@
 use super::*;
 use neo_ccs::Mat;
-use neo_memory::riscv::exec_table::Rv32PoseidonSidecarTable;
+use neo_memory::riscv::exec_table::RiscvPoseidonSidecarTable;
 use p3_field::PrimeField64;
 use p3_goldilocks::{Goldilocks, MATRIX_DIAG_8_GOLDILOCKS};
 use p3_poseidon2::{
@@ -855,7 +855,7 @@ fn state_u64_to_goldilocks(words: &[u64; POSEIDON_WIDTH]) -> [Goldilocks; POSEID
 }
 
 pub(crate) fn build_poseidon_local_trace_matrix(
-    sidecar: &Rv32PoseidonSidecarTable,
+    sidecar: &RiscvPoseidonSidecarTable,
 ) -> Result<(Mat<F>, usize, usize, PoseidonLocalTraceLayout), PiCcsError> {
     let active_rows = sidecar
         .perm_rows
@@ -887,7 +887,7 @@ pub(crate) fn build_poseidon_local_trace_matrix(
         )));
     }
 
-    let mut cycle_row_by_cycle = BTreeMap::<u64, &neo_memory::riscv::exec_table::Rv32PoseidonCycleEventRow>::new();
+    let mut cycle_row_by_cycle = BTreeMap::<u64, &neo_memory::riscv::exec_table::RiscvPoseidonCycleEventRow>::new();
     for row in sidecar.cycle_rows.iter() {
         if cycle_row_by_cycle.insert(row.cycle, row).is_some() {
             return Err(PiCcsError::ProtocolError(format!(
@@ -897,7 +897,7 @@ pub(crate) fn build_poseidon_local_trace_matrix(
         }
     }
     let mut perm_by_cycle_slot =
-        BTreeMap::<(u64, u8), &neo_memory::riscv::exec_table::Rv32PoseidonPermSlotMetaRow>::new();
+        BTreeMap::<(u64, u8), &neo_memory::riscv::exec_table::RiscvPoseidonPermSlotMetaRow>::new();
     for perm in sidecar.perm_rows.iter() {
         let key = (perm.cycle, perm.slot);
         if perm_by_cycle_slot.insert(key, perm).is_some() {

@@ -1164,6 +1164,107 @@ fn test_rv64_trace_wiring_still_rejects_non_injective_reg_output_binding() {
 }
 
 #[test]
+fn test_rv64_trace_wiring_rejects_out_of_range_reg_init() {
+    let elf = build_text_elf64(
+        0x2000,
+        &[
+            RiscvInstruction::IAlu {
+                op: RiscvOpcode::Add,
+                rd: 1,
+                rs1: 0,
+                imm: 7,
+            },
+            RiscvInstruction::Halt,
+        ],
+    );
+
+    let err = match Rv64TraceWiring::from_elf(&elf)
+        .expect("from_elf")
+        .mode(FoldingMode::Optimized)
+        .chunk_rows(4)
+        .max_steps(16)
+        .reg_init_u64(32, 1)
+        .prove()
+    {
+        Ok(_) => panic!("out-of-range RV64 reg init must fail"),
+        Err(err) => err,
+    };
+
+    assert!(
+        err.to_string()
+            .contains("reg_init_u64: register index out of range"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_rv64_trace_wiring_rejects_non_zero_x0_init() {
+    let elf = build_text_elf64(
+        0x2000,
+        &[
+            RiscvInstruction::IAlu {
+                op: RiscvOpcode::Add,
+                rd: 1,
+                rs1: 0,
+                imm: 7,
+            },
+            RiscvInstruction::Halt,
+        ],
+    );
+
+    let err = match Rv64TraceWiring::from_elf(&elf)
+        .expect("from_elf")
+        .mode(FoldingMode::Optimized)
+        .chunk_rows(4)
+        .max_steps(16)
+        .reg_init_u64(0, 1)
+        .prove()
+    {
+        Ok(_) => panic!("non-zero x0 init must fail"),
+        Err(err) => err,
+    };
+
+    assert!(
+        err.to_string().contains("reg_init_u64: x0 must be 0"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_rv64_trace_wiring_rejects_out_of_range_exact_reg_output_claim() {
+    let elf = build_text_elf64(
+        0x2000,
+        &[
+            RiscvInstruction::IAlu {
+                op: RiscvOpcode::Add,
+                rd: 1,
+                rs1: 0,
+                imm: 7,
+            },
+            RiscvInstruction::Halt,
+        ],
+    );
+
+    let err = match Rv64TraceWiring::from_elf(&elf)
+        .expect("from_elf")
+        .mode(FoldingMode::Optimized)
+        .chunk_rows(4)
+        .max_steps(16)
+        .reg_output_claim_exact_u64(32, 7)
+        .prove()
+    {
+        Ok(_) => panic!("out-of-range exact reg output claim must fail"),
+        Err(err) => err,
+    };
+
+    assert!(
+        err.to_string()
+            .contains("reg_output_claim_exact_u64: register index out of range"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn test_rv64_trace_wiring_exact_reg_output_binding_allows_non_injective_public_value() {
     let elf = build_text_elf64(
         0x4000,

@@ -184,7 +184,7 @@ pub(crate) fn build_route_a_width_time_claims(
         trace.rs2_val,
     ];
     let main_decoded = decode_trace_col_values_batch(params, step, t_len, &main_col_ids)?;
-    let width_col_ids = rv32_width_lookup_backed_cols(&width);
+    let width_col_ids = riscv_trace_shared_width_lookup_backed_cols(&width);
     let width_decoded: DenseCols<K> = {
         let width_bus_abs_cols = width_lookup_bus_val_cols_witness(step, t_len)?;
         let bus = build_bus_layout_for_step_witness(step, t_len)?;
@@ -245,7 +245,7 @@ pub(crate) fn build_route_a_width_time_claims(
         for j in 0..t_len {
             let instr_word = decode_k_to_u32(instr_vals[j], "W3(shared)/instr_word")?;
             let active = active_vals[j] != K::ZERO;
-            let mut row = rv32_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
+            let mut row = riscv_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
             if !active {
                 row.fill(F::ZERO);
             }
@@ -646,11 +646,8 @@ pub(crate) fn build_route_a_control_time_claims(
     if !control_stage_required_for_step_witness(step) {
         return Ok((None, None, None, None));
     }
-    let machine_xlen = if step.time_columns.cpu_cols.len() >= neo_memory::riscv::trace::Rv64TraceLayout::new().cols {
-        64
-    } else {
-        32
-    };
+    let machine_xlen =
+        neo_memory::riscv::trace::infer_riscv_trace_machine_xlen(step.time_columns.cpu_cols.len()).unwrap_or(32);
     let (
         trace_cols,
         trace_active,
@@ -790,7 +787,7 @@ pub(crate) fn build_route_a_control_time_claims(
         for j in 0..t_len {
             let instr_word = decode_k_to_u32(instr_vals[j], "control(shared)/instr_word")?;
             let active = active_vals[j] != K::ZERO;
-            let mut row = rv32_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
+            let mut row = riscv_decode_lookup_backed_row_from_instr_word(&decode, instr_word, active);
             if !active {
                 row.fill(F::ZERO);
             }
@@ -1335,7 +1332,7 @@ pub(crate) fn emit_route_a_wb_wp_me_claims(
     let core_t = s.t();
     let (mcs_inst, mcs_wit) = &step.mcs;
 
-    let wb_cols = rv32_trace_wb_columns(&trace);
+    let wb_cols = riscv_trace_wb_columns(&trace);
     let mut wb_claims = ts::emit_me_claims_for_mats(
         tr,
         b"cpu/me_digest_wb_time",
@@ -1387,12 +1384,12 @@ pub(crate) fn emit_route_a_wb_wp_me_claims(
     )?;
 
     let rv64_exact_words = trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
-    let mut wp_cols = rv32_trace_wp_opening_columns(&trace);
+    let mut wp_cols = riscv_trace_wp_opening_columns(&trace);
     if rv64_exact_words {
         wp_cols.extend(rv64_trace_exact_word_opening_columns());
     }
     if control_stage_required_for_step_witness(step) {
-        wp_cols.extend(rv32_trace_control_extra_opening_columns(&trace));
+        wp_cols.extend(riscv_trace_control_extra_opening_columns(&trace));
     }
     if decode_stage_required_for_step_witness(step) {
         let decode_layout = Rv32DecodeSidecarLayout::new();
@@ -1513,7 +1510,7 @@ pub(crate) fn verify_route_a_wb_wp_terminals(
             return Err(PiCcsError::ProtocolError("WB ME claim m_in mismatch".into()));
         }
 
-        let wb_bool_cols = rv32_trace_wb_columns(&trace);
+        let wb_bool_cols = riscv_trace_wb_columns(&trace);
         let (wb_open_entry, wb_open_map) =
             require_time_openings_covering_point(step_time_openings, r_time, &wb_bool_cols, "WB")?;
         if wb_open_entry.source != crate::shard_proof_types::TimeOpeningSource::CommittedOpening {
@@ -1568,7 +1565,7 @@ pub(crate) fn verify_route_a_wb_wp_terminals(
         }
 
         let rv64_exact_words = trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
-        let mut wp_open_cols = rv32_trace_wp_opening_columns(&trace);
+        let mut wp_open_cols = riscv_trace_wp_opening_columns(&trace);
         if rv64_exact_words {
             wp_open_cols.extend(rv64_trace_exact_word_opening_columns());
         }
@@ -1581,7 +1578,7 @@ pub(crate) fn verify_route_a_wb_wp_terminals(
             )));
         }
         let active_open = named_opening(&wp_open_map, trace.active, "WP")?;
-        let wp_cols_no_active = rv32_trace_wp_columns(&trace);
+        let wp_cols_no_active = riscv_trace_wp_columns(&trace);
         let wp_weights = wp_weight_vector(r_cycle, wp_cols_no_active.len());
         let mut wp_weighted_sum = K::ZERO;
         for (&col_id, &w) in wp_cols_no_active.iter().zip(wp_weights.iter()) {

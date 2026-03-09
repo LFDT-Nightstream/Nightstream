@@ -75,7 +75,7 @@ fn rv64_profile_rejects_compressed_elf_code() {
         }],
     );
     let loaded = load_elf(&elf).expect("load elf");
-    let profile = RiscvProofProfile::rv64_note_circuits_phase1();
+    let profile = RiscvProofProfile::rv64im();
 
     let err = profile
         .validate_loaded_program(&loaded)
@@ -198,7 +198,7 @@ fn rv64_note_lowering_accepts_supported_program_and_rejects_atomics_profile() {
         }],
     );
     let loaded = load_elf(&elf).expect("load elf");
-    let profile = RiscvProofProfile::rv64_note_circuits_phase1();
+    let profile = RiscvProofProfile::rv64im();
     let lowered = lower_loaded_program(&loaded, &profile).expect("lower program");
 
     assert_eq!(lowered.instructions.len(), 4);
@@ -215,9 +215,9 @@ fn rv64_note_lowering_accepts_supported_program_and_rejects_atomics_profile() {
         compressed: false,
         atomics: true,
         poseidon_precompile: cfg!(feature = "poseidon-precompile"),
-        lowering_version: RiscvProofProfile::RV64_NOTE_CIRCUITS_LOWERING_VERSION,
+        lowering_version: RiscvProofProfile::RV64IM_LOWERING_VERSION,
         memory_layout_kind: neo_memory::ProofAddressRemapKind::SegmentedWordAddress,
-        trace_profile: RiscvTraceProfileKind::Rv64NoteCircuitsPhase1,
+        trace_profile: RiscvTraceProfileKind::Rv64Im,
     });
     assert_eq!(
         atomics_profile.expect_err("atomics must be rejected"),

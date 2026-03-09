@@ -52,10 +52,10 @@ pub(crate) fn resolve_shared_decode_lookup_lut_indices(
     step: &StepWitnessBundle<Cmt, F, K>,
     decode_layout: &Rv32DecodeSidecarLayout,
 ) -> Result<(Vec<usize>, Vec<(usize, usize)>), PiCcsError> {
-    let decode_open_cols = rv32_decode_lookup_transport_cols(decode_layout);
+    let decode_open_cols = riscv_decode_lookup_transport_cols(decode_layout);
     let mut decode_lut_slots = Vec::with_capacity(decode_open_cols.len());
     for &col_id in decode_open_cols.iter() {
-        let table_id = rv32_decode_lookup_table_id_for_col(col_id);
+        let table_id = riscv_decode_lookup_table_id_for_col(col_id);
         let lut_idx = step
             .lut_instances
             .iter()
@@ -65,7 +65,7 @@ pub(crate) fn resolve_shared_decode_lookup_lut_indices(
                     "W2(shared): missing decode lookup table_id={table_id} for col_id={col_id}"
                 ))
             })?;
-        let val_slot = rv32_decode_lookup_val_slot_for_col(col_id).ok_or_else(|| {
+        let val_slot = riscv_decode_lookup_val_slot_for_col(col_id).ok_or_else(|| {
             PiCcsError::ProtocolError(format!(
                 "W2(shared): decode col_id={col_id} is not part of decode lookup transport slot map"
             ))
@@ -80,10 +80,10 @@ pub(crate) fn resolve_shared_width_lookup_lut_indices(
     step: &StepWitnessBundle<Cmt, F, K>,
     width_layout: &Rv32WidthSidecarLayout,
 ) -> Result<(Vec<usize>, Vec<(usize, usize)>), PiCcsError> {
-    let width_open_cols = rv32_width_lookup_backed_cols(width_layout);
+    let width_open_cols = riscv_trace_shared_width_lookup_backed_cols(width_layout);
     let mut width_lut_slots = Vec::with_capacity(width_open_cols.len());
     for &col_id in width_open_cols.iter() {
-        let table_id = rv32_width_lookup_table_id_for_col(col_id);
+        let table_id = riscv_trace_shared_width_lookup_table_id_for_col(col_id);
         let lut_idx = step
             .lut_instances
             .iter()
@@ -93,7 +93,7 @@ pub(crate) fn resolve_shared_width_lookup_lut_indices(
                     "W3(shared): missing width lookup table_id={table_id} for col_id={col_id}"
                 ))
             })?;
-        let val_slot = rv32_width_lookup_val_slot_for_col(col_id).ok_or_else(|| {
+        let val_slot = riscv_trace_shared_width_lookup_val_slot_for_col(col_id).ok_or_else(|| {
             PiCcsError::ProtocolError(format!(
                 "W3(shared): width col_id={col_id} is not part of width lookup transport slot map"
             ))
@@ -1299,7 +1299,7 @@ pub(crate) fn expected_trace_shout_table_id_from_openings(
     }
 
     let trace_layout = Rv32TraceLayout::new();
-    let wp_cols = rv32_trace_wp_opening_columns(&trace_layout);
+    let wp_cols = riscv_trace_wp_opening_columns(&trace_layout);
     let (wp_entry, wp_open_map) = require_time_openings_covering_point(
         step_time_openings,
         r_time,

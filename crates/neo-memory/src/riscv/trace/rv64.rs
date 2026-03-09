@@ -2,7 +2,7 @@ use neo_vm_trace::TwistOpKind;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
-use crate::riscv::exec_table::Rv32ExecTable;
+use crate::riscv::exec_table::RiscvExecTable;
 use crate::riscv::instruction::{
     opcode_uses_combined_lookup_key, operand_mode_keys_enabled, try_decode_lookup_operands,
 };
@@ -273,7 +273,7 @@ impl Rv64TraceWitness {
         }
     }
 
-    pub fn from_exec_table(layout: &Rv64TraceLayout, exec: &Rv32ExecTable) -> Result<Self, String> {
+    pub fn from_exec_table(layout: &Rv64TraceLayout, exec: &RiscvExecTable) -> Result<Self, String> {
         let cols = exec.to_columns();
         let t = cols.len();
         let mut wit = Self::new_zero(layout, t);

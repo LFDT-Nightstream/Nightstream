@@ -1002,6 +1002,11 @@ pub(crate) fn rv32_trace_wb_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
     vec![layout.active, layout.halted, layout.shout_has_lookup]
 }
 
+#[inline]
+pub(crate) fn riscv_trace_wb_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
+    rv32_trace_wb_columns(layout)
+}
+
 // Selector(8) + bitness(20) + ALU/branch/decomposition(824).
 pub(crate) const W2_FIELDS_RESIDUAL_COUNT: usize = 852;
 // Virtual DIV/REM stage selectors (up to rem=19) raise decode/fields multiplicative degree.
@@ -1472,8 +1477,13 @@ pub(crate) fn rv32_trace_wp_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
 }
 
 #[inline]
+pub(crate) fn riscv_trace_wp_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
+    rv32_trace_wp_columns(layout)
+}
+
+#[inline]
 pub(crate) fn trace_uses_rv64_exact_words(cpu_cols_len: usize) -> bool {
-    cpu_cols_len >= neo_memory::riscv::trace::Rv64TraceLayout::new().cols
+    neo_memory::riscv::trace::infer_riscv_trace_machine_xlen(cpu_cols_len) == Some(64)
 }
 
 pub(crate) fn rv64_trace_exact_word_opening_columns() -> Vec<usize> {
@@ -1498,8 +1508,18 @@ pub(crate) fn rv32_trace_wp_opening_columns(layout: &Rv32TraceLayout) -> Vec<usi
     out
 }
 
+#[inline]
+pub(crate) fn riscv_trace_wp_opening_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
+    rv32_trace_wp_opening_columns(layout)
+}
+
 pub(crate) fn rv32_trace_control_extra_opening_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
     vec![layout.pc_before, layout.pc_after]
+}
+
+#[inline]
+pub(crate) fn riscv_trace_control_extra_opening_columns(layout: &Rv32TraceLayout) -> Vec<usize> {
+    rv32_trace_control_extra_opening_columns(layout)
 }
 
 #[inline]

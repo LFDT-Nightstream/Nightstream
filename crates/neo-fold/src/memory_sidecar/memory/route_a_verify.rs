@@ -232,7 +232,7 @@ pub fn verify_route_a_memory_step(
             ));
         }
         let trace_layout = Rv32TraceLayout::new();
-        let wp_cols = rv32_trace_wp_opening_columns(&trace_layout);
+        let wp_cols = riscv_trace_wp_opening_columns(&trace_layout);
         let (wp_entry, wp_openings) =
             require_time_openings_covering_point(step_time_openings, r_time, &wp_cols, "virtual-domain check/WP")?;
         if wp_entry.source != crate::shard_proof_types::TimeOpeningSource::CommittedOpening {

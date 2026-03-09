@@ -3,7 +3,7 @@ use neo_memory::riscv::lookups::{
     decode_program, encode_program, RiscvCpu, RiscvInstruction, RiscvMemory, RiscvOpcode, RiscvShoutTables, PROG_ID,
     REG_ID,
 };
-use neo_memory::riscv::trace::{Rv32TraceAir, Rv32TraceWitness};
+use neo_memory::riscv::trace::{RiscvTraceAir, Rv32TraceWitness};
 use neo_vm_trace::trace_program;
 use neo_vm_trace::Twist;
 use p3_field::PrimeCharacteristicRing;
@@ -39,7 +39,7 @@ fn rv32_trace_air_satisfies_addi_halt() {
     exec.validate_inactive_rows_are_empty()
         .expect("inactive rows");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
     air.assert_satisfied(&wit).expect("trace AIR satisfied");
 }
@@ -70,7 +70,7 @@ fn rv32_trace_air_accepts_virtual_commit_with_rd_x0() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
     air.assert_satisfied(&wit)
         .expect("rd=x0 decomposed commit must satisfy AIR");
@@ -103,7 +103,7 @@ fn trace_air_accepts_rv64_mulw_virtual_decomposition() {
     let exec = Rv32ExecTable::from_trace_padded_pow2_with_xlen(&trace, /*min_len=*/ 8, /*machine_xlen=*/ 64)
         .expect("from_trace_padded_pow2_with_xlen");
 
-    let air = Rv32TraceAir::new_with_xlen(/*machine_xlen=*/ 64);
+    let air = RiscvTraceAir::new_with_xlen(/*machine_xlen=*/ 64);
     let wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
     air.assert_satisfied(&wit)
         .expect("rv64 Mulw decomposed rows must satisfy AIR under machine_xlen=64");
@@ -138,7 +138,7 @@ fn rv32_trace_air_rejects_halted_tail_reactivation() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 16).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 4).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     // Force halted=1 from row 0 onward, while keeping row 1 active=1 in the witness.
@@ -179,7 +179,7 @@ fn rv32_trace_air_rejects_non_boolean_active() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 16).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 4).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
     wit.cols[air.layout.active][0] = F::from_u64(2);
 
@@ -212,7 +212,7 @@ fn rv32_trace_air_rejects_virtual_pc_advance() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 16).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 4).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
     wit.cols[air.layout.is_virtual][0] = F::ONE;
 
@@ -251,7 +251,7 @@ fn rv32_trace_air_rejects_virtual_sequence_remaining_countdown_break() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     // Break the countdown invariant on the first virtual row:
@@ -290,7 +290,7 @@ fn rv32_trace_air_rejects_virtual_commit_value_mismatch() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     // Row 6 is the last virtual write in MULH decomposition and row 7 is the non-virtual commit.
@@ -325,7 +325,7 @@ fn rv32_trace_air_rejects_nonzero_rd_lane_when_rd_has_write_is_zero() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 16).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 4).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     // HALT row has no write event, so rd lane must remain zero.
@@ -366,7 +366,7 @@ fn rv32_trace_air_rejects_virtual_row_marked_halted() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     let virtual_row = (0..wit.t)
@@ -406,7 +406,7 @@ fn rv32_trace_air_rejects_nonzero_shout_table_id_without_lookup() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     let virtual_row = (0..wit.t)
@@ -456,7 +456,7 @@ fn rv32_trace_air_rejects_virtual_instr_word_drift() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     let virtual_row = (0..wit.t.saturating_sub(1))
@@ -501,7 +501,7 @@ fn rv32_trace_air_rejects_virtual_transition_without_last_virtual_write() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     let transition_row = (0..wit.t)
@@ -547,7 +547,7 @@ fn rv32_trace_air_rejects_virtual_commit_from_prev_linkage_break() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     let commit_row = (1..wit.t)
@@ -590,7 +590,7 @@ fn rv32_trace_air_rejects_virtual_op_shape_mismatch() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 8).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     // First virtual MULH row is MOVSIGN(src=rs1). Tamper rs1_addr so op-shape check fails.
@@ -631,7 +631,7 @@ fn rv32_trace_air_rejects_virtual_assert_predicate_break() {
     let trace = trace_program(cpu, twist, shout, /*max_steps=*/ 64).expect("trace_program");
     let exec = Rv32ExecTable::from_trace_padded_pow2(&trace, /*min_len=*/ 16).expect("from_trace_padded_pow2");
 
-    let air = Rv32TraceAir::new();
+    let air = RiscvTraceAir::new();
     let mut wit = Rv32TraceWitness::from_exec_table(&air.layout, &exec).expect("trace witness");
 
     // DIVU remaining=6 row is AssertMulUNoOverflow(v_q, rs2). Break overflow predicate.

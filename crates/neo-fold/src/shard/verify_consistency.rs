@@ -323,7 +323,7 @@ pub(crate) fn validate_step_time_openings_consistency(
 
     if let Some(wb_me) = step_proof.mem.wb_me_claims.first() {
         let trace = neo_memory::riscv::trace::Rv32TraceLayout::new();
-        let wb_cols = crate::memory_sidecar::memory::rv32_trace_wb_columns(&trace);
+        let wb_cols = crate::memory_sidecar::memory::riscv_trace_wb_columns(&trace);
         let opening_entry = crate::memory_sidecar::memory::require_time_opening_entry_for_point(
             openings,
             wb_me.r.as_slice(),
@@ -342,14 +342,12 @@ pub(crate) fn validate_step_time_openings_consistency(
         let trace = neo_memory::riscv::trace::Rv32TraceLayout::new();
         let rv64_exact_words =
             crate::memory_sidecar::memory::trace_uses_rv64_exact_words(step.time_columns.cpu_cols.len());
-        let mut wp_cols = crate::memory_sidecar::memory::rv32_trace_wp_opening_columns(&trace);
+        let mut wp_cols = crate::memory_sidecar::memory::riscv_trace_wp_opening_columns(&trace);
         if rv64_exact_words {
             wp_cols.extend(crate::memory_sidecar::memory::rv64_trace_exact_word_opening_columns());
         }
         if crate::memory_sidecar::memory::control_stage_required_for_step_instance(step) {
-            wp_cols.extend(crate::memory_sidecar::memory::rv32_trace_control_extra_opening_columns(
-                &trace,
-            ));
+            wp_cols.extend(crate::memory_sidecar::memory::riscv_trace_control_extra_opening_columns(&trace));
         }
         if crate::memory_sidecar::memory::rv64_fullword_width_stage_required_from_proof(step, &step_proof.batched_time)
         {

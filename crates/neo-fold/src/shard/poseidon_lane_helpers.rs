@@ -2,7 +2,7 @@ use super::*;
 
 pub(crate) struct PoseidonProverSetup {
     pub cycle_enabled: bool,
-    pub sidecar: Option<neo_memory::riscv::exec_table::Rv32PoseidonSidecarTable>,
+    pub sidecar: Option<neo_memory::riscv::exec_table::RiscvPoseidonSidecarTable>,
     pub cycle_wit: Option<Mat<F>>,
     pub cycle_open_spec: Option<(usize, usize, Vec<usize>)>,
     pub local_wit_full: Option<Mat<F>>,
@@ -361,7 +361,7 @@ pub(crate) fn build_poseidon_cycle_time_claims(
     r_cycle: &[K],
     ell_n: usize,
     poseidon_cycle_enabled: bool,
-    poseidon_sidecar: Option<&neo_memory::riscv::exec_table::Rv32PoseidonSidecarTable>,
+    poseidon_sidecar: Option<&neo_memory::riscv::exec_table::RiscvPoseidonSidecarTable>,
     poseidon_cycle_wit: Option<&Mat<F>>,
     poseidon_cycle_open_spec: Option<&(usize, usize, Vec<usize>)>,
     poseidon_link_chals: Option<&crate::memory_sidecar::memory::PoseidonLinkChallenges>,

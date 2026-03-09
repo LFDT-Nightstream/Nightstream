@@ -1713,7 +1713,6 @@ pub(crate) fn build_route_a_decode_time_claims(
         .ok_or_else(|| PiCcsError::InvalidInput("W2: 2^ell_n overflow".into()))?;
     let active_zero = SparseIdxVec::from_entries(pow2_cycle, Vec::new());
     let fields_weights = w2_decode_pack_weight_vector(r_cycle, W2_FIELDS_RESIDUAL_COUNT);
-    let mut alu_branch_residuals_scratch = Vec::with_capacity(W2_FIELDS_RESIDUAL_COUNT);
     let eval_fields_openings = move |vals: &[K]| {
         let mut cursor = ValueCursor::new(vals);
         let mut decode_inputs = W2DecodeFieldsOpenings {
@@ -1780,13 +1779,9 @@ pub(crate) fn build_route_a_decode_time_claims(
         }
         decode_inputs
     };
-    let mut eval_fields = move |vals: &[K]| {
+    let eval_fields = move |vals: &[K]| {
         let decode_inputs = eval_fields_openings(vals);
-        w2_decode_fields_weighted_residual_with_scratch(
-            &decode_inputs,
-            &fields_weights,
-            &mut alu_branch_residuals_scratch,
-        )
+        w2_decode_fields_weighted_residual_with_scratch(&decode_inputs, &fields_weights)
     };
     let pair_domain = pow2_cycle >> 1;
     let mut pair_vals0 = vec![K::ZERO; fields_sparse_cols.len()];

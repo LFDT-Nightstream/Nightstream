@@ -192,15 +192,13 @@ pub(crate) struct W2DecodeFieldsOpenings {
 
 #[inline]
 pub(crate) fn w2_decode_fields_weighted_residual(openings: &W2DecodeFieldsOpenings, fields_weights: &[K]) -> K {
-    let mut alu_branch_residuals = Vec::with_capacity(W2_ALU_BRANCH_RESIDUAL_COUNT);
-    w2_decode_fields_weighted_residual_with_scratch(openings, fields_weights, &mut alu_branch_residuals)
+    w2_decode_fields_weighted_residual_with_scratch(openings, fields_weights)
 }
 
 #[inline]
 pub(crate) fn w2_decode_fields_weighted_residual_with_scratch(
     openings: &W2DecodeFieldsOpenings,
     fields_weights: &[K],
-    alu_branch_residuals: &mut Vec<K>,
 ) -> K {
     debug_assert_eq!(
         fields_weights.len(),
@@ -234,7 +232,18 @@ pub(crate) fn w2_decode_fields_weighted_residual_with_scratch(
         openings.opcode_flags[11],
     );
     let bitness_residuals = w2_decode_bitness_residuals(openings.opcode_flags, openings.funct3_is);
-    w2_alu_branch_lookup_residuals_into(
+    let mut weighted = K::ZERO;
+    let mut w_idx = 0usize;
+    for r in selector_residuals {
+        weighted += fields_weights[w_idx] * r;
+        w_idx += 1;
+    }
+    for r in bitness_residuals {
+        weighted += fields_weights[w_idx] * r;
+        w_idx += 1;
+    }
+    let mut alu_branch_sink = WeightedResidualSink::new(&fields_weights[w_idx..]);
+    w2_alu_branch_lookup_residuals_sink(
         openings.rv64_exact_words,
         openings.active,
         openings.is_virtual,
@@ -282,33 +291,10 @@ pub(crate) fn w2_decode_fields_weighted_residual_with_scratch(
         openings.decode_rs2_addr,
         openings.imm_i,
         openings.imm_s,
-        alu_branch_residuals,
+        &mut alu_branch_sink,
     );
-    debug_assert!(
-        alu_branch_residuals.len() <= W2_ALU_BRANCH_RESIDUAL_COUNT,
-        "decode/fields alu_branch residual count overflow: expected <= {}, got {}",
-        W2_ALU_BRANCH_RESIDUAL_COUNT,
-        alu_branch_residuals.len()
-    );
-
-    let mut weighted = K::ZERO;
-    let mut w_idx = 0usize;
-    for r in selector_residuals {
-        weighted += fields_weights[w_idx] * r;
-        w_idx += 1;
-    }
-    for r in bitness_residuals {
-        weighted += fields_weights[w_idx] * r;
-        w_idx += 1;
-    }
-    let alu_branch_len = alu_branch_residuals.len();
-    for &r in alu_branch_residuals.iter() {
-        weighted += fields_weights[w_idx] * r;
-        w_idx += 1;
-    }
-    if w_idx < fields_weights.len() {
-        w_idx += W2_ALU_BRANCH_RESIDUAL_COUNT.saturating_sub(alu_branch_len);
-    }
+    weighted += alu_branch_sink.finish();
+    w_idx += alu_branch_sink.len();
     debug_assert_eq!(
         w_idx,
         fields_weights.len(),
@@ -317,6 +303,71 @@ pub(crate) fn w2_decode_fields_weighted_residual_with_scratch(
         fields_weights.len()
     );
     weighted
+}
+
+trait W2ResidualSink {
+    fn push(&mut self, value: K);
+    fn len(&self) -> usize;
+}
+
+impl W2ResidualSink for Vec<K> {
+    #[inline]
+    fn push(&mut self, value: K) {
+        Vec::push(self, value);
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        Vec::len(self)
+    }
+}
+
+struct WeightedResidualSink<'a> {
+    weights: &'a [K],
+    len: usize,
+    weighted: K,
+}
+
+impl<'a> WeightedResidualSink<'a> {
+    #[inline]
+    fn new(weights: &'a [K]) -> Self {
+        Self {
+            weights,
+            len: 0,
+            weighted: K::ZERO,
+        }
+    }
+
+    #[inline]
+    fn finish(&self) -> K {
+        debug_assert_eq!(
+            self.len,
+            self.weights.len(),
+            "decode/fields weighted alu_branch packing mismatch: consumed {}, weights {}",
+            self.len,
+            self.weights.len()
+        );
+        self.weighted
+    }
+}
+
+impl W2ResidualSink for WeightedResidualSink<'_> {
+    #[inline]
+    fn push(&mut self, value: K) {
+        debug_assert!(
+            self.len < self.weights.len(),
+            "decode/fields weighted alu_branch residual count overflow: expected <= {}, got {}",
+            self.weights.len(),
+            self.len + 1
+        );
+        self.weighted += self.weights[self.len] * value;
+        self.len += 1;
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.len
+    }
 }
 
 const W2_STAGE_GATE_TABLE_CAP: usize = 21; // supports max_remaining up to 19 (plus sentinel)
@@ -358,7 +409,7 @@ struct VirtualStageRow {
 }
 
 #[inline]
-fn push_virtual_stage_row(residuals: &mut Vec<K>, gate: K, row: VirtualStageRow) {
+fn push_virtual_stage_row<S: W2ResidualSink>(residuals: &mut S, gate: K, row: VirtualStageRow) {
     residuals.push(gate * row.rs1);
     residuals.push(gate * row.rs2);
     residuals.push(gate * row.rd_has_write);
@@ -389,7 +440,7 @@ struct VirtualStageSparseRow {
 }
 
 #[inline]
-fn push_virtual_stage_sparse_row(residuals: &mut Vec<K>, gate: K, row: VirtualStageSparseRow) {
+fn push_virtual_stage_sparse_row<S: W2ResidualSink>(residuals: &mut S, gate: K, row: VirtualStageSparseRow) {
     residuals.push(gate * row.rs1);
     residuals.push(gate * row.rs2);
     residuals.push(gate * row.rd_has_write);
@@ -569,6 +620,113 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
     imm_i: K,
     imm_s: K,
     residuals: &mut Vec<K>,
+) {
+    residuals.clear();
+    if residuals.capacity() < W2_ALU_BRANCH_RESIDUAL_COUNT {
+        residuals.reserve(W2_ALU_BRANCH_RESIDUAL_COUNT - residuals.capacity());
+    }
+    w2_alu_branch_lookup_residuals_sink(
+        rv64_exact_words,
+        active,
+        is_virtual,
+        virtual_sequence_remaining,
+        virtual_commit_from_prev,
+        halted,
+        shout_has_lookup,
+        shout_lhs,
+        shout_rhs,
+        shout_add_sub_key,
+        shout_table_id,
+        decode_opcode,
+        trace_rs1_addr,
+        trace_rs2_addr,
+        trace_rd_addr,
+        decode_rs1_addr,
+        decode_rs2_addr,
+        decode_rd_addr,
+        rs1_val,
+        rs2_val,
+        rs1_word,
+        rs2_word,
+        shout_lhs_word,
+        shout_lhs_hi,
+        shout_rhs_word,
+        shout_rhs_hi,
+        shout_add_sub_key_word,
+        shout_add_sub_key_hi,
+        trace_rd_has_write,
+        decode_rd_has_write,
+        rd_is_zero,
+        rd_val,
+        ram_has_read,
+        ram_has_write,
+        ram_addr,
+        shout_val,
+        funct3_bits,
+        funct7_bits,
+        opcode_flags,
+        op_write_flags,
+        funct3_is,
+        alu_reg_table_delta,
+        alu_imm_table_delta,
+        alu_imm_shift_rhs_delta,
+        rs2_decode_addr,
+        imm_i,
+        imm_s,
+        residuals,
+    );
+}
+
+#[inline]
+fn w2_alu_branch_lookup_residuals_sink<S: W2ResidualSink>(
+    rv64_exact_words: bool,
+    active: K,
+    is_virtual: K,
+    virtual_sequence_remaining: K,
+    virtual_commit_from_prev: K,
+    halted: K,
+    shout_has_lookup: K,
+    shout_lhs: K,
+    shout_rhs: K,
+    shout_add_sub_key: K,
+    shout_table_id: K,
+    decode_opcode: K,
+    trace_rs1_addr: K,
+    trace_rs2_addr: K,
+    trace_rd_addr: K,
+    decode_rs1_addr: K,
+    decode_rs2_addr: K,
+    decode_rd_addr: K,
+    rs1_val: K,
+    rs2_val: K,
+    rs1_word: K,
+    rs2_word: K,
+    shout_lhs_word: K,
+    shout_lhs_hi: K,
+    shout_rhs_word: K,
+    shout_rhs_hi: K,
+    shout_add_sub_key_word: K,
+    shout_add_sub_key_hi: K,
+    trace_rd_has_write: K,
+    decode_rd_has_write: K,
+    rd_is_zero: K,
+    rd_val: K,
+    ram_has_read: K,
+    ram_has_write: K,
+    ram_addr: K,
+    shout_val: K,
+    funct3_bits: [K; 3],
+    funct7_bits: [K; 7],
+    opcode_flags: [K; 12],
+    op_write_flags: [K; 6],
+    funct3_is: [K; 8],
+    alu_reg_table_delta: K,
+    alu_imm_table_delta: K,
+    alu_imm_shift_rhs_delta: K,
+    rs2_decode_addr: K,
+    imm_i: K,
+    imm_s: K,
+    residuals: &mut S,
 ) {
     let op_lui = opcode_flags[0];
     let op_auipc = opcode_flags[1];
@@ -772,10 +930,6 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
         op_store * (ram_addr - shout_val),
     ];
     let non_virtual = K::ONE - is_virtual;
-    residuals.clear();
-    if residuals.capacity() < W2_ALU_BRANCH_RESIDUAL_COUNT {
-        residuals.reserve(W2_ALU_BRANCH_RESIDUAL_COUNT - residuals.capacity());
-    }
     for r in raw {
         residuals.push(non_virtual * r);
     }
@@ -860,15 +1014,13 @@ pub(crate) fn w2_alu_branch_lookup_residuals_into(
 
     let add_stage_key = if rv64_exact_words {
         add_sub_combined_key_mode
-            * (add_key_delta_lo * (add_key_delta_lo - two_pow_32)
-                + add_key_delta_hi * (add_key_delta_hi - two_pow_32))
+            * (add_key_delta_lo * (add_key_delta_lo - two_pow_32) + add_key_delta_hi * (add_key_delta_hi - two_pow_32))
     } else {
         add_sub_combined_key_mode * add_key_delta * (add_key_delta - two_pow_32)
     };
     let sub_stage_key = if rv64_exact_words {
         add_sub_combined_key_mode
-            * (sub_key_delta_lo * (sub_key_delta_lo + two_pow_32)
-                + sub_key_delta_hi * (sub_key_delta_hi + two_pow_32))
+            * (sub_key_delta_lo * (sub_key_delta_lo + two_pow_32) + sub_key_delta_hi * (sub_key_delta_hi + two_pow_32))
     } else {
         add_sub_combined_key_mode * sub_key_delta * (sub_key_delta + two_pow_32)
     };

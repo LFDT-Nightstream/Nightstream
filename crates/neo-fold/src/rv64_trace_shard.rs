@@ -955,6 +955,10 @@ impl Rv64TraceWiringRun {
         &self.memory_layout
     }
 
+    pub fn steps_public(&self) -> Vec<neo_memory::witness::StepInstanceBundle<neo_ajtai::Commitment, F, neo_math::K>> {
+        self.session.steps_public()
+    }
+
     pub fn verify_proof(&self, proof: &ShardProof) -> Result<(), PiCcsError> {
         self.validate_proof_metadata(proof)?;
         let ok = match &self.output_binding_cfg {

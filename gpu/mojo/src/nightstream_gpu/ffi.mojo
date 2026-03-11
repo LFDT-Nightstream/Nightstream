@@ -1,4 +1,5 @@
 from memory import UnsafePointer
+from sys import has_accelerator
 from nightstream_gpu import field, poseidon, ring, sumcheck, superneo
 
 
@@ -11,16 +12,21 @@ alias STATUS_UNAVAILABLE = -1
 alias SESSION_HANDLE_MAGIC = UInt(0x4E53000000000000)
 
 
-fn device_api_available(api: UInt32) -> Bool:
-    if api == UInt32(DEVICE_API_CPU):
+fn request_word(req_addr: UInt) -> UInt64:
+    var req_words = UnsafePointer[UInt64](unchecked_downcast_value=Int(req_addr))
+    return req_words[0]
+
+
+fn accelerator_requested(req_word: UInt64) -> Bool:
+    return req_word != UInt64(0)
+
+
+fn device_api_available(req_word: UInt64) -> Bool:
+    if not accelerator_requested(req_word):
         return True
-    if api == UInt32(DEVICE_API_METAL):
-        return True
-    if api == UInt32(DEVICE_API_CUDA):
-        return True
-    if api == UInt32(DEVICE_API_HIP):
-        return True
-    return False
+
+    @parameter
+    return has_accelerator()
 
 
 fn unpack_api(req_word: UInt64) -> UInt32:
@@ -46,8 +52,7 @@ fn device_probe(
     req_addr: UInt,
     out_words: UnsafePointer[mut=True, UInt64],
 ) -> Int32:
-    var req_words = UnsafePointer[UInt64](unchecked_downcast_value=Int(req_addr))
-    var available = device_api_available(unpack_api(req_words[0]))
+    var available = device_api_available(request_word(req_addr))
     out_words[0] = pack_probe_response(Int32(STATUS_OK), available)
     return STATUS_OK
 
@@ -56,13 +61,15 @@ fn session_open(
     req_addr: UInt,
     handle_ptr: UnsafePointer[mut=True, UInt64],
 ) -> Int32:
-    var req_words = UnsafePointer[UInt64](unchecked_downcast_value=Int(req_addr))
-    var req_word = req_words[0]
+    var req_word = request_word(req_addr)
     var api = unpack_api(req_word)
     var device_id = unpack_device_id(req_word)
-    if not device_api_available(api):
+    if not device_api_available(req_word):
         handle_ptr[0] = 0
         return STATUS_UNAVAILABLE
+
+    if accelerator_requested(req_word) and api == UInt32(DEVICE_API_CPU):
+        api = UInt32(DEVICE_API_CUDA)
 
     handle_ptr[0] = (
         UInt64(SESSION_HANDLE_MAGIC)

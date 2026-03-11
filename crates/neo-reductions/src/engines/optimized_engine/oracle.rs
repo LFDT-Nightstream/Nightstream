@@ -11,6 +11,7 @@
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
+use neo_gpu::FlatK;
 use neo_math::{Fq, KExtensions, D, K};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -66,6 +67,43 @@ where
     F: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<F>,
 {
+    pub(crate) fn nc_col_snapshot(&self) -> NcColSnapshot {
+        let num_tables = self.digits_tables.len() as u64;
+        let table_len = self.cur_len as u64;
+        let d_width = D as u64;
+        let mut digits_tables_flat = Vec::new();
+        for table in &self.digits_tables {
+            for entry in table {
+                digits_tables_flat.extend_from_slice(entry);
+            }
+        }
+        let weights_tables = self.weights.len() as u64;
+        let weights_width = D as u64;
+        let mut weights_flat = Vec::new();
+        for entry in &self.weights {
+            weights_flat.extend_from_slice(entry);
+        }
+
+        NcColSnapshot {
+            b: self.params.b as u64,
+            d_sc: self.d_sc as u64,
+            cur_len: self.cur_len as u64,
+            eq_beta_m_tbl: self.eq_beta_m_tbl.clone(),
+            num_tables,
+            table_len,
+            d_width,
+            digits_tables_flat,
+            weights_tables,
+            weights_width,
+            weights_flat,
+            range_t_sq: self.range_t_sq.clone(),
+        }
+    }
+
+    pub(crate) fn nc_col_snapshot_bytes(&self) -> Vec<u8> {
+        self.nc_col_snapshot().to_bytes()
+    }
+
     pub fn new(
         s: &'a CcsStructure<F>,
         params: &'a neo_params::NeoParams,
@@ -720,6 +758,145 @@ struct CompiledPolyTerm {
     vars: Vec<(usize, u32)>,
 }
 
+const SPLIT_NC_SNAPSHOT_MAGIC: u64 = 0x4E53504C49544E43;
+const SPLIT_NC_SNAPSHOT_VERSION: u64 = 1;
+const SPLIT_NC_FE_ROW_V1: u64 = 1;
+const SPLIT_NC_NC_COL_V1: u64 = 2;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FeRowSnapshotTerm {
+    pub coeff: K,
+    pub vars: Vec<(u64, u64)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FeRowSnapshot {
+    pub b: u64,
+    pub d_sc: u64,
+    pub cur_len: u64,
+    pub eq_beta_r_tbl: Vec<K>,
+    pub eq_r_inputs_tbl: Vec<K>,
+    pub gamma_pow_mcs: Vec<K>,
+    pub f_terms: Vec<FeRowSnapshotTerm>,
+    pub num_mcs: u64,
+    pub num_vars: u64,
+    pub table_len: u64,
+    pub f_var_tables_flat: Vec<K>,
+    pub eval_tbl: Vec<K>,
+    pub gamma_to_k: K,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NcColSnapshot {
+    pub b: u64,
+    pub d_sc: u64,
+    pub cur_len: u64,
+    pub eq_beta_m_tbl: Vec<K>,
+    pub num_tables: u64,
+    pub table_len: u64,
+    pub d_width: u64,
+    pub digits_tables_flat: Vec<K>,
+    pub weights_tables: u64,
+    pub weights_width: u64,
+    pub weights_flat: Vec<K>,
+    pub range_t_sq: Vec<K>,
+}
+
+#[inline]
+fn flat_k(x: K) -> FlatK {
+    let (re, im) = x.to_limbs_u64();
+    FlatK { re, im }
+}
+
+#[inline]
+fn push_u64_le(out: &mut Vec<u8>, value: u64) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+#[inline]
+fn push_flat_k_le(out: &mut Vec<u8>, value: K) {
+    let flat = flat_k(value);
+    push_u64_le(out, flat.re);
+    push_u64_le(out, flat.im);
+}
+
+impl FeRowSnapshot {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        push_u64_le(&mut out, SPLIT_NC_SNAPSHOT_MAGIC);
+        push_u64_le(&mut out, SPLIT_NC_SNAPSHOT_VERSION);
+        push_u64_le(&mut out, SPLIT_NC_FE_ROW_V1);
+        push_u64_le(&mut out, self.b);
+        push_u64_le(&mut out, self.d_sc);
+        push_u64_le(&mut out, self.cur_len);
+        push_u64_le(&mut out, self.eq_beta_r_tbl.len() as u64);
+        push_u64_le(&mut out, self.eq_r_inputs_tbl.len() as u64);
+        push_u64_le(&mut out, self.gamma_pow_mcs.len() as u64);
+        push_u64_le(&mut out, self.f_terms.len() as u64);
+        push_u64_le(&mut out, self.num_mcs);
+        push_u64_le(&mut out, self.num_vars);
+        push_u64_le(&mut out, self.table_len);
+        push_u64_le(&mut out, self.eval_tbl.len() as u64);
+        push_flat_k_le(&mut out, self.gamma_to_k);
+        for &value in &self.eq_beta_r_tbl {
+            push_flat_k_le(&mut out, value);
+        }
+        for &value in &self.eq_r_inputs_tbl {
+            push_flat_k_le(&mut out, value);
+        }
+        for &value in &self.gamma_pow_mcs {
+            push_flat_k_le(&mut out, value);
+        }
+        for term in &self.f_terms {
+            push_flat_k_le(&mut out, term.coeff);
+            push_u64_le(&mut out, term.vars.len() as u64);
+            for &(var_pos, exp) in &term.vars {
+                push_u64_le(&mut out, var_pos);
+                push_u64_le(&mut out, exp);
+            }
+        }
+        for &value in &self.f_var_tables_flat {
+            push_flat_k_le(&mut out, value);
+        }
+        for &value in &self.eval_tbl {
+            push_flat_k_le(&mut out, value);
+        }
+        out
+    }
+}
+
+impl NcColSnapshot {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        push_u64_le(&mut out, SPLIT_NC_SNAPSHOT_MAGIC);
+        push_u64_le(&mut out, SPLIT_NC_SNAPSHOT_VERSION);
+        push_u64_le(&mut out, SPLIT_NC_NC_COL_V1);
+        push_u64_le(&mut out, self.b);
+        push_u64_le(&mut out, self.d_sc);
+        push_u64_le(&mut out, self.cur_len);
+        push_u64_le(&mut out, self.eq_beta_m_tbl.len() as u64);
+        push_u64_le(&mut out, self.num_tables);
+        push_u64_le(&mut out, self.table_len);
+        push_u64_le(&mut out, self.d_width);
+        push_u64_le(&mut out, self.weights_tables);
+        push_u64_le(&mut out, self.weights_width);
+        push_u64_le(&mut out, self.range_t_sq.len() as u64);
+        for &value in &self.eq_beta_m_tbl {
+            push_flat_k_le(&mut out, value);
+        }
+        for &value in &self.digits_tables_flat {
+            push_flat_k_le(&mut out, value);
+        }
+        for &value in &self.weights_flat {
+            push_flat_k_le(&mut out, value);
+        }
+        for &value in &self.range_t_sq {
+            push_flat_k_le(&mut out, value);
+        }
+        out
+    }
+}
+
 /// Row-phase streaming state (over the row/time hypercube).
 ///
 /// This replaces the old `evals_row_phase` strategy of enumerating row tails and repeatedly
@@ -766,6 +943,50 @@ struct RowStreamState {
 }
 
 impl RowStreamState {
+    fn snapshot(&self, d_sc: usize) -> FeRowSnapshot {
+        let mut f_terms = Vec::with_capacity(self.f_terms.len());
+        for term in &self.f_terms {
+            f_terms.push(FeRowSnapshotTerm {
+                coeff: term.coeff,
+                vars: term
+                    .vars
+                    .iter()
+                    .map(|&(var_pos, exp)| (var_pos as u64, exp as u64))
+                    .collect(),
+            });
+        }
+
+        let num_mcs = self.f_var_tables_by_mcs.len() as u64;
+        let num_vars = self
+            .f_var_tables_by_mcs
+            .first()
+            .map(|tables| tables.len())
+            .unwrap_or(0) as u64;
+        let table_len = self.cur_len as u64;
+        let mut f_var_tables_flat = Vec::new();
+        for per_mcs in &self.f_var_tables_by_mcs {
+            for table in per_mcs {
+                f_var_tables_flat.extend_from_slice(table);
+            }
+        }
+
+        FeRowSnapshot {
+            b: self.b as u64,
+            d_sc: d_sc as u64,
+            cur_len: self.cur_len as u64,
+            eq_beta_r_tbl: self.eq_beta_r_tbl.clone(),
+            eq_r_inputs_tbl: self.eq_r_inputs_tbl.clone().unwrap_or_default(),
+            gamma_pow_mcs: self.gamma_pow_mcs.clone(),
+            f_terms,
+            num_mcs,
+            num_vars,
+            table_len,
+            f_var_tables_flat,
+            eval_tbl: self.eval_tbl.clone().unwrap_or_default(),
+            gamma_to_k: self.gamma_to_k,
+        }
+    }
+
     fn build<Ff>(
         s: &CcsStructure<Ff>,
         b: u32,
@@ -1863,6 +2084,14 @@ where
     F: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<F>,
 {
+    pub(crate) fn fe_row_snapshot(&self) -> FeRowSnapshot {
+        self.row_stream.snapshot(self.d_sc)
+    }
+
+    pub(crate) fn fe_row_snapshot_bytes(&self) -> Vec<u8> {
+        self.fe_row_snapshot().to_bytes()
+    }
+
     /// Construct with an explicit SuperNeo cache selection.
     ///
     /// `superneo_cache` must be present; optimized oracle now has a single canonical

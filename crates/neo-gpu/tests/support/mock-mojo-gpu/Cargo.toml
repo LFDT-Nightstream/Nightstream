@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 neo-ccs = { path = "../../../../../crates/neo-ccs" }
+neo-math = { path = "../../../../../crates/neo-math" }
 p3-field = "0.4.1"
 p3-goldilocks = "0.4.1"
 p3-symmetric = "0.4.1"

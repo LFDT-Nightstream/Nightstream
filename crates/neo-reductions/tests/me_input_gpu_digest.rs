@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use libloading::Library;
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
-use neo_gpu::{MojoBackendConfig, ProverComputeBackend};
+use neo_gpu::{DeviceApi, MojoBackendConfig, ProverComputeBackend};
 use neo_math::{D, F, K};
 use neo_reductions::engines::utils::{bind_me_inputs, bind_me_inputs_with_backend};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -112,12 +112,16 @@ fn sample_me_claim(idx: usize) -> CeClaim<Commitment, F, K> {
     }
 }
 
+fn sample_me_claims(len: usize) -> Vec<CeClaim<Commitment, F, K>> {
+    (0..len).map(sample_me_claim).collect()
+}
+
 #[test]
 fn bind_me_inputs_mojo_backend_matches_cpu_and_uses_batch_poseidon() {
     type ResetFn = unsafe extern "C" fn();
     type CounterFn = unsafe extern "C" fn() -> usize;
 
-    let me_inputs = (0..6).map(sample_me_claim).collect::<Vec<_>>();
+    let me_inputs = sample_me_claims(6);
     let mut cpu_tr = Poseidon2Transcript::new(b"neo.reductions/me_input_gpu_digest");
     let mut mojo_tr = Poseidon2Transcript::new(b"neo.reductions/me_input_gpu_digest");
 
@@ -135,13 +139,80 @@ fn bind_me_inputs_mojo_backend_matches_cpu_and_uses_batch_poseidon() {
     };
     unsafe { reset() };
 
-    let backend = ProverComputeBackend::Mojo(MojoBackendConfig::auto().with_library_path(mock_library));
+    let backend = ProverComputeBackend::Mojo(MojoBackendConfig::new(DeviceApi::Cuda).with_library_path(mock_library));
     bind_me_inputs_with_backend(&mut mojo_tr, &me_inputs, &backend).expect("mojo bind_me_inputs");
 
     assert_eq!(cpu_tr.digest32(), mojo_tr.digest32());
     assert!(
         unsafe { batch_calls() } > 0,
         "expected mock mojo backend to use the batched Poseidon2 symbol"
+    );
+}
+
+#[test]
+fn bind_me_inputs_mojo_metal_backend_skips_small_batches() {
+    type ResetFn = unsafe extern "C" fn();
+    type CounterFn = unsafe extern "C" fn() -> usize;
+
+    let me_inputs = sample_me_claims(1);
+    let mut cpu_tr = Poseidon2Transcript::new(b"neo.reductions/me_input_gpu_digest_small_metal");
+    let mut mojo_tr = Poseidon2Transcript::new(b"neo.reductions/me_input_gpu_digest_small_metal");
+
+    bind_me_inputs(&mut cpu_tr, &me_inputs).expect("cpu bind_me_inputs");
+
+    let mock_library = build_mock_library();
+    let lib = unsafe { Library::new(mock_library) }.expect("load mock mojo gpu library");
+    let reset = unsafe {
+        *lib.get::<ResetFn>(b"nightstream_gpu_test_reset_counters\0")
+            .expect("load counter reset symbol")
+    };
+    let batch_calls = unsafe {
+        *lib.get::<CounterFn>(b"nightstream_gpu_test_poseidon2_batch_calls\0")
+            .expect("load batch counter symbol")
+    };
+    unsafe { reset() };
+
+    let backend = ProverComputeBackend::Mojo(MojoBackendConfig::new(DeviceApi::Metal).with_library_path(mock_library));
+    bind_me_inputs_with_backend(&mut mojo_tr, &me_inputs, &backend).expect("mojo bind_me_inputs");
+
+    assert_eq!(cpu_tr.digest32(), mojo_tr.digest32());
+    assert_eq!(
+        unsafe { batch_calls() },
+        0,
+        "small Metal batches should stay on CPU until the larger threshold is met"
+    );
+}
+
+#[test]
+fn bind_me_inputs_mojo_metal_backend_uses_batch_poseidon_for_large_batches() {
+    type ResetFn = unsafe extern "C" fn();
+    type CounterFn = unsafe extern "C" fn() -> usize;
+
+    let me_inputs = sample_me_claims(24);
+    let mut cpu_tr = Poseidon2Transcript::new(b"neo.reductions/me_input_gpu_digest_large_metal");
+    let mut mojo_tr = Poseidon2Transcript::new(b"neo.reductions/me_input_gpu_digest_large_metal");
+
+    bind_me_inputs(&mut cpu_tr, &me_inputs).expect("cpu bind_me_inputs");
+
+    let mock_library = build_mock_library();
+    let lib = unsafe { Library::new(mock_library) }.expect("load mock mojo gpu library");
+    let reset = unsafe {
+        *lib.get::<ResetFn>(b"nightstream_gpu_test_reset_counters\0")
+            .expect("load counter reset symbol")
+    };
+    let batch_calls = unsafe {
+        *lib.get::<CounterFn>(b"nightstream_gpu_test_poseidon2_batch_calls\0")
+            .expect("load batch counter symbol")
+    };
+    unsafe { reset() };
+
+    let backend = ProverComputeBackend::Mojo(MojoBackendConfig::new(DeviceApi::Metal).with_library_path(mock_library));
+    bind_me_inputs_with_backend(&mut mojo_tr, &me_inputs, &backend).expect("mojo bind_me_inputs");
+
+    assert_eq!(cpu_tr.digest32(), mojo_tr.digest32());
+    assert!(
+        unsafe { batch_calls() } > 0,
+        "large Metal batches should use the batched Poseidon2 symbol"
     );
 }
 

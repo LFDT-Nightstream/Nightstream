@@ -117,6 +117,63 @@ pub(crate) fn fold_shard_prove_impl<L, MR, MB>(
     ob: Option<(&crate::output_binding::OutputBindingConfig, &[F])>,
     prover_ctx: Option<&ShardProverContext>,
     compute_backend: &ProverComputeBackend,
+    step_prove_ms_out: Option<&mut Vec<f64>>,
+    initial_prev_step: Option<&StepWitnessBundle<Cmt, F, K>>,
+    initial_prev_twist_decoded: Option<Vec<crate::memory_sidecar::memory::TwistDecodedColsSparse>>,
+    initial_poseidon_carry: Option<crate::memory_sidecar::memory::PoseidonSidecarCarryState>,
+) -> Result<
+    (
+        ShardProof,
+        Vec<Mat<F>>,
+        Vec<Mat<F>>,
+        Option<Vec<crate::memory_sidecar::memory::TwistDecodedColsSparse>>,
+        crate::memory_sidecar::memory::PoseidonSidecarCarryState,
+    ),
+    PiCcsError,
+>
+where
+    L: SModuleHomomorphism<F, Cmt> + Sync,
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
+    fold_shard_prove_impl_with_backend_ctx(
+        collect_val_lane_wits,
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        step_idx_offset,
+        acc_init,
+        acc_wit_init,
+        l,
+        mixers,
+        ob,
+        prover_ctx,
+        &backend_ctx,
+        step_prove_ms_out,
+        initial_prev_step,
+        initial_prev_twist_decoded,
+        initial_poseidon_carry,
+    )
+}
+
+pub(crate) fn fold_shard_prove_impl_with_backend_ctx<L, MR, MB>(
+    collect_val_lane_wits: bool,
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepWitnessBundle<Cmt, F, K>],
+    step_idx_offset: usize,
+    acc_init: &[CeClaim<Cmt, F, K>],
+    acc_wit_init: &[Mat<F>],
+    l: &L,
+    mixers: CommitMixers<MR, MB>,
+    ob: Option<(&crate::output_binding::OutputBindingConfig, &[F])>,
+    prover_ctx: Option<&ShardProverContext>,
+    backend_ctx: &neo_reductions::accelerator::BackendContext,
     mut step_prove_ms_out: Option<&mut Vec<f64>>,
     initial_prev_step: Option<&StepWitnessBundle<Cmt, F, K>>,
     initial_prev_twist_decoded: Option<Vec<crate::memory_sidecar::memory::TwistDecodedColsSparse>>,
@@ -203,7 +260,6 @@ where
     let mut poseidon_carry =
         initial_poseidon_carry.unwrap_or_else(crate::memory_sidecar::memory::PoseidonSidecarCarryState::new);
     let mut output_proof: Option<neo_memory::output_check::OutputBindingProof> = None;
-    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
     if ob.is_some() && steps.is_empty() {
         return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
     }
@@ -507,7 +563,7 @@ where
         // CCS oracle (engine-selected).
         //
         // Keep the optimized oracle concrete so we can build outputs from its Ajtai precompute.
-        let mut ccs_oracle: CcsOracleDispatch<'_> = match mode.clone() {
+        let mut ccs_oracle = match mode.clone() {
             FoldingMode::Optimized => {
                 let sparse = ccs_sparse_cache
                     .as_ref()

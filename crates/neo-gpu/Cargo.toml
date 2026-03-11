@@ -11,6 +11,8 @@ workspace = true
 [dependencies]
 thiserror = { workspace = true }
 libloading = "0.8"
+neo-math = { path = "../neo-math" }
+p3-field = { workspace = true }
 
 [dev-dependencies]
 neo-ccs = { path = "../neo-ccs" }

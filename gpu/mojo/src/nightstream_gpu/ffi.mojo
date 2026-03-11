@@ -83,41 +83,63 @@ fn session_close(_session: UInt) -> Int32:
 
 
 fn fe_create(
-    _req_addr: UInt,
-    _out_addr: UInt,
+    session: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    out_handle: UnsafePointer[mut=True, UInt64],
 ) -> Int32:
-    return -1
+    return sumcheck.fe_create(session, snapshot_words, snapshot_len, out_handle)
 
 
 fn fe_destroy(_session: UInt, _evaluator: UInt) -> Int32:
-    return 0
+    return sumcheck.fe_destroy(_session, _evaluator)
 
 
-fn fe_evals_at(_req_addr: UInt) -> Int32:
-    return -1
+fn fe_evals_at(
+    session: UInt64,
+    evaluator: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    points_words: UnsafePointer[mut=True, UInt64],
+    points_len: UInt64,
+    out_ptr: UnsafePointer[mut=True, UInt64],
+    out_len: UInt,
+) -> Int32:
+    return sumcheck.fe_evals_at(session, evaluator, snapshot_words, snapshot_len, points_words, points_len, out_ptr, out_len)
 
 
-fn fe_fold(_req_addr: UInt) -> Int32:
-    return -1
+fn fe_fold(session: UInt, evaluator: UInt, challenge: sumcheck.KVal) -> Int32:
+    return sumcheck.fe_fold(session, evaluator, challenge)
 
 
 fn nc_create(
-    _req_addr: UInt,
-    _out_addr: UInt,
+    session: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    out_handle: UnsafePointer[mut=True, UInt64],
 ) -> Int32:
-    return -1
+    return sumcheck.nc_create(session, snapshot_words, snapshot_len, out_handle)
 
 
 fn nc_destroy(_session: UInt, _evaluator: UInt) -> Int32:
-    return 0
+    return sumcheck.nc_destroy(_session, _evaluator)
 
 
-fn nc_evals_at(_req_addr: UInt) -> Int32:
-    return -1
+fn nc_evals_at(
+    session: UInt64,
+    evaluator: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    points_words: UnsafePointer[mut=True, UInt64],
+    points_len: UInt64,
+    out_ptr: UnsafePointer[mut=True, UInt64],
+    out_len: UInt,
+) -> Int32:
+    return sumcheck.nc_evals_at(session, evaluator, snapshot_words, snapshot_len, points_words, points_len, out_ptr, out_len)
 
 
-fn nc_fold(_req_addr: UInt) -> Int32:
-    return -1
+fn nc_fold(session: UInt, evaluator: UInt, challenge: sumcheck.KVal) -> Int32:
+    return sumcheck.nc_fold(session, evaluator, challenge)
 
 
 fn scaffold_sanity() -> Bool:
@@ -128,6 +150,16 @@ fn scaffold_sanity() -> Bool:
         and sumcheck.scaffold_ready()
         and poseidon.scaffold_ready()
     )
+
+
+fn debug_snapshot_head(
+    session: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    out_words: UnsafePointer[mut=True, UInt64],
+    out_len: UInt32,
+) -> Int32:
+    return sumcheck.debug_snapshot_head(session, snapshot_words, snapshot_len, out_words, out_len)
 
 
 fn poseidon2_permute_u64x8(

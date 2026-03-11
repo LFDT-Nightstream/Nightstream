@@ -1,13 +1,13 @@
 use super::*;
 use p3_field::PrimeField64;
 
-pub(crate) enum CcsOracleDispatch<'a> {
-    Optimized(neo_reductions::accelerator::SplitNcOptimizedOracle<'a, F>),
+pub(crate) enum CcsOracleDispatch<'a, 'ctx> {
+    Optimized(neo_reductions::accelerator::SplitNcOptimizedOracle<'a, 'ctx, F>),
     #[cfg(feature = "paper-exact")]
     PaperExact(neo_reductions::engines::paper_exact_engine::oracle::PaperExactOracle<'a, F>),
 }
 
-impl<'a> RoundOracle for CcsOracleDispatch<'a> {
+impl<'a, 'ctx> RoundOracle for CcsOracleDispatch<'a, 'ctx> {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
         match self {
             Self::Optimized(oracle) => oracle.evals_at(points),

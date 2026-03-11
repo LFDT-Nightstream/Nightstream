@@ -1,4 +1,4 @@
-from nightstream_gpu import ffi
+from nightstream_gpu import ffi, sumcheck
 
 
 @export("nightstream_gpu_abi_version", ABI="C")
@@ -22,8 +22,13 @@ fn nightstream_gpu_session_close(session: UInt) -> Int32:
 
 
 @export("nightstream_gpu_fe_create", ABI="C")
-fn nightstream_gpu_fe_create(req_addr: UInt, out_addr: UInt) -> Int32:
-    return ffi.fe_create(req_addr, out_addr)
+fn nightstream_gpu_fe_create(
+    session: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    out_handle: UnsafePointer[mut=True, UInt64],
+) -> Int32:
+    return ffi.fe_create(session, snapshot_words, snapshot_len, out_handle)
 
 
 @export("nightstream_gpu_fe_destroy", ABI="C")
@@ -32,18 +37,32 @@ fn nightstream_gpu_fe_destroy(session: UInt, evaluator: UInt) -> Int32:
 
 
 @export("nightstream_gpu_fe_evals_at", ABI="C")
-fn nightstream_gpu_fe_evals_at(req_addr: UInt) -> Int32:
-    return ffi.fe_evals_at(req_addr)
+fn nightstream_gpu_fe_evals_at(
+    session: UInt64,
+    evaluator: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    points_words: UnsafePointer[mut=True, UInt64],
+    points_len: UInt64,
+    out_ptr: UnsafePointer[mut=True, UInt64],
+    out_len: UInt,
+) -> Int32:
+    return ffi.fe_evals_at(session, evaluator, snapshot_words, snapshot_len, points_words, points_len, out_ptr, out_len)
 
 
 @export("nightstream_gpu_fe_fold", ABI="C")
-fn nightstream_gpu_fe_fold(req_addr: UInt) -> Int32:
-    return ffi.fe_fold(req_addr)
+fn nightstream_gpu_fe_fold(session: UInt, evaluator: UInt, challenge_re: UInt64, challenge_im: UInt64) -> Int32:
+    return ffi.fe_fold(session, evaluator, sumcheck.KVal(challenge_re, challenge_im))
 
 
 @export("nightstream_gpu_nc_create", ABI="C")
-fn nightstream_gpu_nc_create(req_addr: UInt, out_addr: UInt) -> Int32:
-    return ffi.nc_create(req_addr, out_addr)
+fn nightstream_gpu_nc_create(
+    session: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    out_handle: UnsafePointer[mut=True, UInt64],
+) -> Int32:
+    return ffi.nc_create(session, snapshot_words, snapshot_len, out_handle)
 
 
 @export("nightstream_gpu_nc_destroy", ABI="C")
@@ -52,13 +71,33 @@ fn nightstream_gpu_nc_destroy(session: UInt, evaluator: UInt) -> Int32:
 
 
 @export("nightstream_gpu_nc_evals_at", ABI="C")
-fn nightstream_gpu_nc_evals_at(req_addr: UInt) -> Int32:
-    return ffi.nc_evals_at(req_addr)
+fn nightstream_gpu_nc_evals_at(
+    session: UInt64,
+    evaluator: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    points_words: UnsafePointer[mut=True, UInt64],
+    points_len: UInt64,
+    out_ptr: UnsafePointer[mut=True, UInt64],
+    out_len: UInt,
+) -> Int32:
+    return ffi.nc_evals_at(session, evaluator, snapshot_words, snapshot_len, points_words, points_len, out_ptr, out_len)
 
 
 @export("nightstream_gpu_nc_fold", ABI="C")
-fn nightstream_gpu_nc_fold(req_addr: UInt) -> Int32:
-    return ffi.nc_fold(req_addr)
+fn nightstream_gpu_nc_fold(session: UInt, evaluator: UInt, challenge_re: UInt64, challenge_im: UInt64) -> Int32:
+    return ffi.nc_fold(session, evaluator, sumcheck.KVal(challenge_re, challenge_im))
+
+
+@export("nightstream_gpu_debug_snapshot_head", ABI="C")
+fn nightstream_gpu_debug_snapshot_head(
+    session: UInt64,
+    snapshot_words: UnsafePointer[mut=True, UInt64],
+    snapshot_len: UInt64,
+    out_words: UnsafePointer[mut=True, UInt64],
+    out_len: UInt32,
+) -> Int32:
+    return ffi.debug_snapshot_head(session, snapshot_words, snapshot_len, out_words, out_len)
 
 
 @export("nightstream_gpu_poseidon2_permute_u64x8", ABI="C")

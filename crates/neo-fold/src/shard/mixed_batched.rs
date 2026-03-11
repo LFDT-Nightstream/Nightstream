@@ -183,6 +183,7 @@ where
             acc_wit_init.len()
         )));
     }
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
 
     let mut accumulator = acc_init.to_vec();
     let mut accumulator_wit = acc_wit_init.to_vec();
@@ -217,7 +218,7 @@ where
 
             let batch_size = ccs_only_batch_size_for_mode(&mode, params, accumulator.len(), segment.len());
             let (segment_proof, next_acc, next_wits) =
-                ccs_only_batched::fold_shard_prove_ccs_only_batched_with_outputs_and_offset(
+                ccs_only_batched::fold_shard_prove_ccs_only_batched_with_outputs_and_offset_and_context(
                     mode.clone(),
                     tr,
                     params,
@@ -229,7 +230,7 @@ where
                     mixers,
                     batch_size,
                     segment_step_idx_offset,
-                    compute_backend,
+                    &backend_ctx,
                 )?;
             accumulator = next_acc;
             accumulator_wit = next_wits;
@@ -263,6 +264,7 @@ where
                 segment_ob,
                 prover_ctx,
                 compute_backend,
+                Some(&backend_ctx),
             )?;
         let route_meta_entries = segment_proof.segment_meta.clone().ok_or_else(|| {
             PiCcsError::ProtocolError(
@@ -502,6 +504,7 @@ where
     let mut step_cursor = 0usize;
     let mut proof_cursor = 0usize;
     let mut prev_route_a_step_ctx: Option<&StepInstanceBundle<Cmt, F, K>> = None;
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
     for (meta_idx, meta_entry) in segment_meta.iter().enumerate() {
         if meta_entry.public_steps == 0 || meta_entry.proof_steps == 0 {
             return Err(PiCcsError::InvalidInput(format!(
@@ -591,7 +594,7 @@ where
 
         let segment_outputs = if is_ccs_only {
             let batch_size = ccs_only_batch_size_for_mode(&mode, params, accumulator.len(), segment.len());
-            ccs_only_batched::fold_shard_verify_ccs_only_batched_with_offset(
+            ccs_only_batched::fold_shard_verify_ccs_only_batched_with_offset_and_context(
                 mode.clone(),
                 tr,
                 params,
@@ -602,7 +605,7 @@ where
                 mixers,
                 batch_size,
                 global_step_offset,
-                compute_backend,
+                &backend_ctx,
             )?
         } else {
             fold_shard_verify_route_a_segment(
@@ -618,6 +621,7 @@ where
                 segment_ob_cfg,
                 prover_ctx,
                 compute_backend,
+                Some(&backend_ctx),
                 prev_route_a_step_ctx,
             )?
         };

@@ -1222,6 +1222,7 @@ version = "0.1.0"
 dependencies = [
  "libloading",
  "neo-ccs",
+ "neo-math",
  "p3-field 0.4.1",
  "p3-goldilocks 0.4.1",
  "p3-poseidon2 0.4.1",

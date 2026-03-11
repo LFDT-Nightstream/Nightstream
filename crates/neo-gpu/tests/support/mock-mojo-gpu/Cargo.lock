@@ -86,6 +86,7 @@ name = "mock-mojo-gpu"
 version = "0.1.0"
 dependencies = [
  "neo-ccs",
+ "neo-math",
  "p3-field",
  "p3-goldilocks",
  "p3-symmetric",

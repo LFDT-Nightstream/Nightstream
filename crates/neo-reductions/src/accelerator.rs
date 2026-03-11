@@ -3,8 +3,8 @@ use std::sync::Arc;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
-use neo_gpu::{connect, MojoSession, ProverComputeBackend};
-use neo_math::{F as BaseF, K};
+use neo_gpu::{connect, DeviceApi, FlatK, MojoSession, MojoSplitNcEvaluator, ProverComputeBackend};
+use neo_math::{from_complex, F as BaseF, K, KExtensions};
 use neo_params::NeoParams;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
@@ -12,7 +12,10 @@ use crate::engines::optimized_engine::oracle::{NcOracle, OptimizedOracle, Sparse
 use crate::sumcheck::RoundOracle;
 use crate::PiCcsError;
 
-const POSEIDON2_GPU_MIN_PERMUTATIONS: usize = 32;
+const POSEIDON2_MIN_PERMUTATIONS_CPU_DIRECT: usize = 32;
+const POSEIDON2_MIN_PERMUTATIONS_METAL: usize = 128;
+const POSEIDON2_MIN_PERMUTATIONS_CUDA: usize = 32;
+const POSEIDON2_MIN_PERMUTATIONS_HIP: usize = 32;
 
 pub struct BackendContext {
     session: Option<MojoSession>,
@@ -97,11 +100,38 @@ impl BackendContext {
         }
         Ok(None)
     }
+
+    #[inline]
+    pub fn split_nc_required(&self) -> bool {
+        self.requested_mojo && !self.allow_cpu_fallback
+    }
+
+    #[inline]
+    pub fn poseidon2_min_permutations(&self) -> usize {
+        match self.poseidon_session().map(MojoSession::device_api) {
+            Some(DeviceApi::Metal) => POSEIDON2_MIN_PERMUTATIONS_METAL,
+            Some(DeviceApi::Cuda) => POSEIDON2_MIN_PERMUTATIONS_CUDA,
+            Some(DeviceApi::Hip) => POSEIDON2_MIN_PERMUTATIONS_HIP,
+            Some(DeviceApi::Cpu) => POSEIDON2_MIN_PERMUTATIONS_CPU_DIRECT,
+            Some(DeviceApi::Auto) | None => usize::MAX,
+        }
+    }
 }
 
 #[inline]
 fn add_goldilocks_u64(lhs: u64, rhs: BaseF) -> u64 {
     (BaseF::from_u64(lhs) + rhs).as_canonical_u64()
+}
+
+#[inline]
+fn flat_k_from_ext(x: K) -> FlatK {
+    let (re, im) = x.to_limbs_u64();
+    FlatK { re, im }
+}
+
+#[inline]
+fn ext_k_from_flat(x: FlatK) -> K {
+    from_complex(BaseF::from_u64(x.re), BaseF::from_u64(x.im))
 }
 
 pub fn poseidon2_digest32_many_with_context(
@@ -116,7 +146,7 @@ pub fn poseidon2_digest32_many_with_context(
         .iter()
         .map(|input| input.len().div_ceil(p2::RATE) + 1)
         .sum::<usize>();
-    if total_permutations < POSEIDON2_GPU_MIN_PERMUTATIONS {
+    if total_permutations < backend_ctx.poseidon2_min_permutations() {
         return Ok(None);
     }
 
@@ -179,15 +209,17 @@ pub fn poseidon2_digest32_many_with_context(
     Ok(Some(digests))
 }
 
-pub struct SplitNcOptimizedOracle<'a, Ff>
+pub struct SplitNcOptimizedOracle<'a, 'ctx, Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
     inner: OptimizedOracle<'a, Ff>,
+    fe_evaluator: Option<MojoSplitNcEvaluator<'ctx>>,
+    split_nc_required: bool,
 }
 
-impl<'a, Ff> SplitNcOptimizedOracle<'a, Ff>
+impl<'a, 'ctx, Ff> SplitNcOptimizedOracle<'a, 'ctx, Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
@@ -204,9 +236,8 @@ where
         d_sc: usize,
         r_inputs: Option<&[K]>,
         sparse: Arc<SparseCache<Ff>>,
-        backend_ctx: &BackendContext,
+        backend_ctx: &'ctx BackendContext,
     ) -> Result<Self, PiCcsError> {
-        backend_ctx.split_nc_session()?;
         let inner = OptimizedOracle::new_with_sparse(
             s,
             params,
@@ -219,7 +250,24 @@ where
             r_inputs,
             sparse,
         );
-        Ok(Self { inner })
+        let split_nc_required = backend_ctx.split_nc_required();
+        let fe_evaluator = match backend_ctx.split_nc_session()? {
+            Some(session) => match session.create_fe_evaluator(&inner.fe_row_snapshot_bytes()) {
+                Ok(evaluator) => Some(evaluator),
+                Err(err) if split_nc_required => {
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "failed to initialize Mojo FE evaluator: {err}"
+                    )))
+                }
+                Err(_) => None,
+            },
+            None => None,
+        };
+        Ok(Self {
+            inner,
+            fe_evaluator,
+            split_nc_required,
+        })
     }
 
     pub fn build_me_outputs_from_ajtai_precomp<L>(
@@ -238,12 +286,41 @@ where
     }
 }
 
-impl<'a, Ff> RoundOracle for SplitNcOptimizedOracle<'a, Ff>
+impl<'a, 'ctx, Ff> SplitNcOptimizedOracle<'a, 'ctx, Ff>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    #[inline]
+    fn should_use_gpu(&self) -> bool {
+        self.fe_evaluator.is_some() && self.inner.round_idx < self.inner.ell_n
+    }
+
+    fn drop_fe_evaluator(&mut self, context: &str, err: impl std::fmt::Display) {
+        if self.split_nc_required {
+            panic!("{context}: {err}");
+        }
+        self.fe_evaluator = None;
+    }
+}
+
+impl<'a, 'ctx, Ff> RoundOracle for SplitNcOptimizedOracle<'a, 'ctx, Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.should_use_gpu() {
+            let flat_points = points.iter().copied().map(flat_k_from_ext).collect::<Vec<_>>();
+            let gpu_out = {
+                let evaluator = self.fe_evaluator.as_ref().expect("checked by should_use_gpu");
+                evaluator.evals_at(&flat_points)
+            };
+            match gpu_out {
+                Ok(out) => return out.into_iter().map(ext_k_from_flat).collect(),
+                Err(err) => self.drop_fe_evaluator("Mojo FE evals_at failed", err),
+            }
+        }
         self.inner.evals_at(points)
     }
 
@@ -256,19 +333,34 @@ where
     }
 
     fn fold(&mut self, r: K) {
+        if self.should_use_gpu() {
+            let challenge = flat_k_from_ext(r);
+            let gpu_result = {
+                let evaluator = self.fe_evaluator.as_mut().expect("checked by should_use_gpu");
+                evaluator.fold(challenge)
+            };
+            if let Err(err) = gpu_result {
+                self.drop_fe_evaluator("Mojo FE fold failed", err);
+            }
+        }
         self.inner.fold(r);
+        if self.inner.round_idx >= self.inner.ell_n {
+            self.fe_evaluator = None;
+        }
     }
 }
 
-pub struct SplitNcNcOracle<'a, Ff>
+pub struct SplitNcNcOracle<'a, 'ctx, Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
     inner: NcOracle<'a, Ff>,
+    nc_evaluator: Option<MojoSplitNcEvaluator<'ctx>>,
+    split_nc_required: bool,
 }
 
-impl<'a, Ff> SplitNcNcOracle<'a, Ff>
+impl<'a, 'ctx, Ff> SplitNcNcOracle<'a, 'ctx, Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
@@ -283,21 +375,65 @@ where
         ell_d: usize,
         ell_m: usize,
         d_sc: usize,
-        backend_ctx: &BackendContext,
+        backend_ctx: &'ctx BackendContext,
     ) -> Result<Self, PiCcsError> {
-        backend_ctx.split_nc_session()?;
+        let inner = NcOracle::new(s, params, mcs_witnesses, me_witnesses, ch, ell_d, ell_m, d_sc);
+        let split_nc_required = backend_ctx.split_nc_required();
+        let nc_evaluator = match backend_ctx.split_nc_session()? {
+            Some(session) => match session.create_nc_evaluator(&inner.nc_col_snapshot_bytes()) {
+                Ok(evaluator) => Some(evaluator),
+                Err(err) if split_nc_required => {
+                    return Err(PiCcsError::ProtocolError(format!(
+                        "failed to initialize Mojo NC evaluator: {err}"
+                    )))
+                }
+                Err(_) => None,
+            },
+            None => None,
+        };
         Ok(Self {
-            inner: NcOracle::new(s, params, mcs_witnesses, me_witnesses, ch, ell_d, ell_m, d_sc),
+            inner,
+            nc_evaluator,
+            split_nc_required,
         })
     }
 }
 
-impl<'a, Ff> RoundOracle for SplitNcNcOracle<'a, Ff>
+impl<'a, 'ctx, Ff> SplitNcNcOracle<'a, 'ctx, Ff>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    #[inline]
+    fn should_use_gpu(&self) -> bool {
+        self.nc_evaluator.is_some() && self.inner.round_idx < self.inner.ell_m
+    }
+
+    fn drop_nc_evaluator(&mut self, context: &str, err: impl std::fmt::Display) {
+        if self.split_nc_required {
+            panic!("{context}: {err}");
+        }
+        self.nc_evaluator = None;
+    }
+}
+
+impl<'a, 'ctx, Ff> RoundOracle for SplitNcNcOracle<'a, 'ctx, Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
     fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        if self.should_use_gpu() {
+            let flat_points = points.iter().copied().map(flat_k_from_ext).collect::<Vec<_>>();
+            let gpu_out = {
+                let evaluator = self.nc_evaluator.as_ref().expect("checked by should_use_gpu");
+                evaluator.evals_at(&flat_points)
+            };
+            match gpu_out {
+                Ok(out) => return out.into_iter().map(ext_k_from_flat).collect(),
+                Err(err) => self.drop_nc_evaluator("Mojo NC evals_at failed", err),
+            }
+        }
         self.inner.evals_at(points)
     }
 
@@ -310,6 +446,19 @@ where
     }
 
     fn fold(&mut self, r: K) {
+        if self.should_use_gpu() {
+            let challenge = flat_k_from_ext(r);
+            let gpu_result = {
+                let evaluator = self.nc_evaluator.as_mut().expect("checked by should_use_gpu");
+                evaluator.fold(challenge)
+            };
+            if let Err(err) = gpu_result {
+                self.drop_nc_evaluator("Mojo NC fold failed", err);
+            }
+        }
         self.inner.fold(r);
+        if self.inner.round_idx >= self.inner.ell_m {
+            self.nc_evaluator = None;
+        }
     }
 }

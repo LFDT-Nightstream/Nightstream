@@ -3,11 +3,20 @@
 #[path = "../../common/fixtures.rs"]
 mod fixtures;
 
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::OnceLock;
+
 use fixtures::build_twist_shout_2step_fixture;
+use libloading::Library;
 use neo_ccs::relations::{CcsClaim, CcsWitness};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_fold::pi_ccs::FoldingMode;
-use neo_fold::shard::{fold_shard_prove, fold_shard_verify, ShardSegmentKind};
+use neo_fold::shard::{
+    fold_shard_prove, fold_shard_prove_with_backend, fold_shard_verify, fold_shard_verify_with_backend,
+    ShardSegmentKind,
+};
+use neo_fold::{MojoBackendConfig, ProverComputeBackend};
 use neo_math::{F, K};
 use neo_memory::witness::{StepInstanceBundle, StepWitnessBundle};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -29,6 +38,56 @@ fn build_ccs_only_step(fx: &fixtures::ShardFixture, salt: u64) -> StepWitnessBun
     let Z = neo_memory::ajtai::encode_vector_for_ccs_m(&fx.params, z.len(), &z).expect("encode witness for CCS width");
     let c = fx.l.commit(&Z);
     StepWitnessBundle::from((CcsClaim { c, x, m_in }, CcsWitness { w, Z }))
+}
+
+fn mock_manifest_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("neo-gpu")
+        .join("tests")
+        .join("support")
+        .join("mock-mojo-gpu")
+        .join("Cargo.toml")
+}
+
+fn mock_library_name() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "libmock_mojo_gpu.dylib"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "libmock_mojo_gpu.so"
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "mock_mojo_gpu.dll"
+    }
+}
+
+fn build_mock_library() -> &'static Path {
+    static LIB_PATH: OnceLock<PathBuf> = OnceLock::new();
+    LIB_PATH.get_or_init(|| {
+        let manifest = mock_manifest_path();
+        let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+        let status = Command::new(cargo)
+            .arg("build")
+            .arg("--release")
+            .arg("--manifest-path")
+            .arg(&manifest)
+            .status()
+            .expect("spawn cargo build for mock mojo gpu");
+        assert!(status.success(), "mock mojo gpu build failed");
+
+        manifest
+            .parent()
+            .expect("mock manifest parent")
+            .join("target")
+            .join("release")
+            .join(mock_library_name())
+            .canonicalize()
+            .expect("canonical mock mojo gpu library path")
+    })
 }
 
 #[test]
@@ -97,6 +156,94 @@ fn mixed_ccs_only_and_route_a_segments_prove_verify() {
     .expect("verify");
 
     assert_eq!(outputs.obligations.main.len(), fx.params.k_rho as usize);
+}
+
+#[test]
+fn mixed_ccs_only_and_route_a_segments_mojo_backend_matches_cpu() {
+    type ResetFn = unsafe extern "C" fn();
+    type CounterFn = unsafe extern "C" fn() -> usize;
+    let _counter_guard = super::lock_mock_backend_counters();
+
+    let fx = build_twist_shout_2step_fixture(9001);
+    let mut steps_witness: Vec<StepWitnessBundle<neo_ajtai::Commitment, F, K>> = (0..20)
+        .map(|i| build_ccs_only_step(&fx, 1_000 + i as u64))
+        .collect();
+    steps_witness.extend(fx.steps_witness.iter().cloned());
+    steps_witness.extend((0..20).map(|i| build_ccs_only_step(&fx, 2_000 + i as u64)));
+    let steps_instance: Vec<StepInstanceBundle<neo_ajtai::Commitment, F, K>> =
+        steps_witness.iter().map(StepInstanceBundle::from).collect();
+
+    let mut tr_cpu = Poseidon2Transcript::new(b"mixed-ccs-route-a/mojo-backend");
+    let cpu_proof = fold_shard_prove(
+        FoldingMode::Optimized,
+        &mut tr_cpu,
+        &fx.params,
+        &fx.ccs,
+        &steps_witness,
+        &fx.acc_init,
+        &fx.acc_wit_init,
+        &fx.l,
+        fx.mixers,
+    )
+    .expect("cpu prove");
+
+    let mock_library = build_mock_library();
+    let lib = unsafe { Library::new(mock_library) }.expect("load mock mojo gpu library");
+    let reset = unsafe {
+        *lib.get::<ResetFn>(b"nightstream_gpu_test_reset_counters\0")
+            .expect("load counter reset symbol")
+    };
+    let poseidon2_batch_calls = unsafe {
+        *lib.get::<CounterFn>(b"nightstream_gpu_test_poseidon2_batch_calls\0")
+            .expect("load poseidon2 batch counter symbol")
+    };
+    let session_open_calls = unsafe {
+        *lib.get::<CounterFn>(b"nightstream_gpu_test_session_open_calls\0")
+            .expect("load session open counter symbol")
+    };
+    unsafe { reset() };
+
+    let backend = ProverComputeBackend::Mojo(MojoBackendConfig::auto().with_library_path(mock_library));
+    let mut tr_mojo = Poseidon2Transcript::new(b"mixed-ccs-route-a/mojo-backend");
+    let mojo_proof = fold_shard_prove_with_backend(
+        FoldingMode::Optimized,
+        &mut tr_mojo,
+        &fx.params,
+        &fx.ccs,
+        &steps_witness,
+        &fx.acc_init,
+        &fx.acc_wit_init,
+        &fx.l,
+        fx.mixers,
+        &backend,
+    )
+    .expect("mojo prove");
+
+    assert_eq!(
+        serde_json::to_vec(&cpu_proof).expect("serialize cpu proof"),
+        serde_json::to_vec(&mojo_proof).expect("serialize mojo proof"),
+    );
+
+    let mut tr_verify = Poseidon2Transcript::new(b"mixed-ccs-route-a/mojo-backend");
+    let mojo_outputs = fold_shard_verify_with_backend(
+        FoldingMode::Optimized,
+        &mut tr_verify,
+        &fx.params,
+        &fx.ccs,
+        &steps_instance,
+        &fx.acc_init,
+        &mojo_proof,
+        fx.mixers,
+        &backend,
+    )
+    .expect("mojo verify");
+
+    assert_eq!(mojo_outputs.obligations.main.len(), fx.params.k_rho as usize);
+    assert!(
+        unsafe { poseidon2_batch_calls() } > 0,
+        "mock mojo backend should use batched Poseidon2 in mixed shard flow"
+    );
+    assert_eq!(unsafe { session_open_calls() }, 2);
 }
 
 #[test]

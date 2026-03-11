@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use libloading::Library;
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
-use neo_gpu::{connect, DeviceApi, MojoBackendConfig, MojoLibrary};
+use neo_gpu::{connect, DeviceApi, FlatK, MojoBackendConfig, MojoLibrary};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use p3_symmetric::Permutation;
@@ -171,6 +171,68 @@ fn poseidon2_batch_fixture(num_states: usize) -> Vec<[u64; 8]> {
         .collect()
 }
 
+fn push_u64_le(out: &mut Vec<u8>, word: u64) {
+    out.extend_from_slice(&word.to_le_bytes());
+}
+
+fn push_flat_k_le(out: &mut Vec<u8>, value: FlatK) {
+    push_u64_le(out, value.re);
+    push_u64_le(out, value.im);
+}
+
+fn minimal_fe_snapshot() -> Vec<u8> {
+    let mut out = Vec::new();
+    push_u64_le(&mut out, 0x4E53_504C_4954_4E43);
+    push_u64_le(&mut out, 1);
+    push_u64_le(&mut out, 1);
+    push_u64_le(&mut out, 4);
+    push_u64_le(&mut out, 2);
+    push_u64_le(&mut out, 2);
+    push_u64_le(&mut out, 2);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_flat_k_le(&mut out, FlatK::default());
+    push_flat_k_le(&mut out, FlatK { re: 1, im: 0 });
+    push_flat_k_le(&mut out, FlatK::default());
+    out
+}
+
+fn minimal_nc_snapshot() -> Vec<u8> {
+    let mut out = Vec::new();
+    push_u64_le(&mut out, 0x4E53_504C_4954_4E43);
+    push_u64_le(&mut out, 1);
+    push_u64_le(&mut out, 2);
+    push_u64_le(&mut out, 4);
+    push_u64_le(&mut out, 2);
+    push_u64_le(&mut out, 2);
+    push_u64_le(&mut out, 2);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_u64_le(&mut out, 0);
+    push_flat_k_le(&mut out, FlatK { re: 1, im: 0 });
+    push_flat_k_le(&mut out, FlatK::default());
+    out
+}
+
+fn snapshot_words(snapshot: &[u8]) -> Vec<u64> {
+    snapshot
+        .chunks(8)
+        .map(|chunk| {
+            let mut word = [0u8; 8];
+            word[..chunk.len()].copy_from_slice(chunk);
+            u64::from_le_bytes(word)
+        })
+        .collect()
+}
+
 fn direct_backend_poseidon2_hash(
     permute: unsafe extern "C" fn(usize, *mut u64, u32) -> i32,
     input: &[u64],
@@ -217,6 +279,69 @@ fn connects_to_mock_library_session() {
     assert!(session.supports_split_nc_api());
     assert!(session.supports_poseidon2_api());
     assert!(session.supports_poseidon2_batch_api());
+}
+
+#[test]
+fn split_nc_evaluator_round_trips_through_mock_backend() {
+    let cfg = MojoBackendConfig::new(DeviceApi::Cuda).with_library_path(build_mock_library());
+    let session = connect(&cfg).expect("connect to mock mojo gpu");
+
+    let snapshot = b"mock-snapshot";
+    let points = vec![
+        FlatK { re: 7, im: 11 },
+        FlatK { re: 13, im: 17 },
+        FlatK { re: 19, im: 23 },
+    ];
+
+    let mut fe = session
+        .create_fe_evaluator(snapshot)
+        .expect("create fe evaluator");
+    assert_ne!(fe.handle(), 0);
+    assert_eq!(fe.evals_at(&points).expect("fe evals_at"), points);
+    fe.fold(FlatK { re: 29, im: 31 }).expect("fe fold");
+
+    let mut nc = session
+        .create_nc_evaluator(snapshot)
+        .expect("create nc evaluator");
+    assert_ne!(nc.handle(), 0);
+    assert_eq!(nc.evals_at(&points).expect("nc evals_at"), points);
+    nc.fold(FlatK { re: 37, im: 41 }).expect("nc fold");
+}
+
+#[test]
+fn mock_split_nc_debug_snapshot_head_matches_rust_layout() {
+    type DebugSnapshotHeadFn = unsafe extern "C" fn(u64, *mut u64, u64, *mut u64, u32) -> i32;
+
+    let lib = unsafe { Library::new(build_mock_library()) }.expect("load mock mojo gpu library");
+    let debug_snapshot_head = unsafe {
+        *lib.get::<DebugSnapshotHeadFn>(b"nightstream_gpu_debug_snapshot_head\0")
+            .expect("load debug snapshot head symbol")
+    };
+
+    let snapshot = minimal_fe_snapshot();
+    let snapshot_words = snapshot_words(&snapshot);
+    let mut out = [0u64; 6];
+    let status = unsafe {
+        debug_snapshot_head(
+            0xABCD,
+            snapshot_words.as_ptr() as *mut u64,
+            snapshot.len() as u64,
+            out.as_mut_ptr(),
+            out.len() as u32,
+        )
+    };
+    assert_eq!(status, 0, "debug snapshot head status");
+    assert_eq!(
+        out,
+        [
+            0xABCD,
+            snapshot_words.as_ptr() as usize as u64,
+            snapshot.len() as u64,
+            snapshot_words[0],
+            snapshot_words[1],
+            snapshot_words[2],
+        ]
+    );
 }
 
 #[test]
@@ -366,6 +491,96 @@ fn real_mojo_poseidon2_matches_cpu_reference() {
 }
 
 #[test]
+#[ignore = "requires local Mojo toolchain"]
+fn real_mojo_split_nc_probe_and_minimal_eval_work() {
+    let library_path = build_real_mojo_library();
+    let cfg = MojoBackendConfig::new(DeviceApi::Cpu).with_library_path(library_path);
+    let session = connect(&cfg).expect("connect to real mojo gpu library");
+
+    let points = [
+        FlatK::default(),
+        FlatK { re: 1, im: 0 },
+        FlatK { re: 5, im: 7 },
+    ];
+    if !session.supports_split_nc_api() {
+        match session.create_fe_evaluator(&minimal_fe_snapshot()) {
+            Ok(mut fe) => {
+                eprintln!("debug real FE create: ok");
+                eprintln!("debug real FE evals: {:?}", fe.evals_at(&points));
+                eprintln!("debug real FE fold: {:?}", fe.fold(FlatK { re: 3, im: 0 }));
+            }
+            Err(err) => eprintln!("debug real FE create err: {err:?}"),
+        }
+        match session.create_nc_evaluator(&minimal_nc_snapshot()) {
+            Ok(mut nc) => {
+                eprintln!("debug real NC create: ok");
+                eprintln!("debug real NC evals: {:?}", nc.evals_at(&points));
+                eprintln!("debug real NC fold: {:?}", nc.fold(FlatK { re: 3, im: 0 }));
+            }
+            Err(err) => eprintln!("debug real NC create err: {err:?}"),
+        }
+    }
+    assert!(session.supports_split_nc_api());
+
+    let mut fe = session
+        .create_fe_evaluator(&minimal_fe_snapshot())
+        .expect("create real mojo fe evaluator");
+    assert_eq!(
+        fe.evals_at(&points).expect("real mojo fe evals"),
+        vec![FlatK::default(); points.len()]
+    );
+    fe.fold(FlatK { re: 3, im: 0 }).expect("real mojo fe fold");
+
+    let mut nc = session
+        .create_nc_evaluator(&minimal_nc_snapshot())
+        .expect("create real mojo nc evaluator");
+    assert_eq!(
+        nc.evals_at(&points).expect("real mojo nc evals"),
+        vec![FlatK::default(); points.len()]
+    );
+    nc.fold(FlatK { re: 3, im: 0 }).expect("real mojo nc fold");
+}
+
+
+#[test]
+#[ignore = "requires local Mojo toolchain"]
+fn real_mojo_split_nc_debug_snapshot_head_matches_rust_layout() {
+    type DebugSnapshotHeadFn = unsafe extern "C" fn(u64, *mut u64, u64, *mut u64, u32) -> i32;
+
+    let library_path = build_real_mojo_library();
+    let lib = unsafe { Library::new(library_path) }.expect("load real mojo gpu library");
+    let debug_snapshot_head = unsafe {
+        *lib.get::<DebugSnapshotHeadFn>(b"nightstream_gpu_debug_snapshot_head\0")
+            .expect("load real debug snapshot head symbol")
+    };
+
+    let snapshot = minimal_fe_snapshot();
+    let snapshot_words = snapshot_words(&snapshot);
+    let mut out = [0u64; 6];
+    let status = unsafe {
+        debug_snapshot_head(
+            0xABCD,
+            snapshot_words.as_ptr() as *mut u64,
+            snapshot.len() as u64,
+            out.as_mut_ptr(),
+            out.len() as u32,
+        )
+    };
+    assert_eq!(status, 0, "real debug snapshot head status");
+    assert_eq!(
+        out,
+        [
+            0xABCD,
+            snapshot_words.as_ptr() as usize as u64,
+            snapshot.len() as u64,
+            snapshot_words[0],
+            snapshot_words[1],
+            snapshot_words[2],
+        ]
+    );
+}
+
+#[test]
 #[ignore = "requires local Metal-capable Mojo runtime"]
 fn real_mojo_metal_session_batch_matches_cpu_reference() {
     let library_path = build_real_mojo_library();
@@ -394,6 +609,100 @@ fn real_mojo_metal_session_batch_matches_cpu_reference() {
         })
         .collect();
     assert_eq!(backend, cpu);
+}
+
+#[test]
+#[ignore = "requires local Metal-capable Mojo runtime"]
+fn real_mojo_metal_split_nc_smoke_matches_cpu_reference() {
+    let library_path = build_real_mojo_library();
+    let cfg = MojoBackendConfig::new(DeviceApi::Metal).with_library_path(library_path);
+
+    let Ok(session) = connect(&cfg) else {
+        eprintln!("skipping: real Mojo shared-library Metal session is not available in this runtime");
+        return;
+    };
+    assert_eq!(session.device_api(), DeviceApi::Metal);
+    if !session.supports_split_nc_api() {
+        eprintln!("skipping: Split-NC Metal backend is intentionally disabled in the Rust bridge");
+        return;
+    }
+
+    let points = (0..256usize)
+        .map(|i| FlatK {
+            re: (i as u64) * 17 + 3,
+            im: (i as u64) * 19 + 5,
+        })
+        .collect::<Vec<_>>();
+
+    let cpu_cfg = MojoBackendConfig::new(DeviceApi::Cpu).with_library_path(build_real_mojo_library());
+    let cpu_session = connect(&cpu_cfg).expect("connect cpu mojo session");
+
+    let cpu_fe = cpu_session
+        .create_fe_evaluator(&minimal_fe_snapshot())
+        .expect("create cpu fe evaluator");
+    let metal_fe = session
+        .create_fe_evaluator(&minimal_fe_snapshot())
+        .expect("create metal fe evaluator");
+    assert_eq!(
+        metal_fe.evals_at(&points).expect("metal fe evals"),
+        cpu_fe.evals_at(&points).expect("cpu fe evals"),
+    );
+
+    let cpu_nc = cpu_session
+        .create_nc_evaluator(&minimal_nc_snapshot())
+        .expect("create cpu nc evaluator");
+    let metal_nc = session
+        .create_nc_evaluator(&minimal_nc_snapshot())
+        .expect("create metal nc evaluator");
+    assert_eq!(
+        metal_nc.evals_at(&points).expect("metal nc evals"),
+        cpu_nc.evals_at(&points).expect("cpu nc evals"),
+    );
+}
+
+#[test]
+#[ignore = "requires CUDA-capable Mojo runtime"]
+fn real_mojo_cuda_split_nc_smoke_matches_cpu_reference() {
+    let library_path = build_real_mojo_library();
+    let cfg = MojoBackendConfig::new(DeviceApi::Cuda).with_library_path(library_path);
+
+    let Ok(session) = connect(&cfg) else {
+        eprintln!("skipping: real Mojo shared-library CUDA session is not available in this runtime");
+        return;
+    };
+    assert_eq!(session.device_api(), DeviceApi::Cuda);
+
+    let points = (0..256usize)
+        .map(|i| FlatK {
+            re: (i as u64) * 17 + 3,
+            im: (i as u64) * 19 + 5,
+        })
+        .collect::<Vec<_>>();
+
+    let cpu_cfg = MojoBackendConfig::new(DeviceApi::Cpu).with_library_path(build_real_mojo_library());
+    let cpu_session = connect(&cpu_cfg).expect("connect cpu mojo session");
+
+    let cpu_fe = cpu_session
+        .create_fe_evaluator(&minimal_fe_snapshot())
+        .expect("create cpu fe evaluator");
+    let cuda_fe = session
+        .create_fe_evaluator(&minimal_fe_snapshot())
+        .expect("create cuda fe evaluator");
+    assert_eq!(
+        cuda_fe.evals_at(&points).expect("cuda fe evals"),
+        cpu_fe.evals_at(&points).expect("cpu fe evals"),
+    );
+
+    let cpu_nc = cpu_session
+        .create_nc_evaluator(&minimal_nc_snapshot())
+        .expect("create cpu nc evaluator");
+    let cuda_nc = session
+        .create_nc_evaluator(&minimal_nc_snapshot())
+        .expect("create cuda nc evaluator");
+    assert_eq!(
+        cuda_nc.evals_at(&points).expect("cuda nc evals"),
+        cpu_nc.evals_at(&points).expect("cpu nc evals"),
+    );
 }
 
 #[test]

@@ -31,6 +31,38 @@ where
     )
 }
 
+pub fn fold_shard_prove_with_backend<L, MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepWitnessBundle<Cmt, F, K>],
+    acc_init: &[CeClaim<Cmt, F, K>],
+    acc_wit_init: &[Mat<F>],
+    l: &L,
+    mixers: CommitMixers<MR, MB>,
+    compute_backend: &ProverComputeBackend,
+) -> Result<ShardProof, PiCcsError>
+where
+    L: SModuleHomomorphism<F, Cmt> + Sync,
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    fold_shard_prove_mixed_ccs_batched(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        acc_wit_init,
+        l,
+        mixers,
+        None,
+        compute_backend,
+    )
+}
+
 pub(crate) fn fold_shard_prove_with_context_and_backend<L, MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
@@ -370,6 +402,45 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
+    fold_shard_verify_impl_with_backend_ctx(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        step_idx_offset,
+        acc_init,
+        proof,
+        mixers,
+        ob_cfg,
+        prover_ctx,
+        compute_backend,
+        &backend_ctx,
+        initial_prev_step,
+    )
+}
+
+pub(crate) fn fold_shard_verify_impl_with_backend_ctx<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    step_idx_offset: usize,
+    acc_init: &[CeClaim<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    ob_cfg: Option<&crate::output_binding::OutputBindingConfig>,
+    prover_ctx: Option<&ShardProverContext>,
+    _compute_backend: &ProverComputeBackend,
+    backend_ctx: &neo_reductions::accelerator::BackendContext,
+    initial_prev_step: Option<&StepInstanceBundle<Cmt, F, K>>,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
     if steps.len() != proof.steps.len() {
         return Err(PiCcsError::InvalidInput(format!(
             "step count mismatch: public {} vs proof {}",
@@ -436,7 +507,6 @@ where
     let ccs_mat_digest = prover_ctx
         .map(|ctx| ctx.ccs_mat_digest.clone())
         .unwrap_or_else(|| utils::digest_ccs_matrices_with_sparse_cache(s, ccs_sparse_cache.as_deref()));
-    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
 
     for (idx, (step, step_proof)) in effective_steps.iter().zip(proof.steps.iter()).enumerate() {
         let step_idx = step_idx_offset
@@ -1516,7 +1586,7 @@ where
     fold_shard_verify_mixed_ccs_batched(mode, tr, params, s_me, steps, 0, acc_init, proof, mixers, None)
 }
 
-pub(crate) fn fold_shard_verify_with_backend<MR, MB>(
+pub fn fold_shard_verify_with_backend<MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,

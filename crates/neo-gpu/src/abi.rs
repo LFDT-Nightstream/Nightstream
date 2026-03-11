@@ -69,6 +69,8 @@ pub struct SnapshotRequest {
 pub struct EvalsRequest {
     pub session: usize,
     pub evaluator: usize,
+    pub snapshot_ptr: *const u8,
+    pub snapshot_len: usize,
     pub points_ptr: *const FlatK,
     pub points_len: usize,
     pub out_ptr: *mut FlatK,
@@ -80,5 +82,7 @@ pub struct EvalsRequest {
 pub struct FoldRequest {
     pub session: usize,
     pub evaluator: usize,
+    pub snapshot_ptr: *mut u8,
+    pub snapshot_len: usize,
     pub challenge: FlatK,
 }

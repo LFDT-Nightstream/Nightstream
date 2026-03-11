@@ -66,6 +66,7 @@ fn build_mock_library() -> &'static Path {
 fn test_session_mojo_backend_matches_cpu_single_step() {
     type ResetFn = unsafe extern "C" fn();
     type CounterFn = unsafe extern "C" fn() -> usize;
+    let _counter_guard = super::lock_mock_backend_counters();
 
     let mut cs = CcsBuilder::<F>::new(1, 0).expect("CcsBuilder::new");
     cs.r1cs_terms([(1, F::ONE)], [(2, F::ONE)], [(3, F::ONE)]);
@@ -124,6 +125,7 @@ fn test_session_mojo_backend_matches_cpu_single_step() {
 fn test_session_mojo_backend_verify_opens_backend_once() {
     type ResetFn = unsafe extern "C" fn();
     type CounterFn = unsafe extern "C" fn() -> usize;
+    let _counter_guard = super::lock_mock_backend_counters();
 
     let mut cs = CcsBuilder::<F>::new(1, 0).expect("CcsBuilder::new");
     cs.r1cs_terms([(1, F::ONE)], [(2, F::ONE)], [(3, F::ONE)]);

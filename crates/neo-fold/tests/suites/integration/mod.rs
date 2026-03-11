@@ -1,3 +1,10 @@
+use std::sync::{Mutex, MutexGuard};
+
+pub(super) fn lock_mock_backend_counters() -> MutexGuard<'static, ()> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    LOCK.lock().expect("lock mock backend counter guard")
+}
+
 mod ccs_only_mcs_batched;
 mod full_folding_integration;
 mod mixed_ccs_route_a_segments;

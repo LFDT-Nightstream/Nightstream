@@ -10,6 +10,7 @@ alias INTERNAL_ROUNDS = 22
 alias GPU_BLOCK_SIZE = 64
 alias POSEIDON2_GPU_MIN_STATES = 128
 alias DEVICE_API_CPU = 0
+alias DEVICE_API_CUDA = 2
 alias SESSION_HANDLE_MAGIC = UInt(0x4E53000000000000)
 
 
@@ -106,7 +107,10 @@ fn session_prefers_gpu(session: UInt) -> Bool:
         return False
     if (session & SESSION_HANDLE_MAGIC) != SESSION_HANDLE_MAGIC:
         return False
-    return UInt32((session >> 32) & UInt(0xFFFF_FFFF)) != UInt32(DEVICE_API_CPU)
+    var api = UInt32((session >> 32) & UInt(0xFFFF_FFFF))
+    if api == UInt32(DEVICE_API_CPU):
+        return False
+    return api == UInt32(DEVICE_API_CUDA) or api == UInt32(1)
 
 
 fn permute_state_at_offset(state_words: UnsafePointer[mut=True, UInt64], base: Int):

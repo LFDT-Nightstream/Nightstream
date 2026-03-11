@@ -139,6 +139,7 @@ pub(crate) fn fold_shard_prove_route_a_segment_with_witnesses<L, MR, MB>(
     ob: Option<(&crate::output_binding::OutputBindingConfig, &[F])>,
     prover_ctx: Option<&ShardProverContext>,
     compute_backend: &ProverComputeBackend,
+    backend_ctx: Option<&neo_reductions::accelerator::BackendContext>,
 ) -> Result<(ShardProof, Vec<Mat<F>>, Vec<Mat<F>>), PiCcsError>
 where
     L: SModuleHomomorphism<F, Cmt> + Sync,
@@ -184,26 +185,49 @@ where
         let chunk_ob = if end == steps.len() { ob } else { None };
 
         let (chunk_proof, next_main_wits, mut chunk_val_lane_wits, next_prev_twist_decoded, next_poseidon_carry) =
-            fold_shard_prove_impl(
-                true,
-                mode.clone(),
-                tr,
-                params,
-                s_me,
-                chunk,
-                chunk_step_offset,
-                &accumulator,
-                &accumulator_wit,
-                l,
-                mixers,
-                chunk_ob,
-                prover_ctx,
-                compute_backend,
-                None,
-                prev_step_ctx,
-                prev_twist_decoded.take(),
-                Some(poseidon_carry),
-            )?;
+            if let Some(backend_ctx) = backend_ctx {
+                fold_shard_prove_impl_with_backend_ctx(
+                    true,
+                    mode.clone(),
+                    tr,
+                    params,
+                    s_me,
+                    chunk,
+                    chunk_step_offset,
+                    &accumulator,
+                    &accumulator_wit,
+                    l,
+                    mixers,
+                    chunk_ob,
+                    prover_ctx,
+                    backend_ctx,
+                    None,
+                    prev_step_ctx,
+                    prev_twist_decoded.take(),
+                    Some(poseidon_carry),
+                )?
+            } else {
+                fold_shard_prove_impl(
+                    true,
+                    mode.clone(),
+                    tr,
+                    params,
+                    s_me,
+                    chunk,
+                    chunk_step_offset,
+                    &accumulator,
+                    &accumulator_wit,
+                    l,
+                    mixers,
+                    chunk_ob,
+                    prover_ctx,
+                    compute_backend,
+                    None,
+                    prev_step_ctx,
+                    prev_twist_decoded.take(),
+                    Some(poseidon_carry),
+                )?
+            };
         let next_accumulator = chunk_proof.compute_final_main_children(&accumulator);
         let ShardProof {
             steps: chunk_steps,
@@ -295,6 +319,7 @@ pub(crate) fn fold_shard_verify_route_a_segment<MR, MB>(
     ob_cfg: Option<&crate::output_binding::OutputBindingConfig>,
     prover_ctx: Option<&ShardProverContext>,
     compute_backend: &ProverComputeBackend,
+    backend_ctx: Option<&neo_reductions::accelerator::BackendContext>,
     initial_prev_step: Option<&StepInstanceBundle<Cmt, F, K>>,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
@@ -387,21 +412,40 @@ where
             segment_meta: None,
         };
         let chunk_ob_cfg = if chunk_is_final { ob_cfg } else { None };
-        let chunk_outputs = fold_shard_verify_impl(
-            mode.clone(),
-            tr,
-            params,
-            s_me,
-            chunk,
-            chunk_step_offset,
-            &accumulator,
-            &chunk_proof,
-            mixers,
-            chunk_ob_cfg,
-            prover_ctx,
-            compute_backend,
-            prev_step_ctx,
-        )?;
+        let chunk_outputs = if let Some(backend_ctx) = backend_ctx {
+            fold_shard_verify_impl_with_backend_ctx(
+                mode.clone(),
+                tr,
+                params,
+                s_me,
+                chunk,
+                chunk_step_offset,
+                &accumulator,
+                &chunk_proof,
+                mixers,
+                chunk_ob_cfg,
+                prover_ctx,
+                compute_backend,
+                backend_ctx,
+                prev_step_ctx,
+            )?
+        } else {
+            fold_shard_verify_impl(
+                mode.clone(),
+                tr,
+                params,
+                s_me,
+                chunk,
+                chunk_step_offset,
+                &accumulator,
+                &chunk_proof,
+                mixers,
+                chunk_ob_cfg,
+                prover_ctx,
+                compute_backend,
+                prev_step_ctx,
+            )?
+        };
 
         accumulator = chunk_outputs.obligations.main;
         val_lane_obligations.extend(chunk_outputs.obligations.val);

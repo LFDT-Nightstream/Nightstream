@@ -169,6 +169,42 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
+    fold_shard_prove_ccs_only_batched_with_outputs_and_offset_and_context(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        acc_wit_init,
+        l,
+        mixers,
+        mcs_batch_size,
+        step_idx_offset,
+        &backend_ctx,
+    )
+}
+
+pub(crate) fn fold_shard_prove_ccs_only_batched_with_outputs_and_offset_and_context<L, MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepWitnessBundle<Cmt, F, K>],
+    acc_init: &[CeClaim<Cmt, F, K>],
+    acc_wit_init: &[Mat<F>],
+    l: &L,
+    mixers: CommitMixers<MR, MB>,
+    mcs_batch_size: usize,
+    step_idx_offset: usize,
+    backend_ctx: &neo_reductions::accelerator::BackendContext,
+) -> Result<(ShardProof, Vec<CeClaim<Cmt, F, K>>, Vec<Mat<F>>), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Cmt> + Sync,
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
     if mcs_batch_size == 0 {
         return Err(PiCcsError::InvalidInput("mcs_batch_size must be >= 1".into()));
     }
@@ -199,7 +235,6 @@ where
     } else {
         None
     };
-    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
 
     let mut accumulator = acc_init.to_vec();
     let mut accumulator_wit = acc_wit_init.to_vec();
@@ -246,7 +281,7 @@ where
             &accumulator,
             &accumulator_wit,
             l,
-            &backend_ctx,
+            backend_ctx,
         )?;
 
         let expected_k = mcs_list.len() + accumulator.len();
@@ -276,7 +311,7 @@ where
             ell_d,
             k_dec,
             step_idx,
-            &backend_ctx,
+            backend_ctx,
             None,
             &ccs_out,
             &outs_Z,
@@ -393,6 +428,39 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
+    fold_shard_verify_ccs_only_batched_with_offset_and_context(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        proof,
+        mixers,
+        mcs_batch_size,
+        step_idx_offset,
+        &backend_ctx,
+    )
+}
+
+pub(crate) fn fold_shard_verify_ccs_only_batched_with_offset_and_context<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[CeClaim<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    mcs_batch_size: usize,
+    step_idx_offset: usize,
+    backend_ctx: &neo_reductions::accelerator::BackendContext,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
     if mcs_batch_size == 0 {
         return Err(PiCcsError::InvalidInput("mcs_batch_size must be >= 1".into()));
     }
@@ -415,7 +483,6 @@ where
     let dims = utils::build_dims_and_policy(params, s)?;
     let ell_d = dims.ell_d;
     let ring = ccs::RotRing::goldilocks();
-    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
 
     let expected_proof_steps = if steps.is_empty() {
         0
@@ -480,7 +547,7 @@ where
             &accumulator,
             &step_proof.fold.ccs_out,
             &step_proof.fold.ccs_proof,
-            &backend_ctx,
+            backend_ctx,
         )?;
         if !ok_ccs {
             return Err(PiCcsError::ProtocolError(format!(
@@ -523,7 +590,7 @@ where
             ell_d,
             mixers,
             step_idx,
-            &backend_ctx,
+            backend_ctx,
             &step_proof.fold.ccs_out,
             &step_proof.fold.rlc_rhos,
             &step_proof.fold.rlc_parent,

@@ -299,6 +299,7 @@ fn ccs_only_default_shard_api_auto_batches() {
 fn ccs_only_mcs_batched_mojo_backend_uses_batch_poseidon_for_rlc_binding() {
     type ResetFn = unsafe extern "C" fn();
     type CounterFn = unsafe extern "C" fn() -> usize;
+    let _counter_guard = super::lock_mock_backend_counters();
 
     let n = 8usize;
     let ccs = identity_ccs(n);

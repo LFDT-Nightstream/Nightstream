@@ -25,7 +25,6 @@ fn device_api_available(req_word: UInt64) -> Bool:
     if not accelerator_requested(req_word):
         return True
 
-    @parameter
     return has_accelerator()
 
 

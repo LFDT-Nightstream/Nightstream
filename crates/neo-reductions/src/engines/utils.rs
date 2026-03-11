@@ -167,7 +167,6 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F,
     bind_me_inputs_with_backend(tr, me_inputs, &ProverComputeBackend::Cpu)
 }
 
-/// Bind ME inputs to transcript using the selected compute backend for batched Poseidon2 hashing.
 pub fn bind_me_inputs_with_backend(
     tr: &mut Poseidon2Transcript,
     me_inputs: &[CeClaim<Cmt, F, K>],

@@ -200,6 +200,7 @@ fn build_real_mojo_library() -> &'static Path {
             .join("mojo");
         let output_dir = project_dir.join("build");
         let output = output_dir.join(real_mojo_library_name());
+        std::fs::create_dir_all(&output_dir).expect("create mojo build directory");
 
         let status = Command::new(pixi_bin())
             .arg("run")

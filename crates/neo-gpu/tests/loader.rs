@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
@@ -72,6 +73,16 @@ fn real_mojo_library_name() -> &'static str {
     }
 }
 
+fn pixi_bin() -> OsString {
+    if let Some(home) = std::env::var_os("HOME") {
+        let candidate = PathBuf::from(home).join(".pixi").join("bin").join("pixi");
+        if candidate.is_file() {
+            return candidate.into_os_string();
+        }
+    }
+    OsString::from("pixi")
+}
+
 fn build_real_mojo_library() -> &'static Path {
     static LIB_PATH: OnceLock<PathBuf> = OnceLock::new();
     LIB_PATH.get_or_init(|| {
@@ -83,7 +94,7 @@ fn build_real_mojo_library() -> &'static Path {
         let output_dir = project_dir.join("build");
         let output = output_dir.join(real_mojo_library_name());
 
-        let status = Command::new("/Users/guillevalin/.pixi/bin/pixi")
+        let status = Command::new(pixi_bin())
             .arg("run")
             .arg("mojo")
             .arg("build")
@@ -388,7 +399,7 @@ fn real_mojo_metal_session_batch_matches_cpu_reference() {
 #[ignore = "requires working Mojo GPU runtime"]
 fn mojo_gpu_compare_script_matches_cpu_reference() {
     let project_dir = mojo_project_dir();
-    let status = Command::new("/Users/guillevalin/.pixi/bin/pixi")
+    let status = Command::new(pixi_bin())
         .arg("run")
         .arg("mojo")
         .arg("run")
@@ -403,7 +414,7 @@ fn mojo_gpu_compare_script_matches_cpu_reference() {
 #[ignore = "manual Mojo GPU throughput benchmark"]
 fn mojo_gpu_bench_script_runs() {
     let project_dir = mojo_project_dir();
-    let status = Command::new("/Users/guillevalin/.pixi/bin/pixi")
+    let status = Command::new(pixi_bin())
         .arg("run")
         .arg("mojo")
         .arg("run")

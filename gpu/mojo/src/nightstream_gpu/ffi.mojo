@@ -4,6 +4,8 @@ from nightstream_gpu import field, poseidon, ring, sumcheck, superneo
 
 alias DEVICE_API_CPU = 0
 alias DEVICE_API_METAL = 1
+alias DEVICE_API_CUDA = 2
+alias DEVICE_API_HIP = 3
 alias STATUS_OK = 0
 alias STATUS_UNAVAILABLE = -1
 alias SESSION_HANDLE_MAGIC = UInt(0x4E53000000000000)
@@ -13,6 +15,10 @@ fn device_api_available(api: UInt32) -> Bool:
     if api == UInt32(DEVICE_API_CPU):
         return True
     if api == UInt32(DEVICE_API_METAL):
+        return True
+    if api == UInt32(DEVICE_API_CUDA):
+        return True
+    if api == UInt32(DEVICE_API_HIP):
         return True
     return False
 

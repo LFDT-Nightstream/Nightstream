@@ -16,6 +16,7 @@ use crate::shard::StepLinkingConfig;
 use js_sys::Date;
 use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SparsePoly, Term};
+use neo_gpu::ProverComputeBackend;
 use neo_math::{D, F};
 use neo_memory::ajtai::commit_cols_for_ccs_m;
 use neo_params::NeoParams;
@@ -379,6 +380,10 @@ impl TestExportSession {
                 session_init: session_init_ms,
             },
         })
+    }
+
+    pub fn set_compute_backend(&mut self, backend: ProverComputeBackend) {
+        self.session.set_compute_backend(backend);
     }
 
     pub fn ccs(&self) -> &CcsStructure<F> {

@@ -2,7 +2,7 @@ use super::*;
 use p3_field::PrimeField64;
 
 pub(crate) enum CcsOracleDispatch<'a> {
-    Optimized(neo_reductions::engines::optimized_engine::oracle::OptimizedOracle<'a, F>),
+    Optimized(neo_reductions::accelerator::SplitNcOptimizedOracle<'a, F>),
     #[cfg(feature = "paper-exact")]
     PaperExact(neo_reductions::engines::paper_exact_engine::oracle::PaperExactOracle<'a, F>),
 }
@@ -1836,11 +1836,12 @@ where
     Ok((children, child_cs, ok_y, ok_X, ok_c))
 }
 
-pub(crate) fn bind_rlc_inputs(
+pub(crate) fn bind_rlc_inputs_with_context(
     tr: &mut Poseidon2Transcript,
     lane: RlcLane,
     step_idx: usize,
     me_inputs: &[CeClaim<Cmt, F, K>],
+    backend_ctx: &neo_reductions::accelerator::BackendContext,
 ) -> Result<(), PiCcsError> {
     let lane_scope: &'static [u8] = match lane {
         RlcLane::Main => b"main",
@@ -1935,7 +1936,7 @@ pub(crate) fn bind_rlc_inputs(
     }
 
     #[inline]
-    fn me_digest_poseidon(lane_scope: &'static [u8], me: &CeClaim<Cmt, F, K>, capacity_hint: usize) -> [u8; 32] {
+    fn me_digest_poseidon_input(lane_scope: &'static [u8], me: &CeClaim<Cmt, F, K>, capacity_hint: usize) -> Vec<F> {
         let mut digest_input = Vec::<F>::with_capacity(capacity_hint.max(256));
         extend_packed_bytes_as_fields(&mut digest_input, b"neo/fold/rlc_me_input_digest_poseidon/v2");
         extend_packed_bytes_as_fields(&mut digest_input, lane_scope);
@@ -1956,8 +1957,7 @@ pub(crate) fn bind_rlc_inputs(
         digest_input.push(F::from_u64(me.u_offset as u64));
         digest_input.push(F::from_u64(me.u_len as u64));
         extend_packed_bytes_as_fields(&mut digest_input, &me.fold_digest);
-
-        poseidon_digest32_fields(&digest_input)
+        digest_input
     }
 
     let digest_capacity_hint = me_inputs
@@ -1971,22 +1971,50 @@ pub(crate) fn bind_rlc_inputs(
     let _allow_parallel = false;
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let digests: Vec<[u8; 32]> = if allow_parallel && me_inputs.len() >= 8 {
+    let digest_inputs: Vec<Vec<F>> = if allow_parallel && me_inputs.len() >= 8 {
         use rayon::prelude::*;
         me_inputs
             .par_iter()
-            .map(|me| me_digest_poseidon(lane_scope, me, digest_capacity_hint))
+            .map(|me| me_digest_poseidon_input(lane_scope, me, digest_capacity_hint))
             .collect()
     } else {
         me_inputs
             .iter()
-            .map(|me| me_digest_poseidon(lane_scope, me, digest_capacity_hint))
+            .map(|me| me_digest_poseidon_input(lane_scope, me, digest_capacity_hint))
             .collect()
     };
     #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
-    let digests: Vec<[u8; 32]> = me_inputs
+    let digest_inputs: Vec<Vec<F>> = me_inputs
         .iter()
-        .map(|me| me_digest_poseidon(lane_scope, me, digest_capacity_hint))
+        .map(|me| me_digest_poseidon_input(lane_scope, me, digest_capacity_hint))
+        .collect();
+
+    if let Some(digests) =
+        neo_reductions::accelerator::poseidon2_digest32_many_with_context(backend_ctx, &digest_inputs)?
+    {
+        for digest in digests {
+            tr.append_bytes_packed(b"me/rlc_digest", &digest);
+        }
+        return Ok(());
+    }
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let digests: Vec<[u8; 32]> = if allow_parallel && digest_inputs.len() >= 8 {
+        use rayon::prelude::*;
+        digest_inputs
+            .par_iter()
+            .map(|input| poseidon_digest32_fields(input))
+            .collect()
+    } else {
+        digest_inputs
+            .iter()
+            .map(|input| poseidon_digest32_fields(input))
+            .collect()
+    };
+    #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
+    let digests: Vec<[u8; 32]> = digest_inputs
+        .iter()
+        .map(|input| poseidon_digest32_fields(input))
         .collect();
 
     for digest in digests {

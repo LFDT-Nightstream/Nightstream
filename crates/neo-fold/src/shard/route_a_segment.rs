@@ -138,6 +138,7 @@ pub(crate) fn fold_shard_prove_route_a_segment_with_witnesses<L, MR, MB>(
     mixers: CommitMixers<MR, MB>,
     ob: Option<(&crate::output_binding::OutputBindingConfig, &[F])>,
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<(ShardProof, Vec<Mat<F>>, Vec<Mat<F>>), PiCcsError>
 where
     L: SModuleHomomorphism<F, Cmt> + Sync,
@@ -197,6 +198,7 @@ where
                 mixers,
                 chunk_ob,
                 prover_ctx,
+                compute_backend,
                 None,
                 prev_step_ctx,
                 prev_twist_decoded.take(),
@@ -292,6 +294,7 @@ pub(crate) fn fold_shard_verify_route_a_segment<MR, MB>(
     mixers: CommitMixers<MR, MB>,
     ob_cfg: Option<&crate::output_binding::OutputBindingConfig>,
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
     initial_prev_step: Option<&StepInstanceBundle<Cmt, F, K>>,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
@@ -396,6 +399,7 @@ where
             mixers,
             chunk_ob_cfg,
             prover_ctx,
+            compute_backend,
             prev_step_ctx,
         )?;
 

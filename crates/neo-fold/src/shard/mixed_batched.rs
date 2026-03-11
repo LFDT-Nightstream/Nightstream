@@ -57,6 +57,7 @@ pub(crate) fn fold_shard_prove_mixed_ccs_batched<L, MR, MB>(
     l: &L,
     mixers: CommitMixers<MR, MB>,
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardProof, PiCcsError>
 where
     L: SModuleHomomorphism<F, Cmt> + Sync,
@@ -76,6 +77,7 @@ where
         0,
         None,
         prover_ctx,
+        compute_backend,
     )?;
     Ok(proof)
 }
@@ -93,6 +95,7 @@ pub(crate) fn fold_shard_prove_mixed_ccs_batched_with_output_binding<L, MR, MB>(
     ob_cfg: &crate::output_binding::OutputBindingConfig,
     final_memory_state: &[F],
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardProof, PiCcsError>
 where
     L: SModuleHomomorphism<F, Cmt> + Sync,
@@ -112,6 +115,7 @@ where
         0,
         Some((ob_cfg, final_memory_state)),
         prover_ctx,
+        compute_backend,
     )?;
     Ok(proof)
 }
@@ -128,6 +132,7 @@ pub(crate) fn fold_shard_prove_mixed_ccs_batched_with_witnesses<L, MR, MB>(
     mixers: CommitMixers<MR, MB>,
     step_idx_offset: usize,
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<(ShardProof, Vec<Mat<F>>, Vec<Mat<F>>), PiCcsError>
 where
     L: SModuleHomomorphism<F, Cmt> + Sync,
@@ -147,6 +152,7 @@ where
         step_idx_offset,
         None,
         prover_ctx,
+        compute_backend,
     )
 }
 
@@ -163,6 +169,7 @@ fn fold_shard_prove_mixed_ccs_batched_with_witnesses_internal<L, MR, MB>(
     step_idx_offset: usize,
     ob: Option<(&crate::output_binding::OutputBindingConfig, &[F])>,
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<(ShardProof, Vec<Mat<F>>, Vec<Mat<F>>), PiCcsError>
 where
     L: SModuleHomomorphism<F, Cmt> + Sync,
@@ -222,6 +229,7 @@ where
                     mixers,
                     batch_size,
                     segment_step_idx_offset,
+                    compute_backend,
                 )?;
             accumulator = next_acc;
             accumulator_wit = next_wits;
@@ -254,6 +262,7 @@ where
                 mixers,
                 segment_ob,
                 prover_ctx,
+                compute_backend,
             )?;
         let route_meta_entries = segment_proof.segment_meta.clone().ok_or_else(|| {
             PiCcsError::ProtocolError(
@@ -350,6 +359,7 @@ where
         mixers,
         None,
         prover_ctx,
+        &ProverComputeBackend::Cpu,
     )
 }
 
@@ -382,6 +392,74 @@ where
         mixers,
         Some(ob_cfg),
         prover_ctx,
+        &ProverComputeBackend::Cpu,
+    )
+}
+
+pub(crate) fn fold_shard_verify_mixed_ccs_batched_with_backend<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    step_idx_offset: usize,
+    acc_init: &[CeClaim<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    fold_shard_verify_mixed_ccs_batched_internal(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        step_idx_offset,
+        acc_init,
+        proof,
+        mixers,
+        None,
+        prover_ctx,
+        compute_backend,
+    )
+}
+
+pub(crate) fn fold_shard_verify_mixed_ccs_batched_with_output_binding_and_backend<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    step_idx_offset: usize,
+    acc_init: &[CeClaim<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    ob_cfg: &crate::output_binding::OutputBindingConfig,
+    prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    fold_shard_verify_mixed_ccs_batched_internal(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        step_idx_offset,
+        acc_init,
+        proof,
+        mixers,
+        Some(ob_cfg),
+        prover_ctx,
+        compute_backend,
     )
 }
 
@@ -397,6 +475,7 @@ fn fold_shard_verify_mixed_ccs_batched_internal<MR, MB>(
     mixers: CommitMixers<MR, MB>,
     ob_cfg: Option<&crate::output_binding::OutputBindingConfig>,
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
@@ -523,6 +602,7 @@ where
                 mixers,
                 batch_size,
                 global_step_offset,
+                compute_backend,
             )?
         } else {
             fold_shard_verify_route_a_segment(
@@ -537,6 +617,7 @@ where
                 mixers,
                 segment_ob_cfg,
                 prover_ctx,
+                compute_backend,
                 prev_route_a_step_ctx,
             )?
         };

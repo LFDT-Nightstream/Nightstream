@@ -9,6 +9,7 @@ license = "Apache-2.0"
 workspace = true
 
 [dependencies]
+neo-gpu = { path = "../neo-gpu" }
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
 neo-ccs = { path = "../neo-ccs" }
@@ -59,6 +60,7 @@ bellpepper-core = { workspace = true }
 ff = { workspace = true, features = ["derive"] }
 sha2 = { version = "0.10" }
 libc = "0.2"
+libloading = "0.8"
 
 [[test]]
 name = "test_riscv_program_full_prove_verify"

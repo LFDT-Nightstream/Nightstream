@@ -26,6 +26,7 @@ use crate::shard::{ShardProof, StepLinkingConfig};
 use crate::PiCcsError;
 use neo_ajtai::AjtaiSModule;
 use neo_ccs::CcsStructure;
+use neo_gpu::ProverComputeBackend;
 use neo_math::{D, F, K};
 use neo_memory::cpu::bus_layout::{
     build_bus_layout_for_instances_with_shout_shapes_and_twist_lanes, ShoutInstanceShape,
@@ -873,6 +874,7 @@ pub struct Rv32TraceWiring {
     min_trace_len: usize,
     chunk_rows: Option<usize>,
     mode: FoldingMode,
+    compute_backend: ProverComputeBackend,
     ram_init: HashMap<u64, u64>,
     reg_init: HashMap<u64, u64>,
     output_claims: ProgramIO<F>,
@@ -893,6 +895,7 @@ impl Rv32TraceWiring {
             min_trace_len: 4,
             chunk_rows: None,
             mode: FoldingMode::Optimized,
+            compute_backend: ProverComputeBackend::Cpu,
             ram_init: HashMap::new(),
             reg_init: HashMap::new(),
             output_claims: ProgramIO::new(),
@@ -941,6 +944,11 @@ impl Rv32TraceWiring {
 
     pub fn mode(mut self, mode: FoldingMode) -> Self {
         self.mode = mode;
+        self
+    }
+
+    pub fn compute_backend(mut self, backend: ProverComputeBackend) -> Self {
+        self.compute_backend = backend;
         self
     }
 
@@ -1419,7 +1427,8 @@ impl Rv32TraceWiring {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
         let pp = neo_ajtai::setup_par(&mut rng, D, params.kappa as usize, m_commit)
             .map_err(|e| PiCcsError::InvalidInput(format!("Ajtai setup failed: {e}")))?;
-        let mut session = FoldingSession::new(self.mode.clone(), params, AjtaiSModule::new(Arc::new(pp)));
+        let mut session = FoldingSession::new(self.mode.clone(), params, AjtaiSModule::new(Arc::new(pp)))
+            .with_compute_backend(self.compute_backend.clone());
         session.set_step_linking(StepLinkingConfig::new(vec![(layout.pc_final, layout.pc0)]));
 
         let mut prog_init_pairs: Vec<(u64, F)> = prog_init_words

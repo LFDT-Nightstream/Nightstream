@@ -6,6 +6,7 @@
 #![allow(non_snake_case)]
 
 // Public modules
+pub mod accelerator;
 pub mod api; // public API for Π_CCS folding and RLC/DEC operations
 pub mod common; // shared utilities and helper functions
 pub mod engines; // internal engine trait + wrappers (includes optimized_engine, paper_exact_engine, crosscheck_engine)

@@ -1,0 +1,22 @@
+[project]
+name = "nightstream-mojo-gpu"
+version = "0.1.0"
+entry = "src/lib.mojo"
+shared_lib_basename = "nightstream_mojo_gpu"
+mojo_version = "0.25.7"
+
+[abi]
+version = 1
+session_open = "nightstream_gpu_session_open"
+session_close = "nightstream_gpu_session_close"
+fe_create = "nightstream_gpu_fe_create"
+fe_evals_at = "nightstream_gpu_fe_evals_at"
+fe_fold = "nightstream_gpu_fe_fold"
+nc_create = "nightstream_gpu_nc_create"
+nc_evals_at = "nightstream_gpu_nc_evals_at"
+nc_fold = "nightstream_gpu_nc_fold"
+poseidon2_permute = "nightstream_gpu_poseidon2_permute_u64x8"
+
+[notes]
+status = "scaffold-only"
+ownership = "Rust remains protocol source of truth until Mojo parity is bit-exact"

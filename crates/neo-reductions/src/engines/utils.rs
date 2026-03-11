@@ -7,6 +7,7 @@
 use crate::error::PiCcsError;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CeClaim, SparsePoly};
+use neo_gpu::ProverComputeBackend;
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_transcript::{labels as tr_labels, Poseidon2Transcript, Transcript};
@@ -163,6 +164,24 @@ pub fn bind_header_and_instances_with_digest(
 
 /// Bind ME inputs to transcript
 pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F, K>]) -> Result<(), PiCcsError> {
+    bind_me_inputs_with_backend(tr, me_inputs, &ProverComputeBackend::Cpu)
+}
+
+/// Bind ME inputs to transcript using the selected compute backend for batched Poseidon2 hashing.
+pub fn bind_me_inputs_with_backend(
+    tr: &mut Poseidon2Transcript,
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    compute_backend: &ProverComputeBackend,
+) -> Result<(), PiCcsError> {
+    let backend_ctx = crate::accelerator::BackendContext::new(compute_backend)?;
+    bind_me_inputs_with_context(tr, me_inputs, &backend_ctx)
+}
+
+pub fn bind_me_inputs_with_context(
+    tr: &mut Poseidon2Transcript,
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    backend_ctx: &crate::accelerator::BackendContext,
+) -> Result<(), PiCcsError> {
     // v5: bind each ME input via a compact domain-separated Poseidon2 digest.
     // Encoding update: K-coefficient width is encoded once per K-slice (not per K element).
     tr.append_message(b"neo/ccs/me_inputs/v5", b"");
@@ -212,7 +231,7 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F,
     }
 
     #[inline]
-    fn me_digest_poseidon(me: &CeClaim<Cmt, F, K>) -> [u8; 32] {
+    fn me_digest_poseidon_input(me: &CeClaim<Cmt, F, K>) -> Vec<F> {
         let mut digest_input = Vec::<F>::with_capacity(2048);
         extend_packed_bytes_as_fields(&mut digest_input, b"neo/ccs/me_input_digest_poseidon/v2");
 
@@ -234,8 +253,25 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F,
         digest_input.push(F::from_u64(me.u_offset as u64));
         digest_input.push(F::from_u64(me.u_len as u64));
         extend_packed_bytes_as_fields(&mut digest_input, &me.fold_digest);
+        digest_input
+    }
 
-        poseidon_digest32_fields(&digest_input)
+    if backend_ctx.supports_poseidon2() {
+        let digest_inputs = me_inputs
+            .iter()
+            .map(me_digest_poseidon_input)
+            .collect::<Vec<_>>();
+        if let Some(digests) = crate::accelerator::poseidon2_digest32_many_with_context(backend_ctx, &digest_inputs)? {
+            for digest in digests {
+                tr.append_bytes_packed(b"me_digest", &digest);
+            }
+            return Ok(());
+        }
+
+        for digest_input in digest_inputs {
+            tr.append_bytes_packed(b"me_digest", &poseidon_digest32_fields(&digest_input));
+        }
+        return Ok(());
     }
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -246,12 +282,21 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F,
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let digests: Vec<[u8; 32]> = if allow_parallel && me_inputs.len() >= 8 {
         use rayon::prelude::*;
-        me_inputs.par_iter().map(me_digest_poseidon).collect()
+        me_inputs
+            .par_iter()
+            .map(|me| poseidon_digest32_fields(&me_digest_poseidon_input(me)))
+            .collect()
     } else {
-        me_inputs.iter().map(me_digest_poseidon).collect()
+        me_inputs
+            .iter()
+            .map(|me| poseidon_digest32_fields(&me_digest_poseidon_input(me)))
+            .collect()
     };
     #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
-    let digests: Vec<[u8; 32]> = me_inputs.iter().map(me_digest_poseidon).collect();
+    let digests: Vec<[u8; 32]> = me_inputs
+        .iter()
+        .map(|me| poseidon_digest32_fields(&me_digest_poseidon_input(me)))
+        .collect();
 
     for digest in digests {
         tr.append_bytes_packed(b"me_digest", &digest);

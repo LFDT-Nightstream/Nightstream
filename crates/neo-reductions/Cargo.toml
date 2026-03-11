@@ -27,6 +27,7 @@ prove-diagnostics-cbor = ["prove-diagnostics", "serde_cbor"]
 wasm-threads = ["neo-ajtai/wasm-threads", "neo-ccs/wasm-threads"]
 
 [dependencies]
+neo-gpu = { path = "../neo-gpu" }
 neo-math = { path = "../neo-math" }
 neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
@@ -68,6 +69,7 @@ p3-goldilocks = { workspace = true }
 p3-field = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+libloading = "0.8"
 
 # Test configuration
 [[test]]

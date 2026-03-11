@@ -1,0 +1,22 @@
+[package]
+name = "neo-gpu"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = "Apache-2.0"
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+libloading = "0.8"
+
+[dev-dependencies]
+neo-ccs = { path = "../neo-ccs" }
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }

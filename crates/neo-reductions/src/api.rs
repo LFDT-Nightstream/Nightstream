@@ -11,6 +11,7 @@
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
+use neo_gpu::ProverComputeBackend;
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
@@ -233,6 +234,60 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     me_witnesses: &[Mat<F>],
     log: &L,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
+    prove_with_backend(
+        mode,
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        &ProverComputeBackend::Cpu,
+    )
+}
+
+/// Prove Π_CCS folding using an explicit compute backend for Split-NC oracle evaluation.
+pub fn prove_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    log: &L,
+    compute_backend: &ProverComputeBackend,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
+    let backend_ctx = crate::accelerator::BackendContext::new(compute_backend)?;
+    prove_with_context(
+        mode,
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        &backend_ctx,
+    )
+}
+
+pub fn prove_with_context<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    log: &L,
+    backend_ctx: &crate::accelerator::BackendContext,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     use crate::engines::OptimizedEngine;
 
     ensure_superneo_width(s)?;
@@ -270,9 +325,17 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("prove: me_witnesses[{idx}]"))?;
     }
     match mode {
-        FoldingMode::Optimized => {
-            OptimizedEngine.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
-        }
+        FoldingMode::Optimized => crate::engines::optimized_engine::prove::optimized_prove_with_context(
+            tr,
+            params,
+            s,
+            mcs_list,
+            mcs_witnesses,
+            me_inputs,
+            me_witnesses,
+            log,
+            backend_ctx,
+        ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => {
             crate::engines::PaperExactEngine.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
@@ -297,8 +360,42 @@ pub fn prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     mcs_witnesses: &[CcsWitness<F>],
     log: &L,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
+    prove_simple_with_backend(
+        mode,
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        log,
+        &ProverComputeBackend::Cpu,
+    )
+}
+
+/// Prove Π_CCS in the simple (k=1) case without ME inputs, with an explicit compute backend.
+pub fn prove_simple_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    log: &L,
+    compute_backend: &ProverComputeBackend,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     // Delegate to the selected engine with empty ME inputs/witnesses.
-    prove(mode, tr, params, s, mcs_list, mcs_witnesses, &[], &[], log)
+    prove_with_backend(
+        mode,
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        &[],
+        &[],
+        log,
+        compute_backend,
+    )
 }
 
 /// Verify Π_CCS proof using the selected engine mode.
@@ -311,6 +408,56 @@ pub fn verify(
     me_inputs: &[CeClaim<Cmt, F, K>],
     me_outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
+) -> Result<bool, PiCcsError> {
+    verify_with_backend(
+        mode,
+        tr,
+        params,
+        s,
+        mcs_list,
+        me_inputs,
+        me_outputs,
+        proof,
+        &ProverComputeBackend::Cpu,
+    )
+}
+
+/// Verify Π_CCS proof using the selected engine mode with an explicit compute backend.
+pub fn verify_with_backend(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    compute_backend: &ProverComputeBackend,
+) -> Result<bool, PiCcsError> {
+    let backend_ctx = crate::accelerator::BackendContext::new(compute_backend)?;
+    verify_with_context(
+        mode,
+        tr,
+        params,
+        s,
+        mcs_list,
+        me_inputs,
+        me_outputs,
+        proof,
+        &backend_ctx,
+    )
+}
+
+pub fn verify_with_context(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    backend_ctx: &crate::accelerator::BackendContext,
 ) -> Result<bool, PiCcsError> {
     ensure_superneo_width(s)?;
     if mcs_list.is_empty() {
@@ -327,9 +474,16 @@ pub fn verify(
     crate::engines::utils::validate_mcs_output_x_recomposition(params, s.m, mcs_list, me_outputs)?;
 
     match mode {
-        FoldingMode::Optimized => {
-            crate::engines::OptimizedEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)
-        }
+        FoldingMode::Optimized => crate::engines::optimized_engine::verify::optimized_verify_with_context(
+            tr,
+            params,
+            s,
+            mcs_list,
+            me_inputs,
+            me_outputs,
+            proof,
+            backend_ctx,
+        ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => {
             crate::engines::PaperExactEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)

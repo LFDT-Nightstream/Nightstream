@@ -1,0 +1,16 @@
+[package]
+name = "mock-mojo-gpu"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mock_mojo_gpu"
+crate-type = ["cdylib"]
+
+[dependencies]
+neo-ccs = { path = "../../../../../crates/neo-ccs" }
+p3-field = "0.4.1"
+p3-goldilocks = "0.4.1"
+p3-symmetric = "0.4.1"
+
+[workspace]

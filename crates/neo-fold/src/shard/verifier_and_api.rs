@@ -16,10 +16,22 @@ where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    fold_shard_prove_mixed_ccs_batched(mode, tr, params, s_me, steps, acc_init, acc_wit_init, l, mixers, None)
+    fold_shard_prove_mixed_ccs_batched(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        acc_wit_init,
+        l,
+        mixers,
+        None,
+        &ProverComputeBackend::Cpu,
+    )
 }
 
-pub(crate) fn fold_shard_prove_with_context<L, MR, MB>(
+pub(crate) fn fold_shard_prove_with_context_and_backend<L, MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -29,6 +41,7 @@ pub(crate) fn fold_shard_prove_with_context<L, MR, MB>(
     acc_wit_init: &[Mat<F>],
     l: &L,
     mixers: CommitMixers<MR, MB>,
+    compute_backend: &ProverComputeBackend,
     ctx: &ShardProverContext,
 ) -> Result<ShardProof, PiCcsError>
 where
@@ -47,10 +60,11 @@ where
         l,
         mixers,
         Some(ctx),
+        compute_backend,
     )
 }
 
-pub(crate) fn fold_shard_prove_with_context_and_step_timings<L, MR, MB>(
+pub(crate) fn fold_shard_prove_with_context_and_step_timings_and_backend<L, MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -60,6 +74,7 @@ pub(crate) fn fold_shard_prove_with_context_and_step_timings<L, MR, MB>(
     acc_wit_init: &[Mat<F>],
     l: &L,
     mixers: CommitMixers<MR, MB>,
+    compute_backend: &ProverComputeBackend,
     ctx: &ShardProverContext,
 ) -> Result<(ShardProof, Vec<f64>), PiCcsError>
 where
@@ -79,6 +94,7 @@ where
         l,
         mixers,
         Some(ctx),
+        compute_backend,
     )?;
     let total_ms = elapsed_ms(start);
     let step_count = proof.steps.len();
@@ -121,10 +137,11 @@ where
         ob_cfg,
         final_memory_state,
         None,
+        &ProverComputeBackend::Cpu,
     )
 }
 
-pub(crate) fn fold_shard_prove_with_output_binding_with_context<L, MR, MB>(
+pub(crate) fn fold_shard_prove_with_output_binding_with_context_and_backend<L, MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -136,6 +153,7 @@ pub(crate) fn fold_shard_prove_with_output_binding_with_context<L, MR, MB>(
     mixers: CommitMixers<MR, MB>,
     ob_cfg: &crate::output_binding::OutputBindingConfig,
     final_memory_state: &[F],
+    compute_backend: &ProverComputeBackend,
     ctx: &ShardProverContext,
 ) -> Result<ShardProof, PiCcsError>
 where
@@ -156,6 +174,7 @@ where
         ob_cfg,
         final_memory_state,
         Some(ctx),
+        compute_backend,
     )
 }
 
@@ -187,6 +206,7 @@ where
         mixers,
         0,
         None,
+        &ProverComputeBackend::Cpu,
     )?;
     let outputs = proof.compute_fold_outputs(acc_init);
     if outputs.obligations.main.len() != final_main_wits.len() {
@@ -246,6 +266,7 @@ where
         mixers,
         step_idx_offset,
         None,
+        &ProverComputeBackend::Cpu,
     )?;
     let outputs = proof.compute_fold_outputs(acc_init);
     if outputs.obligations.main.len() != final_main_wits.len() {
@@ -342,6 +363,7 @@ pub(crate) fn fold_shard_verify_impl<MR, MB>(
     mixers: CommitMixers<MR, MB>,
     ob_cfg: Option<&crate::output_binding::OutputBindingConfig>,
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
     initial_prev_step: Option<&StepInstanceBundle<Cmt, F, K>>,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
@@ -414,6 +436,7 @@ where
     let ccs_mat_digest = prover_ctx
         .map(|ctx| ctx.ccs_mat_digest.clone())
         .unwrap_or_else(|| utils::digest_ccs_matrices_with_sparse_cache(s, ccs_sparse_cache.as_deref()));
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
 
     for (idx, (step, step_proof)) in effective_steps.iter().zip(proof.steps.iter()).enumerate() {
         let step_idx = step_idx_offset
@@ -519,7 +542,7 @@ where
             dims,
             &ccs_mat_digest,
         )?;
-        utils::bind_me_inputs(tr, &accumulator)?;
+        utils::bind_me_inputs_with_context(tr, &accumulator, &backend_ctx)?;
         let expected_time_col_ids = step_proof
             .fold
             .time_cpu_commitments
@@ -1233,6 +1256,7 @@ where
             ell_d,
             mixers,
             step_idx,
+            &backend_ctx,
             &step_proof.fold.ccs_out,
             &step_proof.fold.rlc_rhos,
             &step_proof.fold.rlc_parent,
@@ -1296,6 +1320,7 @@ where
                     ell_d,
                     mixers,
                     step_idx,
+                    &backend_ctx,
                     core::slice::from_ref(me),
                     &proof.rlc_rhos,
                     &proof.rlc_parent,
@@ -1345,6 +1370,7 @@ where
                     ell_d,
                     mixers,
                     step_idx,
+                    &backend_ctx,
                     core::slice::from_ref(me),
                     &proof.rlc_rhos,
                     &proof.rlc_parent,
@@ -1391,6 +1417,7 @@ where
                     ell_d,
                     mixers,
                     step_idx,
+                    &backend_ctx,
                     core::slice::from_ref(me),
                     &proof.rlc_rhos,
                     &proof.rlc_parent,
@@ -1412,6 +1439,7 @@ where
             mixers,
             step_idx,
             idx,
+            &backend_ctx,
             step_proof,
             &mut val_lane_obligations,
         )?;
@@ -1450,6 +1478,7 @@ where
                 ell_d,
                 mixers,
                 step_idx,
+                &backend_ctx,
                 plan.claims.as_slice(),
                 &proof_stage8.rlc_rhos,
                 &proof_stage8.rlc_parent,
@@ -1485,6 +1514,36 @@ where
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
     fold_shard_verify_mixed_ccs_batched(mode, tr, params, s_me, steps, 0, acc_init, proof, mixers, None)
+}
+
+pub(crate) fn fold_shard_verify_with_backend<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[CeClaim<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    compute_backend: &ProverComputeBackend,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    fold_shard_verify_mixed_ccs_batched_with_backend(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        0,
+        acc_init,
+        proof,
+        mixers,
+        None,
+        compute_backend,
+    )
 }
 
 /// Same as `fold_shard_verify`, but offsets the per-step transcript index by `step_idx_offset`.
@@ -1536,6 +1595,26 @@ where
     fold_shard_verify(mode, tr, params, s_me, steps, acc_init, proof, mixers)
 }
 
+pub(crate) fn fold_shard_verify_with_step_linking_and_backend<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[CeClaim<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    step_linking: &StepLinkingConfig,
+    compute_backend: &ProverComputeBackend,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify_with_backend(mode, tr, params, s_me, steps, acc_init, proof, mixers, compute_backend)
+}
+
 pub fn fold_shard_verify_with_output_binding<MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
@@ -1556,6 +1635,38 @@ where
     )
 }
 
+pub(crate) fn fold_shard_verify_with_output_binding_and_backend<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[CeClaim<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    ob_cfg: &crate::output_binding::OutputBindingConfig,
+    compute_backend: &ProverComputeBackend,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    fold_shard_verify_mixed_ccs_batched_with_output_binding_and_backend(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        0,
+        acc_init,
+        proof,
+        mixers,
+        ob_cfg,
+        None,
+        compute_backend,
+    )
+}
+
 pub(crate) fn fold_shard_verify_with_context<MR, MB>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
@@ -1566,12 +1677,13 @@ pub(crate) fn fold_shard_verify_with_context<MR, MB>(
     proof: &ShardProof,
     mixers: CommitMixers<MR, MB>,
     prover_ctx: &ShardProverContext,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    fold_shard_verify_mixed_ccs_batched(
+    fold_shard_verify_mixed_ccs_batched_with_backend(
         mode,
         tr,
         params,
@@ -1582,6 +1694,7 @@ where
         proof,
         mixers,
         Some(prover_ctx),
+        compute_backend,
     )
 }
 
@@ -1596,13 +1709,25 @@ pub(crate) fn fold_shard_verify_with_step_linking_with_context<MR, MB>(
     mixers: CommitMixers<MR, MB>,
     step_linking: &StepLinkingConfig,
     prover_ctx: &ShardProverContext,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
     check_step_linking(steps, step_linking)?;
-    fold_shard_verify_with_context(mode, tr, params, s_me, steps, acc_init, proof, mixers, prover_ctx)
+    fold_shard_verify_with_context(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        proof,
+        mixers,
+        prover_ctx,
+        compute_backend,
+    )
 }
 
 pub(crate) fn fold_shard_verify_with_output_binding_with_context<MR, MB>(
@@ -1616,12 +1741,13 @@ pub(crate) fn fold_shard_verify_with_output_binding_with_context<MR, MB>(
     mixers: CommitMixers<MR, MB>,
     ob_cfg: &crate::output_binding::OutputBindingConfig,
     prover_ctx: &ShardProverContext,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
     MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
 {
-    fold_shard_verify_mixed_ccs_batched_with_output_binding(
+    fold_shard_verify_mixed_ccs_batched_with_output_binding_and_backend(
         mode,
         tr,
         params,
@@ -1633,6 +1759,7 @@ where
         mixers,
         ob_cfg,
         Some(prover_ctx),
+        compute_backend,
     )
 }
 
@@ -1648,6 +1775,7 @@ pub(crate) fn fold_shard_verify_with_output_binding_and_step_linking_with_contex
     ob_cfg: &crate::output_binding::OutputBindingConfig,
     step_linking: &StepLinkingConfig,
     prover_ctx: &ShardProverContext,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
@@ -1655,7 +1783,49 @@ where
 {
     check_step_linking(steps, step_linking)?;
     fold_shard_verify_with_output_binding_with_context(
-        mode, tr, params, s_me, steps, acc_init, proof, mixers, ob_cfg, prover_ctx,
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        proof,
+        mixers,
+        ob_cfg,
+        prover_ctx,
+        compute_backend,
+    )
+}
+
+pub(crate) fn fold_shard_verify_with_output_binding_and_step_linking_and_backend<MR, MB>(
+    mode: FoldingMode,
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s_me: &CcsStructure<F>,
+    steps: &[StepInstanceBundle<Cmt, F, K>],
+    acc_init: &[CeClaim<Cmt, F, K>],
+    proof: &ShardProof,
+    mixers: CommitMixers<MR, MB>,
+    ob_cfg: &crate::output_binding::OutputBindingConfig,
+    step_linking: &StepLinkingConfig,
+    compute_backend: &ProverComputeBackend,
+) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
+where
+    MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
+    MB: Fn(&[Cmt], u32) -> Cmt + Clone + Copy,
+{
+    check_step_linking(steps, step_linking)?;
+    fold_shard_verify_with_output_binding_and_backend(
+        mode,
+        tr,
+        params,
+        s_me,
+        steps,
+        acc_init,
+        proof,
+        mixers,
+        ob_cfg,
+        compute_backend,
     )
 }
 

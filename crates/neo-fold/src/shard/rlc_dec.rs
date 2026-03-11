@@ -12,6 +12,7 @@ pub(crate) fn prove_rlc_dec_lane<L, MR, MB>(
     ell_d: usize,
     k_dec: usize,
     step_idx: usize,
+    backend_ctx: &neo_reductions::accelerator::BackendContext,
     trace_linkage_t_len: Option<usize>,
     me_inputs: &[CeClaim<Cmt, F, K>],
     wit_inputs: &[&Mat<F>],
@@ -62,7 +63,7 @@ where
     let s = s_lane;
     let inputs_have_extra_y = me_inputs.iter().any(|me| me.y_ring.len() > s.t());
 
-    bind_rlc_inputs(tr, lane, step_idx, me_inputs)?;
+    bind_rlc_inputs_with_context(tr, lane, step_idx, me_inputs, backend_ctx)?;
     let k_rlc_min = neo_reductions::common::min_k_rho_for_rlc_count(params, ring, me_inputs.len())? as usize;
     let k_rho_eff = core::cmp::max(k_dec, k_rlc_min);
     let mut params_rlc = params.clone();
@@ -434,6 +435,7 @@ pub(crate) fn verify_rlc_dec_lane<MR, MB>(
     ell_d: usize,
     mixers: CommitMixers<MR, MB>,
     step_idx: usize,
+    backend_ctx: &neo_reductions::accelerator::BackendContext,
     rlc_inputs: &[CeClaim<Cmt, F, K>],
     rlc_rhos: &[ccs::RotRho],
     rlc_parent: &CeClaim<Cmt, F, K>,
@@ -468,7 +470,7 @@ where
     };
     let s = s_lane;
 
-    bind_rlc_inputs(tr, lane, step_idx, rlc_inputs)?;
+    bind_rlc_inputs_with_context(tr, lane, step_idx, rlc_inputs, backend_ctx)?;
 
     if rlc_rhos.len() != rlc_inputs.len() {
         let prefix = match lane {

@@ -126,6 +126,7 @@ pub fn fold_shard_prove_ccs_only_batched<L, MR, MB>(
     l: &L,
     mixers: CommitMixers<MR, MB>,
     mcs_batch_size: usize,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardProof, PiCcsError>
 where
     L: SModuleHomomorphism<F, Cmt> + Sync,
@@ -144,6 +145,7 @@ where
         mixers,
         mcs_batch_size,
         0,
+        compute_backend,
     )?;
     Ok(proof)
 }
@@ -160,6 +162,7 @@ pub(crate) fn fold_shard_prove_ccs_only_batched_with_outputs_and_offset<L, MR, M
     mixers: CommitMixers<MR, MB>,
     mcs_batch_size: usize,
     step_idx_offset: usize,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<(ShardProof, Vec<CeClaim<Cmt, F, K>>, Vec<Mat<F>>), PiCcsError>
 where
     L: SModuleHomomorphism<F, Cmt> + Sync,
@@ -196,6 +199,7 @@ where
     } else {
         None
     };
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
 
     let mut accumulator = acc_init.to_vec();
     let mut accumulator_wit = acc_wit_init.to_vec();
@@ -232,7 +236,7 @@ where
         let mcs_list: Vec<neo_ccs::CcsClaim<Cmt, F>> = batch.iter().map(|step| step.mcs.0.clone()).collect();
         let mcs_wits: Vec<neo_ccs::CcsWitness<F>> = batch.iter().map(|step| step.mcs.1.clone()).collect();
 
-        let (ccs_out, ccs_proof) = ccs::prove(
+        let (ccs_out, ccs_proof) = ccs::prove_with_context(
             mode.clone(),
             tr,
             params,
@@ -242,6 +246,7 @@ where
             &accumulator,
             &accumulator_wit,
             l,
+            &backend_ctx,
         )?;
 
         let expected_k = mcs_list.len() + accumulator.len();
@@ -271,6 +276,7 @@ where
             ell_d,
             k_dec,
             step_idx,
+            &backend_ctx,
             None,
             &ccs_out,
             &outs_Z,
@@ -366,6 +372,7 @@ where
         mixers,
         mcs_batch_size,
         0,
+        &ProverComputeBackend::Cpu,
     )
 }
 
@@ -380,6 +387,7 @@ pub(crate) fn fold_shard_verify_ccs_only_batched_with_offset<MR, MB>(
     mixers: CommitMixers<MR, MB>,
     mcs_batch_size: usize,
     step_idx_offset: usize,
+    compute_backend: &ProverComputeBackend,
 ) -> Result<ShardFoldOutputs<Cmt, F, K>, PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt + Clone + Copy,
@@ -407,6 +415,7 @@ where
     let dims = utils::build_dims_and_policy(params, s)?;
     let ell_d = dims.ell_d;
     let ring = ccs::RotRing::goldilocks();
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
 
     let expected_proof_steps = if steps.is_empty() {
         0
@@ -462,7 +471,7 @@ where
             )));
         }
 
-        let ok_ccs = ccs::verify(
+        let ok_ccs = ccs::verify_with_context(
             mode.clone(),
             tr,
             params,
@@ -471,6 +480,7 @@ where
             &accumulator,
             &step_proof.fold.ccs_out,
             &step_proof.fold.ccs_proof,
+            &backend_ctx,
         )?;
         if !ok_ccs {
             return Err(PiCcsError::ProtocolError(format!(
@@ -513,6 +523,7 @@ where
             ell_d,
             mixers,
             step_idx,
+            &backend_ctx,
             &step_proof.fold.ccs_out,
             &step_proof.fold.rlc_rhos,
             &step_proof.fold.rlc_parent,

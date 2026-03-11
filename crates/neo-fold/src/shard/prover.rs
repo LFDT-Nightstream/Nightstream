@@ -116,6 +116,7 @@ pub(crate) fn fold_shard_prove_impl<L, MR, MB>(
     mixers: CommitMixers<MR, MB>,
     ob: Option<(&crate::output_binding::OutputBindingConfig, &[F])>,
     prover_ctx: Option<&ShardProverContext>,
+    compute_backend: &ProverComputeBackend,
     mut step_prove_ms_out: Option<&mut Vec<f64>>,
     initial_prev_step: Option<&StepWitnessBundle<Cmt, F, K>>,
     initial_prev_twist_decoded: Option<Vec<crate::memory_sidecar::memory::TwistDecodedColsSparse>>,
@@ -202,6 +203,7 @@ where
     let mut poseidon_carry =
         initial_poseidon_carry.unwrap_or_else(crate::memory_sidecar::memory::PoseidonSidecarCarryState::new);
     let mut output_proof: Option<neo_memory::output_check::OutputBindingProof> = None;
+    let backend_ctx = neo_reductions::accelerator::BackendContext::new(compute_backend)?;
     if ob.is_some() && steps.is_empty() {
         return Err(PiCcsError::InvalidInput("output binding requires >= 1 step".into()));
     }
@@ -375,7 +377,7 @@ where
             dims,
             &ccs_mat_digest,
         )?;
-        utils::bind_me_inputs(tr, &accumulator)?;
+        utils::bind_me_inputs_with_context(tr, &accumulator, &backend_ctx)?;
         bind_time_column_commitments(
             tr,
             step_idx,
@@ -510,20 +512,19 @@ where
                 let sparse = ccs_sparse_cache
                     .as_ref()
                     .ok_or_else(|| PiCcsError::ProtocolError("missing SparseCache for optimized mode".into()))?;
-                CcsOracleDispatch::Optimized(
-                    neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new_with_sparse(
-                        &s,
-                        params,
-                        core::slice::from_ref(mcs_wit),
-                        &accumulator_wit,
-                        ch.clone(),
-                        ell_d,
-                        ell_n,
-                        d_sc,
-                        accumulator.first().map(|mi| mi.r.as_slice()),
-                        sparse.clone(),
-                    ),
-                )
+                CcsOracleDispatch::Optimized(neo_reductions::accelerator::SplitNcOptimizedOracle::new_with_sparse(
+                    &s,
+                    params,
+                    core::slice::from_ref(mcs_wit),
+                    &accumulator_wit,
+                    ch.clone(),
+                    ell_d,
+                    ell_n,
+                    d_sc,
+                    accumulator.first().map(|mi| mi.r.as_slice()),
+                    sparse.clone(),
+                    &backend_ctx,
+                )?)
             }
             #[cfg(feature = "paper-exact")]
             FoldingMode::PaperExact => CcsOracleDispatch::PaperExact(
@@ -544,20 +545,19 @@ where
                 let sparse = ccs_sparse_cache
                     .as_ref()
                     .ok_or_else(|| PiCcsError::ProtocolError("missing SparseCache for optimized mode".into()))?;
-                CcsOracleDispatch::Optimized(
-                    neo_reductions::engines::optimized_engine::oracle::OptimizedOracle::new_with_sparse(
-                        &s,
-                        params,
-                        core::slice::from_ref(mcs_wit),
-                        &accumulator_wit,
-                        ch.clone(),
-                        ell_d,
-                        ell_n,
-                        d_sc,
-                        accumulator.first().map(|mi| mi.r.as_slice()),
-                        sparse.clone(),
-                    ),
-                )
+                CcsOracleDispatch::Optimized(neo_reductions::accelerator::SplitNcOptimizedOracle::new_with_sparse(
+                    &s,
+                    params,
+                    core::slice::from_ref(mcs_wit),
+                    &accumulator_wit,
+                    ch.clone(),
+                    ell_d,
+                    ell_n,
+                    d_sc,
+                    accumulator.first().map(|mi| mi.r.as_slice()),
+                    sparse.clone(),
+                    &backend_ctx,
+                )?)
             }
         };
 
@@ -1256,6 +1256,7 @@ where
             ell_d,
             k_dec,
             step_idx,
+            &backend_ctx,
             trace_linkage_t_len,
             &ccs_out,
             &outs_Z,
@@ -1315,7 +1316,13 @@ where
                             .ok_or_else(|| PiCcsError::InvalidInput("val-lane r dimension overflow".into()))?;
                         let mut s_lane = s.clone();
                         s_lane.n = n_lane;
-                        bind_rlc_inputs(tr, RlcLane::Val, step_idx, core::slice::from_ref(me))?;
+                        bind_rlc_inputs_with_context(
+                            tr,
+                            RlcLane::Val,
+                            step_idx,
+                            core::slice::from_ref(me),
+                            &backend_ctx,
+                        )?;
                         let rlc_rhos = ccs::sample_rot_rhos_n_typed(tr, params, &ring, 1)?;
                         let mut rlc_parent = ccs::rlc_public(
                             &s_lane,
@@ -1484,6 +1491,7 @@ where
                     ell_d,
                     k_dec,
                     step_idx,
+                    &backend_ctx,
                     None,
                     core::slice::from_ref(me),
                     core::slice::from_ref(&wit),
@@ -1512,7 +1520,7 @@ where
                 let mut s_lane = s.clone();
                 s_lane.n = n_lane;
                 tr.append_message(b"fold/wb_lane_claim_idx", &(claim_idx as u64).to_le_bytes());
-                bind_rlc_inputs(tr, RlcLane::Val, step_idx, core::slice::from_ref(me))?;
+                bind_rlc_inputs_with_context(tr, RlcLane::Val, step_idx, core::slice::from_ref(me), &backend_ctx)?;
                 let rlc_rhos = ccs::sample_rot_rhos_n_typed(tr, params, &ring, 1)?;
                 let rlc_parent = ccs::rlc_public(
                     &s_lane,
@@ -1780,7 +1788,7 @@ where
                 let mut s_lane = s.clone();
                 s_lane.n = n_lane;
                 tr.append_message(b"fold/wp_lane_claim_idx", &(claim_idx as u64).to_le_bytes());
-                bind_rlc_inputs(tr, RlcLane::Val, step_idx, core::slice::from_ref(me))?;
+                bind_rlc_inputs_with_context(tr, RlcLane::Val, step_idx, core::slice::from_ref(me), &backend_ctx)?;
                 let rlc_rhos = ccs::sample_rot_rhos_n_typed(tr, params, &ring, 1)?;
                 let rlc_parent = ccs::rlc_public(
                     &s_lane,
@@ -1958,6 +1966,7 @@ where
             &ring,
             ell_d,
             step_idx,
+            &backend_ctx,
             &mem_proof,
             poseidon_cycle_wits.as_ref(),
             poseidon_cycle_open_specs.as_ref(),
@@ -2502,6 +2511,7 @@ where
                         ell_d,
                         k_dec,
                         step_idx,
+                        &backend_ctx,
                         None,
                         plan.claims.as_slice(),
                         wit_refs.as_slice(),

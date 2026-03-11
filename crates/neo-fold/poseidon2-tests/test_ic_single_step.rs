@@ -19,15 +19,20 @@ use neo_ajtai::{set_global_pp, setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
 use neo_fold::pi_ccs::FoldingMode;
 use neo_fold::session::{FoldingSession, NeoStep, StepArtifacts, StepSpec};
+use neo_fold::{DeviceApi, MojoBackendConfig, ProverComputeBackend};
 use neo_math::{D, F};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::Instant;
+
+use libloading::Library;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct SparseMatrix {
@@ -84,11 +89,136 @@ fn load_test_export(batch_size: usize) -> TestExport {
     let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON");
     serde_json::from_str(&json_content).expect("Failed to parse JSON")
 }
+
 fn setup_ajtai_for_dims(m: usize) {
     let m_commit = m.div_ceil(D);
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
     let pp = ajtai_setup(&mut rng, D, 4, m_commit).expect("Ajtai setup should succeed");
     let _ = set_global_pp(pp);
+}
+
+fn poseidon_prove_verify_params(n: usize) -> NeoParams {
+    let base = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("goldilocks_auto_r1cs_ccs should find valid params");
+    NeoParams::new(
+        base.q,
+        base.eta,
+        base.d,
+        base.kappa,
+        base.m,
+        4,
+        16,
+        base.T,
+        base.s,
+        base.lambda,
+    )
+    .expect("base-4 poseidon params")
+}
+
+fn mock_manifest_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("neo-gpu")
+        .join("tests")
+        .join("support")
+        .join("mock-mojo-gpu")
+        .join("Cargo.toml")
+}
+
+fn mock_library_name() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "libmock_mojo_gpu.dylib"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "libmock_mojo_gpu.so"
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "mock_mojo_gpu.dll"
+    }
+}
+
+fn build_mock_library() -> &'static Path {
+    static LIB_PATH: OnceLock<PathBuf> = OnceLock::new();
+    LIB_PATH.get_or_init(|| {
+        let manifest = mock_manifest_path();
+        let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+        let status = Command::new(cargo)
+            .arg("build")
+            .arg("--release")
+            .arg("--manifest-path")
+            .arg(&manifest)
+            .status()
+            .expect("spawn cargo build for mock mojo gpu");
+        assert!(status.success(), "mock mojo gpu build failed");
+
+        manifest
+            .parent()
+            .expect("mock manifest parent")
+            .join("target")
+            .join("release")
+            .join(mock_library_name())
+            .canonicalize()
+            .expect("canonical mock mojo gpu library path")
+    })
+}
+
+fn real_mojo_library_name() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "libnightstream_mojo_gpu.dylib"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "libnightstream_mojo_gpu.so"
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "nightstream_mojo_gpu.dll"
+    }
+}
+
+fn build_real_mojo_library() -> &'static Path {
+    static LIB_PATH: OnceLock<PathBuf> = OnceLock::new();
+    LIB_PATH.get_or_init(|| {
+        let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("gpu")
+            .join("mojo");
+        let output_dir = project_dir.join("build");
+        let output = output_dir.join(real_mojo_library_name());
+
+        let status = Command::new("pixi")
+            .arg("run")
+            .arg("mojo")
+            .arg("build")
+            .arg("--emit")
+            .arg("shared-lib")
+            .arg("src/lib.mojo")
+            .arg("-o")
+            .arg(&output)
+            .current_dir(&project_dir)
+            .status()
+            .expect("spawn mojo build");
+        assert!(status.success(), "real mojo gpu build failed");
+
+        output
+            .canonicalize()
+            .expect("canonical real mojo gpu library path")
+    })
+}
+
+fn required_accelerator_api() -> DeviceApi {
+    #[cfg(target_os = "macos")]
+    {
+        DeviceApi::Metal
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        DeviceApi::Cuda
+    }
 }
 
 #[derive(Clone)]
@@ -123,6 +253,51 @@ impl NeoStep for StepCircuit {
     }
 }
 
+fn build_poseidon_session(
+    batch_size: usize,
+    compute_backend: Option<ProverComputeBackend>,
+) -> (FoldingSession<AjtaiSModule>, Arc<CcsStructure<F>>) {
+    let export = load_test_export(batch_size);
+
+    let n = export.num_constraints.max(export.num_variables);
+    let params = poseidon_prove_verify_params(n);
+
+    setup_ajtai_for_dims(n);
+    let l = AjtaiSModule::from_global_for_dims(D, n.div_ceil(D)).expect("AjtaiSModule init");
+
+    let step_spec = StepSpec {
+        y_len: 0,
+        const1_index: 0,
+        y_step_indices: vec![],
+        app_input_indices: Some(vec![]),
+        m_in: 1,
+    };
+
+    let step_ccs = Arc::new(build_step_ccs(&export));
+    let mut circuit = StepCircuit {
+        steps: export
+            .witness
+            .iter()
+            .map(|step_witness| step_witness.iter().map(|f| F::from_u64(*f)).collect())
+            .collect(),
+        step_spec: step_spec.clone(),
+        step_ccs: step_ccs.clone(),
+    };
+
+    let mut session = FoldingSession::new(FoldingMode::Optimized, params, l);
+    if let Some(backend) = compute_backend {
+        session = session.with_compute_backend(backend);
+    }
+
+    for step_idx in 0..export.witness.len() {
+        session
+            .add_step(&mut circuit, &NoInputs)
+            .unwrap_or_else(|err| panic!("add_step {step_idx} should succeed under base-4 params: {err}"));
+    }
+
+    (session, step_ccs)
+}
+
 #[test]
 fn test_poseidon2_ic_batch_size_1() {
     test_poseidon2_ic_batch_size(1);
@@ -146,6 +321,87 @@ fn test_poseidon2_ic_batch_size_30() {
 #[test]
 fn test_poseidon2_ic_batch_size_40() {
     test_poseidon2_ic_batch_size(40);
+}
+
+#[test]
+fn test_poseidon2_ic_batch_size_1_mock_mojo_prove_verify() {
+    type ResetFn = unsafe extern "C" fn();
+    type CounterFn = unsafe extern "C" fn() -> usize;
+
+    let mut cpu_session;
+    let mut mojo_session;
+    let ccs;
+
+    (cpu_session, ccs) = build_poseidon_session(1, None);
+
+    let cpu_run = cpu_session
+        .fold_and_prove(ccs.as_ref())
+        .expect("cpu fold_and_prove should succeed");
+    assert!(
+        cpu_session
+            .verify_collected(ccs.as_ref(), &cpu_run)
+            .expect("cpu verify_collected should run"),
+        "cpu verify_collected should pass"
+    );
+
+    let mock_library = build_mock_library();
+    let lib = unsafe { Library::new(mock_library) }.expect("load mock mojo gpu library");
+    let reset = unsafe {
+        *lib.get::<ResetFn>(b"nightstream_gpu_test_reset_counters\0")
+            .expect("load counter reset symbol")
+    };
+    let session_open_calls = unsafe {
+        *lib.get::<CounterFn>(b"nightstream_gpu_test_session_open_calls\0")
+            .expect("load session open counter symbol")
+    };
+    let poseidon2_batch_calls = unsafe {
+        *lib.get::<CounterFn>(b"nightstream_gpu_test_poseidon2_batch_calls\0")
+            .expect("load poseidon2 batch counter symbol")
+    };
+    unsafe { reset() };
+
+    let backend =
+        ProverComputeBackend::Mojo(MojoBackendConfig::new(required_accelerator_api()).with_library_path(mock_library));
+    (mojo_session, _) = build_poseidon_session(1, Some(backend));
+
+    let mojo_run = mojo_session
+        .fold_and_prove(ccs.as_ref())
+        .expect("mock mojo fold_and_prove should succeed");
+    assert!(
+        mojo_session
+            .verify_collected(ccs.as_ref(), &mojo_run)
+            .expect("mock mojo verify_collected should run"),
+        "mock mojo verify_collected should pass"
+    );
+
+    assert_eq!(
+        serde_json::to_vec(&cpu_run).expect("serialize cpu run"),
+        serde_json::to_vec(&mojo_run).expect("serialize mojo run"),
+    );
+    assert_eq!(unsafe { session_open_calls() }, 2);
+    assert!(
+        unsafe { poseidon2_batch_calls() } > 0,
+        "mock mojo backend should use batched Poseidon2 during prove/verify"
+    );
+}
+
+#[test]
+#[ignore = "requires local Mojo shared library with a working accelerator session"]
+fn test_poseidon2_ic_batch_size_40_real_mojo_gpu_prove_verify() {
+    let backend = ProverComputeBackend::Mojo(
+        MojoBackendConfig::new(required_accelerator_api()).with_library_path(build_real_mojo_library()),
+    );
+    let (mut session, ccs) = build_poseidon_session(40, Some(backend));
+
+    let run = session
+        .fold_and_prove(ccs.as_ref())
+        .expect("real mojo gpu fold_and_prove should succeed");
+    assert!(
+        session
+            .verify_collected(ccs.as_ref(), &run)
+            .expect("real mojo gpu verify_collected should run"),
+        "real mojo gpu verify_collected should pass"
+    );
 }
 
 fn test_poseidon2_ic_batch_size(batch_size: usize) {

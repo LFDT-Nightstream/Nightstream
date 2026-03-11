@@ -2,6 +2,7 @@
 members = [
   "crates/neo-params", 
   "crates/neo-math", 
+  "crates/neo-gpu",
   # Implementation crates
   "crates/neo-transcript",
   "crates/neo-ajtai",

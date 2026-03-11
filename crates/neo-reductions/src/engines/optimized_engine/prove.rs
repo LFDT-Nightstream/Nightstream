@@ -8,8 +8,10 @@
 use crate::error::PiCcsError;
 use crate::optimized_engine::{PiCcsProof, PiCcsProofVariant};
 use crate::sumcheck::RoundOracle;
+use crate::{accelerator, accelerator::SplitNcOptimizedOracle};
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
+use neo_gpu::ProverComputeBackend;
 use neo_math::KExtensions;
 use neo_math::{F, K};
 use neo_params::NeoParams;
@@ -30,6 +32,57 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     me_inputs: &[CeClaim<Cmt, F, K>],
     me_witnesses: &[Mat<F>],
     log: &L,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
+    optimized_prove_with_backend(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        &ProverComputeBackend::Cpu,
+    )
+}
+
+/// Optimized prove implementation with a backend-aware Split-NC oracle seam.
+pub fn optimized_prove_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    log: &L,
+    compute_backend: &ProverComputeBackend,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
+    let backend_ctx = accelerator::BackendContext::new(compute_backend)?;
+    optimized_prove_with_context(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        &backend_ctx,
+    )
+}
+
+/// Optimized prove implementation with a reusable backend context.
+pub fn optimized_prove_with_context<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    log: &L,
+    backend_ctx: &accelerator::BackendContext,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     if mcs_list.is_empty() {
         return Err(PiCcsError::InvalidInput("optimized_prove: empty mcs_list".into()));
@@ -52,7 +105,7 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // Dims + transcript binding
     let dims = utils::build_dims_and_policy(params, s)?;
     utils::bind_header_and_instances(tr, params, s, mcs_list, dims)?;
-    utils::bind_me_inputs(tr, me_inputs)?;
+    utils::bind_me_inputs_with_context(tr, me_inputs, &backend_ctx)?;
 
     // Sample challenges
     let mut ch = utils::sample_challenges(tr, dims.ell_d, dims.ell)?;
@@ -110,7 +163,7 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 
     // Optimized oracles with cached sparse formats and factored algebra
     let sparse = Arc::new(super::oracle::SparseCache::build(s));
-    let mut oracle = super::oracle::OptimizedOracle::new_with_sparse(
+    let mut oracle = SplitNcOptimizedOracle::new_with_sparse(
         s,
         params,
         mcs_witnesses,
@@ -121,7 +174,8 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         dims.d_sc,
         r_inputs,
         sparse,
-    );
+        &backend_ctx,
+    )?;
 
     // ---------------------------------------------------------------------
     // FE sumcheck channel (SplitNcV1).
@@ -192,7 +246,7 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // ---------------------------------------------------------------------
     // NC-only sumcheck (split-NC scaffolding; claimed sum is 0)
     // ---------------------------------------------------------------------
-    let mut oracle_nc = super::oracle::NcOracle::new(
+    let mut oracle_nc = accelerator::SplitNcNcOracle::new(
         s,
         params,
         mcs_witnesses,
@@ -201,7 +255,8 @@ pub fn optimized_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         dims.ell_d,
         dims.ell_m,
         dims.d_sc,
-    );
+        &backend_ctx,
+    )?;
 
     tr.append_message(b"sumcheck/nc", b"");
     let initial_sum_nc = K::ZERO;

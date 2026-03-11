@@ -9,6 +9,7 @@ use crate::error::PiCcsError;
 use crate::optimized_engine::{PiCcsProof, PiCcsProofVariant};
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
+use neo_gpu::ProverComputeBackend;
 use neo_math::KExtensions;
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
@@ -28,13 +29,51 @@ pub fn optimized_verify(
     me_outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
 ) -> Result<bool, PiCcsError> {
+    optimized_verify_with_backend(
+        tr,
+        params,
+        s,
+        mcs_list,
+        me_inputs,
+        me_outputs,
+        proof,
+        &ProverComputeBackend::Cpu,
+    )
+}
+
+/// Optimized verifier implementation with an explicit compute backend.
+pub fn optimized_verify_with_backend(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    compute_backend: &ProverComputeBackend,
+) -> Result<bool, PiCcsError> {
+    let backend_ctx = crate::accelerator::BackendContext::new(compute_backend)?;
+    optimized_verify_with_context(tr, params, s, mcs_list, me_inputs, me_outputs, proof, &backend_ctx)
+}
+
+/// Optimized verifier implementation with a reusable backend context.
+pub fn optimized_verify_with_context(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    backend_ctx: &crate::accelerator::BackendContext,
+) -> Result<bool, PiCcsError> {
     if mcs_list.is_empty() {
         return Err(PiCcsError::InvalidInput("optimized_verify: empty mcs_list".into()));
     }
 
     let dims = utils::build_dims_and_policy(params, s)?;
     utils::bind_header_and_instances(tr, params, s, mcs_list, dims)?;
-    utils::bind_me_inputs(tr, me_inputs)?;
+    utils::bind_me_inputs_with_context(tr, me_inputs, backend_ctx)?;
     let mut ch = utils::sample_challenges(tr, dims.ell_d, dims.ell)?;
     ch.beta_m = utils::sample_beta_m(tr, dims.ell_m)?;
 

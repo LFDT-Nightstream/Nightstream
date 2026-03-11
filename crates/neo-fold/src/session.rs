@@ -33,6 +33,7 @@ use neo_ajtai::AjtaiSModule;
 use neo_ajtai::{has_seed_for_dims, s_lincomb, s_mul, unload_global_pp_for_dims, Commitment as Cmt};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
+use neo_gpu::ProverComputeBackend;
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
 use neo_memory::ajtai::{commit_cols_for_ccs_m, decode_vector_for_ccs_m, encode_vector_for_ccs_m};
@@ -513,6 +514,7 @@ where
     mode: FoldingMode,
     params: NeoParams,
     l: L,
+    compute_backend: ProverComputeBackend,
     commit_m: Option<usize>,
     mixers: CommitMixers<fn(&[Mat<F>], &[Cmt]) -> Cmt, fn(&[Cmt], u32) -> Cmt>,
 
@@ -572,6 +574,7 @@ where
             mode,
             params,
             l,
+            compute_backend: ProverComputeBackend::Cpu,
             commit_m: None,
             mixers: default_mixers(),
             prover_ctx: None,
@@ -591,6 +594,19 @@ where
     /// Access the selected Neo parameters for this session.
     pub fn params(&self) -> &NeoParams {
         &self.params
+    }
+
+    pub fn compute_backend(&self) -> &ProverComputeBackend {
+        &self.compute_backend
+    }
+
+    pub fn set_compute_backend(&mut self, backend: ProverComputeBackend) {
+        self.compute_backend = backend;
+    }
+
+    pub fn with_compute_backend(mut self, backend: ProverComputeBackend) -> Self {
+        self.compute_backend = backend;
+        self
     }
 
     /// Returns the configured initial accumulator, if any.
@@ -1337,7 +1353,7 @@ where
                 let _ = unload_global_pp_for_dims(D, m_commit);
             }
 
-            shard::fold_shard_prove_with_context_and_step_timings(
+            shard::fold_shard_prove_with_context_and_step_timings_and_backend(
                 self.mode.clone(),
                 tr,
                 &self.params,
@@ -1347,6 +1363,7 @@ where
                 seed_me_wit,
                 &self.l,
                 self.mixers,
+                &self.compute_backend,
                 &ctx,
             )
         })();
@@ -1416,7 +1433,7 @@ where
                 let _ = unload_global_pp_for_dims(D, m_commit);
             }
 
-            shard::fold_shard_prove_with_context(
+            shard::fold_shard_prove_with_context_and_backend(
                 self.mode.clone(),
                 tr,
                 &self.params,
@@ -1426,6 +1443,7 @@ where
                 seed_me_wit,
                 &self.l,
                 self.mixers,
+                &self.compute_backend,
                 &ctx,
             )
         })();
@@ -1471,7 +1489,7 @@ where
                 None => (&[], &[]),
             };
 
-            shard::fold_shard_prove_with_output_binding_with_context(
+            shard::fold_shard_prove_with_output_binding_with_context_and_backend(
                 self.mode.clone(),
                 tr,
                 &self.params,
@@ -1483,6 +1501,7 @@ where
                 self.mixers,
                 ob_cfg,
                 final_memory_state,
+                &self.compute_backend,
                 &ctx,
             )
         })();
@@ -1675,8 +1694,9 @@ where
                         self.mixers,
                         cfg,
                         ctx,
+                        &self.compute_backend,
                     )?,
-                    None => shard::fold_shard_verify_with_step_linking(
+                    None => shard::fold_shard_verify_with_step_linking_and_backend(
                         self.mode.clone(),
                         tr,
                         &self.params,
@@ -1686,6 +1706,7 @@ where
                         run,
                         self.mixers,
                         cfg,
+                        &self.compute_backend,
                     )?,
                 },
                 None if self.allow_unlinked_steps => match verifier_ctx {
@@ -1699,8 +1720,9 @@ where
                         run,
                         self.mixers,
                         ctx,
+                        &self.compute_backend,
                     )?,
-                    None => shard::fold_shard_verify(
+                    None => shard::fold_shard_verify_with_backend(
                         self.mode.clone(),
                         tr,
                         &self.params,
@@ -1709,6 +1731,7 @@ where
                         seed_me,
                         run,
                         self.mixers,
+                        &self.compute_backend,
                     )?,
                 },
                 None => {
@@ -1733,8 +1756,9 @@ where
                     run,
                     self.mixers,
                     ctx,
+                    &self.compute_backend,
                 )?,
-                None => shard::fold_shard_verify(
+                None => shard::fold_shard_verify_with_backend(
                     self.mode.clone(),
                     tr,
                     &self.params,
@@ -1743,6 +1767,7 @@ where
                     seed_me,
                     run,
                     self.mixers,
+                    &self.compute_backend,
                 )?,
             }
         };
@@ -1845,8 +1870,9 @@ where
                         ob_cfg,
                         cfg,
                         ctx,
+                        &self.compute_backend,
                     )?,
-                    None => shard::fold_shard_verify_with_output_binding_and_step_linking(
+                    None => shard::fold_shard_verify_with_output_binding_and_step_linking_and_backend(
                         self.mode.clone(),
                         tr,
                         &self.params,
@@ -1857,6 +1883,7 @@ where
                         self.mixers,
                         ob_cfg,
                         cfg,
+                        &self.compute_backend,
                     )?,
                 },
                 None if self.allow_unlinked_steps => match verifier_ctx {
@@ -1871,8 +1898,9 @@ where
                         self.mixers,
                         ob_cfg,
                         ctx,
+                        &self.compute_backend,
                     )?,
-                    None => shard::fold_shard_verify_with_output_binding(
+                    None => shard::fold_shard_verify_with_output_binding_and_backend(
                         self.mode.clone(),
                         tr,
                         &self.params,
@@ -1882,6 +1910,7 @@ where
                         run,
                         self.mixers,
                         ob_cfg,
+                        &self.compute_backend,
                     )?,
                 },
                 None => {
@@ -1907,8 +1936,9 @@ where
                     self.mixers,
                     ob_cfg,
                     ctx,
+                    &self.compute_backend,
                 )?,
-                None => shard::fold_shard_verify_with_output_binding(
+                None => shard::fold_shard_verify_with_output_binding_and_backend(
                     self.mode.clone(),
                     tr,
                     &self.params,
@@ -1918,6 +1948,7 @@ where
                     run,
                     self.mixers,
                     ob_cfg,
+                    &self.compute_backend,
                 )?,
             }
         };

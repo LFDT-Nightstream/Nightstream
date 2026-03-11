@@ -1,7 +1,11 @@
 #![allow(non_snake_case)]
 
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
+use std::sync::OnceLock;
 
+use libloading::Library;
 use neo_ajtai::{s_lincomb, s_mul, setup as ajtai_setup, AjtaiSModule, Commitment as Cmt};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
@@ -10,6 +14,7 @@ use neo_fold::shard::{
     fold_shard_prove, fold_shard_prove_ccs_only_batched, fold_shard_verify, fold_shard_verify_ccs_only_batched,
     CommitMixers,
 };
+use neo_fold::{MojoBackendConfig, ProverComputeBackend};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
 use neo_memory::ajtai::{commit_cols_for_ccs_m, encode_vector_for_ccs_m};
@@ -86,6 +91,73 @@ fn build_step(params: &NeoParams, l: &AjtaiSModule, m: usize, m_in: usize, seed:
     StepWitnessBundle::from((CcsClaim { c, x, m_in }, CcsWitness { w, Z }))
 }
 
+fn mock_manifest_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("neo-gpu")
+        .join("tests")
+        .join("support")
+        .join("mock-mojo-gpu")
+        .join("Cargo.toml")
+}
+
+fn mock_library_name() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "libmock_mojo_gpu.dylib"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "libmock_mojo_gpu.so"
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "mock_mojo_gpu.dll"
+    }
+}
+
+fn build_mock_library() -> &'static Path {
+    static LIB_PATH: OnceLock<PathBuf> = OnceLock::new();
+    LIB_PATH.get_or_init(|| {
+        let manifest = mock_manifest_path();
+        let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+        let status = Command::new(cargo)
+            .arg("build")
+            .arg("--release")
+            .arg("--manifest-path")
+            .arg(&manifest)
+            .status()
+            .expect("spawn cargo build for mock mojo gpu");
+        assert!(status.success(), "mock mojo gpu build failed");
+
+        manifest
+            .parent()
+            .expect("mock manifest parent")
+            .join("target")
+            .join("release")
+            .join(mock_library_name())
+            .canonicalize()
+            .expect("canonical mock mojo gpu library path")
+    })
+}
+
+fn high_batch_params(n: usize) -> NeoParams {
+    let base = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    NeoParams::new(
+        base.q,
+        base.eta,
+        base.d,
+        base.kappa,
+        base.m,
+        base.b,
+        16,
+        base.T,
+        base.s,
+        base.lambda,
+    )
+    .expect("high batch params")
+}
+
 #[test]
 fn ccs_only_mcs_batched_k2_prove_verify() {
     let n = 8usize;
@@ -144,6 +216,7 @@ fn ccs_only_mcs_batched_k2_prove_verify() {
         &l,
         mixers,
         2,
+        &ProverComputeBackend::Cpu,
     )
     .expect("prove");
     assert_eq!(proof.steps.len(), 3, "5 steps batched by 2 should yield 3 fold steps");
@@ -223,6 +296,95 @@ fn ccs_only_default_shard_api_auto_batches() {
 }
 
 #[test]
+fn ccs_only_mcs_batched_mojo_backend_uses_batch_poseidon_for_rlc_binding() {
+    type ResetFn = unsafe extern "C" fn();
+    type CounterFn = unsafe extern "C" fn() -> usize;
+
+    let n = 8usize;
+    let ccs = identity_ccs(n);
+    let params = high_batch_params(n);
+    let l = setup_ajtai_committer(&params, ccs.m);
+    let mixers = default_mixers();
+    let batch_size = 40usize;
+
+    let steps: Vec<StepWitnessBundle<Cmt, F, K>> = (0..batch_size)
+        .map(|i| build_step(&params, &l, ccs.m, 2, 10_000 + (i as u64) * 97))
+        .collect();
+    let steps_public: Vec<StepInstanceBundle<Cmt, F, K>> = steps.iter().map(StepInstanceBundle::from).collect();
+
+    let mock_library = build_mock_library();
+    let lib = unsafe { Library::new(mock_library) }.expect("load mock mojo gpu library");
+    let reset = unsafe {
+        *lib.get::<ResetFn>(b"nightstream_gpu_test_reset_counters\0")
+            .expect("load counter reset symbol")
+    };
+    let batch_calls = unsafe {
+        *lib.get::<CounterFn>(b"nightstream_gpu_test_poseidon2_batch_calls\0")
+            .expect("load batch counter symbol")
+    };
+
+    let mut tr_cpu = Poseidon2Transcript::new(b"neo.fold/ccs_only_gpu_rlc");
+    let cpu_proof = fold_shard_prove_ccs_only_batched(
+        FoldingMode::Optimized,
+        &mut tr_cpu,
+        &params,
+        &ccs,
+        &steps,
+        &[],
+        &[],
+        &l,
+        mixers,
+        batch_size,
+        &ProverComputeBackend::Cpu,
+    )
+    .expect("cpu prove");
+
+    unsafe { reset() };
+    let backend = ProverComputeBackend::Mojo(MojoBackendConfig::auto().with_library_path(mock_library));
+    let mut tr_mojo = Poseidon2Transcript::new(b"neo.fold/ccs_only_gpu_rlc");
+    let mojo_proof = fold_shard_prove_ccs_only_batched(
+        FoldingMode::Optimized,
+        &mut tr_mojo,
+        &params,
+        &ccs,
+        &steps,
+        &[],
+        &[],
+        &l,
+        mixers,
+        batch_size,
+        &backend,
+    )
+    .expect("mojo prove");
+
+    assert_eq!(
+        serde_json::to_vec(&cpu_proof).expect("serialize cpu proof"),
+        serde_json::to_vec(&mojo_proof).expect("serialize mojo proof"),
+    );
+    assert!(
+        unsafe { batch_calls() } > 0,
+        "expected mock mojo backend to use batched Poseidon2 for RLC input binding"
+    );
+
+    let mut tr_v = Poseidon2Transcript::new(b"neo.fold/ccs_only_gpu_rlc");
+    let outputs = fold_shard_verify_ccs_only_batched(
+        FoldingMode::Optimized,
+        &mut tr_v,
+        &params,
+        &ccs,
+        &steps_public,
+        &[],
+        &mojo_proof,
+        mixers,
+        batch_size,
+    )
+    .expect("verify");
+
+    assert!(outputs.obligations.val.is_empty());
+    assert_eq!(outputs.obligations.main.len(), params.k_rho as usize);
+}
+
+#[test]
 fn ccs_only_mcs_batched_rejects_sidecars() {
     let n = 8usize;
     let ccs = identity_ccs(n);
@@ -260,6 +422,7 @@ fn ccs_only_mcs_batched_rejects_sidecars() {
         &l,
         mixers,
         2,
+        &ProverComputeBackend::Cpu,
     )
     .expect_err("sidecar steps should be rejected");
 

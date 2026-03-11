@@ -5,6 +5,8 @@
 
 #![allow(non_snake_case)]
 
+pub use neo_gpu::{DeviceApi, MojoBackendConfig, ProverComputeBackend};
+
 // Re-export everything from neo-reductions
 pub use neo_reductions::{
     error, optimized_engine, paper_exact_engine, pi_ccs, pi_ccs_paper_exact, pi_ccs_prove, pi_ccs_prove_simple,

@@ -1,0 +1,7 @@
+[workspace]
+name = "nightstream-mojo-gpu"
+channels = ["https://conda.modular.com/max-nightly", "conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[dependencies]
+mojo = "==0.25.7"

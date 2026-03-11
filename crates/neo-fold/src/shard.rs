@@ -31,6 +31,7 @@ use neo_ajtai::{
 };
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
+use neo_gpu::ProverComputeBackend;
 use neo_math::{KExtensions, D, F, K};
 use neo_memory::riscv::trace::{Rv32DecodeSidecarLayout, Rv32TraceLayout};
 use neo_memory::ts_common as ts;

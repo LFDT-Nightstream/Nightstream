@@ -187,7 +187,7 @@ for dir in "${dirs[@]}"; do
     # Build the find command with exclusions
     find_cmd="find \"$dir\""
     # First exclude the script itself and the output file
-    find_cmd="$find_cmd -name \"$script_name\" -prune -o -name \"$(basename \"$outfile\")\" -prune -o"
+    find_cmd="$find_cmd -name \"$script_name\" -prune -o -name \"$(basename "$outfile")\" -prune -o"
     # Then add user-specified exclusions
     for exclude in "${excludes[@]}"; do
         [ -z "$exclude" ] && continue

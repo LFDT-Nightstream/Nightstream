@@ -11,3 +11,8 @@ crates/neo-fold/sha256-tests/circuit-cache
 dist
 demos/ios-demo/TestingWasm.xcodeproj/project.xcworkspace/xcuserdata/nicolasarqueros.xcuserdatad/UserInterfaceState.xcuserstate
 profile-xctrace-poseidon.trace
+formal/superneo-lean/.lake
+formal/external
+formal/superneo-lean/deprecated
+formal/superneo-lean/bundles
+formal/superneo-lean/handoffs

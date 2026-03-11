@@ -214,6 +214,7 @@ Both lanes produce ME obligations that must be verified by the final proof layer
 | [`docs/neo-ai-summary.md`](docs/neo-ai-summary.md) | Developer-grade Neo protocol overview |
 | [`docs/system-architecture.md`](docs/system-architecture.md) | IVC architecture + emission policies |
 | [`docs/neo-with-twist-and-shout/integration-summary.md`](docs/neo-with-twist-and-shout/integration-summary.md) | Twist/Shout integration strategy (why two lanes) |
+| [`formal/superneo-lean/README.md`](formal/superneo-lean/README.md) | Lean proof-facing model, dependency graph (`P1..P21`, `M21..M27`), and trusted-boundary registry (SumCheck/MSIS/Ajtai) |
 
 ### 2. Run Tests
 
@@ -330,6 +331,9 @@ docs/
   neo-with-twist-and-shout/        # Twist/Shout integration docs
   neo-ai-summary.md                # Implementation-facing overview
   system-architecture.md           # End-to-end architecture notes
+
+formal/
+  superneo-lean/        # Lean formal model and dependency map (P*/M* milestones)
 ```
 
 ---

@@ -88,4 +88,32 @@ we start relying on newer GPU APIs or language changes.
   already works in `src/poseidon_gpu_compare.mojo`,
 - flatten Rust-built FE/NC snapshot tables into ABI payloads,
 - port exact Goldilocks/K/Rq arithmetic and FE/NC fold logic,
-- add Mojo golden-vector tests once a Mojo toolchain is available in CI or on a supported dev host.
+- add Mojo golden-vector tests once a Mojo toolchain is available in CI or on a supported dev host,
+- replace deprecated `enqueue_function` launches with `enqueue_function_checked` and keep one
+  parity test per converted kernel,
+- move Metal shared-library calls behind a dedicated long-lived bridge thread in every production
+  path that touches Mojo GPU APIs, then remove any remaining direct-thread launch sites,
+- add explicit backend fallback diagnostics in the Rust bridge and Mojo layer so we can tell
+  whether a path ran on CPU, Metal host mode, or real accelerator execution,
+- add threshold sweep benches for Poseidon, FE row phase, and NC column phase, and store the
+  current cutovers in one place in Rust instead of scattering ad hoc constants,
+- add persistent session-owned host/device buffers for Poseidon batch and Split-NC FE/NC evals so
+  we stop rebuilding buffers on every shared-library call,
+- add reusable compiled-kernel and precomputed-table state on the Mojo side, following the
+  `neo-midnight-mojo-bridge` pattern of caching GPU context and uploaded tables,
+- add CUDA-only real-accelerator parity tests for Split-NC FE and NC in CI or on the Ubuntu GPU VM
+  before we optimize those kernels further,
+- add stage-specific snapshot fixtures for FE chunk, FE aggregate, NC chunk, NC aggregate, and
+  terminal FE/NC rounds so parity failures localize to one proving stage instead of only showing up
+  in end-to-end proofs,
+- implement Mojo-side `fe_fold` and `nc_fold` state updates so evaluators can stay resident instead
+  of depending on Rust to rebuild folded snapshots every round,
+- finish `src/nightstream_gpu/ring.mojo` and `src/nightstream_gpu/superneo.mojo` so Ajtai/commit
+  work can move onto the same backend architecture,
+- add one backend-compare performance test for a real `neo-fold` multi-step proof on CUDA, similar
+  to the bridge repo's backend-compare fixtures, so we track end-to-end speedup instead of only
+  microbench numbers,
+- document the supported backend matrix clearly:
+  CUDA is the primary acceleration target, Metal Poseidon shared-lib is enabled through the Rust
+  bridge fix, and Metal Split-NC remains disabled until its separate shared-lib instability is
+  resolved.

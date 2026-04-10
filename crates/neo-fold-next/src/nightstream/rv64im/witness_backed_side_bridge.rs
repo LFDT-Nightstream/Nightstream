@@ -32,9 +32,6 @@ use super::{
 pub struct Rv64imWitnessBackedSideBridgeStatement {
     pub nightstream_statement: NightstreamStatement,
     pub public_statement: Rv64imProofStatement,
-    pub side_bundle_digest: [u8; 32],
-    pub opening_artifact_digest: [u8; 32],
-    pub bridge_handoff_digests: Vec<[u8; 32]>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -70,24 +67,6 @@ impl Rv64imWitnessBackedSideBridgeStatement {
             b"neo.fold.next/nightstream/rv64im/witness_backed_side_bridge_statement/public_statement_digest",
             &self.public_statement.digest,
         );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/witness_backed_side_bridge_statement/side_bundle_digest",
-            &self.side_bundle_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/witness_backed_side_bridge_statement/opening_artifact_digest",
-            &self.opening_artifact_digest,
-        );
-        tr.append_u64s(
-            b"neo.fold.next/nightstream/rv64im/witness_backed_side_bridge_statement/bridge_handoff_count",
-            &[self.bridge_handoff_digests.len() as u64],
-        );
-        for digest in &self.bridge_handoff_digests {
-            tr.append_message(
-                b"neo.fold.next/nightstream/rv64im/witness_backed_side_bridge_statement/bridge_handoff_digest",
-                digest,
-            );
-        }
         tr.digest32()
     }
 }
@@ -132,10 +111,7 @@ impl Rv64imWitnessBackedSideBridgeArtifact {
 
 pub(super) fn build_rv64im_witness_backed_side_bridge_statement(
     nightstream_statement: &NightstreamStatement,
-    bridge_handoff_digests: &[[u8; 32]],
     public_statement: &Rv64imProofStatement,
-    side_bundle_digest: [u8; 32],
-    opening_artifact_digest: [u8; 32],
 ) -> Result<Rv64imWitnessBackedSideBridgeStatement, SimpleKernelError> {
     if public_statement.digest != public_statement.expected_digest() {
         return Err(SimpleKernelError::Bridge(
@@ -158,23 +134,9 @@ pub(super) fn build_rv64im_witness_backed_side_bridge_statement(
             "RV64IM witness-backed side bridge chunk count does not match the carried Nightstream statement".into(),
         ));
     }
-    if bridge_handoff_digests.len() != nightstream_statement.chunk_summaries.len() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM witness-backed side bridge handoff count does not match the carried Nightstream chunk summaries"
-                .into(),
-        ));
-    }
-    if opening_artifact_digest == [0; 32] {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM witness-backed side bridge opening artifact digest must be nonzero".into(),
-        ));
-    }
     Ok(Rv64imWitnessBackedSideBridgeStatement {
         nightstream_statement: nightstream_statement.clone(),
         public_statement: public_statement.clone(),
-        side_bundle_digest,
-        opening_artifact_digest,
-        bridge_handoff_digests: bridge_handoff_digests.to_vec(),
     })
 }
 
@@ -224,7 +186,6 @@ fn build_rv64im_witness_backed_side_bridge_artifact(
 
 pub(crate) fn build_rv64im_witness_backed_side_bridge_artifact_from_accepted_artifact(
     nightstream_statement: &NightstreamStatement,
-    bridge_handoff_digests: &[[u8; 32]],
     public_statement: &Rv64imProofStatement,
     side_bundle: &Rv64imSideProofBundle,
     accepted_artifact: &Rv64imAcceptedProofArtifact,
@@ -234,13 +195,7 @@ pub(crate) fn build_rv64im_witness_backed_side_bridge_artifact_from_accepted_art
         side_bundle,
         accepted_artifact,
     )?;
-    let statement = build_rv64im_witness_backed_side_bridge_statement(
-        nightstream_statement,
-        bridge_handoff_digests,
-        public_statement,
-        witness.side_bundle.digest,
-        witness.opening_artifact.digest,
-    )?;
+    let statement = build_rv64im_witness_backed_side_bridge_statement(nightstream_statement, public_statement)?;
     build_rv64im_witness_backed_side_bridge_artifact(&statement, &witness)
 }
 
@@ -248,17 +203,6 @@ fn validate_witness_against_statement(
     statement: &Rv64imWitnessBackedSideBridgeStatement,
     witness: &Rv64imWitnessBackedSideBridgeWitness,
 ) -> Result<(), SimpleKernelError> {
-    if witness.side_bundle.digest != statement.side_bundle_digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM witness-backed side bridge side bundle digest does not match the carried public statement".into(),
-        ));
-    }
-    if witness.opening_artifact.digest != statement.opening_artifact_digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM witness-backed side bridge opening artifact digest does not match the carried public statement"
-                .into(),
-        ));
-    }
     if witness.side_bundle.statement_core_digest != statement.nightstream_statement.core_digest() {
         return Err(SimpleKernelError::Bridge(
             "RV64IM witness-backed side bridge side bundle does not match the carried Nightstream statement core"

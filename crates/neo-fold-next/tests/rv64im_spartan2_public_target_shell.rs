@@ -76,12 +76,6 @@ fn rv64im_hybrid_side_bridge_spartan2_public_target_shell_rejects_unbound_side_b
     let bridge_statement = Rv64imWitnessBackedSideBridgeStatement {
         nightstream_statement: nightstream_statement.clone(),
         public_statement: proof.statement.clone(),
-        side_bundle_digest: unbound_side_bundle.digest,
-        opening_artifact_digest: opening_artifact.digest,
-        bridge_handoff_digests: nightstream_proof
-            .main_residual_proof
-            .bridge_handoff_digests
-            .clone(),
     };
     let mut tampered_proof = nightstream_proof.clone();
     tampered_proof

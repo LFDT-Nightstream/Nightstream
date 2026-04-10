@@ -20,7 +20,9 @@ use crate::nightstream::NightstreamStatement;
 use crate::rv64im::kernel::{Rv64imAcceptedProofArtifact, Rv64imProofStatement, SimpleKernelError};
 
 use super::hybrid_side_bridge_contract::{Rv64imHybridSideBridgeContract, Rv64imHybridSideBridgeDeciderRelation};
-use super::witness_backed_side_bridge::Rv64imWitnessBackedSideBridgeArtifact;
+use super::witness_backed_side_bridge::{
+    build_rv64im_witness_backed_side_bridge_artifact_from_accepted_artifact, Rv64imWitnessBackedSideBridgeArtifact,
+};
 use super::Rv64imNightstreamProof;
 
 #[derive(Clone)]
@@ -181,12 +183,17 @@ pub(super) fn build_rv64im_hybrid_side_bridge_material_from_accepted_artifact(
     ),
     SimpleKernelError,
 > {
-    let (bridge_artifact, contract) = Rv64imHybridSideBridgeContract::from_accepted_artifact(
+    let bridge_artifact = build_rv64im_witness_backed_side_bridge_artifact_from_accepted_artifact(
         nightstream_statement,
-        bridge_handoff_digests,
         public_statement,
         side_bundle,
         accepted_artifact,
+    )?;
+    let contract = Rv64imHybridSideBridgeContract::from_bridge_artifact(
+        nightstream_statement,
+        bridge_handoff_digests,
+        public_statement,
+        &bridge_artifact,
     )?;
     Ok((bridge_artifact, contract.into_relation()))
 }

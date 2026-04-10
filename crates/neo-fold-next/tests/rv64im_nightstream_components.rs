@@ -60,12 +60,6 @@ fn rebind_hybrid_side_bridge_artifact(
     let bridge_statement = Rv64imWitnessBackedSideBridgeStatement {
         nightstream_statement: nightstream_statement.clone(),
         public_statement: public_statement.clone(),
-        side_bundle_digest: bridge_artifact.witness.side_bundle.digest,
-        opening_artifact_digest: bridge_artifact.witness.opening_artifact.digest,
-        bridge_handoff_digests: nightstream_proof
-            .main_residual_proof
-            .bridge_handoff_digests
-            .clone(),
     };
     bridge_artifact.digest = bridge_artifact.expected_digest(bridge_statement.digest());
     nightstream_proof.hybrid_side_bridge_artifact.digest = nightstream_proof
@@ -710,12 +704,6 @@ fn rv64im_hybrid_side_bridge_proof_artifact_rejects_wrong_opening_artifact() {
     let bridge_statement = Rv64imWitnessBackedSideBridgeStatement {
         nightstream_statement: nightstream_statement.clone(),
         public_statement: proof.statement.clone(),
-        side_bundle_digest: wrong_bridge_artifact.witness.side_bundle.digest,
-        opening_artifact_digest: wrong_bridge_artifact.witness.opening_artifact.digest,
-        bridge_handoff_digests: nightstream_proof
-            .main_residual_proof
-            .bridge_handoff_digests
-            .clone(),
     };
     wrong_bridge_artifact.digest = wrong_bridge_artifact.expected_digest(bridge_statement.digest());
 

@@ -105,13 +105,6 @@ fn rebind_bridge_artifact_digest(fixture: &mut ExternalNightstreamFixture) {
     let bridge_statement = Rv64imWitnessBackedSideBridgeStatement {
         nightstream_statement: fixture.statement.clone(),
         public_statement: fixture.public_statement.clone(),
-        side_bundle_digest: bridge_artifact.witness.side_bundle.digest,
-        opening_artifact_digest: bridge_artifact.witness.opening_artifact.digest,
-        bridge_handoff_digests: fixture
-            .nightstream_proof
-            .main_residual_proof
-            .bridge_handoff_digests
-            .clone(),
     };
     bridge_artifact.digest = bridge_artifact.expected_digest(bridge_statement.digest());
     fixture.nightstream_proof.hybrid_side_bridge_artifact.digest = fixture
@@ -961,25 +954,6 @@ fn rv64im_nightstream_rejects_side_opening_cross_instance_swap() {
             Rv64imWitnessBackedSideBridgeStatement {
                 nightstream_statement: primary.statement.clone(),
                 public_statement: primary.public_statement.clone(),
-                side_bundle_digest: primary
-                    .nightstream_proof
-                    .hybrid_side_bridge_artifact
-                    .bridge_artifact
-                    .witness
-                    .side_bundle
-                    .digest,
-                opening_artifact_digest: primary
-                    .nightstream_proof
-                    .hybrid_side_bridge_artifact
-                    .bridge_artifact
-                    .witness
-                    .opening_artifact
-                    .digest,
-                bridge_handoff_digests: primary
-                    .nightstream_proof
-                    .main_residual_proof
-                    .bridge_handoff_digests
-                    .clone(),
             }
             .digest(),
         );

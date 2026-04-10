@@ -9,9 +9,7 @@ use crate::decider::spartan2::{
 };
 use crate::finalize::{digest32_as_fields, FixedShapeChunkSummary};
 use crate::nightstream::NightstreamStatement;
-use crate::rv64im::kernel::{
-    Rv64imAcceptedProofArtifact, Rv64imProofStatement, Rv64imStageClaimDigestBundle, SimpleKernelError,
-};
+use crate::rv64im::kernel::{Rv64imProofStatement, Rv64imStageClaimDigestBundle, SimpleKernelError};
 
 use super::compact_surfaces::{
     kernel_claim_summary_digest_from_surfaces, kernel_opening_binding_bundle_digest_from_surfaces,
@@ -19,7 +17,6 @@ use super::compact_surfaces::{
     packaged_claim_proof_digest_from_surfaces, stage_package_proof_bundle_digest_from_surfaces,
 };
 use super::witness_backed_side_bridge::{
-    build_rv64im_witness_backed_side_bridge_artifact_from_accepted_artifact,
     build_rv64im_witness_backed_side_bridge_statement, verify_rv64im_witness_backed_side_bridge_artifact,
     Rv64imWitnessBackedSideBridgeArtifact, Rv64imWitnessBackedSideBridgeStatement,
 };
@@ -64,54 +61,16 @@ impl Rv64imHybridSideBridgeContract {
         bridge_artifact: &Rv64imWitnessBackedSideBridgeArtifact,
     ) -> Result<Self, SimpleKernelError> {
         let bridge_witness = &bridge_artifact.witness;
-        let statement = build_rv64im_witness_backed_side_bridge_statement(
-            nightstream_statement,
-            bridge_handoff_digests,
-            public_statement,
-            bridge_witness.side_bundle.digest,
-            bridge_witness.opening_artifact.digest,
-        )?;
+        let statement = build_rv64im_witness_backed_side_bridge_statement(nightstream_statement, public_statement)?;
+        validate_rv64im_hybrid_side_bridge_handoff_digests(&statement, bridge_handoff_digests)?;
         verify_rv64im_witness_backed_side_bridge_artifact(&statement, bridge_artifact)?;
         Ok(Self {
-            relation: build_rv64im_hybrid_side_bridge_relation(&statement, &bridge_witness.side_bundle)?,
+            relation: build_rv64im_hybrid_side_bridge_relation(
+                &statement,
+                &bridge_witness.side_bundle,
+                bridge_handoff_digests,
+            )?,
         })
-    }
-
-    pub(super) fn from_accepted_artifact(
-        nightstream_statement: &NightstreamStatement,
-        bridge_handoff_digests: &[[u8; 32]],
-        public_statement: &Rv64imProofStatement,
-        side_bundle: &Rv64imSideProofBundle,
-        accepted_artifact: &Rv64imAcceptedProofArtifact,
-    ) -> Result<(Rv64imWitnessBackedSideBridgeArtifact, Self), SimpleKernelError> {
-        let bridge_artifact = build_rv64im_witness_backed_side_bridge_artifact_from_accepted_artifact(
-            nightstream_statement,
-            bridge_handoff_digests,
-            public_statement,
-            side_bundle,
-            accepted_artifact,
-        )?;
-        let statement = build_rv64im_witness_backed_side_bridge_statement(
-            nightstream_statement,
-            bridge_handoff_digests,
-            public_statement,
-            bridge_artifact.witness.side_bundle.digest,
-            bridge_artifact.witness.opening_artifact.digest,
-        )?;
-        let base_component_digests = rv64im_hybrid_side_bridge_fast_path_from_accepted_artifact(
-            public_statement,
-            side_bundle,
-            accepted_artifact,
-        )?;
-        Ok((
-            bridge_artifact,
-            Self {
-                relation: build_rv64im_hybrid_side_bridge_relation_from_base_component_digests(
-                    &statement,
-                    base_component_digests,
-                )?,
-            },
-        ))
     }
 
     pub(super) fn relation(&self) -> &Rv64imHybridSideBridgeDeciderRelation {
@@ -310,12 +269,6 @@ fn validate_rv64im_hybrid_side_bridge_contract_statement(
                 .into(),
         ));
     }
-    if statement.bridge_handoff_digests.len() != statement.nightstream_statement.chunk_summaries.len() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge contract handoff count does not match the carried Nightstream chunk summaries"
-                .into(),
-        ));
-    }
     if statement.nightstream_statement.chunk_summaries.len() > RV64IM_HYBRID_SIDE_BRIDGE_MAX_CHUNK_TRANSITIONS {
         return Err(SimpleKernelError::Bridge(format!(
             "RV64IM hybrid side-bridge contract chunk count {} exceeds the fixed compiler maximum {}",
@@ -323,9 +276,17 @@ fn validate_rv64im_hybrid_side_bridge_contract_statement(
             RV64IM_HYBRID_SIDE_BRIDGE_MAX_CHUNK_TRANSITIONS
         )));
     }
-    if statement.opening_artifact_digest == [0; 32] {
+    Ok(())
+}
+
+fn validate_rv64im_hybrid_side_bridge_handoff_digests(
+    statement: &Rv64imWitnessBackedSideBridgeStatement,
+    bridge_handoff_digests: &[[u8; 32]],
+) -> Result<(), SimpleKernelError> {
+    if bridge_handoff_digests.len() != statement.nightstream_statement.chunk_summaries.len() {
         return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge contract opening artifact digest must be nonzero".into(),
+            "RV64IM hybrid side-bridge contract handoff count does not match the carried Nightstream chunk summaries"
+                .into(),
         ));
     }
     Ok(())
@@ -334,8 +295,10 @@ fn validate_rv64im_hybrid_side_bridge_contract_statement(
 fn build_rv64im_hybrid_side_bridge_relation_from_base_component_digests(
     statement: &Rv64imWitnessBackedSideBridgeStatement,
     base_components: Rv64imHybridSideBridgeBaseComponents,
+    bridge_handoff_digests: &[[u8; 32]],
 ) -> Result<Rv64imHybridSideBridgeDeciderRelation, SimpleKernelError> {
     validate_rv64im_hybrid_side_bridge_contract_statement(statement)?;
+    validate_rv64im_hybrid_side_bridge_handoff_digests(statement, bridge_handoff_digests)?;
     let base_component_digests = base_components.ordered_digests();
     if base_component_digests.len() != RV64IM_HYBRID_SIDE_BRIDGE_BASE_COMPONENT_COUNT {
         return Err(SimpleKernelError::Bridge(
@@ -346,7 +309,7 @@ fn build_rv64im_hybrid_side_bridge_relation_from_base_component_digests(
     let relation_digest = statement.digest();
     let initial_handle_digest = digest32_as_fields(statement.nightstream_statement.core_digest());
     let padded_chunk_summaries = rv64im_hybrid_side_bridge_padded_chunk_summaries(statement);
-    let padded_bridge_handoff_digests = rv64im_hybrid_side_bridge_padded_handoff_digests(statement);
+    let padded_bridge_handoff_digests = rv64im_hybrid_side_bridge_padded_handoff_digests(bridge_handoff_digests);
 
     build_spartan2_self_bound_decider_relation(
         public_statement_digest,
@@ -375,10 +338,8 @@ fn rv64im_hybrid_side_bridge_padded_chunk_summaries(
     chunk_summaries
 }
 
-fn rv64im_hybrid_side_bridge_padded_handoff_digests(
-    statement: &Rv64imWitnessBackedSideBridgeStatement,
-) -> Vec<[u8; 32]> {
-    let mut bridge_handoff_digests = statement.bridge_handoff_digests.clone();
+fn rv64im_hybrid_side_bridge_padded_handoff_digests(bridge_handoff_digests: &[[u8; 32]]) -> Vec<[u8; 32]> {
+    let mut bridge_handoff_digests = bridge_handoff_digests.to_vec();
     bridge_handoff_digests.resize(RV64IM_HYBRID_SIDE_BRIDGE_MAX_CHUNK_TRANSITIONS, [0; 32]);
     bridge_handoff_digests
 }
@@ -386,16 +347,11 @@ fn rv64im_hybrid_side_bridge_padded_handoff_digests(
 fn build_rv64im_hybrid_side_bridge_relation(
     statement: &Rv64imWitnessBackedSideBridgeStatement,
     side_bundle: &Rv64imSideProofBundle,
+    bridge_handoff_digests: &[[u8; 32]],
 ) -> Result<Rv64imHybridSideBridgeDeciderRelation, SimpleKernelError> {
     if side_bundle.digest != side_bundle.expected_digest() {
         return Err(SimpleKernelError::Bridge(
             "RV64IM hybrid side-bridge contract side-proof bundle digest mismatch".into(),
-        ));
-    }
-    if side_bundle.digest != statement.side_bundle_digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge contract side-proof bundle digest does not match the carried witness-backed side bridge statement"
-                .into(),
         ));
     }
     if side_bundle.statement_core_digest != statement.nightstream_statement.core_digest() {
@@ -405,155 +361,9 @@ fn build_rv64im_hybrid_side_bridge_relation(
         ));
     }
     let base_components = rv64im_hybrid_side_bridge_base_components(&statement.public_statement, side_bundle)?;
-    build_rv64im_hybrid_side_bridge_relation_from_base_component_digests(statement, base_components)
-}
-
-fn guard_rv64im_hybrid_side_bridge_base_components_against_accepted_artifact(
-    public_statement: &Rv64imProofStatement,
-    side_bundle: &Rv64imSideProofBundle,
-    accepted_artifact: &Rv64imAcceptedProofArtifact,
-) -> Result<(), SimpleKernelError> {
-    if public_statement.digest != accepted_artifact.statement.digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge accepted-artifact fast path public statement does not match the carried accepted artifact"
-                .into(),
-        ));
-    }
-    if public_statement.stage_claims_digest != accepted_artifact.stage_claims.digest
-        || public_statement.stage_packages_digest != accepted_artifact.stage_packages.digest
-        || public_statement.kernel_opening_digest != accepted_artifact.kernel_opening.digest
-        || public_statement.prepared_step_bindings_digest
-            != accepted_artifact
-                .kernel_claims
-                .prepared_step_bindings_digest()
-        || public_statement.execution_digest != accepted_artifact.kernel_claims.execution_digest()
-        || public_statement.final_state_digest != accepted_artifact.kernel_claims.final_state_digest()
-        || public_statement.transcript_final_digest != accepted_artifact.kernel_claims.transcript_final_digest()
-        || public_statement.final_pc != accepted_artifact.kernel_claims.final_pc()
-        || public_statement.halted != accepted_artifact.kernel_claims.halted()
-    {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge accepted-artifact fast path public statement component digests do not match the carried accepted artifact"
-                .into(),
-        ));
-    }
-
-    let stage_package_digest = stage_package_proof_bundle_digest_from_surfaces(
-        side_bundle.stage1.packaged_digest,
-        side_bundle.stage2.packaged_digest,
-        side_bundle.stage3.packaged_digest,
-    );
-    if stage_package_digest != accepted_artifact.stage_packages.digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge accepted-artifact fast path stage-package bridge does not match the carried accepted artifact"
-                .into(),
-        ));
-    }
-    if side_bundle
-        .stage_claim_proof_bridge
-        .packaged_statement_digest
-        != accepted_artifact.stage_claims.packaged.statement.digest
-        || side_bundle.stage_claim_proof_bridge.packaged_proof_digest
-            != accepted_artifact.stage_claims.packaged.proof.proof_digest
-        || side_bundle
-            .stage_claim_proof_bridge
-            .stage_claim_proof_bundle_digest
-            != accepted_artifact.stage_claims.digest
-    {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge accepted-artifact fast path stage-claim bridge does not match the carried accepted artifact"
-                .into(),
-        ));
-    }
-    if side_bundle
-        .kernel_opening_bridge
-        .prepared_step_bindings
-        .binding_count
-        != accepted_artifact
-            .root_execution
-            .prepared_step_bindings
-            .binding_count
-        || side_bundle
-            .kernel_opening_bridge
-            .prepared_step_bindings
-            .first_binding_digest
-            != accepted_artifact
-                .root_execution
-                .prepared_step_bindings
-                .first_binding_digest
-        || side_bundle
-            .kernel_opening_bridge
-            .prepared_step_bindings
-            .last_binding_digest
-            != accepted_artifact
-                .root_execution
-                .prepared_step_bindings
-                .last_binding_digest
-        || side_bundle
-            .kernel_opening_bridge
-            .root_lane_commitment
-            .digest
-            != accepted_artifact.root_lane_commitment.digest
-        || side_bundle.kernel_opening_bridge.bindings_opening_digest
-            != accepted_artifact.kernel_opening.opening.bindings.digest
-        || side_bundle
-            .kernel_opening_bridge
-            .prepared_steps_opening_digest
-            != accepted_artifact
-                .kernel_opening
-                .opening
-                .prepared_steps
-                .digest
-    {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge accepted-artifact fast path kernel-opening bridge does not match the carried accepted artifact"
-                .into(),
-        ));
-    }
-    if side_bundle.kernel_claim_bridge.stage1_digest != accepted_artifact.kernel_claims.claims.kernel.stage1_digest
-        || side_bundle.kernel_claim_bridge.stage2_digest != accepted_artifact.kernel_claims.claims.kernel.stage2_digest
-        || side_bundle.kernel_claim_bridge.stage3_digest != accepted_artifact.kernel_claims.claims.kernel.stage3_digest
-        || side_bundle.kernel_claim_bridge.root0_digest != accepted_artifact.kernel_claims.root0_digest()
-        || side_bundle.kernel_claim_bridge.kernel_claim_bundle_digest != accepted_artifact.claim.digest
-    {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge accepted-artifact fast path kernel-claim bridge does not match the carried accepted artifact"
-                .into(),
-        ));
-    }
-    if side_bundle
-        .kernel_claim_proof_bridge
-        .packaged_statement_digest
-        != accepted_artifact.kernel_claims.packaged.statement.digest
-        || side_bundle.kernel_claim_proof_bridge.packaged_proof_digest
-            != accepted_artifact.kernel_claims.packaged.proof.proof_digest
-        || side_bundle
-            .kernel_claim_proof_bridge
-            .kernel_claim_proof_bundle_digest
-            != accepted_artifact.kernel_claims.digest
-    {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM hybrid side-bridge accepted-artifact fast path kernel-claim proof bridge does not match the carried accepted artifact"
-                .into(),
-        ));
-    }
-    Ok(())
-}
-
-fn rv64im_hybrid_side_bridge_fast_path_from_accepted_artifact(
-    public_statement: &Rv64imProofStatement,
-    side_bundle: &Rv64imSideProofBundle,
-    accepted_artifact: &Rv64imAcceptedProofArtifact,
-) -> Result<Rv64imHybridSideBridgeBaseComponents, SimpleKernelError> {
-    guard_rv64im_hybrid_side_bridge_base_components_against_accepted_artifact(
-        public_statement,
-        side_bundle,
-        accepted_artifact,
-    )?;
-    Ok(Rv64imHybridSideBridgeBaseComponents {
-        stage_claim_proof_bundle_digest: accepted_artifact.stage_claims.digest,
-        stage_package_proof_bundle_digest: accepted_artifact.stage_packages.digest,
-        kernel_opening_proof_bundle_digest: accepted_artifact.kernel_opening.digest,
-        kernel_claim_proof_bundle_digest: accepted_artifact.kernel_claims.digest,
-    })
+    build_rv64im_hybrid_side_bridge_relation_from_base_component_digests(
+        statement,
+        base_components,
+        bridge_handoff_digests,
+    )
 }

@@ -19,9 +19,8 @@ use crate::rv64im::kernel::{
     Rv64imProofInput, Rv64imProofProvePerf, Rv64imPublicProofOptions,
 };
 use crate::rv64im::main_relation::{
-    build_rv64im_main_relation_backend_relation_from_artifact,
-    build_rv64im_main_relation_from_final, build_rv64im_main_relation_from_verified_final_with_component_digests,
-    Rv64imMainRelationArtifact,
+    build_rv64im_main_relation_backend_relation_from_artifact, build_rv64im_main_relation_from_final,
+    build_rv64im_main_relation_from_verified_final_with_component_digests, Rv64imMainRelationArtifact,
 };
 use crate::rv64im::SimpleKernelError;
 

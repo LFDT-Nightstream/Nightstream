@@ -43,7 +43,7 @@ fn rv64im_main_relation_round_trip() {
 }
 
 #[test]
-fn rv64im_main_relation_backend_relation_matches_legacy_decider_relation() {
+fn rv64im_main_relation_backend_relation_matches_current_adapter_surface() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
@@ -55,9 +55,12 @@ fn rv64im_main_relation_backend_relation_matches_legacy_decider_relation() {
     let backend_relation =
         build_rv64im_main_relation_backend_relation(&main_relation.statement, &main_relation.witness)
             .expect("build rv64im main backend relation");
-    let legacy_relation = build_rv64im_decider_relation(&proof).expect("build legacy decider relation");
+    let adapter_relation = build_rv64im_decider_relation(&proof).expect("build current adapter relation");
 
-    assert_eq!(backend_relation, legacy_relation);
+    assert_eq!(backend_relation, adapter_relation);
+    assert_eq!(backend_relation.public_statement_digest, statement.digest);
+    assert_eq!(backend_relation.relation_digest, statement.folded.digest);
+    assert_eq!(backend_relation.final_proof_digest, final_proof.proof_digest);
 }
 
 #[test]

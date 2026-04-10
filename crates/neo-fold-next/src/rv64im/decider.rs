@@ -1,4 +1,4 @@
-//! Owns RV64IM adapters from the owned final proof seam into generic decider targets.
+//! Owns RV64IM adapters from the owned main relation into generic decider targets.
 
 use std::time::Instant;
 
@@ -7,9 +7,7 @@ use crate::decider::spartan2::{
     Spartan2DeciderProof, Spartan2DeciderProvePerf, Spartan2DeciderProverKey, Spartan2DeciderTarget,
     Spartan2DeciderVerifierKey,
 };
-use crate::rv64im::decider_relation::{
-    build_rv64im_decider_relation_from_final, build_rv64im_decider_relation_from_verified_final_with_component_digests,
-};
+use crate::rv64im::decider_relation::build_rv64im_decider_relation_from_verified_final_with_component_digests;
 use crate::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted_with_output_and_perf_and_source, Rv64imFinalBuildOutput,
     Rv64imFinalProof, Rv64imFinalProofComponentDigests, Rv64imFinalStatement,
@@ -19,6 +17,11 @@ use crate::rv64im::kernel::{
     build_rv64im_kernel_export_source_from_accepted_artifact, prove_rv64im_public_proof_prover_seam_with_perf,
     Rv64imAcceptedProofArtifact, Rv64imKernelExportRelationResult, Rv64imKernelExportSource, Rv64imProof,
     Rv64imProofInput, Rv64imProofProvePerf, Rv64imPublicProofOptions,
+};
+use crate::rv64im::main_relation::{
+    build_rv64im_main_relation_backend_relation_from_artifact,
+    build_rv64im_main_relation_from_final, build_rv64im_main_relation_from_verified_final_with_component_digests,
+    Rv64imMainRelationArtifact,
 };
 use crate::rv64im::SimpleKernelError;
 
@@ -54,6 +57,7 @@ pub struct Rv64imPublishedProofSeam {
     pub accepted_artifact: Rv64imAcceptedProofArtifact,
     pub final_statement: Rv64imFinalStatement,
     pub final_proof: Rv64imFinalProof,
+    pub main_relation: Rv64imMainRelationArtifact,
     pub decider_target: Spartan2DeciderTarget,
     pub(crate) final_component_digests: Rv64imFinalProofComponentDigests,
     pub(crate) verified_kernel: Rv64imKernelExportRelationResult,
@@ -110,6 +114,12 @@ pub fn build_rv64im_published_proof_seam_with_perf(
     let final_statement_ms = elapsed_ms(started);
 
     let started = Instant::now();
+    let main_relation = build_rv64im_main_relation_from_verified_final_with_component_digests(
+        &final_statement,
+        &final_proof,
+        &verified_kernel,
+        &final_component_digests,
+    )?;
     let decider_relation = build_rv64im_decider_relation_from_verified_final_with_component_digests(
         &final_statement,
         &final_proof,
@@ -124,6 +134,7 @@ pub fn build_rv64im_published_proof_seam_with_perf(
             accepted_artifact,
             final_statement,
             final_proof,
+            main_relation,
             decider_target,
             final_component_digests,
             verified_kernel,
@@ -219,6 +230,12 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
     let final_statement_ms = elapsed_ms(started);
 
     let started = Instant::now();
+    let main_relation = build_rv64im_main_relation_from_verified_final_with_component_digests(
+        &final_statement,
+        &final_proof,
+        &verified_kernel,
+        &final_component_digests,
+    )?;
     let decider_relation = build_rv64im_decider_relation_from_verified_final_with_component_digests(
         &final_statement,
         &final_proof,
@@ -232,6 +249,7 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
         accepted_artifact,
         final_statement,
         final_proof,
+        main_relation,
         decider_target,
         final_component_digests,
         verified_kernel,
@@ -275,7 +293,8 @@ pub fn build_rv64im_spartan2_decider_target(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalProof,
 ) -> Result<Spartan2DeciderTarget, SimpleKernelError> {
-    let relation = build_rv64im_decider_relation_from_final(statement, proof)?;
+    let main_relation = build_rv64im_main_relation_from_final(statement, proof)?;
+    let relation = build_rv64im_main_relation_backend_relation_from_artifact(&main_relation)?;
     Ok(relation.target())
 }
 

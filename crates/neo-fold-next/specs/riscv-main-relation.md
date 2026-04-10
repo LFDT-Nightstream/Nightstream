@@ -1,0 +1,222 @@
+# RV64IM Main Relation Specification
+
+STATE: DESIGN TARGET
+
+## Scope
+
+This document specifies the owned RV64IM main relation `R_main^SN` in
+`neo-fold-next`.
+
+It fixes the ownership boundary between:
+
+1. the concrete SuperNeo backend contract owned by `riscv-kernel.md`,
+2. the owned RV64IM main witness relation that carries the theorem-level
+   accumulator meaning for the main lane,
+3. and the later recursive or succinct backend that compiles that fixed
+   relation.
+
+This document owns:
+
+- the exact theorem that `R_main^SN` must preserve,
+- the exact public/private split for that relation,
+- the stable authoritative projection exported to later compiler layers,
+- and the negative rules forbidding digest-shell replacements.
+
+This document does **not** own:
+
+- the concrete recursive backend choice,
+- the concrete outer compression backend,
+- the final public Rust API for compressed proofs,
+- or the side-bridge theorem.
+
+Those remain owned by:
+
+- `riscv-recursive-proof.md`
+- `riscv-recursive-instantiation.md`
+- `riscv-witness-backed-side-bridge.md`
+
+## Normative References
+
+This document is constrained by the following local references:
+
+- `./riscv-kernel.md`
+  - the concrete Goldilocks-native SuperNeo backend contract for RV64IM
+  - the canonical chunk-local `Π_CCS -> Π_RLC -> Π_DEC` split
+- `./riscv-recursive-proof.md`
+  - the theorem-facing exported recursive/compressed proof boundary
+- `./riscv-recursive-instantiation.md`
+  - the concrete backend instantiation, canonical encodings, and API cutover
+- `../../docs/superneo-paper/02_2_Technical_overview.md`
+  - `Π_SuperNeo := Π_DEC ∘ Π_RLC ∘ Π_CCS`
+- `../../docs/superneo-paper/07_7_Neo_s_folding_scheme_for_CCS.md`
+  - the `CE(b, L)` relation and the carried `CE(b, L)^k` semantics
+
+## 1. Design Goal
+
+The RV64IM main lane shall eventually be verified by a succinct proof of a
+**fixed witness-backed main relation**.
+
+That relation shall own the theorem-level meaning currently realized by the
+native folded/final replay path:
+
+- kernel-export binding,
+- chunk-local `Π_CCS -> Π_RLC -> Π_DEC` verification,
+- transcript-derived challenge binding,
+- accumulator evolution,
+- and terminal handoff into the published public statement.
+
+The final external verifier shall not depend on shipped replay witnesses,
+shipped native chunk transition packages, or a digest-only shell that can be
+mutated and re-digested by an attacker.
+
+## 2. Theorem Target
+
+`R_main^SN` owns one exact theorem:
+
+> the published RV64IM execution statement is valid if and only if there exists
+> private witness material that realizes the same carried accumulator semantics
+> as the Fiat-Shamir non-interactive form of
+> `Π_SuperNeo := Π_DEC ∘ Π_RLC ∘ Π_CCS` under the concrete backend contract,
+> and whose terminal carried object has theorem-level meaning equal to a valid
+> carried `CE(b, L)^k` bundle.
+
+Equivalently, `R_main^SN(stmt_pub, U_N^pub; w) = 1` iff there exist canonical
+carried accumulator states `A_0..A_N` and per-chunk fresh witness material
+such that:
+
+1. `A_0` is the canonical initial carried bundle derived from the fixed RV64IM
+   program binding and public initial machine state under `Init_SN`;
+2. each chunk transition is exactly the Fiat-Shamir non-interactive form of
+   `Π_DEC ∘ Π_RLC ∘ Π_CCS` over the canonical fresh RV64IM chunk claim and the
+   previous carried bundle;
+3. `A_N` has theorem-level meaning equal to a valid carried `CE(b, L)^k`
+   bundle under the concrete backend contract fixed by `riscv-kernel.md`;
+4. `stmt_pub` binds the canonical RV64IM public theorem statement and any
+   minimal public accumulator handle `U_N^pub` required by the recursive or
+   compression backend;
+5. every helper digest or summary used by an implementation is recomputed from
+   authoritative public/witness data inside the owned relation and is never
+   treated as a second authority.
+
+This bridge theorem is mandatory.
+
+A conforming implementation may encode `R_main^SN` as:
+
+- a direct circuit for Definition 13 style `CE(b, L)` membership plus the
+  carried fold semantics, or
+- a recursive/verifier relation whose correctness theorem explicitly proves the
+  equivalence above.
+
+It may not replace the bridge theorem with “digest consistency”.
+
+## 3. Public Instance
+
+The public instance of `R_main^SN` shall contain only the minimal authoritative
+bindings required by the theorem and by later compiler composition.
+
+At minimum, the public instance shall bind:
+
+- the canonical RV64IM public proof statement or its canonical digest,
+- the canonical fold schedule / exact step-count binding if that metadata is
+  required by the fixed relation,
+- the canonical terminal carried-handle binding if required by the chosen
+  backend,
+- and the canonical statement-to-accumulator linkage required by the bridge
+  theorem.
+
+No digest is theorem-facing by default merely because the current direct
+verifier path exports it.
+
+## 4. Private Witness
+
+The private witness shall contain the concrete theorem-bearing objects needed to
+realize the main theorem above.
+
+This includes the objects currently realized by the native final replay path,
+such as:
+
+- the kernel-export witness material,
+- the chunk-local fresh proof/witness material needed to justify each carried
+  transition,
+- the carried accumulator witness material,
+- and any lower-level row/family/opening objects needed to prove the owned
+  theorem from the public instance.
+
+If a value is purely derived from other witness or public data, it shall be
+recomputed inside the relation rather than carried as an independent
+authority.
+
+## 5. Stable Projection Requirement
+
+`R_main^SN` shall expose one stable authoritative projection `phi_main` for use
+by later recursive or succinct compiler layers.
+
+`phi_main` shall project only the authoritative public bindings that identify
+the carried main relation instance. It shall not project convenience digests
+that can be recomputed from those authoritative values.
+
+Any later compiler layer that composes above the main relation must bind the
+same `phi_main`.
+
+## 6. Fixed-Relation Requirement
+
+`R_main^SN` shall be specified first as a fixed public/private theorem.
+
+Only after that may a backend compile it.
+
+Therefore:
+
+- the main relation shall not be defined as “verification of an arbitrary proof
+  blob”;
+- a backend may prove the verifier of `R_main^SN`, but it may not replace the
+  owned relation with a variable-length shell surface;
+- and any per-shape or padded-family backend choice must preserve the same
+  public/private theorem.
+
+## 7. Current RV64IM Field Classification
+
+The current RV64IM folded/final path fields shall be classified into exactly
+one of:
+
+- theorem-facing public,
+- recursive-internal public,
+- private witness,
+- or audit-only.
+
+At minimum, the following dispositions are required:
+
+| Current owner | Current field(s) | End-state class | Required disposition |
+| --- | --- | --- | --- |
+| `Rv64imFinalStatement` | `public_statement_digest` | theorem-facing public | Remains the canonical published statement binding or a conservative digest of it. |
+| `Rv64imFinalStatement` | `folded.fold_schedule`, `folded.semantic_step_count` | recursive-internal public | Remain public only if the compiled main relation needs them. |
+| `Rv64imFinalStatement` | `folded.final_accumulator.terminal_handle` | recursive-internal public | Remains public only if the backend requires a terminal accumulator handle. |
+| `Rv64imFinalStatement` | `folded.final_accumulator.final_main_claims` | private witness | Internalize beneath the owned main relation unless a concrete backend proves a smaller equivalent public handle is sufficient. |
+| `Rv64imFinalProof` | `kernel_export` | private witness | Internalize beneath the owned main relation. |
+| `Rv64imFinalProof` | `steps` | private witness | Internalize beneath the owned main relation. |
+| `Rv64imFinalProof` | `chunk_summaries` | recursive-internal public | May remain public only if required by the compiled relation shape. |
+| `Rv64imFinalProof` | `proof_digest` | audit-only | A convenience digest only. It is never a theorem by itself. |
+| `Rv64imFinalProofComponentDigests` | all fields | audit-only | Transitional helper digests only. Any compiled relation must recompute their meaning from authoritative data. |
+
+No row above may be reclassified implicitly by implementation convenience.
+
+## 8. Negative Rules
+
+The following are forbidden at this theorem boundary:
+
+- treating digest consistency as evidence of carried `CE(b, L)^k` semantics,
+- treating self-consistent digest chains as authority across trust boundaries,
+- exporting replay witnesses as part of the final theorem-facing verifier API,
+- carrying duplicate authorities for the same fact across the public boundary,
+- and leaving the bridge theorem implicit.
+
+## 9. Compiler Requirement
+
+Any later recursive wrapper or succinct backend over `R_main^SN` must satisfy
+all of the following:
+
+- it compiles a fixed relation with a stable public/private interface,
+- it preserves the exact bridge theorem in Section 2,
+- it does not expose the private witness as theorem-facing output,
+- it recomputes or canonically binds any helper digest it uses,
+- and it does not weaken the carried semantics below valid carried
+  `CE(b, L)^k` meaning under the concrete backend contract.

@@ -58,6 +58,9 @@ The target in this document is constrained by the following local references:
     `Π_SuperNeo := Π_DEC ∘ Π_RLC ∘ Π_CCS`
 - `07_7_Neo_s_folding_scheme_for_CCS.md`
   - the folding scheme relations and reduction shapes
+- `riscv-main-relation.md`
+  - the owned RV64IM main relation `R_main^SN`
+  - the mandatory bridge theorem to carried `CE(b, L)^k` semantics
 - `riscv-witness-backed-side-bridge.md`
   - the exact RV64IM side-bridge relation that must be fixed before later
     recursive or succinct compilation
@@ -556,6 +559,21 @@ Fiat-Shamir non-interactive form of
 
 under `Backend_SN`.
 
+Let `R_main^SN` denote the owned RV64IM main relation from
+`riscv-main-relation.md`.
+
+`R_main^SN` is the mandatory theorem bridge between the concrete RV64IM folded
+execution seam and the carried paper accumulator semantics. Any recursive step
+relation or outer compressor used by this repo shall therefore preserve the
+bridge theorem:
+
+```text
+R_main^SN(stmt_pub, U_N^pub; w) = 1
+iff
+the witness realizes exactly the carried CE(b, L)^k semantics induced by the
+Fiat-Shamir non-interactive form of Π_DEC ∘ Π_RLC ∘ Π_CCS under Backend_SN.
+```
+
 Concretely, `R_acc^SN` is **not** an unspecified generic terminal accumulator
 relation. It is the relation that holds exactly when terminal recursive state
 material encodes and justifies a satisfying carried accumulator bundle `A_N`
@@ -890,6 +908,8 @@ For avoidance of doubt:
 - `riscv-kernel.md` owns the concrete SuperNeo backend contract, including the
   Goldilocks parameterization, challenge domain, and chunk-local reduction role
   split,
+- `riscv-main-relation.md` owns the fixed RV64IM main theorem relation and the
+  bridge theorem tying that relation to carried `CE(b, L)^k` semantics,
 - `riscv-recursive-instantiation.md` owns the concrete recursive backend
   choice, compression backend choice, canonical encodings of `U_i`, `W_i`,
   `u_i`, and `w_i`, the canonical public accumulator handle if one is used, the

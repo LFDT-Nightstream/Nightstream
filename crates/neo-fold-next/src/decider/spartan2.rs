@@ -6,7 +6,7 @@
 //! - canonical backend-visible public IO and witness layout
 //! - one owned Spartan2 decider-backend proof/key seam over that contract
 //! - one strictly named public-target shell proof over the generic target
-//! - does not own hidden-witness compression yet
+//! - does not own route-level theorem semantics or hidden-witness compression
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_ccs::crypto::poseidon2_goldilocks::{poseidon2_hash, DIGEST_LEN as POSEIDON2_DIGEST_LEN};

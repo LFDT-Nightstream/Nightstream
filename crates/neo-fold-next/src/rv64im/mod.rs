@@ -11,6 +11,7 @@ pub mod isa;
 pub mod kernel;
 pub mod layout;
 pub mod lower;
+pub mod main_relation;
 mod perf_case;
 pub mod stage1;
 pub mod stage2;
@@ -140,6 +141,12 @@ pub use kernel::{
     TranscriptInitialState, TranscriptRecord, VerifiedTranscriptSurface, VerifierClaimAccumulator,
 };
 pub use lower::{Rv64ExpandedRow, Rv64TraceOpcode, Rv64TraceVirtualOpcode};
+pub use main_relation::{
+    build_rv64im_main_relation, build_rv64im_main_relation_backend_relation,
+    build_rv64im_main_relation_backend_relation_from_artifact, build_rv64im_main_relation_from_final,
+    validate_rv64im_main_relation_surface, verify_rv64im_main_relation, Rv64imMainRelationArtifact,
+    Rv64imMainRelationStatement, Rv64imMainRelationWitness,
+};
 pub use perf_case::{
     build_mixed_opcode_perf_source_case, mixed_opcode_perf_expected_x1, RV64IM_MIXED_OPCODE_PERF_BLOCK_LEN,
     RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,

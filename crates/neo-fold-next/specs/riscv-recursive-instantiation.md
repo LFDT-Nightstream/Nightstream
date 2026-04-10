@@ -10,6 +10,8 @@ This file instantiates the abstract recursive/export-boundary architecture in
 It is the concrete implementation-contract companion to:
 
 - `riscv-recursive-proof.md`, which owns the theorem-facing export boundary,
+- `riscv-main-relation.md`, which owns the fixed RV64IM main relation
+  `R_main^SN` and its bridge theorem to carried `CE(b, L)^k` semantics,
 - `riscv-witness-backed-side-bridge.md`, which owns the fixed witness-backed
   side-bridge relation that the later recursive/compression backend must
   compile,
@@ -69,6 +71,8 @@ from `riscv-recursive-proof.md`:
 This file shall define exact encodings for:
 
 ```text
+Enc_main_relation_stmt
+Wit_main_relation
 Enc_CE_bundle
 Wit_CE_bundle
 Enc_CCS_chunk_bundle
@@ -91,6 +95,8 @@ For each encoding, this file shall specify:
 At this layer, the carried and fresh objects are still backend-owned encodings
 of the paper relations:
 
+- `Enc_main_relation_stmt`, `Wit_main_relation` preserve the exact fixed
+  public/private theorem owned by `riscv-main-relation.md`,
 - `U_i`, `W_i` represent carried `CE(b, L)^k` bundles,
 - `u_i`, `w_i` represent fresh chunk-local `CCS` claim bundles.
 
@@ -145,6 +151,8 @@ At minimum, the adapter section shall answer:
 - which current bridge digests remain public to `NIFS.V`,
 - which current claim/opening bundles become private recursive witness
   material,
+- how the owned `R_main^SN` statement and witness are encoded before the
+  backend-specific recursive/compression wrapper sees them,
 - and which current exported objects are dropped from the theorem-facing path
   entirely.
 

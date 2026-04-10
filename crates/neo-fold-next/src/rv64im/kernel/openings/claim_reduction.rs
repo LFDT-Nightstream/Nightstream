@@ -23,11 +23,13 @@ use thiserror::Error;
 use crate::chip8::poly::{build_eq_table, eq_eval_le};
 use crate::opening::OpeningDomain;
 
-use super::opening_eval_claim_witness::FamilyEvalClaimWitness;
+use super::opening_eval_claim_witness::{phase0_binding_digest, FamilyEvalClaimWitness};
 use super::opening_eval_claims::{
-    canonical_claim_cmp, CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalSchemaId,
-    PackedColumnEval, Rv64imEvalClaimBundle,
+    canonical_claim_cmp, phase0_family_order, CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId,
+    FamilyEvalSchemaId, PackedColumnEval, Rv64imEvalClaimBundle,
 };
+use super::opening_phase0_binding_surface::Rv64imPhase0BindingSurface;
+use super::opening_point_derivation::derive_phase0_point;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct QuadraticRoundPoly {
@@ -553,7 +555,27 @@ pub(crate) fn build_claim_reduction_results_from_bundle_and_witnesses_trusted_lo
         .collect()
 }
 
-pub fn verify_claim_reduction_result_with_witnesses(
+pub fn verify_claim_reduction_result_with_binding_surface(
+    result: &ClaimReductionResult,
+    claim_witnesses: &[FamilyEvalClaimWitness],
+    phase0_binding_surface: &Rv64imPhase0BindingSurface,
+) -> Result<(), ClaimReductionError> {
+    validate_phase0_binding_surface(phase0_binding_surface)?;
+    verify_phase0_claim_bindings_against_surface(claim_witnesses, phase0_binding_surface)?;
+    validate_claim_reduction_result_with_witnesses(result, claim_witnesses)
+}
+
+pub fn verify_claim_reduction_results_with_binding_surface(
+    results: &[ClaimReductionResult],
+    claim_witnesses: &[FamilyEvalClaimWitness],
+    phase0_binding_surface: &Rv64imPhase0BindingSurface,
+) -> Result<(), ClaimReductionError> {
+    validate_phase0_binding_surface(phase0_binding_surface)?;
+    verify_phase0_claim_bindings_against_surface(claim_witnesses, phase0_binding_surface)?;
+    validate_claim_reduction_results_with_witnesses(results, claim_witnesses)
+}
+
+pub(crate) fn validate_claim_reduction_result_with_witnesses(
     result: &ClaimReductionResult,
     claim_witnesses: &[FamilyEvalClaimWitness],
 ) -> Result<(), ClaimReductionError> {
@@ -659,7 +681,7 @@ pub fn verify_claim_reduction_result_with_witnesses(
     Ok(())
 }
 
-pub fn verify_claim_reduction_results_with_witnesses(
+pub(crate) fn validate_claim_reduction_results_with_witnesses(
     results: &[ClaimReductionResult],
     claim_witnesses: &[FamilyEvalClaimWitness],
 ) -> Result<(), ClaimReductionError> {
@@ -679,7 +701,7 @@ pub fn verify_claim_reduction_results_with_witnesses(
         if &result.bucket != expected_bucket {
             return Err(ClaimReductionError::UnexpectedBucketAtIndex { index });
         }
-        verify_claim_reduction_result_with_witnesses(result, claim_witnesses)?;
+        validate_claim_reduction_result_with_witnesses(result, claim_witnesses)?;
     }
 
     Ok(())
@@ -723,6 +745,35 @@ pub enum ClaimReductionError {
     MissingWitnessForClaimId { claim_id: FamilyEvalClaimId },
     #[error("phase1 witness claim for id {claim_id:?} does not match the bucket claim")]
     WitnessClaimMismatch { claim_id: FamilyEvalClaimId },
+    #[error("phase1 binding surface target count mismatch: expected {expected}, got {actual}")]
+    BindingSurfaceTargetCountMismatch { expected: usize, actual: usize },
+    #[error("phase1 binding surface schema mismatch at index {index}: expected {expected:?}, got {actual:?}")]
+    BindingSurfaceSchemaMismatch {
+        index: usize,
+        expected: FamilyEvalSchemaId,
+        actual: FamilyEvalSchemaId,
+    },
+    #[error("phase1 binding surface is missing target for {schema:?}")]
+    BindingSurfaceTargetMissing { schema: FamilyEvalSchemaId },
+    #[error("phase1 binding surface target digest mismatch at index {index}: expected {expected:?}, got {actual:?}")]
+    BindingSurfaceTargetDigestMismatch {
+        index: usize,
+        expected: [u8; 32],
+        actual: [u8; 32],
+    },
+    #[error("phase1 binding surface digest mismatch: expected {expected:?}, got {actual:?}")]
+    BindingSurfaceDigestMismatch {
+        expected: [u8; 32],
+        actual: [u8; 32],
+    },
+    #[error("phase1 witness claim {claim_id:?} binding digest mismatch: expected {expected:?}, got {actual:?}")]
+    WitnessClaimBindingDigestMismatch {
+        claim_id: FamilyEvalClaimId,
+        expected: [u8; 32],
+        actual: [u8; 32],
+    },
+    #[error("phase1 witness claim {claim_id:?} point does not match its canonical binding-derived point")]
+    WitnessClaimPointBindingMismatch { claim_id: FamilyEvalClaimId },
     #[error("phase1 bucket mixes commitment contexts at claim {index}")]
     MixedCommitmentContext { index: usize },
     #[error("phase1 bucket mixes schemas: expected {expected:?}, got {actual:?} at claim {index}")]
@@ -1060,6 +1111,87 @@ fn phase1_transcript(bucket_digest: [u8; 32]) -> Poseidon2Transcript {
         &bucket_digest,
     );
     transcript
+}
+
+fn validate_phase0_binding_surface(surface: &Rv64imPhase0BindingSurface) -> Result<(), ClaimReductionError> {
+    let expected_order = phase0_family_order();
+    if surface.targets.len() != expected_order.len() {
+        return Err(ClaimReductionError::BindingSurfaceTargetCountMismatch {
+            expected: expected_order.len(),
+            actual: surface.targets.len(),
+        });
+    }
+    for (index, (target, expected_schema)) in surface
+        .targets
+        .iter()
+        .zip(expected_order.iter())
+        .enumerate()
+    {
+        if target.schema != *expected_schema {
+            return Err(ClaimReductionError::BindingSurfaceSchemaMismatch {
+                index,
+                expected: *expected_schema,
+                actual: target.schema,
+            });
+        }
+        let expected_digest = target.expected_digest();
+        if target.digest != expected_digest {
+            return Err(ClaimReductionError::BindingSurfaceTargetDigestMismatch {
+                index,
+                expected: expected_digest,
+                actual: target.digest,
+            });
+        }
+    }
+    let expected_digest = surface.expected_digest();
+    if surface.digest != expected_digest {
+        return Err(ClaimReductionError::BindingSurfaceDigestMismatch {
+            expected: expected_digest,
+            actual: surface.digest,
+        });
+    }
+    Ok(())
+}
+
+fn verify_phase0_claim_bindings_against_surface(
+    claim_witnesses: &[FamilyEvalClaimWitness],
+    surface: &Rv64imPhase0BindingSurface,
+) -> Result<(), ClaimReductionError> {
+    for claim_witness in claim_witnesses {
+        let claim = &claim_witness.claim;
+        let target = surface
+            .targets
+            .iter()
+            .find(|target| target.schema == claim.payload.schema)
+            .ok_or(ClaimReductionError::BindingSurfaceTargetMissing {
+                schema: claim.payload.schema,
+            })?;
+        let expected_binding_digest = phase0_binding_digest(
+            &claim.opened_object,
+            claim.payload.schema,
+            claim.id.slot,
+            target.family_binding_anchor_digest,
+            target.stage_proof_binding_digest,
+        );
+        if claim.binding_digest != expected_binding_digest {
+            return Err(ClaimReductionError::WitnessClaimBindingDigestMismatch {
+                claim_id: claim.id,
+                expected: expected_binding_digest,
+                actual: claim.binding_digest,
+            });
+        }
+        let expected_point = derive_phase0_point(
+            &claim.opened_object,
+            &claim.commitment_context,
+            claim.payload.schema,
+            claim.id.slot,
+            claim.binding_digest,
+        );
+        if claim.point != expected_point {
+            return Err(ClaimReductionError::WitnessClaimPointBindingMismatch { claim_id: claim.id });
+        }
+    }
+    Ok(())
 }
 
 fn sample_k(tr: &mut Poseidon2Transcript, label: &'static [u8]) -> K {

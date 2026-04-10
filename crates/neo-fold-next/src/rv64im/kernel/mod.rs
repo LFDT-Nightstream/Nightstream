@@ -29,6 +29,8 @@ mod opening_final;
 mod opening_manifest;
 #[path = "openings/payload_semantics.rs"]
 mod opening_payload_semantics;
+#[path = "openings/phase0_binding_surface.rs"]
+mod opening_phase0_binding_surface;
 #[path = "openings/point_derivation.rs"]
 mod opening_point_derivation;
 #[path = "openings/verify.rs"]
@@ -110,9 +112,9 @@ pub use opening_accumulate::{
 pub use opening_batch::{build_rv64im_opening_bundle_from_accepted_artifact, Rv64imOpeningBundle};
 pub use opening_claim_reduction::{
     build_claim_reduction_buckets, build_claim_reduction_results_from_witnesses, domain_for_schema,
-    phase1_claim_digest, phase1_unified_claim_digest, verify_claim_reduction_result_with_witnesses,
-    verify_claim_reduction_results_with_witnesses, ClaimReductionBucket, ClaimReductionError, ClaimReductionProof,
-    ClaimReductionResult, QuadraticRoundPoly,
+    phase1_claim_digest, phase1_unified_claim_digest, verify_claim_reduction_result_with_binding_surface,
+    verify_claim_reduction_results_with_binding_surface, ClaimReductionBucket, ClaimReductionError,
+    ClaimReductionProof, ClaimReductionResult, QuadraticRoundPoly,
 };
 pub use opening_eval_claim_witness::{
     build_rv64im_eval_claim_bundle_from_accepted_artifact, build_rv64im_eval_claim_bundle_from_claim_witnesses,
@@ -125,18 +127,19 @@ pub(crate) use opening_eval_claim_witness::{
     build_rv64im_eval_claim_witnesses_from_accepted_artifact_with_perf, phase0_binding_digest,
 };
 pub use opening_eval_claims::{
-    CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalPayload, FamilyEvalSchemaId,
-    OpenedAjtaiObjectId, OpeningClaimAccumulator, PackedColumnEval, Rv64imEvalClaimBundle,
+    phase0_family_order, CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalPayload,
+    FamilyEvalSchemaId, OpenedAjtaiObjectId, OpeningClaimAccumulator, PackedColumnEval, Rv64imEvalClaimBundle,
 };
 pub(crate) use opening_final::{
     build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local,
     build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local_with_perf,
+    rebuild_opened_object_witness_from_projection,
 };
 pub use opening_final::{
     build_rv64im_opening_convergence_artifact_from_proof, build_rv64im_opening_convergence_artifact_from_witnesses,
     build_rv64im_opening_convergence_proof_from_witnesses, verify_rv64im_opening_convergence_artifact,
     verify_rv64im_opening_convergence_artifact_from_proof, verify_rv64im_opening_convergence_proof, AjtaiOpeningProof,
-    CompactFinalOpeningTarget, FinalOpeningError, FinalOpeningTarget, OpenedAjtaiCommitmentPublic,
+    FinalOpeningError, FinalOpeningTarget, OpenedAjtaiCommitmentPublic, ProjectedFinalOpeningTarget,
     RealAjtaiCommitmentVectorPublic, Rv64imOpeningConvergenceArtifact, Rv64imOpeningConvergenceProof,
 };
 pub use opening_manifest::{
@@ -147,6 +150,9 @@ pub use opening_manifest::{
 pub use opening_payload_semantics::{
     encode_packed_column_evals_k, encode_words_to_field_evals_k, phase0_full_width_for_schema,
     phase0_word_count_for_schema, reconstruct_words_from_field_evals, unpack_column_evals_k,
+};
+pub use opening_phase0_binding_surface::{
+    build_rv64im_phase0_binding_surface_from_accepted_artifact, Rv64imPhase0BindingSurface, Rv64imPhase0BindingTarget,
 };
 pub use opening_point_derivation::{derive_phase0_point, derive_phase0_point_from_seed, phase0_point_seed};
 pub use opening_verify::verify_rv64im_opening_bundle_from_accepted_artifact;

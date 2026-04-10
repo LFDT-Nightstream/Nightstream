@@ -1,14 +1,18 @@
 use std::sync::OnceLock;
 
 use neo_fold_next::rv64im::{
-    build_rv64im_accepted_proof_artifact, build_rv64im_eval_claim_witnesses_from_accepted_artifact,
-    build_rv64im_opening_convergence_artifact_from_proof, build_rv64im_opening_convergence_artifact_from_witnesses,
-    build_rv64im_opening_convergence_proof_from_witnesses, parity_source_cases, prove_rv64im_public_proof,
-    verify_rv64im_opening_convergence_artifact, verify_rv64im_opening_convergence_artifact_from_proof,
-    verify_rv64im_opening_convergence_proof, ClaimReductionError, FamilyEvalClaim, FamilyEvalClaimWitness,
-    FamilyEvalSchemaId, FinalOpeningError, Rv64imAcceptedProofArtifact, Rv64imOpeningConvergenceArtifact,
-    Rv64imOpeningConvergenceProof, Rv64imProofInput,
+    build_phase2_collapse_result, build_rv64im_accepted_proof_artifact,
+    build_rv64im_eval_claim_witnesses_from_accepted_artifact, build_rv64im_opening_convergence_artifact_from_proof,
+    build_rv64im_opening_convergence_artifact_from_witnesses, build_rv64im_opening_convergence_proof_from_witnesses,
+    build_rv64im_phase0_binding_surface_from_accepted_artifact, derive_phase0_point, parity_source_cases,
+    prove_rv64im_public_proof, verify_rv64im_opening_convergence_artifact,
+    verify_rv64im_opening_convergence_artifact_from_proof, verify_rv64im_opening_convergence_proof,
+    ClaimReductionError, FamilyEvalClaim, FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId,
+    FinalOpeningError, Rv64imAcceptedProofArtifact, Rv64imOpeningConvergenceArtifact, Rv64imOpeningConvergenceProof,
+    Rv64imPhase0BindingSurface, Rv64imProofInput,
 };
+use neo_math::K;
+use p3_field::PrimeCharacteristicRing;
 
 fn source_case(name: &str) -> neo_fold_next::rv64im::Rv64imParitySourceCase {
     parity_source_cases()
@@ -40,10 +44,15 @@ fn claim_witnesses() -> &'static Vec<FamilyEvalClaimWitness> {
     })
 }
 
+fn binding_surface() -> &'static Rv64imPhase0BindingSurface {
+    static SURFACE: OnceLock<Rv64imPhase0BindingSurface> = OnceLock::new();
+    SURFACE.get_or_init(|| build_rv64im_phase0_binding_surface_from_accepted_artifact(artifact()))
+}
+
 fn convergence_proof() -> &'static Rv64imOpeningConvergenceProof {
     static PROOF: OnceLock<Rv64imOpeningConvergenceProof> = OnceLock::new();
     PROOF.get_or_init(|| {
-        build_rv64im_opening_convergence_proof_from_witnesses(claim_witnesses())
+        build_rv64im_opening_convergence_proof_from_witnesses(binding_surface(), claim_witnesses())
             .expect("final opening convergence proof should build from real phase0 witnesses")
     })
 }
@@ -59,9 +68,56 @@ fn convergence_artifact() -> &'static Rv64imOpeningConvergenceArtifact {
 fn direct_convergence_artifact() -> &'static Rv64imOpeningConvergenceArtifact {
     static ARTIFACT: OnceLock<Rv64imOpeningConvergenceArtifact> = OnceLock::new();
     ARTIFACT.get_or_init(|| {
-        build_rv64im_opening_convergence_artifact_from_witnesses(claim_witnesses())
+        build_rv64im_opening_convergence_artifact_from_witnesses(binding_surface(), claim_witnesses())
             .expect("compact convergence artifact should build directly from real phase0 witnesses")
     })
+}
+
+fn rebuild_compact_artifact_after_phase1_proof_mutation(artifact: &mut Rv64imOpeningConvergenceArtifact) {
+    let rebuilt_phase2 = build_phase2_collapse_result(&artifact.phase1_results).expect("rebuild phase2");
+    for (target, claim) in artifact
+        .final_openings
+        .iter_mut()
+        .zip(rebuilt_phase2.reduced_claims.iter())
+    {
+        target.digest = target.expected_digest(claim);
+    }
+    artifact.phase2 = rebuilt_phase2;
+    artifact.digest = artifact.expected_digest();
+}
+
+fn rebound_binding_digest_claim_witnesses() -> Vec<FamilyEvalClaimWitness> {
+    let mut witnesses = claim_witnesses().clone();
+    let original = &witnesses[0];
+    let mut rebound_binding_digest = original.claim.binding_digest;
+    rebound_binding_digest[0] ^= 1;
+    let rebound_point = derive_phase0_point(
+        &original.claim.opened_object,
+        &original.claim.commitment_context,
+        original.claim.payload.schema,
+        original.claim.id.slot,
+        rebound_binding_digest,
+    );
+    let rebound_payload = FamilyEvalPayload::new(
+        original.claim.payload.schema,
+        original
+            .witness
+            .evaluate_payload(&rebound_point)
+            .expect("rebound point payload should evaluate"),
+    )
+    .expect("rebound payload should build");
+    let rebound_claim = FamilyEvalClaim::new(
+        original.claim.opened_object.clone(),
+        original.claim.id.slot,
+        original.claim.commitment_context,
+        rebound_point,
+        rebound_payload,
+        rebound_binding_digest,
+    )
+    .expect("rebound claim should build");
+    witnesses[0] = FamilyEvalClaimWitness::new(rebound_claim, original.witness.clone())
+        .expect("rebound claim witness should stay self-consistent");
+    witnesses
 }
 
 #[test]
@@ -73,7 +129,7 @@ fn final_bundle_roundtrips_from_real_phase0_witnesses() {
     assert_eq!(proof.final_openings.len(), 6);
     assert_eq!(proof.phase2.reduced_claims.len(), 6);
 
-    let rebuilt = build_rv64im_opening_convergence_proof_from_witnesses(claim_witnesses())
+    let rebuilt = build_rv64im_opening_convergence_proof_from_witnesses(binding_surface(), claim_witnesses())
         .expect("final opening convergence proof should rebuild deterministically");
     assert_eq!(*proof, rebuilt);
 }
@@ -232,14 +288,15 @@ fn compact_convergence_artifact_is_smaller_than_full_proof() {
 #[test]
 fn compact_convergence_artifact_rejects_rebound_final_target_tamper() {
     let mut artifact = convergence_artifact().clone();
-    artifact.final_openings[0].opening_proof_digest[0] ^= 1;
+    artifact.final_openings[0].opening_proof.digest[0] ^= 1;
     artifact.final_openings[0].digest = artifact.final_openings[0].expected_digest(&artifact.phase2.reduced_claims[0]);
     artifact.digest = artifact.expected_digest();
 
     let err = verify_rv64im_opening_convergence_artifact_from_proof(&artifact, convergence_proof())
         .expect_err("rebound compact final target tamper must fail against the full proof projection");
     match err {
-        FinalOpeningError::ArtifactProjectionMismatch { .. } => {}
+        FinalOpeningError::ArtifactProjectionMismatch { .. } | FinalOpeningError::OpeningProofDigestMismatch { .. } => {
+        }
         other => panic!("unexpected compact convergence artifact mismatch: {other:?}"),
     }
 }
@@ -256,4 +313,80 @@ fn compact_convergence_artifact_rejects_tampered_phase0_digest() {
         FinalOpeningError::ArtifactPhase0DigestMismatch { .. } => {}
         other => panic!("unexpected compact artifact phase0 digest error: {other:?}"),
     }
+}
+
+#[test]
+fn compact_convergence_artifact_rejects_rebound_round_poly_forgery() {
+    let mut artifact = convergence_artifact().clone();
+    artifact.phase1_results[0].proof.round_polys[0].a0 += K::ONE;
+    artifact.phase1_results[0].proof.digest = artifact.phase1_results[0].proof.expected_digest();
+    rebuild_compact_artifact_after_phase1_proof_mutation(&mut artifact);
+
+    let err = verify_rv64im_opening_convergence_artifact(&artifact)
+        .expect_err("forged round poly with rebuilt digest chain must fail");
+    assert!(
+        format!("{err}").contains("phase1") || format!("{err}").contains("round") || format!("{err}").contains("poly")
+    );
+}
+
+#[test]
+fn compact_convergence_artifact_rejects_rebound_scalar_eval_forgery() {
+    let mut artifact = convergence_artifact().clone();
+    artifact.phase1_results[0].proof.scalar_evals_at_r_star[0] += K::ONE;
+    artifact.phase1_results[0].proof.digest = artifact.phase1_results[0].proof.expected_digest();
+    rebuild_compact_artifact_after_phase1_proof_mutation(&mut artifact);
+
+    let err = verify_rv64im_opening_convergence_artifact(&artifact)
+        .expect_err("forged scalar eval with rebuilt digest chain must fail");
+    assert!(
+        format!("{err}").contains("phase1") || format!("{err}").contains("scalar") || format!("{err}").contains("eval")
+    );
+}
+
+#[test]
+fn compact_convergence_artifact_rejects_rebound_eta_forgery() {
+    let mut artifact = convergence_artifact().clone();
+    artifact.phase1_results[0].proof.eta += K::ONE;
+    artifact.phase1_results[0].proof.digest = artifact.phase1_results[0].proof.expected_digest();
+    rebuild_compact_artifact_after_phase1_proof_mutation(&mut artifact);
+
+    let err = verify_rv64im_opening_convergence_artifact(&artifact)
+        .expect_err("forged eta with rebuilt digest chain must fail");
+    assert!(format!("{err}").contains("phase1") || format!("{err}").contains("eta"));
+}
+
+#[test]
+fn compact_convergence_artifact_rejects_rebound_rho_forgery() {
+    let mut artifact = convergence_artifact().clone();
+    artifact.phase1_results[0].proof.rho += K::ONE;
+    artifact.phase1_results[0].proof.digest = artifact.phase1_results[0].proof.expected_digest();
+    rebuild_compact_artifact_after_phase1_proof_mutation(&mut artifact);
+
+    let err = verify_rv64im_opening_convergence_artifact(&artifact)
+        .expect_err("forged rho with rebuilt digest chain must fail");
+    assert!(format!("{err}").contains("phase1") || format!("{err}").contains("rho"));
+}
+
+#[test]
+fn standalone_convergence_proof_rejects_rebound_binding_digest_forgery() {
+    let forged = build_rv64im_opening_convergence_proof_from_witnesses(
+        binding_surface(),
+        &rebound_binding_digest_claim_witnesses(),
+    )
+    .expect("forged convergence proof should still build from rebound witnesses");
+
+    verify_rv64im_opening_convergence_proof(&forged)
+        .expect_err("standalone convergence proof must reject rebound binding-digest forgery");
+}
+
+#[test]
+fn standalone_convergence_artifact_rejects_rebound_binding_digest_forgery() {
+    let forged = build_rv64im_opening_convergence_artifact_from_witnesses(
+        binding_surface(),
+        &rebound_binding_digest_claim_witnesses(),
+    )
+    .expect("forged compact convergence artifact should still build from rebound witnesses");
+
+    verify_rv64im_opening_convergence_artifact(&forged)
+        .expect_err("standalone compact convergence artifact must reject rebound binding-digest forgery");
 }

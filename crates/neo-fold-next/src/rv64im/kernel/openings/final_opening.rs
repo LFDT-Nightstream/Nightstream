@@ -5,7 +5,6 @@
 //! - the concrete v1 Ajtai opening witness carrier used to close Phase 0 -> Phase 2 below export
 //! - canonical final-opening-target and final-bundle digests
 //! - self-contained verifier replay from carried final targets back to Phase 0/1/2
-//!
 //! It does not own:
 //! - the published Nightstream carried boundary
 //! - any v2 cross-object accumulation
@@ -26,20 +25,44 @@ use super::opening_accumulate::{
 };
 use super::opening_claim_reduction::{
     build_claim_reduction_results_from_bundle_and_witnesses_trusted_local,
-    verify_claim_reduction_results_with_witnesses, ClaimReductionError, ClaimReductionResult,
+    verify_claim_reduction_results_with_binding_surface, ClaimReductionError, ClaimReductionResult,
 };
 use super::opening_eval_claim_witness::{
     build_commitment_vector, phase0_commitment_root_digest, FamilyEvalClaimWitness, OpenedAjtaiObjectWitness,
     PackedColumnOracleRef, RealAjtaiCommitmentVector,
 };
 use super::opening_eval_claims::{
-    CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, OpenedAjtaiObjectId, Rv64imEvalClaimBundle,
+    phase0_family_order, CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalSchemaId,
+    OpenedAjtaiObjectId, Rv64imEvalClaimBundle,
 };
+use super::opening_phase0_binding_surface::Rv64imPhase0BindingSurface;
 use super::simple::SimpleKernelError;
 
 const FINAL_OPENING_COUNT_V1: usize = 6;
 
 pub type RealAjtaiCommitmentVectorPublic = RealAjtaiCommitmentVector;
+
+impl Rv64imPhase0BindingSurface {
+    pub fn validate_canonical_order(&self) -> Result<(), FinalOpeningError> {
+        let expected_order = phase0_family_order();
+        if self.targets.len() != expected_order.len() {
+            return Err(FinalOpeningError::BindingSurfaceTargetCountMismatch {
+                expected: expected_order.len(),
+                actual: self.targets.len(),
+            });
+        }
+        for (index, (target, expected_schema)) in self.targets.iter().zip(expected_order.iter()).enumerate() {
+            if target.schema != *expected_schema {
+                return Err(FinalOpeningError::BindingSurfaceSchemaMismatch {
+                    index,
+                    expected: *expected_schema,
+                    actual: target.schema,
+                });
+            }
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Rv64imOpeningConvergenceArtifactBuildPerf {
@@ -404,64 +427,59 @@ impl FinalOpeningTarget {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CompactFinalOpeningTarget {
-    pub opened_commitment_digest: [u8; 32],
-    // The compact artifact binds the verified opening relation projection instead of replaying
-    // the raw packed-row witness digest from the full opening proof.
-    pub opening_proof_digest: [u8; 32],
+pub struct ProjectedFinalOpeningTarget {
+    pub opened_commitment: OpenedAjtaiCommitmentPublic,
+    pub opening_proof: AjtaiOpeningProof,
     pub digest: [u8; 32],
 }
 
-impl CompactFinalOpeningTarget {
-    pub fn new(
-        reduced_claim: &ReducedEvalClaim,
-        opened_commitment_digest: [u8; 32],
-        opening_proof_digest: [u8; 32],
-    ) -> Self {
-        Self::new_with_reduced_claim_digest(
-            reduced_claim.expected_digest(),
-            opened_commitment_digest,
-            opening_proof_digest,
-        )
-    }
-
-    fn new_with_reduced_claim_digest(
-        reduced_claim_digest: [u8; 32],
-        opened_commitment_digest: [u8; 32],
-        opening_proof_digest: [u8; 32],
-    ) -> Self {
-        Self {
-            opened_commitment_digest,
-            opening_proof_digest,
-            digest: compact_final_opening_target_digest_from_reduced_claim_digest(
-                reduced_claim_digest,
-                opened_commitment_digest,
-                opening_proof_digest,
-            ),
-        }
-    }
-
-    fn new_projected(reduced_claim: &ReducedEvalClaim, opened_commitment_digest: [u8; 32]) -> Self {
-        Self::new_projected_with_reduced_claim_digest(reduced_claim.expected_digest(), opened_commitment_digest)
-    }
-
-    fn new_projected_with_reduced_claim_digest(
-        reduced_claim_digest: [u8; 32],
-        opened_commitment_digest: [u8; 32],
-    ) -> Self {
-        let opening_proof_digest = compact_final_opening_projection_digest_from_reduced_claim_digest(
-            reduced_claim_digest,
-            opened_commitment_digest,
-        );
-        Self::new_with_reduced_claim_digest(reduced_claim_digest, opened_commitment_digest, opening_proof_digest)
-    }
-
+impl ProjectedFinalOpeningTarget {
     pub fn expected_digest(&self, reduced_claim: &ReducedEvalClaim) -> [u8; 32] {
         compact_final_opening_target_digest_from_reduced_claim_digest(
             reduced_claim.expected_digest(),
-            self.opened_commitment_digest,
-            self.opening_proof_digest,
+            self.opened_commitment.digest,
+            self.opening_proof.digest,
         )
+    }
+
+    fn validate_and_rebuild_witness(
+        &self,
+        reduced_claim: &ReducedEvalClaim,
+        index: usize,
+    ) -> Result<OpenedAjtaiObjectWitness, FinalOpeningError> {
+        reduced_claim
+            .validate(index)
+            .map_err(|source| FinalOpeningError::InvalidReducedClaim { index, source })?;
+
+        let witness = rebuild_opened_object_witness_from_projection(
+            reduced_claim.payload.schema,
+            &reduced_claim.commitment_context,
+            reduced_claim.payload.column_evals.len(),
+            &self.opened_commitment,
+            &self.opening_proof,
+            index,
+        )?;
+        if self.opened_commitment.opened_object != reduced_claim.opened_object {
+            return Err(FinalOpeningError::FinalOpeningObjectMismatch { index });
+        }
+
+        let expected_payload = witness
+            .evaluate_payload(&reduced_claim.point)
+            .map_err(|source| FinalOpeningError::FinalOpeningPayloadEvaluationFailed { index, source })?;
+        if expected_payload != reduced_claim.payload.column_evals {
+            return Err(FinalOpeningError::FinalOpeningPayloadMismatch { index });
+        }
+
+        let expected_digest = self.expected_digest(reduced_claim);
+        if self.digest != expected_digest {
+            return Err(FinalOpeningError::ProjectedFinalOpeningDigestMismatch {
+                index,
+                expected: expected_digest,
+                actual: self.digest,
+            });
+        }
+
+        Ok(witness)
     }
 }
 
@@ -486,34 +504,37 @@ fn compact_final_opening_target_digest_from_reduced_claim_digest(
     tr.digest32()
 }
 
-fn compact_final_opening_projection_digest_from_reduced_claim_digest(
-    reduced_claim_digest: [u8; 32],
-    opened_commitment_digest: [u8; 32],
-) -> [u8; 32] {
-    let mut tr =
-        Poseidon2Transcript::new(b"neo.fold.next/rv64im/opening_convergence/compact_final_target/opening_projection");
-    tr.append_message(
-        b"neo.fold.next/rv64im/opening_convergence/compact_final_target/opening_projection/reduced_claim_digest",
-        &reduced_claim_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/opening_convergence/compact_final_target/opening_projection/opened_commitment_digest",
-        &opened_commitment_digest,
-    );
-    tr.digest32()
-}
-impl CompactFinalOpeningTarget {
-    fn validate(&self, reduced_claim: &ReducedEvalClaim, index: usize) -> Result<(), FinalOpeningError> {
-        let expected_digest = self.expected_digest(reduced_claim);
-        if self.digest != expected_digest {
-            return Err(FinalOpeningError::CompactFinalOpeningDigestMismatch {
-                index,
-                expected: expected_digest,
-                actual: self.digest,
-            });
-        }
-        Ok(())
+pub(crate) fn rebuild_opened_object_witness_from_projection(
+    schema: FamilyEvalSchemaId,
+    commitment_context: &CommitmentContextId,
+    expected_width: usize,
+    opened_commitment: &OpenedAjtaiCommitmentPublic,
+    opening_proof: &AjtaiOpeningProof,
+    index: usize,
+) -> Result<OpenedAjtaiObjectWitness, FinalOpeningError> {
+    opening_proof.validate(
+        expected_width,
+        opened_commitment.opened_object.row_domain_log_size,
+        index,
+    )?;
+    let commitment_root_digest = phase0_commitment_root_digest(&opened_commitment.commitment_vector);
+    opened_commitment.validate_with_context(commitment_context, expected_width, index, commitment_root_digest)?;
+
+    let packed_columns = opening_proof.try_to_oracle_refs(index)?;
+    let rebuilt_commitment_vector = build_commitment_vector(schema, &packed_columns)
+        .map_err(|source| FinalOpeningError::FinalOpeningCommitmentVectorBuildFailed { index, source })?;
+    if rebuilt_commitment_vector != opened_commitment.commitment_vector {
+        return Err(FinalOpeningError::FinalOpeningCommitmentVectorMismatch { index });
     }
+
+    OpenedAjtaiObjectWitness::new_with_commitment_root_digest(
+        opened_commitment.opened_object.clone(),
+        *commitment_context,
+        packed_columns,
+        rebuilt_commitment_vector,
+        commitment_root_digest,
+    )
+    .map_err(|source| FinalOpeningError::FinalOpeningWitnessBuildFailed { index, source })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -566,6 +587,7 @@ impl AjtaiOpeningProof {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imOpeningConvergenceProof {
+    pub phase0_binding_surface: Rv64imPhase0BindingSurface,
     pub phase0: Rv64imEvalClaimBundle,
     pub phase1_results: Vec<ClaimReductionResult>,
     pub phase2: Phase2CollapseResult,
@@ -576,6 +598,10 @@ pub struct Rv64imOpeningConvergenceProof {
 impl Rv64imOpeningConvergenceProof {
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/opening_convergence/final_bundle");
+        tr.append_message(
+            b"neo.fold.next/rv64im/opening_convergence/final_bundle/phase0_binding_surface_digest",
+            &self.phase0_binding_surface.digest,
+        );
         tr.append_message(
             b"neo.fold.next/rv64im/opening_convergence/final_bundle/phase0_digest",
             &self.phase0.digest,
@@ -610,16 +636,21 @@ impl Rv64imOpeningConvergenceProof {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imOpeningConvergenceArtifact {
+    pub phase0_binding_surface: Rv64imPhase0BindingSurface,
     pub phase0_digest: [u8; 32],
     pub phase1_results: Vec<ClaimReductionResult>,
     pub phase2: Phase2CollapseResult,
-    pub final_openings: Vec<CompactFinalOpeningTarget>,
+    pub final_openings: Vec<ProjectedFinalOpeningTarget>,
     pub digest: [u8; 32],
 }
 
 impl Rv64imOpeningConvergenceArtifact {
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/opening_convergence/compact_artifact");
+        tr.append_message(
+            b"neo.fold.next/rv64im/opening_convergence/compact_artifact/phase0_binding_surface_digest",
+            &self.phase0_binding_surface.digest,
+        );
         tr.append_message(
             b"neo.fold.next/rv64im/opening_convergence/compact_artifact/phase0_digest",
             &self.phase0_digest,
@@ -653,12 +684,17 @@ impl Rv64imOpeningConvergenceArtifact {
 }
 
 fn opening_convergence_artifact_digest_from_trusted_components(
+    phase0_binding_surface_digest: [u8; 32],
     phase0_digest: [u8; 32],
     phase1_results: &[ClaimReductionResult],
     phase2: &Phase2CollapseResult,
-    final_openings: &[CompactFinalOpeningTarget],
+    final_openings: &[ProjectedFinalOpeningTarget],
 ) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/opening_convergence/compact_artifact");
+    tr.append_message(
+        b"neo.fold.next/rv64im/opening_convergence/compact_artifact/phase0_binding_surface_digest",
+        &phase0_binding_surface_digest,
+    );
     tr.append_message(
         b"neo.fold.next/rv64im/opening_convergence/compact_artifact/phase0_digest",
         &phase0_digest,
@@ -691,6 +727,7 @@ fn opening_convergence_artifact_digest_from_trusted_components(
 }
 
 pub fn build_rv64im_opening_convergence_proof_from_witnesses(
+    phase0_binding_surface: &Rv64imPhase0BindingSurface,
     claim_witnesses: &[FamilyEvalClaimWitness],
 ) -> Result<Rv64imOpeningConvergenceProof, FinalOpeningError> {
     let phase0 = Rv64imEvalClaimBundle::new(
@@ -707,6 +744,7 @@ pub fn build_rv64im_opening_convergence_proof_from_witnesses(
         build_phase2_collapse_result_trusted_local(&phase1_results).map_err(FinalOpeningError::Phase2BuildFailed)?;
     let final_openings = build_final_opening_targets(&phase2, claim_witnesses)?;
     let proof = Rv64imOpeningConvergenceProof {
+        phase0_binding_surface: phase0_binding_surface.clone(),
         phase0,
         phase1_results,
         phase2,
@@ -720,6 +758,7 @@ pub fn build_rv64im_opening_convergence_proof_from_witnesses(
 }
 
 pub fn build_rv64im_opening_convergence_artifact_from_witnesses(
+    phase0_binding_surface: &Rv64imPhase0BindingSurface,
     claim_witnesses: &[FamilyEvalClaimWitness],
 ) -> Result<Rv64imOpeningConvergenceArtifact, FinalOpeningError> {
     let phase0 = Rv64imEvalClaimBundle::new(
@@ -729,15 +768,21 @@ pub fn build_rv64im_opening_convergence_artifact_from_witnesses(
             .collect(),
     )
     .map_err(FinalOpeningError::Phase0BundleBuildFailed)?;
-    build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local(&phase0, claim_witnesses)
+    build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local(
+        phase0_binding_surface,
+        &phase0,
+        claim_witnesses,
+    )
 }
 
 pub(crate) fn build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local(
+    phase0_binding_surface: &Rv64imPhase0BindingSurface,
     phase0: &Rv64imEvalClaimBundle,
     claim_witnesses: &[FamilyEvalClaimWitness],
 ) -> Result<Rv64imOpeningConvergenceArtifact, FinalOpeningError> {
     let (artifact, _) =
         build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local_with_perf(
+            phase0_binding_surface,
             phase0,
             claim_witnesses,
         )?;
@@ -745,6 +790,7 @@ pub(crate) fn build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_w
 }
 
 pub(crate) fn build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local_with_perf(
+    phase0_binding_surface: &Rv64imPhase0BindingSurface,
     phase0: &Rv64imEvalClaimBundle,
     claim_witnesses: &[FamilyEvalClaimWitness],
 ) -> Result<
@@ -774,6 +820,7 @@ pub(crate) fn build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_w
 
     let started = Instant::now();
     let digest = opening_convergence_artifact_digest_from_trusted_components(
+        phase0_binding_surface.digest,
         phase0.digest,
         &phase1_results,
         &phase2,
@@ -782,6 +829,7 @@ pub(crate) fn build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_w
     let digest_ms = elapsed_ms(started);
 
     let artifact = Rv64imOpeningConvergenceArtifact {
+        phase0_binding_surface: phase0_binding_surface.clone(),
         phase0_digest: phase0.digest,
         phase1_results,
         phase2,
@@ -815,11 +863,20 @@ pub fn build_rv64im_opening_convergence_artifact_from_proof(
         .iter()
         .zip(&proof.final_openings)
         .map(|(reduced_claim, target)| {
-            CompactFinalOpeningTarget::new_projected(reduced_claim, target.opened_commitment.digest)
+            let projected = ProjectedFinalOpeningTarget {
+                opened_commitment: target.opened_commitment.clone(),
+                opening_proof: target.opening_proof.clone(),
+                digest: [0; 32],
+            };
+            ProjectedFinalOpeningTarget {
+                digest: projected.expected_digest(reduced_claim),
+                ..projected
+            }
         })
         .collect();
 
     let artifact = Rv64imOpeningConvergenceArtifact {
+        phase0_binding_surface: proof.phase0_binding_surface.clone(),
         phase0_digest: proof.phase0.digest,
         phase1_results: proof.phase1_results.clone(),
         phase2: proof.phase2.clone(),
@@ -833,6 +890,7 @@ pub fn build_rv64im_opening_convergence_artifact_from_proof(
 }
 
 pub fn verify_rv64im_opening_convergence_proof(proof: &Rv64imOpeningConvergenceProof) -> Result<(), FinalOpeningError> {
+    validate_phase0_binding_surface(&proof.phase0_binding_surface)?;
     let expected_phase0 =
         Rv64imEvalClaimBundle::new(proof.phase0.claims.clone()).map_err(FinalOpeningError::Phase0BundleBuildFailed)?;
     if proof.phase0 != expected_phase0 {
@@ -841,10 +899,13 @@ pub fn verify_rv64im_opening_convergence_proof(proof: &Rv64imOpeningConvergenceP
             actual: proof.phase0.digest,
         });
     }
-
     let phase0_witnesses = rebuild_phase0_witnesses_from_final_openings(&proof.phase0.claims, &proof.final_openings)?;
-    verify_claim_reduction_results_with_witnesses(&proof.phase1_results, &phase0_witnesses)
-        .map_err(FinalOpeningError::Phase1VerificationFailed)?;
+    verify_claim_reduction_results_with_binding_surface(
+        &proof.phase1_results,
+        &phase0_witnesses,
+        &proof.phase0_binding_surface,
+    )
+    .map_err(FinalOpeningError::Phase1VerificationFailed)?;
     verify_phase2_collapse_result(&proof.phase2, &proof.phase1_results)
         .map_err(FinalOpeningError::Phase2VerificationFailed)?;
 
@@ -887,6 +948,7 @@ pub fn verify_rv64im_opening_convergence_proof(proof: &Rv64imOpeningConvergenceP
 pub fn verify_rv64im_opening_convergence_artifact(
     artifact: &Rv64imOpeningConvergenceArtifact,
 ) -> Result<(), FinalOpeningError> {
+    validate_phase0_binding_surface(&artifact.phase0_binding_surface)?;
     let reconstructed_phase0 = Rv64imEvalClaimBundle::new(
         artifact
             .phase1_results
@@ -901,16 +963,6 @@ pub fn verify_rv64im_opening_convergence_artifact(
             actual: artifact.phase0_digest,
         });
     }
-
-    for result in &artifact.phase1_results {
-        result
-            .validate()
-            .map_err(FinalOpeningError::Phase1VerificationFailed)?;
-    }
-
-    verify_phase2_collapse_result(&artifact.phase2, &artifact.phase1_results)
-        .map_err(FinalOpeningError::Phase2VerificationFailed)?;
-
     let actual_final_opening_count = artifact.final_openings.len();
     if actual_final_opening_count != FINAL_OPENING_COUNT_V1 {
         return Err(FinalOpeningError::FinalOpeningCountMismatch {
@@ -925,14 +977,19 @@ pub fn verify_rv64im_opening_convergence_artifact(
         });
     }
 
-    for (index, (target, reduced_claim)) in artifact
-        .final_openings
-        .iter()
-        .zip(&artifact.phase2.reduced_claims)
-        .enumerate()
-    {
-        target.validate(reduced_claim, index)?;
-    }
+    let phase0_witnesses = rebuild_phase0_witnesses_from_projected_final_openings(
+        &reconstructed_phase0.claims,
+        &artifact.phase2,
+        &artifact.final_openings,
+    )?;
+    verify_claim_reduction_results_with_binding_surface(
+        &artifact.phase1_results,
+        &phase0_witnesses,
+        &artifact.phase0_binding_surface,
+    )
+    .map_err(FinalOpeningError::Phase1VerificationFailed)?;
+    verify_phase2_collapse_result(&artifact.phase2, &artifact.phase1_results)
+        .map_err(FinalOpeningError::Phase2VerificationFailed)?;
 
     let expected_digest = artifact.expected_digest();
     if artifact.digest != expected_digest {
@@ -960,8 +1017,67 @@ pub fn verify_rv64im_opening_convergence_artifact_from_proof(
     Ok(())
 }
 
+fn validate_phase0_binding_surface(surface: &Rv64imPhase0BindingSurface) -> Result<(), FinalOpeningError> {
+    surface.validate_canonical_order()?;
+    for (index, target) in surface.targets.iter().enumerate() {
+        let expected_digest = target.expected_digest();
+        if target.digest != expected_digest {
+            return Err(FinalOpeningError::BindingSurfaceTargetDigestMismatch {
+                index,
+                expected: expected_digest,
+                actual: target.digest,
+            });
+        }
+    }
+    let expected_digest = surface.expected_digest();
+    if surface.digest != expected_digest {
+        return Err(FinalOpeningError::BindingSurfaceDigestMismatch {
+            expected: expected_digest,
+            actual: surface.digest,
+        });
+    }
+    Ok(())
+}
+
 #[derive(Debug, Error)]
 pub enum FinalOpeningError {
+    #[error("final opening phase0 binding surface target count mismatch: expected {expected}, got {actual}")]
+    BindingSurfaceTargetCountMismatch { expected: usize, actual: usize },
+    #[error(
+        "final opening phase0 binding surface schema mismatch at index {index}: expected {expected:?}, got {actual:?}"
+    )]
+    BindingSurfaceSchemaMismatch {
+        index: usize,
+        expected: FamilyEvalSchemaId,
+        actual: FamilyEvalSchemaId,
+    },
+    #[error("final opening phase0 binding surface is missing target for {schema:?}")]
+    BindingSurfaceTargetMissing { schema: FamilyEvalSchemaId },
+    #[error("final opening phase0 binding surface target digest mismatch at index {index}: expected {expected:?}, got {actual:?}")]
+    BindingSurfaceTargetDigestMismatch {
+        index: usize,
+        expected: [u8; 32],
+        actual: [u8; 32],
+    },
+    #[error("final opening phase0 binding surface digest mismatch: expected {expected:?}, got {actual:?}")]
+    BindingSurfaceDigestMismatch {
+        expected: [u8; 32],
+        actual: [u8; 32],
+    },
+    #[error(
+        "final opening phase0 claim binding digest mismatch at index {index} for {schema:?}: expected {expected:?}, got {actual:?}"
+    )]
+    ClaimBindingDigestMismatch {
+        index: usize,
+        schema: FamilyEvalSchemaId,
+        expected: [u8; 32],
+        actual: [u8; 32],
+    },
+    #[error("final opening phase0 claim point mismatch at index {index} for {schema:?}")]
+    ClaimPointBindingMismatch {
+        index: usize,
+        schema: FamilyEvalSchemaId,
+    },
     #[error("final opening could not canonicalize the phase0 claim bundle: {0}")]
     Phase0BundleBuildFailed(EvalClaimError),
     #[error("final opening phase0 bundle digest mismatch: expected {expected:?}, got {actual:?}")]
@@ -1049,8 +1165,8 @@ pub enum FinalOpeningError {
         expected: [u8; 32],
         actual: [u8; 32],
     },
-    #[error("final opening compact target {index} digest mismatch: expected {expected:?}, got {actual:?}")]
-    CompactFinalOpeningDigestMismatch {
+    #[error("final opening projected target {index} digest mismatch: expected {expected:?}, got {actual:?}")]
+    ProjectedFinalOpeningDigestMismatch {
         index: usize,
         expected: [u8; 32],
         actual: [u8; 32],
@@ -1148,7 +1264,7 @@ fn build_final_opening_targets(
 fn build_compact_final_opening_targets_with_perf(
     phase2: &Phase2CollapseResult,
     claim_witnesses: &[FamilyEvalClaimWitness],
-) -> Result<(Vec<CompactFinalOpeningTarget>, CompactFinalOpeningTargetsBuildPerf), FinalOpeningError> {
+) -> Result<(Vec<ProjectedFinalOpeningTarget>, CompactFinalOpeningTargetsBuildPerf), FinalOpeningError> {
     let total_started = Instant::now();
     let started = Instant::now();
     let witness_map = build_claim_witness_map(claim_witnesses)?;
@@ -1174,36 +1290,35 @@ fn build_compact_final_opening_targets_with_perf(
         let commitment_root_digest = representative.witness.opened_object.commitment_root_digest;
 
         let started = Instant::now();
-        validate_opened_commitment_public_with_root_digest(
-            &representative.witness.opened_object,
+        let opened_commitment = OpenedAjtaiCommitmentPublic::new_with_commitment_root_digest(
+            representative.witness.opened_object.clone(),
             &reduced_claim.commitment_context,
-            &representative.witness.commitment_vector,
-            commitment_root_digest,
+            representative.witness.commitment_vector.clone(),
             reduced_claim.payload.column_evals.len(),
-            index,
+            commitment_root_digest,
         )?;
         perf.commitment_validate_ms += elapsed_ms(started);
 
         let started = Instant::now();
-        let opened_commitment_digest = opened_commitment_public_digest_from_root_digest(
-            &representative.witness.opened_object,
-            commitment_root_digest,
-        );
-        perf.opened_commitment_digest_ms += elapsed_ms(started);
-
-        let started = Instant::now();
-        let opening_proof_digest = compact_final_opening_projection_digest_from_reduced_claim_digest(
-            reduced_claim_digest,
-            opened_commitment_digest,
-        );
+        let opening_proof = AjtaiOpeningProof::new(representative.witness.packed_columns.clone());
         perf.opening_proof_digest_ms += elapsed_ms(started);
 
         let started = Instant::now();
-        targets.push(CompactFinalOpeningTarget::new_with_reduced_claim_digest(
-            reduced_claim_digest,
-            opened_commitment_digest,
-            opening_proof_digest,
-        ));
+        let target = ProjectedFinalOpeningTarget {
+            opened_commitment,
+            opening_proof,
+            digest: [0; 32],
+        };
+        perf.opened_commitment_digest_ms += 0.0;
+        targets.push(ProjectedFinalOpeningTarget {
+            digest: compact_final_opening_target_digest_from_reduced_claim_digest(
+                reduced_claim_digest,
+                target.opened_commitment.digest,
+                target.opening_proof.digest,
+            ),
+            ..target
+        });
+        targets[index].validate_and_rebuild_witness(reduced_claim, index)?;
         perf.target_build_ms += elapsed_ms(started);
     }
 
@@ -1219,6 +1334,46 @@ fn rebuild_phase0_witnesses_from_final_openings(
     for (index, target) in final_openings.iter().enumerate() {
         let object_digest = target.reduced_claim.opened_object.digest;
         let witness = Arc::new(target.validate_and_rebuild_witness(index)?);
+        if object_witnesses.insert(object_digest, witness).is_some() {
+            return Err(FinalOpeningError::DuplicateFinalOpeningObject {
+                opened_object_digest: object_digest,
+            });
+        }
+    }
+
+    let mut claim_ids = BTreeSet::new();
+    let mut claim_witnesses = Vec::with_capacity(phase0_claims.len());
+    for (index, claim) in phase0_claims.iter().enumerate() {
+        if !claim_ids.insert(claim.id) {
+            return Err(FinalOpeningError::DuplicatePhase0ClaimId { claim_id: claim.id });
+        }
+        let witness = object_witnesses
+            .get(&claim.opened_object.digest)
+            .ok_or(FinalOpeningError::MissingFinalOpeningObject {
+                opened_object_digest: claim.opened_object.digest,
+            })?
+            .clone();
+        let claim_witness = FamilyEvalClaimWitness::new(claim.clone(), witness)
+            .map_err(|source| FinalOpeningError::FinalOpeningWitnessBuildFailed { index, source })?;
+        claim_witnesses.push(claim_witness);
+    }
+
+    Ok(claim_witnesses)
+}
+
+fn rebuild_phase0_witnesses_from_projected_final_openings(
+    phase0_claims: &[FamilyEvalClaim],
+    phase2: &Phase2CollapseResult,
+    final_openings: &[ProjectedFinalOpeningTarget],
+) -> Result<Vec<FamilyEvalClaimWitness>, FinalOpeningError> {
+    let mut object_witnesses = BTreeMap::<[u8; 32], Arc<OpenedAjtaiObjectWitness>>::new();
+    for (index, (target, reduced_claim)) in final_openings
+        .iter()
+        .zip(&phase2.reduced_claims)
+        .enumerate()
+    {
+        let object_digest = reduced_claim.opened_object.digest;
+        let witness = Arc::new(target.validate_and_rebuild_witness(reduced_claim, index)?);
         if object_witnesses.insert(object_digest, witness).is_some() {
             return Err(FinalOpeningError::DuplicateFinalOpeningObject {
                 opened_object_digest: object_digest,

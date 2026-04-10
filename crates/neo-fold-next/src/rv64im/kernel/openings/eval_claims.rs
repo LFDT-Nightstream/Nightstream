@@ -99,6 +99,17 @@ impl FamilyEvalSchemaId {
     }
 }
 
+pub fn phase0_family_order() -> [FamilyEvalSchemaId; 6] {
+    [
+        FamilyEvalSchemaId::Stage1Rows,
+        FamilyEvalSchemaId::Stage2RegisterReads,
+        FamilyEvalSchemaId::Stage2RegisterWrites,
+        FamilyEvalSchemaId::Stage2RamEvents,
+        FamilyEvalSchemaId::Stage2TwistLinks,
+        FamilyEvalSchemaId::Stage3Continuity,
+    ]
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct CommitmentContextId {
     pub pp_seed_digest: [u8; 32],

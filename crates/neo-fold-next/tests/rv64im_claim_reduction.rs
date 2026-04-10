@@ -3,10 +3,12 @@ use std::sync::OnceLock;
 use neo_fold_next::rv64im::{
     build_claim_reduction_buckets, build_claim_reduction_results_from_witnesses, build_rv64im_accepted_proof_artifact,
     build_rv64im_eval_claim_bundle_from_accepted_artifact, build_rv64im_eval_claim_witnesses_from_accepted_artifact,
-    parity_source_cases, prove_rv64im_public_proof, verify_claim_reduction_result_with_witnesses,
-    verify_claim_reduction_results_with_witnesses, ClaimReductionBucket, ClaimReductionError, ClaimReductionProof,
-    ClaimReductionResult, CommitmentContextId, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalSchemaId,
-    OpenedAjtaiObjectId, QuadraticRoundPoly, Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle, Rv64imProofInput,
+    build_rv64im_phase0_binding_surface_from_accepted_artifact, derive_phase0_point, parity_source_cases,
+    prove_rv64im_public_proof, verify_claim_reduction_result_with_binding_surface,
+    verify_claim_reduction_results_with_binding_surface, ClaimReductionBucket, ClaimReductionError,
+    ClaimReductionProof, ClaimReductionResult, CommitmentContextId, FamilyEvalClaim, FamilyEvalClaimId,
+    FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId, OpenedAjtaiObjectId, QuadraticRoundPoly,
+    Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle, Rv64imPhase0BindingSurface, Rv64imProofInput,
 };
 use neo_math::K;
 use p3_field::PrimeCharacteristicRing;
@@ -53,12 +55,51 @@ fn claim_witnesses() -> &'static Vec<neo_fold_next::rv64im::FamilyEvalClaimWitne
     })
 }
 
+fn phase0_binding_surface() -> &'static Rv64imPhase0BindingSurface {
+    static SURFACE: OnceLock<Rv64imPhase0BindingSurface> = OnceLock::new();
+    SURFACE.get_or_init(|| build_rv64im_phase0_binding_surface_from_accepted_artifact(artifact()))
+}
+
 fn claim_reduction_results() -> &'static Vec<ClaimReductionResult> {
     static RESULTS: OnceLock<Vec<ClaimReductionResult>> = OnceLock::new();
     RESULTS.get_or_init(|| {
         build_claim_reduction_results_from_witnesses(claim_witnesses())
             .expect("phase1 claim-reduction results should build from witnesses")
     })
+}
+
+fn rebound_binding_digest_claim_witnesses() -> Vec<FamilyEvalClaimWitness> {
+    let mut witnesses = claim_witnesses().clone();
+    let original = &witnesses[0];
+    let mut rebound_binding_digest = original.claim.binding_digest;
+    rebound_binding_digest[0] ^= 1;
+    let rebound_point = derive_phase0_point(
+        &original.claim.opened_object,
+        &original.claim.commitment_context,
+        original.claim.payload.schema,
+        original.claim.id.slot,
+        rebound_binding_digest,
+    );
+    let rebound_payload = FamilyEvalPayload::new(
+        original.claim.payload.schema,
+        original
+            .witness
+            .evaluate_payload(&rebound_point)
+            .expect("rebound point payload should evaluate"),
+    )
+    .expect("rebound payload should build");
+    let rebound_claim = FamilyEvalClaim::new(
+        original.claim.opened_object.clone(),
+        original.claim.id.slot,
+        original.claim.commitment_context,
+        rebound_point,
+        rebound_payload,
+        rebound_binding_digest,
+    )
+    .expect("rebound claim should build");
+    witnesses[0] = FamilyEvalClaimWitness::new(rebound_claim, original.witness.clone())
+        .expect("rebound claim witness should stay self-consistent");
+    witnesses
 }
 
 fn stage1_bucket() -> ClaimReductionBucket {
@@ -288,7 +329,7 @@ fn claim_reduction_result_rejects_same_object_same_point_payload_mismatch() {
 fn claim_reduction_results_roundtrip_from_real_witnesses() {
     let results = claim_reduction_results();
 
-    verify_claim_reduction_results_with_witnesses(results, claim_witnesses())
+    verify_claim_reduction_results_with_binding_surface(results, claim_witnesses(), phase0_binding_surface())
         .expect("phase1 results should verify against their real witnesses");
     assert_eq!(
         results
@@ -316,7 +357,7 @@ fn claim_reduction_verifier_rejects_tampered_scalar_eval() {
     result.proof.scalar_evals_at_r_star[0] += K::ONE;
     result.proof.digest = result.proof.expected_digest();
 
-    let err = verify_claim_reduction_result_with_witnesses(&result, claim_witnesses())
+    let err = verify_claim_reduction_result_with_binding_surface(&result, claim_witnesses(), phase0_binding_surface())
         .expect_err("tampered scalar eval must reject");
     match err {
         ClaimReductionError::ScalarEvalMismatch { index, .. } => assert_eq!(index, 0),
@@ -332,7 +373,17 @@ fn claim_reduction_verifier_rejects_tampered_unified_point() {
         claim.point = result.unified_point.clone();
     }
 
-    let err = verify_claim_reduction_result_with_witnesses(&result, claim_witnesses())
+    let err = verify_claim_reduction_result_with_binding_surface(&result, claim_witnesses(), phase0_binding_surface())
         .expect_err("tampered unified point must reject");
     assert_eq!(err, ClaimReductionError::UnifiedPointTranscriptMismatch);
+}
+
+#[test]
+fn claim_reduction_results_verifier_rejects_rebound_binding_digest_witness_forgery() {
+    let forged_witnesses = rebound_binding_digest_claim_witnesses();
+    let forged_results = build_claim_reduction_results_from_witnesses(&forged_witnesses)
+        .expect("forged claim-reduction results should still build from rebound witnesses");
+
+    verify_claim_reduction_results_with_binding_surface(&forged_results, &forged_witnesses, phase0_binding_surface())
+        .expect_err("claim-reduction verifier must reject rebound binding-digest witness forgery");
 }

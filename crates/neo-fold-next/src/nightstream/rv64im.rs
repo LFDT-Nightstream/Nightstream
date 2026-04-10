@@ -24,7 +24,7 @@ use self::compact_surfaces::{
     kernel_opening_bundle_digest_from_surfaces, kernel_opening_proof_bundle_digest_from_surfaces,
     packaged_claim_proof_digest_from_surfaces, stage_package_proof_bundle_digest_from_surfaces,
 };
-pub use self::hybrid_side_bridge_decider::{Rv64imHybridSideBridgeArtifact, Rv64imHybridSideBridgeBackendProof};
+pub use self::hybrid_side_bridge_decider::{Rv64imHybridSideBridgeArtifact, Rv64imHybridSideBridgeCompiledProof};
 pub use self::opening_artifact::Rv64imOpeningArtifact;
 use self::side_bridges::{
     build_rv64im_kernel_claim_bridge_from_accepted_artifact,
@@ -42,7 +42,7 @@ pub use self::verify_perf::{verify_rv64im_nightstream_with_perf, Rv64imNightstre
 
 pub mod audit {
     pub use super::hybrid_side_bridge_decider::{
-        build_rv64im_hybrid_side_bridge_public_target, verify_rv64im_hybrid_side_bridge_artifact,
+        build_rv64im_hybrid_side_bridge_target_from_artifact, verify_rv64im_hybrid_side_bridge_artifact,
     };
     pub use super::opening_artifact::{
         build_rv64im_opening_artifact_from_accepted_artifact, verify_rv64im_opening_artifact_from_accepted_artifact,

@@ -1,12 +1,12 @@
 //! Focused RV64IM round-trip over the stricter Spartan2 backend-binding shell.
 
 use neo_fold_next::decider::spartan2::{
-    prove_spartan2_backend_binding_shell, setup_spartan2_backend_binding_shell, verify_spartan2_backend_binding_shell,
-    Spartan2BackendBindingShellProof,
+    prove_spartan2_backend_binding_shell, prove_spartan2_decider, setup_spartan2_backend_binding_shell,
+    setup_spartan2_decider, verify_spartan2_backend_binding_shell, verify_spartan2_decider,
 };
 use neo_fold_next::nightstream::rv64im::{
-    audit::{build_rv64im_hybrid_side_bridge_public_target, Rv64imWitnessBackedSideBridgeStatement},
-    build_rv64im_nightstream_from_public_proof, Rv64imHybridSideBridgeBackendProof,
+    audit::{build_rv64im_hybrid_side_bridge_target_from_artifact, Rv64imWitnessBackedSideBridgeStatement},
+    build_rv64im_nightstream_from_public_proof, Rv64imHybridSideBridgeCompiledProof,
 };
 use neo_fold_next::rv64im::{parity_source_cases, prove_rv64im_public_proof, Rv64imProofInput};
 
@@ -78,9 +78,13 @@ fn rv64im_hybrid_side_bridge_spartan2_backend_binding_shell_round_trip() {
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (nightstream_statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&proof).expect("build rv64im nightstream");
-    let target =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &proof.statement)
-            .expect("build hybrid-side-bridge public target");
+    let target = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect("build hybrid-side-bridge public target");
     let relation = target.backend_relation();
     let (pk, vk) = setup_spartan2_backend_binding_shell(&relation.shape())
         .expect("setup hybrid-side-bridge backend-binding shell");
@@ -98,10 +102,14 @@ fn rv64im_hybrid_side_bridge_spartan2_backend_binding_shell_rejects_private_base
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (nightstream_statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&proof).expect("build rv64im nightstream");
-    let relation =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &proof.statement)
-            .expect("build hybrid-side-bridge public target")
-            .backend_relation();
+    let relation = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect("build hybrid-side-bridge public target")
+    .backend_relation();
     let (pk, vk) = setup_spartan2_backend_binding_shell(&relation.shape())
         .expect("setup hybrid-side-bridge backend-binding shell");
     let shell =
@@ -121,29 +129,25 @@ fn rv64im_hybrid_side_bridge_spartan2_backend_binding_shell_rejects_private_base
 }
 
 #[test]
-fn rv64im_hybrid_side_bridge_backend_proof_round_trip() {
+fn rv64im_hybrid_side_bridge_compiled_proof_round_trip() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (nightstream_statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&proof).expect("build rv64im nightstream");
-    let target =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &proof.statement)
-            .expect("build hybrid-side-bridge public target");
-    let relation = target.backend_relation();
-    let (pk, vk) =
-        setup_spartan2_backend_binding_shell(&relation.shape()).expect("setup hybrid-side-bridge backend proof");
-    let shell = prove_spartan2_backend_binding_shell(&pk, &relation).expect("prove hybrid-side-bridge backend proof");
-    let backend_proof = Rv64imHybridSideBridgeBackendProof {
-        snark_data: shell.snark_data.clone(),
-    };
-    let backend_shell = Spartan2BackendBindingShellProof {
-        snark_data: backend_proof.snark_data.clone(),
-    };
+    let target = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect("build hybrid-side-bridge public target");
+    let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup hybrid-side-bridge compiled proof");
+    let compiled_proof = prove_spartan2_decider(&pk, &target).expect("prove hybrid-side-bridge compiled proof");
 
-    verify_spartan2_backend_binding_shell(&vk, &relation, &backend_shell)
-        .expect("verify hybrid-side-bridge backend proof");
-    assert!(backend_proof.snark_bytes_len() > 0);
-    assert_ne!(backend_proof.digest(), [0; 32]);
+    let _typed: Rv64imHybridSideBridgeCompiledProof = compiled_proof.clone();
+    verify_spartan2_decider(&vk, &target, &compiled_proof).expect("verify hybrid-side-bridge compiled proof");
+    assert!(compiled_proof.snark_bytes_len() > 0);
+    assert_ne!(compiled_proof.digest(), [0; 32]);
 }
 
 #[test]
@@ -158,9 +162,13 @@ fn rv64im_hybrid_side_bridge_backend_relation_rejects_recomputed_public_statemen
     public_statement.digest = public_statement.recompute_digest();
     rebind_tampered_public_statement(&mut nightstream_statement, &mut nightstream_proof, &public_statement);
 
-    let err =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &public_statement)
-            .expect_err("recomputed public statement with wrong compact stage-package digest must fail");
+    let err = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &public_statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect_err("recomputed public statement with wrong compact stage-package digest must fail");
 
     assert!(
         err.to_string().contains(
@@ -184,9 +192,13 @@ fn rv64im_hybrid_side_bridge_backend_relation_rejects_recomputed_public_statemen
     public_statement.digest = public_statement.recompute_digest();
     rebind_tampered_public_statement(&mut nightstream_statement, &mut nightstream_proof, &public_statement);
 
-    let err =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &public_statement)
-            .expect_err("recomputed public statement with wrong compact stage-claim digest must fail");
+    let err = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &public_statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect_err("recomputed public statement with wrong compact stage-claim digest must fail");
 
     assert!(
         err.to_string().contains(
@@ -215,9 +227,13 @@ fn rv64im_hybrid_side_bridge_backend_relation_rejects_rebound_side_bundle_with_w
         .root0_digest[0] ^= 1;
     rebind_tampered_side_bundle(&nightstream_statement, &mut nightstream_proof, &public_statement);
 
-    let err =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &public_statement)
-            .expect_err("rebound side bundle with wrong root0 digest must fail");
+    let err = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &public_statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect_err("rebound side bundle with wrong root0 digest must fail");
 
     assert!(
         err.to_string().contains(

@@ -73,10 +73,6 @@ impl Rv64imHybridSideBridgeContract {
         })
     }
 
-    pub(super) fn relation(&self) -> &Rv64imHybridSideBridgeDeciderRelation {
-        &self.relation
-    }
-
     pub(super) fn into_relation(self) -> Rv64imHybridSideBridgeDeciderRelation {
         self.relation
     }

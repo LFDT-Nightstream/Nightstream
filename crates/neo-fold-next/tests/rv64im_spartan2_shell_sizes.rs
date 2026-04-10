@@ -1,12 +1,11 @@
 use neo_fold_next::decider::spartan2::{
-    prove_spartan2_backend_binding_shell, prove_spartan2_public_relation_shell, prove_spartan2_public_target_shell,
-    setup_spartan2_backend_binding_shell, setup_spartan2_public_relation_shell, setup_spartan2_public_target_shell,
-    Spartan2BackendBindingShellSnark, Spartan2DeciderProof, Spartan2PublicRelationShellSnark,
-    Spartan2PublicTargetShellSnark,
+    prove_spartan2_backend_binding_shell, prove_spartan2_decider, prove_spartan2_public_target_shell,
+    setup_spartan2_backend_binding_shell, setup_spartan2_decider, setup_spartan2_public_target_shell,
+    Spartan2BackendBindingShellSnark, Spartan2DeciderProof, Spartan2PublicTargetShellSnark,
 };
 use neo_fold_next::nightstream::rv64im::{
-    audit::build_rv64im_hybrid_side_bridge_public_target, build_rv64im_nightstream_from_public_proof,
-    Rv64imHybridSideBridgeBackendProof,
+    audit::build_rv64im_hybrid_side_bridge_target_from_artifact, build_rv64im_nightstream_from_public_proof,
+    Rv64imHybridSideBridgeCompiledProof,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
@@ -52,9 +51,13 @@ fn rv64im_spartan2_shell_size_snapshot() {
     let (statement, final_proof) =
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
     let target = build_rv64im_spartan2_decider_target(&statement, &final_proof).expect("build rv64im decider target");
-    let hybrid_side_bridge_target =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &proof.statement)
-            .expect("build hybrid-side-bridge public target");
+    let hybrid_side_bridge_target = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect("build hybrid-side-bridge public target");
 
     let shape = target.shape();
     let (public_pk, _) = setup_spartan2_public_target_shell(&shape).expect("setup public-target shell");
@@ -64,11 +67,6 @@ fn rv64im_spartan2_shell_size_snapshot() {
     let hybrid_side_bridge_shell =
         prove_spartan2_public_target_shell(&hybrid_side_bridge_pk, &hybrid_side_bridge_target)
             .expect("prove hybrid-side-bridge public-target shell");
-    let (hybrid_side_bridge_relation_pk, _) = setup_spartan2_public_relation_shell(&hybrid_side_bridge_target.shape())
-        .expect("setup hybrid-side-bridge public-relation shell");
-    let hybrid_side_bridge_relation_shell =
-        prove_spartan2_public_relation_shell(&hybrid_side_bridge_relation_pk, &hybrid_side_bridge_target)
-            .expect("prove hybrid-side-bridge public-relation shell");
     let hybrid_side_bridge_backend_relation = hybrid_side_bridge_target.backend_relation();
     let (hybrid_side_bridge_backend_pk, _) =
         setup_spartan2_backend_binding_shell(&hybrid_side_bridge_backend_relation.shape())
@@ -76,16 +74,18 @@ fn rv64im_spartan2_shell_size_snapshot() {
     let hybrid_side_bridge_backend_shell =
         prove_spartan2_backend_binding_shell(&hybrid_side_bridge_backend_pk, &hybrid_side_bridge_backend_relation)
             .expect("prove hybrid-side-bridge backend-binding shell");
-    let hybrid_side_bridge_backend_proof = Rv64imHybridSideBridgeBackendProof {
-        snark_data: hybrid_side_bridge_backend_shell.snark_data.clone(),
-    };
+    let (hybrid_side_bridge_decider_pk, _) =
+        setup_spartan2_decider(&hybrid_side_bridge_target.shape()).expect("setup hybrid-side-bridge compiled proof");
+    let hybrid_side_bridge_compiled_proof: Rv64imHybridSideBridgeCompiledProof =
+        prove_spartan2_decider(&hybrid_side_bridge_decider_pk, &hybrid_side_bridge_target)
+            .expect("prove hybrid-side-bridge compiled proof");
 
     let (decider_pk, _) = setup_rv64im_spartan2_decider(&statement, &final_proof).expect("setup rv64im decider");
     let decider_proof =
         prove_rv64im_spartan2_decider(&decider_pk, &statement, &final_proof).expect("prove rv64im decider");
 
     println!(
-        "rv64im spartan2 shell size snapshot: base_components={} chunk_transitions={} public_io={} backend_public_io={} main_public_target_shell={} main_backend_binding_decider={} hybrid_side_bridge_base_components={} hybrid_side_bridge_chunk_transitions={} hybrid_side_bridge_public_io={} hybrid_side_bridge_backend_public_io={} hybrid_side_bridge_public_target_shell={} hybrid_side_bridge_public_relation_shell={} hybrid_side_bridge_backend_binding_shell={} hybrid_side_bridge_backend_proof={}",
+        "rv64im spartan2 shell size snapshot: base_components={} chunk_transitions={} public_io={} backend_public_io={} main_public_target_shell={} main_backend_binding_decider={} hybrid_side_bridge_base_components={} hybrid_side_bridge_chunk_transitions={} hybrid_side_bridge_public_io={} hybrid_side_bridge_backend_public_io={} hybrid_side_bridge_public_target_shell={} hybrid_side_bridge_backend_binding_shell={} hybrid_side_bridge_compiled_proof={}",
         shape.base_component_count,
         shape.chunk_transition_count,
         shape.public_io_len(),
@@ -97,10 +97,9 @@ fn rv64im_spartan2_shell_size_snapshot() {
         hybrid_side_bridge_target.shape().public_io_len(),
         hybrid_side_bridge_target.shape().backend_public_io_len(),
         hybrid_side_bridge_shell.snark_bytes_len(),
-        hybrid_side_bridge_relation_shell.snark_bytes_len(),
         hybrid_side_bridge_backend_shell.snark_bytes_len(),
-        bincode::serialize(&hybrid_side_bridge_backend_proof)
-            .expect("serialize hybrid-side-bridge backend proof")
+        bincode::serialize(&hybrid_side_bridge_compiled_proof)
+            .expect("serialize hybrid-side-bridge compiled proof")
             .len(),
     );
 
@@ -137,18 +136,6 @@ fn rv64im_spartan2_shell_size_snapshot() {
                 .expect("measure hybrid-side-bridge public-target shell"),
         )
     );
-    let hybrid_side_bridge_relation_snark: Spartan2PublicRelationShellSnark =
-        bincode::deserialize(&hybrid_side_bridge_relation_shell.snark_data)
-            .expect("decode hybrid-side-bridge public-relation shell snark");
-    println!(
-        "{}",
-        format_breakdown(
-            "rv64im hybrid-side-bridge spartan2 public-relation shell breakdown",
-            hybrid_side_bridge_relation_snark
-                .serialized_size_breakdown()
-                .expect("measure hybrid-side-bridge public-relation shell"),
-        )
-    );
     let hybrid_side_bridge_backend_snark: Spartan2BackendBindingShellSnark =
         bincode::deserialize(&hybrid_side_bridge_backend_shell.snark_data)
             .expect("decode hybrid-side-bridge backend-binding shell snark");
@@ -165,7 +152,6 @@ fn rv64im_spartan2_shell_size_snapshot() {
     assert!(public_shell.snark_bytes_len() > 0);
     assert!(decider_proof.snark_bytes_len() > 0);
     assert!(hybrid_side_bridge_shell.snark_bytes_len() > 0);
-    assert!(hybrid_side_bridge_relation_shell.snark_bytes_len() > 0);
     assert!(hybrid_side_bridge_backend_shell.snark_bytes_len() > 0);
-    assert!(hybrid_side_bridge_backend_proof.snark_bytes_len() > 0);
+    assert!(hybrid_side_bridge_compiled_proof.snark_bytes_len() > 0);
 }

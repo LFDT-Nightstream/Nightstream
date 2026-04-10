@@ -5,7 +5,7 @@ use neo_fold_next::decider::spartan2::{
 };
 use neo_fold_next::nightstream::rv64im::{
     audit::{
-        build_rv64im_hybrid_side_bridge_public_target, build_rv64im_opening_artifact_from_accepted_artifact,
+        build_rv64im_hybrid_side_bridge_target_from_artifact, build_rv64im_opening_artifact_from_accepted_artifact,
         build_rv64im_side_proof_bundle_from_accepted_artifact, Rv64imWitnessBackedSideBridgeStatement,
     },
     build_rv64im_nightstream_from_public_proof,
@@ -51,9 +51,13 @@ fn rv64im_hybrid_side_bridge_spartan2_public_target_shell_round_trip() {
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (nightstream_statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&proof).expect("build rv64im nightstream");
-    let target =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &proof.statement)
-            .expect("build hybrid-side-bridge public target");
+    let target = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect("build hybrid-side-bridge public target");
     let (pk, vk) = setup_spartan2_public_target_shell(&target.shape()).expect("setup hybrid-side-bridge shell");
     let shell = prove_spartan2_public_target_shell(&pk, &target).expect("prove hybrid-side-bridge shell");
 
@@ -97,8 +101,13 @@ fn rv64im_hybrid_side_bridge_spartan2_public_target_shell_rejects_unbound_side_b
         .expected_digest(bridge_statement.digest());
     tampered_proof.hybrid_side_bridge_artifact.digest = tampered_proof.hybrid_side_bridge_artifact.expected_digest();
 
-    let err = build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &tampered_proof, &proof.statement)
-        .expect_err("accepted-artifact side bundle must not satisfy the Nightstream-bound hybrid-side-bridge target");
+    let err = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &tampered_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &tampered_proof.hybrid_side_bridge_artifact,
+    )
+    .expect_err("accepted-artifact side bundle must not satisfy the Nightstream-bound hybrid-side-bridge target");
 
     assert!(err.to_string().contains("statement core"), "unexpected error: {err}");
 }
@@ -109,17 +118,24 @@ fn rv64im_hybrid_side_bridge_public_target_uses_bridge_artifact_not_duplicate_pu
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (nightstream_statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&proof).expect("build rv64im nightstream");
-    let expected =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &proof.statement)
-            .expect("build baseline hybrid-side-bridge public target");
+    let expected = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect("build baseline hybrid-side-bridge public target");
 
     let mut unrelated_artifacts_tampered = nightstream_proof.clone();
     unrelated_artifacts_tampered.linkage_artifact.digest[0] ^= 1;
 
-    let rebuilt = build_rv64im_hybrid_side_bridge_public_target(
+    let rebuilt = build_rv64im_hybrid_side_bridge_target_from_artifact(
         &nightstream_statement,
-        &unrelated_artifacts_tampered,
+        &unrelated_artifacts_tampered
+            .main_residual_proof
+            .bridge_handoff_digests,
         &proof.statement,
+        &unrelated_artifacts_tampered.hybrid_side_bridge_artifact,
     )
     .expect("unrelated public artifacts must not affect the bridge-bound public target");
 
@@ -132,9 +148,13 @@ fn rv64im_hybrid_side_bridge_public_target_freezes_base_component_layout() {
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (nightstream_statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&proof).expect("build rv64im nightstream");
-    let target =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &proof.statement)
-            .expect("build hybrid-side-bridge public target");
+    let target = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect("build hybrid-side-bridge public target");
 
     assert_eq!(target.shape().base_component_count, 4);
     assert_eq!(target.shape().chunk_transition_count, 64);
@@ -153,9 +173,13 @@ fn rv64im_hybrid_side_bridge_public_target_rejects_noncanonical_padded_tail() {
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (nightstream_statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&proof).expect("build rv64im nightstream");
-    let mut target =
-        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &proof.statement)
-            .expect("build hybrid-side-bridge public target");
+    let mut target = build_rv64im_hybrid_side_bridge_target_from_artifact(
+        &nightstream_statement,
+        &nightstream_proof.main_residual_proof.bridge_handoff_digests,
+        &proof.statement,
+        &nightstream_proof.hybrid_side_bridge_artifact,
+    )
+    .expect("build hybrid-side-bridge public target");
     let padded_index = proof.statement.chunk_count as usize;
     target.statement.chunk_summaries[padded_index].public_chunk_digest[0] ^= 1;
 

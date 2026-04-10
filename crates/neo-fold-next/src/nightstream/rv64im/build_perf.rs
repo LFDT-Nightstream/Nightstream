@@ -49,8 +49,8 @@ pub struct Rv64imNightstreamVerifiedSeamsBuildPerf {
     pub opening_convergence_digest_ms: f64,
     pub opening_artifact_wrap_ms: f64,
     pub hybrid_side_bridge_prepare_ms: f64,
-    pub hybrid_side_bridge_backend_shell_setup_ms: f64,
-    pub hybrid_side_bridge_backend_proof_ms: f64,
+    pub hybrid_side_bridge_decider_setup_ms: f64,
+    pub hybrid_side_bridge_compiled_proof_ms: f64,
     pub hybrid_side_bridge_artifact_ms: f64,
     pub proof_binding_root_ms: f64,
     pub total_ms: f64,
@@ -278,27 +278,27 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
     let hybrid_side_bridge_prepare_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    super::hybrid_side_bridge_decider::prewarm_rv64im_hybrid_side_bridge_backend_shell_cache_for_relation(
+    super::hybrid_side_bridge_decider::prewarm_rv64im_hybrid_side_bridge_decider_cache_for_relation(
         &hybrid_side_bridge_relation,
     )?;
-    let hybrid_side_bridge_backend_shell_setup_ms = elapsed_ms(started);
+    let hybrid_side_bridge_decider_setup_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    let hybrid_side_bridge_backend_proof =
-        super::hybrid_side_bridge_decider::prove_rv64im_hybrid_side_bridge_backend_proof_from_decider_relation(
+    let hybrid_side_bridge_compiled_proof =
+        super::hybrid_side_bridge_decider::prove_rv64im_hybrid_side_bridge_compiled_proof_from_decider_relation(
             &hybrid_side_bridge_relation,
         )?;
-    let hybrid_side_bridge_backend_proof_ms = elapsed_ms(started);
+    let hybrid_side_bridge_compiled_proof_ms = elapsed_ms(started);
 
     let started = Instant::now();
     let hybrid_side_bridge_artifact = super::hybrid_side_bridge_decider::assemble_rv64im_hybrid_side_bridge_artifact(
         bridge_artifact,
-        hybrid_side_bridge_backend_proof,
+        hybrid_side_bridge_compiled_proof,
     );
     let hybrid_side_bridge_finalize_ms = elapsed_ms(started);
     let hybrid_side_bridge_artifact_ms = hybrid_side_bridge_prepare_ms
-        + hybrid_side_bridge_backend_shell_setup_ms
-        + hybrid_side_bridge_backend_proof_ms
+        + hybrid_side_bridge_decider_setup_ms
+        + hybrid_side_bridge_compiled_proof_ms
         + hybrid_side_bridge_finalize_ms;
 
     let started = Instant::now();
@@ -355,8 +355,8 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
         opening_convergence_digest_ms: convergence_perf.digest_ms,
         opening_artifact_wrap_ms,
         hybrid_side_bridge_prepare_ms,
-        hybrid_side_bridge_backend_shell_setup_ms,
-        hybrid_side_bridge_backend_proof_ms,
+        hybrid_side_bridge_decider_setup_ms,
+        hybrid_side_bridge_compiled_proof_ms,
         hybrid_side_bridge_artifact_ms,
         proof_binding_root_ms,
         total_ms: elapsed_ms(total_started),

@@ -7,6 +7,7 @@ import Nightstream.Rv64IM.AcceptedArtifactRootExecutionClosure
 import Nightstream.Rv64IM.AcceptedArtifactRootExecutionSemanticsClosure
 import Nightstream.Rv64IM.Kernel.AcceptedProofCheckerBackendRefinement
 import Nightstream.Rv64IM.Kernel.RequiredProofCompleteRustExportSurface
+import Nightstream.Rv64IM.SideTerminalOpeningDigestBinding
 
 /-!
 Top-level RV64IM proof-completeness audit. This owner is intentionally harsher
@@ -40,6 +41,7 @@ inductive ProofCompleteStaticField where
   | bridgeTheoremBindsKernelOpenings
   | backendPayloadSurfaceNotSummaryOnly
   | acceptedCheckerOwnsBackendRefinement
+  | sideTerminalOpeningDigestCanonicallyBound
 deriving DecidableEq, Repr
 
 def proofCompleteStaticFieldName : ProofCompleteStaticField → String
@@ -87,6 +89,8 @@ def proofCompleteStaticFieldName : ProofCompleteStaticField → String
       "backend_payload_surface_not_summary_only"
   | .acceptedCheckerOwnsBackendRefinement =>
       "accepted_checker_owns_backend_refinement"
+  | .sideTerminalOpeningDigestCanonicallyBound =>
+      "side_terminal_opening_digest_canonically_bound"
 
 def requiredProofCompleteStaticFields : List ProofCompleteStaticField :=
   [ .chunkLayoutOwner
@@ -112,6 +116,7 @@ def requiredProofCompleteStaticFields : List ProofCompleteStaticField :=
   , .bridgeTheoremBindsKernelOpenings
   , .backendPayloadSurfaceNotSummaryOnly
   , .acceptedCheckerOwnsBackendRefinement
+  , .sideTerminalOpeningDigestCanonicallyBound
   ]
 
 def proofCompleteStaticFieldPresent : ProofCompleteStaticField → Bool
@@ -142,6 +147,8 @@ def proofCompleteStaticFieldPresent : ProofCompleteStaticField → Bool
   | .backendPayloadSurfaceNotSummaryOnly =>
       validGeneratedRv64imRequiredProofCompleteBackendSurfaceCases
   | .acceptedCheckerOwnsBackendRefinement => true
+  | .sideTerminalOpeningDigestCanonicallyBound =>
+      validGeneratedRv64imSideTerminalOpeningDigestBindingCases
 
 def proofCompleteStaticChecks : List (String × Bool) :=
   requiredProofCompleteStaticFields.map fun field =>
@@ -244,6 +251,8 @@ def proofCompleteStaticFieldRustExportBlockers :
       uniqueProofCompleteKernelDesignBridgeRustExportBlockers
   | .proofCompleteRustExportContractPresent =>
       uniqueProofCompleteRustExportBlockers
+  | .sideTerminalOpeningDigestCanonicallyBound =>
+      uniqueSideTerminalOpeningDigestBindingBlockers
   | _ => []
 
 structure ProofCompleteStaticFailureReport where

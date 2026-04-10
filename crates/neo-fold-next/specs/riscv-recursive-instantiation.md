@@ -10,6 +10,9 @@ This file instantiates the abstract recursive/export-boundary architecture in
 It is the concrete implementation-contract companion to:
 
 - `riscv-recursive-proof.md`, which owns the theorem-facing export boundary,
+- `riscv-witness-backed-side-bridge.md`, which owns the fixed witness-backed
+  side-bridge relation that the later recursive/compression backend must
+  compile,
 - and `riscv-kernel.md`, which owns the concrete SuperNeo backend contract,
   Goldilocks parameterization, challenge domain, and chunk-local role split.
 
@@ -193,6 +196,11 @@ For each value, this file shall say whether it is:
 - recursive-internal public input,
 - or private witness material.
 
+The exhaustive current side-bridge field classification is owned by
+`riscv-witness-backed-side-bridge.md`, Section 3A. No side-bridge field may be
+classified differently here. This file may only further specialize that
+inventory into concrete backend encodings and recursive/compression ownership.
+
 ## 5. Minimal Shapes To Freeze
 
 The following shapes should be frozen early to prevent interface drift:
@@ -237,6 +245,40 @@ pub struct RecursiveChunkPublic {
 These are interface targets, not final code. If the concrete backend requires a
 different accumulator-handle representation than `Option<Vec<u8>>`, this file
 shall replace it with a canonical concrete type.
+
+For the current RV64IM hybrid side-bridge compiler path, the base-component
+layout is fixed to exactly four digests in this order:
+
+1. stage-claim proof bundle digest
+2. stage-package proof bundle digest
+3. kernel-opening proof bundle digest
+4. kernel-claim proof bundle digest
+
+That four-component layout is compiler policy, not a caller-controlled
+container shape. Any change to that order or count is a protocol/compiler
+boundary change and must update both this file and the owning Rust contract.
+
+For the current RV64IM hybrid side-bridge compiler path, the chunk-transition
+layout is also frozen:
+
+- maximum chunk-transition slots: `64`
+- active slots: the carried Nightstream chunk summaries
+- padded tail slots: canonical zero summaries and zero handoff digests
+
+The canonical padded chunk summary is:
+
+```rust
+FixedShapeChunkSummary {
+    start_index: semantic_step_count,
+    public_step_count: 0,
+    public_chunk_digest: [0; 32],
+    chunk_relation_digest: [0; 32],
+}
+```
+
+Any carried hybrid side-bridge target/relation for fewer than `64` chunks must
+pad the tail with exactly that summary and must pad the corresponding
+chunk-transition witness digests with `[0; 32]`.
 
 ## 6. Implementation Sequence
 

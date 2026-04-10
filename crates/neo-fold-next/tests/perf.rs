@@ -11,19 +11,17 @@ use serde::Serialize;
 
 use neo_fold_next::chip8::decider::{prove_chip8_spartan2_decider, setup_chip8_spartan2_decider};
 use neo_fold_next::chip8::proof::prove_recursive as prove_chip8_recursive;
+use neo_fold_next::decider::spartan2::{
+    prove_spartan2_backend_binding_shell, prove_spartan2_public_relation_shell, prove_spartan2_public_target_shell,
+    setup_spartan2_backend_binding_shell, setup_spartan2_public_relation_shell, setup_spartan2_public_target_shell,
+    verify_spartan2_backend_binding_shell, verify_spartan2_public_relation_shell, verify_spartan2_public_target_shell,
+};
 use neo_fold_next::nightstream::chip8::{
     build_chip8_nightstream_from_recursive_proof, verify_chip8_nightstream_from_recursive_proof,
 };
 use neo_fold_next::nightstream::rv64im::{
-    build_rv64im_nightstream_from_published_proof_seam_with_perf, build_rv64im_side_terminal_public_target,
-    build_rv64im_side_terminal_relation_witness_from_accepted_artifact,
-    build_rv64im_side_terminal_witness_artifact_from_accepted_artifact,
-    prove_rv64im_side_terminal_backend_binding_shell, prove_rv64im_side_terminal_public_relation_shell,
-    prove_rv64im_side_terminal_public_target_shell, setup_rv64im_side_terminal_backend_binding_shell,
-    setup_rv64im_side_terminal_public_relation_shell, setup_rv64im_side_terminal_public_target_shell,
-    verify_rv64im_nightstream_with_perf, verify_rv64im_side_terminal_backend_binding_shell,
-    verify_rv64im_side_terminal_public_relation_shell, verify_rv64im_side_terminal_public_target_shell,
-    Rv64imSideTerminalBackendProof,
+    audit::build_rv64im_hybrid_side_bridge_public_target, build_rv64im_nightstream_from_published_proof_seam_with_perf,
+    verify_rv64im_nightstream_with_perf, Rv64imHybridSideBridgeBackendProof,
 };
 use neo_fold_next::proof::{FoldSchedule, PackagedProof};
 use neo_fold_next::rv64im::ccs::{rv64im_root_main_lane_ccs, RV64IM_ROOT_PUBLIC_INPUTS, RV64IM_ROOT_ROW_WIDTH};
@@ -1296,10 +1294,6 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     let accepted_artifact = &published_seam.accepted_artifact;
     let final_statement = &published_seam.final_statement;
     let kernel_export_source = published_seam.kernel_export_source();
-    let side_terminal_witness = build_rv64im_side_terminal_relation_witness_from_accepted_artifact(accepted_artifact);
-    let side_terminal_witness_artifact =
-        build_rv64im_side_terminal_witness_artifact_from_accepted_artifact(accepted_artifact)
-            .expect("build rv64im side-terminal witness artifact");
 
     let decider_setup_started = Instant::now();
     let (decider_pk, decider_vk) = setup_rv64im_spartan2_decider_for_target(&published_seam.decider_target)
@@ -1317,6 +1311,11 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     let ((nightstream_statement, nightstream_proof), nightstream_build_perf) =
         build_rv64im_nightstream_from_published_proof_seam_with_perf(&published_seam, &published_seam_perf)
             .expect("build rv64im nightstream proof");
+    let side_bridge_witness = nightstream_proof
+        .hybrid_side_bridge_artifact
+        .bridge_artifact
+        .witness
+        .clone();
     let nightstream_build_ms = nightstream_build_perf.total_ms;
     let nightstream_opening_bundle =
         build_rv64im_opening_bundle_from_accepted_artifact(accepted_artifact).expect("build rv64im opening bundle");
@@ -1332,94 +1331,78 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     )
     .expect("verify rv64im nightstream proof");
     let nightstream_verify_ms = nightstream_verify_perf.total_ms;
-    let side_terminal_shell_target =
-        build_rv64im_side_terminal_public_target(&nightstream_statement, &nightstream_proof, &public_statement)
-            .expect("build rv64im side-terminal public target");
+    let hybrid_side_bridge_shell_target =
+        build_rv64im_hybrid_side_bridge_public_target(&nightstream_statement, &nightstream_proof, &public_statement)
+            .expect("build rv64im hybrid-side-bridge public target");
 
-    let side_terminal_shell_setup_started = Instant::now();
-    let (side_terminal_shell_pk, side_terminal_shell_vk) =
-        setup_rv64im_side_terminal_public_target_shell(&nightstream_statement, &nightstream_proof, &public_statement)
-            .expect("setup rv64im side-terminal public-target shell");
-    let side_terminal_shell_setup_ms = millis_since(side_terminal_shell_setup_started);
+    let hybrid_side_bridge_shell_setup_started = Instant::now();
+    let (hybrid_side_bridge_shell_pk, hybrid_side_bridge_shell_vk) =
+        setup_spartan2_public_target_shell(&hybrid_side_bridge_shell_target.shape())
+            .expect("setup rv64im hybrid-side-bridge public-target shell");
+    let hybrid_side_bridge_shell_setup_ms = millis_since(hybrid_side_bridge_shell_setup_started);
 
-    let side_terminal_shell_prove_started = Instant::now();
-    let side_terminal_shell = prove_rv64im_side_terminal_public_target_shell(
-        &side_terminal_shell_pk,
-        &nightstream_statement,
-        &nightstream_proof,
-        &public_statement,
+    let hybrid_side_bridge_shell_prove_started = Instant::now();
+    let hybrid_side_bridge_shell =
+        prove_spartan2_public_target_shell(&hybrid_side_bridge_shell_pk, &hybrid_side_bridge_shell_target)
+            .expect("prove rv64im hybrid-side-bridge public-target shell");
+    let hybrid_side_bridge_shell_prove_ms = millis_since(hybrid_side_bridge_shell_prove_started);
+
+    let hybrid_side_bridge_shell_verify_started = Instant::now();
+    verify_spartan2_public_target_shell(
+        &hybrid_side_bridge_shell_vk,
+        &hybrid_side_bridge_shell_target,
+        &hybrid_side_bridge_shell,
     )
-    .expect("prove rv64im side-terminal public-target shell");
-    let side_terminal_shell_prove_ms = millis_since(side_terminal_shell_prove_started);
+    .expect("verify rv64im hybrid-side-bridge public-target shell");
+    let hybrid_side_bridge_shell_verify_ms = millis_since(hybrid_side_bridge_shell_verify_started);
 
-    let side_terminal_shell_verify_started = Instant::now();
-    verify_rv64im_side_terminal_public_target_shell(
-        &side_terminal_shell_vk,
-        &nightstream_statement,
-        &nightstream_proof,
-        &public_statement,
-        &side_terminal_shell,
+    let hybrid_side_bridge_relation_shell_setup_started = Instant::now();
+    let (hybrid_side_bridge_relation_shell_pk, hybrid_side_bridge_relation_shell_vk) =
+        setup_spartan2_public_relation_shell(&hybrid_side_bridge_shell_target.shape())
+            .expect("setup rv64im hybrid-side-bridge public-relation shell");
+    let hybrid_side_bridge_relation_shell_setup_ms = millis_since(hybrid_side_bridge_relation_shell_setup_started);
+
+    let hybrid_side_bridge_relation_shell_prove_started = Instant::now();
+    let hybrid_side_bridge_relation_shell =
+        prove_spartan2_public_relation_shell(&hybrid_side_bridge_relation_shell_pk, &hybrid_side_bridge_shell_target)
+            .expect("prove rv64im hybrid-side-bridge public-relation shell");
+    let hybrid_side_bridge_relation_shell_prove_ms = millis_since(hybrid_side_bridge_relation_shell_prove_started);
+
+    let hybrid_side_bridge_relation_shell_verify_started = Instant::now();
+    verify_spartan2_public_relation_shell(
+        &hybrid_side_bridge_relation_shell_vk,
+        &hybrid_side_bridge_shell_target,
+        &hybrid_side_bridge_relation_shell,
     )
-    .expect("verify rv64im side-terminal public-target shell");
-    let side_terminal_shell_verify_ms = millis_since(side_terminal_shell_verify_started);
+    .expect("verify rv64im hybrid-side-bridge public-relation shell");
+    let hybrid_side_bridge_relation_shell_verify_ms = millis_since(hybrid_side_bridge_relation_shell_verify_started);
 
-    let side_terminal_relation_shell_setup_started = Instant::now();
-    let (side_terminal_relation_shell_pk, side_terminal_relation_shell_vk) =
-        setup_rv64im_side_terminal_public_relation_shell(&nightstream_statement, &nightstream_proof, &public_statement)
-            .expect("setup rv64im side-terminal public-relation shell");
-    let side_terminal_relation_shell_setup_ms = millis_since(side_terminal_relation_shell_setup_started);
+    let hybrid_side_bridge_backend_relation = hybrid_side_bridge_shell_target.backend_relation();
+    let hybrid_side_bridge_backend_shell_setup_started = Instant::now();
+    let (hybrid_side_bridge_backend_shell_pk, hybrid_side_bridge_backend_shell_vk) =
+        setup_spartan2_backend_binding_shell(&hybrid_side_bridge_backend_relation.shape())
+            .expect("setup rv64im hybrid-side-bridge backend-binding shell");
+    let hybrid_side_bridge_backend_shell_setup_ms = millis_since(hybrid_side_bridge_backend_shell_setup_started);
 
-    let side_terminal_relation_shell_prove_started = Instant::now();
-    let side_terminal_relation_shell = prove_rv64im_side_terminal_public_relation_shell(
-        &side_terminal_relation_shell_pk,
-        &nightstream_statement,
-        &nightstream_proof,
-        &public_statement,
+    let hybrid_side_bridge_backend_shell_prove_started = Instant::now();
+    let hybrid_side_bridge_backend_shell = prove_spartan2_backend_binding_shell(
+        &hybrid_side_bridge_backend_shell_pk,
+        &hybrid_side_bridge_backend_relation,
     )
-    .expect("prove rv64im side-terminal public-relation shell");
-    let side_terminal_relation_shell_prove_ms = millis_since(side_terminal_relation_shell_prove_started);
-
-    let side_terminal_relation_shell_verify_started = Instant::now();
-    verify_rv64im_side_terminal_public_relation_shell(
-        &side_terminal_relation_shell_vk,
-        &nightstream_statement,
-        &nightstream_proof,
-        &public_statement,
-        &side_terminal_relation_shell,
-    )
-    .expect("verify rv64im side-terminal public-relation shell");
-    let side_terminal_relation_shell_verify_ms = millis_since(side_terminal_relation_shell_verify_started);
-
-    let side_terminal_backend_shell_setup_started = Instant::now();
-    let (side_terminal_backend_shell_pk, side_terminal_backend_shell_vk) =
-        setup_rv64im_side_terminal_backend_binding_shell(&nightstream_statement, &nightstream_proof, &public_statement)
-            .expect("setup rv64im side-terminal backend-binding shell");
-    let side_terminal_backend_shell_setup_ms = millis_since(side_terminal_backend_shell_setup_started);
-
-    let side_terminal_backend_shell_prove_started = Instant::now();
-    let side_terminal_backend_shell = prove_rv64im_side_terminal_backend_binding_shell(
-        &side_terminal_backend_shell_pk,
-        &nightstream_statement,
-        &nightstream_proof,
-        &public_statement,
-    )
-    .expect("prove rv64im side-terminal backend-binding shell");
-    let side_terminal_backend_shell_prove_ms = millis_since(side_terminal_backend_shell_prove_started);
-    let side_terminal_backend_proof = Rv64imSideTerminalBackendProof {
-        shape_digest: side_terminal_shell_target.shape().digest(),
-        snark_data: side_terminal_backend_shell.snark_data.clone(),
+    .expect("prove rv64im hybrid-side-bridge backend-binding shell");
+    let hybrid_side_bridge_backend_shell_prove_ms = millis_since(hybrid_side_bridge_backend_shell_prove_started);
+    let hybrid_side_bridge_backend_proof = Rv64imHybridSideBridgeBackendProof {
+        snark_data: hybrid_side_bridge_backend_shell.snark_data.clone(),
     };
 
-    let side_terminal_backend_shell_verify_started = Instant::now();
-    verify_rv64im_side_terminal_backend_binding_shell(
-        &side_terminal_backend_shell_vk,
-        &nightstream_statement,
-        &nightstream_proof,
-        &public_statement,
-        &side_terminal_backend_shell,
+    let hybrid_side_bridge_backend_shell_verify_started = Instant::now();
+    verify_spartan2_backend_binding_shell(
+        &hybrid_side_bridge_backend_shell_vk,
+        &hybrid_side_bridge_backend_relation,
+        &hybrid_side_bridge_backend_shell,
     )
-    .expect("verify rv64im side-terminal backend-binding shell");
-    let side_terminal_backend_shell_verify_ms = millis_since(side_terminal_backend_shell_verify_started);
+    .expect("verify rv64im hybrid-side-bridge backend-binding shell");
+    let hybrid_side_bridge_backend_shell_verify_ms = millis_since(hybrid_side_bridge_backend_shell_verify_started);
 
     let prove_witness_started = Instant::now();
     let proved_witness = build_rv64im_proof_witness(&input).expect("build rv64im proof witness");
@@ -1672,16 +1655,8 @@ fn rv64im_mixed_opcode_perf_snapshot() {
             bytes: serialized_size_bytes(&nightstream_proof.main_residual_proof),
         },
         SerializedSizeRow {
-            label: "nightstream.side_terminal_artifact",
-            bytes: serialized_size_bytes(&nightstream_proof.side_terminal_artifact),
-        },
-        SerializedSizeRow {
-            label: "nightstream.side_proof_artifact",
-            bytes: serialized_size_bytes(&nightstream_proof.side_proof_artifact),
-        },
-        SerializedSizeRow {
-            label: "nightstream.opening_artifact",
-            bytes: serialized_size_bytes(&nightstream_proof.opening_artifact),
+            label: "nightstream.hybrid_side_bridge_artifact",
+            bytes: serialized_size_bytes(&nightstream_proof.hybrid_side_bridge_artifact),
         },
         SerializedSizeRow {
             label: "nightstream.linkage_artifact",
@@ -1882,32 +1857,41 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     print_timing_table(
         "Raw Diagnostic Timing",
         &[
-            ("setup_rv64im_side_terminal_shell", side_terminal_shell_setup_ms),
-            ("prove_rv64im_side_terminal_shell", side_terminal_shell_prove_ms),
-            ("verify_rv64im_side_terminal_shell", side_terminal_shell_verify_ms),
             (
-                "setup_rv64im_side_terminal_relation_shell",
-                side_terminal_relation_shell_setup_ms,
+                "setup_rv64im_hybrid_side_bridge_shell",
+                hybrid_side_bridge_shell_setup_ms,
             ),
             (
-                "prove_rv64im_side_terminal_relation_shell",
-                side_terminal_relation_shell_prove_ms,
+                "prove_rv64im_hybrid_side_bridge_shell",
+                hybrid_side_bridge_shell_prove_ms,
             ),
             (
-                "verify_rv64im_side_terminal_relation_shell",
-                side_terminal_relation_shell_verify_ms,
+                "verify_rv64im_hybrid_side_bridge_shell",
+                hybrid_side_bridge_shell_verify_ms,
             ),
             (
-                "setup_rv64im_side_terminal_backend_shell",
-                side_terminal_backend_shell_setup_ms,
+                "setup_rv64im_hybrid_side_bridge_relation_shell",
+                hybrid_side_bridge_relation_shell_setup_ms,
             ),
             (
-                "prove_rv64im_side_terminal_backend_shell",
-                side_terminal_backend_shell_prove_ms,
+                "prove_rv64im_hybrid_side_bridge_relation_shell",
+                hybrid_side_bridge_relation_shell_prove_ms,
             ),
             (
-                "verify_rv64im_side_terminal_backend_shell",
-                side_terminal_backend_shell_verify_ms,
+                "verify_rv64im_hybrid_side_bridge_relation_shell",
+                hybrid_side_bridge_relation_shell_verify_ms,
+            ),
+            (
+                "setup_rv64im_hybrid_side_bridge_backend_shell",
+                hybrid_side_bridge_backend_shell_setup_ms,
+            ),
+            (
+                "prove_rv64im_hybrid_side_bridge_backend_shell",
+                hybrid_side_bridge_backend_shell_prove_ms,
+            ),
+            (
+                "verify_rv64im_hybrid_side_bridge_backend_shell",
+                hybrid_side_bridge_backend_shell_verify_ms,
             ),
             ("build_rv64im_proof_witness", prove_witness_ms),
             ("verify_rv64im_proof_witness", verify_witness_ms),
@@ -1923,7 +1907,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     );
     print_kv(
         "includes",
-        "public verify/replay, audit witness path, side-terminal shell diagnostics".to_string(),
+        "public verify/replay, audit witness path, hybrid-side-bridge shell diagnostics".to_string(),
     );
     print_kv(
         "full benchmark wall time",
@@ -1936,7 +1920,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         - spartan_setup_ms
         - nightstream_build_perf
             .verified_seams
-            .side_terminal_backend_shell_setup_ms;
+            .hybrid_side_bridge_backend_shell_setup_ms;
 
     print_section("Nightstream Opening Diagnostics");
     println!("  total: {:.3} ms", nightstream_build_perf.total_ms);
@@ -2275,25 +2259,31 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     print_section("Below-Export Side Terminal");
     print_kv(
         "base_components",
-        side_terminal_shell_target.shape().base_component_count,
+        hybrid_side_bridge_shell_target.shape().base_component_count,
     );
     print_kv(
         "chunk_transitions",
-        side_terminal_shell_target.shape().chunk_transition_count,
+        hybrid_side_bridge_shell_target
+            .shape()
+            .chunk_transition_count,
     );
-    print_kv("public_io", side_terminal_shell_target.public_io().len());
+    print_kv("public_io", hybrid_side_bridge_shell_target.public_io().len());
     print_kv(
         "backend_public_io",
-        side_terminal_shell_target.backend_public_io().len(),
+        hybrid_side_bridge_shell_target.backend_public_io().len(),
     );
     println!();
-    let shell_bytes = serialized_size_bytes(&side_terminal_shell);
-    let rel_shell_bytes = serialized_size_bytes(&side_terminal_relation_shell);
-    let backend_shell_bytes = serialized_size_bytes(&side_terminal_backend_shell);
-    let backend_proof_bytes = serialized_size_bytes(&side_terminal_backend_proof);
-    let artifact_bytes = serialized_size_bytes(&nightstream_proof.side_terminal_artifact);
-    let witness_bytes = serialized_size_bytes(&side_terminal_witness);
-    let witness_art_bytes = serialized_size_bytes(&side_terminal_witness_artifact);
+    let shell_bytes = serialized_size_bytes(&hybrid_side_bridge_shell);
+    let rel_shell_bytes = serialized_size_bytes(&hybrid_side_bridge_relation_shell);
+    let backend_shell_bytes = serialized_size_bytes(&hybrid_side_bridge_backend_shell);
+    let backend_proof_bytes = serialized_size_bytes(&hybrid_side_bridge_backend_proof);
+    let artifact_bytes = serialized_size_bytes(&nightstream_proof.hybrid_side_bridge_artifact);
+    let witness_bytes = serialized_size_bytes(&side_bridge_witness);
+    let witness_art_bytes = serialized_size_bytes(
+        &nightstream_proof
+            .hybrid_side_bridge_artifact
+            .bridge_artifact,
+    );
     println!("  {:32} {:>10} {:>10}", "component", "bytes", "KiB");
     println!(
         "  {:32} {:>10} {:>10.3}",
@@ -2374,10 +2364,10 @@ fn rv64im_mixed_opcode_perf_snapshot() {
                 published_seam_perf.accepted_artifact_ms,
             ),
             (
-                "nightstream.side_terminal",
+                "nightstream.hybrid_side_bridge",
                 nightstream_build_perf
                     .verified_seams
-                    .side_terminal_artifact_ms,
+                    .hybrid_side_bridge_artifact_ms,
             ),
             ("public.kernel_projection", prove_perf.simple_kernel.total_ms),
         ],
@@ -2569,20 +2559,20 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         tree_row("│  ├─ ", "verified_seams", vs.total_ms, max_bar, total, false);
         tree_row_annotated(
             "│  │  ├─ ",
-            "side_terminal *",
-            vs.side_terminal_artifact_ms,
+            "hybrid_side_bridge *",
+            vs.hybrid_side_bridge_artifact_ms,
             "★ biggest item",
         );
         tree_row_annotated(
             "│  │  │  ├─ ",
             "setup",
-            vs.side_terminal_backend_shell_setup_ms,
+            vs.hybrid_side_bridge_backend_shell_setup_ms,
             "← amortizable",
         );
         tree_row(
             "│  │  │  ├─ ",
             "prove",
-            vs.side_terminal_backend_proof_ms,
+            vs.hybrid_side_bridge_backend_proof_ms,
             max_bar,
             total,
             false,
@@ -2590,7 +2580,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         tree_row(
             "│  │  │  └─ ",
             "prepare",
-            vs.side_terminal_prepare_ms,
+            vs.hybrid_side_bridge_prepare_ms,
             max_bar,
             total,
             false,
@@ -2614,12 +2604,9 @@ fn rv64im_mixed_opcode_perf_snapshot() {
                 vs.opening_convergence_final_openings_ms
             ),
         );
-        let seam_other = (vs.total_ms
-            - vs.side_terminal_artifact_ms
-            - vs.opening_phase0_artifact_ms
-            - vs.opening_artifact_ms
-            - vs.side_proof_artifact_ms)
-            .max(0.0);
+        let seam_other =
+            (vs.total_ms - vs.hybrid_side_bridge_artifact_ms - vs.opening_phase0_artifact_ms - vs.opening_artifact_ms)
+                .max(0.0);
         tree_row("│  │  └─ ", "other seams", seam_other, max_bar, total, false);
 
         tree_row(

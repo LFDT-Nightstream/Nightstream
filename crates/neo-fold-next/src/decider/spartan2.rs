@@ -45,7 +45,6 @@ pub struct Spartan2DeciderStatement {
     pub initial_handle_digest: [F; FIXED_SHAPE_DIGEST_FIELD_LEN],
     pub terminal_handle_digest: [F; FIXED_SHAPE_DIGEST_FIELD_LEN],
     pub fold_schedule: FoldSchedule,
-    pub chunk_count: u64,
     pub semantic_step_count: u64,
     pub chunk_summaries: Vec<FixedShapeChunkSummary>,
 }
@@ -326,6 +325,49 @@ fn transition_witness_digests(bindings: &[Spartan2ChunkTransitionBinding]) -> Ve
         .collect()
 }
 
+fn validate_spartan2_chunk_layout(
+    schedule: FoldSchedule,
+    semantic_step_count: u64,
+    chunk_summaries: &[FixedShapeChunkSummary],
+) -> Result<(), String> {
+    let active_chunk_count = chunk_summaries
+        .iter()
+        .position(|summary| summary.public_step_count == 0)
+        .unwrap_or(chunk_summaries.len());
+    let (active, padded) = chunk_summaries.split_at(active_chunk_count);
+    validate_fixed_shape_chunk_layout(schedule, semantic_step_count, active)?;
+    for (idx, summary) in padded.iter().enumerate() {
+        if summary.public_step_count != 0 {
+            return Err(format!(
+                "padded chunk summary {} carries {} public steps; padded fixed-shape tails must be zero",
+                active_chunk_count + idx,
+                summary.public_step_count
+            ));
+        }
+        if summary.start_index != semantic_step_count {
+            return Err(format!(
+                "padded chunk summary {} start index {} does not match semantic step count {}",
+                active_chunk_count + idx,
+                summary.start_index,
+                semantic_step_count
+            ));
+        }
+        if summary.public_chunk_digest != [0; 32] {
+            return Err(format!(
+                "padded chunk summary {} public chunk digest must be zero",
+                active_chunk_count + idx
+            ));
+        }
+        if summary.chunk_relation_digest != [0; 32] {
+            return Err(format!(
+                "padded chunk summary {} chunk relation digest must be zero",
+                active_chunk_count + idx
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_chunk_transition_bindings(
     chunk_summaries: &[FixedShapeChunkSummary],
     chunk_transition_bindings: &[Spartan2ChunkTransitionBinding],
@@ -338,6 +380,15 @@ fn validate_chunk_transition_bindings(
         .zip(chunk_transition_bindings.iter())
         .enumerate()
     {
+        if summary.public_step_count == 0 {
+            if binding.claimed_chunk_relation_digest != [0; 32] || binding.transition_witness_digest != [0; 32] {
+                return Err(format!(
+                    "padded chunk transition binding {} must be canonical zero",
+                    idx
+                ));
+            }
+            continue;
+        }
         if binding.claimed_chunk_relation_digest != summary.chunk_relation_digest {
             return Err(format!(
                 "chunk transition binding {} does not match the carried public chunk relation digest",
@@ -350,18 +401,15 @@ fn validate_chunk_transition_bindings(
 
 fn backend_semantic_digest_fields(
     relation_digest: &[u8; 32],
-    chunk_count: u64,
     chunk_summaries: &[FixedShapeChunkSummary],
     witness: &Spartan2DeciderBackendWitness,
 ) -> [F; POSEIDON2_DIGEST_LEN] {
     let mut preimage = Vec::with_capacity(
         packed_bytes_field_len(32)
-            + 1
             + chunk_summaries.len() * FixedShapeChunkSummary::packed_field_len()
             + POSEIDON2_DIGEST_LEN,
     );
     extend_packed_bytes_as_fields(&mut preimage, relation_digest);
-    preimage.push(F::from_u64(chunk_count));
     for summary in chunk_summaries {
         preimage.extend(summary.packed_fields());
     }
@@ -441,7 +489,6 @@ impl Spartan2DeciderRelation {
                 initial_handle_digest: self.initial_handle_digest,
                 terminal_handle_digest: self.terminal_handle_digest,
                 fold_schedule: self.fold_schedule,
-                chunk_count: self.chunk_summaries.len() as u64,
                 semantic_step_count: self.semantic_step_count,
                 chunk_summaries: self.chunk_summaries.clone(),
             },
@@ -468,7 +515,6 @@ impl Spartan2DeciderRelation {
                 initial_handle_digest: self.initial_handle_digest,
                 terminal_handle_digest: self.terminal_handle_digest,
                 fold_schedule: self.fold_schedule,
-                chunk_count: self.chunk_summaries.len() as u64,
                 semantic_step_count: self.semantic_step_count,
                 chunk_summaries: self.chunk_summaries.clone(),
             },
@@ -562,7 +608,7 @@ pub fn validate_spartan2_decider_relation_surface(
 ) -> Result<(), Spartan2DeciderError> {
     validate_chunk_transition_bindings(&relation.chunk_summaries, &relation.chunk_transition_bindings)
         .map_err(Spartan2DeciderError::RelationSurface)?;
-    validate_fixed_shape_chunk_layout(
+    validate_spartan2_chunk_layout(
         relation.fold_schedule,
         relation.semantic_step_count,
         &relation.chunk_summaries,
@@ -612,10 +658,6 @@ impl Spartan2DeciderStatement {
             &self.fold_schedule.meta_words(),
         );
         tr.append_u64s(
-            b"neo.fold.next/decider/spartan2/statement/chunk_count",
-            &[self.chunk_count],
-        );
-        tr.append_u64s(
             b"neo.fold.next/decider/spartan2/statement/semantic_step_count",
             &[self.semantic_step_count],
         );
@@ -632,7 +674,7 @@ impl Spartan2DeciderStatement {
         let mut out = Vec::with_capacity(
             3 * packed_bytes_field_len(32)
                 + 2 * FIXED_SHAPE_DIGEST_FIELD_LEN
-                + 4
+                + 3
                 + self.chunk_summaries.len() * FixedShapeChunkSummary::packed_field_len(),
         );
         extend_packed_bytes_as_fields(&mut out, &self.public_statement_digest);
@@ -643,7 +685,6 @@ impl Spartan2DeciderStatement {
         let fold_schedule_meta = self.fold_schedule.meta_words();
         out.push(F::from_u64(fold_schedule_meta[0]));
         out.push(F::from_u64(fold_schedule_meta[1]));
-        out.push(F::from_u64(self.chunk_count));
         out.push(F::from_u64(self.semantic_step_count));
         for summary in &self.chunk_summaries {
             out.extend(summary.packed_fields());
@@ -728,7 +769,7 @@ impl Spartan2DeciderShape {
     pub fn statement_public_io_len(&self) -> usize {
         3 * packed_bytes_field_len(32)
             + 2 * FIXED_SHAPE_DIGEST_FIELD_LEN
-            + 4
+            + 3
             + self.chunk_transition_count * FixedShapeChunkSummary::packed_field_len()
     }
 
@@ -802,7 +843,7 @@ impl Spartan2DeciderBackendRelation {
     pub fn expected_final_proof_digest(&self) -> [u8; 32] {
         digest_fixed_shape_final_proof(
             &self.statement.relation_digest,
-            self.statement.chunk_count,
+            self.statement.chunk_summaries.len() as u64,
             &self.statement.chunk_summaries,
             &self.witness.base_component_digests,
             &transition_witness_digests(&self.witness.chunk_transition_bindings),
@@ -816,7 +857,6 @@ impl Spartan2DeciderBackendRelation {
     pub fn semantic_digest_fields(&self) -> [F; POSEIDON2_DIGEST_LEN] {
         backend_semantic_digest_fields(
             &self.statement.relation_digest,
-            self.statement.chunk_count,
             &self.statement.chunk_summaries,
             &self.witness,
         )
@@ -836,14 +876,9 @@ pub fn validate_spartan2_backend_relation_surface(
             "private chunk transition count does not match carried chunk transition bindings".into(),
         ));
     }
-    if relation.statement.chunk_count != relation.witness.chunk_transition_count {
+    if relation.witness.chunk_transition_count != relation.statement.chunk_summaries.len() as u64 {
         return Err(Spartan2BackendBindingShellError::RelationSurface(
-            "public chunk count does not match carried private chunk transition count".into(),
-        ));
-    }
-    if relation.statement.chunk_count != relation.statement.chunk_summaries.len() as u64 {
-        return Err(Spartan2BackendBindingShellError::RelationSurface(
-            "public chunk count does not match carried public chunk summaries".into(),
+            "private chunk transition count does not match carried public chunk summaries".into(),
         ));
     }
     validate_chunk_transition_bindings(
@@ -851,7 +886,7 @@ pub fn validate_spartan2_backend_relation_surface(
         &relation.witness.chunk_transition_bindings,
     )
     .map_err(Spartan2BackendBindingShellError::RelationSurface)?;
-    validate_fixed_shape_chunk_layout(
+    validate_spartan2_chunk_layout(
         relation.statement.fold_schedule,
         relation.statement.semantic_step_count,
         &relation.statement.chunk_summaries,
@@ -871,14 +906,9 @@ pub fn validate_spartan2_backend_relation_surface(
 }
 
 fn validate_spartan2_decider_target_surface(target: &Spartan2DeciderTarget) -> Result<(), Spartan2DeciderError> {
-    if target.statement.chunk_count != target.witness.chunk_transition_bindings.len() as u64 {
+    if target.witness.chunk_transition_bindings.len() != target.statement.chunk_summaries.len() {
         return Err(Spartan2DeciderError::RelationSurface(
-            "public chunk count does not match carried private chunk transition count".into(),
-        ));
-    }
-    if target.statement.chunk_count != target.statement.chunk_summaries.len() as u64 {
-        return Err(Spartan2DeciderError::RelationSurface(
-            "public chunk count does not match carried public chunk summaries".into(),
+            "private chunk transition count does not match carried public chunk summaries".into(),
         ));
     }
     validate_chunk_transition_bindings(
@@ -886,7 +916,7 @@ fn validate_spartan2_decider_target_surface(target: &Spartan2DeciderTarget) -> R
         &target.witness.chunk_transition_bindings,
     )
     .map_err(Spartan2DeciderError::RelationSurface)?;
-    validate_fixed_shape_chunk_layout(
+    validate_spartan2_chunk_layout(
         target.statement.fold_schedule,
         target.statement.semantic_step_count,
         &target.statement.chunk_summaries,
@@ -1007,6 +1037,8 @@ pub fn prove_spartan2_public_target_shell_with_perf(
     target: &Spartan2DeciderTarget,
 ) -> Result<(Spartan2PublicTargetShellProof, Spartan2PublicTargetShellProvePerf), Spartan2PublicTargetShellError> {
     let total_started = std::time::Instant::now();
+    validate_spartan2_decider_target_surface(target)
+        .map_err(|err| Spartan2PublicTargetShellError::Prove(err.to_string()))?;
     let circuit = Spartan2PublicTargetShellCircuit::from_target(target);
     let started = std::time::Instant::now();
     let prep = Spartan2PublicTargetShellSnark::prep_prove(pk, circuit.clone(), true)
@@ -1037,6 +1069,8 @@ pub fn verify_spartan2_public_target_shell(
     target: &Spartan2DeciderTarget,
     proof: &Spartan2PublicTargetShellProof,
 ) -> Result<(), Spartan2PublicTargetShellError> {
+    validate_spartan2_decider_target_surface(target)
+        .map_err(|err| Spartan2PublicTargetShellError::Verify(err.to_string()))?;
     let proof: Spartan2PublicTargetShellSnark = bincode::deserialize(&proof.snark_data)
         .map_err(|err| Spartan2PublicTargetShellError::Decode(err.to_string()))?;
     let public_values = proof
@@ -1419,9 +1453,7 @@ impl SpartanCircuit<Spartan2BackendBindingShellEngine> for Spartan2BackendBindin
         let terminal_handle_offset = initial_handle_end;
         let terminal_handle_end = terminal_handle_offset + FIXED_SHAPE_DIGEST_FIELD_LEN;
         let fold_schedule_offset = terminal_handle_end;
-        let chunk_count_offset = fold_schedule_offset + 2;
-        let semantic_step_count_offset = chunk_count_offset + 1;
-        let public_chunk_count = &public_inputs[chunk_count_offset];
+        let semantic_step_count_offset = fold_schedule_offset + 2;
         let public_semantic_step_count = &public_inputs[semantic_step_count_offset];
         let summary_offset = semantic_step_count_offset + 1;
         let summary_end = self.public_semantic_offset;
@@ -1446,12 +1478,6 @@ impl SpartanCircuit<Spartan2BackendBindingShellEngine> for Spartan2BackendBindin
                     CS::one(),
                 )
             },
-        );
-        cs.enforce(
-            || "backend_chunk_count_match",
-            |lc| lc + private_chunk_count.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc + public_chunk_count.get_variable(),
         );
         let mut current_handle = public_inputs[initial_handle_offset..initial_handle_end].to_vec();
         let summary_len = FixedShapeChunkSummary::packed_field_len();
@@ -1511,21 +1537,6 @@ impl SpartanCircuit<Spartan2BackendBindingShellEngine> for Spartan2BackendBindin
                 chunk_binding_offset + chunk_index * Spartan2ChunkTransitionBinding::packed_field_len();
             let start_index = public_inputs[summary_base].clone();
             let public_step_count = public_inputs[summary_base + 1].clone();
-            let public_step_count_inverse = AllocatedNum::alloc(
-                cs.namespace(|| format!("backend_chunk_public_step_count_inverse_{chunk_index}")),
-                || {
-                    let value = public_step_count
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?;
-                    spartan_inverse(value).ok_or(SynthesisError::Unsatisfiable)
-                },
-            )?;
-            cs.enforce(
-                || format!("backend_chunk_public_step_count_nonzero_{chunk_index}"),
-                |lc| lc + public_step_count.get_variable(),
-                |lc| lc + public_step_count_inverse.get_variable(),
-                |lc| lc + CS::one(),
-            );
             for digest_idx in 0..Spartan2ChunkTransitionBinding::packed_digest_field_len() {
                 cs.enforce(
                     || format!("backend_chunk_relation_binding_match_{chunk_index}_{digest_idx}"),
@@ -1567,14 +1578,13 @@ impl SpartanCircuit<Spartan2BackendBindingShellEngine> for Spartan2BackendBindin
             );
         }
         let mut semantic_preimage = Vec::with_capacity(
-            (relation_digest_end - relation_digest_offset) + 1 + (summary_end - summary_offset) + digest.len(),
+            (relation_digest_end - relation_digest_offset) + (summary_end - summary_offset) + digest.len(),
         );
         semantic_preimage.extend(
             public_inputs[relation_digest_offset..relation_digest_end]
                 .iter()
                 .cloned(),
         );
-        semantic_preimage.push(public_chunk_count.clone());
         semantic_preimage.extend(public_inputs[summary_offset..summary_end].iter().cloned());
         semantic_preimage.extend(digest.iter().cloned());
         let semantic_digest =

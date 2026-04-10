@@ -43,12 +43,15 @@ fn rv64im_spartan2_decider_target_projects_decider_relation_seam() {
     );
     assert_eq!(target.statement.relation_digest, relation.relation_digest);
     assert_eq!(target.statement.fold_schedule, statement.folded.fold_schedule);
-    assert_eq!(target.statement.chunk_count, statement.folded.chunk_count);
     assert_eq!(
         target.statement.semantic_step_count,
         statement.folded.semantic_step_count
     );
     assert_eq!(target.statement.chunk_summaries, relation.chunk_summaries);
+    assert_eq!(
+        target.statement.chunk_summaries.len(),
+        statement.folded.chunk_count as usize
+    );
     assert_eq!(target.witness.base_component_digests.len(), 1);
     assert_eq!(
         target.witness.chunk_transition_bindings.len(),

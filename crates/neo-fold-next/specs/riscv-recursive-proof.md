@@ -58,6 +58,9 @@ The target in this document is constrained by the following local references:
     `Π_SuperNeo := Π_DEC ∘ Π_RLC ∘ Π_CCS`
 - `07_7_Neo_s_folding_scheme_for_CCS.md`
   - the folding scheme relations and reduction shapes
+- `riscv-witness-backed-side-bridge.md`
+  - the exact RV64IM side-bridge relation that must be fixed before later
+    recursive or succinct compilation
 - `riscv-kernel.md`
   - the concrete theorem-facing SuperNeo backend contract used by RV64IM
   - the Goldilocks parameterization and ring/challenge-domain choices

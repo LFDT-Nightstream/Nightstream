@@ -1,11 +1,12 @@
 //! Owns the below-export RV64IM Phase 0 eval-claim theorem seam.
 //!
-//! The statement keeps the current carried side bundle stable and makes the
-//! missing Phase 0 assumptions explicit: compact opened-object summaries and
-//! exact stage-proof binding digests. The witness owns the real claim/witness
-//! pairs built from accepted artifacts.
+//! The statement binds compact opened-object summaries and the carried
+//! side-proof bundle. Nightstream Phase 0 claims are rebuilt against that
+//! theorem-bearing side bundle; this file does not carry a second digest
+//! authority for the same per-stage binding seed.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
@@ -14,12 +15,18 @@ use crate::rv64im::kernel::{
     build_rv64im_eval_claim_bundle_from_claim_witnesses,
     build_rv64im_eval_claim_bundle_from_claim_witnesses_trusted_local,
     build_rv64im_eval_claim_witnesses_from_accepted_artifact, derive_phase0_point, phase0_binding_digest,
-    CommitmentContextId, FamilyEvalClaim, FamilyEvalClaimWitness, FamilyEvalSchemaId, OpenedAjtaiObjectId,
-    Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle, SimpleKernelError,
+    phase0_family_order, rebuild_opened_object_witness_from_projection, AjtaiOpeningProof, CommitmentContextId,
+    FamilyEvalClaim, FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId, OpenedAjtaiCommitmentPublic,
+    OpenedAjtaiObjectId, OpenedAjtaiObjectWitness, Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle,
+    Rv64imPhase0BindingSurface, Rv64imPhase0BindingTarget, SimpleKernelError,
 };
 use crate::rv64im::Rv64imProofStatement;
 
-use super::{build_rv64im_side_proof_bundle_from_accepted_artifact, Rv64imSideProofBundle};
+use super::side_bridges::validate_rv64im_side_proof_bundle_structure;
+use super::{
+    bind_rv64im_side_proof_bundle_to_statement_core, build_rv64im_side_proof_bundle_from_accepted_artifact,
+    Rv64imSideProofBundle,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imPhase0OpenedObjectSummary {
@@ -36,10 +43,16 @@ pub struct Rv64imPhase0OpenedObjectBundle {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Rv64imPhase0StageProofBindingDigests {
-    pub stage1_proof_digest: [u8; 32],
-    pub stage2_proof_digest: [u8; 32],
-    pub stage3_proof_digest: [u8; 32],
+pub struct Rv64imPhase0OpeningTarget {
+    pub schema: FamilyEvalSchemaId,
+    pub opened_commitment: OpenedAjtaiCommitmentPublic,
+    pub opening_proof: AjtaiOpeningProof,
+    pub digest: [u8; 32],
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Rv64imPhase0OpeningTargetBundle {
+    pub targets: Vec<Rv64imPhase0OpeningTarget>,
     pub digest: [u8; 32],
 }
 
@@ -48,7 +61,6 @@ pub struct Rv64imSideEvalClaimRelationStatement {
     pub public_statement: Rv64imProofStatement,
     pub side_bundle: Rv64imSideProofBundle,
     pub phase0_opened_objects: Rv64imPhase0OpenedObjectBundle,
-    pub phase0_stage_proof_bindings: Rv64imPhase0StageProofBindingDigests,
     pub eval_claim_bundle: Rv64imEvalClaimBundle,
 }
 
@@ -60,8 +72,7 @@ pub struct Rv64imSideEvalClaimRelationWitness {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imSideEvalClaimArtifact {
     pub statement_digest: [u8; 32],
-    pub phase0_opened_objects: Rv64imPhase0OpenedObjectBundle,
-    pub phase0_stage_proof_bindings: Rv64imPhase0StageProofBindingDigests,
+    pub phase0_opening_targets: Rv64imPhase0OpeningTargetBundle,
     pub eval_claim_bundle: Rv64imEvalClaimBundle,
     pub digest: [u8; 32],
 }
@@ -121,33 +132,72 @@ impl Rv64imPhase0OpenedObjectBundle {
     }
 }
 
-impl Rv64imPhase0StageProofBindingDigests {
+impl Rv64imPhase0OpeningTarget {
     pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/phase0_stage_proof_bindings");
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/phase0_stage_proof_bindings/stage1",
-            &self.stage1_proof_digest,
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/phase0_opening_target");
+        tr.append_u64s(
+            b"neo.fold.next/nightstream/rv64im/phase0_opening_target/meta",
+            &[self.schema.tag()],
         );
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/phase0_stage_proof_bindings/stage2",
-            &self.stage2_proof_digest,
+            b"neo.fold.next/nightstream/rv64im/phase0_opening_target/opened_commitment_digest",
+            &self.opened_commitment.digest,
         );
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/phase0_stage_proof_bindings/stage3",
-            &self.stage3_proof_digest,
+            b"neo.fold.next/nightstream/rv64im/phase0_opening_target/opening_proof_digest",
+            &self.opening_proof.digest,
         );
         tr.digest32()
     }
+}
 
-    fn digest_for_schema(&self, schema: FamilyEvalSchemaId) -> [u8; 32] {
-        match schema {
-            FamilyEvalSchemaId::Stage1Rows => self.stage1_proof_digest,
-            FamilyEvalSchemaId::Stage2RegisterReads
-            | FamilyEvalSchemaId::Stage2RegisterWrites
-            | FamilyEvalSchemaId::Stage2RamEvents
-            | FamilyEvalSchemaId::Stage2TwistLinks => self.stage2_proof_digest,
-            FamilyEvalSchemaId::Stage3Continuity => self.stage3_proof_digest,
+impl Rv64imPhase0OpeningTargetBundle {
+    fn validate_canonical_order(&self) -> Result<(), SimpleKernelError> {
+        let expected_order = phase0_family_order();
+        if self.targets.len() != expected_order.len() {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact Phase 0 opening-target bundle must contain exactly {} canonical targets, got {}",
+                expected_order.len(),
+                self.targets.len()
+            )));
         }
+        for (index, (target, expected_schema)) in self.targets.iter().zip(expected_order.iter()).enumerate() {
+            if target.schema != *expected_schema {
+                return Err(SimpleKernelError::Bridge(format!(
+                    "RV64IM side-eval-claim artifact Phase 0 opening-target bundle is not canonical at index {index}: expected {:?}, got {:?}",
+                    expected_schema,
+                    target.schema
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn expected_digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/phase0_opening_target_bundle");
+        tr.append_u64s(
+            b"neo.fold.next/nightstream/rv64im/phase0_opening_target_bundle/count",
+            &[self.targets.len() as u64],
+        );
+        for target in &self.targets {
+            tr.append_message(
+                b"neo.fold.next/nightstream/rv64im/phase0_opening_target_bundle/target_digest",
+                &target.digest,
+            );
+        }
+        tr.digest32()
+    }
+
+    fn target_for_schema(&self, schema: FamilyEvalSchemaId) -> Result<&Rv64imPhase0OpeningTarget, SimpleKernelError> {
+        self.targets
+            .iter()
+            .find(|target| target.schema == schema)
+            .ok_or_else(|| {
+                SimpleKernelError::Bridge(format!(
+                    "RV64IM side-eval-claim artifact is missing the Phase 0 opening target for {:?}",
+                    schema
+                ))
+            })
     }
 }
 
@@ -159,12 +209,8 @@ impl Rv64imSideEvalClaimArtifact {
             &self.statement_digest,
         );
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_eval_claim_artifact/phase0_opened_objects_digest",
-            &self.phase0_opened_objects.digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_eval_claim_artifact/phase0_stage_proof_bindings_digest",
-            &self.phase0_stage_proof_bindings.digest,
+            b"neo.fold.next/nightstream/rv64im/side_eval_claim_artifact/phase0_opening_targets_digest",
+            &self.phase0_opening_targets.digest,
         );
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/side_eval_claim_artifact/eval_claim_bundle_digest",
@@ -178,7 +224,6 @@ fn rv64im_side_eval_claim_relation_statement_digest_from_surfaces(
     public_statement: &Rv64imProofStatement,
     side_bundle: &Rv64imSideProofBundle,
     phase0_opened_objects: &Rv64imPhase0OpenedObjectBundle,
-    phase0_stage_proof_bindings: &Rv64imPhase0StageProofBindingDigests,
     eval_claim_bundle: &Rv64imEvalClaimBundle,
 ) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/side_eval_claim_relation");
@@ -195,10 +240,6 @@ fn rv64im_side_eval_claim_relation_statement_digest_from_surfaces(
         &phase0_opened_objects.digest,
     );
     tr.append_message(
-        b"neo.fold.next/nightstream/rv64im/side_eval_claim_relation/phase0_stage_proof_bindings_digest",
-        &phase0_stage_proof_bindings.digest,
-    );
-    tr.append_message(
         b"neo.fold.next/nightstream/rv64im/side_eval_claim_relation/eval_claim_bundle_digest",
         &eval_claim_bundle.digest,
     );
@@ -210,7 +251,6 @@ pub fn rv64im_side_eval_claim_relation_statement_digest(statement: &Rv64imSideEv
         &statement.public_statement,
         &statement.side_bundle,
         &statement.phase0_opened_objects,
-        &statement.phase0_stage_proof_bindings,
         &statement.eval_claim_bundle,
     )
 }
@@ -260,11 +300,143 @@ pub fn build_rv64im_phase0_opened_object_bundle_from_claim_witnesses(
     Ok(bundle)
 }
 
+fn build_rv64im_phase0_opening_target_bundle_from_claim_witnesses(
+    claim_witnesses: &[FamilyEvalClaimWitness],
+) -> Result<Rv64imPhase0OpeningTargetBundle, SimpleKernelError> {
+    let mut by_schema = BTreeMap::<FamilyEvalSchemaId, &FamilyEvalClaimWitness>::new();
+    for claim_witness in claim_witnesses {
+        let schema = claim_witness.claim.payload.schema;
+        if let Some(expected) = by_schema.get(&schema) {
+            if expected.claim.opened_object != claim_witness.claim.opened_object
+                || expected.claim.commitment_context != claim_witness.claim.commitment_context
+            {
+                return Err(SimpleKernelError::Bridge(format!(
+                    "RV64IM side-eval-claim artifact found inconsistent opened-object identities for {:?}",
+                    schema
+                )));
+            }
+            continue;
+        }
+        by_schema.insert(schema, claim_witness);
+    }
+
+    let mut targets = Vec::new();
+    for (index, schema) in phase0_family_order().into_iter().enumerate() {
+        let representative = by_schema.get(&schema).copied().ok_or_else(|| {
+            SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact is missing witnesses for {:?}",
+                schema
+            ))
+        })?;
+        let opened_commitment = OpenedAjtaiCommitmentPublic::new(
+            representative.witness.opened_object.clone(),
+            &representative.witness.commitment_context,
+            representative.witness.commitment_vector.clone(),
+            representative.claim.payload.column_evals.len(),
+        )
+        .map_err(|err| {
+            SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact could not build the Phase 0 opened commitment for {:?}: {err}",
+                schema
+            ))
+        })?;
+        let opening_proof = AjtaiOpeningProof::new(representative.witness.packed_columns.clone());
+        rebuild_opened_object_witness_from_projection(
+            schema,
+            &representative.witness.commitment_context,
+            representative.claim.payload.column_evals.len(),
+            &opened_commitment,
+            &opening_proof,
+            index,
+        )
+        .map_err(|err| {
+            SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact could not rebuild the Phase 0 witness for {:?}: {err}",
+                schema
+            ))
+        })?;
+        let target = Rv64imPhase0OpeningTarget {
+            schema,
+            opened_commitment,
+            opening_proof,
+            digest: [0; 32],
+        };
+        targets.push(Rv64imPhase0OpeningTarget {
+            digest: target.expected_digest(),
+            ..target
+        });
+    }
+
+    let bundle = Rv64imPhase0OpeningTargetBundle {
+        targets,
+        digest: [0; 32],
+    };
+    Ok(Rv64imPhase0OpeningTargetBundle {
+        digest: bundle.expected_digest(),
+        ..bundle
+    })
+}
+
+fn build_rv64im_phase0_opened_object_bundle_from_opening_targets(
+    eval_claim_bundle: &Rv64imEvalClaimBundle,
+    phase0_opening_targets: &Rv64imPhase0OpeningTargetBundle,
+) -> Result<Rv64imPhase0OpenedObjectBundle, SimpleKernelError> {
+    phase0_opening_targets.validate_canonical_order()?;
+    let mut objects = Vec::new();
+    for schema in phase0_family_order() {
+        let target = phase0_opening_targets.target_for_schema(schema)?;
+        let mut claims = eval_claim_bundle
+            .claims
+            .iter()
+            .filter(|claim| claim.payload.schema == schema);
+        let representative = claims.next().ok_or_else(|| {
+            SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact is missing claims for {:?}",
+                schema
+            ))
+        })?;
+        if representative.opened_object != target.opened_commitment.opened_object {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact {:?} opened-object mismatch between carried claims and opening target",
+                schema
+            )));
+        }
+        for claim in claims {
+            if claim.opened_object != representative.opened_object
+                || claim.commitment_context != representative.commitment_context
+            {
+                return Err(SimpleKernelError::Bridge(format!(
+                    "RV64IM side-eval-claim artifact found inconsistent claim contexts for {:?}",
+                    schema
+                )));
+            }
+        }
+        let summary = Rv64imPhase0OpenedObjectSummary {
+            schema,
+            opened_object: target.opened_commitment.opened_object.clone(),
+            commitment_context: representative.commitment_context,
+            digest: [0; 32],
+        };
+        objects.push(Rv64imPhase0OpenedObjectSummary {
+            digest: summary.expected_digest(),
+            ..summary
+        });
+    }
+
+    let bundle = Rv64imPhase0OpenedObjectBundle {
+        objects,
+        digest: [0; 32],
+    };
+    Ok(Rv64imPhase0OpenedObjectBundle {
+        digest: bundle.expected_digest(),
+        ..bundle
+    })
+}
+
 fn validate_rv64im_side_eval_claim_relation_inputs(
     public_statement: &Rv64imProofStatement,
     side_bundle: &Rv64imSideProofBundle,
     phase0_opened_objects: &Rv64imPhase0OpenedObjectBundle,
-    phase0_stage_proof_bindings: &Rv64imPhase0StageProofBindingDigests,
     eval_claim_bundle: &Rv64imEvalClaimBundle,
 ) -> Result<(), SimpleKernelError> {
     if public_statement.digest != public_statement.expected_digest() {
@@ -272,19 +444,10 @@ fn validate_rv64im_side_eval_claim_relation_inputs(
             "RV64IM side-eval-claim relation public statement digest mismatch".into(),
         ));
     }
-    if side_bundle.digest != side_bundle.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM side-eval-claim relation side-proof bundle digest mismatch".into(),
-        ));
-    }
+    validate_rv64im_side_proof_bundle_structure(side_bundle)?;
     if phase0_opened_objects.digest != phase0_opened_objects.expected_digest() {
         return Err(SimpleKernelError::Bridge(
             "RV64IM side-eval-claim relation Phase 0 opened-object bundle digest mismatch".into(),
-        ));
-    }
-    if phase0_stage_proof_bindings.digest != phase0_stage_proof_bindings.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM side-eval-claim relation Phase 0 stage-proof binding digest mismatch".into(),
         ));
     }
     if eval_claim_bundle.digest != eval_claim_bundle.expected_digest() {
@@ -295,38 +458,22 @@ fn validate_rv64im_side_eval_claim_relation_inputs(
     Ok(())
 }
 
-pub fn build_rv64im_phase0_stage_proof_binding_digests_from_accepted_artifact(
-    artifact: &Rv64imAcceptedProofArtifact,
-) -> Rv64imPhase0StageProofBindingDigests {
-    let mut digests = Rv64imPhase0StageProofBindingDigests {
-        stage1_proof_digest: artifact.stage1.digest,
-        stage2_proof_digest: artifact.stage2.digest,
-        stage3_proof_digest: artifact.stage3.digest,
-        digest: [0; 32],
-    };
-    digests.digest = digests.expected_digest();
-    digests
-}
-
 pub fn build_rv64im_side_eval_claim_relation_statement(
     public_statement: &Rv64imProofStatement,
     side_bundle: &Rv64imSideProofBundle,
     phase0_opened_objects: &Rv64imPhase0OpenedObjectBundle,
-    phase0_stage_proof_bindings: &Rv64imPhase0StageProofBindingDigests,
     eval_claim_bundle: &Rv64imEvalClaimBundle,
 ) -> Result<Rv64imSideEvalClaimRelationStatement, SimpleKernelError> {
     validate_rv64im_side_eval_claim_relation_inputs(
         public_statement,
         side_bundle,
         phase0_opened_objects,
-        phase0_stage_proof_bindings,
         eval_claim_bundle,
     )?;
     Ok(Rv64imSideEvalClaimRelationStatement {
         public_statement: public_statement.clone(),
         side_bundle: side_bundle.clone(),
         phase0_opened_objects: phase0_opened_objects.clone(),
-        phase0_stage_proof_bindings: phase0_stage_proof_bindings.clone(),
         eval_claim_bundle: eval_claim_bundle.clone(),
     })
 }
@@ -334,8 +481,19 @@ pub fn build_rv64im_side_eval_claim_relation_statement(
 pub fn build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact(
     artifact: &Rv64imAcceptedProofArtifact,
 ) -> Result<Rv64imSideEvalClaimRelationWitness, SimpleKernelError> {
+    let side_bundle = build_rv64im_side_proof_bundle_from_accepted_artifact(artifact)?;
+    build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact_and_side_bundle(&side_bundle, artifact)
+}
+
+pub(crate) fn build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact_and_side_bundle(
+    side_bundle: &Rv64imSideProofBundle,
+    artifact: &Rv64imAcceptedProofArtifact,
+) -> Result<Rv64imSideEvalClaimRelationWitness, SimpleKernelError> {
     Ok(Rv64imSideEvalClaimRelationWitness {
-        claim_witnesses: build_rv64im_eval_claim_witnesses_from_accepted_artifact(artifact)?,
+        claim_witnesses: rebind_phase0_claim_witnesses_to_side_bundle(
+            side_bundle,
+            &build_rv64im_eval_claim_witnesses_from_accepted_artifact(artifact)?,
+        )?,
     })
 }
 
@@ -343,16 +501,15 @@ pub fn build_rv64im_side_eval_claim_relation_from_accepted_artifact(
     artifact: &Rv64imAcceptedProofArtifact,
 ) -> Result<(Rv64imSideEvalClaimRelationStatement, Rv64imSideEvalClaimRelationWitness), SimpleKernelError> {
     let side_bundle = build_rv64im_side_proof_bundle_from_accepted_artifact(artifact)?;
-    let witness = build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact(artifact)?;
+    let witness =
+        build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact_and_side_bundle(&side_bundle, artifact)?;
     let phase0_opened_objects =
         build_rv64im_phase0_opened_object_bundle_from_claim_witnesses(&witness.claim_witnesses)?;
-    let phase0_stage_proof_bindings = build_rv64im_phase0_stage_proof_binding_digests_from_accepted_artifact(artifact);
     let eval_claim_bundle = build_rv64im_eval_claim_bundle_from_claim_witnesses(&witness.claim_witnesses)?;
     let statement = build_rv64im_side_eval_claim_relation_statement(
         &artifact.statement,
         &side_bundle,
         &phase0_opened_objects,
-        &phase0_stage_proof_bindings,
         &eval_claim_bundle,
     )?;
     Ok((statement, witness))
@@ -374,19 +531,10 @@ fn verify_rv64im_side_eval_claim_relation_surfaces(
             "RV64IM side-eval-claim relation public statement digest mismatch".into(),
         ));
     }
-    if statement.side_bundle.digest != statement.side_bundle.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM side-eval-claim relation side-proof bundle digest mismatch".into(),
-        ));
-    }
+    validate_rv64im_side_proof_bundle_structure(&statement.side_bundle)?;
     if statement.phase0_opened_objects.digest != statement.phase0_opened_objects.expected_digest() {
         return Err(SimpleKernelError::Bridge(
             "RV64IM side-eval-claim relation Phase 0 opened-object bundle digest mismatch".into(),
-        ));
-    }
-    if statement.phase0_stage_proof_bindings.digest != statement.phase0_stage_proof_bindings.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM side-eval-claim relation Phase 0 stage-proof binding digest mismatch".into(),
         ));
     }
     if statement.eval_claim_bundle.digest != statement.eval_claim_bundle.expected_digest() {
@@ -419,10 +567,11 @@ pub fn build_rv64im_side_eval_claim_artifact(
     witness: &Rv64imSideEvalClaimRelationWitness,
 ) -> Result<Rv64imSideEvalClaimArtifact, SimpleKernelError> {
     verify_rv64im_side_eval_claim_relation(statement, witness)?;
+    let phase0_opening_targets =
+        build_rv64im_phase0_opening_target_bundle_from_claim_witnesses(&witness.claim_witnesses)?;
     let mut artifact = Rv64imSideEvalClaimArtifact {
         statement_digest: rv64im_side_eval_claim_relation_statement_digest(statement),
-        phase0_opened_objects: statement.phase0_opened_objects.clone(),
-        phase0_stage_proof_bindings: statement.phase0_stage_proof_bindings.clone(),
+        phase0_opening_targets,
         eval_claim_bundle: statement.eval_claim_bundle.clone(),
         digest: [0; 32],
     };
@@ -437,17 +586,25 @@ pub fn build_rv64im_side_eval_claim_artifact_from_accepted_artifact(
     build_rv64im_side_eval_claim_artifact(&statement, &witness)
 }
 
-pub fn build_rv64im_side_eval_claim_artifact_from_accepted_artifact_and_side_bundle(
+pub(crate) fn build_rv64im_side_eval_claim_artifact_from_accepted_artifact_and_side_bundle(
     public_statement: &Rv64imProofStatement,
     side_bundle: &Rv64imSideProofBundle,
     artifact: &Rv64imAcceptedProofArtifact,
 ) -> Result<Rv64imSideEvalClaimArtifact, SimpleKernelError> {
-    let witness = build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact(artifact)?;
-    let phase0_stage_proof_bindings = build_rv64im_phase0_stage_proof_binding_digests_from_accepted_artifact(artifact);
+    let expected_side_bundle = bind_rv64im_side_proof_bundle_to_statement_core(
+        &build_rv64im_side_proof_bundle_from_accepted_artifact(artifact)?,
+        side_bundle.statement_core_digest,
+    )?;
+    if &expected_side_bundle != side_bundle {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM side-eval-claim artifact side-proof bundle does not match the accepted artifact".into(),
+        ));
+    }
+    let witness =
+        build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact_and_side_bundle(side_bundle, artifact)?;
     build_rv64im_side_eval_claim_artifact_from_claim_witnesses_and_side_bundle(
         public_statement,
         side_bundle,
-        &phase0_stage_proof_bindings,
         &witness.claim_witnesses,
     )
 }
@@ -455,23 +612,21 @@ pub fn build_rv64im_side_eval_claim_artifact_from_accepted_artifact_and_side_bun
 pub(super) fn build_rv64im_side_eval_claim_artifact_from_claim_witnesses_and_side_bundle(
     public_statement: &Rv64imProofStatement,
     side_bundle: &Rv64imSideProofBundle,
-    phase0_stage_proof_bindings: &Rv64imPhase0StageProofBindingDigests,
     claim_witnesses: &[FamilyEvalClaimWitness],
 ) -> Result<Rv64imSideEvalClaimArtifact, SimpleKernelError> {
     let phase0_opened_objects = build_rv64im_phase0_opened_object_bundle_from_claim_witnesses(claim_witnesses)?;
+    let phase0_opening_targets = build_rv64im_phase0_opening_target_bundle_from_claim_witnesses(claim_witnesses)?;
     let eval_claim_bundle = build_rv64im_eval_claim_bundle_from_claim_witnesses(claim_witnesses)?;
     validate_rv64im_side_eval_claim_relation_inputs(
         public_statement,
         side_bundle,
         &phase0_opened_objects,
-        phase0_stage_proof_bindings,
         &eval_claim_bundle,
     )?;
     build_rv64im_side_eval_claim_artifact_from_trusted_surfaces(
         public_statement,
         side_bundle,
-        phase0_opened_objects,
-        phase0_stage_proof_bindings,
+        phase0_opening_targets,
         eval_claim_bundle,
     )
 }
@@ -479,22 +634,14 @@ pub(super) fn build_rv64im_side_eval_claim_artifact_from_claim_witnesses_and_sid
 pub(super) fn build_rv64im_side_eval_claim_artifact_from_claim_witnesses_and_trusted_side_bundle(
     public_statement: &Rv64imProofStatement,
     side_bundle: &Rv64imSideProofBundle,
-    phase0_stage_proof_bindings: &Rv64imPhase0StageProofBindingDigests,
     claim_witnesses: &[FamilyEvalClaimWitness],
 ) -> Result<Rv64imSideEvalClaimArtifact, SimpleKernelError> {
-    if phase0_stage_proof_bindings.digest != phase0_stage_proof_bindings.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM side-eval-claim artifact Phase 0 stage-proof binding digest mismatch".into(),
-        ));
-    }
-
-    let phase0_opened_objects = build_rv64im_phase0_opened_object_bundle_from_claim_witnesses(claim_witnesses)?;
+    let phase0_opening_targets = build_rv64im_phase0_opening_target_bundle_from_claim_witnesses(claim_witnesses)?;
     let eval_claim_bundle = build_rv64im_eval_claim_bundle_from_claim_witnesses_trusted_local(claim_witnesses)?;
     build_rv64im_side_eval_claim_artifact_from_trusted_surfaces(
         public_statement,
         side_bundle,
-        phase0_opened_objects,
-        phase0_stage_proof_bindings,
+        phase0_opening_targets,
         eval_claim_bundle,
     )
 }
@@ -502,20 +649,19 @@ pub(super) fn build_rv64im_side_eval_claim_artifact_from_claim_witnesses_and_tru
 fn build_rv64im_side_eval_claim_artifact_from_trusted_surfaces(
     public_statement: &Rv64imProofStatement,
     side_bundle: &Rv64imSideProofBundle,
-    phase0_opened_objects: Rv64imPhase0OpenedObjectBundle,
-    phase0_stage_proof_bindings: &Rv64imPhase0StageProofBindingDigests,
+    phase0_opening_targets: Rv64imPhase0OpeningTargetBundle,
     eval_claim_bundle: Rv64imEvalClaimBundle,
 ) -> Result<Rv64imSideEvalClaimArtifact, SimpleKernelError> {
+    let phase0_opened_objects =
+        build_rv64im_phase0_opened_object_bundle_from_opening_targets(&eval_claim_bundle, &phase0_opening_targets)?;
     let mut artifact = Rv64imSideEvalClaimArtifact {
         statement_digest: rv64im_side_eval_claim_relation_statement_digest_from_surfaces(
             public_statement,
             side_bundle,
             &phase0_opened_objects,
-            phase0_stage_proof_bindings,
             &eval_claim_bundle,
         ),
-        phase0_opened_objects,
-        phase0_stage_proof_bindings: phase0_stage_proof_bindings.clone(),
+        phase0_opening_targets,
         eval_claim_bundle,
         digest: [0; 32],
     };
@@ -533,11 +679,14 @@ pub fn build_rv64im_side_eval_claim_relation_statement_from_artifact(
             "RV64IM side-eval-claim artifact digest mismatch".into(),
         ));
     }
+    let phase0_opened_objects = build_rv64im_phase0_opened_object_bundle_from_opening_targets(
+        &artifact.eval_claim_bundle,
+        &artifact.phase0_opening_targets,
+    )?;
     build_rv64im_side_eval_claim_relation_statement(
         public_statement,
         side_bundle,
-        &artifact.phase0_opened_objects,
-        &artifact.phase0_stage_proof_bindings,
+        &phase0_opened_objects,
         &artifact.eval_claim_bundle,
     )
 }
@@ -547,6 +696,7 @@ pub fn verify_rv64im_side_eval_claim_artifact(
     side_bundle: &Rv64imSideProofBundle,
     artifact: &Rv64imSideEvalClaimArtifact,
 ) -> Result<(), SimpleKernelError> {
+    validate_rv64im_side_eval_claim_artifact_structure(artifact)?;
     let statement =
         build_rv64im_side_eval_claim_relation_statement_from_artifact(public_statement, side_bundle, artifact)?;
     if artifact.statement_digest != rv64im_side_eval_claim_relation_statement_digest(&statement) {
@@ -554,40 +704,108 @@ pub fn verify_rv64im_side_eval_claim_artifact(
             "RV64IM side-eval-claim artifact statement digest does not match the carried relation statement".into(),
         ));
     }
-    verify_phase0_claim_bundle_bindings(&statement)?;
-    verify_phase0_claim_bundle_coverage(&statement)?;
-    Ok(())
+    let claim_witnesses = rebuild_phase0_claim_witnesses_from_artifact(artifact)?;
+    verify_rv64im_side_eval_claim_relation_surfaces(&statement, &claim_witnesses)
 }
 
-fn verify_phase0_claim_bundle_bindings(
-    statement: &Rv64imSideEvalClaimRelationStatement,
+fn validate_rv64im_side_eval_claim_artifact_structure(
+    artifact: &Rv64imSideEvalClaimArtifact,
 ) -> Result<(), SimpleKernelError> {
-    for claim in &statement.eval_claim_bundle.claims {
-        verify_phase0_claim_surface(statement, claim)?;
+    artifact.phase0_opening_targets.validate_canonical_order()?;
+    if artifact.phase0_opening_targets.digest != artifact.phase0_opening_targets.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM side-eval-claim artifact Phase 0 opening-target bundle digest mismatch".into(),
+        ));
     }
-    Ok(())
-}
-
-fn verify_phase0_claim_bundle_coverage(
-    statement: &Rv64imSideEvalClaimRelationStatement,
-) -> Result<(), SimpleKernelError> {
-    for schema in phase0_family_order() {
-        let expected_slots = expected_slots_for_schema(schema);
-        let actual_slots = statement
-            .eval_claim_bundle
-            .claims
-            .iter()
-            .filter(|claim| claim.payload.schema == schema)
-            .map(|claim| claim.id.slot)
-            .collect::<Vec<_>>();
-        if actual_slots != expected_slots {
+    for target in &artifact.phase0_opening_targets.targets {
+        if target.opened_commitment.digest != target.opened_commitment.expected_digest() {
             return Err(SimpleKernelError::Bridge(format!(
-                "RV64IM side-eval-claim artifact {:?} slot coverage mismatch: expected {:?}, got {:?}",
-                schema, expected_slots, actual_slots
+                "RV64IM side-eval-claim artifact {:?} opened-commitment digest mismatch",
+                target.schema
+            )));
+        }
+        if target.opening_proof.digest != target.opening_proof.expected_digest() {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact {:?} opening-proof digest mismatch",
+                target.schema
+            )));
+        }
+        if target.digest != target.expected_digest() {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact {:?} opening target digest mismatch",
+                target.schema
             )));
         }
     }
+    if artifact.eval_claim_bundle.digest != artifact.eval_claim_bundle.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM side-eval-claim artifact eval-claim bundle digest mismatch".into(),
+        ));
+    }
+    if artifact.digest != artifact.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM side-eval-claim artifact digest mismatch".into(),
+        ));
+    }
     Ok(())
+}
+
+fn rebuild_phase0_claim_witnesses_from_artifact(
+    artifact: &Rv64imSideEvalClaimArtifact,
+) -> Result<Vec<FamilyEvalClaimWitness>, SimpleKernelError> {
+    let mut witness_by_schema = BTreeMap::<FamilyEvalSchemaId, Arc<OpenedAjtaiObjectWitness>>::new();
+    for (index, schema) in phase0_family_order().into_iter().enumerate() {
+        let target = artifact.phase0_opening_targets.target_for_schema(schema)?;
+        let representative = artifact
+            .eval_claim_bundle
+            .claims
+            .iter()
+            .find(|claim| claim.payload.schema == schema)
+            .ok_or_else(|| {
+                SimpleKernelError::Bridge(format!(
+                    "RV64IM side-eval-claim artifact is missing claims for {:?}",
+                    schema
+                ))
+            })?;
+        let witness = rebuild_opened_object_witness_from_projection(
+            schema,
+            &representative.commitment_context,
+            representative.payload.column_evals.len(),
+            &target.opened_commitment,
+            &target.opening_proof,
+            index,
+        )
+        .map_err(|err| {
+            SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim artifact could not rebuild the Phase 0 witness for {:?}: {err}",
+                schema
+            ))
+        })?;
+        witness_by_schema.insert(schema, Arc::new(witness));
+    }
+
+    artifact
+        .eval_claim_bundle
+        .claims
+        .iter()
+        .map(|claim| {
+            let witness = witness_by_schema
+                .get(&claim.payload.schema)
+                .ok_or_else(|| {
+                    SimpleKernelError::Bridge(format!(
+                        "RV64IM side-eval-claim artifact is missing a reconstructed witness for {:?}",
+                        claim.payload.schema
+                    ))
+                })?
+                .clone();
+            FamilyEvalClaimWitness::new(claim.clone(), witness).map_err(|err| {
+                SimpleKernelError::Bridge(format!(
+                    "RV64IM side-eval-claim artifact {:?} claim payload does not match the carried opening target: {err}",
+                    claim.payload.schema
+                ))
+            })
+        })
+        .collect()
 }
 
 fn verify_phase0_claim_bindings(
@@ -619,9 +837,7 @@ fn verify_phase0_claim_surface(
         claim.payload.schema,
         claim.id.slot,
         family_binding_anchor_digest(&statement.side_bundle, claim.payload.schema),
-        statement
-            .phase0_stage_proof_bindings
-            .digest_for_schema(claim.payload.schema),
+        phase0_stage_binding_digest_from_side_bundle(&statement.side_bundle, claim.payload.schema),
     );
     if expected_binding_digest != claim.binding_digest {
         return Err(SimpleKernelError::Bridge(format!(
@@ -665,17 +881,6 @@ fn verify_phase0_claim_coverage(claim_witnesses: &[FamilyEvalClaimWitness]) -> R
     Ok(())
 }
 
-fn phase0_family_order() -> [FamilyEvalSchemaId; 6] {
-    [
-        FamilyEvalSchemaId::Stage1Rows,
-        FamilyEvalSchemaId::Stage2RegisterReads,
-        FamilyEvalSchemaId::Stage2RegisterWrites,
-        FamilyEvalSchemaId::Stage2RamEvents,
-        FamilyEvalSchemaId::Stage2TwistLinks,
-        FamilyEvalSchemaId::Stage3Continuity,
-    ]
-}
-
 fn expected_slots_for_schema(schema: FamilyEvalSchemaId) -> Vec<u32> {
     match schema {
         FamilyEvalSchemaId::Stage1Rows => vec![0, 1, 2, 3],
@@ -696,4 +901,106 @@ fn family_binding_anchor_digest(side_bundle: &Rv64imSideProofBundle, schema: Fam
         FamilyEvalSchemaId::Stage2TwistLinks => side_bundle.stage2.claim.twist_links_family_digest,
         FamilyEvalSchemaId::Stage3Continuity => side_bundle.stage3.claim.continuity_family_digest,
     }
+}
+
+fn phase0_stage_binding_digest_from_side_bundle(
+    side_bundle: &Rv64imSideProofBundle,
+    schema: FamilyEvalSchemaId,
+) -> [u8; 32] {
+    match schema {
+        FamilyEvalSchemaId::Stage1Rows => side_bundle.stage1.digest,
+        FamilyEvalSchemaId::Stage2RegisterReads
+        | FamilyEvalSchemaId::Stage2RegisterWrites
+        | FamilyEvalSchemaId::Stage2RamEvents
+        | FamilyEvalSchemaId::Stage2TwistLinks => side_bundle.stage2.digest,
+        FamilyEvalSchemaId::Stage3Continuity => side_bundle.stage3.digest,
+    }
+}
+
+pub(crate) fn build_rv64im_phase0_binding_surface_from_side_bundle(
+    side_bundle: &Rv64imSideProofBundle,
+) -> Rv64imPhase0BindingSurface {
+    let targets = phase0_family_order()
+        .into_iter()
+        .map(|schema| {
+            let mut target = Rv64imPhase0BindingTarget {
+                schema,
+                family_binding_anchor_digest: family_binding_anchor_digest(side_bundle, schema),
+                stage_proof_binding_digest: phase0_stage_binding_digest_from_side_bundle(side_bundle, schema),
+                digest: [0; 32],
+            };
+            target.digest = target.expected_digest();
+            target
+        })
+        .collect();
+    let mut surface = Rv64imPhase0BindingSurface {
+        targets,
+        digest: [0; 32],
+    };
+    surface.digest = surface.expected_digest();
+    surface
+}
+
+pub(crate) fn rebind_phase0_claim_witnesses_to_side_bundle(
+    side_bundle: &Rv64imSideProofBundle,
+    claim_witnesses: &[FamilyEvalClaimWitness],
+) -> Result<Vec<FamilyEvalClaimWitness>, SimpleKernelError> {
+    claim_witnesses
+        .iter()
+        .map(|claim_witness| {
+            let schema = claim_witness.claim.payload.schema;
+            let binding_digest = phase0_binding_digest(
+                &claim_witness.claim.opened_object,
+                schema,
+                claim_witness.claim.id.slot,
+                family_binding_anchor_digest(side_bundle, schema),
+                phase0_stage_binding_digest_from_side_bundle(side_bundle, schema),
+            );
+            let point = derive_phase0_point(
+                &claim_witness.claim.opened_object,
+                &claim_witness.claim.commitment_context,
+                schema,
+                claim_witness.claim.id.slot,
+                binding_digest,
+            );
+            let payload = FamilyEvalPayload::new(
+                schema,
+                claim_witness
+                    .witness
+                    .evaluate_payload(&point)
+                    .map_err(|err| {
+                        SimpleKernelError::Bridge(format!(
+                            "RV64IM Nightstream Phase 0 {:?} payload evaluation failed while rebinding to the carried side bundle: {err}",
+                            schema
+                        ))
+                    })?,
+            )
+            .map_err(|err| {
+                SimpleKernelError::Bridge(format!(
+                    "RV64IM Nightstream Phase 0 {:?} payload rebuild failed while rebinding to the carried side bundle: {err}",
+                    schema
+                ))
+            })?;
+            let claim = FamilyEvalClaim::new(
+                claim_witness.claim.opened_object.clone(),
+                claim_witness.claim.id.slot,
+                claim_witness.claim.commitment_context,
+                point,
+                payload,
+                binding_digest,
+            )
+            .map_err(|err| {
+                SimpleKernelError::Bridge(format!(
+                    "RV64IM Nightstream Phase 0 {:?} claim rebuild failed while rebinding to the carried side bundle: {err}",
+                    schema
+                ))
+            })?;
+            FamilyEvalClaimWitness::new(claim, claim_witness.witness.clone()).map_err(|err| {
+                SimpleKernelError::Bridge(format!(
+                    "RV64IM Nightstream Phase 0 {:?} rebound claim does not match the carried opened-object witness: {err}",
+                    schema
+                ))
+            })
+        })
+        .collect()
 }

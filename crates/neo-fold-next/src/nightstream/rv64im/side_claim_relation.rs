@@ -17,6 +17,7 @@ use crate::rv64im::kernel::{
     public_step_digest, same_public_step, Rv64imAcceptedProofArtifact, Rv64imProofStatement, SimpleKernelError,
 };
 
+use super::side_bridges::validate_rv64im_side_proof_bundle_structure;
 use super::Rv64imSideProofBundle;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -105,11 +106,7 @@ pub fn build_rv64im_side_claim_relation_statement(
             "RV64IM side-claim relation public statement digest mismatch".into(),
         ));
     }
-    if side_bundle.digest != side_bundle.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM side-claim relation side-proof bundle digest mismatch".into(),
-        ));
-    }
+    validate_rv64im_side_proof_bundle_structure(side_bundle)?;
     Ok(Rv64imSideClaimRelationStatement {
         public_statement: public_statement.clone(),
         side_bundle: side_bundle.clone(),
@@ -165,6 +162,63 @@ pub(super) fn single_step_packaged_statement_digest(
     digest_public_statement_from_digests(FoldSchedule::RowsPerChunk(1), &[chunk_digest], final_main_claim_digests)
 }
 
+pub(super) fn verify_rv64im_side_claim_witness_against_compact_surfaces(
+    public_statement: &Rv64imProofStatement,
+    side_bundle: &Rv64imSideProofBundle,
+    witness: &Rv64imSideClaimRelationWitness,
+) -> Result<(), SimpleKernelError> {
+    super::verify_rv64im_side_stage_claim_proof_surface(side_bundle, public_statement)?;
+    let stage_claims =
+        super::build_rv64im_stage_claim_bundle_from_side_proof_bundle(side_bundle, public_statement.execution_digest)?;
+    let expected_stage_step = build_stage_claim_packaged_public_step(&stage_claims)?;
+    verify_single_step_packaged_witness(
+        "rv64im/stage_claim_bundle",
+        &expected_stage_step,
+        &witness.stage_claims_packaged,
+        side_bundle
+            .stage_claim_proof_bridge
+            .packaged_statement_digest,
+        side_bundle.stage_claim_proof_bridge.packaged_proof_digest,
+        "RV64IM side-claim relation stage-claim witness does not match the carried side bundle",
+    )?;
+
+    let main_lane_bundle_digest = super::verify_rv64im_side_main_lane_proof_surface(side_bundle, public_statement)?;
+    super::verify_rv64im_side_kernel_claim_surface(side_bundle, public_statement, main_lane_bundle_digest)?;
+    super::verify_rv64im_side_kernel_claim_proof_surface(side_bundle, public_statement)?;
+    let expected_kernel_step = build_kernel_claim_packaged_public_step_from_compact_surfaces(
+        public_statement.prepared_step_bindings_digest,
+        side_bundle
+            .kernel_opening_bridge
+            .prepared_step_bindings
+            .binding_count,
+        side_bundle
+            .kernel_opening_bridge
+            .prepared_step_bindings
+            .first_binding_digest,
+        side_bundle
+            .kernel_opening_bridge
+            .prepared_step_bindings
+            .last_binding_digest,
+        side_bundle.kernel_claim_bridge.root0_digest,
+        public_statement.execution_digest,
+        public_statement.final_state_digest,
+        public_statement.transcript_final_digest,
+        public_statement.final_pc,
+        public_statement.halted,
+    )?;
+    verify_single_step_packaged_witness(
+        "rv64im/kernel_claim_bundle",
+        &expected_kernel_step,
+        &witness.kernel_claims_packaged,
+        side_bundle
+            .kernel_claim_proof_bridge
+            .packaged_statement_digest,
+        side_bundle.kernel_claim_proof_bridge.packaged_proof_digest,
+        "RV64IM side-claim relation kernel-claim witness does not match the carried side bundle",
+    )?;
+    Ok(())
+}
+
 pub fn verify_rv64im_side_claim_relation(
     statement: &Rv64imSideClaimRelationStatement,
     witness: &Rv64imSideClaimRelationWitness,
@@ -179,73 +233,9 @@ pub fn verify_rv64im_side_claim_relation(
             "RV64IM side-claim relation side-proof bundle digest mismatch".into(),
         ));
     }
-
-    super::verify_rv64im_side_stage_claim_proof_surface(&statement.side_bundle, &statement.public_statement)?;
-    let stage_claims = super::build_rv64im_stage_claim_bundle_from_side_proof_bundle(
-        &statement.side_bundle,
-        statement.public_statement.execution_digest,
-    )?;
-    let expected_stage_step = build_stage_claim_packaged_public_step(&stage_claims)?;
-    verify_single_step_packaged_witness(
-        "rv64im/stage_claim_bundle",
-        &expected_stage_step,
-        &witness.stage_claims_packaged,
-        statement
-            .side_bundle
-            .stage_claim_proof_bridge
-            .packaged_statement_digest,
-        statement
-            .side_bundle
-            .stage_claim_proof_bridge
-            .packaged_proof_digest,
-        "RV64IM side-claim relation stage-claim witness does not match the carried side bundle",
-    )?;
-
-    let main_lane_bundle_digest =
-        super::verify_rv64im_side_main_lane_proof_surface(&statement.side_bundle, &statement.public_statement)?;
-    super::verify_rv64im_side_kernel_claim_surface(
-        &statement.side_bundle,
+    verify_rv64im_side_claim_witness_against_compact_surfaces(
         &statement.public_statement,
-        main_lane_bundle_digest,
-    )?;
-    super::verify_rv64im_side_kernel_claim_proof_surface(&statement.side_bundle, &statement.public_statement)?;
-    let expected_kernel_step = build_kernel_claim_packaged_public_step_from_compact_surfaces(
-        statement.public_statement.prepared_step_bindings_digest,
-        statement
-            .side_bundle
-            .kernel_opening_bridge
-            .prepared_step_bindings
-            .binding_count,
-        statement
-            .side_bundle
-            .kernel_opening_bridge
-            .prepared_step_bindings
-            .first_binding_digest,
-        statement
-            .side_bundle
-            .kernel_opening_bridge
-            .prepared_step_bindings
-            .last_binding_digest,
-        statement.side_bundle.kernel_claim_bridge.root0_digest,
-        statement.public_statement.execution_digest,
-        statement.public_statement.final_state_digest,
-        statement.public_statement.transcript_final_digest,
-        statement.public_statement.final_pc,
-        statement.public_statement.halted,
-    )?;
-    verify_single_step_packaged_witness(
-        "rv64im/kernel_claim_bundle",
-        &expected_kernel_step,
-        &witness.kernel_claims_packaged,
-        statement
-            .side_bundle
-            .kernel_claim_proof_bridge
-            .packaged_statement_digest,
-        statement
-            .side_bundle
-            .kernel_claim_proof_bridge
-            .packaged_proof_digest,
-        "RV64IM side-claim relation kernel-claim witness does not match the carried side bundle",
-    )?;
-    Ok(())
+        &statement.side_bundle,
+        witness,
+    )
 }

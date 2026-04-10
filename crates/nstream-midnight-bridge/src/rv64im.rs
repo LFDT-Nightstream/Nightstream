@@ -17,7 +17,7 @@ use neo_fold_next::finalize::FixedShapeChunkSummary;
 use neo_fold_next::nightstream::rv64im::{
     build_rv64im_main_residual_proof, rv64im_nightstream_linkage_root, rv64im_verifier_context_digest,
     verify_rv64im_linkage_artifact, verify_rv64im_main_decider_proof, verify_rv64im_main_residual_proof,
-    verify_rv64im_opening_artifact_from_side_proof_bundle, verify_rv64im_side_proof_artifact,
+    verify_rv64im_opening_artifact_from_side_proof_bundle, verify_rv64im_side_proof_artifact_from_accepted_artifact,
     verify_rv64im_side_terminal_proof_artifact, Rv64imMainResidualProof, Rv64imNightstreamProof,
 };
 use neo_fold_next::nightstream::{nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement};
@@ -224,12 +224,12 @@ pub fn verify_rv64im_nightstream_bridge_input(
         &private_witness.proof.main_decider_proof,
     )?;
     verify_rv64im_linkage_artifact(&final_statement, &final_proof, &private_witness.proof.linkage_artifact)?;
-    let side_bundle = verify_rv64im_side_proof_artifact(&private_witness.proof.side_proof_artifact)?;
-    if side_bundle.statement_core_digest != private_witness.statement.core_digest() {
-        return Err(Rv64imBridgeError::Nightstream(SimpleKernelError::Bridge(
-            "RV64IM Nightstream side-proof artifact does not match the carried statement core".into(),
-        )));
-    }
+    verify_rv64im_side_proof_artifact_from_accepted_artifact(
+        &artifact,
+        private_witness.statement.core_digest(),
+        &private_witness.proof.side_proof_artifact,
+    )?;
+    let side_bundle = private_witness.proof.side_proof_artifact.bundle.clone();
     verify_rv64im_opening_artifact_from_side_proof_bundle(
         &private_witness.proof_complete_transport.statement,
         &side_bundle,
@@ -243,6 +243,7 @@ pub fn verify_rv64im_nightstream_bridge_input(
             .bridge_handoff_digests,
         &private_witness.proof_complete_transport.statement,
         &side_bundle,
+        &private_witness.proof.opening_artifact,
         &private_witness.proof.side_terminal_artifact,
     )?;
     let private_claims = build_rv64im_nightstream_bridge_private_claims(private_witness)?;

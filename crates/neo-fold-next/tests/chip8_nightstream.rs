@@ -5,24 +5,19 @@ use neo_fold_next::chip8::decider::build_chip8_spartan2_decider_target;
 use neo_fold_next::chip8::proof::prove_recursive;
 use neo_fold_next::nightstream::chip8::{
     build_chip8_main_decider_proof, build_chip8_main_residual_proof, build_chip8_nightstream_from_recursive_proof,
-    chip8_absent_linkage_artifact_digest, chip8_absent_opening_artifact_digest,
-    chip8_absent_side_proof_artifact_digest, chip8_nightstream_linkage_root, chip8_verifier_context_digest,
-    verify_chip8_main_decider_proof, verify_chip8_main_residual_proof, verify_chip8_nightstream_from_recursive_proof,
-    Chip8MainDeciderProof, Chip8MainResidualProof,
+    chip8_absent_linkage_artifact_digest, chip8_absent_side_bridge_artifact_digest, chip8_nightstream_linkage_root,
+    chip8_verifier_context_digest, verify_chip8_main_decider_proof, verify_chip8_main_residual_proof,
+    verify_chip8_nightstream_from_recursive_proof, Chip8MainDeciderProof, Chip8MainResidualProof,
 };
 
 #[test]
 fn chip8_nightstream_absent_artifact_digests_are_distinct() {
-    let side = chip8_absent_side_proof_artifact_digest();
-    let opening = chip8_absent_opening_artifact_digest();
+    let side_bridge = chip8_absent_side_bridge_artifact_digest();
     let linkage = chip8_absent_linkage_artifact_digest();
 
-    assert_ne!(side, [0; 32]);
-    assert_ne!(opening, [0; 32]);
+    assert_ne!(side_bridge, [0; 32]);
     assert_ne!(linkage, [0; 32]);
-    assert_ne!(side, opening);
-    assert_ne!(side, linkage);
-    assert_ne!(opening, linkage);
+    assert_ne!(side_bridge, linkage);
 }
 
 #[test]

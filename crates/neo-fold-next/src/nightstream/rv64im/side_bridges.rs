@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::rv64im::kernel::{
     build_verified_stage3_claim_from_accepted_artifact, verify_transcript_record, RootLaneCommitmentSummaryArtifact,
-    Rv64imAcceptedProofArtifact, Rv64imKernelExportProof, Stage1VerifiedClaims, Stage2VerifiedClaims,
-    Stage3VerifiedClaims, VerifiedTranscriptSurface,
+    Rv64imAcceptedProofArtifact, Rv64imKernelExportProof, SimpleKernelError, Stage1VerifiedClaims,
+    Stage2VerifiedClaims, Stage3VerifiedClaims, VerifiedTranscriptSurface,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -294,6 +294,62 @@ impl Rv64imKernelExportSourceBridge {
         );
         tr.digest32()
     }
+}
+
+pub(crate) fn validate_rv64im_side_proof_bundle_structure(
+    bundle: &Rv64imSideProofBundle,
+) -> Result<(), SimpleKernelError> {
+    if bundle.digest != bundle.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream side-proof bundle digest mismatch".into(),
+        ));
+    }
+    if bundle.transcript.digest != bundle.transcript.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried transcript surface digest mismatch".into(),
+        ));
+    }
+    if bundle.stage1.digest != bundle.stage1.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried stage1 verified-claims digest mismatch".into(),
+        ));
+    }
+    if bundle.stage2.digest != bundle.stage2.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried stage2 verified-claims digest mismatch".into(),
+        ));
+    }
+    if bundle.stage3.digest != bundle.stage3.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried stage3 verified-claims digest mismatch".into(),
+        ));
+    }
+    if bundle.stage_claim_proof_bridge.digest != bundle.stage_claim_proof_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried stage-claim proof bridge digest mismatch".into(),
+        ));
+    }
+    if bundle.kernel_opening_bridge.digest != bundle.kernel_opening_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried kernel-opening bridge digest mismatch".into(),
+        ));
+    }
+    if bundle.kernel_claim_bridge.digest != bundle.kernel_claim_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried kernel-claim bridge digest mismatch".into(),
+        ));
+    }
+    if bundle.kernel_claim_proof_bridge.digest != bundle.kernel_claim_proof_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried kernel-claim proof bridge digest mismatch".into(),
+        ));
+    }
+    if bundle.kernel_export_bridge.digest != bundle.kernel_export_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried kernel-export bridge digest mismatch".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn build_rv64im_verified_side_claims_from_accepted_artifact_fast(

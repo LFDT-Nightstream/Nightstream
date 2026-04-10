@@ -2,13 +2,15 @@
 
 mod build_perf;
 mod compact_surfaces;
+mod hybrid_side_bridge_contract;
+mod hybrid_side_bridge_decider;
+mod opening_artifact;
 mod side_bridges;
 mod side_claim_relation;
 mod side_eval_claim_relation;
 mod side_opening_relation;
-mod side_terminal_decider;
-mod side_terminal_relation;
 mod verify_perf;
+mod witness_backed_side_bridge;
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
@@ -22,76 +24,60 @@ use self::compact_surfaces::{
     kernel_opening_bundle_digest_from_surfaces, kernel_opening_proof_bundle_digest_from_surfaces,
     packaged_claim_proof_digest_from_surfaces, stage_package_proof_bundle_digest_from_surfaces,
 };
+pub use self::hybrid_side_bridge_decider::{Rv64imHybridSideBridgeArtifact, Rv64imHybridSideBridgeBackendProof};
+pub use self::opening_artifact::Rv64imOpeningArtifact;
 use self::side_bridges::{
     build_rv64im_kernel_claim_bridge_from_accepted_artifact,
     build_rv64im_kernel_claim_proof_bridge_from_accepted_artifact,
     build_rv64im_kernel_export_source_bridge_from_export_proof,
     build_rv64im_kernel_opening_bridge_from_accepted_artifact,
     build_rv64im_stage_claim_proof_bridge_from_accepted_artifact,
-    build_rv64im_verified_side_claims_from_accepted_artifact_fast,
+    build_rv64im_verified_side_claims_from_accepted_artifact_fast, validate_rv64im_side_proof_bundle_structure,
 };
 pub use self::side_bridges::{
     Rv64imKernelClaimBridge, Rv64imKernelClaimProofBridge, Rv64imKernelExportSourceBridge, Rv64imKernelOpeningBridge,
     Rv64imPreparedStepBindingSummaryBridge, Rv64imSideProofBundle, Rv64imStageClaimProofBridge,
 };
-pub use self::side_claim_relation::{
-    build_rv64im_side_claim_relation_from_accepted_artifact, build_rv64im_side_claim_relation_statement,
-    build_rv64im_side_claim_relation_witness_from_accepted_artifact, verify_rv64im_side_claim_relation,
-    Rv64imSideClaimRelationStatement, Rv64imSideClaimRelationWitness,
-};
-pub use self::side_eval_claim_relation::{
-    build_rv64im_phase0_opened_object_bundle_from_claim_witnesses,
-    build_rv64im_phase0_stage_proof_binding_digests_from_accepted_artifact, build_rv64im_side_eval_claim_artifact,
-    build_rv64im_side_eval_claim_artifact_from_accepted_artifact,
-    build_rv64im_side_eval_claim_artifact_from_accepted_artifact_and_side_bundle,
-    build_rv64im_side_eval_claim_relation_from_accepted_artifact, build_rv64im_side_eval_claim_relation_statement,
-    build_rv64im_side_eval_claim_relation_statement_from_artifact,
-    build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact, verify_rv64im_side_eval_claim_artifact,
-    verify_rv64im_side_eval_claim_relation, Rv64imPhase0OpenedObjectBundle, Rv64imPhase0OpenedObjectSummary,
-    Rv64imPhase0StageProofBindingDigests, Rv64imSideEvalClaimArtifact, Rv64imSideEvalClaimRelationStatement,
-    Rv64imSideEvalClaimRelationWitness,
-};
-pub use self::side_opening_relation::{
-    build_rv64im_side_opening_relation_from_accepted_artifact, build_rv64im_side_opening_relation_statement,
-    build_rv64im_side_opening_relation_witness_from_accepted_artifact, verify_rv64im_side_opening_relation,
-    Rv64imSideOpeningRelationStatement, Rv64imSideOpeningRelationWitness,
-};
-pub use self::side_terminal_decider::{
-    build_rv64im_side_terminal_backend_binding_relation,
-    build_rv64im_side_terminal_backend_binding_relation_from_public_proof, build_rv64im_side_terminal_decider_relation,
-    build_rv64im_side_terminal_decider_target, build_rv64im_side_terminal_proof_artifact,
-    build_rv64im_side_terminal_proof_artifact_from_accepted_artifact, build_rv64im_side_terminal_public_target,
-    build_rv64im_side_terminal_public_target_from_public_proof, prove_rv64im_side_terminal_backend_binding_shell,
-    prove_rv64im_side_terminal_backend_binding_shell_from_public_proof, prove_rv64im_side_terminal_backend_proof,
-    prove_rv64im_side_terminal_backend_proof_from_public_proof, prove_rv64im_side_terminal_public_relation_shell,
-    prove_rv64im_side_terminal_public_relation_shell_from_public_proof, prove_rv64im_side_terminal_public_target_shell,
-    prove_rv64im_side_terminal_public_target_shell_from_public_proof, setup_rv64im_side_terminal_backend_binding_shell,
-    setup_rv64im_side_terminal_backend_binding_shell_from_public_proof, setup_rv64im_side_terminal_backend_proof,
-    setup_rv64im_side_terminal_backend_proof_from_public_proof, setup_rv64im_side_terminal_public_relation_shell,
-    setup_rv64im_side_terminal_public_relation_shell_from_public_proof, setup_rv64im_side_terminal_public_target_shell,
-    setup_rv64im_side_terminal_public_target_shell_from_public_proof,
-    verify_rv64im_side_terminal_backend_binding_shell,
-    verify_rv64im_side_terminal_backend_binding_shell_from_public_proof, verify_rv64im_side_terminal_backend_proof,
-    verify_rv64im_side_terminal_backend_proof_from_public_proof, verify_rv64im_side_terminal_proof_artifact,
-    verify_rv64im_side_terminal_public_relation_shell,
-    verify_rv64im_side_terminal_public_relation_shell_from_public_proof,
-    verify_rv64im_side_terminal_public_target_shell, verify_rv64im_side_terminal_public_target_shell_from_public_proof,
-    Rv64imSideTerminalBackendBindingRelation, Rv64imSideTerminalBackendBindingShellProof,
-    Rv64imSideTerminalBackendBindingShellProverKey, Rv64imSideTerminalBackendBindingShellVerifierKey,
-    Rv64imSideTerminalBackendProof, Rv64imSideTerminalBackendProofProverKey, Rv64imSideTerminalBackendProofVerifierKey,
-    Rv64imSideTerminalDeciderRelation, Rv64imSideTerminalProofArtifact, Rv64imSideTerminalPublicRelationShellProof,
-    Rv64imSideTerminalPublicRelationShellProverKey, Rv64imSideTerminalPublicRelationShellVerifierKey,
-    Rv64imSideTerminalPublicTargetShellProof, Rv64imSideTerminalPublicTargetShellProverKey,
-    Rv64imSideTerminalPublicTargetShellVerifierKey,
-};
-pub use self::side_terminal_relation::{
-    build_rv64im_side_terminal_relation_from_accepted_artifact, build_rv64im_side_terminal_relation_statement,
-    build_rv64im_side_terminal_relation_witness_from_accepted_artifact, build_rv64im_side_terminal_witness_artifact,
-    build_rv64im_side_terminal_witness_artifact_from_accepted_artifact, verify_rv64im_side_terminal_relation,
-    verify_rv64im_side_terminal_witness_artifact, Rv64imSideTerminalRelationStatement,
-    Rv64imSideTerminalRelationWitness, Rv64imSideTerminalWitnessArtifact,
-};
 pub use self::verify_perf::{verify_rv64im_nightstream_with_perf, Rv64imNightstreamVerifyPerf};
+
+pub mod audit {
+    pub use super::hybrid_side_bridge_decider::{
+        build_rv64im_hybrid_side_bridge_public_target, verify_rv64im_hybrid_side_bridge_artifact,
+    };
+    pub use super::opening_artifact::{
+        build_rv64im_opening_artifact_from_accepted_artifact, verify_rv64im_opening_artifact_from_accepted_artifact,
+        verify_rv64im_opening_artifact_from_side_proof_bundle,
+    };
+    pub use super::side_claim_relation::{
+        build_rv64im_side_claim_relation_from_accepted_artifact, build_rv64im_side_claim_relation_statement,
+        build_rv64im_side_claim_relation_witness_from_accepted_artifact, verify_rv64im_side_claim_relation,
+        Rv64imSideClaimRelationStatement, Rv64imSideClaimRelationWitness,
+    };
+    pub use super::side_eval_claim_relation::{
+        build_rv64im_phase0_opened_object_bundle_from_claim_witnesses, build_rv64im_side_eval_claim_artifact,
+        build_rv64im_side_eval_claim_artifact_from_accepted_artifact,
+        build_rv64im_side_eval_claim_relation_from_accepted_artifact, build_rv64im_side_eval_claim_relation_statement,
+        build_rv64im_side_eval_claim_relation_statement_from_artifact,
+        build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact, verify_rv64im_side_eval_claim_artifact,
+        verify_rv64im_side_eval_claim_relation, Rv64imPhase0OpenedObjectBundle, Rv64imPhase0OpenedObjectSummary,
+        Rv64imPhase0OpeningTarget, Rv64imPhase0OpeningTargetBundle, Rv64imSideEvalClaimArtifact,
+        Rv64imSideEvalClaimRelationStatement, Rv64imSideEvalClaimRelationWitness,
+    };
+    pub use super::side_opening_relation::{
+        build_rv64im_side_opening_relation_from_accepted_artifact, build_rv64im_side_opening_relation_statement,
+        build_rv64im_side_opening_relation_witness_from_accepted_artifact, verify_rv64im_side_opening_relation,
+        Rv64imSideOpeningRelationStatement, Rv64imSideOpeningRelationWitness,
+    };
+    pub use super::witness_backed_side_bridge::{
+        Rv64imWitnessBackedSideBridgeArtifact, Rv64imWitnessBackedSideBridgeStatement,
+        Rv64imWitnessBackedSideBridgeWitness,
+    };
+    pub use super::{
+        build_rv64im_kernel_opening_claim_from_side_proof_bundle,
+        build_rv64im_side_proof_bundle_from_accepted_artifact, build_rv64im_stage_claim_bundle_from_side_proof_bundle,
+        verify_rv64im_side_proof_bundle_from_accepted_artifact,
+    };
+}
 use crate::decider::spartan2::{Spartan2DeciderProof, Spartan2DeciderTarget, Spartan2DeciderVerifierKey};
 use crate::finalize::fixed_shape_chunk_coverage_terminal_index;
 use crate::nightstream::{nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement};
@@ -103,17 +89,14 @@ use crate::rv64im::final_relation::{
     verify_rv64im_final_statement_with_output, Rv64imFinalProof, Rv64imFinalStatement,
 };
 use crate::rv64im::kernel::{
-    build_public_kernel_opening_claim_from_compact_surfaces, build_rv64im_eval_claim_witnesses_from_accepted_artifact,
-    build_rv64im_kernel_export_proof_from_accepted_artifact,
-    build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local,
+    build_public_kernel_opening_claim_from_compact_surfaces, build_rv64im_kernel_export_proof_from_accepted_artifact,
     build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local_with_perf,
-    kernel_claim_bundle_from_statement_and_compact_surfaces, rv64im_public_chunk_digest,
-    verify_rv64im_opening_convergence_artifact, Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle,
-    Rv64imKernelExportProof, Rv64imOpeningConvergenceArtifact, Rv64imProof, Rv64imProofStatement,
-    Rv64imStageClaimDigestBundle, SimpleKernelError, SimpleKernelOpeningClaim, SimpleKernelStageClaimBundle,
-    Stage1ArtifactSurface, Stage1CanonicalRowBundle, Stage1ClaimSurface, Stage2ArtifactSurface,
-    Stage2CanonicalFamilyBundle, Stage2ClaimSurface, Stage3ArtifactSurface, Stage3CanonicalContinuityBundle,
-    Stage3ClaimSurface, StageDigestCommitment, TranscriptArtifactSurface, TranscriptClaimSurface,
+    kernel_claim_bundle_from_statement_and_compact_surfaces, rv64im_public_chunk_digest, Rv64imAcceptedProofArtifact,
+    Rv64imKernelExportProof, Rv64imProof, Rv64imProofStatement, Rv64imStageClaimDigestBundle, SimpleKernelError,
+    SimpleKernelOpeningClaim, SimpleKernelStageClaimBundle, Stage1ArtifactSurface, Stage1CanonicalRowBundle,
+    Stage1ClaimSurface, Stage2ArtifactSurface, Stage2CanonicalFamilyBundle, Stage2ClaimSurface, Stage3ArtifactSurface,
+    Stage3CanonicalContinuityBundle, Stage3ClaimSurface, StageDigestCommitment, TranscriptArtifactSurface,
+    TranscriptClaimSurface,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,20 +119,6 @@ pub struct Rv64imMainResidualProof {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imSideProofArtifact {
-    pub bundle: Rv64imSideProofBundle,
-    pub digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imOpeningArtifact {
-    pub phase0_opened_objects: Rv64imPhase0OpenedObjectBundle,
-    pub phase0_stage_proof_bindings: Rv64imPhase0StageProofBindingDigests,
-    pub convergence_artifact: Rv64imOpeningConvergenceArtifact,
-    pub digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imLinkageArtifact {
     pub digest: [u8; 32],
 }
@@ -158,9 +127,7 @@ pub struct Rv64imLinkageArtifact {
 pub struct Rv64imNightstreamProof {
     pub main_decider_proof: Rv64imMainDeciderProof,
     pub main_residual_proof: Rv64imMainResidualProof,
-    pub side_terminal_artifact: Rv64imSideTerminalProofArtifact,
-    pub side_proof_artifact: Rv64imSideProofArtifact,
-    pub opening_artifact: Rv64imOpeningArtifact,
+    pub hybrid_side_bridge_artifact: Rv64imHybridSideBridgeArtifact,
     pub linkage_artifact: Rv64imLinkageArtifact,
 }
 
@@ -229,36 +196,6 @@ impl Rv64imMainResidualProof {
     }
 }
 
-impl Rv64imSideProofArtifact {
-    pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/side_proof_artifact");
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_proof_artifact/bundle_digest",
-            &self.bundle.digest,
-        );
-        tr.digest32()
-    }
-}
-
-impl Rv64imOpeningArtifact {
-    pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/opening_artifact");
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/opening_artifact/phase0_opened_objects_digest",
-            &self.phase0_opened_objects.digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/opening_artifact/phase0_stage_proof_bindings_digest",
-            &self.phase0_stage_proof_bindings.digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/opening_artifact/convergence_artifact_digest",
-            &self.convergence_artifact.digest,
-        );
-        tr.digest32()
-    }
-}
-
 fn build_rv64im_side_proof_bundle_from_accepted_artifact_and_kernel_export(
     artifact: &Rv64imAcceptedProofArtifact,
     kernel_export: &Rv64imKernelExportProof,
@@ -297,7 +234,7 @@ pub fn build_rv64im_side_proof_bundle_from_accepted_artifact(
     build_rv64im_side_proof_bundle_from_accepted_artifact_and_kernel_export(artifact, &kernel_export)
 }
 
-fn bind_rv64im_side_proof_bundle_to_statement_core(
+pub(crate) fn bind_rv64im_side_proof_bundle_to_statement_core(
     bundle: &Rv64imSideProofBundle,
     statement_core_digest: [u8; 32],
 ) -> Result<Rv64imSideProofBundle, SimpleKernelError> {
@@ -330,84 +267,6 @@ pub fn verify_rv64im_side_proof_bundle_from_accepted_artifact(
     Ok(())
 }
 
-pub fn build_rv64im_side_proof_artifact_from_accepted_artifact(
-    artifact: &Rv64imAcceptedProofArtifact,
-    statement_core_digest: [u8; 32],
-) -> Result<Rv64imSideProofArtifact, SimpleKernelError> {
-    let bundle = bind_rv64im_side_proof_bundle_to_statement_core(
-        &build_rv64im_side_proof_bundle_from_accepted_artifact(artifact)?,
-        statement_core_digest,
-    )?;
-    build_rv64im_side_proof_artifact_from_bundle(&bundle)
-}
-
-pub fn verify_rv64im_side_proof_artifact_from_accepted_artifact(
-    artifact: &Rv64imAcceptedProofArtifact,
-    statement_core_digest: [u8; 32],
-    proof: &Rv64imSideProofArtifact,
-) -> Result<(), SimpleKernelError> {
-    let bundle = bind_rv64im_side_proof_bundle_to_statement_core(
-        &build_rv64im_side_proof_bundle_from_accepted_artifact(artifact)?,
-        statement_core_digest,
-    )?;
-    verify_rv64im_side_proof_artifact_from_bundle(&bundle, proof)
-}
-
-pub fn build_rv64im_side_proof_artifact_from_bundle(
-    bundle: &Rv64imSideProofBundle,
-) -> Result<Rv64imSideProofArtifact, SimpleKernelError> {
-    if bundle.digest != bundle.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream side-proof bundle digest mismatch".into(),
-        ));
-    }
-    let artifact = Rv64imSideProofArtifact {
-        bundle: bundle.clone(),
-        digest: [0; 32],
-    };
-    Ok(Rv64imSideProofArtifact {
-        digest: artifact.expected_digest(),
-        ..artifact
-    })
-}
-
-pub fn verify_rv64im_side_proof_artifact_from_bundle(
-    bundle: &Rv64imSideProofBundle,
-    proof: &Rv64imSideProofArtifact,
-) -> Result<(), SimpleKernelError> {
-    let expected = build_rv64im_side_proof_artifact_from_bundle(bundle)?;
-    if &expected != proof {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream side-proof artifact does not match the verified side-proof bundle".into(),
-        ));
-    }
-    Ok(())
-}
-
-pub fn verify_rv64im_side_proof_artifact(
-    proof: &Rv64imSideProofArtifact,
-) -> Result<Rv64imSideProofBundle, SimpleKernelError> {
-    if proof.bundle.digest != proof.bundle.expected_digest() || proof.digest != proof.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream side-proof artifact is not self-consistent".into(),
-        ));
-    }
-    Ok(proof.bundle.clone())
-}
-
-fn verify_rv64im_side_proof_artifact_against_statement_core(
-    statement_core_digest: [u8; 32],
-    proof: &Rv64imSideProofArtifact,
-) -> Result<Rv64imSideProofBundle, SimpleKernelError> {
-    let bundle = verify_rv64im_side_proof_artifact(proof)?;
-    if bundle.statement_core_digest != statement_core_digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream side-proof artifact does not match the carried Nightstream statement core".into(),
-        ));
-    }
-    Ok(bundle)
-}
-
 fn derived_rv64im_row_chunk_routes_digest(
     statement: &NightstreamStatement,
 ) -> Result<([u8; 32], u64), SimpleKernelError> {
@@ -437,7 +296,7 @@ fn derived_rv64im_row_chunk_routes_digest(
     Ok((tr.digest32(), public_step_count))
 }
 
-fn verify_rv64im_side_root_execution_surface(
+pub(super) fn verify_rv64im_root_execution_surface_against_compact_surfaces(
     statement: &NightstreamStatement,
     side_bundle: &Rv64imSideProofBundle,
     public_statement: &Rv64imProofStatement,
@@ -745,11 +604,7 @@ pub fn build_rv64im_stage_claim_bundle_from_side_proof_bundle(
     bundle: &Rv64imSideProofBundle,
     execution_digest: [u8; 32],
 ) -> Result<SimpleKernelStageClaimBundle, SimpleKernelError> {
-    if bundle.digest != bundle.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream side-proof bundle digest mismatch".into(),
-        ));
-    }
+    validate_rv64im_side_proof_bundle_structure(bundle)?;
 
     let claims = SimpleKernelStageClaimBundle {
         stage1: build_stage1_artifact_surface_from_verified_claims(&bundle.stage1)?,
@@ -927,11 +782,7 @@ pub fn build_rv64im_kernel_opening_claim_from_side_proof_bundle(
     side_bundle: &Rv64imSideProofBundle,
     public_statement: &Rv64imProofStatement,
 ) -> Result<SimpleKernelOpeningClaim, SimpleKernelError> {
-    if side_bundle.digest != side_bundle.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream side-proof bundle digest mismatch".into(),
-        ));
-    }
+    validate_rv64im_side_proof_bundle_structure(side_bundle)?;
     if side_bundle
         .kernel_opening_bridge
         .prepared_step_bindings
@@ -1013,7 +864,7 @@ fn verify_rv64im_side_main_lane_proof_surface(
     Ok(expected_bundle_digest)
 }
 
-fn verify_rv64im_side_kernel_export_source_surface(
+pub(super) fn verify_rv64im_kernel_export_source_surface_against_compact_surfaces(
     side_bundle: &Rv64imSideProofBundle,
     public_statement: &Rv64imProofStatement,
 ) -> Result<(), SimpleKernelError> {
@@ -1267,208 +1118,6 @@ fn rv64im_kernel_export_anchor_digest_from_relation(
         })
 }
 
-pub fn build_rv64im_opening_artifact_from_accepted_artifact(
-    public_statement: &Rv64imProofStatement,
-    side_bundle: &Rv64imSideProofBundle,
-    artifact: &Rv64imAcceptedProofArtifact,
-) -> Result<Rv64imOpeningArtifact, SimpleKernelError> {
-    let claim_witnesses = build_rv64im_eval_claim_witnesses_from_accepted_artifact(artifact)?;
-    let phase0_stage_proof_bindings = build_rv64im_phase0_stage_proof_binding_digests_from_accepted_artifact(artifact);
-    let phase0_artifact =
-        self::side_eval_claim_relation::build_rv64im_side_eval_claim_artifact_from_claim_witnesses_and_side_bundle(
-            public_statement,
-            side_bundle,
-            &phase0_stage_proof_bindings,
-            &claim_witnesses,
-        )?;
-    let convergence_artifact =
-        build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local(
-            &phase0_artifact.eval_claim_bundle,
-            &claim_witnesses,
-        )
-        .map_err(|err| {
-            SimpleKernelError::Bridge(format!(
-                "RV64IM Nightstream opening convergence artifact build failed: {err}"
-            ))
-        })?;
-    build_rv64im_opening_artifact_from_trusted_local_phase0_and_convergence_artifacts(
-        &phase0_artifact,
-        &convergence_artifact,
-    )
-}
-
-pub fn verify_rv64im_opening_artifact_from_accepted_artifact(
-    public_statement: &Rv64imProofStatement,
-    side_bundle: &Rv64imSideProofBundle,
-    artifact: &Rv64imAcceptedProofArtifact,
-    proof: &Rv64imOpeningArtifact,
-) -> Result<(), SimpleKernelError> {
-    let expected = build_rv64im_opening_artifact_from_accepted_artifact(public_statement, side_bundle, artifact)?;
-    if &expected != proof {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream opening artifact does not match the accepted artifact".into(),
-        ));
-    }
-    Ok(())
-}
-
-pub fn build_rv64im_opening_artifact_from_phase0_artifact_and_convergence_artifact(
-    phase0_artifact: &Rv64imSideEvalClaimArtifact,
-    convergence_artifact: &Rv64imOpeningConvergenceArtifact,
-) -> Result<Rv64imOpeningArtifact, SimpleKernelError> {
-    if phase0_artifact.digest != phase0_artifact.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream compact opening eval-claim artifact digest mismatch".into(),
-        ));
-    }
-    verify_rv64im_opening_convergence_artifact(convergence_artifact).map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM Nightstream opening convergence artifact verification failed: {err}"
-        ))
-    })?;
-    let phase0_bundle = build_rv64im_eval_claim_bundle_from_convergence_artifact(convergence_artifact)?;
-    if phase0_bundle.digest != phase0_artifact.eval_claim_bundle.digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream opening convergence artifact Phase 0 digest does not match the carried Phase 0 claim bundle"
-                .into(),
-        ));
-    }
-    let artifact = Rv64imOpeningArtifact {
-        phase0_opened_objects: phase0_artifact.phase0_opened_objects.clone(),
-        phase0_stage_proof_bindings: phase0_artifact.phase0_stage_proof_bindings.clone(),
-        convergence_artifact: convergence_artifact.clone(),
-        digest: [0; 32],
-    };
-    Ok(Rv64imOpeningArtifact {
-        digest: artifact.expected_digest(),
-        ..artifact
-    })
-}
-
-pub(super) fn build_rv64im_opening_artifact_from_trusted_local_phase0_and_convergence_artifacts(
-    phase0_artifact: &Rv64imSideEvalClaimArtifact,
-    convergence_artifact: &Rv64imOpeningConvergenceArtifact,
-) -> Result<Rv64imOpeningArtifact, SimpleKernelError> {
-    if convergence_artifact.phase0_digest != phase0_artifact.eval_claim_bundle.digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream opening convergence artifact Phase 0 digest does not match the carried Phase 0 claim bundle"
-                .into(),
-        ));
-    }
-    let artifact = Rv64imOpeningArtifact {
-        phase0_opened_objects: phase0_artifact.phase0_opened_objects.clone(),
-        phase0_stage_proof_bindings: phase0_artifact.phase0_stage_proof_bindings.clone(),
-        convergence_artifact: convergence_artifact.clone(),
-        digest: [0; 32],
-    };
-    Ok(Rv64imOpeningArtifact {
-        digest: artifact.expected_digest(),
-        ..artifact
-    })
-}
-
-pub fn verify_rv64im_opening_artifact(proof: &Rv64imOpeningArtifact) -> Result<(), SimpleKernelError> {
-    if proof.phase0_opened_objects.digest != proof.phase0_opened_objects.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream opening artifact Phase 0 opened-object digest mismatch".into(),
-        ));
-    }
-    if proof.phase0_stage_proof_bindings.digest != proof.phase0_stage_proof_bindings.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream opening artifact Phase 0 stage-proof binding digest mismatch".into(),
-        ));
-    }
-    verify_rv64im_opening_convergence_artifact(&proof.convergence_artifact).map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM Nightstream opening convergence artifact verification failed: {err}"
-        ))
-    })?;
-    let phase0_bundle = build_rv64im_eval_claim_bundle_from_convergence_artifact(&proof.convergence_artifact)?;
-    if phase0_bundle.digest != proof.convergence_artifact.phase0_digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream opening convergence artifact Phase 0 digest does not match its carried Phase 1 buckets"
-                .into(),
-        ));
-    }
-    let expected_digest = proof.expected_digest();
-    if proof.digest != expected_digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream opening artifact is not self-consistent".into(),
-        ));
-    }
-    Ok(())
-}
-
-pub fn verify_rv64im_opening_artifact_from_side_proof_bundle(
-    public_statement: &Rv64imProofStatement,
-    bundle: &Rv64imSideProofBundle,
-    proof: &Rv64imOpeningArtifact,
-) -> Result<(), SimpleKernelError> {
-    verify_rv64im_opening_artifact(proof)?;
-    let phase0_artifact = build_rv64im_side_eval_claim_artifact_from_opening_convergence_artifact(
-        public_statement,
-        bundle,
-        &proof.phase0_opened_objects,
-        &proof.phase0_stage_proof_bindings,
-        &proof.convergence_artifact,
-    )?;
-    verify_rv64im_side_eval_claim_artifact(public_statement, bundle, &phase0_artifact).map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM Nightstream opening artifact does not match the verified compact Phase 0 opening surface: {err}"
-        ))
-    })
-}
-
-fn build_rv64im_eval_claim_bundle_from_convergence_artifact(
-    convergence_artifact: &Rv64imOpeningConvergenceArtifact,
-) -> Result<Rv64imEvalClaimBundle, SimpleKernelError> {
-    let bundle = Rv64imEvalClaimBundle::new(
-        convergence_artifact
-            .phase1_results
-            .iter()
-            .flat_map(|result| result.bucket.claims.clone())
-            .collect(),
-    )
-    .map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM Nightstream opening convergence artifact cannot canonicalize the Phase 0 claim bundle: {err}"
-        ))
-    })?;
-    if bundle.digest != convergence_artifact.phase0_digest {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream opening convergence artifact Phase 0 digest does not match the carried Phase 1 buckets"
-                .into(),
-        ));
-    }
-    Ok(bundle)
-}
-
-fn build_rv64im_side_eval_claim_artifact_from_opening_convergence_artifact(
-    public_statement: &Rv64imProofStatement,
-    side_bundle: &Rv64imSideProofBundle,
-    phase0_opened_objects: &Rv64imPhase0OpenedObjectBundle,
-    phase0_stage_proof_bindings: &Rv64imPhase0StageProofBindingDigests,
-    convergence_artifact: &Rv64imOpeningConvergenceArtifact,
-) -> Result<Rv64imSideEvalClaimArtifact, SimpleKernelError> {
-    let eval_claim_bundle = build_rv64im_eval_claim_bundle_from_convergence_artifact(convergence_artifact)?;
-    let statement = build_rv64im_side_eval_claim_relation_statement(
-        public_statement,
-        side_bundle,
-        phase0_opened_objects,
-        phase0_stage_proof_bindings,
-        &eval_claim_bundle,
-    )?;
-    let mut artifact = Rv64imSideEvalClaimArtifact {
-        statement_digest: self::side_eval_claim_relation::rv64im_side_eval_claim_relation_statement_digest(&statement),
-        phase0_opened_objects: phase0_opened_objects.clone(),
-        phase0_stage_proof_bindings: phase0_stage_proof_bindings.clone(),
-        eval_claim_bundle,
-        digest: [0; 32],
-    };
-    artifact.digest = artifact.expected_digest();
-    Ok(artifact)
-}
-
 pub fn build_rv64im_linkage_artifact_from_claims(
     linkage_claims: &Rv64imLinkageClaims,
 ) -> Result<Rv64imLinkageArtifact, SimpleKernelError> {
@@ -1548,16 +1197,10 @@ fn verify_rv64im_nightstream_carried_boundary(
         linkage_root,
         [0; 32],
     )?;
-    let _side_proof_bundle = verify_rv64im_side_proof_artifact_against_statement_core(
-        expected_statement.core_digest(),
-        &proof.side_proof_artifact,
-    )?;
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_decider_proof_digest: proof.main_decider_proof.expected_digest(),
         main_residual_proof_digest: proof.main_residual_proof.expected_digest(),
-        side_terminal_artifact_digest: proof.side_terminal_artifact.digest,
-        side_proof_artifact_digest: proof.side_proof_artifact.digest,
-        opening_artifact_digest: proof.opening_artifact.digest,
+        side_bridge_artifact_digest: proof.hybrid_side_bridge_artifact.digest,
         linkage_artifact_digest: proof.linkage_artifact.digest,
     };
     expected_statement.proof_binding_root =

@@ -24,9 +24,7 @@ pub struct NightstreamStatement {
 pub struct NightstreamProofBindingInputs {
     pub main_decider_proof_digest: [u8; 32],
     pub main_residual_proof_digest: [u8; 32],
-    pub side_terminal_artifact_digest: [u8; 32],
-    pub side_proof_artifact_digest: [u8; 32],
-    pub opening_artifact_digest: [u8; 32],
+    pub side_bridge_artifact_digest: [u8; 32],
     pub linkage_artifact_digest: [u8; 32],
 }
 
@@ -91,16 +89,8 @@ pub fn nightstream_proof_binding_root(
         &inputs.main_residual_proof_digest,
     );
     tr.append_message(
-        b"neo.fold.next/nightstream/proof_binding_root/side_terminal_artifact_digest",
-        &inputs.side_terminal_artifact_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/nightstream/proof_binding_root/side_proof_artifact_digest",
-        &inputs.side_proof_artifact_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/nightstream/proof_binding_root/opening_artifact_digest",
-        &inputs.opening_artifact_digest,
+        b"neo.fold.next/nightstream/proof_binding_root/side_bridge_artifact_digest",
+        &inputs.side_bridge_artifact_digest,
     );
     tr.append_message(
         b"neo.fold.next/nightstream/proof_binding_root/linkage_artifact_digest",

@@ -7,16 +7,15 @@ use crate::nightstream::NightstreamStatement;
 use crate::rv64im::{Rv64imProofStatement, SimpleKernelError};
 
 use super::{
-    rv64im_verifier_context_digest, verify_rv64im_nightstream_carried_boundary,
-    verify_rv64im_opening_artifact_from_side_proof_bundle, verify_rv64im_side_kernel_export_source_surface,
-    verify_rv64im_side_root_execution_surface, verify_rv64im_side_terminal_proof_artifact, Rv64imNightstreamProof,
+    hybrid_side_bridge_decider::verify_rv64im_hybrid_side_bridge_artifact, rv64im_verifier_context_digest,
+    verify_rv64im_nightstream_carried_boundary, Rv64imNightstreamProof,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rv64imNightstreamVerifyPerf {
     pub carried_boundary_ms: f64,
     pub statement_binding_ms: f64,
-    pub side_terminal_artifact_ms: f64,
+    pub hybrid_side_bridge_artifact_ms: f64,
     pub remaining_side_surfaces_ms: f64,
     pub spartan_decider_ms: f64,
     pub total_ms: f64,
@@ -73,24 +72,15 @@ pub fn verify_rv64im_nightstream_with_perf(
     let statement_binding_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    verify_rv64im_side_terminal_proof_artifact(
+    verify_rv64im_hybrid_side_bridge_artifact(
         statement,
         &proof.main_residual_proof.bridge_handoff_digests,
         public_statement,
-        &proof.side_proof_artifact.bundle,
-        &proof.side_terminal_artifact,
+        &proof.hybrid_side_bridge_artifact,
     )?;
-    let side_terminal_artifact_ms = elapsed_ms(started);
+    let hybrid_side_bridge_artifact_ms = elapsed_ms(started);
 
-    let started = Instant::now();
-    verify_rv64im_side_root_execution_surface(statement, &proof.side_proof_artifact.bundle, public_statement)?;
-    verify_rv64im_opening_artifact_from_side_proof_bundle(
-        public_statement,
-        &proof.side_proof_artifact.bundle,
-        &proof.opening_artifact,
-    )?;
-    verify_rv64im_side_kernel_export_source_surface(&proof.side_proof_artifact.bundle, public_statement)?;
-    let remaining_side_surfaces_ms = elapsed_ms(started);
+    let remaining_side_surfaces_ms = 0.0;
 
     let started = Instant::now();
     verify_spartan2_decider(
@@ -108,7 +98,7 @@ pub fn verify_rv64im_nightstream_with_perf(
     Ok(Rv64imNightstreamVerifyPerf {
         carried_boundary_ms,
         statement_binding_ms,
-        side_terminal_artifact_ms,
+        hybrid_side_bridge_artifact_ms,
         remaining_side_surfaces_ms,
         spartan_decider_ms,
         total_ms: elapsed_ms(total_started),

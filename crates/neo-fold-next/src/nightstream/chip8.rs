@@ -98,16 +98,8 @@ fn chip8_absent_artifact_digest(label: &'static [u8]) -> [u8; 32] {
     tr.digest32()
 }
 
-pub fn chip8_absent_side_proof_artifact_digest() -> [u8; 32] {
-    chip8_absent_artifact_digest(b"side")
-}
-
-pub fn chip8_absent_side_terminal_artifact_digest() -> [u8; 32] {
-    chip8_absent_artifact_digest(b"side_terminal")
-}
-
-pub fn chip8_absent_opening_artifact_digest() -> [u8; 32] {
-    chip8_absent_artifact_digest(b"opening")
+pub fn chip8_absent_side_bridge_artifact_digest() -> [u8; 32] {
+    chip8_absent_artifact_digest(b"side_bridge")
 }
 
 pub fn chip8_absent_linkage_artifact_digest() -> [u8; 32] {
@@ -207,9 +199,7 @@ pub fn build_chip8_nightstream_from_recursive_proof(
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_decider_proof_digest: main_decider_proof.expected_digest(),
         main_residual_proof_digest: main_residual_proof.expected_digest(),
-        side_terminal_artifact_digest: chip8_absent_side_terminal_artifact_digest(),
-        side_proof_artifact_digest: chip8_absent_side_proof_artifact_digest(),
-        opening_artifact_digest: chip8_absent_opening_artifact_digest(),
+        side_bridge_artifact_digest: chip8_absent_side_bridge_artifact_digest(),
         linkage_artifact_digest: chip8_absent_linkage_artifact_digest(),
     };
     nightstream_statement.proof_binding_root =

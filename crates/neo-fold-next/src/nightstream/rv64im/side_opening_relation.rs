@@ -27,6 +27,7 @@ use crate::rv64im::stage2::{
 use crate::rv64im::stage3::{continuity_event_digest, ContinuityEvent};
 
 use super::compact_surfaces::packaged_opening_proof_digest_from_surfaces;
+use super::side_bridges::validate_rv64im_side_proof_bundle_structure;
 use super::side_claim_relation::Rv64imSingleStepPackagedProofWitness;
 use super::{build_rv64im_kernel_opening_claim_from_side_proof_bundle, Rv64imSideProofBundle};
 
@@ -237,11 +238,7 @@ pub fn build_rv64im_side_opening_relation_statement(
             "RV64IM side-opening relation public statement digest mismatch".into(),
         ));
     }
-    if side_bundle.digest != side_bundle.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM side-opening relation side-proof bundle digest mismatch".into(),
-        ));
-    }
+    validate_rv64im_side_proof_bundle_structure(side_bundle)?;
     Ok(Rv64imSideOpeningRelationStatement {
         public_statement: public_statement.clone(),
         side_bundle: side_bundle.clone(),
@@ -545,7 +542,7 @@ fn verify_stage_claim_opening_witness(
 }
 
 fn verify_compact_stage_opening_claims(
-    statement: &Rv64imSideOpeningRelationStatement,
+    side_bundle: &Rv64imSideProofBundle,
     witness: &Rv64imSideOpeningRelationWitness,
     stage_claims: &SimpleKernelStageClaimBundle,
 ) -> Result<(), SimpleKernelError> {
@@ -554,7 +551,7 @@ fn verify_compact_stage_opening_claims(
         &stage_claims.stage1.claim,
         &stage_claims.stage1.rows,
     )?;
-    if stage1_claim != statement.side_bundle.stage1.claim {
+    if stage1_claim != side_bundle.stage1.claim {
         return Err(SimpleKernelError::Bridge(
             "RV64IM side-opening relation stage1 selected rows do not match the carried opening claim".into(),
         ));
@@ -565,7 +562,7 @@ fn verify_compact_stage_opening_claims(
         &stage_claims.stage2.claim,
         &stage_claims.stage2.families,
     );
-    if stage2_claim != statement.side_bundle.stage2.claim {
+    if stage2_claim != side_bundle.stage2.claim {
         return Err(SimpleKernelError::Bridge(
             "RV64IM side-opening relation stage2 selected events do not match the carried opening claim".into(),
         ));
@@ -576,7 +573,7 @@ fn verify_compact_stage_opening_claims(
         &stage_claims.stage3.claim,
         &stage_claims.stage3.continuity,
     );
-    if stage3_claim != statement.side_bundle.stage3.claim {
+    if stage3_claim != side_bundle.stage3.claim {
         return Err(SimpleKernelError::Bridge(
             "RV64IM side-opening relation stage3 selected continuity does not match the carried opening claim".into(),
         ));
@@ -586,39 +583,36 @@ fn verify_compact_stage_opening_claims(
 }
 
 fn verify_compact_stage_opening_packages(
-    statement: &Rv64imSideOpeningRelationStatement,
+    side_bundle: &Rv64imSideProofBundle,
     witness: &Rv64imSideOpeningRelationWitness,
 ) -> Result<(), SimpleKernelError> {
-    let stage1_step =
-        build_claim_packaged_public_step("rv64im/stage1", &statement.side_bundle.stage1.claim.claim_words())?;
+    let stage1_step = build_claim_packaged_public_step("rv64im/stage1", &side_bundle.stage1.claim.claim_words())?;
     verify_stage_claim_opening_witness(
         "rv64im/stage1",
-        statement.side_bundle.stage1.claim.digest,
+        side_bundle.stage1.claim.digest,
         &stage1_step,
         &witness.stage1_packaged,
-        statement.side_bundle.stage1.packaged_digest,
+        side_bundle.stage1.packaged_digest,
         "RV64IM side-opening relation stage1 package witness does not match the carried side bundle",
     )?;
 
-    let stage2_step =
-        build_claim_packaged_public_step("rv64im/stage2", &statement.side_bundle.stage2.claim.claim_words())?;
+    let stage2_step = build_claim_packaged_public_step("rv64im/stage2", &side_bundle.stage2.claim.claim_words())?;
     verify_stage_claim_opening_witness(
         "rv64im/stage2",
-        statement.side_bundle.stage2.claim.digest,
+        side_bundle.stage2.claim.digest,
         &stage2_step,
         &witness.stage2_packaged,
-        statement.side_bundle.stage2.packaged_digest,
+        side_bundle.stage2.packaged_digest,
         "RV64IM side-opening relation stage2 package witness does not match the carried side bundle",
     )?;
 
-    let stage3_step =
-        build_claim_packaged_public_step("rv64im/stage3", &statement.side_bundle.stage3.claim.claim_words())?;
+    let stage3_step = build_claim_packaged_public_step("rv64im/stage3", &side_bundle.stage3.claim.claim_words())?;
     verify_stage_claim_opening_witness(
         "rv64im/stage3",
-        statement.side_bundle.stage3.claim.digest,
+        side_bundle.stage3.claim.digest,
         &stage3_step,
         &witness.stage3_packaged,
-        statement.side_bundle.stage3.packaged_digest,
+        side_bundle.stage3.packaged_digest,
         "RV64IM side-opening relation stage3 package witness does not match the carried side bundle",
     )?;
 
@@ -626,7 +620,7 @@ fn verify_compact_stage_opening_packages(
 }
 
 fn verify_compact_kernel_opening_packages(
-    statement: &Rv64imSideOpeningRelationStatement,
+    side_bundle: &Rv64imSideProofBundle,
     witness: &Rv64imSideOpeningRelationWitness,
     kernel_opening_claim: &SimpleKernelOpeningClaim,
 ) -> Result<(), SimpleKernelError> {
@@ -636,10 +630,7 @@ fn verify_compact_kernel_opening_packages(
         kernel_opening_claim.bindings.digest,
         &bindings_step,
         &witness.bindings_packaged,
-        statement
-            .side_bundle
-            .kernel_opening_bridge
-            .bindings_opening_digest,
+        side_bundle.kernel_opening_bridge.bindings_opening_digest,
         "RV64IM side-opening relation binding-opening witness does not match the carried side bundle",
     )?;
 
@@ -649,13 +640,30 @@ fn verify_compact_kernel_opening_packages(
         kernel_opening_claim.prepared_steps.digest,
         &prepared_steps_step,
         &witness.prepared_steps_packaged,
-        statement
-            .side_bundle
+        side_bundle
             .kernel_opening_bridge
             .prepared_steps_opening_digest,
         "RV64IM side-opening relation prepared-step opening witness does not match the carried side bundle",
     )?;
 
+    Ok(())
+}
+
+pub(super) fn verify_rv64im_side_opening_witness_against_compact_surfaces(
+    public_statement: &Rv64imProofStatement,
+    side_bundle: &Rv64imSideProofBundle,
+    witness: &Rv64imSideOpeningRelationWitness,
+) -> Result<(), SimpleKernelError> {
+    let stage_claims =
+        super::build_rv64im_stage_claim_bundle_from_side_proof_bundle(side_bundle, public_statement.execution_digest)?;
+    verify_compact_stage_opening_claims(side_bundle, witness, &stage_claims)?;
+
+    super::verify_rv64im_side_stage_packages_surface(side_bundle, public_statement)?;
+    verify_compact_stage_opening_packages(side_bundle, witness)?;
+
+    super::verify_rv64im_side_kernel_opening_surface(side_bundle, public_statement)?;
+    let kernel_opening_claim = build_rv64im_kernel_opening_claim_from_side_proof_bundle(side_bundle, public_statement)?;
+    verify_compact_kernel_opening_packages(side_bundle, witness, &kernel_opening_claim)?;
     Ok(())
 }
 
@@ -673,19 +681,9 @@ pub fn verify_rv64im_side_opening_relation(
             "RV64IM side-opening relation side-proof bundle digest mismatch".into(),
         ));
     }
-
-    let stage_claims = super::build_rv64im_stage_claim_bundle_from_side_proof_bundle(
+    verify_rv64im_side_opening_witness_against_compact_surfaces(
+        &statement.public_statement,
         &statement.side_bundle,
-        statement.public_statement.execution_digest,
-    )?;
-    verify_compact_stage_opening_claims(statement, witness, &stage_claims)?;
-
-    super::verify_rv64im_side_stage_packages_surface(&statement.side_bundle, &statement.public_statement)?;
-    verify_compact_stage_opening_packages(statement, witness)?;
-
-    super::verify_rv64im_side_kernel_opening_surface(&statement.side_bundle, &statement.public_statement)?;
-    let kernel_opening_claim =
-        build_rv64im_kernel_opening_claim_from_side_proof_bundle(&statement.side_bundle, &statement.public_statement)?;
-    verify_compact_kernel_opening_packages(statement, witness, &kernel_opening_claim)?;
-    Ok(())
+        witness,
+    )
 }

@@ -1,20 +1,36 @@
 //! Owns the RV64IM per-chunk replay surface above the verified export seam.
 
 use neo_ajtai::AjtaiSModule;
+use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_ccs::CcsStructure;
 use neo_math::{KExtensions, F, K};
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeCharacteristicRing;
 
 use crate::chunk_relation::{
     claim_digests, compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf,
-    verify_chunk_relation_with_witness_and_instance_digest, ChunkReplayWitness,
+    trace_chunk_relation_with_witness_and_instance_digest, verify_chunk_relation_with_witness_and_instance_digest,
+    ChunkReplayTrace, ChunkReplayWitness,
 };
 use crate::finalize::fixed_shape_recursive_step_handle;
+use crate::finalize::{digest32_as_fields, digest_fields_as_digest32};
 use crate::proof::{Carry, ChunkProvePerf};
 use crate::rv64im::kernel::{
     prepared_step_digest, rv64im_ajtai_mixers, Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
+
+pub(crate) const RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG: u64 = 13;
+
+#[derive(Clone)]
+pub(crate) struct Rv64imChunkRelationTrace {
+    pub ccs_outputs: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>>,
+    pub ccs_replay_proof: neo_reductions::optimized_engine::PiCcsReplayProofWitness,
+    pub terminal_state: neo_reductions::optimized_engine::PiCcsReplayTerminalState,
+    pub parent: neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>,
+    pub children: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>>,
+    pub z_split: Vec<neo_ccs::Mat<F>>,
+}
 
 pub(crate) fn prove_rv64im_chunk_transition_with_perf(
     chunk_index: usize,
@@ -43,7 +59,7 @@ pub(crate) fn prove_rv64im_chunk_transition_with_perf(
     let public_chunk_digest = handoff.public_chunk_digest;
     let chunk_relation_digest = rv64im_chunk_relation_digest(
         public_chunk_digest,
-        proved.artifacts.relation_digest,
+        replay_witness.ccs_replay_proof.header_digest,
         handoff.bridge_handoff.digest,
     );
     Ok((
@@ -85,10 +101,42 @@ pub(crate) fn verify_rv64im_chunk_relation_with_replay(
     let public_chunk_digest = handoff.public_chunk_digest;
     let chunk_relation_digest = rv64im_chunk_relation_digest(
         public_chunk_digest,
-        proved.artifacts.relation_digest,
+        replay_witness.ccs_replay_proof.header_digest,
         handoff.bridge_handoff.digest,
     );
     Ok((proved.next_main, public_chunk_digest, chunk_relation_digest))
+}
+
+pub(crate) fn trace_rv64im_chunk_relation_with_replay(
+    chunk_index: usize,
+    handoff: &Rv64imVerifiedKernelChunkHandoff,
+    incoming_main: &Carry,
+    replay_witness: &ChunkReplayWitness,
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    log: &AjtaiSModule,
+    optimized_cache: &OptimizedStructureCache,
+) -> Result<Rv64imChunkRelationTrace, SimpleKernelError> {
+    validate_rv64im_chunk_bridge_handoff(chunk_index, handoff)?;
+    let trace = trace_chunk_relation_with_witness_and_instance_digest(
+        transcript,
+        params,
+        structure,
+        &handoff.chunk_input,
+        incoming_main,
+        replay_witness,
+        log,
+        rv64im_ajtai_mixers(),
+        optimized_cache,
+        handoff.public_chunk_instance_digest,
+    )
+    .map_err(|err| SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} trace failed: {err}")))?;
+    Ok(trace_into_rv64im(
+        trace,
+        handoff.public_chunk_digest,
+        handoff.bridge_handoff.digest,
+    ))
 }
 
 pub(crate) fn rv64im_step_handle(
@@ -140,20 +188,27 @@ fn rv64im_chunk_relation_digest(
     main_relation_digest: [u8; 32],
     bridge_handoff_digest: [u8; 32],
 ) -> [u8; 32] {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/chunk_relation_digest");
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_relation_digest/public_chunk",
-        &public_chunk_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_relation_digest/main",
-        &main_relation_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_relation_digest/bridge",
-        &bridge_handoff_digest,
-    );
-    tr.digest32()
+    let mut preimage = Vec::with_capacity(1 + 3 * 4);
+    preimage.push(F::from_u64(RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG));
+    preimage.extend_from_slice(&digest32_as_fields(public_chunk_digest));
+    preimage.extend_from_slice(&digest32_as_fields(main_relation_digest));
+    preimage.extend_from_slice(&digest32_as_fields(bridge_handoff_digest));
+    digest_fields_as_digest32(poseidon2_hash(&preimage))
+}
+
+fn trace_into_rv64im(
+    trace: ChunkReplayTrace,
+    _public_chunk_digest: [u8; 32],
+    _bridge_handoff_digest: [u8; 32],
+) -> Rv64imChunkRelationTrace {
+    Rv64imChunkRelationTrace {
+        ccs_outputs: trace.ccs_outputs,
+        ccs_replay_proof: trace.ccs_replay_proof,
+        terminal_state: trace.terminal_state,
+        parent: trace.parent,
+        children: trace.children,
+        z_split: trace.z_split,
+    }
 }
 
 fn validate_rv64im_chunk_bridge_handoff(

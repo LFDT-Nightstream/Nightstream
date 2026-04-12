@@ -1,13 +1,10 @@
-//! Owns RV64IM adapters from the owned main relation into generic decider targets.
+//! Owns RV64IM build/prove adapters for the direct main-relation Spartan path.
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use crate::decider::spartan2::{
-    prove_spartan2_decider, prove_spartan2_decider_with_perf, setup_spartan2_decider, verify_spartan2_decider,
-    Spartan2DeciderProof, Spartan2DeciderProvePerf, Spartan2DeciderProverKey, Spartan2DeciderTarget,
-    Spartan2DeciderVerifierKey,
-};
-use crate::rv64im::decider_relation::build_rv64im_decider_relation_from_verified_final_with_component_digests;
+use crate::rv64im::decider_relation::Rv64imDeciderRelation;
 use crate::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted_with_output_and_perf_and_source, Rv64imFinalBuildOutput,
     Rv64imFinalProof, Rv64imFinalProofComponentDigests, Rv64imFinalStatement,
@@ -18,11 +15,17 @@ use crate::rv64im::kernel::{
     Rv64imAcceptedProofArtifact, Rv64imKernelExportRelationResult, Rv64imKernelExportSource, Rv64imProof,
     Rv64imProofInput, Rv64imProofProvePerf, Rv64imPublicProofOptions,
 };
-use crate::rv64im::main_relation::{
-    build_rv64im_main_relation_backend_relation_from_artifact, build_rv64im_main_relation_from_final,
-    build_rv64im_main_relation_from_verified_final_with_component_digests, Rv64imMainRelationArtifact,
+use crate::rv64im::main_relation_spartan::{
+    prove_rv64im_spartan2_decider as prove_main_relation_spartan,
+    setup_rv64im_spartan2_decider as setup_main_relation_spartan,
+    setup_rv64im_spartan2_decider_cached as setup_main_relation_spartan_cached,
+    verify_rv64im_spartan2_decider as verify_main_relation_spartan, Rv64imSpartan2DeciderKeyPair,
+    Rv64imSpartan2DeciderProof, Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey,
 };
 use crate::rv64im::SimpleKernelError;
+
+static RV64IM_SPARTAN2_DECIDER_PROOF_CACHE: OnceLock<Mutex<HashMap<[u8; 32], Arc<Rv64imSpartan2DeciderProof>>>> =
+    OnceLock::new();
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rv64imPublishedProofSeamBuildPerf {
@@ -47,7 +50,6 @@ pub struct Rv64imPublishedProofSeamBuildPerf {
     pub final_statement_folded_digest_ms: f64,
     pub final_statement_final_proof_ms: f64,
     pub final_statement_statement_digest_ms: f64,
-    pub decider_target_ms: f64,
     pub total_ms: f64,
 }
 
@@ -56,8 +58,6 @@ pub struct Rv64imPublishedProofSeam {
     pub accepted_artifact: Rv64imAcceptedProofArtifact,
     pub final_statement: Rv64imFinalStatement,
     pub final_proof: Rv64imFinalProof,
-    pub main_relation: Rv64imMainRelationArtifact,
-    pub decider_target: Spartan2DeciderTarget,
     pub(crate) final_component_digests: Rv64imFinalProofComponentDigests,
     pub(crate) verified_kernel: Rv64imKernelExportRelationResult,
 }
@@ -76,6 +76,18 @@ impl Rv64imPublishedProofSeam {
 
 fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
+}
+
+fn rv64im_spartan2_decider_cache_key(statement: &Rv64imFinalStatement, proof: &Rv64imFinalProof) -> [u8; 32] {
+    let mut digest = [0u8; 32];
+    for ((dst, lhs), rhs) in digest
+        .iter_mut()
+        .zip(statement.digest.iter())
+        .zip(proof.proof_digest.iter())
+    {
+        *dst = *lhs ^ *rhs;
+    }
+    digest
 }
 
 pub fn build_rv64im_published_proof_seam(proof: &Rv64imProof) -> Result<Rv64imPublishedProofSeam, SimpleKernelError> {
@@ -112,29 +124,11 @@ pub fn build_rv64im_published_proof_seam_with_perf(
     )?;
     let final_statement_ms = elapsed_ms(started);
 
-    let started = Instant::now();
-    let main_relation = build_rv64im_main_relation_from_verified_final_with_component_digests(
-        &final_statement,
-        &final_proof,
-        &verified_kernel,
-        &final_component_digests,
-    )?;
-    let decider_relation = build_rv64im_decider_relation_from_verified_final_with_component_digests(
-        &final_statement,
-        &final_proof,
-        &verified_kernel,
-        &final_component_digests,
-    )?;
-    let decider_target = decider_relation.target();
-    let decider_target_ms = elapsed_ms(started);
-
     Ok((
         Rv64imPublishedProofSeam {
             accepted_artifact,
             final_statement,
             final_proof,
-            main_relation,
-            decider_target,
             final_component_digests,
             verified_kernel,
         },
@@ -160,7 +154,6 @@ pub fn build_rv64im_published_proof_seam_with_perf(
             final_statement_folded_digest_ms: final_perf.folded.folded_digest_ms,
             final_statement_final_proof_ms: final_perf.final_proof_ms,
             final_statement_statement_digest_ms: final_perf.statement_digest_ms,
-            decider_target_ms,
             total_ms: elapsed_ms(total_started),
         },
     ))
@@ -228,28 +221,10 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
     )?;
     let final_statement_ms = elapsed_ms(started);
 
-    let started = Instant::now();
-    let main_relation = build_rv64im_main_relation_from_verified_final_with_component_digests(
-        &final_statement,
-        &final_proof,
-        &verified_kernel,
-        &final_component_digests,
-    )?;
-    let decider_relation = build_rv64im_decider_relation_from_verified_final_with_component_digests(
-        &final_statement,
-        &final_proof,
-        &verified_kernel,
-        &final_component_digests,
-    )?;
-    let decider_target = decider_relation.target();
-    let decider_target_ms = elapsed_ms(started);
-
     let seam = Rv64imPublishedProofSeam {
         accepted_artifact,
         final_statement,
         final_proof,
-        main_relation,
-        decider_target,
         final_component_digests,
         verified_kernel,
     };
@@ -275,7 +250,6 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
         final_statement_folded_digest_ms: final_perf.folded.folded_digest_ms,
         final_statement_final_proof_ms: final_perf.final_proof_ms,
         final_statement_statement_digest_ms: final_perf.statement_digest_ms,
-        decider_target_ms,
         total_ms: elapsed_ms(total_started),
     };
 
@@ -288,90 +262,86 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
     ))
 }
 
-pub fn build_rv64im_spartan2_decider_target(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
-) -> Result<Spartan2DeciderTarget, SimpleKernelError> {
-    let main_relation = build_rv64im_main_relation_from_final(statement, proof)?;
-    let relation = build_rv64im_main_relation_backend_relation_from_artifact(&main_relation)?;
-    Ok(relation.target())
-}
-
-pub fn setup_rv64im_spartan2_decider_for_target(
-    target: &Spartan2DeciderTarget,
-) -> Result<(Spartan2DeciderProverKey, Spartan2DeciderVerifierKey), SimpleKernelError> {
-    setup_spartan2_decider(&target.shape()).map_err(|err| SimpleKernelError::Bridge(err.to_string()))
-}
-
 pub fn setup_rv64im_spartan2_decider(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalProof,
-) -> Result<(Spartan2DeciderProverKey, Spartan2DeciderVerifierKey), SimpleKernelError> {
-    let target = build_rv64im_spartan2_decider_target(statement, proof)?;
-    setup_rv64im_spartan2_decider_for_target(&target)
+) -> Result<(Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey), SimpleKernelError> {
+    setup_main_relation_spartan(statement, proof)
 }
 
-pub fn prove_rv64im_spartan2_decider_for_target(
-    pk: &Spartan2DeciderProverKey,
-    target: &Spartan2DeciderTarget,
-) -> Result<Spartan2DeciderProof, SimpleKernelError> {
-    prove_spartan2_decider(pk, target).map_err(|err| SimpleKernelError::Bridge(err.to_string()))
-}
-
-pub fn prove_rv64im_spartan2_decider_for_target_with_perf(
-    pk: &Spartan2DeciderProverKey,
-    target: &Spartan2DeciderTarget,
-) -> Result<(Spartan2DeciderProof, Spartan2DeciderProvePerf), SimpleKernelError> {
-    prove_spartan2_decider_with_perf(pk, target).map_err(|err| SimpleKernelError::Bridge(err.to_string()))
+pub fn setup_rv64im_spartan2_decider_cached(
+    statement: &Rv64imFinalStatement,
+    proof: &Rv64imFinalProof,
+) -> Result<Rv64imSpartan2DeciderKeyPair, SimpleKernelError> {
+    setup_main_relation_spartan_cached(statement, proof)
 }
 
 pub fn prove_rv64im_spartan2_decider(
-    pk: &Spartan2DeciderProverKey,
+    pk: &Rv64imSpartan2DeciderProverKey,
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalProof,
-) -> Result<Spartan2DeciderProof, SimpleKernelError> {
-    let target = build_rv64im_spartan2_decider_target(statement, proof)?;
-    prove_rv64im_spartan2_decider_for_target(pk, &target)
+) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
+    prove_main_relation_spartan(pk, statement, proof)
 }
 
-pub fn verify_rv64im_spartan2_decider_for_target(
-    vk: &Spartan2DeciderVerifierKey,
-    target: &Spartan2DeciderTarget,
-    decider_proof: &Spartan2DeciderProof,
-) -> Result<(), SimpleKernelError> {
-    verify_spartan2_decider(vk, target, decider_proof).map_err(|err| SimpleKernelError::Bridge(err.to_string()))
+pub fn prove_rv64im_spartan2_decider_cached(
+    statement: &Rv64imFinalStatement,
+    proof: &Rv64imFinalProof,
+) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
+    let cache_key = rv64im_spartan2_decider_cache_key(statement, proof);
+    let cache = RV64IM_SPARTAN2_DECIDER_PROOF_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(proof) = cache
+        .lock()
+        .map_err(|_| SimpleKernelError::Bridge("RV64IM main decider proof cache poisoned".into()))?
+        .get(&cache_key)
+        .cloned()
+    {
+        return Ok((*proof).clone());
+    }
+
+    let keys = setup_main_relation_spartan_cached(statement, proof)?;
+    let proof = Arc::new(prove_main_relation_spartan(&keys.as_ref().0, statement, proof)?);
+    cache
+        .lock()
+        .map_err(|_| SimpleKernelError::Bridge("RV64IM main decider proof cache poisoned".into()))?
+        .insert(cache_key, proof.clone());
+    Ok((*proof).clone())
 }
 
 pub fn verify_rv64im_spartan2_decider(
-    vk: &Spartan2DeciderVerifierKey,
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
-    decider_proof: &Spartan2DeciderProof,
+    vk: &Rv64imSpartan2DeciderVerifierKey,
+    public_statement_digest: [u8; 32],
+    relation: &Rv64imDeciderRelation,
+    decider_proof: &Rv64imSpartan2DeciderProof,
 ) -> Result<(), SimpleKernelError> {
-    let target = build_rv64im_spartan2_decider_target(statement, proof)?;
-    verify_rv64im_spartan2_decider_for_target(vk, &target, decider_proof)
+    verify_main_relation_spartan(vk, public_statement_digest, relation, decider_proof)
 }
 
 pub fn setup_rv64im_spartan2_decider_from_public_proof(
     proof: &Rv64imProof,
-) -> Result<(Spartan2DeciderProverKey, Spartan2DeciderVerifierKey), SimpleKernelError> {
+) -> Result<(Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey), SimpleKernelError> {
     let built = build_rv64im_published_proof_seam(proof)?;
-    setup_rv64im_spartan2_decider_for_target(&built.decider_target)
+    setup_main_relation_spartan(&built.final_statement, &built.final_proof)
+}
+
+pub fn setup_rv64im_spartan2_decider_from_public_proof_cached(
+    proof: &Rv64imProof,
+) -> Result<Rv64imSpartan2DeciderKeyPair, SimpleKernelError> {
+    let built = build_rv64im_published_proof_seam(proof)?;
+    setup_main_relation_spartan_cached(&built.final_statement, &built.final_proof)
 }
 
 pub fn prove_rv64im_spartan2_decider_from_public_proof(
-    pk: &Spartan2DeciderProverKey,
+    pk: &Rv64imSpartan2DeciderProverKey,
     proof: &Rv64imProof,
-) -> Result<Spartan2DeciderProof, SimpleKernelError> {
+) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
     let built = build_rv64im_published_proof_seam(proof)?;
-    prove_rv64im_spartan2_decider_for_target(pk, &built.decider_target)
+    prove_main_relation_spartan(pk, &built.final_statement, &built.final_proof)
 }
 
-pub fn verify_rv64im_spartan2_decider_from_public_proof(
-    vk: &Spartan2DeciderVerifierKey,
+pub fn prove_rv64im_spartan2_decider_from_public_proof_cached(
     proof: &Rv64imProof,
-    decider_proof: &Spartan2DeciderProof,
-) -> Result<(), SimpleKernelError> {
+) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
     let built = build_rv64im_published_proof_seam(proof)?;
-    verify_rv64im_spartan2_decider_for_target(vk, &built.decider_target, decider_proof)
+    prove_rv64im_spartan2_decider_cached(&built.final_statement, &built.final_proof)
 }

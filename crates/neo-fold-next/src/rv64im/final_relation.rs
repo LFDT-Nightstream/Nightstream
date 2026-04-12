@@ -6,6 +6,7 @@ use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils::me_digest_poseidon_into;
 use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
@@ -23,6 +24,9 @@ use crate::rv64im::kernel::{
     verify_rv64im_kernel_export_proof_with_relation_output, Rv64imAcceptedProofArtifact, Rv64imKernelExportProof,
     Rv64imKernelExportRelationResult, Rv64imKernelExportSource, Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
+
+pub(crate) const RV64IM_SESSION_RAW_DOMAIN_TAG: u64 = 17;
+pub(crate) const RV64IM_CHUNK_DONE_RAW_TAG: u64 = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imAccumulatorHandle(pub [u8; 32]);
@@ -140,6 +144,7 @@ impl Rv64imRecursiveBuildPerf {
     }
 }
 
+#[derive(Clone)]
 struct Rv64imRecursiveAccumulatorState {
     main: Carry,
     terminal_handle: Rv64imAccumulatorHandle,
@@ -200,8 +205,11 @@ pub(crate) fn verify_rv64im_final_statement_with_output(
     proof: &Rv64imFinalProof,
 ) -> Result<Rv64imKernelExportRelationResult, SimpleKernelError> {
     validate_rv64im_final_statement_surface(statement, proof)?;
-    let (verified_kernel, expected_chunk_summaries) =
-        verify_folded_statement_components_with_output(&statement.folded, &proof.kernel_export, &proof.steps)?;
+    let (verified_kernel, expected_chunk_summaries, _) = verify_folded_statement_components_with_output_and_main_carry(
+        &statement.folded,
+        &proof.kernel_export,
+        &proof.steps,
+    )?;
     if proof.chunk_summaries != expected_chunk_summaries {
         return Err(SimpleKernelError::Bridge(
             "RV64IM final proof chunk summaries do not match the verified export seam".into(),
@@ -404,6 +412,16 @@ fn verify_folded_statement_components_with_output(
     kernel_export: &Rv64imKernelExportProof,
     steps: &[Rv64imChunkTransitionWitness],
 ) -> Result<(Rv64imKernelExportRelationResult, Vec<FixedShapeChunkSummary>), SimpleKernelError> {
+    let (verified_kernel, chunk_summaries, _) =
+        verify_folded_statement_components_with_output_and_main_carry(folded, kernel_export, steps)?;
+    Ok((verified_kernel, chunk_summaries))
+}
+
+fn verify_folded_statement_components_with_output_and_main_carry(
+    folded: &Rv64imFoldedStatement,
+    kernel_export: &Rv64imKernelExportProof,
+    steps: &[Rv64imChunkTransitionWitness],
+) -> Result<(Rv64imKernelExportRelationResult, Vec<FixedShapeChunkSummary>, Carry), SimpleKernelError> {
     if folded.digest != folded_statement_digest(folded) {
         return Err(SimpleKernelError::Bridge(
             "RV64IM folded statement digest mismatch".into(),
@@ -435,31 +453,40 @@ fn verify_folded_statement_components_with_output(
             "RV64IM folded proof chunk replay count does not match the verified export relation".into(),
         ));
     }
-    let chunk_summaries = verify_recursive_steps(folded, &verified_kernel, steps)?;
-    Ok((verified_kernel, chunk_summaries))
+    let (chunk_summaries, final_main) = verify_recursive_steps(folded, &verified_kernel, steps)?;
+    Ok((verified_kernel, chunk_summaries, final_main))
 }
 
 fn verify_recursive_steps(
     folded: &Rv64imFoldedStatement,
     verified_kernel: &Rv64imKernelExportRelationResult,
     steps: &[Rv64imChunkTransitionWitness],
-) -> Result<Vec<FixedShapeChunkSummary>, SimpleKernelError> {
-    let (chunk_summaries, final_accumulator) = replay_recursive_steps(verified_kernel, steps)?;
+) -> Result<(Vec<FixedShapeChunkSummary>, Carry), SimpleKernelError> {
+    let (chunk_summaries, final_state) = replay_recursive_steps_with_state(verified_kernel, steps)?;
+    let final_accumulator = final_state.clone().into_public();
     if final_accumulator != folded.final_accumulator {
         return Err(SimpleKernelError::Bridge(
             "RV64IM folded statement final accumulator mismatch".into(),
         ));
     }
-    Ok(chunk_summaries)
+    Ok((chunk_summaries, final_state.main))
 }
 
 fn replay_recursive_steps(
     verified_kernel: &Rv64imKernelExportRelationResult,
     steps: &[Rv64imChunkTransitionWitness],
 ) -> Result<(Vec<FixedShapeChunkSummary>, Rv64imRecursiveAccumulator), SimpleKernelError> {
+    let (chunk_summaries, final_state) = replay_recursive_steps_with_state(verified_kernel, steps)?;
+    Ok((chunk_summaries, final_state.into_public()))
+}
+
+fn replay_recursive_steps_with_state(
+    verified_kernel: &Rv64imKernelExportRelationResult,
+    steps: &[Rv64imChunkTransitionWitness],
+) -> Result<(Vec<FixedShapeChunkSummary>, Rv64imRecursiveAccumulatorState), SimpleKernelError> {
     let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let mut transcript = Poseidon2Transcript::new(b"neo.fold.next/session");
+    let mut transcript = Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV64IM_SESSION_RAW_DOMAIN_TAG)]);
     let mut accumulator = Rv64imRecursiveAccumulatorState::seed();
     let mut chunk_summaries = Vec::with_capacity(steps.len());
 
@@ -499,10 +526,10 @@ fn replay_recursive_steps(
             main: next_main,
             terminal_handle: next_handle,
         };
-        transcript.append_message(b"neo.fold.next/chunk_done", &[1]);
+        transcript.append_fields_raw(&[F::from_u64(RV64IM_CHUNK_DONE_RAW_TAG), F::ONE]);
     }
 
-    Ok((chunk_summaries, accumulator.into_public()))
+    Ok((chunk_summaries, accumulator))
 }
 
 fn build_recursive_proof(
@@ -520,7 +547,7 @@ fn build_recursive_proof(
     SimpleKernelError,
 > {
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let mut transcript = Poseidon2Transcript::new(b"neo.fold.next/session");
+    let mut transcript = Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV64IM_SESSION_RAW_DOMAIN_TAG)]);
     let mut accumulator = Rv64imRecursiveAccumulatorState::seed();
     let mut steps = Vec::with_capacity(chunk_handoffs.len());
     let mut chunk_summaries = Vec::with_capacity(chunk_handoffs.len());
@@ -556,7 +583,7 @@ fn build_recursive_proof(
             terminal_handle: next_handle,
         };
         steps.push(Rv64imChunkTransitionWitness { replay_witness });
-        transcript.append_message(b"neo.fold.next/chunk_done", &[1]);
+        transcript.append_fields_raw(&[F::from_u64(RV64IM_CHUNK_DONE_RAW_TAG), F::ONE]);
     }
 
     Ok((steps, chunk_summaries, accumulator.into_public(), perf))

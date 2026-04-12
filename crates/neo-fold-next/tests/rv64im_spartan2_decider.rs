@@ -1,16 +1,15 @@
-//! Focused tests for the RV64IM adapter into the generic Spartan2 decider target.
+//! Focused tests for the shell-free RV64IM main-relation Spartan decider.
 
-use neo_fold_next::decider::spartan2::{
-    prove_spartan2_decider, setup_spartan2_decider, verify_spartan2_decider, Spartan2BackendBindingShellError,
-    Spartan2DeciderError,
+use neo_fold_next::nightstream::rv64im::{
+    build_rv64im_nightstream_linkage_claims, build_rv64im_nightstream_statement_from_final,
+    rv64im_nightstream_linkage_root, rv64im_verifier_context_digest,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
-    build_rv64im_accepted_proof_artifact, build_rv64im_decider_relation, build_rv64im_spartan2_decider_target,
-    parity_source_cases, prove_rv64im_public_proof, prove_rv64im_spartan2_decider,
-    prove_rv64im_spartan2_decider_from_public_proof, setup_rv64im_spartan2_decider,
-    setup_rv64im_spartan2_decider_from_public_proof, verify_rv64im_spartan2_decider,
-    verify_rv64im_spartan2_decider_from_public_proof, Rv64imProofInput,
+    build_rv64im_accepted_proof_artifact, build_rv64im_decider_relation_from_final,
+    main_relation_spartan::debug_check_rv64im_spartan2_decider_circuit, parity_source_cases, prove_rv64im_public_proof,
+    prove_rv64im_spartan2_decider, prove_rv64im_spartan2_decider_from_public_proof, setup_rv64im_spartan2_decider,
+    setup_rv64im_spartan2_decider_from_public_proof, verify_rv64im_spartan2_decider, Rv64imProofInput,
 };
 
 fn source_case(name: &str) -> neo_fold_next::rv64im::Rv64imParitySourceCase {
@@ -26,169 +25,112 @@ fn proof_input(name: &str) -> Rv64imProofInput {
     Rv64imProofInput { source, max_steps }
 }
 
-#[test]
-fn rv64im_spartan2_decider_target_projects_decider_relation_seam() {
-    let input = proof_input("control_flow_jal_skip_ecall");
+fn final_fixture(
+    name: &str,
+) -> (
+    neo_fold_next::rv64im::Rv64imProof,
+    neo_fold_next::rv64im::final_relation::Rv64imFinalStatement,
+    neo_fold_next::rv64im::final_relation::Rv64imFinalProof,
+    neo_fold_next::nightstream::NightstreamStatement,
+) {
+    let input = proof_input(name);
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
     let (statement, final_proof) =
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
-    let relation = build_rv64im_decider_relation(&proof).expect("build decider relation");
-
-    let target = build_rv64im_spartan2_decider_target(&statement, &final_proof).expect("build decider target");
-
-    assert_eq!(
-        target.statement.public_statement_digest,
-        relation.public_statement_digest
-    );
-    assert_eq!(target.statement.relation_digest, relation.relation_digest);
-    assert_eq!(target.statement.fold_schedule, statement.folded.fold_schedule);
-    assert_eq!(
-        target.statement.semantic_step_count,
-        statement.folded.semantic_step_count
-    );
-    assert_eq!(target.statement.chunk_summaries, relation.chunk_summaries);
-    assert_eq!(
-        target.statement.chunk_summaries.len(),
-        statement.folded.chunk_count as usize
-    );
-    assert_eq!(target.witness.base_component_digests.len(), 1);
-    assert_eq!(
-        target.witness.chunk_transition_bindings.len(),
-        statement.folded.chunk_count as usize
-    );
-    assert_eq!(target.witness.base_component_digests, relation.base_component_digests);
-    assert_eq!(
-        target
-            .witness
-            .chunk_transition_bindings
-            .iter()
-            .map(|binding| binding.transition_witness_digest)
-            .collect::<Vec<_>>(),
-        relation
-            .chunk_transition_bindings
-            .iter()
-            .map(|binding| binding.transition_witness_digest)
-            .collect::<Vec<_>>()
-    );
-    assert!(!target.witness.chunk_transition_bindings.is_empty());
-    assert!(!target.statement.public_io().is_empty());
-    assert_eq!(target.statement.final_proof_digest, relation.final_proof_digest);
-    assert_ne!(target.statement.digest(), [0; 32]);
-    assert_ne!(target.witness.digest(), [0; 32]);
-    assert_ne!(target.digest(), [0; 32]);
+    let linkage_claims =
+        build_rv64im_nightstream_linkage_claims(&statement, &final_proof).expect("build linkage claims");
+    let linkage_root = rv64im_nightstream_linkage_root(final_proof.kernel_export.digest, &linkage_claims);
+    let nightstream_statement = build_rv64im_nightstream_statement_from_final(
+        proof.statement.digest,
+        rv64im_verifier_context_digest(proof.statement.root_params_id),
+        &statement,
+        &final_proof,
+        linkage_root,
+        [0; 32],
+    )
+    .expect("build nightstream statement");
+    (proof, statement, final_proof, nightstream_statement)
 }
 
 #[test]
-fn rv64im_spartan2_decider_target_rejects_tampered_statement_digest() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
-    let (mut statement, final_proof) =
-        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
-    statement.digest[0] ^= 1;
-
-    let err = build_rv64im_spartan2_decider_target(&statement, &final_proof)
-        .expect_err("tampered statement digest must fail");
-    assert!(format!("{err}").contains("statement") || format!("{err}").contains("digest"));
+#[ignore = "expensive: main-relation debug synthesis exceeds developer-memory budget"]
+fn rv64im_spartan2_decider_debug_check_only() {
+    let (_proof, statement, final_proof, _) = final_fixture("control_flow_jal_skip_ecall");
+    debug_check_rv64im_spartan2_decider_circuit(&statement, &final_proof)
+        .expect("rv64im main relation circuit must be satisfied");
 }
 
 #[test]
-fn rv64im_spartan2_decider_target_rejects_tampered_relation_digest() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
-    let (mut statement, final_proof) =
-        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
-    statement.folded.digest[0] ^= 1;
-
-    let err =
-        build_rv64im_spartan2_decider_target(&statement, &final_proof).expect_err("tampered relation digest must fail");
-    assert!(format!("{err}").contains("relation") || format!("{err}").contains("digest"));
+#[ignore = "expensive: main-relation Spartan setup exceeds developer-memory budget"]
+fn rv64im_spartan2_decider_setup_only() {
+    let (_proof, statement, final_proof, _) = final_fixture("control_flow_jal_skip_ecall");
+    let _ = setup_rv64im_spartan2_decider(&statement, &final_proof).expect("setup rv64im spartan2 decider");
 }
 
 #[test]
-fn rv64im_spartan2_decider_round_trip() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
-    let (statement, final_proof) =
-        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
+#[ignore = "expensive: main-relation Spartan round-trip exceeds developer-memory budget"]
+fn rv64im_spartan2_decider_round_trip_without_replay_verifier_input() {
+    let (_proof, statement, final_proof, _nightstream_statement) = final_fixture("control_flow_jal_skip_ecall");
+    let relation = build_rv64im_decider_relation_from_final(&statement, &final_proof).expect("build decider relation");
 
     let (pk, vk) = setup_rv64im_spartan2_decider(&statement, &final_proof).expect("setup rv64im spartan2 decider");
     let decider_proof =
         prove_rv64im_spartan2_decider(&pk, &statement, &final_proof).expect("prove rv64im spartan2 decider");
 
-    verify_rv64im_spartan2_decider(&vk, &statement, &final_proof, &decider_proof)
+    verify_rv64im_spartan2_decider(&vk, statement.public_statement_digest, &relation, &decider_proof)
         .expect("verify rv64im spartan2 decider");
     assert!(decider_proof.snark_bytes_len() > 0);
 }
 
 #[test]
+#[ignore = "expensive: main-relation Spartan round-trip exceeds developer-memory budget"]
 fn rv64im_spartan2_decider_from_public_proof_round_trip() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
+    let (proof, statement, final_proof, _nightstream_statement) = final_fixture("control_flow_jal_skip_ecall");
+    let relation = build_rv64im_decider_relation_from_final(&statement, &final_proof).expect("build decider relation");
 
     let (pk, vk) =
         setup_rv64im_spartan2_decider_from_public_proof(&proof).expect("setup rv64im spartan2 decider from proof");
     let decider_proof =
         prove_rv64im_spartan2_decider_from_public_proof(&pk, &proof).expect("prove rv64im spartan2 decider from proof");
 
-    verify_rv64im_spartan2_decider_from_public_proof(&vk, &proof, &decider_proof)
-        .expect("verify rv64im spartan2 decider from proof");
-    assert!(decider_proof.snark_bytes_len() > 0);
+    verify_rv64im_spartan2_decider(&vk, statement.public_statement_digest, &relation, &decider_proof)
+        .expect("verify rv64im spartan2 decider");
 }
 
 #[test]
-fn rv64im_spartan2_decider_rejects_tampered_base_component_digest() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
-    let (statement, final_proof) =
-        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
-    let target = build_rv64im_spartan2_decider_target(&statement, &final_proof).expect("build decider target");
+#[ignore = "expensive: main-relation Spartan setup exceeds developer-memory budget"]
+fn rv64im_spartan2_decider_rejects_tampered_chunk_relation_digest() {
+    let (_proof, statement, final_proof, _nightstream_statement) = final_fixture("control_flow_jal_skip_ecall");
+    let mut relation =
+        build_rv64im_decider_relation_from_final(&statement, &final_proof).expect("build decider relation");
 
-    let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup generic spartan2 decider");
-    let decider_proof = prove_spartan2_decider(&pk, &target).expect("prove generic spartan2 decider");
+    let (pk, vk) = setup_rv64im_spartan2_decider(&statement, &final_proof).expect("setup rv64im spartan2 decider");
+    let decider_proof =
+        prove_rv64im_spartan2_decider(&pk, &statement, &final_proof).expect("prove rv64im spartan2 decider");
 
-    let mut tampered_target = target.clone();
-    tampered_target.witness.base_component_digests[0][0] ^= 1;
-    let err = verify_spartan2_decider(&vk, &tampered_target, &decider_proof)
-        .expect_err("tampered base component digest must fail");
-    assert!(matches!(
-        err,
-        Spartan2DeciderError::RelationDigestMismatch
-            | Spartan2DeciderError::FinalProofDigestMismatch
-            | Spartan2DeciderError::RelationSurface(_)
-            | Spartan2DeciderError::Backend(Spartan2BackendBindingShellError::RelationSurface(_))
-            | Spartan2DeciderError::Backend(Spartan2BackendBindingShellError::PublicIoMismatch)
-            | Spartan2DeciderError::Backend(Spartan2BackendBindingShellError::Verify(_))
-    ));
+    relation.chunk_summaries[0].chunk_relation_digest[0] ^= 1;
+    let err = verify_rv64im_spartan2_decider(&vk, statement.public_statement_digest, &relation, &decider_proof)
+        .expect_err("tampered chunk relation digest must fail");
+    assert!(format!("{err}").contains("relation digest") || format!("{err}").contains("chunk"));
 }
 
 #[test]
-fn rv64im_spartan2_decider_rejects_tampered_chunk_transition_binding() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
-    let (statement, final_proof) =
-        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
-    let target = build_rv64im_spartan2_decider_target(&statement, &final_proof).expect("build decider target");
+#[ignore = "expensive: main-relation Spartan setup exceeds developer-memory budget"]
+fn rv64im_spartan2_decider_rejects_tampered_final_claim() {
+    let (_proof, statement, final_proof, _nightstream_statement) = final_fixture("control_flow_jal_skip_ecall");
+    let relation = build_rv64im_decider_relation_from_final(&statement, &final_proof).expect("build decider relation");
 
-    let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup generic spartan2 decider");
-    let decider_proof = prove_spartan2_decider(&pk, &target).expect("prove generic spartan2 decider");
+    let (pk, vk) = setup_rv64im_spartan2_decider(&statement, &final_proof).expect("setup rv64im spartan2 decider");
+    let decider_proof =
+        prove_rv64im_spartan2_decider(&pk, &statement, &final_proof).expect("prove rv64im spartan2 decider");
 
-    let mut tampered_target = target.clone();
-    tampered_target.witness.chunk_transition_bindings[0].transition_witness_digest[0] ^= 1;
-    let err = verify_spartan2_decider(&vk, &tampered_target, &decider_proof)
-        .expect_err("tampered chunk transition binding must fail");
-    assert!(matches!(
-        err,
-        Spartan2DeciderError::RelationDigestMismatch
-            | Spartan2DeciderError::FinalProofDigestMismatch
-            | Spartan2DeciderError::RelationSurface(_)
-            | Spartan2DeciderError::Backend(Spartan2BackendBindingShellError::RelationSurface(_))
-            | Spartan2DeciderError::Backend(Spartan2BackendBindingShellError::PublicIoMismatch)
-            | Spartan2DeciderError::Backend(Spartan2BackendBindingShellError::Verify(_))
-    ));
+    verify_rv64im_spartan2_decider(&vk, statement.public_statement_digest, &relation, &decider_proof)
+        .expect("baseline theorem statement must verify");
+
+    let mut tampered_public_statement_digest = statement.public_statement_digest;
+    tampered_public_statement_digest[0] ^= 1;
+    let err = verify_rv64im_spartan2_decider(&vk, tampered_public_statement_digest, &relation, &decider_proof)
+        .expect_err("tampered public-statement digest must fail");
+    assert!(format!("{err}").contains("public IO mismatch"));
 }

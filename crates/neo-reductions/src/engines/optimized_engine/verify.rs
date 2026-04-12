@@ -13,7 +13,6 @@ use neo_math::KExtensions;
 use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
-use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::utils;
@@ -170,10 +169,12 @@ fn optimized_verify_with_cache_and_public_instance_digest_impl(
     // FE sumcheck
     // -----------------------------
     let fe_sumcheck_started = std::time::Instant::now();
-    tr.append_message(b"sumcheck/fe", b"");
-    tr.append_fields(b"sumcheck/initial_sum", &claimed_initial.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(utils::PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
+    tr.append_fields_raw(&[F::from_u64(utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&claimed_initial.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
     let (r_all, running_sum, ok) =
-        crate::sumcheck::verify_sumcheck_rounds(tr, dims.d_sc, claimed_initial, &proof.sumcheck_rounds);
+        crate::sumcheck::verify_sumcheck_rounds_poseidon_v3(tr, dims.d_sc, claimed_initial, &proof.sumcheck_rounds);
     if !ok {
         return Err(PiCcsError::SumcheckError("rounds invalid".into()));
     }
@@ -191,11 +192,13 @@ fn optimized_verify_with_cache_and_public_instance_digest_impl(
     // NC-only sumcheck
     // -----------------------------
     let nc_sumcheck_started = std::time::Instant::now();
-    tr.append_message(b"sumcheck/nc", b"");
+    tr.append_fields_raw(&[F::from_u64(utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
     let claimed_nc = K::ZERO;
-    tr.append_fields(b"sumcheck/initial_sum", &claimed_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&claimed_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
     let (r_all_nc, running_sum_nc, ok_nc) =
-        crate::sumcheck::verify_sumcheck_rounds(tr, dims.d_sc, claimed_nc, &proof.sumcheck_rounds_nc);
+        crate::sumcheck::verify_sumcheck_rounds_poseidon_v3(tr, dims.d_sc, claimed_nc, &proof.sumcheck_rounds_nc);
     if !ok_nc {
         return Err(PiCcsError::SumcheckError("NC rounds invalid".into()));
     }

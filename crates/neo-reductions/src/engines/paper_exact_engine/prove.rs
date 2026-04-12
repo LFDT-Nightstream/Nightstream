@@ -114,8 +114,10 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     // ---------------------------------------------------------------------
     // FE sumcheck channel (SplitNcV1).
     // ---------------------------------------------------------------------
-    tr.append_message(b"sumcheck/fe", b"");
-    tr.append_fields(b"sumcheck/initial_sum", &initial_sum.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&initial_sum.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
 
     // Paper-exact oracle to evaluate true per-round polynomials
     let mut oracle = crate::paper_exact_engine::oracle::PaperExactOracle::new(
@@ -175,8 +177,9 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ZERO), ys[0]);
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ONE), ys[1]);
 
-        crate::sumcheck::append_round_coeffs(tr, &coeffs);
-        let c = tr.challenge_fields(b"sumcheck/challenge", 2);
+        let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
+        tr.append_fields_raw(&coeff_fields);
+        let c = tr.challenge_fields_raw(2);
         let r_i = neo_math::from_complex(c[0], c[1]);
         sumcheck_chals.push(r_i);
 
@@ -201,9 +204,11 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         dims.d_sc,
     );
 
-    tr.append_message(b"sumcheck/nc", b"");
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
     let initial_sum_nc = K::ZERO;
-    tr.append_fields(b"sumcheck/initial_sum", &initial_sum_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&initial_sum_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
 
     let mut running_sum_nc = initial_sum_nc;
     let mut sumcheck_rounds_nc: Vec<Vec<K>> = Vec::with_capacity(oracle_nc.num_rounds());
@@ -224,8 +229,9 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ZERO), ys[0]);
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ONE), ys[1]);
 
-        crate::sumcheck::append_round_coeffs(tr, &coeffs);
-        let c = tr.challenge_fields(b"sumcheck/challenge", 2);
+        let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
+        tr.append_fields_raw(&coeff_fields);
+        let c = tr.challenge_fields_raw(2);
         let r_i = neo_math::from_complex(c[0], c[1]);
         sumcheck_chals_nc.push(r_i);
 

@@ -12,6 +12,8 @@ pub mod kernel;
 pub mod layout;
 pub mod lower;
 pub mod main_relation;
+pub mod main_relation_circuit;
+pub mod main_relation_spartan;
 mod perf_case;
 pub mod stage1;
 pub mod stage2;
@@ -22,18 +24,18 @@ mod trace_expand;
 pub use builder::{build_program, Rv64ProgramBuild};
 pub use decider::{
     build_rv64im_published_proof_seam, build_rv64im_published_proof_seam_with_perf,
-    build_rv64im_spartan2_decider_target, prove_rv64im_public_proof_and_published_seam_with_options_and_perf,
+    prove_rv64im_public_proof_and_published_seam_with_options_and_perf,
     prove_rv64im_public_proof_and_published_seam_with_perf, prove_rv64im_spartan2_decider,
-    prove_rv64im_spartan2_decider_for_target, prove_rv64im_spartan2_decider_for_target_with_perf,
-    prove_rv64im_spartan2_decider_from_public_proof, setup_rv64im_spartan2_decider,
-    setup_rv64im_spartan2_decider_for_target, setup_rv64im_spartan2_decider_from_public_proof,
-    verify_rv64im_spartan2_decider, verify_rv64im_spartan2_decider_for_target,
-    verify_rv64im_spartan2_decider_from_public_proof, Rv64imPublicProofAndSeamBuildPerf, Rv64imPublishedProofSeam,
-    Rv64imPublishedProofSeamBuildPerf,
+    prove_rv64im_spartan2_decider_cached, prove_rv64im_spartan2_decider_from_public_proof,
+    prove_rv64im_spartan2_decider_from_public_proof_cached, setup_rv64im_spartan2_decider,
+    setup_rv64im_spartan2_decider_cached, setup_rv64im_spartan2_decider_from_public_proof,
+    setup_rv64im_spartan2_decider_from_public_proof_cached, verify_rv64im_spartan2_decider,
+    Rv64imPublicProofAndSeamBuildPerf, Rv64imPublishedProofSeam, Rv64imPublishedProofSeamBuildPerf,
 };
 pub use decider_relation::{
-    build_rv64im_decider_relation, validate_rv64im_decider_relation_surface, verify_rv64im_decider_relation,
-    Rv64imDeciderRelation,
+    build_rv64im_decider_relation, build_rv64im_decider_relation_from_final,
+    build_rv64im_decider_relation_from_final_surface, validate_rv64im_decider_relation_surface,
+    verify_rv64im_decider_relation, Rv64imDeciderRelation,
 };
 pub use isa::{
     decode_instruction, encode_add, encode_addi, encode_addiw, encode_addw, encode_and, encode_andi, encode_auipc,
@@ -69,14 +71,14 @@ pub use kernel::{
     build_unsigned_divrem_parity_case, build_vertical_slice_parity_case, control_flow_beq_manifest,
     control_flow_bge_manifest, control_flow_bgeu_manifest, control_flow_blt_manifest, control_flow_bltu_manifest,
     control_flow_bne_manifest, control_flow_focus_manifest, control_flow_jal_manifest, control_flow_jalr_manifest,
-    derive_phase0_point, derive_phase0_point_from_seed, domain_for_schema, encode_packed_column_evals_k,
-    encode_words_to_field_evals_k, multiply_high_manifest, multiply_low_manifest, narrow_memory_load_manifest,
-    narrow_memory_store_manifest, native_alu_focus_manifest, native_logic_compare_manifest, native_shift_manifest,
-    native_upper_manifest, native_word_arith_manifest, native_word_shift_manifest, parity_source_cases,
-    phase0_family_order, phase0_full_width_for_schema, phase0_point_seed, phase0_word_count_for_schema,
-    phase1_claim_digest, phase1_unified_claim_digest, prepared_step_digest, prove_packaged_simple_kernel,
-    prove_packaged_simple_kernel_with_perf, prove_root_main_lane_packaged_proof_with_perf,
-    prove_root_main_lane_run_proof_with_perf, prove_rv64im_accepted_proof, prove_rv64im_accepted_proof_with_options,
+    derive_phase0_point, domain_for_schema, encode_packed_column_evals_k, encode_words_to_field_evals_k,
+    multiply_high_manifest, multiply_low_manifest, narrow_memory_load_manifest, narrow_memory_store_manifest,
+    native_alu_focus_manifest, native_logic_compare_manifest, native_shift_manifest, native_upper_manifest,
+    native_word_arith_manifest, native_word_shift_manifest, parity_source_cases, phase0_family_order,
+    phase0_full_width_for_schema, phase0_word_count_for_schema, phase1_claim_digest, phase1_unified_claim_digest,
+    prepared_step_digest, prove_packaged_simple_kernel, prove_packaged_simple_kernel_with_perf,
+    prove_root_main_lane_packaged_proof_with_perf, prove_root_main_lane_run_proof_with_perf,
+    prove_rv64im_accepted_proof, prove_rv64im_accepted_proof_with_options,
     prove_rv64im_accepted_proof_with_options_and_perf, prove_rv64im_accepted_proof_with_perf, prove_rv64im_audit_proof,
     prove_rv64im_audit_proof_with_perf, prove_rv64im_public_proof, prove_rv64im_public_proof_with_options,
     prove_rv64im_public_proof_with_options_and_perf, prove_rv64im_public_proof_with_perf, prove_simple_kernel,
@@ -146,6 +148,13 @@ pub use main_relation::{
     build_rv64im_main_relation_backend_relation_from_artifact, build_rv64im_main_relation_from_final,
     validate_rv64im_main_relation_surface, verify_rv64im_main_relation, Rv64imMainRelationArtifact,
     Rv64imMainRelationStatement, Rv64imMainRelationWitness,
+};
+pub use main_relation_spartan::{
+    inspect_rv64im_spartan2_decider_trace, measure_rv64im_spartan2_decider_circuit, Rv64imMainRelationCircuitMetrics,
+    Rv64imMainRelationCountBucket, Rv64imMainRelationHotspotDetail, Rv64imMainRelationPhaseBucket,
+    Rv64imMainRelationSurfaceFamilyBucket, Rv64imMainRelationSurfaceMetrics, Rv64imMainRelationTraceStats,
+    Rv64imSpartan2DeciderError, Rv64imSpartan2DeciderKeyPair, Rv64imSpartan2DeciderProof,
+    Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey,
 };
 pub use perf_case::{
     build_mixed_opcode_perf_source_case, mixed_opcode_perf_expected_x1, RV64IM_MIXED_OPCODE_PERF_BLOCK_LEN,

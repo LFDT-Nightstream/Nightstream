@@ -36,7 +36,12 @@ fn rv64im_main_relation_round_trip() {
         main_relation.statement.final_statement.folded.digest,
         statement.folded.digest
     );
-    assert_eq!(main_relation.witness.digest(), final_proof.proof_digest);
+    assert_eq!(
+        main_relation.witness.kernel_export.digest,
+        final_proof.kernel_export.digest
+    );
+    assert_eq!(main_relation.witness.steps.len(), final_proof.steps.len());
+    assert_ne!(main_relation.witness.digest(), [0; 32]);
     assert_ne!(main_relation.digest, [0; 32]);
 
     verify_rv64im_main_relation(&main_relation.statement, &main_relation.witness).expect("verify rv64im main relation");
@@ -73,9 +78,9 @@ fn rv64im_main_relation_rejects_tampered_final_proof_digest() {
 
     let mut main_relation =
         build_rv64im_main_relation_from_final(&statement, &final_proof).expect("build rv64im main relation");
-    main_relation.witness.final_proof.proof_digest[0] ^= 1;
+    main_relation.witness.kernel_export.digest[0] ^= 1;
 
     let err = verify_rv64im_main_relation(&main_relation.statement, &main_relation.witness)
         .expect_err("tampered final proof digest must fail");
-    assert!(format!("{err}").contains("digest"));
+    assert!(format!("{err}").contains("mismatch") || format!("{err}").contains("digest"));
 }

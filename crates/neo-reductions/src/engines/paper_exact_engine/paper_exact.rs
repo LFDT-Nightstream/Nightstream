@@ -1902,7 +1902,7 @@ where
         let y_zcol = if chi_s.is_empty() {
             Vec::new()
         } else {
-            crate::common::compute_y_zcol_from_witness_digits(params, &Z_split[i], s.m, &chi_s, d_pad)
+            crate::common::compute_y_zcol_from_witness(params, &Z_split[i], s.m, &chi_s, d_pad)
                 .unwrap_or_else(|e| panic!("Π_DEC(paper-exact): y_zcol compute failed: {e}"))
         };
 

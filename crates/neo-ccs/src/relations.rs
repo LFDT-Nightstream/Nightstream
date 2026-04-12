@@ -1,6 +1,6 @@
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use neo_math::D;
+use neo_math::{superneo_bar_block, KExtensions, Rq, D, F as GoldiF};
 use neo_params::NeoParams;
 
 use crate::{
@@ -446,6 +446,84 @@ fn project_x_from_witness_layout<F: Field + Copy>(z: &Mat<F>, layout: WitnessLay
 fn ct_from_y_digits_for_ccs_m<Kf: Field>(y_digits: &[Kf], expected_m: usize) -> Kf {
     debug_assert!(expected_m > 0);
     y_digits.first().copied().unwrap_or(Kf::ZERO)
+}
+
+fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: usize, col: usize) -> GoldiF {
+    if row >= mat.rows() || col >= mat.cols() {
+        return GoldiF::ZERO;
+    }
+    match mat {
+        CcsMatrix::Identity { .. } => {
+            if row == col {
+                GoldiF::ONE
+            } else {
+                GoldiF::ZERO
+            }
+        }
+        CcsMatrix::Csc(csc) => {
+            let s = csc.col_ptr[col];
+            let e = csc.col_ptr[col + 1];
+            match csc.row_idx[s..e].binary_search(&row) {
+                Ok(idx) => csc.vals[s + idx].into(),
+                Err(_) => GoldiF::ZERO,
+            }
+        }
+    }
+}
+
+/// Build SuperNeo ring-coefficient linear forms for one CE point `r`.
+///
+/// Returns `forms[j][col][rho]` such that for each matrix `j`, the ring row
+/// satisfies `y_ring[j][rho] = Σ_col forms[j][col][rho] * z[col]`, where `col`
+/// ranges over logical witness columns padded up to the next multiple of `D`.
+pub fn build_superneo_ring_forms<
+    F: Field + PrimeCharacteristicRing + Copy + Into<GoldiF>,
+    K: Field + From<F> + KExtensions + Copy,
+>(
+    s: &CcsStructure<F>,
+    r: &[K],
+) -> Result<Vec<Vec<[K; D]>>, CcsError> {
+    let n_pad = s.n.next_power_of_two();
+    let ell = n_pad.trailing_zeros() as usize;
+    if r.len() != ell {
+        return Err(CcsError::Len {
+            context: "r (extension point)",
+            expected: ell,
+            got: r.len(),
+        });
+    }
+
+    let chi_r = tensor_point::<K>(r);
+    let m_eff = s.m.div_ceil(D) * D;
+    let block_count = m_eff / D;
+    let mut out = Vec::with_capacity(s.t());
+
+    for matrix in &s.matrices {
+        let mut forms = vec![[K::ZERO; D]; m_eff];
+        for (row, &weight) in chi_r.iter().take(s.n).enumerate() {
+            if weight == K::ZERO {
+                continue;
+            }
+            for blk in 0..block_count {
+                let base = blk * D;
+                let mut a = [GoldiF::ZERO; D];
+                for (i, coeff) in a.iter_mut().enumerate() {
+                    *coeff = matrix_entry_base_f(matrix, row, base + i);
+                }
+                let a_bar = Rq(superneo_bar_block(a));
+                for i in 0..D {
+                    let shifted = a_bar.mul_by_monomial(i);
+                    let slot = &mut forms[base + i];
+                    for rho in 0..D {
+                        slot[rho] += weight.scale_base(shifted.0[rho]);
+                    }
+                }
+            }
+        }
+        out.push(forms);
+    }
+
+    Ok(out)
 }
 
 /// Check `c == L(Z)` for CCS claim.

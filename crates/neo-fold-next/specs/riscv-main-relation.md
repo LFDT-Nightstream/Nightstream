@@ -69,6 +69,12 @@ The final external verifier shall not depend on shipped replay witnesses,
 shipped native chunk transition packages, or a digest-only shell that can be
 mutated and re-digested by an attacker.
 
+The concrete Fiat-Shamir sampler used for `Π_RLC` challenges must also be
+owned by the fixed relation. In particular, the backend contract may not rely
+on an unbounded rejection loop that has no honest-complete fixed-size circuit
+realization. The sampled strong-set element must be derived by a fixed-round
+transcript map that is identically enforced in-circuit and natively.
+
 ## 2. Theorem Target
 
 `R_main^SN` owns one exact theorem:
@@ -107,7 +113,46 @@ A conforming implementation may encode `R_main^SN` as:
 - a recursive/verifier relation whose correctness theorem explicitly proves the
   equivalence above.
 
+A conforming implementation may also decompose the owned relation internally
+into:
+
+1. a verifier-style replay subrelation that proves the accepted
+   `Π_CCS -> Π_RLC -> Π_DEC` transition under the canonical transcript-derived
+   challenges; and
+2. a carrier-opening subrelation that proves any explicit packed-witness
+   representation used by the compiler encoding is consistent with the carried
+   claims.
+
+When such a decomposition is used, only the combined relation is theorem-facing.
+The carrier-opening subrelation is an internal proof device only. It may not be
+exported as a second authority, and it may not be used to weaken the replay
+theorem into digest consistency or prover-chosen helper data.
+
+In particular, the carrier-opening subrelation may project backend-specific
+claim objects down to the paper `CE(b, L)` surface before opening explicit
+packed witnesses. For `Π_DEC` children, replay-only backend channels such as
+`s_col`, `y_zcol`, `ct`, or other convenience openings may remain owned by the
+replay theorem, while the carrier-opening layer proves only the paper child
+semantics `(c_i, x_i, r, {y_{i,j}}; z_i)` plus the norm/alphabet condition.
+Likewise, if backend claim objects pad `y_ring` or similar rows beyond the true
+ring degree `D`, that padded tail may remain replay-owned convenience structure
+rather than carrier-opened theorem surface.
+Such projected fields remain non-authoritative unless replay re-derives them or
+the next carried transition reopens them from authoritative witnesses.
+
 It may not replace the bridge theorem with “digest consistency”.
+
+Direct proof of the exported `final_main_claims` alone is not sufficient unless
+the implementation first proves those carried claims are themselves direct
+`CE(b, L)` instances with witnesses satisfying Definition 13.
+
+In particular, an implementation may not assume that the currently exported
+carried `CE` claims can be proved by pairing each claim with the corresponding
+carried `Z` matrix and invoking a direct CE-membership circuit. If the backend
+reconciles public channels such as `X` during `Π_DEC` without applying the same
+correction to the carried witness matrix, then those exported claims are not
+direct `CE(b, L)` witnesses and must instead be justified by the full bridge
+theorem relation.
 
 ## 3. Public Instance
 

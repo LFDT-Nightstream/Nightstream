@@ -16,6 +16,7 @@ use neo_reductions::optimized_engine::{
     optimized_verify_with_cache_and_instance_digest_and_perf, OptimizedStructureCache,
 };
 use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeCharacteristicRing;
 use std::time::Instant;
 
 use crate::finalize::public_chunk_digest;
@@ -353,16 +354,20 @@ impl ShardVerifier {
     }
 }
 
+const CHUNK_META_RAW_TAG: u64 = 14;
+const STEP_INDEX_RAW_TAG: u64 = 15;
+
 fn append_chunk_transcript(tr: &mut Poseidon2Transcript, chunk: &PublicChunk) {
     if chunk.steps.len() == 1 {
-        tr.append_u64s(b"neo.fold.next/step_index", &[chunk.start_index as u64]);
+        tr.append_fields_raw(&[F::from_u64(STEP_INDEX_RAW_TAG), F::from_u64(chunk.start_index as u64)]);
         return;
     }
 
-    tr.append_u64s(
-        b"neo.fold.next/chunk_meta",
-        &[chunk.start_index as u64, chunk.steps.len() as u64],
-    );
+    tr.append_fields_raw(&[
+        F::from_u64(CHUNK_META_RAW_TAG),
+        F::from_u64(chunk.start_index as u64),
+        F::from_u64(chunk.steps.len() as u64),
+    ]);
 }
 
 fn validate_chunk_metadata(chunk: &PublicChunk, proof: &ChunkProof) -> Result<(), PiCcsError> {

@@ -21,8 +21,13 @@ neo-reductions = { path = "../neo-reductions" }
 neo-transcript = { path = "../neo-transcript" }
 bincode = { workspace = true }
 bellpepper-core = { workspace = true }
+ff = { workspace = true }
+once_cell = { workspace = true }
 p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
 rayon = { workspace = true }
+rand_chacha_p3 = { workspace = true }
 serde = { workspace = true }
 spartan2 = { workspace = true }
 thiserror = { workspace = true }

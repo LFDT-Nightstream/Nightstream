@@ -2,8 +2,9 @@
 
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
-    build_rv64im_accepted_proof_artifact, build_rv64im_decider_relation, parity_source_cases,
-    prove_rv64im_public_proof, verify_rv64im_decider_relation, Rv64imProofInput,
+    build_rv64im_accepted_proof_artifact, build_rv64im_decider_relation,
+    build_rv64im_decider_relation_from_final_surface, parity_source_cases, prove_rv64im_public_proof,
+    verify_rv64im_decider_relation, Rv64imProofInput,
 };
 
 fn source_case(name: &str) -> neo_fold_next::rv64im::Rv64imParitySourceCase {
@@ -43,6 +44,21 @@ fn rv64im_decider_relation_round_trip() {
     assert_ne!(relation.digest, [0; 32]);
 
     verify_rv64im_decider_relation(&relation, &proof).expect("verify decider relation");
+}
+
+#[test]
+fn rv64im_decider_relation_from_final_surface_matches_verified_relation() {
+    let input = proof_input("control_flow_jal_skip_ecall");
+    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
+    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let (statement, final_proof) =
+        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
+
+    let from_verified = build_rv64im_decider_relation(&proof).expect("build verified decider relation");
+    let from_surface =
+        build_rv64im_decider_relation_from_final_surface(&statement, &final_proof).expect("build surface relation");
+
+    assert_eq!(from_surface, from_verified);
 }
 
 #[test]

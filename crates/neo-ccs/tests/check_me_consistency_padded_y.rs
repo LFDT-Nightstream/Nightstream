@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 
 use neo_ccs::{
-    poly::SparsePoly, poly::Term, relations::check_ce_consistency, traits::SModuleHomomorphism, CcsStructure, CeClaim,
-    CeWitness, Mat,
+    poly::SparsePoly, poly::Term, relations::check_ce_consistency, traits::SModuleHomomorphism, utils::tensor_point,
+    CcsStructure, CeClaim, CeWitness, Mat,
 };
 use neo_math::ring::D;
 use neo_math::K;
@@ -63,26 +63,18 @@ fn me_consistency_accepts_padded_y_rows() {
 
     // Choose r ∈ K^ell with ell=log2(n)=2.
     let r = vec![K::from(Fq::from_u64(3)), K::from(Fq::from_u64(5))]; // arbitrary
-    let rb = neo_ccs::utils::tensor_point::<K>(&r);
-
-    // v = M^T rb (in K^m)
-    let v_k = {
-        let mut v = vec![K::ZERO; m];
-        for row in 0..n {
-            let rb_r = rb[row];
-            let row_slice = m0.row(row).to_vec();
-            for cidx in 0..m {
-                v[cidx] += K::from(row_slice[cidx]) * rb_r;
-            }
-        }
-        v
-    };
-
-    // y = Z * v in packed SuperNeo layout:
-    // y[rho] = Z[rho,0] * v[rho] for m=D.
+    let rb = tensor_point::<K>(&r);
+    let mut v_k_m = vec![K::ZERO; s.m];
+    s.matrices[0].add_mul_transpose_into(&rb, &mut v_k_m, s.n);
     let mut y0 = vec![K::ZERO; d];
     for rho in 0..d {
-        y0[rho] = K::from(Z[(rho, 0)]) * v_k[rho];
+        let mut acc = K::ZERO;
+        for c in 0..m {
+            if c % D == rho {
+                acc += K::from(Z[(rho, c / D)]) * v_k_m[c];
+            }
+        }
+        y0[rho] = acc;
     }
 
     // Pad y to 2^{ell_d} (typically 64 for D=54).

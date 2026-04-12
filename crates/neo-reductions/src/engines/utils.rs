@@ -9,7 +9,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CeClaim, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
-use neo_transcript::{labels as tr_labels, Poseidon2Transcript, Transcript};
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
@@ -27,6 +27,37 @@ pub struct Dims {
 }
 
 pub use crate::optimized_engine::Challenges;
+
+pub const PI_CCS_PHASE_DOMAIN_LABEL: &[u8] = b"pc";
+pub const PI_CCS_HEADER_DOMAIN_LABEL: &[u8] = b"pch";
+pub const PI_CCS_VARIANT_LABEL: &[u8] = b"pcv";
+pub const PI_CCS_HEADER_WORDS_LABEL: &[u8] = b"hw";
+pub const PI_CCS_SLACK_SIGN_LABEL: &[u8] = b"ss";
+pub const PI_CCS_INSTANCES_DOMAIN_LABEL: &[u8] = b"ins";
+pub const PI_CCS_INSTANCE_FIELDS_LABEL: &[u8] = b"iv";
+pub const PI_CCS_DIMS_LABEL: &[u8] = b"d2";
+pub const PI_CCS_MAT_DIGEST_LABEL: &[u8] = b"md";
+pub const PI_CCS_HEADER_BUNDLE_LABEL: &[u8] = b"hb";
+pub const PI_CCS_INSTANCE_DIGEST_LABEL: &[u8] = b"id";
+pub const PI_CCS_HEADER_BUNDLE_RAW_TAG: u64 = 11;
+pub const PI_CCS_INSTANCE_DIGEST_RAW_TAG: u64 = 12;
+pub const PI_CCS_ME_INPUTS_DOMAIN_LABEL: &[u8] = b"mi7";
+pub const PI_CCS_ME_COUNT_LABEL: &[u8] = b"mc";
+pub const PI_CCS_ME_DIGEST_LABEL: &[u8] = b"mid";
+pub const PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG: u64 = 4;
+pub const PI_CCS_ME_COUNT_RAW_TAG: u64 = 5;
+pub const PI_CCS_ME_DIGEST_RAW_TAG: u64 = 6;
+pub const PI_CCS_POLY_DOMAIN_LABEL: &[u8] = b"py";
+pub const PI_CCS_POLY_ARITY_LABEL: &[u8] = b"pa";
+pub const PI_CCS_POLY_TERMS_LEN_LABEL: &[u8] = b"pt";
+pub const PI_CCS_POLY_COEFF_LABEL: &[u8] = b"pcf";
+pub const PI_CCS_POLY_EXPS_LABEL: &[u8] = b"pex";
+pub const PI_CCS_SUMCHECK_FE_DOMAIN_LABEL: &[u8] = b"sf";
+pub const PI_CCS_SUMCHECK_NC_DOMAIN_LABEL: &[u8] = b"sn";
+pub const PI_CCS_SUMCHECK_INITIAL_LABEL: &[u8] = b"si";
+pub const PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG: u64 = 7;
+pub const PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG: u64 = 8;
+pub const PI_CCS_SUMCHECK_INITIAL_RAW_TAG: u64 = 9;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PiCcsBindHeaderPerf {
@@ -113,61 +144,16 @@ pub fn bind_header_and_instances_with_digest(
 ) -> Result<PiCcsBindHeaderPerf, PiCcsError> {
     let mut perf = PiCcsBindHeaderPerf::default();
     let prefix_started = std::time::Instant::now();
-    tr.append_message(tr_labels::PI_CCS, b"");
-
-    let ext = params
-        .extension_check(dims.ell_max as u32, dims.d_sc as u32)
-        .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
-
-    tr.append_message(b"neo/ccs/header/v1", b"");
-    tr.append_message(b"neo/pi_ccs/variant/v1", b"SplitNcV1");
-
-    tr.append_u64s(
-        b"ccs/header",
-        &[
-            64,
-            ext.s_supported as u64,
-            params.lambda as u64,
-            dims.ell as u64,
-            dims.ell_nc as u64,
-            dims.ell_max as u64,
-            dims.d_sc as u64,
-            ext.slack_bits.unsigned_abs() as u64,
-        ],
-    );
-    tr.append_message(b"ccs/slack_sign", &[if ext.slack_bits >= 0 { 1 } else { 0 }]);
-
-    tr.append_message(b"neo/ccs/instances", b"");
-    tr.append_u64s(
-        b"dims/v2",
-        &[
-            s.n as u64,
-            s.m as u64,
-            s.t() as u64,
-            dims.ell_d as u64,
-            dims.ell_n as u64,
-            dims.ell_m as u64,
-        ],
-    );
-
-    if mat_digest.len() != 4 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "CCS matrix digest must have len 4, got {}",
-            mat_digest.len()
-        )));
-    }
-    let mat_digest_fields = [
-        F::from_u64(mat_digest[0].as_canonical_u64()),
-        F::from_u64(mat_digest[1].as_canonical_u64()),
-        F::from_u64(mat_digest[2].as_canonical_u64()),
-        F::from_u64(mat_digest[3].as_canonical_u64()),
-    ];
-    tr.append_fields(b"mat_digest", &mat_digest_fields);
+    let header_bundle = pi_ccs_header_bundle_digest_fields(params, s, dims, mat_digest)?;
+    tr.append_fields_raw(&[
+        F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG),
+        header_bundle[0],
+        header_bundle[1],
+        header_bundle[2],
+        header_bundle[3],
+    ]);
     perf.prefix_ms = prefix_started.elapsed().as_secs_f64() * 1_000.0;
-
-    let poly_started = std::time::Instant::now();
-    absorb_sparse_polynomial(tr, &s.f);
-    perf.poly_ms = poly_started.elapsed().as_secs_f64() * 1_000.0;
+    perf.poly_ms = 0.0;
 
     let public_instances_started = std::time::Instant::now();
     if !mcs_list.is_empty() {
@@ -176,7 +162,7 @@ pub fn bind_header_and_instances_with_digest(
             .map(|inst| 3 + inst.x.len() + inst.c.data.len())
             .sum::<usize>();
         tr.append_fields_iter(
-            b"mcs_instances/v2",
+            PI_CCS_INSTANCE_FIELDS_LABEL,
             encoded_len,
             core::iter::once(F::from_u64(mcs_list.len() as u64)).chain(mcs_list.iter().flat_map(|inst| {
                 core::iter::once(F::from_u64(inst.x.len() as u64))
@@ -202,64 +188,25 @@ pub fn bind_header_and_instance_digest_with_digest(
 ) -> Result<PiCcsBindHeaderPerf, PiCcsError> {
     let mut perf = PiCcsBindHeaderPerf::default();
     let prefix_started = std::time::Instant::now();
-    tr.append_message(tr_labels::PI_CCS, b"");
-
-    let ext = params
-        .extension_check(dims.ell_max as u32, dims.d_sc as u32)
-        .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
-
-    tr.append_message(b"neo/ccs/header/v1", b"");
-    tr.append_message(b"neo/pi_ccs/variant/v1", b"SplitNcV1");
-
-    tr.append_u64s(
-        b"ccs/header",
-        &[
-            64,
-            ext.s_supported as u64,
-            params.lambda as u64,
-            dims.ell as u64,
-            dims.ell_nc as u64,
-            dims.ell_max as u64,
-            dims.d_sc as u64,
-            ext.slack_bits.unsigned_abs() as u64,
-        ],
-    );
-    tr.append_message(b"ccs/slack_sign", &[if ext.slack_bits >= 0 { 1 } else { 0 }]);
-
-    tr.append_message(b"neo/ccs/instances", b"");
-    tr.append_u64s(
-        b"dims/v2",
-        &[
-            s.n as u64,
-            s.m as u64,
-            s.t() as u64,
-            dims.ell_d as u64,
-            dims.ell_n as u64,
-            dims.ell_m as u64,
-        ],
-    );
-
-    if mat_digest.len() != 4 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "CCS matrix digest must have len 4, got {}",
-            mat_digest.len()
-        )));
-    }
-    let mat_digest_fields = [
-        F::from_u64(mat_digest[0].as_canonical_u64()),
-        F::from_u64(mat_digest[1].as_canonical_u64()),
-        F::from_u64(mat_digest[2].as_canonical_u64()),
-        F::from_u64(mat_digest[3].as_canonical_u64()),
-    ];
-    tr.append_fields(b"mat_digest", &mat_digest_fields);
+    let header_bundle = pi_ccs_header_bundle_digest_fields(params, s, dims, mat_digest)?;
+    tr.append_fields_raw(&[
+        F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG),
+        header_bundle[0],
+        header_bundle[1],
+        header_bundle[2],
+        header_bundle[3],
+    ]);
     perf.prefix_ms = prefix_started.elapsed().as_secs_f64() * 1_000.0;
-
-    let poly_started = std::time::Instant::now();
-    absorb_sparse_polynomial(tr, &s.f);
-    perf.poly_ms = poly_started.elapsed().as_secs_f64() * 1_000.0;
+    perf.poly_ms = 0.0;
 
     let public_instances_started = std::time::Instant::now();
-    tr.append_fields(b"mcs_instances_digest/v1", public_instance_digest);
+    tr.append_fields_raw(&[
+        F::from_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG),
+        public_instance_digest[0],
+        public_instance_digest[1],
+        public_instance_digest[2],
+        public_instance_digest[3],
+    ]);
     perf.public_instances_ms = public_instances_started.elapsed().as_secs_f64() * 1_000.0;
 
     Ok(perf)
@@ -302,6 +249,85 @@ fn poseidon_digest_fields(input: &[F]) -> [F; 4] {
     neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(input)
 }
 
+fn digest32_bytes_to_fields(digest: [u8; 32]) -> [F; 4] {
+    [
+        F::from_u64(u64::from_le_bytes(digest[0..8].try_into().expect("digest limb 0"))),
+        F::from_u64(u64::from_le_bytes(digest[8..16].try_into().expect("digest limb 1"))),
+        F::from_u64(u64::from_le_bytes(digest[16..24].try_into().expect("digest limb 2"))),
+        F::from_u64(u64::from_le_bytes(digest[24..32].try_into().expect("digest limb 3"))),
+    ]
+}
+
+pub fn pi_ccs_header_bundle_digest_fields(
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    dims: Dims,
+    mat_digest: &[Goldilocks],
+) -> Result<[F; 4], PiCcsError> {
+    pi_ccs_header_bundle_digest_fields_from_parts(params, s.n, s.m, s.t(), &s.f, dims, mat_digest)
+}
+
+pub fn pi_ccs_header_bundle_digest_fields_from_parts(
+    params: &NeoParams,
+    n: usize,
+    m: usize,
+    t: usize,
+    poly: &SparsePoly<F>,
+    dims: Dims,
+    mat_digest: &[Goldilocks],
+) -> Result<[F; 4], PiCcsError> {
+    if mat_digest.len() != 4 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "CCS matrix digest must have len 4, got {}",
+            mat_digest.len()
+        )));
+    }
+
+    let ext = params
+        .extension_check(dims.ell_max as u32, dims.d_sc as u32)
+        .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
+
+    let mut tr = Poseidon2Transcript::new(b"neo/ccs/header_bundle/v1");
+    tr.append_message(PI_CCS_PHASE_DOMAIN_LABEL, b"");
+    tr.append_message(PI_CCS_HEADER_DOMAIN_LABEL, b"");
+    tr.append_message(PI_CCS_VARIANT_LABEL, b"SplitNcV1");
+    tr.append_u64s(
+        PI_CCS_HEADER_WORDS_LABEL,
+        &[
+            64,
+            ext.s_supported as u64,
+            params.lambda as u64,
+            dims.ell as u64,
+            dims.ell_nc as u64,
+            dims.ell_max as u64,
+            dims.d_sc as u64,
+            ext.slack_bits.unsigned_abs() as u64,
+        ],
+    );
+    tr.append_message(PI_CCS_SLACK_SIGN_LABEL, &[if ext.slack_bits >= 0 { 1 } else { 0 }]);
+    tr.append_message(PI_CCS_INSTANCES_DOMAIN_LABEL, b"");
+    tr.append_u64s(
+        PI_CCS_DIMS_LABEL,
+        &[
+            n as u64,
+            m as u64,
+            t as u64,
+            dims.ell_d as u64,
+            dims.ell_n as u64,
+            dims.ell_m as u64,
+        ],
+    );
+    let mat_digest_fields = [
+        F::from_u64(mat_digest[0].as_canonical_u64()),
+        F::from_u64(mat_digest[1].as_canonical_u64()),
+        F::from_u64(mat_digest[2].as_canonical_u64()),
+        F::from_u64(mat_digest[3].as_canonical_u64()),
+    ];
+    tr.append_fields(PI_CCS_MAT_DIGEST_LABEL, &mat_digest_fields);
+    absorb_sparse_polynomial(&mut tr, poly);
+    Ok(digest32_bytes_to_fields(tr.digest32()))
+}
+
 pub fn me_digest_poseidon_into(dst: &mut Vec<F>, me: &CeClaim<Cmt, F, K>) -> [F; 4] {
     dst.clear();
     dst.reserve(2048);
@@ -335,11 +361,14 @@ pub fn me_digest_poseidon(me: &CeClaim<Cmt, F, K>) -> [F; 4] {
 }
 
 pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F, K>]) -> Result<(), PiCcsError> {
-    // v6: bind each ME input via a compact domain-separated Poseidon2 digest, then stream the
+    // v7: bind each ME input via a compact domain-separated Poseidon2 digest, then stream the
     // fixed-width digest field limbs into the transcript in one batch.
     // Encoding update: K-coefficient width is encoded once per K-slice (not per K element).
-    tr.append_message(b"neo/ccs/me_inputs/v6", b"");
-    tr.append_u64s(b"me_count", &[me_inputs.len() as u64]);
+    tr.append_fields_raw(&[F::from_u64(PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG)]);
+    tr.append_fields_raw(&[
+        F::from_u64(PI_CCS_ME_COUNT_RAW_TAG),
+        F::from_u64(me_inputs.len() as u64),
+    ]);
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none();
@@ -356,11 +385,10 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F,
     #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
     let digests: Vec<[F; 4]> = me_inputs.iter().map(me_digest_poseidon).collect();
 
-    tr.append_fields_iter(
-        b"me_digest",
-        digests.len() * 4,
-        digests.iter().flat_map(|digest| digest.iter().copied()),
-    );
+    let mut packed = Vec::with_capacity(1 + digests.len() * 4);
+    packed.push(F::from_u64(PI_CCS_ME_DIGEST_RAW_TAG));
+    packed.extend(digests.iter().flat_map(|digest| digest.iter().copied()));
+    tr.append_fields_raw(&packed);
 
     Ok(())
 }
@@ -611,26 +639,18 @@ where
 
 /// Sample challenges α, β, γ from transcript
 pub fn sample_challenges(tr: &mut Poseidon2Transcript, ell_d: usize, ell: usize) -> Result<Challenges, PiCcsError> {
-    tr.append_message(b"neo/ccs/chals/v1", b"");
+    tr.append_fields_raw(&[F::from_u64(2)]);
 
-    let alpha: Vec<K> = (0..ell_d)
-        .map(|_| {
-            let c = tr.challenge_fields(b"chal/k", 2);
-            neo_math::from_complex(c[0], c[1])
-        })
-        .collect();
-
-    let beta: Vec<K> = (0..ell)
-        .map(|_| {
-            let c = tr.challenge_fields(b"chal/k", 2);
-            neo_math::from_complex(c[0], c[1])
-        })
-        .collect();
-
+    let alpha_beta_gamma = sample_k_batch(tr, ell_d + ell + 1);
+    if alpha_beta_gamma.len() != ell_d + ell + 1 {
+        return Err(PiCcsError::ProtocolError(
+            "alpha/beta/gamma challenge batch length mismatch".into(),
+        ));
+    }
+    let alpha = alpha_beta_gamma[..ell_d].to_vec();
+    let beta = &alpha_beta_gamma[ell_d..ell_d + ell];
     let (beta_a, beta_r) = beta.split_at(ell_d);
-
-    let g = tr.challenge_fields(b"chal/k", 2);
-    let gamma = neo_math::from_complex(g[0], g[1]);
+    let gamma = alpha_beta_gamma[ell_d + ell];
 
     Ok(Challenges {
         alpha,
@@ -643,16 +663,19 @@ pub fn sample_challenges(tr: &mut Poseidon2Transcript, ell_d: usize, ell: usize)
 
 /// Sample the column-domain β_m ∈ K^{log m} for the split-NC variant.
 pub fn sample_beta_m(tr: &mut Poseidon2Transcript, ell_m: usize) -> Result<Vec<K>, PiCcsError> {
-    tr.append_message(b"neo/ccs/chals/nc_beta_m/v1", b"");
+    tr.append_fields_raw(&[F::from_u64(3)]);
+    Ok(sample_k_batch(tr, ell_m))
+}
 
-    let beta_m: Vec<K> = (0..ell_m)
-        .map(|_| {
-            let c = tr.challenge_fields(b"chal/k", 2);
-            neo_math::from_complex(c[0], c[1])
-        })
-        .collect();
-
-    Ok(beta_m)
+fn sample_k_batch(tr: &mut Poseidon2Transcript, count: usize) -> Vec<K> {
+    if count == 0 {
+        return Vec::new();
+    }
+    let fields = tr.challenge_fields_raw(count.saturating_mul(2));
+    fields
+        .chunks_exact(2)
+        .map(|pair| neo_math::from_complex(pair[0], pair[1]))
+        .collect()
 }
 
 pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<Goldilocks> {
@@ -869,16 +892,16 @@ pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64>(
 }
 
 fn absorb_sparse_polynomial(tr: &mut Poseidon2Transcript, f: &SparsePoly<F>) {
-    tr.append_message(b"neo/ccs/poly", b"");
-    tr.append_u64s(b"arity", &[f.arity() as u64]);
-    tr.append_u64s(b"terms_len", &[f.terms().len() as u64]);
+    tr.append_message(PI_CCS_POLY_DOMAIN_LABEL, b"");
+    tr.append_u64s(PI_CCS_POLY_ARITY_LABEL, &[f.arity() as u64]);
+    tr.append_u64s(PI_CCS_POLY_TERMS_LEN_LABEL, &[f.terms().len() as u64]);
 
     let mut terms: Vec<_> = f.terms().iter().collect();
     terms.sort_by_key(|term| &term.exps);
 
     for term in terms {
-        tr.append_fields(b"coeff", &[term.coeff]);
+        tr.append_fields(PI_CCS_POLY_COEFF_LABEL, &[term.coeff]);
         let exps: Vec<u64> = term.exps.iter().map(|&e| e as u64).collect();
-        tr.append_u64s(b"exps", &exps);
+        tr.append_u64s(PI_CCS_POLY_EXPS_LABEL, &exps);
     }
 }

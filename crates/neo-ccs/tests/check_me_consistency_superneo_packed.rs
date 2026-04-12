@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 
 use neo_ccs::{
-    poly::SparsePoly, poly::Term, relations::check_ce_consistency, traits::SModuleHomomorphism, CcsStructure, CeClaim,
-    CeWitness, Mat,
+    poly::SparsePoly, poly::Term, relations::check_ce_consistency, traits::SModuleHomomorphism, utils::tensor_point,
+    CcsStructure, CeClaim, CeWitness, Mat,
 };
 use neo_math::ring::D;
 use neo_math::K;
@@ -65,10 +65,18 @@ fn me_consistency_superneo_packed_enforces_constant_term_ct() {
     // n=1 => ell_n=0 => r is empty and rb=[1].
     let r: Vec<K> = vec![];
 
-    // For this shape and M=[1..1], y_ring[0][rho] = Z[rho,0].
+    let rb = tensor_point::<K>(&r);
+    let mut v_k_m = vec![K::ZERO; s.m];
+    s.matrices[0].add_mul_transpose_into(&rb, &mut v_k_m, s.n);
     let mut y0 = vec![K::ZERO; D];
     for rho in 0..D {
-        y0[rho] = K::from(Z[(rho, 0)]);
+        let mut acc = K::ZERO;
+        for c in 0..m {
+            if c % D == rho {
+                acc += K::from(Z[(rho, c / D)]) * v_k_m[c];
+            }
+        }
+        y0[rho] = acc;
     }
 
     let inst = CeClaim::<_, Fq, K> {

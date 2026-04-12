@@ -20,7 +20,9 @@ use neo_reductions::error::PiCcsError;
 use neo_reductions::optimized_engine::{
     optimized_prove_with_cache_and_instance_digest_and_perf,
     optimized_replay_outputs_with_cache_and_instance_digest_and_perf,
+    optimized_replay_trace_with_cache_and_instance_digest_and_perf,
     optimized_replay_witness_with_cache_and_instance_digest_and_perf, OptimizedStructureCache, PiCcsReplayProofWitness,
+    PiCcsReplayTerminalState,
 };
 use neo_reductions::pi_rlc_dec::OptimizedRlcDec;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -34,6 +36,9 @@ use crate::proof::{
     Carry, ChunkInput, ChunkProof, ChunkProvePerf, ChunkResult, PiDecArtifact, PiRlcArtifact, ProverChunkInput,
     PublicChunk,
 };
+
+const CHUNK_META_RAW_TAG: u64 = 14;
+const STEP_INDEX_RAW_TAG: u64 = 15;
 
 #[derive(Clone, Copy)]
 pub struct CommitmentMixers<MR, MB>
@@ -60,6 +65,15 @@ pub struct ChunkRelationResult {
 pub struct ChunkReplayWitness {
     pub ccs_outputs: Vec<CeClaim<Commitment, F, K>>,
     pub ccs_replay_proof: PiCcsReplayProofWitness,
+}
+
+pub(crate) struct ChunkReplayTrace {
+    pub ccs_outputs: Vec<CeClaim<Commitment, F, K>>,
+    pub ccs_replay_proof: PiCcsReplayProofWitness,
+    pub terminal_state: PiCcsReplayTerminalState,
+    pub parent: CeClaim<Commitment, F, K>,
+    pub children: Vec<CeClaim<Commitment, F, K>>,
+    pub z_split: Vec<Mat<F>>,
 }
 
 struct ChunkPreparedInputs {
@@ -296,6 +310,75 @@ where
         0.0,
     )?;
     transition.into_relation_result()
+}
+
+pub(crate) fn trace_chunk_relation_with_witness_and_instance_digest<L, MR, MB>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    chunk: &ChunkInput,
+    incoming_main: &Carry,
+    replay_witness: &ChunkReplayWitness,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+    optimized_cache: &OptimizedStructureCache,
+    public_chunk_instance_digest: [F; 4],
+) -> Result<ChunkReplayTrace, PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    let prepared = prepare_chunk_ccs_inputs(tr, chunk, incoming_main, Some(public_chunk_instance_digest))?;
+    let (terminal_state, derived_replay_proof) = optimized_replay_trace_with_cache_and_instance_digest_and_perf(
+        tr,
+        params,
+        s,
+        &prepared.fresh_claims,
+        &prepared.fresh_witnesses,
+        &incoming_main.claims,
+        &incoming_main.witnesses,
+        prepared.public_chunk_digest,
+        log,
+        optimized_cache,
+    )?;
+    if terminal_state.me_outputs != replay_witness.ccs_outputs {
+        return Err(PiCcsError::ProtocolError(
+            "optimized replay outputs do not match the carried chunk replay witness outputs".into(),
+        ));
+    }
+    if derived_replay_proof != replay_witness.ccs_replay_proof {
+        return Err(PiCcsError::ProtocolError(
+            "optimized replay proof rounds do not match the carried chunk replay witness".into(),
+        ));
+    }
+    let (transition, _perf) = finish_chunk_transition_with_perf(
+        Instant::now(),
+        FoldingMode::Optimized,
+        tr,
+        params,
+        s,
+        prepared.start_index,
+        prepared.fresh_step_count,
+        incoming_main,
+        log,
+        mixers,
+        Some(optimized_cache),
+        prepared.prepare_inputs_ms,
+        &prepared.fresh_witnesses,
+        terminal_state.me_outputs.clone(),
+        terminal_state.fold_digest,
+        terminal_state.perf,
+        terminal_state.perf.total_ms,
+    )?;
+    Ok(ChunkReplayTrace {
+        ccs_outputs: transition.ccs_outputs,
+        ccs_replay_proof: replay_witness.ccs_replay_proof.clone(),
+        terminal_state,
+        parent: transition.parent,
+        children: transition.children,
+        z_split: transition.z_split,
+    })
 }
 
 pub fn replay_chunk_relation_with_perf<L, MR, MB>(
@@ -797,14 +880,15 @@ fn append_chunk_transcript(tr: &mut Poseidon2Transcript, chunk: &ChunkInput) {
 
 fn append_public_chunk_transcript(tr: &mut Poseidon2Transcript, chunk: &PublicChunk) {
     if chunk.steps.len() == 1 {
-        tr.append_u64s(b"neo.fold.next/step_index", &[chunk.start_index as u64]);
+        tr.append_fields_raw(&[F::from_u64(STEP_INDEX_RAW_TAG), F::from_u64(chunk.start_index as u64)]);
         return;
     }
 
-    tr.append_u64s(
-        b"neo.fold.next/chunk_meta",
-        &[chunk.start_index as u64, chunk.steps.len() as u64],
-    );
+    tr.append_fields_raw(&[
+        F::from_u64(CHUNK_META_RAW_TAG),
+        F::from_u64(chunk.start_index as u64),
+        F::from_u64(chunk.steps.len() as u64),
+    ]);
 }
 
 fn validate_main_carry(context: &str, carry: &Carry) -> Result<(), PiCcsError> {

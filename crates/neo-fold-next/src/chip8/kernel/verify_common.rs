@@ -1,7 +1,7 @@
 //! Owns shared verifier-side equality checks, sumcheck replay, and opening-manifest validation.
 
 use neo_math::{from_complex, KExtensions, K};
-use neo_reductions::sumcheck::verify_sumcheck_rounds;
+use neo_reductions::sumcheck::{verify_sumcheck_rounds, SUMCHECK_CHALLENGE_LABEL, SUMCHECK_ROUND_COEFF_LABEL};
 use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
 
@@ -21,9 +21,8 @@ pub(crate) fn expect_digest32(actual: [u8; 32], expected: [u8; 32], label: &str)
 }
 
 pub(crate) fn sample_sumcheck_challenge<Tr: Transcript>(transcript: &mut Tr) -> K {
-    let c0 = transcript.challenge_field(b"sumcheck/challenge/0");
-    let c1 = transcript.challenge_field(b"sumcheck/challenge/1");
-    from_complex(c0, c1)
+    let pair = transcript.challenge_fields(SUMCHECK_CHALLENGE_LABEL, 2);
+    from_complex(pair[0], pair[1])
 }
 
 pub(crate) fn replay_sumcheck_unchecked<Tr: Transcript>(
@@ -39,9 +38,11 @@ pub(crate) fn replay_sumcheck_unchecked<Tr: Transcript>(
                 "{label} round {round_idx} exceeds degree bound {degree_bound}"
             )));
         }
+        let mut packed = Vec::with_capacity(round.len() * 2);
         for coeff in round {
-            transcript.append_fields(b"sumcheck/round/coeff", &coeff.as_coeffs());
+            packed.extend(coeff.as_coeffs());
         }
+        transcript.append_fields(SUMCHECK_ROUND_COEFF_LABEL, &packed);
         challenges.push(sample_sumcheck_challenge(transcript));
     }
     Ok(challenges)

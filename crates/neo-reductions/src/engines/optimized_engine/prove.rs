@@ -201,6 +201,37 @@ pub fn optimized_replay_terminal_state_with_cache_and_perf<L: neo_ccs::traits::S
     Ok(terminal_state)
 }
 
+pub fn optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<PiCcsReplayTerminalState, PiCcsError> {
+    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        ReplayTraceMode::TerminalState,
+    )?;
+    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
+    Ok(terminal_state)
+}
+
 pub fn optimized_replay_outputs_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -339,6 +370,45 @@ pub fn optimized_replay_witness_with_cache_and_instance_digest_and_perf<
     })
 }
 
+pub fn optimized_replay_trace_with_cache_and_instance_digest_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<(PiCcsReplayTerminalState, PiCcsReplayProofWitness), PiCcsError> {
+    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        ReplayTraceMode::Prove,
+    )?;
+    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
+    let rounds = rounds.expect("optimized replay trace must capture proof rounds");
+    Ok((
+        terminal_state.clone(),
+        PiCcsReplayProofWitness {
+            sumcheck_rounds: rounds.sumcheck_rounds,
+            sumcheck_rounds_nc: rounds.sumcheck_rounds_nc,
+            header_digest: terminal_state.fold_digest,
+        },
+    ))
+}
+
 fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -463,8 +533,10 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     // ---------------------------------------------------------------------
     // FE sumcheck channel (SplitNcV1).
     // ---------------------------------------------------------------------
-    tr.append_message(b"sumcheck/fe", b"");
-    tr.append_fields(b"sumcheck/initial_sum", &initial_sum.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&initial_sum.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
 
     let mut running_sum = initial_sum;
     let mut sumcheck_rounds = mode
@@ -514,8 +586,9 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ZERO), ys[0]);
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ONE), ys[1]);
 
-        crate::sumcheck::append_round_coeffs(tr, &coeffs);
-        let c = tr.challenge_fields(b"sumcheck/challenge", 2);
+        let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
+        tr.append_fields_raw(&coeff_fields);
+        let c = tr.challenge_fields_raw(2);
         let r_i = neo_math::from_complex(c[0], c[1]);
         sumcheck_chals.push(r_i);
 
@@ -543,9 +616,11 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         dims.d_sc,
     );
 
-    tr.append_message(b"sumcheck/nc", b"");
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
     let initial_sum_nc = K::ZERO;
-    tr.append_fields(b"sumcheck/initial_sum", &initial_sum_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&initial_sum_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
 
     let mut running_sum_nc = initial_sum_nc;
     let mut sumcheck_rounds_nc = mode
@@ -572,8 +647,9 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
             ));
         }
 
-        crate::sumcheck::append_round_coeffs(tr, &coeffs);
-        let c = tr.challenge_fields(b"sumcheck/challenge", 2);
+        let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
+        tr.append_fields_raw(&coeff_fields);
+        let c = tr.challenge_fields_raw(2);
         let r_i = neo_math::from_complex(c[0], c[1]);
         sumcheck_chals_nc.push(r_i);
 

@@ -5,6 +5,11 @@ use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
+pub const SUMCHECK_ROUND_COEFF_LABEL: &[u8] = b"sc/c";
+pub const SUMCHECK_CHALLENGE_LABEL: &[u8] = b"sc/q";
+pub const SUMCHECK_TRANSCRIPT_V3_LABEL: &[u8] = b"sc/v3";
+pub const SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG: u64 = 10;
+
 /// Format K value compactly for logging
 #[cfg(feature = "debug-logs")]
 fn format_k(k: &K) -> String {
@@ -15,6 +20,12 @@ fn format_k(k: &K) -> String {
 
 #[inline]
 pub fn append_round_coeffs<Tr: Transcript>(tr: &mut Tr, coeffs: &[K]) {
+    let packed = round_coeff_fields(coeffs);
+    tr.append_fields(SUMCHECK_ROUND_COEFF_LABEL, packed.as_slice());
+}
+
+#[inline]
+pub fn round_coeff_fields(coeffs: &[K]) -> Vec<Fq> {
     let coeff_width = coeffs.first().map(|c| c.as_coeffs().len()).unwrap_or(0);
     let mut packed = Vec::with_capacity(coeffs.len() * coeff_width);
     for coeff in coeffs {
@@ -26,7 +37,7 @@ pub fn append_round_coeffs<Tr: Transcript>(tr: &mut Tr, coeffs: &[K]) {
         );
         packed.extend(parts.iter().copied());
     }
-    tr.append_fields(b"sumcheck/round/coeff", packed.as_slice());
+    packed
 }
 
 /// Trait for round oracles in the sumcheck protocol
@@ -311,7 +322,7 @@ pub fn run_sumcheck_prover<O: RoundOracle, Tr: Transcript>(
         append_round_coeffs(tr, &coeffs);
 
         // Sample challenge as an extension-field element
-        let c = tr.challenge_fields(b"sumcheck/challenge", 2);
+        let c = tr.challenge_fields(SUMCHECK_CHALLENGE_LABEL, 2);
         let challenge = from_complex(c[0], c[1]);
         challenges.push(challenge);
 
@@ -398,7 +409,7 @@ pub fn verify_sumcheck_rounds<Tr: Transcript>(
 
         // Sample challenge for this round: extension field element
         // Sample 2 base field elements and combine them
-        let c = tr.challenge_fields(b"sumcheck/challenge", 2);
+        let c = tr.challenge_fields(SUMCHECK_CHALLENGE_LABEL, 2);
         let challenge = neo_math::from_complex(c[0], c[1]);
         challenges.push(challenge);
 
@@ -410,6 +421,40 @@ pub fn verify_sumcheck_rounds<Tr: Transcript>(
             eprintln!("  challenge={}", format_k(&challenge));
             eprintln!("  new_running_sum={}", format_k(&running_sum));
         }
+    }
+
+    (challenges, running_sum, true)
+}
+
+/// Verify sumcheck rounds against a Poseidon2 transcript using the compact v3
+/// inner encoding: one version marker per channel, then raw round coeff absorbs
+/// and raw field squeezes for challenges.
+pub fn verify_sumcheck_rounds_poseidon_v3(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    degree_bound: usize,
+    initial_sum: K,
+    rounds: &[Vec<K>],
+) -> (Vec<K>, K, bool) {
+    let mut challenges = Vec::with_capacity(rounds.len());
+    let mut running_sum = initial_sum;
+
+    for round_poly in rounds {
+        if round_poly.len() > degree_bound + 1 {
+            return (challenges, running_sum, false);
+        }
+
+        let eval_0 = poly_eval_k(round_poly, K::ZERO);
+        let eval_1 = poly_eval_k(round_poly, K::ONE);
+        if eval_0 + eval_1 != running_sum {
+            return (challenges, running_sum, false);
+        }
+
+        let packed = round_coeff_fields(round_poly);
+        tr.append_fields_raw(packed.as_slice());
+        let c = tr.challenge_fields_raw(2);
+        let challenge = neo_math::from_complex(c[0], c[1]);
+        challenges.push(challenge);
+        running_sum = poly_eval_k(round_poly, challenge);
     }
 
     (challenges, running_sum, true)

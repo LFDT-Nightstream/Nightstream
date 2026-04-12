@@ -116,15 +116,15 @@ pub use opening_claim_reduction::{
     verify_claim_reduction_results_with_binding_surface, ClaimReductionBucket, ClaimReductionError,
     ClaimReductionProof, ClaimReductionResult, QuadraticRoundPoly,
 };
+pub(crate) use opening_eval_claim_witness::{
+    build_commitment_vector, build_rv64im_eval_claim_bundle_from_claim_witnesses_trusted_local,
+    build_rv64im_eval_claim_witnesses_from_accepted_artifact_with_perf, phase0_binding_digest,
+};
 pub use opening_eval_claim_witness::{
     build_rv64im_eval_claim_bundle_from_accepted_artifact, build_rv64im_eval_claim_bundle_from_claim_witnesses,
     build_rv64im_eval_claim_witnesses_from_accepted_artifact, build_stage1_claim_witnesses,
     build_stage2_claim_witnesses, build_stage3_claim_witness, verify_rv64im_eval_claim_bundle_from_accepted_artifact,
     FamilyEvalClaimWitness, OpenedAjtaiObjectWitness, PackedColumnOracleRef, RealAjtaiCommitmentVector,
-};
-pub(crate) use opening_eval_claim_witness::{
-    build_rv64im_eval_claim_bundle_from_claim_witnesses_trusted_local,
-    build_rv64im_eval_claim_witnesses_from_accepted_artifact_with_perf, phase0_binding_digest,
 };
 pub use opening_eval_claims::{
     phase0_family_order, CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalPayload,
@@ -154,7 +154,7 @@ pub use opening_payload_semantics::{
 pub use opening_phase0_binding_surface::{
     build_rv64im_phase0_binding_surface_from_accepted_artifact, Rv64imPhase0BindingSurface, Rv64imPhase0BindingTarget,
 };
-pub use opening_point_derivation::{derive_phase0_point, derive_phase0_point_from_seed, phase0_point_seed};
+pub use opening_point_derivation::derive_phase0_point;
 pub use opening_verify::verify_rv64im_opening_bundle_from_accepted_artifact;
 pub use perf_diagnostics::{
     ExactStageVectorBuildPerf, KernelOpeningBundleBuildPerf, KernelOpeningBundleVerifyPerf, PackagedOpeningBuildPerf,

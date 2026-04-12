@@ -222,24 +222,24 @@ pub fn twist_link_word_width() -> usize {
     .len()
 }
 
-fn register_read_timeline_words(event: &RegisterReadEvent) -> [u64; 9] {
+pub(crate) fn register_read_timeline_words(event: &RegisterReadEvent) -> [u64; 9] {
     let words = register_read_words(event);
     [1u64, words[0], words[1], words[2], words[3], words[4], 0u64, 0u64, 0u64]
 }
 
-fn register_write_timeline_words(event: &RegisterWriteEvent) -> [u64; 9] {
+pub(crate) fn register_write_timeline_words(event: &RegisterWriteEvent) -> [u64; 9] {
     let words = register_write_words(event);
     [0u64, 1u64, words[0], words[1], words[2], words[3], words[4], 0u64, 0u64]
 }
 
-fn ram_timeline_words(event: &RamEvent) -> [u64; 10] {
+pub(crate) fn ram_timeline_words(event: &RamEvent) -> [u64; 10] {
     let words = ram_event_words(event);
     [
         0u64, 0u64, 1u64, words[0], words[1], words[2], words[3], words[4], words[5], 0u64,
     ]
 }
 
-fn twist_link_timeline_words(event: &TwistLinkEvent) -> [u64; 10] {
+pub(crate) fn twist_link_timeline_words(event: &TwistLinkEvent) -> [u64; 10] {
     let words = twist_link_words(event);
     [
         0u64, 0u64, 0u64, 1u64, words[0], words[1], words[2], words[3], words[4], words[5],

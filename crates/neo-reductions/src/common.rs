@@ -625,13 +625,7 @@ pub fn rot_rhos_to_mats(rhos: &[RotRho]) -> Vec<Mat<F>> {
 /// Uses 16-bit chunks from the transcript digest to achieve unbiased sampling:
 /// - Accept chunk if it falls in [0, largest_multiple_of_|alphabet|)
 /// - Reject and retry otherwise
-fn draw_alphabet_vector(
-    tr: &mut Poseidon2Transcript,
-    need: usize,
-    alphabet: &[i8],
-    label: &'static [u8],
-    seed: u64,
-) -> Vec<i8> {
+fn draw_alphabet_vector(tr: &mut Poseidon2Transcript, need: usize, alphabet: &[i8], seed: u64) -> Vec<i8> {
     let m = alphabet.len() as u32;
     let bucket = (1u32 << 16) / m * m; // Largest multiple of m below 2^16
 
@@ -639,7 +633,7 @@ fn draw_alphabet_vector(
     let mut ctr = seed;
 
     while out.len() < need {
-        tr.append_message(label, &ctr.to_le_bytes());
+        tr.append_fields_raw(&[F::from_u64(1), F::from_u64(ctr)]);
         let dig = tr.digest32();
 
         for w in dig.chunks_exact(2) {
@@ -757,10 +751,10 @@ pub fn sample_rot_rhos_n(
 
     for i in 0..count {
         // Domain-separate each ρ_i
-        tr.append_message(b"rlc/rot/index", &(i as u64).to_le_bytes());
+        tr.append_fields_raw(&[F::from_u64(0), F::from_u64(i as u64)]);
 
         // Draw D coefficients from the small alphabet (unbiased rejection sampling)
-        let coeffs_i8 = draw_alphabet_vector(tr, D, ring.alphabet, b"rlc/rot/chunk", i as u64);
+        let coeffs_i8 = draw_alphabet_vector(tr, D, ring.alphabet, i as u64);
 
         // Lift to field F
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();

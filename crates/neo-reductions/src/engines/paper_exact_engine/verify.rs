@@ -13,7 +13,6 @@ use neo_math::KExtensions;
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
-use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 /// Paper-exact verify implementation.
@@ -79,10 +78,12 @@ pub fn paper_exact_verify(
         )));
     }
 
-    tr.append_message(b"sumcheck/fe", b"");
-    tr.append_fields(b"sumcheck/initial_sum", &claimed_initial.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&claimed_initial.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
     let (r_all, running_sum, ok) =
-        crate::sumcheck::verify_sumcheck_rounds(tr, dims.d_sc, claimed_initial, &proof.sumcheck_rounds);
+        crate::sumcheck::verify_sumcheck_rounds_poseidon_v3(tr, dims.d_sc, claimed_initial, &proof.sumcheck_rounds);
     if !ok {
         return Err(PiCcsError::SumcheckError("rounds invalid".into()));
     }
@@ -95,11 +96,13 @@ pub fn paper_exact_verify(
     }
     let (r_prime, alpha_prime) = r_all.split_at(dims.ell_n);
 
-    tr.append_message(b"sumcheck/nc", b"");
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
     let claimed_nc = K::ZERO;
-    tr.append_fields(b"sumcheck/initial_sum", &claimed_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&claimed_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
     let (r_all_nc, running_sum_nc, ok_nc) =
-        crate::sumcheck::verify_sumcheck_rounds(tr, dims.d_sc, claimed_nc, &proof.sumcheck_rounds_nc);
+        crate::sumcheck::verify_sumcheck_rounds_poseidon_v3(tr, dims.d_sc, claimed_nc, &proof.sumcheck_rounds_nc);
     if !ok_nc {
         return Err(PiCcsError::SumcheckError("NC rounds invalid".into()));
     }

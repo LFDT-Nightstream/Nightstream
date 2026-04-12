@@ -5,8 +5,9 @@ use crate::rv64im::final_relation::{Rv64imFinalProof, Rv64imFinalProofComponentD
 use crate::rv64im::kernel::{Rv64imKernelExportRelationResult, Rv64imProof, SimpleKernelError};
 use crate::rv64im::main_relation::{
     build_rv64im_main_relation, build_rv64im_main_relation_backend_relation_from_artifact,
-    build_rv64im_main_relation_backend_relation_from_verified_artifact_with_component_digests,
-    build_rv64im_main_relation_from_final, build_rv64im_main_relation_from_verified_final_with_component_digests,
+    build_rv64im_main_relation_backend_relation_from_final_surface,
+    build_rv64im_main_relation_backend_relation_from_verified_final_with_component_digests,
+    build_rv64im_main_relation_from_final,
 };
 
 pub type Rv64imDeciderRelation = Spartan2DeciderRelation;
@@ -41,20 +42,22 @@ pub fn build_rv64im_decider_relation_from_final(
     build_rv64im_main_relation_backend_relation_from_artifact(&main_relation)
 }
 
+pub fn build_rv64im_decider_relation_from_final_surface(
+    statement: &Rv64imFinalStatement,
+    proof: &Rv64imFinalProof,
+) -> Result<Rv64imDeciderRelation, SimpleKernelError> {
+    build_rv64im_main_relation_backend_relation_from_final_surface(statement, proof)
+}
+
 pub(crate) fn build_rv64im_decider_relation_from_verified_final_with_component_digests(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalProof,
     verified_kernel: &Rv64imKernelExportRelationResult,
     component_digests: &Rv64imFinalProofComponentDigests,
 ) -> Result<Rv64imDeciderRelation, SimpleKernelError> {
-    let main_relation = build_rv64im_main_relation_from_verified_final_with_component_digests(
+    build_rv64im_main_relation_backend_relation_from_verified_final_with_component_digests(
         statement,
         proof,
-        verified_kernel,
-        component_digests,
-    )?;
-    build_rv64im_main_relation_backend_relation_from_verified_artifact_with_component_digests(
-        &main_relation,
         verified_kernel,
         component_digests,
     )

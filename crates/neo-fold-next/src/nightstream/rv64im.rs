@@ -1,20 +1,29 @@
 //! Owns the RV64IM published Nightstream proof boundary above the current final/decider seam.
 
+mod authoritative_side;
 mod build_perf;
 mod compact_surfaces;
-mod hybrid_side_bridge_contract;
-mod hybrid_side_bridge_decider;
 mod opening_artifact;
 mod side_bridges;
 mod side_claim_relation;
 mod side_eval_claim_relation;
 mod side_opening_relation;
+mod side_relation;
+mod side_relation_circuit;
+mod side_relation_spartan;
 mod verify_perf;
 mod witness_backed_side_bridge;
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 
+pub use self::authoritative_side::{
+    build_rv64im_authoritative_side_public_instance, build_rv64im_authoritative_side_statement,
+    build_rv64im_side_proof_container, build_rv64im_side_proof_container_from_accepted_artifact,
+    verify_rv64im_side_proof_container, Rv64imAuthoritativeSidePublicInstance, Rv64imAuthoritativeSideStatement,
+    Rv64imEvalPublic, Rv64imOpenedObjectPublic, Rv64imSideProofContainer, Rv64imSideSurfacePublic,
+    Rv64imSideSurfaceTarget,
+};
 pub use self::build_perf::{
     build_rv64im_nightstream_from_public_proof_with_perf, build_rv64im_nightstream_from_published_proof_seam_with_perf,
     Rv64imNightstreamBuildPerf, Rv64imNightstreamVerifiedSeamsBuildPerf,
@@ -24,7 +33,6 @@ use self::compact_surfaces::{
     kernel_opening_bundle_digest_from_surfaces, kernel_opening_proof_bundle_digest_from_surfaces,
     packaged_claim_proof_digest_from_surfaces, stage_package_proof_bundle_digest_from_surfaces,
 };
-pub use self::hybrid_side_bridge_decider::{Rv64imHybridSideBridgeArtifact, Rv64imHybridSideBridgeCompiledProof};
 pub use self::opening_artifact::Rv64imOpeningArtifact;
 use self::side_bridges::{
     build_rv64im_kernel_claim_bridge_from_accepted_artifact,
@@ -38,12 +46,16 @@ pub use self::side_bridges::{
     Rv64imKernelClaimBridge, Rv64imKernelClaimProofBridge, Rv64imKernelExportSourceBridge, Rv64imKernelOpeningBridge,
     Rv64imPreparedStepBindingSummaryBridge, Rv64imSideProofBundle, Rv64imStageClaimProofBridge,
 };
+pub use self::side_relation_spartan::{
+    build_rv64im_side_spartan_from_accepted_artifact, debug_check_rv64im_side_spartan_circuit,
+    measure_rv64im_side_spartan_circuit_constraints, prove_rv64im_side_spartan, setup_rv64im_side_spartan,
+    setup_rv64im_side_spartan_cached, setup_rv64im_side_spartan_from_accepted_artifact, verify_rv64im_side_spartan,
+    Rv64imSideSpartanProof, Rv64imSideSpartanProverKey, Rv64imSideSpartanVerifierKey,
+};
 pub use self::verify_perf::{verify_rv64im_nightstream_with_perf, Rv64imNightstreamVerifyPerf};
+pub use self::witness_backed_side_bridge::Rv64imWitnessBackedSideBridgeStatement;
 
 pub mod audit {
-    pub use super::hybrid_side_bridge_decider::{
-        build_rv64im_hybrid_side_bridge_target_from_artifact, verify_rv64im_hybrid_side_bridge_artifact,
-    };
     pub use super::opening_artifact::{
         build_rv64im_opening_artifact_from_accepted_artifact, verify_rv64im_opening_artifact_from_accepted_artifact,
         verify_rv64im_opening_artifact_from_side_proof_bundle,
@@ -68,9 +80,33 @@ pub mod audit {
         build_rv64im_side_opening_relation_witness_from_accepted_artifact, verify_rv64im_side_opening_relation,
         Rv64imSideOpeningRelationStatement, Rv64imSideOpeningRelationWitness,
     };
-    pub use super::witness_backed_side_bridge::{
-        Rv64imWitnessBackedSideBridgeArtifact, Rv64imWitnessBackedSideBridgeStatement,
-        Rv64imWitnessBackedSideBridgeWitness,
+    pub use super::side_relation::{
+        build_rv64im_direct_side_relation_from_accepted_artifact,
+        build_rv64im_direct_side_relation_witness_from_accepted_artifact, verify_rv64im_direct_side_relation,
+        Rv64imDirectSideRelationWitness,
+    };
+    pub use super::side_relation_circuit::digests::{
+        continuity_event_digest as circuit_continuity_event_digest, digest_u64_words as circuit_digest_u64_words,
+        kernel_binding_opening_packaged_statement_digest as circuit_kernel_binding_opening_packaged_statement_digest,
+        kernel_prepared_step_opening_packaged_statement_digest as circuit_kernel_prepared_step_opening_packaged_statement_digest,
+        ram_event_digest as circuit_ram_event_digest, register_read_event_digest as circuit_register_read_event_digest,
+        register_write_event_digest as circuit_register_write_event_digest,
+        single_step_packaged_statement_digest as circuit_single_step_packaged_statement_digest,
+        stage1_opening_packaged_statement_digest as circuit_stage1_opening_packaged_statement_digest,
+        stage1_row_digest as circuit_stage1_row_digest,
+        stage2_opening_packaged_statement_digest as circuit_stage2_opening_packaged_statement_digest,
+        stage3_opening_packaged_statement_digest as circuit_stage3_opening_packaged_statement_digest,
+        twist_link_event_digest as circuit_twist_link_event_digest,
+    };
+    pub use super::side_relation_circuit::exact_package::{
+        exact_vector_packaged_step_digest_from_native_words as circuit_exact_vector_packaged_step_digest_from_native_words,
+        exact_vector_packaged_step_digest_from_words as circuit_exact_vector_packaged_step_digest_from_words,
+    };
+    pub use super::side_relation_circuit::phase0::{
+        derive_phase0_point as circuit_derive_phase0_point,
+        enforce_commitment_root_and_opened_object_digest as circuit_enforce_phase0_commitment_root_and_opened_object_digest,
+        enforce_payload_eq as circuit_enforce_phase0_payload_eq, enforce_point_eq as circuit_enforce_phase0_point_eq,
+        evaluate_payload_from_packed_rows as circuit_evaluate_phase0_payload_from_packed_rows,
     };
     pub use super::{
         build_rv64im_kernel_opening_claim_from_side_proof_bundle,
@@ -78,12 +114,10 @@ pub mod audit {
         verify_rv64im_side_proof_bundle_from_accepted_artifact,
     };
 }
-use crate::decider::spartan2::{Spartan2DeciderProof, Spartan2DeciderTarget, Spartan2DeciderVerifierKey};
 use crate::finalize::fixed_shape_chunk_coverage_terminal_index;
 use crate::nightstream::{nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement};
-use crate::rv64im::decider::build_rv64im_spartan2_decider_target;
 use crate::rv64im::decider_relation::{
-    build_rv64im_decider_relation_from_final, validate_rv64im_decider_relation_surface, Rv64imDeciderRelation,
+    build_rv64im_decider_relation_from_final_surface, validate_rv64im_decider_relation_surface, Rv64imDeciderRelation,
 };
 use crate::rv64im::final_relation::{
     verify_rv64im_final_statement_with_output, Rv64imFinalProof, Rv64imFinalStatement,
@@ -98,6 +132,7 @@ use crate::rv64im::kernel::{
     Stage3CanonicalContinuityBundle, Stage3ClaimSurface, StageDigestCommitment, TranscriptArtifactSurface,
     TranscriptClaimSurface,
 };
+use crate::rv64im::{Rv64imSpartan2DeciderProof, Rv64imSpartan2DeciderVerifierKey};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imLinkageClaims {
@@ -108,7 +143,7 @@ pub struct Rv64imLinkageClaims {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imMainDeciderProof {
-    pub decider_target_digest: [u8; 32],
+    pub spartan_proof: Rv64imSpartan2DeciderProof,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,6 +151,13 @@ pub struct Rv64imMainResidualProof {
     pub public_statement_digest: [u8; 32],
     pub decider_relation: Rv64imDeciderRelation,
     pub bridge_handoff_digests: Vec<[u8; 32]>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv64imSideDeciderProof {
+    pub public_instance_digest: [u8; 32],
+    pub proof_container: Rv64imSideProofContainer,
+    pub spartan_proof: Rv64imSideSpartanProof,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,7 +169,7 @@ pub struct Rv64imLinkageArtifact {
 pub struct Rv64imNightstreamProof {
     pub main_decider_proof: Rv64imMainDeciderProof,
     pub main_residual_proof: Rv64imMainResidualProof,
-    pub hybrid_side_bridge_artifact: Rv64imHybridSideBridgeArtifact,
+    pub side_decider_proof: Rv64imSideDeciderProof,
     pub linkage_artifact: Rv64imLinkageArtifact,
 }
 
@@ -161,10 +203,10 @@ impl Rv64imLinkageClaims {
 impl Rv64imMainDeciderProof {
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/main_decider_proof");
-        tr.append_message(b"neo.fold.next/nightstream/rv64im/main_decider_proof/version", b"v1");
+        tr.append_message(b"neo.fold.next/nightstream/rv64im/main_decider_proof/version", b"v4");
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_decider_proof/decider_target_digest",
-            &self.decider_target_digest,
+            b"neo.fold.next/nightstream/rv64im/main_decider_proof/spartan_snark_data",
+            &self.spartan_proof.snark_data,
         );
         tr.digest32()
     }
@@ -192,6 +234,26 @@ impl Rv64imMainResidualProof {
                 digest,
             );
         }
+        tr.digest32()
+    }
+}
+
+impl Rv64imSideDeciderProof {
+    pub fn expected_digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/side_decider_proof");
+        tr.append_message(b"neo.fold.next/nightstream/rv64im/side_decider_proof/version", b"v2");
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/side_decider_proof/public_instance_digest",
+            &self.public_instance_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/side_decider_proof/proof_container_digest",
+            &self.proof_container.digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/side_decider_proof/spartan_snark_data",
+            &self.spartan_proof.snark_data,
+        );
         tr.digest32()
     }
 }
@@ -232,6 +294,14 @@ pub fn build_rv64im_side_proof_bundle_from_accepted_artifact(
 ) -> Result<Rv64imSideProofBundle, SimpleKernelError> {
     let (_, kernel_export, _) = build_rv64im_kernel_export_proof_from_accepted_artifact(artifact)?;
     build_rv64im_side_proof_bundle_from_accepted_artifact_and_kernel_export(artifact, &kernel_export)
+}
+
+pub fn build_rv64im_bound_side_proof_bundle_from_accepted_artifact(
+    statement: &NightstreamStatement,
+    artifact: &Rv64imAcceptedProofArtifact,
+) -> Result<Rv64imSideProofBundle, SimpleKernelError> {
+    let bundle = build_rv64im_side_proof_bundle_from_accepted_artifact(artifact)?;
+    bind_rv64im_side_proof_bundle_to_statement_core(&bundle, statement.core_digest())
 }
 
 pub(crate) fn bind_rv64im_side_proof_bundle_to_statement_core(
@@ -921,7 +991,7 @@ pub fn build_rv64im_nightstream_statement_from_final(
     build_rv64im_nightstream_statement_from_relation(
         public_io_digest,
         verifier_context_digest,
-        &build_rv64im_decider_relation_from_final(statement, proof)?,
+        &build_rv64im_decider_relation_from_final_surface(statement, proof)?,
         linkage_root,
         proof_binding_root,
     )
@@ -946,48 +1016,76 @@ pub fn build_rv64im_nightstream_statement_from_relation(
     })
 }
 
-pub fn build_rv64im_nightstream_decider_target(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
-) -> Result<Spartan2DeciderTarget, SimpleKernelError> {
-    build_rv64im_spartan2_decider_target(statement, proof)
-}
-
-pub fn rv64im_nightstream_decider_target_digest(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
-) -> Result<[u8; 32], SimpleKernelError> {
-    Ok(build_rv64im_nightstream_decider_target(statement, proof)?.digest())
-}
-
 pub fn build_rv64im_main_decider_proof(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalProof,
 ) -> Result<Rv64imMainDeciderProof, SimpleKernelError> {
-    build_rv64im_main_decider_proof_from_relation(&build_rv64im_decider_relation_from_final(statement, proof)?)
-}
-
-pub fn build_rv64im_main_decider_proof_from_relation(
-    relation: &Rv64imDeciderRelation,
-) -> Result<Rv64imMainDeciderProof, SimpleKernelError> {
-    validate_rv64im_decider_relation_surface(relation)?;
-    Ok(Rv64imMainDeciderProof {
-        decider_target_digest: relation.target().digest(),
-    })
+    let spartan_proof = crate::rv64im::prove_rv64im_spartan2_decider_cached(statement, proof)?;
+    Ok(Rv64imMainDeciderProof { spartan_proof })
 }
 
 pub fn verify_rv64im_main_decider_proof(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
+    vk: &Rv64imSpartan2DeciderVerifierKey,
+    main_residual_proof: &Rv64imMainResidualProof,
     main_decider_proof: &Rv64imMainDeciderProof,
 ) -> Result<(), SimpleKernelError> {
-    let expected = build_rv64im_main_decider_proof(statement, proof)?;
-    if &expected != main_decider_proof {
+    crate::rv64im::verify_rv64im_spartan2_decider(
+        vk,
+        main_residual_proof.public_statement_digest,
+        &main_residual_proof.decider_relation,
+        &main_decider_proof.spartan_proof,
+    )
+    .map_err(|err| {
+        SimpleKernelError::Bridge(format!(
+            "RV64IM Nightstream main decider proof failed verification: {err}"
+        ))
+    })
+}
+
+pub fn build_rv64im_side_decider_proof(
+    nightstream_statement: &NightstreamStatement,
+    side_bundle: &Rv64imSideProofBundle,
+    accepted_artifact: &Rv64imAcceptedProofArtifact,
+) -> Result<Rv64imSideDeciderProof, SimpleKernelError> {
+    let proof_container = build_rv64im_side_proof_container_from_accepted_artifact(
+        nightstream_statement,
+        &accepted_artifact.statement,
+        side_bundle,
+        accepted_artifact,
+    )?;
+    let (side_statement, side_witness) =
+        build_rv64im_side_spartan_from_accepted_artifact(nightstream_statement, side_bundle, accepted_artifact)?;
+    let keys = setup_rv64im_side_spartan_cached(&side_statement, &side_witness)?;
+    let spartan_proof = prove_rv64im_side_spartan(&keys.as_ref().0, &side_statement, &side_witness)?;
+    Ok(Rv64imSideDeciderProof {
+        public_instance_digest: side_statement.public_instance_digest,
+        proof_container,
+        spartan_proof,
+    })
+}
+
+pub fn verify_rv64im_side_decider_proof(
+    vk: &Rv64imSideSpartanVerifierKey,
+    nightstream_statement: &NightstreamStatement,
+    public_statement: &Rv64imProofStatement,
+    side_decider_proof: &Rv64imSideDeciderProof,
+) -> Result<(), SimpleKernelError> {
+    verify_rv64im_side_proof_container(
+        nightstream_statement,
+        public_statement,
+        &side_decider_proof.proof_container,
+    )?;
+    if side_decider_proof.proof_container.public_instance.digest != side_decider_proof.public_instance_digest {
         return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream main decider proof does not match the verified decider target".into(),
+            "RV64IM Nightstream side decider proof public-instance digest does not match the carried proof container"
+                .into(),
         ));
     }
-    Ok(())
+    let side_statement = build_rv64im_authoritative_side_statement(
+        nightstream_statement,
+        &side_decider_proof.proof_container.public_instance,
+    )?;
+    verify_rv64im_side_spartan(vk, &side_statement, &side_decider_proof.spartan_proof)
 }
 
 pub fn build_rv64im_nightstream_linkage_claims(
@@ -1080,7 +1178,7 @@ pub fn build_rv64im_main_residual_proof(
     proof: &Rv64imFinalProof,
 ) -> Result<Rv64imMainResidualProof, SimpleKernelError> {
     verify_rv64im_final_statement_with_output(statement, proof)?;
-    let decider_relation = build_rv64im_decider_relation_from_final(statement, proof)?;
+    let decider_relation = build_rv64im_decider_relation_from_final_surface(statement, proof)?;
     let linkage_claims = build_rv64im_nightstream_linkage_claims(statement, proof)?;
     Ok(Rv64imMainResidualProof {
         public_statement_digest: statement.public_statement_digest,
@@ -1159,16 +1257,6 @@ fn verify_rv64im_nightstream_carried_boundary(
             "RV64IM Nightstream main residual proof carries an invalid decider relation: {err}"
         ))
     })?;
-    if build_rv64im_main_decider_proof_from_relation(&proof.main_residual_proof.decider_relation).map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM Nightstream main residual proof failed to rebuild the carried decider target: {err}"
-        ))
-    })? != proof.main_decider_proof
-    {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream main decider proof does not match the carried decider relation".into(),
-        ));
-    }
     let linkage_claims = build_rv64im_nightstream_linkage_claims_from_relation(
         &proof.main_residual_proof.decider_relation,
         &proof.main_residual_proof.bridge_handoff_digests,
@@ -1200,7 +1288,7 @@ fn verify_rv64im_nightstream_carried_boundary(
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_decider_proof_digest: proof.main_decider_proof.expected_digest(),
         main_residual_proof_digest: proof.main_residual_proof.expected_digest(),
-        side_bridge_artifact_digest: proof.hybrid_side_bridge_artifact.digest,
+        side_bridge_artifact_digest: proof.side_decider_proof.expected_digest(),
         linkage_artifact_digest: proof.linkage_artifact.digest,
     };
     expected_statement.proof_binding_root =
@@ -1217,8 +1305,8 @@ pub fn verify_rv64im_nightstream(
     statement: &NightstreamStatement,
     proof: &Rv64imNightstreamProof,
     trusted_root_params_id: [u8; 32],
-    decider_vk: &Spartan2DeciderVerifierKey,
-    decider_proof: &Spartan2DeciderProof,
+    decider_vk: &Rv64imSpartan2DeciderVerifierKey,
+    side_decider_vk: &Rv64imSideSpartanVerifierKey,
     public_statement: &Rv64imProofStatement,
 ) -> Result<(), SimpleKernelError> {
     verify_rv64im_nightstream_with_perf(
@@ -1226,7 +1314,7 @@ pub fn verify_rv64im_nightstream(
         proof,
         trusted_root_params_id,
         decider_vk,
-        decider_proof,
+        side_decider_vk,
         public_statement,
     )
     .map(|_| ())

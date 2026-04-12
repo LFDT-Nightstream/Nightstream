@@ -15,10 +15,10 @@ use crate::rv64im::kernel::{
     build_rv64im_eval_claim_bundle_from_claim_witnesses,
     build_rv64im_eval_claim_bundle_from_claim_witnesses_trusted_local,
     build_rv64im_eval_claim_witnesses_from_accepted_artifact, derive_phase0_point, phase0_binding_digest,
-    phase0_family_order, rebuild_opened_object_witness_from_projection, AjtaiOpeningProof, CommitmentContextId,
-    FamilyEvalClaim, FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId, OpenedAjtaiCommitmentPublic,
-    OpenedAjtaiObjectId, OpenedAjtaiObjectWitness, Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle,
-    Rv64imPhase0BindingSurface, Rv64imPhase0BindingTarget, SimpleKernelError,
+    rebuild_opened_object_witness_from_projection, AjtaiOpeningProof, CommitmentContextId, FamilyEvalClaim,
+    FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId, OpenedAjtaiCommitmentPublic, OpenedAjtaiObjectId,
+    OpenedAjtaiObjectWitness, Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle, Rv64imPhase0BindingSurface,
+    Rv64imPhase0BindingTarget, SimpleKernelError,
 };
 use crate::rv64im::Rv64imProofStatement;
 
@@ -27,6 +27,26 @@ use super::{
     bind_rv64im_side_proof_bundle_to_statement_core, build_rv64im_side_proof_bundle_from_accepted_artifact,
     Rv64imSideProofBundle,
 };
+
+pub(super) fn active_phase0_schemas_from_side_bundle(side_bundle: &Rv64imSideProofBundle) -> Vec<FamilyEvalSchemaId> {
+    let mut schemas = vec![FamilyEvalSchemaId::Stage1Rows];
+    if side_bundle.stage2.claim.register_read_count != 0 {
+        schemas.push(FamilyEvalSchemaId::Stage2RegisterReads);
+    }
+    if side_bundle.stage2.claim.register_write_count != 0 {
+        schemas.push(FamilyEvalSchemaId::Stage2RegisterWrites);
+    }
+    if side_bundle.stage2.claim.ram_event_count != 0 {
+        schemas.push(FamilyEvalSchemaId::Stage2RamEvents);
+    }
+    if side_bundle.stage2.claim.twist_link_count != 0 {
+        schemas.push(FamilyEvalSchemaId::Stage2TwistLinks);
+    }
+    if side_bundle.stage3.claim.continuity_count != 0 {
+        schemas.push(FamilyEvalSchemaId::Stage3Continuity);
+    }
+    schemas
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imPhase0OpenedObjectSummary {
@@ -153,20 +173,13 @@ impl Rv64imPhase0OpeningTarget {
 
 impl Rv64imPhase0OpeningTargetBundle {
     fn validate_canonical_order(&self) -> Result<(), SimpleKernelError> {
-        let expected_order = phase0_family_order();
-        if self.targets.len() != expected_order.len() {
-            return Err(SimpleKernelError::Bridge(format!(
-                "RV64IM side-eval-claim artifact Phase 0 opening-target bundle must contain exactly {} canonical targets, got {}",
-                expected_order.len(),
-                self.targets.len()
-            )));
-        }
-        for (index, (target, expected_schema)) in self.targets.iter().zip(expected_order.iter()).enumerate() {
-            if target.schema != *expected_schema {
+        for (index, pair) in self.targets.windows(2).enumerate() {
+            if pair[0].schema >= pair[1].schema {
                 return Err(SimpleKernelError::Bridge(format!(
-                    "RV64IM side-eval-claim artifact Phase 0 opening-target bundle is not canonical at index {index}: expected {:?}, got {:?}",
-                    expected_schema,
-                    target.schema
+                    "RV64IM side-eval-claim artifact Phase 0 opening-target bundle is not in strict schema order at index {}: {:?} then {:?}",
+                    index,
+                    pair[0].schema,
+                    pair[1].schema,
                 )));
             }
         }
@@ -186,18 +199,6 @@ impl Rv64imPhase0OpeningTargetBundle {
             );
         }
         tr.digest32()
-    }
-
-    fn target_for_schema(&self, schema: FamilyEvalSchemaId) -> Result<&Rv64imPhase0OpeningTarget, SimpleKernelError> {
-        self.targets
-            .iter()
-            .find(|target| target.schema == schema)
-            .ok_or_else(|| {
-                SimpleKernelError::Bridge(format!(
-                    "RV64IM side-eval-claim artifact is missing the Phase 0 opening target for {:?}",
-                    schema
-                ))
-            })
     }
 }
 
@@ -276,13 +277,7 @@ pub fn build_rv64im_phase0_opened_object_bundle_from_claim_witnesses(
     }
 
     let mut objects = Vec::new();
-    for schema in phase0_family_order() {
-        let (opened_object, commitment_context) = by_schema.get(&schema).copied().ok_or_else(|| {
-            SimpleKernelError::Bridge(format!(
-                "RV64IM side-eval-claim relation is missing witnesses for {:?}",
-                schema
-            ))
-        })?;
+    for (schema, (opened_object, commitment_context)) in by_schema {
         let mut summary = Rv64imPhase0OpenedObjectSummary {
             schema,
             opened_object: opened_object.clone(),
@@ -321,13 +316,7 @@ fn build_rv64im_phase0_opening_target_bundle_from_claim_witnesses(
     }
 
     let mut targets = Vec::new();
-    for (index, schema) in phase0_family_order().into_iter().enumerate() {
-        let representative = by_schema.get(&schema).copied().ok_or_else(|| {
-            SimpleKernelError::Bridge(format!(
-                "RV64IM side-eval-claim artifact is missing witnesses for {:?}",
-                schema
-            ))
-        })?;
+    for (index, (schema, representative)) in by_schema.into_iter().enumerate() {
         let opened_commitment = OpenedAjtaiCommitmentPublic::new(
             representative.witness.opened_object.clone(),
             &representative.witness.commitment_context,
@@ -383,8 +372,8 @@ fn build_rv64im_phase0_opened_object_bundle_from_opening_targets(
 ) -> Result<Rv64imPhase0OpenedObjectBundle, SimpleKernelError> {
     phase0_opening_targets.validate_canonical_order()?;
     let mut objects = Vec::new();
-    for schema in phase0_family_order() {
-        let target = phase0_opening_targets.target_for_schema(schema)?;
+    for target in &phase0_opening_targets.targets {
+        let schema = target.schema;
         let mut claims = eval_claim_bundle
             .claims
             .iter()
@@ -558,7 +547,7 @@ fn verify_rv64im_side_eval_claim_relation_surfaces(
     }
 
     verify_phase0_claim_bindings(statement, claim_witnesses)?;
-    verify_phase0_claim_coverage(claim_witnesses)?;
+    verify_phase0_claim_coverage(&statement.side_bundle, claim_witnesses)?;
     Ok(())
 }
 
@@ -754,8 +743,8 @@ fn rebuild_phase0_claim_witnesses_from_artifact(
     artifact: &Rv64imSideEvalClaimArtifact,
 ) -> Result<Vec<FamilyEvalClaimWitness>, SimpleKernelError> {
     let mut witness_by_schema = BTreeMap::<FamilyEvalSchemaId, Arc<OpenedAjtaiObjectWitness>>::new();
-    for (index, schema) in phase0_family_order().into_iter().enumerate() {
-        let target = artifact.phase0_opening_targets.target_for_schema(schema)?;
+    for (index, target) in artifact.phase0_opening_targets.targets.iter().enumerate() {
+        let schema = target.schema;
         let representative = artifact
             .eval_claim_bundle
             .claims
@@ -863,8 +852,24 @@ fn verify_phase0_claim_surface(
     Ok(())
 }
 
-fn verify_phase0_claim_coverage(claim_witnesses: &[FamilyEvalClaimWitness]) -> Result<(), SimpleKernelError> {
-    for schema in phase0_family_order() {
+fn verify_phase0_claim_coverage(
+    side_bundle: &Rv64imSideProofBundle,
+    claim_witnesses: &[FamilyEvalClaimWitness],
+) -> Result<(), SimpleKernelError> {
+    let mut actual_schemas = claim_witnesses
+        .iter()
+        .map(|claim| claim.claim.payload.schema)
+        .collect::<Vec<_>>();
+    actual_schemas.sort_unstable();
+    actual_schemas.dedup();
+    let expected_schemas = active_phase0_schemas_from_side_bundle(side_bundle);
+    if actual_schemas != expected_schemas {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM side-eval-claim relation active schema mismatch: expected {:?}, got {:?}",
+            expected_schemas, actual_schemas
+        )));
+    }
+    for schema in expected_schemas {
         let expected_slots = expected_slots_for_schema(schema);
         let actual_slots = claim_witnesses
             .iter()
@@ -920,7 +925,7 @@ fn phase0_stage_binding_digest_from_side_bundle(
 pub(crate) fn build_rv64im_phase0_binding_surface_from_side_bundle(
     side_bundle: &Rv64imSideProofBundle,
 ) -> Rv64imPhase0BindingSurface {
-    let targets = phase0_family_order()
+    let targets = active_phase0_schemas_from_side_bundle(side_bundle)
         .into_iter()
         .map(|schema| {
             let mut target = Rv64imPhase0BindingTarget {

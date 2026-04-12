@@ -22,10 +22,11 @@ use neo_ajtai::{
 use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_transcript::{Poseidon2Transcript, Transcript, TranscriptProtocol};
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::chip8::poly::build_eq_table;
+use crate::finalize::digest32_as_fields;
 use crate::rv64im::stage1::{stage1_row_words, Stage1ProofBundle};
 use crate::rv64im::stage2::{
     ram_event_words, register_read_words, register_write_words, twist_link_words, Stage2ProofBundle,
@@ -405,49 +406,53 @@ fn build_stage2_claim_witnesses_with_perf(
     let mut claims = Vec::with_capacity(4);
     let mut perf = Rv64imEvalClaimWitnessBuildPerf::default();
 
-    let (claim, claim_perf) = build_singleton_claim_witness_with_perf(
+    if let Some((claim, claim_perf)) = maybe_build_singleton_claim_witness_with_perf(
         FamilyEvalSchemaId::Stage2RegisterReads,
         &proof.register.reads,
         register_read_words,
         artifact.families.register_reads_digest,
         proof.digest,
         "phase0/stage2/register_reads",
-    )?;
-    claims.push(claim);
-    perf.accumulate(claim_perf);
+    )? {
+        claims.push(claim);
+        perf.accumulate(claim_perf);
+    }
 
-    let (claim, claim_perf) = build_singleton_claim_witness_with_perf(
+    if let Some((claim, claim_perf)) = maybe_build_singleton_claim_witness_with_perf(
         FamilyEvalSchemaId::Stage2RegisterWrites,
         &proof.register.writes,
         register_write_words,
         artifact.families.register_writes_digest,
         proof.digest,
         "phase0/stage2/register_writes",
-    )?;
-    claims.push(claim);
-    perf.accumulate(claim_perf);
+    )? {
+        claims.push(claim);
+        perf.accumulate(claim_perf);
+    }
 
-    let (claim, claim_perf) = build_singleton_claim_witness_with_perf(
+    if let Some((claim, claim_perf)) = maybe_build_singleton_claim_witness_with_perf(
         FamilyEvalSchemaId::Stage2RamEvents,
         &proof.ram.events,
         ram_event_words,
         artifact.families.ram_events_digest,
         proof.digest,
         "phase0/stage2/ram_events",
-    )?;
-    claims.push(claim);
-    perf.accumulate(claim_perf);
+    )? {
+        claims.push(claim);
+        perf.accumulate(claim_perf);
+    }
 
-    let (claim, claim_perf) = build_singleton_claim_witness_with_perf(
+    if let Some((claim, claim_perf)) = maybe_build_singleton_claim_witness_with_perf(
         FamilyEvalSchemaId::Stage2TwistLinks,
         &proof.temporal.twist_links,
         twist_link_words,
         artifact.families.twist_links_digest,
         proof.digest,
         "phase0/stage2/twist_links",
-    )?;
-    claims.push(claim);
-    perf.accumulate(claim_perf);
+    )? {
+        claims.push(claim);
+        perf.accumulate(claim_perf);
+    }
 
     Ok((claims, perf))
 }
@@ -456,20 +461,21 @@ pub fn build_stage3_claim_witness(
     artifact: &Stage3ArtifactSurface,
     proof: &Stage3ProofBundle,
 ) -> Result<FamilyEvalClaimWitness, SimpleKernelError> {
-    let (claim, _) = build_stage3_claim_witness_with_perf(artifact, proof)?;
+    let (claim, _) = build_stage3_claim_witness_with_perf(artifact, proof)?
+        .ok_or_else(|| SimpleKernelError::Bridge("phase0/stage3 continuity family is empty".into()))?;
     Ok(claim)
 }
 
 fn build_stage3_claim_witness_with_perf(
     artifact: &Stage3ArtifactSurface,
     proof: &Stage3ProofBundle,
-) -> Result<(FamilyEvalClaimWitness, Rv64imEvalClaimWitnessBuildPerf), SimpleKernelError> {
+) -> Result<Option<(FamilyEvalClaimWitness, Rv64imEvalClaimWitnessBuildPerf)>, SimpleKernelError> {
     assert_matching_digest(
         "phase0/stage3 continuity family digest (linkage)",
         artifact.continuity.continuity_digest,
         proof.linkage.continuity_family_digest,
     )?;
-    build_singleton_claim_witness_with_perf(
+    maybe_build_singleton_claim_witness_with_perf(
         FamilyEvalSchemaId::Stage3Continuity,
         &proof.bridge.continuity,
         continuity_event_words,
@@ -489,7 +495,7 @@ pub fn build_rv64im_eval_claim_witnesses_from_accepted_artifact(
 pub(crate) fn build_rv64im_eval_claim_witnesses_from_accepted_artifact_with_perf(
     artifact: &Rv64imAcceptedProofArtifact,
 ) -> Result<(Vec<FamilyEvalClaimWitness>, Rv64imEvalClaimWitnessBuildPerf), SimpleKernelError> {
-    let ((stage1_claims, stage1_perf), (stage2_claims, stage2_perf), (stage3_claim, stage3_perf)) =
+    let ((stage1_claims, stage1_perf), (stage2_claims, stage2_perf), stage3_claim_and_perf) =
         if let Some(_parallel_guard) = try_acquire_parallel_phase0_claim_build() {
             let (stage1_result, (stage2_result, stage3_result)) = rayon::join(
                 || build_stage1_claim_witnesses_with_perf(&artifact.stage_claims.claims.stage1, &artifact.stage1),
@@ -518,8 +524,10 @@ pub(crate) fn build_rv64im_eval_claim_witnesses_from_accepted_artifact_with_perf
     let mut perf = stage1_perf;
     claims.extend(stage2_claims);
     perf.accumulate(stage2_perf);
-    claims.push(stage3_claim);
-    perf.accumulate(stage3_perf);
+    if let Some((stage3_claim, stage3_perf)) = stage3_claim_and_perf {
+        claims.push(stage3_claim);
+        perf.accumulate(stage3_perf);
+    }
     Ok((claims, perf))
 }
 
@@ -611,22 +619,10 @@ pub(crate) fn phase0_binding_digest(
     stage_proof_binding_digest: [u8; 32],
 ) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/opening_convergence/phase0/binding");
-    tr.append_message(
-        b"neo.fold.next/rv64im/opening_convergence/phase0/binding/opened_object_digest",
-        &opened_object.digest,
-    );
-    tr.append_u64s(
-        b"neo.fold.next/rv64im/opening_convergence/phase0/binding/meta",
-        &[schema.tag(), slot as u64],
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/opening_convergence/phase0/binding/family_binding_anchor_digest",
-        &family_binding_anchor_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/opening_convergence/phase0/binding/stage_proof_binding_digest",
-        &stage_proof_binding_digest,
-    );
+    tr.append_fields_raw(&digest32_as_fields(opened_object.digest));
+    tr.append_fields_raw(&[F::from_u64(schema.tag()), F::from_u64(slot as u64)]);
+    tr.append_fields_raw(&digest32_as_fields(family_binding_anchor_digest));
+    tr.append_fields_raw(&digest32_as_fields(stage_proof_binding_digest));
     tr.digest32()
 }
 
@@ -816,6 +812,28 @@ fn build_singleton_claim_witness_with_perf<const WORDS: usize, T>(
     Ok((claim, perf))
 }
 
+fn maybe_build_singleton_claim_witness_with_perf<const WORDS: usize, T>(
+    schema: FamilyEvalSchemaId,
+    rows: &[T],
+    words_of: fn(&T) -> [u64; WORDS],
+    family_binding_anchor_digest: [u8; 32],
+    stage_proof_binding_digest: [u8; 32],
+    context_label: &str,
+) -> Result<Option<(FamilyEvalClaimWitness, Rv64imEvalClaimWitnessBuildPerf)>, SimpleKernelError> {
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    build_singleton_claim_witness_with_perf(
+        schema,
+        rows,
+        words_of,
+        family_binding_anchor_digest,
+        stage_proof_binding_digest,
+        context_label,
+    )
+    .map(Some)
+}
+
 fn assert_matching_digest(label: &str, expected: [u8; 32], actual: [u8; 32]) -> Result<(), SimpleKernelError> {
     if expected != actual {
         return Err(SimpleKernelError::Bridge(format!(
@@ -936,12 +954,9 @@ fn packed_column_rows_to_mat(
 
 pub(crate) fn phase0_commitment_root_digest(commitment_vector: &[Commitment]) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/opening_convergence/phase0/commitment_root");
-    tr.append_u64s(
-        b"neo.fold.next/rv64im/opening_convergence/phase0/commitment_root/len",
-        &[commitment_vector.len() as u64],
-    );
+    tr.append_fields_raw(&[F::from_u64(commitment_vector.len() as u64)]);
     for commitment in commitment_vector {
-        tr.absorb_commit_coords(&commitment.data);
+        tr.append_fields_raw(&commitment.data);
     }
     tr.digest32()
 }

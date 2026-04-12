@@ -59,50 +59,73 @@ impl Rv64imPhase0BindingSurface {
 pub fn build_rv64im_phase0_binding_surface_from_accepted_artifact(
     artifact: &Rv64imAcceptedProofArtifact,
 ) -> Rv64imPhase0BindingSurface {
-    let targets = [
-        (
-            FamilyEvalSchemaId::Stage1Rows,
-            artifact.stage1.address_correctness.rows_digest,
-            artifact.stage1.digest,
-        ),
-        (
+    let mut targets = vec![(
+        FamilyEvalSchemaId::Stage1Rows,
+        artifact.stage1.address_correctness.rows_digest,
+        artifact.stage1.digest,
+    )];
+    if artifact
+        .stage_claims
+        .claims
+        .stage2
+        .claim
+        .register_read_count
+        != 0
+    {
+        targets.push((
             FamilyEvalSchemaId::Stage2RegisterReads,
             artifact.stage2.linkage.register_reads_family_digest,
             artifact.stage2.digest,
-        ),
-        (
+        ));
+    }
+    if artifact
+        .stage_claims
+        .claims
+        .stage2
+        .claim
+        .register_write_count
+        != 0
+    {
+        targets.push((
             FamilyEvalSchemaId::Stage2RegisterWrites,
             artifact.stage2.linkage.register_writes_family_digest,
             artifact.stage2.digest,
-        ),
-        (
+        ));
+    }
+    if artifact.stage_claims.claims.stage2.claim.ram_event_count != 0 {
+        targets.push((
             FamilyEvalSchemaId::Stage2RamEvents,
             artifact.stage2.linkage.ram_events_family_digest,
             artifact.stage2.digest,
-        ),
-        (
+        ));
+    }
+    if artifact.stage_claims.claims.stage2.claim.twist_link_count != 0 {
+        targets.push((
             FamilyEvalSchemaId::Stage2TwistLinks,
             artifact.stage2.linkage.twist_links_family_digest,
             artifact.stage2.digest,
-        ),
-        (
+        ));
+    }
+    if artifact.stage_claims.claims.stage3.claim.continuity_count != 0 {
+        targets.push((
             FamilyEvalSchemaId::Stage3Continuity,
             artifact.stage3.linkage.continuity_family_digest,
             artifact.stage3.digest,
-        ),
-    ]
-    .into_iter()
-    .map(|(schema, family_binding_anchor_digest, stage_proof_binding_digest)| {
-        let mut target = Rv64imPhase0BindingTarget {
-            schema,
-            family_binding_anchor_digest,
-            stage_proof_binding_digest,
-            digest: [0; 32],
-        };
-        target.digest = target.expected_digest();
-        target
-    })
-    .collect();
+        ));
+    }
+    let targets = targets
+        .into_iter()
+        .map(|(schema, family_binding_anchor_digest, stage_proof_binding_digest)| {
+            let mut target = Rv64imPhase0BindingTarget {
+                schema,
+                family_binding_anchor_digest,
+                stage_proof_binding_digest,
+                digest: [0; 32],
+            };
+            target.digest = target.expected_digest();
+            target
+        })
+        .collect();
     let mut surface = Rv64imPhase0BindingSurface {
         targets,
         digest: [0; 32],

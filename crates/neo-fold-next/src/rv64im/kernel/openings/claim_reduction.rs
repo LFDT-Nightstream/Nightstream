@@ -25,8 +25,8 @@ use crate::opening::OpeningDomain;
 
 use super::opening_eval_claim_witness::{phase0_binding_digest, FamilyEvalClaimWitness};
 use super::opening_eval_claims::{
-    canonical_claim_cmp, phase0_family_order, CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId,
-    FamilyEvalSchemaId, PackedColumnEval, Rv64imEvalClaimBundle,
+    canonical_claim_cmp, CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalSchemaId,
+    PackedColumnEval, Rv64imEvalClaimBundle,
 };
 use super::opening_phase0_binding_surface::Rv64imPhase0BindingSurface;
 use super::opening_point_derivation::derive_phase0_point;
@@ -1114,26 +1114,16 @@ fn phase1_transcript(bucket_digest: [u8; 32]) -> Poseidon2Transcript {
 }
 
 fn validate_phase0_binding_surface(surface: &Rv64imPhase0BindingSurface) -> Result<(), ClaimReductionError> {
-    let expected_order = phase0_family_order();
-    if surface.targets.len() != expected_order.len() {
-        return Err(ClaimReductionError::BindingSurfaceTargetCountMismatch {
-            expected: expected_order.len(),
-            actual: surface.targets.len(),
-        });
-    }
-    for (index, (target, expected_schema)) in surface
-        .targets
-        .iter()
-        .zip(expected_order.iter())
-        .enumerate()
-    {
-        if target.schema != *expected_schema {
+    for (index, pair) in surface.targets.windows(2).enumerate() {
+        if pair[0].schema >= pair[1].schema {
             return Err(ClaimReductionError::BindingSurfaceSchemaMismatch {
                 index,
-                expected: *expected_schema,
-                actual: target.schema,
+                expected: pair[0].schema,
+                actual: pair[1].schema,
             });
         }
+    }
+    for (index, target) in surface.targets.iter().enumerate() {
         let expected_digest = target.expected_digest();
         if target.digest != expected_digest {
             return Err(ClaimReductionError::BindingSurfaceTargetDigestMismatch {

@@ -16,25 +16,22 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::opening_eval_claims::{EvalClaimError, FamilyEvalSchemaId, PackedColumnEval};
 
-pub const PHASE0_WORD_LIMB_BITS: usize = 16;
+pub const PHASE0_WORD_LIMB_BITS: usize = 32;
 pub const PHASE0_WORD_LIMB_COUNT: usize = 64 / PHASE0_WORD_LIMB_BITS;
 const PHASE0_WORD_LIMB_MASK: u64 = (1u64 << PHASE0_WORD_LIMB_BITS) - 1;
 
 pub fn phase0_full_width_for_schema(schema: FamilyEvalSchemaId) -> usize {
-    match schema {
-        FamilyEvalSchemaId::Stage1Rows => 93,
-        FamilyEvalSchemaId::Stage2RegisterReads | FamilyEvalSchemaId::Stage2RegisterWrites => 21,
-        FamilyEvalSchemaId::Stage2RamEvents
-        | FamilyEvalSchemaId::Stage2TwistLinks
-        | FamilyEvalSchemaId::Stage3Continuity => 25,
-    }
+    1 + phase0_word_count_for_schema(schema) * PHASE0_WORD_LIMB_COUNT
 }
 
 pub fn phase0_word_count_for_schema(schema: FamilyEvalSchemaId) -> usize {
-    phase0_full_width_for_schema(schema)
-        .saturating_sub(1)
-        .checked_div(PHASE0_WORD_LIMB_COUNT)
-        .expect("phase0 word widths are frozen and non-zero")
+    match schema {
+        FamilyEvalSchemaId::Stage1Rows => 23,
+        FamilyEvalSchemaId::Stage2RegisterReads | FamilyEvalSchemaId::Stage2RegisterWrites => 5,
+        FamilyEvalSchemaId::Stage2RamEvents
+        | FamilyEvalSchemaId::Stage2TwistLinks
+        | FamilyEvalSchemaId::Stage3Continuity => 6,
+    }
 }
 
 pub(crate) fn encode_words_to_field_evals_f(

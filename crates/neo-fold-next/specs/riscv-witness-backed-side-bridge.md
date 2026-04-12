@@ -152,7 +152,7 @@ those proof objects.
 | `NightstreamStatement` | `public_io_digest`, `verifier_context_digest`, `fold_schedule`, `semantic_step_count`, `chunk_summaries`, `linkage_root`, `proof_binding_root` | theorem-facing public | Remain the canonical published statement boundary. |
 | `NightstreamProofBindingInputs` | `main_decider_proof_digest`, `main_residual_proof_digest`, `side_bridge_artifact_digest`, `linkage_artifact_digest` | recursive-internal public | May remain only as internal proof-binding inputs beneath the published statement root. The normalized public statement exposes only `proof_binding_root`. |
 | `Rv64imNightstreamProof` | `hybrid_side_bridge_artifact.digest`, `linkage_artifact.digest` | recursive-internal public | These are canonical binding handles only. They shall not force the full native artifacts to remain theorem-facing. |
-| `Rv64imNightstreamProof` | `hybrid_side_bridge_artifact.bridge_artifact`, `hybrid_side_bridge_artifact.backend_proof` | audit-only | Transitional helper payloads only. They remain on the current hybrid path until the backend proof owns the full witness-backed bridge theorem. |
+| `Rv64imNightstreamProof` | `hybrid_side_bridge_artifact.bridge_artifact` | audit-only | Transitional carried witness-backed artifact only. It remains on the current path until a compiled backend owns the full witness-backed bridge theorem privately. |
 | `Rv64imLinkageClaims` | `public_chunk_digests` | theorem-facing public | Already reflected by `chunk_summaries`; any retained copy must remain definitionally tied to the published chunk summaries. |
 | `Rv64imLinkageClaims` | `bridge_handoff_digests`, `digest` | recursive-internal public | Remain public only to the recursive/compiled bridge verifier that links side and main residual proofs. |
 | `Rv64imSideProofBundle` | `statement_core_digest`, `transcript`, `stage1`, `stage2`, `stage3`, `stage_claim_proof_bridge`, `kernel_opening_bridge`, `kernel_claim_bridge`, `kernel_claim_proof_bridge`, `kernel_export_bridge`, `semantic_rows_digest`, `row_local_ccs_acceptance_digest`, `execution_semantics_refinement_digest`, `family_digest`, `root_execution_digest`, `digest` | private witness | Internalize into the witness-backed side relation. Redundant sub-digests must be recomputed or deleted, not carried as a second authority. |
@@ -164,10 +164,10 @@ those proof objects.
 | `Rv64imSideEvalClaimArtifact` | `statement_digest`, `phase0_opening_targets`, `eval_claim_bundle`, `digest` | audit-only | Transitional compact replay surface only. Remove from the final theorem-facing proof path once the fixed relation owns Phase 0 privately. |
 | `Rv64imOpeningArtifact` | `digest` | recursive-internal public | Canonical opening binding handle only. |
 | `Rv64imOpeningArtifact` | `phase0_artifact`, `convergence_artifact` | private witness | Internalize beneath the fixed witness-backed side relation. |
-| `Rv64imWitnessBackedSideBridgeStatement` | `nightstream_statement`, `public_statement` | theorem-facing public | This is the owned fixed relation statement for the side bridge. Any later compiler layer must target this public boundary or a conservative projection of it. |
-| `Rv64imWitnessBackedSideBridgeWitness` | `side_bundle`, `opening_artifact`, `claim_witness`, `opening_witness` | private witness | This is the owned private witness for the fixed side relation. Later compiler layers may encode it differently, but they may not weaken its theorem. |
+| `Rv64imWitnessBackedSideBridgeStatement` | `nightstream_statement`, `public_statement`, `bridge_handoff_digests` | theorem-facing public | This is the owned fixed relation statement for the side bridge. Any later compiler layer must target this public boundary or a conservative projection of it. |
+| `Rv64imWitnessBackedSideBridgeWitness` | `side_bundle`, `opening_artifact`, `claim_witness`, `opening_witness` | private witness | Transitional native witness wrapper only. The fixed relation may replace `opening_artifact` with stronger authoritative Phase 0 claim witnesses, but it may not weaken the theorem to compact-artifact self-consistency. |
 | `Rv64imWitnessBackedSideBridgeArtifact` | `witness`, `digest` | audit-only | Transitional native artifact for the new owned relation. Its digest is bound to the external witness-backed side-bridge statement, but that statement digest is not carried redundantly inside the artifact. |
-| `Rv64imHybridSideBridgeArtifact` | `bridge_artifact`, `backend_proof`, `digest` | audit-only | Transitional hybrid helper only. The backend shell still targets the current digest/handoff adapter, but the native theorem replay now flows through the owned witness-backed side relation. |
+| `Rv64imHybridSideBridgeArtifact` | `bridge_artifact`, `digest` | audit-only | Transitional wrapper only. It binds the carried witness-backed side artifact into the Nightstream proof, but it does not yet hide that witness behind a compiled backend relation. |
 
 No row above may be reclassified implicitly by implementation convenience.
 Any deviation from this table must update this document and
@@ -182,7 +182,11 @@ This includes the objects currently realized through native replay, such as:
 
 - the side-claim witness objects,
 - the side-opening witness objects,
-- the opening-artifact witness/provenance objects,
+- the authoritative Phase 0 claim witnesses that justify opened-object identity,
+  binding digests, point derivation, payload evaluation, and Ajtai commitment
+  consistency,
+- any compact opening-artifact witness/provenance objects that remain only as
+  derived compression of those authoritative Phase 0 witnesses,
 - the selected-row authenticated payloads and row-local execution/opening
   objects,
 - the prepared-step linkage objects,
@@ -283,10 +287,11 @@ The migration is complete only when all of the following are true:
 ## 10. Consequence For The Current RV64IM Path
 
 The current RV64IM Nightstream verifier path is conforming only as a
-transitional hybrid bridge:
+transitional witness-backed bridge:
 
 - it still ships compact native theorem witness artifacts,
-- it still performs native verifier checks beneath the current Spartan shell,
+- it verifies that carried witness-backed artifact directly rather than through
+  a compiled fixed-relation backend,
 - and it therefore does not yet realize the end-state witness-backed side
   bridge specified here.
 

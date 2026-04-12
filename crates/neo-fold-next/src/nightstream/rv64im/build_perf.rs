@@ -5,6 +5,7 @@ use std::time::Instant;
 use crate::rv64im::kernel::build_rv64im_eval_claim_witnesses_from_accepted_artifact_with_perf;
 
 use super::side_eval_claim_relation::rebind_phase0_claim_witnesses_to_side_bundle;
+use super::side_opening_relation::build_rv64im_side_selected_opening_witness_from_accepted_artifact;
 use super::*;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -48,10 +49,10 @@ pub struct Rv64imNightstreamVerifiedSeamsBuildPerf {
     pub opening_convergence_final_openings_target_build_ms: f64,
     pub opening_convergence_digest_ms: f64,
     pub opening_artifact_wrap_ms: f64,
-    pub hybrid_side_bridge_prepare_ms: f64,
-    pub hybrid_side_bridge_decider_setup_ms: f64,
-    pub hybrid_side_bridge_compiled_proof_ms: f64,
-    pub hybrid_side_bridge_artifact_ms: f64,
+    pub side_decider_prepare_ms: f64,
+    pub side_decider_setup_ms: f64,
+    pub side_decider_prove_ms: f64,
+    pub side_decider_proof_ms: f64,
     pub proof_binding_root_ms: f64,
     pub total_ms: f64,
 }
@@ -179,7 +180,7 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
         .collect::<Vec<_>>();
 
     let started = Instant::now();
-    let main_decider_proof = build_rv64im_main_decider_proof_from_relation(&decider_relation)?;
+    let main_decider_proof = build_rv64im_main_decider_proof(final_statement, final_proof)?;
     let main_decider_proof_ms = elapsed_ms(started);
 
     let started = Instant::now();
@@ -259,53 +260,42 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
     let opening_artifact_convergence_ms = opening_phase0_binding_surface_ms + elapsed_ms(started);
 
     let started = Instant::now();
-    super::opening_artifact::build_rv64im_opening_artifact_from_trusted_local_phase0_and_convergence_artifacts(
-        &opening_phase0_artifact,
-        &convergence_artifact,
-    )?;
+    let opening_artifact =
+        super::opening_artifact::build_rv64im_opening_artifact_from_trusted_local_phase0_and_convergence_artifacts(
+            &opening_phase0_artifact,
+            &convergence_artifact,
+        )?;
     let opening_artifact_wrap_ms = elapsed_ms(started);
     let opening_artifact_ms = opening_artifact_convergence_ms + opening_artifact_wrap_ms;
 
     let started = Instant::now();
-    let (bridge_artifact, hybrid_side_bridge_relation) =
-        super::hybrid_side_bridge_decider::build_rv64im_hybrid_side_bridge_material_from_accepted_artifact(
-            &statement,
-            &main_residual_proof.bridge_handoff_digests,
-            &accepted_artifact.statement,
-            &side_proof_bundle,
-            accepted_artifact,
-        )?;
-    let hybrid_side_bridge_prepare_ms = elapsed_ms(started);
+    let opening_witness = build_rv64im_side_selected_opening_witness_from_accepted_artifact(accepted_artifact);
+    let side_proof_container =
+        build_rv64im_side_proof_container(&statement, &side_proof_bundle, opening_witness, opening_artifact)?;
+    let side_statement = build_rv64im_authoritative_side_statement(&statement, &side_proof_container.public_instance)?;
+    let side_witness = side_proof_container.public_instance.clone();
+    let side_decider_prepare_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    super::hybrid_side_bridge_decider::prewarm_rv64im_hybrid_side_bridge_decider_cache_for_relation(
-        &hybrid_side_bridge_relation,
-    )?;
-    let hybrid_side_bridge_decider_setup_ms = elapsed_ms(started);
+    let side_keys = setup_rv64im_side_spartan_cached(&side_statement, &side_witness)?;
+    let side_decider_setup_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    let hybrid_side_bridge_compiled_proof =
-        super::hybrid_side_bridge_decider::prove_rv64im_hybrid_side_bridge_compiled_proof_from_decider_relation(
-            &hybrid_side_bridge_relation,
-        )?;
-    let hybrid_side_bridge_compiled_proof_ms = elapsed_ms(started);
+    let side_spartan_proof = prove_rv64im_side_spartan(&side_keys.as_ref().0, &side_statement, &side_witness)?;
+    let side_decider_prove_ms = elapsed_ms(started);
 
-    let started = Instant::now();
-    let hybrid_side_bridge_artifact = super::hybrid_side_bridge_decider::assemble_rv64im_hybrid_side_bridge_artifact(
-        bridge_artifact,
-        hybrid_side_bridge_compiled_proof,
-    );
-    let hybrid_side_bridge_finalize_ms = elapsed_ms(started);
-    let hybrid_side_bridge_artifact_ms = hybrid_side_bridge_prepare_ms
-        + hybrid_side_bridge_decider_setup_ms
-        + hybrid_side_bridge_compiled_proof_ms
-        + hybrid_side_bridge_finalize_ms;
+    let side_decider_proof = Rv64imSideDeciderProof {
+        public_instance_digest: side_statement.public_instance_digest,
+        proof_container: side_proof_container,
+        spartan_proof: side_spartan_proof,
+    };
+    let side_decider_proof_ms = side_decider_prepare_ms + side_decider_setup_ms + side_decider_prove_ms;
 
     let started = Instant::now();
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_decider_proof_digest: main_decider_proof.expected_digest(),
         main_residual_proof_digest: main_residual_proof.expected_digest(),
-        side_bridge_artifact_digest: hybrid_side_bridge_artifact.digest,
+        side_bridge_artifact_digest: side_decider_proof.expected_digest(),
         linkage_artifact_digest: linkage_artifact.digest,
     };
     statement.proof_binding_root = nightstream_proof_binding_root(statement.core_digest(), &proof_binding_inputs);
@@ -354,10 +344,10 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
         opening_convergence_final_openings_target_build_ms: convergence_perf.final_openings_target_build_ms,
         opening_convergence_digest_ms: convergence_perf.digest_ms,
         opening_artifact_wrap_ms,
-        hybrid_side_bridge_prepare_ms,
-        hybrid_side_bridge_decider_setup_ms,
-        hybrid_side_bridge_compiled_proof_ms,
-        hybrid_side_bridge_artifact_ms,
+        side_decider_prepare_ms,
+        side_decider_setup_ms,
+        side_decider_prove_ms,
+        side_decider_proof_ms,
         proof_binding_root_ms,
         total_ms: elapsed_ms(total_started),
     };
@@ -367,7 +357,7 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
             Rv64imNightstreamProof {
                 main_decider_proof,
                 main_residual_proof,
-                hybrid_side_bridge_artifact,
+                side_decider_proof,
                 linkage_artifact,
             },
         ),

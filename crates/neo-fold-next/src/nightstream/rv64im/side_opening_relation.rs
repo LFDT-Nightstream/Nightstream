@@ -37,7 +37,7 @@ pub struct Rv64imSideOpeningRelationStatement {
     pub side_bundle: Rv64imSideProofBundle,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imStage1SelectedRowsWitness {
     pub first: Stage1RowBinding,
     pub effect_position: u64,
@@ -74,7 +74,7 @@ impl Rv64imStage1SelectedRowsWitness {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imStage2SelectedEventsWitness {
     pub first_read: Option<RegisterReadEvent>,
     pub last_read: Option<RegisterReadEvent>,
@@ -153,7 +153,7 @@ impl Rv64imStage2SelectedEventsWitness {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imStage3SelectedContinuityWitness {
     pub first_continuity: Option<ContinuityEvent>,
     pub last_continuity: Option<ContinuityEvent>,
@@ -188,6 +188,32 @@ pub struct Rv64imSideOpeningRelationWitness {
     pub stage3_packaged: Rv64imSingleStepPackagedProofWitness,
     pub bindings_packaged: Rv64imSingleStepPackagedProofWitness,
     pub prepared_steps_packaged: Rv64imSingleStepPackagedProofWitness,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv64imSideSelectedOpeningWitness {
+    pub stage1_selected_rows: Rv64imStage1SelectedRowsWitness,
+    pub stage2_selected_events: Rv64imStage2SelectedEventsWitness,
+    pub stage3_selected_continuity: Rv64imStage3SelectedContinuityWitness,
+}
+
+impl Rv64imSideSelectedOpeningWitness {
+    pub fn digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/side_selected_opening_witness");
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/side_selected_opening_witness/stage1_selected_rows",
+            &self.stage1_selected_rows.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/side_selected_opening_witness/stage2_selected_events",
+            &self.stage2_selected_events.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/side_selected_opening_witness/stage3_selected_continuity",
+            &self.stage3_selected_continuity.digest(),
+        );
+        tr.digest32()
+    }
 }
 
 impl Rv64imSideOpeningRelationWitness {
@@ -248,6 +274,32 @@ pub fn build_rv64im_side_opening_relation_statement(
 pub fn build_rv64im_side_opening_relation_witness_from_accepted_artifact(
     artifact: &Rv64imAcceptedProofArtifact,
 ) -> Rv64imSideOpeningRelationWitness {
+    let selected = build_rv64im_side_selected_opening_witness_from_accepted_artifact(artifact);
+    Rv64imSideOpeningRelationWitness {
+        stage1_selected_rows: selected.stage1_selected_rows,
+        stage2_selected_events: selected.stage2_selected_events,
+        stage3_selected_continuity: selected.stage3_selected_continuity,
+        stage1_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.stage_packages.packages.stage1.packaged,
+        ),
+        stage2_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.stage_packages.packages.stage2.packaged,
+        ),
+        stage3_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.stage_packages.packages.stage3.packaged,
+        ),
+        bindings_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.kernel_opening.opening.bindings.packaged,
+        ),
+        prepared_steps_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.kernel_opening.opening.prepared_steps.packaged,
+        ),
+    }
+}
+
+pub(super) fn build_rv64im_side_selected_opening_witness_from_accepted_artifact(
+    artifact: &Rv64imAcceptedProofArtifact,
+) -> Rv64imSideSelectedOpeningWitness {
     let stage1_rows = &artifact.stage1.row_bindings;
     let stage2 = &artifact.stage2;
     let stage3 = &artifact.stage3.bridge.continuity;
@@ -259,7 +311,7 @@ pub fn build_rv64im_side_opening_relation_witness_from_accepted_artifact(
         .iter()
         .position(|row| row.is_commit_row)
         .expect("RV64IM side-opening witness requires a stage1 commit row") as u64;
-    Rv64imSideOpeningRelationWitness {
+    Rv64imSideSelectedOpeningWitness {
         stage1_selected_rows: Rv64imStage1SelectedRowsWitness {
             first: stage1_rows
                 .first()
@@ -288,21 +340,6 @@ pub fn build_rv64im_side_opening_relation_witness_from_accepted_artifact(
             first_continuity: stage3.first().cloned(),
             last_continuity: stage3.last().cloned(),
         },
-        stage1_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
-            &artifact.stage_packages.packages.stage1.packaged,
-        ),
-        stage2_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
-            &artifact.stage_packages.packages.stage2.packaged,
-        ),
-        stage3_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
-            &artifact.stage_packages.packages.stage3.packaged,
-        ),
-        bindings_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
-            &artifact.kernel_opening.opening.bindings.packaged,
-        ),
-        prepared_steps_packaged: Rv64imSingleStepPackagedProofWitness::from_packaged(
-            &artifact.kernel_opening.opening.prepared_steps.packaged,
-        ),
     }
 }
 
@@ -543,7 +580,7 @@ fn verify_stage_claim_opening_witness(
 
 fn verify_compact_stage_opening_claims(
     side_bundle: &Rv64imSideProofBundle,
-    witness: &Rv64imSideOpeningRelationWitness,
+    witness: &Rv64imSideSelectedOpeningWitness,
     stage_claims: &SimpleKernelStageClaimBundle,
 ) -> Result<(), SimpleKernelError> {
     let stage1_claim = build_stage1_selected_opening_claim_from_witness(
@@ -656,7 +693,12 @@ pub(super) fn verify_rv64im_side_opening_witness_against_compact_surfaces(
 ) -> Result<(), SimpleKernelError> {
     let stage_claims =
         super::build_rv64im_stage_claim_bundle_from_side_proof_bundle(side_bundle, public_statement.execution_digest)?;
-    verify_compact_stage_opening_claims(side_bundle, witness, &stage_claims)?;
+    let selected = Rv64imSideSelectedOpeningWitness {
+        stage1_selected_rows: witness.stage1_selected_rows.clone(),
+        stage2_selected_events: witness.stage2_selected_events.clone(),
+        stage3_selected_continuity: witness.stage3_selected_continuity.clone(),
+    };
+    verify_compact_stage_opening_claims(side_bundle, &selected, &stage_claims)?;
 
     super::verify_rv64im_side_stage_packages_surface(side_bundle, public_statement)?;
     verify_compact_stage_opening_packages(side_bundle, witness)?;
@@ -665,6 +707,16 @@ pub(super) fn verify_rv64im_side_opening_witness_against_compact_surfaces(
     let kernel_opening_claim = build_rv64im_kernel_opening_claim_from_side_proof_bundle(side_bundle, public_statement)?;
     verify_compact_kernel_opening_packages(side_bundle, witness, &kernel_opening_claim)?;
     Ok(())
+}
+
+pub(super) fn verify_rv64im_side_selected_opening_witness_against_compact_surfaces(
+    public_statement: &Rv64imProofStatement,
+    side_bundle: &Rv64imSideProofBundle,
+    witness: &Rv64imSideSelectedOpeningWitness,
+) -> Result<(), SimpleKernelError> {
+    let stage_claims =
+        super::build_rv64im_stage_claim_bundle_from_side_proof_bundle(side_bundle, public_statement.execution_digest)?;
+    verify_compact_stage_opening_claims(side_bundle, witness, &stage_claims)
 }
 
 pub fn verify_rv64im_side_opening_relation(

@@ -32,31 +32,22 @@ use super::opening_eval_claim_witness::{
     PackedColumnOracleRef, RealAjtaiCommitmentVector,
 };
 use super::opening_eval_claims::{
-    phase0_family_order, CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalSchemaId,
-    OpenedAjtaiObjectId, Rv64imEvalClaimBundle,
+    CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalSchemaId, OpenedAjtaiObjectId,
+    Rv64imEvalClaimBundle,
 };
 use super::opening_phase0_binding_surface::Rv64imPhase0BindingSurface;
 use super::simple::SimpleKernelError;
-
-const FINAL_OPENING_COUNT_V1: usize = 6;
 
 pub type RealAjtaiCommitmentVectorPublic = RealAjtaiCommitmentVector;
 
 impl Rv64imPhase0BindingSurface {
     pub fn validate_canonical_order(&self) -> Result<(), FinalOpeningError> {
-        let expected_order = phase0_family_order();
-        if self.targets.len() != expected_order.len() {
-            return Err(FinalOpeningError::BindingSurfaceTargetCountMismatch {
-                expected: expected_order.len(),
-                actual: self.targets.len(),
-            });
-        }
-        for (index, (target, expected_schema)) in self.targets.iter().zip(expected_order.iter()).enumerate() {
-            if target.schema != *expected_schema {
+        for (index, pair) in self.targets.windows(2).enumerate() {
+            if pair[0].schema >= pair[1].schema {
                 return Err(FinalOpeningError::BindingSurfaceSchemaMismatch {
                     index,
-                    expected: *expected_schema,
-                    actual: target.schema,
+                    expected: pair[0].schema,
+                    actual: pair[1].schema,
                 });
             }
         }
@@ -909,10 +900,11 @@ pub fn verify_rv64im_opening_convergence_proof(proof: &Rv64imOpeningConvergenceP
     verify_phase2_collapse_result(&proof.phase2, &proof.phase1_results)
         .map_err(FinalOpeningError::Phase2VerificationFailed)?;
 
+    let expected_final_opening_count = proof.phase0_binding_surface.targets.len();
     let actual_final_opening_count = proof.final_openings.len();
-    if actual_final_opening_count != FINAL_OPENING_COUNT_V1 {
+    if actual_final_opening_count != expected_final_opening_count {
         return Err(FinalOpeningError::FinalOpeningCountMismatch {
-            expected: FINAL_OPENING_COUNT_V1,
+            expected: expected_final_opening_count,
             actual: actual_final_opening_count,
         });
     }
@@ -963,10 +955,11 @@ pub fn verify_rv64im_opening_convergence_artifact(
             actual: artifact.phase0_digest,
         });
     }
+    let expected_final_opening_count = artifact.phase0_binding_surface.targets.len();
     let actual_final_opening_count = artifact.final_openings.len();
-    if actual_final_opening_count != FINAL_OPENING_COUNT_V1 {
+    if actual_final_opening_count != expected_final_opening_count {
         return Err(FinalOpeningError::FinalOpeningCountMismatch {
-            expected: FINAL_OPENING_COUNT_V1,
+            expected: expected_final_opening_count,
             actual: actual_final_opening_count,
         });
     }

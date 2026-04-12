@@ -13,11 +13,13 @@
 
 use std::cmp::Ordering;
 
-use neo_math::{KExtensions, D, K};
+use neo_math::{KExtensions, D, F, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeCharacteristicRing;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
+use crate::finalize::digest32_as_fields;
 use crate::opening::OpeningDomain;
 
 use super::canonical_openings::AjtaiFamilyKind;
@@ -89,7 +91,7 @@ impl FamilyEvalSchemaId {
 
     pub fn packed_column_count(self) -> usize {
         match self {
-            Self::Stage1Rows => 2,
+            Self::Stage1Rows => 1,
             Self::Stage2RegisterReads
             | Self::Stage2RegisterWrites
             | Self::Stage2RamEvents
@@ -155,26 +157,14 @@ impl OpenedAjtaiObjectId {
 
     pub fn expected_digest(&self, commitment_context: &CommitmentContextId) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/opening_convergence/phase0/opened_object");
-        tr.append_u64s(
-            b"neo.fold.next/rv64im/opening_convergence/phase0/opened_object/meta",
-            &[self.family.tag(), self.layout_version, self.row_domain_log_size as u64],
-        );
-        tr.append_message(
-            b"neo.fold.next/rv64im/opening_convergence/phase0/opened_object/family",
-            self.family.as_str().as_bytes(),
-        );
-        tr.append_message(
-            b"neo.fold.next/rv64im/opening_convergence/phase0/opened_object/pp_seed_digest",
-            &commitment_context.pp_seed_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/rv64im/opening_convergence/phase0/opened_object/module_shape_digest",
-            &commitment_context.module_shape_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/rv64im/opening_convergence/phase0/opened_object/commitment_root_digest",
-            &self.commitment_root_digest,
-        );
+        tr.append_fields_raw(&[
+            F::from_u64(self.family.tag()),
+            F::from_u64(self.layout_version),
+            F::from_u64(self.row_domain_log_size as u64),
+        ]);
+        tr.append_fields_raw(&digest32_as_fields(commitment_context.pp_seed_digest));
+        tr.append_fields_raw(&digest32_as_fields(commitment_context.module_shape_digest));
+        tr.append_fields_raw(&digest32_as_fields(self.commitment_root_digest));
         tr.digest32()
     }
 }

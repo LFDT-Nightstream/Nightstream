@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::side_eval_claim_relation::{
     build_rv64im_phase0_binding_surface_from_side_bundle,
     build_rv64im_side_eval_claim_artifact_from_accepted_artifact_and_side_bundle,
+    build_rv64im_side_eval_claim_artifact_from_claim_witnesses_and_side_bundle,
     build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact_and_side_bundle,
     verify_rv64im_side_eval_claim_artifact, Rv64imSideEvalClaimArtifact,
 };
@@ -15,6 +16,7 @@ use crate::rv64im::kernel::{
     verify_rv64im_opening_convergence_artifact, Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle,
     Rv64imOpeningConvergenceArtifact, Rv64imProofStatement, SimpleKernelError,
 };
+use crate::rv64im::FamilyEvalClaimWitness;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imOpeningArtifact {
@@ -57,6 +59,34 @@ pub fn build_rv64im_opening_artifact_from_accepted_artifact(
             &phase0_binding_surface,
             &phase0_artifact.eval_claim_bundle,
             &claim_witnesses,
+        )
+        .map_err(|err| {
+            SimpleKernelError::Bridge(format!(
+                "RV64IM Nightstream opening convergence artifact build failed: {err}"
+            ))
+        })?;
+    build_rv64im_opening_artifact_from_trusted_local_phase0_and_convergence_artifacts(
+        &phase0_artifact,
+        &convergence_artifact,
+    )
+}
+
+pub(super) fn build_rv64im_opening_artifact_from_claim_witnesses_and_side_bundle(
+    public_statement: &Rv64imProofStatement,
+    side_bundle: &Rv64imSideProofBundle,
+    claim_witnesses: &[FamilyEvalClaimWitness],
+) -> Result<Rv64imOpeningArtifact, SimpleKernelError> {
+    let phase0_artifact = build_rv64im_side_eval_claim_artifact_from_claim_witnesses_and_side_bundle(
+        public_statement,
+        side_bundle,
+        claim_witnesses,
+    )?;
+    let phase0_binding_surface = build_rv64im_phase0_binding_surface_from_side_bundle(side_bundle);
+    let convergence_artifact =
+        build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local(
+            &phase0_binding_surface,
+            &phase0_artifact.eval_claim_bundle,
+            claim_witnesses,
         )
         .map_err(|err| {
             SimpleKernelError::Bridge(format!(

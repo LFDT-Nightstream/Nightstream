@@ -204,7 +204,7 @@ fn digest_to_words(digest: [u8; 32]) -> [u64; 4] {
     words
 }
 
-fn stage_claim_bundle_words(claims: &SimpleKernelStageClaimBundle) -> Vec<u64> {
+pub(crate) fn stage_claim_bundle_words(claims: &SimpleKernelStageClaimBundle) -> Vec<u64> {
     let mut words = Vec::with_capacity(62);
     words.extend(digest_to_words(claims.digest));
     words.extend(digest_to_words(claims.execution_digest));

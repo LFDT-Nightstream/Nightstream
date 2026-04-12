@@ -1,7 +1,7 @@
 use neo_fold_next::rv64im::{
     derive_phase0_point, encode_packed_column_evals_k, encode_words_to_field_evals_k, phase0_full_width_for_schema,
-    phase0_point_seed, reconstruct_words_from_field_evals, unpack_column_evals_k, CommitmentContextId, EvalClaimError,
-    FamilyEvalSchemaId, OpenedAjtaiObjectId,
+    reconstruct_words_from_field_evals, unpack_column_evals_k, CommitmentContextId, EvalClaimError, FamilyEvalSchemaId,
+    OpenedAjtaiObjectId,
 };
 use neo_math::{from_complex, D, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -34,20 +34,6 @@ fn phase0_same_claim_inputs_rederive_same_point() {
     let commitment_context = CommitmentContextId::new(digest(1), digest(2));
     let opened_object = opened_object(FamilyEvalSchemaId::Stage1Rows, &commitment_context, digest(3), 4);
 
-    let seed_a = phase0_point_seed(
-        &opened_object,
-        &commitment_context,
-        FamilyEvalSchemaId::Stage1Rows,
-        0,
-        digest(4),
-    );
-    let seed_b = phase0_point_seed(
-        &opened_object,
-        &commitment_context,
-        FamilyEvalSchemaId::Stage1Rows,
-        0,
-        digest(4),
-    );
     let point_a = derive_phase0_point(
         &opened_object,
         &commitment_context,
@@ -63,7 +49,6 @@ fn phase0_same_claim_inputs_rederive_same_point() {
         digest(4),
     );
 
-    assert_eq!(seed_a, seed_b);
     assert_eq!(point_a, point_b);
 }
 
@@ -77,20 +62,6 @@ fn phase0_distinct_slot_changes_point() {
         3,
     );
 
-    let slot0_seed = phase0_point_seed(
-        &opened_object,
-        &commitment_context,
-        FamilyEvalSchemaId::Stage2RegisterReads,
-        0,
-        digest(13),
-    );
-    let slot1_seed = phase0_point_seed(
-        &opened_object,
-        &commitment_context,
-        FamilyEvalSchemaId::Stage2RegisterReads,
-        1,
-        digest(13),
-    );
     let slot0_point = derive_phase0_point(
         &opened_object,
         &commitment_context,
@@ -106,7 +77,6 @@ fn phase0_distinct_slot_changes_point() {
         digest(13),
     );
 
-    assert_ne!(slot0_seed, slot1_seed);
     assert_ne!(slot0_point, slot1_point);
 }
 
@@ -150,7 +120,9 @@ fn packed_padding_positions_are_zero() {
         encode_packed_column_evals_k(FamilyEvalSchemaId::Stage1Rows, &field_evals).expect("pack stage1 field evals");
     let full_width = phase0_full_width_for_schema(FamilyEvalSchemaId::Stage1Rows);
     let used_coeffs_in_last_column = full_width % D;
-    let last_column = packed.last().expect("stage1 has two packed columns");
+    let last_column = packed
+        .last()
+        .expect("stage1 has at least one packed column");
 
     for coeff in &last_column.coeffs[used_coeffs_in_last_column..] {
         assert_eq!(*coeff, K::ZERO);

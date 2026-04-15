@@ -28,3 +28,6 @@ docs/plans/*
 .claude/skills
 personal-notes/
 .mco-runs/
+/checklists/
+docs/hypernova-paper
+.mco-sessions

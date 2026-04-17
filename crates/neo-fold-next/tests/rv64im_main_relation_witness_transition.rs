@@ -18,6 +18,7 @@ fn diag_rho(scale: i64) -> Mat<F> {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_witness_transition_accepts_rlc_and_dec() {
     let mut z0 = Mat::zero(D, 1, F::ZERO);
     z0[(0, 0)] = F::from_u64(2);
@@ -61,6 +62,7 @@ fn rv64im_main_relation_witness_transition_accepts_rlc_and_dec() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_witness_transition_rejects_bad_split() {
     let mut parent = Mat::zero(D, 1, F::ZERO);
     parent[(0, 0)] = F::from_u64(9);

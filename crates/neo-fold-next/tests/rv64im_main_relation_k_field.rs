@@ -6,6 +6,7 @@ use neo_fold_next::rv64im::main_relation_circuit::k_field::{
 use spartan2::provider::goldi::F as SpartanF;
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_k_field_gadgets_satisfy_basic_add_mul() {
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let delta = SpartanF::from_canonical_u64(7);

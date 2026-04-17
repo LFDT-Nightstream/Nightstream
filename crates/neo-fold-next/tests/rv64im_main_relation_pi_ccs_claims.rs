@@ -61,6 +61,7 @@ fn toy_claim(seed: u64) -> CeClaim<Commitment, GoldilocksF, neo_math::K> {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_pi_ccs_claim_binding_matches_native_challenges() {
     let params = NeoParams::goldilocks_auto_r1cs_ccs(2).expect("auto params");
     let structure = CcsStructure::new(

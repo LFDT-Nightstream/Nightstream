@@ -10,20 +10,22 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::chunk_relation::{
     claim_digests, compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf,
-    trace_chunk_relation_with_witness_and_instance_digest, verify_chunk_relation_with_witness_and_instance_digest,
-    ChunkReplayTrace, ChunkReplayWitness,
+    trace_chunk_relation_with_replay_rounds_and_instance_digest, trace_chunk_relation_with_witness_and_instance_digest,
+    verify_chunk_relation_with_witness_and_instance_digest, ChunkReplayTrace, ChunkReplayWitness,
 };
 use crate::finalize::fixed_shape_recursive_step_handle;
-use crate::finalize::{digest32_as_fields, digest_fields_as_digest32};
-use crate::proof::{Carry, ChunkProvePerf};
+use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, public_chunk_digest};
+use crate::proof::{Carry, ChunkInput, ChunkProvePerf};
 use crate::rv64im::kernel::{
-    prepared_step_digest, rv64im_ajtai_mixers, Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
+    prepared_step_digest, rv64im_ajtai_mixers, rv64im_public_chunk_digest, Rv64imChunkBridgeHandoff,
+    Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 
 pub(crate) const RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG: u64 = 13;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Rv64imChunkRelationTrace {
+    pub chunk_relation_digest: [u8; 32],
     pub ccs_outputs: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>>,
     pub ccs_replay_proof: neo_reductions::optimized_engine::PiCcsReplayProofWitness,
     pub terminal_state: neo_reductions::optimized_engine::PiCcsReplayTerminalState,
@@ -44,22 +46,25 @@ pub(crate) fn prove_rv64im_chunk_transition_with_perf(
 ) -> Result<((ChunkReplayWitness, Carry, [u8; 32], [u8; 32]), ChunkProvePerf), SimpleKernelError> {
     // This builder only accepts a verified export handoff, so the prover hot path
     // does not replay structural bridge validation here. Verification still does.
-    let ((replay_witness, proved), perf) = compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf(
-        transcript,
-        params,
-        structure,
-        &handoff.chunk_input,
-        incoming_main,
-        log,
-        rv64im_ajtai_mixers(),
-        optimized_cache,
-        Some(handoff.public_chunk_instance_digest),
-    )
-    .map_err(|err| SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} prove failed: {err}")))?;
+    let ((replay_witness, proved, verified_fold_digest), perf) =
+        compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf(
+            transcript,
+            params,
+            structure,
+            &handoff.chunk_input,
+            incoming_main,
+            log,
+            rv64im_ajtai_mixers(),
+            optimized_cache,
+            Some(handoff.public_chunk_instance_digest),
+        )
+        .map_err(|err| {
+            SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} prove failed: {err}"))
+        })?;
     let public_chunk_digest = handoff.public_chunk_digest;
-    let chunk_relation_digest = rv64im_chunk_relation_digest(
+    let chunk_relation_digest = rv64im_chunk_relation_digest_from_fold_digest(
         public_chunk_digest,
-        replay_witness.ccs_replay_proof.header_digest,
+        verified_fold_digest,
         handoff.bridge_handoff.digest,
     );
     Ok((
@@ -85,7 +90,7 @@ pub(crate) fn verify_rv64im_chunk_relation_with_replay(
     optimized_cache: &OptimizedStructureCache,
 ) -> Result<(Carry, [u8; 32], [u8; 32]), SimpleKernelError> {
     validate_rv64im_chunk_bridge_handoff(chunk_index, handoff)?;
-    let proved = verify_chunk_relation_with_witness_and_instance_digest(
+    let (proved, verified_fold_digest) = verify_chunk_relation_with_witness_and_instance_digest(
         transcript,
         params,
         structure,
@@ -99,9 +104,9 @@ pub(crate) fn verify_rv64im_chunk_relation_with_replay(
     )
     .map_err(|err| SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} verify failed: {err}")))?;
     let public_chunk_digest = handoff.public_chunk_digest;
-    let chunk_relation_digest = rv64im_chunk_relation_digest(
+    let chunk_relation_digest = rv64im_chunk_relation_digest_from_fold_digest(
         public_chunk_digest,
-        replay_witness.ccs_replay_proof.header_digest,
+        verified_fold_digest,
         handoff.bridge_handoff.digest,
     );
     Ok((proved.next_main, public_chunk_digest, chunk_relation_digest))
@@ -139,6 +144,40 @@ pub(crate) fn trace_rv64im_chunk_relation_with_replay(
     ))
 }
 
+pub(crate) fn trace_rv64im_chunk_relation_with_replay_rounds(
+    chunk_index: usize,
+    chunk_input: &ChunkInput,
+    bridge_handoff: &Rv64imChunkBridgeHandoff,
+    incoming_main: &Carry,
+    sumcheck_rounds: &[Vec<K>],
+    sumcheck_rounds_nc: &[Vec<K>],
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    log: &AjtaiSModule,
+    optimized_cache: &OptimizedStructureCache,
+) -> Result<Rv64imChunkRelationTrace, SimpleKernelError> {
+    validate_rv64im_chunk_replay_input(chunk_index, chunk_input, bridge_handoff)?;
+    let public_chunk = chunk_input.public();
+    let public_chunk_instance_digest = public_chunk_digest(&public_chunk);
+    let public_chunk_digest = rv64im_public_chunk_digest(&public_chunk);
+    let trace = trace_chunk_relation_with_replay_rounds_and_instance_digest(
+        transcript,
+        params,
+        structure,
+        chunk_input,
+        incoming_main,
+        sumcheck_rounds,
+        sumcheck_rounds_nc,
+        log,
+        rv64im_ajtai_mixers(),
+        optimized_cache,
+        public_chunk_instance_digest,
+    )
+    .map_err(|err| SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} trace failed: {err}")))?;
+    Ok(trace_into_rv64im(trace, public_chunk_digest, bridge_handoff.digest))
+}
+
 pub(crate) fn rv64im_step_handle(
     previous_handle: [u8; 32],
     chunk_index: usize,
@@ -157,10 +196,7 @@ pub(crate) fn rv64im_step_handle(
 
 pub(crate) fn rv64im_chunk_replay_witness_digest(replay_witness: &ChunkReplayWitness) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/chunk_transition_witness");
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_transition_witness/header_digest",
-        &replay_witness.ccs_replay_proof.header_digest,
-    );
+    tr.append_message(b"neo.fold.next/rv64im/chunk_transition_witness/version", b"v2");
     tr.append_u64s(
         b"neo.fold.next/rv64im/chunk_transition_witness/counts",
         &[
@@ -183,25 +219,30 @@ pub(crate) fn rv64im_chunk_replay_witness_digest(replay_witness: &ChunkReplayWit
     tr.digest32()
 }
 
-fn rv64im_chunk_relation_digest(
+pub(crate) fn rv64im_chunk_relation_digest_from_fold_digest(
     public_chunk_digest: [u8; 32],
-    main_relation_digest: [u8; 32],
+    verified_fold_digest: [u8; 32],
     bridge_handoff_digest: [u8; 32],
 ) -> [u8; 32] {
     let mut preimage = Vec::with_capacity(1 + 3 * 4);
     preimage.push(F::from_u64(RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG));
     preimage.extend_from_slice(&digest32_as_fields(public_chunk_digest));
-    preimage.extend_from_slice(&digest32_as_fields(main_relation_digest));
+    preimage.extend_from_slice(&digest32_as_fields(verified_fold_digest));
     preimage.extend_from_slice(&digest32_as_fields(bridge_handoff_digest));
     digest_fields_as_digest32(poseidon2_hash(&preimage))
 }
 
 fn trace_into_rv64im(
     trace: ChunkReplayTrace,
-    _public_chunk_digest: [u8; 32],
-    _bridge_handoff_digest: [u8; 32],
+    public_chunk_digest: [u8; 32],
+    bridge_handoff_digest: [u8; 32],
 ) -> Rv64imChunkRelationTrace {
     Rv64imChunkRelationTrace {
+        chunk_relation_digest: rv64im_chunk_relation_digest_from_fold_digest(
+            public_chunk_digest,
+            trace.terminal_state.fold_digest,
+            bridge_handoff_digest,
+        ),
         ccs_outputs: trace.ccs_outputs,
         ccs_replay_proof: trace.ccs_replay_proof,
         terminal_state: trace.terminal_state,
@@ -281,6 +322,61 @@ fn validate_rv64im_chunk_bridge_handoff(
             )));
         }
         if binding.logical_index != (handoff.chunk_input.start_index + chunk_local_index) as u64 {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM chunk transition {chunk_index}:{chunk_local_index} bridge binding logical index mismatch"
+            )));
+        }
+        if binding.prepared_step_digest != prepared_step_digest(step) {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM chunk transition {chunk_index}:{chunk_local_index} bridge binding does not match the carried chunk step"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_rv64im_chunk_replay_input(
+    chunk_index: usize,
+    chunk_input: &ChunkInput,
+    bridge_handoff: &Rv64imChunkBridgeHandoff,
+) -> Result<(), SimpleKernelError> {
+    if bridge_handoff.digest != bridge_handoff.expected_digest() {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM chunk transition {chunk_index} bridge handoff digest mismatch"
+        )));
+    }
+    if bridge_handoff.chunk_index != chunk_index as u64 {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM chunk transition {chunk_index} bridge handoff chunk index mismatch"
+        )));
+    }
+    if bridge_handoff.chunk_start_index != chunk_input.start_index as u64 {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM chunk transition {chunk_index} bridge handoff chunk start mismatch"
+        )));
+    }
+    if bridge_handoff.public_step_count != chunk_input.steps.len() as u64 {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM chunk transition {chunk_index} bridge handoff step count mismatch"
+        )));
+    }
+    if bridge_handoff.step_bindings.len() != chunk_input.steps.len() {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM chunk transition {chunk_index} bridge handoff binding count mismatch"
+        )));
+    }
+    for (chunk_local_index, (binding, step)) in bridge_handoff
+        .step_bindings
+        .iter()
+        .zip(chunk_input.steps.iter())
+        .enumerate()
+    {
+        if binding.digest != binding.expected_digest() {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM chunk transition {chunk_index}:{chunk_local_index} bridge binding digest mismatch"
+            )));
+        }
+        if binding.logical_index != (chunk_input.start_index + chunk_local_index) as u64 {
             return Err(SimpleKernelError::Bridge(format!(
                 "RV64IM chunk transition {chunk_index}:{chunk_local_index} bridge binding logical index mismatch"
             )));

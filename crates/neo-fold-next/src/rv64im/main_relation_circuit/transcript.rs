@@ -489,6 +489,34 @@ impl Poseidon2TranscriptCircuit {
         core::array::from_fn(|i| self.state[i].value)
     }
 
+    pub fn state_fields<CS: ConstraintSystem<SpartanF>>(
+        &mut self,
+        mut cs: CS,
+    ) -> Result<[AllocatedNum<SpartanF>; WIDTH], SynthesisError> {
+        let mut out = Vec::with_capacity(WIDTH);
+        for i in 0..WIDTH {
+            out.push(self.state[i].ensure_allocated(cs.namespace(|| format!("state_allocate_{i}")))?);
+        }
+        out.try_into().map_err(|_| SynthesisError::Unsatisfiable)
+    }
+
+    pub fn enforce_state_values<CS: ConstraintSystem<SpartanF>>(
+        &self,
+        cs: &mut CS,
+        expected: &[SpartanF; WIDTH],
+        label: &str,
+    ) -> Result<(), SynthesisError> {
+        for (idx, (lane, expected_value)) in self.state.iter().zip(expected.iter()).enumerate() {
+            cs.enforce(
+                || format!("{label}_{idx}"),
+                |_| lane.lc::<CS>(),
+                |lc| lc + CS::one(),
+                |lc| lc + (*expected_value, CS::one()),
+            );
+        }
+        Ok(())
+    }
+
     pub fn absorbed(&self) -> usize {
         self.absorbed
     }

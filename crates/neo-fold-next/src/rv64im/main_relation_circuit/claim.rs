@@ -90,6 +90,55 @@ pub fn alloc_ce_claim<CS: ConstraintSystem<SpartanF>>(
     })
 }
 
+pub fn alloc_ce_claim_without_fold_digest<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+    let s_col = alloc_k_slice(cs, &claim.s_col, &format!("{label}_s_col"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alloc_k_slice(cs, &claim.ct, &format!("{label}_ct"))?;
+    let aux_openings = alloc_k_slice(cs, &claim.aux_openings, &format!("{label}_aux_openings"))?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+    let c_step_coords = alloc_f_slice(cs, &claim.c_step_coords, &format!("{label}_c_step_coords"))?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col,
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings,
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords,
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
 pub fn alloc_ce_claim_with_shared_point<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     claim: &CeClaim<Commitment, F, K>,
@@ -140,6 +189,60 @@ pub fn alloc_ce_claim_with_shared_point<CS: ConstraintSystem<SpartanF>>(
         c_step_coords_values: claim.c_step_coords.clone(),
         fold_digest_encoding,
         fold_digest_encoding_values,
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_with_shared_point_without_fold_digest<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values || claim.s_col.as_slice() != shared_s_col_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alias_ct_from_y_ring(&y_ring, &claim.y_ring, &claim.ct)?;
+    let aux_openings = alloc_k_slice(cs, &claim.aux_openings, &format!("{label}_aux_openings"))?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+    let c_step_coords = alloc_f_slice(cs, &claim.c_step_coords, &format!("{label}_c_step_coords"))?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings,
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords,
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
         m_in: claim.m_in,
         u_offset: claim.u_offset,
         u_len: claim.u_len,

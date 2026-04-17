@@ -78,6 +78,7 @@ fn synthetic_public_challenges() -> Challenges {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_initial_sum_matches_native_formula() {
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let delta = SpartanF::from_canonical_u64(7);

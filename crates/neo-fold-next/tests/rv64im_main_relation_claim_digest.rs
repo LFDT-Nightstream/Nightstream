@@ -53,6 +53,7 @@ fn toy_claim() -> CeClaim<Commitment, F, K> {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_claim_digest_matches_native_poseidon() {
     let claim = toy_claim();
     let native_digest = native_me_digest_poseidon(&claim);

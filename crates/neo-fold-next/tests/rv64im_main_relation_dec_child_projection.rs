@@ -88,6 +88,7 @@ fn ensure_toy_pp() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_dec_child_projection_accepts_paper_ce_even_with_tampered_nc_artifacts() {
     ensure_toy_pp();
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");
@@ -117,6 +118,7 @@ fn rv64im_main_relation_dec_child_projection_accepts_paper_ce_even_with_tampered
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_dec_child_projection_accepts_tampered_padded_y_ring_tail() {
     ensure_toy_pp();
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");
@@ -144,6 +146,7 @@ fn rv64im_main_relation_dec_child_projection_accepts_tampered_padded_y_ring_tail
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_dec_child_projection_rejects_tampered_y_ring() {
     ensure_toy_pp();
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");

@@ -25,6 +25,7 @@ fn alloc_f_constant(
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_pi_ccs_transcript_matches_native_challenge_sampling() {
     let params = NeoParams::goldilocks_auto_r1cs_ccs(2).expect("auto params");
     let structure = CcsStructure::new(

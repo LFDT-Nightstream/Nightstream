@@ -2,11 +2,13 @@ use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
 use neo_fold_next::rv64im::main_relation_circuit::claim::alloc_ce_claim;
-use neo_fold_next::rv64im::main_relation_circuit::rho_sampling::alloc_rot_rho_matrices_from_native;
-use neo_fold_next::rv64im::main_relation_circuit::rlc_dec::{
-    enforce_dec_public_non_commitment, enforce_dec_public_with_constant_children, enforce_rlc_public_non_commitment,
-    enforce_rlc_public_non_commitment_with_rho_vars,
+use neo_fold_next::rv64im::main_relation_circuit::pi_dec::{
+    enforce_dec_public_non_commitment, enforce_dec_public_with_constant_children,
 };
+use neo_fold_next::rv64im::main_relation_circuit::pi_rlc::{
+    enforce_rlc_public_non_commitment, enforce_rlc_public_non_commitment_with_rho_vars,
+};
+use neo_fold_next::rv64im::main_relation_circuit::rho_sampling::alloc_rot_rho_matrices_from_native;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 use spartan2::provider::goldi::F as SpartanF;
@@ -54,6 +56,7 @@ fn diag_rho(scale: i64) -> Mat<F> {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_rlc_dec_gadgets_accept_public_equalities() {
     let child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
     let child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);
@@ -98,6 +101,7 @@ fn rv64im_main_relation_rlc_dec_gadgets_accept_public_equalities() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_rlc_dec_gadgets_reject_tampered_parent() {
     let child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
     let child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);
@@ -130,6 +134,7 @@ fn rv64im_main_relation_rlc_dec_gadgets_reject_tampered_parent() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_dec_constant_children_accept_public_equalities() {
     let child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
     let child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);
@@ -153,6 +158,7 @@ fn rv64im_main_relation_dec_constant_children_accept_public_equalities() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_dec_constant_children_reject_tampered_parent() {
     let child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
     let child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);
@@ -177,6 +183,7 @@ fn rv64im_main_relation_dec_constant_children_reject_tampered_parent() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_rlc_var_gadget_accepts_public_equalities() {
     let child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
     let child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);

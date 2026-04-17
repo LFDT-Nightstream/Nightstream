@@ -138,7 +138,7 @@ pub fn sample_goldilocks_rot_rhos<CS: ConstraintSystem<SpartanF>>(
     Ok(out)
 }
 
-fn sample_goldilocks_rot_rho_coeff_values_from_transcript(
+pub(crate) fn sample_goldilocks_rot_rho_coeff_values_from_transcript(
     tr: &mut Poseidon2Transcript,
     count: usize,
 ) -> Result<Vec<Vec<F>>, SynthesisError> {
@@ -196,6 +196,18 @@ fn alloc_rot_rhos_from_coeff_values<CS: ConstraintSystem<SpartanF>>(
         });
     }
     Ok(out)
+}
+
+pub fn alloc_zero_rot_rhos<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    count: usize,
+    label: &str,
+) -> Result<Vec<RotRhoVar>, SynthesisError> {
+    alloc_rot_rhos_from_coeff_values(
+        cs.namespace(|| format!("{label}_zero")),
+        &vec![vec![F::ZERO; D]; count],
+        label,
+    )
 }
 
 pub fn materialize_goldilocks_rot_matrices<CS: ConstraintSystem<SpartanF>>(
@@ -315,6 +327,15 @@ pub fn alloc_rot_rho_matrices_from_native<CS: ConstraintSystem<SpartanF>>(
         });
     }
     Ok(out)
+}
+
+pub fn alloc_zero_rot_rho_matrices<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    count: usize,
+    label: &str,
+) -> Result<Vec<RotRhoMatrixVar>, SynthesisError> {
+    let zero = Mat::zero(D, D, F::ZERO);
+    alloc_rot_rho_matrices_from_native(&mut cs.namespace(|| format!("{label}_zero")), &vec![zero; count], label)
 }
 
 fn digest_u16_words<CS: ConstraintSystem<SpartanF>>(

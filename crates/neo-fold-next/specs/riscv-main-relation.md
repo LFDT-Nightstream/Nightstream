@@ -1,7 +1,5 @@
 # RV64IM Main Relation Specification
 
-STATE: DESIGN TARGET
-
 ## Scope
 
 This document specifies the owned RV64IM main relation `R_main^SN` in
@@ -27,13 +25,13 @@ This document does **not** own:
 - the concrete recursive backend choice,
 - the concrete outer compression backend,
 - the final public Rust API for compressed proofs,
-- or the side-bridge theorem.
+- or the side-opening theorem.
 
 Those remain owned by:
 
 - `riscv-recursive-proof.md`
 - `riscv-recursive-instantiation.md`
-- `riscv-witness-backed-side-bridge.md`
+- `riscv-authoritative-side-proof-bundle.md`
 
 ## Normative References
 
@@ -51,13 +49,12 @@ This document is constrained by the following local references:
 - `../../docs/superneo-paper/07_7_Neo_s_folding_scheme_for_CCS.md`
   - the `CE(b, L)` relation and the carried `CE(b, L)^k` semantics
 
-## 1. Design Goal
+## 1. Goal
 
-The RV64IM main lane shall eventually be verified by a succinct proof of a
-**fixed witness-backed main relation**.
+The RV64IM main lane is the fixed witness-backed main relation to be compiled
+by later recursive or succinct proofs.
 
-That relation shall own the theorem-level meaning currently realized by the
-native folded/final replay path:
+That relation owns the theorem-level meaning of:
 
 - kernel-export binding,
 - chunk-local `Π_CCS -> Π_RLC -> Π_DEC` verification,
@@ -146,7 +143,7 @@ Direct proof of the exported `final_main_claims` alone is not sufficient unless
 the implementation first proves those carried claims are themselves direct
 `CE(b, L)` instances with witnesses satisfying Definition 13.
 
-In particular, an implementation may not assume that the currently exported
+In particular, an implementation may not assume that a legacy exported
 carried `CE` claims can be proved by pairing each claim with the corresponding
 carried `Z` matrix and invoking a direct CE-membership circuit. If the backend
 reconciles public channels such as `X` during `Π_DEC` without applying the same
@@ -169,7 +166,7 @@ At minimum, the public instance shall bind:
 - and the canonical statement-to-accumulator linkage required by the bridge
   theorem.
 
-No digest is theorem-facing by default merely because the current direct
+No digest is theorem-facing by default merely because a direct verifier
 verifier path exports it.
 
 ## 4. Private Witness
@@ -177,8 +174,7 @@ verifier path exports it.
 The private witness shall contain the concrete theorem-bearing objects needed to
 realize the main theorem above.
 
-This includes the objects currently realized by the native final replay path,
-such as:
+This includes objects such as:
 
 - the kernel-export witness material,
 - the chunk-local fresh proof/witness material needed to justify each carried
@@ -218,31 +214,23 @@ Therefore:
 - and any per-shape or padded-family backend choice must preserve the same
   public/private theorem.
 
-## 7. Current RV64IM Field Classification
+## 7. Implementation Inventory Boundary
 
-The current RV64IM folded/final path fields shall be classified into exactly
-one of:
+This theorem spec does not freeze any particular legacy Rust struct, proof
+container, or export shell.
+
+Any repo-local inventory mapping from legacy exported fields into:
 
 - theorem-facing public,
 - recursive-internal public,
 - private witness,
-- or audit-only.
+- or audit-only
 
-At minimum, the following dispositions are required:
+is owned by `riscv-recursive-instantiation.md`.
 
-| Current owner | Current field(s) | End-state class | Required disposition |
-| --- | --- | --- | --- |
-| `Rv64imFinalStatement` | `public_statement_digest` | theorem-facing public | Remains the canonical published statement binding or a conservative digest of it. |
-| `Rv64imFinalStatement` | `folded.fold_schedule`, `folded.semantic_step_count` | recursive-internal public | Remain public only if the compiled main relation needs them. |
-| `Rv64imFinalStatement` | `folded.final_accumulator.terminal_handle` | recursive-internal public | Remains public only if the backend requires a terminal accumulator handle. |
-| `Rv64imFinalStatement` | `folded.final_accumulator.final_main_claims` | private witness | Internalize beneath the owned main relation unless a concrete backend proves a smaller equivalent public handle is sufficient. |
-| `Rv64imFinalProof` | `kernel_export` | private witness | Internalize beneath the owned main relation. |
-| `Rv64imFinalProof` | `steps` | private witness | Internalize beneath the owned main relation. |
-| `Rv64imFinalProof` | `chunk_summaries` | recursive-internal public | May remain public only if required by the compiled relation shape. |
-| `Rv64imFinalProof` | `proof_digest` | audit-only | A convenience digest only. It is never a theorem by itself. |
-| `Rv64imFinalProofComponentDigests` | all fields | audit-only | Transitional helper digests only. Any compiled relation must recompute their meaning from authoritative data. |
-
-No row above may be reclassified implicitly by implementation convenience.
+That implementation-level classification may specialize this theorem boundary,
+but it may not weaken the bridge theorem in Section 2 or promote a legacy
+digest shell to theorem-facing authority.
 
 ## 8. Negative Rules
 

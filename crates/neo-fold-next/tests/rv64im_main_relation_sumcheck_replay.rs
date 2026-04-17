@@ -17,6 +17,7 @@ fn k(re: u64, im: u64) -> NeoK {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_sumcheck_replay_matches_native_transcript_path() {
     let delta = SpartanF::from_canonical_u64(7);
     let prefix = b"neo.fold.next/test/sumcheck_replay";

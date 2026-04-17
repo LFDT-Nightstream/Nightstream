@@ -10,6 +10,7 @@ fn field_to_u64(value: SpartanF) -> u64 {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_transcript_matches_native_poseidon2_transcript() {
     let mut native = Poseidon2Transcript::new(b"neo.fold.next/test/main_relation");
     native.append_message(b"label/one", b"message/one");

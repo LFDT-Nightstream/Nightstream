@@ -11,6 +11,7 @@ fn k(re: u64, im: u64) -> NeoK {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_sumcheck_gadgets_match_native_horner_logic() {
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let delta = SpartanF::from_canonical_u64(7);

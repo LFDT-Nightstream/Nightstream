@@ -14,7 +14,8 @@ use super::ce_consistency::{
     enforce_ajtai_commitment_consistency, enforce_output_claim_consistency, enforce_paper_dec_child_claim_consistency,
 };
 use super::claim::{alloc_ce_claim, CeClaimVar};
-use super::rlc_dec::{enforce_dec_public, enforce_rlc_public};
+use super::pi_dec::enforce_dec_public;
+use super::pi_rlc::enforce_rlc_public;
 use super::witness::{alloc_packed_witness, PackedWitnessVar};
 use super::witness_transition::{
     alloc_split_children_from_native, enforce_packed_dec_split, mix_packed_witnesses_with_rho_mats,

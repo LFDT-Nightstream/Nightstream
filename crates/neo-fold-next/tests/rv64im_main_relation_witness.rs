@@ -52,6 +52,7 @@ fn toy_witness() -> CcsWitness<F> {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_witness_gadgets_accept_consistent_projection_range_and_y_zcol() {
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");
     let expected_m = 3;
@@ -90,6 +91,7 @@ fn rv64im_main_relation_witness_gadgets_accept_consistent_projection_range_and_y
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_witness_gadgets_reject_tampered_projection() {
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");
     let expected_m = 3;

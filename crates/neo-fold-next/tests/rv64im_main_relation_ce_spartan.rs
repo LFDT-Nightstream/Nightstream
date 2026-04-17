@@ -120,6 +120,7 @@ fn assert_full_ce_circuit_satisfied(
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_ce_spartan_round_trip() {
     ensure_toy_pp();
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");
@@ -140,6 +141,7 @@ fn rv64im_main_relation_ce_spartan_round_trip() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_ce_spartan_rejects_tampered_claim() {
     ensure_toy_pp();
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");

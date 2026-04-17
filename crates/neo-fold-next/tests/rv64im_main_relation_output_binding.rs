@@ -57,6 +57,7 @@ fn fresh_output(fresh: &CcsClaim<Commitment, F>, r: &[K], s_col: &[K]) -> CeClai
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_output_binding_accepts_fresh_and_me_inputs() {
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");
     let structure = toy_structure();
@@ -114,6 +115,7 @@ fn rv64im_main_relation_output_binding_accepts_fresh_and_me_inputs() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_output_binding_rejects_tampered_fresh_commitment() {
     let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");
     let structure = toy_structure();

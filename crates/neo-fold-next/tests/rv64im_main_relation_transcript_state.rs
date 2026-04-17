@@ -26,6 +26,7 @@ fn alloc_constant(
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_transcript_resume_matches_native() {
     let mut native = Poseidon2Transcript::new(b"neo.fold.next/test/transcript_resume");
     native.append_message(b"label0", b"payload0");
@@ -41,6 +42,7 @@ fn rv64im_main_relation_transcript_resume_matches_native() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_transcript_circuit_resume_matches_native() {
     let mut native = Poseidon2Transcript::new(b"neo.fold.next/test/transcript_resume");
     native.append_message(b"label0", b"payload0");

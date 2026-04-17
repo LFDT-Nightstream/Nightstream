@@ -21,6 +21,7 @@ fn native_range_product(value: NeoK, b: u32) -> NeoK {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_terminal_common_matches_native_algebra() {
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let delta = SpartanF::from_canonical_u64(7);

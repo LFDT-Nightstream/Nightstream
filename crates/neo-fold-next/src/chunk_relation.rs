@@ -163,6 +163,7 @@ fn chunk_relation_result_from_transition(transition: CcsTransitionState) -> Chun
         parent,
         children,
         z_split,
+        ..
     } = transition;
     let relation_digest = chunk_relation_digest(&ccs_outputs, &parent, &children);
     ChunkRelationResult {
@@ -183,6 +184,7 @@ fn chunk_replay_witness_and_result_from_parts(
         parent,
         children,
         z_split,
+        ..
     } = transition;
     let relation_digest = chunk_relation_digest(&ccs_outputs, &parent, &children);
     (
@@ -198,6 +200,23 @@ fn chunk_replay_witness_and_result_from_parts(
             artifacts: ChunkRelationArtifacts { relation_digest },
         },
     )
+}
+
+pub fn build_inert_chunk_replay_proof_witness(
+    fe_round_lengths: &[u64],
+    nc_round_lengths: &[u64],
+) -> PiCcsReplayProofWitness {
+    PiCcsReplayProofWitness {
+        sumcheck_rounds: fe_round_lengths
+            .iter()
+            .map(|len| vec![K::ZERO; *len as usize])
+            .collect(),
+        sumcheck_rounds_nc: nc_round_lengths
+            .iter()
+            .map(|len| vec![K::ZERO; *len as usize])
+            .collect(),
+        header_digest: [0; 32],
+    }
 }
 
 pub fn replay_chunk_relation<L, MR, MB>(
@@ -234,7 +253,7 @@ where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
     MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
 {
-    verify_chunk_relation_with_witness_and_instance_digest(
+    Ok(verify_chunk_relation_with_witness_and_instance_digest(
         tr,
         params,
         s,
@@ -245,7 +264,8 @@ where
         mixers,
         optimized_cache,
         None,
-    )
+    )?
+    .0)
 }
 
 pub(crate) fn verify_chunk_relation_with_witness_and_instance_digest<L, MR, MB>(
@@ -259,7 +279,7 @@ pub(crate) fn verify_chunk_relation_with_witness_and_instance_digest<L, MR, MB>(
     mixers: CommitmentMixers<MR, MB>,
     optimized_cache: &OptimizedStructureCache,
     public_chunk_instance_digest: Option<[F; 4]>,
-) -> Result<ChunkRelationResult, PiCcsError>
+) -> Result<(ChunkRelationResult, [u8; 32]), PiCcsError>
 where
     L: SModuleHomomorphism<F, Commitment> + Sync,
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
@@ -309,7 +329,7 @@ where
         neo_reductions::optimized_engine::PiCcsProvePerf::default(),
         0.0,
     )?;
-    transition.into_relation_result()
+    Ok((transition.into_relation_result()?, fold_digest))
 }
 
 pub(crate) fn trace_chunk_relation_with_witness_and_instance_digest<L, MR, MB>(
@@ -381,6 +401,73 @@ where
     })
 }
 
+pub(crate) fn trace_chunk_relation_with_replay_rounds_and_instance_digest<L, MR, MB>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    chunk: &ChunkInput,
+    incoming_main: &Carry,
+    sumcheck_rounds: &[Vec<K>],
+    sumcheck_rounds_nc: &[Vec<K>],
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+    optimized_cache: &OptimizedStructureCache,
+    public_chunk_instance_digest: [F; 4],
+) -> Result<ChunkReplayTrace, PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    let prepared = prepare_chunk_ccs_inputs(tr, chunk, incoming_main, Some(public_chunk_instance_digest))?;
+    let (terminal_state, derived_replay_proof) = optimized_replay_trace_with_cache_and_instance_digest_and_perf(
+        tr,
+        params,
+        s,
+        &prepared.fresh_claims,
+        &prepared.fresh_witnesses,
+        &incoming_main.claims,
+        &incoming_main.witnesses,
+        prepared.public_chunk_digest,
+        log,
+        optimized_cache,
+    )?;
+    if derived_replay_proof.sumcheck_rounds != sumcheck_rounds
+        || derived_replay_proof.sumcheck_rounds_nc != sumcheck_rounds_nc
+    {
+        return Err(PiCcsError::ProtocolError(
+            "optimized replay proof rounds do not match the carried chunk replay transport".into(),
+        ));
+    }
+    let (transition, _perf) = finish_chunk_transition_with_perf(
+        Instant::now(),
+        FoldingMode::Optimized,
+        tr,
+        params,
+        s,
+        prepared.start_index,
+        prepared.fresh_step_count,
+        incoming_main,
+        log,
+        mixers,
+        Some(optimized_cache),
+        prepared.prepare_inputs_ms,
+        &prepared.fresh_witnesses,
+        terminal_state.me_outputs.clone(),
+        terminal_state.fold_digest,
+        terminal_state.perf,
+        terminal_state.perf.total_ms,
+    )?;
+    Ok(ChunkReplayTrace {
+        ccs_outputs: transition.ccs_outputs,
+        ccs_replay_proof: derived_replay_proof,
+        terminal_state,
+        parent: transition.parent,
+        children: transition.children,
+        z_split: transition.z_split,
+    })
+}
+
 pub fn replay_chunk_relation_with_perf<L, MR, MB>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -416,17 +503,19 @@ where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
     MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
 {
-    compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf(
-        tr,
-        params,
-        s,
-        chunk,
-        incoming_main,
-        log,
-        mixers,
-        optimized_cache,
-        None,
-    )
+    let ((replay_witness, relation_result, _fold_digest), perf) =
+        compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf(
+            tr,
+            params,
+            s,
+            chunk,
+            incoming_main,
+            log,
+            mixers,
+            optimized_cache,
+            None,
+        )?;
+    Ok(((replay_witness, relation_result), perf))
 }
 
 pub(crate) fn compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf<L, MR, MB>(
@@ -439,7 +528,7 @@ pub(crate) fn compute_chunk_replay_witness_and_relation_with_instance_digest_and
     mixers: CommitmentMixers<MR, MB>,
     optimized_cache: &OptimizedStructureCache,
     public_chunk_instance_digest: Option<[F; 4]>,
-) -> Result<((ChunkReplayWitness, ChunkRelationResult), ChunkProvePerf), PiCcsError>
+) -> Result<((ChunkReplayWitness, ChunkRelationResult, [u8; 32]), ChunkProvePerf), PiCcsError>
 where
     L: SModuleHomomorphism<F, Commitment> + Sync,
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
@@ -461,6 +550,7 @@ where
         optimized_cache,
     )?;
     let ccs_ms = ccs_started.elapsed().as_secs_f64() * 1_000.0;
+    let verified_fold_digest = replay.replay_proof.header_digest;
     let (transition, perf) = finish_chunk_transition_with_perf(
         total_started,
         FoldingMode::Optimized,
@@ -476,14 +566,12 @@ where
         prepared.prepare_inputs_ms,
         &prepared.fresh_witnesses,
         replay.me_outputs,
-        replay.replay_proof.header_digest,
+        verified_fold_digest,
         replay.perf,
         ccs_ms,
     )?;
-    Ok((
-        chunk_replay_witness_and_result_from_parts(transition, replay.replay_proof),
-        perf,
-    ))
+    let (replay_witness, relation_result) = chunk_replay_witness_and_result_from_parts(transition, replay.replay_proof);
+    Ok(((replay_witness, relation_result, verified_fold_digest), perf))
 }
 
 pub(crate) fn compute_chunk_relation_with_perf<L, MR, MB>(

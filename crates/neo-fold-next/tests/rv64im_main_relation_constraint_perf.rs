@@ -4,10 +4,14 @@ use std::collections::BTreeSet;
 use std::env;
 use std::time::Instant;
 
+use neo_fold_next::rv64im::audit::{
+    measure_rv64im_spartan2_decider_circuit, Rv64imMainRelationCircuitMetrics, Rv64imMainRelationCountBucket,
+    Rv64imMainRelationHotspotDetail,
+};
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
-    build_mixed_opcode_perf_source_case, build_rv64im_accepted_proof_artifact, measure_rv64im_spartan2_decider_circuit,
-    prove_rv64im_public_proof, Rv64imProofInput, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
+    build_mixed_opcode_perf_source_case, build_rv64im_accepted_proof_artifact, prove_rv64im_public_proof,
+    Rv64imProofInput, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
 
 const RV64IM_MAIN_RELATION_TOTAL_BUDGET: usize = 50_000;
@@ -54,10 +58,7 @@ fn print_kv(label: &str, value: impl std::fmt::Display) {
     println!("  {:34} {}", label, value);
 }
 
-fn print_hotspot_detail(
-    metrics: &neo_fold_next::rv64im::Rv64imMainRelationCircuitMetrics,
-    detail: &neo_fold_next::rv64im::Rv64imMainRelationHotspotDetail,
-) {
+fn print_hotspot_detail(metrics: &Rv64imMainRelationCircuitMetrics, detail: &Rv64imMainRelationHotspotDetail) {
     print_section(&format!("Hotspot Deep Dive: {}", detail.parent_namespace));
     print_kv("total_constraints", format_count(detail.total_constraint_count));
     print_kv(
@@ -98,8 +99,8 @@ fn print_hotspot_detail(
 
 fn print_hotspot_table(
     title: &str,
-    metrics: &neo_fold_next::rv64im::Rv64imMainRelationCircuitMetrics,
-    buckets: impl Iterator<Item = neo_fold_next::rv64im::Rv64imMainRelationCountBucket>,
+    metrics: &Rv64imMainRelationCircuitMetrics,
+    buckets: impl Iterator<Item = Rv64imMainRelationCountBucket>,
 ) {
     print_section(title);
     println!(
@@ -143,10 +144,7 @@ fn hotspot_family(namespace: &str) -> Option<&'static str> {
     }
 }
 
-fn representative_namespace<'a>(
-    metrics: &'a neo_fold_next::rv64im::Rv64imMainRelationCircuitMetrics,
-    prefix: &str,
-) -> &'a str {
+fn representative_namespace<'a>(metrics: &'a Rv64imMainRelationCircuitMetrics, prefix: &str) -> &'a str {
     metrics
         .representative_claim_details
         .iter()
@@ -155,11 +153,7 @@ fn representative_namespace<'a>(
         .unwrap_or("<none>")
 }
 
-fn avg_leaf_constraints_with_substring(
-    metrics: &neo_fold_next::rv64im::Rv64imMainRelationCircuitMetrics,
-    parent: &str,
-    needle: &str,
-) -> f64 {
+fn avg_leaf_constraints_with_substring(metrics: &Rv64imMainRelationCircuitMetrics, parent: &str, needle: &str) -> f64 {
     let Some(detail) = metrics
         .hotspot_details
         .iter()
@@ -183,7 +177,7 @@ fn avg_leaf_constraints_with_substring(
     }
 }
 
-fn phase_constraint(metrics: &neo_fold_next::rv64im::Rv64imMainRelationCircuitMetrics, phase: &str) -> usize {
+fn phase_constraint(metrics: &Rv64imMainRelationCircuitMetrics, phase: &str) -> usize {
     metrics
         .phase_rollup
         .iter()
@@ -192,7 +186,7 @@ fn phase_constraint(metrics: &neo_fold_next::rv64im::Rv64imMainRelationCircuitMe
         .unwrap_or(0)
 }
 
-fn phase_constraints(metrics: &neo_fold_next::rv64im::Rv64imMainRelationCircuitMetrics, phases: &[&str]) -> usize {
+fn phase_constraints(metrics: &Rv64imMainRelationCircuitMetrics, phases: &[&str]) -> usize {
     phases
         .iter()
         .map(|phase| phase_constraint(metrics, phase))

@@ -2,6 +2,8 @@
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 
+use crate::finalize::digest32_as_fields;
+
 pub(super) fn kernel_claim_summary_digest_from_surfaces(
     prepared_step_bindings_digest: [u8; 32],
     root0_digest: [u8; 32],
@@ -102,12 +104,18 @@ pub(super) fn packaged_opening_proof_digest_from_surfaces(
     proof_digest: [u8; 32],
 ) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/stage_packaged_opening_claim_proof");
-    tr.append_message(b"rv64im/stage_packaged_opening_claim_proof/claim_digest", &claim_digest);
-    tr.append_message(
-        b"rv64im/stage_packaged_opening_claim_proof/statement_digest",
-        &statement_digest,
+    tr.append_fields(
+        b"rv64im/stage_packaged_opening_claim_proof/claim_digest",
+        &digest32_as_fields(claim_digest),
     );
-    tr.append_message(b"rv64im/stage_packaged_opening_claim_proof/proof_digest", &proof_digest);
+    tr.append_fields(
+        b"rv64im/stage_packaged_opening_claim_proof/statement_digest",
+        &digest32_as_fields(statement_digest),
+    );
+    tr.append_fields(
+        b"rv64im/stage_packaged_opening_claim_proof/proof_digest",
+        &digest32_as_fields(proof_digest),
+    );
     tr.digest32()
 }
 

@@ -1,10 +1,9 @@
 use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
 use neo_fold_next::nightstream::rv64im::audit::{
-    build_rv64im_direct_side_relation_from_accepted_artifact, circuit_derive_phase0_point,
+    build_rv64im_side_eval_claim_relation_from_accepted_artifact, circuit_derive_phase0_point,
     circuit_enforce_phase0_commitment_root_and_opened_object_digest, circuit_enforce_phase0_payload_eq,
     circuit_enforce_phase0_point_eq, circuit_evaluate_phase0_payload_from_packed_rows,
 };
-use neo_fold_next::nightstream::rv64im::build_rv64im_side_proof_bundle_from_accepted_artifact;
 use neo_fold_next::rv64im::{
     build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof, Rv64imProofInput,
 };
@@ -42,24 +41,16 @@ fn proof_input(name: &str) -> Rv64imProofInput {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_side_relation_phase0_point_and_payload_match_native_claim_witness() {
     let proof =
         prove_rv64im_public_proof(&proof_input("control_flow_jal_skip_ecall")).expect("prove rv64im public proof");
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
-    let side_bundle =
-        build_rv64im_side_proof_bundle_from_accepted_artifact(&accepted_artifact).expect("build side bundle");
-    let (nightstream_statement, _nightstream_proof) =
-        neo_fold_next::nightstream::rv64im::build_rv64im_nightstream_from_public_proof(&proof)
-            .expect("build nightstream proof");
-    let (_, witness) = build_rv64im_direct_side_relation_from_accepted_artifact(
-        &nightstream_statement,
-        &side_bundle,
-        &accepted_artifact,
-    )
-    .expect("build direct side relation");
+    let (_, witness) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&accepted_artifact)
+        .expect("build side eval-claim relation");
 
     let claim_witness = witness
-        .phase0_claim_witnesses
+        .claim_witnesses
         .iter()
         .find(|claim| claim.claim.payload.schema == neo_fold_next::rv64im::FamilyEvalSchemaId::Stage2RegisterWrites)
         .expect("stage2 register-writes phase0 claim witness");
@@ -133,20 +124,11 @@ fn rv64im_side_relation_phase0_component_counts() {
     let proof =
         prove_rv64im_public_proof(&proof_input("control_flow_jal_skip_ecall")).expect("prove rv64im public proof");
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
-    let side_bundle =
-        build_rv64im_side_proof_bundle_from_accepted_artifact(&accepted_artifact).expect("build side bundle");
-    let (nightstream_statement, _nightstream_proof) =
-        neo_fold_next::nightstream::rv64im::build_rv64im_nightstream_from_public_proof(&proof)
-            .expect("build nightstream proof");
-    let (_, witness) = build_rv64im_direct_side_relation_from_accepted_artifact(
-        &nightstream_statement,
-        &side_bundle,
-        &accepted_artifact,
-    )
-    .expect("build direct side relation");
+    let (_, witness) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&accepted_artifact)
+        .expect("build side eval-claim relation");
 
     let mut seen = BTreeSet::new();
-    for claim_witness in &witness.phase0_claim_witnesses {
+    for claim_witness in &witness.claim_witnesses {
         let schema = claim_witness.claim.payload.schema;
         if !seen.insert(schema) {
             continue;

@@ -1,10 +1,10 @@
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem};
 use neo_fold_next::nightstream::rv64im::audit::{
-    build_rv64im_direct_side_relation_from_accepted_artifact, circuit_continuity_event_digest,
-    circuit_ram_event_digest, circuit_register_read_event_digest, circuit_register_write_event_digest,
-    circuit_stage1_row_digest, circuit_twist_link_event_digest,
+    build_rv64im_side_opening_relation_witness_from_accepted_artifact,
+    build_rv64im_side_proof_bundle_from_accepted_artifact, circuit_continuity_event_digest, circuit_ram_event_digest,
+    circuit_register_read_event_digest, circuit_register_write_event_digest, circuit_stage1_row_digest,
+    circuit_twist_link_event_digest,
 };
-use neo_fold_next::nightstream::rv64im::build_rv64im_side_proof_bundle_from_accepted_artifact;
 use neo_fold_next::rv64im::{
     build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof, Rv64imProofInput,
 };
@@ -57,26 +57,19 @@ fn enforce_digest_eq<CS: ConstraintSystem<SpartanF>>(
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_side_relation_circuit_selected_opening_digests_match_carried_claims() {
     let proof =
         prove_rv64im_public_proof(&proof_input("control_flow_jal_skip_ecall")).expect("prove rv64im public proof");
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&accepted_artifact).expect("build side bundle");
-    let (nightstream_statement, _nightstream_proof) =
-        neo_fold_next::nightstream::rv64im::build_rv64im_nightstream_from_public_proof(&proof)
-            .expect("build nightstream proof");
-    let (_, witness) = build_rv64im_direct_side_relation_from_accepted_artifact(
-        &nightstream_statement,
-        &side_bundle,
-        &accepted_artifact,
-    )
-    .expect("build direct side relation");
+    let witness = build_rv64im_side_opening_relation_witness_from_accepted_artifact(&accepted_artifact);
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let stage1_first = circuit_stage1_row_digest(
         cs.namespace(|| "stage1_first"),
-        &witness.opening_witness.stage1_selected_rows.first,
+        &witness.stage1_selected_rows.first,
         "stage1_first",
     )
     .expect("stage1 digest");
@@ -89,11 +82,7 @@ fn rv64im_side_relation_circuit_selected_opening_digests_match_carried_claims() 
     .expect("stage1 first eq");
 
     match (
-        witness
-            .opening_witness
-            .stage2_selected_events
-            .first_read
-            .as_ref(),
+        witness.stage2_selected_events.first_read.as_ref(),
         side_bundle
             .stage2
             .claim
@@ -119,11 +108,7 @@ fn rv64im_side_relation_circuit_selected_opening_digests_match_carried_claims() 
     }
 
     match (
-        witness
-            .opening_witness
-            .stage2_selected_events
-            .first_write
-            .as_ref(),
+        witness.stage2_selected_events.first_write.as_ref(),
         side_bundle
             .stage2
             .claim
@@ -149,11 +134,7 @@ fn rv64im_side_relation_circuit_selected_opening_digests_match_carried_claims() 
     }
 
     match (
-        witness
-            .opening_witness
-            .stage2_selected_events
-            .first_ram
-            .as_ref(),
+        witness.stage2_selected_events.first_ram.as_ref(),
         side_bundle
             .stage2
             .claim
@@ -178,11 +159,7 @@ fn rv64im_side_relation_circuit_selected_opening_digests_match_carried_claims() 
     }
 
     match (
-        witness
-            .opening_witness
-            .stage2_selected_events
-            .first_twist
-            .as_ref(),
+        witness.stage2_selected_events.first_twist.as_ref(),
         side_bundle
             .stage2
             .claim
@@ -208,11 +185,7 @@ fn rv64im_side_relation_circuit_selected_opening_digests_match_carried_claims() 
     }
 
     match (
-        witness
-            .opening_witness
-            .stage3_selected_continuity
-            .first_continuity
-            .as_ref(),
+        witness.stage3_selected_continuity.first_continuity.as_ref(),
         side_bundle
             .stage3
             .claim

@@ -12,7 +12,7 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 
 use crate::rv64im::kernel::{
-    build_rv64im_eval_claim_bundle_from_claim_witnesses,
+    build_commitment_vector, build_rv64im_eval_claim_bundle_from_claim_witnesses,
     build_rv64im_eval_claim_bundle_from_claim_witnesses_trusted_local,
     build_rv64im_eval_claim_witnesses_from_accepted_artifact, derive_phase0_point, phase0_binding_digest,
     rebuild_opened_object_witness_from_projection, AjtaiOpeningProof, CommitmentContextId, FamilyEvalClaim,
@@ -366,7 +366,7 @@ fn build_rv64im_phase0_opening_target_bundle_from_claim_witnesses(
     })
 }
 
-fn build_rv64im_phase0_opened_object_bundle_from_opening_targets(
+pub(crate) fn build_rv64im_phase0_opened_object_bundle_from_opening_targets(
     eval_claim_bundle: &Rv64imEvalClaimBundle,
     phase0_opening_targets: &Rv64imPhase0OpeningTargetBundle,
 ) -> Result<Rv64imPhase0OpenedObjectBundle, SimpleKernelError> {
@@ -532,6 +532,7 @@ fn verify_rv64im_side_eval_claim_relation_surfaces(
         ));
     }
 
+    verify_phase0_claim_witness_consistency(claim_witnesses)?;
     let expected_opened_objects = build_rv64im_phase0_opened_object_bundle_from_claim_witnesses(claim_witnesses)?;
     if expected_opened_objects != statement.phase0_opened_objects {
         return Err(SimpleKernelError::Bridge(
@@ -548,6 +549,36 @@ fn verify_rv64im_side_eval_claim_relation_surfaces(
 
     verify_phase0_claim_bindings(statement, claim_witnesses)?;
     verify_phase0_claim_coverage(&statement.side_bundle, claim_witnesses)?;
+    Ok(())
+}
+
+fn verify_phase0_claim_witness_consistency(
+    claim_witnesses: &[FamilyEvalClaimWitness],
+) -> Result<(), SimpleKernelError> {
+    for claim_witness in claim_witnesses {
+        FamilyEvalClaimWitness::new(claim_witness.claim.clone(), claim_witness.witness.clone()).map_err(|err| {
+            SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim relation {:?} claim witness is internally inconsistent: {err}",
+                claim_witness.claim.payload.schema
+            ))
+        })?;
+        let rebuilt_commitment_vector = build_commitment_vector(
+            claim_witness.claim.payload.schema,
+            &claim_witness.witness.packed_columns,
+        )
+        .map_err(|err| {
+            SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim relation {:?} could not rebuild the commitment vector: {err}",
+                claim_witness.claim.payload.schema
+            ))
+        })?;
+        if rebuilt_commitment_vector != claim_witness.witness.commitment_vector {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM side-eval-claim relation {:?} packed columns do not match the carried commitment vector",
+                claim_witness.claim.payload.schema
+            )));
+        }
+    }
     Ok(())
 }
 
@@ -697,7 +728,7 @@ pub fn verify_rv64im_side_eval_claim_artifact(
     verify_rv64im_side_eval_claim_relation_surfaces(&statement, &claim_witnesses)
 }
 
-fn validate_rv64im_side_eval_claim_artifact_structure(
+pub(crate) fn validate_rv64im_side_eval_claim_artifact_structure(
     artifact: &Rv64imSideEvalClaimArtifact,
 ) -> Result<(), SimpleKernelError> {
     artifact.phase0_opening_targets.validate_canonical_order()?;
@@ -739,7 +770,7 @@ fn validate_rv64im_side_eval_claim_artifact_structure(
     Ok(())
 }
 
-fn rebuild_phase0_claim_witnesses_from_artifact(
+pub(crate) fn rebuild_phase0_claim_witnesses_from_artifact(
     artifact: &Rv64imSideEvalClaimArtifact,
 ) -> Result<Vec<FamilyEvalClaimWitness>, SimpleKernelError> {
     let mut witness_by_schema = BTreeMap::<FamilyEvalSchemaId, Arc<OpenedAjtaiObjectWitness>>::new();
@@ -821,7 +852,8 @@ fn verify_phase0_claim_surface(
         )));
     }
 
-    let expected_binding_digest = phase0_binding_digest(
+    let expected_binding_digest = nightstream_phase0_binding_digest(
+        statement.side_bundle.statement_core_digest,
         &summary.opened_object,
         claim.payload.schema,
         claim.id.slot,
@@ -946,6 +978,33 @@ pub(crate) fn build_rv64im_phase0_binding_surface_from_side_bundle(
     surface
 }
 
+pub(crate) fn nightstream_phase0_binding_digest(
+    statement_core_digest: [u8; 32],
+    opened_object: &OpenedAjtaiObjectId,
+    schema: FamilyEvalSchemaId,
+    slot: u32,
+    family_binding_anchor_digest: [u8; 32],
+    stage_proof_binding_digest: [u8; 32],
+) -> [u8; 32] {
+    let base_binding_digest = phase0_binding_digest(
+        opened_object,
+        schema,
+        slot,
+        family_binding_anchor_digest,
+        stage_proof_binding_digest,
+    );
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/phase0_binding");
+    tr.append_message(
+        b"neo.fold.next/nightstream/rv64im/phase0_binding/statement_core_digest",
+        &statement_core_digest,
+    );
+    tr.append_message(
+        b"neo.fold.next/nightstream/rv64im/phase0_binding/base_binding_digest",
+        &base_binding_digest,
+    );
+    tr.digest32()
+}
+
 pub(crate) fn rebind_phase0_claim_witnesses_to_side_bundle(
     side_bundle: &Rv64imSideProofBundle,
     claim_witnesses: &[FamilyEvalClaimWitness],
@@ -954,7 +1013,8 @@ pub(crate) fn rebind_phase0_claim_witnesses_to_side_bundle(
         .iter()
         .map(|claim_witness| {
             let schema = claim_witness.claim.payload.schema;
-            let binding_digest = phase0_binding_digest(
+            let binding_digest = nightstream_phase0_binding_digest(
+                side_bundle.statement_core_digest,
                 &claim_witness.claim.opened_object,
                 schema,
                 claim_witness.claim.id.slot,

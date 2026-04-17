@@ -77,6 +77,23 @@ impl Chip8MainResidualProof {
     }
 }
 
+fn chip8_main_proof_digest(
+    main_decider_proof: &Chip8MainDeciderProof,
+    main_residual_proof: &Chip8MainResidualProof,
+) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/chip8/main_proof");
+    tr.append_message(b"neo.fold.next/nightstream/chip8/main_proof/version", b"v1");
+    tr.append_message(
+        b"neo.fold.next/nightstream/chip8/main_proof/main_decider_proof_digest",
+        &main_decider_proof.expected_digest(),
+    );
+    tr.append_message(
+        b"neo.fold.next/nightstream/chip8/main_proof/main_residual_proof_digest",
+        &main_residual_proof.expected_digest(),
+    );
+    tr.digest32()
+}
+
 pub fn chip8_verifier_context_digest() -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/chip8/verifier_context");
     tr.append_message(b"neo.fold.next/nightstream/chip8/verifier_context/version", b"v1");
@@ -98,12 +115,12 @@ fn chip8_absent_artifact_digest(label: &'static [u8]) -> [u8; 32] {
     tr.digest32()
 }
 
-pub fn chip8_absent_side_bridge_artifact_digest() -> [u8; 32] {
-    chip8_absent_artifact_digest(b"side_bridge")
+pub fn chip8_absent_side_proof_digest() -> [u8; 32] {
+    chip8_absent_artifact_digest(b"side_proof")
 }
 
-pub fn chip8_absent_linkage_artifact_digest() -> [u8; 32] {
-    chip8_absent_artifact_digest(b"linkage")
+pub fn chip8_absent_linkage_binding_digest() -> [u8; 32] {
+    chip8_absent_artifact_digest(b"linkage_binding")
 }
 
 pub fn chip8_nightstream_linkage_root(kernel_export_anchor_digest: [u8; 32]) -> [u8; 32] {
@@ -114,8 +131,8 @@ pub fn chip8_nightstream_linkage_root(kernel_export_anchor_digest: [u8; 32]) -> 
         &kernel_export_anchor_digest,
     );
     tr.append_message(
-        b"neo.fold.next/nightstream/chip8/linkage_root/linkage_artifact_digest",
-        &chip8_absent_linkage_artifact_digest(),
+        b"neo.fold.next/nightstream/chip8/linkage_root/linkage_binding_digest",
+        &chip8_absent_linkage_binding_digest(),
     );
     tr.digest32()
 }
@@ -197,10 +214,9 @@ pub fn build_chip8_nightstream_from_recursive_proof(
     let main_residual_proof = build_chip8_main_residual_proof(statement, proof)?;
     let mut nightstream_statement = build_chip8_nightstream_statement(statement, proof, [0; 32])?;
     let proof_binding_inputs = NightstreamProofBindingInputs {
-        main_decider_proof_digest: main_decider_proof.expected_digest(),
-        main_residual_proof_digest: main_residual_proof.expected_digest(),
-        side_bridge_artifact_digest: chip8_absent_side_bridge_artifact_digest(),
-        linkage_artifact_digest: chip8_absent_linkage_artifact_digest(),
+        main_proof_digest: chip8_main_proof_digest(&main_decider_proof, &main_residual_proof),
+        side_proof_digest: chip8_absent_side_proof_digest(),
+        linkage_binding_digest: chip8_absent_linkage_binding_digest(),
     };
     nightstream_statement.proof_binding_root =
         nightstream_proof_binding_root(nightstream_statement.core_digest(), &proof_binding_inputs);

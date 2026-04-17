@@ -22,10 +22,9 @@ pub struct NightstreamStatement {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NightstreamProofBindingInputs {
-    pub main_decider_proof_digest: [u8; 32],
-    pub main_residual_proof_digest: [u8; 32],
-    pub side_bridge_artifact_digest: [u8; 32],
-    pub linkage_artifact_digest: [u8; 32],
+    pub main_proof_digest: [u8; 32],
+    pub side_proof_digest: [u8; 32],
+    pub linkage_binding_digest: [u8; 32],
 }
 
 impl NightstreamStatement {
@@ -81,20 +80,16 @@ pub fn nightstream_proof_binding_root(
         &statement_core_digest,
     );
     tr.append_message(
-        b"neo.fold.next/nightstream/proof_binding_root/main_decider_proof_digest",
-        &inputs.main_decider_proof_digest,
+        b"neo.fold.next/nightstream/proof_binding_root/main_proof_digest",
+        &inputs.main_proof_digest,
     );
     tr.append_message(
-        b"neo.fold.next/nightstream/proof_binding_root/main_residual_proof_digest",
-        &inputs.main_residual_proof_digest,
+        b"neo.fold.next/nightstream/proof_binding_root/side_proof_digest",
+        &inputs.side_proof_digest,
     );
     tr.append_message(
-        b"neo.fold.next/nightstream/proof_binding_root/side_bridge_artifact_digest",
-        &inputs.side_bridge_artifact_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/nightstream/proof_binding_root/linkage_artifact_digest",
-        &inputs.linkage_artifact_digest,
+        b"neo.fold.next/nightstream/proof_binding_root/linkage_binding_digest",
+        &inputs.linkage_binding_digest,
     );
     tr.digest32()
 }

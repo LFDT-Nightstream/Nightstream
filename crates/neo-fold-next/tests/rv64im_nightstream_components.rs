@@ -73,8 +73,8 @@ fn side_eval_claim_relation_statement_digest(
 
 fn forge_opening_phase0_payload(
     public_statement: &Rv64imProofStatement,
-    side_bundle: &neo_fold_next::nightstream::rv64im::Rv64imSideProofBundle,
-    opening_artifact: &mut neo_fold_next::nightstream::rv64im::Rv64imOpeningArtifact,
+    side_bundle: &neo_fold_next::nightstream::rv64im::audit::Rv64imSideProofBundle,
+    opening_artifact: &mut neo_fold_next::nightstream::rv64im::audit::Rv64imOpeningArtifact,
 ) {
     let phase0_opened_objects_digest = build_rv64im_side_eval_claim_relation_statement_from_artifact(
         public_statement,

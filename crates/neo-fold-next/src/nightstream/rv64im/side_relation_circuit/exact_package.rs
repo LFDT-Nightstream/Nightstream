@@ -54,7 +54,8 @@ pub fn exact_vector_packaged_step_var_from_words_with_step_label<CS: ConstraintS
                 .map(|value| F::from_u64(value.to_canonical_u64()))
         })
         .collect::<Vec<_>>();
-    build_exact_vector_step(cs, namespace_label, step_label, &logical_vars, &logical_values)
+    let exact_label = format!("{step_label}/selected_claim_package");
+    build_exact_vector_step(cs, namespace_label, &exact_label, &logical_vars, &logical_values)
 }
 
 pub fn exact_vector_packaged_step_digest_from_native_words<CS: ConstraintSystem<SpartanF>>(
@@ -92,10 +93,43 @@ pub fn exact_vector_packaged_step_var_from_native_words_with_step_label<CS: Cons
     exact_vector_packaged_step_var_from_words_with_step_label(&mut cs, namespace_label, step_label, &word_vars)
 }
 
+pub fn exact_vector_step_var_from_native_words_with_exact_label<CS: ConstraintSystem<SpartanF>>(
+    cs: CS,
+    namespace_label: &str,
+    exact_label: &str,
+    words: &[u64],
+) -> Result<PublicStepVar, SynthesisError> {
+    let mut cs = cs;
+    let word_vars = words
+        .iter()
+        .enumerate()
+        .map(|(idx, word)| {
+            alloc_u64(
+                cs.namespace(|| format!("{namespace_label}_word_{idx}")),
+                *word,
+                &format!("{namespace_label}_word_{idx}"),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let logical_vars = word_vars
+        .iter()
+        .flat_map(U64Var::limb16_vars)
+        .collect::<Vec<_>>();
+    let logical_values = word_vars
+        .iter()
+        .flat_map(|word| {
+            word.limb16_values()
+                .into_iter()
+                .map(|value| F::from_u64(value.to_canonical_u64()))
+        })
+        .collect::<Vec<_>>();
+    build_exact_vector_step(&mut cs, namespace_label, exact_label, &logical_vars, &logical_values)
+}
+
 fn build_exact_vector_step<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     namespace_label: &str,
-    step_label: &str,
+    exact_label: &str,
     logical_vars: &[AllocatedNum<SpartanF>],
     logical_values: &[F],
 ) -> Result<PublicStepVar, SynthesisError> {
@@ -125,7 +159,6 @@ fn build_exact_vector_step<CS: ConstraintSystem<SpartanF>>(
         &commitment,
         &format!("{namespace_label}_commitment"),
     )?;
-    let label = format!("{step_label}/selected_claim_package");
     Ok(PublicStepVar {
         claim: CcsClaimVar {
             c_data,
@@ -136,7 +169,7 @@ fn build_exact_vector_step<CS: ConstraintSystem<SpartanF>>(
         },
         label_encoding: alloc_const_packed_bytes(
             cs.namespace(|| format!("{namespace_label}_label")),
-            label.as_bytes(),
+            exact_label.as_bytes(),
             &format!("{namespace_label}_label"),
         )?,
     })

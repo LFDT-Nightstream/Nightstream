@@ -20,6 +20,8 @@ use crate::rv64im::kernel::{
 use super::side_bridges::validate_rv64im_side_proof_bundle_structure;
 use super::Rv64imSideProofBundle;
 
+pub(super) const RV64IM_SINGLE_STEP_PACKAGED_FINAL_MAIN_CLAIM_COUNT: usize = 24;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imSideClaimRelationStatement {
     pub public_statement: Rv64imProofStatement,
@@ -74,6 +76,20 @@ impl Rv64imSingleStepPackagedProofWitness {
         );
         tr.digest32()
     }
+}
+
+pub(super) fn validate_rv64im_single_step_packaged_witness_shape(
+    label: &str,
+    witness: &Rv64imSingleStepPackagedProofWitness,
+) -> Result<(), SimpleKernelError> {
+    if witness.final_main_claim_digests.len() != RV64IM_SINGLE_STEP_PACKAGED_FINAL_MAIN_CLAIM_COUNT {
+        return Err(SimpleKernelError::Bridge(format!(
+            "{label} packaged witness final-main-claim width {} != frozen exact-package width {}",
+            witness.final_main_claim_digests.len(),
+            RV64IM_SINGLE_STEP_PACKAGED_FINAL_MAIN_CLAIM_COUNT
+        )));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

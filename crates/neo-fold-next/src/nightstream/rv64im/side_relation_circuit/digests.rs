@@ -10,6 +10,7 @@ use crate::finalize::public_chunk_digest as native_public_chunk_digest;
 use crate::proof::PublicChunk;
 use crate::proof::{FoldSchedule, PublicStep};
 use crate::rv64im::kernel::{
+    build_kernel_binding_opening_public_step, build_kernel_prepared_step_opening_public_step,
     KernelBindingOpeningClaim, KernelPreparedStepOpeningClaim, Stage1SelectedOpeningClaim, Stage2SelectedOpeningClaim,
     Stage3SelectedOpeningClaim,
 };
@@ -24,7 +25,10 @@ use crate::rv64im::stage2::{
 };
 use crate::rv64im::stage3::{continuity_event_words, ContinuityEvent};
 
-use super::exact_package::exact_vector_packaged_step_var_from_native_words_with_step_label;
+use super::exact_package::{
+    exact_vector_packaged_step_var_from_native_words_with_step_label,
+    exact_vector_step_var_from_native_words_with_exact_label,
+};
 use super::word::alloc_u64;
 
 pub fn stage1_row_digest<CS: ConstraintSystem<SpartanF>>(
@@ -212,12 +216,12 @@ pub fn kernel_binding_opening_packaged_statement_digest<CS: ConstraintSystem<Spa
     final_main_claim_digests: &[[F; 4]],
     _: &str,
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    single_step_packaged_statement_digest_from_exact_words(
+    single_step_packaged_statement_digest_from_exact_words_with_native_step(
         cs,
         &claim.claim_words(),
+        &build_kernel_binding_opening_public_step(claim).map_err(|_| SynthesisError::Unsatisfiable)?,
         final_main_claim_digests,
         "rv64im_kernel_opening_bundle_bindings",
-        "rv64im/kernel_opening_bundle/bindings",
     )
 }
 
@@ -227,12 +231,34 @@ pub fn kernel_prepared_step_opening_packaged_statement_digest<CS: ConstraintSyst
     final_main_claim_digests: &[[F; 4]],
     _: &str,
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    single_step_packaged_statement_digest_from_exact_words(
+    single_step_packaged_statement_digest_from_exact_words_with_native_step(
         cs,
         &claim.claim_words(),
+        &build_kernel_prepared_step_opening_public_step(claim).map_err(|_| SynthesisError::Unsatisfiable)?,
         final_main_claim_digests,
         "rv64im_kernel_opening_bundle_prepared_steps",
-        "rv64im/kernel_opening_bundle/prepared_steps",
+    )
+}
+
+fn single_step_packaged_statement_digest_from_exact_words_with_native_step<CS: ConstraintSystem<SpartanF>>(
+    mut cs: CS,
+    words: &[u64],
+    step: &PublicStep,
+    final_main_claim_digests: &[[F; 4]],
+    namespace_label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    let step_var = exact_vector_step_var_from_native_words_with_exact_label(
+        cs.namespace(|| format!("{namespace_label}_exact_step")),
+        &format!("{namespace_label}_exact_step"),
+        &step.label,
+        words,
+    )?;
+    single_step_packaged_statement_digest_from_step_var(
+        &mut cs,
+        step_var,
+        step,
+        final_main_claim_digests,
+        namespace_label,
     )
 }
 

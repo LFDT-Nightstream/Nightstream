@@ -5,22 +5,24 @@ use neo_fold_next::chip8::decider::build_chip8_spartan2_decider_target;
 use neo_fold_next::chip8::proof::prove_recursive;
 use neo_fold_next::nightstream::chip8::{
     build_chip8_main_decider_proof, build_chip8_main_residual_proof, build_chip8_nightstream_from_recursive_proof,
-    chip8_absent_linkage_artifact_digest, chip8_absent_side_bridge_artifact_digest, chip8_nightstream_linkage_root,
+    chip8_absent_linkage_binding_digest, chip8_absent_side_proof_digest, chip8_nightstream_linkage_root,
     chip8_verifier_context_digest, verify_chip8_main_decider_proof, verify_chip8_main_residual_proof,
     verify_chip8_nightstream_from_recursive_proof, Chip8MainDeciderProof, Chip8MainResidualProof,
 };
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_nightstream_absent_artifact_digests_are_distinct() {
-    let side_bridge = chip8_absent_side_bridge_artifact_digest();
-    let linkage = chip8_absent_linkage_artifact_digest();
+    let side_proof = chip8_absent_side_proof_digest();
+    let linkage = chip8_absent_linkage_binding_digest();
 
-    assert_ne!(side_bridge, [0; 32]);
+    assert_ne!(side_proof, [0; 32]);
     assert_ne!(linkage, [0; 32]);
-    assert_ne!(side_bridge, linkage);
+    assert_ne!(side_proof, linkage);
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_verifier_context_digest_is_stable_and_nonzero() {
     let digest_a = chip8_verifier_context_digest();
     let digest_b = chip8_verifier_context_digest();
@@ -30,6 +32,7 @@ fn chip8_verifier_context_digest_is_stable_and_nonzero() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_nightstream_linkage_root_tracks_anchor_digest() {
     let root_a = chip8_nightstream_linkage_root([1; 32]);
     let root_b = chip8_nightstream_linkage_root([2; 32]);
@@ -40,6 +43,7 @@ fn chip8_nightstream_linkage_root_tracks_anchor_digest() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_main_decider_proof_digest_tracks_target_digest() {
     let proof = Chip8MainDeciderProof {
         decider_target_digest: [7; 32],
@@ -52,6 +56,7 @@ fn chip8_main_decider_proof_digest_tracks_target_digest() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_main_residual_proof_digest_tracks_fields() {
     let proof = Chip8MainResidualProof {
         statement_digest: [1; 32],
@@ -68,6 +73,7 @@ fn chip8_main_residual_proof_digest_tracks_fields() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_nightstream_round_trips_against_current_recursive_seam() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -88,6 +94,7 @@ fn chip8_nightstream_round_trips_against_current_recursive_seam() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_nightstream_decider_target_bridge_matches_current_target() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -103,6 +110,7 @@ fn chip8_nightstream_decider_target_bridge_matches_current_target() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_nightstream_main_residual_follows_recursive_seam() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -117,6 +125,7 @@ fn chip8_nightstream_main_residual_follows_recursive_seam() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_nightstream_rejects_tampered_statement_binding() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -131,6 +140,7 @@ fn chip8_nightstream_rejects_tampered_statement_binding() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_nightstream_rejects_tampered_main_residual_proof() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");

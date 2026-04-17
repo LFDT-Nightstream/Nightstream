@@ -1,7 +1,5 @@
 # RV64IM Side-Opening Relation, Side Final Verifier, and Spartan Linkage Specification
 
-STATE: DESIGN TARGET
-
 This document specifies the minimal side-opening theorem, the optional side
 final verifier packaging, and the Spartan linkage rules for RV64IM in
 `neo-fold-next`.
@@ -56,15 +54,13 @@ Spartan clarification:
   against `SideVerifierPublic`, and Spartan checks linkage against that same
   tuple or a digest recomputed from it.
 
-### Current Spartan Constraint Cost Model (Diagnostic)
+### Side Constraint Cost Snapshot (Non-Normative)
 
-This table is diagnostic, not normative. It records the current measured
-side-related costs in this repo and separates:
+This table is non-normative. It records one pinned side-related measurement
+snapshot in this repo and separates:
 
-- raw Phase 0 replay costs, which are now audit-only diagnostics rather than
-  Spartan work, and
-- the current side Spartan circuit, which has already been cut down to a small
-  public-input binding circuit.
+- raw Phase 0 replay costs, used here as audit/debug baselines, and
+- the measured side Spartan wrapper circuit at the same snapshot.
 
 Measurement context for the rows below:
 
@@ -77,25 +73,25 @@ Measurement context for the rows below:
 - enforced `N=2` side-circuit redline:
   `RV64IM_N2_SIDE_CONSTRAINT_BUDGET = 2_048`
 
-| Path or item | Current measured or enforced value | Basis | Interpretation |
+| Path or item | Measured or enforced value at the snapshot | Basis | Interpretation |
 | --- | --- | --- | --- |
 | Raw Phase 0 commitment replay | `79,824` constraints per active schema in every measured case | `rv64im_side_relation_phase0_component_counts` on `Stage1Rows`, `Stage2RegisterWrites`, `Stage2TwistLinks`, `Stage3Continuity` | This is the dominant raw replay cost. It is no longer the intended Spartan boundary. |
 | Raw Phase 0 eval replay | `3,766` to `4,236` constraints per active schema | Sum of `point + point_eq + payload + payload_eq` from the same diagnostic | This is the remaining eval-side replay after separating out commitment replay. |
 | Raw Phase 0 schema total | `83,590` to `84,060` constraints per active schema | Same diagnostic | This is useful only as an audit/debug figure for the old replay path. |
-| Current side Spartan circuit | No raw Phase 0 replay terms remain in the circuit; only the statement digest is allocated as public input | `measure_rv64im_side_spartan_circuit_constraints` and `side_relation_spartan.rs` synthesize only public inputs and no replay subrelations | The side-Spartan boundary is now small by construction. This is the current theorem-facing circuit shape. |
-| Current side Spartan `N=2` redline | `<= 2,048` total constraints | `RV64IM_N2_SIDE_CONSTRAINT_BUDGET` canary in `rv64im_n2_canaries.rs` | This is the current enforced upper bound for the tiny-N side circuit. It is a budget, not a measured exact count. |
-| Current end-to-end side timing | unavailable from the canonical perf snapshot at this SHA | `NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot` currently fails with `InvalidSumcheckProof` | Do not treat stale historical perf numbers as current until the perf snapshot is green again. |
+| Side Spartan wrapper circuit at the snapshot | No raw Phase 0 replay terms remain in the circuit; only the statement digest is allocated as public input | `measure_rv64im_side_spartan_circuit_constraints` and `side_relation_spartan.rs` synthesize only public inputs and no replay subrelations | This row describes the measured wrapper circuit at the snapshot SHA. It is not the theorem itself. |
+| Side Spartan `N=2` redline at the snapshot | `<= 2,048` total constraints | `RV64IM_N2_SIDE_CONSTRAINT_BUDGET` canary in `rv64im_n2_canaries.rs` | This is an enforced budget, not a measured exact count. |
+| End-to-end side timing at the snapshot | unavailable from the canonical perf snapshot at this SHA | `NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot` fails with `InvalidSumcheckProof` at the listed SHA | The snapshot records the measurement state honestly; it does not reuse stale timings. |
 
 Interpretation notes:
 
-- The old `437,287/op` figure is no longer the current side-Spartan circuit. It
-  was the cost of the pre-cut replay-heavy side relation.
+- The old `437,287/op` figure came from the pre-cut replay-heavy side
+  relation. It is included only as historical contrast.
 - The raw Phase 0 rows above remain useful because they show exactly what should
   stay out of Spartan: commitment replay and payload replay.
-- The current side-Spartan circuit is intentionally much smaller. Its role is to
-  bind the compact public statement, not to replay raw side witnesses.
-- The table should be updated only from fresh diagnostics. If the canonical perf
-  snapshot is failing, timing rows must say so rather than reusing stale data.
+- The measured side Spartan wrapper circuit is intentionally much smaller. Its
+  role is to bind a compact public statement, not to replay raw side witnesses.
+- This table is a pinned repo snapshot. It does not define theorem ownership,
+  and it should only be refreshed from fresh diagnostics.
 
 ## Attack Breakdown
 
@@ -264,12 +260,19 @@ profile `RecursiveSuperNeoSide_V1`.
 `RecursiveSuperNeoSide_V1` is not the side theorem itself. It is the backend
 construction that realizes `R_side_opening` by:
 
-1. encoding the theorem as a fixed CCS/CE family `CCS_side_opening_V1`, and
-2. using the SuperNeo step relation
+1. encoding the theorem as a fixed CCS/CE family `CCS_side_opening_V1`,
+2. fixing the SuperNeo fold step
 
     Π_SuperNeo := Π_DEC ∘ Π_RLC ∘ Π_CCS
 
-   over that encoding.
+   over that encoding, and
+3. applying Fiat-Shamir to obtain the non-interactive folding scheme
+
+    NIFS_side := FS(Π_SuperNeo over CCS_side_opening_V1).
+
+The verifier checked by the recursive backend is therefore `NIFS_side.V`. The
+equations below are the verifier equations for one folded step of
+`NIFS_side.V`, not the theorem-level side relation itself.
 
 `RecursiveSuperNeoSide_V1` must therefore pin all of the following:
 
@@ -278,11 +281,13 @@ construction that realizes `R_side_opening` by:
 3. the coefficient embedding and lifted transform used by SuperNeo,
 4. the public-coin transcript and its Fiat-Shamirization,
 5. the intermediate relaxed CE relation and shared projection `φ_side`,
-6. and the exact meaning of `SideFinalProof`
+6. the exact meaning of `SideFinalProof`, and
+7. the recursive proof shape built above `NIFS_side.V`
    (single step, recursive accumulator proof, or compressed recursive verifier).
 
 In this repo, `SideFinalProof` means a terminal proof for the recursive
-verifier of `RecursiveSuperNeoSide_V1`, not a bare single fold step.
+verifier of `NIFS_side` under `RecursiveSuperNeoSide_V1`, not a bare single
+fold step and not the theorem directly.
 
 Only verifier-visible equations belong here. Prover-side helper-polynomial
 construction, hypercube replay, extractors, relaxed-binding arguments, and
@@ -571,12 +576,7 @@ Delegated ownership:
 | RV64IM semantics and `R_main^SN` | `riscv-kernel.md`, `riscv-main-relation.md` |
 | Main-lane row-local residual (`W = 38` semantic-row width, `29` canonical R1CS rows before CCS conversion) | `riscv-kernel.md` §3.1, §4.1, §11.3 and `riscv-main-relation.md` |
 | Outer published statement and linkage policy | Outer Nightstream statement/linkage owner |
-| Transitional witness-boundary owner | `riscv-witness-backed-side-bridge.md` |
 | Recursive backend and recursive export policy | `riscv-recursive-proof.md`, `riscv-recursive-instantiation.md` |
-
-`riscv-witness-backed-side-bridge.md` is the transitional owner on the path to
-this end-state theorem. Both documents must preserve the same stable checked
-projection where their ownership overlaps.
 
 ## Normative References
 
@@ -590,8 +590,6 @@ This document is constrained by:
   - standard compilers apply after the folding relation is fixed
 - `../../docs/hypernova.pdf.md`
   - recursion compiles a fixed verifier relation with an a la carte cost profile
-- `./riscv-witness-backed-side-bridge.md`
-  - digest-consistency is not enough across the side bridge boundary
 - `./riscv-recursive-proof.md`
   - exported recursion targets a fixed relation, not arbitrary proof blobs
 
@@ -632,7 +630,7 @@ witnesses.
 
 Once `R_side_opening` exists, raw `phase0_claim_witnesses`, raw
 `commitment_vector`, raw packed-column witnesses, digest-only opening
-artifacts, and current stage, package, export, root-execution, and
+artifacts, and stage, package, export, root-execution, and
 kernel-export
 summaries leave this theorem boundary. They may remain audit-only,
 implementation-local, or outer-linkage-owned, but they are not theorem-bearing
@@ -655,7 +653,7 @@ Forbidden constructions:
 2. accepting the theorem because inner digests are self-consistent
 3. replaying raw Ajtai openings while also claiming the proof container itself
    is the proof of the theorem
-4. treating `opening_artifact_digest` or any current side-bundle digest as
+4. treating `opening_artifact_digest` or any side-bundle digest as
    proof of opening correctness
 5. letting inactive families or inactive slots impose theorem-bearing proof
    obligations
@@ -679,7 +677,7 @@ that residual is the canonical `W = 38` semantic-row layout with `29`
 row-local R1CS constraints before `r1cs_to_ccs(A, B, C)` conversion, owned by
 the main lane.
 
-This boundary exists to restore the intended recursion profile: verifier work
+This boundary preserves the intended recursion profile: verifier work
 scales with active opened objects and active evaluation claims, not raw Ajtai
 commitment coordinates, raw opened-object witness size, or inactive machine
 families. A conforming recursive instantiation must not incur

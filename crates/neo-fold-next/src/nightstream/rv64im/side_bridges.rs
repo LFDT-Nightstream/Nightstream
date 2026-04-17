@@ -33,7 +33,9 @@ pub struct Rv64imSideProofBundle {
 pub struct Rv64imKernelOpeningBridge {
     pub prepared_step_bindings: Rv64imPreparedStepBindingSummaryBridge,
     pub root_lane_commitment: RootLaneCommitmentSummaryArtifact,
+    pub bindings_opening_statement_digest: [u8; 32],
     pub bindings_opening_digest: [u8; 32],
+    pub prepared_steps_opening_statement_digest: [u8; 32],
     pub prepared_steps_opening_digest: [u8; 32],
     pub digest: [u8; 32],
 }
@@ -162,8 +164,16 @@ impl Rv64imKernelOpeningBridge {
             &self.root_lane_commitment.digest,
         );
         tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/kernel_opening_bridge/bindings_opening_statement_digest",
+            &self.bindings_opening_statement_digest,
+        );
+        tr.append_message(
             b"neo.fold.next/nightstream/rv64im/kernel_opening_bridge/bindings_opening_digest",
             &self.bindings_opening_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/kernel_opening_bridge/prepared_steps_opening_statement_digest",
+            &self.prepared_steps_opening_statement_digest,
         );
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/kernel_opening_bridge/prepared_steps_opening_digest",
@@ -447,6 +457,7 @@ pub(super) fn build_rv64im_verified_side_claims_from_accepted_artifact_fast(
         sem_inputs_digest: artifact.stage1.semantics.sem_inputs_digest,
         rows_digest: artifact.stage_claims.claims.stage1.rows.rows_digest,
         claim: stage1_claim.clone(),
+        packaged_statement_digest: artifact.stage1.selected_opening.packaged.statement.digest,
         packaged_digest: artifact.stage1.selected_opening.digest,
         mix: transcript.challenges.stage1_mix,
         digest: [0; 32],
@@ -587,6 +598,7 @@ pub(super) fn build_rv64im_verified_side_claims_from_accepted_artifact_fast(
         ram_timeline_digest: artifact.stage2.temporal.ram_timeline_digest,
         twist_links_digest: artifact.stage2.temporal.twist_links_digest,
         claim: stage2_claim.clone(),
+        packaged_statement_digest: artifact.stage2.selected_opening.packaged.statement.digest,
         packaged_digest: artifact.stage2.selected_opening.digest,
         reg_mix: transcript.challenges.stage2_reg_mix,
         ram_mix: transcript.challenges.stage2_ram_mix,
@@ -618,7 +630,21 @@ pub(super) fn build_rv64im_kernel_opening_bridge_from_accepted_artifact(
                 .last_binding_digest,
         ),
         root_lane_commitment: artifact.root_lane_commitment.clone(),
+        bindings_opening_statement_digest: artifact
+            .kernel_opening
+            .opening
+            .bindings
+            .packaged
+            .statement
+            .digest,
         bindings_opening_digest: artifact.kernel_opening.opening.bindings.digest,
+        prepared_steps_opening_statement_digest: artifact
+            .kernel_opening
+            .opening
+            .prepared_steps
+            .packaged
+            .statement
+            .digest,
         prepared_steps_opening_digest: artifact.kernel_opening.opening.prepared_steps.digest,
         digest: [0; 32],
     };

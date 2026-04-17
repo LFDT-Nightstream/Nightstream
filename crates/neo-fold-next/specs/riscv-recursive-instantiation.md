@@ -1,20 +1,18 @@
 # RV64IM Recursive Backend Instantiation
 
-STATE: WORK IN PROGRESS (IMPLEMENTATION PRECONDITIONS NOT YET FROZEN)
-
 ## Scope
 
 This file instantiates the abstract recursive/export-boundary architecture in
-`riscv-recursive-proof.md` for the current repo backend.
+`riscv-recursive-proof.md` for the repo backend.
 
 It is the concrete implementation-contract companion to:
 
 - `riscv-recursive-proof.md`, which owns the theorem-facing export boundary,
 - `riscv-main-relation.md`, which owns the fixed RV64IM main relation
   `R_main^SN` and its bridge theorem to carried `CE(b, L)^k` semantics,
-- `riscv-witness-backed-side-bridge.md`, which owns the fixed witness-backed
-  side-bridge relation that the later recursive/compression backend must
-  compile,
+- `riscv-authoritative-side-proof-bundle.md`, which owns the fixed RV64IM side
+  opening theorem, optional packaged side verifier, and Spartan linkage rules
+  that the later recursive/compression backend must preserve,
 - and `riscv-kernel.md`, which owns the concrete SuperNeo backend contract,
   Goldilocks parameterization, challenge domain, and chunk-local role split.
 
@@ -24,20 +22,19 @@ This file owns:
 - the concrete compression backend,
 - the canonical encodings of `U_i`, `W_i`, `u_i`, and `w_i`,
 - the canonical public accumulator handle `U_N^pub` if one is used,
-- the chunk adapter from the current `neo-fold-next` proof path,
-- and the final public Rust API that replaces the current proof-complete export.
+- the chunk adapter from concrete repo-local artifacts,
+- and the final public Rust API.
 
 It shall not weaken the carried semantics below the backend-grounded paper
 meaning fixed by `riscv-kernel.md`.
 
 ## 1. Concrete Backend Choices
 
-The following implementation choices shall be frozen here before protocol-
-critical implementation begins:
+This file owns the concrete names and parameter bindings of:
 
-- `RecursiveBackend := ...`
-- `CompressionBackend := ...`
-- `AccumulatorHandle := ...`
+- `RecursiveBackend`
+- `CompressionBackend`
+- `AccumulatorHandle`
 
 Where:
 
@@ -50,9 +47,6 @@ Where:
 
 These names must be concrete system names, not generic phrases such as
 "HyperNova-style" or "Spartan-style".
-
-No protocol-critical implementation shall merge while any of these remain
-undefined.
 
 ## 1A. Semantic Freeze
 
@@ -106,11 +100,13 @@ paper semantics with a generic “proof object” abstraction.
 This file shall also specify the knowledge-soundness or ordinary soundness
 assumptions actually provided by the chosen recursive and compression backends.
 
-## 3. Chunk Adapter From the Current Proof Path
+## 3. Chunk Adapter
 
-The current public RV64IM proof path is chunked and bridge-heavy.
+If the repo instantiation adapts existing RV64IM chunk artifacts into the
+recursive backend, the adapter shall classify and encode those artifacts
+explicitly.
 
-In particular, the current exported statement includes:
+In particular, a repo-local adapter may consume a statement surface including:
 
 - `root_params_id`,
 - `fold_schedule`,
@@ -128,17 +124,17 @@ In particular, the current exported statement includes:
 - `final_pc`,
 - and `halted`.
 
-The current proof object also carries projection bundles, packaged proofs,
-kernel-opening bundles, derived claim bundles, and witness-side copies of those
-bindings.
+A repo-local proof-complete artifact may also carry projection bundles,
+packaged proofs, kernel-opening bundles, derived claim bundles, and witness-
+side copies of those bindings.
 
 This file shall define the canonical adapter:
 
 ```text
-AdaptChunkToFreshCCS(current_chunk_artifacts) -> (u_i, w_i)
+AdaptChunkToFreshCCS(repo_chunk_artifacts) -> (u_i, w_i)
 ```
 
-and shall classify every current artifact into exactly one of:
+and shall classify every repo-local artifact into exactly one of:
 
 - public fresh-instance material,
 - carried `CE` material,
@@ -147,18 +143,24 @@ and shall classify every current artifact into exactly one of:
 
 At minimum, the adapter section shall answer:
 
-- which current chunk metadata becomes `u_i'`,
-- which current bridge digests remain public to `NIFS.V`,
-- which current claim/opening bundles become private recursive witness
+- which repo-local chunk metadata becomes `u_i'`,
+- which repo-local digests remain public to `NIFS.V`,
+- which repo-local claim/opening bundles become private recursive witness
   material,
 - how the owned `R_main^SN` statement and witness are encoded before the
   backend-specific recursive/compression wrapper sees them,
-- and which current exported objects are dropped from the theorem-facing path
+- and which repo-local exported objects are dropped from the theorem-facing path
   entirely.
 
-## 4. Public API Cutover
+Side-lane tuple/proof/linkage details are owned by
+`riscv-authoritative-side-proof-bundle.md`. If a chunk adapter carries
+side-related objects, this file may classify their concrete backend encoding,
+but it may not redefine their theorem meaning.
 
-This file shall define the canonical end-state public Rust API.
+## 4. Public API
+
+This file shall define the canonical public Rust API for the recursive backend
+and any optional audit export.
 
 At minimum it shall name:
 
@@ -178,9 +180,9 @@ prove_audit(...)
 verify_audit(...)
 ```
 
-The current `Rv64imProof` from `src/rv64im/kernel/proof/api.rs` shall be
-reclassified as a proof-complete audit artifact, not the normalized exported
-theorem-facing proof.
+Legacy proof-complete artifacts, including `Rv64imProof` from
+`src/rv64im/kernel/proof/api.rs`, are audit-only rather than theorem-facing
+proof objects in the normalized exported API.
 
 ## 4A. Binding Inventory
 
@@ -204,10 +206,10 @@ For each value, this file shall say whether it is:
 - recursive-internal public input,
 - or private witness material.
 
-The exhaustive current side-bridge field classification is owned by
-`riscv-witness-backed-side-bridge.md`, Section 3A. No side-bridge field may be
-classified differently here. This file may only further specialize that
-inventory into concrete backend encodings and recursive/compression ownership.
+The side theorem/public-instance/proof-object split is owned by
+`riscv-authoritative-side-proof-bundle.md`. This file may only further
+specialize that boundary into concrete backend encodings and
+recursive/compression ownership.
 
 ## 5. Minimal Shapes To Freeze
 
@@ -254,68 +256,24 @@ These are interface targets, not final code. If the concrete backend requires a
 different accumulator-handle representation than `Option<Vec<u8>>`, this file
 shall replace it with a canonical concrete type.
 
-For the current RV64IM hybrid side-bridge compiler path, the base-component
-layout is fixed to exactly four digests in this order:
+If a concrete instantiation fixes any legacy digest layout, padded chunk-summary
+shape, or fixed-width chunk-transition surface, that layout must be specified
+here as canonical compiler policy rather than inferred from an implementation
+artifact. Such policy is backend-local and does not create a second theorem
+owner.
 
-1. stage-claim proof bundle digest
-2. stage-package proof bundle digest
-3. kernel-opening proof bundle digest
-4. kernel-claim proof bundle digest
+## 6. Conformance
 
-That four-component layout is compiler policy, not a caller-controlled
-container shape. Any change to that order or count is a protocol/compiler
-boundary change and must update both this file and the owning Rust contract.
+A concrete recursive backend instantiation is conforming only if all of the
+following hold:
 
-For the current RV64IM hybrid side-bridge compiler path, the chunk-transition
-layout is also frozen:
-
-- maximum chunk-transition slots: `64`
-- active slots: the carried Nightstream chunk summaries
-- padded tail slots: canonical zero summaries and zero handoff digests
-
-The canonical padded chunk summary is:
-
-```rust
-FixedShapeChunkSummary {
-    start_index: semantic_step_count,
-    public_step_count: 0,
-    public_chunk_digest: [0; 32],
-    chunk_relation_digest: [0; 32],
-}
-```
-
-Any carried hybrid side-bridge target/relation for fewer than `64` chunks must
-pad the tail with exactly that summary and must pad the corresponding
-chunk-transition witness digests with `[0; 32]`.
-
-## 6. Implementation Sequence
-
-Implementation should proceed in the following order:
-
-1. Freeze `RecursiveBackend`, `CompressionBackend`, and `AccumulatorHandle`.
-2. Freeze chunk-step recursion as the only recursive unit.
-3. Define canonical encodings for `U_i`, `W_i`, `u_i`, `w_i`, `u_i'`, and
-   `H_acc`.
-4. Implement `Init_SN(dig(P), z_0) -> (U_0, W_0)` using the backend contract
-   from `riscv-kernel.md`.
-5. Implement `AdaptChunkToFreshCCS(current_chunk_artifacts) -> (u_i, w_i)`.
-6. Implement the recursive step relation over chunk intervals.
-7. Implement recursive proof generation and verification for the full
-   execution.
-8. Implement the outer compression proof over the recursive verifier relation.
-9. Introduce the new theorem-facing public API.
-10. Demote the current proof-complete export to audit/debug use only.
-11. Add size and correctness gates showing that exported proof size shrinks
-    substantially and no longer exports proof-complete sidecars.
-
-## 7. Exit Criteria
-
-This instantiation is complete only when all of the following are true:
-
-- the recursive unit is frozen as one chunk,
-- the recursive and compression backends are named concretely,
-- the canonical encodings are specified exactly,
-- the current chunked proof path has a defined adapter into `(u_i, w_i)`,
-- the theorem-facing public API no longer exports the current bridge-owned
-  digest bundle by default,
-- and the current proof-complete RV64IM artifact is clearly audit-only.
+- `RecursiveBackend`, `CompressionBackend`, and `AccumulatorHandle` are fixed as
+  concrete named systems or canonical bindings;
+- canonical encodings are specified exactly for the recursive statement,
+  carried bundle, fresh chunk bundle, and accumulator handle;
+- any adapter from repo-local chunk artifacts into `(u_i, w_i)` is specified
+  exactly and classifies each carried field as theorem-facing public,
+  recursive-internal public, private witness, or audit-only;
+- the theorem-facing public API exports only the normalized recursive proof
+  boundary from `riscv-recursive-proof.md`; and
+- any audit-only artifact is explicitly non-theorem-facing.

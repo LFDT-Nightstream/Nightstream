@@ -18,7 +18,7 @@ use super::opening_eval_claims::{EvalClaimError, FamilyEvalSchemaId, PackedColum
 
 pub const PHASE0_WORD_LIMB_BITS: usize = 32;
 pub const PHASE0_WORD_LIMB_COUNT: usize = 64 / PHASE0_WORD_LIMB_BITS;
-const PHASE0_WORD_LIMB_MASK: u64 = (1u64 << PHASE0_WORD_LIMB_BITS) - 1;
+pub(crate) const PHASE0_WORD_LIMB_MASK: u64 = (1u64 << PHASE0_WORD_LIMB_BITS) - 1;
 
 pub fn phase0_full_width_for_schema(schema: FamilyEvalSchemaId) -> usize {
     1 + phase0_word_count_for_schema(schema) * PHASE0_WORD_LIMB_COUNT

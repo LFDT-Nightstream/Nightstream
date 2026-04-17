@@ -4,10 +4,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use crate::rv64im::decider_relation::Rv64imDeciderRelation;
 use crate::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted_with_output_and_perf_and_source, Rv64imFinalBuildOutput,
-    Rv64imFinalProof, Rv64imFinalProofComponentDigests, Rv64imFinalStatement,
+    Rv64imFinalBuildProof, Rv64imFinalStatement,
 };
 use crate::rv64im::kernel::{
     accepted_proof_artifact_from_prover_materials, build_rv64im_accepted_proof_artifact,
@@ -15,12 +14,13 @@ use crate::rv64im::kernel::{
     Rv64imAcceptedProofArtifact, Rv64imKernelExportRelationResult, Rv64imKernelExportSource, Rv64imProof,
     Rv64imProofInput, Rv64imProofProvePerf, Rv64imPublicProofOptions,
 };
+use crate::rv64im::main_proof::{build_rv64im_main_proof, Rv64imMainProof};
+use crate::rv64im::main_relation::Rv64imDeciderRelation;
 use crate::rv64im::main_relation_spartan::{
-    prove_rv64im_spartan2_decider as prove_main_relation_spartan,
-    setup_rv64im_spartan2_decider as setup_main_relation_spartan,
-    setup_rv64im_spartan2_decider_cached as setup_main_relation_spartan_cached,
-    verify_rv64im_spartan2_decider as verify_main_relation_spartan, Rv64imSpartan2DeciderKeyPair,
-    Rv64imSpartan2DeciderProof, Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey,
+    build_rv64im_spartan2_decider_setup_shape_from_components,
+    prove_rv64im_spartan2_decider as prove_main_relation_spartan, setup_rv64im_spartan2_decider_cached_from_shape,
+    verify_rv64im_spartan2_decider as verify_main_relation_spartan, Rv64imSpartan2DeciderProof,
+    Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey,
 };
 use crate::rv64im::SimpleKernelError;
 
@@ -32,6 +32,7 @@ pub struct Rv64imPublishedProofSeamBuildPerf {
     pub accepted_artifact_ms: f64,
     pub kernel_export_source_ms: f64,
     pub final_statement_ms: f64,
+    pub main_proof_ms: f64,
     pub final_statement_kernel_export_ms: f64,
     pub final_statement_recursive_proof_ms: f64,
     pub final_statement_recursive_prepare_inputs_ms: f64,
@@ -56,9 +57,7 @@ pub struct Rv64imPublishedProofSeamBuildPerf {
 #[derive(Clone, Debug)]
 pub struct Rv64imPublishedProofSeam {
     pub accepted_artifact: Rv64imAcceptedProofArtifact,
-    pub final_statement: Rv64imFinalStatement,
-    pub final_proof: Rv64imFinalProof,
-    pub(crate) final_component_digests: Rv64imFinalProofComponentDigests,
+    pub main_proof: Rv64imMainProof,
     pub(crate) verified_kernel: Rv64imKernelExportRelationResult,
 }
 
@@ -70,15 +69,24 @@ pub struct Rv64imPublicProofAndSeamBuildPerf {
 
 impl Rv64imPublishedProofSeam {
     pub fn kernel_export_source(&self) -> &Rv64imKernelExportSource {
-        &self.final_proof.kernel_export.source
+        &self
+            .main_proof
+            .kernel_export_cache()
+            .expect("locally built published proof seam must carry a kernel-export cache")
+            .source
+    }
+
+    pub fn final_statement(&self) -> &Rv64imFinalStatement {
+        self.main_proof
+            .final_statement_cache()
+            .expect("locally built published proof seam must carry a final-statement cache")
     }
 }
-
 fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
 }
 
-fn rv64im_spartan2_decider_cache_key(statement: &Rv64imFinalStatement, proof: &Rv64imFinalProof) -> [u8; 32] {
+fn rv64im_spartan2_decider_cache_key(statement: &Rv64imFinalStatement, proof: &Rv64imFinalBuildProof) -> [u8; 32] {
     let mut digest = [0u8; 32];
     for ((dst, lhs), rhs) in digest
         .iter_mut()
@@ -113,7 +121,6 @@ pub fn build_rv64im_published_proof_seam_with_perf(
         Rv64imFinalBuildOutput {
             statement: final_statement,
             proof: final_proof,
-            component_digests: final_component_digests,
             verified_kernel,
         },
         final_perf,
@@ -124,18 +131,21 @@ pub fn build_rv64im_published_proof_seam_with_perf(
     )?;
     let final_statement_ms = elapsed_ms(started);
 
+    let started = Instant::now();
+    let main_proof = build_rv64im_main_proof(&final_statement, &final_proof)?;
+    let main_proof_ms = elapsed_ms(started);
+
     Ok((
         Rv64imPublishedProofSeam {
             accepted_artifact,
-            final_statement,
-            final_proof,
-            final_component_digests,
+            main_proof,
             verified_kernel,
         },
         Rv64imPublishedProofSeamBuildPerf {
             accepted_artifact_ms,
             kernel_export_source_ms,
             final_statement_ms,
+            main_proof_ms,
             final_statement_kernel_export_ms: final_perf.folded.kernel_export_ms,
             final_statement_recursive_proof_ms: final_perf.folded.recursive.total_ms,
             final_statement_recursive_prepare_inputs_ms: final_perf.folded.recursive.prepare_inputs_ms,
@@ -210,7 +220,6 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
         Rv64imFinalBuildOutput {
             statement: final_statement,
             proof: final_proof,
-            component_digests: final_component_digests,
             verified_kernel,
         },
         final_perf,
@@ -221,17 +230,20 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
     )?;
     let final_statement_ms = elapsed_ms(started);
 
+    let started = Instant::now();
+    let main_proof = build_rv64im_main_proof(&final_statement, &final_proof)?;
+    let main_proof_ms = elapsed_ms(started);
+
     let seam = Rv64imPublishedProofSeam {
         accepted_artifact,
-        final_statement,
-        final_proof,
-        final_component_digests,
+        main_proof,
         verified_kernel,
     };
     let seam_perf = Rv64imPublishedProofSeamBuildPerf {
         accepted_artifact_ms,
         kernel_export_source_ms,
         final_statement_ms,
+        main_proof_ms,
         final_statement_kernel_export_ms: final_perf.folded.kernel_export_ms,
         final_statement_recursive_proof_ms: final_perf.folded.recursive.total_ms,
         final_statement_recursive_prepare_inputs_ms: final_perf.folded.recursive.prepare_inputs_ms,
@@ -262,31 +274,17 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
     ))
 }
 
-pub fn setup_rv64im_spartan2_decider(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
-) -> Result<(Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey), SimpleKernelError> {
-    setup_main_relation_spartan(statement, proof)
-}
-
-pub fn setup_rv64im_spartan2_decider_cached(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
-) -> Result<Rv64imSpartan2DeciderKeyPair, SimpleKernelError> {
-    setup_main_relation_spartan_cached(statement, proof)
-}
-
 pub fn prove_rv64im_spartan2_decider(
     pk: &Rv64imSpartan2DeciderProverKey,
     statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
+    proof: &Rv64imFinalBuildProof,
 ) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
     prove_main_relation_spartan(pk, statement, proof)
 }
 
 pub fn prove_rv64im_spartan2_decider_cached(
     statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
+    proof: &Rv64imFinalBuildProof,
 ) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
     let cache_key = rv64im_spartan2_decider_cache_key(statement, proof);
     let cache = RV64IM_SPARTAN2_DECIDER_PROOF_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
@@ -299,7 +297,14 @@ pub fn prove_rv64im_spartan2_decider_cached(
         return Ok((*proof).clone());
     }
 
-    let keys = setup_main_relation_spartan_cached(statement, proof)?;
+    let shape = build_rv64im_spartan2_decider_setup_shape_from_components(
+        statement,
+        proof.proof_digest,
+        &proof.kernel_export,
+        &proof.chunk_summaries,
+        &proof.steps,
+    )?;
+    let keys = setup_rv64im_spartan2_decider_cached_from_shape(&shape)?;
     let proof = Arc::new(prove_main_relation_spartan(&keys.as_ref().0, statement, proof)?);
     cache
         .lock()
@@ -315,33 +320,4 @@ pub fn verify_rv64im_spartan2_decider(
     decider_proof: &Rv64imSpartan2DeciderProof,
 ) -> Result<(), SimpleKernelError> {
     verify_main_relation_spartan(vk, public_statement_digest, relation, decider_proof)
-}
-
-pub fn setup_rv64im_spartan2_decider_from_public_proof(
-    proof: &Rv64imProof,
-) -> Result<(Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey), SimpleKernelError> {
-    let built = build_rv64im_published_proof_seam(proof)?;
-    setup_main_relation_spartan(&built.final_statement, &built.final_proof)
-}
-
-pub fn setup_rv64im_spartan2_decider_from_public_proof_cached(
-    proof: &Rv64imProof,
-) -> Result<Rv64imSpartan2DeciderKeyPair, SimpleKernelError> {
-    let built = build_rv64im_published_proof_seam(proof)?;
-    setup_main_relation_spartan_cached(&built.final_statement, &built.final_proof)
-}
-
-pub fn prove_rv64im_spartan2_decider_from_public_proof(
-    pk: &Rv64imSpartan2DeciderProverKey,
-    proof: &Rv64imProof,
-) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
-    let built = build_rv64im_published_proof_seam(proof)?;
-    prove_main_relation_spartan(pk, &built.final_statement, &built.final_proof)
-}
-
-pub fn prove_rv64im_spartan2_decider_from_public_proof_cached(
-    proof: &Rv64imProof,
-) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
-    let built = build_rv64im_published_proof_seam(proof)?;
-    prove_rv64im_spartan2_decider_cached(&built.final_statement, &built.final_proof)
 }

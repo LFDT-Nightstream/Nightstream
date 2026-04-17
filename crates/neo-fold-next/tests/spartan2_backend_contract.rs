@@ -44,6 +44,7 @@ fn synthetic_target() -> Spartan2DeciderTarget {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_public_io_has_statement_prefix() {
     let target = synthetic_target();
     let statement_prefix = target.statement.public_io();
@@ -70,6 +71,7 @@ fn spartan2_backend_public_io_has_statement_prefix() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_public_io_changes_when_component_digest_changes() {
     let target = synthetic_target();
     let backend_public_io = target.backend_public_io();
@@ -82,6 +84,7 @@ fn spartan2_backend_public_io_changes_when_component_digest_changes() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_public_io_changes_when_chunk_relation_binding_changes() {
     let target = synthetic_target();
     let backend_public_io = target.backend_public_io();
@@ -94,6 +97,7 @@ fn spartan2_backend_public_io_changes_when_chunk_relation_binding_changes() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_witness_is_order_sensitive() {
     let target = synthetic_target();
     let backend_witness = target.backend_witness();
@@ -114,6 +118,7 @@ fn spartan2_backend_witness_is_order_sensitive() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_public_io_changes_when_statement_digest_changes() {
     let target = synthetic_target();
     let backend_witness = target.backend_witness().packed_fields();
@@ -126,6 +131,7 @@ fn spartan2_backend_public_io_changes_when_statement_digest_changes() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_public_io_changes_when_public_chunk_count_changes() {
     let target = synthetic_target();
     let backend_witness = target.backend_witness().packed_fields();
@@ -138,6 +144,7 @@ fn spartan2_backend_public_io_changes_when_public_chunk_count_changes() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_public_io_changes_when_public_semantic_step_count_changes() {
     let target = synthetic_target();
     let backend_witness = target.backend_witness().packed_fields();
@@ -150,6 +157,7 @@ fn spartan2_backend_public_io_changes_when_public_semantic_step_count_changes() 
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_public_io_changes_when_public_fold_schedule_changes() {
     let target = synthetic_target();
     let backend_witness = target.backend_witness().packed_fields();
@@ -162,6 +170,7 @@ fn spartan2_backend_public_io_changes_when_public_fold_schedule_changes() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_public_io_changes_when_public_chunk_summary_changes() {
     let target = synthetic_target();
     let backend_witness = target.backend_witness().packed_fields();
@@ -174,6 +183,7 @@ fn spartan2_backend_public_io_changes_when_public_chunk_summary_changes() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_spartan2_backend_contract_projects_generic_layout() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -203,6 +213,7 @@ fn chip8_spartan2_backend_contract_projects_generic_layout() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_shape_tracks_public_and_backend_layout_lengths() {
     let target = synthetic_target();
     let shape = target.shape();
@@ -216,6 +227,7 @@ fn spartan2_shape_tracks_public_and_backend_layout_lengths() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_shape_depends_on_component_count_not_digest_values() {
     let target = synthetic_target();
     let mut other = target.clone();

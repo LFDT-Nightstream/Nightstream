@@ -3,6 +3,7 @@
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 
+use crate::finalize::digest32_as_fields;
 use crate::proof::PackagedProof;
 
 use super::canonical_openings::SelectedOpeningRef;
@@ -815,14 +816,17 @@ impl Stage3SelectedOpeningClaim {
 
 fn packaged_opening_proof_digest(claim_digest: [u8; 32], packaged: &PackagedProof) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/stage_packaged_opening_claim_proof");
-    tr.append_message(b"rv64im/stage_packaged_opening_claim_proof/claim_digest", &claim_digest);
-    tr.append_message(
-        b"rv64im/stage_packaged_opening_claim_proof/statement_digest",
-        &packaged.statement.digest,
+    tr.append_fields(
+        b"rv64im/stage_packaged_opening_claim_proof/claim_digest",
+        &digest32_as_fields(claim_digest),
     );
-    tr.append_message(
+    tr.append_fields(
+        b"rv64im/stage_packaged_opening_claim_proof/statement_digest",
+        &digest32_as_fields(packaged.statement.digest),
+    );
+    tr.append_fields(
         b"rv64im/stage_packaged_opening_claim_proof/proof_digest",
-        &packaged.proof.proof_digest,
+        &digest32_as_fields(packaged.proof.proof_digest),
     );
     tr.digest32()
 }

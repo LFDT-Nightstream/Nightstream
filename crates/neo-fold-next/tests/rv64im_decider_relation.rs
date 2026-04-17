@@ -1,10 +1,11 @@
-//! Focused tests for the owned RV64IM decider relation seam.
+//! Focused tests for the surviving RV64IM decider relation surface.
 
+use neo_fold_next::rv64im::audit::{
+    build_rv64im_decider_relation_from_final_surface, validate_rv64im_decider_relation_surface,
+};
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
-    build_rv64im_accepted_proof_artifact, build_rv64im_decider_relation,
-    build_rv64im_decider_relation_from_final_surface, parity_source_cases, prove_rv64im_public_proof,
-    verify_rv64im_decider_relation, Rv64imProofInput,
+    build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof, Rv64imProofInput,
 };
 
 fn source_case(name: &str) -> neo_fold_next::rv64im::Rv64imParitySourceCase {
@@ -21,14 +22,15 @@ fn proof_input(name: &str) -> Rv64imProofInput {
 }
 
 #[test]
-fn rv64im_decider_relation_round_trip() {
+fn rv64im_decider_relation_surface_round_trip() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
     let (statement, final_proof) =
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
 
-    let relation = build_rv64im_decider_relation(&proof).expect("build decider relation");
+    let relation =
+        build_rv64im_decider_relation_from_final_surface(&statement, &final_proof).expect("build decider relation");
 
     assert_eq!(relation.public_statement_digest, statement.digest);
     assert_eq!(relation.relation_digest, statement.folded.digest);
@@ -43,42 +45,39 @@ fn rv64im_decider_relation_round_trip() {
     );
     assert_ne!(relation.digest, [0; 32]);
 
-    verify_rv64im_decider_relation(&relation, &proof).expect("verify decider relation");
+    validate_rv64im_decider_relation_surface(&relation).expect("validate decider relation surface");
 }
 
 #[test]
-fn rv64im_decider_relation_from_final_surface_matches_verified_relation() {
+fn rv64im_decider_relation_surface_rejects_tampered_chunk_summary() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
     let (statement, final_proof) =
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
 
-    let from_verified = build_rv64im_decider_relation(&proof).expect("build verified decider relation");
-    let from_surface =
-        build_rv64im_decider_relation_from_final_surface(&statement, &final_proof).expect("build surface relation");
+    let mut relation =
+        build_rv64im_decider_relation_from_final_surface(&statement, &final_proof).expect("build decider relation");
+    relation.chunk_summaries[0].public_step_count += 1;
 
-    assert_eq!(from_surface, from_verified);
+    let err = validate_rv64im_decider_relation_surface(&relation)
+        .expect_err("tampered chunk summary must fail decider relation surface validation");
+    assert!(format!("{err}").contains("chunk") || format!("{err}").contains("digest"));
 }
 
 #[test]
-fn rv64im_decider_relation_rejects_tampered_statement_digest() {
+fn rv64im_decider_relation_surface_rejects_tampered_transition_binding() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let mut relation = build_rv64im_decider_relation(&proof).expect("build decider relation");
-    relation.public_statement_digest[0] ^= 1;
+    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let (statement, final_proof) =
+        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
 
-    let err = verify_rv64im_decider_relation(&relation, &proof).expect_err("tampered statement digest must fail");
-    assert!(format!("{err}").contains("decider relation") || format!("{err}").contains("digest"));
-}
+    let mut relation =
+        build_rv64im_decider_relation_from_final_surface(&statement, &final_proof).expect("build decider relation");
+    relation.chunk_transition_bindings[0].claimed_chunk_relation_digest[0] ^= 1;
 
-#[test]
-fn rv64im_decider_relation_rejects_tampered_component_digest() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let mut relation = build_rv64im_decider_relation(&proof).expect("build decider relation");
-    relation.base_component_digests[0][0] ^= 1;
-
-    let err = verify_rv64im_decider_relation(&relation, &proof).expect_err("tampered component digest must fail");
-    assert!(format!("{err}").contains("decider relation") || format!("{err}").contains("digest"));
+    let err = validate_rv64im_decider_relation_surface(&relation)
+        .expect_err("tampered transition binding must fail decider relation surface validation");
+    assert!(format!("{err}").contains("chunk") || format!("{err}").contains("digest"));
 }

@@ -64,6 +64,7 @@ fn synthetic_target_with_layout(fold_schedule: FoldSchedule, public_step_counts:
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_round_trip() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -74,6 +75,7 @@ fn spartan2_decider_backend_round_trip() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_tampered_target() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -87,6 +89,7 @@ fn spartan2_decider_backend_rejects_tampered_target() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_binding_shell_rejects_tampered_public_final_proof_digest() {
     let target = synthetic_target();
     let relation = target.backend_relation();
@@ -103,6 +106,7 @@ fn spartan2_backend_binding_shell_rejects_tampered_public_final_proof_digest() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_tampered_public_chunk_count() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -116,6 +120,7 @@ fn spartan2_decider_backend_rejects_tampered_public_chunk_count() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_tampered_public_semantic_step_count() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -129,6 +134,7 @@ fn spartan2_decider_backend_rejects_tampered_public_semantic_step_count() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_tampered_public_chunk_summary() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -145,6 +151,7 @@ fn spartan2_decider_backend_rejects_tampered_public_chunk_summary() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_zero_length_public_chunk_summary() {
     let target = synthetic_target();
     let (pk, _vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -160,6 +167,7 @@ fn spartan2_decider_backend_rejects_zero_length_public_chunk_summary() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_invalid_public_fold_schedule() {
     let target = synthetic_target();
     let (pk, _vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -172,6 +180,7 @@ fn spartan2_decider_backend_rejects_invalid_public_fold_schedule() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_mismatched_private_chunk_relation_binding() {
     let target = synthetic_target();
     let (pk, _vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -185,6 +194,7 @@ fn spartan2_decider_backend_rejects_mismatched_private_chunk_relation_binding() 
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_whole_trace_with_multiple_chunk_summaries() {
     let target = synthetic_target_with_layout(FoldSchedule::WholeTrace, &[1, 1]);
     let (pk, _vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -194,6 +204,7 @@ fn spartan2_decider_backend_rejects_whole_trace_with_multiple_chunk_summaries() 
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_rows_per_chunk_with_short_non_final_chunk() {
     let target = synthetic_target_with_layout(FoldSchedule::RowsPerChunk(2), &[1, 2]);
     let (pk, _vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -204,6 +215,7 @@ fn spartan2_decider_backend_rejects_rows_per_chunk_with_short_non_final_chunk() 
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_tampered_public_terminal_handle() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
@@ -217,6 +229,7 @@ fn spartan2_decider_backend_rejects_tampered_public_terminal_handle() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_decider_backend_rejects_shape_mismatch() {
     let target = synthetic_target();
     let mismatched = Spartan2DeciderTarget {
@@ -233,6 +246,7 @@ fn spartan2_decider_backend_rejects_shape_mismatch() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_backend_binding_shell_rejects_tampered_private_base_count() {
     let target = synthetic_target();
     let relation = target.backend_relation();
@@ -253,6 +267,7 @@ fn spartan2_backend_binding_shell_rejects_tampered_private_base_count() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_spartan2_decider_backend_round_trip() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");

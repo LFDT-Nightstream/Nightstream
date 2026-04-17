@@ -454,6 +454,15 @@ pub enum EvalClaimError {
         actual: usize,
     },
     #[error(
+        "phase0 witness coefficient is out of Phase 0 limb range at packed column {column_index} row {row_index} coeff {coeff_index}: {value}"
+    )]
+    WitnessCoeffOutOfRange {
+        column_index: usize,
+        row_index: usize,
+        coeff_index: usize,
+        value: u64,
+    },
+    #[error(
         "phase0 witness commitment root mismatch: expected {expected_digest:?}, witness carries {actual_digest:?}"
     )]
     WitnessCommitmentRootMismatch {

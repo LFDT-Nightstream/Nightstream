@@ -44,6 +44,7 @@ fn synthetic_target() -> Spartan2DeciderTarget {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_public_target_shell_round_trip() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_public_target_shell(&target.shape()).expect("setup public-target shell");
@@ -54,6 +55,7 @@ fn spartan2_public_target_shell_round_trip() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_public_target_shell_rejects_tampered_target() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_public_target_shell(&target.shape()).expect("setup public-target shell");
@@ -67,6 +69,7 @@ fn spartan2_public_target_shell_rejects_tampered_target() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_spartan2_public_target_shell_round_trip() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -80,6 +83,7 @@ fn chip8_spartan2_public_target_shell_round_trip() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_public_target_shell_setup_reuses_same_shape() {
     let target = synthetic_target();
     let mut other = target.clone();

@@ -16,6 +16,7 @@ use std::time::Instant;
 
 use neo_math::{D, F};
 use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeField64;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -35,6 +36,7 @@ use super::opening_eval_claims::{
     CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalSchemaId, OpenedAjtaiObjectId,
     Rv64imEvalClaimBundle,
 };
+use super::opening_payload_semantics::PHASE0_WORD_LIMB_MASK;
 use super::opening_phase0_binding_surface::Rv64imPhase0BindingSurface;
 use super::simple::SimpleKernelError;
 
@@ -281,6 +283,18 @@ impl AjtaiOpeningProof {
                         expected: D,
                         actual: actual_row_width,
                     });
+                }
+                for (coeff_index, coeff) in row.iter().enumerate() {
+                    let value = coeff.as_canonical_u64();
+                    if value > PHASE0_WORD_LIMB_MASK {
+                        return Err(FinalOpeningError::OpeningProofCoeffOutOfRange {
+                            index,
+                            column_index,
+                            row_index,
+                            coeff_index,
+                            value,
+                        });
+                    }
                 }
             }
         }
@@ -1151,6 +1165,16 @@ pub enum FinalOpeningError {
         row_index: usize,
         expected: usize,
         actual: usize,
+    },
+    #[error(
+        "final opening target {index} packed column {column_index} row {row_index} coeff {coeff_index} is out of Phase 0 limb range: {value}"
+    )]
+    OpeningProofCoeffOutOfRange {
+        index: usize,
+        column_index: usize,
+        row_index: usize,
+        coeff_index: usize,
+        value: u64,
     },
     #[error("final opening target {index} opening-proof digest mismatch: expected {expected:?}, got {actual:?}")]
     OpeningProofDigestMismatch {

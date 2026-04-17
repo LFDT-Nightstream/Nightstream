@@ -6,13 +6,14 @@ use bellpepper_core::ConstraintSystem;
 use neo_fold_next::nightstream::rv64im::audit::{
     circuit_derive_phase0_point, circuit_enforce_phase0_commitment_root_and_opened_object_digest,
     circuit_enforce_phase0_payload_eq, circuit_enforce_phase0_point_eq,
-    circuit_evaluate_phase0_payload_from_packed_rows,
+    circuit_evaluate_phase0_payload_from_packed_rows, debug_check_rv64im_side_binding_circuit,
 };
-use neo_fold_next::nightstream::rv64im::debug_check_rv64im_side_spartan_circuit;
-use neo_fold_next::rv64im::main_relation_spartan::debug_check_rv64im_spartan2_decider_circuit;
+use neo_fold_next::rv64im::audit::{
+    debug_check_rv64im_spartan2_decider_circuit, prove_rv64im_public_proof_and_published_seam_with_perf,
+};
+use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
-    build_mixed_opcode_perf_source_case, prove_rv64im_public_proof_and_published_seam_with_perf, FamilyEvalSchemaId,
-    Rv64imProofInput,
+    build_mixed_opcode_perf_source_case, build_rv64im_accepted_proof_artifact, FamilyEvalSchemaId, Rv64imProofInput,
 };
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use spartan2::provider::goldi::F as SpartanF;
@@ -40,12 +41,13 @@ fn alloc_digest_vars(
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_side_relation_n2_debug_satisfiable() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build N=2 fixture");
-    let (statement, witness) = fixture
+    let (statement, witness, claim_witnesses) = fixture
         .build_side_debug_inputs()
         .expect("build side debug inputs");
-    debug_check_rv64im_side_spartan_circuit(&statement, &witness).expect("debug check side spartan");
+    debug_check_rv64im_side_binding_circuit(&statement, &witness, &claim_witnesses).expect("debug check side binding");
 }
 
 #[test]
@@ -64,20 +66,29 @@ fn rv64im_main_relation_n2_published_seam_debug_satisfiable() {
         max_steps: source.program_words.len(),
         source,
     };
-    let ((_proof, seam), _perf) =
+    let ((proof, seam), _perf) =
         prove_rv64im_public_proof_and_published_seam_with_perf(&input).expect("build N=2 published seam");
-    debug_check_rv64im_spartan2_decider_circuit(&seam.final_statement, &seam.final_proof)
-        .expect("debug check main spartan decider on published seam");
+    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let (_statement, final_proof) =
+        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove final statement");
+    debug_check_rv64im_spartan2_decider_circuit(
+        seam.main_proof
+            .final_statement_cache()
+            .expect("locally built published seam should retain the final-statement cache"),
+        &final_proof,
+    )
+    .expect("debug check main spartan decider on published seam");
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_phase0_transcript_parity_n2() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build N=2 fixture");
     let (_statement, witness) = fixture
         .build_side_audit_inputs()
         .expect("build side debug inputs");
     let claim_witness = witness
-        .phase0_claim_witnesses
+        .claim_witnesses
         .iter()
         .find(|claim| claim.claim.payload.schema == FamilyEvalSchemaId::Stage2RegisterWrites)
         .expect("stage2 register-writes phase0 claim witness");

@@ -177,7 +177,7 @@ pub struct Rv64imMainRelationSurfaceFamilyBucket {
 
 pub fn inspect_rv64im_spartan2_decider_trace(
     statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
+    proof: &Rv64imFinalBuildProof,
 ) -> Result<Rv64imMainRelationTraceStats, SimpleKernelError> {
     let circuit = build_main_relation_circuit(statement, proof)?;
     Ok(trace_stats(&circuit))
@@ -185,7 +185,7 @@ pub fn inspect_rv64im_spartan2_decider_trace(
 
 pub fn measure_rv64im_spartan2_decider_circuit(
     statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
+    proof: &Rv64imFinalBuildProof,
 ) -> Result<Rv64imMainRelationCircuitMetrics, SimpleKernelError> {
     let circuit = build_main_relation_circuit(statement, proof)?;
     let trace = trace_stats(&circuit);
@@ -342,7 +342,7 @@ fn add_final_family_k(
 
 pub fn debug_check_rv64im_spartan2_decider_circuit(
     statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalProof,
+    proof: &Rv64imFinalBuildProof,
 ) -> Result<(), SimpleKernelError> {
     let circuit = build_main_relation_circuit(statement, proof)?;
     debug_check_first_chunk_fe_alignment(&circuit)?;
@@ -485,6 +485,7 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
     let Some(chunk) = circuit.trace.chunk_traces.first() else {
         return Ok(());
     };
+    let replay_chunk = chunk.replay_surface()?;
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let mut transcript = Poseidon2TranscriptCircuit::new_raw_fields(
@@ -558,28 +559,28 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
     native_public_challenges.beta_m = neo_reductions::engines::utils::sample_beta_m(&mut native, circuit.dims.ell_m)
         .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM first-chunk native beta_m replay failed: {err}")))?;
     compare_transcript_state("sample_public", &transcript, &native)?;
-    if native_public_challenges.alpha != chunk.replay_public_challenges.alpha
-        || native_public_challenges.beta_a != chunk.replay_public_challenges.beta_a
-        || native_public_challenges.beta_r != chunk.replay_public_challenges.beta_r
-        || native_public_challenges.beta_m != chunk.replay_public_challenges.beta_m
-        || native_public_challenges.gamma != chunk.replay_public_challenges.gamma
+    if native_public_challenges.alpha != replay_chunk.pi_ccs.public_challenges.alpha
+        || native_public_challenges.beta_a != replay_chunk.pi_ccs.public_challenges.beta_a
+        || native_public_challenges.beta_r != replay_chunk.pi_ccs.public_challenges.beta_r
+        || native_public_challenges.beta_m != replay_chunk.pi_ccs.public_challenges.beta_m
+        || native_public_challenges.gamma != replay_chunk.pi_ccs.public_challenges.gamma
     {
         return Err(SimpleKernelError::Bridge(format!(
             "RV64IM first-chunk native/traced public challenge mismatch: native alpha={:?}, traced alpha={:?}, terminal alpha={:?}, native beta_a={:?}, traced beta_a={:?}, terminal beta_a={:?}, native beta_r={:?}, traced beta_r={:?}, terminal beta_r={:?}, native beta_m={:?}, traced beta_m={:?}, terminal beta_m={:?}, native gamma={:?}, traced gamma={:?}, terminal gamma={:?}",
             native_public_challenges.alpha,
-            chunk.replay_public_challenges.alpha,
+            replay_chunk.pi_ccs.public_challenges.alpha,
             chunk.ccs_trace.terminal_state.challenges_public.alpha,
             native_public_challenges.beta_a,
-            chunk.replay_public_challenges.beta_a,
+            replay_chunk.pi_ccs.public_challenges.beta_a,
             chunk.ccs_trace.terminal_state.challenges_public.beta_a,
             native_public_challenges.beta_r,
-            chunk.replay_public_challenges.beta_r,
+            replay_chunk.pi_ccs.public_challenges.beta_r,
             chunk.ccs_trace.terminal_state.challenges_public.beta_r,
             native_public_challenges.beta_m,
-            chunk.replay_public_challenges.beta_m,
+            replay_chunk.pi_ccs.public_challenges.beta_m,
             chunk.ccs_trace.terminal_state.challenges_public.beta_m,
             native_public_challenges.gamma,
-            chunk.replay_public_challenges.gamma,
+            replay_chunk.pi_ccs.public_challenges.gamma,
             chunk.ccs_trace.terminal_state.challenges_public.gamma,
         )));
     }
@@ -632,7 +633,7 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
         enforce_k_slice_against_values(
             &mut cs.namespace(|| "alpha_eq"),
             &public_challenges.alpha,
-            &chunk.replay_public_challenges.alpha,
+            &replay_chunk.pi_ccs.public_challenges.alpha,
             "alpha_eq",
         ),
         "RV64IM first-chunk alpha compare failed",
@@ -641,7 +642,7 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
         enforce_k_slice_against_values(
             &mut cs.namespace(|| "beta_a_eq"),
             &public_challenges.beta_a,
-            &chunk.replay_public_challenges.beta_a,
+            &replay_chunk.pi_ccs.public_challenges.beta_a,
             "beta_a_eq",
         ),
         "RV64IM first-chunk beta_a compare failed",
@@ -650,7 +651,7 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
         enforce_k_slice_against_values(
             &mut cs.namespace(|| "beta_r_eq"),
             &public_challenges.beta_r,
-            &chunk.replay_public_challenges.beta_r,
+            &replay_chunk.pi_ccs.public_challenges.beta_r,
             "beta_r_eq",
         ),
         "RV64IM first-chunk beta_r compare failed",
@@ -659,7 +660,7 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
         enforce_k_slice_against_values(
             &mut cs.namespace(|| "beta_m_eq"),
             &public_challenges.beta_m,
-            &chunk.replay_public_challenges.beta_m,
+            &replay_chunk.pi_ccs.public_challenges.beta_m,
             "beta_m_eq",
         ),
         "RV64IM first-chunk beta_m compare failed",
@@ -668,7 +669,7 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
         enforce_k_slice_against_values(
             &mut cs.namespace(|| "gamma_eq"),
             core::slice::from_ref(&public_challenges.gamma),
-            core::slice::from_ref(&chunk.replay_public_challenges.gamma),
+            core::slice::from_ref(&replay_chunk.pi_ccs.public_challenges.gamma),
             "gamma_eq",
         ),
         "RV64IM first-chunk gamma compare failed",
@@ -678,9 +679,9 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
         &mut cs.namespace(|| "initial_sum_fe"),
         &circuit.structure,
         &public_challenges.alpha,
-        &chunk.replay_public_challenges.alpha,
+        &replay_chunk.pi_ccs.public_challenges.alpha,
         &public_challenges.gamma,
-        chunk.replay_public_challenges.gamma,
+        replay_chunk.pi_ccs.public_challenges.gamma,
         chunk.fresh_claims.len(),
         &[],
         Rv64imMainRelationCircuit::delta(),
@@ -708,13 +709,22 @@ fn debug_check_first_chunk_fe_alignment(circuit: &Rv64imMainRelationCircuit) -> 
     native.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
     native.append_fields_raw(&initial_sum_fe_value.as_coeffs());
     compare_transcript_state("fe_initial", &transcript, &native)?;
+    let fe_round_cover: Vec<u64> = chunk
+        .ccs_trace
+        .ccs_replay_proof
+        .sumcheck_rounds
+        .iter()
+        .map(|round| round.len() as u64)
+        .collect();
     let fe_rounds = alloc_rounds(
         &mut cs.namespace(|| "fe_rounds"),
+        &fe_round_cover,
         &chunk.ccs_trace.ccs_replay_proof.sumcheck_rounds,
         "fe_round",
     )
     .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM first-chunk FE round alloc failed: {err}")))?;
-    let fe_challenge_values = chunk_sumcheck_challenges(&chunk.replay_row_chals, &chunk.replay_alpha_prime);
+    let fe_challenge_values =
+        chunk_sumcheck_challenges(&replay_chunk.pi_ccs.row_chals, &replay_chunk.pi_ccs.alpha_prime);
     let first_round = chunk
         .ccs_trace
         .ccs_replay_proof

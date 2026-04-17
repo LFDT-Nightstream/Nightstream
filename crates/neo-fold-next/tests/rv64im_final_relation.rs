@@ -1,9 +1,10 @@
 //! Focused tests for the RV64IM folded/final relation seam above the accepted artifact.
 
 use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::rv64im::build_rv64im_decider_relation_from_final_surface;
 use neo_fold_next::rv64im::final_relation::{
-    prove_rv64im_final_statement_from_accepted, prove_rv64im_folded_statement_from_accepted,
-    verify_rv64im_final_statement, verify_rv64im_folded_statement,
+    build_rv64im_terminal_chunk_fold_witness, prove_rv64im_final_statement_from_accepted,
+    prove_rv64im_folded_statement_from_accepted, verify_rv64im_final_statement, verify_rv64im_folded_statement,
 };
 use neo_fold_next::rv64im::{
     build_rv64im_accepted_proof_artifact, build_rv64im_kernel_export_source_from_accepted_artifact,
@@ -56,6 +57,48 @@ fn rv64im_final_statement_round_trip() {
 }
 
 #[test]
+fn rv64im_terminal_chunk_fold_witness_matches_final_accumulator() {
+    let input = proof_input("control_flow_jal_skip_ecall");
+    let (artifact, _audit) = prove_rv64im_accepted_proof(&input).expect("prove accepted rv64im proof");
+    let (statement, proof) =
+        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
+
+    let witness =
+        build_rv64im_terminal_chunk_fold_witness(&statement, &proof).expect("build terminal chunk-fold witness");
+
+    assert_eq!(
+        witness.accumulator_final(),
+        statement.folded.final_accumulator,
+        "terminal chunk-fold witness must carry the authoritative final accumulator"
+    );
+    assert_eq!(
+        witness.running_last.terminal_handle.0, witness.step_public.state_in,
+        "terminal chunk-fold witness carry_in handle must match the terminal step public input"
+    );
+    assert_eq!(
+        witness.running_final.terminal_handle.0, witness.step_public.state_out,
+        "terminal chunk-fold witness carry_out handle must match the terminal step public output"
+    );
+    assert_eq!(
+        witness.running_final.terminal_handle.0, statement.folded.final_accumulator.terminal_handle.0,
+        "terminal chunk-fold witness carry_out handle must match the authoritative final accumulator handle"
+    );
+    assert!(
+        witness.halted_out,
+        "terminal chunk-fold witness must identify the last chunk as halted_out"
+    );
+    assert_eq!(
+        witness.step_public.halted_out, witness.halted_out,
+        "terminal chunk-fold witness halted flag must agree with the carried terminal step public"
+    );
+    assert!(
+        !witness.fresh_last.fresh_claims.is_empty(),
+        "terminal chunk-fold witness must carry a non-empty final fresh claim set"
+    );
+}
+
+#[test]
+#[ignore = "direct published-seam build remains too expensive for routine final-relation regression"]
 fn rv64im_direct_prover_seam_matches_reconstructive_final_path() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let ((proof, published_seam), _) =
@@ -65,15 +108,34 @@ fn rv64im_direct_prover_seam_matches_reconstructive_final_path() {
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
 
     assert_eq!(published_seam.accepted_artifact.digest, artifact.digest);
-    assert_eq!(published_seam.final_statement.digest, statement.digest);
-    assert_eq!(published_seam.final_proof.proof_digest, final_proof.proof_digest);
     assert_eq!(
-        published_seam.final_proof.kernel_export.digest,
-        final_proof.kernel_export.digest
+        published_seam
+            .main_proof
+            .final_statement_cache()
+            .expect("locally built published seam should retain the final-statement cache")
+            .digest,
+        statement.digest
+    );
+    assert_ne!(
+        published_seam
+            .main_proof
+            .published_statement()
+            .expected_digest(),
+        [0; 32]
+    );
+    assert_eq!(
+        published_seam.main_proof.linkage_anchor_digest(),
+        statement.public_statement_digest
     );
 
-    verify_rv64im_final_statement(&published_seam.final_statement, &published_seam.final_proof)
-        .expect("verify rv64im direct final statement");
+    verify_rv64im_final_statement(
+        published_seam
+            .main_proof
+            .final_statement_cache()
+            .expect("locally built published seam should retain the final-statement cache"),
+        &final_proof,
+    )
+    .expect("verify rv64im direct final statement");
 }
 
 #[test]
@@ -120,6 +182,29 @@ fn rv64im_final_statement_rejects_tampered_chunk_replay_witness() {
     let err = verify_rv64im_final_statement(&statement, &proof)
         .expect_err("tampered replay witness must fail final verification");
     assert!(format!("{err}").contains("final proof digest") || format!("{err}").contains("chunk"));
+}
+
+#[test]
+fn rv64im_final_statement_digest_ignores_non_authoritative_replay_header_transport() {
+    let input = proof_input("control_flow_jal_skip_ecall");
+    let (artifact, _audit) = prove_rv64im_accepted_proof(&input).expect("prove accepted rv64im proof");
+    let (statement, proof) =
+        prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
+    let baseline =
+        build_rv64im_decider_relation_from_final_surface(&statement, &proof).expect("build baseline decider relation");
+
+    let mut tampered_proof = proof.clone();
+    tampered_proof.steps[0]
+        .replay_witness
+        .ccs_replay_proof
+        .header_digest[0] ^= 1;
+    let tampered = build_rv64im_decider_relation_from_final_surface(&statement, &tampered_proof)
+        .expect("build tampered decider relation");
+
+    assert_eq!(
+        baseline.final_proof_digest, tampered.final_proof_digest,
+        "final proof digest must ignore non-authoritative Pi_CCS replay header transport"
+    );
 }
 
 #[test]

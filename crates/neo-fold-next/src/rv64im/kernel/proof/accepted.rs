@@ -1,11 +1,9 @@
 //! Owns the accepted-proof and audit-only artifact split for RV64IM public proofs.
 
-use neo_transcript::{Poseidon2Transcript, Transcript};
-use serde::{Deserialize, Serialize};
-
 use crate::rv64im::stage1::{build_stage1_proof_bundle, Stage1ProofBundle};
 use crate::rv64im::stage2::{build_stage2_proof_bundle, Stage2ProofBundle};
 use crate::rv64im::stage3::{build_stage3_proof_bundle, Stage3ProofBundle};
+use neo_transcript::{Poseidon2Transcript, Transcript};
 
 use super::proof_api::{Rv64imKernelClaimBundle, Rv64imMainLaneProofBundle, Rv64imProof, Rv64imProofStatement};
 use super::proof_completeness::{
@@ -27,7 +25,7 @@ use super::simple::{
 };
 use super::{RootLaneColumns, RootLaneCommitmentSummaryArtifact, TranscriptRecord};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Rv64imAcceptedProofArtifact {
     pub claim: Rv64imKernelClaimBundle,
     pub statement: Rv64imProofStatement,
@@ -48,7 +46,7 @@ pub struct Rv64imAcceptedProofArtifact {
     pub digest: [u8; 32],
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Rv64imAuditBundle {
     pub witness: Rv64imProofWitnessBundle,
     pub digest: [u8; 32],

@@ -23,7 +23,7 @@ use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::chip8::poly::build_eq_table;
 use crate::finalize::digest32_as_fields;
@@ -37,7 +37,9 @@ use super::opening_eval_claims::{
     CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalPayload, FamilyEvalSchemaId, OpenedAjtaiObjectId,
     OpeningClaimAccumulator, PackedColumnEval, Rv64imEvalClaimBundle,
 };
-use super::opening_payload_semantics::{encode_words_to_field_evals_f, phase0_full_width_for_schema};
+use super::opening_payload_semantics::{
+    encode_words_to_field_evals_f, phase0_full_width_for_schema, PHASE0_WORD_LIMB_MASK,
+};
 use super::opening_point_derivation::derive_phase0_point;
 use super::proof_accepted::Rv64imAcceptedProofArtifact;
 use super::simple::{SimpleKernelError, EXACT_STAGE_PP_SEED};
@@ -207,6 +209,19 @@ impl OpenedAjtaiObjectWitness {
                     expected: expected_time_len,
                     actual: column.rows.len(),
                 });
+            }
+            for (row_index, row) in column.rows.iter().enumerate() {
+                for (coeff_index, coeff) in row.iter().enumerate() {
+                    let value = coeff.as_canonical_u64();
+                    if value > PHASE0_WORD_LIMB_MASK {
+                        return Err(EvalClaimError::WitnessCoeffOutOfRange {
+                            column_index,
+                            row_index,
+                            coeff_index,
+                            value,
+                        });
+                    }
+                }
             }
         }
 

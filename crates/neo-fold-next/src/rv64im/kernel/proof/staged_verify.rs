@@ -97,6 +97,7 @@ pub struct Stage1VerifiedClaims {
     pub sem_inputs_digest: [u8; 32],
     pub rows_digest: [u8; 32],
     pub claim: Stage1SelectedOpeningClaim,
+    pub packaged_statement_digest: [u8; 32],
     pub packaged_digest: [u8; 32],
     pub mix: u64,
     pub digest: [u8; 32],
@@ -108,6 +109,7 @@ pub struct Stage2VerifiedClaims {
     pub ram_timeline_digest: [u8; 32],
     pub twist_links_digest: [u8; 32],
     pub claim: Stage2SelectedOpeningClaim,
+    pub packaged_statement_digest: [u8; 32],
     pub packaged_digest: [u8; 32],
     pub reg_mix: u64,
     pub ram_mix: u64,
@@ -118,6 +120,7 @@ pub struct Stage2VerifiedClaims {
 pub struct Stage3VerifiedClaims {
     pub continuity_digest: [u8; 32],
     pub claim: Stage3SelectedOpeningClaim,
+    pub packaged_statement_digest: [u8; 32],
     pub packaged_digest: [u8; 32],
     pub continuity_mix: u64,
     pub digest: [u8; 32],
@@ -486,6 +489,7 @@ impl Stage1VerifiedClaims {
         tr.append_message(b"rows_digest", &self.rows_digest);
         tr.append_message(b"sem_inputs_digest", &self.sem_inputs_digest);
         tr.append_message(b"claim_digest", &self.claim.digest);
+        tr.append_message(b"packaged_statement_digest", &self.packaged_statement_digest);
         tr.append_message(b"packaged_digest", &self.packaged_digest);
         tr.append_u64s(b"meta", &[self.mix]);
         tr.digest32()
@@ -499,6 +503,7 @@ impl Stage2VerifiedClaims {
         tr.append_message(b"ram_timeline_digest", &self.ram_timeline_digest);
         tr.append_message(b"twist_links_digest", &self.twist_links_digest);
         tr.append_message(b"claim_digest", &self.claim.digest);
+        tr.append_message(b"packaged_statement_digest", &self.packaged_statement_digest);
         tr.append_message(b"packaged_digest", &self.packaged_digest);
         tr.append_u64s(b"meta", &[self.reg_mix, self.ram_mix]);
         tr.digest32()
@@ -510,6 +515,7 @@ impl Stage3VerifiedClaims {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/stage3_verified_claims");
         tr.append_message(b"continuity_digest", &self.continuity_digest);
         tr.append_message(b"claim_digest", &self.claim.digest);
+        tr.append_message(b"packaged_statement_digest", &self.packaged_statement_digest);
         tr.append_message(b"packaged_digest", &self.packaged_digest);
         tr.append_u64s(b"meta", &[self.continuity_mix]);
         tr.digest32()
@@ -806,6 +812,7 @@ fn verify_stage1_with_perf(
         sem_inputs_digest: sem_input_surface.sem_inputs_digest,
         rows_digest: inputs.stage_claims.claims.stage1.rows.rows_digest,
         claim: expected_claim,
+        packaged_statement_digest: inputs.stage1.selected_opening.packaged.statement.digest,
         packaged_digest: inputs.stage1.selected_opening.digest,
         mix: accumulator.transcript.stage1_mix,
         digest: [0; 32],
@@ -947,6 +954,7 @@ fn verify_stage2_with_perf(
         ram_timeline_digest: actual_ram_timeline_digest,
         twist_links_digest: actual_twist_links_digest,
         claim: expected_claim,
+        packaged_statement_digest: inputs.stage2.selected_opening.packaged.statement.digest,
         packaged_digest: inputs.stage2.selected_opening.digest,
         reg_mix: accumulator.transcript.stage2_reg_mix,
         ram_mix: accumulator.transcript.stage2_ram_mix,
@@ -1057,6 +1065,7 @@ pub(crate) fn verify_stage3(
     let claims = Stage3VerifiedClaims {
         continuity_digest: inputs.stage3.bridge.continuity_digest,
         claim: expected_claim,
+        packaged_statement_digest: inputs.stage3.selected_opening.packaged.statement.digest,
         packaged_digest: inputs.stage3.selected_opening.digest,
         continuity_mix: accumulator.transcript.stage3_continuity_mix,
         digest: [0; 32],

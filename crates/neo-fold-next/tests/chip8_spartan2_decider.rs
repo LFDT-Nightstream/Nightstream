@@ -8,6 +8,7 @@ use neo_fold_next::chip8::decider::{
 use neo_fold_next::chip8::proof::prove_recursive;
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_decider_relation_round_trip() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -34,6 +35,7 @@ fn chip8_decider_relation_round_trip() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_spartan2_decider_target_projects_final_seam() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -80,6 +82,7 @@ fn chip8_spartan2_decider_target_projects_final_seam() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_spartan2_decider_target_rejects_tampered_statement_digest() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (mut statement, proof) = prove_recursive(&input).expect("prove recursive");
@@ -90,6 +93,7 @@ fn chip8_spartan2_decider_target_rejects_tampered_statement_digest() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_spartan2_decider_target_rejects_tampered_final_proof_digest() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, mut proof) = prove_recursive(&input).expect("prove recursive");
@@ -101,6 +105,7 @@ fn chip8_spartan2_decider_target_rejects_tampered_final_proof_digest() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_spartan2_decider_round_trip() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");

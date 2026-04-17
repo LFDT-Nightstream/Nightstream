@@ -221,7 +221,7 @@ pub struct Rv64imKernelProofBundle {
     pub digest: [u8; 32],
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Rv64imProof {
     pub claim: Rv64imKernelClaimBundle,
     pub statement: Rv64imProofStatement,

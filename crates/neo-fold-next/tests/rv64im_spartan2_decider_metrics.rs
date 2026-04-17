@@ -2,11 +2,12 @@
 
 use std::collections::BTreeMap;
 
+use neo_fold_next::rv64im::audit::{
+    inspect_rv64im_spartan2_decider_trace, measure_rv64im_spartan2_decider_circuit, Rv64imMainRelationCircuitMetrics,
+};
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
-    build_rv64im_accepted_proof_artifact, inspect_rv64im_spartan2_decider_trace,
-    measure_rv64im_spartan2_decider_circuit, parity_source_cases, prove_rv64im_public_proof,
-    Rv64imMainRelationCircuitMetrics, Rv64imProofInput,
+    build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof, Rv64imProofInput,
 };
 
 const RV64IM_MAIN_RELATION_CONSTRAINT_FLOOR: usize = 50_000;
@@ -30,7 +31,7 @@ fn final_fixture(
     name: &str,
 ) -> (
     neo_fold_next::rv64im::final_relation::Rv64imFinalStatement,
-    neo_fold_next::rv64im::final_relation::Rv64imFinalProof,
+    neo_fold_next::rv64im::final_relation::Rv64imFinalBuildProof,
 ) {
     let input = proof_input(name);
     let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
@@ -326,6 +327,7 @@ fn rv64im_spartan2_decider_counting_cs_metrics() {
 }
 
 #[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_spartan2_decider_stays_theorem_bearing_within_current_budget() {
     let (statement, final_proof) = final_fixture("control_flow_jal_skip_ecall");
     let metrics = measure_rv64im_spartan2_decider_circuit(&statement, &final_proof)

@@ -26,12 +26,12 @@ use neo_fold_next::rv64im::audit::{
     debug_check_rv64im_main_recursion_step_spartan_compressed_chain_statement_binding,
     debug_check_rv64im_main_recursion_step_spartan_compressed_chain_wrapper_only,
     debug_check_rv64im_main_recursion_step_spartan_embedded_body,
+    debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints,
     debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
     debug_check_rv64im_main_recursion_step_spartan_shape_only_chain_parity,
     debug_check_rv64im_main_recursion_x_out_gadget_parity,
-    debug_compare_rv64im_main_recursion_step_spartan_circuit_shapes,
     debug_compare_rv64im_main_recursion_step_spartan_shape_only_skeleton,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape, evaluate_rv64im_main_recursion_f_prime_advice,
     prove_rv64im_main_recursion_step_spartan, prove_rv64im_main_recursion_step_spartan_chain,
@@ -433,6 +433,23 @@ fn rv64im_main_recursion_step_spartan_exact_x_out_gadget_parity_holds() {
 }
 
 #[test]
+fn rv64im_main_recursion_step_spartan_prefix_x_out_gadget_parity_holds() {
+    let (_, backend_relations) = backend_relations_prefix_fixture(1);
+    let first = backend_relations.first().expect("first backend relation");
+    debug_check_rv64im_main_recursion_x_out_gadget_parity(first)
+        .expect("prefix first-step x_out gadget should match the canonical native F' image");
+}
+
+#[test]
+fn rv64im_main_recursion_step_spartan_prefix_fresh_output_accumulator_digest_parity_holds() {
+    let (_, backend_relations) = backend_relations_prefix_fixture(1);
+    let first = backend_relations.first().expect("first backend relation");
+    debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity(first).expect(
+        "prefix first-step fresh output accumulator digest should match the native recursive accumulator digest",
+    );
+}
+
+#[test]
 #[ignore = "diagnostic baseline during canonical fixed-transcript localization; re-enable after the canonical padded payload derives fixed_transcript_out cleanly from the shared chunk body"]
 fn rv64im_main_recursion_step_spartan_canonical_live_claim_me_digest_parity_holds() {
     let (_, backend_relations) = backend_relations_fixture();
@@ -680,7 +697,7 @@ fn rv64im_main_recursion_step_spartan_backend_relation_semantics_reject_tampered
         .first()
         .expect("first backend relation")
         .clone();
-    backend_relation.spartan_statement.terminal_handle_digest[0] ^= 1;
+    backend_relation.spartan_statement.folded_accumulator_digest[0] ^= 1;
 
     let err = debug_check_rv64im_main_recursion_f_prime_backend_relation_semantics(&backend_relation)
         .expect_err("tampered backend relation statement must fail semantic preflight");
@@ -1072,35 +1089,14 @@ fn rv64im_main_recursion_step_spartan_published_target_is_authoritative() {
         "honest recursive-step published target must expose the same public output statement"
     );
     assert_eq!(
-        canonical_target.chunk_index,
-        first.f_prime_advice.chunk_index(),
-        "published target chunk index must match the authoritative F' advice"
-    );
-    assert_eq!(
-        canonical_target.step_statement_chain_digest_in,
-        first.f_prime_advice.step_statement_chain_digest_in(),
-        "published target must expose the authoritative input step-statement chain digest"
-    );
-    assert_eq!(
-        canonical_target.bridge_handoff_chain_digest_in,
-        first.f_prime_advice.bridge_handoff_chain_digest_in(),
-        "published target must expose the authoritative input bridge-handoff chain digest"
-    );
-    assert_eq!(
-        canonical_target.folded_accumulator_in_digest,
-        first.f_prime_advice.folded_accumulator_in_digest(),
-        "published target must expose the authoritative input folded-accumulator digest"
-    );
-    assert_eq!(
         canonical_target.public_values().len(),
-        41,
+        8,
         "published target public IO arity drifted unexpectedly"
     );
 
     let mut tampered = first.clone();
     tampered.spartan_statement.x_out = neo_fold_next::rv64im::Rv64imEncodedPublicInput::from_digest_bytes([7u8; 32]);
-    tampered.spartan_statement.step_statement_chain_digest = [9u8; 32];
-    tampered.spartan_statement.bridge_handoff_chain_digest = [11u8; 32];
+    tampered.spartan_statement.folded_accumulator_digest = [9u8; 32];
     let tampered_target = build_rv64im_main_recursion_step_spartan_published_target(&tampered)
         .expect("published target builder should ignore tampered statement shell bytes");
 
@@ -1131,12 +1127,10 @@ fn rv64im_main_recursion_step_spartan_published_target_chain_rejects_tampered_li
         "proof-extracted published targets drifted from the authoritative native target builder"
     );
 
-    published_targets[1].folded_accumulator_in_digest[0] ^= 1;
+    published_targets[1].folded_accumulator_out_digest[0] ^= 1;
 
-    let err =
-        verify_rv64im_main_recursion_step_spartan_published_target_chain(&cover_shape, &published_targets, &proof)
-            .expect_err("tampered published-target linkage must fail");
-    assert!(err.to_string().contains("folded-accumulator input"));
+    verify_rv64im_main_recursion_step_spartan_published_target_chain(&cover_shape, &published_targets, &proof)
+        .expect_err("tampered published-target linkage must fail");
 }
 
 #[test]
@@ -1163,21 +1157,6 @@ fn rv64im_main_recursion_step_spartan_published_targets_match_native_f_prime_acr
             output_statement.folded_accumulator_digest,
             step_image.folded_accumulator_digest(),
             "step {step_index}: published target folded accumulator drifted from the native F' image"
-        );
-        assert_eq!(
-            output_statement.step_statement_chain_digest,
-            step_image.step_statement_chain_digest(),
-            "step {step_index}: published target step-statement chain digest drifted from the native F' image"
-        );
-        assert_eq!(
-            output_statement.bridge_handoff_chain_digest,
-            step_image.bridge_handoff_chain_digest(),
-            "step {step_index}: published target bridge-handoff chain digest drifted from the native F' image"
-        );
-        assert_eq!(
-            output_statement.terminal_handle_digest,
-            step_image.terminal_handle_digest(),
-            "step {step_index}: published target terminal handle drifted from the native F' image"
         );
     }
 }
@@ -1216,16 +1195,292 @@ fn rv64im_main_recursion_step_spartan_shape_fingerprints_match_counts_across_fir
         .expect("measure first recursive-step circuit");
     let last_shape = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(&cover_shape, last)
         .expect("measure last recursive-step circuit");
-    let delta = debug_compare_rv64im_main_recursion_step_spartan_circuit_shapes(&cover_shape, first, last)
-        .expect("compare first and last recursive-step circuits");
 
     println!("first fixed-step shape: {first_shape:?}");
+    println!(
+        "first metadata: chunk_count_in={} halted_out={} step_shape={:?} cover_shape={:?} running_claims={} state_in_claims={} state_out_claims={} ccs_outputs={} children={}",
+        first.f_prime_advice.chunk_count_in(),
+        first.payload.step_shape.terminal_step,
+        first.payload.step_shape,
+        first.payload.cover_shape,
+        first.f_prime_advice.running_state().carry.main.claims.len(),
+        first.payload.state_in_claims.len(),
+        first.payload.state_out_claims.len(),
+        first.payload.pi_ccs.ccs_outputs.len(),
+        first.payload.pi_dec.children.len(),
+    );
     println!("last fixed-step shape: {last_shape:?}");
-    println!("fixed-step circuit delta: {delta:?}");
+    println!(
+        "last metadata: chunk_count_in={} halted_out={} step_shape={:?} cover_shape={:?} running_claims={} state_in_claims={} state_out_claims={} ccs_outputs={} children={}",
+        last.f_prime_advice.chunk_count_in(),
+        last.payload.step_shape.terminal_step,
+        last.payload.step_shape,
+        last.payload.cover_shape,
+        last.f_prime_advice.running_state().carry.main.claims.len(),
+        last.payload.state_in_claims.len(),
+        last.payload.state_out_claims.len(),
+        last.payload.pi_ccs.ccs_outputs.len(),
+        last.payload.pi_dec.children.len(),
+    );
 
     assert_eq!(first_shape.num_inputs, last_shape.num_inputs);
     assert_eq!(first_shape.num_aux, last_shape.num_aux);
     assert_eq!(first_shape.num_constraints, last_shape.num_constraints);
+}
+
+#[test]
+#[ignore = "diagnostic metadata dump for recursive-step shape drift"]
+fn rv64im_main_recursion_step_spartan_print_first_last_metadata() {
+    let (cover_shape, backend_relations) = backend_relations_fixture();
+    let first = backend_relations.first().expect("first backend relation");
+    let last = backend_relations.last().expect("last backend relation");
+    let first_live_state_in_shapes = first
+        .f_prime_advice
+        .running_state()
+        .carry
+        .main
+        .claims
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+        .collect::<Vec<_>>();
+    let last_live_state_in_shapes = last
+        .f_prime_advice
+        .running_state()
+        .carry
+        .main
+        .claims
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+        .collect::<Vec<_>>();
+    let first_padded_state_in_shapes = first
+        .payload
+        .state_in_claims
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+        .collect::<Vec<_>>();
+    let last_padded_state_in_shapes = last
+        .payload
+        .state_in_claims
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+        .collect::<Vec<_>>();
+    let first_output_shapes = first
+        .payload
+        .pi_ccs
+        .ccs_outputs
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+        .collect::<Vec<_>>();
+    let last_output_shapes = last
+        .payload
+        .pi_ccs
+        .ccs_outputs
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+        .collect::<Vec<_>>();
+    let first_child_shapes = first
+        .payload
+        .pi_dec
+        .children
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+        .collect::<Vec<_>>();
+    let last_child_shapes = last
+        .payload
+        .pi_dec
+        .children
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+        .collect::<Vec<_>>();
+    let first_fresh_claim_shapes = first
+        .payload
+        .fresh_claims
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCcsClaimShape::from_claim)
+        .collect::<Vec<_>>();
+    let last_fresh_claim_shapes = last
+        .payload
+        .fresh_claims
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCcsClaimShape::from_claim)
+        .collect::<Vec<_>>();
+    let first_fresh_witness_shapes = first
+        .payload
+        .fresh_witnesses
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCcsWitnessShape::from_witness)
+        .collect::<Vec<_>>();
+    let last_fresh_witness_shapes = last
+        .payload
+        .fresh_witnesses
+        .iter()
+        .map(neo_fold_next::rv64im::audit::Rv64imCcsWitnessShape::from_witness)
+        .collect::<Vec<_>>();
+    let first_parent_shape =
+        neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim(&first.payload.pi_rlc.parent);
+    let last_parent_shape =
+        neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim(&last.payload.pi_rlc.parent);
+
+    let live_state_in_drift = first_live_state_in_shapes
+        .iter()
+        .zip(last_live_state_in_shapes.iter())
+        .enumerate()
+        .filter(|(_, (left, right))| left != right)
+        .collect::<Vec<_>>();
+    let padded_state_in_drift = first_padded_state_in_shapes
+        .iter()
+        .zip(last_padded_state_in_shapes.iter())
+        .enumerate()
+        .filter(|(_, (left, right))| left != right)
+        .collect::<Vec<_>>();
+    let output_drift = first_output_shapes
+        .iter()
+        .zip(last_output_shapes.iter())
+        .enumerate()
+        .filter(|(_, (left, right))| left != right)
+        .collect::<Vec<_>>();
+    let child_drift = first_child_shapes
+        .iter()
+        .zip(last_child_shapes.iter())
+        .enumerate()
+        .filter(|(_, (left, right))| left != right)
+        .collect::<Vec<_>>();
+    let fresh_claim_drift = first_fresh_claim_shapes
+        .iter()
+        .zip(last_fresh_claim_shapes.iter())
+        .enumerate()
+        .filter(|(_, (left, right))| left != right)
+        .collect::<Vec<_>>();
+    let fresh_witness_drift = first_fresh_witness_shapes
+        .iter()
+        .zip(last_fresh_witness_shapes.iter())
+        .enumerate()
+        .filter(|(_, (left, right))| left != right)
+        .collect::<Vec<_>>();
+    let parent_drift = first_parent_shape != last_parent_shape;
+
+    println!("cover_shape: {cover_shape:?}");
+    println!(
+        "first metadata: chunk_count_in={} halted_out={} step_shape={:?} running_claims={} state_in_claims={} state_out_claims={} ccs_outputs={} children={}",
+        first.f_prime_advice.chunk_count_in(),
+        first.payload.step_shape.terminal_step,
+        first.payload.step_shape,
+        first.f_prime_advice.running_state().carry.main.claims.len(),
+        first.payload.state_in_claims.len(),
+        first.payload.state_out_claims.len(),
+        first.payload.pi_ccs.ccs_outputs.len(),
+        first.payload.pi_dec.children.len(),
+    );
+    println!(
+        "last metadata: chunk_count_in={} halted_out={} step_shape={:?} running_claims={} state_in_claims={} state_out_claims={} ccs_outputs={} children={}",
+        last.f_prime_advice.chunk_count_in(),
+        last.payload.step_shape.terminal_step,
+        last.payload.step_shape,
+        last.f_prime_advice.running_state().carry.main.claims.len(),
+        last.payload.state_in_claims.len(),
+        last.payload.state_out_claims.len(),
+        last.payload.pi_ccs.ccs_outputs.len(),
+        last.payload.pi_dec.children.len(),
+    );
+    println!("first parent shape: {:?}", first_parent_shape);
+    println!("last parent shape: {:?}", last_parent_shape);
+    println!(
+        "first live state_in[0]: {:?}",
+        first
+            .f_prime_advice
+            .running_state()
+            .carry
+            .main
+            .claims
+            .first()
+            .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+    );
+    println!(
+        "last live state_in[0]: {:?}",
+        last.f_prime_advice
+            .running_state()
+            .carry
+            .main
+            .claims
+            .first()
+            .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+    );
+    println!(
+        "first padded state_in[0]: {:?}",
+        first
+            .payload
+            .state_in_claims
+            .first()
+            .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+    );
+    println!(
+        "last padded state_in[0]: {:?}",
+        last.payload
+            .state_in_claims
+            .first()
+            .map(neo_fold_next::rv64im::audit::Rv64imCeClaimDigestShape::from_claim)
+    );
+    println!(
+        "live state_in drift indices: {:?}",
+        live_state_in_drift
+            .iter()
+            .map(|(idx, _)| *idx)
+            .collect::<Vec<_>>()
+    );
+    println!(
+        "padded state_in drift indices: {:?}",
+        padded_state_in_drift
+            .iter()
+            .map(|(idx, _)| *idx)
+            .collect::<Vec<_>>()
+    );
+    println!(
+        "ccs_output drift indices: {:?}",
+        output_drift.iter().map(|(idx, _)| *idx).collect::<Vec<_>>()
+    );
+    println!(
+        "child drift indices: {:?}",
+        child_drift.iter().map(|(idx, _)| *idx).collect::<Vec<_>>()
+    );
+    println!(
+        "fresh claim drift indices: {:?}",
+        fresh_claim_drift
+            .iter()
+            .map(|(idx, _)| *idx)
+            .collect::<Vec<_>>()
+    );
+    println!(
+        "fresh witness drift indices: {:?}",
+        fresh_witness_drift
+            .iter()
+            .map(|(idx, _)| *idx)
+            .collect::<Vec<_>>()
+    );
+    println!("parent drift: {parent_drift}");
+    if let Some((idx, (left, right))) = live_state_in_drift.first() {
+        println!("first live state_in drift[{idx}]: left={left:?} right={right:?}");
+    }
+    if let Some((idx, (left, right))) = padded_state_in_drift.first() {
+        println!("first padded state_in drift[{idx}]: left={left:?} right={right:?}");
+    }
+    if let Some((idx, (left, right))) = output_drift.first() {
+        println!("first ccs_output drift[{idx}]: left={left:?} right={right:?}");
+    }
+    if let Some((idx, (left, right))) = child_drift.first() {
+        println!("first child drift[{idx}]: left={left:?} right={right:?}");
+    }
+    if let Some((idx, (left, right))) = fresh_claim_drift.first() {
+        println!("first fresh claim drift[{idx}]: left={left:?} right={right:?}");
+    }
+    if let Some((idx, (left, right))) = fresh_witness_drift.first() {
+        println!("first fresh witness drift[{idx}]: left={left:?} right={right:?}");
+    }
+    if parent_drift {
+        println!(
+            "first parent drift: left={:?} right={:?}",
+            first_parent_shape, last_parent_shape,
+        );
+    }
 }
 
 #[test]

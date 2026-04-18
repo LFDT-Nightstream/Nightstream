@@ -175,6 +175,26 @@ impl Rv64imChunkStepIvcShape {
             && covers_round_lengths(&self.fe_round_lengths, &other.fe_round_lengths)
             && covers_round_lengths(&self.nc_round_lengths, &other.nc_round_lengths)
     }
+
+    /// Strict structural-equality check across two recursive-step shapes.
+    ///
+    /// Compares every field that participates in the fixed F' circuit
+    /// shape (claim counts, sumcheck round lengths, output counts), but
+    /// intentionally ignores the transcript absorb counters
+    /// `transcript_in_absorbed` / `transcript_out_absorbed` which
+    /// accumulate monotonically per chunk and are therefore *not* shape
+    /// fields. Also ignores `terminal_step`, which is a selector, not a
+    /// shape family.
+    pub fn canonical_recursive_step_shape_equal(&self, other: &Self) -> bool {
+        self.state_in_claim_count == other.state_in_claim_count
+            && self.state_out_claim_count == other.state_out_claim_count
+            && self.fresh_claim_count == other.fresh_claim_count
+            && self.fresh_witness_count == other.fresh_witness_count
+            && self.ccs_output_count == other.ccs_output_count
+            && self.child_count == other.child_count
+            && self.fe_round_lengths == other.fe_round_lengths
+            && self.nc_round_lengths == other.nc_round_lengths
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

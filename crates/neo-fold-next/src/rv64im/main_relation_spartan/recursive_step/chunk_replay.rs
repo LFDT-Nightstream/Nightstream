@@ -1,7 +1,8 @@
 //! Owns the chunk NIFS.V body bridge inside the recursive-step circuit.
 //!
-//! This module reuses the staged inner verifier body directly and does not call
-//! the outer chunk-theorem public-IO wrapper.
+//! This module reuses the staged inner verifier body, then absorbs the
+//! authoritative chunk-relation digest with a synthetic public input so the
+//! carried transcript matches native state_out before `chunk_done`.
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices_with_sparse_cache};
@@ -13,10 +14,13 @@ use super::super::recursive_cover::{
     alloc_recursive_cover_claims, recursive_accumulator_instance_digest_circuit_from_claims,
     Rv64imRecursiveCoverStateVar,
 };
-use super::super::{synthesize_rv64im_chunk_nifs_verifier_body, Rv64imClaimBundle};
+use super::super::{
+    enforce_digest_eq, synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imClaimBundle,
+};
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
+use crate::rv64im::main_relation_circuit::claim::enforce_claim_eq_native;
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_spartan::chunk_step_recursive::Rv64imMainRecursionFPrimePayload;
 
@@ -60,7 +64,7 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
     )?;
     let live_state_in_claims = alloc_recursive_cover_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &witness.running_state().carry.main.claims,
+        &payload.state_in_claims,
         "state_in_live_claims",
     )?;
     let carried_claims = Rv64imClaimBundle::from_effective_claims(
@@ -69,7 +73,7 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
             .map(|claim| claim.claim)
             .collect(),
     );
-    let replayed_next_claims = synthesize_rv64im_chunk_nifs_verifier_body(
+    let replayed_next_claims = synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io(
         params,
         structure,
         dims,
@@ -81,6 +85,11 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         &replay_chunk,
         &mut replayed_transcript,
         carried_claims,
+        // HyperNova §6.3 requires a single compiled F' circuit reused across
+        // values. The live recursive-step path must therefore bind ME inputs
+        // from the allocated carried claims themselves, not from a native
+        // logical-claim slice that would re-specialize transcript constants.
+        None,
         payload.boundary_plan,
     )?;
     if replayed_next_claims.effective_count() != witness.fresh_state_out().carry.main.claims.len() {
@@ -89,11 +98,45 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
             "payload_replayed_effective_claim_count_mismatch",
         )?;
     }
+    for (claim_index, (replayed_claim, expected_claim)) in replayed_next_claims
+        .effective_claims()
+        .iter()
+        .zip(witness.fresh_state_out().carry.main.claims.iter())
+        .enumerate()
+    {
+        enforce_claim_eq_native(
+            &mut cs.namespace(|| format!("payload_state_out_claim_eq_{claim_index}")),
+            replayed_claim,
+            expected_claim,
+            &format!("payload_state_out_claim_eq_{claim_index}"),
+        )?;
+    }
+    let expected_state_out_claims = alloc_recursive_cover_claims(
+        &mut cs.namespace(|| "state_out_expected_claims"),
+        &payload.state_out_claims,
+        "state_out_expected_claims",
+    )?;
+    let expected_state_out_claim_vars = expected_state_out_claims
+        .into_iter()
+        .map(|claim| claim.claim)
+        .collect::<Vec<_>>();
     let live_folded_accumulator_out_digest = recursive_accumulator_instance_digest_circuit_from_claims(
         &mut cs.namespace(|| "live_folded_accumulator_out_digest"),
         replayed_next_claims.effective_claims(),
         &state_out_var.terminal_handle,
         "live_folded_accumulator_out_digest",
+    )?;
+    let expected_folded_accumulator_out_digest = recursive_accumulator_instance_digest_circuit_from_claims(
+        &mut cs.namespace(|| "expected_folded_accumulator_out_digest"),
+        &expected_state_out_claim_vars,
+        &state_out_var.terminal_handle,
+        "expected_folded_accumulator_out_digest",
+    )?;
+    enforce_digest_eq(
+        &mut cs.namespace(|| "payload_state_out_digest_eq"),
+        &live_folded_accumulator_out_digest,
+        &expected_folded_accumulator_out_digest,
+        "payload_state_out_digest_eq",
     )?;
     replayed_transcript.append_const_fields_raw(
         cs.namespace(|| "payload_chunk_done"),
@@ -124,6 +167,6 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
     );
 
     Ok(Rv64imMainRecursionStepChunkReplayOutput {
-        live_folded_accumulator_out_digest,
+        live_folded_accumulator_out_digest: expected_folded_accumulator_out_digest,
     })
 }

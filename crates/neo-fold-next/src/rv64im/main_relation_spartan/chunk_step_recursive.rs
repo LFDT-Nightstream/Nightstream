@@ -1,5 +1,8 @@
 //! Owns canonical padded payloads for the future fixed RV64IM recursive step backend.
 
+use std::io::{self, Write};
+use std::time::Instant;
+
 use neo_ajtai::Commitment;
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim, Mat};
@@ -16,7 +19,10 @@ use super::chunk_step_ivc::{
     Rv64imChunkStepIvcShape, Rv64imChunkStepIvcSpartanError,
 };
 use super::fixed_transcript::derive_rv64im_fixed_transcript_out_from_chunk_body;
-use super::{Rv64imChunkBoundaryMode, Rv64imChunkBoundaryPlan, Rv64imMainRecursionStepSpartanStatement};
+use super::{
+    Rv64imChunkBoundaryPlan, Rv64imChunkChildClaimSource, Rv64imChunkNextCarryMode, Rv64imChunkRlcMode,
+    Rv64imMainRecursionStepSpartanStatement,
+};
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32};
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::build_rv64im_main_recursion_construction2_verified_step_statement_from_relation;
@@ -84,6 +90,27 @@ pub struct Rv64imMainRecursionFPrimeBackendRelation {
     pub f_prime_advice: Rv64imMainRecursionFPrimeAdvice,
     pub spartan_statement: Rv64imMainRecursionStepSpartanStatement,
     pub payload: Rv64imMainRecursionFPrimePayload,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Rv64imMainRecursionFPrimeBackendRelationBuildPerf {
+    pub spartan_shape_ms: f64,
+    pub payloads_ms: f64,
+    pub statement_build_ms: f64,
+    pub semantics_check_ms: f64,
+    pub total_ms: f64,
+    pub relation_count: usize,
+}
+
+fn elapsed_ms(started: Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1_000.0
+}
+
+fn emit_debug_timing(trace_prefix: Option<&str>, label: &str, elapsed_ms: f64) {
+    if let Some(prefix) = trace_prefix {
+        eprintln!("{prefix}.{label}={elapsed_ms:.2}ms");
+        let _ = io::stderr().flush();
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -606,7 +633,7 @@ pub(crate) fn rv64im_chunk_step_recursive_carry_state_digest(
 pub(crate) fn build_rv64im_main_recursion_step_spartan_statement(
     f_prime_advice: &Rv64imMainRecursionFPrimeAdvice,
 ) -> Result<Rv64imMainRecursionStepSpartanStatement, SimpleKernelError> {
-    build_rv64im_main_recursion_backend_statement_from_advice(f_prime_advice)
+    Ok(build_rv64im_main_recursion_backend_statement_from_advice(f_prime_advice)?.native_statement())
 }
 
 pub fn debug_check_rv64im_main_recursion_f_prime_backend_relation_semantics(
@@ -1018,7 +1045,18 @@ pub fn build_rv64im_main_recursion_f_prime_payload(
     cover_shape: &Rv64imChunkStepIvcShape,
     claim_cover: &Rv64imMainRecursionFPrimeClaimCover,
 ) -> Result<Rv64imMainRecursionFPrimePayload, Rv64imChunkStepIvcSpartanError> {
+    build_rv64im_main_recursion_f_prime_payload_with_trace(advice, cover_shape, claim_cover, None)
+}
+
+fn build_rv64im_main_recursion_f_prime_payload_with_trace(
+    advice: &Rv64imMainRecursionFPrimeAdvice,
+    cover_shape: &Rv64imChunkStepIvcShape,
+    claim_cover: &Rv64imMainRecursionFPrimeClaimCover,
+    trace_prefix: Option<&str>,
+) -> Result<Rv64imMainRecursionFPrimePayload, Rv64imChunkStepIvcSpartanError> {
+    let total_started = Instant::now();
     let chunk_trace = advice.main_circuit_chunk_trace();
+    let started = Instant::now();
     if claim_cover.state_in_claim_shapes.len() != cover_shape.state_in_claim_count as usize {
         return Err(Rv64imChunkStepIvcSpartanError::Prepare(
             "rv64im recursive-step claim cover does not match the canonical state-in claim count".into(),
@@ -1049,38 +1087,54 @@ pub fn build_rv64im_main_recursion_f_prime_payload(
             "rv64im recursive-step claim cover does not match the canonical child-claim count".into(),
         ));
     }
+    emit_debug_timing(trace_prefix, "prechecks", elapsed_ms(started));
 
+    let started = Instant::now();
     let state_in_claims = build_padded_state_claims(
         &advice.running_state().carry.main.claims,
         &claim_cover.state_in_claim_shapes,
     )?;
+    emit_debug_timing(trace_prefix, "state_in_claims", elapsed_ms(started));
+    let started = Instant::now();
     let state_out_claims = build_padded_state_claims(
         &advice.fresh_state_out().carry.main.claims,
         &claim_cover.state_out_claim_shapes,
     )?;
+    emit_debug_timing(trace_prefix, "state_out_claims", elapsed_ms(started));
 
+    let started = Instant::now();
     let fresh_claims = if chunk_trace.fresh_claims.is_empty() && cover_shape.fresh_claim_count == 0 {
         Vec::new()
     } else {
         build_padded_ccs_claims(&chunk_trace.fresh_claims, &claim_cover.fresh_claim_shapes)?
     };
+    emit_debug_timing(trace_prefix, "fresh_claims", elapsed_ms(started));
+    let started = Instant::now();
     let fresh_witnesses = if chunk_trace.fresh_witnesses.is_empty() && cover_shape.fresh_witness_count == 0 {
         Vec::new()
     } else {
         build_padded_ccs_witnesses(&chunk_trace.fresh_witnesses, &claim_cover.fresh_witness_shapes)?
     };
+    emit_debug_timing(trace_prefix, "fresh_witnesses", elapsed_ms(started));
+    let started = Instant::now();
     let ccs_outputs = if chunk_trace.ccs_trace.ccs_outputs.is_empty() && cover_shape.ccs_output_count == 0 {
         Vec::new()
     } else {
         build_padded_state_claims(&chunk_trace.ccs_trace.ccs_outputs, &claim_cover.ccs_output_shapes)?
     };
+    emit_debug_timing(trace_prefix, "ccs_outputs", elapsed_ms(started));
+    let started = Instant::now();
     let parent = pad_ce_claim_to_digest_shape(&chunk_trace.ccs_trace.parent, &claim_cover.parent_claim_shape)?;
+    emit_debug_timing(trace_prefix, "parent", elapsed_ms(started));
+    let started = Instant::now();
     let children = if chunk_trace.ccs_trace.children.is_empty() && cover_shape.child_count == 0 {
         Vec::new()
     } else {
         build_padded_ce_claims(&chunk_trace.ccs_trace.children, &claim_cover.child_claim_shapes)?
     };
+    emit_debug_timing(trace_prefix, "children", elapsed_ms(started));
 
+    let started = Instant::now();
     let fe_rounds = pad_rounds(
         &chunk_trace.ccs_trace.ccs_replay_proof.sumcheck_rounds,
         &cover_shape.fe_round_lengths,
@@ -1089,7 +1143,9 @@ pub fn build_rv64im_main_recursion_f_prime_payload(
         &chunk_trace.ccs_trace.ccs_replay_proof.sumcheck_rounds_nc,
         &cover_shape.nc_round_lengths,
     )?;
+    emit_debug_timing(trace_prefix, "replay_rounds", elapsed_ms(started));
 
+    let started = Instant::now();
     let mut replay = chunk_trace.ccs_trace.ccs_replay_proof.clone();
     replay.sumcheck_rounds = fe_rounds;
     replay.sumcheck_rounds_nc = nc_rounds;
@@ -1134,19 +1190,26 @@ pub fn build_rv64im_main_recursion_f_prime_payload(
             .map(|round| round.len() as u64)
             .collect(),
     };
-    let boundary_plan = Rv64imChunkBoundaryPlan::from_boundary_mode(
-        // Recursive-step F' must carry the authoritative post-step state, even on terminal chunks.
-        // Preserving the incoming carry here makes the embedded main-relation chunk gadget disagree
-        // with native `fresh_state_out`, which breaks the fixed-shape recursive-step proof path.
-        Rv64imChunkBoundaryMode::from_terminal_flags(advice.bridge_handoff_halted_out(), true),
-        chunk_trace.fresh_claims.len(),
-        chunk_trace.ccs_trace.ccs_outputs.len(),
-    );
+    emit_debug_timing(trace_prefix, "chunk_cover", elapsed_ms(started));
+    // Recursive-step F' owns one uniform carried-state transition:
+    // replay Π_CCS -> Π_RLC -> Π_DEC and carry the replayed children forward,
+    // even when the underlying chunk is terminal in the outer folded proof.
+    // Letting terminal-only boundary modes leak into this payload changes the
+    // compiled verifier body across steps, which violates Construction 2's
+    // fixed-shape F' discipline.
+    let boundary_plan = Rv64imChunkBoundaryPlan {
+        child_claim_source: Rv64imChunkChildClaimSource::ReplayedChildren,
+        next_carry_mode: Rv64imChunkNextCarryMode::ReplaceWithEffectiveChildren,
+        rlc_mode: Rv64imChunkRlcMode::Standard {
+            constant_child_prefix: 0,
+        },
+    };
     let provisional_step_shape = build_rv64im_main_recursion_f_prime_step_shape(
         advice,
         &chunk_trace,
         advice.fresh_state_out().transcript.absorbed as u64,
     );
+    let started = Instant::now();
     let mut payload = Rv64imMainRecursionFPrimePayload {
         boundary_plan,
         step_shape: provisional_step_shape.clone(),
@@ -1169,39 +1232,56 @@ pub fn build_rv64im_main_recursion_f_prime_payload(
         pi_dec,
         chunk_cover,
     };
+    emit_debug_timing(trace_prefix, "materialize_payload", elapsed_ms(started));
+    let started = Instant::now();
     let replay_chunk = payload
         .effective_chunk_replay_surface(
             &advice.running_state().transcript,
             &advice.running_state().carry.main.claims,
         )
         .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
-    payload.fixed_transcript_out = derive_rv64im_fixed_transcript_out_from_chunk_body(
-        &payload,
-        &advice.running_state().transcript,
-        &replay_chunk,
-        &advice.running_state().carry.main.claims,
-        &advice.fresh_state_out().carry.main.claims,
-        advice.running_state().carry.terminal_handle.0,
-    )
-    .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
-    if payload.fixed_transcript_out != advice.fresh_state_out().transcript {
-        return Err(Rv64imChunkStepIvcSpartanError::Prepare(
-            format!(
-                "rv64im recursive-step fixed transcript out does not match the carried native state_out transcript for chunk {} (halted_out={}, in_absorbed={}, derived_out_absorbed={}, native_out_absorbed={})",
-                advice.chunk_index(),
-                advice.bridge_handoff_halted_out(),
-                advice.running_state().transcript.absorbed,
-                payload.fixed_transcript_out.absorbed,
-                advice.fresh_state_out().transcript.absorbed,
-            ),
-        ));
+    emit_debug_timing(trace_prefix, "effective_chunk_replay_surface", elapsed_ms(started));
+    if trace_prefix.is_some() {
+        let started = Instant::now();
+        let fixed_transcript_trace_prefix = trace_prefix.map(|prefix| format!("{prefix}.fixed_transcript"));
+        payload.fixed_transcript_out = derive_rv64im_fixed_transcript_out_from_chunk_body(
+            &payload,
+            &advice.running_state().transcript,
+            &replay_chunk,
+            &advice.running_state().carry.main.claims,
+            &advice.fresh_state_out().carry.main.claims,
+            advice.running_state().carry.terminal_handle.0,
+            fixed_transcript_trace_prefix.as_deref(),
+        )
+        .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
+        emit_debug_timing(trace_prefix, "fixed_transcript_out", elapsed_ms(started));
+        if payload.fixed_transcript_out != advice.fresh_state_out().transcript {
+            return Err(Rv64imChunkStepIvcSpartanError::Prepare(
+                format!(
+                    "rv64im recursive-step fixed transcript out does not match the carried native state_out transcript for chunk {} (halted_out={}, in_absorbed={}, derived_out_absorbed={}, native_out_absorbed={})",
+                    advice.chunk_index(),
+                    advice.bridge_handoff_halted_out(),
+                    advice.running_state().transcript.absorbed,
+                    payload.fixed_transcript_out.absorbed,
+                    advice.fresh_state_out().transcript.absorbed,
+                ),
+            ));
+        }
+    } else {
+        // `main_circuit_chunk_trace` was already built from authoritative replay inputs and
+        // checked that the native replayed transcript_out equals the carried state_out
+        // transcript. Replaying the circuit body again here is redundant on the non-debug path.
+        payload.fixed_transcript_out = advice.fresh_state_out().transcript.clone();
     }
+    let started = Instant::now();
     payload.step_shape = build_rv64im_main_recursion_f_prime_step_shape(
         advice,
         &chunk_trace,
         payload.fixed_transcript_out.absorbed as u64,
     );
     payload.padding = build_rv64im_chunk_step_ivc_recursive_step_padding_from_shape(&payload.step_shape, cover_shape)?;
+    emit_debug_timing(trace_prefix, "final_shape_and_padding", elapsed_ms(started));
+    let started = Instant::now();
     if !payload.matches_cover_shape() {
         return Err(Rv64imChunkStepIvcSpartanError::Prepare(
             "rv64im recursive-step payload does not match the canonical cover shape".into(),
@@ -1212,6 +1292,8 @@ pub fn build_rv64im_main_recursion_f_prime_payload(
             "rv64im recursive-step payload explicit z/pc semantics drifted from the native F' advice".into(),
         ));
     }
+    emit_debug_timing(trace_prefix, "final_checks", elapsed_ms(started));
+    emit_debug_timing(trace_prefix, "total", elapsed_ms(total_started));
     Ok(payload)
 }
 
@@ -1314,31 +1396,127 @@ pub fn build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_
     ),
     SimpleKernelError,
 > {
+    Ok(
+        build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices_and_perf(
+            relations, advices, None,
+        )?
+        .0,
+    )
+}
+
+pub fn build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices_and_perf(
+    relations: &[Rv64imChunkStepIvcRelation],
+    advices: &[Rv64imMainRecursionFPrimeAdvice],
+    trace_prefix: Option<&str>,
+) -> Result<
+    (
+        (
+            Rv64imMainRecursionStepSpartanShape,
+            Vec<Rv64imMainRecursionFPrimeBackendRelation>,
+        ),
+        Rv64imMainRecursionFPrimeBackendRelationBuildPerf,
+    ),
+    SimpleKernelError,
+> {
+    let total_started = Instant::now();
+    let started = Instant::now();
     let spartan_shape = build_rv64im_main_recursion_step_spartan_shape_from_advices(relations, advices)
         .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
-    let payloads = build_rv64im_main_recursion_f_prime_payloads(advices, &spartan_shape)
+    let spartan_shape_ms = elapsed_ms(started);
+    emit_debug_timing(trace_prefix, "spartan_shape", spartan_shape_ms);
+    let started = Instant::now();
+    let mut payloads = Vec::with_capacity(advices.len());
+    for (step_index, advice) in advices.iter().enumerate() {
+        let payload_trace_prefix = trace_prefix.map(|prefix| format!("{prefix}.step_{step_index}_payload"));
+        let payload_started = Instant::now();
+        let payload = build_rv64im_main_recursion_f_prime_payload_with_trace(
+            advice,
+            &spartan_shape.cover_shape,
+            &spartan_shape.claim_cover,
+            payload_trace_prefix.as_deref(),
+        )
         .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+        emit_debug_timing(
+            trace_prefix,
+            &format!("step_{step_index}_payload_total"),
+            elapsed_ms(payload_started),
+        );
+        payloads.push(payload);
+    }
+    let payloads_ms = elapsed_ms(started);
+    emit_debug_timing(trace_prefix, "payloads", payloads_ms);
     if advices.len() != payloads.len() {
         return Err(SimpleKernelError::Bridge(
             "RV64IM recursive-step backend builder produced mismatched step and payload counts".into(),
         ));
     }
+    let mut statement_build_ms = 0.0;
+    let mut semantics_check_ms = 0.0;
     let backend_relations = advices
         .iter()
         .cloned()
         .zip(payloads)
-        .map(|(f_prime_advice, payload)| {
+        .enumerate()
+        .map(|(step_index, (f_prime_advice, payload))| {
+            let started = Instant::now();
             let spartan_statement = build_rv64im_main_recursion_step_spartan_statement(&f_prime_advice)?;
+            let statement_ms = elapsed_ms(started);
+            statement_build_ms += statement_ms;
+            emit_debug_timing(
+                trace_prefix,
+                &format!("step_{step_index}_statement_build"),
+                statement_ms,
+            );
             let backend_relation = Rv64imMainRecursionFPrimeBackendRelation {
                 f_prime_advice,
                 spartan_statement,
                 payload,
             };
+            let started = Instant::now();
             debug_check_rv64im_main_recursion_f_prime_backend_relation_semantics(&backend_relation)?;
+            let semantics_ms = elapsed_ms(started);
+            semantics_check_ms += semantics_ms;
+            emit_debug_timing(
+                trace_prefix,
+                &format!("step_{step_index}_semantics_check"),
+                semantics_ms,
+            );
             Ok(backend_relation)
         })
         .collect::<Result<Vec<_>, SimpleKernelError>>()?;
-    Ok((spartan_shape, backend_relations))
+    let perf = Rv64imMainRecursionFPrimeBackendRelationBuildPerf {
+        spartan_shape_ms,
+        payloads_ms,
+        statement_build_ms,
+        semantics_check_ms,
+        total_ms: elapsed_ms(total_started),
+        relation_count: advices.len(),
+    };
+    emit_debug_timing(trace_prefix, "statement_build_total", statement_build_ms);
+    emit_debug_timing(trace_prefix, "semantics_check_total", semantics_check_ms);
+    emit_debug_timing(trace_prefix, "total", perf.total_ms);
+    Ok(((spartan_shape, backend_relations), perf))
+}
+
+pub fn debug_trace_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices(
+    relations: &[Rv64imChunkStepIvcRelation],
+    advices: &[Rv64imMainRecursionFPrimeAdvice],
+    trace_prefix: &str,
+) -> Result<
+    (
+        (
+            Rv64imMainRecursionStepSpartanShape,
+            Vec<Rv64imMainRecursionFPrimeBackendRelation>,
+        ),
+        Rv64imMainRecursionFPrimeBackendRelationBuildPerf,
+    ),
+    SimpleKernelError,
+> {
+    build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices_and_perf(
+        relations,
+        advices,
+        Some(trace_prefix),
+    )
 }
 
 fn ccs_claim_matches(left: &CcsClaim<Commitment, F>, right: &CcsClaim<Commitment, F>) -> bool {

@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+use std::io::{self, Write};
 use std::time::Instant;
 
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem};
@@ -5,6 +7,8 @@ use p3_field::PrimeField64;
 use spartan2::provider::goldi::F as SpartanF;
 
 use super::*;
+use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
+use crate::rv64im::main_relation_spartan::recursive_cover::alloc_recursive_cover_claims;
 
 fn chunk_stage_err(cs: &TestConstraintSystem<SpartanF>, stage: &str) -> String {
     let unsat = cs.which_is_unsatisfied().unwrap_or("unknown");
@@ -23,14 +27,171 @@ fn profile_stage<F>(stage: &str, f: F) -> Result<(), String>
 where
     F: FnOnce() -> Result<(), String>,
 {
-    println!("n2-step-chunk|start|{stage}");
+    eprintln!("n2-step-chunk|start|{stage}");
+    let _ = io::stderr().flush();
     let started = Instant::now();
-    f()?;
-    println!(
+    let result = f();
+    eprintln!(
         "n2-step-chunk|done|{stage}|{:.3}",
         started.elapsed().as_secs_f64() * 1_000.0
     );
-    Ok(())
+    let _ = io::stderr().flush();
+    result
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+pub struct Rv64imMainRelationStateInPrefixFingerprints {
+    pub bind_me_input_digests_compute: String,
+    pub bind_me_input_digests_transcript: String,
+    pub claimed_initial_sum_from_me_inputs: String,
+}
+
+#[allow(dead_code)]
+fn digest_hex(digest: [u8; 32]) -> String {
+    let mut out = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        let _ = write!(&mut out, "{byte:02x}");
+    }
+    out
+}
+
+#[allow(dead_code)]
+pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+) -> Result<Rv64imMainRelationStateInPrefixFingerprints, SimpleKernelError> {
+    let (params, _, structure) =
+        rv64im_cached_root_main_lane_context().map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let optimized_cache =
+        rv64im_cached_root_main_lane_optimized_cache().map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let dims = build_dims_and_policy(params, structure).map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let mat_digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()))
+        .try_into()
+        .map_err(|_| {
+            SimpleKernelError::Bridge("rv64im chunk prefix fingerprint requires 4-word matrix digest".into())
+        })?;
+
+    let witness = &backend_relation.f_prime_advice;
+    let payload = &backend_relation.payload;
+    let replay_chunk = payload.effective_chunk_replay_surface(
+        &witness.running_state().transcript,
+        &witness.running_state().carry.main.claims,
+    )?;
+
+    let mut cs = FingerprintCS::new();
+    let transcript_state = witness
+        .running_state()
+        .transcript
+        .state
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| {
+            bellpepper_core::num::AllocatedNum::alloc(cs.namespace(|| format!("transcript_state_{idx}")), || {
+                Ok(SpartanF::from_canonical_u64(value.as_canonical_u64()))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let transcript_state: [AllocatedNum<SpartanF>; neo_params::poseidon2_goldilocks::WIDTH] = transcript_state
+        .try_into()
+        .map_err(|_| SimpleKernelError::Bridge("rv64im chunk prefix fingerprint invalid transcript width".into()))?;
+
+    let transcript_values = witness
+        .running_state()
+        .transcript
+        .state
+        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
+
+    let mut transcript = Poseidon2TranscriptCircuit::from_state(
+        transcript_state,
+        transcript_values,
+        witness.running_state().transcript.absorbed,
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    append_chunk_meta(
+        &mut cs.namespace(|| "chunk_meta"),
+        &mut transcript,
+        &replay_chunk.handoff,
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    bind_header_and_instance_digest(
+        &mut cs.namespace(|| "bind_header"),
+        &mut transcript,
+        params,
+        structure.n,
+        structure.m,
+        structure.t(),
+        &structure.f,
+        dims,
+        &mat_digest,
+        &replay_chunk
+            .handoff
+            .public_chunk_instance_digest
+            .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+
+    let live_state_in_claims = alloc_recursive_cover_claims(
+        &mut cs.namespace(|| "state_in_live_claims"),
+        &payload.state_in_claims,
+        "state_in_live_claims",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let carried_claims = Rv64imClaimBundle::from_effective_claims(
+        live_state_in_claims
+            .into_iter()
+            .map(|claim| claim.claim)
+            .collect(),
+    );
+
+    let mut me_input_digests = Vec::with_capacity(carried_claims.effective_count());
+    let mut me_input_digest_values = Vec::with_capacity(carried_claims.effective_count());
+    for (idx, claim) in carried_claims.effective_claims().iter().enumerate() {
+        me_input_digests.push(
+            crate::rv64im::main_relation_circuit::claim::me_digest_poseidon(
+                &mut cs.namespace(|| format!("me_input_digest_{idx}")),
+                claim,
+                &format!("me_input_digest_{idx}"),
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?,
+        );
+        me_input_digest_values.push(crate::rv64im::main_relation_circuit::claim::me_digest_poseidon_values(
+            claim,
+        ));
+    }
+    let bind_me_input_digests_compute = digest_hex(cs.clone().finish_digest32(0));
+
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_input_digests(
+        &mut cs.namespace(|| "bind_me_inputs"),
+        &mut transcript,
+        &me_input_digests,
+        &me_input_digest_values,
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let bind_me_input_digests_transcript = digest_hex(cs.clone().finish_digest32(0));
+
+    let public_challenges = sample_challenges(&mut cs.namespace(|| "sample_challenges"), &mut transcript, dims)
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let effective_fresh_claim_count = replay_chunk.fresh_claims.len();
+    let _ = claimed_initial_sum_from_me_inputs(
+        &mut cs.namespace(|| "claimed_initial_sum_from_me_inputs"),
+        structure,
+        &public_challenges.alpha,
+        &replay_chunk.pi_ccs.public_challenges.alpha,
+        &public_challenges.gamma,
+        replay_chunk.pi_ccs.public_challenges.gamma,
+        effective_fresh_claim_count,
+        carried_claims.effective_claims(),
+        Rv64imMainRelationCircuit::delta(),
+        "claimed_initial_sum_from_me_inputs",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+
+    Ok(Rv64imMainRelationStateInPrefixFingerprints {
+        bind_me_input_digests_compute,
+        bind_me_input_digests_transcript,
+        claimed_initial_sum_from_me_inputs: digest_hex(cs.finish_digest32(0)),
+    })
 }
 
 pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
@@ -107,6 +268,17 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("cover_ccs_claim: {err}"))?;
     let effective_fresh_claims = &covered_fresh_claims[..effective_fresh_claim_count];
+    let effective_fresh_claim_vars = effective_fresh_claims
+        .iter()
+        .enumerate()
+        .map(|(fresh_index, fresh)| {
+            crate::rv64im::main_relation_circuit::output_binding::alloc_fresh_ccs_claim(
+                &mut cs.namespace(|| format!("chunk_{chunk_index}_fresh_claim_{fresh_index}")),
+                fresh,
+            )
+            .map_err(|err| format!("alloc_fresh_claim_{fresh_index}: {err}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let (initial_sum_fe, initial_sum_fe_value) = claimed_initial_sum_from_me_inputs(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_initial_sum_fe")),
@@ -267,17 +439,12 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
     for (output_index, shape) in cover_chunk.ccs_output_shapes.iter().enumerate() {
         let effective_claim = chunk.pi_ccs.ccs_outputs.get(output_index);
         let output = if output_index < effective_fresh_claim_count {
-            let fresh = &effective_fresh_claims[output_index];
             let claim =
                 cover_ce_claim_with_shared_point(shape, effective_claim, &chunk.pi_ccs.row_chals, &chunk.pi_ccs.s_col)
                     .map_err(|err| format!("cover_fresh_output_{output_index}: {err}"))?;
-            let fresh_x_values = pad_f_row_to_len(&embedded_fresh_x_values(fresh), claim.X.as_slice().len())
-                .map_err(|err| format!("pad_fresh_x_{output_index}: {err}"))?;
-            alloc_ce_claim_without_f_surface_with_shared_point(
+            alloc_ce_claim_public_surface_with_shared_point(
                 &mut cs.namespace(|| format!("chunk_{chunk_index}_ccs_output_{output_index}")),
                 &claim,
-                &fresh.c.data,
-                &fresh_x_values,
                 &r_prime_vars,
                 &chunk.pi_ccs.row_chals,
                 &s_col_prime_vars,
@@ -317,16 +484,12 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         padded_ccs_outputs.push(output);
         checkpoint(cs, &format!("ccs_output_{output_index}"))?;
     }
-    for (fresh_index, fresh) in effective_fresh_claims.iter().enumerate() {
-        set_fresh_output_constant_f_surface(&mut padded_ccs_outputs[fresh_index], fresh)
-            .map_err(|err| format!("set_fresh_output_constant_f_surface_{fresh_index}: {err}"))?;
-    }
     let ccs_outputs = padded_ccs_outputs[..effective_output_count].to_vec();
     enforce_me_outputs_against_inputs(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_output_binding")),
         structure,
         params,
-        effective_fresh_claims,
+        &effective_fresh_claim_vars,
         carried_claims.effective_claims(),
         &ccs_outputs,
         &r_prime_vars,
@@ -592,6 +755,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
     public_cursor: &mut usize,
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
+    logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
     append_chunk_done: bool,
 ) -> Result<Rv64imClaimBundle, String> {
@@ -602,15 +766,15 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
         return Err("ccs_outputs_lt_fresh_claims".into());
     }
 
-    profile_stage("append_chunk_meta", || {
+    profile_stage("append_chunk_meta_raw", || {
         append_chunk_meta(
             &mut cs.namespace(|| format!("chunk_meta_{chunk_index}")),
             transcript,
             &chunk.handoff,
         )
-        .map_err(|err| format!("append_chunk_meta: {err}"))?;
-        checkpoint(cs, "append_chunk_meta")
+        .map_err(|err| format!("append_chunk_meta: {err}"))
     })?;
+    profile_stage("append_chunk_meta_checkpoint", || checkpoint(cs, "append_chunk_meta"))?;
 
     profile_stage("bind_header_and_instance_digest", || {
         bind_header_and_instance_digest(
@@ -632,14 +796,62 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
         checkpoint(cs, "bind_header_and_instance_digest")
     })?;
 
-    profile_stage("bind_me_inputs", || {
-        bind_me_inputs(
+    let mut me_input_digests = Vec::new();
+    let mut me_input_digest_values = Vec::new();
+    profile_stage("bind_me_input_digests_compute", || {
+        me_input_digests.reserve(carried_claims.effective_count());
+        me_input_digest_values.reserve(carried_claims.effective_count());
+        if let Some(logical_me_input_claims) = logical_me_input_claims {
+            if carried_claims.effective_count() != logical_me_input_claims.len() {
+                return Err("bind_me_input_digests_compute_len_mismatch".into());
+            }
+            for (idx, (claim, native_claim)) in carried_claims
+                .effective_claims()
+                .iter()
+                .zip(logical_me_input_claims.iter())
+                .enumerate()
+            {
+                me_input_digests.push(
+                    crate::rv64im::main_relation_circuit::claim::me_digest_poseidon_with_native_claim(
+                        &mut cs.namespace(|| format!("chunk_{chunk_index}_me_input_digest_{idx}")),
+                        claim,
+                        native_claim,
+                        &format!("chunk_{chunk_index}_me_input_digest_{idx}"),
+                    )
+                    .map_err(|err| format!("me_digest_poseidon_with_native_claim: {err}"))?,
+                );
+                me_input_digest_values.push(
+                    crate::rv64im::main_relation_circuit::claim::me_digest_poseidon_values_from_native_claim(
+                        native_claim,
+                    ),
+                );
+            }
+        } else {
+            for (idx, claim) in carried_claims.effective_claims().iter().enumerate() {
+                me_input_digests.push(
+                    crate::rv64im::main_relation_circuit::claim::me_digest_poseidon(
+                        &mut cs.namespace(|| format!("chunk_{chunk_index}_me_input_digest_{idx}")),
+                        claim,
+                        &format!("chunk_{chunk_index}_me_input_digest_{idx}"),
+                    )
+                    .map_err(|err| format!("me_digest_poseidon: {err}"))?,
+                );
+                me_input_digest_values.push(crate::rv64im::main_relation_circuit::claim::me_digest_poseidon_values(
+                    claim,
+                ));
+            }
+        }
+        checkpoint(cs, "bind_me_input_digests_compute")
+    })?;
+    profile_stage("bind_me_input_digests_transcript", || {
+        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_input_digests(
             &mut cs.namespace(|| format!("chunk_{chunk_index}_bind_me_inputs")),
             transcript,
-            carried_claims.effective_claims(),
+            &me_input_digests,
+            &me_input_digest_values,
         )
-        .map_err(|err| format!("bind_me_inputs: {err}"))?;
-        checkpoint(cs, "bind_me_inputs")
+        .map_err(|err| format!("bind_me_input_digests: {err}"))?;
+        checkpoint(cs, "bind_me_input_digests_transcript")
     })?;
 
     let mut public_challenges = None;
@@ -665,6 +877,17 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("cover_ccs_claim: {err}"))?;
     let effective_fresh_claims = &covered_fresh_claims[..effective_fresh_claim_count];
+    let effective_fresh_claim_vars = effective_fresh_claims
+        .iter()
+        .enumerate()
+        .map(|(fresh_index, fresh)| {
+            crate::rv64im::main_relation_circuit::output_binding::alloc_fresh_ccs_claim(
+                &mut cs.namespace(|| format!("chunk_{chunk_index}_fresh_claim_{fresh_index}")),
+                fresh,
+            )
+            .map_err(|err| format!("alloc_fresh_claim_{fresh_index}: {err}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut initial_sum_fe = None;
     let mut initial_sum_fe_value = None;
@@ -861,7 +1084,6 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
         for (output_index, shape) in cover_chunk.ccs_output_shapes.iter().enumerate() {
             let effective_claim = chunk.pi_ccs.ccs_outputs.get(output_index);
             let output = if output_index < effective_fresh_claim_count {
-                let fresh = &effective_fresh_claims[output_index];
                 let claim = cover_ce_claim_with_shared_point(
                     shape,
                     effective_claim,
@@ -869,13 +1091,9 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
                     &chunk.pi_ccs.s_col,
                 )
                 .map_err(|err| format!("cover_fresh_output_{output_index}: {err}"))?;
-                let fresh_x_values = pad_f_row_to_len(&embedded_fresh_x_values(fresh), claim.X.as_slice().len())
-                    .map_err(|err| format!("pad_fresh_x_{output_index}: {err}"))?;
-                alloc_ce_claim_without_f_surface_with_shared_point(
+                alloc_ce_claim_public_surface_with_shared_point(
                     &mut cs.namespace(|| format!("chunk_{chunk_index}_ccs_output_{output_index}")),
                     &claim,
-                    &fresh.c.data,
-                    &fresh_x_values,
                     &r_prime_vars,
                     &chunk.pi_ccs.row_chals,
                     &s_col_prime_vars,
@@ -918,17 +1136,13 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             };
             padded_ccs_outputs.push(output);
         }
-        for (fresh_index, fresh) in effective_fresh_claims.iter().enumerate() {
-            set_fresh_output_constant_f_surface(&mut padded_ccs_outputs[fresh_index], fresh)
-                .map_err(|err| format!("set_fresh_output_constant_f_surface_{fresh_index}: {err}"))?;
-        }
         let effective_output_count = chunk.pi_ccs.ccs_outputs.len();
         let ccs_outputs = padded_ccs_outputs[..effective_output_count].to_vec();
         enforce_me_outputs_against_inputs(
             &mut cs.namespace(|| format!("chunk_{chunk_index}_output_binding")),
             structure,
             params,
-            effective_fresh_claims,
+            &effective_fresh_claim_vars,
             carried_claims.effective_claims(),
             &ccs_outputs,
             &r_prime_vars,

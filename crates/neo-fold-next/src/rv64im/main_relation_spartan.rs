@@ -38,14 +38,11 @@ use crate::rv64im::kernel::{
 };
 use crate::rv64im::main_relation::{validate_rv64im_decider_relation_surface, Rv64imDeciderRelation};
 use crate::rv64im::main_relation_circuit::claim::{
-    alloc_ce_claim, alloc_ce_claim_public_surface_with_shared_point, alloc_ce_claim_with_shared_point,
-    alloc_ce_claim_without_f_surface_with_shared_point, CeClaimVar,
+    alloc_ce_claim, alloc_ce_claim_public_surface_with_shared_point, alloc_ce_claim_with_shared_point, CeClaimVar,
 };
 use crate::rv64im::main_relation_circuit::initial_sum::claimed_initial_sum_from_me_inputs;
 use crate::rv64im::main_relation_circuit::k_field::{alloc_constant_k, KNum, KNumVar};
-use crate::rv64im::main_relation_circuit::output_binding::{
-    embedded_fresh_x_values, enforce_me_outputs_against_inputs, set_fresh_output_constant_f_surface,
-};
+use crate::rv64im::main_relation_circuit::output_binding::enforce_me_outputs_against_inputs;
 use crate::rv64im::main_relation_circuit::pi_ccs::{
     bind_header_and_instance_digest, bind_me_inputs, sample_challenges,
 };
@@ -72,6 +69,7 @@ mod chunk_diagnostics;
 mod chunk_step_ivc;
 mod chunk_step_recursive;
 mod debug;
+mod fingerprint_cs;
 mod fixed_transcript;
 mod nifs_v_stages;
 mod recursive_cover;
@@ -88,6 +86,8 @@ pub type Rv64imSpartan2DeciderKeyPair = Arc<(Rv64imSpartan2DeciderProverKey, Rv6
 static RV64IM_MAIN_RELATION_SETUP_CACHE: OnceLock<Mutex<HashMap<[u8; 32], Rv64imSpartan2DeciderKeyPair>>> =
     OnceLock::new();
 
+#[allow(unused_imports)]
+pub use chunk_diagnostics::debug_measure_rv64im_main_relation_state_in_prefix_fingerprints;
 pub(crate) use chunk_diagnostics::{
     debug_locate_rv64im_main_relation_chunk_stage, debug_profile_rv64im_main_relation_chunk_stage_progress,
 };
@@ -111,12 +111,15 @@ pub use chunk_step_recursive::{
     build_rv64im_main_recursion_f_prime_backend_relations,
     build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape,
     build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
+    build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices_and_perf,
     build_rv64im_main_recursion_f_prime_claim_cover, build_rv64im_main_recursion_f_prime_payload,
     build_rv64im_main_recursion_f_prime_payloads, build_rv64im_main_recursion_f_prime_payloads_with_spartan_shape,
     build_rv64im_main_recursion_step_spartan_shape,
     debug_check_rv64im_chunk_step_recursive_effective_chunk_trace_matches_native,
-    debug_check_rv64im_main_recursion_f_prime_backend_relation_semantics, Rv64imCcsClaimShape, Rv64imCcsWitnessShape,
-    Rv64imCeClaimDigestShape, Rv64imMainRecursionFPrimeBackendRelation, Rv64imMainRecursionFPrimeClaimCover,
+    debug_check_rv64im_main_recursion_f_prime_backend_relation_semantics,
+    debug_trace_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices, Rv64imCcsClaimShape,
+    Rv64imCcsWitnessShape, Rv64imCeClaimDigestShape, Rv64imMainRecursionFPrimeBackendRelation,
+    Rv64imMainRecursionFPrimeBackendRelationBuildPerf, Rv64imMainRecursionFPrimeClaimCover,
     Rv64imMainRecursionFPrimePayload, Rv64imMainRecursionStepSpartanShape,
 };
 use debug::append_k_to_transcript;
@@ -127,8 +130,13 @@ pub use debug::{
     Rv64imMainRelationSurfaceMetrics, Rv64imMainRelationTraceStats,
 };
 use nifs_v_stages::{
-    enforce_outer_chunk_relation_public_io, synthesize_rv64im_chunk_nifs_verifier_body, Rv64imChunkNifsVerifierCtx,
+    enforce_outer_chunk_relation_public_io, enforce_synthetic_outer_chunk_relation_public_io, synthesize_pi_ccs_stage,
+    synthesize_pi_dec_stage, synthesize_rv64im_chunk_nifs_verifier_body,
+    synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imChunkNifsVerifierCtx,
+    Rv64imPiRlcStageOutput,
 };
+#[allow(unused_imports)]
+pub use recursive_step::Rv64imMainRecursionStepChunkReplayFingerprint;
 pub use recursive_step::{
     build_rv64im_main_recursion_step_authoritative_chunk_surface,
     build_rv64im_main_recursion_step_spartan_compressed_chain_shape,
@@ -144,23 +152,25 @@ pub use recursive_step::{
     debug_check_rv64im_main_recursion_step_spartan_compressed_chain_statement_binding,
     debug_check_rv64im_main_recursion_step_spartan_compressed_chain_wrapper_only,
     debug_check_rv64im_main_recursion_step_spartan_embedded_body,
+    debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints,
     debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
     debug_check_rv64im_main_recursion_step_spartan_shape_only_chain_parity,
     debug_check_rv64im_main_recursion_x_out_gadget_parity,
-    debug_compare_rv64im_main_recursion_step_spartan_circuit_shapes,
     debug_compare_rv64im_main_recursion_step_spartan_shape_only_skeleton,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
     debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
     debug_profile_rv64im_main_recursion_step_spartan_compressed_chain_prove_stages,
-    prove_rv64im_main_recursion_step_spartan, prove_rv64im_main_recursion_step_spartan_chain,
-    prove_rv64im_main_recursion_step_spartan_compressed_chain, setup_rv64im_main_recursion_step_spartan_cached,
-    setup_rv64im_main_recursion_step_spartan_shape_cached, validate_rv64im_main_recursion_step_spartan_chain_shape,
-    verify_rv64im_main_recursion_step_spartan, verify_rv64im_main_recursion_step_spartan_and_extract_published_target,
+    debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, prove_rv64im_main_recursion_step_spartan,
+    prove_rv64im_main_recursion_step_spartan_chain, prove_rv64im_main_recursion_step_spartan_compressed_chain,
+    setup_rv64im_main_recursion_step_spartan_cached, setup_rv64im_main_recursion_step_spartan_shape_cached,
+    validate_rv64im_main_recursion_step_spartan_chain_shape, verify_rv64im_main_recursion_step_spartan,
+    verify_rv64im_main_recursion_step_spartan_and_extract_published_target,
     verify_rv64im_main_recursion_step_spartan_chain,
     verify_rv64im_main_recursion_step_spartan_chain_and_extract_published_targets,
     verify_rv64im_main_recursion_step_spartan_compressed_chain,
@@ -336,7 +346,7 @@ impl Rv64imChunkBoundaryPlan {
                 Rv64imChunkRlcMode::TerminalLastChunkShortcut
             } else {
                 Rv64imChunkRlcMode::Standard {
-                    constant_child_prefix: effective_fresh_claim_count,
+                    constant_child_prefix: 0,
                 }
             };
         Self {
@@ -437,6 +447,7 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         chunk,
         transcript,
         carried_claims,
+        None,
         boundary_plan,
     )?;
     let ctx = Rv64imChunkNifsVerifierCtx {
@@ -448,6 +459,7 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         chunk_index,
         cover_chunk,
         chunk,
+        logical_me_input_claims: None,
         boundary_plan,
     };
     if enforce_chunk_relation_public_io {
@@ -781,15 +793,6 @@ fn pad_k_row_to_len(row: &[K], target_len: usize) -> Result<Vec<K>, SynthesisErr
     }
     let mut out = row.to_vec();
     out.resize(target_len, K::ZERO);
-    Ok(out)
-}
-
-fn pad_f_row_to_len(row: &[F], target_len: usize) -> Result<Vec<F>, SynthesisError> {
-    if row.len() > target_len {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    let mut out = row.to_vec();
-    out.resize(target_len, F::ZERO);
     Ok(out)
 }
 

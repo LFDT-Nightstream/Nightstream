@@ -8,6 +8,7 @@ use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, Constrai
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use spartan2::{
     bellpepper::{r1cs::SpartanShape, shape_cs::ShapeCS},
+    digest::DigestComputer,
     provider::goldi::F as SpartanF,
     traits::{circuit::SpartanCircuit, snark::R1CSSNARKTrait},
 };
@@ -18,7 +19,7 @@ use crate::rv64im::main_relation_spartan::chunk_step_recursive::rv64im_chunk_ste
 static RV64IM_MAIN_RECURSION_STEP_COMPRESSED_CHAIN_SETUP_CACHE: OnceLock<
     Mutex<HashMap<[u8; 32], Rv64imMainRecursionStepSpartanKeyPair>>,
 > = OnceLock::new();
-const RV64IM_MAIN_RECURSION_STEP_PUBLIC_IO_ARITY: usize = 20;
+const RV64IM_MAIN_RECURSION_STEP_PUBLIC_IO_ARITY: usize = 8;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Rv64imMainRecursionStepSpartanCompressedChainProveMetrics {
@@ -154,8 +155,6 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity(
         }
     }
 
-    let mut expected_step_statement_chain = crate::rv64im::chunk_step_ivc::rv64im_step_statement_chain_digest_init();
-    let mut expected_bridge_handoff_chain = crate::rv64im::chunk_step_ivc::rv64im_bridge_handoff_chain_digest_init();
     let mut expected_carry_state_out_digest = None;
     let mut expected_folded_accumulator_digest =
         crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&initial_state.carry);
@@ -185,18 +184,6 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity(
                 ));
             }
         }
-        if relation.f_prime_advice.step_statement_chain_digest_in() != expected_step_statement_chain {
-            return Err(Rv64imMainRecursionStepSpartanError::Prepare(
-                "rv64im main recursion compressed-chain parity mismatch: step-statement chain input does not match the folded prefix"
-                    .into(),
-            ));
-        }
-        if relation.f_prime_advice.bridge_handoff_chain_digest_in() != expected_bridge_handoff_chain {
-            return Err(Rv64imMainRecursionStepSpartanError::Prepare(
-                "rv64im main recursion compressed-chain parity mismatch: bridge-handoff chain input does not match the folded prefix"
-                    .into(),
-            ));
-        }
         ensure_main_recursion_step_spartan_statement_binding(relation).map_err(|err| {
             Rv64imMainRecursionStepSpartanError::Prepare(format!(
                 "rv64im main recursion compressed-chain parity mismatch: {err}"
@@ -212,10 +199,16 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity(
                 .terminal_handle
                 .0,
         ));
-        expected_folded_accumulator_digest = relation.spartan_statement.folded_accumulator_digest;
-        expected_step_statement_chain = relation.spartan_statement.step_statement_chain_digest;
-        expected_bridge_handoff_chain = relation.spartan_statement.bridge_handoff_chain_digest;
-        expected_terminal_handle_digest = relation.spartan_statement.terminal_handle_digest;
+        let step_image = crate::rv64im::f_prime::evaluate_rv64im_main_recursion_f_prime_advice(
+            &relation.f_prime_advice,
+        )
+        .map_err(|err| {
+            Rv64imMainRecursionStepSpartanError::Prepare(format!(
+                "rv64im main recursion compressed-chain parity F' evaluation failed at step {step_index}: {err}"
+            ))
+        })?;
+        expected_folded_accumulator_digest = step_image.folded_accumulator_digest();
+        expected_terminal_handle_digest = step_image.running_out_state().carry.terminal_handle.0;
     }
     let expected_statement = build_rv64im_main_recursion_step_spartan_statement(backend_relations)?;
     let vk_fs = build_rv64im_main_recursion_verifier_key_fs()
@@ -224,10 +217,9 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity(
         &vk_fs,
         backend_relations.len() as u64,
         expected_folded_accumulator_digest,
-        expected_step_statement_chain,
-        expected_bridge_handoff_chain,
         expected_terminal_handle_digest,
-    );
+    )
+    .native_statement();
     if expected_statement != canonical_final_statement {
         return Err(Rv64imMainRecursionStepSpartanError::Prepare(
             "rv64im main recursion compressed-chain parity mismatch: final chain statement does not match the canonical native F' image".into(),
@@ -274,18 +266,14 @@ pub fn debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit
     let num_inputs = sizes[8];
     let num_aux = sizes[1] + sizes[2] + sizes[3];
     let num_constraints = sizes[0];
+    let shape_digest = DigestComputer::new(&shape)
+        .digest()
+        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     Ok(Rv64imMainRecursionStepSpartanCircuitShape {
         num_inputs,
         num_aux,
         num_constraints,
-        constraint_fingerprint: format!(
-            "inputs:{} aux:{} constraints:{} | padded_cons:{} padded_aux:{}",
-            num_inputs,
-            num_aux,
-            num_constraints,
-            sizes[4],
-            sizes[5] + sizes[6] + sizes[7],
-        ),
+        constraint_fingerprint: super::format_spartan_digest_hex(shape_digest),
     })
 }
 
@@ -357,12 +345,6 @@ impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imMainRecursionStepComp
         let x_out_input = next_public_digest(&public_inputs, &mut public_cursor, "x_out")?;
         let folded_accumulator_out_digest_input =
             next_public_digest(&public_inputs, &mut public_cursor, "folded_accumulator_out_digest")?;
-        let step_statement_chain_out_input =
-            next_public_digest(&public_inputs, &mut public_cursor, "step_statement_chain_digest_out")?;
-        let bridge_handoff_chain_out_input =
-            next_public_digest(&public_inputs, &mut public_cursor, "bridge_handoff_chain_digest_out")?;
-        let terminal_handle_out_input =
-            next_public_digest(&public_inputs, &mut public_cursor, "terminal_handle_digest_out")?;
         let initial_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state();
         let initial_state_claims = self
             .backend_relations
@@ -378,30 +360,18 @@ impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imMainRecursionStepComp
             ),
             "initial_carry_state_digest",
         )?;
+        let initial_statement = build_rv64im_main_recursion_step_spartan_statement(&self.backend_relations)
+            .map_err(|_| SynthesisError::Unsatisfiable)?;
+        let initial_x_out = digest_const_inputs(
+            &mut cs.namespace(|| "initial_x_out"),
+            initial_statement.x_out.bytes(),
+            "initial_x_out",
+        )?;
         let initial_folded_accumulator_digest = digest_const_inputs(
             &mut cs.namespace(|| "initial_folded_accumulator_digest"),
             crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&initial_state.carry),
             "initial_folded_accumulator_digest",
         )?;
-        let initial_step_statement_chain = digest_const_inputs(
-            &mut cs.namespace(|| "initial_step_statement_chain_seed"),
-            crate::rv64im::chunk_step_ivc::rv64im_step_statement_chain_digest_init(),
-            "initial_step_statement_chain_seed",
-        )?;
-        let initial_bridge_handoff_chain = digest_const_inputs(
-            &mut cs.namespace(|| "initial_bridge_handoff_chain_seed"),
-            crate::rv64im::chunk_step_ivc::rv64im_bridge_handoff_chain_digest_init(),
-            "initial_bridge_handoff_chain_seed",
-        )?;
-        let initial_terminal_handle = digest_const_inputs(
-            &mut cs.namespace(|| "initial_terminal_handle"),
-            initial_state.carry.terminal_handle.0,
-            "initial_terminal_handle",
-        )?;
-        let mut final_folded_accumulator_digest_value = digest32_as_spartan_fields(
-            crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&initial_state.carry),
-        );
-        let mut final_terminal_handle_value = digest32_as_spartan_fields(initial_state.carry.terminal_handle.0);
 
         let mut previous_step: Option<Rv64imMainRecursionStepPublicVar> = None;
         for (step_index, relation) in self.backend_relations.iter().enumerate() {
@@ -433,16 +403,10 @@ impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imMainRecursionStepComp
                     &format!("step_{step_index}_accumulator_chain"),
                 )?;
                 enforce_digest_eq(
-                    &mut cs.namespace(|| format!("step_{step_index}_statement_chain")),
-                    &previous.step_statement_chain_digest_out,
-                    &step_public.step_statement_chain_digest_in,
-                    &format!("step_{step_index}_statement_chain"),
-                )?;
-                enforce_digest_eq(
-                    &mut cs.namespace(|| format!("step_{step_index}_bridge_chain")),
-                    &previous.bridge_handoff_chain_digest_out,
-                    &step_public.bridge_handoff_chain_digest_in,
-                    &format!("step_{step_index}_bridge_chain"),
+                    &mut cs.namespace(|| format!("step_{step_index}_folded_accumulator_chain")),
+                    &previous.folded_accumulator_out_digest,
+                    &step_public.folded_accumulator_in_digest,
+                    &format!("step_{step_index}_folded_accumulator_chain"),
                 )?;
             } else {
                 cs.enforce(
@@ -458,57 +422,23 @@ impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imMainRecursionStepComp
                     "initial_carry_state_chain",
                 )?;
                 enforce_digest_eq(
-                    &mut cs.namespace(|| "initial_step_statement_chain"),
-                    &initial_step_statement_chain,
-                    &step_public.step_statement_chain_digest_in,
-                    "initial_step_statement_chain",
-                )?;
-                enforce_digest_eq(
-                    &mut cs.namespace(|| "initial_bridge_handoff_chain"),
-                    &initial_bridge_handoff_chain,
-                    &step_public.bridge_handoff_chain_digest_in,
-                    "initial_bridge_handoff_chain",
+                    &mut cs.namespace(|| "initial_folded_accumulator_chain"),
+                    &initial_folded_accumulator_digest,
+                    &step_public.folded_accumulator_in_digest,
+                    "initial_folded_accumulator_chain",
                 )?;
             }
-            final_folded_accumulator_digest_value =
-                digest32_as_spartan_fields(relation.spartan_statement.folded_accumulator_digest);
-            final_terminal_handle_value = digest32_as_spartan_fields(relation.spartan_statement.terminal_handle_digest);
             previous_step = Some(step_public);
         }
 
+        let final_x_out = previous_step
+            .as_ref()
+            .map(|step| step.x_out.clone())
+            .unwrap_or(initial_x_out);
         let final_folded_accumulator_digest = previous_step
             .as_ref()
             .map(|step| step.folded_accumulator_out_digest.clone())
             .unwrap_or(initial_folded_accumulator_digest);
-        let final_step_statement_chain = previous_step
-            .as_ref()
-            .map(|step| step.step_statement_chain_digest_out.clone())
-            .unwrap_or(initial_step_statement_chain);
-        let final_bridge_handoff_chain = previous_step
-            .as_ref()
-            .map(|step| step.bridge_handoff_chain_digest_out.clone())
-            .unwrap_or(initial_bridge_handoff_chain);
-        let final_terminal_handle = previous_step
-            .as_ref()
-            .map(|step| step.terminal_handle_digest_out.clone())
-            .unwrap_or(initial_terminal_handle);
-        let initial_z = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state()
-            .carry
-            .terminal_handle
-            .0;
-        let final_z_0 = digest_const_inputs(&mut cs.namespace(|| "final_z_0"), initial_z, "final_z_0")?;
-        let final_x_out = main_recursion_x_out_circuit(
-            &mut cs.namespace(|| "final_x_out"),
-            "final_x_out",
-            self.chain_shape.step_shapes.len() as u64,
-            &final_z_0,
-            &digest32_as_spartan_fields(initial_z),
-            &final_terminal_handle,
-            &final_terminal_handle_value,
-            crate::rv64im::main_recursion::RV64IM_MAIN_RECURSION_TRIVIAL_PC,
-            &final_folded_accumulator_digest,
-            &final_folded_accumulator_digest_value,
-        )?;
         enforce_digest_eq(
             &mut cs.namespace(|| "x_out_output_eq"),
             &x_out_input,
@@ -520,24 +450,6 @@ impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imMainRecursionStepComp
             &folded_accumulator_out_digest_input,
             &final_folded_accumulator_digest,
             "folded_accumulator_output_eq",
-        )?;
-        enforce_digest_eq(
-            &mut cs.namespace(|| "step_statement_chain_output_eq"),
-            &step_statement_chain_out_input,
-            &final_step_statement_chain,
-            "step_statement_chain_output_eq",
-        )?;
-        enforce_digest_eq(
-            &mut cs.namespace(|| "bridge_handoff_chain_output_eq"),
-            &bridge_handoff_chain_out_input,
-            &final_bridge_handoff_chain,
-            "bridge_handoff_chain_output_eq",
-        )?;
-        enforce_digest_eq(
-            &mut cs.namespace(|| "terminal_handle_output_eq"),
-            &terminal_handle_out_input,
-            &final_terminal_handle,
-            "terminal_handle_output_eq",
         )?;
         if public_cursor != public_inputs.len() {
             mark_unsatisfied(
@@ -590,8 +502,6 @@ fn build_dummy_backend_relation_chain(
 ) -> Result<Vec<Rv64imMainRecursionFPrimeBackendRelation>, Rv64imMainRecursionStepSpartanError> {
     let initial_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state();
     let mut backend_relations = Vec::with_capacity(chain_shape.step_shapes.len());
-    let mut step_statement_chain_digest = crate::rv64im::chunk_step_ivc::rv64im_step_statement_chain_digest_init();
-    let mut bridge_handoff_chain_digest = crate::rv64im::chunk_step_ivc::rv64im_bridge_handoff_chain_digest_init();
     let mut running_state = initial_state;
 
     for (step_index, step_shape) in chain_shape.step_shapes.iter().enumerate() {
@@ -599,12 +509,8 @@ fn build_dummy_backend_relation_chain(
             &chain_shape.spartan_shape,
             step_shape,
             step_index as u64,
-            step_statement_chain_digest,
-            bridge_handoff_chain_digest,
             &running_state,
         )?;
-        step_statement_chain_digest = relation.spartan_statement.step_statement_chain_digest;
-        bridge_handoff_chain_digest = relation.spartan_statement.bridge_handoff_chain_digest;
         running_state = relation.f_prime_advice.fresh_state_out().clone();
         backend_relations.push(relation);
     }

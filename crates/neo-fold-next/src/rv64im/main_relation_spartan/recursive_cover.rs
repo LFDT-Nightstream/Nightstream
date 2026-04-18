@@ -8,8 +8,7 @@ use spartan2::{bellpepper::poseidon2::hash_packed_goldilocks_fields, provider::g
 use super::alloc_const_field_values;
 use crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot;
 use crate::rv64im::main_relation_circuit::claim::{
-    alloc_ce_claim_with_shared_point_without_fold_digest, alloc_ce_claim_without_fold_digest,
-    packed_bytes_field_values, CeClaimVar,
+    alloc_ce_claim, alloc_ce_claim_with_shared_point, packed_bytes_field_values, CeClaimVar,
 };
 use crate::rv64im::main_relation_circuit::k_field::{KNum, KNumVar};
 
@@ -90,15 +89,14 @@ pub(super) fn alloc_recursive_cover_claims<CS: ConstraintSystem<SpartanF>>(
         return Ok(Vec::new());
     };
     let mut base_claims = Vec::with_capacity(claims.len());
-    let first_var =
-        alloc_ce_claim_without_fold_digest(&mut cs.namespace(|| format!("{label}_claim_0")), first, "claim_0")?;
+    let first_var = alloc_ce_claim(&mut cs.namespace(|| format!("{label}_claim_0")), first, "claim_0")?;
     let shared_r = first_var.r.clone();
     let shared_r_values = first_var.r_values.clone();
     let shared_s_col = first_var.s_col.clone();
     let shared_s_col_values = first_var.s_col_values.clone();
     base_claims.push(first_var);
     for (idx, claim) in rest.iter().enumerate() {
-        base_claims.push(alloc_ce_claim_with_shared_point_without_fold_digest(
+        base_claims.push(alloc_ce_claim_with_shared_point(
             &mut cs.namespace(|| format!("{label}_claim_{}", idx + 1)),
             claim,
             &shared_r,

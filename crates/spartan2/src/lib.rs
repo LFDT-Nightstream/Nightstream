@@ -17,6 +17,7 @@
 // private modules
 mod math;
 mod parallel;
+mod poseidon2_shared;
 mod r1cs;
 mod time;
 

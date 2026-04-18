@@ -11,6 +11,7 @@
 - Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
 - For difficult questions, hard design/review tradeoffs, or high-confidence soundness checks, you may use the project-local multi-AI council skill at `./.codex/skills/multi-ai-council/SKILL.md` (it may take between 5 - 25 min to answer).
 - You can find the SuperNeo paper which is what the main protocol is based upon in ./docs/superneo-paper
+- If any tests take longer than 10 seconds cancel it
 
 ## Security
 - Digests are fine as compression, but never as authority.

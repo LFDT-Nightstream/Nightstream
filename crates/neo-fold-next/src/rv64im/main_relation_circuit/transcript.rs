@@ -3,7 +3,8 @@
 //! This module only owns transcript state evolution and challenge squeezing.
 //! It does not own RV64IM relation semantics.
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError, Variable};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, Index, SynthesisError, Variable};
+use core::cmp::Ordering;
 use ff::Field;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, MATRIX_DIAG_8_GOLDILOCKS};
@@ -62,14 +63,12 @@ impl TranscriptLane {
     }
 
     fn from_terms(terms: Vec<(Variable, SpartanF)>, constant: SpartanF, native: SpartanF) -> Self {
-        let mut out = Self {
-            terms,
+        Self {
+            terms: compact_terms(terms),
             constant,
             value: native,
             allocated: None,
-        };
-        out.consolidate();
-        out
+        }
     }
 
     fn from_constant(native: SpartanF) -> Self {
@@ -85,47 +84,20 @@ impl TranscriptLane {
         self.terms.is_empty()
     }
 
-    fn consolidate(&mut self) {
-        if self.terms.len() <= 1 {
-            return;
-        }
-        let mut new_terms: Vec<(Variable, SpartanF)> = Vec::with_capacity(8);
-        for (v, c) in &self.terms {
-            if let Some(pos) = new_terms.iter().position(|(nv, _)| nv == v) {
-                new_terms[pos].1 += *c;
-            } else {
-                new_terms.push((*v, *c));
-            }
-        }
-        new_terms.retain(|(_, c)| *c != SpartanF::ZERO);
-        self.terms = new_terms;
-    }
-
     fn add(&self, other: &Self) -> Self {
-        let mut terms = self.terms.clone();
-        terms.extend_from_slice(&other.terms);
-        let mut out = Self {
+        let terms = if self.terms.is_empty() {
+            other.terms.clone()
+        } else if other.terms.is_empty() {
+            self.terms.clone()
+        } else {
+            merge_compact_terms(&self.terms, &other.terms)
+        };
+        Self {
             terms,
             constant: self.constant + other.constant,
             value: self.value + other.value,
             allocated: None,
-        };
-        out.consolidate();
-        out
-    }
-
-    fn scale(&self, scalar: SpartanF) -> Self {
-        if scalar == SpartanF::ZERO {
-            return Self::from_constant(SpartanF::ZERO);
         }
-        let mut out = Self {
-            terms: self.terms.iter().map(|(v, c)| (*v, *c * scalar)).collect(),
-            constant: self.constant * scalar,
-            value: self.value * scalar,
-            allocated: None,
-        };
-        out.consolidate();
-        out
     }
 
     fn lc<CS: ConstraintSystem<SpartanF>>(&self) -> bellpepper_core::LinearCombination<SpartanF> {
@@ -155,6 +127,117 @@ impl TranscriptLane {
         self.terms = vec![(out.get_variable(), SpartanF::ONE)];
         self.constant = SpartanF::ZERO;
         Ok(out)
+    }
+}
+
+fn compact_terms(mut terms: Vec<(Variable, SpartanF)>) -> Vec<(Variable, SpartanF)> {
+    if terms.len() <= 1 {
+        return terms
+            .into_iter()
+            .filter(|(_, coeff)| *coeff != SpartanF::ZERO)
+            .collect();
+    }
+
+    terms.sort_unstable_by(|(left, _), (right, _)| compare_variables(*left, *right));
+
+    let mut compacted = Vec::with_capacity(terms.len());
+    for (variable, coeff) in terms {
+        if coeff == SpartanF::ZERO {
+            continue;
+        }
+        if let Some((last_variable, last_coeff)) = compacted.last_mut() {
+            if *last_variable == variable {
+                *last_coeff += coeff;
+                if *last_coeff == SpartanF::ZERO {
+                    compacted.pop();
+                }
+                continue;
+            }
+        }
+        compacted.push((variable, coeff));
+    }
+    compacted
+}
+
+fn compare_variables(left: Variable, right: Variable) -> Ordering {
+    match (left.get_unchecked(), right.get_unchecked()) {
+        (Index::Input(left_idx), Index::Input(right_idx)) => left_idx.cmp(&right_idx),
+        (Index::Aux(left_idx), Index::Aux(right_idx)) => left_idx.cmp(&right_idx),
+        (Index::Input(_), Index::Aux(_)) => Ordering::Less,
+        (Index::Aux(_), Index::Input(_)) => Ordering::Greater,
+    }
+}
+
+fn merge_compact_terms(left: &[(Variable, SpartanF)], right: &[(Variable, SpartanF)]) -> Vec<(Variable, SpartanF)> {
+    let mut merged = Vec::with_capacity(left.len() + right.len());
+    let mut left_idx = 0usize;
+    let mut right_idx = 0usize;
+
+    while left_idx < left.len() && right_idx < right.len() {
+        let (left_var, left_coeff) = left[left_idx];
+        let (right_var, right_coeff) = right[right_idx];
+        match compare_variables(left_var, right_var) {
+            Ordering::Less => {
+                merged.push((left_var, left_coeff));
+                left_idx += 1;
+            }
+            Ordering::Greater => {
+                merged.push((right_var, right_coeff));
+                right_idx += 1;
+            }
+            Ordering::Equal => {
+                let coeff = left_coeff + right_coeff;
+                if coeff != SpartanF::ZERO {
+                    merged.push((left_var, coeff));
+                }
+                left_idx += 1;
+                right_idx += 1;
+            }
+        }
+    }
+
+    merged.extend_from_slice(&left[left_idx..]);
+    merged.extend_from_slice(&right[right_idx..]);
+    merged
+}
+
+fn combine_scaled_lanes(lanes: &[(&TranscriptLane, SpartanF)]) -> TranscriptLane {
+    let mut terms_len = 0usize;
+    let mut constant = SpartanF::ZERO;
+    let mut value = SpartanF::ZERO;
+    for (lane, scalar) in lanes {
+        if *scalar == SpartanF::ZERO {
+            continue;
+        }
+        terms_len += lane.terms.len();
+        constant += lane.constant * *scalar;
+        value += lane.value * *scalar;
+    }
+    if terms_len == 0 {
+        return TranscriptLane::from_constant(value);
+    }
+
+    let mut terms = Vec::with_capacity(terms_len);
+    for (lane, scalar) in lanes {
+        if *scalar == SpartanF::ZERO || lane.terms.is_empty() {
+            continue;
+        }
+        if *scalar == SpartanF::ONE {
+            terms.extend(lane.terms.iter().copied());
+        } else {
+            terms.extend(
+                lane.terms
+                    .iter()
+                    .map(|(variable, coeff)| (*variable, *coeff * *scalar)),
+            );
+        }
+    }
+
+    TranscriptLane {
+        terms: compact_terms(terms),
+        constant,
+        value,
+        allocated: None,
     }
 }
 
@@ -434,20 +517,6 @@ impl Poseidon2TranscriptCircuit {
         mut cs: CS,
         n: usize,
     ) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
-        if self.state_is_constant() {
-            let mut out = Vec::with_capacity(n);
-            while out.len() < n {
-                self.absorb_constant_no_constraint(SpartanF::ONE);
-                self.permute_constant();
-                for i in 0..DIGEST_LEN.min(n - out.len()) {
-                    out.push(alloc_constant_num(
-                        cs.namespace(|| format!("chal_allocate_raw_const_{}_{i}", out.len())),
-                        self.state[i].value,
-                    )?);
-                }
-            }
-            return Ok(out);
-        }
         let mut out = Vec::with_capacity(n);
         while out.len() < n {
             self.absorb_constant(cs.namespace(|| format!("challenge_gate_{}", out.len())), SpartanF::ONE)?;
@@ -465,17 +534,6 @@ impl Poseidon2TranscriptCircuit {
         &mut self,
         mut cs: CS,
     ) -> Result<[AllocatedNum<SpartanF>; DIGEST_LEN], SynthesisError> {
-        if self.state_is_constant() {
-            self.absorb_constant_no_constraint(SpartanF::ONE);
-            self.permute_constant();
-            return Ok(core::array::from_fn(|i| {
-                alloc_constant_num(
-                    cs.namespace(|| format!("digest_allocate_const_{i}")),
-                    self.state[i].value,
-                )
-                .expect("constant transcript digest allocation must succeed")
-            }));
-        }
         self.absorb_constant(cs.namespace(|| "digest_padding"), SpartanF::ONE)?;
         self.permute(cs.namespace(|| "digest_permute"))?;
         Ok(core::array::from_fn(|i| {
@@ -541,11 +599,7 @@ impl Poseidon2TranscriptCircuit {
         value: SpartanF,
     ) -> Result<(), SynthesisError> {
         if self.absorbed >= RATE {
-            if self.state_is_constant() {
-                self.permute_constant();
-            } else {
-                self.permute(cs.namespace(|| "permute"))?;
-            }
+            self.permute(cs.namespace(|| "permute"))?;
         }
         self.state[self.absorbed] = TranscriptLane::from_constant(value);
         self.absorbed += 1;
@@ -564,18 +618,14 @@ impl Poseidon2TranscriptCircuit {
             idx += 1;
         }
         if self.absorbed == RATE {
-            if self.state_is_constant() {
-                self.permute_constant();
-            } else {
-                self.permute(cs.namespace(|| "const_fill_permute"))?;
-            }
+            self.permute(cs.namespace(|| "const_fill_permute"))?;
         }
         while values.len() - idx >= RATE {
             for lane in 0..RATE {
                 self.state[lane] = TranscriptLane::from_constant(values[idx + lane]);
             }
             self.absorbed = RATE;
-            self.permute_constant();
+            self.permute(cs.namespace(|| format!("const_chunk_permute_{idx}")))?;
             idx += RATE;
         }
         while idx < values.len() {
@@ -584,14 +634,6 @@ impl Poseidon2TranscriptCircuit {
             idx += 1;
         }
         Ok(())
-    }
-
-    fn absorb_constant_no_constraint(&mut self, value: SpartanF) {
-        if self.absorbed >= RATE {
-            self.permute_constant();
-        }
-        self.state[self.absorbed] = TranscriptLane::from_constant(value);
-        self.absorbed += 1;
     }
 
     fn absorb_variable_slice<CS: ConstraintSystem<SpartanF>>(
@@ -640,22 +682,14 @@ impl Poseidon2TranscriptCircuit {
             idx += 1;
         }
         if self.absorbed == RATE {
-            if self.state_is_constant() {
-                self.permute_constant();
-            } else {
-                self.permute(cs.namespace(|| "lane_fill_permute"))?;
-            }
+            self.permute(cs.namespace(|| "lane_fill_permute"))?;
         }
         while lanes.len() - idx >= RATE {
             for lane in 0..RATE {
                 self.state[lane] = lanes[idx + lane].clone();
             }
             self.absorbed = RATE;
-            if self.state_is_constant() {
-                self.permute_constant();
-            } else {
-                self.permute(cs.namespace(|| format!("lane_chunk_permute_{idx}")))?;
-            }
+            self.permute(cs.namespace(|| format!("lane_chunk_permute_{idx}")))?;
             idx += RATE;
         }
         while idx < lanes.len() {
@@ -685,30 +719,50 @@ impl Poseidon2TranscriptCircuit {
         self.absorbed = 0;
         Ok(())
     }
-
-    fn permute_constant(&mut self) {
-        let state = core::array::from_fn(|i| self.state[i].value);
-        self.state = permute_constant_state(state).map(TranscriptLane::from_constant);
-        self.absorbed = 0;
-    }
-
     fn state_is_constant(&self) -> bool {
         self.state.iter().all(TranscriptLane::is_constant)
     }
 }
 
-fn alloc_constant_num<CS: ConstraintSystem<SpartanF>>(
+pub(crate) fn hash_field_linear_combinations_raw<CS: ConstraintSystem<SpartanF>>(
     mut cs: CS,
-    value: SpartanF,
-) -> Result<AllocatedNum<SpartanF>, SynthesisError> {
-    let out = AllocatedNum::alloc(cs.namespace(|| "alloc_const"), || Ok(value))?;
-    cs.enforce(
-        || "enforce_const",
-        |lc| lc + out.get_variable(),
-        |lc| lc + CS::one(),
-        |lc| lc + (value, CS::one()),
-    );
-    Ok(out)
+    field_terms: &[Vec<(Variable, SpartanF)>],
+    field_constants: &[SpartanF],
+    field_values: &[SpartanF],
+) -> Result<[AllocatedNum<SpartanF>; DIGEST_LEN], SynthesisError> {
+    if field_terms.len() != field_constants.len() || field_terms.len() != field_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let lanes = field_terms
+        .iter()
+        .zip(field_constants.iter())
+        .zip(field_values.iter())
+        .map(|((terms, constant), value)| TranscriptLane::from_terms(terms.clone(), *constant, *value))
+        .collect::<Vec<_>>();
+    hash_lane_slice_raw(cs.namespace(|| "hash_field_linear_combinations"), &lanes)
+}
+
+fn hash_lane_slice_raw<CS: ConstraintSystem<SpartanF>>(
+    mut cs: CS,
+    lanes: &[TranscriptLane],
+) -> Result<[AllocatedNum<SpartanF>; DIGEST_LEN], SynthesisError> {
+    let mut state = core::array::from_fn(|_| TranscriptLane::from_constant(SpartanF::ZERO));
+
+    for (chunk_idx, chunk) in lanes.chunks(RATE).enumerate() {
+        for (lane_idx, lane) in chunk.iter().enumerate() {
+            state[lane_idx] = state[lane_idx].add(lane);
+        }
+        state = permute_state(cs.namespace(|| format!("permute_after_chunk_{chunk_idx}")), &state)?;
+    }
+
+    state[0] = state[0].add(&TranscriptLane::from_constant(SpartanF::ONE));
+    state = permute_state(cs.namespace(|| "permute_after_padding"), &state)?;
+
+    let mut out = Vec::with_capacity(DIGEST_LEN);
+    for digest_idx in 0..DIGEST_LEN {
+        out.push(state[digest_idx].ensure_allocated(cs.namespace(|| format!("digest_{digest_idx}")))?);
+    }
+    out.try_into().map_err(|_| SynthesisError::Unsatisfiable)
 }
 
 fn pack_bytes(bytes: &[u8]) -> Vec<SpartanF> {
@@ -810,33 +864,6 @@ fn permute_state<CS: ConstraintSystem<SpartanF>>(
     Ok(state)
 }
 
-fn permute_constant_state(mut state: [SpartanF; WIDTH]) -> [SpartanF; WIDTH] {
-    let constants = &*POSEIDON2_CONSTANTS;
-
-    state = external_linear_layer_values(&state);
-
-    for round_constants in &constants.initial {
-        for i in 0..WIDTH {
-            state[i] = sbox_with_round_constant_value(state[i], round_constants[i]);
-        }
-        state = external_linear_layer_values(&state);
-    }
-
-    for round_constant in constants.internal.iter().copied() {
-        state[0] = sbox_with_round_constant_value(state[0], round_constant);
-        state = internal_linear_layer_values(&state, constants.internal_diag_m_1);
-    }
-
-    for round_constants in &constants.terminal {
-        for i in 0..WIDTH {
-            state[i] = sbox_with_round_constant_value(state[i], round_constants[i]);
-        }
-        state = external_linear_layer_values(&state);
-    }
-
-    state
-}
-
 fn sbox_with_round_constant<CS: ConstraintSystem<SpartanF>>(
     mut cs: CS,
     input: &TranscriptLane,
@@ -869,14 +896,6 @@ fn sbox_with_round_constant<CS: ConstraintSystem<SpartanF>>(
     Ok(TranscriptLane::from_allocated(out, out_value))
 }
 
-fn sbox_with_round_constant_value(input: SpartanF, round_constant: SpartanF) -> SpartanF {
-    let shifted = input + round_constant;
-    let shifted_sq = shifted.square();
-    let shifted_4 = shifted_sq.square();
-    let shifted_6 = shifted_4 * shifted_sq;
-    shifted_6 * shifted
-}
-
 fn external_linear_layer<CS: ConstraintSystem<SpartanF>>(
     _cs: CS,
     state: &[TranscriptLane; WIDTH],
@@ -887,59 +906,40 @@ fn external_linear_layer<CS: ConstraintSystem<SpartanF>>(
     let two = SpartanF::from_canonical_u64(2);
     let mut out = core::array::from_fn(|i| left[i % 4].clone());
     for i in 0..4 {
-        out[i] = left[i].scale(two).add(&right[i]);
-        out[i + 4] = left[i].add(&right[i].scale(two));
+        out[i] = combine_scaled_lanes(&[(&left[i], two), (&right[i], SpartanF::ONE)]);
+        out[i + 4] = combine_scaled_lanes(&[(&left[i], SpartanF::ONE), (&right[i], two)]);
     }
     Ok(out)
-}
-
-fn external_linear_layer_values(state: &[SpartanF; WIDTH]) -> [SpartanF; WIDTH] {
-    let left = apply_mat4_values(&state[0..4]);
-    let right = apply_mat4_values(&state[4..8]);
-
-    let two = SpartanF::from_canonical_u64(2);
-    let mut out = core::array::from_fn(|i| left[i % 4]);
-    for i in 0..4 {
-        out[i] = left[i] * two + right[i];
-        out[i + 4] = left[i] + right[i] * two;
-    }
-    out
 }
 
 fn apply_mat4(state: &[TranscriptLane]) -> [TranscriptLane; 4] {
     let two = SpartanF::from_canonical_u64(2);
     let three = SpartanF::from_canonical_u64(3);
 
-    let row_0 = state[0]
-        .scale(two)
-        .add(&state[1].scale(three))
-        .add(&state[2])
-        .add(&state[3]);
-    let row_1 = state[0]
-        .add(&state[1].scale(two))
-        .add(&state[2].scale(three))
-        .add(&state[3]);
-    let row_2 = state[0]
-        .add(&state[1])
-        .add(&state[2].scale(two))
-        .add(&state[3].scale(three));
-    let row_3 = state[0]
-        .scale(three)
-        .add(&state[1])
-        .add(&state[2])
-        .add(&state[3].scale(two));
-
-    [row_0, row_1, row_2, row_3]
-}
-
-fn apply_mat4_values(state: &[SpartanF]) -> [SpartanF; 4] {
-    let two = SpartanF::from_canonical_u64(2);
-    let three = SpartanF::from_canonical_u64(3);
-
-    let row_0 = state[0] * two + state[1] * three + state[2] + state[3];
-    let row_1 = state[0] + state[1] * two + state[2] * three + state[3];
-    let row_2 = state[0] + state[1] + state[2] * two + state[3] * three;
-    let row_3 = state[0] * three + state[1] + state[2] + state[3] * two;
+    let row_0 = combine_scaled_lanes(&[
+        (&state[0], two),
+        (&state[1], three),
+        (&state[2], SpartanF::ONE),
+        (&state[3], SpartanF::ONE),
+    ]);
+    let row_1 = combine_scaled_lanes(&[
+        (&state[0], SpartanF::ONE),
+        (&state[1], two),
+        (&state[2], three),
+        (&state[3], SpartanF::ONE),
+    ]);
+    let row_2 = combine_scaled_lanes(&[
+        (&state[0], SpartanF::ONE),
+        (&state[1], SpartanF::ONE),
+        (&state[2], two),
+        (&state[3], three),
+    ]);
+    let row_3 = combine_scaled_lanes(&[
+        (&state[0], three),
+        (&state[1], SpartanF::ONE),
+        (&state[2], SpartanF::ONE),
+        (&state[3], two),
+    ]);
 
     [row_0, row_1, row_2, row_3]
 }
@@ -949,21 +949,14 @@ fn internal_linear_layer<CS: ConstraintSystem<SpartanF>>(
     state: &[TranscriptLane; WIDTH],
     diag_m_1: [SpartanF; WIDTH],
 ) -> Result<[TranscriptLane; WIDTH], SynthesisError> {
-    let mut sum = state[0].clone();
-    for i in 1..WIDTH {
-        sum = sum.add(&state[i]);
-    }
-
-    let out = core::array::from_fn(|i| sum.add(&state[i].scale(diag_m_1[i])));
-    Ok(out)
-}
-
-fn internal_linear_layer_values(state: &[SpartanF; WIDTH], diag_m_1: [SpartanF; WIDTH]) -> [SpartanF; WIDTH] {
-    let sum = state
+    let sum_inputs = state
         .iter()
-        .copied()
-        .fold(SpartanF::ZERO, |acc, value| acc + value);
-    core::array::from_fn(|i| sum + state[i] * diag_m_1[i])
+        .map(|lane| (lane, SpartanF::ONE))
+        .collect::<Vec<_>>();
+    let sum = combine_scaled_lanes(&sum_inputs);
+
+    let out = core::array::from_fn(|i| combine_scaled_lanes(&[(&sum, SpartanF::ONE), (&state[i], diag_m_1[i])]));
+    Ok(out)
 }
 
 fn square_lane<CS: ConstraintSystem<SpartanF>>(

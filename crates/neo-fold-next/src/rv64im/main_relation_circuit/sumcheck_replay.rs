@@ -11,7 +11,7 @@ use p3_field::PrimeField64;
 use spartan2::provider::goldi::F as SpartanF;
 
 use super::k_field::{enforce_k_eq_native, KNum, KNumVar};
-use super::sumcheck::{sumcheck_eval_gadget_constant_challenge, sumcheck_round_gadget};
+use super::sumcheck::{sumcheck_eval_gadget, sumcheck_round_gadget};
 use super::transcript::Poseidon2TranscriptCircuit;
 
 pub fn verify_sumcheck_rounds<CS: ConstraintSystem<SpartanF>>(
@@ -64,10 +64,11 @@ pub fn verify_sumcheck_rounds<CS: ConstraintSystem<SpartanF>>(
             KNum::from_neo_k(*challenge_value),
             &format!("{label}_challenge_match_{round_idx}"),
         );
-        running_sum = sumcheck_eval_gadget_constant_challenge(
+        running_sum = sumcheck_eval_gadget(
             cs,
             round_vars,
             round_vals,
+            &challenge,
             *challenge_value,
             delta,
             &format!("{label}_eval_{round_idx}"),

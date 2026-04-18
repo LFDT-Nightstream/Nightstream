@@ -1,14 +1,16 @@
 //! Owns CE-claim allocation and Poseidon2 claim-digest gadgets for RV64IM main-relation circuits.
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError, Variable};
+use ff::Field;
 use neo_ajtai::Commitment;
 use neo_ccs::CeClaim;
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 use p3_field::PrimeField64;
-use spartan2::{bellpepper::poseidon2::hash_packed_goldilocks_fields, provider::goldi::F as SpartanF};
+use spartan2::provider::goldi::F as SpartanF;
 
 use super::k_field::{alloc_k, KNum, KNumVar};
+use super::transcript::hash_field_linear_combinations_raw;
 
 #[derive(Clone)]
 pub struct CeClaimVar {
@@ -576,83 +578,429 @@ fn alias_ct_from_y_ring(
     Ok(ct)
 }
 
+fn push_constant_lc_field(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    value: SpartanF,
+) {
+    field_terms.push(Vec::new());
+    field_constants.push(value);
+    field_values.push(value);
+}
+
+fn push_variable_lc_field(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    variable: Variable,
+    value: SpartanF,
+) {
+    field_terms.push(vec![(variable, SpartanF::ONE)]);
+    field_constants.push(SpartanF::ZERO);
+    field_values.push(value);
+}
+
+fn extend_packed_bytes_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    bytes: &[u8],
+) {
+    for value in packed_bytes_field_values(bytes) {
+        push_constant_lc_field(field_terms, field_constants, field_values, value);
+    }
+}
+
+fn extend_allocated_slice_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[AllocatedNum<SpartanF>],
+    native_values: &[SpartanF],
+) -> Result<(), SynthesisError> {
+    if values.len() != native_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (value, native_value) in values.iter().zip(native_values.iter()) {
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            value.get_variable(),
+            *native_value,
+        );
+    }
+    Ok(())
+}
+
+fn extend_f_slice_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[AllocatedNum<SpartanF>],
+    native_values: &[F],
+) -> Result<(), SynthesisError> {
+    if values.len() != native_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    push_constant_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        SpartanF::from_canonical_u64(values.len() as u64),
+    );
+    for (value, native_value) in values.iter().zip(native_values.iter()) {
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            value.get_variable(),
+            SpartanF::from_canonical_u64(native_value.as_canonical_u64()),
+        );
+    }
+    Ok(())
+}
+
+fn extend_f_slice_prefix_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[AllocatedNum<SpartanF>],
+    logical_values: &[F],
+) -> Result<(), SynthesisError> {
+    if values.len() < logical_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    extend_f_slice_as_lc_fields(
+        field_terms,
+        field_constants,
+        field_values,
+        &values[..logical_values.len()],
+        logical_values,
+    )
+}
+
+fn extend_k_slice_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[KNumVar],
+    native_values: &[K],
+) -> Result<(), SynthesisError> {
+    if values.len() != native_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    push_constant_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        SpartanF::from_canonical_u64(values.len() as u64),
+    );
+    let coeff_len = native_values
+        .first()
+        .map(|value| value.as_coeffs().len())
+        .unwrap_or(0);
+    push_constant_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        SpartanF::from_canonical_u64(coeff_len as u64),
+    );
+    for (value, native_value) in values.iter().zip(native_values.iter()) {
+        let coeffs = native_value.as_coeffs();
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            value.c0,
+            SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
+        );
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            value.c1,
+            SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
+        );
+    }
+    Ok(())
+}
+
+fn extend_k_slice_prefix_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[KNumVar],
+    native_values: &[K],
+) -> Result<(), SynthesisError> {
+    if values.len() < native_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    extend_k_slice_as_lc_fields(
+        field_terms,
+        field_constants,
+        field_values,
+        &values[..native_values.len()],
+        native_values,
+    )
+}
+
 pub fn me_digest_poseidon<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     claim: &CeClaimVar,
     label: &str,
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let mut preimage = Vec::new();
-    extend_packed_bytes_as_fields(
-        cs,
-        &mut preimage,
+    let mut field_terms = Vec::new();
+    let mut field_constants = Vec::new();
+    let mut field_values = Vec::new();
+    extend_packed_bytes_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         b"neo/ccs/me_input_digest_poseidon/v2",
-        &format!("{label}_domain"),
+    );
+    extend_f_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_data,
+        &claim.c_data_values,
     )?;
-    extend_f_slice_as_fields(cs, &mut preimage, &claim.c_data, &format!("{label}_c_data"))?;
-    extend_f_slice_as_fields(cs, &mut preimage, &claim.x, &format!("{label}_x"))?;
-    extend_k_slice_as_fields(cs, &mut preimage, &claim.r, &claim.r_values, &format!("{label}_r"))?;
-    extend_k_slice_as_fields(
-        cs,
-        &mut preimage,
+    extend_f_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.x,
+        &claim.x_values,
+    )?;
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.r,
+        &claim.r_values,
+    )?;
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         &claim.s_col,
         &claim.s_col_values,
-        &format!("{label}_s_col"),
     )?;
-    extend_k_slice_as_fields(
-        cs,
-        &mut preimage,
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         &claim.y_zcol,
         &claim.y_zcol_values,
-        &format!("{label}_y_zcol"),
     )?;
 
-    preimage.push(alloc_constant(
-        cs,
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         SpartanF::from_canonical_u64(claim.y_ring.len() as u64),
-        &format!("{label}_y_ring_len"),
-    )?);
+    );
     for (row_idx, row) in claim.y_ring.iter().enumerate() {
-        extend_k_slice_as_fields(
-            cs,
-            &mut preimage,
+        let _ = row_idx;
+        extend_k_slice_as_lc_fields(
+            &mut field_terms,
+            &mut field_constants,
+            &mut field_values,
             row,
             &claim.y_ring_values[row_idx],
-            &format!("{label}_y_ring_{row_idx}"),
         )?;
     }
 
-    extend_k_slice_as_fields(cs, &mut preimage, &claim.ct, &claim.ct_values, &format!("{label}_ct"))?;
-    extend_k_slice_as_fields(
-        cs,
-        &mut preimage,
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.ct,
+        &claim.ct_values,
+    )?;
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         &claim.aux_openings,
         &claim.aux_openings_values,
-        &format!("{label}_aux"),
     )?;
-    extend_f_slice_as_fields(
-        cs,
-        &mut preimage,
+    extend_f_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         &claim.c_step_coords,
-        &format!("{label}_c_step_coords"),
+        &claim.c_step_coords_values,
     )?;
-    preimage.push(alloc_constant(
-        cs,
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         SpartanF::from_canonical_u64(claim.m_in as u64),
-        &format!("{label}_m_in"),
-    )?);
-    preimage.push(alloc_constant(
-        cs,
+    );
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         SpartanF::from_canonical_u64(claim.u_offset as u64),
-        &format!("{label}_u_offset"),
-    )?);
-    preimage.push(alloc_constant(
-        cs,
+    );
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
         SpartanF::from_canonical_u64(claim.u_len as u64),
-        &format!("{label}_u_len"),
-    )?);
-    preimage.extend(claim.fold_digest_encoding.iter().cloned());
+    );
+    extend_allocated_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.fold_digest_encoding,
+        &claim.fold_digest_encoding_values,
+    )?;
 
-    hash_packed_goldilocks_fields(cs.namespace(|| format!("{label}_hash")), &preimage)
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
+pub fn me_digest_poseidon_with_native_claim<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaimVar,
+    native_claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    if claim.c_data.len() < native_claim.c.data.len()
+        || claim.x.len() < native_claim.X.as_slice().len()
+        || claim.r.len() < native_claim.r.len()
+        || claim.s_col.len() < native_claim.s_col.len()
+        || claim.y_zcol.len() < native_claim.y_zcol.len()
+        || claim.y_ring.len() < native_claim.y_ring.len()
+        || claim.ct.len() < native_claim.ct.len()
+        || claim.aux_openings.len() < native_claim.aux_openings.len()
+        || claim.c_step_coords.len() < native_claim.c_step_coords.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let mut field_terms = Vec::new();
+    let mut field_constants = Vec::new();
+    let mut field_values = Vec::new();
+    extend_packed_bytes_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        b"neo/ccs/me_input_digest_poseidon/v2",
+    );
+    extend_f_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_data,
+        &native_claim.c.data,
+    )?;
+    extend_f_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.x,
+        native_claim.X.as_slice(),
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.r,
+        &native_claim.r,
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.s_col,
+        &native_claim.s_col,
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.y_zcol,
+        &native_claim.y_zcol,
+    )?;
+
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        SpartanF::from_canonical_u64(native_claim.y_ring.len() as u64),
+    );
+    for (row_idx, native_row) in native_claim.y_ring.iter().enumerate() {
+        let _ = row_idx;
+        extend_k_slice_prefix_as_lc_fields(
+            &mut field_terms,
+            &mut field_constants,
+            &mut field_values,
+            &claim.y_ring[row_idx],
+            native_row,
+        )?;
+    }
+
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.ct,
+        &native_claim.ct,
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.aux_openings,
+        &native_claim.aux_openings,
+    )?;
+    extend_f_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_step_coords,
+        &native_claim.c_step_coords,
+    )?;
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        SpartanF::from_canonical_u64(native_claim.m_in as u64),
+    );
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        SpartanF::from_canonical_u64(native_claim.u_offset as u64),
+    );
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        SpartanF::from_canonical_u64(native_claim.u_len as u64),
+    );
+    extend_allocated_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.fold_digest_encoding,
+        &claim.fold_digest_encoding_values,
+    )?;
+
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
 }
 
 pub fn me_digest_poseidon_values(claim: &CeClaimVar) -> [SpartanF; 4] {
@@ -676,6 +1024,37 @@ pub fn me_digest_poseidon_values(claim: &CeClaimVar) -> [SpartanF; 4] {
     preimage.push(SpartanF::from_canonical_u64(claim.u_offset as u64));
     preimage.push(SpartanF::from_canonical_u64(claim.u_len as u64));
     preimage.extend(claim.fold_digest_encoding_values.iter().copied());
+
+    neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
+        &preimage
+            .iter()
+            .map(|value| F::from_u64(value.to_canonical_u64()))
+            .collect::<Vec<_>>(),
+    )
+    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
+}
+
+pub fn me_digest_poseidon_values_from_native_claim(claim: &CeClaim<Commitment, F, K>) -> [SpartanF; 4] {
+    let mut preimage = Vec::new();
+    preimage.extend(packed_bytes_field_values(b"neo/ccs/me_input_digest_poseidon/v2"));
+    extend_f_slice_values(&mut preimage, &claim.c.data);
+    extend_f_slice_values(&mut preimage, claim.X.as_slice());
+    extend_k_slice_values(&mut preimage, &claim.r);
+    extend_k_slice_values(&mut preimage, &claim.s_col);
+    extend_k_slice_values(&mut preimage, &claim.y_zcol);
+
+    preimage.push(SpartanF::from_canonical_u64(claim.y_ring.len() as u64));
+    for row in &claim.y_ring {
+        extend_k_slice_values(&mut preimage, row);
+    }
+
+    extend_k_slice_values(&mut preimage, &claim.ct);
+    extend_k_slice_values(&mut preimage, &claim.aux_openings);
+    extend_f_slice_values(&mut preimage, &claim.c_step_coords);
+    preimage.push(SpartanF::from_canonical_u64(claim.m_in as u64));
+    preimage.push(SpartanF::from_canonical_u64(claim.u_offset as u64));
+    preimage.push(SpartanF::from_canonical_u64(claim.u_len as u64));
+    preimage.extend(packed_bytes_field_values(&claim.fold_digest));
 
     neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
         &preimage
@@ -805,18 +1184,15 @@ fn extend_packed_bytes_as_fields<CS: ConstraintSystem<SpartanF>>(
     label: &str,
 ) -> Result<(), SynthesisError> {
     const BYTES_PER_LIMB: usize = 7;
-    dst.push(alloc_constant(
-        cs,
-        SpartanF::from_canonical_u64(bytes.len() as u64),
-        &format!("{label}_len"),
-    )?);
+    dst.push(AllocatedNum::alloc(cs.namespace(|| format!("{label}_len")), || {
+        Ok(SpartanF::from_canonical_u64(bytes.len() as u64))
+    })?);
     for (idx, chunk) in bytes.chunks(BYTES_PER_LIMB).enumerate() {
         let mut limb = [0u8; 8];
         limb[..chunk.len()].copy_from_slice(chunk);
-        dst.push(alloc_constant(
-            cs,
-            SpartanF::from_canonical_u64(u64::from_le_bytes(limb)),
-            &format!("{label}_limb_{idx}"),
+        dst.push(AllocatedNum::alloc(
+            cs.namespace(|| format!("{label}_limb_{idx}")),
+            || Ok(SpartanF::from_canonical_u64(u64::from_le_bytes(limb))),
         )?);
     }
     Ok(())
@@ -853,21 +1229,6 @@ fn enforce_packed_bytes_eq_native<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
-fn extend_f_slice_as_fields<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    dst: &mut Vec<AllocatedNum<SpartanF>>,
-    values: &[AllocatedNum<SpartanF>],
-    label: &str,
-) -> Result<(), SynthesisError> {
-    dst.push(alloc_constant(
-        cs,
-        SpartanF::from_canonical_u64(values.len() as u64),
-        &format!("{label}_len"),
-    )?);
-    dst.extend(values.iter().cloned());
-    Ok(())
-}
-
 fn extend_f_slice_values(dst: &mut Vec<SpartanF>, values: &[F]) {
     dst.push(SpartanF::from_canonical_u64(values.len() as u64));
     dst.extend(
@@ -893,48 +1254,6 @@ fn enforce_f_slice_eq_native<CS: ConstraintSystem<SpartanF>>(
             |lc| lc + CS::one(),
             |lc| lc + (SpartanF::from_canonical_u64(expected.as_canonical_u64()), CS::one()),
         );
-    }
-    Ok(())
-}
-
-fn extend_k_slice_as_fields<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    dst: &mut Vec<AllocatedNum<SpartanF>>,
-    values: &[KNumVar],
-    native_values: &[K],
-    label: &str,
-) -> Result<(), SynthesisError> {
-    if values.len() != native_values.len() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    dst.push(alloc_constant(
-        cs,
-        SpartanF::from_canonical_u64(values.len() as u64),
-        &format!("{label}_len"),
-    )?);
-    let coeff_len = native_values
-        .first()
-        .map(|value| value.as_coeffs().len())
-        .unwrap_or(0);
-    dst.push(alloc_constant(
-        cs,
-        SpartanF::from_canonical_u64(coeff_len as u64),
-        &format!("{label}_coeff_len"),
-    )?);
-    for (idx, (value, native_value)) in values.iter().zip(native_values.iter()).enumerate() {
-        let coeffs = native_value.as_coeffs();
-        dst.push(copy_allocated(
-            cs,
-            value.c0,
-            SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
-            &format!("{label}_{idx}_c0"),
-        )?);
-        dst.push(copy_allocated(
-            cs,
-            value.c1,
-            SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
-            &format!("{label}_{idx}_c1"),
-        )?);
     }
     Ok(())
 }
@@ -978,35 +1297,4 @@ fn enforce_k_slice_eq_native<CS: ConstraintSystem<SpartanF>>(
         );
     }
     Ok(())
-}
-
-fn alloc_constant<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    value: SpartanF,
-    label: &str,
-) -> Result<AllocatedNum<SpartanF>, SynthesisError> {
-    let out = AllocatedNum::alloc(cs.namespace(|| label.to_string()), || Ok(value))?;
-    cs.enforce(
-        || format!("{label}_constant"),
-        |lc| lc + out.get_variable(),
-        |lc| lc + CS::one(),
-        |lc| lc + (value, CS::one()),
-    );
-    Ok(out)
-}
-
-fn copy_allocated<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    variable: bellpepper_core::Variable,
-    value: SpartanF,
-    label: &str,
-) -> Result<AllocatedNum<SpartanF>, SynthesisError> {
-    let out = AllocatedNum::alloc(cs.namespace(|| label.to_string()), || Ok(value))?;
-    cs.enforce(
-        || format!("{label}_eq"),
-        |lc| lc + out.get_variable(),
-        |lc| lc + CS::one(),
-        |lc| lc + variable,
-    );
-    Ok(out)
 }

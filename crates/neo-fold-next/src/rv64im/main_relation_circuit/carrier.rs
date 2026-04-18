@@ -192,6 +192,7 @@ pub fn allocate_and_enforce_children<CS: ConstraintSystem<SpartanF>>(
             ring_structure,
             witness,
             claim,
+            _delta,
             &format!("{label}_ce_{idx}"),
         )?;
     }

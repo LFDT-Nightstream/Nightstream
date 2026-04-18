@@ -6,8 +6,10 @@
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
+use neo_ajtai::Commitment;
+use neo_ccs::CeClaim;
 use neo_ccs::SparsePoly;
-use neo_math::F;
+use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils::{
     pi_ccs_header_bundle_digest_fields_from_parts, Dims, PI_CCS_HEADER_BUNDLE_RAW_TAG, PI_CCS_INSTANCE_DIGEST_RAW_TAG,
@@ -17,7 +19,10 @@ use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 use spartan2::provider::goldi::F as SpartanF;
 
-use super::claim::{me_digest_poseidon, me_digest_poseidon_values, CeClaimVar};
+use super::claim::{
+    me_digest_poseidon, me_digest_poseidon_values, me_digest_poseidon_values_from_native_claim,
+    me_digest_poseidon_with_native_claim, CeClaimVar,
+};
 use super::k_field::KNumVar;
 use super::transcript::Poseidon2TranscriptCircuit;
 
@@ -130,6 +135,30 @@ pub fn bind_me_inputs<CS: ConstraintSystem<SpartanF>>(
             &format!("me_input_digest_{idx}"),
         )?);
         digest_values.push(me_digest_poseidon_values(claim));
+    }
+    bind_me_input_digests(cs, tr, &digests, &digest_values)?;
+    Ok(digests)
+}
+
+pub fn bind_me_inputs_with_native_claims<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    tr: &mut Poseidon2TranscriptCircuit,
+    me_inputs: &[CeClaimVar],
+    native_claims: &[CeClaim<Commitment, F, K>],
+) -> Result<Vec<[AllocatedNum<SpartanF>; 4]>, SynthesisError> {
+    if me_inputs.len() != native_claims.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let mut digests = Vec::with_capacity(me_inputs.len());
+    let mut digest_values = Vec::with_capacity(me_inputs.len());
+    for (idx, (claim, native_claim)) in me_inputs.iter().zip(native_claims.iter()).enumerate() {
+        digests.push(me_digest_poseidon_with_native_claim(
+            &mut cs.namespace(|| format!("me_input_digest_{idx}")),
+            claim,
+            native_claim,
+            &format!("me_input_digest_{idx}"),
+        )?);
+        digest_values.push(me_digest_poseidon_values_from_native_claim(native_claim));
     }
     bind_me_input_digests(cs, tr, &digests, &digest_values)?;
     Ok(digests)

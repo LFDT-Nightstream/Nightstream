@@ -12,7 +12,6 @@ use bellpepper_core::{
 use ff::Field;
 use neo_ccs::Mat;
 use neo_math::{D, F};
-use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use spartan2::provider::goldi::F as SpartanF;
 
@@ -27,6 +26,7 @@ const U16_MOD5_WEIGHTS: [u64; 16] = [1, 2, 4, 3, 1, 2, 4, 3, 1, 2, 4, 3, 1, 2, 4
 
 #[derive(Clone)]
 struct GoldilocksCoeffCandidateVar {
+    coeff: AllocatedNum<SpartanF>,
     coeff_value: F,
     reject_bit: AllocatedBit,
     reject_value: bool,
@@ -68,23 +68,6 @@ pub fn sample_goldilocks_rot_rhos<CS: ConstraintSystem<SpartanF>>(
     count: usize,
     label: &str,
 ) -> Result<Vec<RotRhoVar>, SynthesisError> {
-    if let Some((state, absorbed)) = tr.constant_snapshot() {
-        let mut native_tr = Poseidon2Transcript::from_state_and_absorbed(
-            state.map(|value| F::from_u64(value.to_canonical_u64())),
-            absorbed,
-        );
-        let native_rhos = sample_goldilocks_rot_rho_coeff_values_from_transcript(&mut native_tr, count)?;
-        let sampled =
-            alloc_rot_rhos_from_coeff_values(cs.namespace(|| format!("{label}_native")), &native_rhos, label)?;
-        tr.restore_constant_state(
-            native_tr
-                .state()
-                .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
-            native_tr.absorbed(),
-        )?;
-        return Ok(sampled);
-    }
-
     let mut out = Vec::with_capacity(count);
     for rho_idx in 0..count {
         tr.append_const_fields_raw(
@@ -112,13 +95,14 @@ pub fn sample_goldilocks_rot_rhos<CS: ConstraintSystem<SpartanF>>(
                 &format!("{label}_rho_words_{rho_idx}_{digest_idx}"),
             )?;
             for (word_idx, (word_bits, word_value)) in words.into_iter().enumerate() {
-                let (coeff_value, reject_bit, reject_value) = map_u16_bits_to_goldilocks_candidate(
+                let (coeff, coeff_value, reject_bit, reject_value) = map_u16_bits_to_goldilocks_candidate(
                     cs.namespace(|| format!("{label}_rho_coeff_{rho_idx}_{digest_idx}_{word_idx}")),
                     &word_bits,
                     word_value,
                     &format!("{label}_rho_coeff_{rho_idx}_{digest_idx}_{word_idx}"),
                 )?;
                 candidates.push(GoldilocksCoeffCandidateVar {
+                    coeff,
                     coeff_value,
                     reject_bit,
                     reject_value,
@@ -134,39 +118,6 @@ pub fn sample_goldilocks_rot_rhos<CS: ConstraintSystem<SpartanF>>(
             return Err(SynthesisError::Unsatisfiable);
         }
         out.push(RotRhoVar { coeffs, coeff_values });
-    }
-    Ok(out)
-}
-
-pub(crate) fn sample_goldilocks_rot_rho_coeff_values_from_transcript(
-    tr: &mut Poseidon2Transcript,
-    count: usize,
-) -> Result<Vec<Vec<F>>, SynthesisError> {
-    let mut out = Vec::with_capacity(count);
-    for rho_idx in 0..count {
-        tr.append_fields_raw(&[F::from_u64(0), F::from_u64(rho_idx as u64)]);
-        let mut coeff_values = Vec::with_capacity(D);
-        for digest_idx in 0..DIGESTS_PER_RHO {
-            tr.append_fields_raw(&[F::from_u64(1), F::from_u64(rho_idx as u64 + digest_idx as u64)]);
-            let digest = tr.digest32();
-            for word in digest.chunks_exact(2) {
-                let value = u16::from_le_bytes([word[0], word[1]]) as u32;
-                if value == 0xFFFF {
-                    continue;
-                }
-                coeff_values.push(F::from_i64((value % ALPHABET_LEN as u32) as i64 - 2));
-                if coeff_values.len() == D {
-                    break;
-                }
-            }
-            if coeff_values.len() == D {
-                break;
-            }
-        }
-        if coeff_values.len() != D {
-            return Err(SynthesisError::Unsatisfiable);
-        }
-        out.push(coeff_values);
     }
     Ok(out)
 }
@@ -364,7 +315,7 @@ fn map_u16_bits_to_goldilocks_candidate<CS: ConstraintSystem<SpartanF>>(
     word_bits: &[Boolean],
     word_value: u16,
     label: &str,
-) -> Result<(F, AllocatedBit, bool), SynthesisError> {
+) -> Result<(AllocatedNum<SpartanF>, F, AllocatedBit, bool), SynthesisError> {
     if word_bits.len() != 16 {
         return Err(SynthesisError::Unsatisfiable);
     }
@@ -439,7 +390,26 @@ fn map_u16_bits_to_goldilocks_candidate<CS: ConstraintSystem<SpartanF>>(
         &format!("{label}_mod5"),
     )?;
 
-    Ok((F::from_i64(remainder_value as i64 - 2), reject_bit, reject_value))
+    let coeff_value = F::from_i64(remainder_value as i64 - 2);
+    let coeff = AllocatedNum::alloc(cs.namespace(|| format!("{label}_coeff")), || {
+        Ok(SpartanF::from_canonical_u64(coeff_value.as_canonical_u64()))
+    })?;
+    cs.enforce(
+        || format!("{label}_coeff_relation"),
+        |lc| lc + coeff.get_variable() + (SpartanF::from_canonical_u64(2), CS::one()),
+        |lc| lc + CS::one(),
+        |lc| {
+            let mut acc = lc;
+            let mut scale = SpartanF::ONE;
+            for bit in &remainder_bits {
+                acc = acc + (scale, bit.get_variable());
+                scale += scale;
+            }
+            acc
+        },
+    );
+
+    Ok((coeff, coeff_value, reject_bit, reject_value))
 }
 
 fn alloc_small_bits<CS: ConstraintSystem<SpartanF>>(
@@ -599,25 +569,35 @@ fn compact_first_accepted_goldilocks_coeffs<CS: ConstraintSystem<SpartanF>>(
         let coeff = AllocatedNum::alloc(cs.namespace(|| format!("{label}_slot_{slot_idx}_coeff_alloc")), || {
             Ok(SpartanF::from_canonical_u64(coeff_value.as_canonical_u64()))
         })?;
+        let mut selected_terms = Vec::with_capacity(selectors.len());
+        for (offset, selector) in selectors.iter().enumerate() {
+            let candidate_idx = slot_idx + offset;
+            let product_value = if selector_values[offset] {
+                candidates[candidate_idx].coeff_value
+            } else {
+                F::ZERO
+            };
+            let product = AllocatedNum::alloc(
+                cs.namespace(|| format!("{label}_slot_{slot_idx}_select_product_{offset}")),
+                || Ok(SpartanF::from_canonical_u64(product_value.as_canonical_u64())),
+            )?;
+            cs.enforce(
+                || format!("{label}_slot_{slot_idx}_select_product_eq_{offset}"),
+                |lc| lc + selector.get_variable(),
+                |lc| lc + candidates[candidate_idx].coeff.get_variable(),
+                |lc| lc + product.get_variable(),
+            );
+            selected_terms.push(product);
+        }
         cs.enforce(
             || format!("{label}_slot_{slot_idx}_sum"),
+            |lc| {
+                selected_terms
+                    .iter()
+                    .fold(lc, |acc, term| acc + term.get_variable())
+            },
             |lc| lc + CS::one(),
             |lc| lc + coeff.get_variable(),
-            |_| {
-                selectors
-                    .iter()
-                    .enumerate()
-                    .fold(LinearCombination::zero(), |lc, (offset, selector)| {
-                        let candidate_idx = slot_idx + offset;
-                        let coeff =
-                            SpartanF::from_canonical_u64(candidates[candidate_idx].coeff_value.as_canonical_u64());
-                        if coeff != SpartanF::ZERO {
-                            lc + (coeff, selector.get_variable())
-                        } else {
-                            lc
-                        }
-                    })
-            },
         );
         coeffs.push(coeff);
     }

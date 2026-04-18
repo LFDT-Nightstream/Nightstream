@@ -137,7 +137,7 @@ impl PackedWitnessVar {
 
 #[derive(Clone)]
 pub struct BalancedDigitWitnessVar {
-    digits: Vec<Vec<Option<AllocatedNum<SpartanF>>>>,
+    digits: Vec<Vec<AllocatedNum<SpartanF>>>,
     digit_values: Vec<Vec<F>>,
 }
 
@@ -146,7 +146,7 @@ impl BalancedDigitWitnessVar {
         self.digits.len()
     }
 
-    pub(crate) fn digit_vars(&self, logical_col: usize) -> Result<&[Option<AllocatedNum<SpartanF>>], SynthesisError> {
+    pub(crate) fn digit_vars(&self, logical_col: usize) -> Result<&[AllocatedNum<SpartanF>], SynthesisError> {
         self.digits
             .get(logical_col)
             .map(Vec::as_slice)
@@ -231,36 +231,31 @@ pub fn alloc_balanced_digit_witness<CS: ConstraintSystem<SpartanF>>(
             if coeffs[1] != F::ZERO {
                 return Err(SynthesisError::Unsatisfiable);
             }
-            let digit_field = if coeffs[0] == F::ZERO {
-                None
-            } else {
-                let digit_field = AllocatedNum::alloc(
-                    cs.namespace(|| format!("{label}_digit_field_{logical_col}_{rho}")),
-                    || Ok(SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64())),
+            let digit_field = AllocatedNum::alloc(
+                cs.namespace(|| format!("{label}_digit_field_{logical_col}_{rho}")),
+                || Ok(SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64())),
+            )?;
+            if params.b == 2 {
+                enforce_balanced_base2_digit(
+                    cs,
+                    &digit_field,
+                    SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
+                    &format!("{label}_digit_range_{logical_col}_{rho}"),
                 )?;
-                if params.b == 2 {
-                    enforce_balanced_base2_digit(
-                        cs,
-                        &digit_field,
-                        SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
-                        &format!("{label}_digit_range_{logical_col}_{rho}"),
-                    )?;
-                } else {
-                    let range_eval = range_product_f(
-                        cs,
-                        &digit_field,
-                        coeffs[0],
-                        params.b,
-                        &format!("{label}_digit_range_{logical_col}_{rho}"),
-                    )?;
-                    enforce_field_is_zero(
-                        cs,
-                        &range_eval,
-                        &format!("{label}_digit_range_zero_{logical_col}_{rho}"),
-                    );
-                }
-                Some(digit_field)
-            };
+            } else {
+                let range_eval = range_product_f(
+                    cs,
+                    &digit_field,
+                    coeffs[0],
+                    params.b,
+                    &format!("{label}_digit_range_{logical_col}_{rho}"),
+                )?;
+                enforce_field_is_zero(
+                    cs,
+                    &range_eval,
+                    &format!("{label}_digit_range_zero_{logical_col}_{rho}"),
+                );
+            }
             digit_row.push(digit_field);
             digit_row_values.push(coeffs[0]);
         }
@@ -271,9 +266,7 @@ pub fn alloc_balanced_digit_witness<CS: ConstraintSystem<SpartanF>>(
                 let mut acc = lc;
                 let mut pow = SpartanF::ONE;
                 for digit in &digit_row {
-                    if let Some(digit) = digit {
-                        acc = acc + (pow, digit.get_variable());
-                    }
+                    acc = acc + (pow, digit.get_variable());
                     pow *= base_b;
                 }
                 acc
@@ -422,9 +415,6 @@ pub fn compute_digit_y_zcol<CS: ConstraintSystem<SpartanF>>(
         if rho < D {
             for logical_col in 0..expected_m {
                 let weight = chi_s.get(logical_col).copied().unwrap_or(K::ZERO);
-                if weight == K::ZERO {
-                    continue;
-                }
                 let digit_var = digits
                     .digit_vars(logical_col)?
                     .get(rho)
@@ -434,14 +424,12 @@ pub fn compute_digit_y_zcol<CS: ConstraintSystem<SpartanF>>(
                     .get(rho)
                     .ok_or(SynthesisError::Unsatisfiable)?;
                 yz_value += weight * K::from(digit_value);
-                if let Some(digit_var) = digit_var {
-                    let coeffs = weight.as_coeffs();
-                    terms.push((
-                        SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
-                        SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
-                        digit_var.get_variable(),
-                    ));
-                }
+                let coeffs = weight.as_coeffs();
+                terms.push((
+                    SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
+                    SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
+                    digit_var.get_variable(),
+                ));
             }
         }
         let yz_var = alloc_k(cs, Some(KNum::from_neo_k(yz_value)), &format!("{label}_{rho}"))?;
@@ -474,9 +462,6 @@ pub fn compute_linear_y_zcol<CS: ConstraintSystem<SpartanF>>(
                     continue;
                 }
                 let weight = chi_s.get(logical_col).copied().unwrap_or(K::ZERO);
-                if weight == K::ZERO {
-                    continue;
-                }
                 let z_var = witness.logical_entry(expected_m, logical_col)?;
                 let z_value = witness.logical_value(expected_m, logical_col)?;
                 yz_value += weight * K::from(z_value);

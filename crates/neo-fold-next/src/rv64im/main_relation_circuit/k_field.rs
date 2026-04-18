@@ -146,9 +146,7 @@ pub fn enforce_k_eq_weighted_base_linear_combination<F: PrimeField, CS: Constrai
         |lc| {
             let mut acc = lc;
             for (coeff_c0, _, variable) in terms {
-                if *coeff_c0 != F::ZERO {
-                    acc = acc + (*coeff_c0, *variable);
-                }
+                acc = acc + (*coeff_c0, *variable);
             }
             acc
         },
@@ -160,9 +158,7 @@ pub fn enforce_k_eq_weighted_base_linear_combination<F: PrimeField, CS: Constrai
         |lc| {
             let mut acc = lc;
             for (_, coeff_c1, variable) in terms {
-                if *coeff_c1 != F::ZERO {
-                    acc = acc + (*coeff_c1, *variable);
-                }
+                acc = acc + (*coeff_c1, *variable);
             }
             acc
         },
@@ -182,9 +178,7 @@ pub fn enforce_k_eq_constant_f_linear_combination<F: PrimeField, CS: ConstraintS
         |lc| {
             let mut acc = lc;
             for (coeff, c0, _) in terms {
-                if *coeff != F::ZERO {
-                    acc = acc + (*coeff, *c0);
-                }
+                acc = acc + (*coeff, *c0);
             }
             acc
         },
@@ -196,9 +190,7 @@ pub fn enforce_k_eq_constant_f_linear_combination<F: PrimeField, CS: ConstraintS
         |lc| {
             let mut acc = lc;
             for (coeff, _, c1) in terms {
-                if *coeff != F::ZERO {
-                    acc = acc + (*coeff, *c1);
-                }
+                acc = acc + (*coeff, *c1);
             }
             acc
         },
@@ -222,12 +214,8 @@ pub fn alloc_k_constant_k_linear_combination<F: PrimeField, CS: ConstraintSystem
         |lc| {
             let mut acc = lc;
             for (coeff, c0, c1) in terms {
-                if coeff.c0 != F::ZERO {
-                    acc = acc + (coeff.c0, *c0);
-                }
-                if coeff.c1 != F::ZERO {
-                    acc = acc + (delta * coeff.c1, *c1);
-                }
+                acc = acc + (coeff.c0, *c0);
+                acc = acc + (delta * coeff.c1, *c1);
             }
             acc
         },
@@ -239,12 +227,8 @@ pub fn alloc_k_constant_k_linear_combination<F: PrimeField, CS: ConstraintSystem
         |lc| {
             let mut acc = lc;
             for (coeff, c0, c1) in terms {
-                if coeff.c1 != F::ZERO {
-                    acc = acc + (coeff.c1, *c0);
-                }
-                if coeff.c0 != F::ZERO {
-                    acc = acc + (coeff.c0, *c1);
-                }
+                acc = acc + (coeff.c1, *c0);
+                acc = acc + (coeff.c0, *c1);
             }
             acc
         },

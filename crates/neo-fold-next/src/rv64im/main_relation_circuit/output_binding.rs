@@ -1,6 +1,6 @@
 //! Owns circuit checks that bind Π_CCS outputs to authoritative fresh inputs and carried ME inputs.
 
-use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsStructure};
 use neo_math::{D, F, K};
@@ -11,27 +11,29 @@ use spartan2::provider::goldi::F as SpartanF;
 use super::claim::CeClaimVar;
 use super::k_field::{enforce_k_eq, KNumVar};
 
-pub fn set_fresh_output_constant_f_surface(
-    output: &mut CeClaimVar,
+#[derive(Clone)]
+pub struct FreshCcsClaimVar {
+    pub c_data: Vec<AllocatedNum<SpartanF>>,
+    pub x: Vec<AllocatedNum<SpartanF>>,
+    pub m_in: usize,
+}
+
+pub fn alloc_fresh_ccs_claim<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
     fresh: &CcsClaim<Commitment, F>,
-) -> Result<(), SynthesisError> {
-    if output.m_in != fresh.m_in {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    output.c_data.clear();
-    output.c_data_values = fresh.c.data.clone();
-    output.x.clear();
-    output.x_values = embedded_fresh_x_values(fresh);
-    output.x_rows = D;
-    output.x_cols = fresh.m_in;
-    Ok(())
+) -> Result<FreshCcsClaimVar, SynthesisError> {
+    Ok(FreshCcsClaimVar {
+        c_data: alloc_f_slice(cs, &fresh.c.data, "c_data")?,
+        x: alloc_f_slice(cs, &embedded_fresh_x_values(fresh), "x")?,
+        m_in: fresh.m_in,
+    })
 }
 
 pub fn enforce_me_outputs_against_inputs<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     structure: &CcsStructure<F>,
     _params: &NeoParams,
-    fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_claims: &[FreshCcsClaimVar],
     me_inputs: &[CeClaimVar],
     me_outputs: &[CeClaimVar],
     r_prime: &[KNumVar],
@@ -79,49 +81,34 @@ pub fn enforce_me_outputs_against_inputs<CS: ConstraintSystem<SpartanF>>(
 
 fn enforce_fresh_output_binding<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
-    fresh: &CcsClaim<Commitment, F>,
+    fresh: &FreshCcsClaimVar,
     output: &CeClaimVar,
     label: &str,
 ) -> Result<(), SynthesisError> {
-    if output.m_in != fresh.m_in || output.x_rows != D || output.x_cols != fresh.m_in || fresh.x.len() != fresh.m_in {
+    if output.m_in != fresh.m_in
+        || output.x_rows != D
+        || output.x_cols != fresh.m_in
+        || output.c_data.len() != fresh.c_data.len()
+        || output.x.len() != fresh.x.len()
+    {
         return Err(SynthesisError::Unsatisfiable);
     }
-    let expected_x = embedded_fresh_x_values(fresh);
-    if output.c_data.is_empty() || output.x.is_empty() {
-        if !output.c_data.is_empty()
-            || !output.x.is_empty()
-            || output.c_data_values != fresh.c.data
-            || output.x_values != expected_x
-        {
-            return Err(SynthesisError::Unsatisfiable);
-        }
-        return Ok(());
-    }
-    if output.c_data.len() != fresh.c.data.len() || output.x.len() != expected_x.len() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-
-    for (idx, expected) in fresh.c.data.iter().enumerate() {
+    for (idx, expected) in fresh.c_data.iter().enumerate() {
         cs.enforce(
             || format!("{label}_commitment_{idx}"),
             |lc| lc + output.c_data[idx].get_variable(),
             |lc| lc + CS::one(),
-            |lc| lc + (SpartanF::from_canonical_u64(expected.as_canonical_u64()), CS::one()),
+            |lc| lc + expected.get_variable(),
         );
     }
 
-    for col in 0..fresh.m_in {
-        let lane = col % D;
-        for row in 0..D {
-            let idx = row * output.x_cols + col;
-            let expected = if row == lane { fresh.x[col] } else { F::ZERO };
-            cs.enforce(
-                || format!("{label}_x_{row}_{col}"),
-                |lc| lc + output.x[idx].get_variable(),
-                |lc| lc + CS::one(),
-                |lc| lc + (SpartanF::from_canonical_u64(expected.as_canonical_u64()), CS::one()),
-            );
-        }
+    for idx in 0..output.x.len() {
+        cs.enforce(
+            || format!("{label}_x_{idx}"),
+            |lc| lc + output.x[idx].get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + fresh.x[idx].get_variable(),
+        );
     }
 
     Ok(())
@@ -187,4 +174,20 @@ pub(crate) fn embedded_fresh_x_values(fresh: &CcsClaim<Commitment, F>) -> Vec<F>
         }
     }
     out
+}
+
+fn alloc_f_slice<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    values: &[F],
+    label: &str,
+) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
+    values
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| {
+            AllocatedNum::alloc(cs.namespace(|| format!("{label}_{idx}")), || {
+                Ok(SpartanF::from_canonical_u64(value.as_canonical_u64()))
+            })
+        })
+        .collect()
 }

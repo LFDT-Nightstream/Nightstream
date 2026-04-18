@@ -34,9 +34,6 @@ pub fn mix_packed_witnesses_with_rho_mats<CS: ConstraintSystem<SpartanF>>(
             for (witness, rho) in witnesses.iter().zip(rho_mats.iter()) {
                 for src in 0..D {
                     let coeff = rho[(row, src)];
-                    if coeff == F::ZERO {
-                        continue;
-                    }
                     native_value += coeff * witness.entry_value(src, col)?;
                 }
             }
@@ -51,16 +48,14 @@ pub fn mix_packed_witnesses_with_rho_mats<CS: ConstraintSystem<SpartanF>>(
                     for (witness, rho) in witnesses.iter().zip(rho_mats.iter()) {
                         for src in 0..D {
                             let coeff = SpartanF::from_canonical_u64(rho[(row, src)].as_canonical_u64());
-                            if coeff != SpartanF::ZERO {
-                                acc = acc
-                                    + (
-                                        coeff,
-                                        witness
-                                            .entry(src, col)
-                                            .expect("checked dims")
-                                            .get_variable(),
-                                    );
-                            }
+                            acc = acc
+                                + (
+                                    coeff,
+                                    witness
+                                        .entry(src, col)
+                                        .expect("checked dims")
+                                        .get_variable(),
+                                );
                         }
                     }
                     acc
@@ -105,9 +100,6 @@ pub fn mix_packed_witnesses_with_rho_vars<CS: ConstraintSystem<SpartanF>>(
                 for src in 0..D {
                     let coeff_var = rho.entry(row, src)?;
                     let coeff_value = rho.entry_value(row, src)?;
-                    if coeff_value == F::ZERO {
-                        continue;
-                    }
                     let product = coeff_var.mul(
                         cs.namespace(|| format!("{label}_mul_{row}_{col}_{wit_idx}_{src}")),
                         &witness.entry(src, col)?,

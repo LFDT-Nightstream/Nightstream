@@ -7,7 +7,6 @@
 mod diagnostics;
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use ff::Field;
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
 use neo_math::{KExtensions, D, F, K};
@@ -589,10 +588,8 @@ fn enforce_rho_left_action_on_dense_f_slices<CS: ConstraintSystem<SpartanF>>(
                     for (child, rho) in children.iter().zip(rho_mats.iter()) {
                         for k in 0..D {
                             let coeff = SpartanF::from_canonical_u64(rho[(row, k)].as_canonical_u64());
-                            if coeff != SpartanF::ZERO {
-                                let child_idx = dense_index(k, col, cols, column_major);
-                                acc = acc + (coeff, child[child_idx].get_variable());
-                            }
+                            let child_idx = dense_index(k, col, cols, column_major);
+                            acc = acc + (coeff, child[child_idx].get_variable());
                         }
                     }
                     acc
@@ -655,16 +652,12 @@ fn enforce_rho_left_action_on_dense_f_slices_with_vars<CS: ConstraintSystem<Spar
                 }
                 for k in 0..D {
                     let coeff = rho.entry(row, k)?;
-                    let coeff_value = rho.entry_value(row, k)?;
                     let child_idx_flat = dense_index(k, col, cols, column_major);
                     let child_value = if child_idx < constant_child_prefix {
                         native_child.get(child_idx_flat).copied().unwrap_or(F::ZERO)
                     } else {
                         native_child[child_idx_flat]
                     };
-                    if coeff_value == F::ZERO || child_value == F::ZERO {
-                        continue;
-                    }
                     if child_idx < constant_child_prefix {
                         linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
                         continue;
@@ -717,9 +710,6 @@ fn enforce_rho_coeff_left_action_on_dense_constant_f_slices<CS: ConstraintSystem
             for (child_idx, native_child) in child_native_values.iter().enumerate() {
                 for coeff_idx in 0..D {
                     let coeff = basis_dense_f_scale(row, col, cols, column_major, native_child, coeff_idx);
-                    if coeff == F::ZERO {
-                        continue;
-                    }
                     linear_terms.push((
                         SpartanF::from_canonical_u64(coeff.as_canonical_u64()),
                         rhos[child_idx].coeffs[coeff_idx].clone(),
@@ -807,9 +797,6 @@ fn enforce_y_row_rlc_target<CS: ConstraintSystem<SpartanF>>(
             for (child, rho) in children.iter().zip(rho_mats.iter()) {
                 for src_row in 0..D {
                     let coeff = rho[(dst_row, src_row)];
-                    if coeff == F::ZERO {
-                        continue;
-                    }
                     terms.push((
                         SpartanF::from_canonical_u64(coeff.as_canonical_u64()),
                         child.y_ring[row_idx][src_row].c0,
@@ -840,9 +827,6 @@ fn enforce_y_zcol_rlc_target<CS: ConstraintSystem<SpartanF>>(
             for (child, rho) in children.iter().zip(rho_mats.iter()) {
                 for src_row in 0..D {
                     let coeff = rho[(dst_row, src_row)];
-                    if coeff == F::ZERO {
-                        continue;
-                    }
                     terms.push((
                         SpartanF::from_canonical_u64(coeff.as_canonical_u64()),
                         child.y_zcol[src_row].c0,
@@ -867,9 +851,6 @@ fn enforce_aux_rlc_target<CS: ConstraintSystem<SpartanF>>(
     let mut terms = Vec::new();
     for (child, rho) in children.iter().zip(rho_mats.iter()) {
         let coeff = rho[(0, 0)];
-        if coeff == F::ZERO {
-            continue;
-        }
         terms.push((
             SpartanF::from_canonical_u64(coeff.as_canonical_u64()),
             child.aux_openings[aux_idx].c0,
@@ -885,7 +866,7 @@ fn enforce_y_row_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
     target: &[KNumVar],
     children: &[CeClaimVar],
     rho_mats: &[RotRhoMatrixVar],
-    constant_child_prefix: usize,
+    _constant_child_prefix: usize,
     row_idx: usize,
     d_pad: usize,
     label: &str,
@@ -894,7 +875,6 @@ fn enforce_y_row_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
         return Err(SynthesisError::Unsatisfiable);
     }
     for (dst_row, target) in target.iter().enumerate() {
-        let mut linear_terms = Vec::new();
         let mut terms = Vec::new();
         if dst_row < D {
             for (child_idx, (child, rho)) in children.iter().zip(rho_mats.iter()).enumerate() {
@@ -902,18 +882,6 @@ fn enforce_y_row_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
                     let coeff_var = rho.entry(dst_row, src_row)?;
                     let coeff_value = rho.entry_value(dst_row, src_row)?;
                     let value = child.y_ring_values[row_idx][src_row];
-                    if coeff_value == F::ZERO || value == K::ZERO {
-                        continue;
-                    }
-                    if child_idx < constant_child_prefix {
-                        let coeffs = value.as_coeffs();
-                        linear_terms.push((
-                            SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
-                            SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
-                            coeff_var.get_variable(),
-                        ));
-                        continue;
-                    }
                     let term = scale_k_by_f_var(
                         cs.namespace(|| format!("{label}_term_{child_idx}_{src_row}_{dst_row}")),
                         &coeff_var,
@@ -926,7 +894,7 @@ fn enforce_y_row_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
                 }
             }
         }
-        enforce_k_affine_sum_eq(cs, target, &linear_terms, &terms, &format!("{label}_{dst_row}"));
+        enforce_k_affine_sum_eq(cs, target, &[], &terms, &format!("{label}_{dst_row}"));
     }
     Ok(())
 }
@@ -949,9 +917,6 @@ fn enforce_y_row_rlc_target_with_rho_coeffs<CS: ConstraintSystem<SpartanF>>(
             for (child_idx, child) in children.iter().enumerate() {
                 for coeff_idx in 0..D {
                     let (coeff_c0, coeff_c1) = basis_k_row_scale(dst_row, &child.y_ring_values[row_idx], coeff_idx);
-                    if coeff_c0 == F::ZERO && coeff_c1 == F::ZERO {
-                        continue;
-                    }
                     linear_terms.push((
                         SpartanF::from_canonical_u64(coeff_c0.as_canonical_u64()),
                         SpartanF::from_canonical_u64(coeff_c1.as_canonical_u64()),
@@ -970,7 +935,7 @@ fn enforce_y_zcol_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
     target: &[KNumVar],
     children: &[CeClaimVar],
     rho_mats: &[RotRhoMatrixVar],
-    constant_child_prefix: usize,
+    _constant_child_prefix: usize,
     d_pad: usize,
     label: &str,
 ) -> Result<(), SynthesisError> {
@@ -978,7 +943,6 @@ fn enforce_y_zcol_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
         return Err(SynthesisError::Unsatisfiable);
     }
     for (dst_row, target) in target.iter().enumerate() {
-        let mut linear_terms = Vec::new();
         let mut terms = Vec::new();
         if dst_row < D {
             for (child_idx, (child, rho)) in children.iter().zip(rho_mats.iter()).enumerate() {
@@ -986,18 +950,6 @@ fn enforce_y_zcol_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
                     let coeff_var = rho.entry(dst_row, src_row)?;
                     let coeff_value = rho.entry_value(dst_row, src_row)?;
                     let value = child.y_zcol_values[src_row];
-                    if coeff_value == F::ZERO || value == K::ZERO {
-                        continue;
-                    }
-                    if child_idx < constant_child_prefix {
-                        let coeffs = value.as_coeffs();
-                        linear_terms.push((
-                            SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
-                            SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
-                            coeff_var.get_variable(),
-                        ));
-                        continue;
-                    }
                     let term = scale_k_by_f_var(
                         cs.namespace(|| format!("{label}_term_{child_idx}_{src_row}_{dst_row}")),
                         &coeff_var,
@@ -1010,7 +962,7 @@ fn enforce_y_zcol_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
                 }
             }
         }
-        enforce_k_affine_sum_eq(cs, target, &linear_terms, &terms, &format!("{label}_{dst_row}"));
+        enforce_k_affine_sum_eq(cs, target, &[], &terms, &format!("{label}_{dst_row}"));
     }
     Ok(())
 }
@@ -1032,9 +984,6 @@ fn enforce_y_zcol_rlc_target_with_rho_coeffs<CS: ConstraintSystem<SpartanF>>(
             for (child_idx, child) in children.iter().enumerate() {
                 for coeff_idx in 0..D {
                     let (coeff_c0, coeff_c1) = basis_k_row_scale(dst_row, &child.y_zcol_values, coeff_idx);
-                    if coeff_c0 == F::ZERO && coeff_c1 == F::ZERO {
-                        continue;
-                    }
                     linear_terms.push((
                         SpartanF::from_canonical_u64(coeff_c0.as_canonical_u64()),
                         SpartanF::from_canonical_u64(coeff_c1.as_canonical_u64()),
@@ -1053,28 +1002,15 @@ fn enforce_aux_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
     target: &KNumVar,
     children: &[CeClaimVar],
     rho_mats: &[RotRhoMatrixVar],
-    constant_child_prefix: usize,
+    _constant_child_prefix: usize,
     aux_idx: usize,
     label: &str,
 ) -> Result<(), SynthesisError> {
-    let mut linear_terms = Vec::new();
     let mut terms = Vec::new();
     for (child_idx, (child, rho)) in children.iter().zip(rho_mats.iter()).enumerate() {
         let coeff_var = rho.entry(0, 0)?;
         let coeff_value = rho.entry_value(0, 0)?;
         let value = child.aux_openings_values[aux_idx];
-        if coeff_value == F::ZERO || value == K::ZERO {
-            continue;
-        }
-        if child_idx < constant_child_prefix {
-            let coeffs = value.as_coeffs();
-            linear_terms.push((
-                SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
-                SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
-                coeff_var.get_variable(),
-            ));
-            continue;
-        }
         let term = scale_k_by_f_var(
             cs.namespace(|| format!("{label}_term_{child_idx}")),
             &coeff_var,
@@ -1085,7 +1021,7 @@ fn enforce_aux_rlc_target_with_vars<CS: ConstraintSystem<SpartanF>>(
         )?;
         terms.push(term);
     }
-    enforce_k_affine_sum_eq(cs, target, &linear_terms, &terms, label);
+    enforce_k_affine_sum_eq(cs, target, &[], &terms, label);
     Ok(())
 }
 
@@ -1103,9 +1039,6 @@ fn enforce_aux_rlc_target_with_rho_coeffs<CS: ConstraintSystem<SpartanF>>(
     let mut linear_terms = Vec::new();
     for (child_idx, child) in children.iter().enumerate() {
         let value = child.aux_openings_values[aux_idx];
-        if value == K::ZERO {
-            continue;
-        }
         let coeffs = value.as_coeffs();
         linear_terms.push((
             SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
@@ -1133,9 +1066,6 @@ fn enforce_aux_rlc_eq_dec_target_with_rho_coeffs<CS: ConstraintSystem<SpartanF>>
     let mut linear_terms = Vec::new();
     for (child_idx, child) in rlc_children.iter().enumerate() {
         let value = child.aux_openings_values[aux_idx];
-        if value == K::ZERO {
-            continue;
-        }
         let coeffs = value.as_coeffs();
         linear_terms.push((
             SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
@@ -1176,9 +1106,6 @@ fn enforce_y_row_rlc_eq_dec_target_with_rho_coeffs<CS: ConstraintSystem<SpartanF
             for (child_idx, child) in rlc_children.iter().enumerate() {
                 for coeff_idx in 0..D {
                     let (coeff_c0, coeff_c1) = basis_k_row_scale(dst_row, &child.y_ring_values[row_idx], coeff_idx);
-                    if coeff_c0 == F::ZERO && coeff_c1 == F::ZERO {
-                        continue;
-                    }
                     linear_terms.push((
                         SpartanF::from_canonical_u64(coeff_c0.as_canonical_u64()),
                         SpartanF::from_canonical_u64(coeff_c1.as_canonical_u64()),
@@ -1272,9 +1199,7 @@ fn enforce_k_affine_sum_eq<CS: ConstraintSystem<SpartanF>>(
         |lc| {
             let mut acc = lc;
             for (coeff_c0, _, variable) in linear_terms {
-                if *coeff_c0 != SpartanF::ZERO {
-                    acc = acc + (*coeff_c0, *variable);
-                }
+                acc = acc + (*coeff_c0, *variable);
             }
             for term in product_terms {
                 acc = acc + term.c0;
@@ -1289,9 +1214,7 @@ fn enforce_k_affine_sum_eq<CS: ConstraintSystem<SpartanF>>(
         |lc| {
             let mut acc = lc;
             for (_, coeff_c1, variable) in linear_terms {
-                if *coeff_c1 != SpartanF::ZERO {
-                    acc = acc + (*coeff_c1, *variable);
-                }
+                acc = acc + (*coeff_c1, *variable);
             }
             for term in product_terms {
                 acc = acc + term.c1;
@@ -1367,9 +1290,6 @@ fn basis_dense_f_scale(row: usize, col: usize, cols: usize, column_major: bool, 
         }
         let child_idx = dense_index(src_row, col, cols, column_major);
         let value = child[child_idx];
-        if value == F::ZERO {
-            continue;
-        }
         acc += basis_coeff * value;
     }
     acc
@@ -1385,12 +1305,8 @@ fn basis_k_row_scale(row: usize, child: &[K], coeff_idx: usize) -> (F, F) {
             continue;
         }
         let coeffs = child[src_row].as_coeffs();
-        if coeffs[0] != F::ZERO {
-            acc_c0 += basis_coeff * coeffs[0];
-        }
-        if coeffs[1] != F::ZERO {
-            acc_c1 += basis_coeff * coeffs[1];
-        }
+        acc_c0 += basis_coeff * coeffs[0];
+        acc_c1 += basis_coeff * coeffs[1];
     }
     (acc_c0, acc_c1)
 }

@@ -18,10 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, FixedShapeChunkSummary};
 use crate::nightstream::rv64im::Rv64imSideOpeningPublic;
 use crate::proof::FoldSchedule;
-use crate::rv64im::chunk_step_ivc::{
-    build_rv64im_chunk_step_ivc_relations, rv64im_bridge_handoff_chain_digest_from_digests,
-    rv64im_recursion_step_statement_chain_digest,
-};
+use crate::rv64im::chunk_step_ivc::build_rv64im_chunk_step_ivc_relations;
 use crate::rv64im::final_relation::{
     rv64im_recursive_accumulator_instance_digest_from_parts, verify_rv64im_final_statement_with_output,
     Rv64imFinalBuildProof, Rv64imFinalStatement, Rv64imRecursiveAccumulator,
@@ -29,8 +26,8 @@ use crate::rv64im::final_relation::{
 use crate::rv64im::kernel::{Rv64imKernelExportProof, SimpleKernelError};
 use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_f_prime_advices_with_side_opening_public,
-    build_rv64im_main_recursion_verifier_key_fs, evaluate_rv64im_main_recursion_f_prime_advice,
-    Rv64imEncodedPublicInput, Rv64imMainRecursionFPrimeAdvice, Rv64imVerifierKeyFs,
+    build_rv64im_main_recursion_verifier_key_fs, Rv64imEncodedPublicInput, Rv64imMainRecursionFPrimeAdvice,
+    Rv64imVerifierKeyFs,
 };
 use crate::rv64im::recursion_spartan::{
     build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs, prove_rv64im_recursion_proof_from_advices,
@@ -66,10 +63,6 @@ pub struct Rv64imMainFinalProofSurface {
     chunk_summary_count: u64,
     final_pc: u64,
     chunk_summary_chain_digest: [u8; 32],
-    step_statement_chain_digest: [u8; 32],
-    bridge_handoff_chain_digest: [u8; 32],
-    folded_accumulator_digest: [u8; 32],
-    terminal_handle_digest: [u8; 32],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -102,31 +95,19 @@ pub type Rv64imPublishedStatement = Rv64imAccumulatorPublicStatement;
 pub type Rv64imPublishedProof = Rv64imRecursionProof;
 
 impl Rv64imMainFinalProofSurface {
-    pub fn from_final_proof(
-        statement: &Rv64imFinalStatement,
-        proof: &Rv64imFinalBuildProof,
-        final_pc: u64,
-        step_statement_chain_digest: [u8; 32],
-        bridge_handoff_chain_digest: [u8; 32],
-        folded_accumulator_digest: [u8; 32],
-        terminal_handle_digest: [u8; 32],
-    ) -> Self {
+    pub fn from_final_proof(statement: &Rv64imFinalStatement, proof: &Rv64imFinalBuildProof, final_pc: u64) -> Self {
         Self {
             fold_schedule: statement.folded.fold_schedule,
             semantic_step_count: statement.folded.semantic_step_count,
             chunk_summary_count: proof.chunk_summaries.len() as u64,
             final_pc,
             chunk_summary_chain_digest: rv64im_chunk_summary_chain_digest_from_summaries(&proof.chunk_summaries),
-            step_statement_chain_digest,
-            bridge_handoff_chain_digest,
-            folded_accumulator_digest,
-            terminal_handle_digest,
         }
     }
 
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/main_final_surface");
-        tr.append_message(b"neo.fold.next/nightstream/rv64im/main_final_surface/version", b"v8");
+        tr.append_message(b"neo.fold.next/nightstream/rv64im/main_final_surface/version", b"v9");
         tr.append_u64s(
             b"neo.fold.next/nightstream/rv64im/main_final_surface/counts",
             &[self.semantic_step_count, self.chunk_summary_count, self.final_pc],
@@ -138,22 +119,6 @@ impl Rv64imMainFinalProofSurface {
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/main_final_surface/chunk_summary_chain_digest",
             &self.chunk_summary_chain_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_final_surface/step_statement_chain_digest",
-            &self.step_statement_chain_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_final_surface/bridge_handoff_chain_digest",
-            &self.bridge_handoff_chain_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_final_surface/folded_accumulator_digest",
-            &self.folded_accumulator_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_final_surface/terminal_handle_digest",
-            &self.terminal_handle_digest,
         );
         tr.digest32()
     }
@@ -203,26 +168,6 @@ impl Rv64imMainFinalProofSurface {
     pub fn final_pc(&self) -> u64 {
         self.final_pc
     }
-
-    pub fn step_statement_chain_digest(&self) -> [u8; 32] {
-        self.step_statement_chain_digest
-    }
-
-    pub fn bridge_handoff_chain_digest(&self) -> [u8; 32] {
-        self.bridge_handoff_chain_digest
-    }
-
-    pub fn bridge_handoff_chain_digest_mut(&mut self) -> &mut [u8; 32] {
-        &mut self.bridge_handoff_chain_digest
-    }
-
-    pub fn folded_accumulator_digest(&self) -> [u8; 32] {
-        self.folded_accumulator_digest
-    }
-
-    pub fn terminal_handle_digest(&self) -> [u8; 32] {
-        self.terminal_handle_digest
-    }
 }
 
 impl PartialEq for Rv64imMainFinalProofSurface {
@@ -232,10 +177,6 @@ impl PartialEq for Rv64imMainFinalProofSurface {
             && self.chunk_summary_count == other.chunk_summary_count
             && self.final_pc == other.final_pc
             && self.chunk_summary_chain_digest == other.chunk_summary_chain_digest
-            && self.step_statement_chain_digest == other.step_statement_chain_digest
-            && self.bridge_handoff_chain_digest == other.bridge_handoff_chain_digest
-            && self.folded_accumulator_digest == other.folded_accumulator_digest
-            && self.terminal_handle_digest == other.terminal_handle_digest
     }
 }
 
@@ -268,13 +209,8 @@ impl Rv64imAccumulatorPublicStatement {
         let fold_schedule = final_surface.fold_schedule();
         let step_count = final_surface.semantic_step_count();
         let chunk_count = Self::expected_chunk_count_from_parts(fold_schedule, step_count)?;
-        let x_last = build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(
-            &vk_fs,
-            chunk_count,
-            &accumulator_final,
-            final_surface.step_statement_chain_digest(),
-            final_surface.bridge_handoff_chain_digest(),
-        )?;
+        let x_last =
+            build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(&vk_fs, chunk_count, &accumulator_final)?;
         Ok(Self {
             shape_digest: vk_fs.main_lane_shape_digest,
             vk_fs,
@@ -487,13 +423,6 @@ impl Rv64imMainProof {
             .chunk_summary_chain_digest()
     }
 
-    pub fn bridge_handoff_chain_digest(&self) -> [u8; 32] {
-        self.final_surface
-            .as_ref()
-            .expect("main-proof bridge-handoff chain digest requires a local final-surface cache")
-            .bridge_handoff_chain_digest()
-    }
-
     pub fn validate_final_surface(&self) -> Result<(), SimpleKernelError> {
         match (&self.final_statement, &self.final_surface) {
             (Some(final_statement), Some(final_surface)) => {
@@ -598,36 +527,8 @@ impl Rv64imMainProof {
         relations: &[crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation],
         advices: &[Rv64imMainRecursionFPrimeAdvice],
     ) -> Result<Self, SimpleKernelError> {
-        let step_statement_chain_digest = rv64im_recursion_step_statement_chain_digest(relations);
-        let bridge_handoff_chain_digest = rv64im_bridge_handoff_chain_digest_from_digests(
-            &relations
-                .iter()
-                .map(|relation| relation.witness.handoff.bridge_handoff.digest)
-                .collect::<Vec<_>>(),
-        );
-        let (folded_accumulator_digest, terminal_handle_digest) = if let Some(advice) = advices.last() {
-            let output = evaluate_rv64im_main_recursion_f_prime_advice(advice)?;
-            (output.folded_accumulator_digest(), output.terminal_handle_digest())
-        } else {
-            let seed_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state();
-            (
-                rv64im_recursive_accumulator_instance_digest_from_parts(
-                    &seed_state.carry.main.claims,
-                    seed_state.carry.terminal_handle.0,
-                ),
-                seed_state.carry.terminal_handle.0,
-            )
-        };
         let recursion_proof = prove_rv64im_recursion_proof_from_advices(relations, advices)?;
-        let final_surface = Rv64imMainFinalProofSurface::from_final_proof(
-            statement,
-            proof,
-            final_pc,
-            step_statement_chain_digest,
-            bridge_handoff_chain_digest,
-            folded_accumulator_digest,
-            terminal_handle_digest,
-        );
+        let final_surface = Rv64imMainFinalProofSurface::from_final_proof(statement, proof, final_pc);
         let published_statement = Rv64imAccumulatorPublicStatement::from_final_surface(statement, &final_surface)?;
         Ok(Self {
             linkage_anchor_digest: statement.public_statement_digest,

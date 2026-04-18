@@ -11,12 +11,14 @@
 //! that sneaks a challenge field into the proof struct under a recognizable
 //! name (`alpha`, `gamma`, `rho_`, `challenge_`) will trip this test.
 
+use neo_fold_next::rv64im::audit::audit_rv64im_main_recursion_construction2_pi_fold_debug_dump;
+
 use super::support::single_step_advices;
 
 #[test]
 fn f_prime_pi_fold_does_not_carry_fiat_shamir_challenges() {
     let advices = single_step_advices();
-    let dump = format!("{:#?}", advices[0]).to_ascii_lowercase();
+    let dump = audit_rv64im_main_recursion_construction2_pi_fold_debug_dump(&advices[0]).to_ascii_lowercase();
 
     for forbidden in [
         "alpha:",

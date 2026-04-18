@@ -101,6 +101,7 @@ fn rv64im_main_relation_dec_child_projection_accepts_paper_ce_even_with_tampered
     claim.ct[0] += K::ONE;
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
+    let delta = SpartanF::from_canonical_u64(7);
     let witness_var = alloc_packed_witness(&mut cs, &witness, "witness").expect("alloc witness");
     let claim_var = alloc_ce_claim(&mut cs, &claim, "claim").expect("alloc claim");
     enforce_paper_dec_child_claim_consistency(
@@ -110,6 +111,7 @@ fn rv64im_main_relation_dec_child_projection_accepts_paper_ce_even_with_tampered
         &structure,
         &witness_var,
         &claim_var,
+        delta,
         "child",
     )
     .expect("paper child consistency");
@@ -129,6 +131,7 @@ fn rv64im_main_relation_dec_child_projection_accepts_tampered_padded_y_ring_tail
     claim.y_ring[0][D] += K::ONE;
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
+    let delta = SpartanF::from_canonical_u64(7);
     let witness_var = alloc_packed_witness(&mut cs, &witness, "witness").expect("alloc witness");
     let claim_var = alloc_ce_claim(&mut cs, &claim, "claim").expect("alloc claim");
     enforce_paper_dec_child_claim_consistency(
@@ -138,6 +141,7 @@ fn rv64im_main_relation_dec_child_projection_accepts_tampered_padded_y_ring_tail
         &structure,
         &witness_var,
         &claim_var,
+        delta,
         "child",
     )
     .expect("paper child consistency");
@@ -157,6 +161,7 @@ fn rv64im_main_relation_dec_child_projection_rejects_tampered_y_ring() {
     claim.y_ring[0][0] += K::ONE;
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
+    let delta = SpartanF::from_canonical_u64(7);
     let witness_var = alloc_packed_witness(&mut cs, &witness, "witness").expect("alloc witness");
     let claim_var = alloc_ce_claim(&mut cs, &claim, "claim").expect("alloc claim");
     enforce_paper_dec_child_claim_consistency(
@@ -166,6 +171,7 @@ fn rv64im_main_relation_dec_child_projection_rejects_tampered_y_ring() {
         &structure,
         &witness_var,
         &claim_var,
+        delta,
         "child",
     )
     .expect("paper child consistency");

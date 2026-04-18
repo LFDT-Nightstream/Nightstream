@@ -16,7 +16,6 @@ use neo_fold_next::rv64im::audit::{
     build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_f_prime_advices_single_step,
     build_rv64im_main_recursion_f_prime_claim_cover, build_rv64im_main_recursion_f_prime_public_output,
     evaluate_rv64im_main_recursion_f_prime_advice, rv64im_main_recursion_advice_retarget_x_hash_to_current_accumulator,
-    rv64im_main_recursion_advice_tamper_bridge_handoff_chain_digest_first_byte,
     rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff, rv64im_main_recursion_advice_tamper_chunk_index,
     rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word,
     rv64im_main_recursion_advice_tamper_fresh_state_out_terminal_handle_first_byte,
@@ -27,12 +26,10 @@ use neo_fold_next::rv64im::audit::{
     rv64im_main_recursion_advice_tamper_pc_i,
     rv64im_main_recursion_advice_tamper_running_state_terminal_handle_first_byte,
     rv64im_main_recursion_advice_tamper_running_state_terminal_handle_only_first_byte,
-    rv64im_main_recursion_advice_tamper_side_witness_nonzero,
-    rv64im_main_recursion_advice_tamper_step_statement_chain_digest_first_byte,
-    rv64im_main_recursion_advice_tamper_terminal_step,
+    rv64im_main_recursion_advice_tamper_side_witness_nonzero, rv64im_main_recursion_advice_tamper_terminal_step,
     rv64im_main_recursion_advice_tamper_vk_fs_main_lane_shape_digest_first_byte,
     rv64im_main_recursion_advice_tamper_x_hash_first_byte, rv64im_main_recursion_advice_tamper_z_i_first_byte,
-    rv64im_recursion_step_statement_chain_digest, verify_rv64im_main_recursion_f_prime_public_output,
+    verify_rv64im_main_recursion_f_prime_public_output,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::Rv64imEncodedPublicInput;
@@ -468,11 +465,6 @@ fn rv64im_main_recursion_advice_builder_ignores_legacy_relation_chunk_summary_sh
         baseline_step.x_out(),
         "native F' advice builder must ignore the legacy relation.statement.chunk_summary shell"
     );
-    assert_eq!(
-        rebuilt_step.step_statement_chain_digest(),
-        baseline_step.step_statement_chain_digest(),
-        "native F' step chain must ignore the legacy relation.statement.chunk_summary shell"
-    );
 }
 
 #[test]
@@ -747,24 +739,6 @@ fn rv64im_main_recursion_base_case_rejects_non_default_accumulator_even_if_x_i_i
 }
 
 #[test]
-fn rv64im_main_recursion_step_x_i_ignores_tampered_input_step_statement_chain_digest() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let chunk_step_relations = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
-        .expect("build chunk-step chain");
-    let f_prime_advices =
-        build_rv64im_main_recursion_f_prime_advices(&chunk_step_relations).expect("build main recursion F' advices");
-    let baseline = &f_prime_advices[0];
-    let mut tampered = baseline.clone();
-    rv64im_main_recursion_advice_tamper_step_statement_chain_digest_first_byte(&mut tampered);
-
-    assert_eq!(
-        build_rv64im_main_recursion_construction2_input_state_image(&tampered).encoded_public_input(),
-        *baseline.x_i(),
-        "authoritative input x_i must ignore the legacy input step-statement chain digest shell"
-    );
-}
-
-#[test]
 fn rv64im_main_recursion_step_x_i_ignores_tampered_input_running_state_terminal_handle_shell() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
     let chunk_step_relations = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
@@ -779,68 +753,6 @@ fn rv64im_main_recursion_step_x_i_ignores_tampered_input_running_state_terminal_
         build_rv64im_main_recursion_construction2_input_state_image(&tampered).encoded_public_input(),
         *baseline.x_i(),
         "authoritative input x_i must depend only on the paper-facing running U_i digest, not the legacy running terminal-handle shell"
-    );
-}
-
-#[test]
-fn rv64im_main_recursion_step_x_out_ignores_tampered_input_step_statement_chain_digest() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let chunk_step_relations = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
-        .expect("build chunk-step chain");
-    let f_prime_advices =
-        build_rv64im_main_recursion_f_prime_advices(&chunk_step_relations).expect("build main recursion F' advices");
-    let baseline =
-        evaluate_rv64im_main_recursion_f_prime_advice(&f_prime_advices[0]).expect("evaluate baseline native F' step");
-    let mut tampered = f_prime_advices[0].clone();
-    rv64im_main_recursion_advice_tamper_step_statement_chain_digest_first_byte(&mut tampered);
-
-    let rebuilt = evaluate_rv64im_main_recursion_f_prime_advice(&tampered)
-        .expect("native F' must ignore the legacy input step-statement chain digest shell");
-
-    assert_eq!(
-        rebuilt.x_out(),
-        baseline.x_out(),
-        "authoritative x_out must ignore the legacy input step-statement chain digest shell"
-    );
-}
-
-#[test]
-fn rv64im_main_recursion_step_x_i_ignores_tampered_input_bridge_handoff_chain_digest() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let chunk_step_relations = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
-        .expect("build chunk-step chain");
-    let f_prime_advices =
-        build_rv64im_main_recursion_f_prime_advices(&chunk_step_relations).expect("build main recursion F' advices");
-    let baseline = &f_prime_advices[0];
-    let mut tampered = baseline.clone();
-    rv64im_main_recursion_advice_tamper_bridge_handoff_chain_digest_first_byte(&mut tampered);
-
-    assert_eq!(
-        build_rv64im_main_recursion_construction2_input_state_image(&tampered).encoded_public_input(),
-        *baseline.x_i(),
-        "authoritative input x_i must ignore the legacy input bridge-handoff chain digest shell"
-    );
-}
-
-#[test]
-fn rv64im_main_recursion_step_x_out_ignores_tampered_input_bridge_handoff_chain_digest() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let chunk_step_relations = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
-        .expect("build chunk-step chain");
-    let f_prime_advices =
-        build_rv64im_main_recursion_f_prime_advices(&chunk_step_relations).expect("build main recursion F' advices");
-    let baseline =
-        evaluate_rv64im_main_recursion_f_prime_advice(&f_prime_advices[0]).expect("evaluate baseline native F' step");
-    let mut tampered = f_prime_advices[0].clone();
-    rv64im_main_recursion_advice_tamper_bridge_handoff_chain_digest_first_byte(&mut tampered);
-
-    let rebuilt = evaluate_rv64im_main_recursion_f_prime_advice(&tampered)
-        .expect("native F' must ignore the legacy input bridge-handoff chain digest shell");
-
-    assert_eq!(
-        rebuilt.x_out(),
-        baseline.x_out(),
-        "authoritative x_out must ignore the legacy input bridge-handoff chain digest shell"
     );
 }
 
@@ -914,18 +826,6 @@ fn rv64im_main_recursion_step_emits_authoritative_phi_side_without_changing_x_ou
             zero_output.folded_accumulator_digest()
         );
         assert_eq!(
-            side_output.terminal_handle_digest(),
-            zero_output.terminal_handle_digest()
-        );
-        assert_eq!(
-            side_output.step_statement_chain_digest(),
-            zero_output.step_statement_chain_digest()
-        );
-        assert_eq!(
-            side_output.bridge_handoff_chain_digest(),
-            zero_output.bridge_handoff_chain_digest()
-        );
-        assert_eq!(
             side_output.phi_side(),
             side_advice.phi_side(),
             "side-aware native F' output must carry the authoritative stable phi_side projection"
@@ -963,8 +863,6 @@ fn rv64im_main_recursion_native_chain_closes_to_final_accumulator_and_x_last() {
             .verifier_key_fs(),
         last_output.chunk_count(),
         &fixture.final_statement.folded.final_accumulator,
-        last_output.step_statement_chain_digest(),
-        last_output.bridge_handoff_chain_digest(),
     )
     .expect("rebuild x_last from final accumulator");
 
@@ -1143,27 +1041,6 @@ fn rv64im_main_recursion_fresh_instance_digest_binds_x_i() {
 }
 
 #[test]
-fn rv64im_main_recursion_external_step_statement_chain_matches_native_f_prime() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let chunk_step_relations = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
-        .expect("build chunk-step chain");
-    let f_prime_advices =
-        build_rv64im_main_recursion_f_prime_advices(&chunk_step_relations).expect("build main recursion F' advices");
-
-    let last_output = f_prime_advices
-        .iter()
-        .map(|advice| evaluate_rv64im_main_recursion_f_prime_advice(advice).expect("evaluate main recursion F'"))
-        .last()
-        .expect("non-empty step relation chain");
-
-    assert_eq!(
-        rv64im_recursion_step_statement_chain_digest(&chunk_step_relations),
-        last_output.step_statement_chain_digest(),
-        "external recursion step-statement chain must agree with the native Construction-2 F' chain"
-    );
-}
-
-#[test]
 fn rv64im_main_recursion_advice_chain_threads_construction2_input_fresh_instances() {
     let source = build_mixed_opcode_perf_source_case(2);
     let input = Rv64imProofInput {
@@ -1235,8 +1112,8 @@ fn rv64im_main_recursion_step_ignores_tampered_legacy_fresh_state_out_terminal_h
         .expect("native F' must derive next state from verified replay, not trusted legacy state_out cargo");
 
     assert_eq!(
-        rebuilt.terminal_handle_digest(),
-        baseline.terminal_handle_digest(),
+        rebuilt.running_out_state().carry.terminal_handle,
+        baseline.running_out_state().carry.terminal_handle,
         "native F' terminal handle must come from verified replay, not legacy state_out cargo"
     );
     assert_eq!(
@@ -1409,9 +1286,9 @@ fn rv64im_main_recursion_step_ignores_tampered_legacy_bridge_handoff_digest_fiel
         .expect("native F' must recompute bridge_handoff.digest instead of trusting stored digest bytes");
 
     assert_eq!(
-        rebuilt.bridge_handoff_chain_digest(),
-        baseline.bridge_handoff_chain_digest(),
-        "native F' bridge_handoff_chain_digest must be invariant under tampered stored bridge_handoff.digest bytes"
+        rebuilt.folded_accumulator_digest(),
+        baseline.folded_accumulator_digest(),
+        "native F' folded accumulator digest must be invariant under tampered stored bridge_handoff.digest bytes"
     );
     assert_eq!(
         rebuilt.x_out(),
@@ -1436,9 +1313,9 @@ fn rv64im_main_recursion_step_ignores_tampered_legacy_bridge_binding_digest_fiel
         .expect("native F' must recompute bridge binding digests instead of trusting stored digest bytes");
 
     assert_eq!(
-        rebuilt.bridge_handoff_chain_digest(),
-        baseline.bridge_handoff_chain_digest(),
-        "native F' bridge_handoff_chain_digest must be invariant under tampered stored bridge binding digest bytes"
+        rebuilt.folded_accumulator_digest(),
+        baseline.folded_accumulator_digest(),
+        "native F' folded accumulator digest must be invariant under tampered stored bridge binding digest bytes"
     );
     assert_eq!(
         rebuilt.x_out(),

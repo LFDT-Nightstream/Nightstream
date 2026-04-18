@@ -54,6 +54,8 @@ pub use construction2::{
     Rv64imMainRecursionConstruction2FreshInstance, Rv64imMainRecursionConstruction2StateImage,
 };
 pub use construction2_default::{
+    build_rv64im_main_recursion_construction2_canonical_full_width,
+    build_rv64im_main_recursion_construction2_canonical_shape,
     build_rv64im_main_recursion_construction2_default_full_width_from_ccs_shape,
     build_rv64im_main_recursion_construction2_default_full_width_from_relations,
     build_rv64im_main_recursion_construction2_default_pair_for_full_width, Rv64imMainRecursionConstruction2DefaultPair,
@@ -64,14 +66,18 @@ pub use decider::{
 };
 pub use f_prime::{
     build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_f_prime_advices_single_step,
+    build_rv64im_main_recursion_f_prime_advices_single_step_with_perf,
+    build_rv64im_main_recursion_f_prime_advices_with_perf,
     build_rv64im_main_recursion_f_prime_advices_with_side_opening_public,
     build_rv64im_main_recursion_f_prime_advices_with_side_opening_public_single_step,
     build_rv64im_main_recursion_f_prime_public_output, build_rv64im_main_recursion_side_lane_from_side_opening_public,
-    evaluate_rv64im_main_recursion_f_prime_advice, verify_rv64im_main_recursion_f_prime_public_output,
-    Rv64imEncodedPublicInput, Rv64imMainRecursionBackendStepStatement, Rv64imMainRecursionFPrimeAdvice,
-    Rv64imMainRecursionFPrimeInput, Rv64imMainRecursionFPrimePublicOutput, Rv64imMainRecursionFPrimeStepImage,
-    Rv64imMainRecursionPhiSide, Rv64imMainRecursionSideClaim, Rv64imMainRecursionSideLaneWitness,
-    Rv64imMainRecursionStepStatement, RV64IM_MAIN_RECURSION_PHI_SIDE_ACTIVE, RV64IM_MAIN_RECURSION_SIDE_LANE_ACTIVE,
+    debug_trace_rv64im_main_recursion_f_prime_advices_single_step_build, evaluate_rv64im_main_recursion_f_prime_advice,
+    verify_rv64im_main_recursion_f_prime_public_output, Rv64imEncodedPublicInput,
+    Rv64imMainRecursionBackendStepStatement, Rv64imMainRecursionFPrimeAdvice, Rv64imMainRecursionFPrimeAdviceBuildPerf,
+    Rv64imMainRecursionFPrimeAdviceStepBuildPerf, Rv64imMainRecursionFPrimeInput,
+    Rv64imMainRecursionFPrimePublicOutput, Rv64imMainRecursionFPrimeStepImage, Rv64imMainRecursionPhiSide,
+    Rv64imMainRecursionSideClaim, Rv64imMainRecursionSideLaneWitness, Rv64imMainRecursionStepStatement,
+    RV64IM_MAIN_RECURSION_PHI_SIDE_ACTIVE, RV64IM_MAIN_RECURSION_SIDE_LANE_ACTIVE,
     RV64IM_MAIN_RECURSION_SIDE_WITNESS_ACTIVE,
 };
 pub use isa::{
@@ -188,6 +194,8 @@ pub use main_proof::{
 pub use main_relation::{
     build_rv64im_decider_relation_from_final_surface, validate_rv64im_decider_relation_surface, Rv64imDeciderRelation,
 };
+pub use main_relation_spartan::debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint;
+pub use main_relation_spartan::debug_measure_rv64im_main_relation_state_in_prefix_fingerprints;
 pub use perf_case::{
     build_mixed_opcode_perf_source_case, mixed_opcode_perf_expected_x1, RV64IM_MIXED_OPCODE_PERF_BLOCK_LEN,
     RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,

@@ -6,11 +6,7 @@
 
 use crate::chunk_relation::ChunkReplayWitness;
 use crate::rv64im::chunk_fold_step::{Rv64imChunkFoldCarry, Rv64imChunkFoldFresh, Rv64imChunkStepPublic};
-use crate::rv64im::chunk_step_ivc::{
-    build_rv64im_chunk_step_ivc_relations, rv64im_bridge_handoff_chain_digest_from_digests,
-    rv64im_bridge_handoff_chain_digest_init, rv64im_chunk_step_ivc_initial_state,
-    rv64im_recursion_step_statement_chain_digest, rv64im_step_statement_chain_digest_init,
-};
+use crate::rv64im::chunk_step_ivc::{build_rv64im_chunk_step_ivc_relations, rv64im_chunk_step_ivc_initial_state};
 use crate::rv64im::final_relation::{
     build_rv64im_terminal_chunk_fold_witness, rv64im_chunk_fold_carry_recursive_accumulator_digest,
     verify_rv64im_final_statement_with_output, verify_rv64im_terminal_chunk_fold_witness,
@@ -20,9 +16,10 @@ use crate::rv64im::final_relation::{
 use crate::rv64im::kernel::Rv64imVerifiedKernelChunkHandoff;
 use crate::rv64im::main_proof::Rv64imAccumulatorPublicStatement;
 use crate::rv64im::main_recursion::{
+    build_rv64im_main_recursion_backend_statement_from_advice,
     build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs, build_rv64im_main_recursion_f_prime_advices,
-    build_rv64im_main_recursion_verifier_key_fs, Rv64imEncodedPublicInput, Rv64imMainRecursionFPrimeAdvice,
-    Rv64imVerifierKeyFs,
+    build_rv64im_main_recursion_verifier_key_fs, Rv64imEncodedPublicInput, Rv64imMainRecursionBackendStepStatement,
+    Rv64imMainRecursionFPrimeAdvice, Rv64imVerifierKeyFs,
 };
 use crate::rv64im::main_relation_spartan::{
     build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
@@ -46,7 +43,7 @@ pub(crate) fn audit_empty_step_proof_chain() -> Rv64imMainRecursionStepSpartanCh
     Vec::new()
 }
 
-fn extracted_backend_statement_from_chain_with_vk_fs(
+fn chain_output_native_statement(
     spartan_shape: &Rv64imMainRecursionStepSpartanShape,
     chain_proof: &Rv64imMainRecursionStepSpartanChainProof,
     vk_fs: &Rv64imVerifierKeyFs,
@@ -66,11 +63,25 @@ fn extracted_backend_statement_from_chain_with_vk_fs(
             vk_fs,
             0,
             rv64im_chunk_fold_carry_recursive_accumulator_digest(&seed_state.carry),
-            rv64im_step_statement_chain_digest_init(),
-            rv64im_bridge_handoff_chain_digest_init(),
             seed_state.carry.terminal_handle.0,
-        ))
+        )
+        .native_statement())
     }
+}
+
+fn seed_final_public_image_with_vk_fs(vk_fs: &Rv64imVerifierKeyFs) -> Rv64imMainRecursionFinalRelationPublicImage {
+    let seed_state = rv64im_chunk_step_ivc_initial_state();
+    let backend_statement = build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs(
+        vk_fs,
+        0,
+        rv64im_chunk_fold_carry_recursive_accumulator_digest(&seed_state.carry),
+        seed_state.carry.terminal_handle.0,
+    );
+    Rv64imMainRecursionFinalRelationPublicImage::from_parts(
+        backend_statement.x_out,
+        backend_statement.folded_accumulator_digest,
+        seed_state.carry.terminal_handle.0,
+    )
 }
 
 impl Rv64imRecursionBackendProof {
@@ -92,20 +103,15 @@ impl Rv64imRecursionBackendProof {
         })
     }
 
-    fn extracted_backend_statement_with_vk_fs(
+    fn chain_output_native_statement_with_vk_fs(
         &self,
         vk_fs: &Rv64imVerifierKeyFs,
     ) -> Result<Rv64imMainRecursionStepSpartanStatement, SimpleKernelError> {
-        extracted_backend_statement_from_chain_with_vk_fs(self.spartan_shape(), &self.chain_proof, vk_fs)
+        chain_output_native_statement(self.spartan_shape(), &self.chain_proof, vk_fs)
     }
 
-    fn extracted_public_image_with_vk_fs(
-        &self,
-        vk_fs: &Rv64imVerifierKeyFs,
-    ) -> Result<Rv64imMainRecursionFinalRelationPublicImage, SimpleKernelError> {
-        Ok(Rv64imMainRecursionFinalRelationPublicImage::from_backend_statement(
-            &self.extracted_backend_statement_with_vk_fs(vk_fs)?,
-        ))
+    fn final_public_image(&self) -> &Rv64imMainRecursionFinalRelationPublicImage {
+        &self.final_public_image
     }
 
     pub fn expected_digest(&self) -> [u8; 32] {
@@ -198,12 +204,10 @@ impl Rv64imRecursionProof {
 pub(crate) fn build_rv64im_recursion_proof_from_parts(
     spartan_shape: Rv64imMainRecursionStepSpartanShape,
     chain_proof: Rv64imMainRecursionStepSpartanChainProof,
+    final_public_image: Rv64imMainRecursionFinalRelationPublicImage,
 ) -> Result<Rv64imRecursionProof, SimpleKernelError> {
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
     let backend_proof = Rv64imRecursionBackendProof {
-        final_public_image: Rv64imMainRecursionFinalRelationPublicImage::from_backend_statement(
-            &extracted_backend_statement_from_chain_with_vk_fs(&spartan_shape, &chain_proof, &vk_fs)?,
-        ),
+        final_public_image,
         spartan_shape,
         chain_proof,
     };
@@ -229,19 +233,20 @@ pub(crate) struct Rv64imMainRecursionFinalRelationPublicImage {
 }
 
 impl Rv64imMainRecursionFinalRelationPublicImage {
-    fn from_backend_statement(backend_statement: &Rv64imMainRecursionStepSpartanStatement) -> Self {
+    fn from_parts(
+        x_last: Rv64imEncodedPublicInput,
+        folded_accumulator_digest: [u8; 32],
+        terminal_handle_digest: [u8; 32],
+    ) -> Self {
         Self {
-            x_last: backend_statement.x_out.clone(),
-            folded_accumulator_digest: backend_statement.folded_accumulator_digest,
-            terminal_handle_digest: backend_statement.terminal_handle_digest,
+            x_last,
+            folded_accumulator_digest,
+            terminal_handle_digest,
         }
     }
 
-    fn from_recursion_proof(proof: &Rv64imRecursionProof) -> Result<Self, SimpleKernelError> {
-        let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
-        proof
-            .backend_proof
-            .extracted_public_image_with_vk_fs(&vk_fs)
+    fn from_recursion_proof(proof: &Rv64imRecursionProof) -> Rv64imMainRecursionFinalRelationPublicImage {
+        proof.backend_proof.final_public_image().clone()
     }
 
     fn expected_digest(&self) -> [u8; 32] {
@@ -270,7 +275,7 @@ impl Rv64imMainRecursionFinalRelationPublicImage {
         Ok(Self {
             x_last: backend_statement.x_out,
             folded_accumulator_digest: backend_statement.folded_accumulator_digest,
-            terminal_handle_digest: backend_statement.terminal_handle_digest,
+            terminal_handle_digest: accumulator_witness.running_final().terminal_handle.0,
         })
     }
 
@@ -378,8 +383,6 @@ pub struct Rv64imMainRecursionAccumulatorWitness {
     halted_out: bool,
     chunk_count: u64,
     pc_final: u64,
-    step_statement_chain_digest: [u8; 32],
-    bridge_handoff_chain_digest: [u8; 32],
 }
 
 impl Rv64imMainRecursionAccumulatorWitness {
@@ -454,14 +457,6 @@ impl Rv64imMainRecursionAccumulatorWitness {
         self.pc_final
     }
 
-    pub fn step_statement_chain_digest(&self) -> [u8; 32] {
-        self.step_statement_chain_digest
-    }
-
-    pub fn bridge_handoff_chain_digest(&self) -> [u8; 32] {
-        self.bridge_handoff_chain_digest
-    }
-
     pub fn accumulator_final(&self) -> Rv64imRecursiveAccumulator {
         self.terminal_chunk_fold_witness().accumulator_final()
     }
@@ -469,13 +464,11 @@ impl Rv64imMainRecursionAccumulatorWitness {
     fn backend_statement_with_vk_fs(
         &self,
         vk_fs: &Rv64imVerifierKeyFs,
-    ) -> Result<Rv64imMainRecursionStepSpartanStatement, SimpleKernelError> {
+    ) -> Result<Rv64imMainRecursionBackendStepStatement, SimpleKernelError> {
         Ok(build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs(
             vk_fs,
             self.chunk_count,
             rv64im_chunk_fold_carry_recursive_accumulator_digest(self.running_final()),
-            self.step_statement_chain_digest,
-            self.bridge_handoff_chain_digest,
             self.running_final().terminal_handle.0,
         ))
     }
@@ -487,13 +480,6 @@ impl Rv64imRecursionBackendProof {
         final_relation_statement: &Rv64imMainRecursionFinalRelationStatement,
     ) -> Result<(), SimpleKernelError> {
         validate_rv64im_main_recursion_final_relation_surface(final_relation_statement, self)?;
-        let expected_public_image = self.extracted_public_image_with_vk_fs(final_relation_statement.vk_fs())?;
-        if self.final_public_image != expected_public_image {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM main recursion proof carrier final public image does not match the final published target"
-                    .into(),
-            ));
-        }
         Ok(())
     }
 }
@@ -502,8 +488,6 @@ pub(crate) fn build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(
     vk_fs: &Rv64imVerifierKeyFs,
     chunk_count: u64,
     accumulator_final: &Rv64imRecursiveAccumulator,
-    step_statement_chain_digest: [u8; 32],
-    bridge_handoff_chain_digest: [u8; 32],
 ) -> Result<Rv64imEncodedPublicInput, SimpleKernelError> {
     let folded_accumulator_digest = rv64im_chunk_fold_carry_recursive_accumulator_digest(&Rv64imChunkFoldCarry {
         main: crate::proof::Carry {
@@ -516,8 +500,6 @@ pub(crate) fn build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(
         vk_fs,
         chunk_count,
         folded_accumulator_digest,
-        step_statement_chain_digest,
-        bridge_handoff_chain_digest,
         accumulator_final.terminal_handle.0,
     )
     .x_out)
@@ -529,13 +511,6 @@ pub fn build_rv64im_main_recursion_accumulator_witness(
 ) -> Result<Rv64imMainRecursionAccumulatorWitness, SimpleKernelError> {
     let verified_kernel = verify_rv64im_final_statement_with_output(statement, proof)?;
     let relations = build_rv64im_chunk_step_ivc_relations(statement, proof)?;
-    let step_statement_chain_digest = rv64im_recursion_step_statement_chain_digest(&relations);
-    let bridge_handoff_chain_digest = rv64im_bridge_handoff_chain_digest_from_digests(
-        &relations
-            .iter()
-            .map(|relation| relation.witness.handoff.bridge_handoff.digest)
-            .collect::<Vec<_>>(),
-    );
     let terminal_chunk = build_rv64im_terminal_chunk_fold_witness(statement, proof)?;
     let Rv64imTerminalChunkFoldWitness {
         public_statement_digest,
@@ -562,8 +537,6 @@ pub fn build_rv64im_main_recursion_accumulator_witness(
         halted_out,
         chunk_count: relations.len() as u64,
         pc_final: verified_kernel.final_pc,
-        step_statement_chain_digest,
-        bridge_handoff_chain_digest,
     })
 }
 
@@ -604,7 +577,24 @@ pub(crate) fn prove_rv64im_recursion_proof_from_advices(
     })?;
     let chain_proof = prove_rv64im_main_recursion_step_spartan_chain(&spartan_shape, &backend_relations)
         .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM recursion prove failed: {err}")))?;
-    build_rv64im_recursion_proof_from_parts(spartan_shape, chain_proof)
+    let final_public_image = build_rv64im_main_recursion_final_public_image_from_advices(advices)?;
+    build_rv64im_recursion_proof_from_parts(spartan_shape, chain_proof, final_public_image)
+}
+
+pub(crate) fn build_rv64im_main_recursion_final_public_image_from_advices(
+    advices: &[Rv64imMainRecursionFPrimeAdvice],
+) -> Result<Rv64imMainRecursionFinalRelationPublicImage, SimpleKernelError> {
+    let Some(last_advice) = advices.last() else {
+        let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
+        return Ok(seed_final_public_image_with_vk_fs(&vk_fs));
+    };
+    let step_image = crate::rv64im::main_recursion::evaluate_rv64im_main_recursion_f_prime_advice(last_advice)?;
+    let backend_statement = build_rv64im_main_recursion_backend_statement_from_advice(last_advice)?;
+    Ok(Rv64imMainRecursionFinalRelationPublicImage::from_parts(
+        backend_statement.x_out,
+        backend_statement.folded_accumulator_digest,
+        step_image.next_state.carry.terminal_handle.0,
+    ))
 }
 
 fn validate_rv64im_main_recursion_final_relation_surface(
@@ -630,11 +620,22 @@ fn validate_rv64im_main_recursion_final_relation_surface(
             "RV64IM main recursion proof chain step count does not match the published statement chunk schedule".into(),
         ));
     }
-    if backend_proof.extracted_public_image_with_vk_fs(final_relation_statement.vk_fs())?
-        != final_relation_statement.canonical_public_image()
-    {
+    if *backend_proof.final_public_image() != final_relation_statement.canonical_public_image() {
         return Err(SimpleKernelError::Bridge(
             "RV64IM main recursion proof surface does not match the canonical final-relation statement public image"
+                .into(),
+        ));
+    }
+    let chain_output = backend_proof.chain_output_native_statement_with_vk_fs(final_relation_statement.vk_fs())?;
+    if &chain_output.x_out != &backend_proof.final_public_image().x_last {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM main recursion proof chain terminal x_out does not match the carried final public image x_last"
+                .into(),
+        ));
+    }
+    if chain_output.folded_accumulator_digest != backend_proof.final_public_image().folded_accumulator_digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM main recursion proof chain terminal folded accumulator does not match the carried final public image"
                 .into(),
         ));
     }
@@ -777,7 +778,7 @@ pub(crate) fn audit_rv64im_main_recursion_final_relation_public_images_match(
         accumulator_witness,
     )?;
     witness_image.validate_against_published_statement(published_statement)?;
-    let proof_image = Rv64imMainRecursionFinalRelationPublicImage::from_recursion_proof(recursion_proof)?;
+    let proof_image = Rv64imMainRecursionFinalRelationPublicImage::from_recursion_proof(recursion_proof);
     proof_image.validate_against_published_statement(published_statement)?;
     if witness_image != proof_image {
         return Err(SimpleKernelError::Bridge(
@@ -805,7 +806,7 @@ pub(crate) fn audit_rv64im_main_recursion_terminal_published_target_matches_nati
 
     let expected_backend_statement =
         accumulator_witness.backend_statement_with_vk_fs(final_relation_statement.vk_fs())?;
-    if last_target.output_statement() != expected_backend_statement {
+    if last_target.output_statement() != expected_backend_statement.native_statement() {
         return Err(SimpleKernelError::Bridge(
             "RV64IM main recursion terminal published target did not match the native terminal accumulator witness backend statement"
                 .into(),
@@ -816,8 +817,6 @@ pub(crate) fn audit_rv64im_main_recursion_terminal_published_target_matches_nati
         final_relation_statement.vk_fs(),
         accumulator_witness.chunk_count(),
         &accumulator_witness.accumulator_final(),
-        accumulator_witness.step_statement_chain_digest(),
-        accumulator_witness.bridge_handoff_chain_digest(),
     )?;
     if last_target.x_out != expected_x_last {
         return Err(SimpleKernelError::Bridge(
@@ -831,9 +830,9 @@ pub(crate) fn audit_rv64im_main_recursion_terminal_published_target_matches_nati
                 .into(),
         ));
     }
-    if last_target.chunk_index + 1 != accumulator_witness.chunk_count() {
+    if published_targets.len() as u64 != accumulator_witness.chunk_count() {
         return Err(SimpleKernelError::Bridge(
-            "RV64IM main recursion terminal published target chunk index did not close the native terminal witness schedule"
+            "RV64IM main recursion published-target chain length did not close the native terminal witness schedule"
                 .into(),
         ));
     }
@@ -842,24 +841,6 @@ pub(crate) fn audit_rv64im_main_recursion_terminal_published_target_matches_nati
     {
         return Err(SimpleKernelError::Bridge(
             "RV64IM main recursion terminal published target folded accumulator did not match the native terminal witness"
-                .into(),
-        ));
-    }
-    if last_target.step_statement_chain_digest != accumulator_witness.step_statement_chain_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM main recursion terminal published target step-statement chain digest did not match the native terminal witness"
-                .into(),
-        ));
-    }
-    if last_target.bridge_handoff_chain_digest != accumulator_witness.bridge_handoff_chain_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM main recursion terminal published target bridge-handoff chain digest did not match the native terminal witness"
-                .into(),
-        ));
-    }
-    if last_target.terminal_handle_digest != accumulator_witness.running_final().terminal_handle.0 {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM main recursion terminal published target terminal handle did not match the native terminal witness"
                 .into(),
         ));
     }

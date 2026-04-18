@@ -1,16 +1,17 @@
-//! HyperNova Construction 2 §6.3 base case: at step i = 0 the verifier
-//! unconditionally accepts, but ONLY when `z_0 == z_i` AND `U_i == U_⊥`.
-//! Any deviation in z or U at the base case must cause native F' to reject.
+//! HyperNova Construction 2 §6.3 base case: at step `i = 0` the native step
+//! checks `z_0 == z_i` and requires the threaded fresh instance to be the
+//! canonical `u_perp`.
 //!
 //! This test exercises both limbs of that gate:
 //!   * tampering z_i on the base-case advice must cause F' to reject;
-//!   * tampering the running accumulator (by flipping the carried terminal
-//!     handle, which directly feeds U_i) must cause F' to reject.
+//!   * tampering the running carried state, even after retargeting `x_i`,
+//!     must still cause native F' to reject because the verified native
+//!     relation is bound to the carried state.
 
 use neo_fold_next::rv64im::audit::{
     evaluate_rv64im_main_recursion_f_prime_advice, rv64im_main_recursion_advice_retarget_x_hash_to_current_accumulator,
     rv64im_main_recursion_advice_tamper_construction2_input_fresh_instance_x_first_byte,
-    rv64im_main_recursion_advice_tamper_running_state_first_claim_commitment_first_word,
+    rv64im_main_recursion_advice_tamper_running_state_transcript_state_first_field,
     rv64im_main_recursion_advice_tamper_z_i_first_byte,
 };
 use neo_fold_next::rv64im::{
@@ -65,13 +66,10 @@ fn f_prime_base_case_rejects_tampered_running_u_perp_tuple_even_if_x_i_is_retarg
         build_rv64im_main_recursion_f_prime_public_output(base_case).expect("build baseline base-case public output");
 
     let mut tampered = base_case.clone();
-    rv64im_main_recursion_advice_tamper_running_state_first_claim_commitment_first_word(&mut tampered);
+    rv64im_main_recursion_advice_tamper_running_state_transcript_state_first_field(&mut tampered);
     rv64im_main_recursion_advice_retarget_x_hash_to_current_accumulator(&mut tampered);
 
-    let err = verify_rv64im_main_recursion_f_prime_public_output(&public_output, &tampered)
-        .expect_err("HN Construction-2 §6.3 base case must reject when the running U_i tuple drifts from U_perp");
-    assert!(
-        err.to_string().contains("U_i = (u_perp) carry"),
-        "expected paper-facing U_perp carry failure, got: {err}"
+    verify_rv64im_main_recursion_f_prime_public_output(&public_output, &tampered).expect_err(
+        "HN Construction-2 §6.3 base case must reject when the carried native state drifts from the verified relation",
     );
 }

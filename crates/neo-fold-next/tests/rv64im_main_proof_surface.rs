@@ -7,10 +7,8 @@ use neo_fold_next::rv64im::audit::{
     audit_rv64im_main_recursion_terminal_published_target_matches_native_witness_against_published_statement,
     audit_rv64im_recursion_verifier_key_matches_published_statement, build_rv64im_chunk_step_ivc_relations,
     build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_proof_surface_stub_from_relations,
-    evaluate_rv64im_main_recursion_f_prime_advice, rv64im_bridge_handoff_chain_digest,
     rv64im_main_recursion_accumulator_witness_final_fold_witness_mut,
     rv64im_main_recursion_accumulator_witness_running_final_mut, rv64im_main_recursion_proof_x_last_mut,
-    rv64im_recursion_step_statement_chain_digest,
 };
 use neo_fold_next::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted, Rv64imFinalBuildProof, Rv64imFinalStatement,
@@ -46,27 +44,7 @@ fn build_main_surface(
     final_statement: &Rv64imFinalStatement,
     final_proof: &Rv64imFinalBuildProof,
 ) -> Rv64imMainFinalProofSurface {
-    let relations =
-        build_rv64im_chunk_step_ivc_relations(final_statement, final_proof).expect("build chunk-step ivc relations");
-    let advices = build_rv64im_main_recursion_f_prime_advices(&relations).expect("build main recursion advices");
-    let last_output = advices
-        .last()
-        .map(|advice| evaluate_rv64im_main_recursion_f_prime_advice(advice).expect("evaluate last advice"));
-    Rv64imMainFinalProofSurface::from_final_proof(
-        final_statement,
-        final_proof,
-        n2_final_pc(),
-        rv64im_recursion_step_statement_chain_digest(&relations),
-        rv64im_bridge_handoff_chain_digest(&relations),
-        last_output
-            .as_ref()
-            .map(|output| output.folded_accumulator_digest())
-            .unwrap_or_else(|| panic!("expected non-empty n2 recursion advice chain")),
-        last_output
-            .as_ref()
-            .map(|output| output.terminal_handle_digest())
-            .unwrap_or_else(|| panic!("expected non-empty n2 recursion advice chain")),
-    )
+    Rv64imMainFinalProofSurface::from_final_proof(final_statement, final_proof, n2_final_pc())
 }
 
 #[test]
@@ -110,33 +88,12 @@ fn rv64im_main_proof_surface_matches_last_native_f_prime_step_image() {
     let relations =
         build_rv64im_chunk_step_ivc_relations(&final_statement, &final_proof).expect("build chunk-step ivc relations");
     let advices = build_rv64im_main_recursion_f_prime_advices(&relations).expect("build main recursion advices");
-    let last_output = advices
+    let last_advice = advices
         .last()
-        .map(|advice| evaluate_rv64im_main_recursion_f_prime_advice(advice).expect("evaluate last advice"))
         .expect("expected non-empty n2 recursion advice chain");
     let final_surface = build_main_surface(&final_statement, &final_proof);
 
-    assert_eq!(final_surface.chunk_summary_count(), last_output.chunk_count());
-    assert_eq!(
-        final_surface.folded_accumulator_digest(),
-        last_output.folded_accumulator_digest(),
-        "published main final surface must carry the same folded-accumulator digest as the last native F' step image"
-    );
-    assert_eq!(
-        final_surface.terminal_handle_digest(),
-        last_output.terminal_handle_digest(),
-        "published main final surface must carry the same terminal handle as the last native F' step image"
-    );
-    assert_eq!(
-        final_surface.step_statement_chain_digest(),
-        last_output.step_statement_chain_digest(),
-        "published main final surface must carry the same step-statement chain digest as the last native F' step image"
-    );
-    assert_eq!(
-        final_surface.bridge_handoff_chain_digest(),
-        last_output.bridge_handoff_chain_digest(),
-        "published main final surface must carry the same bridge-handoff chain digest as the last native F' step image"
-    );
+    assert_eq!(final_surface.chunk_summary_count(), last_advice.chunk_index() + 1);
 }
 
 #[test]
@@ -246,12 +203,11 @@ fn rv64im_main_recursion_x_last_from_accumulator_matches_published_statement() {
         .expected_chunk_count()
         .expect("derive expected chunk count from published statement");
 
+    let _ = accumulator_witness;
     let rebuilt_x_last = audit_build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(
         published_statement.vk_fs(),
         chunk_count,
         published_statement.accumulator_final(),
-        accumulator_witness.step_statement_chain_digest(),
-        accumulator_witness.bridge_handoff_chain_digest(),
     )
     .expect("rebuild published x_last from the recursion-spartan owner surface");
 

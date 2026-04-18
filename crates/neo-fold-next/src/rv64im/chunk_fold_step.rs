@@ -28,7 +28,8 @@ pub struct Rv64imChunkFoldCarry {
 impl Rv64imChunkFoldCarry {
     pub fn seed() -> Self {
         Self {
-            main: Carry::default(),
+            main: crate::rv64im::construction2_default::build_rv64im_main_recursion_canonical_zero_carry()
+                .expect("canonical RV64IM chunk-fold seed carry must build"),
             terminal_handle: Rv64imAccumulatorHandle(rv64im_chunk_fold_seed()),
         }
     }

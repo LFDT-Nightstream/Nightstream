@@ -32,21 +32,6 @@ fn f_prime_native_is_deterministic_across_evaluations() {
             second.folded_accumulator_digest(),
             "step {step}: folded_accumulator_digest drift"
         );
-        assert_eq!(
-            first.step_statement_chain_digest(),
-            second.step_statement_chain_digest(),
-            "step {step}: step_statement_chain_digest drift"
-        );
-        assert_eq!(
-            first.bridge_handoff_chain_digest(),
-            second.bridge_handoff_chain_digest(),
-            "step {step}: bridge_handoff_chain_digest drift"
-        );
-        assert_eq!(
-            first.terminal_handle_digest(),
-            second.terminal_handle_digest(),
-            "step {step}: terminal_handle_digest drift"
-        );
         assert_eq!(first.x_out(), second.x_out(), "step {step}: x_out drift");
         assert_eq!(
             first.construction2_u_next(),

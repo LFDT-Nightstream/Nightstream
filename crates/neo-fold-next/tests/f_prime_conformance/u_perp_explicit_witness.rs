@@ -3,6 +3,7 @@
 //! commitment scheme as the inductive path.
 
 use neo_fold_next::rv64im::{
+    build_rv64im_main_recursion_construction2_canonical_full_width,
     build_rv64im_main_recursion_construction2_default_fresh_instance,
     build_rv64im_main_recursion_construction2_default_full_width_from_ccs_shape,
     build_rv64im_main_recursion_construction2_default_low_norm_witness_image,
@@ -13,16 +14,20 @@ use neo_fold_next::rv64im::{
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use super::support::{default_full_width_from_advice, default_full_width_from_relations, single_step_advices};
+use super::support::{default_full_width_from_relations, single_step_advices};
 
 #[test]
 fn f_prime_u_perp_exposes_explicit_default_witness() {
     let advices = single_step_advices();
     let base_advice = &advices[0];
-    let full_width = default_full_width_from_advice(base_advice);
+    let full_width = build_rv64im_main_recursion_construction2_canonical_full_width(
+        base_advice.verifier_key_fs(),
+        &Default::default(),
+    )
+    .expect("derive structural canonical full width");
     let relation_cover_width = default_full_width_from_relations();
-    let ccs_shape = build_rv64im_main_recursion_construction2_f_prime_ccs_shape(core::slice::from_ref(base_advice))
-        .expect("derive explicit native F' shape");
+    let ccs_shape =
+        build_rv64im_main_recursion_construction2_f_prime_ccs_shape(advices).expect("derive explicit native F' shape");
     let shape_width = build_rv64im_main_recursion_construction2_default_full_width_from_ccs_shape(&ccs_shape)
         .expect("derive explicit default width from native shape");
     let explicit_default_pair = build_rv64im_main_recursion_construction2_default_pair_for_full_width(

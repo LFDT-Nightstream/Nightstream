@@ -7,25 +7,19 @@
 //! every entry of the low-norm witness image must be `F::ZERO` or `F::ONE`,
 //! and every entry of `x_i.field_image()` must be `F::ZERO` or `F::ONE`.
 
-use neo_fold_next::rv64im::{
-    build_rv64im_main_recursion_construction2_default_fresh_instance,
-    build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image,
-};
+use neo_fold_next::rv64im::build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use super::support::{default_full_width_from_advice, single_step_advices};
+use super::support::single_step_advices;
 
 #[test]
 fn f_prime_low_norm_witness_and_x_are_binary() {
     let advices = single_step_advices();
-    let u_perp = build_rv64im_main_recursion_construction2_default_fresh_instance(
-        advices[0].verifier_key_fs(),
-        default_full_width_from_advice(&advices[0]),
-    )
-    .expect("build canonical u_perp");
-
     for (step, advice) in advices.iter().enumerate() {
+        let current_u_i = advice
+            .construction2_input_fresh_instance()
+            .expect("native F' advice must thread the Construction-2 input fresh instance");
         assert!(
             advice.x_i().is_binary_low_norm(),
             "step {step}: x_i must be binary under b = 2"
@@ -38,7 +32,7 @@ fn f_prime_low_norm_witness_and_x_are_binary() {
             );
         }
 
-        let low_norm = build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image(advice, &u_perp)
+        let low_norm = build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image(advice, current_u_i)
             .expect("build low-norm witness image");
         for (field_index, value) in low_norm.binary_values().iter().enumerate() {
             assert!(

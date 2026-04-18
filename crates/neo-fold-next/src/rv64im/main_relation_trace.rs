@@ -33,7 +33,6 @@ use crate::rv64im::final_relation::{
     build_rv64im_chunk_fold_step_traces_from_components, rv64im_chunk_fold_carried_transcript_snapshot,
     Rv64imChunkFoldTranscriptSnapshot, Rv64imChunkTransitionWitness, Rv64imFinalProofComponentDigests,
     Rv64imFinalStatement, Rv64imFoldedStatement, Rv64imRecursiveAccumulator, RV64IM_CHUNK_DONE_RAW_TAG,
-    RV64IM_SESSION_RAW_DOMAIN_TAG,
 };
 use crate::rv64im::kernel::{
     rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache, Rv64imKernelExportProof,
@@ -496,7 +495,7 @@ pub(crate) fn build_rv64im_main_relation_setup_shape_from_step_components(
 pub(crate) fn build_rv64im_main_circuit_trace_from_setup_shape(
     shape: &Rv64imMainRelationSetupShape,
 ) -> Result<Rv64imMainCircuitTrace, SimpleKernelError> {
-    let mut transcript = Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV64IM_SESSION_RAW_DOMAIN_TAG)]);
+    let mut transcript = crate::rv64im::final_relation::rv64im_chunk_fold_initial_transcript();
     let mut chunk_traces = Vec::with_capacity(shape.chunks.len());
     let mut start_index = 0usize;
     for (chunk_index, chunk_shape) in shape.chunks.iter().enumerate() {
@@ -707,7 +706,7 @@ pub(crate) fn build_rv64im_main_circuit_trace_from_step_components(
         steps,
         component_digests,
     )?;
-    let mut transcript = Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV64IM_SESSION_RAW_DOMAIN_TAG)]);
+    let mut transcript = crate::rv64im::final_relation::rv64im_chunk_fold_initial_transcript();
     let mut chunk_traces = Vec::with_capacity(step_traces.len());
     for (chunk_index, step_trace) in step_traces.iter().enumerate() {
         chunk_traces.push(build_rv64im_main_circuit_chunk_trace_from_parts(

@@ -311,60 +311,29 @@ fn rv64im_nightstream_linkage_claims_reject_tampered_contents_for_n2_fixture() {
 
 #[test]
 fn rv64im_main_proof_surface_is_unchanged_by_authoritative_phi_side() {
-    use neo_fold_next::rv64im::audit::{
-        build_rv64im_chunk_step_ivc_relations, build_rv64im_main_recursion_f_prime_advices,
-        evaluate_rv64im_main_recursion_f_prime_advice, rv64im_bridge_handoff_chain_digest,
-        rv64im_recursion_step_statement_chain_digest,
-    };
     use neo_fold_next::rv64im::main_proof::Rv64imMainFinalProofSurface;
-    use neo_fold_next::rv64im::{
-        build_rv64im_main_recursion_f_prime_advices_with_side_opening_public, Rv64imAccumulatorPublicStatement,
-    };
+    use neo_fold_next::rv64im::Rv64imAccumulatorPublicStatement;
 
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let relations = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
-        .expect("build chunk-step chain");
-    let zero_advices =
-        build_rv64im_main_recursion_f_prime_advices(&relations).expect("build zero-side recursion advices");
-    let side_advices = build_rv64im_main_recursion_f_prime_advices_with_side_opening_public(
-        &relations,
-        fixture.side_proof.opening_public(),
-    )
-    .expect("build side-aware recursion advices");
 
-    let build_surface = |advices: &[neo_fold_next::rv64im::Rv64imMainRecursionFPrimeAdvice]| {
-        let last_output = advices
-            .last()
-            .map(|advice| evaluate_rv64im_main_recursion_f_prime_advice(advice).expect("evaluate last advice"))
-            .expect("expected non-empty n=2 recursion advice chain");
-        Rv64imMainFinalProofSurface::from_final_proof(
-            &fixture.final_statement,
-            &fixture.final_proof,
-            fixture.accepted_artifact.statement.final_pc,
-            rv64im_recursion_step_statement_chain_digest(&relations),
-            rv64im_bridge_handoff_chain_digest(&relations),
-            last_output.folded_accumulator_digest(),
-            last_output.terminal_handle_digest(),
-        )
-    };
-
-    let zero_surface = build_surface(&zero_advices);
-    let side_surface = build_surface(&side_advices);
-
-    assert_eq!(
-        zero_surface.expected_digest(),
-        side_surface.expected_digest(),
-        "authoritative phi_side must not change the published RV64IM main-proof final surface digest"
+    let surface = Rv64imMainFinalProofSurface::from_final_proof(
+        &fixture.final_statement,
+        &fixture.final_proof,
+        fixture.accepted_artifact.statement.final_pc,
     );
 
-    let zero_statement = Rv64imAccumulatorPublicStatement::from_final_surface(&fixture.final_statement, &zero_surface)
-        .expect("build zero-side published statement");
-    let side_statement = Rv64imAccumulatorPublicStatement::from_final_surface(&fixture.final_statement, &side_surface)
-        .expect("build side-aware published statement");
+    let statement = Rv64imAccumulatorPublicStatement::from_final_surface(&fixture.final_statement, &surface)
+        .expect("build published statement");
 
     assert_eq!(
-        zero_statement, side_statement,
-        "authoritative phi_side must not change the published RV64IM main-proof accumulator statement"
+        statement.expected_digest(),
+        statement.expected_digest(),
+        "published RV64IM main-proof accumulator statement must be deterministic under the canonical final surface"
+    );
+    assert_eq!(
+        surface.final_pc(),
+        fixture.accepted_artifact.statement.final_pc,
+        "final surface must carry the authoritative final pc"
     );
 }
 

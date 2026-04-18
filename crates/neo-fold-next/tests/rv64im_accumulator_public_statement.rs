@@ -2,8 +2,7 @@
 
 use neo_fold_next::rv64im::audit::{
     build_rv64im_chunk_step_ivc_relations, build_rv64im_main_recursion_f_prime_advices,
-    evaluate_rv64im_main_recursion_f_prime_advice, rv64im_bridge_handoff_chain_digest,
-    rv64im_recursion_step_statement_chain_digest,
+    evaluate_rv64im_main_recursion_f_prime_advice,
 };
 use neo_fold_next::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted, Rv64imFinalBuildProof, Rv64imFinalStatement,
@@ -36,27 +35,7 @@ fn build_main_surface(
     final_statement: &Rv64imFinalStatement,
     final_proof: &Rv64imFinalBuildProof,
 ) -> Rv64imMainFinalProofSurface {
-    let relations =
-        build_rv64im_chunk_step_ivc_relations(final_statement, final_proof).expect("build chunk-step ivc relations");
-    let advices = build_rv64im_main_recursion_f_prime_advices(&relations).expect("build main recursion advices");
-    let last_output = advices
-        .last()
-        .map(|advice| evaluate_rv64im_main_recursion_f_prime_advice(advice).expect("evaluate last advice"));
-    Rv64imMainFinalProofSurface::from_final_proof(
-        final_statement,
-        final_proof,
-        n2_final_pc(),
-        rv64im_recursion_step_statement_chain_digest(&relations),
-        rv64im_bridge_handoff_chain_digest(&relations),
-        last_output
-            .as_ref()
-            .map(|output| output.folded_accumulator_digest())
-            .unwrap_or_else(|| panic!("expected non-empty n2 recursion advice chain")),
-        last_output
-            .as_ref()
-            .map(|output| output.terminal_handle_digest())
-            .unwrap_or_else(|| panic!("expected non-empty n2 recursion advice chain")),
-    )
+    Rv64imMainFinalProofSurface::from_final_proof(final_statement, final_proof, n2_final_pc())
 }
 
 fn published_statement_from_n2_final_case() -> Rv64imAccumulatorPublicStatement {

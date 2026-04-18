@@ -7,7 +7,10 @@
 //! API: tampering the Pi_DEC-child cargo carried inside π_fold flips a
 //! position in the low-norm witness image, which must propagate to `c`.
 
-use neo_fold_next::rv64im::audit::rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word;
+use neo_fold_next::rv64im::audit::{
+    audit_build_rv64im_main_recursion_construction2_fresh_instance_with_explicit_x_i,
+    rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word,
+};
 use neo_fold_next::rv64im::{
     build_rv64im_main_recursion_construction2_default_fresh_instance,
     build_rv64im_main_recursion_construction2_fresh_instance_with_input,
@@ -28,8 +31,12 @@ fn f_prime_fresh_instance_commitment_binds_low_norm_witness() {
         .expect("build baseline fresh instance");
     let mut tampered_advice = advices[0].clone();
     rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word(&mut tampered_advice, 0);
-    let tampered = build_rv64im_main_recursion_construction2_fresh_instance_with_input(&tampered_advice, &u_perp)
-        .expect("build tampered fresh instance");
+    let tampered = audit_build_rv64im_main_recursion_construction2_fresh_instance_with_explicit_x_i(
+        &tampered_advice,
+        &u_perp,
+        baseline.x_i().clone(),
+    )
+    .expect("build tampered fresh instance with fixed x_i");
 
     assert_eq!(
         baseline.x_i(),

@@ -207,6 +207,13 @@ pub(crate) fn rv64im_chunk_fold_carried_transcript_snapshot(
     }
 }
 
+pub(crate) fn rv64im_chunk_fold_initial_transcript() -> Poseidon2Transcript {
+    let mut transcript =
+        Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV64IM_SESSION_RAW_DOMAIN_TAG), F::ZERO, F::ZERO]);
+    transcript.append_fields_raw(&[F::from_u64(RV64IM_CHUNK_DONE_RAW_TAG), F::ONE]);
+    transcript
+}
+
 /// Build-time replay bundle for the final seam.
 ///
 /// This is not a published proof surface: it still carries per-chunk replay
@@ -445,7 +452,7 @@ pub fn verify_rv64im_terminal_chunk_fold_witness(
 }
 
 pub fn rv64im_chunk_fold_initial_transcript_snapshot() -> Rv64imChunkFoldTranscriptSnapshot {
-    let transcript = Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV64IM_SESSION_RAW_DOMAIN_TAG)]);
+    let transcript = rv64im_chunk_fold_initial_transcript();
     Rv64imChunkFoldTranscriptSnapshot {
         state: transcript.state(),
         absorbed: transcript.absorbed(),
@@ -791,7 +798,7 @@ fn build_chunk_fold_step_traces_from_verified_kernel(
 
     let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let mut transcript = Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV64IM_SESSION_RAW_DOMAIN_TAG)]);
+    let mut transcript = rv64im_chunk_fold_initial_transcript();
     let mut accumulator = Rv64imChunkFoldCarry::seed();
     let mut traces = Vec::with_capacity(steps.len());
 
@@ -913,7 +920,7 @@ fn build_recursive_proof(
     SimpleKernelError,
 > {
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let mut transcript = Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV64IM_SESSION_RAW_DOMAIN_TAG)]);
+    let mut transcript = rv64im_chunk_fold_initial_transcript();
     let mut accumulator = Rv64imChunkFoldCarry::seed();
     let mut steps = Vec::with_capacity(chunk_handoffs.len());
     let mut chunk_summaries = Vec::with_capacity(chunk_handoffs.len());

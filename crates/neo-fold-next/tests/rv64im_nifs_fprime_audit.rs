@@ -106,20 +106,6 @@ fn print_step_audit(
         short_digest(native_output.folded_accumulator_digest())
     );
     println!(
-        "  step_chain_in={} step_chain_out={}",
-        short_digest(advice.step_statement_chain_digest_in()),
-        short_digest(native_output.step_statement_chain_digest())
-    );
-    println!(
-        "  bridge_chain_in={} bridge_chain_out={}",
-        short_digest(advice.bridge_handoff_chain_digest_in()),
-        short_digest(native_output.bridge_handoff_chain_digest())
-    );
-    println!(
-        "  terminal_handle_out={}",
-        short_digest(native_output.terminal_handle_digest())
-    );
-    println!(
         "  statement_x_out={} pi_ccs_outputs={} fresh_claims={} dec_children={} fe_rounds={} nc_rounds={}",
         short_digest(backend_relation.spartan_statement.x_out.bytes()),
         backend_relation.payload.pi_ccs.ccs_outputs.len(),

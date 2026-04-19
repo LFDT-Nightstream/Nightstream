@@ -8,6 +8,7 @@ use neo_fold_next::rv64im::audit::{
     build_rv64im_main_recursion_f_prime_advices_single_step,
     build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
+    debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
     debug_trace_rv64im_main_recursion_construction2_default_pair_for_full_width,
@@ -573,5 +574,49 @@ fn goal2_manual_shape_only_setup_breakdown_probe() {
     print_stage_ms(
         "goal2_probe.shape_only_setup.setup_wall",
         started.elapsed().as_secs_f64() * 1_000.0,
+    );
+}
+
+#[test]
+#[ignore = "manual Goal 2 setup-equivalence probe; run exact with --ignored --nocapture"]
+fn goal2_manual_shape_only_setup_equivalence_probe() {
+    let spartan_shape = single_step_spartan_shape();
+    let backend_relations = fast_structural_backend_relations();
+    let first = backend_relations
+        .first()
+        .expect("setup-equivalence probe requires one backend relation");
+
+    let started = Instant::now();
+    let measured = debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence(spartan_shape, first)
+        .expect("measure recursive-step live-vs-shape-only setup equivalence");
+    print_stage_ms(
+        "goal2_probe.shape_only_setup_equivalence.total_wall",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+    eprintln!(
+        "goal2_probe.shape_only_setup_equivalence.live_shape={:?}",
+        measured.live_shape
+    );
+    eprintln!(
+        "goal2_probe.shape_only_setup_equivalence.shape_only_shape={:?}",
+        measured.shape_only_shape
+    );
+    eprintln!(
+        "goal2_probe.shape_only_setup_equivalence.live_vk_digest={}",
+        measured.live_vk_digest
+    );
+    eprintln!(
+        "goal2_probe.shape_only_setup_equivalence.shape_only_vk_digest={}",
+        measured.shape_only_vk_digest
+    );
+    let _ = io::stderr().flush();
+
+    assert_eq!(
+        measured.shape_only_shape, measured.live_shape,
+        "shape-only recursive-step setup skeleton must match the live first-step circuit shape before setup reuse is trusted"
+    );
+    assert_eq!(
+        measured.shape_only_vk_digest, measured.live_vk_digest,
+        "shape-only recursive-step setup must yield the same verifier key digest as the live first-step circuit"
     );
 }

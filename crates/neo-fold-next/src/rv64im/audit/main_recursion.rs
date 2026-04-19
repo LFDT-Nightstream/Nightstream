@@ -70,9 +70,11 @@ pub use crate::rv64im::main_relation_spartan::{
     debug_check_rv64im_main_recursion_step_spartan_shape_only_chain_parity,
     debug_check_rv64im_main_recursion_x_out_gadget_parity,
     debug_compare_rv64im_main_recursion_step_spartan_shape_only_skeleton,
+    debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
     debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit_shape,
+    debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
     debug_profile_rv64im_main_recursion_step_spartan_compressed_chain_prove_stages,
@@ -95,8 +97,8 @@ pub use crate::rv64im::main_relation_spartan::{
     Rv64imMainRecursionStepSpartanCompressedChainShape, Rv64imMainRecursionStepSpartanError,
     Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanProof,
     Rv64imMainRecursionStepSpartanProverKey, Rv64imMainRecursionStepSpartanPublishedTarget,
-    Rv64imMainRecursionStepSpartanShape, Rv64imMainRecursionStepSpartanStatement,
-    Rv64imMainRecursionStepSpartanVerifierKey,
+    Rv64imMainRecursionStepSpartanSetupEquivalence, Rv64imMainRecursionStepSpartanShape,
+    Rv64imMainRecursionStepSpartanStatement, Rv64imMainRecursionStepSpartanVerifierKey,
 };
 
 pub fn debug_trace_rv64im_main_recursion_construction2_default_pair_for_full_width(

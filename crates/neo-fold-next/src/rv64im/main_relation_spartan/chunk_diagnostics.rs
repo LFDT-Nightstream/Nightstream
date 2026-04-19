@@ -42,9 +42,18 @@ where
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Rv64imMainRelationStateInPrefixFingerprints {
+    pub after_live_state_in_claim_alloc: String,
+    pub per_claim_compute: Vec<String>,
     pub bind_me_input_digests_compute: String,
     pub bind_me_input_digests_transcript: String,
     pub claimed_initial_sum_from_me_inputs: String,
+    pub fe_sumcheck_initial: String,
+    pub fe_sumcheck: String,
+    pub nc_sumcheck_initial: String,
+    pub nc_sumcheck: String,
+    pub relation_digest: String,
+    pub ccs_outputs_and_binding: String,
+    pub terminal_identities: String,
 }
 
 #[allow(dead_code)]
@@ -137,6 +146,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         "state_in_live_claims",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let after_live_state_in_claim_alloc = digest_hex(cs.clone().finish_digest32(0));
     let carried_claims = Rv64imClaimBundle::from_effective_claims(
         live_state_in_claims
             .into_iter()
@@ -146,6 +156,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
 
     let mut me_input_digests = Vec::with_capacity(carried_claims.effective_count());
     let mut me_input_digest_values = Vec::with_capacity(carried_claims.effective_count());
+    let mut per_claim_compute = Vec::with_capacity(carried_claims.effective_count());
     for (idx, claim) in carried_claims.effective_claims().iter().enumerate() {
         me_input_digests.push(
             crate::rv64im::main_relation_circuit::claim::me_digest_poseidon(
@@ -158,6 +169,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         me_input_digest_values.push(crate::rv64im::main_relation_circuit::claim::me_digest_poseidon_values(
             claim,
         ));
+        per_claim_compute.push(digest_hex(cs.clone().finish_digest32(0)));
     }
     let bind_me_input_digests_compute = digest_hex(cs.clone().finish_digest32(0));
 
@@ -186,11 +198,331 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         "claimed_initial_sum_from_me_inputs",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let claimed_initial_sum_from_me_inputs_fingerprint = digest_hex(cs.clone().finish_digest32(0));
+
+    let effective_fresh_claim_count = replay_chunk.fresh_claims.len();
+    let covered_fresh_claims = payload
+        .chunk_cover
+        .fresh_claim_shapes
+        .iter()
+        .enumerate()
+        .map(|(claim_index, shape)| cover_ccs_claim(shape, replay_chunk.fresh_claims.get(claim_index)))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let effective_fresh_claims = &covered_fresh_claims[..effective_fresh_claim_count];
+    let effective_fresh_claim_vars = effective_fresh_claims
+        .iter()
+        .enumerate()
+        .map(|(fresh_index, fresh)| {
+            crate::rv64im::main_relation_circuit::output_binding::alloc_fresh_ccs_claim(
+                &mut cs.namespace(|| format!("fresh_claim_{fresh_index}")),
+                fresh,
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let (initial_sum_fe, initial_sum_fe_value) = claimed_initial_sum_from_me_inputs(
+        &mut cs.namespace(|| "initial_sum_fe"),
+        structure,
+        &public_challenges.alpha,
+        &replay_chunk.pi_ccs.public_challenges.alpha,
+        &public_challenges.gamma,
+        replay_chunk.pi_ccs.public_challenges.gamma,
+        effective_fresh_claim_count,
+        carried_claims.effective_claims(),
+        Rv64imMainRelationCircuit::delta(),
+        "initial_sum_fe",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+
+    transcript
+        .append_const_fields_raw(
+            cs.namespace(|| "fe_sumcheck_domain"),
+            &[SpartanF::from_canonical_u64(PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)],
+        )
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    if carried_claims.effective_count() == 0 {
+        let coeffs = initial_sum_fe_value.as_coeffs();
+        transcript
+            .append_const_fields_raw(
+                cs.namespace(|| "fe_sumcheck_initial_tag"),
+                &[SpartanF::from_canonical_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)],
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+        transcript
+            .append_const_fields_raw(
+                cs.namespace(|| "fe_sumcheck_initial_append"),
+                &[
+                    SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
+                    SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
+                ],
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    } else {
+        append_k_to_transcript(
+            &mut cs.namespace(|| "fe_sumcheck_initial"),
+            &mut transcript,
+            PI_CCS_SUMCHECK_INITIAL_RAW_TAG,
+            &initial_sum_fe,
+            initial_sum_fe_value,
+            "fe_sumcheck_initial",
+        )
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    }
+    let fe_sumcheck_initial = digest_hex(cs.clone().finish_digest32(0));
+
+    let padded_fe_rounds = alloc_rounds(
+        &mut cs.namespace(|| "fe_rounds"),
+        &payload.chunk_cover.fe_round_lengths,
+        &replay_chunk.pi_ccs.replay_proof.sumcheck_rounds,
+        "fe_round",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let fe_round_values = pad_round_values(
+        &payload.chunk_cover.fe_round_lengths,
+        &replay_chunk.pi_ccs.replay_proof.sumcheck_rounds,
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let fe_challenge_values =
+        chunk_sumcheck_challenges(&replay_chunk.pi_ccs.row_chals, &replay_chunk.pi_ccs.alpha_prime);
+    let (fe_challenges, sumcheck_final_fe) = verify_sumcheck_rounds(
+        &mut cs.namespace(|| "fe_sumcheck"),
+        &mut transcript,
+        max_degree_from_cover_round_lengths(&payload.chunk_cover.fe_round_lengths),
+        &initial_sum_fe,
+        &padded_fe_rounds,
+        &fe_round_values,
+        &fe_challenge_values,
+        Rv64imMainRelationCircuit::delta(),
+        "fe_sumcheck",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let fe_sumcheck = digest_hex(cs.clone().finish_digest32(0));
+    let (r_prime_vars, alpha_prime_vars) =
+        split_vec(&fe_challenges, dims.ell_n).map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+
+    let zero_nc = alloc_constant_k(
+        &mut cs.namespace(|| "initial_sum_nc_zero"),
+        KNum::from_neo_k(K::ZERO),
+        "initial_sum_nc_zero",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    transcript
+        .append_const_fields_raw(
+            cs.namespace(|| "nc_sumcheck_domain"),
+            &[SpartanF::from_canonical_u64(PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)],
+        )
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    transcript
+        .append_const_fields_raw(
+            cs.namespace(|| "nc_sumcheck_initial_tag"),
+            &[SpartanF::from_canonical_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)],
+        )
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    transcript
+        .append_const_fields_raw(
+            cs.namespace(|| "nc_sumcheck_initial_append"),
+            &[SpartanF::from_canonical_u64(0), SpartanF::from_canonical_u64(0)],
+        )
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let nc_sumcheck_initial = digest_hex(cs.clone().finish_digest32(0));
+
+    let padded_nc_rounds = alloc_rounds(
+        &mut cs.namespace(|| "nc_rounds"),
+        &payload.chunk_cover.nc_round_lengths,
+        &replay_chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
+        "nc_round",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let nc_round_values = pad_round_values(
+        &payload.chunk_cover.nc_round_lengths,
+        &replay_chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let nc_challenge_values =
+        chunk_sumcheck_challenges(&replay_chunk.pi_ccs.s_col, &replay_chunk.pi_ccs.alpha_prime_nc);
+    let (nc_challenges, sumcheck_final_nc) = verify_sumcheck_rounds(
+        &mut cs.namespace(|| "nc_sumcheck"),
+        &mut transcript,
+        max_degree_from_cover_round_lengths(&payload.chunk_cover.nc_round_lengths),
+        &zero_nc,
+        &padded_nc_rounds,
+        &nc_round_values,
+        &nc_challenge_values,
+        Rv64imMainRelationCircuit::delta(),
+        "nc_sumcheck",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let nc_sumcheck = digest_hex(cs.clone().finish_digest32(0));
+    let (s_col_prime_vars, alpha_prime_nc_vars) =
+        split_vec(&nc_challenges, dims.ell_m).map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+
+    let fold_digest = transcript
+        .digest32(cs.namespace(|| "fold_digest"))
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let chunk_relation_digest_input = alloc_private_field_values(
+        &mut cs.namespace(|| "synthetic_chunk_relation_digest"),
+        &digest32_as_spartan_fields(replay_chunk.handoff.chunk_relation_digest),
+        "synthetic_chunk_relation_digest",
+    )
+    .and_then(|values| {
+        values
+            .try_into()
+            .map_err(|_| bellpepper_core::SynthesisError::Unsatisfiable)
+    })
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let chunk_relation_digest = chunk_relation_digest_circuit(
+        &mut cs.namespace(|| "chunk_relation_digest"),
+        replay_chunk.handoff.public_chunk_digest,
+        &fold_digest,
+        replay_chunk.handoff.bridge_handoff_digest,
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    enforce_digest_eq(
+        &mut cs.namespace(|| "chunk_relation_digest_eq"),
+        &chunk_relation_digest,
+        &chunk_relation_digest_input,
+        "chunk_relation_digest_eq",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let relation_digest = digest_hex(cs.clone().finish_digest32(0));
+
+    let effective_output_count = replay_chunk.pi_ccs.ccs_outputs.len();
+    let mut padded_ccs_outputs = Vec::with_capacity(payload.chunk_cover.ccs_output_shapes.len());
+    for (output_index, shape) in payload.chunk_cover.ccs_output_shapes.iter().enumerate() {
+        let effective_claim = replay_chunk.pi_ccs.ccs_outputs.get(output_index);
+        let output = if output_index < effective_fresh_claim_count {
+            let claim = cover_ce_claim_with_shared_point(
+                shape,
+                effective_claim,
+                &replay_chunk.pi_ccs.row_chals,
+                &replay_chunk.pi_ccs.s_col,
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+            alloc_ce_claim_public_surface_with_shared_point(
+                &mut cs.namespace(|| format!("ccs_output_{output_index}")),
+                &claim,
+                &r_prime_vars,
+                &replay_chunk.pi_ccs.row_chals,
+                &s_col_prime_vars,
+                &replay_chunk.pi_ccs.s_col,
+                &format!("ccs_output_{output_index}"),
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?
+        } else if output_index < effective_output_count {
+            let claim = cover_ce_claim_with_shared_point(
+                shape,
+                effective_claim,
+                &replay_chunk.pi_ccs.row_chals,
+                &replay_chunk.pi_ccs.s_col,
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+            alloc_ce_claim_public_surface_with_shared_point(
+                &mut cs.namespace(|| format!("ccs_output_{output_index}")),
+                &claim,
+                &r_prime_vars,
+                &replay_chunk.pi_ccs.row_chals,
+                &s_col_prime_vars,
+                &replay_chunk.pi_ccs.s_col,
+                &format!("ccs_output_{output_index}"),
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?
+        } else {
+            let mut padded_claim = payload.chunk_cover.parent_claim_shape.zero_claim();
+            padded_claim.r = replay_chunk.pi_ccs.row_chals.clone();
+            padded_claim.s_col = replay_chunk.pi_ccs.s_col.clone();
+            alloc_ce_claim_public_surface_with_shared_point(
+                &mut cs.namespace(|| format!("ccs_output_{output_index}")),
+                &padded_claim,
+                &r_prime_vars,
+                &replay_chunk.pi_ccs.row_chals,
+                &s_col_prime_vars,
+                &replay_chunk.pi_ccs.s_col,
+                &format!("ccs_output_{output_index}"),
+            )
+            .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?
+        };
+        padded_ccs_outputs.push(output);
+    }
+    let ccs_outputs = padded_ccs_outputs[..effective_output_count].to_vec();
+    enforce_me_outputs_against_inputs(
+        &mut cs.namespace(|| "output_binding"),
+        structure,
+        params,
+        &effective_fresh_claim_vars,
+        carried_claims.effective_claims(),
+        &ccs_outputs,
+        &r_prime_vars,
+        &replay_chunk.pi_ccs.row_chals,
+        &s_col_prime_vars,
+        &replay_chunk.pi_ccs.s_col,
+        "output_binding",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let ccs_outputs_and_binding = digest_hex(cs.clone().finish_digest32(0));
+
+    let me_inputs_r_vars = carried_claims
+        .effective_claims()
+        .first()
+        .map(|claim| claim.r.as_slice());
+    let me_inputs_r_values = carried_claims
+        .effective_claims()
+        .first()
+        .map(|claim| claim.r_values.as_slice());
+    let _ = enforce_terminal_identity_fe(
+        &mut cs.namespace(|| "terminal_fe"),
+        &sumcheck_final_fe,
+        structure,
+        &replay_chunk.pi_ccs.public_challenges,
+        &public_challenges.alpha,
+        &public_challenges.beta_a,
+        &public_challenges.beta_r,
+        &public_challenges.gamma,
+        &r_prime_vars,
+        &replay_chunk.pi_ccs.row_chals,
+        &alpha_prime_vars,
+        &replay_chunk.pi_ccs.alpha_prime,
+        &ccs_outputs,
+        effective_fresh_claim_count,
+        me_inputs_r_vars,
+        me_inputs_r_values,
+        Rv64imMainRelationCircuit::delta(),
+        "terminal_fe",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let _ = enforce_terminal_identity_nc(
+        &mut cs.namespace(|| "terminal_nc"),
+        &sumcheck_final_nc,
+        params,
+        &replay_chunk.pi_ccs.public_challenges,
+        &public_challenges.beta_a,
+        &public_challenges.beta_m,
+        &public_challenges.gamma,
+        &s_col_prime_vars,
+        &replay_chunk.pi_ccs.s_col,
+        &alpha_prime_nc_vars,
+        &replay_chunk.pi_ccs.alpha_prime_nc,
+        &ccs_outputs,
+        Rv64imMainRelationCircuit::delta(),
+        "terminal_nc",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    let terminal_identities = digest_hex(cs.clone().finish_digest32(0));
 
     Ok(Rv64imMainRelationStateInPrefixFingerprints {
+        after_live_state_in_claim_alloc,
+        per_claim_compute,
         bind_me_input_digests_compute,
         bind_me_input_digests_transcript,
-        claimed_initial_sum_from_me_inputs: digest_hex(cs.finish_digest32(0)),
+        claimed_initial_sum_from_me_inputs: claimed_initial_sum_from_me_inputs_fingerprint,
+        fe_sumcheck_initial,
+        fe_sumcheck,
+        nc_sumcheck_initial,
+        nc_sumcheck,
+        relation_digest,
+        ccs_outputs_and_binding,
+        terminal_identities,
     })
 }
 
@@ -338,16 +670,19 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &format!("chunk_{chunk_index}_fe_round"),
     )
     .map_err(|err| format!("alloc_fe_rounds: {err}"))?;
-    let fe_rounds = effective_round_var_prefixes(&padded_fe_rounds, &chunk.pi_ccs.replay_proof.sumcheck_rounds)
-        .map_err(|err| format!("effective_fe_round_var_prefixes: {err}"))?;
+    let fe_round_values = pad_round_values(
+        &cover_chunk.fe_round_lengths,
+        &chunk.pi_ccs.replay_proof.sumcheck_rounds,
+    )
+    .map_err(|err| format!("pad_fe_round_values: {err}"))?;
     let fe_challenge_values = chunk_sumcheck_challenges(&chunk.pi_ccs.row_chals, &chunk.pi_ccs.alpha_prime);
     let (fe_challenges, sumcheck_final_fe) = verify_sumcheck_rounds(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_fe_sumcheck")),
         transcript,
-        max_degree(&chunk.pi_ccs.replay_proof.sumcheck_rounds),
+        max_degree_from_cover_round_lengths(&cover_chunk.fe_round_lengths),
         &initial_sum_fe,
-        &fe_rounds,
-        &chunk.pi_ccs.replay_proof.sumcheck_rounds,
+        &padded_fe_rounds,
+        &fe_round_values,
         &fe_challenge_values,
         Rv64imMainRelationCircuit::delta(),
         &format!("chunk_{chunk_index}_fe_sumcheck"),
@@ -390,16 +725,19 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &format!("chunk_{chunk_index}_nc_round"),
     )
     .map_err(|err| format!("alloc_nc_rounds: {err}"))?;
-    let nc_rounds = effective_round_var_prefixes(&padded_nc_rounds, &chunk.pi_ccs.replay_proof.sumcheck_rounds_nc)
-        .map_err(|err| format!("effective_nc_round_var_prefixes: {err}"))?;
+    let nc_round_values = pad_round_values(
+        &cover_chunk.nc_round_lengths,
+        &chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
+    )
+    .map_err(|err| format!("pad_nc_round_values: {err}"))?;
     let nc_challenge_values = chunk_sumcheck_challenges(&chunk.pi_ccs.s_col, &chunk.pi_ccs.alpha_prime_nc);
     let (nc_challenges, sumcheck_final_nc) = verify_sumcheck_rounds(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_nc_sumcheck")),
         transcript,
-        max_degree(&chunk.pi_ccs.replay_proof.sumcheck_rounds_nc),
+        max_degree_from_cover_round_lengths(&cover_chunk.nc_round_lengths),
         &zero_nc,
-        &nc_rounds,
-        &chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
+        &padded_nc_rounds,
+        &nc_round_values,
         &nc_challenge_values,
         Rv64imMainRelationCircuit::delta(),
         &format!("chunk_{chunk_index}_nc_sumcheck"),
@@ -966,16 +1304,19 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &format!("chunk_{chunk_index}_fe_round"),
         )
         .map_err(|err| format!("alloc_fe_rounds: {err}"))?;
-        let fe_rounds = effective_round_var_prefixes(&padded_fe_rounds, &chunk.pi_ccs.replay_proof.sumcheck_rounds)
-            .map_err(|err| format!("effective_fe_round_var_prefixes: {err}"))?;
+        let fe_round_values = pad_round_values(
+            &cover_chunk.fe_round_lengths,
+            &chunk.pi_ccs.replay_proof.sumcheck_rounds,
+        )
+        .map_err(|err| format!("pad_fe_round_values: {err}"))?;
         let fe_challenge_values = chunk_sumcheck_challenges(&chunk.pi_ccs.row_chals, &chunk.pi_ccs.alpha_prime);
         let (fe_challenges, final_fe) = verify_sumcheck_rounds(
             &mut cs.namespace(|| format!("chunk_{chunk_index}_fe_sumcheck")),
             transcript,
-            max_degree(&chunk.pi_ccs.replay_proof.sumcheck_rounds),
+            max_degree_from_cover_round_lengths(&cover_chunk.fe_round_lengths),
             &initial_sum_fe,
-            &fe_rounds,
-            &chunk.pi_ccs.replay_proof.sumcheck_rounds,
+            &padded_fe_rounds,
+            &fe_round_values,
             &fe_challenge_values,
             Rv64imMainRelationCircuit::delta(),
             &format!("chunk_{chunk_index}_fe_sumcheck"),
@@ -1021,16 +1362,19 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &format!("chunk_{chunk_index}_nc_round"),
         )
         .map_err(|err| format!("alloc_nc_rounds: {err}"))?;
-        let nc_rounds = effective_round_var_prefixes(&padded_nc_rounds, &chunk.pi_ccs.replay_proof.sumcheck_rounds_nc)
-            .map_err(|err| format!("effective_nc_round_var_prefixes: {err}"))?;
+        let nc_round_values = pad_round_values(
+            &cover_chunk.nc_round_lengths,
+            &chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
+        )
+        .map_err(|err| format!("pad_nc_round_values: {err}"))?;
         let nc_challenge_values = chunk_sumcheck_challenges(&chunk.pi_ccs.s_col, &chunk.pi_ccs.alpha_prime_nc);
         let (nc_challenges, final_nc) = verify_sumcheck_rounds(
             &mut cs.namespace(|| format!("chunk_{chunk_index}_nc_sumcheck")),
             transcript,
-            max_degree(&chunk.pi_ccs.replay_proof.sumcheck_rounds_nc),
+            max_degree_from_cover_round_lengths(&cover_chunk.nc_round_lengths),
             &zero_nc,
-            &nc_rounds,
-            &chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
+            &padded_nc_rounds,
+            &nc_round_values,
             &nc_challenge_values,
             Rv64imMainRelationCircuit::delta(),
             &format!("chunk_{chunk_index}_nc_sumcheck"),

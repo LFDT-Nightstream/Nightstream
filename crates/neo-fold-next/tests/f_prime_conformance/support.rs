@@ -83,6 +83,42 @@ pub fn single_step_spartan_shape() -> &'static Rv64imMainRecursionStepSpartanSha
     &SINGLE_STEP_BACKEND_BUNDLE.0
 }
 
+pub fn single_step_backend_relations() -> &'static [Rv64imMainRecursionFPrimeBackendRelation] {
+    &SINGLE_STEP_BACKEND_BUNDLE.1
+}
+
+static TWO_STEP_RELATIONS: LazyLock<Vec<Rv64imChunkStepIvcRelation>> = LazyLock::new(|| {
+    let source = build_mixed_opcode_perf_source_case(2);
+    let max_steps = source.program_words.len();
+    let input = Rv64imProofInput { source, max_steps };
+    let options = Rv64imPublicProofOptions {
+        root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+    };
+    let (accepted, _) =
+        prove_rv64im_accepted_proof_with_options(&input, options).expect("prove two-step accepted artifact");
+    let (final_statement, final_proof) =
+        prove_rv64im_final_statement_from_accepted(&accepted).expect("prove two-step final statement");
+    build_rv64im_chunk_step_ivc_relations(&final_statement, &final_proof).expect("build two-step chunk-step relations")
+});
+
+static TWO_STEP_BACKEND_BUNDLE: LazyLock<(
+    Rv64imMainRecursionStepSpartanShape,
+    Vec<Rv64imMainRecursionFPrimeBackendRelation>,
+)> = LazyLock::new(|| {
+    let advices = build_rv64im_main_recursion_f_prime_advices_single_step(&TWO_STEP_RELATIONS)
+        .expect("build two-step native F' advices");
+    build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices(&TWO_STEP_RELATIONS, &advices)
+        .expect("build two-step recursive-step backend relations")
+});
+
+pub fn two_step_backend_relations() -> &'static [Rv64imMainRecursionFPrimeBackendRelation] {
+    &TWO_STEP_BACKEND_BUNDLE.1
+}
+
+pub fn two_step_spartan_shape() -> &'static Rv64imMainRecursionStepSpartanShape {
+    &TWO_STEP_BACKEND_BUNDLE.0
+}
+
 static FAST_STRUCTURAL_RELATIONS: LazyLock<Vec<Rv64imChunkStepIvcRelation>> = LazyLock::new(|| {
     let source = build_mixed_opcode_perf_source_case(0);
     let max_steps = source.program_words.len();

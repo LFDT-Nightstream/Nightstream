@@ -102,9 +102,6 @@ pub use diagnostics::{
     Rv64imMainRecursionStepSpartanSetupEquivalence,
 };
 
-static RV64IM_MAIN_RECURSION_STEP_SETUP_CACHE: OnceLock<
-    Mutex<HashMap<[u8; 32], Rv64imMainRecursionStepSpartanKeyPair>>,
-> = OnceLock::new();
 static RV64IM_MAIN_RECURSION_STEP_SHAPE_ONLY_SETUP_CACHE: OnceLock<
     Mutex<HashMap<[u8; 32], Rv64imMainRecursionStepSpartanKeyPair>>,
 > = OnceLock::new();
@@ -1402,32 +1399,12 @@ pub fn setup_rv64im_main_recursion_step_spartan_shape_cached(
 
 pub fn setup_rv64im_main_recursion_step_spartan_cached(
     spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    _backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanError> {
-    let cache_key = rv64im_main_recursion_step_setup_cache_key(spartan_shape)?;
-    let cache = RV64IM_MAIN_RECURSION_STEP_SETUP_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(keys) = cache
-        .lock()
-        .map_err(|_| {
-            Rv64imMainRecursionStepSpartanError::Setup("rv64im main recursion step setup cache poisoned".into())
-        })?
-        .get(&cache_key)
-        .cloned()
-    {
-        return Ok(keys);
-    }
-    let circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
-    let keys = Arc::new(
-        Rv64imSpartan2DeciderSnark::setup(circuit)
-            .map_err(|err| Rv64imMainRecursionStepSpartanError::Setup(err.to_string()))?,
-    );
-    cache
-        .lock()
-        .map_err(|_| {
-            Rv64imMainRecursionStepSpartanError::Setup("rv64im main recursion step setup cache poisoned".into())
-        })?
-        .insert(cache_key, keys.clone());
-    Ok(keys)
+    // Goal 2 requires a fixed-shape recursive-step circuit. Once the live-vs-
+    // shape-only setup canary is green again, setup should depend only on the
+    // shape and use the shape-only cached circuit, not replay a live payload.
+    setup_rv64im_main_recursion_step_spartan_shape_cached(spartan_shape)
 }
 
 pub fn prove_rv64im_main_recursion_step_spartan(

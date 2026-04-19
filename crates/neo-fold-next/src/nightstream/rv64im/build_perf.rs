@@ -130,11 +130,6 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
             .iter()
             .map(|summary| summary.public_chunk_digest)
             .collect(),
-        verified_kernel
-            .chunk_handoffs
-            .iter()
-            .map(|handoff| handoff.bridge_handoff.digest)
-            .collect(),
     );
     let linkage_claims_ms = elapsed_ms(started);
 
@@ -236,11 +231,8 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
     let side_binding_proof =
         prove_rv64im_side_binding(&side_keys.as_ref().0, &side_statement, &side_public, &claim_witnesses)?;
     let side_binding_prove_ms = elapsed_ms(started);
-    let side_linkage = super::build_rv64im_side_linkage(&side_proof_bundle);
-
     let side_proof = Rv64imSideProof {
         opening_public: side_public,
-        linkage: side_linkage,
         opening_statement: side_opening_statement,
         opening: side_opening_proof,
         binding: side_binding_proof,

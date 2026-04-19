@@ -2,7 +2,7 @@ use neo_fold_next::nightstream::rv64im::audit::{
     build_rv64im_side_opening_relation_from_accepted_artifact, setup_rv64im_side_opening_spartan,
 };
 use neo_fold_next::nightstream::rv64im::{
-    build_rv64im_nightstream_from_public_proof, build_rv64im_side_proof, Rv64imSideBindingStatement, Rv64imSideLinkage,
+    build_rv64im_nightstream_from_public_proof, build_rv64im_side_proof, Rv64imSideBindingStatement,
     Rv64imSideOpeningPublic, Rv64imSideOpeningSpartanVerifierKey, Rv64imSideProof,
 };
 use neo_fold_next::nightstream::NightstreamStatement;
@@ -91,12 +91,6 @@ pub fn refresh_public(instance: &mut Rv64imSideOpeningPublic) {
     instance.digest = instance.expected_digest();
 }
 
-pub fn refresh_side_linkage(linkage: &mut Rv64imSideLinkage) {
-    linkage.kernel_export_bridge_mut().digest = linkage.kernel_export_bridge().expected_digest();
-    *linkage.digest_mut() = linkage.expected_digest();
-}
-
 pub fn refresh_side_proof(side_proof: &mut Rv64imSideProof) {
     refresh_public(side_proof.opening_public_mut());
-    refresh_side_linkage(side_proof.linkage_mut());
 }

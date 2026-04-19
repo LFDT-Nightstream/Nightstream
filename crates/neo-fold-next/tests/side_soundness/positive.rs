@@ -9,8 +9,7 @@ use neo_fold_next::nightstream::rv64im::{
 };
 
 use super::common::{
-    alternate_case_name, build_side_fixture, mutated_statement_with_new_core, refresh_side_linkage, refresh_side_proof,
-    SideFixture,
+    alternate_case_name, build_side_fixture, mutated_statement_with_new_core, refresh_side_proof, SideFixture,
 };
 
 const BASE_CASE: &str = "control_flow_jal_skip_ecall";
@@ -143,21 +142,6 @@ fn rv64im_side_soundness_positive_cross_object_or_slot_replay_is_rejected() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_linkage_rejects_transcript_surface_digest_tamper() {
-    let fixture = build_side_fixture(BASE_CASE);
-    let mut side_proof = fixture.side_proof.clone();
-    side_proof.linkage_mut().transcript_surface_digest_mut()[0] ^= 1;
-    refresh_side_linkage(side_proof.linkage_mut());
-    assert_side_proof_rejected(
-        &fixture,
-        &side_proof,
-        &["kernel-export source surface", "kernel-export bridge"],
-        "tampered transcript surface digest must be rejected",
-    );
-}
-
-#[test]
-#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_side_soundness_positive_linkage_rejects_transcript_final_digest_tamper() {
     let fixture = build_side_fixture(BASE_CASE);
     let mut tampered_public_statement = fixture.public_statement.clone();
@@ -178,39 +162,6 @@ fn rv64im_side_soundness_positive_linkage_rejects_transcript_final_digest_tamper
     assert!(
         err.to_string().contains("transcript final digest") || err.to_string().contains("public statement"),
         "unexpected transcript-final rejection error: {err}"
-    );
-}
-
-#[test]
-#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_linkage_rejects_root_execution_digest_tamper() {
-    let fixture = build_side_fixture(BASE_CASE);
-    let mut side_proof = fixture.side_proof.clone();
-    side_proof.linkage_mut().root_execution_digest_mut()[0] ^= 1;
-    refresh_side_linkage(side_proof.linkage_mut());
-    assert_side_proof_rejected(
-        &fixture,
-        &side_proof,
-        &["root-execution surface"],
-        "tampered root-execution digest must be rejected",
-    );
-}
-
-#[test]
-#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_linkage_rejects_kernel_export_bridge_tamper() {
-    let fixture = build_side_fixture(BASE_CASE);
-    let mut side_proof = fixture.side_proof.clone();
-    side_proof
-        .linkage_mut()
-        .kernel_export_bridge_mut()
-        .main_lane_proof_digest[0] ^= 1;
-    refresh_side_linkage(side_proof.linkage_mut());
-    assert_side_proof_rejected(
-        &fixture,
-        &side_proof,
-        &["kernel-export source surface", "kernel-export bridge"],
-        "tampered kernel-export bridge must be rejected",
     );
 }
 

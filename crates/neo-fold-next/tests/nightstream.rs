@@ -229,23 +229,6 @@ fn rv64im_side_proof_digest_tracks_opening_statement_digest_bytes() {
 }
 
 #[test]
-#[ignore = "expensive manual tamper probe: Nightstream side-proof construction exceeds normal regression budget"]
-fn rv64im_side_proof_digest_tracks_linkage_bytes() {
-    let mut fixture = external_fixture("control_flow_jal_skip_ecall");
-    let baseline = fixture.nightstream_proof.side_proof().expected_digest();
-    fixture
-        .nightstream_proof
-        .side_proof_mut()
-        .linkage_mut()
-        .transcript_surface_digest_mut()[0] ^= 1;
-    assert_ne!(
-        baseline,
-        fixture.nightstream_proof.side_proof().expected_digest(),
-        "Nightstream side-proof digest must bind the carried linkage bytes"
-    );
-}
-
-#[test]
 #[ignore = "expensive manual tamper probe: Nightstream main-proof construction exceeds normal regression budget"]
 fn rv64im_main_proof_tracks_tampered_linkage_anchor_but_ignores_local_kernel_export_cache() {
     let input = proof_input("control_flow_jal_skip_ecall");

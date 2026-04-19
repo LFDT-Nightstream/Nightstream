@@ -197,7 +197,6 @@ impl Rv64imSideStage3Summary {
 pub struct Rv64imSideOpeningRelationStatement {
     pub public_summary: Rv64imSideOpeningPublicStatementSummary,
     pub transcript: Rv64imSideTranscriptSummary,
-    pub root_execution: Rv64imSideRootExecutionSummary,
     pub stage1: Rv64imSideStage1Summary,
     pub stage2: Rv64imSideStage2Summary,
     pub stage3: Rv64imSideStage3Summary,
@@ -216,10 +215,6 @@ impl Rv64imSideOpeningRelationStatement {
             &self.transcript.expected_digest(),
         );
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_opening_spartan_statement/root_execution_digest",
-            &self.root_execution.expected_digest(),
-        );
-        tr.append_message(
             b"neo.fold.next/nightstream/rv64im/side_opening_spartan_statement/stage1_digest",
             &self.stage1.digest,
         );
@@ -234,42 +229,6 @@ impl Rv64imSideOpeningRelationStatement {
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/side_opening_spartan_statement/kernel_opening_bridge_digest",
             &self.kernel_opening_bridge.digest,
-        );
-        tr.digest32()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imSideRootExecutionSummary {
-    pub semantic_rows_digest: [u8; 32],
-    pub row_local_ccs_acceptance_digest: [u8; 32],
-    pub execution_semantics_refinement_digest: [u8; 32],
-    pub family_digest: [u8; 32],
-    pub root_execution_digest: [u8; 32],
-}
-
-impl Rv64imSideRootExecutionSummary {
-    pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/side_opening_root_execution_summary");
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_opening_root_execution_summary/semantic_rows_digest",
-            &self.semantic_rows_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_opening_root_execution_summary/row_local_ccs_acceptance_digest",
-            &self.row_local_ccs_acceptance_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_opening_root_execution_summary/execution_semantics_refinement_digest",
-            &self.execution_semantics_refinement_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_opening_root_execution_summary/family_digest",
-            &self.family_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_opening_root_execution_summary/root_execution_digest",
-            &self.root_execution_digest,
         );
         tr.digest32()
     }
@@ -490,13 +449,6 @@ pub fn build_rv64im_side_opening_relation_statement(
             surface_digest: side_bundle.transcript.digest,
             event_count: side_bundle.transcript.event_count,
             kernel_final_mix: side_bundle.transcript.challenges.kernel_final_mix,
-        },
-        root_execution: Rv64imSideRootExecutionSummary {
-            semantic_rows_digest: side_bundle.semantic_rows_digest,
-            row_local_ccs_acceptance_digest: side_bundle.row_local_ccs_acceptance_digest,
-            execution_semantics_refinement_digest: side_bundle.execution_semantics_refinement_digest,
-            family_digest: side_bundle.family_digest,
-            root_execution_digest: side_bundle.root_execution_digest,
         },
         stage1: Rv64imSideStage1Summary::from_verified_claims(&side_bundle.stage1),
         stage2: Rv64imSideStage2Summary::from_verified_claims(&side_bundle.stage2),

@@ -5,14 +5,11 @@ mod rv64im_n2_support;
 
 use neo_fold_next::nightstream::rv64im::audit::{
     build_rv64im_nightstream_linkage_claims, build_rv64im_nightstream_statement_from_final,
-    build_rv64im_side_opening_relation_from_accepted_artifact,
-    derive_rv64im_kernel_export_source_digest_from_compact_surfaces,
-    derive_rv64im_root_execution_digest_from_compact_surfaces, setup_rv64im_side_binding,
-    setup_rv64im_side_opening_spartan, validate_rv64im_nightstream_linkage_claims,
+    validate_rv64im_nightstream_linkage_claims_against_statement,
 };
 use neo_fold_next::nightstream::rv64im::{
     build_rv64im_bound_side_opening_public_from_accepted_artifact, rv64im_nightstream_linkage_root,
-    rv64im_verifier_context_digest, verify_rv64im_side_proof,
+    rv64im_verifier_context_digest,
 };
 use neo_fold_next::rv64im::{
     build_rv64im_main_proof, build_rv64im_main_proof_with_side_opening_public, verify_rv64im_published_main_proof,
@@ -67,19 +64,9 @@ fn rv64im_bound_side_opening_public_tracks_nightstream_statement_core_digest() {
 }
 
 #[test]
-fn rv64im_side_proof_digest_binds_linkage_and_opening_statement_digest_for_n2_fixture() {
+fn rv64im_side_proof_digest_binds_opening_statement_digest_for_n2_fixture() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
     let baseline = fixture.side_proof.expected_digest();
-
-    let mut tampered_linkage = fixture.side_proof.clone();
-    tampered_linkage
-        .linkage_mut()
-        .transcript_surface_digest_mut()[0] ^= 1;
-    assert_ne!(
-        baseline,
-        tampered_linkage.expected_digest(),
-        "Nightstream side-proof digest must change when carried linkage bytes change"
-    );
 
     let mut tampered_opening_statement_digest = fixture.side_proof.clone();
     tampered_opening_statement_digest
@@ -94,217 +81,20 @@ fn rv64im_side_proof_digest_binds_linkage_and_opening_statement_digest_for_n2_fi
 }
 
 #[test]
-fn rv64im_side_proof_rejects_self_consistent_transcript_surface_tamper_for_n2_fixture() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let (opening_statement, opening_witness) =
-        build_rv64im_side_opening_relation_from_accepted_artifact(&fixture.accepted_artifact)
-            .expect("build side-opening relation");
-    let (_, opening_vk) =
-        setup_rv64im_side_opening_spartan(&opening_statement, &opening_witness).expect("setup side opening");
-    let side_statement = fixture
-        .side_proof
-        .binding_statement(&fixture.nightstream_statement)
-        .expect("build side binding statement");
-    let (_, vk) =
-        setup_rv64im_side_binding(&side_statement, fixture.side_proof.opening_public()).expect("setup side binding");
-
-    verify_rv64im_side_proof(
-        &opening_vk,
-        &vk,
-        &fixture.nightstream_statement,
-        &fixture.accepted_artifact.statement,
-        &fixture.side_proof,
-    )
-    .expect("baseline n=2 side proof must verify");
-
-    let mut tampered_side_proof = fixture.side_proof.clone();
-    {
-        let linkage = tampered_side_proof.linkage_mut();
-        linkage.transcript_surface_digest_mut()[0] ^= 1;
-        let expected_digest = linkage.expected_digest();
-        *linkage.digest_mut() = expected_digest;
-    }
-
-    let err = verify_rv64im_side_proof(
-        &opening_vk,
-        &vk,
-        &fixture.nightstream_statement,
-        &fixture.accepted_artifact.statement,
-        &tampered_side_proof,
-    )
-    .expect_err("self-consistent transcript surface tamper must fail");
-    assert!(
-        err.to_string().contains("kernel-export source surface") || err.to_string().contains("kernel-export bridge"),
-        "unexpected linkage tamper rejection error: {err}"
-    );
-}
-
-#[test]
-fn rv64im_side_proof_rejects_self_consistent_semantic_rows_digest_tamper_for_n2_fixture() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let (opening_statement, opening_witness) =
-        build_rv64im_side_opening_relation_from_accepted_artifact(&fixture.accepted_artifact)
-            .expect("build side-opening relation");
-    let (_, opening_vk) =
-        setup_rv64im_side_opening_spartan(&opening_statement, &opening_witness).expect("setup side opening");
-    let side_statement = fixture
-        .side_proof
-        .binding_statement(&fixture.nightstream_statement)
-        .expect("build side binding statement");
-    let (_, vk) =
-        setup_rv64im_side_binding(&side_statement, fixture.side_proof.opening_public()).expect("setup side binding");
-
-    verify_rv64im_side_proof(
-        &opening_vk,
-        &vk,
-        &fixture.nightstream_statement,
-        &fixture.accepted_artifact.statement,
-        &fixture.side_proof,
-    )
-    .expect("baseline n=2 side proof must verify");
-
-    let mut tampered_side_proof = fixture.side_proof.clone();
-    {
-        let linkage = tampered_side_proof.linkage_mut();
-        linkage.semantic_rows_digest_mut()[0] ^= 1;
-        *linkage.root_execution_digest_mut() = derive_rv64im_root_execution_digest_from_compact_surfaces(
-            &fixture.nightstream_statement,
-            &fixture.accepted_artifact.statement,
-            linkage.semantic_rows_digest(),
-            linkage.row_local_ccs_acceptance_digest(),
-            linkage.execution_semantics_refinement_digest(),
-            linkage.family_digest(),
-        )
-        .expect("recompute self-consistent root-execution digest");
-        linkage
-            .kernel_export_bridge_mut()
-            .kernel_export_source_digest = derive_rv64im_kernel_export_source_digest_from_compact_surfaces(
-            linkage,
-            &fixture.accepted_artifact.statement,
-        )
-        .expect("recompute self-consistent kernel-export source digest");
-        linkage.kernel_export_bridge_mut().digest = linkage.kernel_export_bridge().expected_digest();
-        *linkage.digest_mut() = linkage.expected_digest();
-    }
-
-    let err = verify_rv64im_side_proof(
-        &opening_vk,
-        &vk,
-        &fixture.nightstream_statement,
-        &fixture.accepted_artifact.statement,
-        &tampered_side_proof,
-    )
-    .expect_err("self-consistent semantic-rows digest tamper must fail");
-    assert!(
-        err.to_string().contains("root-execution summary"),
-        "unexpected semantic-rows tamper rejection error: {err}"
-    );
-}
-
-#[test]
-fn rv64im_side_proof_rejects_self_consistent_root_execution_digest_tamper_for_n2_fixture() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let (opening_statement, opening_witness) =
-        build_rv64im_side_opening_relation_from_accepted_artifact(&fixture.accepted_artifact)
-            .expect("build side-opening relation");
-    let (_, opening_vk) =
-        setup_rv64im_side_opening_spartan(&opening_statement, &opening_witness).expect("setup side opening");
-    let side_statement = fixture
-        .side_proof
-        .binding_statement(&fixture.nightstream_statement)
-        .expect("build side binding statement");
-    let (_, vk) =
-        setup_rv64im_side_binding(&side_statement, fixture.side_proof.opening_public()).expect("setup side binding");
-
-    verify_rv64im_side_proof(
-        &opening_vk,
-        &vk,
-        &fixture.nightstream_statement,
-        &fixture.accepted_artifact.statement,
-        &fixture.side_proof,
-    )
-    .expect("baseline n=2 side proof must verify");
-
-    let mut tampered_side_proof = fixture.side_proof.clone();
-    {
-        let linkage = tampered_side_proof.linkage_mut();
-        linkage.root_execution_digest_mut()[0] ^= 1;
-        *linkage.digest_mut() = linkage.expected_digest();
-    }
-
-    let err = verify_rv64im_side_proof(
-        &opening_vk,
-        &vk,
-        &fixture.nightstream_statement,
-        &fixture.accepted_artifact.statement,
-        &tampered_side_proof,
-    )
-    .expect_err("self-consistent root-execution digest tamper must fail");
-    assert!(
-        err.to_string().contains("root-execution surface"),
-        "unexpected root-execution tamper rejection error: {err}"
-    );
-}
-
-#[test]
-fn rv64im_side_proof_rejects_self_consistent_kernel_export_bridge_tamper_for_n2_fixture() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let (opening_statement, opening_witness) =
-        build_rv64im_side_opening_relation_from_accepted_artifact(&fixture.accepted_artifact)
-            .expect("build side-opening relation");
-    let (_, opening_vk) =
-        setup_rv64im_side_opening_spartan(&opening_statement, &opening_witness).expect("setup side opening");
-    let side_statement = fixture
-        .side_proof
-        .binding_statement(&fixture.nightstream_statement)
-        .expect("build side binding statement");
-    let (_, vk) =
-        setup_rv64im_side_binding(&side_statement, fixture.side_proof.opening_public()).expect("setup side binding");
-
-    verify_rv64im_side_proof(
-        &opening_vk,
-        &vk,
-        &fixture.nightstream_statement,
-        &fixture.accepted_artifact.statement,
-        &fixture.side_proof,
-    )
-    .expect("baseline n=2 side proof must verify");
-
-    let mut tampered_side_proof = fixture.side_proof.clone();
-    {
-        let linkage = tampered_side_proof.linkage_mut();
-        linkage.kernel_export_bridge_mut().main_lane_proof_digest[0] ^= 1;
-        linkage.kernel_export_bridge_mut().digest = linkage.kernel_export_bridge().expected_digest();
-        *linkage.digest_mut() = linkage.expected_digest();
-    }
-
-    let err = verify_rv64im_side_proof(
-        &opening_vk,
-        &vk,
-        &fixture.nightstream_statement,
-        &fixture.accepted_artifact.statement,
-        &tampered_side_proof,
-    )
-    .expect_err("self-consistent kernel-export bridge tamper must fail");
-    assert!(
-        err.to_string().contains("kernel-export source surface") || err.to_string().contains("kernel-export bridge"),
-        "unexpected kernel-export tamper rejection error: {err}"
-    );
-}
-
-#[test]
 fn rv64im_nightstream_linkage_claims_reject_tampered_contents_for_n2_fixture() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
     let mut linkage_claims = build_rv64im_nightstream_linkage_claims(&fixture.final_statement, &fixture.final_proof)
         .expect("build Nightstream linkage claims");
-    validate_rv64im_nightstream_linkage_claims(&linkage_claims)
-        .expect("baseline Nightstream linkage claims must validate");
+    validate_rv64im_nightstream_linkage_claims_against_statement(&fixture.nightstream_statement, &linkage_claims)
+        .expect("baseline Nightstream linkage claims must validate against the carried statement");
 
-    linkage_claims.bridge_handoff_digests_mut()[0][0] ^= 1;
-    let err = validate_rv64im_nightstream_linkage_claims(&linkage_claims)
-        .expect_err("tampered linkage claims with stale digest must fail");
+    linkage_claims.public_chunk_digests_mut()[0][0] ^= 1;
+    *linkage_claims.digest_mut() = linkage_claims.expected_digest();
+    let err =
+        validate_rv64im_nightstream_linkage_claims_against_statement(&fixture.nightstream_statement, &linkage_claims)
+            .expect_err("self-consistent linkage-claim tamper must fail against the carried statement");
     assert!(
-        err.to_string().contains("linkage claims digest mismatch"),
+        err.to_string().contains("public-chunk digests"),
         "unexpected linkage-claims rejection error: {err}"
     );
 }

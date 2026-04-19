@@ -31,7 +31,9 @@ use crate::rv64im::main_recursion::{
 };
 use crate::rv64im::recursion_spartan::{
     build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs, prove_rv64im_recursion_proof_from_advices,
-    setup_rv64im_recursion, verify_rv64im_recursion, Rv64imRecursionProof, Rv64imRecursionVerifierKey,
+    setup_rv64im_recursion, validate_rv64im_main_recursion_public_surface_against_published_statement,
+    validate_rv64im_recursion_verifier_key_against_published_statement, verify_rv64im_recursion, Rv64imRecursionProof,
+    Rv64imRecursionVerifierKey,
 };
 
 const RV64IM_CHUNK_SUMMARY_CHAIN_RAW_TAG: u64 = 0x7276_3634_6373756d;
@@ -583,5 +585,18 @@ pub fn verify_rv64im_published_main_proof_with_vk(
 
 pub fn verify_rv64im_main_proof(main_proof: &Rv64imMainProof) -> Result<(), SimpleKernelError> {
     main_proof.validate_final_surface()?;
-    verify_rv64im_published_main_proof(main_proof.published_statement(), main_proof.published_proof())
+    let (_, recursion_vk) = setup_rv64im_recursion()?;
+    validate_rv64im_recursion_verifier_key_against_published_statement(
+        &recursion_vk,
+        main_proof.published_statement(),
+    )?;
+    validate_rv64im_main_recursion_public_surface_against_published_statement(
+        main_proof.published_statement(),
+        main_proof.published_proof(),
+    )?;
+    verify_rv64im_recursion(
+        &recursion_vk,
+        main_proof.published_statement(),
+        main_proof.published_proof(),
+    )
 }

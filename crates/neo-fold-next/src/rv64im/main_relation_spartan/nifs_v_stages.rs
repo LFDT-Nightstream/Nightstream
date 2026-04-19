@@ -256,15 +256,18 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds,
         &format!("chunk_{}_fe_round", ctx.chunk_index),
     )?;
-    let fe_rounds = effective_round_var_prefixes(&padded_fe_rounds, &ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds)?;
+    let fe_round_values = pad_round_values(
+        &ctx.cover_chunk.fe_round_lengths,
+        &ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds,
+    )?;
     let fe_challenge_values = chunk_sumcheck_challenges(&ctx.chunk.pi_ccs.row_chals, &ctx.chunk.pi_ccs.alpha_prime);
     let (fe_challenges, sumcheck_final_fe) = verify_sumcheck_rounds(
         &mut cs.namespace(|| format!("chunk_{}_fe_sumcheck", ctx.chunk_index)),
         transcript,
-        max_degree(&ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds),
+        max_degree_from_cover_round_lengths(&ctx.cover_chunk.fe_round_lengths),
         &initial_sum_fe,
-        &fe_rounds,
-        &ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds,
+        &padded_fe_rounds,
+        &fe_round_values,
         &fe_challenge_values,
         Rv64imMainRelationCircuit::delta(),
         &format!("chunk_{}_fe_sumcheck", ctx.chunk_index),
@@ -294,15 +297,18 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
         &format!("chunk_{}_nc_round", ctx.chunk_index),
     )?;
-    let nc_rounds = effective_round_var_prefixes(&padded_nc_rounds, &ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds_nc)?;
+    let nc_round_values = pad_round_values(
+        &ctx.cover_chunk.nc_round_lengths,
+        &ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
+    )?;
     let nc_challenge_values = chunk_sumcheck_challenges(&ctx.chunk.pi_ccs.s_col, &ctx.chunk.pi_ccs.alpha_prime_nc);
     let (nc_challenges, sumcheck_final_nc) = verify_sumcheck_rounds(
         &mut cs.namespace(|| format!("chunk_{}_nc_sumcheck", ctx.chunk_index)),
         transcript,
-        max_degree(&ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds_nc),
+        max_degree_from_cover_round_lengths(&ctx.cover_chunk.nc_round_lengths),
         &zero_nc,
-        &nc_rounds,
-        &ctx.chunk.pi_ccs.replay_proof.sumcheck_rounds_nc,
+        &padded_nc_rounds,
+        &nc_round_values,
         &nc_challenge_values,
         Rv64imMainRelationCircuit::delta(),
         &format!("chunk_{}_nc_sumcheck", ctx.chunk_index),
@@ -462,7 +468,7 @@ pub(super) fn enforce_synthetic_outer_chunk_relation_public_io<CS: ConstraintSys
     transcript: &mut Poseidon2TranscriptCircuit,
     label: &str,
 ) -> Result<(), SynthesisError> {
-    let synthetic_chunk_relation_digest = alloc_const_field_values(
+    let synthetic_chunk_relation_digest = alloc_private_field_values(
         &mut cs.namespace(|| format!("{label}_synthetic_chunk_relation_digest")),
         &digest32_as_spartan_fields(ctx.chunk.handoff.chunk_relation_digest),
         &format!("{label}_synthetic_chunk_relation_digest"),

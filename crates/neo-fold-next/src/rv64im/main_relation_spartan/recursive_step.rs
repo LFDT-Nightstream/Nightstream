@@ -93,13 +93,19 @@ pub use diagnostics::{
     debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
     debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint,
+    debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
+    debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
     debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, Rv64imMainRecursionStepChunkReplayFingerprint,
+    Rv64imMainRecursionStepSpartanSetupEquivalence,
 };
 
 static RV64IM_MAIN_RECURSION_STEP_SETUP_CACHE: OnceLock<
+    Mutex<HashMap<[u8; 32], Rv64imMainRecursionStepSpartanKeyPair>>,
+> = OnceLock::new();
+static RV64IM_MAIN_RECURSION_STEP_SHAPE_ONLY_SETUP_CACHE: OnceLock<
     Mutex<HashMap<[u8; 32], Rv64imMainRecursionStepSpartanKeyPair>>,
 > = OnceLock::new();
 
@@ -1369,7 +1375,7 @@ pub fn setup_rv64im_main_recursion_step_spartan_shape_cached(
     spartan_shape: &Rv64imMainRecursionStepSpartanShape,
 ) -> Result<Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanError> {
     let cache_key = rv64im_main_recursion_step_setup_cache_key(spartan_shape)?;
-    let cache = RV64IM_MAIN_RECURSION_STEP_SETUP_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let cache = RV64IM_MAIN_RECURSION_STEP_SHAPE_ONLY_SETUP_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Some(keys) = cache
         .lock()
         .map_err(|_| {
@@ -1398,8 +1404,30 @@ pub fn setup_rv64im_main_recursion_step_spartan_cached(
     spartan_shape: &Rv64imMainRecursionStepSpartanShape,
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanError> {
-    let _ = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
-    setup_rv64im_main_recursion_step_spartan_shape_cached(spartan_shape)
+    let cache_key = rv64im_main_recursion_step_setup_cache_key(spartan_shape)?;
+    let cache = RV64IM_MAIN_RECURSION_STEP_SETUP_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(keys) = cache
+        .lock()
+        .map_err(|_| {
+            Rv64imMainRecursionStepSpartanError::Setup("rv64im main recursion step setup cache poisoned".into())
+        })?
+        .get(&cache_key)
+        .cloned()
+    {
+        return Ok(keys);
+    }
+    let circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
+    let keys = Arc::new(
+        Rv64imSpartan2DeciderSnark::setup(circuit)
+            .map_err(|err| Rv64imMainRecursionStepSpartanError::Setup(err.to_string()))?,
+    );
+    cache
+        .lock()
+        .map_err(|_| {
+            Rv64imMainRecursionStepSpartanError::Setup("rv64im main recursion step setup cache poisoned".into())
+        })?
+        .insert(cache_key, keys.clone());
+    Ok(keys)
 }
 
 pub fn prove_rv64im_main_recursion_step_spartan(

@@ -60,15 +60,30 @@ pub fn bind_header_and_instance_digest<CS: ConstraintSystem<SpartanF>>(
             header_bundle_fields[3],
         ],
     )?;
-    tr.append_const_fields_raw(
+    let instance_digest_vars = instance_digest_fields
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| AllocatedNum::alloc(cs.namespace(|| format!("instance_digest_{idx}")), || Ok(*value)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut field_terms = Vec::with_capacity(1 + instance_digest_vars.len());
+    let mut field_constants = Vec::with_capacity(1 + instance_digest_vars.len());
+    let mut field_values = Vec::with_capacity(1 + instance_digest_vars.len());
+    field_terms.push(Vec::new());
+    field_constants.push(SpartanF::from_canonical_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG));
+    field_values.push(SpartanF::from_canonical_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG));
+    for (num, value) in instance_digest_vars
+        .iter()
+        .zip(instance_digest_fields.iter())
+    {
+        field_terms.push(vec![(num.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(*value);
+    }
+    tr.append_field_linear_combinations_raw(
         cs.namespace(|| "instance_digest"),
-        &[
-            SpartanF::from_canonical_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG),
-            instance_digest_fields[0],
-            instance_digest_fields[1],
-            instance_digest_fields[2],
-            instance_digest_fields[3],
-        ],
+        &field_terms,
+        &field_constants,
+        &field_values,
     )?;
     Ok(())
 }

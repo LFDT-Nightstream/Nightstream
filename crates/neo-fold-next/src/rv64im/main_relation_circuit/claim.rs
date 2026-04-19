@@ -9,7 +9,7 @@ use p3_field::PrimeCharacteristicRing;
 use p3_field::PrimeField64;
 use spartan2::provider::goldi::F as SpartanF;
 
-use super::k_field::{alloc_k, KNum, KNumVar};
+use super::k_field::{alloc_k, enforce_k_eq, KNum, KNumVar};
 use super::transcript::hash_field_linear_combinations_raw;
 
 #[derive(Clone)]
@@ -525,7 +525,6 @@ pub fn alloc_ce_claim_point_only_with_shared_point(
     {
         return Err(SynthesisError::Unsatisfiable);
     }
-
     Ok(CeClaimVar {
         c_data: Vec::new(),
         c_data_values: c_data_values.to_vec(),
@@ -746,6 +745,26 @@ fn extend_k_slice_prefix_as_lc_fields(
     )
 }
 
+fn alloc_claim_scalar_as_lc_field<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    value: u64,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    let scalar = SpartanF::from_canonical_u64(value);
+    let allocated = AllocatedNum::alloc(cs.namespace(|| label.to_string()), || Ok(scalar))?;
+    push_variable_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        allocated.get_variable(),
+        scalar,
+    );
+    Ok(())
+}
+
 pub fn me_digest_poseidon<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     claim: &CeClaimVar,
@@ -834,24 +853,30 @@ pub fn me_digest_poseidon<CS: ConstraintSystem<SpartanF>>(
         &claim.c_step_coords,
         &claim.c_step_coords_values,
     )?;
-    push_constant_lc_field(
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_m_in")),
         &mut field_terms,
         &mut field_constants,
         &mut field_values,
-        SpartanF::from_canonical_u64(claim.m_in as u64),
-    );
-    push_constant_lc_field(
+        claim.m_in as u64,
+        "m_in",
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_u_offset")),
         &mut field_terms,
         &mut field_constants,
         &mut field_values,
-        SpartanF::from_canonical_u64(claim.u_offset as u64),
-    );
-    push_constant_lc_field(
+        claim.u_offset as u64,
+        "u_offset",
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_u_len")),
         &mut field_terms,
         &mut field_constants,
         &mut field_values,
-        SpartanF::from_canonical_u64(claim.u_len as u64),
-    );
+        claim.u_len as u64,
+        "u_len",
+    )?;
     extend_allocated_slice_as_lc_fields(
         &mut field_terms,
         &mut field_constants,
@@ -969,24 +994,30 @@ pub fn me_digest_poseidon_with_native_claim<CS: ConstraintSystem<SpartanF>>(
         &claim.c_step_coords,
         &native_claim.c_step_coords,
     )?;
-    push_constant_lc_field(
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_m_in")),
         &mut field_terms,
         &mut field_constants,
         &mut field_values,
-        SpartanF::from_canonical_u64(native_claim.m_in as u64),
-    );
-    push_constant_lc_field(
+        native_claim.m_in as u64,
+        "m_in",
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_u_offset")),
         &mut field_terms,
         &mut field_constants,
         &mut field_values,
-        SpartanF::from_canonical_u64(native_claim.u_offset as u64),
-    );
-    push_constant_lc_field(
+        native_claim.u_offset as u64,
+        "u_offset",
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_u_len")),
         &mut field_terms,
         &mut field_constants,
         &mut field_values,
-        SpartanF::from_canonical_u64(native_claim.u_len as u64),
-    );
+        native_claim.u_len as u64,
+        "u_len",
+    )?;
     extend_allocated_slice_as_lc_fields(
         &mut field_terms,
         &mut field_constants,
@@ -1137,6 +1168,73 @@ pub fn enforce_claim_eq_native<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
+pub fn enforce_claim_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaimVar,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    enforce_f_slice_eq(
+        &mut cs.namespace(|| "c_data"),
+        &actual.c_data,
+        &expected.c_data,
+        &format!("{label}_c_data"),
+    )?;
+    enforce_f_slice_eq(&mut cs.namespace(|| "x"), &actual.x, &expected.x, &format!("{label}_x"))?;
+    enforce_k_slice_eq(&mut cs.namespace(|| "r"), &actual.r, &expected.r, &format!("{label}_r"))?;
+    enforce_k_slice_eq(
+        &mut cs.namespace(|| "s_col"),
+        &actual.s_col,
+        &expected.s_col,
+        &format!("{label}_s_col"),
+    )?;
+    if actual.y_ring.len() != expected.y_ring.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (row_idx, (actual_row, expected_row)) in actual.y_ring.iter().zip(expected.y_ring.iter()).enumerate() {
+        enforce_k_slice_eq(
+            &mut cs.namespace(|| format!("y_ring_{row_idx}")),
+            actual_row,
+            expected_row,
+            &format!("{label}_y_ring_{row_idx}"),
+        )?;
+    }
+    enforce_k_slice_eq(
+        &mut cs.namespace(|| "ct"),
+        &actual.ct,
+        &expected.ct,
+        &format!("{label}_ct"),
+    )?;
+    enforce_k_slice_eq(
+        &mut cs.namespace(|| "aux_openings"),
+        &actual.aux_openings,
+        &expected.aux_openings,
+        &format!("{label}_aux_openings"),
+    )?;
+    enforce_k_slice_eq(
+        &mut cs.namespace(|| "y_zcol"),
+        &actual.y_zcol,
+        &expected.y_zcol,
+        &format!("{label}_y_zcol"),
+    )?;
+    enforce_f_slice_eq(
+        &mut cs.namespace(|| "c_step_coords"),
+        &actual.c_step_coords,
+        &expected.c_step_coords,
+        &format!("{label}_c_step_coords"),
+    )?;
+    enforce_f_slice_eq(
+        &mut cs.namespace(|| "fold_digest"),
+        &actual.fold_digest_encoding,
+        &expected.fold_digest_encoding,
+        &format!("{label}_fold_digest"),
+    )?;
+    if actual.m_in != expected.m_in || actual.u_offset != expected.u_offset || actual.u_len != expected.u_len {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    Ok(())
+}
+
 pub fn packed_bytes_field_values(bytes: &[u8]) -> Vec<SpartanF> {
     const BYTES_PER_LIMB: usize = 7;
     let mut out = Vec::with_capacity(1 + bytes.len().div_ceil(BYTES_PER_LIMB));
@@ -1258,6 +1356,26 @@ fn enforce_f_slice_eq_native<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
+fn enforce_f_slice_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &[AllocatedNum<SpartanF>],
+    expected: &[AllocatedNum<SpartanF>],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.len() != expected.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+        cs.enforce(
+            || format!("{label}_{idx}_eq"),
+            |lc| lc + actual.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + expected.get_variable(),
+        );
+    }
+    Ok(())
+}
+
 fn extend_k_slice_values(dst: &mut Vec<SpartanF>, values: &[K]) {
     dst.push(SpartanF::from_canonical_u64(values.len() as u64));
     let coeff_len = values
@@ -1294,6 +1412,26 @@ fn enforce_k_slice_eq_native<CS: ConstraintSystem<SpartanF>>(
             |lc| lc + actual.c1,
             |lc| lc + CS::one(),
             |lc| lc + (expected.c1, CS::one()),
+        );
+    }
+    Ok(())
+}
+
+fn enforce_k_slice_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &[KNumVar],
+    expected: &[KNumVar],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.len() != expected.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+        enforce_k_eq(
+            &mut cs.namespace(|| format!("{label}_{idx}")),
+            actual,
+            expected,
+            &format!("{label}_{idx}"),
         );
     }
     Ok(())

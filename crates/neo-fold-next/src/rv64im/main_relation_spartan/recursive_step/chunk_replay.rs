@@ -20,7 +20,7 @@ use super::super::{
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
-use crate::rv64im::main_relation_circuit::claim::enforce_claim_eq_native;
+use crate::rv64im::main_relation_circuit::claim::enforce_claim_eq;
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_spartan::chunk_step_recursive::Rv64imMainRecursionFPrimePayload;
 
@@ -92,25 +92,6 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         None,
         payload.boundary_plan,
     )?;
-    if replayed_next_claims.effective_count() != witness.fresh_state_out().carry.main.claims.len() {
-        mark_unsatisfied(
-            &mut cs.namespace(|| "payload_replayed_effective_claim_count_mismatch"),
-            "payload_replayed_effective_claim_count_mismatch",
-        )?;
-    }
-    for (claim_index, (replayed_claim, expected_claim)) in replayed_next_claims
-        .effective_claims()
-        .iter()
-        .zip(witness.fresh_state_out().carry.main.claims.iter())
-        .enumerate()
-    {
-        enforce_claim_eq_native(
-            &mut cs.namespace(|| format!("payload_state_out_claim_eq_{claim_index}")),
-            replayed_claim,
-            expected_claim,
-            &format!("payload_state_out_claim_eq_{claim_index}"),
-        )?;
-    }
     let expected_state_out_claims = alloc_recursive_cover_claims(
         &mut cs.namespace(|| "state_out_expected_claims"),
         &payload.state_out_claims,
@@ -120,6 +101,25 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         .into_iter()
         .map(|claim| claim.claim)
         .collect::<Vec<_>>();
+    if replayed_next_claims.effective_count() != expected_state_out_claim_vars.len() {
+        mark_unsatisfied(
+            &mut cs.namespace(|| "payload_replayed_effective_claim_count_mismatch"),
+            "payload_replayed_effective_claim_count_mismatch",
+        )?;
+    }
+    for (claim_index, (replayed_claim, expected_claim)) in replayed_next_claims
+        .effective_claims()
+        .iter()
+        .zip(expected_state_out_claim_vars.iter())
+        .enumerate()
+    {
+        enforce_claim_eq(
+            &mut cs.namespace(|| format!("payload_state_out_claim_eq_{claim_index}")),
+            replayed_claim,
+            expected_claim,
+            &format!("payload_state_out_claim_eq_{claim_index}"),
+        )?;
+    }
     let live_folded_accumulator_out_digest = recursive_accumulator_instance_digest_circuit_from_claims(
         &mut cs.namespace(|| "live_folded_accumulator_out_digest"),
         replayed_next_claims.effective_claims(),
@@ -159,11 +159,15 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         );
     }
     let replayed_absorbed = SpartanF::from_canonical_u64(replayed_transcript.absorbed() as u64);
+    let replayed_absorbed_var =
+        AllocatedNum::alloc(cs.namespace(|| "payload_transcript_absorbed_out_expected"), || {
+            Ok(replayed_absorbed)
+        })?;
     cs.enforce(
         || "payload_transcript_absorbed_out",
         |lc| lc + state_out_var.transcript_absorbed.get_variable(),
         |lc| lc + CS::one(),
-        |lc| lc + (replayed_absorbed, CS::one()),
+        |lc| lc + replayed_absorbed_var.get_variable(),
     );
 
     Ok(Rv64imMainRecursionStepChunkReplayOutput {

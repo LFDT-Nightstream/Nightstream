@@ -41,7 +41,7 @@ use crate::rv64im::main_relation_circuit::claim::{
     alloc_ce_claim, alloc_ce_claim_public_surface_with_shared_point, alloc_ce_claim_with_shared_point, CeClaimVar,
 };
 use crate::rv64im::main_relation_circuit::initial_sum::claimed_initial_sum_from_me_inputs;
-use crate::rv64im::main_relation_circuit::k_field::{alloc_constant_k, KNum, KNumVar};
+use crate::rv64im::main_relation_circuit::k_field::{alloc_constant_k, alloc_k, KNum, KNumVar};
 use crate::rv64im::main_relation_circuit::output_binding::enforce_me_outputs_against_inputs;
 use crate::rv64im::main_relation_circuit::pi_ccs::{
     bind_header_and_instance_digest, bind_me_inputs, sample_challenges,
@@ -160,9 +160,11 @@ pub use recursive_step::{
     debug_check_rv64im_main_recursion_x_out_gadget_parity,
     debug_compare_rv64im_main_recursion_step_spartan_shape_only_skeleton,
     debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint,
+    debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
     debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit_shape,
+    debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
     debug_profile_rv64im_main_recursion_step_spartan_compressed_chain_prove_stages,
@@ -181,7 +183,7 @@ pub use recursive_step::{
     Rv64imMainRecursionStepSpartanCompressedChainShape, Rv64imMainRecursionStepSpartanError,
     Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanProof,
     Rv64imMainRecursionStepSpartanProverKey, Rv64imMainRecursionStepSpartanPublishedTarget,
-    Rv64imMainRecursionStepSpartanVerifierKey,
+    Rv64imMainRecursionStepSpartanSetupEquivalence, Rv64imMainRecursionStepSpartanVerifierKey,
 };
 pub use step_statement::Rv64imMainRecursionStepSpartanStatement;
 
@@ -873,28 +875,35 @@ fn alloc_rounds<CS: ConstraintSystem<SpartanF>>(
             (0..(*cover_len as usize))
                 .map(|coeff_idx| {
                     let coeff = effective.get(coeff_idx).copied().unwrap_or(K::ZERO);
-                    alloc_constant_k(cs, KNum::from_neo_k(coeff), &format!("{label}_{round_idx}_{coeff_idx}"))
+                    alloc_k(
+                        cs,
+                        Some(KNum::from_neo_k(coeff)),
+                        &format!("{label}_{round_idx}_{coeff_idx}"),
+                    )
                 })
                 .collect()
         })
         .collect()
 }
 
-fn effective_round_var_prefixes(
-    padded_rounds: &[Vec<KNumVar>],
-    effective_rounds: &[Vec<K>],
-) -> Result<Vec<Vec<KNumVar>>, SynthesisError> {
-    if padded_rounds.len() < effective_rounds.len() {
+fn pad_round_values(cover_round_lengths: &[u64], effective_rounds: &[Vec<K>]) -> Result<Vec<Vec<K>>, SynthesisError> {
+    if cover_round_lengths.len() < effective_rounds.len() {
         return Err(SynthesisError::Unsatisfiable);
     }
-    padded_rounds
+    cover_round_lengths
         .iter()
-        .zip(effective_rounds.iter())
-        .map(|(padded_round, effective_round)| {
-            if padded_round.len() < effective_round.len() {
+        .enumerate()
+        .map(|(round_idx, cover_len)| {
+            let effective = effective_rounds
+                .get(round_idx)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            if effective.len() > *cover_len as usize {
                 return Err(SynthesisError::Unsatisfiable);
             }
-            Ok(padded_round[..effective_round.len()].to_vec())
+            let mut out = effective.to_vec();
+            out.resize(*cover_len as usize, K::ZERO);
+            Ok(out)
         })
         .collect()
 }
@@ -903,6 +912,15 @@ fn max_degree(rounds: &[Vec<K>]) -> usize {
     rounds
         .iter()
         .map(|round| round.len().saturating_sub(1))
+        .max()
+        .unwrap_or(0)
+}
+
+fn max_degree_from_cover_round_lengths(round_lengths: &[u64]) -> usize {
+    round_lengths
+        .iter()
+        .copied()
+        .map(|len| len.saturating_sub(1) as usize)
         .max()
         .unwrap_or(0)
 }
@@ -989,13 +1007,13 @@ fn chunk_relation_digest_circuit<CS: ConstraintSystem<SpartanF>>(
         &[SpartanF::from_canonical_u64(RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG)],
         "chunk_relation_digest_domain",
     )?);
-    preimage.extend(alloc_const_field_values(
+    preimage.extend(alloc_private_field_values(
         cs,
         &digest32_as_spartan_fields(public_chunk_digest),
         "chunk_relation_digest_public_chunk",
     )?);
     preimage.extend(main_relation_digest.iter().cloned());
-    preimage.extend(alloc_const_field_values(
+    preimage.extend(alloc_private_field_values(
         cs,
         &digest32_as_spartan_fields(bridge_handoff_digest),
         "chunk_relation_digest_bridge",

@@ -7,6 +7,7 @@
 use std::io::{self, Write};
 use std::time::Instant;
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ajtai::Commitment;
@@ -20,7 +21,6 @@ use neo_reductions::engines::utils::{
 };
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::claim::{
     me_digest_poseidon, me_digest_poseidon_values, me_digest_poseidon_values_from_native_claim,

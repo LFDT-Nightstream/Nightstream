@@ -188,7 +188,6 @@ pub struct RootMainLanePackagedProofProvePerf {
     pub total_ms: f64,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Debug, Default)]
 pub struct RootMainLaneRunProofProvePerf {
     pub prepare_steps_ms: f64,
@@ -212,7 +211,6 @@ pub struct RootMainLanePackagedProofVerifyPerf {
     pub total_ms: f64,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Debug, Default)]
 pub struct RootMainLaneRunProofVerifyPerf {
     pub prepare_public_steps_ms: f64,

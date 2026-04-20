@@ -1,4 +1,7 @@
 //! Owns the fixed RV64IM recursion-shape surface used to key deterministic setup.
+//!
+//! This module does not own the live kernel `params.k_rho` pin. Its `soundness_*`
+//! fields describe the fixed recursive-shape family compiled into `F'` / `vk_fs`.
 
 use core::hash::{Hash, Hasher};
 use std::collections::{BTreeMap, BTreeSet};
@@ -14,10 +17,10 @@ use crate::rv64im::kernel::{
     phase0_family_order, rv64im_cached_root_main_lane_context, FamilyEvalSchemaId, SimpleKernelError,
 };
 
-pub const RV64IM_RECURSION_K: u32 = 14;
-pub const RV64IM_RECURSION_BIG_K: u32 = 1;
+pub const RV64IM_RECURSION_SHAPE_SOUNDNESS_K: u32 = 14;
+pub const RV64IM_RECURSION_SHAPE_SOUNDNESS_BIG_K: u32 = 1;
 pub const RV64IM_RECURSION_B: u8 = 2;
-pub const RV64IM_RECURSION_K_DECOMP: u8 = 14;
+pub const RV64IM_RECURSION_SHAPE_DECOMPOSITION_K: u8 = 14;
 pub const RV64IM_RECURSION_SOUNDNESS_T: u32 = 216;
 
 const RV64IM_STAGE1_PHASE0_SLOT_COUNT: u32 = 4;
@@ -41,15 +44,15 @@ pub const RV64IM_RECURSION_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct RecursionShape {
-    pub k: u32,
-    pub big_k: u32,
+    pub soundness_k: u32,
+    pub soundness_big_k: u32,
     pub t_matrices: u32,
     pub log_m: u32,
     pub d_sc: u32,
     pub n_R: u32,
     pub n_R_in: u32,
     pub b: u8,
-    pub k_decomp: u8,
+    pub decomposition_k: u8,
     pub side_families_active: BTreeSet<FamilyEvalSchemaId>,
     pub side_slots_per_family: BTreeMap<FamilyEvalSchemaId, u32>,
     pub version: ProtocolVersion,
@@ -57,15 +60,15 @@ pub struct RecursionShape {
 
 impl Hash for RecursionShape {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.k.hash(state);
-        self.big_k.hash(state);
+        self.soundness_k.hash(state);
+        self.soundness_big_k.hash(state);
         self.t_matrices.hash(state);
         self.log_m.hash(state);
         self.d_sc.hash(state);
         self.n_R.hash(state);
         self.n_R_in.hash(state);
         self.b.hash(state);
-        self.k_decomp.hash(state);
+        self.decomposition_k.hash(state);
         for schema in &self.side_families_active {
             schema.tag().hash(state);
         }
@@ -85,15 +88,15 @@ impl RecursionShape {
             &[
                 self.version.major as u64,
                 self.version.minor as u64,
-                self.k as u64,
-                self.big_k as u64,
+                self.soundness_k as u64,
+                self.soundness_big_k as u64,
                 self.t_matrices as u64,
                 self.log_m as u64,
                 self.d_sc as u64,
                 self.n_R as u64,
                 self.n_R_in as u64,
                 self.b as u64,
-                self.k_decomp as u64,
+                self.decomposition_k as u64,
                 self.side_families_active.len() as u64,
                 self.side_slots_per_family.len() as u64,
             ],
@@ -119,9 +122,9 @@ impl RecursionShape {
         }
 
         let big_b = (self.b as u64)
-            .checked_pow(self.k_decomp as u32)
+            .checked_pow(self.decomposition_k as u32)
             .unwrap_or(u64::MAX);
-        let k_plus_big_k = self.k.saturating_add(self.big_k);
+        let k_plus_big_k = self.soundness_k.saturating_add(self.soundness_big_k);
         let lhs =
             (k_plus_big_k as u128) * (RV64IM_RECURSION_SOUNDNESS_T as u128) * ((self.b as u128).saturating_sub(1));
         if lhs >= big_b as u128 {
@@ -165,15 +168,15 @@ pub fn build_rv64im_recursion_shape() -> Result<RecursionShape, SimpleKernelErro
         .collect::<BTreeMap<_, _>>();
 
     let shape = RecursionShape {
-        k: RV64IM_RECURSION_K,
-        big_k: RV64IM_RECURSION_BIG_K,
+        soundness_k: RV64IM_RECURSION_SHAPE_SOUNDNESS_K,
+        soundness_big_k: RV64IM_RECURSION_SHAPE_SOUNDNESS_BIG_K,
         t_matrices: structure.t() as u32,
         log_m: dims.ell_m as u32,
         d_sc: dims.d_sc as u32,
         n_R: ceil_div_usize(structure.n, D) as u32,
         n_R_in: ceil_div_usize(RV64IM_ROOT_PUBLIC_INPUTS, D) as u32,
         b: RV64IM_RECURSION_B,
-        k_decomp: RV64IM_RECURSION_K_DECOMP,
+        decomposition_k: RV64IM_RECURSION_SHAPE_DECOMPOSITION_K,
         side_families_active,
         side_slots_per_family,
         version: RV64IM_RECURSION_PROTOCOL_VERSION,

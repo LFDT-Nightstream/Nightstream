@@ -1,8 +1,8 @@
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use neo_math::{KExtensions, K};
 use p3_field::PrimeField64;
-use spartan2::provider::goldi::F as SpartanF;
 
+use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::main_relation_circuit::k_field::KNumVar;
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 

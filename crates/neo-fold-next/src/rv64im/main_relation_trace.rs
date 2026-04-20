@@ -8,17 +8,17 @@ use neo_ajtai::{AjtaiSModule, Commitment};
 use neo_ccs::{build_superneo_ring_forms, CcsClaim, CcsStructure, CcsWitness, Mat, SModuleHomomorphism};
 use neo_math::{balanced::to_balanced_i128, KExtensions, D, F, K};
 use neo_params::NeoParams;
+use neo_reductions::api::{rlc_public, sample_rot_rhos_n_typed, RotRing};
 use neo_reductions::common::{
     compute_y_zcol_from_witness, compute_y_zcol_from_witness_digits, decode_superneo_coeffs_from_witness_mat,
 };
-use neo_reductions::engines::utils::{
-    bind_header_and_instance_digest_with_digest, build_dims_and_policy, digest_ccs_matrices_with_sparse_cache, Dims,
-    PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG, PI_CCS_SUMCHECK_INITIAL_RAW_TAG, PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG,
+use neo_reductions::engines::utils::{build_dims_and_policy, Dims};
+use neo_reductions::optimized_engine::{
+    optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf, Challenges, OptimizedStructureCache,
+    PiCcsReplayProofWitness, PiCcsReplayTerminalState,
 };
-use neo_reductions::optimized_engine::{Challenges, OptimizedStructureCache, PiCcsReplayProofWitness};
 use neo_transcript::Poseidon2Transcript;
-use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
 use crate::chunk_relation::ChunkReplayWitness;
@@ -28,7 +28,7 @@ use crate::rv64im::chunk_fold_step::Rv64imChunkFoldCarry;
 use crate::rv64im::chunk_relation::{trace_rv64im_chunk_relation_with_replay, Rv64imChunkRelationTrace};
 use crate::rv64im::final_relation::{rv64im_chunk_fold_carried_transcript_snapshot, Rv64imChunkFoldTranscriptSnapshot};
 use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
+    rv64im_ajtai_mixers, rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
     Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 use crate::rv64im::main_relation_circuit::structure::pad_ccs_structure_to_block_width;
@@ -48,8 +48,6 @@ pub(crate) struct Rv64imMainCircuitHandoff {
 #[derive(Clone, Debug)]
 pub(crate) struct Rv64imMainCircuitChunkTrace {
     pub(crate) handoff: Rv64imMainCircuitHandoff,
-    pub(crate) transcript_in: Rv64imChunkFoldTranscriptSnapshot,
-    pub(crate) state_in_claims: Vec<neo_ccs::CeClaim<Commitment, F, K>>,
     pub(crate) fresh_claims: Vec<CcsClaim<Commitment, F>>,
     pub(crate) fresh_witnesses: Vec<CcsWitness<F>>,
     pub(crate) ccs_trace: Rv64imChunkRelationTrace,
@@ -96,12 +94,17 @@ impl Rv64imMainCircuitChunkTrace {
 
     pub(crate) fn replay_surface(&self) -> Result<Rv64imMainCircuitChunkReplaySurface, SimpleKernelError> {
         build_rv64im_main_circuit_chunk_replay_surface(
-            &self.transcript_in,
             &self.handoff,
             &self.fresh_claims,
-            &self.state_in_claims,
-            self.ccs_trace.ccs_outputs.clone(),
-            self.ccs_trace.ccs_replay_proof.clone(),
+            build_rv64im_main_circuit_pi_ccs_replay_surface(
+                self.ccs_trace.ccs_outputs.clone(),
+                self.ccs_trace.ccs_replay_proof.clone(),
+                self.ccs_trace.terminal_state.challenges_public.clone(),
+                self.ccs_trace.terminal_state.row_chals.clone(),
+                self.ccs_trace.terminal_state.alpha_prime.clone(),
+                self.ccs_trace.terminal_state.s_col.clone(),
+                self.ccs_trace.terminal_state.alpha_prime_nc.clone(),
+            ),
             self.ccs_trace.parent.clone(),
             self.ccs_trace.children.clone(),
         )
@@ -109,70 +112,39 @@ impl Rv64imMainCircuitChunkTrace {
 }
 
 pub(crate) fn build_rv64im_main_circuit_chunk_replay_surface(
-    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
     handoff: &Rv64imMainCircuitHandoff,
     fresh_claims: &[CcsClaim<Commitment, F>],
-    state_in_claims: &[neo_ccs::CeClaim<Commitment, F, K>],
-    ccs_outputs: Vec<neo_ccs::CeClaim<Commitment, F, K>>,
-    replay_proof: PiCcsReplayProofWitness,
+    pi_ccs: Rv64imMainCircuitPiCcsReplaySurface,
     parent: neo_ccs::CeClaim<Commitment, F, K>,
     children: Vec<neo_ccs::CeClaim<Commitment, F, K>>,
 ) -> Result<Rv64imMainCircuitChunkReplaySurface, SimpleKernelError> {
     Ok(Rv64imMainCircuitChunkReplaySurface {
         handoff: handoff.clone(),
         fresh_claims: fresh_claims.to_vec(),
-        pi_ccs: derive_rv64im_main_circuit_pi_ccs_replay_surface(
-            transcript_in,
-            handoff,
-            fresh_claims,
-            state_in_claims,
-            ccs_outputs,
-            replay_proof,
-        )?,
+        pi_ccs,
         pi_rlc: Rv64imMainCircuitPiRlcReplaySurface { parent },
         pi_dec: Rv64imMainCircuitPiDecReplaySurface { children },
     })
 }
 
-pub(crate) fn derive_rv64im_main_circuit_pi_ccs_replay_surface(
-    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
-    handoff: &Rv64imMainCircuitHandoff,
-    fresh_claims: &[CcsClaim<Commitment, F>],
-    me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
+pub(crate) fn build_rv64im_main_circuit_pi_ccs_replay_surface(
     ccs_outputs: Vec<neo_ccs::CeClaim<Commitment, F, K>>,
     replay_proof: PiCcsReplayProofWitness,
-) -> Result<Rv64imMainCircuitPiCcsReplaySurface, SimpleKernelError> {
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()?;
-    let dims = build_dims_and_policy(params, structure)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
-    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let mat_digest_vec = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()));
-    let mat_digest: [Goldilocks; 4] = mat_digest_vec
-        .try_into()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main relation matrix digest length mismatch".into()))?;
-    let mut replay_transcript =
-        Poseidon2Transcript::from_state_and_absorbed(transcript_in.state, transcript_in.absorbed);
-    append_chunk_meta_native(&mut replay_transcript, &handoff.public_chunk);
-    let challenges = derive_replay_challenges_from_rounds(
-        &mut replay_transcript,
-        params,
-        structure,
-        dims,
-        &mat_digest,
-        fresh_claims,
-        me_inputs,
-        &replay_proof,
-        handoff.public_chunk_instance_digest,
-    )?;
-    Ok(Rv64imMainCircuitPiCcsReplaySurface {
+    public_challenges: Challenges,
+    row_chals: Vec<K>,
+    alpha_prime: Vec<K>,
+    s_col: Vec<K>,
+    alpha_prime_nc: Vec<K>,
+) -> Rv64imMainCircuitPiCcsReplaySurface {
+    Rv64imMainCircuitPiCcsReplaySurface {
         ccs_outputs,
         replay_proof,
-        public_challenges: challenges.public_challenges,
-        row_chals: challenges.row_chals,
-        alpha_prime: challenges.alpha_prime,
-        s_col: challenges.s_col,
-        alpha_prime_nc: challenges.alpha_prime_nc,
-    })
+        public_challenges,
+        row_chals,
+        alpha_prime,
+        s_col,
+        alpha_prime_nc,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -424,7 +396,6 @@ struct Rv64imMainCircuitTraceBuildContext<'a> {
     structure: &'a CcsStructure<F>,
     ce_structure: &'a CcsStructure<F>,
     dims: Dims,
-    mat_digest: [Goldilocks; 4],
     optimized_cache: &'a OptimizedStructureCache,
 }
 
@@ -444,17 +415,12 @@ pub(crate) fn build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let dims = build_dims_and_policy(params, structure)
         .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
-    let mat_digest_vec = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()));
-    let mat_digest: [Goldilocks; 4] = mat_digest_vec
-        .try_into()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main relation matrix digest length mismatch".into()))?;
     let ctx = Rv64imMainCircuitTraceBuildContext {
         params,
         log,
         structure,
         ce_structure: &ce_structure,
         dims,
-        mat_digest,
         optimized_cache: &optimized_cache,
     };
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(transcript_in.state, transcript_in.absorbed);
@@ -494,19 +460,6 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
     transcript: &mut Poseidon2Transcript,
 ) -> Result<Rv64imMainCircuitChunkTrace, SimpleKernelError> {
     let fresh = crate::rv64im::chunk_fold_step::adapt_rv64im_chunk_to_fresh_ccs(handoff);
-    let mut replay_transcript = transcript.clone();
-    append_chunk_meta_native(&mut replay_transcript, &handoff.public_chunk);
-    let replay_challenges = derive_replay_challenges_from_rounds(
-        &mut replay_transcript,
-        ctx.params,
-        ctx.structure,
-        ctx.dims,
-        &ctx.mat_digest,
-        &fresh.fresh_claims,
-        &carry_in.main.claims,
-        &replay_witness.ccs_replay_proof,
-        handoff.public_chunk_instance_digest,
-    )?;
     let trace = trace_rv64im_chunk_relation_with_replay(
         chunk_index,
         handoff,
@@ -518,11 +471,17 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
         ctx.log,
         ctx.optimized_cache,
     )?;
-    if trace.ccs_outputs != trace.terminal_state.me_outputs {
-        return Err(SimpleKernelError::Bridge(format!(
-            "RV64IM main relation chunk {chunk_index} replay outputs do not match the terminal state outputs"
-        )));
-    }
+    let (replayed_terminal_state, mut replay_transcript) = replay_main_relation_pi_ccs_terminal_state(
+        ctx,
+        transcript_in,
+        &handoff.public_chunk,
+        handoff.public_chunk_instance_digest,
+        &fresh.fresh_claims,
+        &fresh.fresh_witnesses,
+        &carry_in.main.claims,
+        &carry_in.main.witnesses,
+    )?;
+    check_pi_ccs_terminal_state_native(chunk_index, &trace.terminal_state, &replayed_terminal_state)?;
     check_claim_fold_digest_native(
         &trace.ccs_outputs,
         &trace.parent,
@@ -539,14 +498,34 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
         &fresh.fresh_claims,
         &carry_in.main.claims,
         &trace.ccs_outputs,
-        &replay_challenges.row_chals,
-        &replay_challenges.s_col,
+        &trace.terminal_state.row_chals,
+        &trace.terminal_state.s_col,
     )
     .map_err(|err| {
         SimpleKernelError::Bridge(format!(
             "RV64IM main relation chunk {chunk_index} output binding failed: {err}"
         ))
     })?;
+    let expected_rhos = sample_main_relation_pi_rlc_rhos(&mut replay_transcript, ctx.params, trace.ccs_outputs.len())?;
+    let mixers = rv64im_ajtai_mixers();
+    let expected_parent = rlc_public(
+        ctx.structure,
+        ctx.params,
+        &expected_rhos,
+        &trace.ccs_outputs,
+        mixers.mix_rhos_commits,
+        ctx.dims.ell_d,
+    )
+    .map_err(|err| {
+        SimpleKernelError::Bridge(format!(
+            "RV64IM main relation chunk {chunk_index} Pi_RLC public recompute failed: {err}"
+        ))
+    })?;
+    if let Some(mismatch) = describe_ce_claim_mismatch(&expected_parent, &trace.parent) {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM main relation chunk {chunk_index} Pi_RLC parent claim does not match the independently recomputed fold: {mismatch}"
+        )));
+    }
     let mut ccs_output_zs = fresh
         .fresh_witnesses
         .iter()
@@ -602,8 +581,6 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
             bridge_handoff_digest: fresh.bridge_handoff_digest,
             chunk_relation_digest: trace.chunk_relation_digest,
         },
-        transcript_in: transcript_in.clone(),
-        state_in_claims: carry_in.main.claims.clone(),
         fresh_claims: fresh.fresh_claims,
         fresh_witnesses: fresh.fresh_witnesses,
         ccs_trace: trace,
@@ -804,92 +781,496 @@ fn check_dec_child_claim_consistency(
     Ok(())
 }
 
-struct DerivedReplayChallenges {
-    public_challenges: Challenges,
-    row_chals: Vec<K>,
-    alpha_prime: Vec<K>,
-    s_col: Vec<K>,
-    alpha_prime_nc: Vec<K>,
+fn replay_main_relation_pi_ccs_terminal_state(
+    ctx: &Rv64imMainCircuitTraceBuildContext<'_>,
+    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
+    public_chunk: &PublicChunk,
+    public_chunk_instance_digest: [F; 4],
+    fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
+    me_witnesses: &[Mat<F>],
+) -> Result<(PiCcsReplayTerminalState, Poseidon2Transcript), SimpleKernelError> {
+    let mut transcript = Poseidon2Transcript::from_state_and_absorbed(transcript_in.state, transcript_in.absorbed);
+    append_chunk_meta_native(&mut transcript, public_chunk);
+    let terminal_state = optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf(
+        &mut transcript,
+        ctx.params,
+        ctx.structure,
+        fresh_claims,
+        fresh_witnesses,
+        me_inputs,
+        me_witnesses,
+        public_chunk_instance_digest,
+        ctx.log,
+        ctx.optimized_cache,
+    )
+    .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation Pi_CCS transcript replay failed: {err}")))?;
+    Ok((terminal_state, transcript))
 }
 
-#[allow(clippy::too_many_arguments)]
-fn derive_replay_challenges_from_rounds(
+pub(crate) fn debug_replay_rv64im_main_relation_pi_ccs_transcript_state(
+    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
+    handoff: &Rv64imMainCircuitHandoff,
+    fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
+    me_witnesses: &[Mat<F>],
+) -> Result<Rv64imChunkFoldTranscriptSnapshot, SimpleKernelError> {
+    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let ce_structure = pad_ccs_structure_to_block_width(structure)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM padded CE structure failed: {err}")))?;
+    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
+    let dims = build_dims_and_policy(params, structure)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
+    let ctx = Rv64imMainCircuitTraceBuildContext {
+        params,
+        log,
+        structure,
+        ce_structure: &ce_structure,
+        dims,
+        optimized_cache: &optimized_cache,
+    };
+    let (_, transcript) = replay_main_relation_pi_ccs_terminal_state(
+        &ctx,
+        transcript_in,
+        &handoff.public_chunk,
+        handoff.public_chunk_instance_digest,
+        fresh_claims,
+        fresh_witnesses,
+        me_inputs,
+        me_witnesses,
+    )?;
+    Ok(Rv64imChunkFoldTranscriptSnapshot {
+        state: transcript.state(),
+        absorbed: transcript.absorbed(),
+    })
+}
+
+pub(crate) fn debug_describe_rv64im_main_relation_pi_ccs_terminal_state_mismatch(
+    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
+    handoff: &Rv64imMainCircuitHandoff,
+    fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
+    me_witnesses: &[Mat<F>],
+    live: &PiCcsReplayTerminalState,
+) -> Result<String, SimpleKernelError> {
+    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let ce_structure = pad_ccs_structure_to_block_width(structure)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM padded CE structure failed: {err}")))?;
+    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
+    let dims = build_dims_and_policy(params, structure)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
+    let ctx = Rv64imMainCircuitTraceBuildContext {
+        params,
+        log,
+        structure,
+        ce_structure: &ce_structure,
+        dims,
+        optimized_cache: &optimized_cache,
+    };
+    let (replayed, _) = replay_main_relation_pi_ccs_terminal_state(
+        &ctx,
+        transcript_in,
+        &handoff.public_chunk,
+        handoff.public_chunk_instance_digest,
+        fresh_claims,
+        fresh_witnesses,
+        me_inputs,
+        me_witnesses,
+    )?;
+    Ok(
+        describe_pi_ccs_terminal_state_mismatch(live, &replayed)
+            .unwrap_or_else(|| "pi_ccs_terminal_state_match".into()),
+    )
+}
+
+pub(crate) fn debug_describe_rv64im_main_relation_pi_rlc_parent_mismatch(
+    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
+    handoff: &Rv64imMainCircuitHandoff,
+    fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
+    me_witnesses: &[Mat<F>],
+    ccs_outputs: &[neo_ccs::CeClaim<Commitment, F, K>],
+    live_parent: &neo_ccs::CeClaim<Commitment, F, K>,
+) -> Result<String, SimpleKernelError> {
+    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let ce_structure = pad_ccs_structure_to_block_width(structure)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM padded CE structure failed: {err}")))?;
+    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
+    let dims = build_dims_and_policy(params, structure)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
+    let ctx = Rv64imMainCircuitTraceBuildContext {
+        params,
+        log,
+        structure,
+        ce_structure: &ce_structure,
+        dims,
+        optimized_cache: &optimized_cache,
+    };
+    let (_, mut replay_transcript) = replay_main_relation_pi_ccs_terminal_state(
+        &ctx,
+        transcript_in,
+        &handoff.public_chunk,
+        handoff.public_chunk_instance_digest,
+        fresh_claims,
+        fresh_witnesses,
+        me_inputs,
+        me_witnesses,
+    )?;
+    let expected_rhos = sample_main_relation_pi_rlc_rhos(&mut replay_transcript, ctx.params, ccs_outputs.len())?;
+    let mixers = rv64im_ajtai_mixers();
+    let expected_parent = rlc_public(
+        ctx.structure,
+        ctx.params,
+        &expected_rhos,
+        ccs_outputs,
+        mixers.mix_rhos_commits,
+        ctx.dims.ell_d,
+    )
+    .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation Pi_RLC public recompute failed: {err}")))?;
+    Ok(describe_ce_claim_mismatch(&expected_parent, live_parent).unwrap_or_else(|| "pi_rlc_parent_match".into()))
+}
+
+pub(crate) fn debug_describe_rv64im_main_relation_pi_rlc_x_flat_mismatch(
+    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
+    handoff: &Rv64imMainCircuitHandoff,
+    fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
+    me_witnesses: &[Mat<F>],
+    ccs_outputs: &[neo_ccs::CeClaim<Commitment, F, K>],
+    live_parent: &neo_ccs::CeClaim<Commitment, F, K>,
+) -> Result<String, SimpleKernelError> {
+    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let ce_structure = pad_ccs_structure_to_block_width(structure)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM padded CE structure failed: {err}")))?;
+    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
+    let dims = build_dims_and_policy(params, structure)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
+    let ctx = Rv64imMainCircuitTraceBuildContext {
+        params,
+        log,
+        structure,
+        ce_structure: &ce_structure,
+        dims,
+        optimized_cache: &optimized_cache,
+    };
+    let (_, mut replay_transcript) = replay_main_relation_pi_ccs_terminal_state(
+        &ctx,
+        transcript_in,
+        &handoff.public_chunk,
+        handoff.public_chunk_instance_digest,
+        fresh_claims,
+        fresh_witnesses,
+        me_inputs,
+        me_witnesses,
+    )?;
+    let expected_rhos = sample_main_relation_pi_rlc_rhos(&mut replay_transcript, ctx.params, ccs_outputs.len())?;
+    let cols = live_parent.X.cols();
+    let observed = live_parent.X.as_slice();
+    if observed.len() != D * cols {
+        return Ok("pi_rlc_x_flat_parent_len_mismatch".into());
+    }
+    for child in ccs_outputs {
+        let child_values = child.X.as_slice();
+        if child_values.len() != D * cols {
+            return Ok("pi_rlc_x_flat_child_len_mismatch".into());
+        }
+    }
+    for row in 0..D {
+        for col in 0..cols {
+            let mut expected = F::ZERO;
+            for (rho, child) in expected_rhos.iter().zip(ccs_outputs.iter()) {
+                let native_mat = rho.as_mat();
+                let child_values = child.X.as_slice();
+                for k in 0..D {
+                    let child_idx_flat = k * cols + col;
+                    expected += native_mat[(row, k)] * child_values[child_idx_flat];
+                }
+            }
+            let parent_idx = row * cols + col;
+            if expected != observed[parent_idx] {
+                return Ok(format!(
+                    "pi_rlc_x_flat_mismatch[row={row},col={col},expected={},observed={}]",
+                    expected.as_canonical_u64(),
+                    observed[parent_idx].as_canonical_u64()
+                ));
+            }
+        }
+    }
+    Ok("pi_rlc_x_flat_match".into())
+}
+
+fn check_pi_ccs_terminal_state_native(
+    chunk_index: usize,
+    live: &PiCcsReplayTerminalState,
+    replayed: &PiCcsReplayTerminalState,
+) -> Result<(), SimpleKernelError> {
+    if live.me_outputs != replayed.me_outputs
+        || live.challenges_public.alpha != replayed.challenges_public.alpha
+        || live.challenges_public.beta_a != replayed.challenges_public.beta_a
+        || live.challenges_public.beta_r != replayed.challenges_public.beta_r
+        || live.challenges_public.beta_m != replayed.challenges_public.beta_m
+        || live.challenges_public.gamma != replayed.challenges_public.gamma
+        || live.row_chals != replayed.row_chals
+        || live.alpha_prime != replayed.alpha_prime
+        || live.s_col != replayed.s_col
+        || live.alpha_prime_nc != replayed.alpha_prime_nc
+        || live.sumcheck_final != replayed.sumcheck_final
+        || live.sumcheck_final_nc != replayed.sumcheck_final_nc
+        || live.fold_digest != replayed.fold_digest
+    {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM main relation chunk {chunk_index} Pi_CCS terminal replay drifted from the verified chunk trace"
+        )));
+    }
+    Ok(())
+}
+
+fn describe_pi_ccs_terminal_state_mismatch(
+    live: &PiCcsReplayTerminalState,
+    replayed: &PiCcsReplayTerminalState,
+) -> Option<String> {
+    if live.me_outputs.len() != replayed.me_outputs.len() {
+        return Some(format!(
+            "me_outputs len mismatch (live {}, replayed {})",
+            live.me_outputs.len(),
+            replayed.me_outputs.len()
+        ));
+    }
+    for (idx, (live_claim, replayed_claim)) in live
+        .me_outputs
+        .iter()
+        .zip(replayed.me_outputs.iter())
+        .enumerate()
+    {
+        if let Some(mismatch) = describe_ce_claim_mismatch(live_claim, replayed_claim) {
+            return Some(format!("me_outputs[{idx}] {mismatch}"));
+        }
+    }
+    if live.challenges_public.alpha != replayed.challenges_public.alpha {
+        let idx = live
+            .challenges_public
+            .alpha
+            .iter()
+            .zip(replayed.challenges_public.alpha.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("public.alpha[{idx}] mismatch"));
+    }
+    if live.challenges_public.beta_a != replayed.challenges_public.beta_a {
+        let idx = live
+            .challenges_public
+            .beta_a
+            .iter()
+            .zip(replayed.challenges_public.beta_a.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("public.beta_a[{idx}] mismatch"));
+    }
+    if live.challenges_public.beta_r != replayed.challenges_public.beta_r {
+        let idx = live
+            .challenges_public
+            .beta_r
+            .iter()
+            .zip(replayed.challenges_public.beta_r.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("public.beta_r[{idx}] mismatch"));
+    }
+    if live.challenges_public.beta_m != replayed.challenges_public.beta_m {
+        let idx = live
+            .challenges_public
+            .beta_m
+            .iter()
+            .zip(replayed.challenges_public.beta_m.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("public.beta_m[{idx}] mismatch"));
+    }
+    if live.challenges_public.gamma != replayed.challenges_public.gamma {
+        return Some("public.gamma mismatch".into());
+    }
+    if live.row_chals != replayed.row_chals {
+        let idx = live
+            .row_chals
+            .iter()
+            .zip(replayed.row_chals.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("row_chals[{idx}] mismatch"));
+    }
+    if live.alpha_prime != replayed.alpha_prime {
+        let idx = live
+            .alpha_prime
+            .iter()
+            .zip(replayed.alpha_prime.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("alpha_prime[{idx}] mismatch"));
+    }
+    if live.s_col != replayed.s_col {
+        let idx = live
+            .s_col
+            .iter()
+            .zip(replayed.s_col.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("s_col[{idx}] mismatch"));
+    }
+    if live.alpha_prime_nc != replayed.alpha_prime_nc {
+        let idx = live
+            .alpha_prime_nc
+            .iter()
+            .zip(replayed.alpha_prime_nc.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("alpha_prime_nc[{idx}] mismatch"));
+    }
+    if live.sumcheck_final != replayed.sumcheck_final {
+        return Some("sumcheck_final mismatch".into());
+    }
+    if live.sumcheck_final_nc != replayed.sumcheck_final_nc {
+        return Some("sumcheck_final_nc mismatch".into());
+    }
+    if live.fold_digest != replayed.fold_digest {
+        return Some("fold_digest mismatch".into());
+    }
+    None
+}
+
+fn describe_ce_claim_mismatch(
+    expected: &neo_ccs::CeClaim<Commitment, F, K>,
+    observed: &neo_ccs::CeClaim<Commitment, F, K>,
+) -> Option<String> {
+    if expected.c != observed.c {
+        return Some("c mismatch".into());
+    }
+    if expected.X.rows() != observed.X.rows() || expected.X.cols() != observed.X.cols() {
+        return Some(format!(
+            "X shape mismatch (expected {}x{}, observed {}x{})",
+            expected.X.rows(),
+            expected.X.cols(),
+            observed.X.rows(),
+            observed.X.cols()
+        ));
+    }
+    for row in 0..expected.X.rows() {
+        for col in 0..expected.X.cols() {
+            if expected.X[(row, col)] != observed.X[(row, col)] {
+                return Some(format!("X[{row},{col}] mismatch"));
+            }
+        }
+    }
+    if expected.r != observed.r {
+        let idx = expected
+            .r
+            .iter()
+            .zip(observed.r.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("r[{idx}] mismatch"));
+    }
+    if expected.s_col != observed.s_col {
+        let idx = expected
+            .s_col
+            .iter()
+            .zip(observed.s_col.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("s_col[{idx}] mismatch"));
+    }
+    if expected.y_ring.len() != observed.y_ring.len() {
+        return Some(format!(
+            "y_ring row-count mismatch (expected {}, observed {})",
+            expected.y_ring.len(),
+            observed.y_ring.len()
+        ));
+    }
+    for (row_idx, (expected_row, observed_row)) in expected
+        .y_ring
+        .iter()
+        .zip(observed.y_ring.iter())
+        .enumerate()
+    {
+        if expected_row.len() != observed_row.len() {
+            return Some(format!(
+                "y_ring[{row_idx}] len mismatch (expected {}, observed {})",
+                expected_row.len(),
+                observed_row.len()
+            ));
+        }
+        if let Some(col_idx) = expected_row
+            .iter()
+            .zip(observed_row.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+        {
+            return Some(format!("y_ring[{row_idx}][{col_idx}] mismatch"));
+        }
+    }
+    if expected.ct != observed.ct {
+        let idx = expected
+            .ct
+            .iter()
+            .zip(observed.ct.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("ct[{idx}] mismatch"));
+    }
+    if expected.aux_openings != observed.aux_openings {
+        let idx = expected
+            .aux_openings
+            .iter()
+            .zip(observed.aux_openings.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("aux_openings[{idx}] mismatch"));
+    }
+    if expected.y_zcol != observed.y_zcol {
+        let idx = expected
+            .y_zcol
+            .iter()
+            .zip(observed.y_zcol.iter())
+            .position(|(lhs, rhs)| lhs != rhs)
+            .unwrap_or(0);
+        return Some(format!("y_zcol[{idx}] mismatch"));
+    }
+    if expected.c_step_coords != observed.c_step_coords {
+        return Some("c_step_coords mismatch".into());
+    }
+    if expected.u_offset != observed.u_offset {
+        return Some(format!(
+            "u_offset mismatch (expected {}, observed {})",
+            expected.u_offset, observed.u_offset
+        ));
+    }
+    if expected.u_len != observed.u_len {
+        return Some(format!(
+            "u_len mismatch (expected {}, observed {})",
+            expected.u_len, observed.u_len
+        ));
+    }
+    if expected.m_in != observed.m_in {
+        return Some(format!(
+            "m_in mismatch (expected {}, observed {})",
+            expected.m_in, observed.m_in
+        ));
+    }
+    if expected.fold_digest != observed.fold_digest {
+        return Some("fold_digest mismatch".into());
+    }
+    None
+}
+
+fn sample_main_relation_pi_rlc_rhos(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
-    structure: &CcsStructure<F>,
-    dims: Dims,
-    mat_digest: &[Goldilocks; 4],
-    fresh_claims: &[CcsClaim<Commitment, F>],
-    me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
-    replay_proof: &PiCcsReplayProofWitness,
-    public_instance_digest: [F; 4],
-) -> Result<DerivedReplayChallenges, SimpleKernelError> {
-    bind_header_and_instance_digest_with_digest(
-        transcript,
-        params,
-        structure,
-        dims,
-        mat_digest,
-        &public_instance_digest,
-    )
-    .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM replay challenge header binding failed: {err}")))?;
-    neo_reductions::engines::utils::bind_me_inputs(transcript, me_inputs)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM replay challenge ME binding failed: {err}")))?;
-    let mut public_challenges = neo_reductions::engines::utils::sample_challenges(transcript, dims.ell_d, dims.ell)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM replay challenge public sampling failed: {err}")))?;
-    public_challenges.beta_m = neo_reductions::engines::utils::sample_beta_m(transcript, dims.ell_m)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM replay challenge beta_m sampling failed: {err}")))?;
-
-    transcript.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
-    let initial_sum = neo_reductions::optimized_engine::claimed_initial_sum_from_inputs_with_k_mcs(
-        structure,
-        &public_challenges,
-        fresh_claims.len(),
-        me_inputs,
-    );
-    transcript.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    transcript.append_fields_raw(&initial_sum.as_coeffs());
-    transcript.append_fields_raw(&[F::from_u64(
-        neo_reductions::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG,
-    )]);
-    let (fe_all, _, fe_ok) = neo_reductions::sumcheck::verify_sumcheck_rounds_poseidon_v3(
-        transcript,
-        dims.d_sc,
-        initial_sum,
-        &replay_proof.sumcheck_rounds,
-    );
-    if !fe_ok {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM replay challenge derivation failed: FE rounds invalid".into(),
-        ));
-    }
-    let (row_chals, alpha_prime) = fe_all.split_at(dims.ell_n);
-
-    transcript.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
-    let initial_sum_nc = K::ZERO;
-    transcript.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    transcript.append_fields_raw(&initial_sum_nc.as_coeffs());
-    transcript.append_fields_raw(&[F::from_u64(
-        neo_reductions::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG,
-    )]);
-    let (nc_all, _, nc_ok) = neo_reductions::sumcheck::verify_sumcheck_rounds_poseidon_v3(
-        transcript,
-        dims.d_sc,
-        initial_sum_nc,
-        &replay_proof.sumcheck_rounds_nc,
-    );
-    if !nc_ok {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM replay challenge derivation failed: NC rounds invalid".into(),
-        ));
-    }
-    let (s_col, alpha_prime_nc) = nc_all.split_at(dims.ell_m);
-
-    Ok(DerivedReplayChallenges {
-        public_challenges,
-        row_chals: row_chals.to_vec(),
-        alpha_prime: alpha_prime.to_vec(),
-        s_col: s_col.to_vec(),
-        alpha_prime_nc: alpha_prime_nc.to_vec(),
-    })
+    claim_count: usize,
+) -> Result<Vec<neo_reductions::api::RotRho>, SimpleKernelError> {
+    let ring = RotRing::goldilocks();
+    sample_rot_rhos_n_typed(transcript, params, &ring, claim_count)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation Pi_RLC rho sampling failed: {err}")))
 }

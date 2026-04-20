@@ -1,11 +1,11 @@
 //! Owns public-step and public-chunk digest gadgets for the RV64IM main relation circuit.
 
+use crate::rv64im::ivc_snark::{hash_packed_goldilocks_fields, SpartanF};
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_ajtai::Commitment;
 use neo_ccs::CcsClaim;
 use neo_math::F;
 use p3_field::PrimeField64;
-use spartan2::{bellpepper::poseidon2::hash_packed_goldilocks_fields, provider::goldi::F as SpartanF};
 
 use super::claim::packed_bytes_field_values;
 

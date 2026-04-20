@@ -9,7 +9,7 @@ use neo_fold_next::nightstream::rv64im::audit::{
     circuit_evaluate_phase0_payload_from_packed_rows, debug_check_rv64im_side_binding_circuit,
 };
 use neo_fold_next::rv64im::audit::{
-    debug_check_rv64im_spartan2_decider_circuit, prove_rv64im_public_proof_and_published_seam_with_perf,
+    debug_check_rv64im_terminal_decider_circuit, prove_rv64im_public_proof_and_published_seam_with_perf,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
@@ -51,7 +51,7 @@ fn rv64im_side_relation_n2_debug_satisfiable() {
 #[ignore = "manual debug canary for the N=2 mixed-opcode main decider circuit"]
 fn rv64im_main_relation_n2_debug_satisfiable() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build N=2 fixture");
-    debug_check_rv64im_spartan2_decider_circuit(&fixture.final_statement, &fixture.final_proof)
+    debug_check_rv64im_terminal_decider_circuit(&fixture.final_statement, &fixture.final_proof)
         .expect("debug check main spartan decider");
 }
 
@@ -71,7 +71,7 @@ fn rv64im_main_relation_n2_published_seam_debug_satisfiable() {
     let final_statement = seam
         .rebuild_final_statement()
         .expect("rebuild final statement from the carried published seam");
-    debug_check_rv64im_spartan2_decider_circuit(&final_statement, &final_proof)
+    debug_check_rv64im_terminal_decider_circuit(&final_statement, &final_proof)
         .expect("debug check main spartan decider on published seam");
 }
 

@@ -2,7 +2,8 @@ use std::io::{self, Write};
 use std::time::Instant;
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use spartan2::provider::goldi::F as SpartanF;
+
+use crate::rv64im::ivc_snark::SpartanF;
 
 pub(super) fn mark_unsatisfied<CS: ConstraintSystem<SpartanF>>(cs: &mut CS, label: &str) -> Result<(), SynthesisError> {
     cs.enforce(|| label, |lc| lc + CS::one(), |lc| lc + CS::one(), |lc| lc);

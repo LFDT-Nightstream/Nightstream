@@ -246,15 +246,7 @@ pub fn build_rv64im_main_recursion_step_authoritative_chunk_surface(
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<Rv64imMainRecursionStepAuthoritativeChunkSurface, SimpleKernelError> {
     let payload = &backend_relation.payload;
-    let effective_replay_surface = payload.effective_chunk_replay_surface(
-        &backend_relation.f_prime_advice.running_state().transcript,
-        &backend_relation
-            .f_prime_advice
-            .running_state()
-            .carry
-            .main
-            .claims,
-    )?;
+    let effective_replay_surface = payload.effective_chunk_replay_surface()?;
     let state_in_claim_count = payload.step_shape.state_in_claim_count as usize;
     let state_out_claim_count = payload.step_shape.state_out_claim_count as usize;
     if payload.state_in_claims.len() < state_in_claim_count || payload.state_out_claims.len() < state_out_claim_count {

@@ -6,12 +6,12 @@
 #[path = "rlc_dec/diagnostics.rs"]
 mod diagnostics;
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
 use neo_math::{KExtensions, D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use spartan2::provider::goldi::F as SpartanF;
 use std::sync::LazyLock;
 
 use super::claim::CeClaimVar;
@@ -20,7 +20,10 @@ use super::rho_sampling::{RotRhoMatrixVar, RotRhoVar};
 
 static GOLDILOCKS_ROT_BASIS_MATS: LazyLock<Vec<Mat<F>>> = LazyLock::new(build_goldilocks_rot_basis_mats);
 
-pub(crate) use diagnostics::debug_locate_rlc_public_with_rho_vars_constant_prefix_stage;
+pub(crate) use diagnostics::{
+    debug_locate_rlc_public_with_rho_vars_constant_prefix_stage,
+    debug_measure_rlc_public_with_rho_vars_constant_prefix_stage_ranges, RlcPublicStageCheckpoints,
+};
 
 pub fn enforce_rlc_public<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
@@ -756,7 +759,6 @@ fn dense_index(row: usize, col: usize, cols: usize, column_major: bool) -> usize
     }
 }
 
-#[allow(dead_code)]
 pub fn enforce_rlc_public_non_commitment<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     parent: &CeClaimVar,
@@ -767,7 +769,6 @@ pub fn enforce_rlc_public_non_commitment<CS: ConstraintSystem<SpartanF>>(
     enforce_rlc_public(cs, parent, children, rho_mats, label)
 }
 
-#[allow(dead_code)]
 pub fn enforce_rlc_public_non_commitment_with_rho_vars<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     parent: &CeClaimVar,
@@ -778,7 +779,6 @@ pub fn enforce_rlc_public_non_commitment_with_rho_vars<CS: ConstraintSystem<Spar
     enforce_rlc_public_with_rho_vars(cs, parent, children, rho_mats, label)
 }
 
-#[allow(dead_code)]
 fn enforce_y_row_rlc_target<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     target: &[KNumVar],

@@ -6,15 +6,10 @@ use neo_reductions::engines::utils::me_digest_poseidon_into;
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices_with_sparse_cache};
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
-use spartan2::traits::circuit::SpartanCircuit;
-use spartan2::{
-    bellpepper::{r1cs::SpartanShape, shape_cs::ShapeCS},
-    provider::goldi::F as SpartanF,
-    SplitR1CSShape,
-};
 
 use super::*;
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
+use crate::rv64im::ivc_snark::{Rv64imDeciderEngine, ShapeCS, SpartanCircuit, SpartanF, SpartanShape, SplitR1CSShape};
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_relation_circuit::claim::{enforce_claim_eq, me_digest_poseidon};
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
@@ -107,10 +102,7 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
     let after_state_cover = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
 
     let replay_chunk = payload
-        .effective_chunk_replay_surface(
-            &witness.running_state().transcript,
-            &witness.running_state().carry.main.claims,
-        )
+        .effective_chunk_replay_surface()
         .map_err(|err| stage_err("chunk_replay_surface", err))?;
     let transcript_in_values = witness
         .running_state()
@@ -168,7 +160,7 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
     super::super::enforce_synthetic_outer_chunk_relation_public_io(
         &ctx,
         &mut cs.namespace(|| "payload_chunk_synthetic_relation_io"),
-        &mut replayed_transcript,
+        &pi_ccs.fold_digest,
         "payload_chunk_synthetic_relation_io",
     )
     .map_err(|err| stage_err("chunk_replay_synthetic_relation_io", err))?;
@@ -406,8 +398,8 @@ pub fn debug_measure_rv64im_main_recursion_step_spartan_commitment_key(
 ) -> Result<f64, Rv64imMainRecursionStepSpartanError> {
     let started = Instant::now();
     let circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
-    let shape = ShapeCS::<Rv64imSpartan2DeciderEngine>::r1cs_shape(&circuit)
-        .map_err(|err| stage_err("first_step_shape", err))?;
+    let shape =
+        ShapeCS::<Rv64imDeciderEngine>::r1cs_shape(&circuit).map_err(|err| stage_err("first_step_shape", err))?;
     let _ = SplitR1CSShape::commitment_key(&[&shape]).map_err(|err| stage_err("first_step_commitment_key", err))?;
     Ok(started.elapsed().as_secs_f64() * 1_000.0)
 }
@@ -513,7 +505,7 @@ pub fn debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis(
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<Rv64imMainRecursionStepSpartanShapeSynthesisMetrics, Rv64imMainRecursionStepSpartanError> {
     let circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
-    let mut cs = ShapeCS::<Rv64imSpartan2DeciderEngine>::new();
+    let mut cs = ShapeCS::<Rv64imDeciderEngine>::new();
 
     let started = Instant::now();
     let shared = circuit
@@ -553,7 +545,7 @@ pub fn debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis(
     emit_trace(trace_prefix, "build_circuit", started.elapsed().as_secs_f64() * 1_000.0);
 
     let started = Instant::now();
-    let mut cs = ShapeCS::<Rv64imSpartan2DeciderEngine>::new();
+    let mut cs = ShapeCS::<Rv64imDeciderEngine>::new();
     emit_trace(trace_prefix, "shape_cs_new", started.elapsed().as_secs_f64() * 1_000.0);
 
     let started = Instant::now();
@@ -772,10 +764,7 @@ pub fn debug_profile_rv64im_main_recursion_step_chunk_replay_stages(
     ensure_stage_satisfied(&cs, "state_alloc")?;
 
     let replay_chunk = payload
-        .effective_chunk_replay_surface(
-            &witness.running_state().transcript,
-            &witness.running_state().carry.main.claims,
-        )
+        .effective_chunk_replay_surface()
         .map_err(|err| stage_err("effective_chunk_replay_surface", err))?;
     let synthetic_chunk_relation_digest = alloc_const_field_values(
         &mut cs.namespace(|| "synthetic_chunk_relation_digest"),

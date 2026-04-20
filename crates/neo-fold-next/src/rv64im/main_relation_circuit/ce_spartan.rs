@@ -7,21 +7,20 @@ use neo_math::{F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeField64;
 use serde::{Deserialize, Serialize};
-use spartan2::{
-    provider::{goldi::F as SpartanF, GoldilocksP3MerkleMleEngine},
-    spartan::R1CSSNARK,
-    traits::{circuit::SpartanCircuit, snark::R1CSSNARKTrait},
-};
 use thiserror::Error;
 
 use super::ce_consistency::enforce_ce_consistency;
 use super::claim::{alloc_ce_claim, me_digest_poseidon};
 use super::witness::alloc_packed_witness;
+use crate::rv64im::ivc_snark::{
+    GoldilocksP3MerkleMleEngine, R1CSSNARKTrait, SpartanCircuit, SpartanF, SpartanProverKey, SpartanVerifierKey,
+    R1CSSNARK,
+};
 
 pub type Rv64imCeRelationEngine = GoldilocksP3MerkleMleEngine;
 pub type Rv64imCeRelationSnark = R1CSSNARK<Rv64imCeRelationEngine>;
-pub type Rv64imCeRelationProverKey = spartan2::spartan::SpartanProverKey<Rv64imCeRelationEngine>;
-pub type Rv64imCeRelationVerifierKey = spartan2::spartan::SpartanVerifierKey<Rv64imCeRelationEngine>;
+pub type Rv64imCeRelationProverKey = SpartanProverKey<Rv64imCeRelationEngine>;
+pub type Rv64imCeRelationVerifierKey = SpartanVerifierKey<Rv64imCeRelationEngine>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imCeRelationProof {

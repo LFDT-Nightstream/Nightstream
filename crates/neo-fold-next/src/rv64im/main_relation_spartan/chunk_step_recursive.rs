@@ -8,7 +8,7 @@ use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};
 use neo_reductions::engines::utils::me_digest_poseidon_into;
-use neo_reductions::optimized_engine::PiCcsReplayProofWitness;
+use neo_reductions::optimized_engine::{Challenges, PiCcsReplayProofWitness};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
@@ -68,11 +68,26 @@ pub struct Rv64imMainRecursionFPrimePayload {
 pub struct Rv64imMainRecursionFPrimePiCcsPayload {
     pub ccs_outputs: Vec<CeClaim<Commitment, F, K>>,
     pub replay: PiCcsReplayProofWitness,
+    pub public_challenges: Challenges,
+    pub row_chals: Vec<K>,
+    pub alpha_prime: Vec<K>,
+    pub s_col: Vec<K>,
+    pub alpha_prime_nc: Vec<K>,
 }
 
 impl PartialEq for Rv64imMainRecursionFPrimePiCcsPayload {
     fn eq(&self, other: &Self) -> bool {
-        self.ccs_outputs == other.ccs_outputs && self.replay == other.replay
+        self.ccs_outputs == other.ccs_outputs
+            && self.replay == other.replay
+            && self.public_challenges.alpha == other.public_challenges.alpha
+            && self.public_challenges.beta_a == other.public_challenges.beta_a
+            && self.public_challenges.beta_r == other.public_challenges.beta_r
+            && self.public_challenges.beta_m == other.public_challenges.beta_m
+            && self.public_challenges.gamma == other.public_challenges.gamma
+            && self.row_chals == other.row_chals
+            && self.alpha_prime == other.alpha_prime
+            && self.s_col == other.s_col
+            && self.alpha_prime_nc == other.alpha_prime_nc
     }
 }
 
@@ -993,7 +1008,19 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
     let mut replay = chunk_trace.ccs_trace.ccs_replay_proof.clone();
     replay.sumcheck_rounds = fe_rounds;
     replay.sumcheck_rounds_nc = nc_rounds;
-    let pi_ccs = Rv64imMainRecursionFPrimePiCcsPayload { ccs_outputs, replay };
+    let pi_ccs = Rv64imMainRecursionFPrimePiCcsPayload {
+        ccs_outputs,
+        replay,
+        public_challenges: chunk_trace
+            .ccs_trace
+            .terminal_state
+            .challenges_public
+            .clone(),
+        row_chals: chunk_trace.ccs_trace.terminal_state.row_chals.clone(),
+        alpha_prime: chunk_trace.ccs_trace.terminal_state.alpha_prime.clone(),
+        s_col: chunk_trace.ccs_trace.terminal_state.s_col.clone(),
+        alpha_prime_nc: chunk_trace.ccs_trace.terminal_state.alpha_prime_nc.clone(),
+    };
     let pi_rlc = Rv64imMainRecursionFPrimePiRlcPayload { parent };
     let pi_dec = Rv64imMainRecursionFPrimePiDecPayload { children };
 
@@ -1079,10 +1106,7 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
     emit_debug_timing(trace_prefix, "materialize_payload", elapsed_ms(started));
     let started = Instant::now();
     let replay_chunk = payload
-        .effective_chunk_replay_surface(
-            &advice.running_state().transcript,
-            &advice.running_state().carry.main.claims,
-        )
+        .effective_chunk_replay_surface()
         .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
     emit_debug_timing(trace_prefix, "effective_chunk_replay_surface", elapsed_ms(started));
     if trace_prefix.is_some() {
@@ -1377,15 +1401,7 @@ pub fn debug_check_rv64im_chunk_step_recursive_effective_chunk_trace_matches_nat
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<(), SimpleKernelError> {
     let native_trace = backend_relation.f_prime_advice.main_circuit_chunk_trace();
-    let effective_replay_surface = backend_relation.payload.effective_chunk_replay_surface(
-        &backend_relation.f_prime_advice.running_state().transcript,
-        &backend_relation
-            .f_prime_advice
-            .running_state()
-            .carry
-            .main
-            .claims,
-    )?;
+    let effective_replay_surface = backend_relation.payload.effective_chunk_replay_surface()?;
     let native_replay_surface = native_trace.replay_surface()?;
 
     if effective_replay_surface.handoff.public_chunk.start_index

@@ -1,5 +1,6 @@
 //! Owns CE-claim allocation and Poseidon2 claim-digest gadgets for RV64IM main-relation circuits.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError, Variable};
 use ff::Field;
 use neo_ajtai::Commitment;
@@ -7,7 +8,6 @@ use neo_ccs::CeClaim;
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 use p3_field::PrimeField64;
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::k_field::{alloc_k, enforce_k_eq, KNum, KNumVar};
 use super::transcript::hash_field_linear_combinations_raw;

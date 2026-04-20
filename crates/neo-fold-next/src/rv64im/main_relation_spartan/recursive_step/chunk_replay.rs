@@ -8,7 +8,6 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices_with_sparse_cache};
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::super::recursive_cover::{
     alloc_recursive_cover_claims, recursive_accumulator_instance_digest_circuit_from_claims,
@@ -18,6 +17,7 @@ use super::super::{
     enforce_digest_eq, synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imClaimBundle,
 };
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
+use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
 use crate::rv64im::main_relation_circuit::claim::enforce_claim_eq;
@@ -48,10 +48,7 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         .try_into()
         .map_err(|_| SynthesisError::Unsatisfiable)?;
     let replay_chunk = payload
-        .effective_chunk_replay_surface(
-            &witness.running_state().transcript,
-            &witness.running_state().carry.main.claims,
-        )
+        .effective_chunk_replay_surface()
         .map_err(|_| SynthesisError::Unsatisfiable)?;
     let transcript_in_values = witness
         .running_state()

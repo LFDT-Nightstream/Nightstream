@@ -13,18 +13,13 @@ use neo_reductions::engines::utils::{
     build_dims_and_policy, digest_ccs_matrices_with_sparse_cache, Dims, PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG,
     PI_CCS_SUMCHECK_INITIAL_RAW_TAG, PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG,
 };
-use neo_transcript::Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use spartan2::{
-    bellpepper::poseidon2::hash_packed_goldilocks_fields,
-    provider::{goldi::F as SpartanF, GoldilocksP3MerkleMleEngine},
-    spartan::R1CSSNARK,
-};
 
 use crate::finalize::digest32_as_fields;
 use crate::rv64im::chunk_relation::RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG;
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
+use crate::rv64im::ivc_snark::{hash_packed_goldilocks_fields, SpartanF};
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_relation_circuit::claim::{
     alloc_ce_claim, alloc_ce_claim_public_surface_with_shared_point, alloc_ce_claim_with_shared_point, CeClaimVar,
@@ -49,9 +44,10 @@ use crate::rv64im::main_relation_circuit::terminal_identity::{
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_trace::{
     Rv64imMainCircuitCeClaimShape, Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface,
-    Rv64imMainCircuitChunkTrace, Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG, STEP_INDEX_RAW_TAG,
+    Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG, STEP_INDEX_RAW_TAG,
 };
 mod chunk_diagnostics;
+mod chunk_stage_ranges;
 mod chunk_step_ivc;
 mod chunk_step_recursive;
 mod fingerprint_cs;
@@ -63,20 +59,20 @@ mod step_statement;
 mod transcript_k;
 
 const RV64IM_MAIN_RELATION_DELTA: u64 = 7;
-pub type Rv64imSpartan2DeciderEngine = GoldilocksP3MerkleMleEngine;
-pub type Rv64imSpartan2DeciderSnark = R1CSSNARK<Rv64imSpartan2DeciderEngine>;
-pub type Rv64imSpartan2DeciderProverKey = spartan2::spartan::SpartanProverKey<Rv64imSpartan2DeciderEngine>;
-pub type Rv64imSpartan2DeciderVerifierKey = spartan2::spartan::SpartanVerifierKey<Rv64imSpartan2DeciderEngine>;
 
 #[allow(unused_imports)]
 pub use chunk_diagnostics::debug_measure_rv64im_main_relation_state_in_prefix_fingerprints;
 pub(crate) use chunk_diagnostics::{
     debug_locate_rv64im_main_relation_chunk_stage, debug_profile_rv64im_main_relation_chunk_stage_progress,
 };
-
-pub(crate) use chunk_step_ivc::{
-    build_rv64im_chunk_step_ivc_circuit, chunk_step_ivc_spartan_public_values, rv64im_chunk_step_ivc_cache_key,
+pub(crate) use chunk_stage_ranges::{
+    debug_check_rv64im_rlc_public_x_native_values, debug_compare_rv64im_pi_ccs_transcript_state,
+    debug_compare_rv64im_pi_rlc_rho_mats, debug_locate_rv64im_pi_ccs_late_transcript_stage,
+    debug_measure_rv64im_main_relation_chunk_stage_ranges, debug_measure_rv64im_pi_rlc_stage_ranges,
+    debug_measure_rv64im_rlc_public_stage_ranges,
 };
+
+pub(crate) use chunk_step_ivc::prepare_rv64im_chunk_step_ivc_circuit_inputs;
 pub use chunk_step_ivc::{
     build_rv64im_chunk_step_ivc_recursive_step_cover_shape, build_rv64im_chunk_step_ivc_recursive_step_padding,
     build_rv64im_chunk_step_ivc_recursive_step_padding_from_shape, build_rv64im_chunk_step_ivc_shape,
@@ -99,9 +95,8 @@ pub use chunk_step_recursive::{
 };
 use nifs_v_stages::{
     enforce_outer_chunk_relation_public_io, enforce_synthetic_outer_chunk_relation_public_io, synthesize_pi_ccs_stage,
-    synthesize_pi_dec_stage, synthesize_rv64im_chunk_nifs_verifier_body,
-    synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imChunkNifsVerifierCtx,
-    Rv64imPiRlcStageOutput,
+    synthesize_pi_dec_stage, synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io,
+    Rv64imChunkNifsVerifierCtx, Rv64imPiRlcStageOutput,
 };
 #[allow(unused_imports)]
 pub use recursive_step::Rv64imMainRecursionStepChunkReplayFingerprint;
@@ -282,7 +277,7 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
     enforce_chunk_relation_public_io: bool,
     append_chunk_done: bool,
 ) -> Result<Rv64imClaimBundle, SynthesisError> {
-    let next_carried_claims = synthesize_rv64im_chunk_nifs_verifier_body(
+    let body_output = nifs_v_stages::synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
         params,
         structure,
         dims,
@@ -296,7 +291,10 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         carried_claims,
         None,
         boundary_plan,
+        false,
+        None,
     )?;
+    let next_carried_claims = body_output.next_claims;
     let ctx = Rv64imChunkNifsVerifierCtx {
         params,
         structure,
@@ -313,7 +311,13 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         // The standalone chunk theorem binds the relation digest as public IO.
         // Recursive F' replay uses only the inner verifier body and must skip
         // this outer theorem wrapper.
-        enforce_outer_chunk_relation_public_io(&ctx, cs, transcript, public_inputs, public_cursor)?;
+        enforce_outer_chunk_relation_public_io(
+            &ctx,
+            cs,
+            &body_output.pi_ccs_fold_digest,
+            public_inputs,
+            public_cursor,
+        )?;
     }
     if append_chunk_done {
         transcript.append_const_fields_raw(
@@ -501,7 +505,7 @@ fn chunk_sumcheck_challenges(prefix: &[K], suffix: &[K]) -> Vec<K> {
     out
 }
 
-fn append_chunk_meta<CS: ConstraintSystem<SpartanF>>(
+pub(crate) fn append_chunk_meta<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     transcript: &mut Poseidon2TranscriptCircuit,
     handoff: &Rv64imMainCircuitHandoff,
@@ -609,6 +613,16 @@ pub(crate) fn alloc_const_field_values<CS: ConstraintSystem<SpartanF>>(
             Ok(out)
         })
         .collect()
+}
+
+pub(crate) fn digest_const_inputs<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    digest: [u8; 32],
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    alloc_const_field_values(cs, &digest32_as_spartan_fields(digest), label)?
+        .try_into()
+        .map_err(|_| SynthesisError::Unsatisfiable)
 }
 
 pub(crate) fn alloc_private_field_values<CS: ConstraintSystem<SpartanF>>(

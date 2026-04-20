@@ -1,5 +1,6 @@
 //! Owns witness-side CE checks over SuperNeo packed `Z` for the RV64IM main relation circuit.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ccs::CcsWitness;
@@ -8,7 +9,6 @@ use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::common::decompose_balanced_fixed_d_digits_k;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::claim::CeClaimVar;
 use super::k_field::{alloc_k, enforce_k_eq, enforce_k_eq_weighted_base_linear_combination, KNum, KNumVar};

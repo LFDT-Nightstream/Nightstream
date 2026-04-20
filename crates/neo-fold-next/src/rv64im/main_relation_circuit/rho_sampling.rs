@@ -4,6 +4,7 @@
 //! transcript-bound 16-bit words are mapped into the Goldilocks strong-set
 //! alphabet `[-2, -1, 0, 1, 2]` with a fixed number of transcript squeezes.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{
     boolean::{AllocatedBit, Boolean},
     num::AllocatedNum,
@@ -13,7 +14,6 @@ use ff::Field;
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::transcript::Poseidon2TranscriptCircuit;
 

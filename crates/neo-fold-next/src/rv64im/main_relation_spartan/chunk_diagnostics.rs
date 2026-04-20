@@ -4,9 +4,9 @@ use std::time::Instant;
 
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem};
 use p3_field::PrimeField64;
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::*;
+use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
 use crate::rv64im::main_relation_spartan::recursive_cover::alloc_recursive_cover_claims;
 use crate::rv64im::SimpleKernelError;
@@ -40,7 +40,6 @@ where
     result
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Rv64imMainRelationStateInPrefixFingerprints {
     pub after_live_state_in_claim_alloc: String,
@@ -57,7 +56,6 @@ pub struct Rv64imMainRelationStateInPrefixFingerprints {
     pub terminal_identities: String,
 }
 
-#[allow(dead_code)]
 fn digest_hex(digest: [u8; 32]) -> String {
     let mut out = String::with_capacity(digest.len() * 2);
     for byte in digest {
@@ -66,7 +64,6 @@ fn digest_hex(digest: [u8; 32]) -> String {
     out
 }
 
-#[allow(dead_code)]
 pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<Rv64imMainRelationStateInPrefixFingerprints, SimpleKernelError> {
@@ -83,10 +80,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
 
     let witness = &backend_relation.f_prime_advice;
     let payload = &backend_relation.payload;
-    let replay_chunk = payload.effective_chunk_replay_surface(
-        &witness.running_state().transcript,
-        &witness.running_state().carry.main.claims,
-    )?;
+    let replay_chunk = payload.effective_chunk_replay_surface()?;
 
     let mut cs = FingerprintCS::new();
     let transcript_state = witness

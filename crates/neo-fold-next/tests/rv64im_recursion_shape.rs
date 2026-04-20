@@ -14,10 +14,10 @@ fn rv64im_recursion_shape_builder_is_deterministic() {
 fn rv64im_recursion_shape_matches_current_specialization() {
     let shape = build_rv64im_recursion_shape().expect("build recursion shape");
 
-    assert_eq!(shape.k, 14);
-    assert_eq!(shape.big_k, 1);
+    assert_eq!(shape.soundness_k, 14);
+    assert_eq!(shape.soundness_big_k, 1);
     assert_eq!(shape.b, 2);
-    assert_eq!(shape.k_decomp, 14);
+    assert_eq!(shape.decomposition_k, 14);
     assert_eq!(shape.version, ProtocolVersion { major: 1, minor: 0 });
     assert_eq!(shape.side_families_active.len(), 6);
     assert_eq!(shape.side_slot_count(FamilyEvalSchemaId::Stage1Rows), Some(4));
@@ -32,7 +32,7 @@ fn rv64im_recursion_shape_matches_current_specialization() {
 fn rv64im_recursion_shape_digest_tracks_shape_fields() {
     let base = build_rv64im_recursion_shape().expect("build base recursion shape");
     let mut changed = base.clone();
-    changed.big_k += 1;
+    changed.soundness_big_k += 1;
 
     assert_ne!(base.canonical_digest(), changed.canonical_digest());
 }
@@ -55,7 +55,7 @@ fn rv64im_recursion_shape_rejects_invalid_versions_and_soundness_violations() {
     ));
 
     let mut invalid_soundness = build_rv64im_recursion_shape().expect("build recursion shape");
-    invalid_soundness.big_k = 62;
+    invalid_soundness.soundness_big_k = 62;
     assert!(matches!(
         invalid_soundness.validate_soundness(),
         Err(ShapeError::SoundnessViolation { .. })

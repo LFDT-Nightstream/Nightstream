@@ -862,45 +862,6 @@ fn finalize_public_proof_verify_with_perf(
     ))
 }
 
-#[allow(dead_code)]
-pub(super) fn verify_public_kernel_output_from_public_proof_with_perf(
-    proof: &Rv64imProof,
-) -> Result<(PublicSimpleKernelOutput, Rv64imPublicProofVerifyPerf), SimpleKernelError> {
-    let total_started = Instant::now();
-    let claim_digests_started = Instant::now();
-    validate_public_claim_digests(proof)?;
-    let public_claim_digests_ms = millis_since(claim_digests_started);
-
-    let bundle_digests_started = Instant::now();
-    validate_public_bundle_digests(proof)?;
-    let public_bundle_digests_ms = millis_since(bundle_digests_started);
-
-    let bundle_bindings_started = Instant::now();
-    validate_public_bundle_bindings(proof)?;
-    let public_bundle_bindings_ms = millis_since(bundle_bindings_started);
-
-    let summary_consistency_started = Instant::now();
-    validate_public_witness_bundle_digests(proof)?;
-    validate_public_witness_bindings(proof)?;
-    let summary_consistency_ms = millis_since(summary_consistency_started);
-
-    let kernel = public_kernel_from_proof(proof);
-    let sidecar = public_sidecar_from_proof(proof);
-    let (kernel, mut perf) = finalize_public_proof_verify_with_perf(
-        proof,
-        kernel,
-        sidecar,
-        SimpleKernelBuildPerf::default(),
-        summary_consistency_ms,
-        total_started,
-    )?;
-    perf.public_claim_digests_ms = public_claim_digests_ms;
-    perf.public_bundle_digests_ms = public_bundle_digests_ms;
-    perf.public_bundle_bindings_ms = public_bundle_bindings_ms;
-
-    Ok((kernel, perf))
-}
-
 pub(super) fn verify_kernel_output_from_public_proof_with_perf(
     proof: &Rv64imProof,
 ) -> Result<

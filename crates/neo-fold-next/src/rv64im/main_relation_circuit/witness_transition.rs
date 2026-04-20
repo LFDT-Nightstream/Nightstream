@@ -1,11 +1,11 @@
 //! Owns witness-side Π_RLC / Π_DEC constraints over packed SuperNeo `Z` matrices.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::rho_sampling::RotRhoMatrixVar;
 use super::witness::{alloc_packed_mat_witness, PackedWitnessVar};

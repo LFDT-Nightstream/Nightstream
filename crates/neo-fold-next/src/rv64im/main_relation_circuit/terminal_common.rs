@@ -1,11 +1,11 @@
 //! Owns reusable K-field gadgets needed by Π_CCS terminal identities.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ccs::SparsePoly;
 use neo_math::K as NeoK;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::k_field::{alloc_constant_k, k_add, k_mul, k_scalar_mul, KNum, KNumVar};
 

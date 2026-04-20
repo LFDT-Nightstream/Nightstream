@@ -1,12 +1,9 @@
-use neo_ajtai::Commitment;
-use neo_ccs::CeClaim;
-use neo_math::{F, K};
-
 use super::Rv64imMainRecursionFPrimePayload;
 use crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot;
 use crate::rv64im::main_recursion::{Rv64imMainRecursionFPrimeAdvice, RV64IM_MAIN_RECURSION_TRIVIAL_PC};
 use crate::rv64im::main_relation_trace::{
-    build_rv64im_main_circuit_chunk_replay_surface, Rv64imMainCircuitChunkReplaySurface,
+    build_rv64im_main_circuit_chunk_replay_surface, build_rv64im_main_circuit_pi_ccs_replay_surface,
+    Rv64imMainCircuitChunkReplaySurface,
 };
 use crate::rv64im::SimpleKernelError;
 
@@ -49,8 +46,6 @@ impl Rv64imMainRecursionFPrimePayload {
 
     pub(crate) fn effective_chunk_replay_surface(
         &self,
-        transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
-        live_state_in_claims: &[CeClaim<Commitment, F, K>],
     ) -> Result<Rv64imMainCircuitChunkReplaySurface, SimpleKernelError> {
         let mut replay = self.pi_ccs.replay.clone();
         replay
@@ -86,12 +81,17 @@ impl Rv64imMainRecursionFPrimePayload {
             round.truncate(*live_len as usize);
         }
         build_rv64im_main_circuit_chunk_replay_surface(
-            transcript_in,
             &self.handoff,
             &self.fresh_claims[..self.step_shape.fresh_claim_count as usize],
-            live_state_in_claims,
-            self.pi_ccs.ccs_outputs[..self.step_shape.ccs_output_count as usize].to_vec(),
-            replay,
+            build_rv64im_main_circuit_pi_ccs_replay_surface(
+                self.pi_ccs.ccs_outputs[..self.step_shape.ccs_output_count as usize].to_vec(),
+                replay,
+                self.pi_ccs.public_challenges.clone(),
+                self.pi_ccs.row_chals.clone(),
+                self.pi_ccs.alpha_prime.clone(),
+                self.pi_ccs.s_col.clone(),
+                self.pi_ccs.alpha_prime_nc.clone(),
+            ),
             self.pi_rlc.parent.clone(),
             self.pi_dec.children[..self.step_shape.child_count as usize].to_vec(),
         )

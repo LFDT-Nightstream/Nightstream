@@ -4,11 +4,11 @@
 //! claims to explicit packed `Z` witnesses. It does not own transcript replay or
 //! the verifier-style `Π_CCS -> Π_RLC -> Π_DEC` theorem checks.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use neo_ccs::{CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::F;
 use neo_params::NeoParams;
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::ce_consistency::{
     enforce_ajtai_commitment_consistency, enforce_output_claim_consistency, enforce_paper_dec_child_claim_consistency,

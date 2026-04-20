@@ -4,6 +4,7 @@
 //! authoritative claim fields. They do not own transcript binding, sumcheck
 //! replay, or CE witness-opening checks.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ajtai::Commitment;
@@ -11,7 +12,6 @@ use neo_ccs::{CcsStructure, CeClaim};
 use neo_math::{F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::claim::CeClaimVar;
 use super::k_field::{alloc_constant_k, enforce_k_eq, k_add, k_mul, KNum, KNumVar};
@@ -719,7 +719,6 @@ fn pow_k_var<CS: ConstraintSystem<SpartanF>>(
     Ok((acc, acc_value))
 }
 
-#[allow(dead_code)]
 pub fn dummy_claim(
     y_ring: Vec<Vec<K>>,
     ct: Vec<K>,

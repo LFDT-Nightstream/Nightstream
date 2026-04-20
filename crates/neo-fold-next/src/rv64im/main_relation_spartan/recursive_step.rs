@@ -24,10 +24,8 @@ use neo_reductions::engines::utils::build_dims_and_policy;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
-use spartan2::{provider::goldi::F as SpartanF, traits::circuit::SpartanCircuit};
 use thiserror::Error;
 
-use super::chunk_step_ivc::digest_const_inputs;
 use super::chunk_step_recursive::{
     build_rv64im_main_recursion_step_spartan_statement as build_rv64im_main_recursion_step_spartan_statement_from_payload,
     rv64im_chunk_step_recursive_carry_state_digest, Rv64imMainRecursionFPrimeBackendRelation,
@@ -35,8 +33,8 @@ use super::chunk_step_recursive::{
 };
 use super::recursive_cover::alloc_recursive_cover_state;
 use super::{
-    alloc_const_field_values, alloc_private_field_values, digest32_as_spartan_fields, enforce_digest_eq,
-    next_public_digest, Rv64imMainRecursionStepSpartanStatement, Rv64imSpartan2DeciderEngine,
+    alloc_const_field_values, alloc_private_field_values, digest32_as_spartan_fields, digest_const_inputs,
+    enforce_digest_eq, next_public_digest, Rv64imMainRecursionStepSpartanStatement,
 };
 use crate::finalize::{digest_fields_as_digest32, FixedShapeChunkSummary};
 use crate::proof::{Carry, ChunkInput, StepInput};
@@ -44,6 +42,7 @@ use crate::rv64im::chunk_fold_step::{Rv64imAccumulatorHandle, Rv64imChunkFoldCar
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::build_rv64im_main_recursion_construction2_verified_step_statement_from_relation;
 use crate::rv64im::final_relation::{Rv64imChunkFoldState, Rv64imChunkFoldTranscriptSnapshot};
+use crate::rv64im::ivc_snark::{Rv64imDeciderEngine, SpartanCircuit, SpartanF};
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::kernel::{
     Rv64imChunkBridgeHandoff, Rv64imPreparedStepBridgeBinding, Rv64imVerifiedKernelChunkHandoff,
@@ -946,15 +945,7 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_chunk_replay_surface(
 ) -> Result<(), Rv64imMainRecursionStepSpartanError> {
     let replay_chunk = backend_relation
         .payload
-        .effective_chunk_replay_surface(
-            &backend_relation.f_prime_advice.running_state().transcript,
-            &backend_relation
-                .f_prime_advice
-                .running_state()
-                .carry
-                .main
-                .claims,
-        )
+        .effective_chunk_replay_surface()
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     if !backend_relation
         .payload
@@ -978,15 +969,7 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths(
 ) -> Result<(), Rv64imMainRecursionStepSpartanError> {
     let replay_chunk = backend_relation
         .payload
-        .effective_chunk_replay_surface(
-            &backend_relation.f_prime_advice.running_state().transcript,
-            &backend_relation
-                .f_prime_advice
-                .running_state()
-                .carry
-                .main
-                .claims,
-        )
+        .effective_chunk_replay_surface()
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     let (params, _, structure) = rv64im_cached_root_main_lane_context()
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
@@ -1020,7 +1003,7 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths(
     Ok(())
 }
 
-impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imMainRecursionStepCircuit {
+impl SpartanCircuit<Rv64imDeciderEngine> for Rv64imMainRecursionStepCircuit {
     fn public_values(&self) -> Result<Vec<SpartanF>, SynthesisError> {
         Ok(self.expected_public_values())
     }

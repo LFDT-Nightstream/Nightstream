@@ -16,7 +16,6 @@ use neo_reductions::engines::utils::{
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use spartan2::provider::goldi::F as SpartanF;
 use std::io::{self, Write};
 use std::time::Instant;
 
@@ -29,6 +28,7 @@ use super::{
     Rv64imClaimBundle, CHUNK_META_RAW_TAG, STEP_INDEX_RAW_TAG,
 };
 use crate::rv64im::final_relation::{Rv64imChunkFoldTranscriptSnapshot, RV64IM_CHUNK_DONE_RAW_TAG};
+use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::kernel::{
     rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache, SimpleKernelError,
 };

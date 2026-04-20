@@ -1,11 +1,11 @@
 //! Owns the FE initial-sum gadget for RV64IM main-relation chunk circuits.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ccs::CcsStructure;
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::claim::CeClaimVar;
 use super::k_field::{alloc_constant_k, k_add, k_mul, k_scalar_mul, KNum, KNumVar};

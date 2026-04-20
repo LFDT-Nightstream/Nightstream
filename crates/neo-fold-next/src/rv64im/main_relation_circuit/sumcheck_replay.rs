@@ -4,12 +4,12 @@
 //! path: absorb round coefficients, sample transcript challenges, and enforce
 //! the running-sum invariant in-circuit.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_math::{KExtensions, K as NeoK};
 use neo_reductions::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG;
 use p3_field::PrimeField64;
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::k_field::{alloc_k, enforce_k_eq, KNum, KNumVar};
 use super::sumcheck::{sumcheck_eval_gadget, sumcheck_round_gadget};

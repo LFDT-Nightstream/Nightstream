@@ -3,6 +3,7 @@
 //! This module only owns transcript state evolution and challenge squeezing.
 //! It does not own RV64IM relation semantics.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, Index, SynthesisError, Variable};
 use core::cmp::Ordering;
 use ff::Field;
@@ -11,7 +12,6 @@ use p3_goldilocks::{Goldilocks, MATRIX_DIAG_8_GOLDILOCKS};
 use p3_poseidon2::{poseidon2_round_numbers_128, ExternalLayerConstants};
 use rand_chacha_p3::rand_core::{Rng, SeedableRng};
 use rand_chacha_p3::ChaCha8Rng;
-use spartan2::provider::goldi::F as SpartanF;
 use std::sync::LazyLock;
 
 const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w8-r4";

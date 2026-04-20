@@ -1,28 +1,19 @@
-//! Owns the fixed-shape chunk-step IVC circuit plus native shape/padding
-//! helpers for recursive replay.
+//! Owns native fixed-shape chunk-step shape/padding helpers.
+//!
+//! The optional terminal compression circuit substrate lives in
+//! `ivc_snark/chunk_step_circuit.rs`.
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use neo_ccs::CcsStructure;
-use neo_math::F;
-use neo_params::NeoParams;
-use neo_transcript::Poseidon2Transcript;
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
-use spartan2::{bellpepper::poseidon2::hash_packed_goldilocks_fields, traits::circuit::SpartanCircuit};
 use thiserror::Error;
 
-use super::*;
-use crate::rv64im::chunk_relation::rv64im_chunk_replay_witness_digest;
 use crate::rv64im::chunk_step_ivc::{
     build_rv64im_chunk_step_ivc_published_target, build_rv64im_chunk_step_ivc_statement_from_authoritative_parts,
     validate_rv64im_chunk_step_ivc_surface, Rv64imChunkStepIvcPublishedTarget, Rv64imChunkStepIvcRelation,
     Rv64imChunkStepIvcStatement, Rv64imChunkStepIvcWitness,
 };
-use crate::rv64im::main_relation_circuit::claim::{
-    alloc_ce_claim, alloc_ce_claim_with_shared_point, enforce_claim_eq_native, me_digest_poseidon,
-    packed_bytes_field_values, CeClaimVar,
-};
 use crate::rv64im::main_relation_trace::{
-    build_rv64im_main_circuit_chunk_trace_from_authoritative_parts, Rv64imMainCircuitChunkCover,
+    build_rv64im_main_circuit_chunk_trace_from_authoritative_parts, Rv64imMainCircuitChunkTrace,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -200,96 +191,45 @@ pub enum Rv64imChunkStepIvcSpartanError {
     Verify(String),
 }
 
-#[derive(Clone)]
-pub(crate) struct Rv64imChunkStepIvcCircuit {
-    params: NeoParams,
-    structure: CcsStructure<F>,
-    dims: Dims,
-    mat_digest: [Goldilocks; 4],
-    published_target: Rv64imChunkStepIvcPublishedTarget,
-    witness: Rv64imChunkStepIvcWitness,
-    cover_chunk: Rv64imMainCircuitChunkCover,
-    effective_chunk: Rv64imMainCircuitChunkTrace,
-}
-
-#[derive(Clone)]
-#[allow(dead_code)]
-pub(crate) struct Rv64imChunkStepIvcStateVar {
-    pub(crate) claims: Vec<CeClaimVar>,
-    pub(crate) transcript_state: [AllocatedNum<SpartanF>; neo_params::poseidon2_goldilocks::WIDTH],
-    pub(crate) transcript_absorbed: usize,
-    pub(crate) terminal_handle: [AllocatedNum<SpartanF>; 4],
-}
-
-#[allow(dead_code)]
-struct Rv64imChunkStepIvcBoundaryVar {
-    state_in: Rv64imChunkStepIvcStateVar,
-    state_out: Rv64imChunkStepIvcStateVar,
-}
-
-impl Rv64imChunkStepIvcCircuit {
-    fn expected_public_values(&self) -> Vec<SpartanF> {
-        chunk_step_ivc_spartan_public_values(&self.published_target)
+pub(crate) fn prepare_rv64im_chunk_step_ivc_circuit_inputs(
+    statement: &Rv64imChunkStepIvcStatement,
+    witness: &Rv64imChunkStepIvcWitness,
+) -> Result<(Rv64imChunkStepIvcPublishedTarget, Rv64imMainCircuitChunkTrace), Rv64imChunkStepIvcSpartanError> {
+    validate_rv64im_chunk_step_ivc_surface(statement, witness)
+        .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
+    let published_target = build_rv64im_chunk_step_ivc_published_target(statement)
+        .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
+    let published_summary = published_target.chunk_summary();
+    let chunk_trace = build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(
+        witness.handoff.bridge_handoff.chunk_index as usize,
+        &witness.handoff,
+        &published_summary,
+        &witness.state_in.carry,
+        &witness.state_out.carry,
+        &witness.state_in.transcript,
+        &witness.state_out.transcript,
+        &witness.replay_witness,
+    )
+    .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
+    let canonical_statement = build_rv64im_chunk_step_ivc_statement_from_authoritative_parts(
+        published_target.program_digest,
+        witness,
+        chunk_trace.handoff.chunk_relation_digest,
+    );
+    if canonical_statement != *statement {
+        return Err(Rv64imChunkStepIvcSpartanError::Verify(
+            "rv64im chunk-step ivc statement shell does not match the authoritative published step statement".into(),
+        ));
     }
-}
-
-impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imChunkStepIvcCircuit {
-    fn public_values(&self) -> Result<Vec<SpartanF>, SynthesisError> {
-        Ok(self.expected_public_values())
-    }
-
-    fn shared<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        _: &mut CS,
-    ) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
-        Ok(Vec::new())
-    }
-
-    fn precommitted<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        _: &mut CS,
-        _: &[AllocatedNum<SpartanF>],
-    ) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
-        Ok(Vec::new())
-    }
-
-    fn num_challenges(&self) -> usize {
-        0
-    }
-
-    fn synthesize<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        cs: &mut CS,
-        _: &[AllocatedNum<SpartanF>],
-        _: &[AllocatedNum<SpartanF>],
-        _: Option<&[SpartanF]>,
-    ) -> Result<(), SynthesisError> {
-        let public_inputs = self
-            .expected_public_values()
-            .into_iter()
-            .enumerate()
-            .map(|(idx, value)| AllocatedNum::alloc_input(cs.namespace(|| format!("public_input_{idx}")), || Ok(value)))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut public_cursor = 0usize;
-        let _ = synthesize_chunk_step_ivc_relation_body(
-            self,
-            &mut cs.namespace(|| "chunk_step_ivc"),
-            &public_inputs,
-            &mut public_cursor,
-        )?;
-        if public_cursor != public_inputs.len() {
-            return Err(SynthesisError::Unsatisfiable);
-        }
-        Ok(())
-    }
+    Ok((published_target, chunk_trace))
 }
 
 pub fn build_rv64im_chunk_step_ivc_shape(
     statement: &Rv64imChunkStepIvcStatement,
     witness: &Rv64imChunkStepIvcWitness,
 ) -> Result<Rv64imChunkStepIvcShape, Rv64imChunkStepIvcSpartanError> {
-    let circuit = build_rv64im_chunk_step_ivc_circuit(statement, witness)?;
-    Ok(rv64im_chunk_step_ivc_shape(&circuit))
+    let (_, effective_chunk) = prepare_rv64im_chunk_step_ivc_circuit_inputs(statement, witness)?;
+    Ok(rv64im_chunk_step_ivc_shape_from_trace(witness, &effective_chunk))
 }
 
 pub fn build_rv64im_chunk_step_ivc_recursive_step_cover_shape(
@@ -343,79 +283,28 @@ pub fn build_rv64im_chunk_step_ivc_recursive_step_padding_from_shape(
     })
 }
 
-pub(crate) fn build_rv64im_chunk_step_ivc_circuit(
-    statement: &Rv64imChunkStepIvcStatement,
+fn rv64im_chunk_step_ivc_shape_from_trace(
     witness: &Rv64imChunkStepIvcWitness,
-) -> Result<Rv64imChunkStepIvcCircuit, Rv64imChunkStepIvcSpartanError> {
-    validate_rv64im_chunk_step_ivc_surface(statement, witness)
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
-    let published_target = build_rv64im_chunk_step_ivc_published_target(statement)
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
-    let published_summary = published_target.chunk_summary();
-    let chunk_trace = build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(
-        witness.handoff.bridge_handoff.chunk_index as usize,
-        &witness.handoff,
-        &published_summary,
-        &witness.state_in.carry,
-        &witness.state_out.carry,
-        &witness.state_in.transcript,
-        &witness.state_out.transcript,
-        &witness.replay_witness,
-    )
-    .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
-    let canonical_statement = build_rv64im_chunk_step_ivc_statement_from_authoritative_parts(
-        published_target.program_digest,
-        witness,
-        chunk_trace.handoff.chunk_relation_digest,
-    );
-    if canonical_statement != *statement {
-        return Err(Rv64imChunkStepIvcSpartanError::Verify(
-            "rv64im chunk-step ivc statement shell does not match the authoritative published step statement".into(),
-        ));
-    }
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
-    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
-    let dims = build_dims_and_policy(params, structure)
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
-    let mat_digest_vec = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()));
-    let mat_digest = mat_digest_vec
-        .try_into()
-        .map_err(|_| Rv64imChunkStepIvcSpartanError::Verify("matrix digest length mismatch".into()))?;
-    Ok(Rv64imChunkStepIvcCircuit {
-        params: params.clone(),
-        structure: structure.clone(),
-        dims,
-        mat_digest,
-        published_target,
-        witness: witness.clone(),
-        cover_chunk: Rv64imMainCircuitChunkCover::from_trace(&chunk_trace),
-        effective_chunk: chunk_trace,
-    })
-}
-
-fn rv64im_chunk_step_ivc_shape(circuit: &Rv64imChunkStepIvcCircuit) -> Rv64imChunkStepIvcShape {
+    effective_chunk: &Rv64imMainCircuitChunkTrace,
+) -> Rv64imChunkStepIvcShape {
     Rv64imChunkStepIvcShape {
-        terminal_step: circuit.witness.terminal_step,
-        state_in_claim_count: circuit.witness.state_in.carry.main.claims.len() as u64,
-        state_out_claim_count: circuit.witness.state_out.carry.main.claims.len() as u64,
-        fresh_claim_count: circuit.effective_chunk.fresh_claims.len() as u64,
-        fresh_witness_count: circuit.effective_chunk.fresh_witnesses.len() as u64,
-        ccs_output_count: circuit.effective_chunk.ccs_trace.ccs_outputs.len() as u64,
-        child_count: circuit.effective_chunk.ccs_trace.children.len() as u64,
-        transcript_in_absorbed: circuit.witness.state_in.transcript.absorbed as u64,
-        transcript_out_absorbed: circuit.witness.state_out.transcript.absorbed as u64,
-        fe_round_lengths: circuit
-            .effective_chunk
+        terminal_step: witness.terminal_step,
+        state_in_claim_count: witness.state_in.carry.main.claims.len() as u64,
+        state_out_claim_count: witness.state_out.carry.main.claims.len() as u64,
+        fresh_claim_count: effective_chunk.fresh_claims.len() as u64,
+        fresh_witness_count: effective_chunk.fresh_witnesses.len() as u64,
+        ccs_output_count: effective_chunk.ccs_trace.ccs_outputs.len() as u64,
+        child_count: effective_chunk.ccs_trace.children.len() as u64,
+        transcript_in_absorbed: witness.state_in.transcript.absorbed as u64,
+        transcript_out_absorbed: witness.state_out.transcript.absorbed as u64,
+        fe_round_lengths: effective_chunk
             .ccs_trace
             .ccs_replay_proof
             .sumcheck_rounds
             .iter()
             .map(|round| round.len() as u64)
             .collect(),
-        nc_round_lengths: circuit
-            .effective_chunk
+        nc_round_lengths: effective_chunk
             .ccs_trace
             .ccs_replay_proof
             .sumcheck_rounds_nc
@@ -423,508 +312,4 @@ fn rv64im_chunk_step_ivc_shape(circuit: &Rv64imChunkStepIvcCircuit) -> Rv64imChu
             .map(|round| round.len() as u64)
             .collect(),
     }
-}
-
-pub(crate) fn rv64im_chunk_step_ivc_cache_key(
-    circuit: &Rv64imChunkStepIvcCircuit,
-) -> Result<[u8; 32], Rv64imChunkStepIvcSpartanError> {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key");
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key/shape",
-        &rv64im_chunk_step_ivc_shape(circuit).expected_digest(),
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key/published_target_digest",
-        &circuit.published_target.expected_digest(),
-    );
-    let state_in_bytes = bincode::serialize(&circuit.witness.state_in)
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key/state_in",
-        &state_in_bytes,
-    );
-    let state_out_bytes = bincode::serialize(&circuit.witness.state_out)
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key/state_out",
-        &state_out_bytes,
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key/public_chunk_digest",
-        &circuit.witness.handoff.public_chunk_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key/bridge_handoff_digest",
-        &circuit.witness.handoff.bridge_handoff.digest,
-    );
-    for digest in &circuit.witness.handoff.prepared_step_digests {
-        tr.append_message(
-            b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key/prepared_step_digest",
-            digest,
-        );
-    }
-    tr.append_message(
-        b"neo.fold.next/rv64im/chunk_step_ivc/setup_cache_key/replay_witness_digest",
-        &rv64im_chunk_replay_witness_digest(&circuit.witness.replay_witness),
-    );
-    Ok(tr.digest32())
-}
-
-pub(crate) fn chunk_step_ivc_spartan_public_values(target: &Rv64imChunkStepIvcPublishedTarget) -> Vec<SpartanF> {
-    target
-        .public_values()
-        .into_iter()
-        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
-        .collect()
-}
-
-fn synthesize_chunk_step_ivc_relation_body<CS: ConstraintSystem<SpartanF>>(
-    circuit: &Rv64imChunkStepIvcCircuit,
-    cs: &mut CS,
-    public_inputs: &[AllocatedNum<SpartanF>],
-    public_cursor: &mut usize,
-) -> Result<Rv64imChunkStepIvcBoundaryVar, SynthesisError> {
-    let program_digest_input = next_public_digest(public_inputs, public_cursor, "program_digest")?;
-    let chunk_index_input = next_public_u64(public_inputs, public_cursor)?;
-    let step_lo_input = next_public_u64(public_inputs, public_cursor)?;
-    let step_hi_input = next_public_u64(public_inputs, public_cursor)?;
-    let halted_out_input = next_public_u64(public_inputs, public_cursor)?;
-    let state_in_input = next_public_digest(public_inputs, public_cursor, "state_in")?;
-    let state_out_input = next_public_digest(public_inputs, public_cursor, "state_out")?;
-    let summary_start_input = next_public_u64(public_inputs, public_cursor)?;
-    let summary_step_count_input = next_public_u64(public_inputs, public_cursor)?;
-    let public_chunk_digest_input = next_public_digest(public_inputs, public_cursor, "public_chunk_digest")?;
-
-    let program_digest_const = digest_const_inputs(
-        &mut cs.namespace(|| "program_digest_const"),
-        circuit.published_target.program_digest,
-        "program_digest_const",
-    )?;
-    enforce_digest_eq(
-        &mut cs.namespace(|| "program_digest_eq"),
-        &program_digest_input,
-        &program_digest_const,
-        "program_digest_eq",
-    )?;
-    enforce_u64_input_eq(
-        &mut cs.namespace(|| "chunk_index_eq"),
-        &chunk_index_input,
-        circuit.published_target.chunk_index,
-        "chunk_index_eq",
-    )?;
-    enforce_u64_input_eq(
-        &mut cs.namespace(|| "step_lo_eq"),
-        &step_lo_input,
-        circuit.published_target.step_lo,
-        "step_lo_eq",
-    )?;
-    enforce_u64_input_eq(
-        &mut cs.namespace(|| "step_hi_eq"),
-        &step_hi_input,
-        circuit.published_target.step_hi,
-        "step_hi_eq",
-    )?;
-    enforce_u64_input_eq(
-        &mut cs.namespace(|| "halted_out_eq"),
-        &halted_out_input,
-        u64::from(circuit.published_target.halted_out),
-        "halted_out_eq",
-    )?;
-    let state_in_const = digest_const_inputs(
-        &mut cs.namespace(|| "state_in_const"),
-        circuit.published_target.state_in,
-        "state_in_const",
-    )?;
-    enforce_digest_eq(
-        &mut cs.namespace(|| "state_in_eq"),
-        &state_in_input,
-        &state_in_const,
-        "state_in_eq",
-    )?;
-    enforce_u64_input_eq(
-        &mut cs.namespace(|| "summary_start_eq"),
-        &summary_start_input,
-        circuit.published_target.summary_start,
-        "summary_start_eq",
-    )?;
-    enforce_u64_input_eq(
-        &mut cs.namespace(|| "summary_step_count_eq"),
-        &summary_step_count_input,
-        circuit.published_target.summary_step_count,
-        "summary_step_count_eq",
-    )?;
-    let public_chunk_digest_const = digest_const_inputs(
-        &mut cs.namespace(|| "public_chunk_digest_const"),
-        circuit.published_target.public_chunk_digest,
-        "public_chunk_digest_const",
-    )?;
-    enforce_digest_eq(
-        &mut cs.namespace(|| "public_chunk_digest_eq"),
-        &public_chunk_digest_input,
-        &public_chunk_digest_const,
-        "public_chunk_digest_eq",
-    )?;
-
-    let transcript_in_fields = alloc_private_transcript_state(&mut cs.namespace(|| "transcript_in"), &circuit.witness)?;
-    let transcript_in_values = circuit
-        .witness
-        .state_in
-        .transcript
-        .state
-        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
-    let mut transcript = Poseidon2TranscriptCircuit::from_state(
-        transcript_in_fields.clone(),
-        transcript_in_values,
-        circuit.witness.state_in.transcript.absorbed,
-    )?;
-    let carried_claims = alloc_state_in_claims(
-        &mut cs.namespace(|| "state_in_claims"),
-        &circuit.witness.state_in.carry.main.claims,
-    )?;
-    let state_in = Rv64imChunkStepIvcStateVar {
-        claims: carried_claims.clone(),
-        transcript_state: transcript_in_fields,
-        transcript_absorbed: circuit.witness.state_in.transcript.absorbed,
-        terminal_handle: state_in_input.clone(),
-    };
-
-    let replay_chunk = circuit
-        .effective_chunk
-        .replay_surface()
-        .map_err(|_| SynthesisError::Unsatisfiable)?;
-    let next_claims = synthesize_rv64im_main_relation_chunk(
-        &circuit.params,
-        &circuit.structure,
-        circuit.dims,
-        &circuit.mat_digest,
-        &circuit.witness.state_out.carry.main.claims,
-        &mut cs.namespace(|| "chunk_step"),
-        circuit.witness.handoff.bridge_handoff.chunk_index as usize,
-        &circuit.cover_chunk,
-        &replay_chunk,
-        public_inputs,
-        public_cursor,
-        &mut transcript,
-        Rv64imClaimBundle::from_effective_claims(carried_claims),
-        Rv64imChunkBoundaryPlan::from_boundary_mode(
-            Rv64imChunkBoundaryMode::from_terminal_flags(circuit.witness.terminal_step, false),
-            circuit.effective_chunk.fresh_claims.len(),
-            circuit.effective_chunk.ccs_trace.ccs_outputs.len(),
-        ),
-        true,
-        false,
-    )?;
-
-    if next_claims.effective_count() != circuit.witness.state_out.carry.main.claims.len() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    for (claim_index, (actual, expected)) in next_claims
-        .effective_claims()
-        .iter()
-        .zip(circuit.witness.state_out.carry.main.claims.iter())
-        .enumerate()
-    {
-        enforce_claim_eq_native(
-            &mut cs.namespace(|| format!("state_out_claim_{claim_index}")),
-            actual,
-            expected,
-            &format!("state_out_claim_{claim_index}"),
-        )?;
-    }
-
-    transcript.append_const_fields_raw(
-        cs.namespace(|| "chunk_done"),
-        &[
-            SpartanF::from_canonical_u64(RV64IM_CHUNK_DONE_RAW_TAG),
-            SpartanF::from_canonical_u64(1),
-        ],
-    )?;
-    let transcript_out = transcript.state_fields(cs.namespace(|| "carried_transcript_out"))?;
-    for (lane_index, (actual, expected)) in transcript_out
-        .iter()
-        .zip(circuit.witness.state_out.transcript.state.iter())
-        .enumerate()
-    {
-        let expected = SpartanF::from_canonical_u64(expected.as_canonical_u64());
-        cs.enforce(
-            || format!("transcript_out_lane_{lane_index}"),
-            |lc| lc + actual.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc + (expected, CS::one()),
-        );
-    }
-    if transcript.absorbed() != circuit.witness.state_out.transcript.absorbed {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-
-    let state_out_handle = chunk_step_handle_circuit(
-        &mut cs.namespace(|| "state_out_handle"),
-        &state_in_input,
-        circuit.witness.handoff.bridge_handoff.chunk_index as u64,
-        circuit.effective_chunk.handoff.public_chunk.start_index as u64,
-        circuit.effective_chunk.handoff.public_chunk.steps.len() as u64,
-        circuit.effective_chunk.handoff.chunk_relation_digest,
-    )?;
-    enforce_digest_eq(
-        &mut cs.namespace(|| "state_out_eq"),
-        &state_out_handle,
-        &state_out_input,
-        "state_out_eq",
-    )?;
-
-    Ok(Rv64imChunkStepIvcBoundaryVar {
-        state_in,
-        state_out: Rv64imChunkStepIvcStateVar {
-            claims: next_claims.into_effective_claims(),
-            transcript_state: transcript_out,
-            transcript_absorbed: transcript.absorbed(),
-            terminal_handle: state_out_handle,
-        },
-    })
-}
-
-#[allow(dead_code)]
-pub(crate) fn alloc_native_chunk_step_state<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    state: &crate::rv64im::final_relation::Rv64imChunkFoldState,
-    label: &str,
-) -> Result<Rv64imChunkStepIvcStateVar, SynthesisError> {
-    let claims = alloc_state_in_claims(
-        &mut cs.namespace(|| format!("{label}_claims")),
-        &state.carry.main.claims,
-    )?;
-    let transcript_state = alloc_const_field_values(
-        &mut cs.namespace(|| format!("{label}_transcript_state")),
-        &state
-            .transcript
-            .state
-            .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
-        &format!("{label}_transcript_state"),
-    )?
-    .try_into()
-    .map_err(|_| SynthesisError::Unsatisfiable)?;
-    let terminal_handle = digest_const_inputs(
-        &mut cs.namespace(|| format!("{label}_terminal_handle")),
-        state.carry.terminal_handle.0,
-        label,
-    )?;
-    Ok(Rv64imChunkStepIvcStateVar {
-        claims,
-        transcript_state,
-        transcript_absorbed: state.transcript.absorbed,
-        terminal_handle,
-    })
-}
-
-#[allow(dead_code)]
-pub(crate) fn chunk_step_ivc_transcript_snapshot_digest_circuit<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    state: &[AllocatedNum<SpartanF>; neo_params::poseidon2_goldilocks::WIDTH],
-    absorbed: usize,
-    label: &str,
-) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let mut preimage = alloc_const_field_values(
-        &mut cs.namespace(|| format!("{label}_domain")),
-        &packed_bytes_field_values(b"neo.fold.next/rv64im/main_recursion_transcript_snapshot/v2"),
-        &format!("{label}_domain"),
-    )?;
-    preimage.extend(alloc_const_field_values(
-        &mut cs.namespace(|| format!("{label}_absorbed")),
-        &[SpartanF::from_canonical_u64(absorbed as u64)],
-        &format!("{label}_absorbed"),
-    )?);
-    preimage.extend(state.iter().cloned());
-    hash_packed_goldilocks_fields(cs.namespace(|| format!("{label}_hash")), &preimage)
-}
-
-#[allow(dead_code)]
-pub(crate) fn chunk_step_ivc_state_instance_digest_circuit<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    state: &Rv64imChunkStepIvcStateVar,
-    label: &str,
-) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let mut preimage = alloc_const_field_values(
-        &mut cs.namespace(|| format!("{label}_domain")),
-        &packed_bytes_field_values(b"neo.fold.next/rv64im/main_recursion_accumulator_instance/v2"),
-        &format!("{label}_domain"),
-    )?;
-    preimage.extend(alloc_const_field_values(
-        &mut cs.namespace(|| format!("{label}_claim_count")),
-        &[SpartanF::from_canonical_u64(state.claims.len() as u64)],
-        &format!("{label}_claim_count"),
-    )?);
-    for (claim_index, claim) in state.claims.iter().enumerate() {
-        let claim_digest = me_digest_poseidon(
-            &mut cs.namespace(|| format!("{label}_claim_digest_{claim_index}")),
-            claim,
-            &format!("{label}_claim_digest_{claim_index}"),
-        )?;
-        preimage.extend(claim_digest.iter().cloned());
-    }
-    let transcript_digest = chunk_step_ivc_transcript_snapshot_digest_circuit(
-        &mut cs.namespace(|| format!("{label}_transcript_digest")),
-        &state.transcript_state,
-        state.transcript_absorbed,
-        &format!("{label}_transcript_digest"),
-    )?;
-    preimage.extend(transcript_digest.iter().cloned());
-    preimage.extend(state.terminal_handle.iter().cloned());
-    hash_packed_goldilocks_fields(cs.namespace(|| format!("{label}_hash")), &preimage)
-}
-
-#[allow(dead_code)]
-fn enforce_chunk_step_state_eq<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    expected: &Rv64imChunkStepIvcStateVar,
-    actual: &Rv64imChunkStepIvcStateVar,
-    label: &str,
-) -> Result<(), SynthesisError> {
-    if expected.claims.len() != actual.claims.len() || expected.transcript_absorbed != actual.transcript_absorbed {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    for (claim_index, (expected_claim, actual_claim)) in expected.claims.iter().zip(actual.claims.iter()).enumerate() {
-        let expected_digest = me_digest_poseidon(
-            &mut cs.namespace(|| format!("{label}_expected_claim_digest_{claim_index}")),
-            expected_claim,
-            &format!("{label}_expected_claim_digest_{claim_index}"),
-        )?;
-        let actual_digest = me_digest_poseidon(
-            &mut cs.namespace(|| format!("{label}_actual_claim_digest_{claim_index}")),
-            actual_claim,
-            &format!("{label}_actual_claim_digest_{claim_index}"),
-        )?;
-        enforce_digest_eq(
-            &mut cs.namespace(|| format!("{label}_claim_eq_{claim_index}")),
-            &actual_digest,
-            &expected_digest,
-            &format!("{label}_claim_eq_{claim_index}"),
-        )?;
-    }
-    for (lane_index, (expected_lane, actual_lane)) in expected
-        .transcript_state
-        .iter()
-        .zip(actual.transcript_state.iter())
-        .enumerate()
-    {
-        cs.enforce(
-            || format!("{label}_transcript_lane_eq_{lane_index}"),
-            |lc| lc + actual_lane.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc + expected_lane.get_variable(),
-        );
-    }
-    enforce_digest_eq(
-        &mut cs.namespace(|| format!("{label}_terminal_handle_eq")),
-        &actual.terminal_handle,
-        &expected.terminal_handle,
-        &format!("{label}_terminal_handle_eq"),
-    )?;
-    Ok(())
-}
-
-pub(crate) fn alloc_private_transcript_state<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    witness: &Rv64imChunkStepIvcWitness,
-) -> Result<[AllocatedNum<SpartanF>; neo_params::poseidon2_goldilocks::WIDTH], SynthesisError> {
-    let mut out = Vec::with_capacity(neo_params::poseidon2_goldilocks::WIDTH);
-    for (lane_index, lane) in witness.state_in.transcript.state.iter().enumerate() {
-        out.push(AllocatedNum::alloc(
-            cs.namespace(|| format!("transcript_lane_{lane_index}")),
-            || Ok(SpartanF::from_canonical_u64(lane.as_canonical_u64())),
-        )?);
-    }
-    out.try_into().map_err(|_| SynthesisError::Unsatisfiable)
-}
-
-pub(crate) fn alloc_state_in_claims<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    claims: &[neo_ccs::CeClaim<neo_ajtai::Commitment, F, neo_math::K>],
-) -> Result<Vec<CeClaimVar>, SynthesisError> {
-    let Some((first, rest)) = claims.split_first() else {
-        return Ok(Vec::new());
-    };
-    let mut out = Vec::with_capacity(claims.len());
-    let first_var = alloc_ce_claim(&mut cs.namespace(|| "claim_0"), first, "claim_0")?;
-    let shared_r = first_var.r.clone();
-    let shared_r_values = first_var.r_values.clone();
-    let shared_s_col = first_var.s_col.clone();
-    let shared_s_col_values = first_var.s_col_values.clone();
-    out.push(first_var);
-    for (idx, claim) in rest.iter().enumerate() {
-        out.push(alloc_ce_claim_with_shared_point(
-            &mut cs.namespace(|| format!("claim_{}", idx + 1)),
-            claim,
-            &shared_r,
-            &shared_r_values,
-            &shared_s_col,
-            &shared_s_col_values,
-            &format!("claim_{}", idx + 1),
-        )?);
-    }
-    Ok(out)
-}
-
-pub(crate) fn digest_const_inputs<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    digest: [u8; 32],
-    label: &str,
-) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    alloc_const_field_values(cs, &digest32_as_spartan_fields(digest), label)?
-        .try_into()
-        .map_err(|_| SynthesisError::Unsatisfiable)
-}
-
-pub(crate) fn enforce_u64_input_eq<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    actual: &AllocatedNum<SpartanF>,
-    expected: u64,
-    label: &str,
-) -> Result<(), SynthesisError> {
-    let expected = SpartanF::from_canonical_u64(expected);
-    cs.enforce(
-        || label,
-        |lc| lc + actual.get_variable(),
-        |lc| lc + CS::one(),
-        |lc| lc + (expected, CS::one()),
-    );
-    Ok(())
-}
-
-pub(crate) fn next_public_u64(
-    public_inputs: &[AllocatedNum<SpartanF>],
-    cursor: &mut usize,
-) -> Result<AllocatedNum<SpartanF>, SynthesisError> {
-    if *cursor >= public_inputs.len() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    let out = public_inputs[*cursor].clone();
-    *cursor += 1;
-    Ok(out)
-}
-
-pub(crate) fn chunk_step_handle_circuit<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    previous_handle_digest: &[AllocatedNum<SpartanF>; 4],
-    chunk_index: u64,
-    chunk_start_index: u64,
-    public_step_count: u64,
-    chunk_relation_digest: [u8; 32],
-) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let mut preimage = Vec::new();
-    preimage.extend(previous_handle_digest.iter().cloned());
-    preimage.extend(alloc_const_field_values(
-        &mut cs.namespace(|| "chunk_step_meta"),
-        &[
-            SpartanF::from_canonical_u64(chunk_index),
-            SpartanF::from_canonical_u64(chunk_start_index),
-            SpartanF::from_canonical_u64(public_step_count),
-        ],
-        "chunk_step_meta",
-    )?);
-    preimage.extend(alloc_const_field_values(
-        &mut cs.namespace(|| "chunk_step_digest"),
-        &packed_bytes_field_values(&chunk_relation_digest),
-        "chunk_step_digest",
-    )?);
-    hash_packed_goldilocks_fields(cs.namespace(|| "chunk_step_handle_hash"), &preimage)
 }

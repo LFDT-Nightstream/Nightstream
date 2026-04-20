@@ -27,10 +27,16 @@ pub(super) struct Rv64imPiCcsStageOutput {
     pub(super) padded_ccs_outputs: Vec<CeClaimVar>,
     pub(super) r_prime_vars: Vec<KNumVar>,
     pub(super) s_col_prime_vars: Vec<KNumVar>,
+    pub(super) fold_digest: [AllocatedNum<SpartanF>; 4],
 }
 
 pub(super) struct Rv64imPiRlcStageOutput {
     pub(super) parent_claim: CeClaimVar,
+}
+
+pub(super) struct Rv64imChunkNifsVerifierBodyOutput {
+    pub(super) next_claims: Rv64imClaimBundle,
+    pub(super) pi_ccs_fold_digest: [AllocatedNum<SpartanF>; 4],
 }
 
 fn emit_nifs_stage_trace(trace_prefix: Option<&str>, label: &str, started: Instant) {
@@ -40,7 +46,7 @@ fn emit_nifs_stage_trace(trace_prefix: Option<&str>, label: &str, started: Insta
     }
 }
 
-fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: ConstraintSystem<SpartanF>>(
+pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: ConstraintSystem<SpartanF>>(
     params: &NeoParams,
     structure: &CcsStructure<F>,
     dims: Dims,
@@ -56,7 +62,7 @@ fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: Const
     boundary_plan: Rv64imChunkBoundaryPlan,
     absorb_synthetic_chunk_relation_io: bool,
     trace_prefix: Option<&str>,
-) -> Result<Rv64imClaimBundle, SynthesisError> {
+) -> Result<Rv64imChunkNifsVerifierBodyOutput, SynthesisError> {
     if !cover_chunk.covers_replay_surface(chunk) {
         return Err(SynthesisError::Unsatisfiable);
     }
@@ -90,7 +96,7 @@ fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: Const
         enforce_synthetic_outer_chunk_relation_public_io(
             &ctx,
             &mut cs.namespace(|| format!("chunk_{}_synthetic_relation_digest", chunk_index)),
-            transcript,
+            &pi_ccs.fold_digest,
             &format!("chunk_{}_synthetic_relation_digest", chunk_index),
         )?;
         emit_nifs_stage_trace(trace_prefix, "synthetic_relation_io", started);
@@ -101,41 +107,10 @@ fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: Const
     let started = Instant::now();
     let replayed_next_claims = synthesize_pi_dec_stage(&ctx, cs, carried_claims, &pi_ccs, pi_rlc)?;
     emit_nifs_stage_trace(trace_prefix, "pi_dec", started);
-    Ok(replayed_next_claims)
-}
-
-pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body<CS: ConstraintSystem<SpartanF>>(
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    dims: Dims,
-    mat_digest: &[Goldilocks; 4],
-    terminal_final_claims: &[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>],
-    cs: &mut CS,
-    chunk_index: usize,
-    cover_chunk: &Rv64imMainCircuitChunkCover,
-    chunk: &Rv64imMainCircuitChunkReplaySurface,
-    transcript: &mut Poseidon2TranscriptCircuit,
-    carried_claims: Rv64imClaimBundle,
-    logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
-    boundary_plan: Rv64imChunkBoundaryPlan,
-) -> Result<Rv64imClaimBundle, SynthesisError> {
-    synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
-        params,
-        structure,
-        dims,
-        mat_digest,
-        terminal_final_claims,
-        cs,
-        chunk_index,
-        cover_chunk,
-        chunk,
-        transcript,
-        carried_claims,
-        logical_me_input_claims,
-        boundary_plan,
-        false,
-        None,
-    )
+    Ok(Rv64imChunkNifsVerifierBodyOutput {
+        next_claims: replayed_next_claims,
+        pi_ccs_fold_digest: pi_ccs.fold_digest,
+    })
 }
 
 pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io<
@@ -156,7 +131,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
     boundary_plan: Rv64imChunkBoundaryPlan,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imClaimBundle, SynthesisError> {
-    synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
+    Ok(synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
         params,
         structure,
         dims,
@@ -172,7 +147,8 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
         boundary_plan,
         true,
         trace_prefix,
-    )
+    )?
+    .next_claims)
 }
 
 pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
@@ -356,6 +332,10 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
     emit_nifs_stage_trace(trace_prefix, "pi_ccs.nc_sumcheck", started);
 
     let started = Instant::now();
+    let fold_digest = transcript.digest32(cs.namespace(|| format!("chunk_{}_fold_digest", ctx.chunk_index)))?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.fold_digest", started);
+
+    let started = Instant::now();
     let effective_output_count = ctx.chunk.pi_ccs.ccs_outputs.len();
     let mut padded_ccs_outputs = Vec::with_capacity(ctx.cover_chunk.ccs_output_shapes.len());
     for (output_index, shape) in ctx.cover_chunk.ccs_output_shapes.iter().enumerate() {
@@ -479,17 +459,17 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         padded_ccs_outputs,
         r_prime_vars,
         s_col_prime_vars,
+        fold_digest,
     })
 }
 
 pub(super) fn enforce_outer_chunk_relation_public_io<CS: ConstraintSystem<SpartanF>>(
     ctx: &Rv64imChunkNifsVerifierCtx<'_>,
     cs: &mut CS,
-    transcript: &mut Poseidon2TranscriptCircuit,
+    fold_digest: &[AllocatedNum<SpartanF>; 4],
     public_inputs: &[AllocatedNum<SpartanF>],
     public_cursor: &mut usize,
 ) -> Result<(), SynthesisError> {
-    let fold_digest = transcript.digest32(cs.namespace(|| format!("chunk_{}_fold_digest", ctx.chunk_index)))?;
     let chunk_relation_digest_input = next_public_digest(
         public_inputs,
         public_cursor,
@@ -498,7 +478,7 @@ pub(super) fn enforce_outer_chunk_relation_public_io<CS: ConstraintSystem<Sparta
     let chunk_relation_digest = chunk_relation_digest_circuit(
         &mut cs.namespace(|| format!("chunk_{}_relation_digest", ctx.chunk_index)),
         ctx.chunk.handoff.public_chunk_digest,
-        &fold_digest,
+        fold_digest,
         ctx.chunk.handoff.bridge_handoff_digest,
     )?;
     enforce_digest_eq(
@@ -513,7 +493,7 @@ pub(super) fn enforce_outer_chunk_relation_public_io<CS: ConstraintSystem<Sparta
 pub(super) fn enforce_synthetic_outer_chunk_relation_public_io<CS: ConstraintSystem<SpartanF>>(
     ctx: &Rv64imChunkNifsVerifierCtx<'_>,
     cs: &mut CS,
-    transcript: &mut Poseidon2TranscriptCircuit,
+    fold_digest: &[AllocatedNum<SpartanF>; 4],
     label: &str,
 ) -> Result<(), SynthesisError> {
     let synthetic_chunk_relation_digest = alloc_private_field_values(
@@ -525,7 +505,7 @@ pub(super) fn enforce_synthetic_outer_chunk_relation_public_io<CS: ConstraintSys
     enforce_outer_chunk_relation_public_io(
         ctx,
         cs,
-        transcript,
+        fold_digest,
         &synthetic_chunk_relation_digest,
         &mut synthetic_chunk_relation_cursor,
     )?;

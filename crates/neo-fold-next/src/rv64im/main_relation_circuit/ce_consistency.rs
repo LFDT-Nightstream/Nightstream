@@ -5,6 +5,7 @@
 //! `ct[j] = y_ring[j][0]`, and balanced digit representability for each packed
 //! witness coefficient.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ajtai::{get_global_pp_for_dims, precompute_rot_columns};
@@ -12,7 +13,6 @@ use neo_ccs::{CcsMatrix, CcsStructure};
 use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
 use neo_params::NeoParams;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::claim::CeClaimVar;
 use super::k_field::{alloc_constant_k, enforce_k_eq, k_add, k_base_mul_var, k_mul, k_scalar_mul, KNum, KNumVar};

@@ -1,12 +1,12 @@
 //! Owns circuit checks that bind Π_CCS outputs to authoritative fresh inputs and carried ME inputs.
 
+use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsStructure};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use spartan2::provider::goldi::F as SpartanF;
 
 use super::claim::CeClaimVar;
 use super::k_field::{enforce_k_eq, KNumVar};

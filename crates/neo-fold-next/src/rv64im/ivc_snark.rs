@@ -5,11 +5,19 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
 
+mod chunk_step_circuit;
 mod chunk_step_spartan;
+mod spartan_support;
 
 use self::chunk_step_spartan::{
-    prove_rv64im_chunk_step_ivc_spartan, setup_rv64im_chunk_step_ivc_spartan,
-    setup_rv64im_chunk_step_ivc_spartan_cached, verify_rv64im_chunk_step_ivc_spartan,
+    debug_check_rv64im_chunk_step_ivc_spartan_circuit, prove_rv64im_chunk_step_ivc_spartan,
+    setup_rv64im_chunk_step_ivc_spartan, setup_rv64im_chunk_step_ivc_spartan_cached,
+    verify_rv64im_chunk_step_ivc_spartan,
+};
+pub(crate) use self::spartan_support::{
+    hash_packed_goldilocks_fields, GoldilocksP3MerkleMleEngine, R1CSSNARKTrait, Rv64imDeciderEngine,
+    Rv64imDeciderProverKey, Rv64imDeciderSnark, Rv64imDeciderVerifierKey, ShapeCS, SpartanCircuit, SpartanF,
+    SpartanProverKey, SpartanShape, SpartanVerifierKey, SplitR1CSShape, R1CSSNARK,
 };
 use crate::rv64im::chunk_step_ivc::{build_rv64im_chunk_step_ivc_relations, Rv64imChunkStepIvcRelation};
 use crate::rv64im::final_relation::{Rv64imFinalBuildProof, Rv64imFinalStatement};
@@ -17,12 +25,12 @@ use crate::rv64im::ivc::{build_rv64im_ivc_state_from_relations, Rv64imIvcPublicI
 use crate::rv64im::main_relation_spartan::{build_rv64im_chunk_step_ivc_shape, Rv64imChunkStepIvcShape};
 use crate::rv64im::SimpleKernelError;
 
-pub type Rv64imIvcSnarkProverKey = crate::rv64im::main_relation_spartan::Rv64imSpartan2DeciderProverKey;
-pub type Rv64imIvcSnarkVerifierKey = crate::rv64im::main_relation_spartan::Rv64imSpartan2DeciderVerifierKey;
+pub type Rv64imIvcSnarkProverKey = Rv64imDeciderProverKey;
+pub type Rv64imIvcSnarkVerifierKey = Rv64imDeciderVerifierKey;
 pub type Rv64imIvcSnarkKeyPair = Arc<(Rv64imIvcSnarkProverKey, Rv64imIvcSnarkVerifierKey)>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Rv64imSpartan2DeciderSetupShape {
+pub struct Rv64imTerminalDeciderSetupShape {
     terminal_step_shape: Rv64imChunkStepIvcShape,
 }
 
@@ -149,13 +157,13 @@ impl Rv64imIvcSnark {
     }
 }
 
-pub fn build_rv64im_spartan2_decider_setup_shape_from_components(
+pub fn build_rv64im_terminal_decider_setup_shape_from_components(
     statement: &Rv64imFinalStatement,
     proof_digest: [u8; 32],
     kernel_export: &crate::rv64im::kernel::Rv64imKernelExportProof,
     chunk_summaries: &[crate::finalize::FixedShapeChunkSummary],
     steps: &[crate::rv64im::final_relation::Rv64imChunkTransitionWitness],
-) -> Result<Rv64imSpartan2DeciderSetupShape, SimpleKernelError> {
+) -> Result<Rv64imTerminalDeciderSetupShape, SimpleKernelError> {
     let proof = Rv64imFinalBuildProof {
         proof_digest,
         kernel_export: kernel_export.clone(),
@@ -166,14 +174,15 @@ pub fn build_rv64im_spartan2_decider_setup_shape_from_components(
     let terminal_step_shape =
         build_rv64im_chunk_step_ivc_shape(&terminal_relation.statement, &terminal_relation.witness)
             .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal decider shape build failed: {err}")))?;
-    Ok(Rv64imSpartan2DeciderSetupShape { terminal_step_shape })
+    Ok(Rv64imTerminalDeciderSetupShape { terminal_step_shape })
 }
 
-pub fn debug_check_rv64im_spartan2_decider_circuit(
+pub fn debug_check_rv64im_terminal_decider_circuit(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
 ) -> Result<(), SimpleKernelError> {
     let terminal_relation = build_rv64im_terminal_step_relation_cached(statement, proof)?;
+    debug_check_rv64im_chunk_step_ivc_spartan_circuit(&terminal_relation.statement, &terminal_relation.witness)?;
     let keys = setup_rv64im_ivc_snark_from_terminal_relation_cached(&terminal_relation)?;
     let (pk, vk) = &*keys;
     let proof = prove_rv64im_chunk_step_ivc_spartan(pk, &terminal_relation.statement, &terminal_relation.witness)?;

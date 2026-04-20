@@ -3,10 +3,10 @@
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_math::KExtensions;
 use p3_field::PrimeField64;
-use spartan2::{bellpepper::poseidon2::hash_packed_goldilocks_fields, provider::goldi::F as SpartanF};
 
 use super::alloc_const_field_values;
 use crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot;
+use crate::rv64im::ivc_snark::{hash_packed_goldilocks_fields, SpartanF};
 use crate::rv64im::main_relation_circuit::claim::{
     alloc_ce_claim, alloc_ce_claim_with_shared_point, packed_bytes_field_values, CeClaimVar,
 };

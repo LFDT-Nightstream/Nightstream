@@ -1,5 +1,6 @@
 use bellpepper_core::{ConstraintSystem, Index, LinearCombination, SynthesisError, Variable};
-use spartan2::provider::goldi::F as SpartanF;
+
+use crate::rv64im::ivc_snark::SpartanF;
 
 const FINGERPRINT_DOMAIN: &[u8] = b"neo.fold.next/rv64im/main_recursion_step_spartan/fingerprint_cs";
 const ENFORCE_TAG: u64 = 1;

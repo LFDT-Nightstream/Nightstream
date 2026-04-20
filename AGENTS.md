@@ -91,6 +91,12 @@ NS_DEBUG_N=10000 cargo test -p neo-fold-next --release --test perf -- --ignored 
 ```
 N: number of riscv instructions + 1 (halt).
 
+Native no-Spartan IVC perf/debug snapshot (append/verify only; stops before `compress()`):
+```bash
+NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_native -- --ignored --nocapture rv64im_mixed_opcode_native_ivc_perf_snapshot
+```
+Use this test for RV64IM native IVC performance work and stage-by-stage IVC timing breakdowns.
+
 ## Profiling
 
 | Tool | Use Case | Output |

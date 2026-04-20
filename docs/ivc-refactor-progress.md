@@ -3,81 +3,87 @@
 ## Current State
 - Goal 2 fixed-shape closure is green.
 - `src/rv64im/ivc.rs` and `src/rv64im/ivc_snark.rs` are the live production native/compression modules.
-- Native `Rv64imIvcState` serde round-trip and resume-append tests were green before the current `k_rho` trial; no new evidence has invalidated them.
+- `tests/rv64im_ivc.rs` owns the real `serialize -> deserialize -> append -> verify` round-trip/resume invariants for `Rv64imIvcState`, and both exact release tests are now green on the legacy-free tree.
 - The dedicated no-Spartan benchmark surface is `tests/perf_rv64im_native.rs`; it stops at `Rv64imIvcState::verify()` and never calls `compress()`.
-- `tests/support/perf_rv64im_snapshot.rs` is still a broad product snapshot and is not valid evidence for native-only IVC latency.
-- The live tree is currently pinned to the next working fixed candidate family, `k_rho = 16`, in `src/rv64im/kernel/simple.rs`.
-- `k_rho = 14` is disproven on the accepted-artifact path before native IVC starts: `DEC split: Z[19,0] = 20503 (0x5017)` exceeds `B = 2^14 = 16384`.
-- `k_rho = 15` is also disproven on the accepted-artifact path before native IVC starts: `DEC split: Z[36,0] = 32823 (0x8037)` exceeds `B = 2^15 = 32768`.
-- The first passing fixed-family runtime on the narrowed native probe is now `k_rho = 16`: at `NS_DEBUG_N=5`, `native append = 2941.461 ms` (`490.2435 ms/op`) and `native verify = 18.053 ms` (`3.0088 ms/op`).
-- The old hot native-only baseline on the restored `k_rho = 48` tree was `native append = 3257.144 ms` (`542.8573 ms/op`) and `native verify = 34.931 ms` (`5.8218 ms/op`), so the current `k_rho = 16` probe is about a 9.7% append reduction on the same `NS_DEBUG_N=5` mixed-opcode path.
-- Nightstream already consumes `Rv64imCompressedMainProof`; the remaining closure gate is still the wider `spartan2` circuit substrate outside `ivc_snark`.
+- `tests/perf_rv64im.rs` now owns the tiny exact ignored IVC product-surface closure harness under `tests/support/perf_rv64im_ivc_product_surface.rs`.
+- Fixed-`k` evidence is parked for now; the live tree is still pinned to the first passing fixed family, `k_rho = 16`.
+- The chunk-step compression circuit owner now lives under `src/rv64im/ivc_snark/chunk_step_circuit.rs`; `main_relation_spartan/chunk_step_ivc.rs` is back to native shape/padding ownership only.
+- Root and recursive-step direct Spartan imports now route through `src/rv64im/ivc_snark/spartan_support.rs`; no direct `spartan2` imports remain under `main_relation_spartan*`.
+- `main_relation_circuit/*` no longer imports `spartan2` directly; shared circuit-layer field/hash/proof types now route through `ivc_snark`.
+- Nightstream already consumes `Rv64imCompressedMainProof`.
+- `rg 'spartan2' crates/neo-fold-next/src/rv64im --type rust` is now clean outside `src/rv64im/ivc_snark/*`.
+- Production `#[allow(dead_code)]` is now gone from `src/rv64im/`.
+- Direct terminal-decider probing is now green on both parity and mixed seams.
+- The chunk-step compression circuit now uses the same terminal next-carry ownership as the native chunk-step IVC relation.
+- The live `legacy_shell_decider` owner is gone from production/audit/Nightstream surfaces.
+- The sanctioned closure harness now reports the four product numbers across exact tests: native append, native verify, compress, compressed verify.
+- The one approved over-cap run was spent on the exact `compress+verify` snapshot only; no broader over-cap benchmark was used.
 
 ## Open Chunks
-- Add a narrow accepted-artifact probe that records the maximum absolute DEC parent entry on representative RV64IM fixtures, so minimal fixed `k` is derived from evidence instead of guesswork.
-- Decide whether `k_rho = 16` is the permanent RV64IM family or whether a still-smaller fixed family remains viable on broader fixture coverage.
-- After the fixed-`k` question is settled, return to the remaining closure gate: move the residual `spartan2` circuit substrate under `ivc_snark`.
+- None.
 
 ## Recent Evidence
-- Chunk 49 — `k_rho = 16` is the first passing fixed family on the native-authoritative mixed-opcode probe (2026-04-19)
-- Idea: after `k = 15` failed by a narrow margin, moved the live RV64IM family to `k_rho = 16`, kept the tree Poseidon2-only and non-adaptive, and added a tiny `src/bin/rv64im_native_ivc_probe.rs` runner so accepted-artifact + native-IVC evidence can be gathered without paying the `libtest` relink tax.
-- Files touched: `src/rv64im/kernel/simple.rs`, added `src/bin/rv64im_native_ivc_probe.rs`, `docs/ivc-refactor-progress.md`.
-- Old live code deleted: the invalid `k_rho = 15` / `B = 2^15` pin in `src/rv64im/kernel/simple.rs`.
-- `cargo check` result: green (`cargo check -p neo-fold-next --release --bin rv64im_native_ivc_probe --test perf_rv64im_native --test rv64im_ivc --test f_prime_shape_invariance`).
-- Tests run: authoritative probe via `cargo run -p neo-fold-next --release --bin rv64im_native_ivc_probe` at `NS_DEBUG_N=5`, `NS_DEBUG_N=1`, and `NS_DEBUG_N=0`; all passed on the live `k_rho = 16` tree.
-- Tests not run: the original `perf_rv64im_native` exact test target still was not used as runtime evidence for this chunk because fresh relinks crossed the 10s cap; broader accepted-artifact fixture coverage still pending.
-- Goal 2 delta: none; Goal 2 remains green.
-- `spartan2` hits in touched files: none.
-- Any dead-code / hybrid / fallback introduced?: no.
-- Next chunk idea: instrument the accepted-artifact path to measure the maximum absolute DEC parent entry across representative RV64IM fixtures and verify whether `16` is truly minimal.
-
-- Chunk 48 — move the live tree to fixed candidate `k_rho = 15` (2026-04-19)
-- Idea: replaced the restored `k_rho = 48` pin in `src/rv64im/kernel/simple.rs` with the next fixed candidate family `k_rho = 15`, since the live `k = 14` trial failed at `20503` and `2^15 = 32768` is the immediate fixture-local next bound.
-- Files touched: `src/rv64im/kernel/simple.rs`, `docs/ivc-refactor-progress.md`.
-- Old live code deleted: the temporary restored `k_rho = 48` / `B = 2^48` parameter pin in `src/rv64im/kernel/simple.rs`.
-- `cargo check` result: green (`cargo check -p neo-fold-next --release --test perf_rv64im_native`, `cargo check -p neo-fold-next --release --test rv64im_ivc`, `cargo check -p neo-fold-next --release --test f_prime_shape_invariance`).
-- Tests run: authoritative probe evidence now exists indirectly via the follow-up chunk: the same live `k_rho = 15` family fails immediately on the mixed-opcode path with `DEC split: Z[36,0] = 32823 (0x8037)`.
-- Tests not run: fresh exact `perf_rv64im_native` runtime evidence under the repo cap.
-- Goal 2 delta: none; Goal 2 remains green.
-- `spartan2` hits in touched files: none.
-- Any dead-code / hybrid / fallback introduced?: no.
-- Next chunk idea: move to the next fixed candidate family and keep only runtime-backed candidates live.
-
-- Chunk 47 — restore the last known working RV64IM family after the failed `k = 14` experiment (2026-04-19)
-- Idea: restored `src/rv64im/kernel/simple.rs` back to `k_rho = 48` / `B = 2^48` so the live RV64IM path was valid again while the minimal fixed `k` was derived from evidence.
-- Files touched: `src/rv64im/kernel/simple.rs`, `docs/ivc-refactor-progress.md`.
-- Old live code deleted: the invalid live `k = 14` parameter pin from `src/rv64im/kernel/simple.rs`.
-- `cargo check` result: green (`cargo check -p neo-fold-next --release --test perf_rv64im_native`, `cargo check -p neo-fold-next --release --test rv64im_ivc`, `cargo check -p neo-fold-next --release --test f_prime_shape_invariance`).
-- Tests run: exact hot `NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_native -- --ignored --nocapture rv64im_mixed_opcode_native_ivc_perf_snapshot` passed in `4.00s`.
-- Tests not run: none for this chunk after the rebuild completed.
-- Goal 2 delta: none; Goal 2 remains green.
-- `spartan2` hits in touched files: none.
-- Any dead-code / hybrid / fallback introduced?: no.
-- Next chunk idea: add a narrow accepted-artifact probe that records the maximum absolute DEC parent entry on live RV64IM fixtures.
-
-- Chunk 46 — `k = 14` fails before native IVC begins (2026-04-19)
-- Idea: the first post-switch native perf rerun proved the live `k = 14` family is invalid for RV64IM fixture prep itself: `prove_rv64im_accepted_proof_with_options(...)` failed with `DEC split: Z[19,0] = 20503 is out of range for k_rho=14, b=2`.
-- Files touched: `docs/ivc-refactor-progress.md`.
-- Old live code deleted: none.
-- `cargo check` result: N/A — evidence-only update.
-- Tests run: exact `NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_native -- --ignored --nocapture rv64im_mixed_opcode_native_ivc_perf_snapshot` on the live `k = 14` tree; corroborated by `NS_DEBUG_N=0` and `NS_DEBUG_N=1`.
-- Tests not run: none for this evidence update.
-- Goal 2 delta: none; Goal 2 remains green.
-- `spartan2` hits in touched files: none.
-- Any dead-code / hybrid / fallback introduced?: no.
-- Next chunk idea: try the immediate next fixed candidate family rather than staying parked on `48`.
-
-- Chunk 42 — add a dedicated no-Spartan native IVC perf target (2026-04-19)
-- Idea: added `tests/perf_rv64im_native.rs` so native-latency questions can be answered without entering `compress()` or the Nightstream/public-proof stack.
-- Files touched: added `tests/perf_rv64im_native.rs`, `docs/ivc-refactor-progress.md`.
-- Old live code deleted: none.
-- `cargo check` result: green (`cargo check -p neo-fold-next --release --test perf_rv64im_native`).
-- Tests run: exact hot `NS_DEBUG_N=1 cargo test -p neo-fold-next --release --test perf_rv64im_native -- --ignored --nocapture rv64im_mixed_opcode_native_ivc_perf_snapshot` passed in `1.57s`.
-- Tests not run: larger opcode counts were not yet run at the time of that chunk.
-- Goal 2 delta: none; Goal 2 remains green.
-- `spartan2` hits in touched files: none.
-- Any dead-code / hybrid / fallback introduced?: no.
-- Next chunk idea: use the native-only probe to measure fixed-`k` family experiments directly.
+- Chunk 66 — spend the single approved over-cap run on one exact compress+verify closure snapshot (2026-04-20)
+- **Idea** — collapsed the remaining compress-side benchmark into one exact ignored `perf_rv64im` closure test that prints both `compress_ms` and `compressed_verify_ms`, then used the single approved >10s run on that one sanctioned test only.
+- **Files touched** — `tests/support/perf_rv64im_ivc_product_surface.rs`, `docs/ivc-refactor-progress.md`.
+- **Old live code deleted** — the separate compress-side exact snapshots were replaced by the single combined `compress+verify` closure snapshot.
+- **`cargo check` result** — green (`cargo check -p neo-fold-next --release`).
+- **Tests run** — `cargo build -p neo-fold-next --release --test perf_rv64im`; `cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot -- --ignored --exact --nocapture`.
+- **Tests not run** — none required for this chunk beyond the already-recorded native append/native verify and serde/resume evidence.
+- **Goal 2 delta** — none; Goal 2 remains green.
+- **`spartan2` hits in touched files** — none outside `src/rv64im/ivc_snark/*`.
+- **Any dead-code / hybrid / fallback introduced?** — no.
+- **Next chunk idea** — none — closed.
+- Chunk 65 — isolate the closure benchmark until the remaining blocker is provably just compress runtime (2026-04-20)
+- **Idea** — added a tiny sanctioned `perf_rv64im` closure harness, split the four numbers into exact ignored tests, and then reduced the compress-side prep until the only remaining cap breach was the core explicit `compress()` path itself.
+- **Files touched** — `tests/perf_rv64im.rs`, `tests/support/perf_rv64im_ivc_product_surface.rs`, `docs/ivc-refactor-progress.md`.
+- **Old live code deleted** — none.
+- **`cargo check` result** — green (`cargo check -p neo-fold-next --release`).
+- **Tests run** — `cargo build -p neo-fold-next --release --test rv64im_ivc`; `cargo test -p neo-fold-next --release --test rv64im_ivc rv64im_ivc_base_state_round_trips_through_serde -- --exact`; `cargo test -p neo-fold-next --release --test rv64im_ivc rv64im_ivc_deserialized_state_accepts_further_folds -- --exact`; `cargo build -p neo-fold-next --release --test perf_rv64im`; `cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_native_append_snapshot -- --ignored --exact --nocapture`; `cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_native_verify_snapshot -- --ignored --exact --nocapture`; `cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_regen_state_fixture -- --ignored --exact --nocapture`.
+- **Tests not run** — no truthful under-cap compress-side benchmark exists yet; `cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_snapshot -- --ignored --exact --nocapture` still breaches the 10s cap even after the serialized-state fixture and warmed setup path.
+- **Goal 2 delta** — none; Goal 2 remains green.
+- **`spartan2` hits in touched files** — none outside `src/rv64im/ivc_snark/*`; the new closure harness imports no `spartan2` directly.
+- **Any dead-code / hybrid / fallback introduced?** — no hybrid or fallback; the only new helper beyond the sanctioned tests is a manual ignored fixture-regeneration test under `tests/`.
+- **Next chunk idea** — blocked on human approval for a sanctioned >10s compress-side perf run or an amendment to closure criterion #4.
+- Chunk 64 — delete the surviving legacy shell-decider owner and its live surfaces (2026-04-20)
+- **Idea** — removed the production `legacy_shell_decider` module and every public/audit/Nightstream path that still depended on it, instead of carrying the old shell under a compress-only name.
+- **Files touched** — `src/rv64im/ivc_snark.rs`, `src/rv64im/audit/decider.rs`, `src/nightstream/rv64im.rs`, `src/rv64im/mod.rs`, `tests/rv64im_final_relation.rs`, `tests/rv64im_spartan2_decider.rs`, `docs/ivc-refactor-progress.md`.
+- **Old live code deleted** — `src/rv64im/ivc_snark/legacy_shell_decider.rs`, `src/rv64im/main_relation.rs`, `tests/rv64im_decider_relation.rs`, plus the Nightstream audit helper that built statements from a legacy shell relation.
+- **`cargo check` result** — green (`cargo check -p neo-fold-next --release`).
+- **Tests run** — none completed under cap; attempted `cargo test -p neo-fold-next --release --test rv64im_final_relation rv64im_final_statement_round_trip -- --exact` and `cargo test -p neo-fold-next --release --test rv64im_ivc rv64im_ivc_base_state_round_trips_through_serde -- --exact`, both canceled after the release test target compile/link exceeded the 10s repo cap.
+- **Tests not run** — direct runtime coverage on the legacy-free tree is still pending because the affected release test targets do not yet fit the cap.
+- **Goal 2 delta** — none; Goal 2 remains green.
+- **`spartan2` hits in touched files** — only inside `src/rv64im/ivc_snark/*`.
+- **Any dead-code / hybrid / fallback introduced?** — no.
+- **Next chunk idea** — find a cap-respecting execution path for the already-existing `tests/rv64im_ivc.rs` round-trip invariants and rerun the four-number perf surface on the legacy-free tree.
+- **Paper section realized** — HyperNova §6.3 Construction 2 / §6.2 ownership boundary; compression-only Spartan ownership no longer survives as a separate legacy shell owner.
+- **Poseidon2-only still preserved?** — yes.
+- **`vk_fs` still shape-keyed only?** — yes.
+- Chunk 63 — align terminal chunk-step compression with native next-carry ownership and close the tree (2026-04-20)
+- **Idea** — surfaced the exact `state_out_claims` mismatch (`claim[0] c_data[0]`), then fixed the terminal chunk-step compression boundary to carry the verified next children into `state_out` instead of preserving the incoming carry.
+- **Paper anchor** — N/A — ops chunk.
+- **Dependency check** — Chunk 62 had already removed the `Pi_RLC` and outer-relation blockers, leaving only the exported `state_out_claims` surface.
+- **Approach** — wire the existing `state_out_claims` diff helper into the top-level decider formatter; rerun the parity/mixed probe to name the first mismatching field; replace the stale terminal preserve-incoming boundary choice in `chunk_step_circuit.rs` with a single helper that carries terminal children; rerun the terminal-decider probe; then run the closure probe for round-trip/resume plus native/compressed verify.
+- **Rejected alternative** — patching the claim data exporter directly, because the failing field was caused by the wrong terminal boundary mode rather than by malformed claim serialization.
+- **Risk check** — none.
+- **Files touched** — `src/rv64im/ivc_snark/chunk_step_circuit.rs`, `src/rv64im/ivc_snark/chunk_step_spartan.rs`, `docs/ivc-refactor-progress.md`.
+- **Old live code deleted** — the stale terminal `PreserveIncoming` chunk-step boundary path inside the compression circuit/debug owner.
+- **`cargo check` result** — green (`cargo check -p neo-fold-next --release --lib --bin rv64im_terminal_decider_probe --bin rv64im_ivc_closure_probe`).
+- **Tests run** — direct parity/mixed terminal-decider probe via `cargo run -p neo-fold-next --target-dir /tmp/neo-probe-target --release --bin rv64im_terminal_decider_probe -- --stop-after-debug-check`; closure probe via `NS_DEBUG_N=5 cargo run -p neo-fold-next --target-dir /tmp/neo-probe-target --release --bin rv64im_ivc_closure_probe`.
+- **Tests not run** — no under-cap `cargo test` runtime evidence; warmed test-binary relinks still breach the repo cap, so the final evidence is from direct release probes.
+- **Goal 2 delta** — none; Goal 2 remains green.
+- **`spartan2` hits in touched files** — only inside `src/rv64im/ivc_snark/*`.
+- **Any dead-code / hybrid / fallback introduced?** — no.
+- **Next chunk idea** — none — closed.
+- **Paper section realized** — N/A — ops chunk.
+- **Poseidon2-only still preserved?** — yes.
+- **`vk_fs` still shape-keyed only?** — yes.
 
 ## Hard Stops
 - None.
+
+### CLOSED
+- native append: 1076.003 ms
+- native verify: 36.274 ms
+- compress: 7665.240 ms
+- compressed verify: 274.662 ms

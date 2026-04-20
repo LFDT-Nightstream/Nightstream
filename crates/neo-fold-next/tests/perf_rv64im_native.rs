@@ -7,7 +7,7 @@ use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_acc
 use neo_fold_next::rv64im::ivc::{Rv64imIvcAppendPerf, Rv64imIvcState, Rv64imIvcVerifyPerf};
 use neo_fold_next::rv64im::{
     build_mixed_opcode_perf_source_case, build_rv64im_recursion_shape, prove_rv64im_accepted_proof_with_options,
-    Rv64imProofInput, Rv64imPublicProofOptions, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
+    rv64im_simple_root_params, Rv64imProofInput, Rv64imPublicProofOptions, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
 use serde::Serialize;
 
@@ -44,10 +44,34 @@ fn format_ms_per_opcode(ms: f64, opcode_count: usize) -> String {
     format!("{ms:.3} ms ({:.4} ms/op)", per_unit(ms, opcode_count))
 }
 
+fn format_fold_schedule(schedule: FoldSchedule) -> String {
+    match schedule {
+        FoldSchedule::WholeTrace => "WholeTrace".to_string(),
+        FoldSchedule::RowsPerChunk(rows) => format!("RowsPerChunk({rows})"),
+    }
+}
+
 fn serialize_len<T: Serialize>(value: &T) -> usize {
     bincode::serialize(value)
         .expect("serialize perf artifact")
         .len()
+}
+
+fn format_bytes(bytes: usize) -> String {
+    const KB: usize = 1024;
+    const MB: usize = KB * 1024;
+    const GB: usize = MB * 1024;
+
+    if bytes < KB {
+        return format!("{bytes}b");
+    }
+    if bytes < MB {
+        return format!("{}kb", (bytes + (KB / 2)) / KB);
+    }
+    if bytes < GB {
+        return format!("{:.1}mb", bytes as f64 / MB as f64);
+    }
+    format!("{:.1}gb", bytes as f64 / GB as f64)
 }
 
 fn print_perf_rows(title: &str, rows: &[(&str, f64)], total_ms: f64, opcode_count: usize) {
@@ -168,9 +192,7 @@ fn print_append_step_summary(perfs: &[Rv64imIvcAppendPerf], opcode_count: usize)
     print_kv("max_step", format_ms_per_opcode(max_ms, opcode_count));
 }
 
-#[test]
-#[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
-fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
+fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, title: &str) {
     let opcode_count = perf_opcode_count_from_env();
     let source = build_mixed_opcode_perf_source_case(opcode_count);
     let total_opcodes = source.program_words.len();
@@ -179,7 +201,7 @@ fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
         max_steps: total_opcodes,
     };
     let public_proof_options = Rv64imPublicProofOptions {
-        root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+        root_fold_schedule: schedule,
     };
 
     let relation_prep_started = Instant::now();
@@ -216,11 +238,14 @@ fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
     let native_total_ms = native_append_ms + native_verify_ms;
 
     let public_image = ivc_state.public_image();
+    let kernel_params = rv64im_simple_root_params();
     let recursion_shape = build_rv64im_recursion_shape().expect("build rv64im recursion shape");
-    let accepted_artifact_bytes = serialize_len(&accepted_artifact);
     let final_statement_bytes = serialize_len(&final_statement);
     let final_proof_bytes = serialize_len(&final_proof);
-    let relations_total_bytes: usize = relations.iter().map(serialize_len).sum();
+    let relation_statements_total_bytes: usize = relations
+        .iter()
+        .map(|relation| serialize_len(&relation.statement))
+        .sum();
     let ivc_state_bytes = serialize_len(&ivc_state);
     let public_image_bytes = serialize_len(&public_image);
     let terminal_statement = ivc_state
@@ -232,9 +257,10 @@ fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
         "native IVC terminal statement must match the carried semantic step count"
     );
 
-    print_section("RV64IM Native IVC Perf Snapshot (no Spartan)");
+    print_section(title);
     print_kv("mixed_opcode_non_halt_ops", opcode_count);
     print_kv("total_program_words", total_opcodes);
+    print_kv("root_fold_schedule", format_fold_schedule(schedule));
     print_kv("relation_count", relations.len());
     print_kv("fold_count", relations.len());
     print_kv("chunk_count", public_image.chunk_count);
@@ -273,23 +299,49 @@ fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
     );
 
     print_section("Artifact Sizes");
-    print_kv("accepted_artifact_bytes", accepted_artifact_bytes);
-    print_kv("final_statement_bytes", final_statement_bytes);
-    print_kv("final_proof_bytes", final_proof_bytes);
-    print_kv("relations_total_bytes", relations_total_bytes);
-    print_kv("ivc_state_bytes", ivc_state_bytes);
-    print_kv("public_image_bytes", public_image_bytes);
-    print_kv("terminal_statement_bytes", terminal_statement_bytes);
+    print_kv("final_statement_size", format_bytes(final_statement_bytes));
+    print_kv("final_proof_size", format_bytes(final_proof_bytes));
+    print_kv(
+        "relation_statements_total_size",
+        format_bytes(relation_statements_total_bytes),
+    );
+    print_kv("ivc_state_size", format_bytes(ivc_state_bytes));
+    print_kv("public_image_size", format_bytes(public_image_bytes));
+    print_kv("terminal_statement_size", format_bytes(terminal_statement_bytes));
 
-    print_section("Recursion Shape");
-    print_kv("k", recursion_shape.k);
-    print_kv("big_k", recursion_shape.big_k);
+    print_section("Live Kernel Params");
+    print_kv("b", kernel_params.b);
+    print_kv("k_rho", kernel_params.k_rho);
+    print_kv("B", kernel_params.B);
+    print_kv("T", kernel_params.T);
+
+    print_section("Fixed Recursion Shape");
+    print_kv("shape_soundness_k", recursion_shape.soundness_k);
+    print_kv("shape_soundness_big_k", recursion_shape.soundness_big_k);
     print_kv("t_matrices", recursion_shape.t_matrices);
     print_kv("log_m", recursion_shape.log_m);
     print_kv("d_sc", recursion_shape.d_sc);
     print_kv("n_R", recursion_shape.n_R);
     print_kv("n_R_in", recursion_shape.n_R_in);
-    print_kv("b", recursion_shape.b);
-    print_kv("k_decomp", recursion_shape.k_decomp);
+    print_kv("shape_b", recursion_shape.b);
+    print_kv("shape_decomposition_k", recursion_shape.decomposition_k);
     print_kv("side_families_active", recursion_shape.side_families_active.len());
+}
+
+#[test]
+#[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
+fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
+    run_rv64im_mixed_opcode_native_ivc_perf_snapshot(
+        FoldSchedule::RowsPerChunk(1),
+        "RV64IM Native IVC Perf Snapshot (no Spartan, per-op folds)",
+    );
+}
+
+#[test]
+#[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
+fn rv64im_mixed_opcode_native_ivc_perf_snapshot_whole_trace() {
+    run_rv64im_mixed_opcode_native_ivc_perf_snapshot(
+        FoldSchedule::WholeTrace,
+        "RV64IM Native IVC Perf Snapshot (no Spartan, whole trace)",
+    );
 }

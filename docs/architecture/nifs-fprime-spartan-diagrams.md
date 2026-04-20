@@ -88,8 +88,9 @@ these views. We use:
 | `T`                 | Norm-expansion factor of `C` (Thm 9)                   |
 | `f`, `M_j`          | CCS structure (Def 11)                                 |
 | `α, γ, r_·, ρ_i`    | Verifier challenges (all FS-derived in NIFS)           |
-| `enc`, `enc_inst`   | NIVC encoders; see §8. `enc_inst` is also how we       |
-|                     | low-norm-encode the hash-of-state into public input x. |
+| `enc`, `enc_inst`   | NIVC encoders; see §8. `enc_inst` is HyperNova's       |
+|                     | instance-encoding hook; in the SuperNeo instantiation  |
+|                     | we use it to low-norm-encode the hash-of-state into x. |
 | `vk_fs`             | FS verifier key. In pure IVC: scalar. In NIVC with     |
 |                     | `ℓ` functions: vector `vk_fs = (vk_fs,1,…,vk_fs,ℓ)`.   |
 | `[paper §X]`        | Statement is from the paper at section X               |
@@ -232,22 +233,28 @@ stage because of the lattice setting:
 │  DECIDER / PUBLIC VERIFIER                       [impl]                  │
 │     • OPTIONAL compression backend.                                      │
 │     • Nightstream choice (§13): run one extra NIFS fold to absorb u_N    │
-│       into U_N, then prove the ACCUMULATOR-SATISFIABILITY relation       │
-│       "U_final ∈ CE(b,L)^k" with Spartan. Any SNARK for that relation    │
-│       works; the paper does not mandate Spartan.                         │
+│       into U_N, yielding U_final. Then check x_N against H(...,U_N,...)  │
+│       and prove with Spartan that U_final = NIFS.V(vk_fs,U_N,u_N,π_final)│
+│       and (pp,s,U_final,W_final) ∈ CE(b,L)^k. Any SNARK for that         │
+│       relation works; the paper does not mandate Spartan.                │
 │     • On-chain verifier: one hash-chain check + one SNARK.V.             │
 │                                                                          │
 │     crates/neo-fold-next/src/rv64im/decider/                             │
 └──────────────────────────────┬───────────────────────────────────────────┘
-                               │ (final CE(b,L)^k accumulator, Π_N)
+                               │ (terminal recursive state Π_N; decider
+                               │  performs one extra final fold)
                                ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  AUGMENTED STEP F' (NIVC compiler)           [paper: HyperNova §6.3]     │
-│     • F' = chunk_step ∘ NIFS.V_circuit ∘ hash ∘ enc_inst                 │
+│     • z_{i+1} := chunk_step(z_i, ω_i)                                    │
+│     • U_{i+1} := NIFS.V_circuit(U_i, u_i, π_fold)                        │
+│     • h_{i+1} := H(vk_fs, i+1, z_0, z_{i+1}, U_{i+1}, pc_{i+1})          │
+│       [impl: H = Poseidon2]                                               │
+│     • x_{i+1} := enc_inst(h_{i+1})                                       │
 │     • Fixed shape ⇒ fixed vk for any compression backend                 │
-│     • Public output x := enc_inst( H(vk_fs, i+1, z_0, z_{i+1},           │
-│                                      U_{i+1}, pc_{i+1}) )     [impl: H=P2]│
-│       (enc_inst is the low-norm encoding mandated by Def 12 on u_{i+1})  │
+│       (`enc_inst` is HyperNova's generic encoding hook; in SuperNeo we   │
+│        instantiate it as a low-norm encoding because CCS(b,L) requires   │
+│        ‖z‖_∞ < b on z = [x,w].)                                          │
 │     • Fresh instance for next step:                                      │
 │         z_{i+1}^{F'} := [x_{i+1}, w_{i+1}]  (R1CS witness of F')         │
 │         c_{i+1}      := L( **z_{i+1}^{F'}** )      (Ajtai commits full z)│
@@ -405,9 +412,11 @@ INPUT  to step i+1  [paper: §7.3 Input]:
 ║        h             :=  H( vk_fs, i+1, z_0, z_{i+1}, U_{i+1}, pc_{i+1} ) ║
 ║        x_{i+1}       :=  enc_inst( h )    ∈ F^{n_{F,in}},  ‖x‖_∞ < b      ║
 ║                                                                           ║
-║  Why enc_inst, not raw hash: Def 12 requires ‖z‖_∞ < b on z = [x, w].    ║
-║  A raw Poseidon2 digest is NOT low-norm. For b=2, enc_inst bit-           ║
-║  decomposes h into ~256 bit-valued field elements (each in {0,1}).       ║
+║  Why this enc_inst instantiation, not raw hash: HyperNova provides a     ║
+║  generic enc_inst hook. In the SuperNeo instantiation, Def 12 requires   ║
+║  ‖z‖_∞ < b on z = [x, w], so x must be low-norm. A raw Poseidon2 digest  ║
+║  is NOT low-norm. [impl] For b=2, enc_inst bit-decomposes h into         ║
+║  ~256 bit-valued field elements (each in {0,1}).                         ║
 ║                                                                           ║
 ║  ‼  DIFFERENCE FROM HYPERNOVA:                                            ║
 ║     HyperNova Construction 2 step 6 writes                                ║
@@ -443,6 +452,11 @@ INPUTS
   (s ; c_i, x_i, r, {y_{i,j}}_{j∈[t]} ; z_i)_{i=K+1..K+k}   ← k CE slots of U_i
       where y_{i,j} = hat{bar{M_j}·**z_i**}(r) ∈ R_K
 
+SIMPLIFYING ASSUMPTION (used exactly as in SuperNeo §7.3):
+  m = n_F, n_F is a power of two, and M_1 = I_{n_F}.
+  Under this assumption y'_{i,1} = hat{bar{M_1}·**z_i**}(r')
+  = hat{**z_i**}(r'), so ct(y'_{i,1}) = z̃_i(r').
+
 1. V → P :    α  ←$  K^{log m}                     [paper: §7.3 step 1]
               γ  ←$  K
    (In NIFS: α, γ are FS-squeezed from the transcript.)
@@ -462,10 +476,12 @@ INPUTS
 
    Eval(X̄) :=  eq(X̄, r)
                · Σ_{i=K+1..K+k} Σ_{j=1..t} Σ_{ℓ=1..d}
-                     γ^{I(i,j,ℓ)} · cf(bar{M_j}·**z_i**)_ℓ (X̄)      [k·t·d]
+                     γ^{I(i,j,ℓ)} · widetilde{cf(bar{M_j}·**z_i**)_ℓ}(X̄)
+                                                                     [k·t·d]
               where I(i,j,ℓ) = (i−(K+1)) + k(j−1) + kt(ℓ−1)
-              and cf(·)_ℓ is the ℓ-th coefficient (field-valued) of
-              the ring polynomial bar{M_j}·**z_i**.
+              and widetilde{cf(bar{M_j}·**z_i**)_ℓ}(X̄) is the multilinear
+              extension of the ℓ-th coefficient vector of the ring
+              polynomial bar{M_j}·**z_i**.
 
    Q(X̄)    :=  eq(X̄, α) · ( F(X̄) + γ^K · NC(X̄) ) + γ^{2K+k} · Eval(X̄)
 
@@ -483,8 +499,8 @@ INPUTS
 
    F_val  :=  Σ_{i=1..K}  γ^{i-1} · f( ct(y'_{i,1}), …, ct(y'_{i,t}) )
    N_val  :=  Σ_{i=1..K+k} γ^{i-1} · R_b( ct(y'_{i,1}) )
-                 (same signed-range polynomial as NC above; ct(·)
-                  recovers the field constant term)
+                 (same signed-range polynomial as NC above; under the
+                  simplifying assumption above, ct(y'_{i,1}) = z̃_i(r'))
    E_val  :=  eq(r', r) · Σ γ^{I(i,j,ℓ)} · cf(y'_{i,j})_ℓ
 
    v  ?=  eq(r', α) · ( F_val + γ^K · N_val ) + γ^{2K+k} · E_val
@@ -688,6 +704,13 @@ F'(vk_fs, U_i, u_i, pc_i, (i, z_0, z_i), ω_i, π_fold)  →  x_{i+1}
    In generic NIVC with ℓ programs: vk_fs = (vk_fs,1, …, vk_fs,ℓ) and the
    circuit selects vk_fs[pc_i] before running NIFS.V.           [HN §6.3 K step 2]
 
+Think of F' as a staged computation, not a composition:
+
+  z_{i+1} := chunk_step(z_i, ω_i)
+  U_{i+1} := NIFS.V_circuit(U_i, u_i, π_fold)
+  h_{i+1} := H(vk_fs, i+1, z_0, z_{i+1}, U_{i+1}, pc_{i+1})
+  x_{i+1} := enc_inst(h_{i+1})
+
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                      F'  (expressed in R1CS)                             │
 │                                                                          │
@@ -722,16 +745,18 @@ F'(vk_fs, U_i, u_i, pc_i, (i, z_0, z_i), ω_i, π_fold)  →  x_{i+1}
 │                                                                          │
 │  (3) (ℓ=1 ⇒ pc_{i+1} trivially = 1)                                      │
 │                                                                          │
-│  (4) h       :=  H( vk_fs, i+1, z_0, z_{i+1}, U_{i+1}, pc_{i+1} )        │
-│      x_{i+1} :=  enc_inst( h )                                           │
+│  (4) h_{i+1} :=  H( vk_fs, i+1, z_0, z_{i+1}, U_{i+1}, pc_{i+1} )        │
+│      x_{i+1} :=  enc_inst( h_{i+1} )                                     │
 │                                                                          │
 │      [H = Poseidon2]       [impl]                                        │
-│      [enc_inst low-norm encoding is MANDATED by HN §6.2 Def 12           │
-│       Partial Functions + SuperNeo Def 12 ‖z‖_∞ < b on z = [x, w].       │
-│       A raw Poseidon2 digest is NOT admissible as x.]                    │
+│      [HN provides the generic enc_inst hook. In the SuperNeo             │
+│       instantiation we choose a low-norm encoding because CCS(b,L)       │
+│       requires ‖z‖_∞ < b on z = [x, w]. A raw Poseidon2 digest is        │
+│       NOT admissible as x.]                                              │
 │                                                                          │
-│      For b = 2: enc_inst bit-decomposes h into ~256 bit-valued field     │
-│      elements (one per bit of h). Each element ∈ {0, 1}, so ‖x‖_∞ < 2.   │
+│      [impl] For b = 2: enc_inst bit-decomposes h_{i+1} into ~256         │
+│      bit-valued field elements (one per bit of h). Each element ∈ {0,1}, │
+│      so ‖x‖_∞ < 2.                                                       │
 └──────────────────────────────────────────────────────────────────────────┘
 
 Base case (i = 0)                          [paper: HN §6.3 step 3]:
@@ -887,7 +912,7 @@ Procedure  sample_rho(transcript)  →  ρ ∈ C:
          continue
 
    # Decode u to b_C digits:
-   for j in 0..d_C:
+   for j = 0, …, d_C-1:
        d_j  :=  u mod b_C
        u    :=  u div b_C
        c_j  :=  d_j - digit_shift                           # signed coeff
@@ -983,11 +1008,11 @@ Procedure  sample_rho(transcript)  →  ρ ∈ C:
                               VERIFIER  (online)
 
   ┌──────────────────────────────────────────────────────────────────────┐
-  │  V checks (Option B preferred; see §13):                             │
-  │    (1)  x_N_final  linkage to (z_0, N, z_N, U_N_final)  via          │
-  │         h = Poseidon2(...), x = enc_inst(h)                          │
+  │  V checks (Nightstream Variant A; see §13):                          │
+  │    (1)  x_N linkage to (z_0, N, z_N, U_N, pc_N) via                  │
+  │         h_N = Poseidon2(...), x_N = enc_inst(h_N)                    │
   │    (2)  SNARK.V( vk_snark, π_decider,                                │
-  │                  public = <relation-specific, see §13> )             │
+  │                  public = <final-fold + accumulator relation, §13> ) │
   │                                                                      │
   │  Verifier work = O(1) Poseidon2 + O(1) SNARK.V                       │
   └──────────────────────────────────────────────────────────────────────┘
@@ -997,35 +1022,33 @@ Procedure  sample_rho(transcript)  →  ρ ∈ C:
 
 ## §12 Where the terminal SNARK (Spartan) fits — zoom
 
-Common misconception: "F' is inside Spartan." Reverse it:
+Common misconception: "the terminal SNARK just proves the last F' run." It
+does not. Nightstream's terminal SNARK proves a decider relation over the
+end of the recursive chain:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  Terminal SNARK proof (Decider only; Nightstream = Spartan)    [impl]    │
-│  ┌────────────────────────────────────────────────────────────────────┐  │
-│  │                          F'                                        │  │
-│  │   ┌──────────────┐    ┌─────────────────────────────┐              │  │
-│  │   │ chunk_step   │    │  NIFS.V_circuit (3 stages)  │              │  │
-│  │   │ (RV64IM ops) │    │  Π_CCS.V | Π_RLC.V | Π_DEC.V│              │  │
-│  │   └──────────────┘    └─────────────────────────────┘              │  │
-│  │           │                           │                            │  │
-│  │           └─────────────┬─────────────┘                            │  │
-│  │                         ▼                                          │  │
-│  │                 hash h  →  enc_inst(h)  =  x                       │  │
-│  └────────────────────────────────────────────────────────────────────┘  │
-│  SNARK public input = (vk_fs, i, z_0, z_i, x, pc_i)                      │
-│                       where x = enc_inst(H(...)).                        │
+│  Terminal SNARK proof (Decider only; Nightstream = Spartan)    [impl]   │
+│                                                                          │
+│    Nightstream's terminal condition is:                                  │
+│      x_N     = enc_inst(H(vk_fs, N, z_0, z_N, U_N, pc_N))               │
+│      U_final = NIFS.V(vk_fs, U_N, u_N, π_final)                         │
+│      (pp, s, U_final, W_final) ∈ CE(b,L)^k                              │
+│                                                                          │
+│    Deployment split:                                                     │
+│      outside SNARK:  the x_N ↔ H(...,U_N,...) linkage                   │
+│      inside SNARK:   the final-fold equation + CE(b,L)^k satisfiability │
 └──────────────────────────────────────────────────────────────────────────┘
 
 Facts:
 - NIFS native prover runs OUTSIDE the SNARK, OUTSIDE F'.
-- F' CONTAINS NIFS.V_circuit. F' does NOT re-prove sum-check; it CHECKS it.
-- The SNARK proves a Decider-chosen relation over the final state (§13).
+- F' CONTAINS NIFS.V_circuit during each recursive step.
+- The SNARK proves a Decider-chosen relation over the final fold state (§13).
 - Spartan is ONE valid choice; the paper does not require it. Any SNARK
-  whose relation matches F''s R1CS shape works.
+  whose relation matches that terminal condition works.
 
 Per-step: just fold + encode + commit. No SNARK.          [paper: HN §6.3]
-Decider:  one SNARK over the final accumulator.           [§13]
+Decider:  one hash check + one SNARK over the final-fold condition. [§13]
 ```
 
 ---
@@ -1040,52 +1063,51 @@ Decider:  one SNARK over the final accumulator.           [§13]
 ### §13.1 Two coherent variants
 
 ```
- After N steps:  Π_N = ((U_N, W_N), (u_N, w_N), pc_N)
+ After N recursive steps:
+    Π_N = ((U_N, W_N), (u_N, w_N), pc_N),
+    u_N = (c_N, x_N),
+    x_N = enc_inst(H(vk_fs, N, z_0, z_N, U_N, pc_N))
 
- Step 0 (common to both variants) — FINAL FOLD:
-    Run ONE extra NIFS.P absorbing the fresh u_N into U_N.
+ If Nightstream performs one extra final fold:
+    run ONE extra NIFS.P absorbing the fresh u_N into U_N.
 
       (U_final, W_final, π_final)  ←  NIFS.P(pk_fs, (U_N, W_N), (u_N, w_N))
 
-      Now U_final ∈ CE(b,L)^k is claimed to be a satisfying element,
-      and u_N has been folded into it. There are no fresh claims left.
+ Variant A — ACCUMULATOR-SATISFIABILITY AFTER FINAL FOLD (Nightstream choice):
 
- Variant A — ACCUMULATOR-SATISFIABILITY relation (Nightstream choice):
+    Terminal condition:
+      x_N     = enc_inst(H(vk_fs, N, z_0, z_N, U_N, pc_N))
+      U_final = NIFS.V(vk_fs, U_N, u_N, π_final)
+      (pp, s, U_final, W_final) ∈ CE(b,L)^k
 
-    SNARK proves:
-       ∃ W_final.  (pp, s, U_final, W_final) ∈ CE(b,L)^k
-       [i.e., the final accumulator is satisfying]
+    Nightstream deployment split:
+      outside the SNARK: the x_N ↔ H(...,U_N,...) linkage
+      inside the SNARK:  the final-fold equation + CE(b,L)^k satisfiability
 
-    SNARK public input:  (vk_fs, N, z_0, z_N, x_N, pc_N, U_final.instance)
-    SNARK private input: W_final
-
-    Verifier:
-      (1)  recompute  h_N := H(vk_fs, N, z_0, z_N, U_final.instance, pc_N)
-      (2)  check      x_N ?= enc_inst(h_N)
-      (3)  SNARK.V(vk_snark, π_decider, public)
+    Key point:
+      the hash linkage remains on U_N, not U_final.
+      Replacing U_N by U_final would require one more augmented F' step
+      and a new public output x_{N+1}.
 
  Variant B — CONSTRUCTION-2-V-ACCEPTS relation:
 
     SNARK proves:
-       HN-Construction-2-V( vk_fs, (N, z_0, z_N), Π_final ) = 1
-       [i.e., the full recursive verifier predicate accepts]
+      HN-Construction-2-V( vk_fs, (N, z_0, z_N), Π_final ) = 1
+      [i.e., the full recursive verifier predicate accepts]
 
-    SNARK public input:  (vk_fs, N, z_0, z_N, x_N, pc_N)
-    SNARK private input: Π_final, W_final
-
-    Verifier:
-      (1)  SNARK.V(vk_snark, π_decider, public)
-      (2)  (the SNARK relation internally contains the hash-chain check)
+    Its internal hash check is still
+      x_N = enc_inst(H(vk_fs, N, z_0, z_N, U_N, pc_N)).
 ```
 
 ### §13.2 Nightstream's choice `[impl]`
 
 **Variant A** (accumulator-satisfiability):
-- SNARK relation is simpler to express (one CE(b,L)^k satisfaction predicate).
-- Hash-chain check stays outside the SNARK, keeping the online-verifier
-  work transparent and easy to audit on-chain.
-- Matches the decider's ownership boundary: it proves the FINAL
-  accumulator; the online verifier proves the LINKAGE.
+- SNARK relation stays simple: one final-fold verifier equation plus one
+  CE(b,L)^k satisfaction predicate.
+- Hash-chain check stays outside the SNARK, but it binds x_N to U_N,
+  which is the state that actually produced x_N.
+- Matches the decider's ownership boundary: recursion produces U_N and u_N;
+  the decider proves that one extra fold lands on a satisfying U_final.
 - `vk_snark` is fixed ahead of time (F' shape is fixed), so it can be
   audited independently of the program being proved.
 
@@ -1102,6 +1124,10 @@ the recursive argument, one must EITHER:
 
 Saying "prove the last F' run" is ambiguous between the two and is
 incomplete as a Decider specification.
+
+The load-bearing bug in the earlier version was substituting U_final into
+the hash that produced x_N. The recursive chain only produced
+`x_N = enc_inst(H(vk_fs, N, z_0, z_N, U_N, pc_N))`.
 
 ---
 
@@ -1140,7 +1166,7 @@ crates/neo-fold-next/src/rv64im/
 │   ├── mod.rs                          NIVC.{G, K, P, V}
 │   ├── f_prime_native.rs               native F' replay harness
 │   ├── hash_of_state.rs                h = H(vk_fs, i, z_0, z_i, U_i, pc_i)
-│   ├── enc_inst.rs                     low-norm encoding of h → x
+│   ├── enc_inst.rs                     HN hook; SuperNeo low-norm h → x
 │   └── enc.rs                          NP-encoder:
 │                                       enc(F', (⊥, x), advice)
 │                                         → (s_{F'}, x, w)
@@ -1148,7 +1174,8 @@ crates/neo-fold-next/src/rv64im/
 │
 ├── decider/                            Decider                           [NEW]
 │   ├── mod.rs                          Decider entry points
-│   ├── option_a_accumulator.rs         Variant A: prove U_final ∈ CE(b,L)^k
+│   ├── option_a_accumulator.rs         Variant A: prove final fold + U_final
+│   │                                   satisfiable in CE(b,L)^k
 │   └── verify.rs                       on-chain verifier surface
 │
 └── main_recursion*.rs                  accumulator + owner payload types
@@ -1224,12 +1251,13 @@ Tests (colocated in tests/, not in impl files; FoldingMode::Optimized):
 | Π_DEC (RoK)        | b-ary witness decomposition            | `nifs/pi_dec.rs`                | `main_relation_circuit/pi_dec.rs`     | inside F'        |
 | Π_SuperNeo (NIFS)  | DEC ∘ RLC ∘ CCS                        | `nifs/mod.rs`                   | composed inside `f_prime.rs`          | inside F'        |
 | ρ_i direct sampler | Hash → C (base-b_C decode, §10.1)      | `nifs/pi_rlc.rs` helper         | `main_relation_circuit/rho_sampling.rs`| —               |
-| enc_inst           | Low-norm encoding of h into x          | `nivc/enc_inst.rs`              | in `f_prime.rs`                       | R1CS constraints |
+| enc_inst           | HN hook; SuperNeo low-norm h → x       | `nivc/enc_inst.rs`              | in `f_prime.rs`                       | R1CS constraints |
 | enc (SuperNeo)     | F'-trace → (s_{F'}, x, w);             | `nivc/enc.rs`                   | —                                     | —                |
 |                    | u = (L([x, w]), x)                     |                                 |                                       |                  |
-| F' (one IVC step)  | augmented step function (HN 6.3)       | `nivc/f_prime_native.rs`        | `main_relation_spartan/f_prime.rs`    | SNARK (1×, opt.) |
+| F' (one IVC step)  | augmented step function (HN 6.3)       | `nivc/f_prime_native.rs`        | `main_relation_spartan/f_prime.rs`    | recursive chain  |
 | NIVC               | IVC protocol wrapper                   | `nivc/mod.rs`                   | —                                     | —                |
-| Decider            | prove U_final ∈ CE(b,L)^k (Variant A)  | `decider/option_a_accumulator.rs`| —                                    | Spartan (1×)     |
+| Decider            | hash on U_N; prove final fold +        | `decider/option_a_accumulator.rs`| —                                    | Spartan (1×)     |
+|                    | U_final ∈ CE(b,L)^k (Variant A)        |                                 |                                       |                  |
 
 **Top-level invariants (never negotiable):**
 

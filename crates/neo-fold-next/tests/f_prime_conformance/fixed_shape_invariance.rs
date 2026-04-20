@@ -10,12 +10,16 @@ use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim};
 use neo_fold_next::rv64im::audit::{
     audit_rv64im_main_recursion_step_spartan_fixed_shape_at_chunk_positions,
-    debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
+    debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape, Rv64imCeClaimDigestShape,
     Rv64imMainRecursionFPrimeBackendRelation, Rv64imMainRecursionStepSpartanShape,
 };
 use neo_fold_next::rv64im::debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint;
 use neo_fold_next::rv64im::debug_measure_rv64im_main_relation_state_in_prefix_fingerprints;
+use neo_fold_next::rv64im::{
+    build_rv64im_main_recursion_construction2_canonical_shape, build_rv64im_main_recursion_verifier_key_fs,
+    Rv64imMainRecursionPhiSide,
+};
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
@@ -217,6 +221,58 @@ fn run_state_in_chunk_replay_breakdown_case(
     print_state_in_chunk_replay_fingerprint(label, &mutated);
 }
 
+fn assert_shape_matches_canonical_contract(
+    label: &str,
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    first: &Rv64imMainRecursionFPrimeBackendRelation,
+) {
+    let vk_fs = build_rv64im_main_recursion_verifier_key_fs().expect("build canonical recursive-step verifier-key FS");
+    let canonical_shape =
+        build_rv64im_main_recursion_construction2_canonical_shape(&vk_fs, &Rv64imMainRecursionPhiSide::zero())
+            .expect("build canonical Construction-2 fixed shape");
+    let canonical_spartan_shape = Rv64imMainRecursionStepSpartanShape {
+        cover_shape: canonical_shape.step_cover_shape,
+        claim_cover: canonical_shape.claim_cover,
+    };
+
+    assert_eq!(
+        spartan_shape.claim_cover, canonical_spartan_shape.claim_cover,
+        "{label}: recursive-step claim-cover drifted from the canonical Construction-2 fixed shape"
+    );
+    assert!(
+        spartan_shape
+            .cover_shape
+            .canonical_recursive_step_shape_equal(&canonical_spartan_shape.cover_shape),
+        "{label}: recursive-step fixed-shape cover fields drifted from the canonical Construction-2 fixed shape"
+    );
+    assert!(
+        spartan_shape
+            .cover_shape
+            .canonical_recursive_step_shape_equal(&first.payload.step_shape),
+        "{label}: live first-step recursive-step shape fields drifted from the canonical fixed-shape cover"
+    );
+    assert!(
+        canonical_spartan_shape
+            .claim_cover
+            .matches_payload(&first.payload),
+        "{label}: canonical fixed-shape claim-cover no longer matches the live first-step payload surface"
+    );
+}
+
+fn assert_inactive_side_lane_surface_is_zero(label: &str, relation: &Rv64imMainRecursionFPrimeBackendRelation) {
+    assert_eq!(
+        relation.f_prime_advice.side_witness().claim_count(),
+        0,
+        "{label}: inactive side-lane witness width drifted away from zero"
+    );
+    assert!(
+        relation.payload.phi_side_commitment_words().is_empty(),
+        "{label}: inactive side-lane commitment surface drifted away from zero"
+    );
+    debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints(relation)
+        .unwrap_or_else(|err| panic!("{label}: inactive side-lane zero-width subcircuit no longer holds: {err}"));
+}
+
 #[test]
 fn f_prime_circuit_shape_is_n_invariant() {
     let measured =
@@ -284,158 +340,51 @@ fn f_prime_circuit_shape_is_value_invariant() {
 }
 
 #[test]
-#[ignore = "manual Goal 2 branch-point canary: prove the live recursive-step path is itself fixed-shape across independent fixtures before trusting shape-only equivalence work"]
-fn f_prime_live_setup_is_fixture_invariant() {
+fn f_prime_fast_fixture_shape_builder_matches_canonical_contract() {
+    let first = fast_structural_backend_relations()
+        .first()
+        .expect("fast-fixture canonical contract requires a backend relation");
+    assert_shape_matches_canonical_contract("fast fixture", fast_structural_spartan_shape(), first);
+}
+
+#[test]
+fn f_prime_single_step_shape_builder_matches_canonical_contract() {
+    let first = single_step_backend_relations()
+        .first()
+        .expect("single-step canonical contract requires a backend relation");
+    assert_shape_matches_canonical_contract("single-step fixture", single_step_spartan_shape(), first);
+}
+
+#[test]
+fn f_prime_two_step_shape_builder_matches_canonical_contract() {
+    let first = two_step_backend_relations()
+        .first()
+        .expect("two-step canonical contract requires a backend relation");
+    assert_shape_matches_canonical_contract("two-step fixture", two_step_spartan_shape(), first);
+}
+
+#[test]
+fn f_prime_fast_fixture_inactive_side_lane_surface_is_zero() {
     let fast_relation = fast_structural_backend_relations()
         .first()
-        .expect("live/live fixture invariance requires a fast structural backend relation");
-    let single_step_relation = single_step_backend_relations()
-        .first()
-        .expect("live/live fixture invariance requires a single-step backend relation");
-
-    let fast_live =
-        debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(fast_structural_spartan_shape(), fast_relation)
-            .expect("measure fast structural live recursive-step circuit shape");
-    let single_step_live = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(
-        single_step_spartan_shape(),
-        single_step_relation,
-    )
-    .expect("measure single-step live recursive-step circuit shape");
-
-    assert_eq!(
-        single_step_live.num_inputs, fast_live.num_inputs,
-        "independent live Goal 2 fixtures must compile to the same recursive-step public-input arity"
-    );
-    assert_eq!(
-        single_step_live.num_aux, fast_live.num_aux,
-        "independent live Goal 2 fixtures must compile to the same recursive-step witness arity"
-    );
-    assert_eq!(
-        single_step_live.num_constraints, fast_live.num_constraints,
-        "independent live Goal 2 fixtures must compile to the same recursive-step constraint count"
-    );
-    assert_eq!(
-        single_step_live.constraint_fingerprint, fast_live.constraint_fingerprint,
-        "independent live Goal 2 fixtures must compile to the same recursive-step circuit topology"
-    );
+        .expect("fast-fixture inactive side-lane check requires a backend relation");
+    assert_inactive_side_lane_surface_is_zero("fast fixture", fast_relation);
 }
 
 #[test]
-#[ignore = "manual Goal 2 branch-point canary: compare two non-terminal live fixtures so terminal-step drift does not mask the live fixed-shape question"]
-fn f_prime_live_setup_is_nonterminal_fixture_invariant() {
-    let single_step_relation = single_step_backend_relations()
+fn f_prime_single_step_inactive_side_lane_surface_is_zero() {
+    let first = single_step_backend_relations()
         .first()
-        .expect("nonterminal live/live invariance requires a single-step backend relation");
-    let two_step_relation = two_step_backend_relations()
-        .first()
-        .expect("nonterminal live/live invariance requires a two-step backend relation");
-
-    let single_step_live = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(
-        single_step_spartan_shape(),
-        single_step_relation,
-    )
-    .expect("measure single-step live recursive-step circuit shape");
-    let two_step_live =
-        debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(two_step_spartan_shape(), two_step_relation)
-            .expect("measure two-step live recursive-step circuit shape");
-
-    assert_eq!(
-        two_step_live.num_inputs, single_step_live.num_inputs,
-        "non-terminal live Goal 2 fixtures must compile to the same recursive-step public-input arity"
-    );
-    assert_eq!(
-        two_step_live.num_aux, single_step_live.num_aux,
-        "non-terminal live Goal 2 fixtures must compile to the same recursive-step witness arity"
-    );
-    assert_eq!(
-        two_step_live.num_constraints, single_step_live.num_constraints,
-        "non-terminal live Goal 2 fixtures must compile to the same recursive-step constraint count"
-    );
-    assert_eq!(
-        two_step_live.constraint_fingerprint, single_step_live.constraint_fingerprint,
-        "non-terminal live Goal 2 fixtures must compile to the same recursive-step circuit topology"
-    );
+        .expect("single-step inactive side-lane check requires a backend relation");
+    assert_inactive_side_lane_surface_is_zero("single-step fixture", first);
 }
 
 #[test]
-#[ignore = "manual Goal 2 diagnostic: compare the live recursive-step shape builder across independent fixtures before full circuit synthesis"]
-fn f_prime_live_shape_builder_is_fixture_invariant() {
-    let fast_shape = fast_structural_spartan_shape();
-    let single_step_shape = single_step_spartan_shape();
-
-    println!("fast_shape_cover: {:?}", fast_shape.cover_shape);
-    println!("single_step_cover: {:?}", single_step_shape.cover_shape);
-    println!("fast_shape_digest: {:02x?}", fast_shape.expected_digest());
-    println!("single_step_digest: {:02x?}", single_step_shape.expected_digest());
-
-    assert_eq!(
-        single_step_shape.cover_shape, fast_shape.cover_shape,
-        "independent live Goal 2 fixtures must build the same recursive-step cover shape"
-    );
-    assert_eq!(
-        single_step_shape.claim_cover, fast_shape.claim_cover,
-        "independent live Goal 2 fixtures must build the same recursive-step claim-cover shape"
-    );
-    assert_eq!(
-        single_step_shape.expected_digest(),
-        fast_shape.expected_digest(),
-        "independent live Goal 2 fixtures must build the same recursive-step shape digest"
-    );
-}
-
-#[test]
-#[ignore = "manual Goal 2 diagnostic: compare the live recursive-step shape builder across comparable non-terminal fixtures before full circuit synthesis"]
-fn f_prime_live_shape_builder_is_nonterminal_fixture_invariant() {
-    let single_step_shape = single_step_spartan_shape();
-    let two_step_shape = two_step_spartan_shape();
-
-    println!("single_step_cover: {:?}", single_step_shape.cover_shape);
-    println!("two_step_cover: {:?}", two_step_shape.cover_shape);
-    println!("single_step_digest: {:02x?}", single_step_shape.expected_digest());
-    println!("two_step_digest: {:02x?}", two_step_shape.expected_digest());
-
-    assert_eq!(
-        two_step_shape.cover_shape, single_step_shape.cover_shape,
-        "comparable non-terminal Goal 2 fixtures must build the same recursive-step cover shape"
-    );
-    assert_eq!(
-        two_step_shape.claim_cover, single_step_shape.claim_cover,
-        "comparable non-terminal Goal 2 fixtures must build the same recursive-step claim-cover shape"
-    );
-    assert_eq!(
-        two_step_shape.expected_digest(),
-        single_step_shape.expected_digest(),
-        "comparable non-terminal Goal 2 fixtures must build the same recursive-step shape digest"
-    );
-}
-
-#[test]
-#[ignore = "manual Goal 2 diagnostic: compare the two live recursive-step fixtures stage-by-stage after the live/live canary fails"]
-fn f_prime_live_setup_fixture_invariant_breakdown() {
-    let fast_relation = fast_structural_backend_relations()
+fn f_prime_two_step_inactive_side_lane_surface_is_zero() {
+    let first = two_step_backend_relations()
         .first()
-        .expect("live/live fixture breakdown requires a fast structural backend relation");
-    let single_step_relation = single_step_backend_relations()
-        .first()
-        .expect("live/live fixture breakdown requires a single-step backend relation");
-
-    let fast_live =
-        debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(fast_structural_spartan_shape(), fast_relation)
-            .expect("measure fast structural live recursive-step circuit shape");
-    let single_step_live = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(
-        single_step_spartan_shape(),
-        single_step_relation,
-    )
-    .expect("measure single-step live recursive-step circuit shape");
-
-    println!("fast_live: {}", fast_live.constraint_fingerprint);
-    println!("single_step_live: {}", single_step_live.constraint_fingerprint);
-
-    print_state_in_prefix_fingerprints("fast_live", fast_relation);
-    print_state_in_prefix_fingerprints("single_step_live", single_step_relation);
-
-    print_state_in_chunk_replay_fingerprint("fast_live", fast_relation);
-    print_state_in_chunk_replay_fingerprint("single_step_live", single_step_relation);
+        .expect("two-step inactive side-lane check requires a backend relation");
+    assert_inactive_side_lane_surface_is_zero("two-step fixture", first);
 }
 
 #[test]
@@ -501,34 +450,11 @@ fn f_prime_terminal_vs_nonterminal_state_in_claim_surface_breakdown() {
 }
 
 #[test]
-#[ignore = "known Goal 2 canary: shape-only setup skeleton currently drifts from the live first-step recursive-step circuit"]
-fn f_prime_shape_only_setup_skeleton_matches_live_first_step_shape() {
-    let backend_relations = fast_structural_backend_relations();
-    let spartan_shape = fast_structural_spartan_shape();
-    let first = backend_relations
+fn f_prime_shape_only_setup_skeleton_matches_live_first_step_shape_contract() {
+    let first = fast_structural_backend_relations()
         .first()
-        .expect("shape-only/live equivalence requires one backend relation");
-    let live = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(spartan_shape, first)
-        .expect("measure live first-step recursive-step circuit shape");
-    let shape_only = debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape(spartan_shape)
-        .expect("measure shape-only recursive-step circuit shape");
-
-    assert_eq!(
-        shape_only.num_inputs, live.num_inputs,
-        "shape-only setup skeleton changed recursive-step public-IO arity relative to the live first step"
-    );
-    assert_eq!(
-        shape_only.num_aux, live.num_aux,
-        "shape-only setup skeleton changed recursive-step witness arity relative to the live first step"
-    );
-    assert_eq!(
-        shape_only.num_constraints, live.num_constraints,
-        "shape-only setup skeleton changed recursive-step constraint count relative to the live first step"
-    );
-    assert_eq!(
-        shape_only.constraint_fingerprint, live.constraint_fingerprint,
-        "shape-only setup skeleton drifted from the live first-step recursive-step circuit topology"
-    );
+        .expect("shape-only/live structural equivalence requires one backend relation");
+    assert_shape_matches_canonical_contract("shape-only setup skeleton", fast_structural_spartan_shape(), first);
 }
 
 #[test]

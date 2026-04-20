@@ -3,15 +3,10 @@ use std::time::Instant;
 use neo_fold_next::rv64im::audit::{
     build_rv64im_chunk_step_ivc_relations, build_rv64im_main_recursion_f_prime_advices,
     build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
-    build_rv64im_main_recursion_step_spartan_compressed_chain_shape,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_public_io,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
-    debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
-    debug_profile_rv64im_main_recursion_step_spartan_compressed_chain_prove_stages,
-    prove_rv64im_main_recursion_step_spartan, setup_rv64im_main_recursion_step_spartan_cached,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
@@ -130,61 +125,6 @@ fn rv64im_n2_latency_probe() {
         debug_measure_rv64im_main_recursion_step_spartan_commitment_key(&spartan_shape, first_relation)
             .expect("measure n=2 first-step commitment key");
     print_probe("measure_first_step_commitment_key.wall", commitment_key_ms);
-
-    println!("n2-latency|start|setup_first_step");
-    let started = Instant::now();
-    let first_step_keys = setup_rv64im_main_recursion_step_spartan_cached(&spartan_shape, first_relation)
-        .expect("setup n=2 first recursive step");
-    print_probe("setup_first_step.wall", elapsed_ms(started));
-
-    println!("n2-latency|start|prove_first_step");
-    let started = Instant::now();
-    let (pk, _) = &*first_step_keys;
-    let _first_step_proof = prove_rv64im_main_recursion_step_spartan(pk, &spartan_shape, first_relation)
-        .expect("prove n=2 first recursive step");
-    print_probe("prove_first_step.wall", elapsed_ms(started));
-
-    println!("n2-latency|start|build_compressed_chain_shape");
-    let started = Instant::now();
-    let chain_shape =
-        build_rv64im_main_recursion_step_spartan_compressed_chain_shape(&spartan_shape, &backend_relations)
-            .expect("build n=2 compressed-chain shape");
-    print_probe("build_compressed_chain_shape.wall", elapsed_ms(started));
-
-    println!("n2-latency|start|build_compressed_chain_circuit");
-    let started = Instant::now();
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_public_io(&chain_shape, &backend_relations)
-        .expect("build n=2 compressed-chain circuit");
-    print_probe("build_compressed_chain_circuit.wall", elapsed_ms(started));
-
-    println!("n2-latency|start|profile_compressed_chain_prove");
-    let started = Instant::now();
-    let compressed_chain_metrics = debug_profile_rv64im_main_recursion_step_spartan_compressed_chain_prove_stages(
-        &spartan_shape,
-        &backend_relations,
-    )
-    .expect("profile n=2 compressed-chain prove stages");
-    print_probe("profile_compressed_chain_prove.wall", elapsed_ms(started));
-    print_probe(
-        "profile_compressed_chain_prove.setup",
-        compressed_chain_metrics.setup_ms,
-    );
-    print_probe(
-        "profile_compressed_chain_prove.prep_prove",
-        compressed_chain_metrics.prep_prove_ms,
-    );
-    print_probe(
-        "profile_compressed_chain_prove.prove",
-        compressed_chain_metrics.prove_ms,
-    );
-    print_probe(
-        "profile_compressed_chain_prove.serialize",
-        compressed_chain_metrics.serialize_ms,
-    );
-    println!(
-        "n2-latency|compressed_chain.snark_bytes|{}",
-        compressed_chain_metrics.snark_bytes
-    );
 }
 
 #[test]
@@ -221,25 +161,5 @@ fn rv64im_n2_shape_probe() {
     println!(
         "n2-shape|first_step.num_constraints|{}",
         first_step_shape.num_constraints
-    );
-
-    let chain_shape =
-        build_rv64im_main_recursion_step_spartan_compressed_chain_shape(&spartan_shape, &backend_relations)
-            .expect("build n=2 compressed-chain shape");
-    let started = Instant::now();
-    let compressed_chain_shape = debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit_shape(
-        &chain_shape,
-        &backend_relations,
-    )
-    .expect("measure n=2 compressed-chain circuit shape");
-    print_probe("shape.compressed_chain.wall", elapsed_ms(started));
-    println!(
-        "n2-shape|compressed_chain.num_inputs|{}",
-        compressed_chain_shape.num_inputs
-    );
-    println!("n2-shape|compressed_chain.num_aux|{}", compressed_chain_shape.num_aux);
-    println!(
-        "n2-shape|compressed_chain.num_constraints|{}",
-        compressed_chain_shape.num_constraints
     );
 }

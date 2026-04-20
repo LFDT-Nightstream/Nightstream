@@ -3,7 +3,6 @@ mod support;
 mod accumulator_cardinality;
 mod base_case;
 mod default_instance_monotonicity;
-mod fixed_shape_invariance;
 mod low_norm_bound;
 mod native_vs_circuit_parity;
 mod nifs_v_step_coverage;

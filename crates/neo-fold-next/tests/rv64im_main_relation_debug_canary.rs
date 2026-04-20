@@ -29,11 +29,9 @@ fn rv64im_main_relation_debug_satisfiable() {
     let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
     let (_statement, final_proof) =
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove final statement");
-    debug_check_rv64im_spartan2_decider_circuit(
-        seam.main_proof
-            .final_statement_cache()
-            .expect("locally built published seam should retain the final-statement cache"),
-        &final_proof,
-    )
-    .expect("debug check main spartan decider");
+    let final_statement = seam
+        .rebuild_final_statement()
+        .expect("rebuild final statement from the carried published seam");
+    debug_check_rv64im_spartan2_decider_circuit(&final_statement, &final_proof)
+        .expect("debug check main spartan decider");
 }

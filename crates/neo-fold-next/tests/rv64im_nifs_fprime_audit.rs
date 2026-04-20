@@ -7,7 +7,6 @@ use neo_fold_next::rv64im::audit::{
     build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape,
     build_rv64im_main_recursion_f_prime_public_output,
     debug_check_rv64im_main_recursion_step_spartan_chunk_replay_surface,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity,
     debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
     evaluate_rv64im_main_recursion_f_prime_advice, rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff,
     rv64im_main_recursion_advice_tamper_chunk_index,
@@ -216,9 +215,6 @@ fn rv64im_nifs_fprime_authoritative_parity_audit() -> Result<(), SimpleKernelErr
             SimpleKernelError::Bridge(format!("step {step_index} Pi_CCS replay lengths failed: {err}"))
         })?;
     }
-
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity(&fixture.backend_relations)
-        .map_err(|err| SimpleKernelError::Bridge(format!("compressed-chain parity failed: {err}")))?;
 
     let baseline_advice = fixture
         .f_prime_advices

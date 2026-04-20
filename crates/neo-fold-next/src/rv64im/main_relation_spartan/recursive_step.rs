@@ -11,25 +11,20 @@
 
 mod authoritative_surface;
 mod chunk_replay;
-mod compressed_chain;
 mod diagnostics;
+mod exports;
+mod synthesize_support;
 
-use std::collections::HashMap;
 use std::fmt::Write as _;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
 
-use bellpepper_core::{
-    num::AllocatedNum, test_cs::TestConstraintSystem, Comparable, ConstraintSystem, Delta, SynthesisError,
-};
+use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem, SynthesisError};
 use neo_math::F;
 use neo_reductions::engines::utils::build_dims_and_policy;
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
-use spartan2::{
-    provider::goldi::F as SpartanF,
-    traits::{circuit::SpartanCircuit, snark::R1CSSNARKTrait},
-};
+use spartan2::{provider::goldi::F as SpartanF, traits::circuit::SpartanCircuit};
 use thiserror::Error;
 
 use super::chunk_step_ivc::digest_const_inputs;
@@ -42,8 +37,6 @@ use super::recursive_cover::alloc_recursive_cover_state;
 use super::{
     alloc_const_field_values, alloc_private_field_values, digest32_as_spartan_fields, enforce_digest_eq,
     next_public_digest, Rv64imMainRecursionStepSpartanStatement, Rv64imSpartan2DeciderEngine,
-    Rv64imSpartan2DeciderKeyPair, Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderSnark,
-    Rv64imSpartan2DeciderVerifierKey,
 };
 use crate::finalize::{digest_fields_as_digest32, FixedShapeChunkSummary};
 use crate::proof::{Carry, ChunkInput, StepInput};
@@ -64,91 +57,9 @@ use crate::rv64im::main_relation_spartan::chunk_step_ivc::Rv64imChunkStepIvcShap
 use crate::rv64im::main_relation_spartan::chunk_step_recursive::build_rv64im_main_recursion_f_prime_payload;
 use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
 use chunk_replay::synthesize_rv64im_main_recursion_step_chunk_replay;
+use synthesize_support::{emit_synthesize_trace, enforce_pc_range, mark_unsatisfied};
 
-pub type Rv64imMainRecursionStepSpartanProverKey = Rv64imSpartan2DeciderProverKey;
-pub type Rv64imMainRecursionStepSpartanVerifierKey = Rv64imSpartan2DeciderVerifierKey;
-pub type Rv64imMainRecursionStepSpartanKeyPair = Rv64imSpartan2DeciderKeyPair;
-
-pub use authoritative_surface::{
-    build_rv64im_main_recursion_step_authoritative_chunk_surface,
-    debug_check_rv64im_main_recursion_step_authoritative_chunk_surface_matches_native,
-    Rv64imMainRecursionStepAuthoritativeChunkSurface,
-};
-pub use compressed_chain::{
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_circuit,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_public_io,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_shape_only_circuit,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_shape_only_setup,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_statement_binding,
-    debug_check_rv64im_main_recursion_step_spartan_shape_only_chain_parity,
-    debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit_shape,
-    debug_profile_rv64im_main_recursion_step_spartan_compressed_chain_prove_stages,
-    prove_rv64im_main_recursion_step_spartan_compressed_chain,
-    verify_rv64im_main_recursion_step_spartan_compressed_chain,
-    Rv64imMainRecursionStepSpartanCompressedChainProveMetrics,
-};
-pub use diagnostics::{
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_wrapper_only,
-    debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity,
-    debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
-    debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint,
-    debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
-    debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
-    debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence,
-    debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
-    debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
-    debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, Rv64imMainRecursionStepChunkReplayFingerprint,
-    Rv64imMainRecursionStepSpartanSetupEquivalence,
-};
-
-static RV64IM_MAIN_RECURSION_STEP_SHAPE_ONLY_SETUP_CACHE: OnceLock<
-    Mutex<HashMap<[u8; 32], Rv64imMainRecursionStepSpartanKeyPair>>,
-> = OnceLock::new();
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRecursionStepSpartanProof {
-    pub snark_data: Vec<u8>,
-}
-
-pub type Rv64imMainRecursionStepSpartanChainProof = Vec<Rv64imMainRecursionStepSpartanProof>;
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRecursionStepSpartanCompressedChainProof {
-    pub snark_data: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRecursionStepSpartanCompressedChainShape {
-    pub spartan_shape: Rv64imMainRecursionStepSpartanShape,
-    pub step_shapes: Vec<Rv64imChunkStepIvcShape>,
-}
-
-impl Rv64imMainRecursionStepSpartanCompressedChainShape {
-    pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr =
-            Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_step_spartan/compressed_chain_shape");
-        tr.append_message(
-            b"neo.fold.next/rv64im/main_recursion_step_spartan/compressed_chain_shape/version",
-            b"v1",
-        );
-        tr.append_message(
-            b"neo.fold.next/rv64im/main_recursion_step_spartan/compressed_chain_shape/spartan_shape",
-            &self.spartan_shape.expected_digest(),
-        );
-        tr.append_u64s(
-            b"neo.fold.next/rv64im/main_recursion_step_spartan/compressed_chain_shape/step_count",
-            &[self.step_shapes.len() as u64],
-        );
-        for step_shape in &self.step_shapes {
-            tr.append_message(
-                b"neo.fold.next/rv64im/main_recursion_step_spartan/compressed_chain_shape/step_shape",
-                &step_shape.expected_digest(),
-            );
-        }
-        tr.digest32()
-    }
-}
+pub use exports::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imMainRecursionStepSpartanCircuitShape {
@@ -168,36 +79,16 @@ fn format_spartan_digest_hex(digest: [u8; 32]) -> String {
 
 #[derive(Debug, Error)]
 pub enum Rv64imMainRecursionStepSpartanError {
-    #[error("rv64im main recursion step setup failed: {0}")]
-    Setup(String),
     #[error("rv64im main recursion step prepare failed: {0}")]
     Prepare(String),
-    #[error("rv64im main recursion step prove failed: {0}")]
-    Prove(String),
     #[error("rv64im main recursion step verify failed: {0}")]
     Verify(String),
-    #[error("rv64im main recursion step proof encoding failed: {0}")]
-    Encode(String),
-    #[error("rv64im main recursion step proof decoding failed: {0}")]
-    Decode(String),
-    #[error("rv64im main recursion step public IO mismatch")]
-    PublicIoMismatch,
 }
 
 #[derive(Clone)]
 struct Rv64imMainRecursionStepCircuit {
     spartan_shape: Rv64imMainRecursionStepSpartanShape,
     backend_relation: Rv64imMainRecursionFPrimeBackendRelation,
-}
-
-#[derive(Clone)]
-struct Rv64imMainRecursionStepPublicVar {
-    chunk_index: AllocatedNum<SpartanF>,
-    carry_state_in_digest: [AllocatedNum<SpartanF>; 4],
-    folded_accumulator_in_digest: [AllocatedNum<SpartanF>; 4],
-    carry_state_out_digest: [AllocatedNum<SpartanF>; 4],
-    x_out: [AllocatedNum<SpartanF>; 4],
-    folded_accumulator_out_digest: [AllocatedNum<SpartanF>; 4],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -258,65 +149,10 @@ fn spartan_public_digest32(public_values: &[SpartanF]) -> Result<[u8; 32], Rv64i
     })))
 }
 
-fn main_recursion_step_public_values(statement: &Rv64imMainRecursionStepSpartanStatement) -> Vec<SpartanF> {
-    let mut values = Vec::with_capacity(8);
-    values.extend(digest32_as_spartan_fields(statement.x_out.bytes()));
-    values.extend(digest32_as_spartan_fields(statement.folded_accumulator_digest));
-    values
-}
-
-fn mark_unsatisfied<CS: ConstraintSystem<SpartanF>>(cs: &mut CS, label: &str) -> Result<(), SynthesisError> {
-    cs.enforce(|| label, |lc| lc + CS::one(), |lc| lc + CS::one(), |lc| lc);
-    Ok(())
-}
-
 /// Upper bound `ell` of the structural program-counter range `1 <= pc <= ell`
 /// for the RV64IM main-recursion specialization. Current construction fixes
 /// `ell = 1`, in which the range collapses to `pc == 1`.
 const RV64IM_MAIN_RECURSION_ELL: u64 = 1;
-
-/// Enforces the structural program-counter range `1 <= value <= ell` in the
-/// circuit, replacing the previous hard-coded `pc == TRIVIAL_PC` constraint.
-///
-/// For `ell == 1` this emits a single linear constraint `value - 1 == 0`.
-/// Larger `ell` would require a bit decomposition of `value - 1`, which is
-/// not needed by the current RV64IM specialization and therefore not
-/// implemented; passing `ell > 1` is rejected by returning `Unsatisfiable`.
-fn enforce_pc_range<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    label: &str,
-    value: &AllocatedNum<SpartanF>,
-    ell: u64,
-) -> Result<(), SynthesisError> {
-    if ell == 0 {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    if ell != 1 {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    cs.enforce(
-        || format!("{label}_eq_one"),
-        |lc| lc + value.get_variable() - (SpartanF::from_canonical_u64(1), CS::one()),
-        |lc| lc + CS::one(),
-        |lc| lc,
-    );
-    Ok(())
-}
-
-fn rv64im_main_recursion_step_setup_cache_key(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-) -> Result<[u8; 32], Rv64imMainRecursionStepSpartanError> {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_step_spartan/setup_cache_key");
-    tr.append_message(
-        b"neo.fold.next/rv64im/main_recursion_step_spartan/setup_cache_key/version",
-        b"v4",
-    );
-    tr.append_message(
-        b"neo.fold.next/rv64im/main_recursion_step_spartan/setup_cache_key/spartan_shape",
-        &spartan_shape.expected_digest(),
-    );
-    Ok(tr.digest32())
-}
 
 impl Rv64imMainRecursionStepCircuit {
     fn expected_public_values(&self) -> Vec<SpartanF> {
@@ -324,31 +160,6 @@ impl Rv64imMainRecursionStepCircuit {
             .expect("recursive-step circuit must be built from a canonical backend relation")
             .public_values()
     }
-}
-
-fn initial_main_recursion_step_spartan_statement(
-) -> Result<Rv64imMainRecursionStepSpartanStatement, Rv64imMainRecursionStepSpartanError> {
-    let initial_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state();
-    let folded_accumulator_digest =
-        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&initial_state.carry);
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs()
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    Ok(build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs(
-        &vk_fs,
-        0,
-        folded_accumulator_digest,
-        initial_state.carry.terminal_handle.0,
-    )
-    .native_statement())
-}
-
-fn build_rv64im_main_recursion_step_spartan_statement(
-    backend_relations: &[Rv64imMainRecursionFPrimeBackendRelation],
-) -> Result<Rv64imMainRecursionStepSpartanStatement, Rv64imMainRecursionStepSpartanError> {
-    backend_relations
-        .last()
-        .map(|relation| Ok(relation.spartan_statement.clone()))
-        .unwrap_or_else(initial_main_recursion_step_spartan_statement)
 }
 
 fn canonical_main_recursion_step_spartan_statement(
@@ -377,55 +188,6 @@ fn ensure_main_recursion_step_spartan_statement_binding(
             "rv64im main recursion step circuit requires the canonical per-step Spartan statement derived from native F'"
                 .into(),
         ));
-    }
-    Ok(())
-}
-
-pub fn build_rv64im_main_recursion_step_spartan_compressed_chain_shape(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relations: &[Rv64imMainRecursionFPrimeBackendRelation],
-) -> Result<Rv64imMainRecursionStepSpartanCompressedChainShape, Rv64imMainRecursionStepSpartanError> {
-    let step_shapes = collect_main_recursion_step_chain_shapes(spartan_shape, backend_relations)?;
-    Ok(Rv64imMainRecursionStepSpartanCompressedChainShape {
-        spartan_shape: spartan_shape.clone(),
-        step_shapes,
-    })
-}
-
-pub fn validate_rv64im_main_recursion_step_spartan_chain_shape(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relations: &[Rv64imMainRecursionFPrimeBackendRelation],
-) -> Result<(), Rv64imMainRecursionStepSpartanError> {
-    ensure_main_recursion_step_chain_matches_shape(spartan_shape, backend_relations)?;
-    Ok(())
-}
-
-fn collect_main_recursion_step_chain_shapes(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relations: &[Rv64imMainRecursionFPrimeBackendRelation],
-) -> Result<Vec<Rv64imChunkStepIvcShape>, Rv64imMainRecursionStepSpartanError> {
-    let mut step_shapes = Vec::with_capacity(backend_relations.len());
-    for relation in backend_relations {
-        if !spartan_shape.matches_payload(&relation.payload) {
-            return Err(Rv64imMainRecursionStepSpartanError::Prepare(
-                "rv64im main recursion step chain shape requires payloads matching the explicit Spartan shape".into(),
-            ));
-        }
-        step_shapes.push(relation.payload.step_shape.clone());
-    }
-    Ok(step_shapes)
-}
-
-fn ensure_main_recursion_step_chain_matches_shape(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relations: &[Rv64imMainRecursionFPrimeBackendRelation],
-) -> Result<(), Rv64imMainRecursionStepSpartanError> {
-    for relation in backend_relations {
-        if !spartan_shape.matches_payload(&relation.payload) {
-            return Err(Rv64imMainRecursionStepSpartanError::Prepare(
-                "rv64im main recursion step chain shape requires payloads matching the explicit Spartan shape".into(),
-            ));
-        }
     }
     Ok(())
 }
@@ -907,12 +669,16 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     public_inputs: &[AllocatedNum<SpartanF>],
     public_cursor: &mut usize,
-) -> Result<Rv64imMainRecursionStepPublicVar, SynthesisError> {
+    trace_prefix: Option<&str>,
+) -> Result<(), SynthesisError> {
     let witness = &circuit.backend_relation.f_prime_advice;
     let payload = &circuit.backend_relation.payload;
+    let started = Instant::now();
     let x_out_input = next_public_digest(public_inputs, public_cursor, "x_out")?;
     let folded_accumulator_out_digest_input =
         next_public_digest(public_inputs, public_cursor, "folded_accumulator_out_digest")?;
+    emit_synthesize_trace(trace_prefix, "public_inputs", started);
+    let started = Instant::now();
     let chunk_index_witness = AllocatedNum::alloc(cs.namespace(|| "chunk_index_witness"), || {
         Ok(SpartanF::from_canonical_u64(witness.chunk_count_in()))
     })?;
@@ -962,6 +728,8 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         payload.pc_next(),
         "pc_next_halves",
     )?;
+    emit_synthesize_trace(trace_prefix, "private_witness_inputs", started);
+    let started = Instant::now();
     let state_in_var = alloc_recursive_cover_state(
         &mut cs.namespace(|| "state_in"),
         &payload.state_in_claims,
@@ -976,6 +744,8 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         witness.fresh_state_out().carry.terminal_handle.0,
         "state_out",
     )?;
+    emit_synthesize_trace(trace_prefix, "alloc_cover_states", started);
+    let started = Instant::now();
     let carry_state_out_digest_witness = private_digest_inputs(
         &mut cs.namespace(|| "carry_state_out_digest_witness"),
         rv64im_chunk_step_recursive_carry_state_digest(
@@ -1023,15 +793,20 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         &pc_next_input,
         RV64IM_MAIN_RECURSION_ELL,
     )?;
+    emit_synthesize_trace(trace_prefix, "bind_state_and_pc", started);
+    let started = Instant::now();
     let live_folded_accumulator_out_digest = synthesize_rv64im_main_recursion_step_chunk_replay(
         &mut cs.namespace(|| "payload_chunk_replay"),
         witness,
         payload,
         &state_in_var,
         &state_out_var,
+        trace_prefix,
     )?
     .live_folded_accumulator_out_digest;
+    emit_synthesize_trace(trace_prefix, "payload_chunk_replay", started);
 
+    let started = Instant::now();
     enforce_inactive_side_lane_constraints(
         &mut cs.namespace(|| "inactive_side_lane"),
         "inactive_side_lane",
@@ -1057,6 +832,8 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         &live_folded_accumulator_out_digest,
         &live_folded_accumulator_out_digest_values,
     )?;
+    emit_synthesize_trace(trace_prefix, "inactive_side_lane_and_x_out", started);
+    let started = Instant::now();
     enforce_digest_eq(
         &mut cs.namespace(|| "x_out_eq"),
         &x_out_input,
@@ -1069,15 +846,17 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         &live_folded_accumulator_out_digest,
         "folded_accumulator_out_digest_eq",
     )?;
+    emit_synthesize_trace(trace_prefix, "public_output_eq", started);
 
-    Ok(Rv64imMainRecursionStepPublicVar {
-        chunk_index: chunk_index_witness,
-        carry_state_in_digest: carry_state_in_digest_witness,
-        folded_accumulator_in_digest: folded_accumulator_in_digest_witness,
-        carry_state_out_digest: carry_state_out_digest_witness,
-        x_out: x_out_input,
-        folded_accumulator_out_digest: live_folded_accumulator_out_digest,
-    })
+    let _ = (
+        chunk_index_witness,
+        carry_state_in_digest_witness,
+        folded_accumulator_in_digest_witness,
+        carry_state_out_digest_witness,
+        x_out_input,
+        live_folded_accumulator_out_digest,
+    );
+    Ok(())
 }
 
 pub fn debug_check_rv64im_main_recursion_step_spartan_circuit(
@@ -1117,6 +896,7 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_embedded_body(
         &mut cs.namespace(|| "embedded_body"),
         &relation_public_inputs,
         &mut relation_public_cursor,
+        None,
     )
     .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     if relation_public_cursor != relation_public_inputs.len() {
@@ -1158,35 +938,6 @@ pub fn debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(
         num_aux,
         num_constraints,
         constraint_fingerprint: format_spartan_digest_hex(shape_digest),
-    })
-}
-
-pub fn debug_compare_rv64im_main_recursion_step_spartan_shape_only_skeleton(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
-) -> Result<Option<String>, Rv64imMainRecursionStepSpartanError> {
-    let live_circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
-    let dummy_relation = dummy_backend_relation_from_chain_step(
-        spartan_shape,
-        &backend_relation.payload.step_shape,
-        backend_relation.f_prime_advice.chunk_count_in(),
-        backend_relation.f_prime_advice.running_state(),
-    )?;
-    let skeleton_circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, &dummy_relation)?;
-
-    let mut live_cs = TestConstraintSystem::<SpartanF>::new();
-    live_circuit
-        .synthesize(&mut live_cs, &[], &[], None)
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-
-    let mut skeleton_cs = TestConstraintSystem::<SpartanF>::new();
-    skeleton_circuit
-        .synthesize(&mut skeleton_cs, &[], &[], None)
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-
-    Ok(match live_cs.delta(&skeleton_cs, false) {
-        Delta::Equal => None,
-        delta => Some(format!("{delta:?}")),
     })
 }
 
@@ -1307,7 +1058,7 @@ impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imMainRecursionStepCirc
             .map(|(idx, value)| AllocatedNum::alloc_input(cs.namespace(|| format!("public_input_{idx}")), || Ok(value)))
             .collect::<Result<Vec<_>, _>>()?;
         let mut public_cursor = 0usize;
-        let _ = synthesize_rv64im_main_recursion_step_body(self, cs, &public_inputs, &mut public_cursor)?;
+        synthesize_rv64im_main_recursion_step_body(self, cs, &public_inputs, &mut public_cursor, None)?;
 
         if public_cursor != public_inputs.len() {
             mark_unsatisfied(
@@ -1366,162 +1117,4 @@ fn build_rv64im_main_recursion_step_shape_only_circuit(
     let dummy_relation =
         dummy_backend_relation_from_chain_step(spartan_shape, &spartan_shape.cover_shape, 0, &seed_state)?;
     build_rv64im_main_recursion_step_circuit(spartan_shape, &dummy_relation)
-}
-
-pub fn setup_rv64im_main_recursion_step_spartan_shape_cached(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-) -> Result<Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanError> {
-    let cache_key = rv64im_main_recursion_step_setup_cache_key(spartan_shape)?;
-    let cache = RV64IM_MAIN_RECURSION_STEP_SHAPE_ONLY_SETUP_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(keys) = cache
-        .lock()
-        .map_err(|_| {
-            Rv64imMainRecursionStepSpartanError::Setup("rv64im main recursion step setup cache poisoned".into())
-        })?
-        .get(&cache_key)
-        .cloned()
-    {
-        return Ok(keys);
-    }
-    let circuit = build_rv64im_main_recursion_step_shape_only_circuit(spartan_shape)?;
-    let keys = Arc::new(
-        Rv64imSpartan2DeciderSnark::setup(circuit)
-            .map_err(|err| Rv64imMainRecursionStepSpartanError::Setup(err.to_string()))?,
-    );
-    cache
-        .lock()
-        .map_err(|_| {
-            Rv64imMainRecursionStepSpartanError::Setup("rv64im main recursion step setup cache poisoned".into())
-        })?
-        .insert(cache_key, keys.clone());
-    Ok(keys)
-}
-
-pub fn setup_rv64im_main_recursion_step_spartan_cached(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    _backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
-) -> Result<Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanError> {
-    // Goal 2 requires a fixed-shape recursive-step circuit. Once the live-vs-
-    // shape-only setup canary is green again, setup should depend only on the
-    // shape and use the shape-only cached circuit, not replay a live payload.
-    setup_rv64im_main_recursion_step_spartan_shape_cached(spartan_shape)
-}
-
-pub fn prove_rv64im_main_recursion_step_spartan(
-    pk: &Rv64imMainRecursionStepSpartanProverKey,
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
-) -> Result<Rv64imMainRecursionStepSpartanProof, Rv64imMainRecursionStepSpartanError> {
-    let circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
-    let prep = Rv64imSpartan2DeciderSnark::prep_prove(pk, circuit.clone(), false)
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    let proof = Rv64imSpartan2DeciderSnark::prove(pk, circuit, &prep, false)
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prove(err.to_string()))?;
-    let snark_data =
-        bincode::serialize(&proof).map_err(|err| Rv64imMainRecursionStepSpartanError::Encode(err.to_string()))?;
-    Ok(Rv64imMainRecursionStepSpartanProof { snark_data })
-}
-
-pub fn verify_rv64im_main_recursion_step_spartan(
-    vk: &Rv64imMainRecursionStepSpartanVerifierKey,
-    statement: &Rv64imMainRecursionStepSpartanStatement,
-    proof: &Rv64imMainRecursionStepSpartanProof,
-) -> Result<(), Rv64imMainRecursionStepSpartanError> {
-    let proof: Rv64imSpartan2DeciderSnark = bincode::deserialize(&proof.snark_data)
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Decode(err.to_string()))?;
-    let public_values = proof
-        .verify(vk)
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Verify(err.to_string()))?;
-    let statement_public_values = main_recursion_step_public_values(statement);
-    if public_values.len() < statement_public_values.len()
-        || public_values[public_values.len() - statement_public_values.len()..] != statement_public_values
-    {
-        return Err(Rv64imMainRecursionStepSpartanError::PublicIoMismatch);
-    }
-    Ok(())
-}
-
-pub fn verify_rv64im_main_recursion_step_spartan_published_target(
-    vk: &Rv64imMainRecursionStepSpartanVerifierKey,
-    published_target: &Rv64imMainRecursionStepSpartanPublishedTarget,
-    proof: &Rv64imMainRecursionStepSpartanProof,
-) -> Result<(), Rv64imMainRecursionStepSpartanError> {
-    let extracted = verify_rv64im_main_recursion_step_spartan_and_extract_published_target(vk, proof)?;
-    if &extracted != published_target {
-        return Err(Rv64imMainRecursionStepSpartanError::PublicIoMismatch);
-    }
-    Ok(())
-}
-
-pub fn verify_rv64im_main_recursion_step_spartan_and_extract_published_target(
-    vk: &Rv64imMainRecursionStepSpartanVerifierKey,
-    proof: &Rv64imMainRecursionStepSpartanProof,
-) -> Result<Rv64imMainRecursionStepSpartanPublishedTarget, Rv64imMainRecursionStepSpartanError> {
-    let proof: Rv64imSpartan2DeciderSnark = bincode::deserialize(&proof.snark_data)
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Decode(err.to_string()))?;
-    let public_values = proof
-        .verify(vk)
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Verify(err.to_string()))?;
-    Rv64imMainRecursionStepSpartanPublishedTarget::from_public_values(&public_values)
-}
-
-pub fn prove_rv64im_main_recursion_step_spartan_chain(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relations: &[Rv64imMainRecursionFPrimeBackendRelation],
-) -> Result<Rv64imMainRecursionStepSpartanChainProof, Rv64imMainRecursionStepSpartanError> {
-    let Some(first) = backend_relations.first() else {
-        return Ok(Vec::new());
-    };
-    let keys = setup_rv64im_main_recursion_step_spartan_cached(spartan_shape, first)?;
-    let (pk, _) = &*keys;
-    let mut step_proofs = Vec::with_capacity(backend_relations.len());
-    for relation in backend_relations {
-        step_proofs.push(prove_rv64im_main_recursion_step_spartan(pk, spartan_shape, relation)?);
-    }
-    Ok(step_proofs)
-}
-
-pub fn verify_rv64im_main_recursion_step_spartan_published_target_chain(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    published_targets: &[Rv64imMainRecursionStepSpartanPublishedTarget],
-    step_proofs: &[Rv64imMainRecursionStepSpartanProof],
-) -> Result<(), Rv64imMainRecursionStepSpartanError> {
-    let extracted =
-        verify_rv64im_main_recursion_step_spartan_chain_and_extract_published_targets(spartan_shape, step_proofs)?;
-    if published_targets.len() != extracted.len() {
-        return Err(Rv64imMainRecursionStepSpartanError::Verify(
-            "rv64im main recursion step published-target chain length mismatch".into(),
-        ));
-    }
-    if published_targets != extracted.as_slice() {
-        return Err(Rv64imMainRecursionStepSpartanError::PublicIoMismatch);
-    }
-    Ok(())
-}
-
-pub fn verify_rv64im_main_recursion_step_spartan_chain_and_extract_published_targets(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    step_proofs: &[Rv64imMainRecursionStepSpartanProof],
-) -> Result<Vec<Rv64imMainRecursionStepSpartanPublishedTarget>, Rv64imMainRecursionStepSpartanError> {
-    let keys = setup_rv64im_main_recursion_step_spartan_shape_cached(spartan_shape)?;
-    let (_, vk) = &*keys;
-    let mut published_targets = Vec::with_capacity(step_proofs.len());
-    for step_proof in step_proofs {
-        let published_target = verify_rv64im_main_recursion_step_spartan_and_extract_published_target(vk, step_proof)?;
-        published_targets.push(published_target);
-    }
-    Ok(published_targets)
-}
-
-pub fn verify_rv64im_main_recursion_step_spartan_chain(
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    backend_relations: &[Rv64imMainRecursionFPrimeBackendRelation],
-    step_proofs: &[Rv64imMainRecursionStepSpartanProof],
-) -> Result<(), Rv64imMainRecursionStepSpartanError> {
-    validate_rv64im_main_recursion_step_spartan_chain_shape(spartan_shape, backend_relations)?;
-    let published_targets = backend_relations
-        .iter()
-        .map(build_rv64im_main_recursion_step_spartan_published_target)
-        .collect::<Result<Vec<_>, _>>()?;
-    verify_rv64im_main_recursion_step_spartan_published_target_chain(spartan_shape, &published_targets, step_proofs)
 }

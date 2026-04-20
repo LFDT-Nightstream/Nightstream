@@ -61,7 +61,7 @@ pub struct Rv64imChunkBridgeHandoff {
     pub digest: [u8; 32],
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rv64imVerifiedKernelChunkHandoff {
     pub chunk_input: ChunkInput,
     pub public_chunk: PublicChunk,

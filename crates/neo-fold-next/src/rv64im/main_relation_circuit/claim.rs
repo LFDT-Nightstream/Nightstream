@@ -765,14 +765,55 @@ fn alloc_claim_scalar_as_lc_field<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
+fn me_digest_field_capacity(
+    c_data_len: usize,
+    x_len: usize,
+    r_len: usize,
+    s_col_len: usize,
+    y_zcol_len: usize,
+    y_ring_lens: impl Iterator<Item = usize>,
+    ct_len: usize,
+    aux_openings_len: usize,
+    c_step_coords_len: usize,
+    fold_digest_encoding_len: usize,
+) -> usize {
+    let mut total = packed_bytes_field_values(b"neo/ccs/me_input_digest_poseidon/v2").len();
+    total += 1 + c_data_len;
+    total += 1 + x_len;
+    total += 2 + (2 * r_len);
+    total += 2 + (2 * s_col_len);
+    total += 2 + (2 * y_zcol_len);
+    total += 1;
+    for row_len in y_ring_lens {
+        total += 2 + (2 * row_len);
+    }
+    total += 2 + (2 * ct_len);
+    total += 2 + (2 * aux_openings_len);
+    total += 1 + c_step_coords_len;
+    total += 3;
+    total + fold_digest_encoding_len
+}
+
 pub fn me_digest_poseidon<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     claim: &CeClaimVar,
     label: &str,
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let mut field_terms = Vec::new();
-    let mut field_constants = Vec::new();
-    let mut field_values = Vec::new();
+    let field_capacity = me_digest_field_capacity(
+        claim.c_data.len(),
+        claim.x.len(),
+        claim.r.len(),
+        claim.s_col.len(),
+        claim.y_zcol.len(),
+        claim.y_ring.iter().map(|row| row.len()),
+        claim.ct.len(),
+        claim.aux_openings.len(),
+        claim.c_step_coords.len(),
+        claim.fold_digest_encoding.len(),
+    );
+    let mut field_terms = Vec::with_capacity(field_capacity);
+    let mut field_constants = Vec::with_capacity(field_capacity);
+    let mut field_values = Vec::with_capacity(field_capacity);
     extend_packed_bytes_as_lc_fields(
         &mut field_terms,
         &mut field_constants,
@@ -911,9 +952,21 @@ pub fn me_digest_poseidon_with_native_claim<CS: ConstraintSystem<SpartanF>>(
     {
         return Err(SynthesisError::Unsatisfiable);
     }
-    let mut field_terms = Vec::new();
-    let mut field_constants = Vec::new();
-    let mut field_values = Vec::new();
+    let field_capacity = me_digest_field_capacity(
+        native_claim.c.data.len(),
+        native_claim.X.as_slice().len(),
+        native_claim.r.len(),
+        native_claim.s_col.len(),
+        native_claim.y_zcol.len(),
+        native_claim.y_ring.iter().map(|row| row.len()),
+        native_claim.ct.len(),
+        native_claim.aux_openings.len(),
+        native_claim.c_step_coords.len(),
+        claim.fold_digest_encoding.len(),
+    );
+    let mut field_terms = Vec::with_capacity(field_capacity);
+    let mut field_constants = Vec::with_capacity(field_capacity);
+    let mut field_values = Vec::with_capacity(field_capacity);
     extend_packed_bytes_as_lc_fields(
         &mut field_terms,
         &mut field_constants,

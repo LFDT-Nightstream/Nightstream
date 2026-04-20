@@ -4,6 +4,9 @@
 //! flow under RV64IM-owned circuit code. It does not own terminal identities,
 //! RLC/DEC algebra, or Ajtai witness checks.
 
+use std::io::{self, Write};
+use std::time::Instant;
+
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ajtai::Commitment;
@@ -33,6 +36,45 @@ pub struct PiCcsChallengeVars {
     pub beta_r: Vec<KNumVar>,
     pub beta_m: Vec<KNumVar>,
     pub gamma: KNumVar,
+}
+
+fn emit_pi_ccs_trace(trace_prefix: Option<&str>, label: &str, started: Instant) {
+    if let Some(prefix) = trace_prefix {
+        eprintln!("{prefix}.{label}={:.2}ms", started.elapsed().as_secs_f64() * 1_000.0);
+        let _ = io::stderr().flush();
+    }
+}
+
+fn emit_me_input_shape_trace(trace_prefix: Option<&str>, me_inputs: &[CeClaimVar]) {
+    let Some(prefix) = trace_prefix else {
+        return;
+    };
+    let Some(first_claim) = me_inputs.first() else {
+        eprintln!("{prefix}.pi_ccs.bind_me_inputs.claim_shape=empty");
+        let _ = io::stderr().flush();
+        return;
+    };
+    let y_ring_total = first_claim
+        .y_ring
+        .iter()
+        .map(|row| row.len())
+        .sum::<usize>();
+    eprintln!(
+        "{prefix}.pi_ccs.bind_me_inputs.claim_shape=count:{} c_data:{} x:{} r:{} s_col:{} y_zcol:{} y_ring_rows:{} y_ring_total:{} ct:{} aux_openings:{} c_step_coords:{} fold_digest_encoding:{}",
+        me_inputs.len(),
+        first_claim.c_data.len(),
+        first_claim.x.len(),
+        first_claim.r.len(),
+        first_claim.s_col.len(),
+        first_claim.y_zcol.len(),
+        first_claim.y_ring.len(),
+        y_ring_total,
+        first_claim.ct.len(),
+        first_claim.aux_openings.len(),
+        first_claim.c_step_coords.len(),
+        first_claim.fold_digest_encoding.len(),
+    );
+    let _ = io::stderr().flush();
 }
 
 pub fn bind_header_and_instance_digest<CS: ConstraintSystem<SpartanF>>(
@@ -140,7 +182,10 @@ pub fn bind_me_inputs<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     tr: &mut Poseidon2TranscriptCircuit,
     me_inputs: &[CeClaimVar],
+    trace_prefix: Option<&str>,
 ) -> Result<Vec<[AllocatedNum<SpartanF>; 4]>, SynthesisError> {
+    emit_me_input_shape_trace(trace_prefix, me_inputs);
+    let started = Instant::now();
     let mut digests = Vec::with_capacity(me_inputs.len());
     let mut digest_values = Vec::with_capacity(me_inputs.len());
     for (idx, claim) in me_inputs.iter().enumerate() {
@@ -151,7 +196,10 @@ pub fn bind_me_inputs<CS: ConstraintSystem<SpartanF>>(
         )?);
         digest_values.push(me_digest_poseidon_values(claim));
     }
+    emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.digest_claims", started);
+    let started = Instant::now();
     bind_me_input_digests(cs, tr, &digests, &digest_values)?;
+    emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.bind_digests", started);
     Ok(digests)
 }
 
@@ -160,10 +208,13 @@ pub fn bind_me_inputs_with_native_claims<CS: ConstraintSystem<SpartanF>>(
     tr: &mut Poseidon2TranscriptCircuit,
     me_inputs: &[CeClaimVar],
     native_claims: &[CeClaim<Commitment, F, K>],
+    trace_prefix: Option<&str>,
 ) -> Result<Vec<[AllocatedNum<SpartanF>; 4]>, SynthesisError> {
     if me_inputs.len() != native_claims.len() {
         return Err(SynthesisError::Unsatisfiable);
     }
+    emit_me_input_shape_trace(trace_prefix, me_inputs);
+    let started = Instant::now();
     let mut digests = Vec::with_capacity(me_inputs.len());
     let mut digest_values = Vec::with_capacity(me_inputs.len());
     for (idx, (claim, native_claim)) in me_inputs.iter().zip(native_claims.iter()).enumerate() {
@@ -175,7 +226,10 @@ pub fn bind_me_inputs_with_native_claims<CS: ConstraintSystem<SpartanF>>(
         )?);
         digest_values.push(me_digest_poseidon_values_from_native_claim(native_claim));
     }
+    emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.digest_claims", started);
+    let started = Instant::now();
     bind_me_input_digests(cs, tr, &digests, &digest_values)?;
+    emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.bind_digests", started);
     Ok(digests)
 }
 

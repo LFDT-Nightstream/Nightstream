@@ -6,10 +6,7 @@ use neo_reductions::engines::utils::me_digest_poseidon_into;
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices_with_sparse_cache};
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
-use spartan2::traits::{
-    circuit::SpartanCircuit,
-    snark::{DigestHelperTrait, R1CSSNARKTrait},
-};
+use spartan2::traits::circuit::SpartanCircuit;
 use spartan2::{
     bellpepper::{r1cs::SpartanShape, shape_cs::ShapeCS},
     provider::goldi::F as SpartanF,
@@ -21,7 +18,6 @@ use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_relation_circuit::claim::{enforce_claim_eq, me_digest_poseidon};
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
-use crate::rv64im::main_relation_spartan::chunk_step_recursive::rv64im_chunk_step_recursive_carry_state_digest;
 use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
 use crate::rv64im::main_relation_spartan::recursive_cover::{
     alloc_recursive_cover_claims, alloc_recursive_cover_state,
@@ -75,14 +71,6 @@ pub struct Rv64imMainRecursionStepChunkReplayFingerprint {
     pub after_pi_rlc: String,
     pub after_chunk_body: String,
     pub after_chunk_replay: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Rv64imMainRecursionStepSpartanSetupEquivalence {
-    pub live_shape: Rv64imMainRecursionStepSpartanCircuitShape,
-    pub shape_only_shape: Rv64imMainRecursionStepSpartanCircuitShape,
-    pub live_vk_digest: String,
-    pub shape_only_vk_digest: String,
 }
 
 pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
@@ -172,6 +160,7 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
         &mut cs.namespace(|| "payload_chunk_pi_ccs"),
         &mut replayed_transcript,
         &carried_claims,
+        None,
     )
     .map_err(|err| stage_err("chunk_replay_pi_ccs", err))?;
     let after_pi_ccs = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
@@ -423,23 +412,52 @@ pub fn debug_measure_rv64im_main_recursion_step_spartan_commitment_key(
     Ok(started.elapsed().as_secs_f64() * 1_000.0)
 }
 
-fn measure_circuit_shape(
+fn emit_optional_trace(trace_prefix: Option<&str>, label: &str, elapsed_ms: f64) {
+    if let Some(trace_prefix) = trace_prefix {
+        emit_trace(trace_prefix, label, elapsed_ms);
+    }
+}
+
+fn measure_circuit_shape_with_trace(
     circuit: &Rv64imMainRecursionStepCircuit,
+    trace_prefix: Option<&str>,
 ) -> Result<Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError> {
     let mut cs = FingerprintCS::new();
+    let started = Instant::now();
     let shared = circuit
         .shared(&mut cs)
         .map_err(|err| stage_err("step_shape_shared", err))?;
+    emit_optional_trace(trace_prefix, "shape_shared", started.elapsed().as_secs_f64() * 1_000.0);
+
+    let started = Instant::now();
     let precommitted = circuit
         .precommitted(&mut cs, &shared)
         .map_err(|err| stage_err("step_shape_precommitted", err))?;
+    emit_optional_trace(
+        trace_prefix,
+        "shape_precommitted",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
     circuit
         .synthesize(&mut cs, &shared, &precommitted, None)
         .map_err(|err| stage_err("step_shape_synthesize", err))?;
+    emit_optional_trace(
+        trace_prefix,
+        "shape_synthesize",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
     let num_inputs = cs.public_input_count(circuit.num_challenges());
     let num_aux = cs.num_aux();
     let num_constraints = cs.num_constraints();
+    let started = Instant::now();
     let shape_digest = cs.finish_digest32(circuit.num_challenges());
+    emit_optional_trace(
+        trace_prefix,
+        "shape_finish_digest",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
     Ok(Rv64imMainRecursionStepSpartanCircuitShape {
         num_inputs,
         num_aux,
@@ -448,15 +466,10 @@ fn measure_circuit_shape(
     })
 }
 
-fn setup_vk_digest(
-    circuit: Rv64imMainRecursionStepCircuit,
-    stage: &str,
-) -> Result<String, Rv64imMainRecursionStepSpartanError> {
-    let (_, vk) = Rv64imSpartan2DeciderSnark::setup(circuit).map_err(|err| stage_err(stage, err.to_string()))?;
-    let digest = vk
-        .digest()
-        .map_err(|err| stage_err(stage, err.to_string()))?;
-    Ok(format_spartan_digest_hex(digest))
+fn measure_circuit_shape(
+    circuit: &Rv64imMainRecursionStepCircuit,
+) -> Result<Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError> {
+    measure_circuit_shape_with_trace(circuit, None)
 }
 
 pub fn debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape(
@@ -466,22 +479,33 @@ pub fn debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape(
     measure_circuit_shape(&circuit)
 }
 
-pub fn debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence(
+pub fn debug_trace_rv64im_main_recursion_step_spartan_circuit_shape_measurement(
     spartan_shape: &Rv64imMainRecursionStepSpartanShape,
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
-) -> Result<Rv64imMainRecursionStepSpartanSetupEquivalence, Rv64imMainRecursionStepSpartanError> {
-    let live_circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
-    let shape_only_circuit = build_rv64im_main_recursion_step_shape_only_circuit(spartan_shape)?;
-    let live_shape = measure_circuit_shape(&live_circuit)?;
-    let shape_only_shape = measure_circuit_shape(&shape_only_circuit)?;
-    let live_vk_digest = setup_vk_digest(live_circuit, "live_step_setup")?;
-    let shape_only_vk_digest = setup_vk_digest(shape_only_circuit, "shape_only_step_setup")?;
-    Ok(Rv64imMainRecursionStepSpartanSetupEquivalence {
-        live_shape,
-        shape_only_shape,
-        live_vk_digest,
-        shape_only_vk_digest,
-    })
+    trace_prefix: &str,
+) -> Result<Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError> {
+    let started = Instant::now();
+    let circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
+    emit_trace(
+        trace_prefix,
+        "build_live_circuit",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+    measure_circuit_shape_with_trace(&circuit, Some(trace_prefix))
+}
+
+pub fn debug_trace_rv64im_main_recursion_step_shape_only_circuit_shape_measurement(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    trace_prefix: &str,
+) -> Result<Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError> {
+    let started = Instant::now();
+    let circuit = build_rv64im_main_recursion_step_shape_only_circuit(spartan_shape)?;
+    emit_trace(
+        trace_prefix,
+        "build_shape_only_circuit",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+    measure_circuit_shape_with_trace(&circuit, Some(trace_prefix))
 }
 
 pub fn debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis(
@@ -567,6 +591,135 @@ pub fn debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis(
     );
     let _ = io::stderr().flush();
     Ok(metrics)
+}
+
+pub fn debug_trace_rv64im_main_recursion_step_fingerprint_synthesize(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    trace_prefix: &str,
+) -> Result<Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError> {
+    let started = Instant::now();
+    let circuit = build_rv64im_main_recursion_step_circuit(spartan_shape, backend_relation)?;
+    emit_trace(
+        trace_prefix,
+        "build_live_circuit",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
+    let mut cs = FingerprintCS::new();
+    emit_trace(
+        trace_prefix,
+        "fingerprint_cs_new",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
+    let expected_public_values = circuit.expected_public_values();
+    emit_trace(
+        trace_prefix,
+        "expected_public_values",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
+    let public_inputs = alloc_private_field_values(
+        &mut cs.namespace(|| "fingerprint_public_inputs"),
+        &expected_public_values,
+        "fingerprint_public_inputs",
+    )
+    .map_err(|err| stage_err("fingerprint_public_inputs", err))?;
+    emit_trace(
+        trace_prefix,
+        "alloc_public_inputs",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
+    let mut public_cursor = 0usize;
+    synthesize_rv64im_main_recursion_step_body(
+        &circuit,
+        &mut cs.namespace(|| "fingerprint_synthesize"),
+        &public_inputs,
+        &mut public_cursor,
+        Some(trace_prefix),
+    )
+    .map_err(|err| stage_err("fingerprint_synthesize", err))?;
+    emit_trace(trace_prefix, "body_total", started.elapsed().as_secs_f64() * 1_000.0);
+
+    let started = Instant::now();
+    let shape = Rv64imMainRecursionStepSpartanCircuitShape {
+        num_inputs: cs.public_input_count(circuit.num_challenges()),
+        num_aux: cs.num_aux(),
+        num_constraints: cs.num_constraints(),
+        constraint_fingerprint: format_spartan_digest_hex(cs.finish_digest32(circuit.num_challenges())),
+    };
+    emit_trace(trace_prefix, "finish_digest", started.elapsed().as_secs_f64() * 1_000.0);
+    Ok(shape)
+}
+
+pub fn debug_trace_rv64im_main_recursion_step_shape_only_fingerprint_synthesize(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    trace_prefix: &str,
+) -> Result<Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError> {
+    let started = Instant::now();
+    let circuit = build_rv64im_main_recursion_step_shape_only_circuit(spartan_shape)?;
+    emit_trace(
+        trace_prefix,
+        "build_shape_only_circuit",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
+    let mut cs = FingerprintCS::new();
+    emit_trace(
+        trace_prefix,
+        "fingerprint_cs_new",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
+    let expected_public_values = circuit.expected_public_values();
+    emit_trace(
+        trace_prefix,
+        "expected_public_values",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
+    let public_inputs = alloc_private_field_values(
+        &mut cs.namespace(|| "fingerprint_public_inputs"),
+        &expected_public_values,
+        "fingerprint_public_inputs",
+    )
+    .map_err(|err| stage_err("fingerprint_public_inputs", err))?;
+    emit_trace(
+        trace_prefix,
+        "alloc_public_inputs",
+        started.elapsed().as_secs_f64() * 1_000.0,
+    );
+
+    let started = Instant::now();
+    let mut public_cursor = 0usize;
+    synthesize_rv64im_main_recursion_step_body(
+        &circuit,
+        &mut cs.namespace(|| "fingerprint_synthesize"),
+        &public_inputs,
+        &mut public_cursor,
+        Some(trace_prefix),
+    )
+    .map_err(|err| stage_err("fingerprint_synthesize", err))?;
+    emit_trace(trace_prefix, "body_total", started.elapsed().as_secs_f64() * 1_000.0);
+
+    let started = Instant::now();
+    let shape = Rv64imMainRecursionStepSpartanCircuitShape {
+        num_inputs: cs.public_input_count(circuit.num_challenges()),
+        num_aux: cs.num_aux(),
+        num_constraints: cs.num_constraints(),
+        constraint_fingerprint: format_spartan_digest_hex(cs.finish_digest32(circuit.num_challenges())),
+    };
+    emit_trace(trace_prefix, "finish_digest", started.elapsed().as_secs_f64() * 1_000.0);
+    Ok(shape)
 }
 
 pub fn debug_profile_rv64im_main_recursion_step_chunk_replay_stages(
@@ -780,231 +933,4 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_d
     }
 
     Ok(())
-}
-
-fn alloc_const_u64(
-    cs: &mut TestConstraintSystem<SpartanF>,
-    label: &str,
-    value: u64,
-) -> Result<AllocatedNum<SpartanF>, Rv64imMainRecursionStepSpartanError> {
-    alloc_const_field_values(
-        &mut cs.namespace(|| label.to_string()),
-        &[SpartanF::from_canonical_u64(value)],
-        label,
-    )
-    .map_err(|err| stage_err(label, err))?
-    .into_iter()
-    .next()
-    .ok_or_else(|| stage_err(label, "missing u64 allocation"))
-}
-
-fn alloc_wrapper_step_public_var(
-    cs: &mut TestConstraintSystem<SpartanF>,
-    step_index: usize,
-    relation: &Rv64imMainRecursionFPrimeBackendRelation,
-) -> Result<
-    (
-        Rv64imMainRecursionStepPublicVar,
-        Rv64imMainRecursionStepSpartanStatement,
-    ),
-    Rv64imMainRecursionStepSpartanError,
-> {
-    let statement = relation.spartan_statement.clone();
-    let carry_state_in_digest_value = rv64im_chunk_step_recursive_carry_state_digest(
-        &relation.payload.state_in_claims,
-        &relation.f_prime_advice.running_state().transcript,
-        relation
-            .f_prime_advice
-            .running_state()
-            .carry
-            .terminal_handle
-            .0,
-    );
-    let carry_state_out_digest_value = rv64im_chunk_step_recursive_carry_state_digest(
-        &relation.payload.state_out_claims,
-        &relation.payload.fixed_transcript_out,
-        relation
-            .f_prime_advice
-            .fresh_state_out()
-            .carry
-            .terminal_handle
-            .0,
-    );
-    let folded_accumulator_in_digest_value =
-        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(
-            &relation.f_prime_advice.running_state().carry,
-        );
-    let chunk_index = alloc_const_u64(
-        cs,
-        &format!("wrapper_step_{step_index}_chunk_index"),
-        relation.f_prime_advice.chunk_index(),
-    )?;
-    let carry_state_in_digest = digest_const_inputs(
-        &mut cs.namespace(|| format!("wrapper_step_{step_index}_carry_state_in_digest")),
-        carry_state_in_digest_value,
-        &format!("wrapper_step_{step_index}_carry_state_in_digest"),
-    )
-    .map_err(|err| stage_err("wrapper_step_carry_state_in_digest", err))?;
-    let folded_accumulator_in_digest = digest_const_inputs(
-        &mut cs.namespace(|| format!("wrapper_step_{step_index}_folded_accumulator_in_digest")),
-        folded_accumulator_in_digest_value,
-        &format!("wrapper_step_{step_index}_folded_accumulator_in_digest"),
-    )
-    .map_err(|err| stage_err("wrapper_step_folded_accumulator_in_digest", err))?;
-    let carry_state_out_digest = digest_const_inputs(
-        &mut cs.namespace(|| format!("wrapper_step_{step_index}_carry_state_out_digest")),
-        carry_state_out_digest_value,
-        &format!("wrapper_step_{step_index}_carry_state_out_digest"),
-    )
-    .map_err(|err| stage_err("wrapper_step_carry_state_out_digest", err))?;
-    let x_out = digest_const_inputs(
-        &mut cs.namespace(|| format!("wrapper_step_{step_index}_x_out")),
-        statement.x_out.bytes(),
-        &format!("wrapper_step_{step_index}_x_out"),
-    )
-    .map_err(|err| stage_err("wrapper_step_x_out", err))?;
-    let folded_accumulator_out_digest = digest_const_inputs(
-        &mut cs.namespace(|| format!("wrapper_step_{step_index}_folded_accumulator_out_digest")),
-        statement.folded_accumulator_digest,
-        &format!("wrapper_step_{step_index}_folded_accumulator_out_digest"),
-    )
-    .map_err(|err| stage_err("wrapper_step_folded_accumulator_out_digest", err))?;
-    Ok((
-        Rv64imMainRecursionStepPublicVar {
-            chunk_index,
-            carry_state_in_digest,
-            folded_accumulator_in_digest,
-            carry_state_out_digest,
-            x_out,
-            folded_accumulator_out_digest,
-        },
-        statement,
-    ))
-}
-
-pub fn debug_check_rv64im_main_recursion_step_spartan_compressed_chain_wrapper_only(
-    chain_shape: &Rv64imMainRecursionStepSpartanCompressedChainShape,
-    backend_relations: &[Rv64imMainRecursionFPrimeBackendRelation],
-) -> Result<(), Rv64imMainRecursionStepSpartanError> {
-    let statement = build_rv64im_main_recursion_step_spartan_statement(backend_relations)?;
-    let _ = super::compressed_chain::build_rv64im_main_recursion_step_compressed_chain_circuit_from_relations(
-        chain_shape,
-        backend_relations,
-    )?;
-
-    let mut cs = TestConstraintSystem::<SpartanF>::new();
-    let x_out_input = digest_const_inputs(
-        &mut cs.namespace(|| "wrapper_x_out"),
-        statement.x_out.bytes(),
-        "wrapper_x_out",
-    )
-    .map_err(|err| stage_err("wrapper_x_out", err))?;
-    let folded_accumulator_out_digest_input = digest_const_inputs(
-        &mut cs.namespace(|| "wrapper_folded_accumulator_out_digest"),
-        statement.folded_accumulator_digest,
-        "wrapper_folded_accumulator_out_digest",
-    )
-    .map_err(|err| stage_err("wrapper_folded_accumulator_out_digest", err))?;
-
-    let initial_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state();
-    let initial_state_claims = backend_relations
-        .first()
-        .map(|relation| relation.payload.state_in_claims.clone())
-        .unwrap_or_else(|| initial_state.carry.main.claims.clone());
-    let initial_carry_state_digest = digest_const_inputs(
-        &mut cs.namespace(|| "wrapper_initial_carry_state_digest"),
-        rv64im_chunk_step_recursive_carry_state_digest(
-            &initial_state_claims,
-            &initial_state.transcript,
-            initial_state.carry.terminal_handle.0,
-        ),
-        "wrapper_initial_carry_state_digest",
-    )
-    .map_err(|err| stage_err("wrapper_initial_carry_state_digest", err))?;
-    let initial_x_out = digest_const_inputs(
-        &mut cs.namespace(|| "wrapper_initial_x_out"),
-        statement.x_out.bytes(),
-        "wrapper_initial_x_out",
-    )
-    .map_err(|err| stage_err("wrapper_initial_x_out", err))?;
-    let initial_folded_accumulator_digest = digest_const_inputs(
-        &mut cs.namespace(|| "wrapper_initial_folded_accumulator_digest"),
-        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&initial_state.carry),
-        "wrapper_initial_folded_accumulator_digest",
-    )
-    .map_err(|err| stage_err("wrapper_initial_folded_accumulator_digest", err))?;
-
-    let mut previous_step: Option<Rv64imMainRecursionStepPublicVar> = None;
-    for (step_index, relation) in backend_relations.iter().enumerate() {
-        let (step_public, _statement) = alloc_wrapper_step_public_var(&mut cs, step_index, relation)?;
-        ensure_stage_satisfied(&cs, &format!("wrapper_step_alloc[{step_index}]"))?;
-
-        if let Some(previous) = previous_step.as_ref() {
-            enforce_digest_eq(
-                &mut cs.namespace(|| format!("wrapper_step_{step_index}_accumulator_chain")),
-                &previous.carry_state_out_digest,
-                &step_public.carry_state_in_digest,
-                &format!("wrapper_step_{step_index}_accumulator_chain"),
-            )
-            .map_err(|err| stage_err("wrapper_accumulator_chain", err))?;
-            enforce_digest_eq(
-                &mut cs.namespace(|| format!("wrapper_step_{step_index}_folded_accumulator_chain")),
-                &previous.folded_accumulator_out_digest,
-                &step_public.folded_accumulator_in_digest,
-                &format!("wrapper_step_{step_index}_folded_accumulator_chain"),
-            )
-            .map_err(|err| stage_err("wrapper_folded_accumulator_chain", err))?;
-        } else {
-            if relation.f_prime_advice.chunk_index() != 0 {
-                return Err(stage_err(
-                    "wrapper_initial_chunk_index_eq",
-                    format!(
-                        "expected first chunk index 0, found {}",
-                        relation.f_prime_advice.chunk_index()
-                    ),
-                ));
-            }
-            enforce_digest_eq(
-                &mut cs.namespace(|| "wrapper_initial_carry_state_chain"),
-                &initial_carry_state_digest,
-                &step_public.carry_state_in_digest,
-                "wrapper_initial_carry_state_chain",
-            )
-            .map_err(|err| stage_err("wrapper_initial_carry_state_chain", err))?;
-            enforce_digest_eq(
-                &mut cs.namespace(|| "wrapper_initial_folded_accumulator_chain"),
-                &initial_folded_accumulator_digest,
-                &step_public.folded_accumulator_in_digest,
-                "wrapper_initial_folded_accumulator_chain",
-            )
-            .map_err(|err| stage_err("wrapper_initial_folded_accumulator_chain", err))?;
-        }
-
-        previous_step = Some(step_public);
-    }
-
-    let final_x_out = previous_step
-        .as_ref()
-        .map(|step| step.x_out.clone())
-        .unwrap_or(initial_x_out);
-    let final_folded_accumulator_digest = previous_step
-        .as_ref()
-        .map(|step| step.folded_accumulator_out_digest.clone())
-        .unwrap_or(initial_folded_accumulator_digest);
-    enforce_digest_eq(
-        &mut cs.namespace(|| "wrapper_x_out_eq"),
-        &x_out_input,
-        &final_x_out,
-        "wrapper_x_out_eq",
-    )
-    .map_err(|err| stage_err("wrapper_x_out_eq", err))?;
-    enforce_digest_eq(
-        &mut cs.namespace(|| "wrapper_folded_accumulator_output_eq"),
-        &folded_accumulator_out_digest_input,
-        &final_folded_accumulator_digest,
-        "wrapper_folded_accumulator_output_eq",
-    )
-    .map_err(|err| stage_err("wrapper_folded_accumulator_output_eq", err))?;
-
-    ensure_stage_satisfied(&cs, "compressed_chain_wrapper_only")
 }

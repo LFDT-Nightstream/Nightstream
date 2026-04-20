@@ -11,10 +11,6 @@ use neo_fold_next::nightstream::rv64im::{
     build_rv64im_bound_side_opening_public_from_accepted_artifact, rv64im_nightstream_linkage_root,
     rv64im_verifier_context_digest,
 };
-use neo_fold_next::rv64im::{
-    build_rv64im_main_proof, build_rv64im_main_proof_with_side_opening_public, verify_rv64im_published_main_proof,
-};
-
 #[test]
 fn rv64im_side_opening_public_from_accepted_artifact_matches_side_proof_public() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
@@ -112,8 +108,12 @@ fn rv64im_main_proof_surface_is_unchanged_by_authoritative_phi_side() {
         fixture.accepted_artifact.statement.final_pc,
     );
 
-    let statement = Rv64imAccumulatorPublicStatement::from_final_surface(&fixture.final_statement, &surface)
-        .expect("build published statement");
+    let statement = Rv64imAccumulatorPublicStatement::from_verified_final_seam(
+        &fixture.final_statement,
+        &fixture.final_proof,
+        fixture.accepted_artifact.statement.final_pc,
+    )
+    .expect("build published statement");
 
     assert_eq!(
         statement.expected_digest(),
@@ -125,26 +125,4 @@ fn rv64im_main_proof_surface_is_unchanged_by_authoritative_phi_side() {
         fixture.accepted_artifact.statement.final_pc,
         "final surface must carry the authoritative final pc"
     );
-}
-
-#[test]
-#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands; re-enable with the sibling rv64im_main_proof_* and rv64im_main_recursion_* round-trips"]
-fn rv64im_main_proof_round_trip_uses_authoritative_phi_side() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let zero_side =
-        build_rv64im_main_proof(&fixture.final_statement, &fixture.final_proof).expect("build baseline main proof");
-    let side_aware = build_rv64im_main_proof_with_side_opening_public(
-        &fixture.final_statement,
-        &fixture.final_proof,
-        fixture.side_proof.opening_public(),
-    )
-    .expect("build side-aware main proof");
-
-    assert_eq!(
-        side_aware.published_statement(),
-        zero_side.published_statement(),
-        "authoritative phi_side should not change the published RV64IM main-proof statement surface"
-    );
-    verify_rv64im_published_main_proof(side_aware.published_statement(), side_aware.published_proof())
-        .expect("side-aware main proof should verify through the published recursion seam");
 }

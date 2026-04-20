@@ -32,9 +32,7 @@ use crate::rv64im::final_relation::{Rv64imChunkFoldTranscriptSnapshot, RV64IM_CH
 use crate::rv64im::kernel::{
     rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache, SimpleKernelError,
 };
-use crate::rv64im::main_relation_circuit::pi_ccs::{
-    bind_header_and_instance_digest, bind_me_inputs_with_native_claims,
-};
+use crate::rv64im::main_relation_circuit::pi_ccs::{bind_header_and_instance_digest, bind_me_inputs};
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_trace::{Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface};
 
@@ -119,7 +117,6 @@ pub(super) fn derive_rv64im_fixed_transcript_out_from_chunk_body(
     payload: &Rv64imMainRecursionFPrimePayload,
     transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
     replay_chunk: &Rv64imMainCircuitChunkReplaySurface,
-    live_state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
     terminal_final_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
     terminal_handle_in: [u8; 32],
     trace_prefix: Option<&str>,
@@ -140,7 +137,6 @@ pub(super) fn derive_rv64im_fixed_transcript_out_from_chunk_body(
         transcript_in,
         replay_chunk,
         &payload.state_in_claims,
-        live_state_in_claims,
         terminal_final_claims,
         terminal_handle_in,
         payload.boundary_plan,
@@ -175,7 +171,6 @@ fn derive_fixed_transcript_out_from_parts(
     transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
     replay_chunk: &Rv64imMainCircuitChunkReplaySurface,
     state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
-    live_state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
     terminal_final_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
     terminal_handle_in: [u8; 32],
     boundary_plan: Rv64imChunkBoundaryPlan,
@@ -232,7 +227,6 @@ fn derive_fixed_transcript_out_from_parts(
             transcript_in,
             replay_chunk,
             state_in_claims,
-            live_state_in_claims,
             terminal_final_claims,
             terminal_handle_in,
             boundary_plan,
@@ -251,8 +245,9 @@ fn derive_fixed_transcript_out_from_parts(
         replay_chunk,
         &mut replayed_transcript,
         carried_claims,
-        Some(live_state_in_claims),
+        None,
         boundary_plan,
+        None,
     ) {
         if let Err(prefix_err) = debug_check_fixed_transcript_prefix(
             params,
@@ -262,7 +257,6 @@ fn derive_fixed_transcript_out_from_parts(
             transcript_in,
             replay_chunk,
             state_in_claims,
-            live_state_in_claims,
         ) {
             return Err(prefix_err);
         }
@@ -275,7 +269,6 @@ fn derive_fixed_transcript_out_from_parts(
             transcript_in,
             replay_chunk,
             state_in_claims,
-            live_state_in_claims,
             terminal_final_claims,
             boundary_plan,
         ) {
@@ -316,7 +309,6 @@ fn debug_profile_fixed_transcript_chunk_body(
     transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
     replay_chunk: &Rv64imMainCircuitChunkReplaySurface,
     state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
-    live_state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
     terminal_final_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
     terminal_handle_in: [u8; 32],
     boundary_plan: Rv64imChunkBoundaryPlan,
@@ -384,12 +376,11 @@ fn debug_profile_fixed_transcript_chunk_body(
         &mut synthetic_chunk_relation_cursor,
         &mut transcript,
         carried_claims,
-        Some(live_state_in_claims),
+        None,
         boundary_plan,
         false,
     )
     .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM fixed transcript stage profile failed: {err}")))?;
-    let _ = live_state_in_claims;
     Ok(())
 }
 
@@ -476,12 +467,11 @@ fn debug_check_fixed_transcript_prefix(
     transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
     replay_chunk: &Rv64imMainCircuitChunkReplaySurface,
     state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
-    live_state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
 ) -> Result<(), SimpleKernelError> {
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let state_in_var = alloc_recursive_cover_state(
         &mut cs.namespace(|| "fixed_transcript_prefix_state_in"),
-        live_state_in_claims,
+        state_in_claims,
         transcript_in,
         replay_chunk.handoff.bridge_handoff_digest,
         "fixed_transcript_prefix_state_in",
@@ -560,18 +550,18 @@ fn debug_check_fixed_transcript_prefix(
             .map(|claim| claim.claim)
             .collect(),
     );
-    bind_me_inputs_with_native_claims(
+    bind_me_inputs(
         &mut cs.namespace(|| "fixed_transcript_prefix_bind_me_inputs"),
         &mut circuit,
         carried_claims.effective_claims(),
-        live_state_in_claims,
+        None,
     )
     .map_err(|err| {
         SimpleKernelError::Bridge(format!(
             "RV64IM fixed transcript prefix circuit ME binding failed: {err}"
         ))
     })?;
-    bind_me_inputs_native(&mut native, live_state_in_claims).map_err(|err| {
+    bind_me_inputs_native(&mut native, state_in_claims).map_err(|err| {
         SimpleKernelError::Bridge(format!(
             "RV64IM fixed transcript prefix native ME binding failed: {err}"
         ))
@@ -590,14 +580,13 @@ fn debug_locate_fixed_transcript_chunk_stage(
     transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
     replay_chunk: &Rv64imMainCircuitChunkReplaySurface,
     state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
-    live_state_in_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
     terminal_final_claims: &[CeClaim<neo_ajtai::Commitment, F, K>],
     boundary_plan: Rv64imChunkBoundaryPlan,
 ) -> Result<(), SimpleKernelError> {
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let state_in_var = alloc_recursive_cover_state(
         &mut cs.namespace(|| "fixed_transcript_stage_state_in"),
-        live_state_in_claims,
+        state_in_claims,
         transcript_in,
         replay_chunk.handoff.bridge_handoff_digest,
         "fixed_transcript_stage_state_in",

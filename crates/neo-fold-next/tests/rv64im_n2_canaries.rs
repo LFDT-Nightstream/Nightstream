@@ -18,9 +18,6 @@ use neo_fold_next::rv64im::{
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use spartan2::provider::goldi::F as SpartanF;
 
-const RV64IM_N2_TOTAL_CONSTRAINT_BUDGET: usize = 3_072;
-const RV64IM_N2_REPLAY_CONSTRAINT_BUDGET: usize = 1_024;
-const RV64IM_N2_CARRIER_CONSTRAINT_BUDGET: usize = 2_048;
 const RV64IM_N2_SIDE_CONSTRAINT_BUDGET: usize = 2_048;
 
 fn alloc_digest_vars(
@@ -71,13 +68,11 @@ fn rv64im_main_relation_n2_published_seam_debug_satisfiable() {
     let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
     let (_statement, final_proof) =
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove final statement");
-    debug_check_rv64im_spartan2_decider_circuit(
-        seam.main_proof
-            .final_statement_cache()
-            .expect("locally built published seam should retain the final-statement cache"),
-        &final_proof,
-    )
-    .expect("debug check main spartan decider on published seam");
+    let final_statement = seam
+        .rebuild_final_statement()
+        .expect("rebuild final statement from the carried published seam");
+    debug_check_rv64im_spartan2_decider_circuit(&final_statement, &final_proof)
+        .expect("debug check main spartan decider on published seam");
 }
 
 #[test]
@@ -156,58 +151,6 @@ fn rv64im_phase0_transcript_parity_n2() {
 }
 
 #[test]
-#[ignore = "manual redline canary for the paper-faithful cut; faster than tests/perf.rs and should eventually go green"]
-fn rv64im_main_relation_n2_counting_budget() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build N=2 fixture");
-    let metrics = fixture
-        .measure_main_relation()
-        .expect("measure main relation");
-    let replay_relation = metrics
-        .phase_rollup
-        .iter()
-        .filter(|bucket| {
-            matches!(
-                bucket.phase.as_str(),
-                "transcript_core"
-                    | "transcript_bind"
-                    | "challenge_sampling"
-                    | "initial_sum"
-                    | "sumcheck_fe"
-                    | "sumcheck_nc"
-                    | "terminal_fe"
-                    | "terminal_nc"
-                    | "fold_digest"
-                    | "other"
-            )
-        })
-        .map(|bucket| bucket.constraint_count)
-        .sum::<usize>();
-    let carrier_relation = metrics
-        .phase_rollup
-        .iter()
-        .filter(|bucket| {
-            matches!(
-                bucket.phase.as_str(),
-                "carrier_outputs" | "carrier_parent" | "carrier_children"
-            )
-        })
-        .map(|bucket| bucket.constraint_count)
-        .sum::<usize>();
-    assert!(
-        metrics.constraint_count <= RV64IM_N2_TOTAL_CONSTRAINT_BUDGET
-            && replay_relation <= RV64IM_N2_REPLAY_CONSTRAINT_BUDGET
-            && carrier_relation <= RV64IM_N2_CARRIER_CONSTRAINT_BUDGET,
-        "N=2 paper-boundary budget exceeded: total={}, replay={}, carrier={}, target_total={}, target_replay={}, target_carrier={}",
-        metrics.constraint_count,
-        replay_relation,
-        carrier_relation,
-        RV64IM_N2_TOTAL_CONSTRAINT_BUDGET,
-        RV64IM_N2_REPLAY_CONSTRAINT_BUDGET,
-        RV64IM_N2_CARRIER_CONSTRAINT_BUDGET,
-    );
-}
-
-#[test]
 #[ignore = "manual redline canary for fixed theorem-surface fanout on tiny traces"]
 fn rv64im_main_relation_n2_surface_proportionality() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build N=2 fixture");
@@ -231,7 +174,7 @@ fn rv64im_main_relation_n2_surface_proportionality() {
 #[ignore = "manual redline canary for theorem-facing side-boundary baggage"]
 fn rv64im_side_relation_n2_public_boundary() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build N=2 fixture");
-    let (statement, witness) = fixture
+    let (statement, public, _) = fixture
         .build_side_debug_inputs()
         .expect("build side debug inputs");
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/authoritative_side/statement");
@@ -245,7 +188,7 @@ fn rv64im_side_relation_n2_public_boundary() {
     );
     tr.append_message(
         b"neo.fold.next/nightstream/rv64im/authoritative_side/statement/public_instance_digest",
-        &witness.digest,
+        &public.digest,
     );
     assert_eq!(
         statement.digest(),

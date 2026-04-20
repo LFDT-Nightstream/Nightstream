@@ -15,27 +15,20 @@ use neo_reductions::engines::utils::{
     bind_header_and_instance_digest_with_digest, build_dims_and_policy, digest_ccs_matrices_with_sparse_cache, Dims,
     PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG, PI_CCS_SUMCHECK_INITIAL_RAW_TAG, PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG,
 };
-use neo_reductions::optimized_engine::{
-    Challenges, OptimizedStructureCache, PiCcsProvePerf, PiCcsReplayProofWitness, PiCcsReplayTerminalState,
-};
+use neo_reductions::optimized_engine::{Challenges, OptimizedStructureCache, PiCcsReplayProofWitness};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde::{Deserialize, Serialize};
 
-use crate::chunk_relation::{build_inert_chunk_replay_proof_witness, ChunkReplayWitness};
-use crate::finalize::{digest_fields_as_digest32, public_chunk_digest, FixedShapeChunkSummary};
-use crate::proof::{PublicChunk, PublicStep};
-use crate::rv64im::chunk_fold_step::{Rv64imAccumulatorHandle, Rv64imChunkFoldCarry};
-use crate::rv64im::chunk_relation::rv64im_chunk_relation_digest_from_fold_digest;
+use crate::chunk_relation::ChunkReplayWitness;
+use crate::finalize::FixedShapeChunkSummary;
+use crate::proof::PublicChunk;
+use crate::rv64im::chunk_fold_step::Rv64imChunkFoldCarry;
 use crate::rv64im::chunk_relation::{trace_rv64im_chunk_relation_with_replay, Rv64imChunkRelationTrace};
-use crate::rv64im::final_relation::{
-    build_rv64im_chunk_fold_step_traces_from_components, rv64im_chunk_fold_carried_transcript_snapshot,
-    Rv64imChunkFoldTranscriptSnapshot, Rv64imChunkTransitionWitness, Rv64imFinalProofComponentDigests,
-    Rv64imFinalStatement, Rv64imFoldedStatement, Rv64imRecursiveAccumulator, RV64IM_CHUNK_DONE_RAW_TAG,
-};
+use crate::rv64im::final_relation::{rv64im_chunk_fold_carried_transcript_snapshot, Rv64imChunkFoldTranscriptSnapshot};
 use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache, Rv64imKernelExportProof,
+    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
     Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 use crate::rv64im::main_relation_circuit::structure::pad_ccs_structure_to_block_width;
@@ -316,13 +309,6 @@ impl Rv64imMainCircuitCcsWitnessShape {
             && self.z_rows >= witness.Z.rows() as u64
             && self.z_cols >= witness.Z.cols() as u64
     }
-
-    pub(crate) fn zero_witness(&self) -> CcsWitness<F> {
-        CcsWitness {
-            w: vec![F::ZERO; self.w_len as usize],
-            Z: Mat::zero(self.z_rows as usize, self.z_cols as usize, F::ZERO),
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -432,229 +418,6 @@ impl Rv64imMainCircuitChunkCover {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-struct Rv64imMainRelationSetupChunkShape {
-    public_step_count: u64,
-    state_in_claim_shapes: Vec<Rv64imMainCircuitCeClaimShape>,
-    cover: Rv64imMainCircuitChunkCover,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRelationSetupShape {
-    terminal_final_claim_shapes: Vec<Rv64imMainCircuitCeClaimShape>,
-    chunks: Vec<Rv64imMainRelationSetupChunkShape>,
-}
-
-pub(crate) fn rv64im_main_relation_setup_shape_from_trace(
-    trace: &Rv64imMainCircuitTrace,
-) -> Rv64imMainRelationSetupShape {
-    Rv64imMainRelationSetupShape {
-        terminal_final_claim_shapes: trace
-            .statement
-            .folded
-            .final_accumulator
-            .final_main_claims
-            .iter()
-            .map(Rv64imMainCircuitCeClaimShape::from_claim)
-            .collect(),
-        chunks: trace
-            .chunk_traces
-            .iter()
-            .map(|chunk| Rv64imMainRelationSetupChunkShape {
-                public_step_count: chunk.handoff.public_chunk.steps.len() as u64,
-                state_in_claim_shapes: chunk
-                    .state_in_claims
-                    .iter()
-                    .map(Rv64imMainCircuitCeClaimShape::from_claim)
-                    .collect(),
-                cover: Rv64imMainCircuitChunkCover::from_trace(chunk),
-            })
-            .collect(),
-    }
-}
-
-pub(crate) fn build_rv64im_main_relation_setup_shape_from_step_components(
-    statement: &Rv64imFinalStatement,
-    proof_digest: [u8; 32],
-    kernel_export: &Rv64imKernelExportProof,
-    chunk_summaries: &[FixedShapeChunkSummary],
-    steps: &[Rv64imChunkTransitionWitness],
-    component_digests: &Rv64imFinalProofComponentDigests,
-) -> Result<Rv64imMainRelationSetupShape, SimpleKernelError> {
-    let trace = build_rv64im_main_circuit_trace_from_step_components(
-        statement,
-        proof_digest,
-        kernel_export,
-        chunk_summaries,
-        steps,
-        component_digests,
-    )?;
-    Ok(rv64im_main_relation_setup_shape_from_trace(&trace))
-}
-
-pub(crate) fn build_rv64im_main_circuit_trace_from_setup_shape(
-    shape: &Rv64imMainRelationSetupShape,
-) -> Result<Rv64imMainCircuitTrace, SimpleKernelError> {
-    let mut transcript = crate::rv64im::final_relation::rv64im_chunk_fold_initial_transcript();
-    let mut chunk_traces = Vec::with_capacity(shape.chunks.len());
-    let mut start_index = 0usize;
-    for (chunk_index, chunk_shape) in shape.chunks.iter().enumerate() {
-        let transcript_in = Rv64imChunkFoldTranscriptSnapshot {
-            state: transcript.state(),
-            absorbed: transcript.absorbed(),
-        };
-        let dummy_chunk = build_dummy_main_relation_chunk_trace(chunk_index, start_index, &transcript_in, chunk_shape)?;
-        chunk_traces.push(dummy_chunk);
-        transcript.append_fields_raw(&[F::from_u64(RV64IM_CHUNK_DONE_RAW_TAG), F::ONE]);
-        start_index = start_index.saturating_add(chunk_shape.public_step_count as usize);
-    }
-    Ok(Rv64imMainCircuitTrace {
-        statement: build_dummy_main_relation_statement(shape, start_index as u64),
-        chunk_traces,
-    })
-}
-
-fn build_dummy_main_relation_statement(
-    shape: &Rv64imMainRelationSetupShape,
-    semantic_step_count: u64,
-) -> Rv64imFinalStatement {
-    let final_main_claims = shape
-        .terminal_final_claim_shapes
-        .iter()
-        .map(Rv64imMainCircuitCeClaimShape::zero_claim)
-        .collect();
-    Rv64imFinalStatement {
-        public_statement_digest: [0; 32],
-        folded: Rv64imFoldedStatement {
-            fold_schedule: crate::proof::FoldSchedule::WholeTrace,
-            chunk_count: shape.chunks.len() as u64,
-            semantic_step_count,
-            kernel_relation_digest: [0; 32],
-            final_accumulator: Rv64imRecursiveAccumulator {
-                final_main_claims,
-                terminal_handle: Rv64imAccumulatorHandle([0; 32]),
-            },
-            digest: [0; 32],
-        },
-        digest: [0; 32],
-    }
-}
-
-fn build_dummy_main_relation_chunk_trace(
-    _chunk_index: usize,
-    start_index: usize,
-    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
-    chunk_shape: &Rv64imMainRelationSetupChunkShape,
-) -> Result<Rv64imMainCircuitChunkTrace, SimpleKernelError> {
-    let public_chunk = build_dummy_public_chunk(chunk_shape, start_index);
-    let public_chunk_instance_digest = public_chunk_digest(&public_chunk);
-    let public_chunk_digest = digest_fields_as_digest32(public_chunk_instance_digest);
-    let replay_proof = build_inert_chunk_replay_proof_witness(
-        &chunk_shape.cover.fe_round_lengths,
-        &chunk_shape.cover.nc_round_lengths,
-    );
-    let handoff = Rv64imMainCircuitHandoff {
-        public_chunk: public_chunk.clone(),
-        public_chunk_instance_digest,
-        public_chunk_digest,
-        bridge_handoff_digest: [0; 32],
-        chunk_relation_digest: rv64im_chunk_relation_digest_from_fold_digest(public_chunk_digest, [0; 32], [0; 32]),
-    };
-    let state_in_claims = chunk_shape
-        .state_in_claim_shapes
-        .iter()
-        .map(Rv64imMainCircuitCeClaimShape::zero_claim)
-        .collect::<Vec<_>>();
-    let fresh_claims = chunk_shape
-        .cover
-        .fresh_claim_shapes
-        .iter()
-        .map(Rv64imMainCircuitCcsClaimShape::zero_claim)
-        .collect::<Vec<_>>();
-    let ccs_outputs = chunk_shape
-        .cover
-        .ccs_output_shapes
-        .iter()
-        .map(Rv64imMainCircuitCeClaimShape::zero_claim)
-        .collect::<Vec<_>>();
-    let parent = chunk_shape.cover.parent_claim_shape.zero_claim();
-    let children = chunk_shape
-        .cover
-        .child_claim_shapes
-        .iter()
-        .map(Rv64imMainCircuitCeClaimShape::zero_claim)
-        .collect::<Vec<_>>();
-    let replay_surface = build_rv64im_main_circuit_chunk_replay_surface(
-        transcript_in,
-        &handoff,
-        &fresh_claims,
-        &state_in_claims,
-        ccs_outputs.clone(),
-        replay_proof.clone(),
-        parent.clone(),
-        children.clone(),
-    )?;
-    let chunk_relation_digest = handoff.chunk_relation_digest;
-    Ok(Rv64imMainCircuitChunkTrace {
-        handoff,
-        transcript_in: transcript_in.clone(),
-        state_in_claims,
-        fresh_claims,
-        fresh_witnesses: chunk_shape
-            .cover
-            .fresh_witness_shapes
-            .iter()
-            .map(Rv64imMainCircuitCcsWitnessShape::zero_witness)
-            .collect(),
-        ccs_trace: Rv64imChunkRelationTrace {
-            chunk_relation_digest,
-            ccs_outputs,
-            ccs_replay_proof: replay_proof.clone(),
-            terminal_state: PiCcsReplayTerminalState {
-                me_outputs: replay_surface.pi_ccs.ccs_outputs.clone(),
-                challenges_public: replay_surface.pi_ccs.public_challenges.clone(),
-                row_chals: replay_surface.pi_ccs.row_chals.clone(),
-                alpha_prime: replay_surface.pi_ccs.alpha_prime.clone(),
-                s_col: replay_surface.pi_ccs.s_col.clone(),
-                alpha_prime_nc: replay_surface.pi_ccs.alpha_prime_nc.clone(),
-                sumcheck_final: K::ZERO,
-                sumcheck_final_nc: K::ZERO,
-                fold_digest: [0; 32],
-                perf: PiCcsProvePerf::default(),
-            },
-            parent,
-            children,
-            z_split: Vec::new(),
-        },
-    })
-}
-
-fn build_dummy_public_chunk(chunk_shape: &Rv64imMainRelationSetupChunkShape, start_index: usize) -> PublicChunk {
-    let public_step = PublicStep {
-        label: "dummy".to_string(),
-        mcs: chunk_shape
-            .cover
-            .fresh_claim_shapes
-            .first()
-            .map(Rv64imMainCircuitCcsClaimShape::zero_claim)
-            .unwrap_or_else(|| CcsClaim {
-                c: Commitment::zeros(0, 0),
-                x: Vec::new(),
-                m_in: 0,
-            }),
-    };
-    PublicChunk {
-        start_index,
-        steps: vec![public_step; chunk_shape.public_step_count.max(1) as usize],
-    }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Rv64imMainCircuitTrace {
-    pub(crate) statement: Rv64imFinalStatement,
-    pub(crate) chunk_traces: Vec<Rv64imMainCircuitChunkTrace>,
-}
-
 struct Rv64imMainCircuitTraceBuildContext<'a> {
     params: &'a NeoParams,
     log: &'a AjtaiSModule,
@@ -663,69 +426,6 @@ struct Rv64imMainCircuitTraceBuildContext<'a> {
     dims: Dims,
     mat_digest: [Goldilocks; 4],
     optimized_cache: &'a OptimizedStructureCache,
-}
-
-pub(crate) fn build_rv64im_main_circuit_trace_from_step_components(
-    statement: &Rv64imFinalStatement,
-    proof_digest: [u8; 32],
-    kernel_export: &Rv64imKernelExportProof,
-    chunk_summaries: &[FixedShapeChunkSummary],
-    steps: &[Rv64imChunkTransitionWitness],
-    component_digests: &Rv64imFinalProofComponentDigests,
-) -> Result<Rv64imMainCircuitTrace, SimpleKernelError> {
-    if chunk_summaries.len() != statement.folded.chunk_count as usize {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM main relation chunk summary count does not match the folded statement chunk count".into(),
-        ));
-    }
-
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
-    let ce_structure = pad_ccs_structure_to_block_width(structure)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM padded CE structure failed: {err}")))?;
-    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let dims = build_dims_and_policy(params, structure)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
-    let mat_digest_vec = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()));
-    let mat_digest: [Goldilocks; 4] = mat_digest_vec
-        .try_into()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main relation matrix digest length mismatch".into()))?;
-    let ctx = Rv64imMainCircuitTraceBuildContext {
-        params,
-        log,
-        structure,
-        ce_structure: &ce_structure,
-        dims,
-        mat_digest,
-        optimized_cache: &optimized_cache,
-    };
-    let step_traces = build_rv64im_chunk_fold_step_traces_from_components(
-        statement,
-        proof_digest,
-        kernel_export,
-        chunk_summaries,
-        steps,
-        component_digests,
-    )?;
-    let mut transcript = crate::rv64im::final_relation::rv64im_chunk_fold_initial_transcript();
-    let mut chunk_traces = Vec::with_capacity(step_traces.len());
-    for (chunk_index, step_trace) in step_traces.iter().enumerate() {
-        chunk_traces.push(build_rv64im_main_circuit_chunk_trace_from_parts(
-            &ctx,
-            chunk_index,
-            &step_trace.handoff,
-            &step_trace.chunk_summary,
-            &step_trace.carry_in,
-            &step_trace.carry_out,
-            &step_trace.transcript_in,
-            &step_trace.replay_witness,
-            &mut transcript,
-        )?);
-        transcript.append_fields_raw(&[F::from_u64(RV64IM_CHUNK_DONE_RAW_TAG), F::ONE]);
-    }
-    Ok(Rv64imMainCircuitTrace {
-        statement: statement.clone(),
-        chunk_traces,
-    })
 }
 
 pub(crate) fn build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(

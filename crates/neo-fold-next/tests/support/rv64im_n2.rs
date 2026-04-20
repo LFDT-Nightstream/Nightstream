@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use neo_fold_next::nightstream::rv64im::audit::{
     build_rv64im_nightstream_linkage_claims, build_rv64im_nightstream_statement_from_final,
     measure_rv64im_side_binding_circuit_constraints,
@@ -7,7 +9,7 @@ use neo_fold_next::nightstream::rv64im::{
     Rv64imSideBindingStatement, Rv64imSideOpeningPublic, Rv64imSideProof,
 };
 use neo_fold_next::nightstream::NightstreamStatement;
-use neo_fold_next::rv64im::audit::{measure_rv64im_spartan2_decider_circuit, Rv64imMainRelationCircuitMetrics};
+use neo_fold_next::rv64im::audit::{prove_rv64im_public_proof_and_published_seam_with_perf, Rv64imPublishedProofSeam};
 use neo_fold_next::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted, Rv64imFinalBuildProof, Rv64imFinalStatement,
 };
@@ -25,10 +27,6 @@ pub struct Rv64imN2Fixture {
 }
 
 impl Rv64imN2Fixture {
-    pub fn measure_main_relation(&self) -> Result<Rv64imMainRelationCircuitMetrics, SimpleKernelError> {
-        measure_rv64im_spartan2_decider_circuit(&self.final_statement, &self.final_proof)
-    }
-
     pub fn real_rows(&self) -> usize {
         self.accepted_artifact.root_execution.execution_rows.len()
     }
@@ -126,4 +124,13 @@ pub fn build_rv64im_n2_fixture() -> Result<Rv64imN2Fixture, SimpleKernelError> {
         nightstream_statement,
         side_proof,
     })
+}
+
+#[allow(dead_code)]
+pub fn build_rv64im_n2_published_seam() -> Result<Rv64imPublishedProofSeam, SimpleKernelError> {
+    let source = build_mixed_opcode_perf_source_case(2);
+    let max_steps = source.program_words.len();
+    let input = Rv64imProofInput { source, max_steps };
+    let ((_, seam), _) = prove_rv64im_public_proof_and_published_seam_with_perf(&input)?;
+    Ok(seam)
 }

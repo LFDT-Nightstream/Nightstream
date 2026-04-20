@@ -1,9 +1,8 @@
-//! Owns RV64IM build/prove adapters for the direct main-relation Spartan path.
+//! Owns RV64IM published-seam assembly from accepted proof artifacts.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
+use crate::proof::FoldSchedule;
 use crate::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted_with_output_and_perf_and_source, Rv64imFinalBuildOutput,
     Rv64imFinalBuildProof, Rv64imFinalStatement,
@@ -11,21 +10,11 @@ use crate::rv64im::final_relation::{
 use crate::rv64im::kernel::{
     accepted_proof_artifact_from_prover_materials, build_rv64im_accepted_proof_artifact,
     build_rv64im_kernel_export_source_from_accepted_artifact, prove_rv64im_public_proof_prover_seam_with_perf,
-    Rv64imAcceptedProofArtifact, Rv64imKernelExportRelationResult, Rv64imKernelExportSource, Rv64imProof,
-    Rv64imProofInput, Rv64imProofProvePerf, Rv64imPublicProofOptions,
+    verify_rv64im_kernel_export_proof_with_relation_output, Rv64imAcceptedProofArtifact, Rv64imKernelExportSource,
+    Rv64imProof, Rv64imProofInput, Rv64imProofProvePerf, Rv64imPublicProofOptions,
 };
-use crate::rv64im::main_proof::{build_rv64im_main_proof, Rv64imMainProof};
-use crate::rv64im::main_relation::Rv64imDeciderRelation;
-use crate::rv64im::main_relation_spartan::{
-    build_rv64im_spartan2_decider_setup_shape_from_components,
-    prove_rv64im_spartan2_decider as prove_main_relation_spartan, setup_rv64im_spartan2_decider_cached_from_shape,
-    verify_rv64im_spartan2_decider as verify_main_relation_spartan, Rv64imSpartan2DeciderProof,
-    Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey,
-};
+use crate::rv64im::main_proof::{Rv64imCompressedMainProof, Rv64imLocalFinalSeam};
 use crate::rv64im::SimpleKernelError;
-
-static RV64IM_SPARTAN2_DECIDER_PROOF_CACHE: OnceLock<Mutex<HashMap<[u8; 32], Arc<Rv64imSpartan2DeciderProof>>>> =
-    OnceLock::new();
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rv64imPublishedProofSeamBuildPerf {
@@ -57,8 +46,8 @@ pub struct Rv64imPublishedProofSeamBuildPerf {
 #[derive(Clone, Debug)]
 pub struct Rv64imPublishedProofSeam {
     pub accepted_artifact: Rv64imAcceptedProofArtifact,
-    pub main_proof: Rv64imMainProof,
-    pub(crate) verified_kernel: Rv64imKernelExportRelationResult,
+    pub main_proof: Rv64imCompressedMainProof,
+    local_final_seam: Rv64imLocalFinalSeam,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -69,33 +58,40 @@ pub struct Rv64imPublicProofAndSeamBuildPerf {
 
 impl Rv64imPublishedProofSeam {
     pub fn kernel_export_source(&self) -> &Rv64imKernelExportSource {
-        &self
-            .main_proof
-            .kernel_export_cache()
-            .expect("locally built published proof seam must carry a kernel-export cache")
-            .source
+        &self.local_final_seam.kernel_export().source
     }
 
-    pub fn final_statement(&self) -> &Rv64imFinalStatement {
-        self.main_proof
-            .final_statement_cache()
-            .expect("locally built published proof seam must carry a final-statement cache")
+    pub fn kernel_export(&self) -> &crate::rv64im::kernel::Rv64imKernelExportProof {
+        self.local_final_seam.kernel_export()
+    }
+
+    pub fn rebuild_final_statement(&self) -> Result<Rv64imFinalStatement, SimpleKernelError> {
+        self.local_final_seam.rebuild_final_statement()
+    }
+
+    pub fn final_proof(&self) -> Result<Rv64imFinalBuildProof, SimpleKernelError> {
+        self.local_final_seam.rebuild_final_proof()
     }
 }
 fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
 }
 
-fn rv64im_spartan2_decider_cache_key(statement: &Rv64imFinalStatement, proof: &Rv64imFinalBuildProof) -> [u8; 32] {
-    let mut digest = [0u8; 32];
-    for ((dst, lhs), rhs) in digest
-        .iter_mut()
-        .zip(statement.digest.iter())
-        .zip(proof.proof_digest.iter())
-    {
-        *dst = *lhs ^ *rhs;
+fn published_seam_public_proof_options() -> Rv64imPublicProofOptions {
+    Rv64imPublicProofOptions {
+        // The standalone published seam sits on the one-step recursive boundary.
+        root_fold_schedule: FoldSchedule::RowsPerChunk(1),
     }
-    digest
+}
+
+fn validate_rv64im_published_seam_public_proof(proof: &Rv64imProof) -> Result<(), SimpleKernelError> {
+    if proof.statement.chunk_count != proof.statement.public_step_count {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM published-seam builder requires one public step per chunk; use prove_rv64im_public_proof_and_published_seam_with_perf or build the public proof with FoldSchedule::RowsPerChunk(1)"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 pub fn build_rv64im_published_proof_seam(proof: &Rv64imProof) -> Result<Rv64imPublishedProofSeam, SimpleKernelError> {
@@ -106,6 +102,7 @@ pub fn build_rv64im_published_proof_seam(proof: &Rv64imProof) -> Result<Rv64imPu
 pub fn build_rv64im_published_proof_seam_with_perf(
     proof: &Rv64imProof,
 ) -> Result<(Rv64imPublishedProofSeam, Rv64imPublishedProofSeamBuildPerf), SimpleKernelError> {
+    validate_rv64im_published_seam_public_proof(proof)?;
     let total_started = Instant::now();
 
     let started = Instant::now();
@@ -121,7 +118,6 @@ pub fn build_rv64im_published_proof_seam_with_perf(
         Rv64imFinalBuildOutput {
             statement: final_statement,
             proof: final_proof,
-            verified_kernel,
         },
         final_perf,
     ) = prove_rv64im_final_statement_from_accepted_with_output_and_perf_and_source(
@@ -132,14 +128,20 @@ pub fn build_rv64im_published_proof_seam_with_perf(
     let final_statement_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    let main_proof = build_rv64im_main_proof(&final_statement, &final_proof)?;
+    let (_, verified_kernel) = verify_rv64im_kernel_export_proof_with_relation_output(&final_proof.kernel_export)?;
+    let main_proof =
+        Rv64imCompressedMainProof::from_verified_final_seam(&final_statement, &final_proof, verified_kernel.final_pc)?;
     let main_proof_ms = elapsed_ms(started);
 
     Ok((
         Rv64imPublishedProofSeam {
             accepted_artifact,
             main_proof,
-            verified_kernel,
+            local_final_seam: Rv64imLocalFinalSeam::new(
+                final_proof.proof_digest,
+                final_proof.kernel_export.clone(),
+                final_proof.steps.clone(),
+            ),
         },
         Rv64imPublishedProofSeamBuildPerf {
             accepted_artifact_ms,
@@ -178,10 +180,10 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_perf(
     ),
     SimpleKernelError,
 > {
-    prove_rv64im_public_proof_and_published_seam_with_options_and_perf(input, Rv64imPublicProofOptions::default())
+    prove_rv64im_public_proof_and_published_seam_with_options_and_perf(input, published_seam_public_proof_options())
 }
 
-pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
+fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
     input: &Rv64imProofInput,
     options: Rv64imPublicProofOptions,
 ) -> Result<
@@ -220,7 +222,6 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
         Rv64imFinalBuildOutput {
             statement: final_statement,
             proof: final_proof,
-            verified_kernel,
         },
         final_perf,
     ) = prove_rv64im_final_statement_from_accepted_with_output_and_perf_and_source(
@@ -231,13 +232,19 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
     let final_statement_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    let main_proof = build_rv64im_main_proof(&final_statement, &final_proof)?;
+    let (_, verified_kernel) = verify_rv64im_kernel_export_proof_with_relation_output(&final_proof.kernel_export)?;
+    let main_proof =
+        Rv64imCompressedMainProof::from_verified_final_seam(&final_statement, &final_proof, verified_kernel.final_pc)?;
     let main_proof_ms = elapsed_ms(started);
 
     let seam = Rv64imPublishedProofSeam {
         accepted_artifact,
         main_proof,
-        verified_kernel,
+        local_final_seam: Rv64imLocalFinalSeam::new(
+            final_proof.proof_digest,
+            final_proof.kernel_export.clone(),
+            final_proof.steps.clone(),
+        ),
     };
     let seam_perf = Rv64imPublishedProofSeamBuildPerf {
         accepted_artifact_ms,
@@ -272,52 +279,4 @@ pub fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
             seam: seam_perf,
         },
     ))
-}
-
-pub fn prove_rv64im_spartan2_decider(
-    pk: &Rv64imSpartan2DeciderProverKey,
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
-    prove_main_relation_spartan(pk, statement, proof)
-}
-
-pub fn prove_rv64im_spartan2_decider_cached(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
-    let cache_key = rv64im_spartan2_decider_cache_key(statement, proof);
-    let cache = RV64IM_SPARTAN2_DECIDER_PROOF_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(proof) = cache
-        .lock()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main decider proof cache poisoned".into()))?
-        .get(&cache_key)
-        .cloned()
-    {
-        return Ok((*proof).clone());
-    }
-
-    let shape = build_rv64im_spartan2_decider_setup_shape_from_components(
-        statement,
-        proof.proof_digest,
-        &proof.kernel_export,
-        &proof.chunk_summaries,
-        &proof.steps,
-    )?;
-    let keys = setup_rv64im_spartan2_decider_cached_from_shape(&shape)?;
-    let proof = Arc::new(prove_main_relation_spartan(&keys.as_ref().0, statement, proof)?);
-    cache
-        .lock()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main decider proof cache poisoned".into()))?
-        .insert(cache_key, proof.clone());
-    Ok((*proof).clone())
-}
-
-pub fn verify_rv64im_spartan2_decider(
-    vk: &Rv64imSpartan2DeciderVerifierKey,
-    public_statement_digest: [u8; 32],
-    relation: &Rv64imDeciderRelation,
-    decider_proof: &Rv64imSpartan2DeciderProof,
-) -> Result<(), SimpleKernelError> {
-    verify_main_relation_spartan(vk, public_statement_digest, relation, decider_proof)
 }

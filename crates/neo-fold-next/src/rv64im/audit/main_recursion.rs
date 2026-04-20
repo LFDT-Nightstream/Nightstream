@@ -18,13 +18,7 @@ use crate::rv64im::nifs::{
     prove_rv64im_nifs_step, verify_rv64im_nifs_step, Rv64imNifsFreshInstance, Rv64imNifsFreshWitness,
     Rv64imNifsRunningWitness,
 };
-use crate::rv64im::recursion_spartan::{
-    audit_rv64im_main_recursion_final_relation_public_images_match,
-    audit_rv64im_main_recursion_terminal_published_target_matches_native_witness,
-    build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs, build_rv64im_recursion_proof_from_parts,
-    validate_rv64im_main_recursion_public_surface_against_published_statement,
-    validate_rv64im_recursion_verifier_key_against_published_statement, Rv64imRecursionProof,
-};
+use crate::rv64im::recursion_spartan::build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs;
 use crate::rv64im::SimpleKernelError;
 use neo_ccs::{check_ccs_rowwise_zero, check_ce_consistency, CeWitness};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -48,59 +42,36 @@ pub use crate::rv64im::main_relation_spartan::{
     build_rv64im_main_recursion_f_prime_claim_cover, build_rv64im_main_recursion_f_prime_payload,
     build_rv64im_main_recursion_f_prime_payloads, build_rv64im_main_recursion_f_prime_payloads_with_spartan_shape,
     build_rv64im_main_recursion_step_authoritative_chunk_surface,
-    build_rv64im_main_recursion_step_spartan_compressed_chain_shape,
     build_rv64im_main_recursion_step_spartan_published_target, build_rv64im_main_recursion_step_spartan_shape,
     debug_check_rv64im_chunk_step_recursive_effective_chunk_trace_matches_native,
     debug_check_rv64im_main_recursion_f_prime_backend_relation_semantics,
     debug_check_rv64im_main_recursion_step_authoritative_chunk_surface_matches_native,
     debug_check_rv64im_main_recursion_step_spartan_chunk_replay_surface,
     debug_check_rv64im_main_recursion_step_spartan_circuit,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_circuit,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_public_io,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_shape_only_circuit,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_shape_only_setup,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_statement_binding,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_wrapper_only,
     debug_check_rv64im_main_recursion_step_spartan_embedded_body,
     debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints,
     debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
-    debug_check_rv64im_main_recursion_step_spartan_shape_only_chain_parity,
     debug_check_rv64im_main_recursion_x_out_gadget_parity,
-    debug_compare_rv64im_main_recursion_step_spartan_shape_only_skeleton,
     debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
-    debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit_shape,
-    debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
-    debug_profile_rv64im_main_recursion_step_spartan_compressed_chain_prove_stages,
     debug_trace_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
-    debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, prove_rv64im_main_recursion_step_spartan,
-    prove_rv64im_main_recursion_step_spartan_chain, prove_rv64im_main_recursion_step_spartan_compressed_chain,
-    setup_rv64im_main_recursion_step_spartan_cached, setup_rv64im_main_recursion_step_spartan_shape_cached,
-    validate_rv64im_main_recursion_step_spartan_chain_shape, verify_rv64im_main_recursion_step_spartan,
-    verify_rv64im_main_recursion_step_spartan_and_extract_published_target,
-    verify_rv64im_main_recursion_step_spartan_chain,
-    verify_rv64im_main_recursion_step_spartan_chain_and_extract_published_targets,
-    verify_rv64im_main_recursion_step_spartan_compressed_chain,
-    verify_rv64im_main_recursion_step_spartan_published_target,
-    verify_rv64im_main_recursion_step_spartan_published_target_chain, Rv64imCcsClaimShape, Rv64imCcsWitnessShape,
+    debug_trace_rv64im_main_recursion_step_fingerprint_synthesize,
+    debug_trace_rv64im_main_recursion_step_shape_only_circuit_shape_measurement,
+    debug_trace_rv64im_main_recursion_step_shape_only_fingerprint_synthesize,
+    debug_trace_rv64im_main_recursion_step_spartan_circuit_shape_measurement,
+    debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, Rv64imCcsClaimShape, Rv64imCcsWitnessShape,
     Rv64imCeClaimDigestShape, Rv64imChunkStepIvcShape, Rv64imMainRecursionFPrimeBackendRelation,
     Rv64imMainRecursionFPrimeBackendRelationBuildPerf, Rv64imMainRecursionFPrimeClaimCover,
     Rv64imMainRecursionFPrimePayload, Rv64imMainRecursionStepAuthoritativeChunkSurface,
-    Rv64imMainRecursionStepSpartanChainProof, Rv64imMainRecursionStepSpartanCircuitShape,
-    Rv64imMainRecursionStepSpartanCompressedChainProof, Rv64imMainRecursionStepSpartanCompressedChainProveMetrics,
-    Rv64imMainRecursionStepSpartanCompressedChainShape, Rv64imMainRecursionStepSpartanError,
-    Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanProof,
-    Rv64imMainRecursionStepSpartanProverKey, Rv64imMainRecursionStepSpartanPublishedTarget,
-    Rv64imMainRecursionStepSpartanSetupEquivalence, Rv64imMainRecursionStepSpartanShape,
-    Rv64imMainRecursionStepSpartanStatement, Rv64imMainRecursionStepSpartanVerifierKey,
+    Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError,
+    Rv64imMainRecursionStepSpartanPublishedTarget, Rv64imMainRecursionStepSpartanShape,
+    Rv64imMainRecursionStepSpartanStatement,
 };
-
 pub fn debug_trace_rv64im_main_recursion_construction2_default_pair_for_full_width(
     vk_fs: &crate::rv64im::main_recursion::Rv64imVerifierKeyFs,
     full_width: usize,
@@ -138,10 +109,6 @@ pub fn audit_build_rv64im_main_circuit_chunk_trace_authoritative_summary(
         step_hi: chunk_trace.step_hi(),
         chunk_relation_digest: chunk_trace.handoff.chunk_relation_digest,
     })
-}
-
-pub fn rv64im_main_recursion_proof_x_last_mut(proof: &mut Rv64imRecursionProof) -> &mut [u8; 32] {
-    proof.x_last_bytes_mut()
 }
 
 pub fn audit_rv64im_nifs_round_trip_from_chunk_step_relation(
@@ -474,82 +441,6 @@ pub fn audit_build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(
     accumulator_final: &crate::rv64im::final_relation::Rv64imRecursiveAccumulator,
 ) -> Result<Rv64imEncodedPublicInput, SimpleKernelError> {
     build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(vk_fs, chunk_count, accumulator_final)
-}
-
-pub fn build_rv64im_main_recursion_proof_surface_stub_from_relations(
-    relations: &[Rv64imChunkStepIvcRelation],
-) -> Result<Rv64imRecursionProof, SimpleKernelError> {
-    let (spartan_shape, backend_relations) =
-        build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape(relations).map_err(|err| {
-            SimpleKernelError::Bridge(format!("RV64IM audit recursion proof surface stub build failed: {err}"))
-        })?;
-    validate_rv64im_main_recursion_step_spartan_chain_shape(&spartan_shape, &backend_relations).map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM audit recursion proof surface stub shared step-shape validation failed: {err}"
-        ))
-    })?;
-    let chain_proof = crate::rv64im::recursion_spartan::audit_empty_step_proof_chain();
-    let advices = build_rv64im_main_recursion_f_prime_advices(relations)?;
-    let final_public_image =
-        crate::rv64im::recursion_spartan::build_rv64im_main_recursion_final_public_image_from_advices(&advices)?;
-    build_rv64im_recursion_proof_from_parts(spartan_shape, chain_proof, final_public_image)
-}
-
-pub fn audit_rv64im_main_recursion_proof_matches_published_statement(
-    published_statement: &crate::rv64im::main_proof::Rv64imAccumulatorPublicStatement,
-    proof: &Rv64imRecursionProof,
-) -> Result<(), SimpleKernelError> {
-    let _ = validate_rv64im_main_recursion_public_surface_against_published_statement(published_statement, proof)?;
-    Ok(())
-}
-
-pub fn audit_rv64im_main_recursion_final_relation_public_images_match_against_published_statement(
-    published_statement: &crate::rv64im::main_proof::Rv64imAccumulatorPublicStatement,
-    accumulator_witness: &crate::rv64im::recursion_spartan::Rv64imMainRecursionAccumulatorWitness,
-    proof: &Rv64imRecursionProof,
-) -> Result<(), SimpleKernelError> {
-    audit_rv64im_main_recursion_final_relation_public_images_match(published_statement, accumulator_witness, proof)
-}
-
-pub fn audit_rv64im_main_recursion_terminal_published_target_matches_native_witness_against_published_statement(
-    published_statement: &crate::rv64im::main_proof::Rv64imAccumulatorPublicStatement,
-    accumulator_witness: &crate::rv64im::recursion_spartan::Rv64imMainRecursionAccumulatorWitness,
-    proof: &Rv64imRecursionProof,
-) -> Result<(), SimpleKernelError> {
-    audit_rv64im_main_recursion_terminal_published_target_matches_native_witness(
-        published_statement,
-        accumulator_witness,
-        proof,
-    )
-}
-
-pub fn audit_rv64im_recursion_verifier_key_matches_published_statement(
-    recursion_vk: &crate::rv64im::recursion_spartan::Rv64imRecursionVerifierKey,
-    published_statement: &crate::rv64im::main_proof::Rv64imAccumulatorPublicStatement,
-) -> Result<(), SimpleKernelError> {
-    validate_rv64im_recursion_verifier_key_against_published_statement(recursion_vk, published_statement)
-}
-
-pub fn rv64im_main_recursion_proof_first_step_snark_bytes_mut(proof: &mut Rv64imRecursionProof) -> &mut Vec<u8> {
-    proof.first_step_proof_snark_bytes_mut()
-}
-
-pub fn rv64im_main_recursion_accumulator_witness_final_fold_witness_mut(
-    witness: &mut crate::rv64im::recursion_spartan::Rv64imMainRecursionAccumulatorWitness,
-) -> &mut crate::chunk_relation::ChunkReplayWitness {
-    witness.final_fold_witness_mut()
-}
-
-pub fn rv64im_main_recursion_accumulator_witness_running_final_mut(
-    witness: &mut crate::rv64im::recursion_spartan::Rv64imMainRecursionAccumulatorWitness,
-) -> &mut crate::rv64im::chunk_fold_step::Rv64imChunkFoldCarry {
-    witness.running_final_mut()
-}
-
-pub fn rv64im_main_recursion_proof_pop_last_step_proof(
-    proof: &mut Rv64imRecursionProof,
-) -> Result<(), SimpleKernelError> {
-    proof.pop_last_step_proof()
 }
 
 pub fn rv64im_main_recursion_advice_tamper_chunk_index(advice: &mut Rv64imMainRecursionFPrimeAdvice) {

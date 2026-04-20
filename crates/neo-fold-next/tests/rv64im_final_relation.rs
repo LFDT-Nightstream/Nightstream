@@ -1,7 +1,7 @@
 //! Focused tests for the RV64IM folded/final relation seam above the accepted artifact.
 
 use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::rv64im::build_rv64im_decider_relation_from_final_surface;
+use neo_fold_next::rv64im::audit::build_rv64im_legacy_shell_decider_relation_from_final_surface;
 use neo_fold_next::rv64im::final_relation::{
     build_rv64im_terminal_chunk_fold_witness, prove_rv64im_final_statement_from_accepted,
     prove_rv64im_folded_statement_from_accepted, verify_rv64im_final_statement, verify_rv64im_folded_statement,
@@ -108,14 +108,10 @@ fn rv64im_direct_prover_seam_matches_reconstructive_final_path() {
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
 
     assert_eq!(published_seam.accepted_artifact.digest, artifact.digest);
-    assert_eq!(
-        published_seam
-            .main_proof
-            .final_statement_cache()
-            .expect("locally built published seam should retain the final-statement cache")
-            .digest,
-        statement.digest
-    );
+    let rebuilt_statement = published_seam
+        .rebuild_final_statement()
+        .expect("rebuild final statement from the carried published seam");
+    assert_eq!(rebuilt_statement.digest, statement.digest);
     assert_ne!(
         published_seam
             .main_proof
@@ -128,14 +124,7 @@ fn rv64im_direct_prover_seam_matches_reconstructive_final_path() {
         statement.public_statement_digest
     );
 
-    verify_rv64im_final_statement(
-        published_seam
-            .main_proof
-            .final_statement_cache()
-            .expect("locally built published seam should retain the final-statement cache"),
-        &final_proof,
-    )
-    .expect("verify rv64im direct final statement");
+    verify_rv64im_final_statement(&rebuilt_statement, &final_proof).expect("verify rv64im direct final statement");
 }
 
 #[test]
@@ -190,15 +179,15 @@ fn rv64im_final_statement_digest_ignores_non_authoritative_replay_header_transpo
     let (artifact, _audit) = prove_rv64im_accepted_proof(&input).expect("prove accepted rv64im proof");
     let (statement, proof) =
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
-    let baseline =
-        build_rv64im_decider_relation_from_final_surface(&statement, &proof).expect("build baseline decider relation");
+    let baseline = build_rv64im_legacy_shell_decider_relation_from_final_surface(&statement, &proof)
+        .expect("build baseline decider relation");
 
     let mut tampered_proof = proof.clone();
     tampered_proof.steps[0]
         .replay_witness
         .ccs_replay_proof
         .header_digest[0] ^= 1;
-    let tampered = build_rv64im_decider_relation_from_final_surface(&statement, &tampered_proof)
+    let tampered = build_rv64im_legacy_shell_decider_relation_from_final_surface(&statement, &tampered_proof)
         .expect("build tampered decider relation");
 
     assert_eq!(

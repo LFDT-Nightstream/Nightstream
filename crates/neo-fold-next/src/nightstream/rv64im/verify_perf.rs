@@ -3,11 +3,12 @@
 use std::time::Instant;
 
 use crate::nightstream::NightstreamStatement;
+use crate::rv64im::ivc_snark::Rv64imIvcSnarkVerifierKey;
 use crate::rv64im::{Rv64imProofStatement, SimpleKernelError};
 
 use super::{
-    rv64im_verifier_context_digest, verify_rv64im_main_proof, verify_rv64im_nightstream_carried_boundary,
-    Rv64imNightstreamProof, Rv64imSideBindingVerifierKey, Rv64imSideOpeningSpartanVerifierKey,
+    rv64im_verifier_context_digest, verify_rv64im_nightstream_carried_boundary, Rv64imNightstreamProof,
+    Rv64imSideBindingVerifierKey, Rv64imSideOpeningSpartanVerifierKey,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -34,6 +35,7 @@ pub fn verify_rv64im_nightstream_with_perf(
     statement: &NightstreamStatement,
     proof: &Rv64imNightstreamProof,
     trusted_root_params_id: [u8; 32],
+    terminal_decider_vk: &Rv64imIvcSnarkVerifierKey,
     side_opening_vk: &Rv64imSideOpeningSpartanVerifierKey,
     side_binding_vk: &Rv64imSideBindingVerifierKey,
     public_statement: &Rv64imProofStatement,
@@ -78,7 +80,7 @@ pub fn verify_rv64im_nightstream_with_perf(
     let remaining_side_surfaces_ms = 0.0;
 
     let started = Instant::now();
-    verify_rv64im_main_proof(&proof.main_proof)?;
+    proof.main_proof().verify(terminal_decider_vk)?;
     let main_proof_ms = elapsed_ms(started);
 
     Ok(Rv64imNightstreamVerifyPerf {

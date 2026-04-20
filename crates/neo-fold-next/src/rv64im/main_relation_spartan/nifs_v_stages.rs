@@ -4,6 +4,9 @@
 //! chunk-theorem wrapper so recursive F' can progressively shed wrapper cargo
 //! without rewriting the arithmetic gadgets again.
 
+use std::io::{self, Write};
+use std::time::Instant;
+
 use super::*;
 
 pub(super) struct Rv64imChunkNifsVerifierCtx<'a> {
@@ -30,6 +33,13 @@ pub(super) struct Rv64imPiRlcStageOutput {
     pub(super) parent_claim: CeClaimVar,
 }
 
+fn emit_nifs_stage_trace(trace_prefix: Option<&str>, label: &str, started: Instant) {
+    if let Some(prefix) = trace_prefix {
+        eprintln!("{prefix}.{label}={:.2}ms", started.elapsed().as_secs_f64() * 1_000.0);
+        let _ = io::stderr().flush();
+    }
+}
+
 fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: ConstraintSystem<SpartanF>>(
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -45,6 +55,7 @@ fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: Const
     logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
     absorb_synthetic_chunk_relation_io: bool,
+    trace_prefix: Option<&str>,
 ) -> Result<Rv64imClaimBundle, SynthesisError> {
     if !cover_chunk.covers_replay_surface(chunk) {
         return Err(SynthesisError::Unsatisfiable);
@@ -52,11 +63,13 @@ fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: Const
     if chunk.pi_ccs.ccs_outputs.len() < chunk.fresh_claims.len() {
         return Err(SynthesisError::Unsatisfiable);
     }
+    let started = Instant::now();
     append_chunk_meta(
         &mut cs.namespace(|| format!("chunk_meta_{chunk_index}")),
         transcript,
         &chunk.handoff,
     )?;
+    emit_nifs_stage_trace(trace_prefix, "chunk_meta", started);
     let ctx = Rv64imChunkNifsVerifierCtx {
         params,
         structure,
@@ -69,17 +82,26 @@ fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: Const
         logical_me_input_claims,
         boundary_plan,
     };
-    let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims)?;
+    let started = Instant::now();
+    let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, trace_prefix)?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs", started);
     if absorb_synthetic_chunk_relation_io {
+        let started = Instant::now();
         enforce_synthetic_outer_chunk_relation_public_io(
             &ctx,
             &mut cs.namespace(|| format!("chunk_{}_synthetic_relation_digest", chunk_index)),
             transcript,
             &format!("chunk_{}_synthetic_relation_digest", chunk_index),
         )?;
+        emit_nifs_stage_trace(trace_prefix, "synthetic_relation_io", started);
     }
+    let started = Instant::now();
     let pi_rlc = synthesize_pi_rlc_stage(&ctx, cs, transcript, &pi_ccs)?;
-    synthesize_pi_dec_stage(&ctx, cs, carried_claims, &pi_ccs, pi_rlc)
+    emit_nifs_stage_trace(trace_prefix, "pi_rlc", started);
+    let started = Instant::now();
+    let replayed_next_claims = synthesize_pi_dec_stage(&ctx, cs, carried_claims, &pi_ccs, pi_rlc)?;
+    emit_nifs_stage_trace(trace_prefix, "pi_dec", started);
+    Ok(replayed_next_claims)
 }
 
 pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body<CS: ConstraintSystem<SpartanF>>(
@@ -112,6 +134,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body<CS: ConstraintSystem<Sp
         logical_me_input_claims,
         boundary_plan,
         false,
+        None,
     )
 }
 
@@ -131,6 +154,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
     carried_claims: Rv64imClaimBundle,
     logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
+    trace_prefix: Option<&str>,
 ) -> Result<Rv64imClaimBundle, SynthesisError> {
     synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
         params,
@@ -147,6 +171,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
         logical_me_input_claims,
         boundary_plan,
         true,
+        trace_prefix,
     )
 }
 
@@ -155,7 +180,9 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: &Rv64imClaimBundle,
+    trace_prefix: Option<&str>,
 ) -> Result<Rv64imPiCcsStageOutput, SynthesisError> {
+    let started = Instant::now();
     bind_header_and_instance_digest(
         &mut cs.namespace(|| format!("chunk_{}_bind_header", ctx.chunk_index)),
         transcript,
@@ -171,26 +198,34 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
             .public_chunk_instance_digest
             .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
     )?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_header", started);
+    let started = Instant::now();
     if let Some(logical_me_input_claims) = ctx.logical_me_input_claims {
         crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_native_claims(
             &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
             transcript,
             carried_claims.effective_claims(),
             logical_me_input_claims,
+            trace_prefix,
         )?;
     } else {
         bind_me_inputs(
             &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
             transcript,
             carried_claims.effective_claims(),
+            trace_prefix,
         )?;
     }
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_me_inputs", started);
+    let started = Instant::now();
     let public_challenges = sample_challenges(
         &mut cs.namespace(|| format!("chunk_{}_sample_challenges", ctx.chunk_index)),
         transcript,
         ctx.dims,
     )?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.sample_challenges", started);
 
+    let started = Instant::now();
     let effective_fresh_claim_count = ctx.chunk.fresh_claims.len();
     let covered_fresh_claims = ctx
         .cover_chunk
@@ -210,7 +245,9 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.alloc_fresh_claims", started);
 
+    let started = Instant::now();
     let (initial_sum_fe, initial_sum_fe_value) = claimed_initial_sum_from_me_inputs(
         &mut cs.namespace(|| format!("chunk_{}_initial_sum_fe", ctx.chunk_index)),
         ctx.structure,
@@ -220,7 +257,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         ctx.chunk.pi_ccs.public_challenges.gamma,
         effective_fresh_claim_count,
         carried_claims.effective_claims(),
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{}_initial_sum_fe", ctx.chunk_index),
     )?;
     transcript.append_const_fields_raw(
@@ -269,11 +306,13 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &padded_fe_rounds,
         &fe_round_values,
         &fe_challenge_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{}_fe_sumcheck", ctx.chunk_index),
     )?;
     let (r_prime_vars, alpha_prime_vars) = split_vec(&fe_challenges, ctx.dims.ell_n)?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.fe_sumcheck", started);
 
+    let started = Instant::now();
     let zero_nc = alloc_constant_k(
         &mut cs.namespace(|| format!("chunk_{}_initial_sum_nc_zero", ctx.chunk_index)),
         KNum::from_neo_k(K::ZERO),
@@ -310,11 +349,13 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &padded_nc_rounds,
         &nc_round_values,
         &nc_challenge_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{}_nc_sumcheck", ctx.chunk_index),
     )?;
     let (s_col_prime_vars, alpha_prime_nc_vars) = split_vec(&nc_challenges, ctx.dims.ell_m)?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.nc_sumcheck", started);
 
+    let started = Instant::now();
     let effective_output_count = ctx.chunk.pi_ccs.ccs_outputs.len();
     let mut padded_ccs_outputs = Vec::with_capacity(ctx.cover_chunk.ccs_output_shapes.len());
     for (output_index, shape) in ctx.cover_chunk.ccs_output_shapes.iter().enumerate() {
@@ -368,6 +409,8 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         padded_ccs_outputs.push(output);
     }
     let ccs_outputs = padded_ccs_outputs[..effective_output_count].to_vec();
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.alloc_outputs", started);
+    let started = Instant::now();
     enforce_me_outputs_against_inputs(
         &mut cs.namespace(|| format!("chunk_{}_output_binding", ctx.chunk_index)),
         ctx.structure,
@@ -381,6 +424,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &ctx.chunk.pi_ccs.s_col,
         &format!("chunk_{}_output_binding", ctx.chunk_index),
     )?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.output_binding", started);
     let me_inputs_r_vars = carried_claims
         .effective_claims()
         .first()
@@ -389,6 +433,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         .effective_claims()
         .first()
         .map(|claim| claim.r_values.as_slice());
+    let started = Instant::now();
     let _ = enforce_terminal_identity_fe(
         &mut cs.namespace(|| format!("chunk_{}_terminal_fe", ctx.chunk_index)),
         &sumcheck_final_fe,
@@ -406,9 +451,11 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         effective_fresh_claim_count,
         me_inputs_r_vars,
         me_inputs_r_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{}_terminal_fe", ctx.chunk_index),
     )?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.terminal_fe", started);
+    let started = Instant::now();
     let _ = enforce_terminal_identity_nc(
         &mut cs.namespace(|| format!("chunk_{}_terminal_nc", ctx.chunk_index)),
         &sumcheck_final_nc,
@@ -422,9 +469,10 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &alpha_prime_nc_vars,
         &ctx.chunk.pi_ccs.alpha_prime_nc,
         &ccs_outputs,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{}_terminal_nc", ctx.chunk_index),
     )?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.terminal_nc", started);
 
     Ok(Rv64imPiCcsStageOutput {
         effective_output_count,

@@ -52,12 +52,12 @@ pub use self::side_relation_spartan::{Rv64imSideBindingProof, Rv64imSideBindingV
 use self::side_runtime_binding::verify_rv64im_side_opening_statement_against_runtime_surfaces;
 pub use self::verify_perf::{verify_rv64im_nightstream_with_perf, Rv64imNightstreamVerifyPerf};
 use crate::rv64im::main_proof::Rv64imPublishedStatement;
-pub use crate::rv64im::{build_rv64im_main_proof, verify_rv64im_main_proof, Rv64imMainProof};
+pub use crate::rv64im::Rv64imCompressedMainProof;
 
 pub mod audit {
     use crate::nightstream::rv64im::Rv64imLinkageClaims;
     use crate::nightstream::NightstreamStatement;
-    use crate::rv64im::audit::Rv64imDeciderRelation;
+    use crate::rv64im::audit::Rv64imLegacyShellDeciderRelation;
     use crate::rv64im::final_relation::{Rv64imFinalBuildProof, Rv64imFinalStatement};
     use crate::rv64im::kernel::{Rv64imAcceptedProofArtifact, Rv64imProofStatement, SimpleKernelError};
     use crate::rv64im::main_proof::Rv64imPublishedStatement;
@@ -211,14 +211,14 @@ pub mod audit {
         )
     }
 
-    pub fn build_rv64im_nightstream_statement_from_relation(
+    pub fn build_rv64im_nightstream_statement_from_legacy_shell_relation(
         public_io_digest: [u8; 32],
         verifier_context_digest: [u8; 32],
-        relation: &Rv64imDeciderRelation,
+        relation: &Rv64imLegacyShellDeciderRelation,
         linkage_root: [u8; 32],
         proof_binding_root: [u8; 32],
     ) -> Result<NightstreamStatement, SimpleKernelError> {
-        super::build_rv64im_nightstream_statement_from_relation(
+        super::build_rv64im_nightstream_statement_from_legacy_shell_relation(
             public_io_digest,
             verifier_context_digest,
             relation,
@@ -243,6 +243,10 @@ pub mod audit {
         )
     }
 
+    pub fn rv64im_main_nightstream_proof_digest(main_proof: &super::Rv64imCompressedMainProof) -> [u8; 32] {
+        super::rv64im_main_nightstream_proof_digest(main_proof)
+    }
+
     pub fn build_rv64im_nightstream_linkage_claims(
         statement: &Rv64imFinalStatement,
         proof: &Rv64imFinalBuildProof,
@@ -262,6 +266,7 @@ use crate::nightstream::{nightstream_proof_binding_root, NightstreamProofBinding
 use crate::rv64im::final_relation::{
     verify_rv64im_final_statement_with_output, Rv64imFinalBuildProof, Rv64imFinalStatement,
 };
+use crate::rv64im::ivc_snark::Rv64imIvcSnarkVerifierKey;
 use crate::rv64im::kernel::{
     build_public_kernel_opening_claim_from_compact_surfaces, build_rv64im_kernel_export_proof_from_accepted_artifact,
     build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local_with_perf,
@@ -288,7 +293,7 @@ pub struct Rv64imSideProof {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imNightstreamProof {
-    main_proof: Rv64imMainProof,
+    main_proof: Rv64imCompressedMainProof,
     linkage_claims: Rv64imLinkageClaims,
     side_proof: Rv64imSideProof,
 }
@@ -391,11 +396,11 @@ impl Rv64imSideProof {
 }
 
 impl Rv64imNightstreamProof {
-    pub fn main_proof(&self) -> &Rv64imMainProof {
+    pub fn main_proof(&self) -> &Rv64imCompressedMainProof {
         &self.main_proof
     }
 
-    pub fn main_proof_mut(&mut self) -> &mut Rv64imMainProof {
+    pub fn main_proof_mut(&mut self) -> &mut Rv64imCompressedMainProof {
         &mut self.main_proof
     }
 
@@ -414,6 +419,18 @@ impl Rv64imNightstreamProof {
     pub fn side_proof_mut(&mut self) -> &mut Rv64imSideProof {
         &mut self.side_proof
     }
+}
+
+// Nightstream binds the RV64IM main proof through its compact public owner
+// surface, not through private recursion step-proof bytes.
+fn rv64im_main_nightstream_proof_digest(main_proof: &Rv64imCompressedMainProof) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/main_proof");
+    tr.append_message(b"neo.fold.next/nightstream/rv64im/main_proof/version", b"v3");
+    tr.append_message(
+        b"neo.fold.next/nightstream/rv64im/main_proof/binding_digest",
+        &main_proof.binding_digest(),
+    );
+    tr.digest32()
 }
 
 fn build_rv64im_nightstream_linkage_claims_from_parts(public_chunk_digests: Vec<[u8; 32]>) -> Rv64imLinkageClaims {
@@ -1048,29 +1065,14 @@ fn build_rv64im_nightstream_statement_from_published_statement(
     })
 }
 
-pub fn build_rv64im_nightstream_statement_from_main_proof(
-    verifier_context_digest: [u8; 32],
-    main_proof: &Rv64imMainProof,
-    linkage_root: [u8; 32],
-    proof_binding_root: [u8; 32],
-) -> Result<NightstreamStatement, SimpleKernelError> {
-    build_rv64im_nightstream_statement_from_published_statement(
-        verifier_context_digest,
-        main_proof.published_statement(),
-        main_proof.chunk_summaries(),
-        linkage_root,
-        proof_binding_root,
-    )
-}
-
-fn build_rv64im_nightstream_statement_from_relation(
+fn build_rv64im_nightstream_statement_from_legacy_shell_relation(
     public_io_digest: [u8; 32],
     verifier_context_digest: [u8; 32],
-    relation: &crate::rv64im::audit::Rv64imDeciderRelation,
+    relation: &crate::rv64im::audit::Rv64imLegacyShellDeciderRelation,
     linkage_root: [u8; 32],
     proof_binding_root: [u8; 32],
 ) -> Result<NightstreamStatement, SimpleKernelError> {
-    crate::rv64im::audit::validate_rv64im_decider_relation_surface(relation)?;
+    crate::rv64im::audit::validate_rv64im_legacy_shell_decider_relation_surface(relation)?;
     Ok(NightstreamStatement {
         public_io_digest,
         verifier_context_digest,
@@ -1212,16 +1214,16 @@ fn verify_rv64im_nightstream_carried_boundary(
     proof: &Rv64imNightstreamProof,
 ) -> Result<(), SimpleKernelError> {
     validate_rv64im_nightstream_linkage_claims_against_statement(statement, &proof.linkage_claims)?;
-    proof.main_proof.validate_final_surface()?;
     let linkage_root = rv64im_nightstream_linkage_root(proof.main_proof.linkage_anchor_digest(), &proof.linkage_claims);
-    let mut expected_statement = build_rv64im_nightstream_statement_from_main_proof(
+    let mut expected_statement = build_rv64im_nightstream_statement_from_published_statement(
         statement.verifier_context_digest,
-        &proof.main_proof,
+        proof.main_proof.published_statement(),
+        &statement.chunk_summaries,
         linkage_root,
         [0; 32],
     )?;
     let proof_binding_inputs = NightstreamProofBindingInputs {
-        main_proof_digest: proof.main_proof.binding_digest(),
+        main_proof_digest: rv64im_main_nightstream_proof_digest(&proof.main_proof),
         side_proof_digest: proof.side_proof.expected_digest(),
         linkage_binding_digest: proof.linkage_claims.digest(),
     };
@@ -1239,6 +1241,7 @@ pub fn verify_rv64im_nightstream(
     statement: &NightstreamStatement,
     proof: &Rv64imNightstreamProof,
     trusted_root_params_id: [u8; 32],
+    terminal_decider_vk: &Rv64imIvcSnarkVerifierKey,
     side_opening_vk: &Rv64imSideOpeningSpartanVerifierKey,
     side_binding_vk: &Rv64imSideBindingVerifierKey,
     public_statement: &Rv64imProofStatement,
@@ -1247,6 +1250,7 @@ pub fn verify_rv64im_nightstream(
         statement,
         proof,
         trusted_root_params_id,
+        terminal_decider_vk,
         side_opening_vk,
         side_binding_vk,
         public_statement,

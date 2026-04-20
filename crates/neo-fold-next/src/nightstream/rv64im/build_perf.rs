@@ -2,7 +2,11 @@
 
 use std::time::Instant;
 
-use crate::rv64im::kernel::build_rv64im_eval_claim_witnesses_from_accepted_artifact_with_perf;
+use crate::rv64im::kernel::{
+    build_rv64im_eval_claim_witnesses_from_accepted_artifact_with_perf,
+    verify_rv64im_kernel_export_proof_with_relation_output,
+};
+use crate::rv64im::{Rv64imCompressedMainProof, Rv64imPublishedProofSeam};
 
 use super::side_eval_claim_relation::rebind_phase0_claim_witnesses_to_side_bundle;
 use super::*;
@@ -85,28 +89,32 @@ fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
 }
 
-fn guard_locally_built_main_proof(
+fn guard_locally_built_compact_main_proof(
     accepted_artifact: &Rv64imAcceptedProofArtifact,
-    main_proof: &Rv64imMainProof,
+    main_proof: &Rv64imCompressedMainProof,
+    final_statement: &crate::rv64im::final_relation::Rv64imFinalStatement,
+    final_proof: &crate::rv64im::final_relation::Rv64imFinalBuildProof,
 ) -> Result<(), SimpleKernelError> {
-    let final_statement = main_proof
-        .final_statement_cache()
-        .expect("locally built Nightstream main proof must carry a final-statement cache");
     if final_statement.public_statement_digest != accepted_artifact.statement.digest {
         return Err(SimpleKernelError::Bridge(
             "RV64IM Nightstream local final statement does not match the carried accepted-artifact statement".into(),
         ));
     }
-    main_proof.validate_local_build_caches()?;
+    let (_, verified_kernel) = verify_rv64im_kernel_export_proof_with_relation_output(&final_proof.kernel_export)?;
+    let expected_main_proof =
+        Rv64imCompressedMainProof::from_verified_final_seam(final_statement, final_proof, verified_kernel.final_pc)?;
+    if main_proof != &expected_main_proof {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream compact main proof does not match the rebuilt local final seam".into(),
+        ));
+    }
     Ok(())
 }
 
 pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
-    accepted_artifact: &Rv64imAcceptedProofArtifact,
     verifier_context_digest: [u8; 32],
-    main_proof: Rv64imMainProof,
+    published_seam: &Rv64imPublishedProofSeam,
     main_proof_ms: f64,
-    verified_kernel: &crate::rv64im::kernel::Rv64imKernelExportRelationResult,
     side_proof_bundle: Rv64imSideProofBundle,
 ) -> Result<
     (
@@ -116,17 +124,26 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
     SimpleKernelError,
 > {
     let total_started = Instant::now();
+    let accepted_artifact = &published_seam.accepted_artifact;
+
     let started = Instant::now();
-    guard_locally_built_main_proof(accepted_artifact, &main_proof)?;
+    let final_statement = published_seam.rebuild_final_statement()?;
+    let final_proof = published_seam.final_proof()?;
+    guard_locally_built_compact_main_proof(
+        accepted_artifact,
+        &published_seam.main_proof,
+        &final_statement,
+        &final_proof,
+    )?;
     let final_surface_guard_ms = elapsed_ms(started);
 
-    let _ = verified_kernel;
-    let decider_relation_ms = 0.0;
+    let started = Instant::now();
+    let decider_relation_ms = elapsed_ms(started);
 
     let started = Instant::now();
     let linkage_claims = build_rv64im_nightstream_linkage_claims_from_parts(
-        main_proof
-            .chunk_summaries()
+        final_proof
+            .chunk_summaries
             .iter()
             .map(|summary| summary.public_chunk_digest)
             .collect(),
@@ -134,13 +151,17 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
     let linkage_claims_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    let linkage_root = rv64im_nightstream_linkage_root(main_proof.linkage_anchor_digest(), &linkage_claims);
+    let linkage_root =
+        rv64im_nightstream_linkage_root(published_seam.main_proof.linkage_anchor_digest(), &linkage_claims);
     let linkage_root_ms = elapsed_ms(started);
 
+    let compressed_main_proof = published_seam.main_proof.clone();
+
     let started = Instant::now();
-    let mut statement = build_rv64im_nightstream_statement_from_main_proof(
+    let mut statement = build_rv64im_nightstream_statement_from_published_statement(
         verifier_context_digest,
-        &main_proof,
+        compressed_main_proof.published_statement(),
+        &final_proof.chunk_summaries,
         linkage_root,
         [0; 32],
     )?;
@@ -241,7 +262,7 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
 
     let started = Instant::now();
     let proof_binding_inputs = NightstreamProofBindingInputs {
-        main_proof_digest: main_proof.binding_digest(),
+        main_proof_digest: rv64im_main_nightstream_proof_digest(&compressed_main_proof),
         side_proof_digest: side_proof.expected_digest(),
         linkage_binding_digest: linkage_claims.digest(),
     };
@@ -300,7 +321,7 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
         (
             statement,
             Rv64imNightstreamProof {
-                main_proof,
+                main_proof: compressed_main_proof,
                 linkage_claims,
                 side_proof,
             },
@@ -333,32 +354,20 @@ pub fn build_rv64im_nightstream_from_published_proof_seam_with_perf(
     SimpleKernelError,
 > {
     let total_started = Instant::now();
-    let crate::rv64im::audit::Rv64imPublishedProofSeam {
-        accepted_artifact: artifact,
-        main_proof,
-        verified_kernel,
-        ..
-    } = published_seam;
-    let main_proof = main_proof.clone();
+    let artifact = &published_seam.accepted_artifact;
     let main_proof_ms = seam_perf.main_proof_ms;
 
     let started = Instant::now();
     let side_proof_bundle = build_rv64im_side_proof_bundle_from_accepted_artifact_and_kernel_export(
         artifact,
-        main_proof.kernel_export_cache().ok_or_else(|| {
-            SimpleKernelError::Bridge(
-                "RV64IM Nightstream local build requires the main-proof kernel-export cache".into(),
-            )
-        })?,
+        published_seam.kernel_export(),
     )?;
     let side_support_bundle_ms = elapsed_ms(started);
 
     let ((statement, nightstream_proof), verified_seams) = build_rv64im_nightstream_from_verified_seams_with_perf(
-        artifact,
         rv64im_verifier_context_digest(artifact.statement.root_params_id),
-        main_proof,
+        published_seam,
         main_proof_ms,
-        verified_kernel,
         side_proof_bundle,
     )?;
 

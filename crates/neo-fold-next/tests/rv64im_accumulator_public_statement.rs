@@ -40,8 +40,7 @@ fn build_main_surface(
 
 fn published_statement_from_n2_final_case() -> Rv64imAccumulatorPublicStatement {
     let (final_statement, final_proof) = n2_final_case();
-    let final_surface = build_main_surface(&final_statement, &final_proof);
-    Rv64imAccumulatorPublicStatement::from_final_surface(&final_statement, &final_surface)
+    Rv64imAccumulatorPublicStatement::from_verified_final_seam(&final_statement, &final_proof, n2_final_pc())
         .expect("build accumulator public statement")
 }
 
@@ -63,10 +62,12 @@ fn honest_last_output_folded_accumulator_digest() -> [u8; 32] {
 fn rv64im_accumulator_public_statement_is_stable_and_shape_bound() {
     let (final_statement, final_proof) = n2_final_case();
     let final_surface = build_main_surface(&final_statement, &final_proof);
-    let baseline = Rv64imAccumulatorPublicStatement::from_final_surface(&final_statement, &final_surface)
-        .expect("build accumulator public statement");
-    let rebuilt = Rv64imAccumulatorPublicStatement::from_final_surface(&final_statement, &final_surface)
-        .expect("rebuild accumulator public statement");
+    let baseline =
+        Rv64imAccumulatorPublicStatement::from_verified_final_seam(&final_statement, &final_proof, n2_final_pc())
+            .expect("build accumulator public statement");
+    let rebuilt =
+        Rv64imAccumulatorPublicStatement::from_verified_final_seam(&final_statement, &final_proof, n2_final_pc())
+            .expect("rebuild accumulator public statement");
 
     assert_eq!(
         baseline, rebuilt,
@@ -110,6 +111,11 @@ fn rv64im_accumulator_public_statement_is_stable_and_shape_bound() {
         baseline.x_last().bytes(),
         [0; 32],
         "published statement must carry a nonzero x_last image for the nonempty case"
+    );
+    assert_eq!(
+        baseline.terminal_step_statement().step_public.step_hi,
+        final_surface.semantic_step_count(),
+        "published statement must carry the authoritative terminal step surface"
     );
 }
 
@@ -213,5 +219,39 @@ fn rv64im_accumulator_public_statement_expected_digest_tracks_accumulator_termin
         baseline,
         published_statement.expected_digest(),
         "published accumulator statement digest must bind the authoritative accumulator terminal handle through accumulator_final"
+    );
+}
+
+#[test]
+fn rv64im_accumulator_public_statement_expected_digest_tracks_terminal_step_statement() {
+    let mut published_statement = published_statement_from_n2_final_case();
+    let baseline = published_statement.expected_digest();
+
+    published_statement
+        .terminal_step_statement_mut()
+        .chunk_summary
+        .chunk_relation_digest[0] ^= 1;
+
+    assert_ne!(
+        baseline,
+        published_statement.expected_digest(),
+        "published accumulator statement digest must bind the authoritative terminal step statement"
+    );
+}
+
+#[test]
+fn rv64im_accumulator_public_statement_rejects_tampered_terminal_step_statement() {
+    let mut published_statement = published_statement_from_n2_final_case();
+    published_statement
+        .terminal_step_statement_mut()
+        .step_public
+        .state_out[0] ^= 1;
+
+    let err = published_statement
+        .validate()
+        .expect_err("tampered terminal step statement must fail validation");
+    assert!(
+        err.to_string().contains("terminal state_out"),
+        "expected terminal-step state_out mismatch, got: {err}"
     );
 }

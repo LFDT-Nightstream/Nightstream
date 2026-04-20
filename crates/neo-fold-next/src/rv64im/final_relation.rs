@@ -49,7 +49,7 @@ pub struct Rv64imFoldedStatement {
     pub digest: [u8; 32],
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rv64imChunkTransitionWitness {
     pub replay_witness: ChunkReplayWitness,
 }
@@ -218,7 +218,7 @@ pub(crate) fn rv64im_chunk_fold_initial_transcript() -> Poseidon2Transcript {
 ///
 /// This is not a published proof surface: it still carries per-chunk replay
 /// witnesses needed by internal relation builders, audits, and decider prep.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rv64imFinalBuildProof {
     pub proof_digest: [u8; 32],
     pub kernel_export: Rv64imKernelExportProof,
@@ -243,13 +243,11 @@ struct Rv64imFoldedBuildOutput {
     folded: Rv64imFoldedStatement,
     chunk_summaries: Vec<FixedShapeChunkSummary>,
     proof: Rv64imFoldedProof,
-    verified_kernel: Rv64imKernelExportRelationResult,
 }
 
 pub(crate) struct Rv64imFinalBuildOutput {
     pub statement: Rv64imFinalStatement,
     pub proof: Rv64imFinalBuildProof,
-    pub verified_kernel: Rv64imKernelExportRelationResult,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -566,7 +564,6 @@ pub(crate) fn prove_rv64im_final_statement_from_accepted_with_output_and_perf_an
         Rv64imFinalBuildOutput {
             statement,
             proof: final_proof,
-            verified_kernel: built.verified_kernel,
         },
         Rv64imFinalBuildPerf {
             folded: folded_perf,
@@ -670,7 +667,6 @@ fn build_rv64im_folded_statement_from_accepted_with_perf_and_source(
             folded,
             chunk_summaries,
             proof: Rv64imFoldedProof { kernel_export, steps },
-            verified_kernel,
         },
         Rv64imFoldedBuildPerf {
             kernel_export_ms,
@@ -866,43 +862,6 @@ fn build_chunk_fold_step_traces_from_verified_kernel(
     }
 
     Ok((traces, accumulator))
-}
-
-pub(crate) fn build_rv64im_chunk_fold_step_traces_from_components(
-    statement: &Rv64imFinalStatement,
-    proof_digest: [u8; 32],
-    kernel_export: &Rv64imKernelExportProof,
-    chunk_summaries: &[FixedShapeChunkSummary],
-    steps: &[Rv64imChunkTransitionWitness],
-    component_digests: &Rv64imFinalProofComponentDigests,
-) -> Result<Vec<Rv64imChunkFoldStepTrace>, SimpleKernelError> {
-    validate_rv64im_final_statement_surface_with_parts(
-        statement,
-        proof_digest,
-        kernel_export,
-        chunk_summaries,
-        component_digests,
-    )?;
-    let (verified_kernel, expected_chunk_summaries, _) =
-        verify_folded_statement_components_with_output_and_main_carry(&statement.folded, kernel_export, steps)?;
-    if expected_chunk_summaries.as_slice() != chunk_summaries {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM final proof chunk summaries do not match the verified export seam".into(),
-        ));
-    }
-    let (traces, accumulator) = build_chunk_fold_step_traces_from_verified_kernel(
-        statement.public_statement_digest,
-        &verified_kernel,
-        steps,
-        Some(chunk_summaries),
-    )?;
-    let expected_final_accumulator = recursive_accumulator_from_carry(&accumulator);
-    if expected_final_accumulator != statement.folded.final_accumulator {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM chunk-fold step trace final accumulator does not match the carried folded statement".into(),
-        ));
-    }
-    Ok(traces)
 }
 
 fn build_recursive_proof(

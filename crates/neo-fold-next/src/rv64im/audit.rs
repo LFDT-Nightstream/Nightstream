@@ -1,7 +1,7 @@
 //! Owns audit-only RV64IM escape hatches grouped by responsibility.
 //!
 //! `chunk_step` owns one-step and IVC replay helpers.
-//! `decider` owns the direct main-relation Spartan compatibility surface.
+//! `decider` owns the terminal decider compatibility surface.
 //! `main_recursion` owns native F', NIFS, and recursive-step Spartan audit helpers.
 
 pub mod chunk_step;

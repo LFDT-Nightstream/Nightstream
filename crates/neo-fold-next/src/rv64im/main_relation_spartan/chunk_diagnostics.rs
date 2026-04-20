@@ -9,6 +9,7 @@ use spartan2::provider::goldi::F as SpartanF;
 use super::*;
 use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
 use crate::rv64im::main_relation_spartan::recursive_cover::alloc_recursive_cover_claims;
+use crate::rv64im::SimpleKernelError;
 
 fn chunk_stage_err(cs: &TestConstraintSystem<SpartanF>, stage: &str) -> String {
     let unsat = cs.which_is_unsatisfied().unwrap_or("unknown");
@@ -194,7 +195,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         replay_chunk.pi_ccs.public_challenges.gamma,
         effective_fresh_claim_count,
         carried_claims.effective_claims(),
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         "claimed_initial_sum_from_me_inputs",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
@@ -231,7 +232,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         replay_chunk.pi_ccs.public_challenges.gamma,
         effective_fresh_claim_count,
         carried_claims.effective_claims(),
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         "initial_sum_fe",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
@@ -294,7 +295,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         &padded_fe_rounds,
         &fe_round_values,
         &fe_challenge_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         "fe_sumcheck",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
@@ -350,7 +351,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         &padded_nc_rounds,
         &nc_round_values,
         &nc_challenge_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         "nc_sumcheck",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
@@ -487,7 +488,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         effective_fresh_claim_count,
         me_inputs_r_vars,
         me_inputs_r_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         "terminal_fe",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
@@ -504,7 +505,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         &alpha_prime_nc_vars,
         &replay_chunk.pi_ccs.alpha_prime_nc,
         &ccs_outputs,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         "terminal_nc",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
@@ -579,6 +580,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_bind_me_inputs")),
         transcript,
         carried_claims.effective_claims(),
+        None,
     )
     .map_err(|err| format!("bind_me_inputs: {err}"))?;
     checkpoint(cs, "bind_me_inputs")?;
@@ -621,7 +623,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         chunk.pi_ccs.public_challenges.gamma,
         effective_fresh_claim_count,
         carried_claims.effective_claims(),
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_initial_sum_fe"),
     )
     .map_err(|err| format!("claimed_initial_sum_from_me_inputs: {err}"))?;
@@ -684,7 +686,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &padded_fe_rounds,
         &fe_round_values,
         &fe_challenge_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_fe_sumcheck"),
     )
     .map_err(|err| format!("fe_sumcheck: {err}"))?;
@@ -739,7 +741,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &padded_nc_rounds,
         &nc_round_values,
         &nc_challenge_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_nc_sumcheck"),
     )
     .map_err(|err| format!("nc_sumcheck: {err}"))?;
@@ -864,7 +866,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         effective_fresh_claim_count,
         me_inputs_r_vars,
         me_inputs_r_values,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_terminal_fe"),
     )
     .map_err(|err| format!("terminal_fe: {err}"))?;
@@ -883,7 +885,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &alpha_prime_nc_vars,
         &chunk.pi_ccs.alpha_prime_nc,
         &ccs_outputs,
-        Rv64imMainRelationCircuit::delta(),
+        rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_terminal_nc"),
     )
     .map_err(|err| format!("terminal_nc: {err}"))?;
@@ -1239,7 +1241,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             chunk.pi_ccs.public_challenges.gamma,
             effective_fresh_claim_count,
             carried_claims.effective_claims(),
-            Rv64imMainRelationCircuit::delta(),
+            rv64im_main_relation_delta(),
             &format!("chunk_{chunk_index}_initial_sum_fe"),
         )
         .map_err(|err| format!("claimed_initial_sum_from_me_inputs: {err}"))?;
@@ -1318,7 +1320,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &padded_fe_rounds,
             &fe_round_values,
             &fe_challenge_values,
-            Rv64imMainRelationCircuit::delta(),
+            rv64im_main_relation_delta(),
             &format!("chunk_{chunk_index}_fe_sumcheck"),
         )
         .map_err(|err| format!("fe_sumcheck: {err}"))?;
@@ -1376,7 +1378,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &padded_nc_rounds,
             &nc_round_values,
             &nc_challenge_values,
-            Rv64imMainRelationCircuit::delta(),
+            rv64im_main_relation_delta(),
             &format!("chunk_{chunk_index}_nc_sumcheck"),
         )
         .map_err(|err| format!("nc_sumcheck: {err}"))?;
@@ -1527,7 +1529,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             effective_fresh_claim_count,
             me_inputs_r_vars,
             me_inputs_r_values,
-            Rv64imMainRelationCircuit::delta(),
+            rv64im_main_relation_delta(),
             &format!("chunk_{chunk_index}_terminal_fe"),
         )
         .map_err(|err| format!("terminal_fe: {err}"))?;
@@ -1545,7 +1547,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &alpha_prime_nc_vars,
             &chunk.pi_ccs.alpha_prime_nc,
             &ccs_outputs,
-            Rv64imMainRelationCircuit::delta(),
+            rv64im_main_relation_delta(),
             &format!("chunk_{chunk_index}_terminal_nc"),
         )
         .map_err(|err| format!("terminal_nc: {err}"))?;

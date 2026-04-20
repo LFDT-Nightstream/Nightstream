@@ -1,0 +1,19 @@
+pub use super::authoritative_surface::{
+    build_rv64im_main_recursion_step_authoritative_chunk_surface,
+    debug_check_rv64im_main_recursion_step_authoritative_chunk_surface_matches_native,
+    Rv64imMainRecursionStepAuthoritativeChunkSurface,
+};
+pub use super::diagnostics::{
+    debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity,
+    debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint,
+    debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
+    debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
+    debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
+    debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
+    debug_trace_rv64im_main_recursion_step_fingerprint_synthesize,
+    debug_trace_rv64im_main_recursion_step_shape_only_circuit_shape_measurement,
+    debug_trace_rv64im_main_recursion_step_shape_only_fingerprint_synthesize,
+    debug_trace_rv64im_main_recursion_step_spartan_circuit_shape_measurement,
+    debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, Rv64imMainRecursionStepChunkReplayFingerprint,
+};

@@ -1,2 +1,2 @@
 mod common;
-mod known_red;
+mod tamper_regressions;

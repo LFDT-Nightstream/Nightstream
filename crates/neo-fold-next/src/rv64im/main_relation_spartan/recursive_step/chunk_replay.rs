@@ -39,6 +39,7 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
     payload: &Rv64imMainRecursionFPrimePayload,
     state_in_var: &Rv64imRecursiveCoverStateVar,
     state_out_var: &Rv64imRecursiveCoverStateVar,
+    trace_prefix: Option<&str>,
 ) -> Result<Rv64imMainRecursionStepChunkReplayOutput, SynthesisError> {
     let (params, _, structure) = rv64im_cached_root_main_lane_context().map_err(|_| SynthesisError::Unsatisfiable)?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache().map_err(|_| SynthesisError::Unsatisfiable)?;
@@ -91,6 +92,7 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         // logical-claim slice that would re-specialize transcript constants.
         None,
         payload.boundary_plan,
+        trace_prefix,
     )?;
     let expected_state_out_claims = alloc_recursive_cover_claims(
         &mut cs.namespace(|| "state_out_expected_claims"),

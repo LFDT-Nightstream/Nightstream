@@ -1,10 +1,9 @@
-//! Owns the direct Spartan proof for the full RV64IM main relation.
+//! Owns the shared RV64IM Spartan substrates used by chunk-step IVC, recursive
+//! F' replay, and the remaining fixed-shape diagnostics.
 //!
-//! This module compiles the route-owned `R_main^SN` witness relation directly.
-//! It does not route theorem meaning through the generic shell target.
-
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+//! The live Goal 3 path no longer routes through a standalone full-trace
+//! `R_main^SN` circuit here. Terminal compression is owned in `ivc_snark.rs`
+//! and reuses the one-step chunk-step IVC substrate directly.
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_ccs::{CcsStructure, CeClaim, Mat};
@@ -14,29 +13,19 @@ use neo_reductions::engines::utils::{
     build_dims_and_policy, digest_ccs_matrices_with_sparse_cache, Dims, PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG,
     PI_CCS_SUMCHECK_INITIAL_RAW_TAG, PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG,
 };
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use serde::{Deserialize, Serialize};
 use spartan2::{
     bellpepper::poseidon2::hash_packed_goldilocks_fields,
     provider::{goldi::F as SpartanF, GoldilocksP3MerkleMleEngine},
     spartan::R1CSSNARK,
-    traits::{circuit::SpartanCircuit, snark::R1CSSNARKTrait},
 };
-use thiserror::Error;
 
 use crate::finalize::digest32_as_fields;
 use crate::rv64im::chunk_relation::RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG;
-use crate::rv64im::final_relation::{
-    Rv64imChunkTransitionWitness, Rv64imFinalBuildProof, Rv64imFinalProofComponentDigests, Rv64imFinalStatement,
-    RV64IM_CHUNK_DONE_RAW_TAG, RV64IM_SESSION_RAW_DOMAIN_TAG,
-};
-use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache, Rv64imKernelExportProof,
-    SimpleKernelError,
-};
-use crate::rv64im::main_relation::{validate_rv64im_decider_relation_surface, Rv64imDeciderRelation};
+use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
+use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_relation_circuit::claim::{
     alloc_ce_claim, alloc_ce_claim_public_surface_with_shared_point, alloc_ce_claim_with_shared_point, CeClaimVar,
 };
@@ -53,38 +42,31 @@ use crate::rv64im::main_relation_circuit::pi_rlc::{
 use crate::rv64im::main_relation_circuit::rho_sampling::{
     alloc_zero_rot_rho_matrices, alloc_zero_rot_rhos, materialize_goldilocks_rot_matrices, sample_goldilocks_rot_rhos,
 };
-use crate::rv64im::main_relation_circuit::sumcheck::{sumcheck_eval_gadget, sumcheck_round_gadget};
 use crate::rv64im::main_relation_circuit::sumcheck_replay::verify_sumcheck_rounds;
 use crate::rv64im::main_relation_circuit::terminal_identity::{
     enforce_terminal_identity_fe, enforce_terminal_identity_nc,
 };
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_trace::{
-    build_rv64im_main_circuit_trace_from_setup_shape, build_rv64im_main_circuit_trace_from_step_components,
-    build_rv64im_main_relation_setup_shape_from_step_components, Rv64imMainCircuitCeClaimShape,
-    Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface, Rv64imMainCircuitChunkTrace,
-    Rv64imMainCircuitHandoff, Rv64imMainCircuitTrace, CHUNK_META_RAW_TAG, STEP_INDEX_RAW_TAG,
+    Rv64imMainCircuitCeClaimShape, Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface,
+    Rv64imMainCircuitChunkTrace, Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG, STEP_INDEX_RAW_TAG,
 };
 mod chunk_diagnostics;
 mod chunk_step_ivc;
 mod chunk_step_recursive;
-mod debug;
 mod fingerprint_cs;
 mod fixed_transcript;
 mod nifs_v_stages;
 mod recursive_cover;
 mod recursive_step;
 mod step_statement;
+mod transcript_k;
 
 const RV64IM_MAIN_RELATION_DELTA: u64 = 7;
 pub type Rv64imSpartan2DeciderEngine = GoldilocksP3MerkleMleEngine;
 pub type Rv64imSpartan2DeciderSnark = R1CSSNARK<Rv64imSpartan2DeciderEngine>;
 pub type Rv64imSpartan2DeciderProverKey = spartan2::spartan::SpartanProverKey<Rv64imSpartan2DeciderEngine>;
 pub type Rv64imSpartan2DeciderVerifierKey = spartan2::spartan::SpartanVerifierKey<Rv64imSpartan2DeciderEngine>;
-pub type Rv64imSpartan2DeciderKeyPair = Arc<(Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey)>;
-
-static RV64IM_MAIN_RELATION_SETUP_CACHE: OnceLock<Mutex<HashMap<[u8; 32], Rv64imSpartan2DeciderKeyPair>>> =
-    OnceLock::new();
 
 #[allow(unused_imports)]
 pub use chunk_diagnostics::debug_measure_rv64im_main_relation_state_in_prefix_fingerprints;
@@ -92,20 +74,13 @@ pub(crate) use chunk_diagnostics::{
     debug_locate_rv64im_main_relation_chunk_stage, debug_profile_rv64im_main_relation_chunk_stage_progress,
 };
 
-pub use crate::rv64im::main_relation_trace::Rv64imMainRelationSetupShape;
+pub(crate) use chunk_step_ivc::{
+    build_rv64im_chunk_step_ivc_circuit, chunk_step_ivc_spartan_public_values, rv64im_chunk_step_ivc_cache_key,
+};
 pub use chunk_step_ivc::{
     build_rv64im_chunk_step_ivc_recursive_step_cover_shape, build_rv64im_chunk_step_ivc_recursive_step_padding,
     build_rv64im_chunk_step_ivc_recursive_step_padding_from_shape, build_rv64im_chunk_step_ivc_shape,
-    prove_rv64im_chunk_step_ivc_spartan, prove_rv64im_chunk_step_ivc_spartan_chain,
-    setup_rv64im_chunk_step_ivc_spartan, setup_rv64im_chunk_step_ivc_spartan_cached,
-    verify_rv64im_chunk_step_ivc_spartan, verify_rv64im_chunk_step_ivc_spartan_chain,
-    Rv64imChunkStepIvcRecursiveStepPadding, Rv64imChunkStepIvcShape, Rv64imChunkStepIvcSpartanChainProof,
-    Rv64imChunkStepIvcSpartanError, Rv64imChunkStepIvcSpartanKeyPair, Rv64imChunkStepIvcSpartanProof,
-    Rv64imChunkStepIvcSpartanProverKey, Rv64imChunkStepIvcSpartanVerifierKey,
-};
-pub(crate) use chunk_step_ivc::{
-    prove_rv64im_chunk_step_ivc_spartan_compressed_chain, verify_rv64im_chunk_step_ivc_spartan_compressed_chain,
-    Rv64imChunkStepIvcSpartanCompressedChainProof,
+    Rv64imChunkStepIvcRecursiveStepPadding, Rv64imChunkStepIvcShape, Rv64imChunkStepIvcSpartanError,
 };
 pub use chunk_step_recursive::{
     build_rv64im_main_recursion_f_prime_backend_relations,
@@ -122,13 +97,6 @@ pub use chunk_step_recursive::{
     Rv64imMainRecursionFPrimeBackendRelationBuildPerf, Rv64imMainRecursionFPrimeClaimCover,
     Rv64imMainRecursionFPrimePayload, Rv64imMainRecursionStepSpartanShape,
 };
-use debug::append_k_to_transcript;
-pub use debug::{
-    debug_check_rv64im_spartan2_decider_circuit, inspect_rv64im_spartan2_decider_trace,
-    measure_rv64im_spartan2_decider_circuit, Rv64imMainRelationCircuitMetrics, Rv64imMainRelationCountBucket,
-    Rv64imMainRelationHotspotDetail, Rv64imMainRelationPhaseBucket, Rv64imMainRelationSurfaceFamilyBucket,
-    Rv64imMainRelationSurfaceMetrics, Rv64imMainRelationTraceStats,
-};
 use nifs_v_stages::{
     enforce_outer_chunk_relation_public_io, enforce_synthetic_outer_chunk_relation_public_io, synthesize_pi_ccs_stage,
     synthesize_pi_dec_stage, synthesize_rv64im_chunk_nifs_verifier_body,
@@ -139,92 +107,32 @@ use nifs_v_stages::{
 pub use recursive_step::Rv64imMainRecursionStepChunkReplayFingerprint;
 pub use recursive_step::{
     build_rv64im_main_recursion_step_authoritative_chunk_surface,
-    build_rv64im_main_recursion_step_spartan_compressed_chain_shape,
     build_rv64im_main_recursion_step_spartan_published_target,
     debug_check_rv64im_main_recursion_step_authoritative_chunk_surface_matches_native,
     debug_check_rv64im_main_recursion_step_spartan_chunk_replay_surface,
     debug_check_rv64im_main_recursion_step_spartan_circuit,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_circuit,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_parity,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_public_io,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_shape_only_circuit,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_shape_only_setup,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_statement_binding,
-    debug_check_rv64im_main_recursion_step_spartan_compressed_chain_wrapper_only,
     debug_check_rv64im_main_recursion_step_spartan_embedded_body,
     debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints,
     debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
-    debug_check_rv64im_main_recursion_step_spartan_shape_only_chain_parity,
     debug_check_rv64im_main_recursion_x_out_gadget_parity,
-    debug_compare_rv64im_main_recursion_step_spartan_shape_only_skeleton,
     debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint,
     debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
-    debug_measure_rv64im_main_recursion_step_spartan_compressed_chain_circuit_shape,
-    debug_measure_rv64im_main_recursion_step_spartan_setup_equivalence,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
-    debug_profile_rv64im_main_recursion_step_spartan_compressed_chain_prove_stages,
-    debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, prove_rv64im_main_recursion_step_spartan,
-    prove_rv64im_main_recursion_step_spartan_chain, prove_rv64im_main_recursion_step_spartan_compressed_chain,
-    setup_rv64im_main_recursion_step_spartan_cached, setup_rv64im_main_recursion_step_spartan_shape_cached,
-    validate_rv64im_main_recursion_step_spartan_chain_shape, verify_rv64im_main_recursion_step_spartan,
-    verify_rv64im_main_recursion_step_spartan_and_extract_published_target,
-    verify_rv64im_main_recursion_step_spartan_chain,
-    verify_rv64im_main_recursion_step_spartan_chain_and_extract_published_targets,
-    verify_rv64im_main_recursion_step_spartan_compressed_chain,
-    verify_rv64im_main_recursion_step_spartan_published_target,
-    verify_rv64im_main_recursion_step_spartan_published_target_chain, Rv64imMainRecursionStepAuthoritativeChunkSurface,
-    Rv64imMainRecursionStepSpartanChainProof, Rv64imMainRecursionStepSpartanCircuitShape,
-    Rv64imMainRecursionStepSpartanCompressedChainProof, Rv64imMainRecursionStepSpartanCompressedChainProveMetrics,
-    Rv64imMainRecursionStepSpartanCompressedChainShape, Rv64imMainRecursionStepSpartanError,
-    Rv64imMainRecursionStepSpartanKeyPair, Rv64imMainRecursionStepSpartanProof,
-    Rv64imMainRecursionStepSpartanProverKey, Rv64imMainRecursionStepSpartanPublishedTarget,
-    Rv64imMainRecursionStepSpartanSetupEquivalence, Rv64imMainRecursionStepSpartanVerifierKey,
+    debug_trace_rv64im_main_recursion_step_fingerprint_synthesize,
+    debug_trace_rv64im_main_recursion_step_shape_only_circuit_shape_measurement,
+    debug_trace_rv64im_main_recursion_step_shape_only_fingerprint_synthesize,
+    debug_trace_rv64im_main_recursion_step_spartan_circuit_shape_measurement,
+    debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, Rv64imMainRecursionStepAuthoritativeChunkSurface,
+    Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError,
+    Rv64imMainRecursionStepSpartanPublishedTarget,
 };
 pub use step_statement::Rv64imMainRecursionStepSpartanStatement;
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imSpartan2DeciderProof {
-    pub snark_data: Vec<u8>,
-}
-
-impl Rv64imSpartan2DeciderProof {
-    pub fn snark_bytes_len(&self) -> usize {
-        self.snark_data.len()
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum Rv64imSpartan2DeciderError {
-    #[error("rv64im main relation setup failed: {0}")]
-    Setup(String),
-    #[error("rv64im main relation prepare failed: {0}")]
-    Prepare(String),
-    #[error("rv64im main relation prove failed: {0}")]
-    Prove(String),
-    #[error("rv64im main relation verify failed: {0}")]
-    Verify(String),
-    #[error("rv64im main relation proof encoding failed: {0}")]
-    Encode(String),
-    #[error("rv64im main relation proof decoding failed: {0}")]
-    Decode(String),
-    #[error("rv64im main relation public IO mismatch: {0}")]
-    PublicIo(String),
-}
-
-#[derive(Clone)]
-struct Rv64imMainRelationCircuit {
-    public_statement_digest: [u8; 32],
-    params: NeoParams,
-    structure: CcsStructure<F>,
-    dims: Dims,
-    mat_digest: [Goldilocks; 4],
-    trace: Rv64imMainCircuitTrace,
-}
+use transcript_k::append_k_to_transcript;
 
 #[derive(Clone)]
 pub(crate) struct Rv64imClaimBundle {
@@ -233,13 +141,6 @@ pub(crate) struct Rv64imClaimBundle {
 }
 
 impl Rv64imClaimBundle {
-    pub(crate) fn empty() -> Self {
-        Self {
-            claims: Vec::new(),
-            effective_count: 0,
-        }
-    }
-
     pub(crate) fn from_effective_claims(claims: Vec<CeClaimVar>) -> Self {
         let effective_count = claims.len();
         Self {
@@ -359,64 +260,8 @@ impl Rv64imChunkBoundaryPlan {
     }
 }
 
-impl Rv64imMainRelationCircuit {
-    fn delta() -> SpartanF {
-        SpartanF::from_canonical_u64(RV64IM_MAIN_RELATION_DELTA)
-    }
-
-    fn expected_public_values(&self) -> Vec<SpartanF> {
-        let mut out = Vec::new();
-        out.extend(
-            digest32_as_fields(self.public_statement_digest)
-                .into_iter()
-                .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
-        );
-        for chunk in &self.trace.chunk_traces {
-            out.extend(
-                digest32_as_fields(chunk.handoff.chunk_relation_digest)
-                    .into_iter()
-                    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
-            );
-        }
-        out
-    }
-
-    fn synthesize_chunk<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        cs: &mut CS,
-        chunk_index: usize,
-        cover_chunk: &Rv64imMainCircuitChunkCover,
-        replay_chunk: &Rv64imMainCircuitChunkReplaySurface,
-        public_inputs: &[AllocatedNum<SpartanF>],
-        public_cursor: &mut usize,
-        transcript: &mut Poseidon2TranscriptCircuit,
-        carried_claims: Rv64imClaimBundle,
-        boundary_plan: Rv64imChunkBoundaryPlan,
-    ) -> Result<Rv64imClaimBundle, SynthesisError> {
-        synthesize_rv64im_main_relation_chunk(
-            &self.params,
-            &self.structure,
-            self.dims,
-            &self.mat_digest,
-            &self
-                .trace
-                .statement
-                .folded
-                .final_accumulator
-                .final_main_claims,
-            cs,
-            chunk_index,
-            cover_chunk,
-            replay_chunk,
-            public_inputs,
-            public_cursor,
-            transcript,
-            carried_claims,
-            boundary_plan,
-            true,
-            true,
-        )
-    }
+pub(crate) fn rv64im_main_relation_delta() -> SpartanF {
+    SpartanF::from_canonical_u64(RV64IM_MAIN_RELATION_DELTA)
 }
 
 pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<SpartanF>>(
@@ -480,274 +325,6 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         )?;
     }
     Ok(next_carried_claims)
-}
-
-impl SpartanCircuit<Rv64imSpartan2DeciderEngine> for Rv64imMainRelationCircuit {
-    fn public_values(&self) -> Result<Vec<SpartanF>, SynthesisError> {
-        Ok(self.expected_public_values())
-    }
-
-    fn shared<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        _: &mut CS,
-    ) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
-        Ok(Vec::new())
-    }
-
-    fn precommitted<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        _: &mut CS,
-        _: &[AllocatedNum<SpartanF>],
-    ) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
-        Ok(Vec::new())
-    }
-
-    fn num_challenges(&self) -> usize {
-        0
-    }
-
-    fn synthesize<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        cs: &mut CS,
-        _: &[AllocatedNum<SpartanF>],
-        _: &[AllocatedNum<SpartanF>],
-        _: Option<&[SpartanF]>,
-    ) -> Result<(), SynthesisError> {
-        let public_inputs = self
-            .expected_public_values()
-            .into_iter()
-            .enumerate()
-            .map(|(idx, value)| AllocatedNum::alloc_input(cs.namespace(|| format!("public_input_{idx}")), || Ok(value)))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut public_cursor = 0usize;
-        let _public_statement_digest =
-            next_public_digest(&public_inputs, &mut public_cursor, "public_statement_digest")?;
-        let mut transcript = Poseidon2TranscriptCircuit::new_raw_fields(
-            cs.namespace(|| "session_transcript"),
-            &[SpartanF::from_canonical_u64(RV64IM_SESSION_RAW_DOMAIN_TAG)],
-        )?;
-        let mut carried_claims = Rv64imClaimBundle::empty();
-
-        for (chunk_idx, chunk) in self.trace.chunk_traces.iter().enumerate() {
-            let cover_chunk = Rv64imMainCircuitChunkCover::from_trace(chunk);
-            let replay_chunk = chunk
-                .replay_surface()
-                .map_err(|_| SynthesisError::Unsatisfiable)?;
-            let boundary_plan = Rv64imChunkBoundaryPlan::from_boundary_mode(
-                Rv64imChunkBoundaryMode::from_terminal_flags(chunk_idx + 1 == self.trace.chunk_traces.len(), false),
-                chunk.fresh_claims.len(),
-                chunk.ccs_trace.ccs_outputs.len(),
-            );
-            carried_claims = self.synthesize_chunk(
-                &mut cs.namespace(|| format!("chunk_{chunk_idx}")),
-                chunk_idx,
-                &cover_chunk,
-                &replay_chunk,
-                &public_inputs,
-                &mut public_cursor,
-                &mut transcript,
-                carried_claims,
-                boundary_plan,
-            )?;
-        }
-
-        if public_cursor != public_inputs.len() {
-            return Err(SynthesisError::Unsatisfiable);
-        }
-        Ok(())
-    }
-}
-
-pub fn build_rv64im_spartan2_decider_setup_shape_from_components(
-    statement: &Rv64imFinalStatement,
-    proof_digest: [u8; 32],
-    kernel_export: &Rv64imKernelExportProof,
-    chunk_summaries: &[crate::finalize::FixedShapeChunkSummary],
-    steps: &[Rv64imChunkTransitionWitness],
-) -> Result<Rv64imMainRelationSetupShape, SimpleKernelError> {
-    let component_digests =
-        crate::rv64im::final_relation::final_proof_component_digests_from_parts(kernel_export, steps);
-    build_rv64im_main_relation_setup_shape_from_step_components(
-        statement,
-        proof_digest,
-        kernel_export,
-        chunk_summaries,
-        steps,
-        &component_digests,
-    )
-}
-
-pub fn setup_rv64im_spartan2_decider_from_shape(
-    shape: &Rv64imMainRelationSetupShape,
-) -> Result<(Rv64imSpartan2DeciderProverKey, Rv64imSpartan2DeciderVerifierKey), SimpleKernelError> {
-    let circuit = build_main_relation_circuit_from_setup_shape(shape)?;
-    Rv64imSpartan2DeciderSnark::setup(circuit)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation setup failed: {err}")))
-}
-
-pub fn setup_rv64im_spartan2_decider_cached_from_shape(
-    shape: &Rv64imMainRelationSetupShape,
-) -> Result<Rv64imSpartan2DeciderKeyPair, SimpleKernelError> {
-    let circuit = build_main_relation_circuit_from_setup_shape(shape)?;
-    let cache_key = rv64im_main_relation_setup_cache_key_from_shape(shape)?;
-    let cache = RV64IM_MAIN_RELATION_SETUP_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(keys) = cache
-        .lock()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main relation setup cache poisoned".into()))?
-        .get(&cache_key)
-        .cloned()
-    {
-        return Ok(keys);
-    }
-    let keys = Arc::new(
-        Rv64imSpartan2DeciderSnark::setup(circuit)
-            .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation setup failed: {err}")))?,
-    );
-    cache
-        .lock()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main relation setup cache poisoned".into()))?
-        .insert(cache_key, keys.clone());
-    Ok(keys)
-}
-
-pub fn prove_rv64im_spartan2_decider(
-    pk: &Rv64imSpartan2DeciderProverKey,
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-) -> Result<Rv64imSpartan2DeciderProof, SimpleKernelError> {
-    let circuit = build_main_relation_circuit(statement, proof)?;
-    let prep = Rv64imSpartan2DeciderSnark::prep_prove(pk, circuit.clone(), true)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation prepare failed: {err}")))?;
-    let proof = Rv64imSpartan2DeciderSnark::prove(pk, circuit, &prep, true)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation prove failed: {err}")))?;
-    let snark_data = bincode::serialize(&proof)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation encode failed: {err}")))?;
-    Ok(Rv64imSpartan2DeciderProof { snark_data })
-}
-
-pub fn verify_rv64im_spartan2_decider(
-    vk: &Rv64imSpartan2DeciderVerifierKey,
-    public_statement_digest: [u8; 32],
-    relation: &Rv64imDeciderRelation,
-    decider_proof: &Rv64imSpartan2DeciderProof,
-) -> Result<(), SimpleKernelError> {
-    validate_rv64im_decider_relation_surface(relation)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation verify failed: {err}")))?;
-    let proof: Rv64imSpartan2DeciderSnark = bincode::deserialize(&decider_proof.snark_data)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation decode failed: {err}")))?;
-    let public_values = proof
-        .verify(vk)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation verify failed: {err}")))?;
-    verify_public_io(public_statement_digest, relation, &public_values)
-}
-
-fn build_main_relation_circuit(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-) -> Result<Rv64imMainRelationCircuit, SimpleKernelError> {
-    build_main_relation_circuit_from_components(
-        statement,
-        proof.proof_digest,
-        &proof.kernel_export,
-        &proof.chunk_summaries,
-        &proof.steps,
-        &crate::rv64im::final_relation::final_proof_component_digests(proof),
-    )
-}
-
-fn build_main_relation_circuit_from_components(
-    statement: &Rv64imFinalStatement,
-    proof_digest: [u8; 32],
-    kernel_export: &Rv64imKernelExportProof,
-    chunk_summaries: &[crate::finalize::FixedShapeChunkSummary],
-    steps: &[Rv64imChunkTransitionWitness],
-    component_digests: &Rv64imFinalProofComponentDigests,
-) -> Result<Rv64imMainRelationCircuit, SimpleKernelError> {
-    let trace = build_rv64im_main_circuit_trace_from_step_components(
-        statement,
-        proof_digest,
-        kernel_export,
-        chunk_summaries,
-        steps,
-        component_digests,
-    )?;
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()?;
-    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let dims = build_dims_and_policy(params, structure)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
-    let mat_digest_vec = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()));
-    let mat_digest: [Goldilocks; 4] = mat_digest_vec
-        .try_into()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main relation matrix digest length mismatch".into()))?;
-    Ok(Rv64imMainRelationCircuit {
-        public_statement_digest: statement.public_statement_digest,
-        params: params.clone(),
-        structure: structure.clone(),
-        dims,
-        mat_digest,
-        trace,
-    })
-}
-
-fn build_main_relation_circuit_from_setup_shape(
-    shape: &Rv64imMainRelationSetupShape,
-) -> Result<Rv64imMainRelationCircuit, SimpleKernelError> {
-    let trace = build_rv64im_main_circuit_trace_from_setup_shape(shape)?;
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()?;
-    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let dims = build_dims_and_policy(params, structure)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
-    let mat_digest_vec = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()));
-    let mat_digest: [Goldilocks; 4] = mat_digest_vec
-        .try_into()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM main relation matrix digest length mismatch".into()))?;
-    Ok(Rv64imMainRelationCircuit {
-        public_statement_digest: trace.statement.public_statement_digest,
-        params: params.clone(),
-        structure: structure.clone(),
-        dims,
-        mat_digest,
-        trace,
-    })
-}
-
-fn rv64im_main_relation_setup_cache_key_from_shape(
-    shape: &Rv64imMainRelationSetupShape,
-) -> Result<[u8; 32], SimpleKernelError> {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_relation_spartan/setup_cache_key");
-    let shape_bytes = bincode::serialize(shape)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation setup cache key failed: {err}")))?;
-    tr.append_message(
-        b"neo.fold.next/rv64im/main_relation_spartan/setup_cache_key/shape",
-        &shape_bytes,
-    );
-    Ok(tr.digest32())
-}
-
-fn verify_public_io(
-    public_statement_digest: [u8; 32],
-    relation: &Rv64imDeciderRelation,
-    public_values: &[SpartanF],
-) -> Result<(), SimpleKernelError> {
-    let mut expected = Vec::new();
-    expected.extend(
-        digest32_as_fields(public_statement_digest)
-            .into_iter()
-            .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
-    );
-    for summary in &relation.chunk_summaries {
-        expected.extend(
-            digest32_as_fields(summary.chunk_relation_digest)
-                .into_iter()
-                .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
-        );
-    }
-    if expected != public_values {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM main relation public IO mismatch".into(),
-        ));
-    }
-    Ok(())
 }
 
 fn cover_ce_claim_with_shared_point(
@@ -906,14 +483,6 @@ fn pad_round_values(cover_round_lengths: &[u64], effective_rounds: &[Vec<K>]) ->
             Ok(out)
         })
         .collect()
-}
-
-fn max_degree(rounds: &[Vec<K>]) -> usize {
-    rounds
-        .iter()
-        .map(|round| round.len().saturating_sub(1))
-        .max()
-        .unwrap_or(0)
 }
 
 fn max_degree_from_cover_round_lengths(round_lengths: &[u64]) -> usize {

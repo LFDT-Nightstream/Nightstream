@@ -178,7 +178,7 @@ fn recursive_extend_k_slice_as_fields<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
-pub(super) fn recursive_accumulator_instance_digest_circuit_from_claims<CS: ConstraintSystem<SpartanF>>(
+pub(crate) fn recursive_accumulator_instance_digest_circuit_from_claims<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     claims: &[CeClaimVar],
     _terminal_handle: &[AllocatedNum<SpartanF>; 4],

@@ -1,13 +1,6 @@
-//! Owns the RV64IM published main-proof carrier.
-//!
-//! This module owns the published main-proof boundary above the current final
-//! seam. It separates the theorem-facing final surface from the carried
-//! recursion proof and verifies that proof only through the surface-bound
-//! compressed-chain verifier.
-//!
-//! Local build caches such as the kernel-export proof and chunk summaries may
-//! be carried for nearby builder code, but they are not authoritative and are
-//! never part of published verification.
+//! Owns the compact RV64IM published boundary: the published accumulator
+//! statement, compressed main proof, and the local final-seam cache used by
+//! build support.
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_math::F;
@@ -16,25 +9,23 @@ use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, FixedShapeChunkSummary};
-use crate::nightstream::rv64im::Rv64imSideOpeningPublic;
 use crate::proof::FoldSchedule;
-use crate::rv64im::chunk_step_ivc::build_rv64im_chunk_step_ivc_relations;
+use crate::rv64im::chunk_step_ivc::{
+    build_rv64im_chunk_step_ivc_relations, rv64im_chunk_step_ivc_initial_state, Rv64imChunkStepIvcStatement,
+};
 use crate::rv64im::final_relation::{
-    rv64im_recursive_accumulator_instance_digest_from_parts, verify_rv64im_final_statement_with_output,
-    Rv64imFinalBuildProof, Rv64imFinalStatement, Rv64imRecursiveAccumulator,
+    reconstruct_rv64im_final_statement_from_export_and_replay, rv64im_recursive_accumulator_instance_digest_from_parts,
+    Rv64imChunkTransitionWitness, Rv64imFinalBuildProof, Rv64imFinalStatement, Rv64imRecursiveAccumulator,
+};
+use crate::rv64im::ivc::Rv64imIvcPublicImage;
+use crate::rv64im::ivc_snark::{
+    prove_rv64im_ivc_snark_from_final_cached, Rv64imIvcSnark, Rv64imIvcSnarkProof, Rv64imIvcSnarkVerifierKey,
 };
 use crate::rv64im::kernel::{Rv64imKernelExportProof, SimpleKernelError};
 use crate::rv64im::main_recursion::{
-    build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_f_prime_advices_with_side_opening_public,
-    build_rv64im_main_recursion_verifier_key_fs, Rv64imEncodedPublicInput, Rv64imMainRecursionFPrimeAdvice,
-    Rv64imVerifierKeyFs,
+    build_rv64im_main_recursion_verifier_key_fs, Rv64imEncodedPublicInput, Rv64imVerifierKeyFs,
 };
-use crate::rv64im::recursion_spartan::{
-    build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs, prove_rv64im_recursion_proof_from_advices,
-    setup_rv64im_recursion, validate_rv64im_main_recursion_public_surface_against_published_statement,
-    validate_rv64im_recursion_verifier_key_against_published_statement, verify_rv64im_recursion, Rv64imRecursionProof,
-    Rv64imRecursionVerifierKey,
-};
+use crate::rv64im::recursion_spartan::build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs;
 
 const RV64IM_CHUNK_SUMMARY_CHAIN_RAW_TAG: u64 = 0x7276_3634_6373756d;
 
@@ -67,19 +58,52 @@ pub struct Rv64imMainFinalProofSurface {
     chunk_summary_chain_digest: [u8; 32],
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rv64imMainProof {
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rv64imCompressedMainProof {
     linkage_anchor_digest: [u8; 32],
     published_statement: Rv64imPublishedStatement,
-    #[serde(skip, default)]
-    final_statement: Option<Rv64imFinalStatement>,
-    #[serde(skip, default)]
-    final_surface: Option<Rv64imMainFinalProofSurface>,
-    #[serde(skip, default)]
-    chunk_summaries: Vec<FixedShapeChunkSummary>,
-    #[serde(skip, default)]
-    kernel_export: Option<Rv64imKernelExportProof>,
-    recursion_proof: Rv64imRecursionProof,
+    ivc_snark: Rv64imIvcSnark,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct Rv64imLocalFinalSeam {
+    proof_digest: [u8; 32],
+    kernel_export: Rv64imKernelExportProof,
+    steps: Vec<Rv64imChunkTransitionWitness>,
+}
+
+impl Rv64imLocalFinalSeam {
+    pub(crate) fn new(
+        proof_digest: [u8; 32],
+        kernel_export: Rv64imKernelExportProof,
+        steps: Vec<Rv64imChunkTransitionWitness>,
+    ) -> Self {
+        Self {
+            proof_digest,
+            kernel_export,
+            steps,
+        }
+    }
+
+    pub(crate) fn kernel_export(&self) -> &Rv64imKernelExportProof {
+        &self.kernel_export
+    }
+
+    pub(crate) fn rebuild(&self) -> Result<(Rv64imFinalStatement, Rv64imFinalBuildProof), SimpleKernelError> {
+        reconstruct_rv64im_final_statement_from_export_and_replay(
+            self.kernel_export.public_statement_digest(),
+            &self.kernel_export,
+            &self.steps,
+        )
+    }
+
+    pub(crate) fn rebuild_final_statement(&self) -> Result<Rv64imFinalStatement, SimpleKernelError> {
+        self.rebuild().map(|(statement, _)| statement)
+    }
+
+    pub(crate) fn rebuild_final_proof(&self) -> Result<Rv64imFinalBuildProof, SimpleKernelError> {
+        self.rebuild().map(|(_, proof)| proof)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -91,10 +115,10 @@ pub struct Rv64imAccumulatorPublicStatement {
     pc_final: u64,
     accumulator_final: Rv64imRecursiveAccumulator,
     x_last: Rv64imEncodedPublicInput,
+    terminal_step_statement: Rv64imChunkStepIvcStatement,
 }
 
 pub type Rv64imPublishedStatement = Rv64imAccumulatorPublicStatement;
-pub type Rv64imPublishedProof = Rv64imRecursionProof;
 
 impl Rv64imMainFinalProofSurface {
     pub fn from_final_proof(statement: &Rv64imFinalStatement, proof: &Rv64imFinalBuildProof, final_pc: u64) -> Self {
@@ -202,9 +226,10 @@ impl Rv64imAccumulatorPublicStatement {
             })
     }
 
-    pub fn from_final_surface(
+    fn from_final_surface_with_terminal_step_statement(
         final_statement: &Rv64imFinalStatement,
         final_surface: &Rv64imMainFinalProofSurface,
+        terminal_step_statement: Rv64imChunkStepIvcStatement,
     ) -> Result<Self, SimpleKernelError> {
         let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
         let accumulator_final = final_statement.folded.final_accumulator.clone();
@@ -221,7 +246,26 @@ impl Rv64imAccumulatorPublicStatement {
             pc_final: final_surface.final_pc(),
             accumulator_final,
             x_last,
+            terminal_step_statement,
         })
+    }
+
+    pub fn from_verified_final_seam(
+        final_statement: &Rv64imFinalStatement,
+        final_proof: &Rv64imFinalBuildProof,
+        final_pc: u64,
+    ) -> Result<Self, SimpleKernelError> {
+        let final_surface = Rv64imMainFinalProofSurface::from_final_proof(final_statement, final_proof, final_pc);
+        let terminal_step_statement = build_rv64im_chunk_step_ivc_relations(final_statement, final_proof)?
+            .last()
+            .ok_or_else(|| {
+                SimpleKernelError::Bridge(
+                    "RV64IM published accumulator statement requires a terminal chunk-step relation".into(),
+                )
+            })?
+            .statement
+            .clone();
+        Self::from_final_surface_with_terminal_step_statement(final_statement, &final_surface, terminal_step_statement)
     }
 
     pub fn expected_digest(&self) -> [u8; 32] {
@@ -254,6 +298,10 @@ impl Rv64imAccumulatorPublicStatement {
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/accumulator_public_statement/x_last",
             &self.x_last.bytes(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/accumulator_public_statement/terminal_step_statement",
+            &self.terminal_step_statement.expected_digest(),
         );
         tr.digest32()
     }
@@ -321,6 +369,14 @@ impl Rv64imAccumulatorPublicStatement {
         &mut self.x_last
     }
 
+    pub fn terminal_step_statement(&self) -> &Rv64imChunkStepIvcStatement {
+        &self.terminal_step_statement
+    }
+
+    pub fn terminal_step_statement_mut(&mut self) -> &mut Rv64imChunkStepIvcStatement {
+        &mut self.terminal_step_statement
+    }
+
     pub fn validate(&self) -> Result<(), SimpleKernelError> {
         let expected_vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
         if self.vk_fs != expected_vk_fs {
@@ -335,68 +391,109 @@ impl Rv64imAccumulatorPublicStatement {
                     .into(),
             ));
         }
-        let _ = self.expected_chunk_count()?;
+        let expected_chunk_count = self.expected_chunk_count()?;
+        if self
+            .terminal_step_statement
+            .step_public
+            .chunk_index
+            .checked_add(1)
+            != Some(expected_chunk_count)
+        {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement terminal chunk index does not close the published chunk schedule"
+                    .into(),
+            ));
+        }
+        if self.terminal_step_statement.step_public.step_hi != self.step_count {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement terminal step_hi does not close the published step_count"
+                    .into(),
+            ));
+        }
+        if self.terminal_step_statement.step_public.step_lo != self.terminal_step_statement.chunk_summary.start_index {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement terminal step_lo does not match the terminal chunk summary"
+                    .into(),
+            ));
+        }
+        let Some(summary_step_hi) = self
+            .terminal_step_statement
+            .chunk_summary
+            .start_index
+            .checked_add(self.terminal_step_statement.chunk_summary.public_step_count)
+        else {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement terminal chunk summary overflows the step domain".into(),
+            ));
+        };
+        if summary_step_hi != self.terminal_step_statement.step_public.step_hi {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement terminal chunk summary does not match the terminal step span"
+                    .into(),
+            ));
+        }
+        if !self.terminal_step_statement.step_public.halted_out {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement terminal step must close on a halted chunk".into(),
+            ));
+        }
+        if self.terminal_step_statement.step_public.state_out != self.accumulator_final.terminal_handle.0 {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement terminal state_out does not match the authoritative final accumulator terminal handle"
+                    .into(),
+            ));
+        }
         Ok(())
     }
 }
 
-impl Rv64imMainProof {
-    pub fn from_final(
+pub(crate) fn build_rv64im_ivc_public_image_from_published_statement(
+    published_statement: &Rv64imAccumulatorPublicStatement,
+) -> Result<Rv64imIvcPublicImage, SimpleKernelError> {
+    published_statement.validate()?;
+    Ok(Rv64imIvcPublicImage {
+        vk_fs_digest: published_statement.vk_fs().expected_digest(),
+        chunk_count: published_statement.expected_chunk_count()?,
+        step_count: published_statement.step_count(),
+        z_0: rv64im_chunk_step_ivc_initial_state()
+            .carry
+            .terminal_handle
+            .0,
+        z_i: published_statement.canonical_terminal_handle_digest(),
+        pc: published_statement.pc_final(),
+        x_i: published_statement.x_last().clone(),
+        folded_accumulator_digest: published_statement.canonical_folded_accumulator_digest(),
+        terminal_statement: Some(published_statement.terminal_step_statement().clone()),
+    })
+}
+
+pub(crate) fn validate_rv64im_ivc_public_image_against_published_statement(
+    published_statement: &Rv64imAccumulatorPublicStatement,
+    public_image: &Rv64imIvcPublicImage,
+) -> Result<(), SimpleKernelError> {
+    let expected_public_image = build_rv64im_ivc_public_image_from_published_statement(published_statement)?;
+    if public_image != &expected_public_image {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM IVC public image does not match the carried published statement".into(),
+        ));
+    }
+    Ok(())
+}
+
+impl Rv64imCompressedMainProof {
+    pub fn from_verified_final_seam(
         statement: &Rv64imFinalStatement,
         proof: &Rv64imFinalBuildProof,
+        final_pc: u64,
     ) -> Result<Self, SimpleKernelError> {
-        let verified_kernel = verify_rv64im_final_statement_with_output(statement, proof)?;
-        let relations = build_rv64im_chunk_step_ivc_relations(statement, proof)?;
-        let advices = build_rv64im_main_recursion_f_prime_advices(&relations)?;
-        Self::from_final_with_relations_and_advices(statement, proof, verified_kernel.final_pc, &relations, &advices)
-    }
-
-    pub fn from_final_with_side_opening_public(
-        statement: &Rv64imFinalStatement,
-        proof: &Rv64imFinalBuildProof,
-        side_opening_public: &Rv64imSideOpeningPublic,
-    ) -> Result<Self, SimpleKernelError> {
-        let verified_kernel = verify_rv64im_final_statement_with_output(statement, proof)?;
-        let relations = build_rv64im_chunk_step_ivc_relations(statement, proof)?;
-        let advices =
-            build_rv64im_main_recursion_f_prime_advices_with_side_opening_public(&relations, side_opening_public)?;
-        Self::from_final_with_relations_and_advices(statement, proof, verified_kernel.final_pc, &relations, &advices)
-    }
-
-    pub fn final_statement_cache(&self) -> Option<&Rv64imFinalStatement> {
-        self.final_statement.as_ref()
-    }
-
-    pub fn final_statement_cache_mut(&mut self) -> Option<&mut Rv64imFinalStatement> {
-        self.final_statement.as_mut()
-    }
-
-    pub fn final_surface_cache(&self) -> Option<&Rv64imMainFinalProofSurface> {
-        self.final_surface.as_ref()
-    }
-
-    pub fn final_surface_cache_mut(&mut self) -> Option<&mut Rv64imMainFinalProofSurface> {
-        self.final_surface.as_mut()
-    }
-
-    pub fn kernel_export_cache(&self) -> Option<&Rv64imKernelExportProof> {
-        self.kernel_export.as_ref()
-    }
-
-    pub fn kernel_export_cache_mut(&mut self) -> Option<&mut Rv64imKernelExportProof> {
-        self.kernel_export.as_mut()
-    }
-
-    pub fn published_statement(&self) -> &Rv64imPublishedStatement {
-        &self.published_statement
-    }
-
-    pub fn published_statement_mut(&mut self) -> &mut Rv64imPublishedStatement {
-        &mut self.published_statement
-    }
-
-    pub fn published_proof(&self) -> &Rv64imPublishedProof {
-        &self.recursion_proof
+        let published_statement =
+            Rv64imAccumulatorPublicStatement::from_verified_final_seam(statement, proof, final_pc)?;
+        let public_image = build_rv64im_ivc_public_image_from_published_statement(&published_statement)?;
+        Ok(Self {
+            linkage_anchor_digest: statement.public_statement_digest,
+            published_statement,
+            ivc_snark: prove_rv64im_ivc_snark_from_final_cached(statement, proof, public_image)?,
+        })
     }
 
     pub fn linkage_anchor_digest(&self) -> [u8; 32] {
@@ -407,196 +504,84 @@ impl Rv64imMainProof {
         &mut self.linkage_anchor_digest
     }
 
-    pub fn chunk_summaries(&self) -> &[FixedShapeChunkSummary] {
-        &self.chunk_summaries
+    pub fn published_statement(&self) -> &Rv64imPublishedStatement {
+        &self.published_statement
     }
 
-    pub fn chunk_summary_count(&self) -> u64 {
-        self.final_surface
-            .as_ref()
-            .expect("main-proof chunk summary count requires a local final-surface cache")
-            .chunk_summary_count()
+    pub fn published_statement_mut(&mut self) -> &mut Rv64imPublishedStatement {
+        &mut self.published_statement
     }
 
-    pub fn chunk_summary_chain_digest(&self) -> [u8; 32] {
-        self.final_surface
-            .as_ref()
-            .expect("main-proof chunk summary chain digest requires a local final-surface cache")
-            .chunk_summary_chain_digest()
+    pub fn ivc_snark(&self) -> &Rv64imIvcSnark {
+        &self.ivc_snark
     }
 
-    pub fn validate_final_surface(&self) -> Result<(), SimpleKernelError> {
-        match (&self.final_statement, &self.final_surface) {
-            (Some(final_statement), Some(final_surface)) => {
-                final_surface.validate_against_final_statement(final_statement)
-            }
-            (None, None) => Ok(()),
-            _ => Err(SimpleKernelError::Bridge(
-                "RV64IM main proof local final caches are partially present".into(),
-            )),
-        }
+    pub fn ivc_snark_mut(&mut self) -> &mut Rv64imIvcSnark {
+        &mut self.ivc_snark
     }
 
-    pub fn validate_local_build_caches(&self) -> Result<(), SimpleKernelError> {
-        self.validate_final_surface()?;
-        if let (Some(final_statement), Some(final_surface)) = (&self.final_statement, &self.final_surface) {
-            let expected_published_statement =
-                Rv64imAccumulatorPublicStatement::from_final_surface(final_statement, final_surface)?;
-            if self.published_statement != expected_published_statement {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM Nightstream main proof local final caches do not reconstruct the carried published statement"
-                        .into(),
-                ));
-            }
-            if self.linkage_anchor_digest != final_statement.public_statement_digest {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM Nightstream main proof linkage anchor digest does not match the carried final-statement public digest"
-                        .into(),
-                ));
-            }
-        }
-        if let Some(kernel_export) = &self.kernel_export {
-            if self.linkage_anchor_digest != kernel_export.public_statement_digest() {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM Nightstream main proof local kernel-export cache does not match the carried final-statement public digest"
-                        .into(),
-                ));
-            }
-        }
-        if !self.chunk_summaries.is_empty() {
-            let final_surface = self.final_surface.as_ref().ok_or_else(|| {
-                SimpleKernelError::Bridge(
-                    "RV64IM Nightstream main proof chunk-summary cache requires a local final-surface cache".into(),
-                )
-            })?;
-            if final_surface.chunk_summary_count() != self.chunk_summaries.len() as u64 {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM Nightstream main proof chunk-summary count does not match the local chunk-summary cache"
-                        .into(),
-                ));
-            }
-            let expected_chain_digest = rv64im_chunk_summary_chain_digest_from_summaries(&self.chunk_summaries);
-            if final_surface.chunk_summary_chain_digest() != expected_chain_digest {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM Nightstream main proof chunk-summary chain digest does not match the local chunk-summary cache"
-                        .into(),
-                ));
-            }
-        }
-        Ok(())
+    pub fn terminal_decider_proof(&self) -> &Rv64imIvcSnarkProof {
+        self.ivc_snark.proof()
     }
 
-    pub fn recursion_proof(&self) -> &Rv64imRecursionProof {
-        &self.recursion_proof
-    }
-
-    pub fn recursion_proof_mut(&mut self) -> &mut Rv64imRecursionProof {
-        &mut self.recursion_proof
+    pub fn terminal_decider_proof_mut(&mut self) -> &mut Rv64imIvcSnarkProof {
+        self.ivc_snark.proof_mut()
     }
 
     pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/main_proof");
-        tr.append_message(b"neo.fold.next/nightstream/rv64im/main_proof/version", b"v9");
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/compressed_main_proof");
+        tr.append_message(b"neo.fold.next/nightstream/rv64im/compressed_main_proof/version", b"v1");
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_proof/published_statement_digest",
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof/linkage_anchor_digest",
+            &self.linkage_anchor_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof/published_statement_digest",
             &self.published_statement.expected_digest(),
         );
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_proof/recursion_proof_digest",
-            &self.recursion_proof.expected_digest(),
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof/public_image_digest",
+            &self.ivc_snark.public_image().expected_digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof/terminal_decider_proof",
+            &self.ivc_snark.proof().snark_data,
         );
         tr.digest32()
     }
 
     pub fn binding_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/main_proof_binding");
-        tr.append_message(b"neo.fold.next/nightstream/rv64im/main_proof_binding/version", b"v6");
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding");
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_proof_binding/published_statement_digest",
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/version",
+            b"v1",
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/linkage_anchor_digest",
+            &self.linkage_anchor_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/published_statement_digest",
             &self.published_statement.expected_digest(),
         );
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/main_proof_binding/recursion_final_public_image_digest",
-            &self.recursion_proof.final_public_image_digest(),
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/public_image_digest",
+            &self.ivc_snark.public_image().expected_digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/terminal_decider_proof",
+            &self.ivc_snark.proof().snark_data,
         );
         tr.digest32()
     }
 
-    fn from_final_with_relations_and_advices(
-        statement: &Rv64imFinalStatement,
-        proof: &Rv64imFinalBuildProof,
-        final_pc: u64,
-        relations: &[crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation],
-        advices: &[Rv64imMainRecursionFPrimeAdvice],
-    ) -> Result<Self, SimpleKernelError> {
-        let recursion_proof = prove_rv64im_recursion_proof_from_advices(relations, advices)?;
-        let final_surface = Rv64imMainFinalProofSurface::from_final_proof(statement, proof, final_pc);
-        let published_statement = Rv64imAccumulatorPublicStatement::from_final_surface(statement, &final_surface)?;
-        Ok(Self {
-            linkage_anchor_digest: statement.public_statement_digest,
-            published_statement,
-            final_statement: Some(statement.clone()),
-            final_surface: Some(final_surface),
-            chunk_summaries: proof.chunk_summaries.clone(),
-            kernel_export: Some(proof.kernel_export.clone()),
-            recursion_proof,
-        })
+    pub fn verify(&self, terminal_decider_vk: &Rv64imIvcSnarkVerifierKey) -> Result<(), SimpleKernelError> {
+        let expected_public_image = build_rv64im_ivc_public_image_from_published_statement(&self.published_statement)?;
+        validate_rv64im_ivc_public_image_against_published_statement(
+            &self.published_statement,
+            self.ivc_snark.public_image(),
+        )?;
+        self.ivc_snark
+            .verify(terminal_decider_vk, &expected_public_image)
     }
-}
-
-impl PartialEq for Rv64imMainProof {
-    fn eq(&self, other: &Self) -> bool {
-        self.linkage_anchor_digest == other.linkage_anchor_digest
-            && self.published_statement == other.published_statement
-            && self.recursion_proof == other.recursion_proof
-    }
-}
-
-pub fn build_rv64im_main_proof(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-) -> Result<Rv64imMainProof, SimpleKernelError> {
-    Rv64imMainProof::from_final(statement, proof)
-}
-
-pub fn build_rv64im_main_proof_with_side_opening_public(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-    side_opening_public: &Rv64imSideOpeningPublic,
-) -> Result<Rv64imMainProof, SimpleKernelError> {
-    Rv64imMainProof::from_final_with_side_opening_public(statement, proof, side_opening_public)
-}
-
-pub fn verify_rv64im_published_main_proof(
-    published_statement: &Rv64imPublishedStatement,
-    published_proof: &Rv64imPublishedProof,
-) -> Result<(), SimpleKernelError> {
-    let (_, recursion_vk) = setup_rv64im_recursion()?;
-    verify_rv64im_published_main_proof_with_vk(&recursion_vk, published_statement, published_proof)
-}
-
-pub fn verify_rv64im_published_main_proof_with_vk(
-    recursion_vk: &Rv64imRecursionVerifierKey,
-    published_statement: &Rv64imPublishedStatement,
-    published_proof: &Rv64imPublishedProof,
-) -> Result<(), SimpleKernelError> {
-    verify_rv64im_recursion(recursion_vk, published_statement, published_proof)
-}
-
-pub fn verify_rv64im_main_proof(main_proof: &Rv64imMainProof) -> Result<(), SimpleKernelError> {
-    main_proof.validate_final_surface()?;
-    let (_, recursion_vk) = setup_rv64im_recursion()?;
-    validate_rv64im_recursion_verifier_key_against_published_statement(
-        &recursion_vk,
-        main_proof.published_statement(),
-    )?;
-    validate_rv64im_main_recursion_public_surface_against_published_statement(
-        main_proof.published_statement(),
-        main_proof.published_proof(),
-    )?;
-    verify_rv64im_recursion(
-        &recursion_vk,
-        main_proof.published_statement(),
-        main_proof.published_proof(),
-    )
 }

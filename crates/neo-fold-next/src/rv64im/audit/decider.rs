@@ -21,12 +21,8 @@ pub use crate::rv64im::decider::{
     Rv64imPublishedProofSeam, Rv64imPublishedProofSeamBuildPerf,
 };
 pub use crate::rv64im::ivc_snark::{
-    build_rv64im_spartan2_decider_setup_shape_from_components, debug_check_rv64im_spartan2_decider_circuit,
-    Rv64imSpartan2DeciderSetupShape,
-};
-pub use crate::rv64im::main_relation::{
-    build_rv64im_legacy_shell_decider_relation_from_final_surface,
-    validate_rv64im_legacy_shell_decider_relation_surface, Rv64imLegacyShellDeciderRelation,
+    build_rv64im_terminal_decider_setup_shape_from_components, debug_check_rv64im_terminal_decider_circuit,
+    Rv64imTerminalDeciderSetupShape,
 };
 
 fn build_rv64im_terminal_step_witness_from_accumulator_witness(

@@ -13,7 +13,7 @@ use neo_fold_next::nightstream::{
     nightstream_proof_binding_root, nightstream_statement_digest, NightstreamProofBindingInputs, NightstreamStatement,
 };
 use neo_fold_next::rv64im::audit::{
-    build_rv64im_spartan2_decider_setup_shape_from_components, prove_rv64im_public_proof_and_published_seam_with_perf,
+    build_rv64im_terminal_decider_setup_shape_from_components, prove_rv64im_public_proof_and_published_seam_with_perf,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::ivc_snark::{setup_rv64im_ivc_snark_from_final_cached, Rv64imIvcSnarkKeyPair};
@@ -65,7 +65,7 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
         prove_rv64im_final_statement_from_accepted(&accepted_artifact).expect("prove rv64im final statement");
     let (statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&public_proof).expect("build nightstream proof");
-    let _terminal_decider_shape = build_rv64im_spartan2_decider_setup_shape_from_components(
+    let _terminal_decider_shape = build_rv64im_terminal_decider_setup_shape_from_components(
         &final_statement,
         final_proof.proof_digest,
         &final_proof.kernel_export,

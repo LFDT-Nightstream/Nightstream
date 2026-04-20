@@ -57,7 +57,6 @@ pub use crate::rv64im::Rv64imCompressedMainProof;
 pub mod audit {
     use crate::nightstream::rv64im::Rv64imLinkageClaims;
     use crate::nightstream::NightstreamStatement;
-    use crate::rv64im::audit::Rv64imLegacyShellDeciderRelation;
     use crate::rv64im::final_relation::{Rv64imFinalBuildProof, Rv64imFinalStatement};
     use crate::rv64im::kernel::{Rv64imAcceptedProofArtifact, Rv64imProofStatement, SimpleKernelError};
     use crate::rv64im::main_proof::Rv64imPublishedStatement;
@@ -206,22 +205,6 @@ pub mod audit {
             verifier_context_digest,
             statement,
             proof,
-            linkage_root,
-            proof_binding_root,
-        )
-    }
-
-    pub fn build_rv64im_nightstream_statement_from_legacy_shell_relation(
-        public_io_digest: [u8; 32],
-        verifier_context_digest: [u8; 32],
-        relation: &Rv64imLegacyShellDeciderRelation,
-        linkage_root: [u8; 32],
-        proof_binding_root: [u8; 32],
-    ) -> Result<NightstreamStatement, SimpleKernelError> {
-        super::build_rv64im_nightstream_statement_from_legacy_shell_relation(
-            public_io_digest,
-            verifier_context_digest,
-            relation,
             linkage_root,
             proof_binding_root,
         )
@@ -1060,25 +1043,6 @@ fn build_rv64im_nightstream_statement_from_published_statement(
         fold_schedule: published_statement.fold_schedule(),
         semantic_step_count: published_statement.step_count(),
         chunk_summaries: chunk_summaries.to_vec(),
-        linkage_root,
-        proof_binding_root,
-    })
-}
-
-fn build_rv64im_nightstream_statement_from_legacy_shell_relation(
-    public_io_digest: [u8; 32],
-    verifier_context_digest: [u8; 32],
-    relation: &crate::rv64im::audit::Rv64imLegacyShellDeciderRelation,
-    linkage_root: [u8; 32],
-    proof_binding_root: [u8; 32],
-) -> Result<NightstreamStatement, SimpleKernelError> {
-    crate::rv64im::audit::validate_rv64im_legacy_shell_decider_relation_surface(relation)?;
-    Ok(NightstreamStatement {
-        public_io_digest,
-        verifier_context_digest,
-        fold_schedule: relation.fold_schedule,
-        semantic_step_count: relation.semantic_step_count,
-        chunk_summaries: relation.chunk_summaries.clone(),
         linkage_root,
         proof_binding_root,
     })

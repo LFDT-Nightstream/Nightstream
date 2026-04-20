@@ -7,8 +7,7 @@ use neo_fold_next::nightstream::rv64im::audit::{
 };
 use neo_fold_next::nightstream::rv64im::{rv64im_nightstream_linkage_root, rv64im_verifier_context_digest};
 use neo_fold_next::rv64im::audit::{
-    build_rv64im_legacy_shell_decider_relation_from_final_surface,
-    build_rv64im_spartan2_decider_setup_shape_from_components, debug_check_rv64im_spartan2_decider_circuit,
+    build_rv64im_terminal_decider_setup_shape_from_components, debug_check_rv64im_terminal_decider_circuit,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::ivc_snark::{
@@ -94,7 +93,7 @@ fn rv64im_spartan2_decider_setup_shape_is_transcript_seed_invariant() {
         b"/goal3-alt",
     ));
 
-    let shape_a = build_rv64im_spartan2_decider_setup_shape_from_components(
+    let shape_a = build_rv64im_terminal_decider_setup_shape_from_components(
         &statement_a,
         final_proof_a.proof_digest,
         &final_proof_a.kernel_export,
@@ -102,7 +101,7 @@ fn rv64im_spartan2_decider_setup_shape_is_transcript_seed_invariant() {
         &final_proof_a.steps,
     )
     .expect("build setup shape A");
-    let shape_b = build_rv64im_spartan2_decider_setup_shape_from_components(
+    let shape_b = build_rv64im_terminal_decider_setup_shape_from_components(
         &statement_b,
         final_proof_b.proof_digest,
         &final_proof_b.kernel_export,
@@ -123,7 +122,7 @@ fn rv64im_spartan2_decider_setup_shape_rejects_tampered_public_statement_digest(
     let mut tampered_statement = statement.clone();
     tampered_statement.public_statement_digest[0] ^= 1;
 
-    let err = build_rv64im_spartan2_decider_setup_shape_from_components(
+    let err = build_rv64im_terminal_decider_setup_shape_from_components(
         &tampered_statement,
         final_proof.proof_digest,
         &final_proof.kernel_export,
@@ -145,7 +144,7 @@ fn rv64im_spartan2_decider_setup_shape_rejects_tampered_replay_header_transport(
         .ccs_replay_proof
         .header_digest[0] ^= 1;
 
-    let err = build_rv64im_spartan2_decider_setup_shape_from_components(
+    let err = build_rv64im_terminal_decider_setup_shape_from_components(
         &statement,
         final_proof.proof_digest,
         &final_proof.kernel_export,
@@ -163,7 +162,7 @@ fn rv64im_spartan2_decider_setup_shape_rejects_tampered_replay_header_transport(
 #[ignore = "expensive: terminal decider debug synthesis exceeds developer-memory budget"]
 fn rv64im_spartan2_decider_debug_check_only() {
     let (_proof, statement, final_proof, _) = final_fixture("control_flow_jal_skip_ecall");
-    debug_check_rv64im_spartan2_decider_circuit(&statement, &final_proof)
+    debug_check_rv64im_terminal_decider_circuit(&statement, &final_proof)
         .expect("rv64im terminal decider circuit must be satisfied");
 }
 
@@ -192,8 +191,6 @@ fn rv64im_spartan2_decider_cached_setup_reuses_same_final_seam() {
 #[ignore = "expensive: terminal decider Spartan setup exceeds developer-memory budget"]
 fn rv64im_spartan2_decider_setup_from_shape_is_reproducible() {
     let (proof, statement, final_proof, _nightstream_statement) = final_fixture("control_flow_jal_skip_ecall");
-    let relation = build_rv64im_legacy_shell_decider_relation_from_final_surface(&statement, &final_proof)
-        .expect("build decider relation");
     let (_first_pk, first_vk) = setup_rv64im_ivc_snark_from_final(&statement, &final_proof).expect("setup decider");
     let (_second_pk, second_vk) = setup_rv64im_ivc_snark_from_final(&statement, &final_proof).expect("setup decider");
     let compressed_main_proof = compressed_main_proof_fixture(&statement, &final_proof, proof.statement.final_pc);
@@ -202,10 +199,6 @@ fn rv64im_spartan2_decider_setup_from_shape_is_reproducible() {
         .expect("first verifier key must accept the proof");
     verify_rv64im_ivc_snark_against_final(&second_vk, &statement, &final_proof, compressed_main_proof.ivc_snark())
         .expect("repeating setup from the same setup shape must reproduce a verifier key that accepts the same proof");
-    assert_eq!(
-        relation.public_statement_digest, statement.public_statement_digest,
-        "decider relation must stay anchored to the carried final statement"
-    );
 }
 
 #[test]
@@ -224,15 +217,12 @@ fn rv64im_spartan2_decider_cached_shape_setup_is_deterministic() {
 #[ignore = "expensive: terminal decider Spartan round-trip exceeds developer-memory budget"]
 fn rv64im_spartan2_decider_round_trip_without_replay_verifier_input() {
     let (proof, statement, final_proof, _nightstream_statement) = final_fixture("control_flow_jal_skip_ecall");
-    let relation = build_rv64im_legacy_shell_decider_relation_from_final_surface(&statement, &final_proof)
-        .expect("build decider relation");
 
     let (_pk, vk) = setup_rv64im_ivc_snark_from_final(&statement, &final_proof).expect("setup rv64im spartan2 decider");
     let compressed_main_proof = compressed_main_proof_fixture(&statement, &final_proof, proof.statement.final_pc);
 
     verify_rv64im_ivc_snark_against_final(&vk, &statement, &final_proof, compressed_main_proof.ivc_snark())
         .expect("verify rv64im spartan2 decider");
-    assert_eq!(relation.public_statement_digest, statement.public_statement_digest);
     assert!(
         compressed_main_proof
             .terminal_decider_proof()
@@ -264,8 +254,6 @@ fn rv64im_spartan2_decider_rejects_tampered_chunk_relation_digest() {
 #[ignore = "expensive: terminal decider Spartan setup exceeds developer-memory budget"]
 fn rv64im_spartan2_decider_rejects_tampered_final_claim() {
     let (proof, statement, final_proof, _nightstream_statement) = final_fixture("control_flow_jal_skip_ecall");
-    let relation = build_rv64im_legacy_shell_decider_relation_from_final_surface(&statement, &final_proof)
-        .expect("build decider relation");
 
     let (_pk, vk) = setup_rv64im_ivc_snark_from_final(&statement, &final_proof).expect("setup rv64im spartan2 decider");
     let compressed_main_proof = compressed_main_proof_fixture(&statement, &final_proof, proof.statement.final_pc);
@@ -286,5 +274,4 @@ fn rv64im_spartan2_decider_rejects_tampered_final_claim() {
         format!("{err}").contains("public statement") || format!("{err}").contains("digest"),
         "expected public-statement failure, got: {err}"
     );
-    assert_eq!(relation.public_statement_digest, statement.public_statement_digest);
 }

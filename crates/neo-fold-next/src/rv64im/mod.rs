@@ -21,7 +21,6 @@ pub mod layout;
 pub mod lower;
 pub mod main_proof;
 pub mod main_recursion;
-pub mod main_relation;
 pub mod main_relation_circuit;
 mod main_relation_spartan;
 mod main_relation_trace;

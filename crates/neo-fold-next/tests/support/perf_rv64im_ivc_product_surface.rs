@@ -39,7 +39,7 @@ fn rv64im_ivc_product_surface_native_append_snapshot() {
     );
 
     let native_append_started = Instant::now();
-    let mut state = Rv64imIvcState::init().expect("build initial IVC state");
+    let mut state = Rv64imIvcState::init_with_step_cap(1).expect("build initial IVC state");
     for relation in &fixture.relations {
         state = state.append(relation).expect("append native IVC relation");
     }
@@ -58,7 +58,7 @@ fn build_ivc_product_surface_state() -> Rv64imIvcState {
         .relations
         .iter()
         .try_fold(
-            Rv64imIvcState::init().expect("build initial IVC state"),
+            Rv64imIvcState::init_with_step_cap(1).expect("build initial IVC state"),
             |state, relation| state.append(relation),
         )
         .expect("append native IVC relations")

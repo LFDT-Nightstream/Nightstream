@@ -52,7 +52,7 @@ fn build_fixture(opcode_count: usize) -> ProbeFixture {
 }
 
 fn check_round_trip_resume() {
-    let base_state = Rv64imIvcState::init().expect("build canonical base IVC state");
+    let base_state = Rv64imIvcState::init_with_step_cap(1).expect("build canonical base IVC state");
     base_state
         .verify()
         .expect("verify canonical base IVC state");
@@ -81,7 +81,7 @@ fn check_round_trip_resume() {
     let one_shot = relations
         .iter()
         .try_fold(
-            Rv64imIvcState::init().expect("build one-shot IVC state"),
+            Rv64imIvcState::init_with_step_cap(1).expect("build one-shot IVC state"),
             |state, relation| state.append(relation),
         )
         .expect("append canonical two-step fixture in one shot");
@@ -89,7 +89,7 @@ fn check_round_trip_resume() {
         .verify()
         .expect("verify one-shot canonical two-step state");
 
-    let first_step = Rv64imIvcState::init()
+    let first_step = Rv64imIvcState::init_with_step_cap(1)
         .expect("build resumed IVC base state")
         .append(&relations[0])
         .expect("append first canonical relation");
@@ -130,7 +130,7 @@ fn main() {
     );
 
     let native_append_started = Instant::now();
-    let mut state = Rv64imIvcState::init().expect("build initial IVC state");
+    let mut state = Rv64imIvcState::init_with_step_cap(1).expect("build initial IVC state");
     for relation in &fixture.relations {
         state = state.append(relation).expect("append native IVC relation");
     }

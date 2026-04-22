@@ -97,7 +97,10 @@ echo "🔎 Finding test binary..."
 TEST_BINARY=$(RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
   "${CARGO_FEATURES_ARGS[@]}" \
   --no-run --message-format=json 2>/dev/null | \
-  jq -r 'select(.executable != null) | .executable' | head -1)
+  jq -r --arg test_name "$TEST_FILE" '
+    select(.executable != null and .target != null and (.target.kind | index("test")) and .target.name == $test_name)
+    | .executable
+  ' | head -1)
 
 if [ -z "$TEST_BINARY" ]; then
   echo "❌ Could not find test binary for $PACKAGE::$TEST_FILE"

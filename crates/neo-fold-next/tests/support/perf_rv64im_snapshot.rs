@@ -57,7 +57,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         build_rv64im_chunk_step_ivc_relations(&final_statement, &final_proof).expect("build chunk-step ivc relations");
 
     let native_append_started = Instant::now();
-    let mut ivc_state = Rv64imIvcState::init().expect("build initial rv64im ivc state");
+    let mut ivc_state = Rv64imIvcState::init_with_step_cap(1).expect("build initial rv64im ivc state");
     for relation in &relations {
         ivc_state = ivc_state.append(relation).expect("append rv64im ivc relation");
     }
@@ -110,7 +110,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     let nightstream_build_ms = nightstream_build_perf.total_ms;
     let side_statement = nightstream_proof
         .side_proof()
-        .binding_statement(&nightstream_statement)
+        .binding_statement(&nightstream_statement, &public_statement)
         .expect("build rv64im side binding statement");
     let side_keys = neo_fold_next::nightstream::rv64im::audit::setup_rv64im_side_binding_cached(
         &side_statement,
@@ -412,10 +412,6 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         SerializedSizeRow {
             label: "nightstream.main_proof.terminal_decider_proof",
             bytes: serialized_size_bytes(nightstream_proof.main_proof().terminal_decider_proof()),
-        },
-        SerializedSizeRow {
-            label: "nightstream.main_proof.linkage_anchor_digest",
-            bytes: serialized_size_bytes(&nightstream_proof.main_proof().linkage_anchor_digest()),
         },
         SerializedSizeRow {
             label: "nightstream.side_proof",
@@ -720,10 +716,6 @@ fn rv64im_mixed_opcode_perf_snapshot() {
             "final_surface_guard", vs.final_surface_guard_ms, "decider_relation", vs.decider_relation_ms
         );
         println!("    {:24} {:>9.3}", "main_proof", vs.main_proof_ms);
-        println!(
-            "    {:24} {:>9.3}  {:24} {:>9.3}",
-            "linkage_claims", vs.linkage_claims_ms, "linkage_root", vs.linkage_root_ms
-        );
         println!(
             "    {:24} {:>9.3}  {:24} {:>9.3}",
             "statement", vs.statement_ms, "bind_side_core", vs.bind_side_statement_core_ms

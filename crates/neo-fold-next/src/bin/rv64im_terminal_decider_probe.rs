@@ -1,4 +1,3 @@
-use neo_fold_next::proof::FoldSchedule;
 use std::time::Instant;
 
 use neo_fold_next::rv64im::audit::debug_check_rv64im_terminal_decider_circuit;
@@ -37,9 +36,7 @@ fn run_case(label: &str, input: Rv64imProofInput) {
     println!("case={label}");
 
     let prove_started = Instant::now();
-    let options = Rv64imPublicProofOptions {
-        root_fold_schedule: FoldSchedule::RowsPerChunk(1),
-    };
+    let options = Rv64imPublicProofOptions::default();
     let public_proof = prove_rv64im_public_proof_with_options(&input, options).expect("prove public proof");
     println!("  public_proof_ms={:.3}", millis_since(prove_started));
 

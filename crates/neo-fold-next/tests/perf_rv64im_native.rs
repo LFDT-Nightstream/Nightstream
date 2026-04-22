@@ -4,10 +4,13 @@ use std::time::Instant;
 use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv64im::audit::build_rv64im_chunk_step_ivc_relations;
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
-use neo_fold_next::rv64im::ivc::{Rv64imIvcAppendPerf, Rv64imIvcState, Rv64imIvcVerifyPerf};
+use neo_fold_next::rv64im::ivc::{
+    derive_rv64im_ivc_step_cap, Rv64imIvcAppendPerf, Rv64imIvcState, Rv64imIvcVerifyPerf,
+};
 use neo_fold_next::rv64im::{
-    build_mixed_opcode_perf_source_case, build_rv64im_recursion_shape, prove_rv64im_accepted_proof_with_options,
-    rv64im_simple_root_params, Rv64imProofInput, Rv64imPublicProofOptions, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
+    build_mixed_opcode_perf_source_case, build_rv64im_recursion_shape_for_step_cap,
+    prove_rv64im_accepted_proof_with_options, rv64im_simple_root_params, Rv64imProofInput, Rv64imPublicProofOptions,
+    RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
 use serde::Serialize;
 
@@ -217,9 +220,15 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
         !relations.is_empty(),
         "mixed-opcode native perf fixture must expose at least one chunk-step relation"
     );
+    let semantic_step_count = relations
+        .last()
+        .map(|relation| relation.statement.step_public.step_hi as usize)
+        .expect("non-empty native perf fixture must expose a terminal step count");
+    let step_cap = derive_rv64im_ivc_step_cap(schedule, semantic_step_count)
+        .expect("derive native step_cap from the configured fold schedule");
 
     let native_append_started = Instant::now();
-    let mut ivc_state = Rv64imIvcState::init().expect("build initial rv64im ivc state");
+    let mut ivc_state = Rv64imIvcState::init_with_step_cap(step_cap).expect("build initial rv64im ivc state");
     let mut append_perfs = Vec::with_capacity(relations.len());
     for relation in &relations {
         let (next_state, perf) = ivc_state
@@ -239,7 +248,7 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
 
     let public_image = ivc_state.public_image();
     let kernel_params = rv64im_simple_root_params();
-    let recursion_shape = build_rv64im_recursion_shape().expect("build rv64im recursion shape");
+    let recursion_shape = build_rv64im_recursion_shape_for_step_cap(step_cap).expect("build rv64im recursion shape");
     let final_statement_bytes = serialize_len(&final_statement);
     let final_proof_bytes = serialize_len(&final_proof);
     let relation_statements_total_bytes: usize = relations
@@ -261,6 +270,7 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
     print_kv("mixed_opcode_non_halt_ops", opcode_count);
     print_kv("total_program_words", total_opcodes);
     print_kv("root_fold_schedule", format_fold_schedule(schedule));
+    print_kv("native_step_cap", step_cap);
     print_kv("relation_count", relations.len());
     print_kv("fold_count", relations.len());
     print_kv("chunk_count", public_image.chunk_count);
@@ -316,6 +326,7 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
     print_kv("T", kernel_params.T);
 
     print_section("Fixed Recursion Shape");
+    print_kv("shape_step_cap", recursion_shape.step_cap);
     print_kv("shape_soundness_k", recursion_shape.soundness_k);
     print_kv("shape_soundness_big_k", recursion_shape.soundness_big_k);
     print_kv("t_matrices", recursion_shape.t_matrices);
@@ -331,6 +342,15 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
 #[test]
 #[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
 fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
+    run_rv64im_mixed_opcode_native_ivc_perf_snapshot(
+        FoldSchedule::RowsPerChunk(1),
+        "RV64IM Native IVC Perf Snapshot (no Spartan, per-op folds)",
+    );
+}
+
+#[test]
+#[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
+fn rv64im_mixed_opcode_native_ivc_perf_snapshot_rows_per_chunk_1() {
     run_rv64im_mixed_opcode_native_ivc_perf_snapshot(
         FoldSchedule::RowsPerChunk(1),
         "RV64IM Native IVC Perf Snapshot (no Spartan, per-op folds)",

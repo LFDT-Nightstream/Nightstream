@@ -46,4 +46,6 @@ pub use s_module::{
 };
 
 #[doc(hidden)]
-pub use commit::{commit_row_major_seeded, sample_uniform_rq, seeded_pp_chunk_seeds};
+pub use commit::{
+    commit_row_major_seeded, commit_row_major_seeded_binary_cols, sample_uniform_rq, seeded_pp_chunk_seeds,
+};

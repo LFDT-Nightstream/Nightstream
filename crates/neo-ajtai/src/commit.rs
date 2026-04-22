@@ -15,11 +15,12 @@ use neo_math::ring::{cf, cf_inv as cf_unmap, Rq as RqEl, D, ETA};
 // Compile-time guards: this file's rot_step assumes Φ₈₁ (η=81 ⇒ D=54)
 const _: () = assert!(ETA == 81, "rot_step is specialized for η=81 (D=54)");
 const _: () = assert!(D == 54, "D must be 54 when η=81");
+const DENSE_BINARY_MASK_THRESHOLD: u32 = 32;
+const SEEDED_RQ_BATCH: usize = 32;
 
 /// Sample a uniform element from F_q using rejection sampling to avoid bias.
 #[inline]
 fn sample_uniform_fq<R: RngCore + CryptoRng>(rng: &mut R) -> Fq {
-    // Rejection sampling: draw u64; accept if < q; otherwise redraw.
     const Q: u64 = <Fq as PrimeField64>::ORDER_U64; // 2^64 - 2^32 + 1
     loop {
         let x = rng.next_u64();
@@ -40,7 +41,65 @@ pub fn sample_uniform_rq<R: RngCore + CryptoRng>(rng: &mut R) -> RqEl {
 /// Sample a uniform coefficient vector in F_q^D that corresponds to a uniform R_q element.
 #[inline]
 fn sample_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) -> [Fq; D] {
-    core::array::from_fn(|_| sample_uniform_fq(rng))
+    const Q: u64 = <Fq as PrimeField64>::ORDER_U64;
+    let mut bytes = [0u8; D * 8];
+    rng.fill_bytes(&mut bytes);
+    core::array::from_fn(|idx| {
+        let start = idx * 8;
+        let x = u64::from_le_bytes(bytes[start..start + 8].try_into().expect("8-byte chunk"));
+        if x < Q {
+            Fq::from_u64(x)
+        } else {
+            sample_uniform_fq(rng)
+        }
+    })
+}
+
+/// Advance the seeded PP stream by one ring element without materializing coefficients.
+#[inline]
+fn skip_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) {
+    const Q: u64 = <Fq as PrimeField64>::ORDER_U64;
+    let mut bytes = [0u8; D * 8];
+    rng.fill_bytes(&mut bytes);
+    for idx in 0..D {
+        let start = idx * 8;
+        let x = u64::from_le_bytes(bytes[start..start + 8].try_into().expect("8-byte chunk"));
+        if x >= Q {
+            let _ = sample_uniform_fq(rng);
+        }
+    }
+}
+
+#[inline]
+fn raw_u64_rejects_goldilocks(x: u64) -> bool {
+    (x >> 32) == u32::MAX as u64 && (x as u32) != 0
+}
+
+#[inline]
+fn fill_uniform_rq_coeff_bytes_batch(
+    rng: &mut ChaCha8Rng,
+    count: usize,
+    bytes: &mut [u8; SEEDED_RQ_BATCH * D * 8],
+) -> bool {
+    debug_assert!(count <= SEEDED_RQ_BATCH);
+    let checkpoint = rng.clone();
+    let used = count * D * 8;
+    rng.fill_bytes(&mut bytes[..used]);
+    let all_valid = bytes[..used]
+        .chunks_exact(8)
+        .all(|chunk| !raw_u64_rejects_goldilocks(u64::from_le_bytes(chunk.try_into().expect("8-byte chunk"))));
+    if !all_valid {
+        *rng = checkpoint;
+    }
+    all_valid
+}
+
+#[inline(always)]
+fn copy_uniform_rq_coeffs_from_bytes(bytes: &[u8], out: &mut [Fq; D]) {
+    debug_assert_eq!(bytes.len(), D * 8);
+    for (idx, chunk) in bytes.chunks_exact(8).enumerate() {
+        out[idx] = Fq::from_u64(u64::from_le_bytes(chunk.try_into().expect("8-byte chunk")));
+    }
 }
 
 /// Rotation "one-step" for Φ₈₁(X) = X^54 + X^27 + 1
@@ -59,6 +118,30 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
     next[27] -= last; // -X^27 * last
 }
 
+#[inline(always)]
+fn rot_step_add_phi_81(cur: &[Fq; D], next: &mut [Fq; D], acc: &mut [Fq; D]) {
+    let last = cur[D - 1];
+    let next0 = Fq::ZERO - last;
+    next[0] = next0;
+    acc[0] += next0;
+
+    for idx in 1..27 {
+        let value = cur[idx - 1];
+        next[idx] = value;
+        acc[idx] += value;
+    }
+
+    let next27 = cur[26] - last;
+    next[27] = next27;
+    acc[27] += next27;
+
+    for idx in 28..D {
+        let value = cur[idx - 1];
+        next[idx] = value;
+        acc[idx] += value;
+    }
+}
+
 /// Rotation step for internal use by commit implementations.
 ///
 /// This implementation is specialized for η=81 (D=54) as enforced by compile-time assertions.
@@ -66,6 +149,65 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
 #[inline(always)]
 pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
     rot_step_phi_81(cur, next)
+}
+
+#[inline(always)]
+fn rot_advance_add_phi_81(cur: &[Fq; D], delta: usize, next: &mut [Fq; D], acc: &mut [Fq; D]) {
+    debug_assert!(delta < D);
+    if delta == 0 {
+        *next = *cur;
+        acc_add_inplace(acc, cur);
+        return;
+    }
+    next.fill(Fq::ZERO);
+    next[delta..].copy_from_slice(&cur[..(D - delta)]);
+    if delta < 27 {
+        for src in (D - delta)..D {
+            let coeff = cur[src];
+            let exp = src + delta;
+            next[exp - 54] -= coeff;
+            next[exp - 27] -= coeff;
+        }
+    } else {
+        for src in (D - delta)..(81 - delta) {
+            let coeff = cur[src];
+            let exp = src + delta;
+            next[exp - 54] -= coeff;
+            next[exp - 27] -= coeff;
+        }
+        for src in (81 - delta)..D {
+            next[src + delta - 81] += cur[src];
+        }
+    }
+    acc_add_inplace(acc, next);
+}
+
+#[inline(always)]
+fn acc_add_inplace(acc: &mut [Fq; D], col: &[Fq; D]) {
+    let mut r = 0usize;
+    while r + 3 < D {
+        acc[r] += col[r];
+        acc[r + 1] += col[r + 1];
+        acc[r + 2] += col[r + 2];
+        acc[r + 3] += col[r + 3];
+        r += 4;
+    }
+    while r < D {
+        acc[r] += col[r];
+        r += 1;
+    }
+}
+
+#[inline(always)]
+fn binary_mask_poly(mask: u64) -> RqEl {
+    let mut coeffs = [Fq::ZERO; D];
+    let mut bits = mask & ((1u64 << D) - 1);
+    while bits != 0 {
+        let idx = bits.trailing_zeros() as usize;
+        coeffs[idx] = Fq::ONE;
+        bits &= bits - 1;
+    }
+    RqEl(coeffs)
 }
 
 #[inline(always)]
@@ -78,19 +220,7 @@ fn acc_mul_add_inplace(acc: &mut [Fq; D], col: &[Fq; D], scalar: Fq) {
         return;
     }
     if scalar == Fq::ONE {
-        // Unrolled to encourage LLVM auto-vectorization on platforms that support it.
-        let mut r = 0usize;
-        while r + 3 < D {
-            acc[r] += col[r];
-            acc[r + 1] += col[r + 1];
-            acc[r + 2] += col[r + 2];
-            acc[r + 3] += col[r + 3];
-            r += 4;
-        }
-        while r < D {
-            acc[r] += col[r];
-            r += 1;
-        }
+        acc_add_inplace(acc, col);
         return;
     }
     let neg_one = Fq::ZERO - Fq::ONE;
@@ -138,7 +268,6 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
     for _ in 0..kappa {
         let mut row = Vec::with_capacity(m);
         for _ in 0..m {
-            // sample ring element uniformly by sampling d random coefficients in F_q and mapping via cf^{-1}
             let coeffs: [Fq; D] = core::array::from_fn(|_| sample_uniform_fq(rng));
             row.push(cf_unmap(coeffs));
         }
@@ -273,6 +402,130 @@ pub fn seeded_pp_chunk_seeds(master_seed: [u8; 32], kappa: usize, m: usize) -> (
     (chunk_size, chunk_seeds)
 }
 
+#[inline]
+fn commit_row_major_seeded_row(
+    chunk_size: usize,
+    chunk_seeds: &[[u8; 32]],
+    m: usize,
+    z_rows: &[&[Fq]],
+    last_nonzero_by_col: &[usize],
+) -> [Fq; D] {
+    let mut acc = [Fq::ZERO; D];
+    let mut nxt = [Fq::ZERO; D];
+    for (chunk_idx, seed) in chunk_seeds.iter().copied().enumerate() {
+        let start = chunk_idx * chunk_size;
+        let end = core::cmp::min(m, start + chunk_size);
+        let mut rng = ChaCha8Rng::from_seed(seed);
+        for col_idx in start..end {
+            let last_t = last_nonzero_by_col[col_idx];
+            if last_t == usize::MAX {
+                skip_uniform_rq_coeffs(&mut rng);
+                continue;
+            }
+            let mut rot_col = sample_uniform_rq_coeffs(&mut rng);
+            for t in 0..last_t {
+                let mask = z_rows[t][col_idx];
+                if mask != Fq::ZERO {
+                    acc_mul_add_inplace(&mut acc, &rot_col, mask);
+                }
+                rot_step(&rot_col, &mut nxt);
+                core::mem::swap(&mut rot_col, &mut nxt);
+            }
+            let mask = z_rows[last_t][col_idx];
+            if mask != Fq::ZERO {
+                acc_mul_add_inplace(&mut acc, &rot_col, mask);
+            }
+        }
+    }
+    acc
+}
+
+#[inline]
+fn commit_row_major_seeded_binary_cols_chunk(seed: [u8; 32], start: usize, end: usize, column_bits: &[u64]) -> [Fq; D] {
+    const VALID_MASK: u64 = (1u64 << D) - 1;
+
+    let mut acc = [Fq::ZERO; D];
+    let mut nxt = [Fq::ZERO; D];
+    let mut rng = ChaCha8Rng::from_seed(seed);
+    let mut batch_bytes = [0u8; SEEDED_RQ_BATCH * D * 8];
+    let mut rot_col = [Fq::ZERO; D];
+
+    #[inline(always)]
+    fn accumulate_binary_mask(acc: &mut [Fq; D], nxt: &mut [Fq; D], rot_col: &mut [Fq; D], mut mask: u64) {
+        if mask == 0 {
+            return;
+        }
+        let popcount = mask.count_ones();
+        if popcount >= DENSE_BINARY_MASK_THRESHOLD {
+            let product = RqEl(*rot_col).mul(&binary_mask_poly(mask));
+            acc_add_inplace(acc, &product.0);
+            return;
+        }
+        let mut rot_pos = 0usize;
+        while mask != 0 {
+            let next_pos = mask.trailing_zeros() as usize;
+            let delta = next_pos - rot_pos;
+            if delta == 0 {
+                acc_add_inplace(acc, rot_col);
+            } else if delta == 1 {
+                rot_step_add_phi_81(rot_col, nxt, acc);
+                core::mem::swap(rot_col, nxt);
+            } else {
+                rot_advance_add_phi_81(rot_col, delta, nxt, acc);
+                core::mem::swap(rot_col, nxt);
+            }
+            rot_pos = next_pos;
+            mask &= mask - 1;
+        }
+    }
+
+    let mut col_idx = start;
+    while col_idx < end {
+        let batch = (end - col_idx).min(SEEDED_RQ_BATCH);
+        if fill_uniform_rq_coeff_bytes_batch(&mut rng, batch, &mut batch_bytes) {
+            for batch_idx in 0..batch {
+                let mask = column_bits[col_idx + batch_idx] & VALID_MASK;
+                if mask == 0 {
+                    continue;
+                }
+                let byte_start = batch_idx * D * 8;
+                let byte_end = byte_start + D * 8;
+                copy_uniform_rq_coeffs_from_bytes(&batch_bytes[byte_start..byte_end], &mut rot_col);
+                accumulate_binary_mask(&mut acc, &mut nxt, &mut rot_col, mask);
+            }
+        } else {
+            for batch_idx in 0..batch {
+                let mask = column_bits[col_idx + batch_idx] & VALID_MASK;
+                if mask == 0 {
+                    skip_uniform_rq_coeffs(&mut rng);
+                    continue;
+                }
+                rot_col = sample_uniform_rq_coeffs(&mut rng);
+                accumulate_binary_mask(&mut acc, &mut nxt, &mut rot_col, mask);
+            }
+        }
+        col_idx += batch;
+    }
+    acc
+}
+
+#[inline]
+fn commit_row_major_seeded_binary_cols_row(
+    chunk_size: usize,
+    chunk_seeds: &[[u8; 32]],
+    m: usize,
+    column_bits: &[u64],
+) -> [Fq; D] {
+    let mut acc = [Fq::ZERO; D];
+    for (chunk_idx, seed) in chunk_seeds.iter().copied().enumerate() {
+        let start = chunk_idx * chunk_size;
+        let end = core::cmp::min(m, start + chunk_size);
+        let chunk_acc = commit_row_major_seeded_binary_cols_chunk(seed, start, end, column_bits);
+        acc_add_inplace(&mut acc, &chunk_acc);
+    }
+    acc
+}
+
 /// Commit to a **row-major** `Mat<Fq>` using a *seeded PP* without materializing the multi-GB PP matrix.
 ///
 /// This produces the same commitment as:
@@ -301,9 +554,7 @@ pub fn commit_row_major_seeded(seed: [u8; 32], d: usize, kappa: usize, m: usize,
         }
     }
 
-    // Fast row slices.
     let z_rows: Vec<&[Fq]> = (0..d).map(|r| Z.row(r)).collect();
-    // Per-column sparsity is invariant across κ rows; compute once.
     let mut last_nonzero_by_col = vec![usize::MAX; m];
     for col_idx in 0..m {
         for t in (0..d).rev() {
@@ -315,23 +566,38 @@ pub fn commit_row_major_seeded(seed: [u8; 32], d: usize, kappa: usize, m: usize,
     }
     let (chunk_size, chunk_seeds_by_row) = seeded_pp_chunk_seeds(seed, kappa, m);
 
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    {
+        let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none();
+        let chunk_parallelism = chunk_seeds_by_row
+            .first()
+            .map_or(0usize, |chunk_seeds| chunk_seeds.len());
+        if allow_parallel && kappa > 1 && kappa >= chunk_parallelism {
+            C.data.par_chunks_mut(d).enumerate().for_each(|(i, col)| {
+                let acc =
+                    commit_row_major_seeded_row(chunk_size, &chunk_seeds_by_row[i], m, &z_rows, &last_nonzero_by_col);
+                col.copy_from_slice(&acc);
+            });
+            return C;
+        }
+    }
+
     for i in 0..kappa {
         let chunk_seeds = &chunk_seeds_by_row[i];
         let acc = {
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
                 if chunk_seeds.len() == 1 {
-                    // Avoid rayon scheduling overhead in the common small-m case.
                     let mut st = Acc::new();
                     let mut rng = ChaCha8Rng::from_seed(chunk_seeds[0]);
                     let mut nxt = [Fq::ZERO; D];
                     for col_idx in 0..m {
-                        // Keep deterministic seeded PP stream consumption even for sparse Z columns.
-                        let mut rot_col = sample_uniform_rq_coeffs(&mut rng);
                         let last_t = last_nonzero_by_col[col_idx];
                         if last_t == usize::MAX {
+                            skip_uniform_rq_coeffs(&mut rng);
                             continue;
                         }
+                        let mut rot_col = sample_uniform_rq_coeffs(&mut rng);
                         for t in 0..last_t {
                             let mask = z_rows[t][col_idx];
                             if mask != Fq::ZERO {
@@ -355,11 +621,12 @@ pub fn commit_row_major_seeded(seed: [u8; 32], d: usize, kappa: usize, m: usize,
                             let mut rng = ChaCha8Rng::from_seed(chunk_seeds[chunk_idx]);
                             let mut nxt = [Fq::ZERO; D];
                             for col_idx in start..end {
-                                let mut rot_col = sample_uniform_rq_coeffs(&mut rng);
                                 let last_t = last_nonzero_by_col[col_idx];
                                 if last_t == usize::MAX {
+                                    skip_uniform_rq_coeffs(&mut rng);
                                     continue;
                                 }
+                                let mut rot_col = sample_uniform_rq_coeffs(&mut rng);
                                 for t in 0..last_t {
                                     let mask = z_rows[t][col_idx];
                                     if mask != Fq::ZERO {
@@ -393,11 +660,12 @@ pub fn commit_row_major_seeded(seed: [u8; 32], d: usize, kappa: usize, m: usize,
                     let mut rng = ChaCha8Rng::from_seed(chunk_seeds[chunk_idx]);
                     let mut nxt = [Fq::ZERO; D];
                     for col_idx in start..end {
-                        let mut rot_col = sample_uniform_rq_coeffs(&mut rng);
                         let last_t = last_nonzero_by_col[col_idx];
                         if last_t == usize::MAX {
+                            skip_uniform_rq_coeffs(&mut rng);
                             continue;
                         }
+                        let mut rot_col = sample_uniform_rq_coeffs(&mut rng);
                         for t in 0..last_t {
                             let mask = z_rows[t][col_idx];
                             if mask != Fq::ZERO {
@@ -417,6 +685,82 @@ pub fn commit_row_major_seeded(seed: [u8; 32], d: usize, kappa: usize, m: usize,
         };
 
         C.col_mut(i).copy_from_slice(&acc.acc);
+    }
+
+    C
+}
+
+/// Commit to a binary row-major matrix encoded as one `u64` bitmask per column.
+///
+/// Bit `rho` of `column_bits[c]` is interpreted as `Z[rho, c] ∈ {0,1}`.
+/// This is a prover-local fast path for binary witnesses that preserves the
+/// exact seeded-PP commitment defined by [`commit_row_major_seeded`].
+#[allow(non_snake_case)]
+#[doc(hidden)]
+pub fn commit_row_major_seeded_binary_cols(
+    seed: [u8; 32],
+    d: usize,
+    kappa: usize,
+    m: usize,
+    column_bits: &[u64],
+) -> Commitment {
+    assert_eq!(d, D, "Ajtai dimension mismatch: runtime d != compile-time D");
+    assert_eq!(column_bits.len(), m, "binary column image must have length m");
+
+    let mut C = Commitment::zeros(d, kappa);
+    if m == 0 {
+        return C;
+    }
+
+    let (chunk_size, chunk_seeds_by_row) = seeded_pp_chunk_seeds(seed, kappa, m);
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    {
+        let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none();
+        let chunk_parallelism = chunk_seeds_by_row
+            .first()
+            .map_or(0usize, |chunk_seeds| chunk_seeds.len());
+        if allow_parallel && kappa > 1 && kappa >= chunk_parallelism {
+            C.data.par_chunks_mut(d).enumerate().for_each(|(i, col)| {
+                let acc = commit_row_major_seeded_binary_cols_row(chunk_size, &chunk_seeds_by_row[i], m, column_bits);
+                col.copy_from_slice(&acc);
+            });
+            return C;
+        }
+    }
+
+    for i in 0..kappa {
+        let chunk_seeds = &chunk_seeds_by_row[i];
+        let acc = {
+            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+            {
+                if chunk_seeds.len() == 1 {
+                    commit_row_major_seeded_binary_cols_row(chunk_size, chunk_seeds, m, column_bits)
+                } else {
+                    chunk_seeds
+                        .par_iter()
+                        .copied()
+                        .enumerate()
+                        .map(|(chunk_idx, seed)| {
+                            let start = chunk_idx * chunk_size;
+                            let end = core::cmp::min(m, start + chunk_size);
+                            commit_row_major_seeded_binary_cols_chunk(seed, start, end, column_bits)
+                        })
+                        .reduce(
+                            || [Fq::ZERO; D],
+                            |mut a, b| {
+                                acc_add_inplace(&mut a, &b);
+                                a
+                            },
+                        )
+                }
+            }
+            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+            {
+                commit_row_major_seeded_binary_cols_row(chunk_size, chunk_seeds, m, column_bits)
+            }
+        };
+        C.col_mut(i).copy_from_slice(&acc);
     }
 
     C

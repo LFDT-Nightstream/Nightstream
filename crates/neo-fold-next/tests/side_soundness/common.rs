@@ -6,9 +6,10 @@ use neo_fold_next::nightstream::rv64im::{
     Rv64imSideOpeningPublic, Rv64imSideOpeningSpartanVerifierKey, Rv64imSideProof,
 };
 use neo_fold_next::nightstream::NightstreamStatement;
+use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv64im::{
-    build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof, Rv64imAcceptedProofArtifact,
-    Rv64imProofInput, Rv64imProofStatement, SimpleKernelError,
+    build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof_with_options,
+    Rv64imAcceptedProofArtifact, Rv64imProofInput, Rv64imProofStatement, Rv64imPublicProofOptions, SimpleKernelError,
 };
 
 pub struct SideFixture {
@@ -21,7 +22,7 @@ pub struct SideFixture {
 impl SideFixture {
     pub fn side_statement(&self) -> Result<Rv64imSideBindingStatement, SimpleKernelError> {
         self.side_proof
-            .binding_statement(&self.nightstream_statement)
+            .binding_statement(&self.nightstream_statement, &self.public_statement)
     }
 
     pub fn side_public(&self) -> &Rv64imSideOpeningPublic {
@@ -59,8 +60,13 @@ pub fn proof_input(name: &str) -> Rv64imProofInput {
 }
 
 pub fn build_side_fixture(name: &str) -> SideFixture {
-    let public_proof =
-        prove_rv64im_public_proof(&proof_input(name)).expect("prove rv64im public proof for side soundness fixture");
+    let public_proof = prove_rv64im_public_proof_with_options(
+        &proof_input(name),
+        Rv64imPublicProofOptions {
+            root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+        },
+    )
+    .expect("prove rv64im public proof for side soundness fixture");
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&public_proof)
         .expect("build accepted artifact for side soundness fixture");
     let (nightstream_statement, _nightstream_proof) = build_rv64im_nightstream_from_public_proof(&public_proof)
@@ -77,7 +83,7 @@ pub fn build_side_fixture(name: &str) -> SideFixture {
 
 pub fn mutated_statement_with_new_core(statement: &NightstreamStatement) -> NightstreamStatement {
     let mut mutated = statement.clone();
-    mutated.linkage_root[0] ^= 1;
+    mutated.verifier_context_digest[0] ^= 1;
     mutated
 }
 

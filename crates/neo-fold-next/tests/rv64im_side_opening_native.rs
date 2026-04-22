@@ -8,8 +8,10 @@ use neo_fold_next::nightstream::rv64im::audit::{
 use neo_fold_next::nightstream::rv64im::{
     build_rv64im_nightstream_from_public_proof, build_rv64im_side_proof, verify_rv64im_side_proof,
 };
+use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv64im::{
-    build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof, Rv64imProofInput,
+    build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof_with_options,
+    Rv64imProofInput, Rv64imPublicProofOptions,
 };
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -30,14 +32,19 @@ fn proof_input(name: &str) -> Rv64imProofInput {
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_side_opening_native_round_trips() {
-    let public_proof =
-        prove_rv64im_public_proof(&proof_input("control_flow_jal_skip_ecall")).expect("prove rv64im public proof");
+    let public_proof = prove_rv64im_public_proof_with_options(
+        &proof_input("control_flow_jal_skip_ecall"),
+        Rv64imPublicProofOptions {
+            root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+        },
+    )
+    .expect("prove rv64im public proof");
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&public_proof).expect("build accepted artifact");
     let (nightstream_statement, _nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&public_proof).expect("build nightstream proof");
     let side_proof = build_rv64im_side_proof(&nightstream_statement, &accepted_artifact).expect("build side proof");
     let statement = side_proof
-        .binding_statement(&nightstream_statement)
+        .binding_statement(&nightstream_statement, &accepted_artifact.statement)
         .expect("build side binding statement");
     let (opening_statement, opening_witness) =
         build_rv64im_side_opening_relation_from_accepted_artifact(&accepted_artifact)
@@ -59,8 +66,13 @@ fn rv64im_side_opening_native_round_trips() {
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_side_eval_relation_rejects_tampered_phase0_witness() {
-    let public_proof =
-        prove_rv64im_public_proof(&proof_input("control_flow_jal_skip_ecall")).expect("prove rv64im public proof");
+    let public_proof = prove_rv64im_public_proof_with_options(
+        &proof_input("control_flow_jal_skip_ecall"),
+        Rv64imPublicProofOptions {
+            root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+        },
+    )
+    .expect("prove rv64im public proof");
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&public_proof).expect("build accepted artifact");
     let (statement, mut witness) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&accepted_artifact)
         .expect("build side eval-claim relation");

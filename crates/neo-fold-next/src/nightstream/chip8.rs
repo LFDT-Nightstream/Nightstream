@@ -119,24 +119,6 @@ pub fn chip8_absent_side_proof_digest() -> [u8; 32] {
     chip8_absent_artifact_digest(b"side_proof")
 }
 
-pub fn chip8_absent_linkage_binding_digest() -> [u8; 32] {
-    chip8_absent_artifact_digest(b"linkage_binding")
-}
-
-pub fn chip8_nightstream_linkage_root(kernel_export_anchor_digest: [u8; 32]) -> [u8; 32] {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/chip8/linkage_root");
-    tr.append_message(b"neo.fold.next/nightstream/chip8/linkage_root/version", b"v1");
-    tr.append_message(
-        b"neo.fold.next/nightstream/chip8/linkage_root/kernel_export_anchor_digest",
-        &kernel_export_anchor_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/nightstream/chip8/linkage_root/linkage_binding_digest",
-        &chip8_absent_linkage_binding_digest(),
-    );
-    tr.digest32()
-}
-
 pub fn build_chip8_main_decider_proof(
     statement: &Chip8Statement,
     proof: &Chip8FinalProof,
@@ -200,8 +182,6 @@ pub fn build_chip8_nightstream_statement(
         verifier_context_digest: chip8_verifier_context_digest(),
         fold_schedule: statement.folded.fold_schedule,
         semantic_step_count: statement.folded.semantic_step_count,
-        chunk_summaries: proof.chunk_summaries.clone(),
-        linkage_root: chip8_nightstream_linkage_root(proof.kernel_export.digest),
         proof_binding_root,
     })
 }
@@ -216,7 +196,7 @@ pub fn build_chip8_nightstream_from_recursive_proof(
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_proof_digest: chip8_main_proof_digest(&main_decider_proof, &main_residual_proof),
         side_proof_digest: chip8_absent_side_proof_digest(),
-        linkage_binding_digest: chip8_absent_linkage_binding_digest(),
+        public_statement_digest: statement.digest,
     };
     nightstream_statement.proof_binding_root =
         nightstream_proof_binding_root(nightstream_statement.core_digest(), &proof_binding_inputs);

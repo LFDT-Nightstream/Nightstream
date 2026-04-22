@@ -43,10 +43,6 @@ pub fn verify_rv64im_nightstream_with_perf(
     let total_started = Instant::now();
 
     let started = Instant::now();
-    verify_rv64im_nightstream_carried_boundary(statement, proof)?;
-    let carried_boundary_ms = elapsed_ms(started);
-
-    let started = Instant::now();
     let expected_verifier_context_digest = rv64im_verifier_context_digest(trusted_root_params_id);
     if statement.verifier_context_digest != expected_verifier_context_digest {
         return Err(SimpleKernelError::Bridge(
@@ -66,6 +62,10 @@ pub fn verify_rv64im_nightstream_with_perf(
         ));
     }
     let statement_binding_ms = elapsed_ms(started);
+
+    let started = Instant::now();
+    verify_rv64im_nightstream_carried_boundary(statement, proof, expected_public_statement_digest)?;
+    let carried_boundary_ms = elapsed_ms(started);
 
     let started = Instant::now();
     super::verify_rv64im_side_proof(

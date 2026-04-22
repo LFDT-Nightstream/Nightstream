@@ -15,9 +15,7 @@ use super::*;
 pub struct Rv64imNightstreamVerifiedSeamsBuildPerf {
     pub final_surface_guard_ms: f64,
     pub decider_relation_ms: f64,
-    pub linkage_claims_ms: f64,
     pub main_proof_ms: f64,
-    pub linkage_root_ms: f64,
     pub statement_ms: f64,
     pub bind_side_statement_core_ms: f64,
     pub opening_phase0_artifact_ms: f64,
@@ -140,29 +138,12 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
     let started = Instant::now();
     let decider_relation_ms = elapsed_ms(started);
 
-    let started = Instant::now();
-    let linkage_claims = build_rv64im_nightstream_linkage_claims_from_parts(
-        final_proof
-            .chunk_summaries
-            .iter()
-            .map(|summary| summary.public_chunk_digest)
-            .collect(),
-    );
-    let linkage_claims_ms = elapsed_ms(started);
-
-    let started = Instant::now();
-    let linkage_root =
-        rv64im_nightstream_linkage_root(published_seam.main_proof.linkage_anchor_digest(), &linkage_claims);
-    let linkage_root_ms = elapsed_ms(started);
-
     let compressed_main_proof = published_seam.main_proof.clone();
 
     let started = Instant::now();
     let mut statement = build_rv64im_nightstream_statement_from_published_statement(
         verifier_context_digest,
         compressed_main_proof.published_statement(),
-        &final_proof.chunk_summaries,
-        linkage_root,
         [0; 32],
     )?;
     let statement_ms = elapsed_ms(started);
@@ -232,7 +213,7 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
             accepted_artifact,
         );
     let side_public = build_rv64im_side_opening_public(&side_proof_bundle, &side_opening)?;
-    let side_statement = build_rv64im_side_binding_statement(&statement, &side_public)?;
+    let side_statement = build_rv64im_side_binding_statement(&statement, &accepted_artifact.statement, &side_public)?;
     let side_binding_prepare_ms = elapsed_ms(started);
 
     let started = Instant::now();
@@ -264,7 +245,7 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_proof_digest: rv64im_main_nightstream_proof_digest(&compressed_main_proof),
         side_proof_digest: side_proof.expected_digest(),
-        linkage_binding_digest: linkage_claims.digest(),
+        public_statement_digest: accepted_artifact.statement.digest,
     };
     statement.proof_binding_root = nightstream_proof_binding_root(statement.core_digest(), &proof_binding_inputs);
     let proof_binding_root_ms = elapsed_ms(started);
@@ -272,9 +253,7 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
     let perf = Rv64imNightstreamVerifiedSeamsBuildPerf {
         final_surface_guard_ms,
         decider_relation_ms,
-        linkage_claims_ms,
         main_proof_ms,
-        linkage_root_ms,
         statement_ms,
         bind_side_statement_core_ms,
         opening_phase0_artifact_ms,
@@ -322,7 +301,6 @@ pub(super) fn build_rv64im_nightstream_from_verified_seams_with_perf(
             statement,
             Rv64imNightstreamProof {
                 main_proof: compressed_main_proof,
-                linkage_claims,
                 side_proof,
             },
         ),

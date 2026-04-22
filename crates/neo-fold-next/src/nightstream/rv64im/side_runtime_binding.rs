@@ -18,6 +18,12 @@ pub(super) fn verify_rv64im_side_opening_statement_against_runtime_surfaces(
     opening_statement: &Rv64imSideOpeningRelationStatement,
 ) -> Result<(), SimpleKernelError> {
     validate_rv64im_side_opening_relation_statement(opening_statement)?;
+    let public_statement_digest = public_statement.recompute_digest();
+    if public_statement.digest != public_statement_digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried public statement digest does not match the public statement fields".into(),
+        ));
+    }
     if opening_statement.public_summary
         != super::side_opening_relation::Rv64imSideOpeningPublicStatementSummary::from_public_statement(
             public_statement,

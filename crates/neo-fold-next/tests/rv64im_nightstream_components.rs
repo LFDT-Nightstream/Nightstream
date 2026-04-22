@@ -209,7 +209,6 @@ fn rv64im_side_opening_relation_rejects_self_consistent_binding_summary_swap() {
     let witness = build_rv64im_side_opening_relation_witness_from_accepted_artifact(&artifact);
 
     let last_binding = statement
-        .side_bundle
         .kernel_opening_bridge
         .prepared_step_bindings
         .last_binding_digest
@@ -217,24 +216,36 @@ fn rv64im_side_opening_relation_rejects_self_consistent_binding_summary_swap() {
         .expect("last binding digest");
     last_binding[0] ^= 1;
     statement
-        .side_bundle
         .kernel_opening_bridge
         .prepared_step_bindings
         .digest = statement
-        .side_bundle
         .kernel_opening_bridge
         .prepared_step_bindings
         .expected_digest();
-    statement.side_bundle.kernel_opening_bridge.digest = statement
-        .side_bundle
-        .kernel_opening_bridge
-        .expected_digest();
-    statement.side_bundle.digest = statement.side_bundle.expected_digest();
+    statement.kernel_opening_bridge.digest = statement.kernel_opening_bridge.expected_digest();
 
     let err = verify_rv64im_side_opening_relation(&statement, &witness)
         .expect_err("self-consistent binding-summary swap must fail");
     assert!(format!("{err}").contains(
-        "RV64IM Nightstream compact kernel-opening proof surface does not match the carried public statement"
+        "RV64IM side-opening relation compact kernel-opening proof surface does not match the carried public statement"
+    ), "unexpected error: {err}");
+}
+
+#[test]
+fn rv64im_side_opening_relation_rejects_self_consistent_main_lane_bridge_swap() {
+    let input = proof_input("control_flow_jal_skip_ecall");
+    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
+    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let (mut statement, witness) =
+        build_rv64im_side_opening_relation_from_accepted_artifact(&artifact).expect("build side-opening relation");
+
+    statement.main_lane_bridge.main_lane_statement_digest[0] ^= 1;
+    statement.main_lane_bridge.digest = statement.main_lane_bridge.expected_digest();
+
+    let err = verify_rv64im_side_opening_relation(&statement, &witness)
+        .expect_err("self-consistent main-lane bridge swap must fail");
+    assert!(format!("{err}").contains(
+        "RV64IM side-opening relation compact kernel-claim surface does not match the carried public statement"
     ));
 }
 

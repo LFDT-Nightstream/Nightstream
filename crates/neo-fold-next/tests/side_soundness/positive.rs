@@ -1,8 +1,9 @@
 use neo_fold_next::nightstream::rv64im::audit::{
+    build_rv64im_bound_phase0_claim_witnesses_from_accepted_artifact,
     build_rv64im_side_eval_claim_relation_from_accepted_artifact, verify_rv64im_side_eval_claim_relation,
 };
 use neo_fold_next::nightstream::rv64im::audit::{
-    measure_rv64im_side_binding_circuit_constraints, prove_rv64im_side_binding, setup_rv64im_side_binding,
+    debug_check_rv64im_side_binding_circuit, measure_rv64im_side_binding_circuit_constraints, setup_rv64im_side_binding,
 };
 use neo_fold_next::nightstream::rv64im::{
     build_rv64im_side_binding_statement, build_rv64im_side_proof, verify_rv64im_side_proof,
@@ -247,9 +248,12 @@ fn rv64im_side_soundness_positive_statement_digest_is_recomputed_not_trusted() {
     let original_binding_statement = fixture
         .side_statement()
         .expect("build original side binding statement");
-    let rebound_binding_statement =
-        build_rv64im_side_binding_statement(&rebound_statement, fixture.side_proof.opening_public())
-            .expect("recompute side binding statement under a new statement digest");
+    let rebound_binding_statement = build_rv64im_side_binding_statement(
+        &rebound_statement,
+        &fixture.public_statement,
+        fixture.side_proof.opening_public(),
+    )
+    .expect("recompute side binding statement under a new statement digest");
     assert_ne!(
         original_binding_statement.nightstream_statement_core_digest,
         rebound_binding_statement.nightstream_statement_core_digest,
@@ -266,24 +270,27 @@ fn rv64im_side_soundness_positive_statement_digest_is_recomputed_not_trusted() {
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_side_soundness_positive_binding_rejects_forged_public_witness() {
     let fixture = build_side_fixture(BASE_CASE);
-    let (_, phase0_witness) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&fixture.accepted_artifact)
-        .expect("build side eval-claim relation");
+    let claim_witnesses = build_rv64im_bound_phase0_claim_witnesses_from_accepted_artifact(
+        &fixture.nightstream_statement,
+        &fixture.accepted_artifact,
+    )
+    .expect("build bound side-binding claim witnesses");
     let side_statement = fixture
         .side_statement()
         .expect("build side binding statement");
-    let (pk, vk) = setup_rv64im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
     let mut forged_public = fixture.side_public().clone();
     forged_public.opened_objects[0].digest = [0x5a; 32];
 
-    let err = prove_rv64im_side_binding(&pk, &side_statement, &forged_public, &phase0_witness.claim_witnesses)
-        .expect_err("side binding should reject a forged side-opening public before proof generation");
+    let err = debug_check_rv64im_side_binding_circuit(&side_statement, &forged_public, &claim_witnesses)
+        .expect_err("side binding circuit should reject a forged side-opening public");
     assert!(
-        err.to_string()
-            .contains("does not match the carried public eval")
-            || err.to_string().contains("side binding prove path"),
+        err.to_string().contains("statement_digest_match")
+            || err.to_string().contains("statement_public_instance_digest")
+            || err.to_string().contains("point_eq")
+            || err.to_string().contains("payload_eq")
+            || err.to_string().contains("Unsatisfiable"),
         "unexpected forged-public rejection error: {err}"
     );
-    let _ = vk;
 }
 
 #[test]

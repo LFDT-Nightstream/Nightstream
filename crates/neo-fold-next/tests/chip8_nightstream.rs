@@ -5,20 +5,17 @@ use neo_fold_next::chip8::decider::build_chip8_spartan2_decider_target;
 use neo_fold_next::chip8::proof::prove_recursive;
 use neo_fold_next::nightstream::chip8::{
     build_chip8_main_decider_proof, build_chip8_main_residual_proof, build_chip8_nightstream_from_recursive_proof,
-    chip8_absent_linkage_binding_digest, chip8_absent_side_proof_digest, chip8_nightstream_linkage_root,
-    chip8_verifier_context_digest, verify_chip8_main_decider_proof, verify_chip8_main_residual_proof,
-    verify_chip8_nightstream_from_recursive_proof, Chip8MainDeciderProof, Chip8MainResidualProof,
+    chip8_absent_side_proof_digest, chip8_verifier_context_digest, verify_chip8_main_decider_proof,
+    verify_chip8_main_residual_proof, verify_chip8_nightstream_from_recursive_proof, Chip8MainDeciderProof,
+    Chip8MainResidualProof,
 };
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn chip8_nightstream_absent_artifact_digests_are_distinct() {
     let side_proof = chip8_absent_side_proof_digest();
-    let linkage = chip8_absent_linkage_binding_digest();
 
     assert_ne!(side_proof, [0; 32]);
-    assert_ne!(linkage, [0; 32]);
-    assert_ne!(side_proof, linkage);
 }
 
 #[test]
@@ -29,17 +26,6 @@ fn chip8_verifier_context_digest_is_stable_and_nonzero() {
 
     assert_eq!(digest_a, digest_b);
     assert_ne!(digest_a, [0; 32]);
-}
-
-#[test]
-#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn chip8_nightstream_linkage_root_tracks_anchor_digest() {
-    let root_a = chip8_nightstream_linkage_root([1; 32]);
-    let root_b = chip8_nightstream_linkage_root([2; 32]);
-
-    assert_ne!(root_a, [0; 32]);
-    assert_ne!(root_b, [0; 32]);
-    assert_ne!(root_a, root_b);
 }
 
 #[test]
@@ -87,10 +73,7 @@ fn chip8_nightstream_round_trips_against_current_recursive_seam() {
         nightstream_statement.verifier_context_digest,
         chip8_verifier_context_digest()
     );
-    assert_eq!(
-        nightstream_statement.linkage_root,
-        chip8_nightstream_linkage_root(proof.kernel_export.digest)
-    );
+    assert_ne!(nightstream_statement.public_io_digest, [0; 32]);
 }
 
 #[test]

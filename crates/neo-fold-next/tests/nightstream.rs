@@ -1,25 +1,24 @@
 use std::fmt::Debug;
 
 use neo_fold_next::nightstream::rv64im::audit::{
-    build_rv64im_nightstream_linkage_claims, build_rv64im_nightstream_statement_from_published_statement,
-    rv64im_main_nightstream_proof_digest,
+    build_rv64im_nightstream_statement_from_published_statement, rv64im_main_nightstream_proof_digest,
 };
 use neo_fold_next::nightstream::rv64im::{
-    build_rv64im_nightstream_from_public_proof, rv64im_nightstream_linkage_root, rv64im_verifier_context_digest,
-    verify_rv64im_nightstream, Rv64imNightstreamProof, Rv64imSideBindingVerifierKey,
-    Rv64imSideOpeningSpartanVerifierKey,
+    build_rv64im_nightstream_from_public_proof, rv64im_verifier_context_digest, verify_rv64im_nightstream,
+    Rv64imNightstreamProof, Rv64imSideBindingVerifierKey, Rv64imSideOpeningSpartanVerifierKey,
 };
 use neo_fold_next::nightstream::{
     nightstream_proof_binding_root, nightstream_statement_digest, NightstreamProofBindingInputs, NightstreamStatement,
 };
+use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv64im::audit::{
     build_rv64im_terminal_decider_setup_shape_from_components, prove_rv64im_public_proof_and_published_seam_with_perf,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::ivc_snark::{setup_rv64im_ivc_snark_from_final_cached, Rv64imIvcSnarkKeyPair};
 use neo_fold_next::rv64im::{
-    build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof, Rv64imProofInput,
-    Rv64imProofStatement, SimpleKernelError,
+    build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof_with_options,
+    Rv64imProofInput, Rv64imProofStatement, Rv64imPublicProofOptions, SimpleKernelError,
 };
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -57,7 +56,13 @@ struct ExternalNightstreamFixture {
 }
 
 fn external_fixture(name: &str) -> ExternalNightstreamFixture {
-    let public_proof = prove_rv64im_public_proof(&proof_input(name)).expect("prove rv64im public proof");
+    let public_proof = prove_rv64im_public_proof_with_options(
+        &proof_input(name),
+        Rv64imPublicProofOptions {
+            root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+        },
+    )
+    .expect("prove rv64im public proof");
     let trusted_root_params_id = public_proof.statement.root_params_id;
     let public_statement = public_proof.statement.clone();
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&public_proof).expect("build accepted artifact");
@@ -87,7 +92,7 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
     .expect("setup rv64im side opening");
     let side_statement = nightstream_proof
         .side_proof()
-        .binding_statement(&statement)
+        .binding_statement(&statement, &public_statement)
         .expect("build rv64im side binding statement");
     let (_, side_binding_vk) = neo_fold_next::nightstream::rv64im::audit::setup_rv64im_side_binding(
         &side_statement,
@@ -153,14 +158,12 @@ fn nightstream_statement_digest_tracks_binding_root() {
         verifier_context_digest: [2; 32],
         fold_schedule: neo_fold_next::proof::FoldSchedule::WholeTrace,
         semantic_step_count: 7,
-        chunk_summaries: Vec::new(),
-        linkage_root: [3; 32],
         proof_binding_root: [0; 32],
     };
     let inputs = NightstreamProofBindingInputs {
         main_proof_digest: [4; 32],
         side_proof_digest: [6; 32],
-        linkage_binding_digest: [7; 32],
+        public_statement_digest: [8; 32],
     };
     statement.proof_binding_root = nightstream_proof_binding_root(statement.core_digest(), &inputs);
     let digest_before = nightstream_statement_digest(&statement);
@@ -170,8 +173,8 @@ fn nightstream_statement_digest_tracks_binding_root() {
 }
 
 #[test]
-#[ignore = "published-seam rebuild remains too expensive for routine Nightstream linkage regression"]
-fn rv64im_nightstream_linkage_and_main_proof_follow_verified_final_seam() {
+#[ignore = "published-seam rebuild remains too expensive for routine Nightstream boundary regression"]
+fn rv64im_nightstream_statement_and_main_proof_follow_verified_final_seam() {
     let (proof, seam) = published_seam_fixture("control_flow_jal_skip_ecall");
     let statement = seam
         .rebuild_final_statement()
@@ -180,8 +183,6 @@ fn rv64im_nightstream_linkage_and_main_proof_follow_verified_final_seam() {
         .final_proof()
         .expect("rebuild final proof from one-step published seam");
 
-    let linkage_claims =
-        build_rv64im_nightstream_linkage_claims(&statement, &final_proof).expect("build linkage claims");
     let compressed_main_proof = seam.main_proof.clone();
     let (_, nightstream_proof) = build_rv64im_nightstream_from_public_proof(&proof).expect("build nightstream proof");
 
@@ -191,30 +192,18 @@ fn rv64im_nightstream_linkage_and_main_proof_follow_verified_final_seam() {
             .expected_digest(),
         [0; 32]
     );
-    assert_eq!(
-        compressed_main_proof.linkage_anchor_digest(),
-        statement.public_statement_digest
-    );
-    assert_eq!(
-        compressed_main_proof.linkage_anchor_digest(),
-        statement.public_statement_digest
-    );
     assert_eq!(final_proof.chunk_summaries.len(), final_proof.steps.len());
-    assert_eq!(linkage_claims, *nightstream_proof.linkage_claims());
     assert_eq!(compressed_main_proof, *nightstream_proof.main_proof());
 
     let verifier_context = rv64im_verifier_context_digest(proof.statement.root_params_id);
-    let linkage_root = rv64im_nightstream_linkage_root(compressed_main_proof.linkage_anchor_digest(), &linkage_claims);
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_proof_digest: rv64im_main_nightstream_proof_digest(&compressed_main_proof),
         side_proof_digest: [9; 32],
-        linkage_binding_digest: linkage_claims.digest(),
+        public_statement_digest: proof.statement.digest,
     };
     let mut nightstream = build_rv64im_nightstream_statement_from_published_statement(
         verifier_context,
         compressed_main_proof.published_statement(),
-        &final_proof.chunk_summaries,
-        linkage_root,
         [0; 32],
     )
     .expect("build nightstream statement");
@@ -323,11 +312,6 @@ fn rv64im_nightstream_carried_boundary_rejects_each_tampered_proof_binding_input
     }
     {
         let mut proof = fixture.nightstream_proof.clone();
-        proof.main_proof_mut().linkage_anchor_digest_mut()[0] ^= 1;
-        verify_mutated(proof, "main_linkage_anchor_digest");
-    }
-    {
-        let mut proof = fixture.nightstream_proof.clone();
         proof
             .main_proof_mut()
             .published_statement_mut()
@@ -362,6 +346,16 @@ fn rv64im_nightstream_rejects_public_statement_with_stale_digest() {
     fixture.public_statement.final_pc += 1;
     let err = verify_fixture(&fixture).expect_err("stale public statement digest must fail");
     assert!(format!("{err}").contains("public statement"));
+}
+
+#[test]
+#[ignore = "expensive: Nightstream end-to-end proof path exceeds developer-memory budget"]
+fn rv64im_nightstream_rejects_self_consistent_tampered_public_statement_root_params_id() {
+    let mut fixture = external_fixture("control_flow_jal_skip_ecall");
+    fixture.public_statement.root_params_id[0] ^= 1;
+    fixture.public_statement.digest = fixture.public_statement.recompute_digest();
+    let err = verify_fixture(&fixture).expect_err("tampered public statement root_params_id must fail");
+    assert!(format!("{err}").contains("Nightstream statement"));
 }
 
 #[test]

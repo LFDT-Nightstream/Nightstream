@@ -32,8 +32,7 @@ use self::side_bridges::Rv64imSideProofBundle;
 use self::side_bridges::{
     build_rv64im_kernel_claim_bridge_from_accepted_artifact,
     build_rv64im_kernel_claim_proof_bridge_from_accepted_artifact,
-    build_rv64im_kernel_export_source_bridge_from_export_proof,
-    build_rv64im_kernel_opening_bridge_from_accepted_artifact,
+    build_rv64im_kernel_opening_bridge_from_accepted_artifact, build_rv64im_main_lane_proof_bridge_from_export_proof,
     build_rv64im_stage_claim_proof_bridge_from_accepted_artifact,
     build_rv64im_verified_side_claims_from_accepted_artifact_fast, validate_rv64im_side_proof_bundle_structure,
 };
@@ -55,11 +54,11 @@ use crate::rv64im::main_proof::Rv64imPublishedStatement;
 pub use crate::rv64im::Rv64imCompressedMainProof;
 
 pub mod audit {
-    use crate::nightstream::rv64im::Rv64imLinkageClaims;
     use crate::nightstream::NightstreamStatement;
     use crate::rv64im::final_relation::{Rv64imFinalBuildProof, Rv64imFinalStatement};
     use crate::rv64im::kernel::{Rv64imAcceptedProofArtifact, Rv64imProofStatement, SimpleKernelError};
     use crate::rv64im::main_proof::Rv64imPublishedStatement;
+    use crate::rv64im::FamilyEvalClaimWitness;
 
     pub use super::authoritative_side::{
         build_rv64im_side_opening_public, build_rv64im_side_surface_public,
@@ -70,9 +69,8 @@ pub mod audit {
         verify_rv64im_opening_artifact_from_side_proof_bundle, Rv64imOpeningArtifact,
     };
     pub use super::side_bridges::{
-        Rv64imKernelClaimBridge, Rv64imKernelClaimProofBridge, Rv64imKernelExportSourceBridge,
-        Rv64imKernelOpeningBridge, Rv64imPreparedStepBindingSummaryBridge, Rv64imSideProofBundle,
-        Rv64imStageClaimProofBridge,
+        Rv64imKernelClaimBridge, Rv64imKernelClaimProofBridge, Rv64imKernelOpeningBridge, Rv64imMainLaneProofBridge,
+        Rv64imPreparedStepBindingSummaryBridge, Rv64imSideProofBundle, Rv64imStageClaimProofBridge,
     };
     pub use super::side_claim_relation::{
         build_rv64im_side_claim_relation_from_accepted_artifact, build_rv64im_side_claim_relation_statement,
@@ -94,23 +92,6 @@ pub mod audit {
         build_rv64im_side_opening_relation_witness_from_accepted_artifact, verify_rv64im_side_opening_relation,
         Rv64imSideOpeningRelationStatement, Rv64imSideOpeningRelationWitness,
     };
-    pub fn derive_rv64im_root_execution_digest_from_compact_surfaces(
-        statement: &NightstreamStatement,
-        public_statement: &Rv64imProofStatement,
-        semantic_rows_digest: [u8; 32],
-        row_local_ccs_acceptance_digest: [u8; 32],
-        execution_semantics_refinement_digest: [u8; 32],
-        family_digest: [u8; 32],
-    ) -> Result<[u8; 32], SimpleKernelError> {
-        super::derive_rv64im_root_execution_digest_from_compact_surfaces(
-            statement,
-            public_statement,
-            semantic_rows_digest,
-            row_local_ccs_acceptance_digest,
-            execution_semantics_refinement_digest,
-            family_digest,
-        )
-    }
     pub use super::side_opening_spartan::{
         debug_check_rv64im_side_opening_spartan_circuit, debug_compare_rv64im_side_opening_spartan_setup_shape,
         debug_compare_rv64im_side_opening_spartan_statement_owned_shape,
@@ -197,7 +178,6 @@ pub mod audit {
         verifier_context_digest: [u8; 32],
         statement: &Rv64imFinalStatement,
         proof: &Rv64imFinalBuildProof,
-        linkage_root: [u8; 32],
         proof_binding_root: [u8; 32],
     ) -> Result<NightstreamStatement, SimpleKernelError> {
         super::build_rv64im_nightstream_statement_from_final(
@@ -205,7 +185,6 @@ pub mod audit {
             verifier_context_digest,
             statement,
             proof,
-            linkage_root,
             proof_binding_root,
         )
     }
@@ -213,15 +192,11 @@ pub mod audit {
     pub fn build_rv64im_nightstream_statement_from_published_statement(
         verifier_context_digest: [u8; 32],
         published_statement: &Rv64imPublishedStatement,
-        chunk_summaries: &[crate::finalize::FixedShapeChunkSummary],
-        linkage_root: [u8; 32],
         proof_binding_root: [u8; 32],
     ) -> Result<NightstreamStatement, SimpleKernelError> {
         super::build_rv64im_nightstream_statement_from_published_statement(
             verifier_context_digest,
             published_statement,
-            chunk_summaries,
-            linkage_root,
             proof_binding_root,
         )
     }
@@ -230,21 +205,23 @@ pub mod audit {
         super::rv64im_main_nightstream_proof_digest(main_proof)
     }
 
-    pub fn build_rv64im_nightstream_linkage_claims(
-        statement: &Rv64imFinalStatement,
-        proof: &Rv64imFinalBuildProof,
-    ) -> Result<Rv64imLinkageClaims, SimpleKernelError> {
-        super::build_rv64im_nightstream_linkage_claims(statement, proof)
-    }
-
-    pub fn validate_rv64im_nightstream_linkage_claims_against_statement(
+    pub fn build_rv64im_bound_phase0_claim_witnesses_from_accepted_artifact(
         statement: &NightstreamStatement,
-        linkage_claims: &Rv64imLinkageClaims,
-    ) -> Result<(), SimpleKernelError> {
-        super::validate_rv64im_nightstream_linkage_claims_against_statement(statement, linkage_claims)
+        artifact: &Rv64imAcceptedProofArtifact,
+    ) -> Result<Vec<FamilyEvalClaimWitness>, SimpleKernelError> {
+        let side_bundle = super::bind_rv64im_side_proof_bundle_to_statement_core(
+            &super::build_rv64im_side_proof_bundle_from_accepted_artifact(artifact)?,
+            statement.core_digest(),
+        )?;
+        Ok(
+            super::side_eval_claim_relation::build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact_and_side_bundle(
+                &side_bundle,
+                artifact,
+            )?
+            .claim_witnesses,
+        )
     }
 }
-use crate::finalize::fixed_shape_chunk_coverage_terminal_index;
 use crate::nightstream::{nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement};
 use crate::rv64im::final_relation::{
     verify_rv64im_final_statement_with_output, Rv64imFinalBuildProof, Rv64imFinalStatement,
@@ -253,19 +230,13 @@ use crate::rv64im::ivc_snark::Rv64imIvcSnarkVerifierKey;
 use crate::rv64im::kernel::{
     build_public_kernel_opening_claim_from_compact_surfaces, build_rv64im_kernel_export_proof_from_accepted_artifact,
     build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local_with_perf,
-    kernel_claim_bundle_from_statement_and_compact_surfaces, rv64im_public_chunk_digest, Rv64imAcceptedProofArtifact,
-    Rv64imKernelExportProof, Rv64imProof, Rv64imProofStatement, Rv64imStageClaimDigestBundle, SimpleKernelError,
-    SimpleKernelOpeningClaim, SimpleKernelStageClaimBundle, Stage1ArtifactSurface, Stage1CanonicalRowBundle,
-    Stage1ClaimSurface, Stage2ArtifactSurface, Stage2CanonicalFamilyBundle, Stage2ClaimSurface, Stage3ArtifactSurface,
+    kernel_claim_bundle_from_statement_and_compact_surfaces, Rv64imAcceptedProofArtifact, Rv64imKernelExportProof,
+    Rv64imProof, Rv64imProofStatement, Rv64imStageClaimDigestBundle, SimpleKernelError, SimpleKernelOpeningClaim,
+    SimpleKernelStageClaimBundle, Stage1ArtifactSurface, Stage1CanonicalRowBundle, Stage1ClaimSurface,
+    Stage2ArtifactSurface, Stage2CanonicalFamilyBundle, Stage2ClaimSurface, Stage3ArtifactSurface,
     Stage3CanonicalContinuityBundle, Stage3ClaimSurface, StageDigestCommitment, TranscriptArtifactSurface,
     TranscriptClaimSurface,
 };
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imLinkageClaims {
-    public_chunk_digests: Vec<[u8; 32]>,
-    digest: [u8; 32],
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imSideProof {
     opening_public: Rv64imSideOpeningPublic,
@@ -277,42 +248,7 @@ pub struct Rv64imSideProof {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imNightstreamProof {
     main_proof: Rv64imCompressedMainProof,
-    linkage_claims: Rv64imLinkageClaims,
     side_proof: Rv64imSideProof,
-}
-
-impl Rv64imLinkageClaims {
-    pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/linkage_claims");
-        tr.append_message(b"neo.fold.next/nightstream/rv64im/linkage_claims/version", b"v2");
-        tr.append_u64s(
-            b"neo.fold.next/nightstream/rv64im/linkage_claims/counts",
-            &[self.public_chunk_digests.len() as u64],
-        );
-        for digest in &self.public_chunk_digests {
-            tr.append_message(
-                b"neo.fold.next/nightstream/rv64im/linkage_claims/public_chunk_digest",
-                digest,
-            );
-        }
-        tr.digest32()
-    }
-
-    pub fn digest(&self) -> [u8; 32] {
-        self.digest
-    }
-
-    pub fn public_chunk_digests(&self) -> &[[u8; 32]] {
-        &self.public_chunk_digests
-    }
-
-    pub fn public_chunk_digests_mut(&mut self) -> &mut [[u8; 32]] {
-        &mut self.public_chunk_digests
-    }
-
-    pub fn digest_mut(&mut self) -> &mut [u8; 32] {
-        &mut self.digest
-    }
 }
 
 impl Rv64imSideProof {
@@ -341,8 +277,9 @@ impl Rv64imSideProof {
     pub fn binding_statement(
         &self,
         nightstream_statement: &NightstreamStatement,
+        public_statement: &Rv64imProofStatement,
     ) -> Result<Rv64imSideBindingStatement, SimpleKernelError> {
-        build_rv64im_side_binding_statement(nightstream_statement, &self.opening_public)
+        build_rv64im_side_binding_statement(nightstream_statement, public_statement, &self.opening_public)
     }
 
     pub fn opening_public(&self) -> &Rv64imSideOpeningPublic {
@@ -387,14 +324,6 @@ impl Rv64imNightstreamProof {
         &mut self.main_proof
     }
 
-    pub fn linkage_claims(&self) -> &Rv64imLinkageClaims {
-        &self.linkage_claims
-    }
-
-    pub fn linkage_claims_mut(&mut self) -> &mut Rv64imLinkageClaims {
-        &mut self.linkage_claims
-    }
-
     pub fn side_proof(&self) -> &Rv64imSideProof {
         &self.side_proof
     }
@@ -416,21 +345,11 @@ fn rv64im_main_nightstream_proof_digest(main_proof: &Rv64imCompressedMainProof) 
     tr.digest32()
 }
 
-fn build_rv64im_nightstream_linkage_claims_from_parts(public_chunk_digests: Vec<[u8; 32]>) -> Rv64imLinkageClaims {
-    let mut claims = Rv64imLinkageClaims {
-        public_chunk_digests,
-        digest: [0; 32],
-    };
-    claims.digest = claims.expected_digest();
-    claims
-}
-
 fn build_rv64im_side_proof_bundle_from_accepted_artifact_and_kernel_export(
     artifact: &Rv64imAcceptedProofArtifact,
     kernel_export: &Rv64imKernelExportProof,
 ) -> Result<Rv64imSideProofBundle, SimpleKernelError> {
-    let (transcript, stage1, stage2, stage3, root_execution_digest) =
-        build_rv64im_verified_side_claims_from_accepted_artifact_fast(artifact)?;
+    let (transcript, stage1, stage2, stage3) = build_rv64im_verified_side_claims_from_accepted_artifact_fast(artifact)?;
     let mut bundle = Rv64imSideProofBundle {
         statement_core_digest: [0; 32],
         transcript,
@@ -441,15 +360,7 @@ fn build_rv64im_side_proof_bundle_from_accepted_artifact_and_kernel_export(
         kernel_opening_bridge: build_rv64im_kernel_opening_bridge_from_accepted_artifact(artifact),
         kernel_claim_bridge: build_rv64im_kernel_claim_bridge_from_accepted_artifact(artifact),
         kernel_claim_proof_bridge: build_rv64im_kernel_claim_proof_bridge_from_accepted_artifact(artifact),
-        kernel_export_bridge: build_rv64im_kernel_export_source_bridge_from_export_proof(kernel_export),
-        semantic_rows_digest: artifact.root_execution.semantic_rows_digest,
-        row_local_ccs_acceptance_digest: artifact.root_execution.row_local_ccs_acceptance.digest,
-        execution_semantics_refinement_digest: artifact
-            .root_execution
-            .execution_semantics_refinement
-            .digest,
-        family_digest: artifact.root_execution.family_digest,
-        root_execution_digest,
+        main_lane_bridge: build_rv64im_main_lane_proof_bridge_from_export_proof(kernel_export),
         digest: [0; 32],
     };
     bundle.digest = bundle.expected_digest();
@@ -511,96 +422,6 @@ fn verify_rv64im_side_proof_bundle_from_accepted_artifact(
         ));
     }
     Ok(())
-}
-
-fn derived_rv64im_row_chunk_routes_digest(
-    statement: &NightstreamStatement,
-) -> Result<([u8; 32], u64), SimpleKernelError> {
-    let public_step_count = fixed_shape_chunk_coverage_terminal_index(&statement.chunk_summaries).map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM Nightstream chunk summaries do not form a contiguous fixed-shape route layout: {err}"
-        ))
-    })?;
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/root_execution_row_chunk_routes");
-    tr.append_u64s(b"rv64im/root_execution_row_chunk_routes/len", &[public_step_count]);
-    for (chunk_index, summary) in statement.chunk_summaries.iter().enumerate() {
-        for chunk_local_index in 0..summary.public_step_count {
-            let logical_index = summary.start_index + chunk_local_index;
-            let mut route_tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/root_execution_row_chunk_route");
-            route_tr.append_u64s(
-                b"rv64im/root_execution_row_chunk_route/meta",
-                &[
-                    logical_index,
-                    chunk_index as u64,
-                    summary.start_index,
-                    chunk_local_index,
-                ],
-            );
-            tr.append_message(b"rv64im/root_execution_row_chunk_routes/route", &route_tr.digest32());
-        }
-    }
-    Ok((tr.digest32(), public_step_count))
-}
-
-fn derive_rv64im_root_execution_digest_from_compact_surfaces(
-    statement: &NightstreamStatement,
-    public_statement: &Rv64imProofStatement,
-    semantic_rows_digest: [u8; 32],
-    row_local_ccs_acceptance_digest: [u8; 32],
-    execution_semantics_refinement_digest: [u8; 32],
-    family_digest: [u8; 32],
-) -> Result<[u8; 32], SimpleKernelError> {
-    if statement.fold_schedule != public_statement.fold_schedule {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream public statement fold schedule does not match the carried Nightstream statement".into(),
-        ));
-    }
-    if statement.chunk_summaries.len() as u64 != public_statement.chunk_count {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream public statement chunk count does not match the carried Nightstream statement".into(),
-        ));
-    }
-
-    let (row_chunk_routes_digest, public_step_count) = derived_rv64im_row_chunk_routes_digest(statement)?;
-    if public_statement.public_step_count != public_step_count {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream public statement public-step count does not match the carried fixed-shape chunk summaries".into(),
-        ));
-    }
-
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/root_execution_bundle");
-    tr.append_message(
-        b"rv64im/root_execution_bundle/semantic_rows_digest",
-        &semantic_rows_digest,
-    );
-    tr.append_message(
-        b"rv64im/root_execution_bundle/prepared_step_bindings",
-        &public_statement.prepared_step_bindings_digest,
-    );
-    tr.append_message(
-        b"rv64im/root_execution_bundle/row_chunk_routes_digest",
-        &row_chunk_routes_digest,
-    );
-    tr.append_message(
-        b"rv64im/root_execution_bundle/row_local_ccs_acceptance_digest",
-        &row_local_ccs_acceptance_digest,
-    );
-    tr.append_message(
-        b"rv64im/root_execution_bundle/execution_semantics_refinement_digest",
-        &execution_semantics_refinement_digest,
-    );
-    tr.append_message(b"rv64im/root_execution_bundle/family_digest", &family_digest);
-    tr.append_u64s(
-        b"rv64im/root_execution_bundle/meta",
-        &[
-            public_step_count,
-            public_step_count,
-            public_step_count,
-            public_step_count,
-            public_step_count,
-        ],
-    );
-    Ok(tr.digest32())
 }
 
 fn verify_rv64im_side_kernel_claim_surface(
@@ -994,8 +815,8 @@ fn verify_rv64im_side_main_lane_proof_surface(
     );
     let expected_bundle_digest = main_lane_proof_bundle_digest_from_surfaces(
         binding_digest,
-        side_bundle.kernel_export_bridge.main_lane_statement_digest,
-        side_bundle.kernel_export_bridge.main_lane_proof_digest,
+        side_bundle.main_lane_bridge.main_lane_statement_digest,
+        side_bundle.main_lane_bridge.main_lane_proof_digest,
     );
     Ok(expected_bundle_digest)
 }
@@ -1015,7 +836,6 @@ fn build_rv64im_nightstream_statement_from_final(
     verifier_context_digest: [u8; 32],
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
-    linkage_root: [u8; 32],
     proof_binding_root: [u8; 32],
 ) -> Result<NightstreamStatement, SimpleKernelError> {
     verify_rv64im_final_statement_with_output(statement, proof)?;
@@ -1024,8 +844,6 @@ fn build_rv64im_nightstream_statement_from_final(
         verifier_context_digest,
         fold_schedule: statement.folded.fold_schedule,
         semantic_step_count: statement.folded.semantic_step_count,
-        chunk_summaries: proof.chunk_summaries.clone(),
-        linkage_root,
         proof_binding_root,
     })
 }
@@ -1033,8 +851,6 @@ fn build_rv64im_nightstream_statement_from_final(
 fn build_rv64im_nightstream_statement_from_published_statement(
     verifier_context_digest: [u8; 32],
     published_statement: &Rv64imPublishedStatement,
-    chunk_summaries: &[crate::finalize::FixedShapeChunkSummary],
-    linkage_root: [u8; 32],
     proof_binding_root: [u8; 32],
 ) -> Result<NightstreamStatement, SimpleKernelError> {
     Ok(NightstreamStatement {
@@ -1042,8 +858,6 @@ fn build_rv64im_nightstream_statement_from_published_statement(
         verifier_context_digest,
         fold_schedule: published_statement.fold_schedule(),
         semantic_step_count: published_statement.step_count(),
-        chunk_summaries: chunk_summaries.to_vec(),
-        linkage_root,
         proof_binding_root,
     })
 }
@@ -1066,7 +880,8 @@ fn build_rv64im_side_proof_from_bundle(
     let opening_final =
         prove_rv64im_side_opening_spartan(&opening_keys.as_ref().0, &opening_statement, &opening_witness)?;
     let public = build_rv64im_side_opening_public(side_bundle, &opening)?;
-    let side_statement = build_rv64im_side_binding_statement(nightstream_statement, &public)?;
+    let side_statement =
+        build_rv64im_side_binding_statement(nightstream_statement, &accepted_artifact.statement, &public)?;
     let keys = setup_rv64im_side_binding_cached(&side_statement, &public)?;
     let binding = prove_rv64im_side_binding(&keys.as_ref().0, &side_statement, &public, &claim_witnesses)?;
     Ok(Rv64imSideProof {
@@ -1103,68 +918,8 @@ pub fn verify_rv64im_side_proof(
         &side_proof.opening_statement,
     )?;
     verify_rv64im_side_opening_spartan(opening_vk, &side_proof.opening_statement, &side_proof.opening)?;
-    let side_statement = side_proof.binding_statement(nightstream_statement)?;
+    let side_statement = side_proof.binding_statement(nightstream_statement, public_statement)?;
     verify_rv64im_side_binding(vk, &side_statement, &side_proof.binding)
-}
-
-fn build_rv64im_nightstream_linkage_claims(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-) -> Result<Rv64imLinkageClaims, SimpleKernelError> {
-    let verified_kernel = verify_rv64im_final_statement_with_output(statement, proof)?;
-    Ok(build_rv64im_nightstream_linkage_claims_from_parts(
-        verified_kernel
-            .chunk_handoffs
-            .iter()
-            .map(|handoff| rv64im_public_chunk_digest(&handoff.public_chunk))
-            .collect(),
-    ))
-}
-
-pub fn rv64im_nightstream_linkage_root(
-    public_statement_anchor_digest: [u8; 32],
-    linkage_claims: &Rv64imLinkageClaims,
-) -> [u8; 32] {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/linkage_root");
-    tr.append_message(b"neo.fold.next/nightstream/rv64im/linkage_root/version", b"v1");
-    tr.append_message(
-        b"neo.fold.next/nightstream/rv64im/linkage_root/public_statement_anchor_digest",
-        &public_statement_anchor_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/nightstream/rv64im/linkage_root/linkage_claims_digest",
-        &linkage_claims.digest(),
-    );
-    tr.digest32()
-}
-
-fn validate_rv64im_nightstream_linkage_claims_against_statement(
-    statement: &NightstreamStatement,
-    linkage_claims: &Rv64imLinkageClaims,
-) -> Result<(), SimpleKernelError> {
-    if linkage_claims.digest() != linkage_claims.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream linkage claims digest mismatch".into(),
-        ));
-    }
-    if linkage_claims.public_chunk_digests.len() != statement.chunk_summaries.len() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream linkage claims public-chunk count does not match the carried statement".into(),
-        ));
-    }
-    for (expected, carried) in statement
-        .chunk_summaries
-        .iter()
-        .map(|summary| summary.public_chunk_digest)
-        .zip(linkage_claims.public_chunk_digests.iter().copied())
-    {
-        if expected != carried {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Nightstream linkage claims public-chunk digests do not match the carried statement".into(),
-            ));
-        }
-    }
-    Ok(())
 }
 
 pub fn build_rv64im_nightstream_from_public_proof(
@@ -1176,26 +931,23 @@ pub fn build_rv64im_nightstream_from_public_proof(
 fn verify_rv64im_nightstream_carried_boundary(
     statement: &NightstreamStatement,
     proof: &Rv64imNightstreamProof,
+    public_statement_digest: [u8; 32],
 ) -> Result<(), SimpleKernelError> {
-    validate_rv64im_nightstream_linkage_claims_against_statement(statement, &proof.linkage_claims)?;
-    let linkage_root = rv64im_nightstream_linkage_root(proof.main_proof.linkage_anchor_digest(), &proof.linkage_claims);
     let mut expected_statement = build_rv64im_nightstream_statement_from_published_statement(
         statement.verifier_context_digest,
         proof.main_proof.published_statement(),
-        &statement.chunk_summaries,
-        linkage_root,
         [0; 32],
     )?;
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_proof_digest: rv64im_main_nightstream_proof_digest(&proof.main_proof),
         side_proof_digest: proof.side_proof.expected_digest(),
-        linkage_binding_digest: proof.linkage_claims.digest(),
+        public_statement_digest,
     };
     expected_statement.proof_binding_root =
         nightstream_proof_binding_root(expected_statement.core_digest(), &proof_binding_inputs);
     if &expected_statement != statement {
         return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream statement does not match the verified final seam".into(),
+            "RV64IM Nightstream statement does not match the verified proof boundary".into(),
         ));
     }
     Ok(())

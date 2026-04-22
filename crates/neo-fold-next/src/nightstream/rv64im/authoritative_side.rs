@@ -21,7 +21,7 @@ use crate::rv64im::kernel::{
     derive_phase0_point, CommitmentContextId, FamilyEvalClaim, FamilyEvalSchemaId, OpenedAjtaiObjectId,
     SimpleKernelError,
 };
-use crate::rv64im::{Stage1VerifiedClaims, Stage2VerifiedClaims, Stage3VerifiedClaims};
+use crate::rv64im::{Rv64imProofStatement, Stage1VerifiedClaims, Stage2VerifiedClaims, Stage3VerifiedClaims};
 
 use super::side_eval_claim_relation::{
     active_phase0_schemas_from_side_bundle, build_rv64im_phase0_opened_object_bundle_from_opening_targets,
@@ -70,6 +70,7 @@ pub struct Rv64imSideOpeningPublic {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imSideBindingStatement {
     pub nightstream_statement_core_digest: [u8; 32],
+    pub public_statement_digest: [u8; 32],
     pub public_instance_digest: [u8; 32],
 }
 
@@ -168,11 +169,15 @@ impl Rv64imSideBindingStatement {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/authoritative_side/statement");
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/authoritative_side/statement/version",
-            b"v1",
+            b"v2",
         );
         tr.append_fields(
             b"neo.fold.next/nightstream/rv64im/authoritative_side/statement/nightstream_statement_core_digest",
             &digest32_as_fields(self.nightstream_statement_core_digest),
+        );
+        tr.append_fields(
+            b"neo.fold.next/nightstream/rv64im/authoritative_side/statement/public_statement_digest",
+            &digest32_as_fields(self.public_statement_digest),
         );
         tr.append_fields(
             b"neo.fold.next/nightstream/rv64im/authoritative_side/statement/public_instance_digest",
@@ -439,11 +444,19 @@ pub fn build_rv64im_side_opening_public(
 
 pub fn build_rv64im_side_binding_statement(
     nightstream_statement: &NightstreamStatement,
+    public_statement: &Rv64imProofStatement,
     public: &Rv64imSideOpeningPublic,
 ) -> Result<Rv64imSideBindingStatement, SimpleKernelError> {
     validate_rv64im_side_opening_public(nightstream_statement, public)?;
+    let public_statement_digest = public_statement.recompute_digest();
+    if public_statement.digest != public_statement_digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Nightstream carried public statement digest does not match the public statement fields".into(),
+        ));
+    }
     Ok(Rv64imSideBindingStatement {
         nightstream_statement_core_digest: nightstream_statement.core_digest(),
+        public_statement_digest,
         public_instance_digest: public.digest,
     })
 }

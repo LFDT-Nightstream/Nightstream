@@ -3,7 +3,6 @@
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 
-use crate::finalize::FixedShapeChunkSummary;
 use crate::proof::FoldSchedule;
 
 pub mod chip8;
@@ -15,8 +14,6 @@ pub struct NightstreamStatement {
     pub verifier_context_digest: [u8; 32],
     pub fold_schedule: FoldSchedule,
     pub semantic_step_count: u64,
-    pub chunk_summaries: Vec<FixedShapeChunkSummary>,
-    pub linkage_root: [u8; 32],
     pub proof_binding_root: [u8; 32],
 }
 
@@ -24,7 +21,7 @@ pub struct NightstreamStatement {
 pub struct NightstreamProofBindingInputs {
     pub main_proof_digest: [u8; 32],
     pub side_proof_digest: [u8; 32],
-    pub linkage_binding_digest: [u8; 32],
+    pub public_statement_digest: [u8; 32],
 }
 
 impl NightstreamStatement {
@@ -39,7 +36,7 @@ impl NightstreamStatement {
 
 pub fn nightstream_statement_core_digest(statement: &NightstreamStatement) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/statement_core");
-    tr.append_message(b"neo.fold.next/nightstream/statement_core/version", b"v1");
+    tr.append_message(b"neo.fold.next/nightstream/statement_core/version", b"v2");
     tr.append_message(
         b"neo.fold.next/nightstream/statement_core/public_io_digest",
         &statement.public_io_digest,
@@ -54,17 +51,7 @@ pub fn nightstream_statement_core_digest(statement: &NightstreamStatement) -> [u
     );
     tr.append_u64s(
         b"neo.fold.next/nightstream/statement_core/meta",
-        &[statement.semantic_step_count, statement.chunk_summaries.len() as u64],
-    );
-    for summary in &statement.chunk_summaries {
-        tr.append_message(
-            b"neo.fold.next/nightstream/statement_core/chunk_summary",
-            &summary.digest(),
-        );
-    }
-    tr.append_message(
-        b"neo.fold.next/nightstream/statement_core/linkage_root",
-        &statement.linkage_root,
+        &[statement.semantic_step_count],
     );
     tr.digest32()
 }
@@ -74,7 +61,7 @@ pub fn nightstream_proof_binding_root(
     inputs: &NightstreamProofBindingInputs,
 ) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/proof_binding_root");
-    tr.append_message(b"neo.fold.next/nightstream/proof_binding_root/version", b"v1");
+    tr.append_message(b"neo.fold.next/nightstream/proof_binding_root/version", b"v3");
     tr.append_message(
         b"neo.fold.next/nightstream/proof_binding_root/statement_core_digest",
         &statement_core_digest,
@@ -88,8 +75,8 @@ pub fn nightstream_proof_binding_root(
         &inputs.side_proof_digest,
     );
     tr.append_message(
-        b"neo.fold.next/nightstream/proof_binding_root/linkage_binding_digest",
-        &inputs.linkage_binding_digest,
+        b"neo.fold.next/nightstream/proof_binding_root/public_statement_digest",
+        &inputs.public_statement_digest,
     );
     tr.digest32()
 }

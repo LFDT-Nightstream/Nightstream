@@ -20,12 +20,7 @@ pub struct Rv64imSideProofBundle {
     pub kernel_opening_bridge: Rv64imKernelOpeningBridge,
     pub kernel_claim_bridge: Rv64imKernelClaimBridge,
     pub kernel_claim_proof_bridge: Rv64imKernelClaimProofBridge,
-    pub kernel_export_bridge: Rv64imKernelExportSourceBridge,
-    pub semantic_rows_digest: [u8; 32],
-    pub row_local_ccs_acceptance_digest: [u8; 32],
-    pub execution_semantics_refinement_digest: [u8; 32],
-    pub family_digest: [u8; 32],
-    pub root_execution_digest: [u8; 32],
+    pub main_lane_bridge: Rv64imMainLaneProofBridge,
     pub digest: [u8; 32],
 }
 
@@ -75,12 +70,9 @@ pub struct Rv64imKernelClaimProofBridge {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imKernelExportSourceBridge {
-    pub kernel_claim_statement_digest: [u8; 32],
-    pub kernel_claim_proof_digest: [u8; 32],
+pub struct Rv64imMainLaneProofBridge {
     pub main_lane_statement_digest: [u8; 32],
     pub main_lane_proof_digest: [u8; 32],
-    pub kernel_export_source_digest: [u8; 32],
     pub digest: [u8; 32],
 }
 
@@ -125,28 +117,8 @@ impl Rv64imSideProofBundle {
             &self.kernel_claim_proof_bridge.digest,
         );
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_proof_bundle/kernel_export_bridge",
-            &self.kernel_export_bridge.digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_proof_bundle/semantic_rows_digest",
-            &self.semantic_rows_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_proof_bundle/row_local_ccs_acceptance_digest",
-            &self.row_local_ccs_acceptance_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_proof_bundle/execution_semantics_refinement_digest",
-            &self.execution_semantics_refinement_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_proof_bundle/family_digest",
-            &self.family_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/side_proof_bundle/root_execution_digest",
-            &self.root_execution_digest,
+            b"neo.fold.next/nightstream/rv64im/side_proof_bundle/main_lane_bridge",
+            &self.main_lane_bridge.digest,
         );
         tr.digest32()
     }
@@ -279,28 +251,16 @@ impl Rv64imKernelClaimProofBridge {
     }
 }
 
-impl Rv64imKernelExportSourceBridge {
+impl Rv64imMainLaneProofBridge {
     pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/kernel_export_bridge");
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/main_lane_proof_bridge");
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/kernel_export_bridge/kernel_claim_statement_digest",
-            &self.kernel_claim_statement_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/kernel_export_bridge/kernel_claim_proof_digest",
-            &self.kernel_claim_proof_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/kernel_export_bridge/main_lane_statement_digest",
+            b"neo.fold.next/nightstream/rv64im/main_lane_proof_bridge/main_lane_statement_digest",
             &self.main_lane_statement_digest,
         );
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/kernel_export_bridge/main_lane_proof_digest",
+            b"neo.fold.next/nightstream/rv64im/main_lane_proof_bridge/main_lane_proof_digest",
             &self.main_lane_proof_digest,
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/kernel_export_bridge/kernel_export_source_digest",
-            &self.kernel_export_source_digest,
         );
         tr.digest32()
     }
@@ -354,9 +314,9 @@ pub(crate) fn validate_rv64im_side_proof_bundle_structure(
             "RV64IM Nightstream carried kernel-claim proof bridge digest mismatch".into(),
         ));
     }
-    if bundle.kernel_export_bridge.digest != bundle.kernel_export_bridge.expected_digest() {
+    if bundle.main_lane_bridge.digest != bundle.main_lane_bridge.expected_digest() {
         return Err(SimpleKernelError::Bridge(
-            "RV64IM Nightstream carried kernel-export bridge digest mismatch".into(),
+            "RV64IM Nightstream carried main-lane proof bridge digest mismatch".into(),
         ));
     }
     Ok(())
@@ -370,7 +330,6 @@ pub(super) fn build_rv64im_verified_side_claims_from_accepted_artifact_fast(
         Stage1VerifiedClaims,
         Stage2VerifiedClaims,
         Stage3VerifiedClaims,
-        [u8; 32],
     ),
     crate::rv64im::kernel::SimpleKernelError,
 > {
@@ -611,7 +570,7 @@ pub(super) fn build_rv64im_verified_side_claims_from_accepted_artifact_fast(
 
     let stage3 = build_verified_stage3_claim_from_accepted_artifact(artifact, &transcript)?;
 
-    Ok((transcript, stage1, stage2, stage3, artifact.root_execution.digest))
+    Ok((transcript, stage1, stage2, stage3))
 }
 
 pub(super) fn build_rv64im_kernel_opening_bridge_from_accepted_artifact(
@@ -709,20 +668,12 @@ pub(super) fn build_rv64im_kernel_claim_proof_bridge_from_accepted_artifact(
     bridge
 }
 
-pub(super) fn build_rv64im_kernel_export_source_bridge_from_export_proof(
+pub(super) fn build_rv64im_main_lane_proof_bridge_from_export_proof(
     kernel_export: &Rv64imKernelExportProof,
-) -> Rv64imKernelExportSourceBridge {
-    let mut bridge = Rv64imKernelExportSourceBridge {
-        kernel_claim_statement_digest: kernel_export.source.kernel_claims.packaged.statement.digest,
-        kernel_claim_proof_digest: kernel_export
-            .source
-            .kernel_claims
-            .packaged
-            .proof
-            .proof_digest,
+) -> Rv64imMainLaneProofBridge {
+    let mut bridge = Rv64imMainLaneProofBridge {
         main_lane_statement_digest: kernel_export.source.main_lane.packaged.statement.digest,
         main_lane_proof_digest: kernel_export.source.main_lane.packaged.proof.proof_digest,
-        kernel_export_source_digest: kernel_export.source.digest,
         digest: [0; 32],
     };
     bridge.digest = bridge.expected_digest();

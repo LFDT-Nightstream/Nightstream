@@ -355,14 +355,8 @@ impl ShardVerifier {
 }
 
 const CHUNK_META_RAW_TAG: u64 = 14;
-const STEP_INDEX_RAW_TAG: u64 = 15;
 
 fn append_chunk_transcript(tr: &mut Poseidon2Transcript, chunk: &PublicChunk) {
-    if chunk.steps.len() == 1 {
-        tr.append_fields_raw(&[F::from_u64(STEP_INDEX_RAW_TAG), F::from_u64(chunk.start_index as u64)]);
-        return;
-    }
-
     tr.append_fields_raw(&[
         F::from_u64(CHUNK_META_RAW_TAG),
         F::from_u64(chunk.start_index as u64),

@@ -133,6 +133,11 @@ impl SpartanCircuit<Rv64imSideBindingEngine> for Rv64imSideBindingCircuit {
             self.statement.nightstream_statement_core_digest,
             "statement_core_digest_field",
         )?;
+        let public_statement_digest_fields = alloc_digest_fields_witness(
+            &mut cs.namespace(|| "public_statement_digest_fields"),
+            self.statement.public_statement_digest,
+            "public_statement_digest_field",
+        )?;
         let opened_object_digests = self
             .public
             .opened_objects
@@ -263,13 +268,19 @@ impl SpartanCircuit<Rv64imSideBindingEngine> for Rv64imSideBindingCircuit {
         statement_tr.append_message(
             cs.namespace(|| "statement_version"),
             b"neo.fold.next/nightstream/rv64im/authoritative_side/statement/version",
-            b"v1",
+            b"v2",
         )?;
         statement_tr.append_fields(
             cs.namespace(|| "statement_tr_core_digest"),
             b"neo.fold.next/nightstream/rv64im/authoritative_side/statement/nightstream_statement_core_digest",
             &core_digest_fields.0,
             &core_digest_fields.1,
+        )?;
+        statement_tr.append_fields(
+            cs.namespace(|| "statement_public_statement_digest"),
+            b"neo.fold.next/nightstream/rv64im/authoritative_side/statement/public_statement_digest",
+            &public_statement_digest_fields.0,
+            &public_statement_digest_fields.1,
         )?;
         let public_instance_digest_values = digest32_as_fields(self.statement.public_instance_digest)
             .into_iter()

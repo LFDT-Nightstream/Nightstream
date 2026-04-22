@@ -29,9 +29,7 @@ use super::{
 };
 use crate::rv64im::final_relation::{Rv64imChunkFoldTranscriptSnapshot, RV64IM_CHUNK_DONE_RAW_TAG};
 use crate::rv64im::ivc_snark::SpartanF;
-use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache, SimpleKernelError,
-};
+use crate::rv64im::kernel::{rv64im_cached_root_main_lane_optimized_cache, SimpleKernelError};
 use crate::rv64im::main_relation_circuit::pi_ccs::{bind_header_and_instance_digest, bind_me_inputs};
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_trace::{Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface};
@@ -121,15 +119,16 @@ pub(super) fn derive_rv64im_fixed_transcript_out_from_chunk_body(
     terminal_handle_in: [u8; 32],
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imChunkFoldTranscriptSnapshot, SimpleKernelError> {
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, _, structure) =
+        crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count(payload.state_in_claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let dims = build_dims_and_policy(params, structure)
+    let dims = build_dims_and_policy(&params, structure)
         .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM fixed transcript dims failed: {err}")))?;
     let mat_digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()))
         .try_into()
         .map_err(|_| SimpleKernelError::Bridge("RV64IM fixed transcript matrix digest length mismatch".into()))?;
     derive_fixed_transcript_out_from_parts(
-        params,
+        &params,
         structure,
         dims,
         &mat_digest,

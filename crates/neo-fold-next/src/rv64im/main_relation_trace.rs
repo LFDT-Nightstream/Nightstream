@@ -29,7 +29,7 @@ use crate::rv64im::chunk_relation::{trace_rv64im_chunk_relation_with_replay, Rv6
 use crate::rv64im::final_relation::{rv64im_chunk_fold_carried_transcript_snapshot, Rv64imChunkFoldTranscriptSnapshot};
 use crate::rv64im::kernel::{
     rv64im_ajtai_mixers, rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
-    Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
+    rv64im_root_main_lane_context_for_claim_count, Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 use crate::rv64im::main_relation_circuit::structure::pad_ccs_structure_to_block_width;
 
@@ -408,14 +408,14 @@ pub(crate) fn build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(
     transcript_out: &Rv64imChunkFoldTranscriptSnapshot,
     replay_witness: &ChunkReplayWitness,
 ) -> Result<Rv64imMainCircuitChunkTrace, SimpleKernelError> {
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, log, structure) = rv64im_root_main_lane_context_for_claim_count(carry_in.main.claims.len())?;
     let ce_structure = pad_ccs_structure_to_block_width(structure)
         .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM padded CE structure failed: {err}")))?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let dims = build_dims_and_policy(params, structure)
+    let dims = build_dims_and_policy(&params, structure)
         .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation dims failed: {err}")))?;
     let ctx = Rv64imMainCircuitTraceBuildContext {
-        params,
+        params: &params,
         log,
         structure,
         ce_structure: &ce_structure,

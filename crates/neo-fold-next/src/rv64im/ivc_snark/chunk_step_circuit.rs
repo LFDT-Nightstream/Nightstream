@@ -15,7 +15,7 @@ use crate::rv64im::chunk_step_ivc::{
 };
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::ivc_snark::{hash_packed_goldilocks_fields, Rv64imDeciderEngine, ShapeCS, SpartanCircuit, SpartanF};
-use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
+use crate::rv64im::kernel::rv64im_cached_root_main_lane_optimized_cache;
 use crate::rv64im::main_relation_circuit::claim::{
     alloc_ce_claim, alloc_ce_claim_with_shared_point, enforce_claim_projection_eq_native, packed_bytes_field_values,
     CeClaimVar,
@@ -150,11 +150,12 @@ pub(super) fn build_rv64im_chunk_step_ivc_circuit(
 ) -> Result<Rv64imChunkStepIvcCircuit, Rv64imChunkStepIvcSpartanError> {
     let (published_target, effective_chunk) = prepare_rv64im_chunk_step_ivc_circuit_inputs(statement, witness)?;
     let cover_chunk = Rv64imMainCircuitChunkCover::from_trace(&effective_chunk);
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
+    let (params, _, structure) =
+        crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count(witness.state_in.carry.main.claims.len())
+            .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()
         .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
-    let dims = build_dims_and_policy(params, structure)
+    let dims = build_dims_and_policy(&params, structure)
         .map_err(|err| Rv64imChunkStepIvcSpartanError::Verify(err.to_string()))?;
     let mat_digest_vec = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(
         structure,

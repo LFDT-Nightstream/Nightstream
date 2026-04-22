@@ -9,8 +9,8 @@ use crate::chunk_relation::ChunkReplayWitness;
 use crate::proof::FoldSchedule;
 use crate::rv64im::chunk_fold_step::verify_rv64im_chunk_fold_verifier_step;
 use crate::rv64im::chunk_step_ivc::{
-    rv64im_chunk_step_ivc_initial_state, validate_rv64im_chunk_step_ivc_surface, Rv64imChunkStepIvcRelation,
-    Rv64imChunkStepIvcStatement, Rv64imChunkStepIvcWitness,
+    rv64im_chunk_step_ivc_initial_state_for_step_cap, validate_rv64im_chunk_step_ivc_surface,
+    Rv64imChunkStepIvcRelation, Rv64imChunkStepIvcStatement, Rv64imChunkStepIvcWitness,
 };
 use crate::rv64im::construction2::{
     build_rv64im_main_recursion_construction2_pi_fold_from_replay_witness,
@@ -24,7 +24,7 @@ use crate::rv64im::f_prime::{
 };
 use crate::rv64im::final_relation::{rv64im_chunk_fold_carry_recursive_accumulator_digest, Rv64imChunkFoldState};
 use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
+    rv64im_cached_root_main_lane_optimized_cache, rv64im_root_main_lane_context_for_claim_count,
     Rv64imVerifiedKernelChunkHandoff,
 };
 use crate::rv64im::SimpleKernelError;
@@ -176,7 +176,7 @@ impl Rv64imIvcState {
             ));
         }
         let vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(step_cap as usize)?;
-        let running_state = rv64im_chunk_step_ivc_initial_state();
+        let running_state = rv64im_chunk_step_ivc_initial_state_for_step_cap(step_cap as usize);
         let z_0 = running_state.carry.terminal_handle.0;
         let folded_accumulator_digest = rv64im_chunk_fold_carry_recursive_accumulator_digest(&running_state.carry);
         let x_i = rv64im_main_recursion_x_out(
@@ -336,7 +336,8 @@ impl Rv64imIvcState {
             perf.build_terminal_relation_ms = elapsed_ms(started);
 
             let started = Instant::now();
-            let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+            let (params, log, structure) =
+                rv64im_root_main_lane_context_for_claim_count(last_step.state_in.carry.main.claims.len())?;
             let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
             perf.context_lookup_ms = elapsed_ms(started);
 
@@ -353,7 +354,7 @@ impl Rv64imIvcState {
                 &last_step.state_in.carry,
                 &last_step.replay_witness,
                 &mut transcript,
-                params,
+                &params,
                 structure,
                 log,
                 &optimized_cache,
@@ -509,7 +510,7 @@ impl Rv64imIvcState {
             ));
         }
         if self.z_0
-            != rv64im_chunk_step_ivc_initial_state()
+            != rv64im_chunk_step_ivc_initial_state_for_step_cap(self.step_cap_usize()?)
                 .carry
                 .terminal_handle
                 .0

@@ -16,7 +16,7 @@ use super::super::recursive_cover::{
 use super::super::{synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imClaimBundle};
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::ivc_snark::SpartanF;
-use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
+use crate::rv64im::kernel::rv64im_cached_root_main_lane_optimized_cache;
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
 use crate::rv64im::main_relation_circuit::claim::enforce_claim_projection_eq_native;
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
@@ -34,9 +34,12 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
     state_out_var: &Rv64imRecursiveCoverStateVar,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imMainRecursionStepChunkReplayOutput, SynthesisError> {
-    let (params, _, structure) = rv64im_cached_root_main_lane_context().map_err(|_| SynthesisError::Unsatisfiable)?;
+    let (params, _, structure) = crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count(
+        witness.running_state().carry.main.claims.len(),
+    )
+    .map_err(|_| SynthesisError::Unsatisfiable)?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache().map_err(|_| SynthesisError::Unsatisfiable)?;
-    let dims = build_dims_and_policy(params, structure).map_err(|_| SynthesisError::Unsatisfiable)?;
+    let dims = build_dims_and_policy(&params, structure).map_err(|_| SynthesisError::Unsatisfiable)?;
     let mat_digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(structure, Some(optimized_cache.sparse()))
         .try_into()
         .map_err(|_| SynthesisError::Unsatisfiable)?;
@@ -65,7 +68,7 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
             .collect(),
     );
     let replayed_next_claims = synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io(
-        params,
+        &params,
         structure,
         dims,
         &mat_digest,

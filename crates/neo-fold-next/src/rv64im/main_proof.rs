@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, FixedShapeChunkSummary};
 use crate::proof::FoldSchedule;
 use crate::rv64im::chunk_step_ivc::{
-    build_rv64im_chunk_step_ivc_relations, rv64im_chunk_step_ivc_initial_state, Rv64imChunkStepIvcStatement,
+    build_rv64im_chunk_step_ivc_relations, rv64im_chunk_step_ivc_initial_state_for_step_cap,
+    Rv64imChunkStepIvcStatement,
 };
 use crate::rv64im::final_relation::{
     reconstruct_rv64im_final_statement_from_export_and_replay, rv64im_recursive_accumulator_instance_digest_from_parts,
@@ -472,7 +473,7 @@ pub(crate) fn build_rv64im_ivc_public_image_from_published_statement(
         vk_fs_digest: published_statement.vk_fs().expected_digest(),
         chunk_count: published_statement.expected_chunk_count()?,
         step_count: published_statement.step_count(),
-        z_0: rv64im_chunk_step_ivc_initial_state()
+        z_0: rv64im_chunk_step_ivc_initial_state_for_step_cap(published_statement.vk_fs().step_cap()?)
             .carry
             .terminal_handle
             .0,

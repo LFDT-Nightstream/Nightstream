@@ -29,7 +29,7 @@ use crate::finalize::{digest32_as_fields, digest_fields_as_digest32};
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::build_rv64im_main_recursion_construction2_verified_step_statement_from_relation;
 use crate::rv64im::final_relation::{rv64im_chunk_fold_transcript_snapshot_digest, Rv64imChunkFoldTranscriptSnapshot};
-use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
+use crate::rv64im::kernel::rv64im_cached_root_main_lane_optimized_cache;
 use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_backend_statement_from_advice, build_rv64im_main_recursion_f_prime_advices,
     Rv64imMainRecursionFPrimeAdvice,
@@ -916,8 +916,10 @@ fn rebuild_padded_pi_ccs_payload(
     fresh_claims: &[CcsClaim<Commitment, F>],
     fresh_witnesses: &[CcsWitness<F>],
 ) -> Result<Rv64imMainRecursionFPrimePiCcsPayload, Rv64imChunkStepIvcSpartanError> {
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()
-        .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
+    let (params, log, structure) = crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count(
+        advice.running_state().carry.main.claims.len(),
+    )
+    .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()
         .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(
@@ -927,7 +929,7 @@ fn rebuild_padded_pi_ccs_payload(
     append_recursive_step_public_chunk_meta(&mut transcript, handoff);
     let (terminal_state, replay) = optimized_replay_trace_with_cache_and_instance_digest_and_perf(
         &mut transcript,
-        params,
+        &params,
         structure,
         fresh_claims,
         fresh_witnesses,

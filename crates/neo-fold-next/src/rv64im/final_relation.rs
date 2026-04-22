@@ -22,12 +22,14 @@ use crate::rv64im::chunk_fold_step::{
     Rv64imChunkFoldCarry, Rv64imChunkFoldFresh, Rv64imChunkStepPublic,
 };
 use crate::rv64im::chunk_relation::rv64im_chunk_replay_witness_digest;
+use crate::rv64im::ivc::derive_rv64im_ivc_step_cap;
 use crate::rv64im::kernel::{
     build_rv64im_kernel_export_build_output_from_carried_accepted_artifact_with_source_and_chunk_inputs,
-    build_rv64im_kernel_export_proof_from_carried_accepted_artifact, rv64im_cached_root_main_lane_context,
-    rv64im_cached_root_main_lane_optimized_cache, verify_rv64im_kernel_export_proof_with_output,
-    verify_rv64im_kernel_export_proof_with_relation_output, Rv64imAcceptedProofArtifact, Rv64imKernelExportProof,
-    Rv64imKernelExportRelationResult, Rv64imKernelExportSource, Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
+    build_rv64im_kernel_export_proof_from_carried_accepted_artifact, rv64im_cached_root_main_lane_optimized_cache,
+    rv64im_root_main_lane_context_for_claim_count, rv64im_root_main_lane_context_for_step_cap,
+    verify_rv64im_kernel_export_proof_with_output, verify_rv64im_kernel_export_proof_with_relation_output,
+    Rv64imAcceptedProofArtifact, Rv64imKernelExportProof, Rv64imKernelExportRelationResult, Rv64imKernelExportSource,
+    Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 
 pub(crate) const RV64IM_SESSION_RAW_DOMAIN_TAG: u64 = 17;
@@ -414,7 +416,8 @@ pub fn build_rv64im_terminal_chunk_fold_witness(
 pub fn verify_rv64im_terminal_chunk_fold_witness(
     witness: &Rv64imTerminalChunkFoldWitness,
 ) -> Result<(), SimpleKernelError> {
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, log, structure) =
+        rv64im_root_main_lane_context_for_claim_count(witness.running_last.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript =
         Poseidon2Transcript::from_state_and_absorbed(witness.transcript_in.state, witness.transcript_in.absorbed);
@@ -426,7 +429,7 @@ pub fn verify_rv64im_terminal_chunk_fold_witness(
         &witness.running_last,
         &witness.final_fold_witness,
         &mut transcript,
-        params,
+        &params,
         structure,
         log,
         &optimized_cache,
@@ -646,9 +649,15 @@ fn build_rv64im_folded_statement_from_accepted_with_perf_and_source(
     let kernel_export_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let semantic_step_count = verified_kernel
+        .chunk_handoffs
+        .iter()
+        .map(|handoff| handoff.chunk_input.steps.len())
+        .sum();
+    let step_cap = derive_rv64im_ivc_step_cap(verified_kernel.fold_schedule, semantic_step_count)?;
+    let (params, log, structure) = rv64im_root_main_lane_context_for_step_cap(step_cap)?;
     let (steps, chunk_summaries, final_accumulator, mut recursive_perf) =
-        build_recursive_proof(&verified_kernel.chunk_handoffs, params, structure, log)?;
+        build_recursive_proof(&verified_kernel.chunk_handoffs, &params, structure, log)?;
     let recursive_proof_ms = elapsed_ms(started);
     recursive_perf.total_ms = recursive_proof_ms;
 
@@ -798,10 +807,16 @@ fn build_chunk_fold_step_traces_from_verified_kernel(
         }
     }
 
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let semantic_step_count = verified_kernel
+        .chunk_handoffs
+        .iter()
+        .map(|handoff| handoff.chunk_input.steps.len())
+        .sum();
+    let step_cap = derive_rv64im_ivc_step_cap(verified_kernel.fold_schedule, semantic_step_count)?;
+    let (params, log, structure) = rv64im_root_main_lane_context_for_step_cap(step_cap)?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript = rv64im_chunk_fold_initial_transcript();
-    let mut accumulator = Rv64imChunkFoldCarry::seed();
+    let mut accumulator = Rv64imChunkFoldCarry::seed_for_step_cap(step_cap);
     let mut traces = Vec::with_capacity(steps.len());
 
     for (chunk_index, step_witness) in steps.iter().enumerate() {
@@ -829,7 +844,7 @@ fn build_chunk_fold_step_traces_from_verified_kernel(
             &carry_in,
             &step_witness.replay_witness,
             &mut transcript,
-            params,
+            &params,
             structure,
             log,
             &optimized_cache,
@@ -886,7 +901,7 @@ fn build_recursive_proof(
 > {
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript = rv64im_chunk_fold_initial_transcript();
-    let mut accumulator = Rv64imChunkFoldCarry::seed();
+    let mut accumulator = Rv64imChunkFoldCarry::seed_for_claim_count(params.k_rho as usize);
     let mut steps = Vec::with_capacity(chunk_handoffs.len());
     let mut chunk_summaries = Vec::with_capacity(chunk_handoffs.len());
     let mut perf = Rv64imRecursiveBuildPerf::default();

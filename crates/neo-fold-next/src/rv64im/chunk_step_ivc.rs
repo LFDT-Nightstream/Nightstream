@@ -16,7 +16,7 @@ use crate::rv64im::final_relation::{
     rv64im_chunk_fold_initial_transcript_snapshot, Rv64imChunkFoldState, Rv64imFinalBuildProof, Rv64imFinalStatement,
 };
 use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
+    rv64im_cached_root_main_lane_optimized_cache, rv64im_root_main_lane_context_for_claim_count,
     Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
@@ -155,11 +155,20 @@ pub struct Rv64imChunkStepIvcRelation {
     pub witness: Rv64imChunkStepIvcWitness,
 }
 
-pub fn rv64im_chunk_step_ivc_initial_state() -> Rv64imChunkFoldState {
+pub fn rv64im_chunk_step_ivc_initial_state_for_step_cap(step_cap: usize) -> Rv64imChunkFoldState {
+    let claim_count = crate::rv64im::kernel::rv64im_simple_root_params_for_step_cap(step_cap).k_rho as usize;
+    rv64im_chunk_step_ivc_initial_state_for_claim_count(claim_count)
+}
+
+pub fn rv64im_chunk_step_ivc_initial_state_for_claim_count(claim_count: usize) -> Rv64imChunkFoldState {
     Rv64imChunkFoldState {
-        carry: Rv64imChunkFoldCarry::seed(),
+        carry: Rv64imChunkFoldCarry::seed_for_claim_count(claim_count),
         transcript: rv64im_chunk_fold_initial_transcript_snapshot(),
     }
+}
+
+pub fn rv64im_chunk_step_ivc_initial_state() -> Rv64imChunkFoldState {
+    rv64im_chunk_step_ivc_initial_state_for_step_cap(1)
 }
 
 fn rv64im_digest_chain_initial(raw_tag: u64) -> [u8; 32] {
@@ -354,7 +363,11 @@ pub fn validate_rv64im_chunk_step_ivc_surface(
 pub fn verify_rv64im_chunk_step_ivc_chain(
     relations: &[Rv64imChunkStepIvcRelation],
 ) -> Result<Rv64imChunkFoldState, SimpleKernelError> {
-    let mut expected_state = rv64im_chunk_step_ivc_initial_state();
+    let claim_count = relations
+        .first()
+        .map(|relation| relation.witness.state_in.carry.main.claims.len())
+        .unwrap_or(crate::rv64im::kernel::rv64im_simple_root_params().k_rho as usize);
+    let mut expected_state = rv64im_chunk_step_ivc_initial_state_for_claim_count(claim_count);
     for (chain_index, relation) in relations.iter().enumerate() {
         if relation.witness.handoff.bridge_handoff.chunk_index as usize != chain_index {
             return Err(SimpleKernelError::Bridge(
@@ -376,7 +389,8 @@ pub fn verify_rv64im_chunk_step_ivc(
     witness: &Rv64imChunkStepIvcWitness,
 ) -> Result<Rv64imChunkFoldState, SimpleKernelError> {
     validate_rv64im_chunk_step_ivc_surface(statement, witness)?;
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, log, structure) =
+        rv64im_root_main_lane_context_for_claim_count(witness.state_in.carry.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(
         witness.state_in.transcript.state,
@@ -390,7 +404,7 @@ pub fn verify_rv64im_chunk_step_ivc(
         &witness.state_in.carry,
         &witness.replay_witness,
         &mut transcript,
-        params,
+        &params,
         structure,
         log,
         &optimized_cache,

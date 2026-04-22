@@ -2742,10 +2742,15 @@ pub fn debug_measure_rv64im_main_recursion_step_stage_aux_counts(
 
     let canonical_initial_z = digest_const_inputs(
         &mut cs.namespace(|| "canonical_initial_z"),
-        crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state()
-            .carry
-            .terminal_handle
-            .0,
+        crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state_for_step_cap(
+            witness
+                .verifier_key_fs()
+                .step_cap()
+                .map_err(|err| stage_err("stage_aux_counts_step_cap", err))?,
+        )
+        .carry
+        .terminal_handle
+        .0,
         "canonical_initial_z",
     )
     .map_err(|err| stage_err("stage_aux_counts_canonical_initial_z", err))?;

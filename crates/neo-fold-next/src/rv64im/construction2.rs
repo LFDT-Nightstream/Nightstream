@@ -46,8 +46,8 @@ use crate::rv64im::final_relation::{
     rv64im_chunk_fold_carried_transcript_snapshot, Rv64imChunkFoldState, Rv64imChunkFoldTranscriptSnapshot,
 };
 use crate::rv64im::kernel::{
-    rv64im_ajtai_mixers, rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
-    rv64im_public_chunk_digest, Rv64imChunkBridgeHandoff,
+    rv64im_ajtai_mixers, rv64im_cached_root_main_lane_optimized_cache, rv64im_public_chunk_digest,
+    rv64im_root_main_lane_context_for_claim_count, Rv64imChunkBridgeHandoff,
 };
 use crate::rv64im::main_relation_spartan::{
     build_rv64im_main_recursion_f_prime_claim_cover, Rv64imChunkStepIvcShape, Rv64imMainRecursionFPrimeClaimCover,
@@ -1276,7 +1276,8 @@ fn verify_rv64im_main_recursion_construction2_pi_ccs(
     bridge: &Rv64imMainRecursionConstruction2NifsBridge<'_>,
 ) -> Result<(Rv64imChunkRelationTrace, Poseidon2Transcript), SimpleKernelError> {
     validate_rv64im_main_recursion_construction2_chunk_replay_input(bridge.state_in, &bridge.chunk_replay_input)?;
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, log, structure) =
+        rv64im_root_main_lane_context_for_claim_count(bridge.state_in.carry.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(
         bridge.state_in.transcript.state,
@@ -1290,7 +1291,7 @@ fn verify_rv64im_main_recursion_construction2_pi_ccs(
         &bridge.pi_fold.ccs_replay_payload.sumcheck_rounds,
         &bridge.pi_fold.ccs_replay_payload.sumcheck_rounds_nc,
         &mut transcript,
-        params,
+        &params,
         structure,
         log,
         optimized_cache,
@@ -1324,9 +1325,9 @@ pub(crate) fn audit_rv64im_main_recursion_construction2_pi_rlc_rho_mats(
     bridge: &Rv64imMainRecursionConstruction2NifsBridge<'_>,
 ) -> Result<Vec<Mat<F>>, SimpleKernelError> {
     let (trace, mut transcript) = verify_rv64im_main_recursion_construction2_pi_ccs(bridge)?;
-    let (params, _, _) = rv64im_cached_root_main_lane_context()?;
+    let (params, _, _) = rv64im_root_main_lane_context_for_claim_count(bridge.state_in.carry.main.claims.len())?;
     Ok(
-        sample_rv64im_main_recursion_construction2_pi_rlc_rhos(&mut transcript, params, trace.ccs_outputs.len())?
+        sample_rv64im_main_recursion_construction2_pi_rlc_rhos(&mut transcript, &params, trace.ccs_outputs.len())?
             .into_iter()
             .map(|rho| rho.into_mat())
             .collect(),
@@ -1385,7 +1386,8 @@ fn trace_and_validate_rv64im_main_recursion_construction2_relation(
     let replay_input =
         Rv64imMainRecursionConstruction2ReplayInput::from_verified_kernel_handoff(&relation.witness.handoff);
     validate_rv64im_main_recursion_construction2_chunk_replay_input(&relation.witness.state_in, &replay_input)?;
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, log, structure) =
+        rv64im_root_main_lane_context_for_claim_count(relation.witness.state_in.carry.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(
         relation.witness.state_in.transcript.state,
@@ -1400,7 +1402,7 @@ fn trace_and_validate_rv64im_main_recursion_construction2_relation(
         &replay_payload.sumcheck_rounds,
         &replay_payload.sumcheck_rounds_nc,
         &mut transcript,
-        params,
+        &params,
         structure,
         log,
         optimized_cache,
@@ -1475,7 +1477,8 @@ fn verify_rv64im_main_recursion_construction2_verified_relation(
     bridge: &Rv64imMainRecursionConstruction2NifsBridge<'_>,
 ) -> Result<(Poseidon2Transcript, [u8; 32]), SimpleKernelError> {
     validate_rv64im_main_recursion_construction2_chunk_replay_input(bridge.state_in, &bridge.chunk_replay_input)?;
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, _, structure) =
+        rv64im_root_main_lane_context_for_claim_count(bridge.state_in.carry.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(
         bridge.state_in.transcript.state,
@@ -1496,7 +1499,7 @@ fn verify_rv64im_main_recursion_construction2_verified_relation(
     let ccs_proof = bridge.replay_witness.ccs_replay_proof.to_pi_ccs_proof();
     let (ok, _) = optimized_verify_with_cache_and_instance_digest_and_perf(
         &mut transcript,
-        params,
+        &params,
         structure,
         &fresh_claims,
         &bridge.state_in.carry.main.claims,
@@ -1523,16 +1526,16 @@ fn verify_rv64im_main_recursion_construction2_verified_relation(
             &format!("RV64IM Construction-2 Pi_CCS output {idx}"),
         )?;
     }
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params, structure)
+    let dims = neo_reductions::engines::utils::build_dims_and_policy(&params, structure)
         .map_err(|err| SimpleKernelError::Proof(format!("RV64IM Construction-2 public verifier dims failed: {err}")))?;
     let rhos = sample_rv64im_main_recursion_construction2_pi_rlc_rhos(
         &mut transcript,
-        params,
+        &params,
         bridge.replay_witness.ccs_outputs.len(),
     )?;
     let parent = rlc_public(
         structure,
-        params,
+        &params,
         &rhos,
         &bridge.replay_witness.ccs_outputs,
         rv64im_ajtai_mixers().mix_rhos_commits,
@@ -1541,7 +1544,7 @@ fn verify_rv64im_main_recursion_construction2_verified_relation(
     .map_err(|err| SimpleKernelError::Proof(format!("RV64IM Construction-2 Pi_RLC public verify failed: {err}")))?;
     if !verify_dec_public(
         structure,
-        params,
+        &params,
         &parent,
         &bridge.expected_state_out.carry.main.claims,
         rv64im_ajtai_mixers().combine_b_pows,

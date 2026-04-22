@@ -15,7 +15,7 @@ use crate::rv64im::final_relation::{
     rv64im_chunk_fold_carried_transcript_snapshot, Rv64imChunkFoldState, Rv64imChunkFoldTranscriptSnapshot,
 };
 use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
+    rv64im_cached_root_main_lane_optimized_cache, rv64im_root_main_lane_context_for_claim_count,
     Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 use neo_ajtai::Commitment;
@@ -108,7 +108,8 @@ fn verify_rv64im_nifs_pi_ccs_trace(
     proof: &Rv64imNifsProof,
 ) -> Result<(Rv64imChunkRelationTrace, Poseidon2Transcript), SimpleKernelError> {
     validate_rv64im_nifs_surface(running, fresh_instance, fresh_witness)?;
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, log, structure) =
+        rv64im_root_main_lane_context_for_claim_count(running.state.carry.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript =
         Poseidon2Transcript::from_state_and_absorbed(running.state.transcript.state, running.state.transcript.absorbed);
@@ -118,7 +119,7 @@ fn verify_rv64im_nifs_pi_ccs_trace(
         &running.state.carry.main,
         &proof.replay_witness(),
         &mut transcript,
-        params,
+        &params,
         structure,
         log,
         optimized_cache,
@@ -233,7 +234,8 @@ pub(crate) fn prove_rv64im_nifs_step(
     fresh_witness: &Rv64imNifsFreshWitness,
 ) -> Result<Rv64imNifsProof, SimpleKernelError> {
     validate_rv64im_nifs_surface(running, fresh_instance, fresh_witness)?;
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, log, structure) =
+        rv64im_root_main_lane_context_for_claim_count(running.state.carry.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut prove_transcript =
         Poseidon2Transcript::from_state_and_absorbed(running.state.transcript.state, running.state.transcript.absorbed);
@@ -242,7 +244,7 @@ pub(crate) fn prove_rv64im_nifs_step(
         &fresh_witness.handoff,
         &running.state.carry.main,
         &mut prove_transcript,
-        params,
+        &params,
         structure,
         log,
         optimized_cache,
@@ -255,7 +257,7 @@ pub(crate) fn prove_rv64im_nifs_step(
         &running.state.carry.main,
         &replay_witness,
         &mut trace_transcript,
-        params,
+        &params,
         structure,
         log,
         optimized_cache,

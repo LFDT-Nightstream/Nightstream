@@ -173,8 +173,22 @@ fn canonical_phi_side_commitment_word_lens(phi_side: &Rv64imMainRecursionPhiSide
         .collect()
 }
 
-fn build_root_ce_claim_shape() -> Result<Rv64imCeClaimDigestShape, SimpleKernelError> {
-    let (params, _, structure) = crate::rv64im::kernel::rv64im_cached_root_main_lane_context()?;
+fn build_root_ce_claim_shape_for_step_cap(step_cap: usize) -> Result<Rv64imCeClaimDigestShape, SimpleKernelError> {
+    let (params, _, structure) = crate::rv64im::kernel::rv64im_root_main_lane_context_for_step_cap(step_cap)?;
+    build_root_ce_claim_shape_from_params(&params, structure)
+}
+
+fn build_root_ce_claim_shape_for_claim_count(
+    claim_count: usize,
+) -> Result<Rv64imCeClaimDigestShape, SimpleKernelError> {
+    let (params, _, structure) = crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count(claim_count)?;
+    build_root_ce_claim_shape_from_params(&params, structure)
+}
+
+fn build_root_ce_claim_shape_from_params(
+    params: &NeoParams,
+    structure: &neo_ccs::CcsStructure<F>,
+) -> Result<Rv64imCeClaimDigestShape, SimpleKernelError> {
     let dims = build_dims_and_policy(params, structure)
         .map_err(|err| SimpleKernelError::Build(format!("RV64IM canonical CE claim shape dims failed: {err}")))?;
     let d_pad = 1usize
@@ -197,8 +211,8 @@ fn build_root_ce_claim_shape() -> Result<Rv64imCeClaimDigestShape, SimpleKernelE
     })
 }
 
-fn build_root_ccs_claim_shape() -> Result<Rv64imCcsClaimShape, SimpleKernelError> {
-    let (params, _, _) = crate::rv64im::kernel::rv64im_cached_root_main_lane_context()?;
+fn build_root_ccs_claim_shape_for_step_cap(step_cap: usize) -> Result<Rv64imCcsClaimShape, SimpleKernelError> {
+    let params = crate::rv64im::kernel::rv64im_simple_root_params_for_step_cap(step_cap);
     Ok(Rv64imCcsClaimShape {
         commitment_d: D as u64,
         commitment_kappa: params.kappa as u64,
@@ -215,11 +229,16 @@ fn build_root_ccs_witness_shape() -> Rv64imCcsWitnessShape {
     }
 }
 
-pub(crate) fn build_rv64im_main_recursion_canonical_zero_carry() -> Result<Carry, SimpleKernelError> {
-    let (params, _, _) = crate::rv64im::kernel::rv64im_cached_root_main_lane_context()?;
-    let claim_shape = build_root_ce_claim_shape()?;
+pub(crate) fn build_rv64im_main_recursion_canonical_zero_carry_for_claim_count(
+    claim_count: usize,
+) -> Result<Carry, SimpleKernelError> {
+    if claim_count == 0 {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM canonical zero carry requires at least one carried claim".into(),
+        ));
+    }
+    let claim_shape = build_root_ce_claim_shape_for_claim_count(claim_count)?;
     let witness_shape = build_root_ccs_witness_shape();
-    let claim_count = params.k_rho as usize;
     let zero_claim = claim_shape.zero_claim();
     let zero_witness = witness_shape.zero_witness().Z;
     Ok(Carry {
@@ -241,11 +260,11 @@ pub fn build_rv64im_main_recursion_construction2_canonical_shape(
         ));
     }
 
-    let (params, _, structure) = crate::rv64im::kernel::rv64im_cached_root_main_lane_context()?;
-    let dims = build_dims_and_policy(params, structure)
+    let (params, _, structure) = crate::rv64im::kernel::rv64im_root_main_lane_context_for_step_cap(step_cap)?;
+    let dims = build_dims_and_policy(&params, structure)
         .map_err(|err| SimpleKernelError::Build(format!("RV64IM canonical F' shape dims failed: {err}")))?;
-    let ce_claim_shape = build_root_ce_claim_shape()?;
-    let ccs_claim_shape = build_root_ccs_claim_shape()?;
+    let ce_claim_shape = build_root_ce_claim_shape_for_step_cap(step_cap)?;
+    let ccs_claim_shape = build_root_ccs_claim_shape_for_step_cap(step_cap)?;
     let ccs_witness_shape = build_root_ccs_witness_shape();
     let carried_claim_count = params.k_rho as usize;
     let ccs_output_count = carried_claim_count

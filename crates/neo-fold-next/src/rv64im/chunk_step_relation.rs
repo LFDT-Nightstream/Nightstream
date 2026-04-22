@@ -17,8 +17,7 @@ use crate::rv64im::final_relation::{
     Rv64imFinalBuildProof, Rv64imFinalStatement,
 };
 use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
-    Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
+    rv64im_cached_root_main_lane_optimized_cache, Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 use neo_transcript::Poseidon2Transcript;
 
@@ -72,7 +71,8 @@ pub fn verify_rv64im_chunk_step_relation(
     witness: &Rv64imChunkStepRelationWitness,
 ) -> Result<Rv64imChunkFoldState, SimpleKernelError> {
     validate_rv64im_chunk_step_relation_surface(statement, witness)?;
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
+    let (params, log, structure) =
+        crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count(witness.carry_in.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript =
         Poseidon2Transcript::from_state_and_absorbed(statement.transcript_in.state, statement.transcript_in.absorbed);
@@ -88,7 +88,7 @@ pub fn verify_rv64im_chunk_step_relation(
         &carry_in,
         &witness.replay_witness,
         &mut transcript,
-        params,
+        &params,
         structure,
         log,
         &optimized_cache,

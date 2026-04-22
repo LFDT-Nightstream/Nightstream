@@ -38,11 +38,22 @@ impl Rv64imChunkFoldCarry {
     }
 
     pub fn seed() -> Self {
+        Self::seed_for_step_cap(1)
+    }
+
+    pub fn seed_for_claim_count(claim_count: usize) -> Self {
         Self::from_main(
-            crate::rv64im::construction2_default::build_rv64im_main_recursion_canonical_zero_carry()
-                .expect("canonical RV64IM chunk-fold seed carry must build"),
+            crate::rv64im::construction2_default::build_rv64im_main_recursion_canonical_zero_carry_for_claim_count(
+                claim_count,
+            )
+            .expect("canonical RV64IM chunk-fold seed carry must build"),
             Rv64imAccumulatorHandle(rv64im_chunk_fold_seed()),
         )
+    }
+
+    pub fn seed_for_step_cap(step_cap: usize) -> Self {
+        let claim_count = crate::rv64im::kernel::rv64im_simple_root_params_for_step_cap(step_cap).k_rho as usize;
+        Self::seed_for_claim_count(claim_count)
     }
 
     pub fn validate_projection_digests(&self, label: &str) -> Result<(), SimpleKernelError> {

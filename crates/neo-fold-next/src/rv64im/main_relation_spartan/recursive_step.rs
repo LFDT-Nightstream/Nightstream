@@ -42,7 +42,10 @@ use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::build_rv64im_main_recursion_construction2_verified_step_statement_from_relation;
 use crate::rv64im::final_relation::{Rv64imChunkFoldState, Rv64imChunkFoldTranscriptSnapshot};
 use crate::rv64im::ivc_snark::{Rv64imDeciderEngine, SpartanCircuit, SpartanF};
-use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
+use crate::rv64im::kernel::{
+    rv64im_cached_root_main_lane_optimized_cache, rv64im_root_main_lane_context_for_claim_count,
+    rv64im_root_main_lane_context_for_step_cap,
+};
 use crate::rv64im::kernel::{
     Rv64imChunkBridgeHandoff, Rv64imPreparedStepBridgeBinding, Rv64imVerifiedKernelChunkHandoff,
 };
@@ -255,7 +258,10 @@ fn dummy_backend_relation_from_chain_step(
     handoff.public_chunk_instance_digest = crate::finalize::public_chunk_digest(&handoff.public_chunk);
     handoff.public_chunk_digest = crate::rv64im::kernel::rv64im_public_chunk_digest(&handoff.public_chunk);
     handoff.bridge_handoff.digest = handoff.bridge_handoff.expected_digest();
-    let (params, log, structure) = rv64im_cached_root_main_lane_context()
+    let step_cap = usize::try_from(step_shape.fresh_claim_count).map_err(|_| {
+        Rv64imMainRecursionStepSpartanError::Prepare("rv64im main recursion step step_cap overflow".into())
+    })?;
+    let (params, log, structure) = rv64im_root_main_lane_context_for_step_cap(step_cap)
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
@@ -267,7 +273,7 @@ fn dummy_backend_relation_from_chain_step(
             &handoff,
             &running_state.carry.main,
             &mut prove_transcript,
-            params,
+            &params,
             structure,
             log,
             optimized_cache,
@@ -281,7 +287,7 @@ fn dummy_backend_relation_from_chain_step(
         &running_state.carry.main,
         &replay_witness,
         &mut trace_transcript,
-        params,
+        &params,
         structure,
         log,
         optimized_cache,
@@ -350,13 +356,15 @@ fn dummy_backend_relation_from_chain_step(
         canonical_full_width,
     )
     .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
+    let initial_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state_for_step_cap(
+        vk_fs
+            .step_cap()
+            .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?,
+    );
     let advice = crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice::from_parts(
         vk_fs.clone(),
         chunk_count_in,
-        crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state()
-            .carry
-            .terminal_handle
-            .0,
+        initial_state.carry.terminal_handle.0,
         running_state.carry.terminal_handle.0,
         crate::rv64im::main_recursion::RV64IM_MAIN_RECURSION_TRIVIAL_PC,
         crate::rv64im::main_recursion::Rv64imMainRecursionSideLaneWitness::zero(),
@@ -713,12 +721,15 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
     )?;
     emit_synthesize_trace(trace_prefix, "alloc_cover_states", started);
     let started = Instant::now();
+    let initial_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state_for_step_cap(
+        witness
+            .verifier_key_fs()
+            .step_cap()
+            .map_err(|_| SynthesisError::Unsatisfiable)?,
+    );
     let canonical_initial_z = digest_const_inputs(
         &mut cs.namespace(|| "canonical_initial_z"),
-        crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state()
-            .carry
-            .terminal_handle
-            .0,
+        initial_state.carry.terminal_handle.0,
         "canonical_initial_z",
     )?;
     enforce_digest_eq(
@@ -922,9 +933,14 @@ pub fn debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths(
         .payload
         .effective_chunk_replay_surface()
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()
+    let step_cap = backend_relation
+        .f_prime_advice
+        .verifier_key_fs()
+        .step_cap()
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    let dims = build_dims_and_policy(params, structure)
+    let (params, _, structure) = rv64im_root_main_lane_context_for_step_cap(step_cap)
+        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
+    let dims = build_dims_and_policy(&params, structure)
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
 
     if replay_chunk.pi_ccs.replay_proof.sumcheck_rounds.len()
@@ -1009,8 +1025,16 @@ fn build_rv64im_main_recursion_step_circuit(
     spartan_shape: &Rv64imMainRecursionStepSpartanShape,
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<Rv64imMainRecursionStepCircuit, Rv64imMainRecursionStepSpartanError> {
-    let _ = rv64im_cached_root_main_lane_context()
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
+    let _ = rv64im_root_main_lane_context_for_claim_count(
+        backend_relation
+            .f_prime_advice
+            .running_state()
+            .carry
+            .main
+            .claims
+            .len(),
+    )
+    .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     if !spartan_shape.matches_payload(&backend_relation.payload) {
         return Err(Rv64imMainRecursionStepSpartanError::Prepare(
             "rv64im main recursion step circuit requires a canonical recursive-step payload matching the explicit Spartan shape".into(),
@@ -1047,7 +1071,10 @@ fn build_rv64im_main_recursion_step_circuit(
 fn build_rv64im_main_recursion_step_shape_only_circuit(
     spartan_shape: &Rv64imMainRecursionStepSpartanShape,
 ) -> Result<Rv64imMainRecursionStepCircuit, Rv64imMainRecursionStepSpartanError> {
-    let seed_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state();
+    let step_cap = usize::try_from(spartan_shape.cover_shape.fresh_claim_count).map_err(|_| {
+        Rv64imMainRecursionStepSpartanError::Prepare("rv64im main recursion shape step_cap overflow".into())
+    })?;
+    let seed_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state_for_step_cap(step_cap);
     let dummy_relation =
         dummy_backend_relation_from_chain_step(spartan_shape, &spartan_shape.cover_shape, 0, &seed_state)?;
     build_rv64im_main_recursion_step_circuit(spartan_shape, &dummy_relation)

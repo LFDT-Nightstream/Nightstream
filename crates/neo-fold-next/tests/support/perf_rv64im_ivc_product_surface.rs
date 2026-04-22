@@ -2,6 +2,105 @@ use neo_fold_next::rv64im::prove_rv64im_accepted_proof_with_options;
 use std::fs;
 use std::path::PathBuf;
 
+fn ivc_product_surface_rows_per_chunk_from_args() -> usize {
+    let mut rows_per_chunk = 1usize;
+    let mut args = env::args().skip(1);
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--chunk-size" | "--rows-per-chunk" => {
+                let raw = args
+                    .next()
+                    .expect("expected integer after --chunk-size/--rows-per-chunk");
+                rows_per_chunk = raw.parse().expect("chunk size must parse as usize");
+            }
+            _ => {
+                if let Some(raw) = arg.strip_prefix("--chunk-size=") {
+                    rows_per_chunk = raw.parse().expect("chunk size must parse as usize");
+                } else if let Some(raw) = arg.strip_prefix("--rows-per-chunk=") {
+                    rows_per_chunk = raw.parse().expect("chunk size must parse as usize");
+                }
+            }
+        }
+    }
+    assert!(rows_per_chunk != 0, "chunk size must be at least one");
+    rows_per_chunk
+}
+
+fn ivc_product_surface_root_fold_schedule() -> FoldSchedule {
+    FoldSchedule::RowsPerChunk(ivc_product_surface_rows_per_chunk_from_args())
+}
+
+fn print_ivc_compressed_artifact_sizes(snark: &neo_fold_next::rv64im::ivc_snark::Rv64imIvcSnark) {
+    type TerminalDeciderSnark = spartan2::spartan::R1CSSNARK<spartan2::provider::GoldilocksP3MerkleMleEngine>;
+
+    let total_bytes = bincode::serialize(snark).expect("serialize compressed IVC artifact").len();
+    let proof_wrapper_bytes = bincode::serialize(snark.proof())
+        .expect("serialize compressed IVC proof wrapper")
+        .len();
+    let proof_spartan_bytes = snark.proof().snark_bytes_len();
+    let public_image_bytes = bincode::serialize(snark.public_image())
+        .expect("serialize compressed IVC public image")
+        .len();
+    let terminal_decider_snark: TerminalDeciderSnark =
+        bincode::deserialize(&snark.proof().snark_data).expect("decode terminal decider Spartan proof");
+    let spartan = terminal_decider_snark
+        .serialized_size_breakdown()
+        .expect("measure terminal decider Spartan proof size");
+
+    let x_i_bytes = bincode::serialize(&snark.public_image().x_i)
+        .expect("serialize compressed IVC x_i image")
+        .len();
+    let terminal_statement_bytes = snark
+        .public_image()
+        .terminal_statement
+        .as_ref()
+        .map(|statement| bincode::serialize(statement).expect("serialize compressed IVC terminal statement").len())
+        .unwrap_or(0);
+    let terminal_step_public_bytes = snark
+        .public_image()
+        .terminal_statement
+        .as_ref()
+        .map(|statement| {
+            bincode::serialize(&statement.step_public)
+                .expect("serialize compressed IVC terminal step_public")
+                .len()
+        })
+        .unwrap_or(0);
+    let terminal_chunk_summary_bytes = snark
+        .public_image()
+        .terminal_statement
+        .as_ref()
+        .map(|statement| {
+            bincode::serialize(&statement.chunk_summary)
+                .expect("serialize compressed IVC terminal chunk_summary")
+                .len()
+        })
+        .unwrap_or(0);
+    let mut public_image_without_terminal = snark.public_image().clone();
+    public_image_without_terminal.terminal_statement = None;
+    let public_image_without_terminal_bytes = bincode::serialize(&public_image_without_terminal)
+        .expect("serialize compressed IVC public image without terminal statement")
+        .len();
+
+    println!("compressed_artifact_total_bytes={total_bytes}");
+    println!("compressed_artifact_total_kib={:.3}", total_bytes as f64 / 1024.0);
+    println!("compressed_artifact_proof_wrapper_bytes={proof_wrapper_bytes}");
+    println!("compressed_artifact_spartan_bytes={proof_spartan_bytes}");
+    println!("compressed_artifact_public_image_bytes={public_image_bytes}");
+    println!("compressed_artifact_public_image_without_terminal_statement_bytes={public_image_without_terminal_bytes}");
+    println!("compressed_artifact_public_image_x_i_bytes={x_i_bytes}");
+    println!("compressed_artifact_public_image_terminal_statement_bytes={terminal_statement_bytes}");
+    println!("compressed_artifact_public_image_terminal_step_public_bytes={terminal_step_public_bytes}");
+    println!("compressed_artifact_public_image_terminal_chunk_summary_bytes={terminal_chunk_summary_bytes}");
+    println!("compressed_artifact_spartan_instance_bytes={}", spartan.instance);
+    println!("compressed_artifact_spartan_outer_sumcheck_bytes={}", spartan.outer_sumcheck);
+    println!("compressed_artifact_spartan_outer_claims_bytes={}", spartan.outer_claims);
+    println!("compressed_artifact_spartan_inner_sumcheck_bytes={}", spartan.inner_sumcheck);
+    println!("compressed_artifact_spartan_eval_w_bytes={}", spartan.eval_w);
+    println!("compressed_artifact_spartan_eval_arg_bytes={}", spartan.eval_arg);
+    println!("compressed_artifact_spartan_inner_sum_claim_bytes={}", spartan.inner_sum_claim);
+}
+
 fn closure_perf_opcode_count() -> usize {
     match env::var("NS_DEBUG_N") {
         Ok(raw) => raw.parse().expect("NS_DEBUG_N must parse as usize"),
@@ -18,7 +117,7 @@ fn build_ivc_product_surface_fixture(opcode_count: usize) -> IvcProductSurfaceFi
     let max_steps = source.program_words.len();
     let input = Rv64imProofInput { source, max_steps };
     let options = Rv64imPublicProofOptions {
-        root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+        root_fold_schedule: ivc_product_surface_root_fold_schedule(),
     };
     let (accepted, _) =
         prove_rv64im_accepted_proof_with_options(&input, options).expect("prove accepted artifact for IVC product surface");
@@ -32,6 +131,7 @@ fn build_ivc_product_surface_fixture(opcode_count: usize) -> IvcProductSurfaceFi
 #[test]
 #[ignore = "closure perf snapshot; run exact with --release -- --ignored --nocapture"]
 fn rv64im_ivc_product_surface_native_append_snapshot() {
+    let rows_per_chunk = ivc_product_surface_rows_per_chunk_from_args();
     let fixture = build_ivc_product_surface_fixture(closure_perf_opcode_count());
     assert!(
         !fixture.relations.is_empty(),
@@ -39,16 +139,18 @@ fn rv64im_ivc_product_surface_native_append_snapshot() {
     );
 
     let native_append_started = Instant::now();
-    let mut state = Rv64imIvcState::init_with_step_cap(1).expect("build initial IVC state");
+    let mut state = Rv64imIvcState::init_with_step_cap(rows_per_chunk).expect("build initial IVC state");
     for relation in &fixture.relations {
         state = state.append(relation).expect("append native IVC relation");
     }
     let native_append_ms = millis_since(native_append_started);
 
+    println!("rows_per_chunk={rows_per_chunk}");
     println!("native_append_ms={native_append_ms:.3}");
 }
 
 fn build_ivc_product_surface_state() -> Rv64imIvcState {
+    let rows_per_chunk = ivc_product_surface_rows_per_chunk_from_args();
     let fixture = build_ivc_product_surface_fixture(closure_perf_opcode_count());
     assert!(
         !fixture.relations.is_empty(),
@@ -58,7 +160,7 @@ fn build_ivc_product_surface_state() -> Rv64imIvcState {
         .relations
         .iter()
         .try_fold(
-            Rv64imIvcState::init_with_step_cap(1).expect("build initial IVC state"),
+            Rv64imIvcState::init_with_step_cap(rows_per_chunk).expect("build initial IVC state"),
             |state, relation| state.append(relation),
         )
         .expect("append native IVC relations")
@@ -77,10 +179,12 @@ fn load_ivc_product_surface_state_fixture() -> Rv64imIvcState {
 #[test]
 #[ignore = "closure perf snapshot; run exact with --release -- --ignored --nocapture"]
 fn rv64im_ivc_product_surface_native_verify_snapshot() {
+    let rows_per_chunk = ivc_product_surface_rows_per_chunk_from_args();
     let state = build_ivc_product_surface_state();
     let native_verify_started = Instant::now();
     state.verify().expect("verify native IVC state");
     let native_verify_ms = millis_since(native_verify_started);
+    println!("rows_per_chunk={rows_per_chunk}");
     println!("native_verify_ms={native_verify_ms:.3}");
 }
 
@@ -95,6 +199,28 @@ fn rv64im_ivc_product_surface_regen_state_fixture() {
 #[test]
 #[ignore = "closure perf snapshot; run exact with --release -- --ignored --nocapture"]
 fn rv64im_ivc_product_surface_compress_and_verify_snapshot() {
+    let rows_per_chunk = ivc_product_surface_rows_per_chunk_from_args();
+    let state = build_ivc_product_surface_state();
+    let keys = setup_rv64im_ivc_snark_cached(&state).expect("warm IVC SNARK key cache");
+    let compress_started = Instant::now();
+    let snark = state.compress().expect("compress native IVC state");
+    let compress_ms = millis_since(compress_started);
+    let public_image = state.public_image();
+    let compressed_verify_started = Instant::now();
+    snark
+        .verify(&keys.as_ref().1, &public_image)
+        .expect("verify compressed IVC proof");
+    let compressed_verify_ms = millis_since(compressed_verify_started);
+    println!("rows_per_chunk={rows_per_chunk}");
+    println!("compress_ms={compress_ms:.3}");
+    println!("compressed_verify_ms={compressed_verify_ms:.3}");
+    print_ivc_compressed_artifact_sizes(&snark);
+}
+
+#[test]
+#[ignore = "manual fixture-backed closure perf snapshot"]
+fn rv64im_ivc_product_surface_compress_and_verify_snapshot_from_fixture() {
+    let rows_per_chunk = ivc_product_surface_rows_per_chunk_from_args();
     let state = load_ivc_product_surface_state_fixture();
     let keys = setup_rv64im_ivc_snark_cached(&state).expect("warm IVC SNARK key cache");
     let compress_started = Instant::now();
@@ -106,6 +232,8 @@ fn rv64im_ivc_product_surface_compress_and_verify_snapshot() {
         .verify(&keys.as_ref().1, &public_image)
         .expect("verify compressed IVC proof");
     let compressed_verify_ms = millis_since(compressed_verify_started);
+    println!("rows_per_chunk={rows_per_chunk}");
     println!("compress_ms={compress_ms:.3}");
     println!("compressed_verify_ms={compressed_verify_ms:.3}");
+    print_ivc_compressed_artifact_sizes(&snark);
 }

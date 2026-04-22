@@ -91,11 +91,45 @@ NS_DEBUG_N=10000 cargo test -p neo-fold-next --release --test perf -- --ignored 
 ```
 N: number of riscv instructions + 1 (halt).
 
+Main-recursion shape probe (constraint count / aux count / synth-time before compression):
+```bash
+NS_DEBUG_N=10 cargo run -p neo-fold-next --bin rv64im_main_recursion_shape_probe
+```
+Use this when the question is "how many constraints are we handing to Spartan?" or when optimizing the recursive circuit shape without paying for `compress()`.
+
 Native no-Spartan IVC perf/debug snapshot (append/verify only; stops before `compress()`):
 ```bash
 NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_native -- --ignored --nocapture rv64im_mixed_opcode_native_ivc_perf_snapshot
 ```
 Use this test for RV64IM native IVC performance work and stage-by-stage IVC timing breakdowns.
+
+RV64IM product-surface IVC compression snapshot (live state build, then `compress()` + compressed verify):
+```bash
+NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot -- --ignored --exact --nocapture
+```
+This test now builds the live IVC state from `NS_DEBUG_N`; it is no longer fixture-backed.
+
+Optional chunk sizing for the live product-surface snapshot uses an extra libtest delimiter and defaults to `1` when omitted:
+```bash
+NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --chunk-size 2
+```
+Alias:
+```bash
+NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --rows-per-chunk 2
+```
+
+Explicit fixture-backed compression-only snapshot:
+```bash
+NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot_from_fixture -- --ignored --exact --nocapture
+```
+Use the fixture-backed variant only when you want a frozen compression microbenchmark rather than a live `NS_DEBUG_N` run.
+
+Which perf command to use:
+- Use `rv64im_main_recursion_shape_probe` when optimizing recursive constraint count, aux count, or pre-compression synth cost. This is the default tool for "reduce what Spartan has to compress".
+- Use `rv64im_mixed_opcode_native_ivc_perf_snapshot` when optimizing native append/verify time before Spartan. This is the right tool for `F'`, Construction-2, Ajtai commit, and other no-compression hotspots.
+- Use `rv64im_ivc_product_surface_compress_and_verify_snapshot` when measuring the final compressed RV64IM IVC artifact: live state build, `compress()`, compressed verify, and serialized proof size.
+- Use `rv64im_ivc_product_surface_compress_and_verify_snapshot_from_fixture` only for a frozen compression microbenchmark where you want to hold the input state constant across runs.
+- Use `rv64im_mixed_opcode_perf_snapshot` when you need the larger theorem-facing public-path architecture report across main CCS, bus, Route-A claims, openings, and timing, not just the recursive lane.
 
 ## Profiling
 

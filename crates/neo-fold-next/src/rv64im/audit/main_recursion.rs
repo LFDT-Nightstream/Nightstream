@@ -2,12 +2,16 @@
 
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::{
-    audit_rv64im_main_recursion_construction2_pi_rlc_rho_mats,
+    audit_rv64im_main_recursion_construction2_binary_commit, audit_rv64im_main_recursion_construction2_pi_rlc_rho_mats,
+    build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image,
+    build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector,
     build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i,
+    build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf,
     build_rv64im_main_recursion_construction2_input_state_image, build_rv64im_main_recursion_construction2_nifs_bridge,
     build_rv64im_main_recursion_construction2_output_state_image,
     build_rv64im_main_recursion_construction2_verified_step_statement_from_relation,
-    verify_rv64im_main_recursion_construction2_nifs_step,
+    build_rv64im_main_recursion_construction2_x_i, verify_rv64im_main_recursion_construction2_nifs_step,
+    Rv64imMainRecursionConstruction2FreshInstance,
 };
 use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_backend_statement_from_parts, build_rv64im_main_recursion_base_case_default_carry,
@@ -20,10 +24,12 @@ use crate::rv64im::nifs::{
 };
 use crate::rv64im::recursion_spartan::build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs;
 use crate::rv64im::SimpleKernelError;
+use neo_ajtai::SeededBinaryColsCommitAudit;
 use neo_ccs::{check_ccs_rowwise_zero, check_ce_consistency, CeWitness};
 use neo_math::F;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
+use std::time::Instant;
 
 pub use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_f_prime_advices_single_step,
@@ -105,6 +111,68 @@ pub struct Rv64imMainCircuitChunkTraceAuthoritativeSummary {
     pub step_lo: u64,
     pub step_hi: u64,
     pub chunk_relation_digest: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Rv64imMainRecursionConstruction2CommitBackendComparison {
+    pub binary_columns_total_ms: f64,
+    pub binary_columns_commit_ms: f64,
+    pub row_major_rebuild_full_vector_ms: f64,
+    pub row_major_total_ms: f64,
+}
+
+pub fn audit_compare_rv64im_main_recursion_construction2_commit_backends(
+    advice: &Rv64imMainRecursionFPrimeAdvice,
+    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
+) -> Result<Rv64imMainRecursionConstruction2CommitBackendComparison, SimpleKernelError> {
+    let x_i = build_rv64im_main_recursion_construction2_x_i(advice)?;
+    let (binary_columns, binary_perf) =
+        build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf(
+            advice,
+            current_input_fresh_instance,
+            x_i.clone(),
+        )?;
+
+    let step_image = evaluate_rv64im_main_recursion_f_prime_advice(advice)?;
+    let rebuild_started = Instant::now();
+    let x_i_bits = x_i.field_image();
+    let low_norm =
+        build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image(advice, current_input_fresh_instance)?;
+    let mut full_vector = Vec::with_capacity(x_i_bits.len() + low_norm.binary_values().len());
+    full_vector.extend_from_slice(&x_i_bits);
+    full_vector.extend_from_slice(low_norm.binary_values());
+    let row_major_rebuild_full_vector_ms = rebuild_started.elapsed().as_secs_f64() * 1_000.0;
+
+    let row_major_started = Instant::now();
+    let row_major = build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(
+        step_image.chunk_count(),
+        advice.verifier_key_fs().step_cap()?,
+        x_i,
+        &full_vector,
+    )?;
+    let row_major_total_ms = row_major_started.elapsed().as_secs_f64() * 1_000.0;
+
+    if binary_columns != row_major {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM audit Construction-2 binary-column and row-major commit backends diverged on the same u_next image"
+                .into(),
+        ));
+    }
+
+    Ok(Rv64imMainRecursionConstruction2CommitBackendComparison {
+        binary_columns_total_ms: binary_perf.total_ms,
+        binary_columns_commit_ms: binary_perf.commit_ms,
+        row_major_rebuild_full_vector_ms,
+        row_major_total_ms,
+    })
+}
+
+pub fn audit_profile_rv64im_main_recursion_construction2_binary_commit(
+    advice: &Rv64imMainRecursionFPrimeAdvice,
+    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
+) -> Result<SeededBinaryColsCommitAudit, SimpleKernelError> {
+    let x_i = build_rv64im_main_recursion_construction2_x_i(advice)?;
+    audit_rv64im_main_recursion_construction2_binary_commit(advice, current_input_fresh_instance, &x_i)
 }
 
 pub fn audit_build_rv64im_main_circuit_chunk_trace_authoritative_summary(

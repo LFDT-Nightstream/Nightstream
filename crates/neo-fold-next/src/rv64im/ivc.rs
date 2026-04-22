@@ -18,7 +18,7 @@ use crate::rv64im::construction2::{
     Rv64imMainRecursionConstruction2FreshInstance,
 };
 use crate::rv64im::f_prime::{
-    build_rv64im_main_recursion_verifier_key_fs_for_step_cap, evaluate_rv64im_main_recursion_f_prime_advice,
+    build_rv64im_main_recursion_verifier_key_fs_for_step_cap, evaluate_rv64im_main_recursion_f_prime_advice_with_perf,
     rv64im_main_recursion_x_out, Rv64imEncodedPublicInput, Rv64imMainRecursionFPrimeAdvice, Rv64imMainRecursionPhiSide,
     Rv64imVerifierKeyFs, RV64IM_MAIN_RECURSION_TRIVIAL_PC,
 };
@@ -68,6 +68,15 @@ pub struct Rv64imIvcAppendPerf {
     pub construction2_pi_fold_ms: f64,
     pub advice_build_ms: f64,
     pub evaluate_f_prime_ms: f64,
+    pub evaluate_f_prime_build_nifs_bridge_ms: f64,
+    pub evaluate_f_prime_verify_nifs_step_ms: f64,
+    pub evaluate_f_prime_verify_chunk_relation_ms: f64,
+    pub evaluate_f_prime_verify_derive_next_state_ms: f64,
+    pub evaluate_f_prime_build_u_next_ms: f64,
+    pub evaluate_f_prime_build_u_next_canonical_full_width_ms: f64,
+    pub evaluate_f_prime_build_u_next_commitment_context_ms: f64,
+    pub evaluate_f_prime_build_u_next_pack_image_ms: f64,
+    pub evaluate_f_prime_build_u_next_commit_ms: f64,
     pub finalize_state_ms: f64,
     pub total_ms: f64,
 }
@@ -272,8 +281,20 @@ impl Rv64imIvcState {
         perf.advice_build_ms = elapsed_ms(started);
 
         let started = Instant::now();
-        let step_image = evaluate_rv64im_main_recursion_f_prime_advice(&advice)?.into_parts();
+        let (step_image, eval_perf) = evaluate_rv64im_main_recursion_f_prime_advice_with_perf(&advice)?;
+        let step_image = step_image.into_parts();
         perf.evaluate_f_prime_ms = elapsed_ms(started);
+        perf.evaluate_f_prime_build_nifs_bridge_ms = eval_perf.build_nifs_bridge_ms;
+        perf.evaluate_f_prime_verify_nifs_step_ms = eval_perf.verify_nifs_step_ms;
+        perf.evaluate_f_prime_verify_chunk_relation_ms = eval_perf.verify_nifs_chunk_relation_ms;
+        perf.evaluate_f_prime_verify_derive_next_state_ms = eval_perf.verify_nifs_derive_next_state_ms;
+        perf.evaluate_f_prime_build_u_next_ms = eval_perf.build_construction2_u_next_ms;
+        perf.evaluate_f_prime_build_u_next_canonical_full_width_ms =
+            eval_perf.build_construction2_u_next_canonical_full_width_ms;
+        perf.evaluate_f_prime_build_u_next_commitment_context_ms =
+            eval_perf.build_construction2_u_next_commitment_context_ms;
+        perf.evaluate_f_prime_build_u_next_pack_image_ms = eval_perf.build_construction2_u_next_pack_image_ms;
+        perf.evaluate_f_prime_build_u_next_commit_ms = eval_perf.build_construction2_u_next_commit_ms;
 
         let started = Instant::now();
         let next_step_count = self

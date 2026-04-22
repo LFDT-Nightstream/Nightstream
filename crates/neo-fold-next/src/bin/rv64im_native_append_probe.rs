@@ -1,11 +1,11 @@
-use std::{env, time::Instant};
+use std::{collections::HashMap, env, time::Instant};
 
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim};
 use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv64im::audit::{
-    build_rv64im_chunk_step_ivc_relations, build_rv64im_main_recursion_f_prime_advices_single_step,
-    debug_trace_rv64im_main_recursion_f_prime_advices_single_step_build,
+    audit_compare_rv64im_main_recursion_construction2_commit_backends,
+    audit_profile_rv64im_main_recursion_construction2_binary_commit, build_rv64im_chunk_step_ivc_relations,
 };
 use neo_fold_next::rv64im::construction2::build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image;
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
@@ -14,7 +14,8 @@ use neo_fold_next::rv64im::ivc::{
 };
 use neo_fold_next::rv64im::{
     build_mixed_opcode_perf_source_case, build_rv64im_claim_digests,
-    build_rv64im_main_recursion_construction2_canonical_full_width, prove_rv64im_accepted_proof_with_options,
+    build_rv64im_main_recursion_construction2_canonical_full_width,
+    build_rv64im_main_recursion_f_prime_advices_with_perf, prove_rv64im_accepted_proof_with_options,
     rv64im_claim_tree_opening_from_digests, rv64im_claim_tree_root_from_digests, verify_rv64im_claim_tree_opening,
     Rv64imProofInput, Rv64imPublicProofOptions,
 };
@@ -75,6 +76,9 @@ fn print_section(title: &str) {
 fn print_kv(label: &str, value: impl std::fmt::Display) {
     println!("  {:30} {}", label, value);
 }
+
+const AJTAI_BINARY_MASK_THRESHOLD: u32 = 32;
+const AJTAI_BINARY_BATCH_WIDTH: usize = 32;
 
 fn k_coeff_count() -> usize {
     K::ZERO.as_coeffs().len()
@@ -201,6 +205,17 @@ fn append_stage_rows(perfs: &[Rv64imIvcAppendPerf]) -> Vec<(&'static str, f64)> 
         total.construction2_pi_fold_ms += perf.construction2_pi_fold_ms;
         total.advice_build_ms += perf.advice_build_ms;
         total.evaluate_f_prime_ms += perf.evaluate_f_prime_ms;
+        total.evaluate_f_prime_build_nifs_bridge_ms += perf.evaluate_f_prime_build_nifs_bridge_ms;
+        total.evaluate_f_prime_verify_nifs_step_ms += perf.evaluate_f_prime_verify_nifs_step_ms;
+        total.evaluate_f_prime_verify_chunk_relation_ms += perf.evaluate_f_prime_verify_chunk_relation_ms;
+        total.evaluate_f_prime_verify_derive_next_state_ms += perf.evaluate_f_prime_verify_derive_next_state_ms;
+        total.evaluate_f_prime_build_u_next_ms += perf.evaluate_f_prime_build_u_next_ms;
+        total.evaluate_f_prime_build_u_next_canonical_full_width_ms +=
+            perf.evaluate_f_prime_build_u_next_canonical_full_width_ms;
+        total.evaluate_f_prime_build_u_next_commitment_context_ms +=
+            perf.evaluate_f_prime_build_u_next_commitment_context_ms;
+        total.evaluate_f_prime_build_u_next_pack_image_ms += perf.evaluate_f_prime_build_u_next_pack_image_ms;
+        total.evaluate_f_prime_build_u_next_commit_ms += perf.evaluate_f_prime_build_u_next_commit_ms;
         total.finalize_state_ms += perf.finalize_state_ms;
     }
     vec![
@@ -213,6 +228,30 @@ fn append_stage_rows(perfs: &[Rv64imIvcAppendPerf]) -> Vec<(&'static str, f64)> 
         ("construction2_pi_fold", total.construction2_pi_fold_ms),
         ("advice_build", total.advice_build_ms),
         ("evaluate_f_prime", total.evaluate_f_prime_ms),
+        ("f_prime.build_nifs_bridge", total.evaluate_f_prime_build_nifs_bridge_ms),
+        ("f_prime.verify_nifs_step", total.evaluate_f_prime_verify_nifs_step_ms),
+        (
+            "f_prime.verify.chunk_relation",
+            total.evaluate_f_prime_verify_chunk_relation_ms,
+        ),
+        (
+            "f_prime.verify.derive_next_state",
+            total.evaluate_f_prime_verify_derive_next_state_ms,
+        ),
+        ("f_prime.build_u_next", total.evaluate_f_prime_build_u_next_ms),
+        (
+            "f_prime.u_next.canonical_full_width",
+            total.evaluate_f_prime_build_u_next_canonical_full_width_ms,
+        ),
+        (
+            "f_prime.u_next.commitment_context",
+            total.evaluate_f_prime_build_u_next_commitment_context_ms,
+        ),
+        (
+            "f_prime.u_next.pack_image",
+            total.evaluate_f_prime_build_u_next_pack_image_ms,
+        ),
+        ("f_prime.u_next.commit", total.evaluate_f_prime_build_u_next_commit_ms),
         ("finalize_state", total.finalize_state_ms),
     ]
 }
@@ -305,24 +344,7 @@ fn main() {
         opcode_count,
     );
 
-    let single_step_relations_only = relations
-        .iter()
-        .all(|relation| relation.statement.chunk_summary.public_step_count == 1);
-    if !single_step_relations_only {
-        print_section("Construction2 Witness Width");
-        print_kv(
-            "skipped",
-            "single-step witness sizing path only applies when each recursive relation carries exactly one public step",
-        );
-        print_section("F' Advice Build");
-        print_kv(
-            "skipped",
-            "single-step advice trace only applies when each recursive relation carries exactly one public step",
-        );
-        return;
-    }
-
-    let advices = build_rv64im_main_recursion_f_prime_advices_single_step(&relations)
+    let (advices, f_prime_build_perf) = build_rv64im_main_recursion_f_prime_advices_with_perf(&relations)
         .expect("build native f-prime advices for witness sizing");
     let canonical_full_width = build_rv64im_main_recursion_construction2_canonical_full_width(
         advices[0].verifier_key_fs(),
@@ -365,6 +387,22 @@ fn main() {
             .iter()
             .filter(|mask| mask.count_ones() >= 27)
             .count();
+        let dense_columns_32 = packed_columns
+            .iter()
+            .filter(|mask| mask.count_ones() >= AJTAI_BINARY_MASK_THRESHOLD)
+            .count();
+        let zero_batches_32 = packed_columns
+            .chunks(AJTAI_BINARY_BATCH_WIDTH)
+            .filter(|chunk| chunk.iter().all(|mask| *mask == 0))
+            .count();
+        let mut nonzero_mask_freq = HashMap::<u64, usize>::new();
+        for &mask in &packed_columns {
+            if mask != 0 {
+                *nonzero_mask_freq.entry(mask).or_default() += 1;
+            }
+        }
+        let unique_nonzero_masks = nonzero_mask_freq.len();
+        let most_common_mask_freq = nonzero_mask_freq.values().copied().max().unwrap_or(0);
         print_kv(
             &format!("step_{step_index}_used_bits"),
             format!("{used_bits} ({fill_pct:.1}%)"),
@@ -376,12 +414,102 @@ fn main() {
         print_kv(
             &format!("step_{step_index}_column_popcount"),
             format!(
-                "nonzero={} avg={:.2} max={} ge16={} ge27={}",
+                "nonzero={} avg={:.2} max={} ge16={} ge27={} ge32={}",
                 nonzero_columns,
                 total_column_popcount as f64 / packed_columns.len() as f64,
                 max_column_popcount,
                 dense_columns_16,
                 dense_columns_27,
+                dense_columns_32,
+            ),
+        );
+        print_kv(
+            &format!("step_{step_index}_mask_reuse"),
+            format!(
+                "unique_nonzero={} duplicate_nonzero={} most_common_freq={} zero_batches_32={}",
+                unique_nonzero_masks,
+                nonzero_columns.saturating_sub(unique_nonzero_masks),
+                most_common_mask_freq,
+                zero_batches_32,
+            ),
+        );
+        let backend_compare = audit_compare_rv64im_main_recursion_construction2_commit_backends(
+            advice,
+            advice
+                .construction2_input_fresh_instance()
+                .expect("f-prime advice carries construction2 input fresh instance"),
+        )
+        .expect("compare construction2 commit backends");
+        let binary_commit_audit = audit_profile_rv64im_main_recursion_construction2_binary_commit(
+            advice,
+            advice
+                .construction2_input_fresh_instance()
+                .expect("f-prime advice carries construction2 input fresh instance"),
+        )
+        .expect("profile construction2 binary-column commit");
+        print_kv(&format!("step_{step_index}_commit_backend_match"), "yes");
+        print_kv(
+            &format!("step_{step_index}_commit_binary_columns_total_ms"),
+            format!("{:.3}", backend_compare.binary_columns_total_ms),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_binary_columns_commit_ms"),
+            format!("{:.3}", backend_compare.binary_columns_commit_ms),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_row_major_rebuild_full_vector_ms"),
+            format!("{:.3}", backend_compare.row_major_rebuild_full_vector_ms),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_row_major_total_ms"),
+            format!("{:.3}", backend_compare.row_major_total_ms),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_row_major_delta_ms"),
+            format!(
+                "{:+.3}",
+                backend_compare.row_major_total_ms - backend_compare.binary_columns_total_ms
+            ),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_binary_audit_batches"),
+            format!(
+                "accepted={} fallback={}",
+                binary_commit_audit.accepted_batches, binary_commit_audit.fallback_batches
+            ),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_binary_audit_columns"),
+            format!(
+                "zero={} dense={} sparse={}",
+                binary_commit_audit.zero_columns, binary_commit_audit.dense_columns, binary_commit_audit.sparse_columns,
+            ),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_binary_fill_batch_ms"),
+            format!("{:.3}", binary_commit_audit.fill_batch_ms),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_binary_fallback_sample_ms"),
+            format!("{:.3}", binary_commit_audit.fallback_sample_ms),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_binary_dense_total_ms"),
+            format!("{:.3}", binary_commit_audit.dense_total_ms),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_binary_sparse_total_ms"),
+            format!("{:.3}", binary_commit_audit.sparse_total_ms),
+        );
+        print_kv(
+            &format!("step_{step_index}_commit_binary_sparse_popcounts"),
+            format!(
+                "pc1={} pc2={} pc3={} pc4={} pc5plus={}",
+                binary_commit_audit.sparse_popcount_1,
+                binary_commit_audit.sparse_popcount_2,
+                binary_commit_audit.sparse_popcount_3,
+                binary_commit_audit.sparse_popcount_4,
+                binary_commit_audit.sparse_popcount_5_plus,
             ),
         );
         let state_in_claims = advice.running_state().carry.main.claims.as_slice();
@@ -555,15 +683,13 @@ fn main() {
         }
     }
 
-    let trace_started = Instant::now();
-    let (_, f_prime_build_perf) =
-        debug_trace_rv64im_main_recursion_f_prime_advices_single_step_build(&relations, "probe.f_prime")
-            .expect("trace native f-prime advice build");
-    let f_prime_trace_ms = millis_since(trace_started);
-
     print_section("F' Advice Build");
-    print_kv("trace_total", format!("{f_prime_trace_ms:.3} ms"));
+    print_kv("step_count", f_prime_build_perf.step_count);
     print_kv("verifier_key", format!("{:.3} ms", f_prime_build_perf.verifier_key_ms));
+    print_kv(
+        "relation_validation",
+        format!("{:.3} ms", f_prime_build_perf.relation_validation_ms),
+    );
     print_kv(
         "canonical_full_width",
         format!("{:.3} ms", f_prime_build_perf.canonical_full_width_ms),

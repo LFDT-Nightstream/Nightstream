@@ -20,14 +20,14 @@ use crate::rv64im::chunk_fold_step::adapt_rv64im_chunk_to_fresh_ccs;
 use crate::rv64im::chunk_step_ivc::{rv64im_chunk_step_ivc_initial_state_for_step_cap, Rv64imChunkStepIvcRelation};
 use crate::rv64im::construction2::{
     build_rv64im_main_recursion_construction2_default_fresh_instance,
-    build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i,
+    build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf,
     build_rv64im_main_recursion_construction2_nifs_bridge_with_trace,
     build_rv64im_main_recursion_construction2_pi_fold_from_replay_witness,
     build_rv64im_main_recursion_construction2_verified_step_statement_from_summary,
     debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i,
-    verify_rv64im_main_recursion_construction2_nifs_step_with_trace, Rv64imMainRecursionConstruction2FreshInstance,
-    Rv64imMainRecursionConstruction2PiFoldProof, Rv64imMainRecursionConstruction2StateImage,
-    Rv64imMainRecursionConstruction2VerifiedStepStatement,
+    verify_rv64im_main_recursion_construction2_nifs_step_with_perf_and_trace,
+    Rv64imMainRecursionConstruction2FreshInstance, Rv64imMainRecursionConstruction2PiFoldProof,
+    Rv64imMainRecursionConstruction2StateImage, Rv64imMainRecursionConstruction2VerifiedStepStatement,
 };
 use crate::rv64im::final_relation::{rv64im_chunk_fold_carry_recursive_accumulator_digest, Rv64imChunkFoldState};
 use crate::rv64im::kernel::{FamilyEvalSchemaId, PackedColumnEval, Rv64imVerifiedKernelChunkHandoff};
@@ -1200,6 +1200,32 @@ pub struct Rv64imMainRecursionFPrimeAdviceBuildPerf {
     pub per_step: Vec<Rv64imMainRecursionFPrimeAdviceStepBuildPerf>,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Rv64imMainRecursionConstruction2NifsVerifyPerf {
+    pub chunk_relation_verify_ms: f64,
+    pub derive_next_state_ms: f64,
+    pub total_ms: f64,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Rv64imMainRecursionFPrimeEvalPerf {
+    pub prechecks_ms: f64,
+    pub base_case_validation_ms: f64,
+    pub x_i_check_ms: f64,
+    pub build_nifs_bridge_ms: f64,
+    pub verify_nifs_step_ms: f64,
+    pub verify_nifs_chunk_relation_ms: f64,
+    pub verify_nifs_derive_next_state_ms: f64,
+    pub next_state_surface_check_ms: f64,
+    pub derive_public_outputs_ms: f64,
+    pub build_construction2_u_next_ms: f64,
+    pub build_construction2_u_next_canonical_full_width_ms: f64,
+    pub build_construction2_u_next_commitment_context_ms: f64,
+    pub build_construction2_u_next_pack_image_ms: f64,
+    pub build_construction2_u_next_commit_ms: f64,
+    pub total_ms: f64,
+}
+
 fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
 }
@@ -1516,29 +1542,47 @@ pub fn build_rv64im_main_recursion_f_prime_public_output(
 pub fn evaluate_rv64im_main_recursion_f_prime_advice(
     advice: &Rv64imMainRecursionFPrimeAdvice,
 ) -> Result<Rv64imMainRecursionFPrimeStepImage, SimpleKernelError> {
-    evaluate_rv64im_main_recursion_f_prime_advice_with_trace(advice, None)
+    Ok(evaluate_rv64im_main_recursion_f_prime_advice_with_perf_and_trace(advice, None)?.0)
+}
+
+pub fn evaluate_rv64im_main_recursion_f_prime_advice_with_perf(
+    advice: &Rv64imMainRecursionFPrimeAdvice,
+) -> Result<(Rv64imMainRecursionFPrimeStepImage, Rv64imMainRecursionFPrimeEvalPerf), SimpleKernelError> {
+    evaluate_rv64im_main_recursion_f_prime_advice_with_perf_and_trace(advice, None)
 }
 
 fn evaluate_rv64im_main_recursion_f_prime_advice_with_trace(
     advice: &Rv64imMainRecursionFPrimeAdvice,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imMainRecursionFPrimeStepImage, SimpleKernelError> {
-    evaluate_rv64im_main_recursion_f_prime_step_with_trace(&Rv64imMainRecursionFPrimeInput, advice, trace_prefix)
+    Ok(evaluate_rv64im_main_recursion_f_prime_advice_with_perf_and_trace(advice, trace_prefix)?.0)
+}
+
+fn evaluate_rv64im_main_recursion_f_prime_advice_with_perf_and_trace(
+    advice: &Rv64imMainRecursionFPrimeAdvice,
+    trace_prefix: Option<&str>,
+) -> Result<(Rv64imMainRecursionFPrimeStepImage, Rv64imMainRecursionFPrimeEvalPerf), SimpleKernelError> {
+    evaluate_rv64im_main_recursion_f_prime_step_with_perf_and_trace(
+        &Rv64imMainRecursionFPrimeInput,
+        advice,
+        trace_prefix,
+    )
 }
 
 fn evaluate_rv64im_main_recursion_f_prime_step(
     _input: &Rv64imMainRecursionFPrimeInput,
     advice: &Rv64imMainRecursionFPrimeAdvice,
 ) -> Result<Rv64imMainRecursionFPrimeStepImage, SimpleKernelError> {
-    evaluate_rv64im_main_recursion_f_prime_step_with_trace(_input, advice, None)
+    Ok(evaluate_rv64im_main_recursion_f_prime_step_with_perf_and_trace(_input, advice, None)?.0)
 }
 
-fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
+fn evaluate_rv64im_main_recursion_f_prime_step_with_perf_and_trace(
     _input: &Rv64imMainRecursionFPrimeInput,
     advice: &Rv64imMainRecursionFPrimeAdvice,
     trace_prefix: Option<&str>,
-) -> Result<Rv64imMainRecursionFPrimeStepImage, SimpleKernelError> {
+) -> Result<(Rv64imMainRecursionFPrimeStepImage, Rv64imMainRecursionFPrimeEvalPerf), SimpleKernelError> {
     let total_started = Instant::now();
+    let mut perf = Rv64imMainRecursionFPrimeEvalPerf::default();
     let started = Instant::now();
     let accumulator_in = rv64im_main_recursion_accumulator_from_f_prime_advice(advice);
     let expected_vk_fs =
@@ -1578,11 +1622,13 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
             "RV64IM main recursion F' advice is missing the threaded HyperNova Construction-2 fresh input u_i".into(),
         ));
     };
-    emit_debug_timing(trace_prefix, "prechecks", elapsed_ms(started));
+    perf.prechecks_ms = elapsed_ms(started);
+    emit_debug_timing(trace_prefix, "prechecks", perf.prechecks_ms);
     if advice.chunk_count_in() == 0 {
         let started = Instant::now();
         validate_rv64im_main_recursion_base_case_accumulator(&accumulator_in, advice, construction2_u_i)?;
-        emit_debug_timing(trace_prefix, "base_case_validation", elapsed_ms(started));
+        perf.base_case_validation_ms = elapsed_ms(started);
+        emit_debug_timing(trace_prefix, "base_case_validation", perf.base_case_validation_ms);
     }
     let started = Instant::now();
     let expected_x_i = accumulator_in.x_i(advice.verifier_key_fs());
@@ -1591,7 +1637,8 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
             "RV64IM main recursion F' advice x_i does not match the carried recursive accumulator image".into(),
         ));
     }
-    emit_debug_timing(trace_prefix, "x_i_check", elapsed_ms(started));
+    perf.x_i_check_ms = elapsed_ms(started);
+    emit_debug_timing(trace_prefix, "x_i_check", perf.x_i_check_ms);
     let bridge_trace_prefix = trace_prefix.map(|prefix| format!("{prefix}.nifs_bridge"));
     let started = Instant::now();
     let construction2_nifs_bridge = build_rv64im_main_recursion_construction2_nifs_bridge_with_trace(
@@ -1599,18 +1646,27 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
         construction2_u_i,
         bridge_trace_prefix.as_deref(),
     )?;
-    emit_debug_timing(trace_prefix, "build_nifs_bridge", elapsed_ms(started));
+    perf.build_nifs_bridge_ms = elapsed_ms(started);
+    emit_debug_timing(trace_prefix, "build_nifs_bridge", perf.build_nifs_bridge_ms);
     let verify_trace_prefix = trace_prefix.map(|prefix| format!("{prefix}.nifs_verify"));
     let started = Instant::now();
-    let verified_step = verify_rv64im_main_recursion_construction2_nifs_step_with_trace(
+    let (verified_step, verify_perf) = verify_rv64im_main_recursion_construction2_nifs_step_with_perf_and_trace(
         &construction2_nifs_bridge,
         verify_trace_prefix.as_deref(),
     )?;
-    emit_debug_timing(trace_prefix, "verify_nifs_step", elapsed_ms(started));
+    perf.verify_nifs_step_ms = elapsed_ms(started);
+    perf.verify_nifs_chunk_relation_ms = verify_perf.chunk_relation_verify_ms;
+    perf.verify_nifs_derive_next_state_ms = verify_perf.derive_next_state_ms;
+    emit_debug_timing(trace_prefix, "verify_nifs_step", perf.verify_nifs_step_ms);
     let next_state = verified_step.state;
     let started = Instant::now();
     let _ = Rv64imMainRecursionAccumulatorSurface::try_from_carry(&next_state.carry.main, "F' next-state accumulator")?;
-    emit_debug_timing(trace_prefix, "next_state_surface_check", elapsed_ms(started));
+    perf.next_state_surface_check_ms = elapsed_ms(started);
+    emit_debug_timing(
+        trace_prefix,
+        "next_state_surface_check",
+        perf.next_state_surface_check_ms,
+    );
     let chunk_count_out = accumulator_in.chunk_count + 1;
     let folded_accumulator_digest = rv64im_chunk_fold_carry_recursive_accumulator_digest(&next_state.carry);
     let started = Instant::now();
@@ -1625,7 +1681,8 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
         pc_next,
         folded_accumulator_digest,
     );
-    emit_debug_timing(trace_prefix, "derive_public_outputs", elapsed_ms(started));
+    perf.derive_public_outputs_ms = elapsed_ms(started);
+    emit_debug_timing(trace_prefix, "derive_public_outputs", perf.derive_public_outputs_ms);
     let started = Instant::now();
     let u_next_trace_prefix = trace_prefix.map(|prefix| format!("{prefix}.construction2_u_next"));
     let construction2_u_next = if let Some(prefix) = u_next_trace_prefix.as_deref() {
@@ -1636,29 +1693,44 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
             prefix,
         )?
     } else {
-        build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i(
-            advice,
-            construction2_u_i,
-            x_out.clone(),
-        )?
+        let (fresh_instance, fresh_instance_perf) =
+            build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf(
+                advice,
+                construction2_u_i,
+                x_out.clone(),
+            )?;
+        perf.build_construction2_u_next_canonical_full_width_ms = fresh_instance_perf.canonical_full_width_ms;
+        perf.build_construction2_u_next_commitment_context_ms = fresh_instance_perf.commitment_context_ms;
+        perf.build_construction2_u_next_pack_image_ms = fresh_instance_perf.pack_image_ms;
+        perf.build_construction2_u_next_commit_ms = fresh_instance_perf.commit_ms;
+        fresh_instance
     };
-    emit_debug_timing(trace_prefix, "build_construction2_u_next", elapsed_ms(started));
+    perf.build_construction2_u_next_ms = elapsed_ms(started);
+    emit_debug_timing(
+        trace_prefix,
+        "build_construction2_u_next",
+        perf.build_construction2_u_next_ms,
+    );
     if construction2_u_next.x_i() != &x_out {
         return Err(SimpleKernelError::Bridge(
             "RV64IM main recursion F' produced a Construction-2 output u_{i+1} whose x_i does not match x_{i+1}".into(),
         ));
     }
-    emit_debug_timing(trace_prefix, "total", elapsed_ms(total_started));
-    Ok(Rv64imMainRecursionFPrimeStepImage {
-        chunk_count: chunk_count_out,
-        z_next,
-        pc_next,
-        phi_side,
-        construction2_u_next,
-        next_state,
-        folded_accumulator_digest,
-        x_out,
-    })
+    perf.total_ms = elapsed_ms(total_started);
+    emit_debug_timing(trace_prefix, "total", perf.total_ms);
+    Ok((
+        Rv64imMainRecursionFPrimeStepImage {
+            chunk_count: chunk_count_out,
+            z_next,
+            pc_next,
+            phi_side,
+            construction2_u_next,
+            next_state,
+            folded_accumulator_digest,
+            x_out,
+        },
+        perf,
+    ))
 }
 
 pub fn verify_rv64im_main_recursion_f_prime_public_output(

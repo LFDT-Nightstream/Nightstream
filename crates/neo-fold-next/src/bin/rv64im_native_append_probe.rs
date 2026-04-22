@@ -26,7 +26,7 @@ fn millis_since(started: Instant) -> f64 {
 }
 
 fn root_fold_schedule_from_args() -> FoldSchedule {
-    let mut schedule = FoldSchedule::RowsPerChunk(1);
+    let mut schedule = FoldSchedule::WholeTrace;
     for arg in env::args().skip(1) {
         match arg.as_str() {
             "--whole-trace" => schedule = FoldSchedule::WholeTrace,

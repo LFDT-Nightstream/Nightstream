@@ -9,8 +9,8 @@ use neo_fold_next::rv64im::ivc::{
 };
 use neo_fold_next::rv64im::{
     build_mixed_opcode_perf_source_case, build_rv64im_recursion_shape_for_step_cap,
-    prove_rv64im_accepted_proof_with_options, rv64im_simple_root_params, Rv64imProofInput, Rv64imPublicProofOptions,
-    RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
+    prove_rv64im_accepted_proof_with_options, rv64im_simple_root_params_for_step_cap, Rv64imProofInput,
+    Rv64imPublicProofOptions, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
 use serde::Serialize;
 
@@ -247,7 +247,7 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
     let native_total_ms = native_append_ms + native_verify_ms;
 
     let public_image = ivc_state.public_image();
-    let kernel_params = rv64im_simple_root_params();
+    let kernel_params = rv64im_simple_root_params_for_step_cap(step_cap);
     let recursion_shape = build_rv64im_recursion_shape_for_step_cap(step_cap).expect("build rv64im recursion shape");
     let final_statement_bytes = serialize_len(&final_statement);
     let final_proof_bytes = serialize_len(&final_proof);
@@ -343,8 +343,8 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
 #[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
 fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
     run_rv64im_mixed_opcode_native_ivc_perf_snapshot(
-        FoldSchedule::RowsPerChunk(1),
-        "RV64IM Native IVC Perf Snapshot (no Spartan, per-op folds)",
+        FoldSchedule::WholeTrace,
+        "RV64IM Native IVC Perf Snapshot (no Spartan, whole trace)",
     );
 }
 

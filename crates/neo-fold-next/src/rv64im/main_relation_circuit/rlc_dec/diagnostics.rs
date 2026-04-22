@@ -42,18 +42,21 @@ fn checkpoint(cs: &TestConstraintSystem<SpartanF>, stage: &str) -> Result<(), St
     }
 }
 
-pub(crate) fn debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
+pub(crate) fn debug_locate_rlc_public_with_split_rho_views_stage(
     cs: &mut TestConstraintSystem<SpartanF>,
     parent: &CeClaimVar,
     children: &[CeClaimVar],
-    rho_mats: &[RotRhoMatrixVar],
+    rhos: &[RotRhoVar],
+    rho_mats_active: &[RotRhoMatrixVar],
     constant_child_prefix: usize,
     zero_commit_suffix_len: usize,
     label: &str,
 ) -> Result<(), String> {
+    let active_children_len = children.len().saturating_sub(zero_commit_suffix_len);
     if children.is_empty()
-        || children.len() != rho_mats.len()
-        || constant_child_prefix > children.len()
+        || children.len() != rhos.len()
+        || rho_mats_active.len() != active_children_len
+        || constant_child_prefix > active_children_len
         || parent.x_rows != D
         || parent.x_cols != parent.m_in
         || parent.r.len() != parent.r_values.len()
@@ -62,20 +65,32 @@ pub(crate) fn debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
         return Err("preflight".into());
     }
 
-    for (idx, (child, rho)) in children.iter().zip(rho_mats.iter()).enumerate() {
-        let child_c_data_ok = if idx < constant_child_prefix {
+    for (idx, (child, rho)) in children.iter().zip(rhos.iter()).enumerate() {
+        let zero_commit_suffix = idx >= active_children_len;
+        let child_c_data_ok = if idx < constant_child_prefix || zero_commit_suffix {
             child.c_data.is_empty() || child.c_data.len() == parent.c_data.len()
         } else {
             child.c_data.len() == parent.c_data.len()
+        };
+        let child_y_ring_ok = if zero_commit_suffix {
+            child.y_ring.is_empty() || child.y_ring.len() == parent.y_ring.len()
+        } else {
+            child.y_ring.len() == parent.y_ring.len()
+        };
+        let child_y_zcol_ok = if zero_commit_suffix {
+            child.y_zcol.is_empty() || child.y_zcol.len() == parent.y_zcol.len()
+        } else {
+            child.y_zcol.len() == parent.y_zcol.len()
         };
         if child.m_in != parent.m_in
             || child.x_rows != D
             || child.x_cols != parent.m_in
             || child.r_values != parent.r_values
-            || child.y_ring.len() != parent.y_ring.len()
-            || child.y_zcol.len() != parent.y_zcol.len()
+            || !child_y_ring_ok
+            || !child_y_zcol_ok
             || !child_c_data_ok
-            || rho.entry_value(0, 0).is_err()
+            || rho.coeffs.len() != D
+            || rho.coeff_values.len() != D
         {
             return Err(format!("preflight_child_{idx}"));
         }
@@ -84,7 +99,13 @@ pub(crate) fn debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
         checkpoint(cs, &format!("shared_point_{idx}"))?;
     }
 
-    enforce_rho_left_action_on_canonical_embedded_x_with_vars(
+    for rho in rho_mats_active {
+        if rho.entry_value(0, 0).is_err() {
+            return Err("preflight_rho_mat".into());
+        }
+    }
+
+    enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars(
         cs,
         &parent.x,
         parent.x_cols,
@@ -96,32 +117,57 @@ pub(crate) fn debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
             .iter()
             .map(|child| child.x_values.clone())
             .collect::<Vec<_>>(),
-        rho_mats,
+        rhos,
         constant_child_prefix,
         &format!("{label}_x"),
     )
     .map_err(|err| format!("x: {err}"))?;
     checkpoint(cs, "x")?;
 
-    enforce_rho_left_action_on_dense_f_slices_with_vars(
-        cs,
-        &parent.c_data,
-        parent.c_data.len() / D,
-        &children
-            .iter()
-            .map(|child| child.c_data.clone())
-            .collect::<Vec<_>>(),
-        &children
-            .iter()
-            .map(|child| child.c_data_values.clone())
-            .collect::<Vec<_>>(),
-        true,
-        rho_mats,
-        constant_child_prefix,
-        zero_commit_suffix_len,
-        &format!("{label}_c"),
-    )
-    .map_err(|err| format!("c: {err}"))?;
+    ensure_zero_commit_suffix(children, zero_commit_suffix_len).map_err(|err| format!("c_suffix: {err}"))?;
+    let active_children = &children[..active_children_len];
+    if active_children.is_empty() {
+        for (idx, entry) in parent.c_data.iter().enumerate() {
+            enforce_field_affine_sum_eq(cs, entry, &[], &[], &format!("{label}_c_eq_{idx}"));
+        }
+    } else if constant_child_prefix == 0 {
+        super::ring_action::enforce_rho_coeff_left_action_on_dense_commitment_columns_toom3_with_vars(
+            cs,
+            &parent.c_data,
+            parent.c_data.len() / D,
+            &active_children
+                .iter()
+                .map(|child| child.c_data.clone())
+                .collect::<Vec<_>>(),
+            &active_children
+                .iter()
+                .map(|child| child.c_data_values.clone())
+                .collect::<Vec<_>>(),
+            &rhos[..active_children_len],
+            &format!("{label}_c"),
+        )
+        .map_err(|err| format!("c: {err}"))?;
+    } else {
+        enforce_rho_left_action_on_dense_f_slices_with_vars(
+            cs,
+            &parent.c_data,
+            parent.c_data.len() / D,
+            &active_children
+                .iter()
+                .map(|child| child.c_data.clone())
+                .collect::<Vec<_>>(),
+            &active_children
+                .iter()
+                .map(|child| child.c_data_values.clone())
+                .collect::<Vec<_>>(),
+            true,
+            rho_mats_active,
+            constant_child_prefix,
+            0,
+            &format!("{label}_c"),
+        )
+        .map_err(|err| format!("c: {err}"))?;
+    }
     checkpoint(cs, "c")?;
 
     let d_pad = parent
@@ -134,36 +180,61 @@ pub(crate) fn debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
         if row.len() != d_pad {
             return Err(format!("y_ring_preflight_{idx}"));
         }
-        enforce_y_row_rlc_target_with_vars(
-            cs,
-            &parent.y_ring[idx],
-            children,
-            rho_mats,
-            constant_child_prefix,
-            zero_commit_suffix_len,
-            idx,
-            d_pad,
-            &format!("{label}_y_{idx}"),
-        )
-        .map_err(|err| format!("y_ring_{idx}: {err}"))?;
+        if active_children.is_empty() {
+            for (dst_row, target) in parent.y_ring[idx].iter().enumerate() {
+                enforce_k_affine_sum_eq(cs, target, &[], &[], &format!("{label}_y_{idx}_{dst_row}"));
+            }
+        } else if constant_child_prefix == 0 {
+            super::ring_action::enforce_rho_coeff_left_action_on_y_row_toom3_with_vars(
+                cs,
+                &parent.y_ring[idx],
+                &active_children
+                    .iter()
+                    .map(|child| child.y_ring[idx].clone())
+                    .collect::<Vec<_>>(),
+                &active_children
+                    .iter()
+                    .map(|child| child.y_ring_values[idx].clone())
+                    .collect::<Vec<_>>(),
+                &rhos[..active_children_len],
+                &format!("{label}_y_{idx}"),
+            )
+            .map_err(|err| format!("y_ring_{idx}: {err}"))?;
+        } else {
+            enforce_y_row_rlc_target_with_vars(
+                cs,
+                &parent.y_ring[idx],
+                active_children,
+                rho_mats_active,
+                constant_child_prefix,
+                0,
+                idx,
+                d_pad,
+                &format!("{label}_y_{idx}"),
+            )
+            .map_err(|err| format!("y_ring_{idx}: {err}"))?;
+        }
         checkpoint(cs, &format!("y_ring_{idx}"))?;
     }
 
     Ok(())
 }
 
-pub(crate) fn debug_measure_rlc_public_with_rho_vars_constant_prefix_stage_ranges(
+pub(crate) fn debug_measure_rlc_public_with_split_rho_views_stage_ranges(
     cs: &mut ShapeCS<Rv64imDeciderEngine>,
     parent: &CeClaimVar,
     children: &[CeClaimVar],
-    rho_mats: &[RotRhoMatrixVar],
+    rhos: &[RotRhoVar],
+    rho_mats_active: &[RotRhoMatrixVar],
     constant_child_prefix: usize,
     zero_commit_suffix_len: usize,
     label: &str,
 ) -> Result<RlcPublicStageCheckpoints, SynthesisError> {
+    let active_children_len = children.len().saturating_sub(zero_commit_suffix_len);
     if children.is_empty()
-        || children.len() != rho_mats.len()
-        || constant_child_prefix > children.len()
+        || children.len() != rhos.len()
+        || rho_mats_active.len() != active_children_len
+        || constant_child_prefix > active_children_len
         || parent.x_rows != D
         || parent.x_cols != parent.m_in
         || parent.r.len() != parent.r_values.len()
@@ -175,20 +246,32 @@ pub(crate) fn debug_measure_rlc_public_with_rho_vars_constant_prefix_stage_range
     let stage_start = cs.num_constraints();
     let mut checkpoints = RlcPublicStageCheckpoints { stage_ends: Vec::new() };
 
-    for (idx, (child, rho)) in children.iter().zip(rho_mats.iter()).enumerate() {
-        let child_c_data_ok = if idx < constant_child_prefix {
+    for (idx, (child, rho)) in children.iter().zip(rhos.iter()).enumerate() {
+        let zero_commit_suffix = idx >= active_children_len;
+        let child_c_data_ok = if idx < constant_child_prefix || zero_commit_suffix {
             child.c_data.is_empty() || child.c_data.len() == parent.c_data.len()
         } else {
             child.c_data.len() == parent.c_data.len()
+        };
+        let child_y_ring_ok = if zero_commit_suffix {
+            child.y_ring.is_empty() || child.y_ring.len() == parent.y_ring.len()
+        } else {
+            child.y_ring.len() == parent.y_ring.len()
+        };
+        let child_y_zcol_ok = if zero_commit_suffix {
+            child.y_zcol.is_empty() || child.y_zcol.len() == parent.y_zcol.len()
+        } else {
+            child.y_zcol.len() == parent.y_zcol.len()
         };
         if child.m_in != parent.m_in
             || child.x_rows != D
             || child.x_cols != parent.m_in
             || child.r_values != parent.r_values
-            || child.y_ring.len() != parent.y_ring.len()
-            || child.y_zcol.len() != parent.y_zcol.len()
+            || !child_y_ring_ok
+            || !child_y_zcol_ok
             || !child_c_data_ok
-            || rho.entry_value(0, 0).is_err()
+            || rho.coeffs.len() != D
+            || rho.coeff_values.len() != D
         {
             return Err(SynthesisError::Unsatisfiable);
         }
@@ -196,7 +279,7 @@ pub(crate) fn debug_measure_rlc_public_with_rho_vars_constant_prefix_stage_range
         checkpoints.push(format!("shared_point_{idx}"), cs.num_constraints() - stage_start);
     }
 
-    enforce_rho_left_action_on_canonical_embedded_x_with_vars(
+    enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars(
         cs,
         &parent.x,
         parent.x_cols,
@@ -208,30 +291,54 @@ pub(crate) fn debug_measure_rlc_public_with_rho_vars_constant_prefix_stage_range
             .iter()
             .map(|child| child.x_values.clone())
             .collect::<Vec<_>>(),
-        rho_mats,
+        rhos,
         constant_child_prefix,
         &format!("{label}_x"),
     )?;
     checkpoints.push("x".into(), cs.num_constraints() - stage_start);
 
-    enforce_rho_left_action_on_dense_f_slices_with_vars(
-        cs,
-        &parent.c_data,
-        parent.c_data.len() / D,
-        &children
-            .iter()
-            .map(|child| child.c_data.clone())
-            .collect::<Vec<_>>(),
-        &children
-            .iter()
-            .map(|child| child.c_data_values.clone())
-            .collect::<Vec<_>>(),
-        true,
-        rho_mats,
-        constant_child_prefix,
-        zero_commit_suffix_len,
-        &format!("{label}_c"),
-    )?;
+    ensure_zero_commit_suffix(children, zero_commit_suffix_len)?;
+    let active_children = &children[..active_children_len];
+    if active_children.is_empty() {
+        for (idx, entry) in parent.c_data.iter().enumerate() {
+            enforce_field_affine_sum_eq(cs, entry, &[], &[], &format!("{label}_c_eq_{idx}"));
+        }
+    } else if constant_child_prefix == 0 {
+        super::ring_action::enforce_rho_coeff_left_action_on_dense_commitment_columns_toom3_with_vars(
+            cs,
+            &parent.c_data,
+            parent.c_data.len() / D,
+            &active_children
+                .iter()
+                .map(|child| child.c_data.clone())
+                .collect::<Vec<_>>(),
+            &active_children
+                .iter()
+                .map(|child| child.c_data_values.clone())
+                .collect::<Vec<_>>(),
+            &rhos[..active_children_len],
+            &format!("{label}_c"),
+        )?;
+    } else {
+        enforce_rho_left_action_on_dense_f_slices_with_vars(
+            cs,
+            &parent.c_data,
+            parent.c_data.len() / D,
+            &active_children
+                .iter()
+                .map(|child| child.c_data.clone())
+                .collect::<Vec<_>>(),
+            &active_children
+                .iter()
+                .map(|child| child.c_data_values.clone())
+                .collect::<Vec<_>>(),
+            true,
+            rho_mats_active,
+            constant_child_prefix,
+            0,
+            &format!("{label}_c"),
+        )?;
+    }
     checkpoints.push("c".into(), cs.num_constraints() - stage_start);
 
     let d_pad = parent
@@ -244,17 +351,38 @@ pub(crate) fn debug_measure_rlc_public_with_rho_vars_constant_prefix_stage_range
         if row.len() != d_pad {
             return Err(SynthesisError::Unsatisfiable);
         }
-        enforce_y_row_rlc_target_with_vars(
-            cs,
-            &parent.y_ring[idx],
-            children,
-            rho_mats,
-            constant_child_prefix,
-            zero_commit_suffix_len,
-            idx,
-            d_pad,
-            &format!("{label}_y_{idx}"),
-        )?;
+        if active_children.is_empty() {
+            for (dst_row, target) in parent.y_ring[idx].iter().enumerate() {
+                enforce_k_affine_sum_eq(cs, target, &[], &[], &format!("{label}_y_{idx}_{dst_row}"));
+            }
+        } else if constant_child_prefix == 0 {
+            super::ring_action::enforce_rho_coeff_left_action_on_y_row_toom3_with_vars(
+                cs,
+                &parent.y_ring[idx],
+                &active_children
+                    .iter()
+                    .map(|child| child.y_ring[idx].clone())
+                    .collect::<Vec<_>>(),
+                &active_children
+                    .iter()
+                    .map(|child| child.y_ring_values[idx].clone())
+                    .collect::<Vec<_>>(),
+                &rhos[..active_children_len],
+                &format!("{label}_y_{idx}"),
+            )?;
+        } else {
+            enforce_y_row_rlc_target_with_vars(
+                cs,
+                &parent.y_ring[idx],
+                active_children,
+                rho_mats_active,
+                constant_child_prefix,
+                0,
+                idx,
+                d_pad,
+                &format!("{label}_y_{idx}"),
+            )?;
+        }
         checkpoints.push(format!("y_ring_{idx}"), cs.num_constraints() - stage_start);
     }
 

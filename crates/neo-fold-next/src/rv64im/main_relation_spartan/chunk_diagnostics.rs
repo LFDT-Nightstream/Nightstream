@@ -475,6 +475,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         &effective_fresh_claim_vars,
         carried_claims.effective_claims(),
         &ccs_outputs,
+        0,
         &r_prime_vars,
         &replay_chunk.pi_ccs.row_chals,
         &s_col_prime_vars,
@@ -528,6 +529,8 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         &alpha_prime_nc_vars,
         &replay_chunk.pi_ccs.alpha_prime_nc,
         &ccs_outputs,
+        effective_fresh_claim_count,
+        0,
         rv64im_main_relation_delta(),
         "terminal_nc",
     )
@@ -874,6 +877,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &covered_fresh_claim_vars,
         carried_claims.effective_claims(),
         &ccs_outputs,
+        0,
         &r_prime_vars,
         &chunk.pi_ccs.row_chals,
         &s_col_prime_vars,
@@ -940,6 +944,8 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &alpha_prime_nc_vars,
         &chunk.pi_ccs.alpha_prime_nc,
         &effective_terminal_outputs,
+        cover_fresh_claim_count,
+        0,
         rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_terminal_nc"),
     )
@@ -996,7 +1002,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
             if carry_terminal_state {
                 let claim = cover_ce_claim(shape, child_claim_source.get(child_index))
                     .map_err(|err| format!("cover_terminal_child_claim_{child_index}: {err}"))?;
-                alloc_ce_claim(
+                alloc_ce_claim_dec_surface(
                     &mut cs.namespace(|| format!("chunk_{chunk_index}_terminal_child_claim_{child_index}")),
                     &claim,
                     &format!("chunk_{chunk_index}_terminal_child_claim_{child_index}"),
@@ -1010,13 +1016,11 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
                     &chunk.pi_ccs.s_col,
                 )
                 .map_err(|err| format!("cover_child_claim_{child_index}: {err}"))?;
-                alloc_ce_claim_with_shared_point(
+                alloc_ce_claim_dec_surface_with_shared_r(
                     &mut cs.namespace(|| format!("chunk_{chunk_index}_child_claim_{child_index}")),
                     &claim,
                     &r_prime_vars,
                     &chunk.pi_ccs.row_chals,
-                    &s_col_prime_vars,
-                    &chunk.pi_ccs.s_col,
                     &format!("chunk_{chunk_index}_child_claim_{child_index}"),
                 )
                 .map_err(|err| format!("alloc_child_claim_{child_index}: {err}"))
@@ -1048,17 +1052,19 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
             .map_err(|err| format!("rlc_public_last_chunk: {err}"))?;
         }
         Rv64imChunkRlcMode::Standard { constant_child_prefix } => {
+            let active_dense_children_len = padded_ccs_outputs.len();
             let rho_mats = materialize_goldilocks_rot_matrices(
                 &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rho_mats")),
-                &rho_vars,
+                &rho_vars[..active_dense_children_len],
                 &format!("chunk_{chunk_index}_rlc_rho_mats"),
             )
             .map_err(|err| format!("materialize_rlc_rho_mats: {err}"))?;
             checkpoint(cs, "materialize_rlc_rho_mats")?;
-            crate::rv64im::main_relation_circuit::pi_rlc::debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
+            crate::rv64im::main_relation_circuit::pi_rlc::debug_locate_rlc_public_with_split_rho_views_stage(
                 cs,
                 &parent_claim,
                 &padded_ccs_outputs,
+                &rho_vars,
                 &rho_mats,
                 constant_child_prefix,
                 0,
@@ -1538,6 +1544,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &covered_fresh_claim_vars,
             carried_claims.effective_claims(),
             &ccs_outputs,
+            0,
             &r_prime_vars,
             &chunk.pi_ccs.row_chals,
             &s_col_prime_vars,
@@ -1609,6 +1616,8 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &alpha_prime_nc_vars,
             &chunk.pi_ccs.alpha_prime_nc,
             &effective_terminal_outputs,
+            cover_fresh_claim_count,
+            0,
             rv64im_main_relation_delta(),
             &format!("chunk_{chunk_index}_terminal_nc"),
         )
@@ -1669,7 +1678,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
                 if carry_terminal_state {
                     let claim = cover_ce_claim(shape, child_claim_source.get(child_index))
                         .map_err(|err| format!("cover_terminal_child_claim_{child_index}: {err}"))?;
-                    alloc_ce_claim(
+                    alloc_ce_claim_dec_surface(
                         &mut cs.namespace(|| format!("chunk_{chunk_index}_terminal_child_claim_{child_index}")),
                         &claim,
                         &format!("chunk_{chunk_index}_terminal_child_claim_{child_index}"),
@@ -1683,13 +1692,11 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
                         &chunk.pi_ccs.s_col,
                     )
                     .map_err(|err| format!("cover_child_claim_{child_index}: {err}"))?;
-                    alloc_ce_claim_with_shared_point(
+                    alloc_ce_claim_dec_surface_with_shared_r(
                         &mut cs.namespace(|| format!("chunk_{chunk_index}_child_claim_{child_index}")),
                         &claim,
                         &r_prime_vars,
                         &chunk.pi_ccs.row_chals,
-                        &s_col_prime_vars,
-                        &chunk.pi_ccs.s_col,
                         &format!("chunk_{chunk_index}_child_claim_{child_index}"),
                     )
                     .map_err(|err| format!("alloc_child_claim_{child_index}: {err}"))
@@ -1734,16 +1741,18 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
                 .map_err(|err| format!("rlc_public_last_chunk: {err}"))?;
             }
             Rv64imChunkRlcMode::Standard { constant_child_prefix } => {
+                let active_dense_children_len = padded_ccs_outputs.len();
                 let rho_mats = materialize_goldilocks_rot_matrices(
                     &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rho_mats")),
-                    &rho_vars,
+                    &rho_vars[..active_dense_children_len],
                     &format!("chunk_{chunk_index}_rlc_rho_mats"),
                 )
                 .map_err(|err| format!("materialize_rlc_rho_mats: {err}"))?;
-                crate::rv64im::main_relation_circuit::pi_rlc::debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
+                crate::rv64im::main_relation_circuit::pi_rlc::debug_locate_rlc_public_with_split_rho_views_stage(
                     cs,
                     &parent_claim,
                     &padded_ccs_outputs,
+                    &rho_vars,
                     &rho_mats,
                     constant_child_prefix,
                     0,

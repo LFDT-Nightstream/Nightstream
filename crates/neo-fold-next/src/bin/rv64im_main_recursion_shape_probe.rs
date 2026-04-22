@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::time::Instant;
 
@@ -31,7 +32,7 @@ use neo_fold_next::rv64im::{
     Rv64imPublicProofOptions,
 };
 use neo_math::{D, F, K};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{Field, PrimeCharacteristicRing};
 
 fn millis_since(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
@@ -262,6 +263,137 @@ fn is_zero_ce_projection(claim: &CeClaim<Commitment, F, K>) -> bool {
         && claim.y_ring.iter().all(|row| is_zero_k_slice(row))
 }
 
+fn toom3_chunk_out_term_counts_current() -> Vec<usize> {
+    vec![1; 2 * (D / 3) - 1]
+}
+
+fn toom3_chunk_out_term_counts_flattened() -> Vec<usize> {
+    let split = D / 3;
+    let mut counts = vec![0usize; 2 * split - 1];
+    for i in 0..split {
+        for j in 0..split {
+            counts[i + j] += 1;
+        }
+    }
+    counts
+}
+
+fn reduce_phi_81_term_counts(offset_chunk_counts: &[(usize, &[usize])]) -> Vec<usize> {
+    let mut coeff_counts = vec![0usize; 2 * D - 1];
+    for (offset, chunk_counts) in offset_chunk_counts {
+        for (idx, count) in chunk_counts.iter().enumerate() {
+            coeff_counts[offset + idx] += *count;
+        }
+    }
+    for i in (D..(2 * D - 1)).rev() {
+        let moved = coeff_counts[i];
+        coeff_counts[i] = 0;
+        coeff_counts[i - D] += moved;
+        let idx_27 = i - 27;
+        if idx_27 < D {
+            coeff_counts[idx_27] += moved;
+        } else {
+            coeff_counts[idx_27 - D] += moved;
+            if idx_27 - 27 < D {
+                coeff_counts[idx_27 - 27] += moved;
+            }
+        }
+    }
+    coeff_counts.truncate(D);
+    coeff_counts
+}
+
+fn toom3_reduced_product_term_counts(chunk_term_counts: &[usize]) -> Vec<usize> {
+    let split = D / 3;
+    let mut offsets = Vec::with_capacity(16);
+    offsets.push((0, chunk_term_counts));
+    for _ in 0..5 {
+        offsets.push((split, chunk_term_counts));
+    }
+    for _ in 0..4 {
+        offsets.push((2 * split, chunk_term_counts));
+    }
+    for _ in 0..5 {
+        offsets.push((3 * split, chunk_term_counts));
+    }
+    offsets.push((4 * split, chunk_term_counts));
+    reduce_phi_81_term_counts(&offsets)
+}
+
+fn add_probe_term(row_terms: &mut HashMap<(u8, usize), F>, term_id: (u8, usize), scale: F) {
+    if scale == F::ZERO {
+        return;
+    }
+    match row_terms.entry(term_id) {
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            let updated = *entry.get() + scale;
+            if updated == F::ZERO {
+                let _ = entry.remove();
+            } else {
+                *entry.get_mut() = updated;
+            }
+        }
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(scale);
+        }
+    }
+}
+
+fn reduce_phi_81_term_maps(offset_chunk_scales: &[(usize, u8, F)], chunk_len: usize) -> Vec<HashMap<(u8, usize), F>> {
+    let mut coeff_terms = vec![HashMap::<(u8, usize), F>::new(); 2 * D - 1];
+    for (offset, chunk_id, scale) in offset_chunk_scales {
+        for idx in 0..chunk_len {
+            add_probe_term(&mut coeff_terms[offset + idx], (*chunk_id, idx), *scale);
+        }
+    }
+    for i in (D..(2 * D - 1)).rev() {
+        let moved = std::mem::take(&mut coeff_terms[i]);
+        for (term_id, scale) in moved {
+            add_probe_term(&mut coeff_terms[i - D], term_id, -scale);
+            let idx_27 = i - 27;
+            if idx_27 < D {
+                add_probe_term(&mut coeff_terms[idx_27], term_id, -scale);
+            } else {
+                add_probe_term(&mut coeff_terms[idx_27 - D], term_id, scale);
+                if idx_27 - 27 < D {
+                    add_probe_term(&mut coeff_terms[idx_27 - 27], term_id, scale);
+                }
+            }
+        }
+    }
+    coeff_terms.truncate(D);
+    coeff_terms
+}
+
+fn toom3_reduced_product_unique_term_counts_current() -> Vec<usize> {
+    let split = D / 3;
+    let half = F::from_u64(2).inverse();
+    let third = F::from_u64(3).inverse();
+    let sixth = F::from_u64(6).inverse();
+    let term_maps = reduce_phi_81_term_maps(
+        &[
+            (0, 0, F::ONE),
+            (split, 0, -half),
+            (split, 1, F::ONE),
+            (split, 2, -third),
+            (split, 3, -sixth),
+            (split, 4, F::from_u64(2)),
+            (2 * split, 0, -F::ONE),
+            (2 * split, 1, half),
+            (2 * split, 2, half),
+            (2 * split, 4, -F::ONE),
+            (3 * split, 0, half),
+            (3 * split, 1, -half),
+            (3 * split, 2, -sixth),
+            (3 * split, 3, sixth),
+            (3 * split, 4, -F::from_u64(2)),
+            (4 * split, 4, F::ONE),
+        ],
+        2 * split - 1,
+    );
+    term_maps.iter().map(|row| row.len()).collect()
+}
+
 fn print_pi_rlc_public_child_families(
     first_relation: &Rv64imMainRecursionFPrimeBackendRelation,
     fresh_child_count: usize,
@@ -270,6 +402,8 @@ fn print_pi_rlc_public_child_families(
 ) {
     let schoolbook_dense_ring_mul_cost = D * D;
     let toom3_54_dense_ring_mul_cost = 5 * (D / 3) * (D / 3);
+    let recursive_field_toom3_54_dense_ring_mul_cost = 5 * 5 * (D / 9) * (D / 9);
+    let recursive_k_toom3_54_dense_ring_mul_cost = 5 * 5 * (D / 9) * (D / 9);
     let carried_child_count = actual_child_count.saturating_sub(fresh_child_count);
     let parent_c_data_len = usize::try_from(pi_rlc_parent_shape.c_data_len).expect("parent c_data len");
     let parent_x_embedded_len = D * first_relation.payload.pi_rlc.parent.m_in;
@@ -358,16 +492,65 @@ fn print_pi_rlc_public_child_families(
         * modeled_y_ring_constraints_per_child
         + modeled_y_ring_constraints_target_eq;
     let dense_c_ring_products = (fresh_child_count + carried_child_count) * parent_commitment_cols;
+    let nonzero_commit_c_ring_products = (fresh_child_count.saturating_sub(fresh_commitment_zero_children)
+        + carried_child_count.saturating_sub(carried_commitment_zero_children))
+        * parent_commitment_cols;
     let dense_y_ring_products =
         (fresh_child_count + carried_child_count) * pi_rlc_parent_shape.y_ring_row_count as usize;
     let toom3_modeled_c_constraints_total =
         dense_c_ring_products * toom3_54_dense_ring_mul_cost + modeled_c_constraints_target_eq;
+    let recursive_field_toom3_zero_commit_c_constraints_total =
+        nonzero_commit_c_ring_products * recursive_field_toom3_54_dense_ring_mul_cost + modeled_c_constraints_target_eq;
     let toom3_modeled_y_ring_constraints_total =
         dense_y_ring_products * toom3_54_dense_ring_mul_cost * 2 + modeled_y_ring_constraints_target_eq;
+    let recursive_k_toom3_modeled_y_ring_constraints_total =
+        dense_y_ring_products * recursive_k_toom3_54_dense_ring_mul_cost * 2 + modeled_y_ring_constraints_target_eq;
+    let recursive_k_toom3_zero_y_ring_constraints_total = (fresh_child_count
+        .saturating_sub(fresh_y_ring_zero_children)
+        + carried_child_count.saturating_sub(carried_y_ring_zero_children))
+        * pi_rlc_parent_shape.y_ring_row_count as usize
+        * recursive_k_toom3_54_dense_ring_mul_cost
+        * 2
+        + modeled_y_ring_constraints_target_eq;
+    let toom3_current_product_term_counts = toom3_reduced_product_term_counts(&toom3_chunk_out_term_counts_current());
+    let toom3_flattened_product_term_counts =
+        toom3_reduced_product_term_counts(&toom3_chunk_out_term_counts_flattened());
+    let toom3_current_unique_product_term_counts = toom3_reduced_product_unique_term_counts_current();
+    let toom3_current_product_term_total = toom3_current_product_term_counts.iter().sum::<usize>();
+    let toom3_flattened_product_term_total = toom3_flattened_product_term_counts.iter().sum::<usize>();
+    let toom3_current_unique_product_term_total = toom3_current_unique_product_term_counts
+        .iter()
+        .sum::<usize>();
+    let toom3_current_product_term_max = toom3_current_product_term_counts
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0);
+    let toom3_flattened_product_term_max = toom3_flattened_product_term_counts
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0);
+    let toom3_current_unique_product_term_max = toom3_current_unique_product_term_counts
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0);
+    let toom3_current_product_term_avg = toom3_current_product_term_total as f64 / D as f64;
+    let toom3_flattened_product_term_avg = toom3_flattened_product_term_total as f64 / D as f64;
+    let toom3_current_unique_product_term_avg = toom3_current_unique_product_term_total as f64 / D as f64;
 
     print_section("Pi RLC Public Child Families");
     print_kv("dense_ring_mul_cost_schoolbook_54", schoolbook_dense_ring_mul_cost);
     print_kv("dense_ring_mul_cost_toom3_54", toom3_54_dense_ring_mul_cost);
+    print_kv(
+        "dense_ring_mul_cost_recursive_field_toom3_54",
+        recursive_field_toom3_54_dense_ring_mul_cost,
+    );
+    print_kv(
+        "dense_ring_mul_cost_recursive_k_toom3_54",
+        recursive_k_toom3_54_dense_ring_mul_cost,
+    );
     print_kv("fresh_children", fresh_child_count);
     print_kv("fresh_projection_zero_children", fresh_zero_children);
     print_kv("fresh_projection_nonzero_children", fresh_nonzero_children);
@@ -423,6 +606,58 @@ fn print_pi_rlc_public_child_families(
         "c_constraints_modeled_total_if_toom3_54_used",
         toom3_modeled_c_constraints_total,
     );
+    print_kv(
+        "c_constraints_modeled_total_if_zero_commit_children_skipped_and_recursive_field_toom3_54_used",
+        recursive_field_toom3_zero_commit_c_constraints_total,
+    );
+    print_kv(
+        "toom3_current_lc_terms_per_dense_product_total",
+        toom3_current_product_term_total,
+    );
+    print_kv(
+        "toom3_current_lc_terms_per_dense_product_avg_row",
+        format!("{toom3_current_product_term_avg:.2}"),
+    );
+    print_kv(
+        "toom3_current_lc_terms_per_dense_product_max_row",
+        toom3_current_product_term_max,
+    );
+    print_kv(
+        "toom3_current_unique_lc_terms_per_dense_product_total",
+        toom3_current_unique_product_term_total,
+    );
+    print_kv(
+        "toom3_current_unique_lc_terms_per_dense_product_avg_row",
+        format!("{toom3_current_unique_product_term_avg:.2}"),
+    );
+    print_kv(
+        "toom3_current_unique_lc_terms_per_dense_product_max_row",
+        toom3_current_unique_product_term_max,
+    );
+    print_kv(
+        "toom3_flattened_lc_terms_per_dense_product_total",
+        toom3_flattened_product_term_total,
+    );
+    print_kv(
+        "toom3_flattened_lc_terms_per_dense_product_avg_row",
+        format!("{toom3_flattened_product_term_avg:.2}"),
+    );
+    print_kv(
+        "toom3_flattened_lc_terms_per_dense_product_max_row",
+        toom3_flattened_product_term_max,
+    );
+    print_kv(
+        "c_lc_terms_modeled_total_current_toom3",
+        dense_c_ring_products * toom3_current_product_term_total,
+    );
+    print_kv(
+        "c_lc_terms_modeled_total_current_toom3_unique",
+        dense_c_ring_products * toom3_current_unique_product_term_total,
+    );
+    print_kv(
+        "c_lc_terms_modeled_total_if_flattened",
+        dense_c_ring_products * toom3_flattened_product_term_total,
+    );
     print_kv("x_constraints_fresh_muls", modeled_x_constraints_fresh);
     print_kv("x_constraints_carried_muls", modeled_x_constraints_carried);
     print_kv("x_constraints_target_eq", modeled_x_constraints_target_eq);
@@ -452,6 +687,26 @@ fn print_pi_rlc_public_child_families(
     print_kv(
         "y_ring_constraints_modeled_total_if_toom3_54_used",
         toom3_modeled_y_ring_constraints_total,
+    );
+    print_kv(
+        "y_ring_constraints_modeled_total_if_recursive_k_toom3_54_used",
+        recursive_k_toom3_modeled_y_ring_constraints_total,
+    );
+    print_kv(
+        "y_ring_constraints_modeled_total_if_zero_y_ring_children_skipped_and_recursive_k_toom3_54_used",
+        recursive_k_toom3_zero_y_ring_constraints_total,
+    );
+    print_kv(
+        "y_ring_lc_terms_modeled_total_current_toom3",
+        dense_y_ring_products * toom3_current_product_term_total * 2,
+    );
+    print_kv(
+        "y_ring_lc_terms_modeled_total_current_toom3_unique",
+        dense_y_ring_products * toom3_current_unique_product_term_total * 2,
+    );
+    print_kv(
+        "y_ring_lc_terms_modeled_total_if_flattened",
+        dense_y_ring_products * toom3_flattened_product_term_total * 2,
     );
 }
 
@@ -1785,7 +2040,7 @@ fn main() {
     );
 
     let mut pi_ccs_bind_me_input_deltas = Vec::with_capacity(1 + pi_ccs_bind_me_inputs.after_claim_digests.len());
-    let mut prev = pi_ccs_aux.after_bind_header;
+    let mut prev = pi_ccs_bind_me_inputs.after_bind_header;
     for (idx, end) in pi_ccs_bind_me_inputs.after_claim_digests.iter().enumerate() {
         pi_ccs_bind_me_input_deltas.push((format!("claim_digest_{idx}"), end.saturating_sub(prev)));
         prev = *end;

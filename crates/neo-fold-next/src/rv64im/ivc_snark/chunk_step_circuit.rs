@@ -856,8 +856,10 @@ fn debug_locate_chunk_step_main_relation_rlc_public_detail(
         &replay_chunk,
         &mut transcript,
         Rv64imClaimBundle::from_effective_claims(carried_claims),
+        None,
         boundary_plan,
         0,
+        None,
     )
     .map_err(|err| err.to_string())?;
     let (detail, detail_row) = checkpoints

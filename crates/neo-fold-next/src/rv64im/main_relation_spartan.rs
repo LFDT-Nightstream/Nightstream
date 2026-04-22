@@ -19,11 +19,14 @@ use p3_goldilocks::Goldilocks;
 
 use crate::finalize::digest32_as_fields;
 use crate::rv64im::chunk_relation::RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG;
-use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
-use crate::rv64im::ivc_snark::{hash_packed_goldilocks_fields, SpartanF};
+use crate::rv64im::final_relation::{
+    rv64im_chunk_fold_initial_transcript_snapshot, Rv64imChunkFoldTranscriptSnapshot, RV64IM_CHUNK_DONE_RAW_TAG,
+};
+use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_relation_circuit::claim::{
-    alloc_ce_claim, alloc_ce_claim_public_surface_with_shared_point, alloc_ce_claim_with_shared_point, CeClaimVar,
+    alloc_ce_claim, alloc_ce_claim_dec_surface, alloc_ce_claim_dec_surface_with_shared_r,
+    alloc_ce_claim_public_surface_with_shared_point, CeClaimVar,
 };
 use crate::rv64im::main_relation_circuit::initial_sum::claimed_initial_sum_from_me_inputs;
 use crate::rv64im::main_relation_circuit::k_field::{alloc_constant_k, alloc_k, KNum, KNumVar};
@@ -32,9 +35,7 @@ use crate::rv64im::main_relation_circuit::pi_ccs::{
     bind_header_and_instance_digest, bind_me_inputs, sample_challenges,
 };
 use crate::rv64im::main_relation_circuit::pi_dec::enforce_dec_public;
-use crate::rv64im::main_relation_circuit::pi_rlc::{
-    enforce_rlc_dec_public_with_rho_coeffs_for_last_chunk, enforce_rlc_public_with_rho_vars_constant_prefix,
-};
+use crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_dec_public_with_rho_coeffs_for_last_chunk;
 use crate::rv64im::main_relation_circuit::rho_sampling::{
     materialize_goldilocks_rot_matrices, sample_goldilocks_rot_rhos,
 };
@@ -42,7 +43,9 @@ use crate::rv64im::main_relation_circuit::sumcheck_replay::verify_sumcheck_round
 use crate::rv64im::main_relation_circuit::terminal_identity::{
     enforce_terminal_identity_fe, enforce_terminal_identity_nc,
 };
-use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
+use crate::rv64im::main_relation_circuit::transcript::{
+    hash_field_linear_combinations_raw, Poseidon2TranscriptCircuit,
+};
 use crate::rv64im::main_relation_trace::{
     Rv64imMainCircuitCeClaimShape, Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface,
     Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG,
@@ -149,6 +152,62 @@ use transcript_k::append_k_to_transcript;
 pub(crate) struct Rv64imClaimBundle {
     claims: Vec<CeClaimVar>,
     effective_count: usize,
+}
+
+fn enforce_allocated_num_eq_constant<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    value: &AllocatedNum<SpartanF>,
+    expected: SpartanF,
+    label: &str,
+) {
+    cs.enforce(
+        || label,
+        |lc| lc + value.get_variable(),
+        |lc| lc + CS::one(),
+        |lc| lc + (expected, CS::one()),
+    );
+}
+
+fn import_chunk_fold_transcript_in<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    state_in_var: &recursive_cover::Rv64imRecursiveCoverStateVar,
+    transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
+    initial_transcript_in: bool,
+    label: &str,
+) -> Result<Poseidon2TranscriptCircuit, SynthesisError> {
+    let transcript_in_values = transcript_in
+        .state
+        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
+    if !initial_transcript_in {
+        return Poseidon2TranscriptCircuit::from_state(
+            state_in_var.transcript_state.clone(),
+            transcript_in_values,
+            transcript_in.absorbed,
+        );
+    }
+
+    let expected = rv64im_chunk_fold_initial_transcript_snapshot();
+    if transcript_in != &expected {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let expected_state = expected
+        .state
+        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
+    for (idx, (allocated, value)) in state_in_var
+        .transcript_state
+        .iter()
+        .zip(expected_state.iter())
+        .enumerate()
+    {
+        enforce_allocated_num_eq_constant(cs, allocated, *value, &format!("{label}_state_{idx}"));
+    }
+    enforce_allocated_num_eq_constant(
+        cs,
+        &state_in_var.transcript_absorbed,
+        SpartanF::from_canonical_u64(expected.absorbed as u64),
+        &format!("{label}_absorbed"),
+    );
+    Poseidon2TranscriptCircuit::from_constant_state(expected_state, expected.absorbed)
 }
 
 impl Rv64imClaimBundle {
@@ -312,6 +371,7 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         None,
         boundary_plan,
         0,
+        None,
         false,
         None,
     )?;
@@ -329,6 +389,7 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         logical_me_input_digests: None,
         boundary_plan,
         rlc_zero_commit_suffix_len: 0,
+        exact_initial_chunk_step_count: None,
     };
     if enforce_chunk_relation_public_io {
         // The standalone chunk theorem binds the relation digest as public IO.
@@ -534,6 +595,30 @@ pub(crate) fn append_chunk_meta<CS: ConstraintSystem<SpartanF>>(
     transcript: &mut Poseidon2TranscriptCircuit,
     handoff: &Rv64imMainCircuitHandoff,
 ) -> Result<(), SynthesisError> {
+    append_chunk_meta_with_exact_initial_constants(cs, transcript, handoff, None)
+}
+
+pub(crate) fn append_chunk_meta_with_exact_initial_constants<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    transcript: &mut Poseidon2TranscriptCircuit,
+    handoff: &Rv64imMainCircuitHandoff,
+    exact_initial_step_count: Option<usize>,
+) -> Result<(), SynthesisError> {
+    if let Some(step_count) = exact_initial_step_count {
+        if handoff.public_chunk.start_index != 0 || handoff.public_chunk.steps.len() != step_count {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        transcript.append_const_fields_raw(
+            cs.namespace(|| "chunk_meta"),
+            &[
+                SpartanF::from_canonical_u64(CHUNK_META_RAW_TAG),
+                SpartanF::ZERO,
+                SpartanF::from_canonical_u64(step_count as u64),
+            ],
+        )?;
+        return Ok(());
+    }
+
     let chunk_meta_values = [
         SpartanF::from_canonical_u64(handoff.public_chunk.start_index as u64),
         SpartanF::from_canonical_u64(handoff.public_chunk.steps.len() as u64),
@@ -604,24 +689,40 @@ fn chunk_relation_digest_circuit<CS: ConstraintSystem<SpartanF>>(
     main_relation_digest: &[AllocatedNum<SpartanF>; 4],
     bridge_handoff_digest: [u8; 32],
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let mut preimage = Vec::with_capacity(1 + 3 * 4);
-    preimage.extend(alloc_const_field_values(
-        cs,
-        &[SpartanF::from_canonical_u64(RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG)],
-        "chunk_relation_digest_domain",
-    )?);
-    preimage.extend(alloc_private_field_values(
-        cs,
-        &digest32_as_spartan_fields(public_chunk_digest),
-        "chunk_relation_digest_public_chunk",
-    )?);
-    preimage.extend(main_relation_digest.iter().cloned());
-    preimage.extend(alloc_private_field_values(
-        cs,
-        &digest32_as_spartan_fields(bridge_handoff_digest),
-        "chunk_relation_digest_bridge",
-    )?);
-    hash_packed_goldilocks_fields(cs.namespace(|| "chunk_relation_digest_hash"), &preimage)
+    let public_chunk_digest_fields = digest32_as_spartan_fields(public_chunk_digest);
+    let bridge_handoff_digest_fields = digest32_as_spartan_fields(bridge_handoff_digest);
+    let mut field_terms = Vec::with_capacity(13);
+    let mut field_constants = Vec::with_capacity(13);
+    let mut field_values = Vec::with_capacity(13);
+
+    field_terms.push(Vec::new());
+    field_constants.push(SpartanF::from_canonical_u64(RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG));
+    field_values.push(SpartanF::from_canonical_u64(RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG));
+
+    for value in public_chunk_digest_fields {
+        field_terms.push(Vec::new());
+        field_constants.push(value);
+        field_values.push(value);
+    }
+
+    for lane in main_relation_digest {
+        field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(lane.get_value().unwrap_or(SpartanF::ZERO));
+    }
+
+    for value in bridge_handoff_digest_fields {
+        field_terms.push(Vec::new());
+        field_constants.push(value);
+        field_values.push(value);
+    }
+
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| "chunk_relation_digest_hash"),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
 }
 
 pub(crate) fn alloc_const_field_values<CS: ConstraintSystem<SpartanF>>(

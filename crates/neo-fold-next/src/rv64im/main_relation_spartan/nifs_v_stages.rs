@@ -22,6 +22,7 @@ pub(super) struct Rv64imChunkNifsVerifierCtx<'a> {
     pub(super) logical_me_input_digests: Option<&'a [[F; 4]]>,
     pub(super) boundary_plan: Rv64imChunkBoundaryPlan,
     pub(super) rlc_zero_commit_suffix_len: usize,
+    pub(super) exact_initial_chunk_step_count: Option<usize>,
 }
 
 pub(super) struct Rv64imPiCcsStageOutput {
@@ -64,6 +65,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
     logical_me_input_digests: Option<&[[F; 4]]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
     rlc_zero_commit_suffix_len: usize,
+    exact_initial_chunk_step_count: Option<usize>,
     absorb_synthetic_chunk_relation_io: bool,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imChunkNifsVerifierBodyOutput, SynthesisError> {
@@ -73,13 +75,6 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
     if chunk.pi_ccs.ccs_outputs.len() < chunk.fresh_claims.len() {
         return Err(SynthesisError::Unsatisfiable);
     }
-    let started = Instant::now();
-    append_chunk_meta(
-        &mut cs.namespace(|| format!("chunk_meta_{chunk_index}")),
-        transcript,
-        &chunk.handoff,
-    )?;
-    emit_nifs_stage_trace(trace_prefix, "chunk_meta", started);
     let ctx = Rv64imChunkNifsVerifierCtx {
         params,
         structure,
@@ -93,7 +88,16 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
         logical_me_input_digests,
         boundary_plan,
         rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count,
     };
+    let started = Instant::now();
+    append_chunk_meta_with_exact_initial_constants(
+        &mut cs.namespace(|| format!("chunk_meta_{chunk_index}")),
+        transcript,
+        &chunk.handoff,
+        ctx.exact_initial_chunk_step_count,
+    )?;
+    emit_nifs_stage_trace(trace_prefix, "chunk_meta", started);
     let started = Instant::now();
     let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, trace_prefix)?;
     emit_nifs_stage_trace(trace_prefix, "pi_ccs", started);
@@ -137,6 +141,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
     logical_me_input_digests: Option<&[[F; 4]]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
     rlc_zero_commit_suffix_len: usize,
+    exact_initial_chunk_step_count: Option<usize>,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imClaimBundle, SynthesisError> {
     Ok(synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
@@ -155,6 +160,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
         logical_me_input_digests,
         boundary_plan,
         rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count,
         true,
         trace_prefix,
     )?
@@ -363,6 +369,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
 
     let started = Instant::now();
     let effective_output_count = ctx.chunk.pi_ccs.ccs_outputs.len();
+    let zero_output_suffix_start = effective_output_count.saturating_sub(ctx.rlc_zero_commit_suffix_len);
     let constant_child_prefix = match ctx.boundary_plan.rlc_mode {
         Rv64imChunkRlcMode::Standard { constant_child_prefix } => constant_child_prefix,
         Rv64imChunkRlcMode::TerminalLastChunkShortcut => 0,
@@ -398,7 +405,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
                 let fresh = covered_fresh_claim_vars
                     .get(output_index)
                     .ok_or(SynthesisError::Unsatisfiable)?;
-                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
                     &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                     &claim,
                     &fresh.c_data,
@@ -438,8 +445,19 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
                     &ctx.chunk.pi_ccs.s_col,
                     &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
                 )?
+            } else if output_index >= zero_output_suffix_start {
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_x_surface_with_shared_point(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )?
             } else {
-                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
                     &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                     &claim,
                     &me_input.c_data,
@@ -477,6 +495,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &covered_fresh_claim_vars,
         carried_claims.effective_claims(),
         &ccs_outputs,
+        ctx.rlc_zero_commit_suffix_len,
         &r_prime_vars,
         &ctx.chunk.pi_ccs.row_chals,
         &s_col_prime_vars,
@@ -541,6 +560,8 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &alpha_prime_nc_vars,
         &ctx.chunk.pi_ccs.alpha_prime_nc,
         &effective_terminal_outputs,
+        cover_fresh_claim_count,
+        ctx.rlc_zero_commit_suffix_len,
         rv64im_main_relation_delta(),
         &format!("chunk_{}_terminal_nc", ctx.chunk_index),
     )?;
@@ -588,21 +609,24 @@ pub(super) fn enforce_synthetic_outer_chunk_relation_public_io<CS: ConstraintSys
     fold_digest: &[AllocatedNum<SpartanF>; 4],
     label: &str,
 ) -> Result<(), SynthesisError> {
-    let synthetic_chunk_relation_digest = alloc_private_field_values(
+    let expected_chunk_relation_digest = digest32_as_spartan_fields(ctx.chunk.handoff.chunk_relation_digest);
+    let chunk_relation_digest = chunk_relation_digest_circuit(
         &mut cs.namespace(|| format!("{label}_synthetic_chunk_relation_digest")),
-        &digest32_as_spartan_fields(ctx.chunk.handoff.chunk_relation_digest),
-        &format!("{label}_synthetic_chunk_relation_digest"),
-    )?;
-    let mut synthetic_chunk_relation_cursor = 0usize;
-    enforce_outer_chunk_relation_public_io(
-        ctx,
-        cs,
+        ctx.chunk.handoff.public_chunk_digest,
         fold_digest,
-        &synthetic_chunk_relation_digest,
-        &mut synthetic_chunk_relation_cursor,
+        ctx.chunk.handoff.bridge_handoff_digest,
     )?;
-    if synthetic_chunk_relation_cursor != synthetic_chunk_relation_digest.len() {
-        return Err(SynthesisError::Unsatisfiable);
+    for (idx, (actual, expected)) in chunk_relation_digest
+        .iter()
+        .zip(expected_chunk_relation_digest.iter())
+        .enumerate()
+    {
+        cs.enforce(
+            || format!("{label}_synthetic_chunk_relation_digest_eq_{idx}"),
+            |lc| lc + actual.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + (*expected, CS::one()),
+        );
     }
     Ok(())
 }
@@ -676,15 +700,20 @@ pub(super) fn synthesize_pi_rlc_stage<CS: ConstraintSystem<SpartanF>>(
                     &format!("chunk_{}_rlc_public", ctx.chunk_index),
                 )?;
             } else {
+                let active_dense_children_len = pi_ccs
+                    .padded_ccs_outputs
+                    .len()
+                    .saturating_sub(ctx.rlc_zero_commit_suffix_len);
                 let rho_mats = materialize_goldilocks_rot_matrices(
                     &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
-                    &rho_vars,
+                    &rho_vars[..active_dense_children_len],
                     &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
                 )?;
-                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_rho_vars_constant_prefix_zero_commit_suffix(
+                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffix(
                     &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
                     &parent_claim,
                     &pi_ccs.padded_ccs_outputs,
+                    &rho_vars,
                     &rho_mats,
                     constant_child_prefix,
                     ctx.rlc_zero_commit_suffix_len,
@@ -724,7 +753,7 @@ pub(super) fn synthesize_pi_dec_stage<CS: ConstraintSystem<SpartanF>>(
         .map(|(child_index, shape)| {
             if carry_terminal_state {
                 let claim = cover_ce_claim(shape, child_claim_source.get(child_index))?;
-                alloc_ce_claim(
+                alloc_ce_claim_dec_surface(
                     &mut cs.namespace(|| format!("chunk_{}_terminal_child_claim_{child_index}", ctx.chunk_index)),
                     &claim,
                     &format!("chunk_{}_terminal_child_claim_{child_index}", ctx.chunk_index),
@@ -736,13 +765,11 @@ pub(super) fn synthesize_pi_dec_stage<CS: ConstraintSystem<SpartanF>>(
                     &ctx.chunk.pi_ccs.row_chals,
                     &ctx.chunk.pi_ccs.s_col,
                 )?;
-                alloc_ce_claim_with_shared_point(
+                alloc_ce_claim_dec_surface_with_shared_r(
                     &mut cs.namespace(|| format!("chunk_{}_child_claim_{child_index}", ctx.chunk_index)),
                     &claim,
                     &pi_ccs.r_prime_vars,
                     &ctx.chunk.pi_ccs.row_chals,
-                    &pi_ccs.s_col_prime_vars,
-                    &ctx.chunk.pi_ccs.s_col,
                     &format!("chunk_{}_child_claim_{child_index}", ctx.chunk_index),
                 )
             }

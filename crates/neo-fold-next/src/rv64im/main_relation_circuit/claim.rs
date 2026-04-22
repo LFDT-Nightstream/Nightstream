@@ -45,6 +45,14 @@ fn compact_x_values_from_native_claim(claim: &CeClaim<Commitment, F, K>) -> Resu
     if claim.X.rows() == 0 || claim.X.cols() < claim.m_in {
         return Err(SynthesisError::Unsatisfiable);
     }
+    for col in 0..claim.m_in {
+        let canonical_row = col % claim.X.rows();
+        for row in 0..claim.X.rows() {
+            if row != canonical_row && claim.X[(row, col)] != F::ZERO {
+                return Ok(claim.X.as_slice().to_vec());
+            }
+        }
+    }
     Ok((0..claim.m_in)
         .map(|col| claim.X[(col % claim.X.rows(), col)])
         .collect())
@@ -416,6 +424,64 @@ pub fn alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point<CS: Cons
     })
 }
 
+pub fn alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    c_data: &[AllocatedNum<SpartanF>],
+    c_data_values: &[F],
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values
+        || claim.s_col.as_slice() != shared_s_col_values
+        || claim.c.data.len() != c_data.len()
+        || claim.c.data.as_slice() != c_data_values
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alias_ct_from_y_ring(&y_ring, &claim.y_ring, &claim.ct)?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+
+    Ok(CeClaimVar {
+        c_data: c_data.to_vec(),
+        c_data_values: c_data_values.to_vec(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
 pub fn alloc_ce_claim_projection_surface<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     claim: &CeClaim<Commitment, F, K>,
@@ -441,6 +507,98 @@ pub fn alloc_ce_claim_projection_surface<CS: ConstraintSystem<SpartanF>>(
         x_cols: claim.X.cols(),
         r,
         r_values: claim.r.clone(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_dec_surface<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_dec_surface_with_shared_r<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
         s_col: Vec::new(),
         s_col_values: claim.s_col.clone(),
         y_ring,
@@ -493,6 +651,86 @@ pub fn alloc_ce_claim_projection_surface_with_shared_r<CS: ConstraintSystem<Spar
         s_col: Vec::new(),
         s_col_values: claim.s_col.clone(),
         y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_x_r_surface<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring: Vec::new(),
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_x_r_surface_with_shared_r<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring: Vec::new(),
         y_ring_values: claim.y_ring.clone(),
         ct: Vec::new(),
         ct_values: claim.ct.clone(),
@@ -654,6 +892,54 @@ pub fn alloc_ce_claim_y_zcol_surface_with_shared_point<CS: ConstraintSystem<Spar
         aux_openings: Vec::new(),
         aux_openings_values: claim.aux_openings.clone(),
         y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_x_surface_with_shared_point<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    c_data_values: &[F],
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if c_data_values.len() != claim.c.data.len()
+        || claim.r.as_slice() != shared_r_values
+        || claim.s_col.as_slice() != shared_s_col_values
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: c_data_values.to_vec(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring: Vec::new(),
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
         y_zcol_values: claim.y_zcol.clone(),
         c_step_coords: Vec::new(),
         c_step_coords_values: claim.c_step_coords.clone(),
@@ -1493,9 +1779,10 @@ pub fn me_input_projection_digest_poseidon_values(claim: &CeClaimVar) -> [Sparta
     ));
     extend_f_slice_values(&mut preimage, &claim.c_data_values);
     preimage.push(SpartanF::from_canonical_u64(claim.m_in as u64));
-    for col in 0..claim.m_in {
-        let idx = (col % claim.x_rows) * claim.x_cols + col;
-        preimage.push(SpartanF::from_canonical_u64(claim.x_values[idx].as_canonical_u64()));
+    let compact_x_values =
+        superneo_compact_x_values(&claim.x_values, claim.x_rows, claim.x_cols).expect("compact x values");
+    for value in compact_x_values {
+        preimage.push(SpartanF::from_canonical_u64(value.as_canonical_u64()));
     }
     extend_k_slice_values(&mut preimage, &claim.r_values);
 

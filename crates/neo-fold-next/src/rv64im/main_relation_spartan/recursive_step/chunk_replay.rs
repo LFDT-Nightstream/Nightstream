@@ -6,12 +6,12 @@
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices_with_sparse_cache};
-use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 
 use super::super::recursive_cover::{
-    alloc_recursive_carried_projection_claims, recursive_accumulator_instance_digest_circuit_from_projection_digests,
-    Rv64imRecursiveCoverStateVar,
+    alloc_recursive_carried_projection_claims, alloc_recursive_carried_x_r_only_claims,
+    carried_projection_claims_have_zero_public_tail,
+    recursive_accumulator_instance_digest_circuit_from_projection_digests, Rv64imRecursiveCoverStateVar,
 };
 use super::super::{synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imClaimBundle};
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
@@ -19,7 +19,6 @@ use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::kernel::rv64im_cached_root_main_lane_optimized_cache;
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
 use crate::rv64im::main_relation_circuit::claim::enforce_claim_projection_eq_native;
-use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_spartan::chunk_step_recursive::Rv64imMainRecursionFPrimePayload;
 
 pub(super) struct Rv64imMainRecursionStepChunkReplayOutput {
@@ -46,21 +45,27 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
     let replay_chunk = payload
         .padded_chunk_replay_surface()
         .map_err(|_| SynthesisError::Unsatisfiable)?;
-    let transcript_in_values = witness
-        .running_state()
-        .transcript
-        .state
-        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
-    let mut replayed_transcript = Poseidon2TranscriptCircuit::from_state(
-        state_in_var.transcript_state.clone(),
-        transcript_in_values,
-        witness.running_state().transcript.absorbed,
+    let mut replayed_transcript = super::super::import_chunk_fold_transcript_in(
+        &mut cs.namespace(|| "transcript_in_import"),
+        state_in_var,
+        &witness.running_state().transcript,
+        payload.initial_transcript_in,
+        "transcript_in_import",
     )?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
-        &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
-        "state_in_live_claims",
-    )?;
+    let live_state_in_claims =
+        if payload.initial_transcript_in && carried_projection_claims_have_zero_public_tail(&payload.state_in_claims) {
+            alloc_recursive_carried_x_r_only_claims(
+                &mut cs.namespace(|| "state_in_live_claims"),
+                &payload.state_in_claims,
+                "state_in_live_claims",
+            )?
+        } else {
+            alloc_recursive_carried_projection_claims(
+                &mut cs.namespace(|| "state_in_live_claims"),
+                &payload.state_in_claims,
+                "state_in_live_claims",
+            )?
+        };
     let carried_claims = Rv64imClaimBundle::from_effective_claims(
         live_state_in_claims
             .into_iter()
@@ -87,6 +92,9 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         Some(&witness.running_state().carry.main_projection_digests),
         payload.boundary_plan,
         payload.rlc_zero_commit_suffix_len,
+        payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
         trace_prefix,
     )?;
     if replayed_next_claims.effective_count() != witness.fresh_state_out().carry.main.claims.len() {

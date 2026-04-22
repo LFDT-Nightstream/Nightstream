@@ -7,6 +7,7 @@ use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, Index, SynthesisError, Variable};
 use core::cmp::Ordering;
 use ff::Field;
+use neo_ccs::crypto::poseidon2_goldilocks;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, MATRIX_DIAG_8_GOLDILOCKS};
 use p3_poseidon2::{poseidon2_round_numbers_128, ExternalLayerConstants};
@@ -256,6 +257,16 @@ impl Poseidon2TranscriptCircuit {
         }
         Ok(Self {
             state: core::array::from_fn(|i| TranscriptLane::from_allocated(state[i].clone(), state_values[i])),
+            absorbed,
+        })
+    }
+
+    pub fn from_constant_state(state: [SpartanF; WIDTH], absorbed: usize) -> Result<Self, SynthesisError> {
+        if absorbed > RATE {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        Ok(Self {
+            state: state.map(TranscriptLane::from_constant),
             absorbed,
         })
     }
@@ -810,6 +821,12 @@ fn permute_state<CS: ConstraintSystem<SpartanF>>(
     mut cs: CS,
     state: &[TranscriptLane; WIDTH],
 ) -> Result<[TranscriptLane; WIDTH], SynthesisError> {
+    if state.iter().all(TranscriptLane::is_constant) {
+        let mut permuted = core::array::from_fn(|idx| Goldilocks::from_u64(state[idx].value.to_canonical_u64()));
+        permuted = poseidon2_goldilocks::permute_state(permuted);
+        return Ok(permuted.map(|value| TranscriptLane::from_constant(convert_goldilocks(value))));
+    }
+
     let constants = &*POSEIDON2_CONSTANTS;
 
     let mut state = external_linear_layer(cs.namespace(|| "initial_external_layer"), state)?;

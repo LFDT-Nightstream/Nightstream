@@ -249,6 +249,7 @@ fn derive_fixed_transcript_out_from_parts(
         boundary_plan,
         0,
         None,
+        None,
     ) {
         if let Err(prefix_err) = debug_check_fixed_transcript_prefix(
             params,

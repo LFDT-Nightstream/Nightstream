@@ -6,8 +6,8 @@
 //! payload (`pi_ccs`, `pi_rlc`, `pi_dec`, fresh claims/witnesses) is consumed
 //! in the constraint body by `synthesize_rv64im_main_recursion_step_chunk_replay`,
 //! which reuses the inner verifier body `synthesize_rv64im_chunk_nifs_verifier_body`
-//! directly. PC range is enforced structurally as `1 ≤ pc ≤ ℓ` with ℓ fixed to
-//! `RV64IM_MAIN_RECURSION_ELL`.
+//! directly. In the current specialization the program counter is fixed to `1`,
+//! so no live PC witness/range gadget remains in the circuit.
 
 mod authoritative_surface;
 mod chunk_replay;
@@ -19,6 +19,7 @@ use std::fmt::Write as _;
 use std::time::Instant;
 
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem, SynthesisError};
+use ff::Field;
 use neo_math::F;
 use neo_reductions::engines::utils::build_dims_and_policy;
 use neo_transcript::Poseidon2Transcript;
@@ -53,12 +54,15 @@ use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs,
     build_rv64im_main_recursion_verifier_key_fs_for_step_cap, Rv64imEncodedPublicInput,
 };
-use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
+use crate::rv64im::main_relation_circuit::claim::packed_bytes_field_values;
+use crate::rv64im::main_relation_circuit::transcript::{
+    hash_field_linear_combinations_raw, Poseidon2TranscriptCircuit,
+};
 use crate::rv64im::main_relation_spartan::chunk_step_ivc::Rv64imChunkStepIvcShape;
 use crate::rv64im::main_relation_spartan::chunk_step_recursive::build_rv64im_main_recursion_f_prime_payload;
 use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
 use chunk_replay::synthesize_rv64im_main_recursion_step_chunk_replay;
-use synthesize_support::{emit_synthesize_trace, enforce_pc_range, mark_unsatisfied};
+use synthesize_support::{emit_synthesize_trace, mark_unsatisfied};
 
 pub use exports::*;
 
@@ -149,11 +153,6 @@ fn spartan_public_digest32(public_values: &[SpartanF]) -> Result<[u8; 32], Rv64i
         F::from_u64(public_values[idx].to_canonical_u64())
     })))
 }
-
-/// Upper bound `ell` of the structural program-counter range `1 <= pc <= ell`
-/// for the RV64IM main-recursion specialization. Current construction fixes
-/// `ell = 1`, in which the range collapses to `pc == 1`.
-const RV64IM_MAIN_RECURSION_ELL: u64 = 1;
 
 impl Rv64imMainRecursionStepCircuit {
     fn expected_public_values(&self) -> Vec<SpartanF> {
@@ -420,6 +419,7 @@ fn main_recursion_x_out_circuit<CS: ConstraintSystem<SpartanF>>(
     pc_next_half_values: &[SpartanF; 2],
     accumulator_instance_digest: &[AllocatedNum<SpartanF>; 4],
     accumulator_instance_digest_value: &[SpartanF; 4],
+    exact_initial_prefix: Option<ExactInitialXOutPrefix>,
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
     let mut transcript = Poseidon2TranscriptCircuit::new(
         cs.namespace(|| format!("{label}_init")),
@@ -435,31 +435,52 @@ fn main_recursion_x_out_circuit<CS: ConstraintSystem<SpartanF>>(
         b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/vk_fs",
         &vk_fs_digest,
     )?;
-    let meta_halves = [
-        chunk_count_halves[0].clone(),
-        chunk_count_halves[1].clone(),
-        pc_next_halves[0].clone(),
-        pc_next_halves[1].clone(),
-    ];
-    let meta_half_values = [
-        chunk_count_half_values[0],
-        chunk_count_half_values[1],
-        pc_next_half_values[0],
-        pc_next_half_values[1],
-    ];
-    transcript.append_u64_halves(
-        cs.namespace(|| format!("{label}_meta")),
-        b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/meta",
-        &meta_halves,
-        &meta_half_values,
-        2,
-    )?;
-    transcript.append_fields(
-        cs.namespace(|| format!("{label}_z_0")),
-        b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/z_0",
-        z_0,
-        z_0_value,
-    )?;
+    if let Some(prefix) = exact_initial_prefix {
+        let expected_chunk_count_halves = u64_halves_as_spartan_fields(prefix.next_chunk_count);
+        let expected_pc_next_halves = u64_halves_as_spartan_fields(prefix.pc_next);
+        if chunk_count_half_values != &expected_chunk_count_halves
+            || pc_next_half_values != &expected_pc_next_halves
+            || z_0_value != &prefix.z_0
+        {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        transcript.append_u64s(
+            cs.namespace(|| format!("{label}_meta")),
+            b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/meta",
+            &[prefix.next_chunk_count, prefix.pc_next],
+        )?;
+        transcript.append_const_fields(
+            cs.namespace(|| format!("{label}_z_0")),
+            b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/z_0",
+            &prefix.z_0,
+        )?;
+    } else {
+        let meta_halves = [
+            chunk_count_halves[0].clone(),
+            chunk_count_halves[1].clone(),
+            pc_next_halves[0].clone(),
+            pc_next_halves[1].clone(),
+        ];
+        let meta_half_values = [
+            chunk_count_half_values[0],
+            chunk_count_half_values[1],
+            pc_next_half_values[0],
+            pc_next_half_values[1],
+        ];
+        transcript.append_u64_halves(
+            cs.namespace(|| format!("{label}_meta")),
+            b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/meta",
+            &meta_halves,
+            &meta_half_values,
+            2,
+        )?;
+        transcript.append_fields(
+            cs.namespace(|| format!("{label}_z_0")),
+            b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/z_0",
+            z_0,
+            z_0_value,
+        )?;
+    }
     transcript.append_fields(
         cs.namespace(|| format!("{label}_z_i")),
         b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/z_i",
@@ -473,6 +494,118 @@ fn main_recursion_x_out_circuit<CS: ConstraintSystem<SpartanF>>(
         accumulator_instance_digest_value,
     )?;
     transcript.digest32(cs.namespace(|| format!("{label}_digest")))
+}
+
+#[derive(Clone, Copy)]
+struct ExactInitialXOutPrefix {
+    next_chunk_count: u64,
+    pc_next: u64,
+    z_0: [SpartanF; 4],
+}
+
+fn exact_initial_x_out_prefix(step_cap: usize) -> ExactInitialXOutPrefix {
+    let initial_state = crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state_for_step_cap(step_cap);
+    ExactInitialXOutPrefix {
+        next_chunk_count: 1,
+        pc_next: 1,
+        z_0: digest32_as_spartan_fields(initial_state.carry.terminal_handle.0),
+    }
+}
+
+pub(super) fn fixed_shape_recursive_step_handle_digest_circuit<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    label: &str,
+    previous_handle: &[AllocatedNum<SpartanF>; 4],
+    previous_handle_values: &[SpartanF; 4],
+    next_chunk_count_halves: &[AllocatedNum<SpartanF>; 2],
+    next_chunk_count: u64,
+    chunk_start_index: &AllocatedNum<SpartanF>,
+    chunk_start_index_value: SpartanF,
+    public_step_count: &AllocatedNum<SpartanF>,
+    public_step_count_value: SpartanF,
+    chunk_relation_digest: &[u8; 32],
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    let packed_chunk_relation_digest = packed_bytes_field_values(chunk_relation_digest);
+    let mut field_terms = Vec::with_capacity(4 + 3 + packed_chunk_relation_digest.len());
+    let mut field_constants = Vec::with_capacity(field_terms.capacity());
+    let mut field_values = Vec::with_capacity(field_terms.capacity());
+
+    for (lane, value) in previous_handle.iter().zip(previous_handle_values.iter()) {
+        field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(*value);
+    }
+
+    let chunk_index_value = SpartanF::from_canonical_u64(
+        next_chunk_count
+            .checked_sub(1)
+            .ok_or(SynthesisError::Unsatisfiable)?,
+    );
+    field_terms.push(vec![
+        (next_chunk_count_halves[0].get_variable(), SpartanF::ONE),
+        (
+            next_chunk_count_halves[1].get_variable(),
+            SpartanF::from_canonical_u64(1u64 << 32),
+        ),
+    ]);
+    field_constants.push(-SpartanF::ONE);
+    field_values.push(chunk_index_value);
+
+    for (lane, value) in [
+        (chunk_start_index, chunk_start_index_value),
+        (public_step_count, public_step_count_value),
+    ] {
+        field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(value);
+    }
+
+    for value in packed_chunk_relation_digest {
+        field_terms.push(Vec::new());
+        field_constants.push(value);
+        field_values.push(value);
+    }
+
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
+pub(super) fn ensure_unit_program_counter(pc: u64) -> Result<(), SynthesisError> {
+    if pc == 1 {
+        Ok(())
+    } else {
+        Err(SynthesisError::Unsatisfiable)
+    }
+}
+
+fn enforce_allocated_num_eq_constant<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    value: &AllocatedNum<SpartanF>,
+    expected: SpartanF,
+    label: &str,
+) {
+    cs.enforce(
+        || label,
+        |lc| lc + value.get_variable(),
+        |lc| lc + CS::one(),
+        |lc| lc + (expected, CS::one()),
+    );
+}
+
+fn enforce_u64_halves_eq_constant<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    halves: &[AllocatedNum<SpartanF>; 2],
+    value: u64,
+    label: &str,
+) {
+    let expected_halves = u64_halves_as_spartan_fields(value);
+    for (idx, (half, expected)) in halves.iter().zip(expected_halves.iter()).enumerate() {
+        enforce_allocated_num_eq_constant(cs, half, *expected, &format!("{label}_{idx}"));
+    }
 }
 
 pub(crate) fn allocated_digest_field_values(
@@ -622,6 +755,30 @@ pub fn debug_check_rv64im_main_recursion_x_out_gadget_parity(
         "pc_next_halves",
     )
     .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
+    let exact_initial_x_out_prefix = if backend_relation.payload.initial_transcript_in {
+        let prefix = exact_initial_x_out_prefix(
+            backend_relation
+                .f_prime_advice
+                .verifier_key_fs()
+                .step_cap()
+                .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?,
+        );
+        enforce_u64_halves_eq_constant(
+            &mut cs.namespace(|| "chunk_count_eq_exact_initial"),
+            &chunk_count_halves,
+            prefix.next_chunk_count,
+            "chunk_count_eq_exact_initial",
+        );
+        enforce_u64_halves_eq_constant(
+            &mut cs.namespace(|| "pc_next_halves_eq_exact_initial"),
+            &pc_next_halves,
+            prefix.pc_next,
+            "pc_next_halves_eq_exact_initial",
+        );
+        Some(prefix)
+    } else {
+        None
+    };
     let x_out_digest = main_recursion_x_out_circuit(
         &mut cs.namespace(|| "x_out_digest"),
         "x_out_digest",
@@ -639,6 +796,7 @@ pub fn debug_check_rv64im_main_recursion_x_out_gadget_parity(
         &u64_halves_as_spartan_fields(backend_relation.payload.pc_next()),
         &folded_accumulator_digest,
         &digest32_as_spartan_fields(statement.folded_accumulator_digest),
+        exact_initial_x_out_prefix,
     )
     .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     enforce_digest_eq(
@@ -682,26 +840,19 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
     let z_0_input = private_digest_inputs(&mut cs.namespace(|| "z_0"), *payload.z_0(), "z_0")?;
     let z_i_input = private_digest_inputs(&mut cs.namespace(|| "z_i"), *payload.z_i(), "z_i")?;
     let z_next_input = private_digest_inputs(&mut cs.namespace(|| "z_next"), *payload.z_next(), "z_next")?;
-    let pc_i_input = alloc_private_field_values(
-        &mut cs.namespace(|| "pc_i"),
-        &[SpartanF::from_canonical_u64(payload.pc_i())],
-        "pc_i",
-    )?
-    .into_iter()
-    .next()
-    .ok_or(SynthesisError::Unsatisfiable)?;
-    let pc_next_input = alloc_private_field_values(
-        &mut cs.namespace(|| "pc_next"),
-        &[SpartanF::from_canonical_u64(payload.pc_next())],
-        "pc_next",
-    )?
-    .into_iter()
-    .next()
-    .ok_or(SynthesisError::Unsatisfiable)?;
     let pc_next_halves = private_u64_halves(
         &mut cs.namespace(|| "pc_next_halves"),
         payload.pc_next(),
         "pc_next_halves",
+    )?;
+    let step_handle_meta_values = [
+        SpartanF::from_canonical_u64(payload.handoff.public_chunk.start_index as u64),
+        SpartanF::from_canonical_u64(payload.handoff.public_chunk.steps.len() as u64),
+    ];
+    let step_handle_meta = alloc_private_field_values(
+        &mut cs.namespace(|| "step_handle_meta"),
+        &step_handle_meta_values,
+        "step_handle_meta",
     )?;
     emit_synthesize_trace(trace_prefix, "private_witness_inputs", started);
     let started = Instant::now();
@@ -750,18 +901,31 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         &state_out_var.terminal_handle,
         "z_next_eq_state_out_terminal_handle",
     )?;
-    enforce_pc_range(
-        &mut cs.namespace(|| "pc_i_range"),
-        "pc_i_range",
-        &pc_i_input,
-        RV64IM_MAIN_RECURSION_ELL,
-    )?;
-    enforce_pc_range(
-        &mut cs.namespace(|| "pc_next_range"),
-        "pc_next_range",
-        &pc_next_input,
-        RV64IM_MAIN_RECURSION_ELL,
-    )?;
+    ensure_unit_program_counter(payload.pc_i())?;
+    ensure_unit_program_counter(payload.pc_next())?;
+    let exact_initial_x_out_prefix = if payload.initial_transcript_in {
+        let prefix = exact_initial_x_out_prefix(
+            witness
+                .verifier_key_fs()
+                .step_cap()
+                .map_err(|_| SynthesisError::Unsatisfiable)?,
+        );
+        enforce_u64_halves_eq_constant(
+            &mut cs.namespace(|| "chunk_index_eq_exact_initial"),
+            &chunk_index_halves,
+            prefix.next_chunk_count,
+            "chunk_index_eq_exact_initial",
+        );
+        enforce_u64_halves_eq_constant(
+            &mut cs.namespace(|| "pc_next_halves_eq_exact_initial"),
+            &pc_next_halves,
+            prefix.pc_next,
+            "pc_next_halves_eq_exact_initial",
+        );
+        Some(prefix)
+    } else {
+        None
+    };
     emit_synthesize_trace(trace_prefix, "bind_state_and_pc", started);
     let started = Instant::now();
     let live_folded_accumulator_out_digest = synthesize_rv64im_main_recursion_step_chunk_replay(
@@ -773,6 +937,25 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         trace_prefix,
     )?
     .live_folded_accumulator_out_digest;
+    let expected_step_handle = fixed_shape_recursive_step_handle_digest_circuit(
+        &mut cs.namespace(|| "expected_step_handle"),
+        "expected_step_handle",
+        &state_in_var.terminal_handle,
+        &digest32_as_spartan_fields(witness.running_state().carry.terminal_handle.0),
+        &chunk_index_halves,
+        next_chunk_count,
+        &step_handle_meta[0],
+        step_handle_meta_values[0],
+        &step_handle_meta[1],
+        step_handle_meta_values[1],
+        &payload.handoff.chunk_relation_digest,
+    )?;
+    enforce_digest_eq(
+        &mut cs.namespace(|| "state_out_terminal_handle_eq_expected_step_handle"),
+        &state_out_var.terminal_handle,
+        &expected_step_handle,
+        "state_out_terminal_handle_eq_expected_step_handle",
+    )?;
     emit_synthesize_trace(trace_prefix, "payload_chunk_replay", started);
 
     let started = Instant::now();
@@ -801,6 +984,7 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         &u64_halves_as_spartan_fields(payload.pc_next()),
         &live_folded_accumulator_out_digest,
         &live_folded_accumulator_out_digest_values,
+        exact_initial_x_out_prefix,
     )?;
     emit_synthesize_trace(trace_prefix, "inactive_side_lane_and_x_out", started);
     let started = Instant::now();

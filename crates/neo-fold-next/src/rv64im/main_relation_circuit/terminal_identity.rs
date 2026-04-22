@@ -26,6 +26,10 @@ fn claim_has_zero_y_ring(claim: &CeClaimVar, t: usize) -> bool {
         .all(|row| row.iter().all(|value| *value == K::ZERO))
 }
 
+fn claim_has_zero_y_zcol(claim: &CeClaimVar) -> bool {
+    claim.y_zcol_values.iter().all(|value| *value == K::ZERO)
+}
+
 pub fn rhs_terminal_identity_fe<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     structure: &CcsStructure<F>,
@@ -293,6 +297,8 @@ pub fn rhs_terminal_identity_nc<CS: ConstraintSystem<SpartanF>>(
     alpha_prime_vars: &[KNumVar],
     alpha_prime_values: &[K],
     me_outputs: &[CeClaimVar],
+    k_mcs: usize,
+    zero_y_zcol_suffix_len: usize,
     delta: SpartanF,
     label: &str,
 ) -> Result<(KNumVar, K), SynthesisError> {
@@ -301,6 +307,8 @@ pub fn rhs_terminal_identity_nc<CS: ConstraintSystem<SpartanF>>(
         || beta_m_vars.len() != public_challenges.beta_m.len()
         || s_col_prime_vars.len() != s_col_prime_values.len()
         || alpha_prime_vars.len() != alpha_prime_values.len()
+        || k_mcs > me_outputs.len()
+        || zero_y_zcol_suffix_len > me_outputs.len().saturating_sub(k_mcs)
     {
         return Err(SynthesisError::Unsatisfiable);
     }
@@ -345,8 +353,15 @@ pub fn rhs_terminal_identity_nc<CS: ConstraintSystem<SpartanF>>(
     let zero = alloc_constant_k(cs, KNum::from_neo_k(K::ZERO), &format!("{label}_nc_sum_zero"))?;
     let mut nc_sum = zero;
     let mut nc_sum_value = K::ZERO;
+    let zero_suffix_start = me_outputs.len() - zero_y_zcol_suffix_len;
 
     for (output_idx, output) in me_outputs.iter().enumerate() {
+        if output_idx >= zero_suffix_start {
+            if !claim_has_zero_y_zcol(output) {
+                return Err(SynthesisError::Unsatisfiable);
+            }
+            continue;
+        }
         if output.y_zcol.len() < chi_alpha_prime_values.len()
             || output.y_zcol_values.len() < chi_alpha_prime_values.len()
         {
@@ -425,6 +440,8 @@ pub fn enforce_terminal_identity_nc<CS: ConstraintSystem<SpartanF>>(
     alpha_prime_vars: &[KNumVar],
     alpha_prime_values: &[K],
     me_outputs: &[CeClaimVar],
+    k_mcs: usize,
+    zero_y_zcol_suffix_len: usize,
     delta: SpartanF,
     label: &str,
 ) -> Result<K, SynthesisError> {
@@ -440,6 +457,8 @@ pub fn enforce_terminal_identity_nc<CS: ConstraintSystem<SpartanF>>(
         alpha_prime_vars,
         alpha_prime_values,
         me_outputs,
+        k_mcs,
+        zero_y_zcol_suffix_len,
         delta,
         label,
     )?;

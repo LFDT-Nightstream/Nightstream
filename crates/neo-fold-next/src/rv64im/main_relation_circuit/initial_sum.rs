@@ -11,11 +11,12 @@ use super::k_field::{alloc_constant_k, k_add, k_mul, KNum, KNumVar};
 use super::terminal_common::{chi_table_var, dot_k_var_rows, pow_k_var};
 
 fn claim_has_zero_y_ring(claim: &CeClaimVar, t: usize) -> bool {
-    claim
-        .y_ring_values
-        .iter()
-        .take(t)
-        .all(|row| row.iter().all(|value| *value == K::ZERO))
+    claim.y_ring_values.len() >= t
+        && claim
+            .y_ring_values
+            .iter()
+            .take(t)
+            .all(|row| row.iter().all(|value| *value == K::ZERO))
 }
 
 pub fn claimed_initial_sum_from_me_inputs<CS: ConstraintSystem<SpartanF>>(
@@ -50,7 +51,17 @@ pub fn claimed_initial_sum_from_me_inputs<CS: ConstraintSystem<SpartanF>>(
         return Err(SynthesisError::Unsatisfiable);
     }
 
+    let zero_suffix_start = me_inputs.len() - zero_y_ring_suffix_len;
     for (idx, claim) in me_inputs.iter().enumerate() {
+        if idx > 0 && claim.r_values != me_inputs[0].r_values {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        if idx >= zero_suffix_start {
+            if !claim_has_zero_y_ring(claim, structure.t()) {
+                return Err(SynthesisError::Unsatisfiable);
+            }
+            continue;
+        }
         if claim.y_ring.len() < structure.t() {
             return Err(SynthesisError::Unsatisfiable);
         }
@@ -58,9 +69,6 @@ pub fn claimed_initial_sum_from_me_inputs<CS: ConstraintSystem<SpartanF>>(
             if row.len() < (1usize << alpha_vars.len()) {
                 return Err(SynthesisError::Unsatisfiable);
             }
-        }
-        if idx > 0 && claim.r_values != me_inputs[0].r_values {
-            return Err(SynthesisError::Unsatisfiable);
         }
     }
 
@@ -82,8 +90,6 @@ pub fn claimed_initial_sum_from_me_inputs<CS: ConstraintSystem<SpartanF>>(
     let zero = alloc_constant_k(cs, KNum::from_neo_k(K::ZERO), &format!("{label}_acc_zero"))?;
     let mut total = zero;
     let mut total_value = K::ZERO;
-    let zero_suffix_start = me_inputs.len() - zero_y_ring_suffix_len;
-
     for matrix_idx in 0..structure.t() {
         let (outer, outer_value) = pow_k_var(
             &mut cs.namespace(|| format!("{label}_outer_{matrix_idx}")),

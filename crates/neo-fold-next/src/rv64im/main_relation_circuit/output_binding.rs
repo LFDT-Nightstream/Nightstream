@@ -40,6 +40,7 @@ pub fn enforce_me_outputs_against_inputs<CS: ConstraintSystem<SpartanF>>(
     fresh_claims: &[FreshCcsClaimVar],
     me_inputs: &[CeClaimVar],
     me_outputs: &[CeClaimVar],
+    zero_me_output_suffix_len: usize,
     r_prime: &[KNumVar],
     r_prime_values: &[K],
     _s_col_prime: &[KNumVar],
@@ -47,23 +48,33 @@ pub fn enforce_me_outputs_against_inputs<CS: ConstraintSystem<SpartanF>>(
     label: &str,
 ) -> Result<(), SynthesisError> {
     let d_pad = D.next_power_of_two();
-    if me_outputs.len() != fresh_claims.len() + me_inputs.len() || r_prime.len() != r_prime_values.len() {
+    if me_outputs.len() != fresh_claims.len() + me_inputs.len()
+        || zero_me_output_suffix_len > me_inputs.len()
+        || r_prime.len() != r_prime_values.len()
+    {
         return Err(SynthesisError::Unsatisfiable);
     }
+    let zero_suffix_start = me_outputs.len() - zero_me_output_suffix_len;
 
     for (idx, output) in me_outputs.iter().enumerate() {
-        if output.r_values != r_prime_values
-            || output.y_zcol.len() != d_pad
-            || output.y_zcol_values.len() != d_pad
-            || output.y_ring.len() < structure.t()
-            || output.ct.len() < structure.t()
-        {
+        let zero_public_suffix = idx >= zero_suffix_start;
+        let surface_ok = if zero_public_suffix {
+            claim_has_zero_public_tail(output, structure.t(), d_pad)
+        } else {
+            output.y_zcol.len() == d_pad
+                && output.y_zcol_values.len() == d_pad
+                && output.y_ring.len() >= structure.t()
+                && output.ct.len() >= structure.t()
+        };
+        if output.r_values != r_prime_values || !surface_ok {
             return Err(SynthesisError::Unsatisfiable);
         }
         enforce_equal_k_slice(cs, &output.r, r_prime, &format!("{label}_r_{idx}"))?;
-        for matrix_idx in 0..structure.t() {
-            if output.y_ring_values[matrix_idx].len() < D {
-                return Err(SynthesisError::Unsatisfiable);
+        if !zero_public_suffix {
+            for matrix_idx in 0..structure.t() {
+                if output.y_ring_values[matrix_idx].len() < D {
+                    return Err(SynthesisError::Unsatisfiable);
+                }
             }
         }
 
@@ -78,17 +89,35 @@ pub fn enforce_me_outputs_against_inputs<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
+fn claim_has_zero_public_tail(claim: &CeClaimVar, t: usize, d_pad: usize) -> bool {
+    if claim.y_zcol_values.len() != d_pad || claim.ct_values.len() < t || claim.y_ring_values.len() < t {
+        return false;
+    }
+    claim
+        .ct_values
+        .iter()
+        .take(t)
+        .all(|value| *value == K::ZERO)
+        && claim.y_zcol_values.iter().all(|value| *value == K::ZERO)
+        && claim
+            .y_ring_values
+            .iter()
+            .take(t)
+            .all(|row| row.len() >= D && row.iter().all(|value| *value == K::ZERO))
+}
+
 fn enforce_fresh_output_binding<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     fresh: &FreshCcsClaimVar,
     output: &CeClaimVar,
     label: &str,
 ) -> Result<(), SynthesisError> {
+    let compact_fresh_x_values = compact_embedded_x_values(&fresh.x_values, fresh.m_in)?;
     if output.m_in != fresh.m_in
         || output.x_rows != D
         || output.x_cols != fresh.m_in
         || output.c_data_values.len() != fresh.c_data_values.len()
-        || output.x_values.len() != fresh.x_values.len()
+        || (output.x_values.len() != fresh.x_values.len() && output.x_values.len() != compact_fresh_x_values.len())
     {
         return Err(SynthesisError::Unsatisfiable);
     }
@@ -115,8 +144,27 @@ fn enforce_fresh_output_binding<CS: ConstraintSystem<SpartanF>>(
     }
 
     if output.x.is_empty() {
-        if output.x_values != fresh.x_values {
+        if output.x_values != fresh.x_values && output.x_values != compact_fresh_x_values {
             return Err(SynthesisError::Unsatisfiable);
+        }
+    } else if output.x_values.len() == compact_fresh_x_values.len() {
+        if output.x.len() != compact_fresh_x_values.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        for col in 0..compact_fresh_x_values.len() {
+            let fresh_idx = (col % D)
+                .checked_mul(fresh.m_in)
+                .and_then(|start| start.checked_add(col))
+                .ok_or(SynthesisError::Unsatisfiable)?;
+            if output.x[col].get_variable() == fresh.x[fresh_idx].get_variable() {
+                continue;
+            }
+            cs.enforce(
+                || format!("{label}_x_{col}"),
+                |lc| lc + output.x[col].get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + fresh.x[fresh_idx].get_variable(),
+            );
         }
     } else {
         if output.x.len() != fresh.x.len() {
@@ -323,4 +371,19 @@ fn alloc_f_slice<CS: ConstraintSystem<SpartanF>>(
             })
         })
         .collect()
+}
+
+fn compact_embedded_x_values(values: &[F], m_in: usize) -> Result<Vec<F>, SynthesisError> {
+    if values.len() != D * m_in {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let mut out = Vec::with_capacity(m_in);
+    for col in 0..m_in {
+        let idx = (col % D)
+            .checked_mul(m_in)
+            .and_then(|start| start.checked_add(col))
+            .ok_or(SynthesisError::Unsatisfiable)?;
+        out.push(values[idx]);
+    }
+    Ok(out)
 }

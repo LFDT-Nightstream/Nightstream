@@ -103,30 +103,15 @@ pub fn bind_header_and_instance_digest<CS: ConstraintSystem<SpartanF>>(
             header_bundle_fields[3],
         ],
     )?;
-    let instance_digest_vars = instance_digest_fields
-        .iter()
-        .enumerate()
-        .map(|(idx, value)| AllocatedNum::alloc(cs.namespace(|| format!("instance_digest_{idx}")), || Ok(*value)))
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut field_terms = Vec::with_capacity(1 + instance_digest_vars.len());
-    let mut field_constants = Vec::with_capacity(1 + instance_digest_vars.len());
-    let mut field_values = Vec::with_capacity(1 + instance_digest_vars.len());
-    field_terms.push(Vec::new());
-    field_constants.push(SpartanF::from_canonical_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG));
-    field_values.push(SpartanF::from_canonical_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG));
-    for (num, value) in instance_digest_vars
-        .iter()
-        .zip(instance_digest_fields.iter())
-    {
-        field_terms.push(vec![(num.get_variable(), SpartanF::ONE)]);
-        field_constants.push(SpartanF::ZERO);
-        field_values.push(*value);
-    }
-    tr.append_field_linear_combinations_raw(
+    tr.append_const_fields_raw(
         cs.namespace(|| "instance_digest"),
-        &field_terms,
-        &field_constants,
-        &field_values,
+        &[
+            SpartanF::from_canonical_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG),
+            instance_digest_fields[0],
+            instance_digest_fields[1],
+            instance_digest_fields[2],
+            instance_digest_fields[3],
+        ],
     )?;
     Ok(())
 }
@@ -179,6 +164,31 @@ pub fn bind_me_input_digests<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
+pub fn bind_me_input_digest_values_constant<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    tr: &mut Poseidon2TranscriptCircuit,
+    me_input_digest_values: &[[SpartanF; 4]],
+) -> Result<(), SynthesisError> {
+    tr.append_const_fields_raw(
+        cs.namespace(|| "me_inputs_domain"),
+        &[SpartanF::from_canonical_u64(PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG)],
+    )?;
+    tr.append_const_fields_raw(
+        cs.namespace(|| "me_count"),
+        &[
+            SpartanF::from_canonical_u64(PI_CCS_ME_COUNT_RAW_TAG),
+            SpartanF::from_canonical_u64(me_input_digest_values.len() as u64),
+        ],
+    )?;
+    let mut flattened = Vec::with_capacity(1 + me_input_digest_values.len() * 4);
+    flattened.push(SpartanF::from_canonical_u64(PI_CCS_ME_DIGEST_RAW_TAG));
+    for digest in me_input_digest_values {
+        flattened.extend(digest.iter().copied());
+    }
+    tr.append_const_fields_raw(cs.namespace(|| "me_digest"), &flattened)?;
+    Ok(())
+}
+
 pub fn bind_me_inputs<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     tr: &mut Poseidon2TranscriptCircuit,
@@ -210,33 +220,14 @@ pub fn bind_me_inputs_with_projection_digests<CS: ConstraintSystem<SpartanF>>(
     me_input_digests: &[[F; 4]],
     trace_prefix: Option<&str>,
 ) -> Result<Vec<[AllocatedNum<SpartanF>; 4]>, SynthesisError> {
-    let started = Instant::now();
-    let digests = me_input_digests
-        .iter()
-        .enumerate()
-        .map(|(idx, digest)| {
-            digest
-                .iter()
-                .enumerate()
-                .map(|(lane, value)| {
-                    AllocatedNum::alloc(cs.namespace(|| format!("me_input_digest_{idx}_{lane}")), || {
-                        Ok(SpartanF::from_canonical_u64(value.as_canonical_u64()))
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .try_into()
-                .map_err(|_| SynthesisError::Unsatisfiable)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     let digest_values = me_input_digests
         .iter()
         .map(|digest| digest.map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())))
         .collect::<Vec<_>>();
-    emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.alloc_cached_digests", started);
     let started = Instant::now();
-    bind_me_input_digests(cs, tr, &digests, &digest_values)?;
+    bind_me_input_digest_values_constant(cs, tr, &digest_values)?;
     emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.bind_digests", started);
-    Ok(digests)
+    Ok(Vec::new())
 }
 
 pub fn bind_me_inputs_with_native_claims<CS: ConstraintSystem<SpartanF>>(

@@ -28,7 +28,10 @@ use super::{
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32};
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::build_rv64im_main_recursion_construction2_verified_step_statement_from_relation;
-use crate::rv64im::final_relation::{rv64im_chunk_fold_transcript_snapshot_digest, Rv64imChunkFoldTranscriptSnapshot};
+use crate::rv64im::final_relation::{
+    rv64im_chunk_fold_initial_transcript_snapshot, rv64im_chunk_fold_transcript_snapshot_digest,
+    Rv64imChunkFoldTranscriptSnapshot,
+};
 use crate::rv64im::kernel::rv64im_cached_root_main_lane_optimized_cache;
 use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_backend_statement_from_advice, build_rv64im_main_recursion_f_prime_advices,
@@ -47,6 +50,7 @@ mod payload_methods;
 pub struct Rv64imMainRecursionFPrimePayload {
     pub(crate) boundary_plan: Rv64imChunkBoundaryPlan,
     pub(crate) rlc_zero_commit_suffix_len: usize,
+    pub(crate) initial_transcript_in: bool,
     pub step_shape: Rv64imChunkStepIvcShape,
     pub cover_shape: Rv64imChunkStepIvcShape,
     pub padding: Rv64imChunkStepIvcRecursiveStepPadding,
@@ -469,12 +473,13 @@ pub struct Rv64imMainRecursionStepSpartanShape {
     pub cover_shape: Rv64imChunkStepIvcShape,
     pub claim_cover: Rv64imMainRecursionFPrimeClaimCover,
     pub rlc_zero_commit_suffix_len: u64,
+    pub initial_transcript_in: bool,
 }
 
 impl Rv64imMainRecursionStepSpartanShape {
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_step_spartan_shape");
-        tr.append_message(b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/version", b"v2");
+        tr.append_message(b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/version", b"v3");
         tr.append_message(
             b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/cover_shape",
             &self.cover_shape.expected_digest(),
@@ -487,12 +492,17 @@ impl Rv64imMainRecursionStepSpartanShape {
             b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/rlc_zero_commit_suffix_len",
             &[self.rlc_zero_commit_suffix_len],
         );
+        tr.append_u64s(
+            b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/initial_transcript_in",
+            &[self.initial_transcript_in as u64],
+        );
         tr.digest32()
     }
 
     pub fn matches_payload(&self, payload: &Rv64imMainRecursionFPrimePayload) -> bool {
         payload.cover_shape == self.cover_shape
             && payload.rlc_zero_commit_suffix_len as u64 == self.rlc_zero_commit_suffix_len
+            && payload.initial_transcript_in == self.initial_transcript_in
             && payload.matches_cover_shape()
             && self.claim_cover.matches_payload(payload)
     }
@@ -1257,6 +1267,7 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
     let mut payload = Rv64imMainRecursionFPrimePayload {
         boundary_plan,
         rlc_zero_commit_suffix_len: spartan_shape.rlc_zero_commit_suffix_len as usize,
+        initial_transcript_in: spartan_shape.initial_transcript_in,
         step_shape: provisional_step_shape.clone(),
         cover_shape: cover_shape.clone(),
         padding: build_rv64im_chunk_step_ivc_recursive_step_padding_from_shape(&provisional_step_shape, cover_shape)?,
@@ -1375,10 +1386,16 @@ pub fn build_rv64im_main_recursion_step_spartan_shape_from_advices(
     } else {
         0
     };
+    let initial_transcript_in = if advices.len() == 1 {
+        advices[0].running_state().transcript == rv64im_chunk_fold_initial_transcript_snapshot()
+    } else {
+        false
+    };
     Ok(Rv64imMainRecursionStepSpartanShape {
         cover_shape,
         claim_cover,
         rlc_zero_commit_suffix_len,
+        initial_transcript_in,
     })
 }
 

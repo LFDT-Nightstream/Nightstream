@@ -15,16 +15,19 @@ use super::*;
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::ivc_snark::{Rv64imDeciderEngine, ShapeCS, SpartanCircuit, SpartanF, SpartanShape, SplitR1CSShape};
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
+use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
 use crate::rv64im::main_relation_circuit::claim::enforce_claim_projection_eq_native;
 use crate::rv64im::main_relation_circuit::claim::me_digest_poseidon;
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
 use crate::rv64im::main_relation_spartan::recursive_cover::{
-    alloc_recursive_carried_projection_claims, alloc_recursive_cover_claims, alloc_recursive_cover_state,
+    alloc_recursive_carried_projection_claims, alloc_recursive_carried_x_r_only_claims, alloc_recursive_cover_claims,
+    alloc_recursive_cover_state, carried_projection_claims_have_zero_public_tail,
     debug_measure_recursive_accumulator_instance_digest_circuit_from_projection_digests_aux,
     recursive_accumulator_instance_digest_circuit_from_claims,
-    recursive_accumulator_instance_digest_circuit_from_projection_digests,
+    recursive_accumulator_instance_digest_circuit_from_projection_digests, Rv64imRecursiveCoverClaimVar,
 };
+use crate::rv64im::main_relation_spartan::Rv64imMainRecursionFPrimePayload;
 use crate::rv64im::main_relation_spartan::{rv64im_main_relation_delta, Rv64imClaimBundle};
 
 fn stage_err(stage: &str, err: impl ToString) -> Rv64imMainRecursionStepSpartanError {
@@ -61,6 +64,19 @@ fn ensure_stage_satisfied(
             stage,
             cs.which_is_unsatisfied().unwrap_or("unknown constraint"),
         ))
+    }
+}
+
+fn alloc_live_state_in_projection_claims<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    _witness: &Rv64imMainRecursionFPrimeAdvice,
+    payload: &Rv64imMainRecursionFPrimePayload,
+    label: &str,
+) -> Result<Vec<Rv64imRecursiveCoverClaimVar>, SynthesisError> {
+    if payload.initial_transcript_in && carried_projection_claims_have_zero_public_tail(&payload.state_in_claims) {
+        alloc_recursive_carried_x_r_only_claims(cs, &payload.state_in_claims, label)
+    } else {
+        alloc_recursive_carried_projection_claims(cs, &payload.state_in_claims, label)
     }
 }
 
@@ -155,6 +171,7 @@ pub struct Rv64imPiCcsStageConstraintCounts {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Rv64imPiCcsBindMeInputsAuxBreakdown {
+    pub after_bind_header: usize,
     pub after_claim_digests: Vec<usize>,
     pub after_bind_digests: usize,
 }
@@ -249,20 +266,18 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
     let replay_chunk = payload
         .padded_chunk_replay_surface()
         .map_err(|err| stage_err("chunk_replay_surface", err))?;
-    let transcript_in_values = witness
-        .running_state()
-        .transcript
-        .state
-        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
-    let mut replayed_transcript = Poseidon2TranscriptCircuit::from_state(
-        state_in_var.transcript_state.clone(),
-        transcript_in_values,
-        witness.running_state().transcript.absorbed,
+    let mut replayed_transcript = super::super::import_chunk_fold_transcript_in(
+        &mut cs.namespace(|| "chunk_replay_transcript"),
+        &state_in_var,
+        &witness.running_state().transcript,
+        payload.initial_transcript_in,
+        "chunk_replay_transcript",
     )
     .map_err(|err| stage_err("chunk_replay_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("chunk_replay_live_state_in_claims", err))?;
@@ -272,10 +287,13 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
             .map(|claim| claim.claim)
             .collect(),
     );
-    super::super::append_chunk_meta(
+    super::super::append_chunk_meta_with_exact_initial_constants(
         &mut cs.namespace(|| "payload_chunk_meta"),
         &mut replayed_transcript,
         &replay_chunk.handoff,
+        payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     )
     .map_err(|err| stage_err("chunk_replay_chunk_meta", err))?;
     let after_chunk_meta = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
@@ -293,6 +311,9 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
         logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count: payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     };
     let pi_ccs = super::super::synthesize_pi_ccs_stage(
         &ctx,
@@ -390,17 +411,22 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
                 )
                 .map_err(|err| stage_err("chunk_replay_pi_rlc_public", err))?;
             } else {
+                let active_dense_children_len = pi_ccs
+                    .padded_ccs_outputs
+                    .len()
+                    .saturating_sub(payload.rlc_zero_commit_suffix_len);
                 let rho_mats = super::super::materialize_goldilocks_rot_matrices(
                     &mut cs.namespace(|| "payload_chunk_pi_rlc_rho_mats"),
-                    &rho_vars,
+                    &rho_vars[..active_dense_children_len],
                     "payload_chunk_pi_rlc_rho_mats",
                 )
                 .map_err(|err| stage_err("chunk_replay_pi_rlc_rho_mats", err))?;
                 after_pi_rlc_rho_mats = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
-                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_rho_vars_constant_prefix_zero_commit_suffix(
+                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffix(
                     &mut cs.namespace(|| "payload_chunk_pi_rlc_public"),
                     &parent_claim,
                     &pi_ccs.padded_ccs_outputs,
+                    &rho_vars,
                     &rho_mats,
                     constant_child_prefix,
                     payload.rlc_zero_commit_suffix_len,
@@ -531,20 +557,18 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
         "state_in",
     )
     .map_err(|err| stage_err("pi_ccs_state_in", err))?;
-    let transcript_in_values = witness
-        .running_state()
-        .transcript
-        .state
-        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
-    let mut replayed_transcript = Poseidon2TranscriptCircuit::from_state(
-        state_in_var.transcript_state,
-        transcript_in_values,
-        witness.running_state().transcript.absorbed,
+    let mut replayed_transcript = super::super::import_chunk_fold_transcript_in(
+        &mut cs.namespace(|| "pi_ccs_transcript"),
+        &state_in_var,
+        &witness.running_state().transcript,
+        payload.initial_transcript_in,
+        "pi_ccs_transcript",
     )
     .map_err(|err| stage_err("pi_ccs_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("pi_ccs_live_state_in_claims", err))?;
@@ -567,12 +591,16 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
         logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count: payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     };
 
-    super::super::append_chunk_meta(
+    super::super::append_chunk_meta_with_exact_initial_constants(
         &mut cs.namespace(|| "payload_chunk_meta"),
         &mut replayed_transcript,
         &replay_chunk.handoff,
+        ctx.exact_initial_chunk_step_count,
     )
     .map_err(|err| stage_err("pi_ccs_chunk_meta", err))?;
 
@@ -790,6 +818,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
         super::super::Rv64imChunkRlcMode::Standard { constant_child_prefix } => constant_child_prefix,
         super::super::Rv64imChunkRlcMode::TerminalLastChunkShortcut => 0,
     };
+    let zero_output_suffix_start = effective_output_count.saturating_sub(ctx.rlc_zero_commit_suffix_len);
     let mut padded_ccs_outputs = Vec::with_capacity(ctx.cover_chunk.ccs_output_shapes.len());
     for (output_index, shape) in ctx.cover_chunk.ccs_output_shapes.iter().enumerate() {
         let effective_claim = ctx.chunk.pi_ccs.ccs_outputs.get(output_index);
@@ -854,7 +883,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
             let fresh = covered_fresh_claim_vars
                 .get(output_index)
                 .ok_or_else(|| stage_err("pi_ccs_alloc_output", "fresh output vars missing"))?;
-            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
+            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
                 &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                 &claim,
                 &fresh.c_data,
@@ -874,18 +903,32 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
                 .effective_claims()
                 .get(me_input_index)
                 .ok_or_else(|| stage_err("pi_ccs_alloc_output", "me-input missing"))?;
-            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
-                &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
-                &claim,
-                &me_input.c_data,
-                &me_input.c_data_values,
-                &r_prime_vars,
-                &ctx.chunk.pi_ccs.row_chals,
-                &s_col_prime_vars,
-                &ctx.chunk.pi_ccs.s_col,
-                &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
-            )
-            .map_err(|err| stage_err("pi_ccs_alloc_output", err))?
+            if output_index >= zero_output_suffix_start {
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_x_surface_with_shared_point(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )
+                .map_err(|err| stage_err("pi_ccs_alloc_output", err))?
+            } else {
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data,
+                    &me_input.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )
+                .map_err(|err| stage_err("pi_ccs_alloc_output", err))?
+            }
         } else {
             super::super::alloc_ce_claim_public_surface_with_shared_point(
                 &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
@@ -909,6 +952,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
         &covered_fresh_claim_vars,
         carried_claims.effective_claims(),
         &padded_ccs_outputs,
+        ctx.rlc_zero_commit_suffix_len,
         &r_prime_vars,
         &ctx.chunk.pi_ccs.row_chals,
         &s_col_prime_vars,
@@ -975,6 +1019,8 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
         &alpha_prime_nc_vars,
         &ctx.chunk.pi_ccs.alpha_prime_nc,
         &effective_terminal_outputs,
+        cover_fresh_claim_count,
+        ctx.rlc_zero_commit_suffix_len,
         rv64im_main_relation_delta(),
         &format!("chunk_{}_terminal_nc", ctx.chunk_index),
     )
@@ -1022,20 +1068,18 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
         "state_in",
     )
     .map_err(|err| stage_err("pi_ccs_constraints_state_in", err))?;
-    let transcript_in_values = witness
-        .running_state()
-        .transcript
-        .state
-        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
-    let mut replayed_transcript = Poseidon2TranscriptCircuit::from_state(
-        state_in_var.transcript_state,
-        transcript_in_values,
-        witness.running_state().transcript.absorbed,
+    let mut replayed_transcript = super::super::import_chunk_fold_transcript_in(
+        &mut cs.namespace(|| "pi_ccs_constraints_transcript"),
+        &state_in_var,
+        &witness.running_state().transcript,
+        payload.initial_transcript_in,
+        "pi_ccs_constraints_transcript",
     )
     .map_err(|err| stage_err("pi_ccs_constraints_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("pi_ccs_constraints_live_state_in_claims", err))?;
@@ -1058,12 +1102,16 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
         logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count: payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     };
 
-    super::super::append_chunk_meta(
+    super::super::append_chunk_meta_with_exact_initial_constants(
         &mut cs.namespace(|| "payload_chunk_meta"),
         &mut replayed_transcript,
         &replay_chunk.handoff,
+        ctx.exact_initial_chunk_step_count,
     )
     .map_err(|err| stage_err("pi_ccs_constraints_chunk_meta", err))?;
 
@@ -1281,6 +1329,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
         super::super::Rv64imChunkRlcMode::Standard { constant_child_prefix } => constant_child_prefix,
         super::super::Rv64imChunkRlcMode::TerminalLastChunkShortcut => 0,
     };
+    let zero_output_suffix_start = effective_output_count.saturating_sub(ctx.rlc_zero_commit_suffix_len);
     let mut padded_ccs_outputs = Vec::with_capacity(ctx.cover_chunk.ccs_output_shapes.len());
     for (output_index, shape) in ctx.cover_chunk.ccs_output_shapes.iter().enumerate() {
         let effective_claim = ctx.chunk.pi_ccs.ccs_outputs.get(output_index);
@@ -1345,7 +1394,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
             let fresh = covered_fresh_claim_vars
                 .get(output_index)
                 .ok_or_else(|| stage_err("pi_ccs_constraints_alloc_output", "fresh output vars missing"))?;
-            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
+            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
                 &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                 &claim,
                 &fresh.c_data,
@@ -1365,18 +1414,32 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
                 .effective_claims()
                 .get(me_input_index)
                 .ok_or_else(|| stage_err("pi_ccs_constraints_alloc_output", "me-input missing"))?;
-            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
-                &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
-                &claim,
-                &me_input.c_data,
-                &me_input.c_data_values,
-                &r_prime_vars,
-                &ctx.chunk.pi_ccs.row_chals,
-                &s_col_prime_vars,
-                &ctx.chunk.pi_ccs.s_col,
-                &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
-            )
-            .map_err(|err| stage_err("pi_ccs_constraints_alloc_output", err))?
+            if output_index >= zero_output_suffix_start {
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_x_surface_with_shared_point(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )
+                .map_err(|err| stage_err("pi_ccs_constraints_alloc_output", err))?
+            } else {
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data,
+                    &me_input.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )
+                .map_err(|err| stage_err("pi_ccs_constraints_alloc_output", err))?
+            }
         } else {
             super::super::alloc_ce_claim_public_surface_with_shared_point(
                 &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
@@ -1400,6 +1463,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
         &covered_fresh_claim_vars,
         carried_claims.effective_claims(),
         &padded_ccs_outputs,
+        ctx.rlc_zero_commit_suffix_len,
         &r_prime_vars,
         &ctx.chunk.pi_ccs.row_chals,
         &s_col_prime_vars,
@@ -1466,6 +1530,8 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
         &alpha_prime_nc_vars,
         &ctx.chunk.pi_ccs.alpha_prime_nc,
         &effective_terminal_outputs,
+        cover_fresh_claim_count,
+        ctx.rlc_zero_commit_suffix_len,
         rv64im_main_relation_delta(),
         &format!("chunk_{}_terminal_nc", ctx.chunk_index),
     )
@@ -1524,9 +1590,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_transcript", err))?;
-    let _live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let _live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_live_state_in_claims", err))?;
@@ -1543,12 +1610,16 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
         logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count: payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     };
 
-    super::super::append_chunk_meta(
+    super::super::append_chunk_meta_with_exact_initial_constants(
         &mut cs.namespace(|| "payload_chunk_meta"),
         &mut replayed_transcript,
         &replay_chunk.handoff,
+        ctx.exact_initial_chunk_step_count,
     )
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_chunk_meta", err))?;
     super::super::bind_header_and_instance_digest(
@@ -1567,8 +1638,8 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
             .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
     )
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_bind_header", err))?;
+    let after_bind_header = cs.num_aux();
 
-    let mut digests = Vec::with_capacity(witness.running_state().carry.main_projection_digests.len());
     let mut digest_values = Vec::with_capacity(witness.running_state().carry.main_projection_digests.len());
     let mut after_claim_digests = Vec::with_capacity(witness.running_state().carry.main_projection_digests.len());
     for (idx, digest) in witness
@@ -1578,34 +1649,21 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
         .iter()
         .enumerate()
     {
-        let allocated = digest
-            .iter()
-            .enumerate()
-            .map(|(lane, value)| {
-                bellpepper_core::num::AllocatedNum::alloc(
-                    cs.namespace(|| format!("me_input_digest_{idx}_{lane}")),
-                    || Ok(SpartanF::from_canonical_u64(value.as_canonical_u64())),
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| stage_err("pi_ccs_bind_breakdown_alloc_digest_lane", err))?
-            .try_into()
-            .map_err(|_| stage_err("pi_ccs_bind_breakdown_alloc_digest_width", "invalid digest width"))?;
-        digests.push(allocated);
         digest_values.push(digest.map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())));
+        let _ = idx;
         after_claim_digests.push(cs.num_aux());
     }
 
-    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_input_digests(
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_input_digest_values_constant(
         &mut cs.namespace(|| "me_input_digests"),
         &mut replayed_transcript,
-        &digests,
         &digest_values,
     )
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_bind_digests", err))?;
     let after_bind_digests = cs.num_aux();
 
     Ok(Rv64imPiCcsBindMeInputsAuxBreakdown {
+        after_bind_header,
         after_claim_digests,
         after_bind_digests,
     })
@@ -1648,9 +1706,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_break
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("pi_ccs_sumcheck_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("pi_ccs_sumcheck_live_state_in_claims", err))?;
@@ -1673,12 +1732,16 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_break
         logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count: payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     };
 
-    super::super::append_chunk_meta(
+    super::super::append_chunk_meta_with_exact_initial_constants(
         &mut cs.namespace(|| "payload_chunk_meta"),
         &mut replayed_transcript,
         &replay_chunk.handoff,
+        ctx.exact_initial_chunk_step_count,
     )
     .map_err(|err| stage_err("pi_ccs_sumcheck_chunk_meta", err))?;
     super::super::bind_header_and_instance_digest(
@@ -1960,9 +2023,10 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_tail_aux_counts(
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("chunk_tail_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("chunk_tail_live_state_in_claims", err))?;
@@ -1989,6 +2053,9 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_tail_aux_counts(
             Some(&witness.running_state().carry.main_projection_digests),
             payload.boundary_plan,
             payload.rlc_zero_commit_suffix_len,
+            payload
+                .initial_transcript_in
+                .then_some(payload.chunk_cover.fresh_claim_count as usize),
             None,
         )
         .map_err(|err| stage_err("chunk_tail_body", err))?;
@@ -2122,9 +2189,10 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_tail_digest_aux_bre
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("chunk_tail_digest_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("chunk_tail_digest_live_state_in_claims", err))?;
@@ -2151,6 +2219,9 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_tail_digest_aux_bre
             Some(&witness.running_state().carry.main_projection_digests),
             payload.boundary_plan,
             payload.rlc_zero_commit_suffix_len,
+            payload
+                .initial_transcript_in
+                .then_some(payload.chunk_cover.fresh_claim_count as usize),
             None,
         )
         .map_err(|err| stage_err("chunk_tail_digest_body", err))?;
@@ -2206,9 +2277,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("pi_ccs_fingerprint_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("pi_ccs_fingerprint_live_state_in_claims", err))?;
@@ -2231,12 +2303,16 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
         logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count: payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     };
 
-    super::super::append_chunk_meta(
+    super::super::append_chunk_meta_with_exact_initial_constants(
         &mut cs.namespace(|| "payload_chunk_meta"),
         &mut replayed_transcript,
         &replay_chunk.handoff,
+        ctx.exact_initial_chunk_step_count,
     )
     .map_err(|err| stage_err("pi_ccs_fingerprint_chunk_meta", err))?;
 
@@ -2454,6 +2530,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
         super::super::Rv64imChunkRlcMode::Standard { constant_child_prefix } => constant_child_prefix,
         super::super::Rv64imChunkRlcMode::TerminalLastChunkShortcut => 0,
     };
+    let zero_output_suffix_start = effective_output_count.saturating_sub(ctx.rlc_zero_commit_suffix_len);
     let mut padded_ccs_outputs = Vec::with_capacity(ctx.cover_chunk.ccs_output_shapes.len());
     for (output_index, shape) in ctx.cover_chunk.ccs_output_shapes.iter().enumerate() {
         let effective_claim = ctx.chunk.pi_ccs.ccs_outputs.get(output_index);
@@ -2518,7 +2595,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
             let fresh = covered_fresh_claim_vars
                 .get(output_index)
                 .ok_or_else(|| stage_err("pi_ccs_fingerprint_alloc_output", "fresh output vars missing"))?;
-            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
+            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
                 &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                 &claim,
                 &fresh.c_data,
@@ -2538,18 +2615,32 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
                 .effective_claims()
                 .get(me_input_index)
                 .ok_or_else(|| stage_err("pi_ccs_fingerprint_alloc_output", "me-input missing"))?;
-            crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
-                &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
-                &claim,
-                &me_input.c_data,
-                &me_input.c_data_values,
-                &r_prime_vars,
-                &ctx.chunk.pi_ccs.row_chals,
-                &s_col_prime_vars,
-                &ctx.chunk.pi_ccs.s_col,
-                &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
-            )
-            .map_err(|err| stage_err("pi_ccs_fingerprint_alloc_output", err))?
+            if output_index >= zero_output_suffix_start {
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_x_surface_with_shared_point(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )
+                .map_err(|err| stage_err("pi_ccs_fingerprint_alloc_output", err))?
+            } else {
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data,
+                    &me_input.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )
+                .map_err(|err| stage_err("pi_ccs_fingerprint_alloc_output", err))?
+            }
         } else {
             super::super::alloc_ce_claim_public_surface_with_shared_point(
                 &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
@@ -2573,6 +2664,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
         &covered_fresh_claim_vars,
         carried_claims.effective_claims(),
         &padded_ccs_outputs,
+        ctx.rlc_zero_commit_suffix_len,
         &r_prime_vars,
         &ctx.chunk.pi_ccs.row_chals,
         &s_col_prime_vars,
@@ -2639,6 +2731,8 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
         &alpha_prime_nc_vars,
         &ctx.chunk.pi_ccs.alpha_prime_nc,
         &effective_terminal_outputs,
+        cover_fresh_claim_count,
+        ctx.rlc_zero_commit_suffix_len,
         rv64im_main_relation_delta(),
         &format!("chunk_{}_terminal_nc", ctx.chunk_index),
     )
@@ -2696,30 +2790,22 @@ pub fn debug_measure_rv64im_main_recursion_step_stage_aux_counts(
         .map_err(|err| stage_err("stage_aux_counts_z_i", err))?;
     let z_next_input = private_digest_inputs(&mut cs.namespace(|| "z_next"), *payload.z_next(), "z_next")
         .map_err(|err| stage_err("stage_aux_counts_z_next", err))?;
-    let pc_i_input = alloc_private_field_values(
-        &mut cs.namespace(|| "pc_i"),
-        &[SpartanF::from_canonical_u64(payload.pc_i())],
-        "pc_i",
-    )
-    .map_err(|err| stage_err("stage_aux_counts_pc_i", err))?
-    .into_iter()
-    .next()
-    .ok_or_else(|| stage_err("stage_aux_counts_pc_i", "missing pc_i"))?;
-    let pc_next_input = alloc_private_field_values(
-        &mut cs.namespace(|| "pc_next"),
-        &[SpartanF::from_canonical_u64(payload.pc_next())],
-        "pc_next",
-    )
-    .map_err(|err| stage_err("stage_aux_counts_pc_next", err))?
-    .into_iter()
-    .next()
-    .ok_or_else(|| stage_err("stage_aux_counts_pc_next", "missing pc_next"))?;
     let pc_next_halves = private_u64_halves(
         &mut cs.namespace(|| "pc_next_halves"),
         payload.pc_next(),
         "pc_next_halves",
     )
     .map_err(|err| stage_err("stage_aux_counts_pc_next_halves", err))?;
+    let step_handle_meta_values = [
+        SpartanF::from_canonical_u64(payload.handoff.public_chunk.start_index as u64),
+        SpartanF::from_canonical_u64(payload.handoff.public_chunk.steps.len() as u64),
+    ];
+    let step_handle_meta = alloc_private_field_values(
+        &mut cs.namespace(|| "step_handle_meta"),
+        &step_handle_meta_values,
+        "step_handle_meta",
+    )
+    .map_err(|err| stage_err("stage_aux_counts_step_handle_meta", err))?;
     let after_private_witness_inputs = cs.num_aux();
 
     let state_in_var = alloc_recursive_cover_state(
@@ -2775,20 +2861,32 @@ pub fn debug_measure_rv64im_main_recursion_step_stage_aux_counts(
         "z_next_eq_state_out_terminal_handle",
     )
     .map_err(|err| stage_err("stage_aux_counts_z_next_eq_state_out_terminal_handle", err))?;
-    enforce_pc_range(
-        &mut cs.namespace(|| "pc_i_range"),
-        "pc_i_range",
-        &pc_i_input,
-        RV64IM_MAIN_RECURSION_ELL,
-    )
-    .map_err(|err| stage_err("stage_aux_counts_pc_i_range", err))?;
-    enforce_pc_range(
-        &mut cs.namespace(|| "pc_next_range"),
-        "pc_next_range",
-        &pc_next_input,
-        RV64IM_MAIN_RECURSION_ELL,
-    )
-    .map_err(|err| stage_err("stage_aux_counts_pc_next_range", err))?;
+    super::ensure_unit_program_counter(payload.pc_i()).map_err(|err| stage_err("stage_aux_counts_pc_i_unit", err))?;
+    super::ensure_unit_program_counter(payload.pc_next())
+        .map_err(|err| stage_err("stage_aux_counts_pc_next_unit", err))?;
+    let exact_initial_x_out_prefix = if payload.initial_transcript_in {
+        let prefix = super::exact_initial_x_out_prefix(
+            witness
+                .verifier_key_fs()
+                .step_cap()
+                .map_err(|err| stage_err("stage_aux_counts_step_cap", err))?,
+        );
+        super::enforce_u64_halves_eq_constant(
+            &mut cs.namespace(|| "chunk_index_eq_exact_initial"),
+            &chunk_index_halves,
+            prefix.next_chunk_count,
+            "chunk_index_eq_exact_initial",
+        );
+        super::enforce_u64_halves_eq_constant(
+            &mut cs.namespace(|| "pc_next_halves_eq_exact_initial"),
+            &pc_next_halves,
+            prefix.pc_next,
+            "pc_next_halves_eq_exact_initial",
+        );
+        Some(prefix)
+    } else {
+        None
+    };
     let after_bind_state_and_pc = cs.num_aux();
 
     let live_folded_accumulator_out_digest = synthesize_rv64im_main_recursion_step_chunk_replay(
@@ -2802,6 +2900,33 @@ pub fn debug_measure_rv64im_main_recursion_step_stage_aux_counts(
     .map_err(|err| stage_err("stage_aux_counts_chunk_replay", err))?
     .live_folded_accumulator_out_digest;
     let after_chunk_replay = cs.num_aux();
+
+    let expected_step_handle = super::fixed_shape_recursive_step_handle_digest_circuit(
+        &mut cs.namespace(|| "expected_step_handle"),
+        "expected_step_handle",
+        &state_in_var.terminal_handle,
+        &digest32_as_spartan_fields(witness.running_state().carry.terminal_handle.0),
+        &chunk_index_halves,
+        witness.chunk_count_in() + 1,
+        &step_handle_meta[0],
+        step_handle_meta_values[0],
+        &step_handle_meta[1],
+        step_handle_meta_values[1],
+        &payload.handoff.chunk_relation_digest,
+    )
+    .map_err(|err| stage_err("stage_aux_counts_expected_step_handle", err))?;
+    enforce_digest_eq(
+        &mut cs.namespace(|| "state_out_terminal_handle_eq_expected_step_handle"),
+        &state_out_var.terminal_handle,
+        &expected_step_handle,
+        "state_out_terminal_handle_eq_expected_step_handle",
+    )
+    .map_err(|err| {
+        stage_err(
+            "stage_aux_counts_state_out_terminal_handle_eq_expected_step_handle",
+            err,
+        )
+    })?;
 
     enforce_inactive_side_lane_constraints(
         &mut cs.namespace(|| "inactive_side_lane"),
@@ -2829,6 +2954,7 @@ pub fn debug_measure_rv64im_main_recursion_step_stage_aux_counts(
         &u64_halves_as_spartan_fields(payload.pc_next()),
         &live_folded_accumulator_out_digest,
         &live_folded_accumulator_out_digest_values,
+        exact_initial_x_out_prefix,
     )
     .map_err(|err| stage_err("stage_aux_counts_x_out_digest", err))?;
     let after_inactive_side_lane_and_x_out = cs.num_aux();
@@ -2893,9 +3019,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_rlc_public_constraint_breakdo
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("pi_rlc_public_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "pi_rlc_public_state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "pi_rlc_public_state_in_live_claims",
     )
     .map_err(|err| stage_err("pi_rlc_public_live_state_in_claims", err))?;
@@ -2920,8 +3047,12 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_rlc_public_constraint_breakdo
         &replay_chunk,
         &mut replayed_transcript,
         carried_claims,
+        Some(&witness.running_state().carry.main_projection_digests),
         payload.boundary_plan,
         payload.rlc_zero_commit_suffix_len,
+        payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     )
     .map_err(|err| stage_err("pi_rlc_public_stage_ranges", err))?;
 
@@ -2994,9 +3125,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_rlc_public_stage_breakdown(
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("pi_rlc_public_stage_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "pi_rlc_public_state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "pi_rlc_public_state_in_live_claims",
     )
     .map_err(|err| stage_err("pi_rlc_public_stage_live_state_in_claims", err))?;
@@ -3021,8 +3153,12 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_rlc_public_stage_breakdown(
         &replay_chunk,
         &mut replayed_transcript,
         carried_claims,
+        Some(&witness.running_state().carry.main_projection_digests),
         payload.boundary_plan,
         payload.rlc_zero_commit_suffix_len,
+        payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     )
     .map_err(|err| stage_err("pi_rlc_public_stage_ranges", err))?;
 
@@ -3086,9 +3222,10 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("chunk_replay_transcript", err))?;
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("chunk_replay_live_state_in_claims", err))?;
@@ -3098,10 +3235,13 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
             .map(|claim| claim.claim)
             .collect(),
     );
-    super::super::append_chunk_meta(
+    super::super::append_chunk_meta_with_exact_initial_constants(
         &mut cs.namespace(|| "payload_chunk_meta"),
         &mut replayed_transcript,
         &replay_chunk.handoff,
+        payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     )
     .map_err(|err| stage_err("chunk_replay_chunk_meta", err))?;
     let after_chunk_meta = cs.num_aux();
@@ -3119,6 +3259,9 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
         logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
+        exact_initial_chunk_step_count: payload
+            .initial_transcript_in
+            .then_some(payload.chunk_cover.fresh_claim_count as usize),
     };
     let pi_ccs = super::super::synthesize_pi_ccs_stage(
         &ctx,
@@ -3216,17 +3359,22 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
                 )
                 .map_err(|err| stage_err("chunk_replay_pi_rlc_public", err))?;
             } else {
+                let active_dense_children_len = pi_ccs
+                    .padded_ccs_outputs
+                    .len()
+                    .saturating_sub(payload.rlc_zero_commit_suffix_len);
                 let rho_mats = super::super::materialize_goldilocks_rot_matrices(
                     &mut cs.namespace(|| "payload_chunk_pi_rlc_rho_mats"),
-                    &rho_vars,
+                    &rho_vars[..active_dense_children_len],
                     "payload_chunk_pi_rlc_rho_mats",
                 )
                 .map_err(|err| stage_err("chunk_replay_pi_rlc_rho_mats", err))?;
                 after_pi_rlc_rho_mats = cs.num_aux();
-                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_rho_vars_constant_prefix_zero_commit_suffix(
+                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffix(
                     &mut cs.namespace(|| "payload_chunk_pi_rlc_public"),
                     &parent_claim,
                     &pi_ccs.padded_ccs_outputs,
+                    &rho_vars,
                     &rho_mats,
                     constant_child_prefix,
                     payload.rlc_zero_commit_suffix_len,
@@ -3736,9 +3884,10 @@ pub fn debug_profile_rv64im_main_recursion_step_chunk_replay_stages(
         }
     );
     let _ = io::stderr().flush();
-    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
-        &payload.state_in_claims,
+        witness,
+        payload,
         "state_in_live_claims",
     )
     .map_err(|err| stage_err("state_in_live_claims", err))?;

@@ -36,7 +36,7 @@ pub fn enforce_dec_public<CS: ConstraintSystem<SpartanF>>(
             || child.x_cols != parent.m_in
             || child.r_values != parent.r_values
             || child.y_ring.len() != parent.y_ring.len()
-            || child.y_zcol.len() != parent.y_zcol.len()
+            || child.y_zcol_values.len() != parent.y_zcol_values.len()
             || child.c_data.len() != parent.c_data.len()
         {
             return Err(SynthesisError::Unsatisfiable);
@@ -111,7 +111,7 @@ pub fn enforce_dec_public_with_constant_children<CS: ConstraintSystem<SpartanF>>
             || child.X.cols() != parent.m_in
             || child.r != parent.r_values
             || child.y_ring.len() != parent.y_ring.len()
-            || child.y_zcol.len() != parent.y_zcol.len()
+            || child.y_zcol.len() != parent.y_zcol_values.len()
             || child.c.data.len() != parent.c_data_values.len()
         {
             return Err(SynthesisError::Unsatisfiable);

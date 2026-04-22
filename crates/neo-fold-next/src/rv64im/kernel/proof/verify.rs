@@ -15,8 +15,9 @@ use super::simple::{
 use super::stage_artifacts::verify_public_kernel_opening_bundle_with_perf;
 use super::stage_package_perf::verify_stage_package_bundle_with_perf;
 use super::{
-    build_main_lane_surface, AjtaiFamilyKind, RootLaneColumns, RootLaneCommitmentSummaryArtifact,
-    Rv64imMainLaneSurface, SelectedOpeningRef, SimpleKernelError, SimpleKernelPublicInput,
+    build_main_lane_surface, rv64im_simple_root_context_id_for_schedule, AjtaiFamilyKind, RootLaneColumns,
+    RootLaneCommitmentSummaryArtifact, Rv64imMainLaneSurface, SelectedOpeningRef, SimpleKernelError,
+    SimpleKernelPublicInput,
 };
 use std::time::Instant;
 
@@ -729,7 +730,17 @@ fn rebuild_public_kernel_from_input(
     ),
     SimpleKernelError,
 > {
-    let ((kernel, sidecar), perf) = build_public_simple_kernel_output_and_witness_with_perf(input)?;
+    let ((kernel, sidecar), perf) =
+        build_public_simple_kernel_output_and_witness_with_perf(input, proof.statement.fold_schedule)?;
+    let expected_root_params_id = rv64im_simple_root_context_id_for_schedule(
+        proof.statement.fold_schedule,
+        kernel.root_lane_columns.time_len as usize,
+    )?;
+    if proof.statement.root_params_id != expected_root_params_id {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM public proof root params id does not match the declared fold schedule and public-step count".into(),
+        ));
+    }
 
     if proof.kernel.trace != kernel.trace {
         return Err(SimpleKernelError::Bridge(

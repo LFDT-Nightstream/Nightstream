@@ -87,11 +87,9 @@ pub(super) const SIMPLE_KERNEL_PP_SEED: [u8; 32] = [
     0x40, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
-// The live RV64IM family needs the wider DEC range on the current accepted
-// artifact: smaller `k_rho` pins overflow the carried split witness during the
-// native kernel replay.
-pub(super) const SIMPLE_KERNEL_K_RHO: u32 = 16;
-pub(super) const SIMPLE_KERNEL_B: u64 = 1u64 << SIMPLE_KERNEL_K_RHO;
+// Single-step RV64IM uses the lean base DEC width. Wider chunk step-caps derive
+// a larger `k_rho` up front as part of the declared proof family.
+pub(super) const SIMPLE_KERNEL_BASE_K_RHO: u32 = 16;
 // Ajtai public parameters are global per dimension bucket, so exact stage surfaces share one seed.
 pub(super) const EXACT_STAGE_PP_SEED: [u8; 32] = SIMPLE_KERNEL_PP_SEED;
 const ROOT_MAIN_LANE_STEP_LABEL: &str = "";
@@ -320,7 +318,11 @@ pub(crate) fn prepared_step_binding_digest(
 
 impl SimpleKernelRootContext {
     fn new() -> Result<Self, SimpleKernelError> {
-        let params = rv64im_simple_root_params();
+        Self::new_for_step_cap(1)
+    }
+
+    fn new_for_step_cap(step_cap: usize) -> Result<Self, SimpleKernelError> {
+        let params = rv64im_simple_root_params_for_step_cap(step_cap);
         let m = commit_cols_for_full_width(RV64IM_ROOT_ROW_WIDTH);
         set_global_pp_seeded(D, params.kappa as usize, m, SIMPLE_KERNEL_PP_SEED)
             .map_err(|err| SimpleKernelError::Bridge(format!("canonical RV64IM root seed setup failed: {err}")))?;
@@ -336,6 +338,13 @@ impl SimpleKernelRootContext {
     fn log(&self) -> &AjtaiSModule {
         &self.log
     }
+}
+
+fn rv64im_simple_root_params_with_k_rho(k_rho: u32) -> NeoParams {
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(RV64IM_ROOT_ROW_WIDTH).expect("valid RV64IM root params");
+    params.k_rho = k_rho;
+    params.B = 1u64 << params.k_rho;
+    params
 }
 
 fn cached_simple_kernel_root_context() -> Result<&'static SimpleKernelRootContext, SimpleKernelError> {
@@ -374,20 +383,57 @@ pub(crate) fn rv64im_cached_root_main_lane_context(
     Ok((root_context.params(), root_context.log(), ccs))
 }
 
+pub(crate) fn rv64im_root_main_lane_context_for_step_cap(
+    step_cap: usize,
+) -> Result<(NeoParams, &'static AjtaiSModule, &'static CcsStructure<F>), SimpleKernelError> {
+    let (_, log, ccs) = rv64im_cached_root_main_lane_context()?;
+    Ok((rv64im_simple_root_params_for_step_cap(step_cap), log, ccs))
+}
+
+pub(crate) fn rv64im_root_main_lane_context_for_claim_count(
+    claim_count: usize,
+) -> Result<(NeoParams, &'static AjtaiSModule, &'static CcsStructure<F>), SimpleKernelError> {
+    let k_rho = u32::try_from(claim_count).map_err(|_| {
+        SimpleKernelError::Bridge(
+            "RV64IM carried claim count does not fit into the local root-parameter selector".into(),
+        )
+    })?;
+    let (_, log, ccs) = rv64im_cached_root_main_lane_context()?;
+    Ok((rv64im_simple_root_params_with_k_rho(k_rho), log, ccs))
+}
+
 pub(crate) fn rv64im_cached_root_main_lane_optimized_cache(
 ) -> Result<&'static OptimizedStructureCache, SimpleKernelError> {
     cached_root_main_lane_optimized_cache()
 }
 
+fn ceil_log2_usize(value: usize) -> u32 {
+    if value <= 1 {
+        0
+    } else {
+        usize::BITS - (value - 1).leading_zeros()
+    }
+}
+
+pub fn rv64im_simple_root_k_rho_for_step_cap(step_cap: usize) -> u32 {
+    let widened = ceil_log2_usize(step_cap.saturating_add(1)).saturating_sub(2);
+    SIMPLE_KERNEL_BASE_K_RHO + widened
+}
+
 pub fn rv64im_simple_root_params() -> NeoParams {
-    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(RV64IM_ROOT_ROW_WIDTH).expect("valid RV64IM root params");
-    params.k_rho = SIMPLE_KERNEL_K_RHO;
-    params.B = SIMPLE_KERNEL_B;
-    params
+    rv64im_simple_root_params_for_step_cap(1)
+}
+
+pub fn rv64im_simple_root_params_for_step_cap(step_cap: usize) -> NeoParams {
+    rv64im_simple_root_params_with_k_rho(rv64im_simple_root_k_rho_for_step_cap(step_cap))
 }
 
 pub fn rv64im_simple_root_context_id() -> [u8; 32] {
-    let params = rv64im_simple_root_params();
+    rv64im_simple_root_context_id_for_step_cap(1)
+}
+
+pub fn rv64im_simple_root_context_id_for_step_cap(step_cap: usize) -> [u8; 32] {
+    let params = rv64im_simple_root_params_for_step_cap(step_cap);
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/root_context");
     tr.append_u64s(
         b"rv64im/root_context/values",
@@ -409,6 +455,26 @@ pub fn rv64im_simple_root_context_id() -> [u8; 32] {
     );
     tr.append_message(b"rv64im/root_context/seed", &SIMPLE_KERNEL_PP_SEED);
     tr.digest32()
+}
+
+pub(crate) fn rv64im_root_step_cap_for_schedule(
+    schedule: FoldSchedule,
+    public_step_count: usize,
+) -> Result<usize, SimpleKernelError> {
+    schedule.validate()?;
+    Ok(match schedule {
+        FoldSchedule::WholeTrace => public_step_count.max(1),
+        FoldSchedule::RowsPerChunk(rows) => rows,
+    })
+}
+
+pub(crate) fn rv64im_simple_root_context_id_for_schedule(
+    schedule: FoldSchedule,
+    public_step_count: usize,
+) -> Result<[u8; 32], SimpleKernelError> {
+    Ok(rv64im_simple_root_context_id_for_step_cap(
+        rv64im_root_step_cap_for_schedule(schedule, public_step_count)?,
+    ))
 }
 
 fn root_encode_semantic_row(
@@ -484,10 +550,10 @@ fn build_prepared_steps_from_root_lane_witness(
         .collect()
 }
 
-pub(super) fn build_prepared_steps_from_execution_rows(
+fn build_prepared_steps_from_execution_rows_with_root_context(
+    root_context: &SimpleKernelRootContext,
     rows: &[Rv64ExpandedRow],
 ) -> Result<Vec<StepInput>, SimpleKernelError> {
-    let root_context = cached_simple_kernel_root_context()?;
     if allow_parallel_step_build(rows.len()) {
         return rows
             .par_iter()
@@ -509,10 +575,17 @@ pub(super) fn build_prepared_steps_from_execution_rows(
     Ok(steps)
 }
 
-pub(super) fn build_public_steps_from_execution_rows(
+pub(super) fn build_prepared_steps_from_execution_rows(
+    rows: &[Rv64ExpandedRow],
+) -> Result<Vec<StepInput>, SimpleKernelError> {
+    let root_context = cached_simple_kernel_root_context()?;
+    build_prepared_steps_from_execution_rows_with_root_context(root_context, rows)
+}
+
+fn build_public_steps_from_execution_rows_with_root_context(
+    root_context: &SimpleKernelRootContext,
     rows: &[Rv64ExpandedRow],
 ) -> Result<Vec<PublicStep>, SimpleKernelError> {
-    let root_context = cached_simple_kernel_root_context()?;
     if allow_parallel_step_build(rows.len()) {
         return rows
             .par_iter()
@@ -532,6 +605,13 @@ pub(super) fn build_public_steps_from_execution_rows(
         )?);
     }
     Ok(steps)
+}
+
+pub(super) fn build_public_steps_from_execution_rows(
+    rows: &[Rv64ExpandedRow],
+) -> Result<Vec<PublicStep>, SimpleKernelError> {
+    let root_context = cached_simple_kernel_root_context()?;
+    build_public_steps_from_execution_rows_with_root_context(root_context, rows)
 }
 
 fn same_public_step(lhs: &PublicStep, rhs: &PublicStep) -> bool {
@@ -576,11 +656,7 @@ fn root_main_lane_packaged_verify_perf(
 }
 
 fn root_main_lane_chunk_len(schedule: FoldSchedule, row_count: usize) -> Result<usize, SimpleKernelError> {
-    schedule.validate()?;
-    Ok(match schedule {
-        FoldSchedule::WholeTrace => row_count.max(1),
-        FoldSchedule::RowsPerChunk(rows) => rows,
-    })
+    rv64im_root_step_cap_for_schedule(schedule, row_count)
 }
 
 pub fn prove_root_main_lane_packaged_proof_with_perf(
@@ -596,10 +672,11 @@ pub(crate) fn prove_root_main_lane_packaged_proof_with_inputs_and_perf(
     schedule: FoldSchedule,
 ) -> Result<(PackagedProof, Vec<ChunkInput>, RootMainLanePackagedProofProvePerf), SimpleKernelError> {
     let total_started = Instant::now();
-    let root_context = cached_simple_kernel_root_context()?;
+    let chunk_len = root_main_lane_chunk_len(schedule, rows.len())?;
+    let root_context = SimpleKernelRootContext::new_for_step_cap(chunk_len)?;
     let ccs = cached_root_main_lane_ccs()?;
     let prepare_steps_started = Instant::now();
-    let steps = build_prepared_steps_from_execution_rows(rows)?;
+    let steps = build_prepared_steps_from_execution_rows_with_root_context(&root_context, rows)?;
     let prepare_steps_ms = millis_since(prepare_steps_started);
     let chunk_inputs = crate::proof::partition_step_inputs(schedule, steps)?;
     let public_chunks = chunk_inputs
@@ -633,9 +710,9 @@ pub fn prove_root_main_lane_run_proof_with_perf(
     schedule: FoldSchedule,
 ) -> Result<(RunProof, RootMainLaneRunProofProvePerf), SimpleKernelError> {
     let total_started = Instant::now();
-    let root_context = cached_simple_kernel_root_context()?;
-    let ccs = cached_root_main_lane_ccs()?;
     let chunk_len = root_main_lane_chunk_len(schedule, rows.len())?;
+    let root_context = SimpleKernelRootContext::new_for_step_cap(chunk_len)?;
+    let ccs = cached_root_main_lane_ccs()?;
     let optimized_cache = cached_root_main_lane_optimized_cache()?;
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/session");
     let mut main_carry = Carry::default();
@@ -649,7 +726,8 @@ pub fn prove_root_main_lane_run_proof_with_perf(
     while start_index < rows.len() {
         let end_index = (start_index + chunk_len).min(rows.len());
         let prepare_steps_started = Instant::now();
-        let steps = build_prepared_steps_from_execution_rows(&rows[start_index..end_index])?;
+        let steps =
+            build_prepared_steps_from_execution_rows_with_root_context(&root_context, &rows[start_index..end_index])?;
         prepare_steps_ms += millis_since(prepare_steps_started);
         let chunk = ChunkInput { start_index, steps };
         let (proved, chunk_perf) = ShardProver::prove_chunk_with_perf(
@@ -686,10 +764,11 @@ pub fn verify_root_main_lane_packaged_proof_with_public_rows(
     packaged: &PackagedProof,
 ) -> Result<RootMainLanePackagedProofVerifyPerf, SimpleKernelError> {
     let total_started = Instant::now();
-    let root_context = cached_simple_kernel_root_context()?;
+    let chunk_len = root_main_lane_chunk_len(packaged.statement.fold_schedule, rows.len())?;
+    let root_context = SimpleKernelRootContext::new_for_step_cap(chunk_len)?;
     let ccs = cached_root_main_lane_ccs()?;
     let prepare_public_steps_started = Instant::now();
-    let public_steps = build_public_steps_from_execution_rows(rows)?;
+    let public_steps = build_public_steps_from_execution_rows_with_root_context(&root_context, rows)?;
     let prepare_public_steps_ms = millis_since(prepare_public_steps_started);
     let public_chunk_match_started = Instant::now();
     let expected_chunks = partition_public_steps(packaged.statement.fold_schedule, public_steps)?;
@@ -735,7 +814,9 @@ pub(super) fn verify_root_main_lane_packaged_proof_with_verified_public_statemen
     public_chunk_digests: &[[F; 4]],
 ) -> Result<RootMainLanePackagedProofVerifyPerf, SimpleKernelError> {
     let total_started = Instant::now();
-    let root_context = cached_simple_kernel_root_context()?;
+    let step_cap =
+        rv64im_root_step_cap_for_schedule(packaged.statement.fold_schedule, packaged.statement.public_step_count())?;
+    let root_context = SimpleKernelRootContext::new_for_step_cap(step_cap)?;
     let ccs = cached_root_main_lane_ccs()?;
     let optimized_cache = cached_root_main_lane_optimized_cache()?;
     let (_, packaged_verify) = verify_packaged_with_precomputed_chunk_digests_and_detailed_perf_and_cache(
@@ -1142,9 +1223,9 @@ fn build_packaged_simple_kernel_output_with_perf(
 
 fn build_public_simple_kernel_seed_from_derived_with_perf(
     derived: &Rv64imParityDerivedCase,
+    root_context: &SimpleKernelRootContext,
 ) -> Result<(PublicSimpleKernelBuildSeed, SimpleKernelBuildPerf), SimpleKernelError> {
     let total_started = Instant::now();
-    let root_context = cached_simple_kernel_root_context()?;
 
     let root_lane_witness_started = Instant::now();
     let (root_lane_witness, prepared_step_bindings) =
@@ -1247,6 +1328,7 @@ fn public_simple_kernel_output_from_seed(seed: PublicSimpleKernelBuildSeed) -> P
 
 pub(super) fn build_public_simple_kernel_output_and_witness_with_perf(
     public: &SimpleKernelPublicInput,
+    schedule: FoldSchedule,
 ) -> Result<
     (
         (PublicSimpleKernelOutput, PublicSimpleKernelWitnessSidecar),
@@ -1256,13 +1338,15 @@ pub(super) fn build_public_simple_kernel_output_and_witness_with_perf(
 > {
     let total_started = Instant::now();
     let (_, derived) = build_parity_case_from_source(public.source.clone(), public.max_steps)?;
-    let ((output, sidecar), mut perf) = build_public_simple_kernel_output_and_witness_from_derived_with_perf(&derived)?;
+    let ((output, sidecar), mut perf) =
+        build_public_simple_kernel_output_and_witness_from_derived_with_perf(&derived, schedule)?;
     perf.total_ms = millis_since(total_started);
     Ok(((output, sidecar), perf))
 }
 
 pub(super) fn build_public_simple_kernel_output_and_witness_from_derived_with_perf(
     derived: &Rv64imParityDerivedCase,
+    schedule: FoldSchedule,
 ) -> Result<
     (
         (PublicSimpleKernelOutput, PublicSimpleKernelWitnessSidecar),
@@ -1270,7 +1354,9 @@ pub(super) fn build_public_simple_kernel_output_and_witness_from_derived_with_pe
     ),
     SimpleKernelError,
 > {
-    let (seed, perf) = build_public_simple_kernel_seed_from_derived_with_perf(derived)?;
+    let step_cap = rv64im_root_step_cap_for_schedule(schedule, derived.execution_rows.len())?;
+    let root_context = SimpleKernelRootContext::new_for_step_cap(step_cap)?;
+    let (seed, perf) = build_public_simple_kernel_seed_from_derived_with_perf(derived, &root_context)?;
     let sidecar = PublicSimpleKernelWitnessSidecar {
         trace: trace_witness_from_derived(derived),
         stages: stage_witness_bundle_from_derived(derived),

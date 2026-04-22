@@ -12,7 +12,7 @@ use super::proof_api::{
 };
 use super::proof_witness::{Rv64imProofWitnessBundle, Rv64imStageWitnessProjectionBundle, Rv64imTraceProjectionBundle};
 use super::simple::PublicSimpleKernelOutput;
-use super::{build_main_lane_surface, rv64im_simple_root_context_id, SimpleKernelMainLaneArtifact};
+use super::{build_main_lane_surface, SimpleKernelMainLaneArtifact};
 
 fn joint_opening_claim_from_claims(
     statement: &Rv64imProofStatement,
@@ -69,6 +69,7 @@ pub(super) fn main_lane_proof_bundle_from_artifact(
 }
 
 pub(crate) fn accepted_proof_claim_from_statement_and_public_kernel(
+    root_params_id: [u8; 32],
     statement: &Rv64imProofStatement,
     kernel_opening: &super::proof_witness::Rv64imKernelOpeningProofBundle,
     kernel_claims: &super::proof_witness::Rv64imKernelClaimProofBundle,
@@ -102,7 +103,7 @@ pub(crate) fn accepted_proof_claim_from_statement_and_public_kernel(
         ..terminal
     };
     let claim = Rv64imAcceptedProofClaim {
-        root_params_id: rv64im_simple_root_context_id(),
+        root_params_id,
         statement: statement_binding,
         main_lane,
         terminal,
@@ -114,7 +115,10 @@ pub(crate) fn accepted_proof_claim_from_statement_and_public_kernel(
     }
 }
 
-fn main_lane_claim_from_public_kernel(main_lane: &Rv64imMainLaneProofBundle) -> Rv64imMainLaneClaim {
+fn main_lane_claim_from_public_kernel(
+    root_params_id: [u8; 32],
+    main_lane: &Rv64imMainLaneProofBundle,
+) -> Rv64imMainLaneClaim {
     let binding = Rv64imMainLaneClaimBinding {
         main_lane_bundle_digest: main_lane.digest,
         digest: [0; 32],
@@ -124,7 +128,7 @@ fn main_lane_claim_from_public_kernel(main_lane: &Rv64imMainLaneProofBundle) -> 
         ..binding
     };
     let claim = Rv64imMainLaneClaim {
-        root_params_id: rv64im_simple_root_context_id(),
+        root_params_id,
         binding,
         digest: [0; 32],
     };
@@ -158,6 +162,7 @@ fn main_lane_claim_from_bundle_digest(
 }
 
 fn kernel_opening_claim_from_public_kernel(
+    root_params_id: [u8; 32],
     stage_claims: &super::proof_witness::Rv64imStageClaimProofBundle,
     stage_packages: &super::proof_witness::Rv64imStagePackageProofBundle,
     kernel_opening: &super::proof_witness::Rv64imKernelOpeningProofBundle,
@@ -184,7 +189,7 @@ fn kernel_opening_claim_from_public_kernel(
         ..terminal
     };
     let claim = Rv64imKernelOpeningClaim {
-        root_params_id: rv64im_simple_root_context_id(),
+        root_params_id,
         stages,
         terminal,
         digest: [0; 32],
@@ -196,6 +201,7 @@ fn kernel_opening_claim_from_public_kernel(
 }
 
 fn root0_claim_from_public_kernel(
+    root_params_id: [u8; 32],
     kernel_claims: &super::proof_witness::Rv64imKernelClaimProofBundle,
 ) -> Rv64imRoot0Claim {
     let summary = &kernel_claims.claims.kernel;
@@ -221,7 +227,7 @@ fn root0_claim_from_public_kernel(
         ..terminal
     };
     let claim = Rv64imRoot0Claim {
-        root_params_id: rv64im_simple_root_context_id(),
+        root_params_id,
         stages,
         terminal,
         digest: [0; 32],
@@ -383,24 +389,26 @@ pub(crate) fn kernel_claim_bundle_from_statement_and_public_kernel(
     kernel_claims: &super::proof_witness::Rv64imKernelClaimProofBundle,
 ) -> Rv64imKernelClaimBundle {
     let accepted = accepted_proof_claim_from_statement_and_public_kernel(
+        statement.root_params_id,
         statement,
         kernel_opening,
         kernel_claims,
         main_lane_bundle,
     );
-    let main_lane = main_lane_claim_from_public_kernel(main_lane_bundle);
-    let opening = kernel_opening_claim_from_public_kernel(stage_claims, stage_packages, kernel_opening, kernel_claims);
+    let main_lane = main_lane_claim_from_public_kernel(statement.root_params_id, main_lane_bundle);
+    let opening = kernel_opening_claim_from_public_kernel(
+        statement.root_params_id,
+        stage_claims,
+        stage_packages,
+        kernel_opening,
+        kernel_claims,
+    );
     let claim = Rv64imKernelClaimBundle {
         accepted,
         main_lane: main_lane.clone(),
         opening: opening.clone(),
-        joint_opening: joint_opening_claim_from_claims(
-            statement,
-            rv64im_simple_root_context_id(),
-            &main_lane,
-            &opening,
-        ),
-        root0: root0_claim_from_public_kernel(kernel_claims),
+        joint_opening: joint_opening_claim_from_claims(statement, statement.root_params_id, &main_lane, &opening),
+        root0: root0_claim_from_public_kernel(statement.root_params_id, kernel_claims),
         digest: [0; 32],
     };
     Rv64imKernelClaimBundle {
@@ -410,6 +418,7 @@ pub(crate) fn kernel_claim_bundle_from_statement_and_public_kernel(
 }
 
 fn kernel_proof_bundle_from_public_kernel(
+    root_params_id: [u8; 32],
     kernel: &PublicSimpleKernelOutput,
     trace: Rv64imTraceProjectionBundle,
     stages: Rv64imStageWitnessProjectionBundle,
@@ -420,7 +429,7 @@ fn kernel_proof_bundle_from_public_kernel(
     main_lane: Rv64imMainLaneProofBundle,
 ) -> Rv64imKernelProofBundle {
     let bundle = Rv64imKernelProofBundle {
-        root_params_id: rv64im_simple_root_context_id(),
+        root_params_id,
         trace,
         stages,
         stage_claims,
@@ -439,6 +448,7 @@ fn kernel_proof_bundle_from_public_kernel(
 }
 
 pub(super) fn proof_from_public_kernel_and_main_lane_bundle(
+    root_params_id: [u8; 32],
     kernel: &PublicSimpleKernelOutput,
     main_lane: Rv64imMainLaneProofBundle,
     witness: Rv64imProofWitnessBundle,
@@ -458,7 +468,7 @@ pub(super) fn proof_from_public_kernel_and_main_lane_bundle(
         .map(|row| row.pc)
         .unwrap_or(kernel_claims.final_pc());
     let statement = Rv64imProofStatement {
-        root_params_id: rv64im_simple_root_context_id(),
+        root_params_id,
         fold_schedule: main_lane.binding.fold_schedule,
         chunk_count: main_lane.binding.chunk_count,
         stage_claims_digest: stage_claims.digest,
@@ -489,6 +499,7 @@ pub(super) fn proof_from_public_kernel_and_main_lane_bundle(
         &kernel_claims,
     );
     let kernel = kernel_proof_bundle_from_public_kernel(
+        root_params_id,
         kernel,
         trace,
         stages,

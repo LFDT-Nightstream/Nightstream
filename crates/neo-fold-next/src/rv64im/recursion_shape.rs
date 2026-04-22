@@ -1,7 +1,8 @@
 //! Owns the fixed RV64IM recursion-shape surface used to key deterministic setup.
 //!
-//! This module does not own the live kernel `params.k_rho` pin. Its `soundness_*`
-//! fields describe the fixed recursive-shape family compiled into `F'` / `vk_fs`.
+//! This module does not own the live root kernel params, but the fixed-shape
+//! family compiled into `F'` / `vk_fs` must mirror the live `b` / `k_rho`
+//! pin or the verifier-key digest stops describing the real recursive family.
 
 use core::hash::{Hash, Hasher};
 use std::collections::{BTreeMap, BTreeSet};
@@ -14,13 +15,11 @@ use thiserror::Error;
 
 use crate::rv64im::ccs::RV64IM_ROOT_PUBLIC_INPUTS;
 use crate::rv64im::kernel::{
-    phase0_family_order, rv64im_cached_root_main_lane_context, FamilyEvalSchemaId, SimpleKernelError,
+    phase0_family_order, rv64im_cached_root_main_lane_context, rv64im_simple_root_params_for_step_cap,
+    FamilyEvalSchemaId, SimpleKernelError,
 };
 
-pub const RV64IM_RECURSION_SHAPE_SOUNDNESS_K: u32 = 14;
 pub const RV64IM_RECURSION_SHAPE_SOUNDNESS_BIG_K: u32 = 1;
-pub const RV64IM_RECURSION_B: u8 = 2;
-pub const RV64IM_RECURSION_SHAPE_DECOMPOSITION_K: u8 = 14;
 pub const RV64IM_RECURSION_SOUNDNESS_T: u32 = 216;
 pub const RV64IM_RECURSION_DEFAULT_STEP_CAP: u32 = 1;
 
@@ -173,8 +172,9 @@ pub fn build_rv64im_recursion_shape_for_step_cap(step_cap: usize) -> Result<Recu
             "RV64IM recursion shape step_cap must be at least one public step".into(),
         ));
     }
-    let (params, _, structure) = rv64im_cached_root_main_lane_context()?;
-    let dims = build_dims_and_policy(params, structure)
+    let (_, _, structure) = rv64im_cached_root_main_lane_context()?;
+    let params = rv64im_simple_root_params_for_step_cap(step_cap as usize);
+    let dims = build_dims_and_policy(&params, structure)
         .map_err(|err| SimpleKernelError::Build(format!("RV64IM recursion shape dims failed: {err}")))?;
     let side_families_active = phase0_family_order().into_iter().collect::<BTreeSet<_>>();
     let side_slots_per_family = phase0_family_order()
@@ -184,15 +184,15 @@ pub fn build_rv64im_recursion_shape_for_step_cap(step_cap: usize) -> Result<Recu
 
     let shape = RecursionShape {
         step_cap,
-        soundness_k: RV64IM_RECURSION_SHAPE_SOUNDNESS_K,
+        soundness_k: params.k_rho,
         soundness_big_k: RV64IM_RECURSION_SHAPE_SOUNDNESS_BIG_K,
         t_matrices: structure.t() as u32,
         log_m: dims.ell_m as u32,
         d_sc: dims.d_sc as u32,
         n_R: ceil_div_usize(structure.n, D) as u32,
         n_R_in: ceil_div_usize(RV64IM_ROOT_PUBLIC_INPUTS, D) as u32,
-        b: RV64IM_RECURSION_B,
-        decomposition_k: RV64IM_RECURSION_SHAPE_DECOMPOSITION_K,
+        b: params.b as u8,
+        decomposition_k: params.k_rho as u8,
         side_families_active,
         side_slots_per_family,
         version: RV64IM_RECURSION_PROTOCOL_VERSION,

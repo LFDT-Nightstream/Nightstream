@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use super::simple::PublicSimpleKernelOutput;
 use super::{
-    rv64im_simple_root_context_id,
     stage_artifacts::{build_claim_packaged_proof, verify_claim_packaged_proof},
     RootLaneColumns, RootLaneCommitmentSummaryArtifact, Rv64imParityCaseManifest, SimpleKernelError,
     SimpleKernelKernelClaimBundle, SimpleKernelOpeningBundle, SimpleKernelStageClaimBundle,
@@ -1279,6 +1278,7 @@ pub(crate) fn kernel_claim_proof_bundle_from_claims(
 }
 
 pub(crate) fn proof_witness_bundle_from_public_kernel_and_trace_stages(
+    root_params_id: [u8; 32],
     public: &PublicSimpleKernelOutput,
     trace_witness: &SimpleKernelTraceWitness,
     stage_witness: &SimpleKernelStageWitnessBundle,
@@ -1290,7 +1290,7 @@ pub(crate) fn proof_witness_bundle_from_public_kernel_and_trace_stages(
     let kernel_opening = kernel_opening_proof_bundle_from_opening(&public.kernel_opening);
     let kernel_claims = kernel_claim_proof_bundle_from_claims(&public.kernel_claims)?;
     let bundle = Rv64imProofWitnessBundle {
-        root_params_id: rv64im_simple_root_context_id(),
+        root_params_id,
         trace,
         stages,
         stage_claims,

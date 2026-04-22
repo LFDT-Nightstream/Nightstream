@@ -5,6 +5,7 @@ use neo_fold_next::rv64im::{
     build_rv64im_recursion_shape, build_rv64im_recursion_shape_for_step_cap, FamilyEvalSchemaId, ProtocolVersion,
     ShapeError,
 };
+use neo_fold_next::rv64im::{rv64im_simple_root_params, rv64im_simple_root_params_for_step_cap};
 
 #[test]
 fn rv64im_recursion_shape_builder_is_deterministic() {
@@ -18,11 +19,12 @@ fn rv64im_recursion_shape_builder_is_deterministic() {
 #[test]
 fn rv64im_recursion_shape_matches_current_specialization() {
     let shape = build_rv64im_recursion_shape().expect("build recursion shape");
+    let params = rv64im_simple_root_params();
 
-    assert_eq!(shape.soundness_k, 14);
+    assert_eq!(shape.soundness_k, params.k_rho);
     assert_eq!(shape.soundness_big_k, 1);
-    assert_eq!(shape.b, 2);
-    assert_eq!(shape.decomposition_k, 14);
+    assert_eq!(shape.b, params.b as u8);
+    assert_eq!(shape.decomposition_k, params.k_rho as u8);
     assert_eq!(shape.version, ProtocolVersion { major: 1, minor: 0 });
     assert_eq!(shape.side_families_active.len(), 6);
     assert_eq!(shape.side_slot_count(FamilyEvalSchemaId::Stage1Rows), Some(4));
@@ -46,10 +48,13 @@ fn rv64im_recursion_shape_digest_tracks_shape_fields() {
 fn rv64im_recursion_shape_digest_tracks_step_cap() {
     let single = build_rv64im_recursion_shape_for_step_cap(1).expect("build single-step recursion shape");
     let multi = build_rv64im_recursion_shape_for_step_cap(5).expect("build multi-step recursion shape");
+    let multi_params = rv64im_simple_root_params_for_step_cap(5);
 
     assert_ne!(single.canonical_digest(), multi.canonical_digest());
     assert_eq!(single.step_cap, 1);
     assert_eq!(multi.step_cap, 5);
+    assert_eq!(multi.soundness_k, multi_params.k_rho);
+    assert_eq!(multi.decomposition_k, multi_params.k_rho as u8);
 }
 
 #[test]

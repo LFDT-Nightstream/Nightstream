@@ -31,7 +31,8 @@ use super::root_lane_commitment::build_root_lane_commitment_summary_artifact_fro
 use super::root_lane_witness::RootExecutionBundle;
 use super::simple::{
     build_prepared_steps_from_execution_rows, build_public_root_lane_witness_and_binding_summary,
-    rv64im_cached_root_main_lane_context, SimpleKernelError,
+    rv64im_root_step_cap_for_schedule, rv64im_simple_root_context_id_for_schedule,
+    rv64im_simple_root_params_for_step_cap, SimpleKernelError,
 };
 use super::stage_artifacts::{
     build_public_kernel_opening_bundle_from_export_parts_with_perf, build_stage_claim_bundle_from_export_parts,
@@ -40,7 +41,7 @@ use super::stage_package_perf::build_public_stage_package_bundle_with_perf;
 use super::transcript::verify_transcript_record;
 use super::{
     build_main_lane_surface, build_root_lane_columns, prepared_step_digest, prepared_step_digests, public_step_digests,
-    rv64im_simple_root_context_id, VerifiedTranscriptSurface,
+    VerifiedTranscriptSurface,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -625,7 +626,11 @@ fn kernel_export_statement_from_source(source: &Rv64imKernelExportSource) -> Rv6
         .map(|row| row.pc)
         .expect("RV64IM export statement rebuild should derive initial pc from root execution");
     let statement = Rv64imProofStatement {
-        root_params_id: rv64im_simple_root_context_id(),
+        root_params_id: rv64im_simple_root_context_id_for_schedule(
+            source.main_lane.fold_schedule(),
+            root_lane_columns.time_len as usize,
+        )
+        .expect("RV64IM export statement rebuild should derive the root params id from the carried main-lane schedule"),
         fold_schedule: source.main_lane.fold_schedule(),
         chunk_count: source.main_lane.chunk_count(),
         stage_claims_digest: stage_claims.digest,
@@ -664,10 +669,13 @@ fn stage3_summary_from_export_source(source: &Rv64imKernelExportSource) -> Stage
 fn kernel_export_root_lane_commitment_from_source(
     source: &Rv64imKernelExportSource,
 ) -> Result<super::RootLaneCommitmentSummaryArtifact, SimpleKernelError> {
-    let (params, _, _) = rv64im_cached_root_main_lane_context()?;
+    let params = rv64im_simple_root_params_for_step_cap(rv64im_root_step_cap_for_schedule(
+        source.main_lane.fold_schedule(),
+        source.main_lane.public_step_count() as usize,
+    )?);
     let (root_lane_witness, _) =
         build_public_root_lane_witness_and_binding_summary(&source.root_execution.execution_rows);
-    build_root_lane_commitment_summary_artifact_from_public_witness(params, &root_lane_witness)
+    build_root_lane_commitment_summary_artifact_from_public_witness(&params, &root_lane_witness)
 }
 
 pub fn verify_rv64im_kernel_export_source(source: &Rv64imKernelExportSource) -> Result<(), SimpleKernelError> {

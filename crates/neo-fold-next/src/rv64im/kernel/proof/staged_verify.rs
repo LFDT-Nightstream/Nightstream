@@ -56,8 +56,8 @@ use super::stage_artifacts::{
 };
 use super::transcript::verify_transcript_record;
 use super::{
-    RootLaneColumns, RootLaneCommitmentSummaryArtifact, TranscriptChallenges, TranscriptInitialState,
-    VerifiedTranscriptSurface,
+    rv64im_simple_root_context_id_for_schedule, RootLaneColumns, RootLaneCommitmentSummaryArtifact,
+    TranscriptChallenges, TranscriptInitialState, VerifiedTranscriptSurface,
 };
 use std::time::Instant;
 
@@ -1378,6 +1378,20 @@ pub(crate) fn verify_accepted_proof_artifact_with_perf(
     artifact: &Rv64imAcceptedProofArtifact,
 ) -> Result<Rv64imPublicProofVerifyPerf, SimpleKernelError> {
     let total_started = Instant::now();
+    let expected_root_params_id = rv64im_simple_root_context_id_for_schedule(
+        artifact.statement.fold_schedule,
+        usize::try_from(artifact.statement.public_step_count).map_err(|_| {
+            SimpleKernelError::Bridge(
+                "RV64IM accepted proof public_step_count does not fit into the local root-family selector".into(),
+            )
+        })?,
+    )?;
+    if artifact.statement.root_params_id != expected_root_params_id {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM accepted proof root params id does not match the declared fold schedule and public-step count"
+                .into(),
+        ));
+    }
     if artifact.digest != artifact.expected_digest() {
         return Err(SimpleKernelError::Bridge(
             "RV64IM accepted proof artifact digest mismatch".into(),

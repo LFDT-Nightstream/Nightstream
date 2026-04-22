@@ -26,8 +26,9 @@ use super::simple::{
     build_public_simple_kernel_output_and_witness_with_perf, prove_root_main_lane_packaged_proof_with_inputs_and_perf,
 };
 use super::{
-    build_parity_case_from_source, RootLaneColumns, RootLaneCommitmentSummaryArtifact, Rv64imProofProvePerf,
-    Rv64imPublicProofVerifyPerf, SimpleKernelError, SimpleKernelPublicInput,
+    build_parity_case_from_source, rv64im_simple_root_context_id_for_schedule, RootLaneColumns,
+    RootLaneCommitmentSummaryArtifact, Rv64imProofProvePerf, Rv64imPublicProofVerifyPerf, SimpleKernelError,
+    SimpleKernelPublicInput,
 };
 
 pub type Rv64imProofInput = SimpleKernelPublicInput;
@@ -634,8 +635,11 @@ impl Rv64imKernelProofBundle {
 pub fn build_rv64im_audit_witness_bundle(
     input: &Rv64imProofInput,
 ) -> Result<Rv64imProofWitnessBundle, SimpleKernelError> {
-    let ((public, sidecar), _) = build_public_simple_kernel_output_and_witness_with_perf(input)?;
-    proof_witness_bundle_from_public_kernel_and_trace_stages(&public, &sidecar.trace, &sidecar.stages)
+    let schedule = Rv64imPublicProofOptions::default().root_fold_schedule;
+    let ((public, sidecar), _) = build_public_simple_kernel_output_and_witness_with_perf(input, schedule)?;
+    let root_params_id =
+        rv64im_simple_root_context_id_for_schedule(schedule, public.root_lane_columns.time_len as usize)?;
+    proof_witness_bundle_from_public_kernel_and_trace_stages(root_params_id, &public, &sidecar.trace, &sidecar.stages)
 }
 
 pub fn build_rv64im_accepted_proof_artifact(
@@ -686,7 +690,7 @@ pub(crate) fn prove_rv64im_public_proof_prover_seam_with_perf(
                 let root_handle =
                     scope.spawn(move || prove_root_main_lane_packaged_proof_with_inputs_and_perf(root_rows, schedule));
                 let ((kernel, sidecar), simple_kernel) =
-                    build_public_simple_kernel_output_and_witness_from_derived_with_perf(&derived)?;
+                    build_public_simple_kernel_output_and_witness_from_derived_with_perf(&derived, schedule)?;
                 let (root_main_lane, main_lane_inputs, root_main_lane_perf) = root_handle
                     .join()
                     .map_err(|_| SimpleKernelError::Proof("RV64IM root main-lane worker panicked".into()))??;
@@ -700,7 +704,10 @@ pub(crate) fn prove_rv64im_public_proof_prover_seam_with_perf(
             })?
         } else {
             let ((kernel, sidecar), simple_kernel) =
-                build_public_simple_kernel_output_and_witness_from_derived_with_perf(&derived)?;
+                build_public_simple_kernel_output_and_witness_from_derived_with_perf(
+                    &derived,
+                    options.root_fold_schedule,
+                )?;
             let (root_main_lane, main_lane_inputs, root_main_lane_perf) =
                 prove_root_main_lane_packaged_proof_with_inputs_and_perf(
                     &sidecar.trace.execution_rows,
@@ -721,11 +728,20 @@ pub(crate) fn prove_rv64im_public_proof_prover_seam_with_perf(
         &kernel.root_lane_commitment,
         options.root_fold_schedule,
     )?;
+    let root_params_id = rv64im_simple_root_context_id_for_schedule(
+        options.root_fold_schedule,
+        kernel.root_lane_columns.time_len as usize,
+    )?;
     let main_lane_ms = main_lane_started.elapsed().as_secs_f64() * 1_000.0;
     let export_started = Instant::now();
-    let witness = proof_witness_bundle_from_public_kernel_and_trace_stages(&kernel, &sidecar.trace, &sidecar.stages)?;
+    let witness = proof_witness_bundle_from_public_kernel_and_trace_stages(
+        root_params_id,
+        &kernel,
+        &sidecar.trace,
+        &sidecar.stages,
+    )?;
     let main_lane_bundle = main_lane_proof_bundle_from_artifact(&main_lane, root_main_lane);
-    let proof = proof_from_public_kernel_and_main_lane_bundle(&kernel, main_lane_bundle, witness)?;
+    let proof = proof_from_public_kernel_and_main_lane_bundle(root_params_id, &kernel, main_lane_bundle, witness)?;
     let public_export_ms = export_started.elapsed().as_secs_f64() * 1_000.0;
     let perf = Rv64imProofProvePerf {
         shared_trace_ms,

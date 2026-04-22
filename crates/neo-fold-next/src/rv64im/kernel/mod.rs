@@ -229,7 +229,8 @@ pub use simple::{
     build_simple_kernel_witness, build_simple_kernel_witness_with_perf, prove_packaged_simple_kernel,
     prove_packaged_simple_kernel_with_perf, prove_root_main_lane_packaged_proof_with_perf,
     prove_root_main_lane_run_proof_with_perf, prove_simple_kernel, rv64im_ajtai_mixers, rv64im_exact_stage_pp_seed,
-    rv64im_simple_kernel_pp_seed, rv64im_simple_root_context_id, rv64im_simple_root_params,
+    rv64im_simple_kernel_pp_seed, rv64im_simple_root_context_id, rv64im_simple_root_context_id_for_step_cap,
+    rv64im_simple_root_k_rho_for_step_cap, rv64im_simple_root_params, rv64im_simple_root_params_for_step_cap,
     verify_packaged_simple_kernel, verify_packaged_simple_kernel_with_perf,
     verify_root_main_lane_packaged_proof_with_public_rows, verify_root_main_lane_run_proof_with_public_rows,
     verify_simple_kernel, verify_simple_kernel_with_perf, PreparedStepBinding, PreparedStepBindingSummary,
@@ -237,7 +238,11 @@ pub use simple::{
     SimpleKernelPackagedProof, SimpleKernelProof, SimpleKernelProverInput, SimpleKernelPublicInput,
     SimpleKernelStageWitnessBundle, SimpleKernelTraceWitness, SimpleKernelVerifierInput,
 };
-pub(crate) use simple::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
+pub(crate) use simple::{
+    rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
+    rv64im_root_main_lane_context_for_claim_count, rv64im_root_main_lane_context_for_step_cap,
+    rv64im_simple_root_context_id_for_schedule,
+};
 pub use simple_openings::{
     KernelBindingOpeningClaim, KernelBindingOpeningPoints, KernelBindingPackagedOpeningProof,
     KernelPreparedStepOpeningClaim, KernelPreparedStepOpeningPoints, KernelPreparedStepPackagedOpeningProof,

@@ -5,7 +5,7 @@
 //! the running-sum invariant in-circuit.
 
 use crate::rv64im::ivc_snark::SpartanF;
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_math::{KExtensions, K as NeoK};
 use neo_reductions::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG;
@@ -26,6 +26,36 @@ pub fn verify_sumcheck_rounds<CS: ConstraintSystem<SpartanF>>(
     delta: SpartanF,
     label: &str,
 ) -> Result<(Vec<KNumVar>, KNumVar), SynthesisError> {
+    verify_sumcheck_rounds_with_trace(
+        cs,
+        tr,
+        degree_bound,
+        initial_sum,
+        rounds,
+        round_values,
+        challenge_values,
+        delta,
+        label,
+        |_, _| {},
+    )
+}
+
+pub(crate) fn verify_sumcheck_rounds_with_trace<CS, Trace>(
+    cs: &mut CS,
+    tr: &mut Poseidon2TranscriptCircuit,
+    degree_bound: usize,
+    initial_sum: &KNumVar,
+    rounds: &[Vec<KNumVar>],
+    round_values: &[Vec<NeoK>],
+    challenge_values: &[NeoK],
+    delta: SpartanF,
+    label: &str,
+    mut trace: Trace,
+) -> Result<(Vec<KNumVar>, KNumVar), SynthesisError>
+where
+    CS: ConstraintSystem<SpartanF>,
+    Trace: FnMut(&mut CS, &str),
+{
     if rounds.len() != round_values.len() || rounds.len() != challenge_values.len() {
         return Err(SynthesisError::Unsatisfiable);
     }
@@ -36,6 +66,7 @@ pub fn verify_sumcheck_rounds<CS: ConstraintSystem<SpartanF>>(
         cs.namespace(|| format!("{label}_transcript_v3")),
         &[SpartanF::from_canonical_u64(SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)],
     )?;
+    trace(cs, "transcript_v3");
 
     for (round_idx, ((round_vars, round_vals), challenge_value)) in rounds
         .iter()
@@ -53,12 +84,19 @@ pub fn verify_sumcheck_rounds<CS: ConstraintSystem<SpartanF>>(
             &running_sum,
             &format!("{label}_round_{round_idx}"),
         )?;
+        let round_check = format!("round_{round_idx}.round_check");
+        trace(cs, &round_check);
         append_round_coeffs(
             cs.namespace(|| format!("{label}_append_round_{round_idx}")),
             tr,
+            round_vars,
             round_vals,
         )?;
+        let append_round = format!("round_{round_idx}.append_round");
+        trace(cs, &append_round);
         let challenge = sample_sumcheck_challenge(cs.namespace(|| format!("{label}_challenge_{round_idx}")), tr)?;
+        let challenge_sample = format!("round_{round_idx}.challenge_sample");
+        trace(cs, &challenge_sample);
         let expected_challenge = alloc_k(
             cs,
             Some(KNum::from_neo_k(*challenge_value)),
@@ -70,6 +108,8 @@ pub fn verify_sumcheck_rounds<CS: ConstraintSystem<SpartanF>>(
             &expected_challenge,
             &format!("{label}_challenge_match_{round_idx}"),
         );
+        let challenge_match = format!("round_{round_idx}.challenge_match");
+        trace(cs, &challenge_match);
         running_sum = sumcheck_eval_gadget(
             cs,
             round_vars,
@@ -79,6 +119,8 @@ pub fn verify_sumcheck_rounds<CS: ConstraintSystem<SpartanF>>(
             delta,
             &format!("{label}_eval_{round_idx}"),
         )?;
+        let eval = format!("round_{round_idx}.eval");
+        trace(cs, &eval);
         challenges.push(challenge);
     }
 
@@ -88,23 +130,22 @@ pub fn verify_sumcheck_rounds<CS: ConstraintSystem<SpartanF>>(
 fn append_round_coeffs<CS: ConstraintSystem<SpartanF>>(
     mut cs: CS,
     tr: &mut Poseidon2TranscriptCircuit,
+    coeff_vars: &[KNumVar],
     coeff_values: &[NeoK],
 ) -> Result<(), SynthesisError> {
+    if coeff_vars.len() != coeff_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
     let mut packed_values = Vec::with_capacity(coeff_values.len() * 2);
-    for coeff_value in coeff_values {
+    let mut field_terms = Vec::with_capacity(coeff_values.len() * 2);
+    let mut field_constants = Vec::with_capacity(coeff_values.len() * 2);
+    for (coeff_var, coeff_value) in coeff_vars.iter().zip(coeff_values.iter()) {
         let coeff_parts = coeff_value.as_coeffs();
         packed_values.push(SpartanF::from_canonical_u64(coeff_parts[0].as_canonical_u64()));
         packed_values.push(SpartanF::from_canonical_u64(coeff_parts[1].as_canonical_u64()));
-    }
-    let packed_vars = packed_values
-        .iter()
-        .enumerate()
-        .map(|(idx, value)| AllocatedNum::alloc(cs.namespace(|| format!("round_coeff_{idx}")), || Ok(*value)))
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut field_terms = Vec::with_capacity(packed_vars.len());
-    let mut field_constants = Vec::with_capacity(packed_vars.len());
-    for value in &packed_vars {
-        field_terms.push(vec![(value.get_variable(), SpartanF::ONE)]);
+        field_terms.push(vec![(coeff_var.c0, SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_terms.push(vec![(coeff_var.c1, SpartanF::ONE)]);
         field_constants.push(SpartanF::ZERO);
     }
     tr.append_field_linear_combinations_raw(

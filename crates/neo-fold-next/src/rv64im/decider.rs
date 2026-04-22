@@ -2,7 +2,6 @@
 
 use std::time::Instant;
 
-use crate::proof::FoldSchedule;
 use crate::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted_with_output_and_perf_and_source, Rv64imFinalBuildOutput,
     Rv64imFinalBuildProof, Rv64imFinalStatement,
@@ -78,20 +77,7 @@ fn elapsed_ms(started: Instant) -> f64 {
 }
 
 fn published_seam_public_proof_options() -> Rv64imPublicProofOptions {
-    Rv64imPublicProofOptions {
-        // The standalone published seam sits on the one-step recursive boundary.
-        root_fold_schedule: FoldSchedule::RowsPerChunk(1),
-    }
-}
-
-fn validate_rv64im_published_seam_public_proof(proof: &Rv64imProof) -> Result<(), SimpleKernelError> {
-    if proof.statement.chunk_count != proof.statement.public_step_count {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM published-seam builder requires one public step per chunk; use prove_rv64im_public_proof_and_published_seam_with_perf or build the public proof with FoldSchedule::RowsPerChunk(1)"
-                .into(),
-        ));
-    }
-    Ok(())
+    Rv64imPublicProofOptions::default()
 }
 
 pub fn build_rv64im_published_proof_seam(proof: &Rv64imProof) -> Result<Rv64imPublishedProofSeam, SimpleKernelError> {
@@ -102,7 +88,6 @@ pub fn build_rv64im_published_proof_seam(proof: &Rv64imProof) -> Result<Rv64imPu
 pub fn build_rv64im_published_proof_seam_with_perf(
     proof: &Rv64imProof,
 ) -> Result<(Rv64imPublishedProofSeam, Rv64imPublishedProofSeamBuildPerf), SimpleKernelError> {
-    validate_rv64im_published_seam_public_proof(proof)?;
     let total_started = Instant::now();
 
     let started = Instant::now();

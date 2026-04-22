@@ -1,12 +1,11 @@
 #![allow(dead_code)]
 
 use neo_fold_next::nightstream::rv64im::audit::{
-    build_rv64im_nightstream_linkage_claims, build_rv64im_nightstream_statement_from_final,
-    measure_rv64im_side_binding_circuit_constraints,
+    build_rv64im_nightstream_statement_from_final, measure_rv64im_side_binding_circuit_constraints,
 };
 use neo_fold_next::nightstream::rv64im::{
-    build_rv64im_side_proof, rv64im_nightstream_linkage_root, rv64im_verifier_context_digest,
-    Rv64imSideBindingStatement, Rv64imSideOpeningPublic, Rv64imSideProof,
+    build_rv64im_side_proof, rv64im_verifier_context_digest, Rv64imSideBindingStatement, Rv64imSideOpeningPublic,
+    Rv64imSideProof,
 };
 use neo_fold_next::nightstream::NightstreamStatement;
 use neo_fold_next::rv64im::audit::{prove_rv64im_public_proof_and_published_seam_with_perf, Rv64imPublishedProofSeam};
@@ -72,7 +71,7 @@ impl Rv64imN2Fixture {
             )?;
         Ok((
             self.side_proof
-                .binding_statement(&self.nightstream_statement)?,
+                .binding_statement(&self.nightstream_statement, &self.accepted_artifact.statement)?,
             self.side_proof.opening_public().clone(),
             witness.claim_witnesses,
         ))
@@ -106,14 +105,11 @@ pub fn build_rv64im_n2_fixture() -> Result<Rv64imN2Fixture, SimpleKernelError> {
     let public_proof = prove_rv64im_public_proof(&input)?;
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&public_proof)?;
     let (final_statement, final_proof) = prove_rv64im_final_statement_from_accepted(&accepted_artifact)?;
-    let linkage_claims = build_rv64im_nightstream_linkage_claims(&final_statement, &final_proof)?;
-    let linkage_root = rv64im_nightstream_linkage_root(final_proof.kernel_export.digest, &linkage_claims);
     let nightstream_statement = build_rv64im_nightstream_statement_from_final(
         public_proof.statement.digest,
         rv64im_verifier_context_digest(public_proof.statement.root_params_id),
         &final_statement,
         &final_proof,
-        linkage_root,
         [0u8; 32],
     )?;
     let side_proof = build_rv64im_side_proof(&nightstream_statement, &accepted_artifact)?;

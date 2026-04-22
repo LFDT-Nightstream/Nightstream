@@ -7,10 +7,12 @@ use neo_fold_next::rv64im::audit::{
 use neo_fold_next::rv64im::final_relation::{
     prove_rv64im_final_statement_from_accepted, Rv64imFinalBuildProof, Rv64imFinalStatement,
 };
+use neo_fold_next::rv64im::ivc::derive_rv64im_ivc_step_cap;
 use neo_fold_next::rv64im::main_proof::Rv64imMainFinalProofSurface;
 use neo_fold_next::rv64im::{
-    build_mixed_opcode_perf_source_case, build_rv64im_accepted_proof_artifact, build_rv64im_recursion_shape,
-    prove_rv64im_public_proof, Rv64imAccumulatorPublicStatement, Rv64imProofInput,
+    build_mixed_opcode_perf_source_case, build_rv64im_accepted_proof_artifact,
+    build_rv64im_recursion_shape_for_step_cap, prove_rv64im_public_proof, Rv64imAccumulatorPublicStatement,
+    Rv64imProofInput,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -75,9 +77,15 @@ fn rv64im_accumulator_public_statement_is_stable_and_shape_bound() {
     );
     assert_eq!(
         baseline.shape_digest(),
-        build_rv64im_recursion_shape()
-            .expect("build recursion shape")
-            .canonical_digest(),
+        build_rv64im_recursion_shape_for_step_cap(
+            derive_rv64im_ivc_step_cap(
+                final_surface.fold_schedule(),
+                final_surface.semantic_step_count() as usize,
+            )
+            .expect("derive published recursion step_cap")
+        )
+        .expect("build recursion shape")
+        .canonical_digest(),
         "published statement must bind the canonical recursion shape digest"
     );
     assert_eq!(

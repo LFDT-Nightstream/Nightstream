@@ -5,7 +5,7 @@ use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_ccs::{CcsStructure, CeClaim};
 use neo_math::{F, K};
 use neo_params::NeoParams;
-use neo_reductions::engines::utils::me_digest_poseidon_into;
+use neo_reductions::engines::utils::me_input_projection_digest_poseidon_into;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
@@ -18,8 +18,8 @@ use crate::finalize::{
 use crate::proof::{Carry, ChunkInput, ChunkProvePerf, FoldSchedule};
 use crate::rv64im::chunk_fold_step::{
     adapt_rv64im_chunk_to_fresh_ccs, prove_rv64im_chunk_fold_verifier_step_with_perf,
-    verify_rv64im_chunk_fold_verifier_step, Rv64imAccumulatorHandle, Rv64imChunkFoldCarry, Rv64imChunkFoldFresh,
-    Rv64imChunkStepPublic,
+    rv64im_main_claim_projection_digests, verify_rv64im_chunk_fold_verifier_step, Rv64imAccumulatorHandle,
+    Rv64imChunkFoldCarry, Rv64imChunkFoldFresh, Rv64imChunkStepPublic,
 };
 use crate::rv64im::chunk_relation::rv64im_chunk_replay_witness_digest;
 use crate::rv64im::kernel::{
@@ -130,23 +130,16 @@ pub(crate) fn rv64im_chunk_fold_transcript_snapshot_digest(snapshot: &Rv64imChun
 }
 
 pub(crate) fn rv64im_chunk_fold_state_instance_digest(state: &Rv64imChunkFoldState) -> [u8; 32] {
-    let mut scratch = Vec::<F>::with_capacity(2048);
-    let claim_digests = state
-        .carry
-        .main
-        .claims
-        .iter()
-        .map(|claim| me_digest_poseidon_into(&mut scratch, claim))
-        .collect::<Vec<_>>();
-
-    let mut preimage = Vec::with_capacity(32 + claim_digests.len() * 4);
+    let mut preimage = Vec::with_capacity(32 + state.carry.main_projection_digests.len() * 4);
     extend_packed_bytes_as_fields(
         &mut preimage,
         b"neo.fold.next/rv64im/main_recursion_accumulator_instance/v2",
     );
-    preimage.push(F::from_u64(claim_digests.len() as u64));
+    preimage.push(F::from_u64(state.carry.main_projection_digests.len() as u64));
     preimage.extend(
-        claim_digests
+        state
+            .carry
+            .main_projection_digests
             .iter()
             .flat_map(|digest| digest.iter().copied()),
     );
@@ -157,17 +150,17 @@ pub(crate) fn rv64im_chunk_fold_state_instance_digest(state: &Rv64imChunkFoldSta
     digest_fields_as_digest32(poseidon2_hash(&preimage))
 }
 
-pub(crate) fn rv64im_recursive_accumulator_instance_digest_from_parts(
-    final_main_claims: &[CeClaim<Commitment, F, K>],
-    _terminal_handle_digest: [u8; 32],
+pub(crate) fn rv64im_recursive_accumulator_instance_digest_from_projection_digests(
+    final_main_claim_digests: &[[F; 4]],
+    terminal_handle_digest: [u8; 32],
 ) -> [u8; 32] {
-    let final_main_claim_digests = final_main_claim_digests(final_main_claims);
-    let mut preimage = Vec::with_capacity(32 + final_main_claim_digests.len() * 4);
+    let mut preimage = Vec::with_capacity(32 + 4 + final_main_claim_digests.len() * 4);
     extend_packed_bytes_as_fields(
         &mut preimage,
         b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_instance/v2",
     );
     preimage.push(F::from_u64(final_main_claim_digests.len() as u64));
+    preimage.extend(digest32_as_fields(terminal_handle_digest));
     preimage.extend(
         final_main_claim_digests
             .iter()
@@ -176,8 +169,21 @@ pub(crate) fn rv64im_recursive_accumulator_instance_digest_from_parts(
     digest_fields_as_digest32(poseidon2_hash(&preimage))
 }
 
+pub(crate) fn rv64im_recursive_accumulator_instance_digest_from_parts(
+    final_main_claims: &[CeClaim<Commitment, F, K>],
+    terminal_handle_digest: [u8; 32],
+) -> [u8; 32] {
+    rv64im_recursive_accumulator_instance_digest_from_projection_digests(
+        &rv64im_main_claim_projection_digests(final_main_claims),
+        terminal_handle_digest,
+    )
+}
+
 pub(crate) fn rv64im_chunk_fold_carry_recursive_accumulator_digest(carry: &Rv64imChunkFoldCarry) -> [u8; 32] {
-    rv64im_recursive_accumulator_instance_digest_from_parts(&carry.main.claims, carry.terminal_handle.0)
+    rv64im_recursive_accumulator_instance_digest_from_projection_digests(
+        &carry.main_projection_digests,
+        carry.terminal_handle.0,
+    )
 }
 
 impl Rv64imChunkFoldStepTrace {
@@ -1035,7 +1041,7 @@ pub(crate) fn final_main_claim_digests(final_main_claims: &[CeClaim<Commitment, 
     let mut digests = Vec::with_capacity(final_main_claims.len());
     let mut scratch = Vec::<F>::with_capacity(2048);
     for claim in final_main_claims {
-        digests.push(me_digest_poseidon_into(&mut scratch, claim));
+        digests.push(me_input_projection_digest_poseidon_into(&mut scratch, claim));
     }
     digests
 }

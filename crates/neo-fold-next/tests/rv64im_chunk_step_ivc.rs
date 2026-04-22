@@ -11,6 +11,30 @@ use neo_fold_next::rv64im::audit::{
 };
 use p3_field::PrimeCharacteristicRing;
 
+fn tamper_state_out_claim_projection_shell(
+    claim: &mut neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>,
+) {
+    if claim.X.rows() > 1 && claim.X.cols() > 0 {
+        claim.X[(1, 0)] += neo_math::F::ONE;
+    }
+    if let Some(first) = claim.s_col.first_mut() {
+        *first += neo_math::K::ONE;
+    }
+    if let Some(first) = claim.ct.first_mut() {
+        *first += neo_math::K::ONE;
+    }
+    if let Some(first) = claim.aux_openings.first_mut() {
+        *first += neo_math::K::ONE;
+    }
+    if let Some(first) = claim.y_zcol.first_mut() {
+        *first += neo_math::K::ONE;
+    }
+    if let Some(first) = claim.c_step_coords.first_mut() {
+        *first += neo_math::F::ONE;
+    }
+    claim.fold_digest[0] ^= 1;
+}
+
 #[test]
 fn rv64im_chunk_step_ivc_round_trip() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
@@ -79,7 +103,7 @@ fn rv64im_chunk_step_ivc_rejects_tampered_private_next_carry() {
             first_witness[(0, 0)] += neo_math::F::ONE;
         }
     } else if let Some(first_claim) = relation.witness.state_out.carry.main.claims.first_mut() {
-        first_claim.fold_digest[0] ^= 1;
+        first_claim.y_ring[0][1] += neo_math::K::ONE;
     } else {
         panic!("expected non-empty carried next-main state");
     }
@@ -87,6 +111,33 @@ fn rv64im_chunk_step_ivc_rejects_tampered_private_next_carry() {
     let err = verify_rv64im_chunk_step_ivc(&relation.statement, &relation.witness)
         .expect_err("tampered private next carry must fail");
     assert!(format!("{err}").contains("next carry"), "unexpected error: {err}");
+}
+
+#[test]
+fn rv64im_chunk_step_ivc_ignores_state_out_claim_projection_shell() {
+    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
+    let mut relation = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
+        .expect("build chunk-step IVC relations")
+        .into_iter()
+        .next()
+        .expect("first relation");
+
+    let first_claim = relation
+        .witness
+        .state_out
+        .carry
+        .main
+        .claims
+        .first_mut()
+        .expect("state_out claim");
+    tamper_state_out_claim_projection_shell(first_claim);
+
+    let state_out =
+        verify_rv64im_chunk_step_ivc(&relation.statement, &relation.witness).expect("projection shell must be ignored");
+    assert_eq!(
+        state_out.carry.main.claims, relation.witness.state_out.carry.main.claims,
+        "verified chunk-step IVC should preserve the carried shell while checking only CE projection authority",
+    );
 }
 
 #[test]

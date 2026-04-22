@@ -3,13 +3,9 @@
 #[path = "support/rv64im_n2.rs"]
 mod rv64im_n2_support;
 
-use neo_fold_next::nightstream::rv64im::audit::{
-    build_rv64im_nightstream_linkage_claims, build_rv64im_nightstream_statement_from_final,
-    validate_rv64im_nightstream_linkage_claims_against_statement,
-};
+use neo_fold_next::nightstream::rv64im::audit::build_rv64im_nightstream_statement_from_final;
 use neo_fold_next::nightstream::rv64im::{
-    build_rv64im_bound_side_opening_public_from_accepted_artifact, rv64im_nightstream_linkage_root,
-    rv64im_verifier_context_digest,
+    build_rv64im_bound_side_opening_public_from_accepted_artifact, rv64im_verifier_context_digest,
 };
 #[test]
 fn rv64im_side_opening_public_from_accepted_artifact_matches_side_proof_public() {
@@ -40,15 +36,10 @@ fn rv64im_bound_side_opening_public_tracks_nightstream_statement_core_digest() {
         rv64im_verifier_context_digest(fixture.accepted_artifact.statement.root_params_id),
         &fixture.final_statement,
         &fixture.final_proof,
-        rv64im_nightstream_linkage_root(
-            fixture.final_statement.public_statement_digest,
-            &build_rv64im_nightstream_linkage_claims(&fixture.final_statement, &fixture.final_proof)
-                .expect("build linkage claims"),
-        ),
         [0; 32],
     )
     .expect("build provisional Nightstream statement");
-    wrong_statement.linkage_root[0] ^= 1;
+    wrong_statement.verifier_context_digest[0] ^= 1;
     let rebound =
         build_rv64im_bound_side_opening_public_from_accepted_artifact(&wrong_statement, &fixture.accepted_artifact)
             .expect("derive rebound side opening public from accepted artifact");
@@ -73,25 +64,6 @@ fn rv64im_side_proof_digest_binds_opening_statement_digest_for_n2_fixture() {
         baseline,
         tampered_opening_statement_digest.expected_digest(),
         "Nightstream side-proof digest must change when carried opening-statement digest bytes change"
-    );
-}
-
-#[test]
-fn rv64im_nightstream_linkage_claims_reject_tampered_contents_for_n2_fixture() {
-    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
-    let mut linkage_claims = build_rv64im_nightstream_linkage_claims(&fixture.final_statement, &fixture.final_proof)
-        .expect("build Nightstream linkage claims");
-    validate_rv64im_nightstream_linkage_claims_against_statement(&fixture.nightstream_statement, &linkage_claims)
-        .expect("baseline Nightstream linkage claims must validate against the carried statement");
-
-    linkage_claims.public_chunk_digests_mut()[0][0] ^= 1;
-    *linkage_claims.digest_mut() = linkage_claims.expected_digest();
-    let err =
-        validate_rv64im_nightstream_linkage_claims_against_statement(&fixture.nightstream_statement, &linkage_claims)
-            .expect_err("self-consistent linkage-claim tamper must fail against the carried statement");
-    assert!(
-        err.to_string().contains("public-chunk digests"),
-        "unexpected linkage-claims rejection error: {err}"
     );
 }
 

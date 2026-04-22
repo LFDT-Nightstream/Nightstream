@@ -61,7 +61,9 @@ where
         for out in out_me.iter().take(k_mcs) {
             let mut m_vals = vec![K::ZERO; s.t()];
             for j in 0..s.t() {
-                m_vals[j] = out.ct[j];
+                m_vals[j] = *out.y_ring[j]
+                    .first()
+                    .expect("terminal FE: y_ring row missing constant term");
             }
             acc_f += g * s.f.eval_in_ext::<K>(&m_vals);
             g *= ch.gamma;

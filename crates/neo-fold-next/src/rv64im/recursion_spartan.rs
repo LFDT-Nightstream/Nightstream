@@ -70,13 +70,15 @@ impl Rv64imMainRecursionFinalRelationStatement {
     fn canonical_public_image(&self) -> Rv64imMainRecursionFinalRelationPublicImage {
         Rv64imMainRecursionFinalRelationPublicImage {
             x_last: self.x_last.clone(),
-            folded_accumulator_digest: rv64im_chunk_fold_carry_recursive_accumulator_digest(&Rv64imChunkFoldCarry {
-                main: crate::proof::Carry {
-                    claims: self.accumulator_final.final_main_claims.clone(),
-                    witnesses: Vec::new(),
-                },
-                terminal_handle: self.accumulator_final.terminal_handle,
-            }),
+            folded_accumulator_digest: rv64im_chunk_fold_carry_recursive_accumulator_digest(
+                &Rv64imChunkFoldCarry::from_main(
+                    crate::proof::Carry {
+                        claims: self.accumulator_final.final_main_claims.clone(),
+                        witnesses: Vec::new(),
+                    },
+                    self.accumulator_final.terminal_handle,
+                ),
+            ),
             terminal_handle_digest: self.accumulator_final.terminal_handle.0,
         }
     }
@@ -276,13 +278,14 @@ pub(crate) fn build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(
     chunk_count: u64,
     accumulator_final: &Rv64imRecursiveAccumulator,
 ) -> Result<Rv64imEncodedPublicInput, SimpleKernelError> {
-    let folded_accumulator_digest = rv64im_chunk_fold_carry_recursive_accumulator_digest(&Rv64imChunkFoldCarry {
-        main: crate::proof::Carry {
-            claims: accumulator_final.final_main_claims.clone(),
-            witnesses: Vec::new(),
-        },
-        terminal_handle: accumulator_final.terminal_handle,
-    });
+    let folded_accumulator_digest =
+        rv64im_chunk_fold_carry_recursive_accumulator_digest(&Rv64imChunkFoldCarry::from_main(
+            crate::proof::Carry {
+                claims: accumulator_final.final_main_claims.clone(),
+                witnesses: Vec::new(),
+            },
+            accumulator_final.terminal_handle,
+        ));
     Ok(build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs(
         vk_fs,
         chunk_count,

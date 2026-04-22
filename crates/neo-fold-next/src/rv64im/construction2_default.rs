@@ -41,7 +41,7 @@ use crate::rv64im::main_relation_spartan::{
     Rv64imMainRecursionFPrimeClaimCover,
 };
 use crate::rv64im::main_relation_trace::build_rv64im_main_circuit_chunk_trace_from_authoritative_parts;
-use crate::rv64im::recursion_shape::build_rv64im_recursion_shape;
+use crate::rv64im::recursion_shape::build_rv64im_recursion_shape_for_step_cap;
 use crate::rv64im::SimpleKernelError;
 use crate::witness_layout::commit_cols_for_full_width;
 
@@ -74,7 +74,7 @@ fn count_k_coeffs() -> usize {
 }
 
 fn count_commitment_shape_fields(c_data_len: u64) -> usize {
-    3 + c_data_len as usize
+    c_data_len as usize
 }
 
 fn count_commitment_fields_for_full_width(full_width: usize) -> Result<usize, SimpleKernelError> {
@@ -83,51 +83,74 @@ fn count_commitment_fields_for_full_width(full_width: usize) -> Result<usize, Si
             "RV64IM Construction-2 default-pair params failed for full width {full_width}: {err}"
         ))
     })?;
-    Ok(3 + D * params.kappa as usize)
+    Ok(D * params.kappa as usize)
 }
 
 fn count_f_slice(len: usize) -> usize {
-    1 + len
+    len
 }
 
 fn count_f_matrix_rows_cols(rows: usize, cols: usize) -> usize {
-    2 + rows * cols
+    rows * cols
 }
 
 fn count_k_slice(len: usize) -> usize {
-    1 + len * count_k_coeffs()
+    len * count_k_coeffs()
 }
 
 fn count_k_rows_from_lens(row_lens: &[u64]) -> usize {
-    1 + row_lens
+    row_lens
         .iter()
         .map(|len| count_k_slice(*len as usize))
         .sum::<usize>()
 }
 
-fn count_ce_claim_shape_fields(shape: &Rv64imCeClaimDigestShape) -> usize {
-    count_commitment_shape_fields(shape.c_data_len)
-        + count_u64_field()
-        + count_f_matrix_rows_cols(shape.x_rows as usize, shape.x_cols as usize)
-        + count_k_slice(shape.r_len as usize)
-        + count_k_slice(shape.s_col_len as usize)
-        + count_k_rows_from_lens(&shape.y_ring_row_lens)
-        + count_k_slice(shape.ct_len as usize)
-        + count_k_slice(shape.aux_openings_len as usize)
-        + count_k_slice(shape.y_zcol_len as usize)
-}
-
-fn count_pi_ccs_output_payload_shape_fields(shape: &Rv64imCeClaimDigestShape) -> usize {
-    count_k_rows_from_lens(&shape.y_ring_row_lens) + count_k_slice(shape.y_zcol_len as usize)
-}
-
-fn count_pi_dec_child_payload_shape_fields(shape: &Rv64imCeClaimDigestShape) -> usize {
-    count_commitment_shape_fields(shape.c_data_len) + count_k_rows_from_lens(&shape.y_ring_row_lens)
+fn count_shared_state_in_claim_shape_fields(shapes: &[Rv64imCeClaimDigestShape]) -> Result<usize, SimpleKernelError> {
+    let Some((first, rest)) = shapes.split_first() else {
+        return Ok(0);
+    };
+    if first.ct_len as usize > first.y_ring_row_lens.len()
+        || first
+            .y_ring_row_lens
+            .iter()
+            .take(first.ct_len as usize)
+            .any(|len| *len == 0)
+    {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Construction-2 default-pair width requires ct to alias non-empty y_ring rows".into(),
+        ));
+    }
+    for shape in rest {
+        if shape.r_len != first.r_len {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM Construction-2 default-pair width requires carried CE claims to share r".into(),
+            ));
+        }
+        if shape.ct_len as usize > shape.y_ring_row_lens.len()
+            || shape
+                .y_ring_row_lens
+                .iter()
+                .take(shape.ct_len as usize)
+                .any(|len| *len == 0)
+        {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM Construction-2 default-pair width requires ct to alias non-empty y_ring rows".into(),
+            ));
+        }
+    }
+    Ok(count_k_slice(first.r_len as usize)
+        + shapes
+            .iter()
+            .map(|shape| {
+                count_commitment_shape_fields(shape.c_data_len)
+                    + count_f_slice(shape.x_cols as usize)
+                    + count_k_rows_from_lens(&shape.y_ring_row_lens)
+            })
+            .sum::<usize>())
 }
 
 fn count_step_input_shape_fields(claim_shape: &Rv64imCcsClaimShape, witness_shape: &Rv64imCcsWitnessShape) -> usize {
     count_commitment_shape_fields(claim_shape.c_data_len)
-        + count_u64_field()
         + count_f_slice(claim_shape.x_len as usize)
         + count_f_slice(witness_shape.w_len as usize)
         + count_f_matrix_rows_cols(witness_shape.z_rows as usize, witness_shape.z_cols as usize)
@@ -209,7 +232,8 @@ pub fn build_rv64im_main_recursion_construction2_canonical_shape(
     vk_fs: &Rv64imVerifierKeyFs,
     phi_side: &Rv64imMainRecursionPhiSide,
 ) -> Result<Rv64imMainRecursionConstruction2FPrimeCcsShape, SimpleKernelError> {
-    let recursion_shape = build_rv64im_recursion_shape()?;
+    let step_cap = vk_fs.step_cap()?;
+    let recursion_shape = build_rv64im_recursion_shape_for_step_cap(step_cap)?;
     let recursion_shape_digest = recursion_shape.canonical_digest();
     if vk_fs.main_lane_shape_digest != recursion_shape_digest {
         return Err(SimpleKernelError::Bridge(
@@ -225,7 +249,7 @@ pub fn build_rv64im_main_recursion_construction2_canonical_shape(
     let ccs_witness_shape = build_root_ccs_witness_shape();
     let carried_claim_count = params.k_rho as usize;
     let ccs_output_count = carried_claim_count
-        .checked_add(1)
+        .checked_add(step_cap)
         .ok_or_else(|| SimpleKernelError::Build("RV64IM canonical F' ccs_output count overflow".into()))?;
     let round_len = (dims.d_sc + 1) as u64;
 
@@ -240,8 +264,8 @@ pub fn build_rv64im_main_recursion_construction2_canonical_shape(
             terminal_step: false,
             state_in_claim_count: carried_claim_count as u64,
             state_out_claim_count: carried_claim_count as u64,
-            fresh_claim_count: 1,
-            fresh_witness_count: 1,
+            fresh_claim_count: step_cap as u64,
+            fresh_witness_count: step_cap as u64,
             ccs_output_count: ccs_output_count as u64,
             child_count: carried_claim_count as u64,
             transcript_in_absorbed: 0,
@@ -252,8 +276,8 @@ pub fn build_rv64im_main_recursion_construction2_canonical_shape(
         claim_cover: Rv64imMainRecursionFPrimeClaimCover {
             state_in_claim_shapes: vec![ce_claim_shape.clone(); carried_claim_count],
             state_out_claim_shapes: vec![ce_claim_shape.clone(); carried_claim_count],
-            fresh_claim_shapes: vec![ccs_claim_shape],
-            fresh_witness_shapes: vec![ccs_witness_shape],
+            fresh_claim_shapes: vec![ccs_claim_shape; step_cap],
+            fresh_witness_shapes: vec![ccs_witness_shape; step_cap],
             parent_claim_shape: ce_claim_shape.clone(),
             ccs_output_shapes: vec![ce_claim_shape.clone(); ccs_output_count],
             child_claim_shapes: vec![ce_claim_shape; carried_claim_count],
@@ -274,8 +298,8 @@ pub fn build_rv64im_main_recursion_construction2_default_full_width_from_ccs_sha
     shape: &Rv64imMainRecursionConstruction2FPrimeCcsShape,
 ) -> Result<usize, SimpleKernelError> {
     if shape.claim_cover.state_in_claim_shapes.len() != shape.step_cover_shape.state_in_claim_count as usize
-        || shape.claim_cover.fresh_claim_shapes.len() != 1
-        || shape.claim_cover.fresh_witness_shapes.len() != 1
+        || shape.claim_cover.fresh_claim_shapes.len() != shape.step_cover_shape.fresh_claim_count as usize
+        || shape.claim_cover.fresh_witness_shapes.len() != shape.step_cover_shape.fresh_witness_count as usize
         || shape.claim_cover.ccs_output_shapes.len() != shape.step_cover_shape.ccs_output_count as usize
         || shape.claim_cover.child_claim_shapes.len() != shape.step_cover_shape.child_count as usize
     {
@@ -292,25 +316,16 @@ pub fn build_rv64im_main_recursion_construction2_default_full_width_from_ccs_sha
             + count_u64_field()
             + count_phi_side_fields_from_shape(shape)
             + count_u64_field()
-            + shape
-                .claim_cover
-                .state_in_claim_shapes
-                .iter()
-                .map(count_ce_claim_shape_fields)
-                .sum::<usize>()
+            + count_shared_state_in_claim_shape_fields(&shape.claim_cover.state_in_claim_shapes)?
             + fresh_instance_fields
             + count_u64_field()
             + count_u64_field()
-            + count_step_input_shape_fields(
-                &shape.claim_cover.fresh_claim_shapes[0],
-                &shape.claim_cover.fresh_witness_shapes[0],
-            )
-            + count_u64_field()
             + shape
                 .claim_cover
-                .ccs_output_shapes
+                .fresh_claim_shapes
                 .iter()
-                .map(count_pi_ccs_output_payload_shape_fields)
+                .zip(shape.claim_cover.fresh_witness_shapes.iter())
+                .map(|(claim_shape, witness_shape)| count_step_input_shape_fields(claim_shape, witness_shape))
                 .sum::<usize>()
             + count_u64_field()
             + shape
@@ -325,13 +340,6 @@ pub fn build_rv64im_main_recursion_construction2_default_full_width_from_ccs_sha
                 .nc_round_lengths
                 .iter()
                 .map(|round_len| count_k_slice(*round_len as usize))
-                .sum::<usize>()
-            + count_u64_field()
-            + shape
-                .claim_cover
-                .child_claim_shapes
-                .iter()
-                .map(count_pi_dec_child_payload_shape_fields)
                 .sum::<usize>())
     };
 
@@ -371,7 +379,7 @@ pub fn build_rv64im_main_recursion_construction2_default_shape_cover_from_relati
             "RV64IM Construction-2 default width cover requires at least one relation".into(),
         ));
     }
-    let recursion_shape_digest = build_rv64im_recursion_shape()?.canonical_digest();
+    let recursion_shape_digest = build_rv64im_recursion_shape_for_step_cap(vk_fs.step_cap()?)?.canonical_digest();
     if vk_fs.main_lane_shape_digest != recursion_shape_digest {
         return Err(SimpleKernelError::Bridge(
             "RV64IM Construction-2 default width cover requires the canonical recursion verifier-key shape".into(),
@@ -427,8 +435,8 @@ pub fn build_rv64im_main_recursion_construction2_default_shape_cover_from_relati
             state_out_claim_count: relation.witness.state_out.carry.main.claims.len() as u64,
             fresh_claim_count: fresh.fresh_claims.len() as u64,
             fresh_witness_count: fresh.fresh_witnesses.len() as u64,
-            ccs_output_count: construction2_pi_fold.ccs_output_payloads.len() as u64,
-            child_count: construction2_pi_fold.dec_child_payloads.len() as u64,
+            ccs_output_count: (running_state.carry.main.claims.len() + fresh.fresh_claims.len()) as u64,
+            child_count: relation.witness.state_out.carry.main.claims.len() as u64,
             transcript_in_absorbed: running_state.transcript.absorbed as u64,
             transcript_out_absorbed: relation.witness.state_out.transcript.absorbed as u64,
             fe_round_lengths: construction2_pi_fold
@@ -547,7 +555,8 @@ pub fn build_rv64im_main_recursion_construction2_default_pair_for_full_width(
     vk_fs: &Rv64imVerifierKeyFs,
     full_width: usize,
 ) -> Result<Rv64imMainRecursionConstruction2DefaultPair, SimpleKernelError> {
-    let expected_vk_fs = crate::rv64im::f_prime::build_rv64im_main_recursion_verifier_key_fs()?;
+    let expected_vk_fs =
+        crate::rv64im::f_prime::build_rv64im_main_recursion_verifier_key_fs_for_step_cap(vk_fs.step_cap()?)?;
     if vk_fs != &expected_vk_fs {
         return Err(SimpleKernelError::Bridge(
             "RV64IM native Construction-2 default pair requires the canonical recursion verifier-key context".into(),
@@ -594,7 +603,8 @@ fn build_rv64im_main_recursion_construction2_default_pair_for_full_width_impl(
     full_width: usize,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imMainRecursionConstruction2DefaultPair, SimpleKernelError> {
-    let expected_vk_fs = crate::rv64im::f_prime::build_rv64im_main_recursion_verifier_key_fs()?;
+    let expected_vk_fs =
+        crate::rv64im::f_prime::build_rv64im_main_recursion_verifier_key_fs_for_step_cap(vk_fs.step_cap()?)?;
     if vk_fs != &expected_vk_fs {
         return Err(SimpleKernelError::Bridge(
             "RV64IM native Construction-2 default pair requires the canonical recursion verifier-key context".into(),
@@ -627,12 +637,18 @@ fn build_rv64im_main_recursion_construction2_default_pair_for_full_width_impl(
     let u_perp = if let Some(prefix) = trace_prefix {
         debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(
             0,
+            vk_fs.step_cap()?,
             x_i,
             &full_vector,
             &format!("{prefix}.u_perp"),
         )?
     } else {
-        build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(0, x_i, &full_vector)?
+        build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(
+            0,
+            vk_fs.step_cap()?,
+            x_i,
+            &full_vector,
+        )?
     };
     Ok(Rv64imMainRecursionConstruction2DefaultPair { u_perp, w_perp })
 }

@@ -2,10 +2,8 @@
 
 use std::sync::Arc;
 
-use neo_fold_next::nightstream::rv64im::audit::{
-    build_rv64im_nightstream_linkage_claims, build_rv64im_nightstream_statement_from_final,
-};
-use neo_fold_next::nightstream::rv64im::{rv64im_nightstream_linkage_root, rv64im_verifier_context_digest};
+use neo_fold_next::nightstream::rv64im::audit::build_rv64im_nightstream_statement_from_final;
+use neo_fold_next::nightstream::rv64im::rv64im_verifier_context_digest;
 use neo_fold_next::rv64im::audit::{
     build_rv64im_terminal_decider_setup_shape_from_components, debug_check_rv64im_terminal_decider_circuit,
 };
@@ -50,15 +48,11 @@ fn final_fixture_from_input(
     let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
     let (statement, final_proof) =
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
-    let linkage_claims =
-        build_rv64im_nightstream_linkage_claims(&statement, &final_proof).expect("build linkage claims");
-    let linkage_root = rv64im_nightstream_linkage_root(final_proof.kernel_export.digest, &linkage_claims);
     let nightstream_statement = build_rv64im_nightstream_statement_from_final(
         proof.statement.digest,
         rv64im_verifier_context_digest(proof.statement.root_params_id),
         &statement,
         &final_proof,
-        linkage_root,
         [0; 32],
     )
     .expect("build nightstream statement");

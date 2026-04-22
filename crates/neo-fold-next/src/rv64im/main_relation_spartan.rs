@@ -6,6 +6,7 @@
 //! and reuses the one-step chunk-step IVC substrate directly.
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use ff::Field;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{KExtensions, F, K};
 use neo_params::NeoParams;
@@ -35,7 +36,7 @@ use crate::rv64im::main_relation_circuit::pi_rlc::{
     enforce_rlc_dec_public_with_rho_coeffs_for_last_chunk, enforce_rlc_public_with_rho_vars_constant_prefix,
 };
 use crate::rv64im::main_relation_circuit::rho_sampling::{
-    alloc_zero_rot_rho_matrices, alloc_zero_rot_rhos, materialize_goldilocks_rot_matrices, sample_goldilocks_rot_rhos,
+    materialize_goldilocks_rot_matrices, sample_goldilocks_rot_rhos,
 };
 use crate::rv64im::main_relation_circuit::sumcheck_replay::verify_sumcheck_rounds;
 use crate::rv64im::main_relation_circuit::terminal_identity::{
@@ -44,7 +45,7 @@ use crate::rv64im::main_relation_circuit::terminal_identity::{
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_trace::{
     Rv64imMainCircuitCeClaimShape, Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface,
-    Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG, STEP_INDEX_RAW_TAG,
+    Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG,
 };
 mod chunk_diagnostics;
 mod chunk_stage_ranges;
@@ -112,19 +113,34 @@ pub use recursive_step::{
     debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
     debug_check_rv64im_main_recursion_x_out_gadget_parity,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts,
     debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_tail_aux_counts,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_tail_digest_aux_breakdown,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakdown,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_breakdown,
+    debug_measure_rv64im_main_recursion_step_pi_rlc_public_constraint_breakdown,
+    debug_measure_rv64im_main_recursion_step_pi_rlc_public_stage_breakdown,
     debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
+    debug_measure_rv64im_main_recursion_step_stage_aux_counts,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
     debug_trace_rv64im_main_recursion_step_fingerprint_synthesize,
     debug_trace_rv64im_main_recursion_step_shape_only_circuit_shape_measurement,
     debug_trace_rv64im_main_recursion_step_shape_only_fingerprint_synthesize,
     debug_trace_rv64im_main_recursion_step_spartan_circuit_shape_measurement,
     debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, Rv64imMainRecursionStepAuthoritativeChunkSurface,
-    Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError,
-    Rv64imMainRecursionStepSpartanPublishedTarget,
+    Rv64imMainRecursionStepChunkReplayAuxCounts, Rv64imMainRecursionStepChunkReplayTailAuxCounts,
+    Rv64imMainRecursionStepChunkReplayTailDigestAuxBreakdown, Rv64imMainRecursionStepSpartanCircuitShape,
+    Rv64imMainRecursionStepSpartanError, Rv64imMainRecursionStepSpartanPublishedTarget,
+    Rv64imMainRecursionStepStageAuxCounts, Rv64imNamedConstraintDelta, Rv64imPiCcsBindMeInputsAuxBreakdown,
+    Rv64imPiCcsStageAuxCounts, Rv64imPiCcsStageConstraintCounts, Rv64imPiCcsStageFingerprint,
+    Rv64imPiCcsSumcheckConstraintBreakdown, Rv64imPiRlcPublicConstraintBreakdown, Rv64imPiRlcPublicStageBreakdown,
 };
 pub use step_statement::Rv64imMainRecursionStepSpartanStatement;
 use transcript_k::append_k_to_transcript;
@@ -244,7 +260,10 @@ impl Rv64imChunkBoundaryPlan {
                 Rv64imChunkRlcMode::TerminalLastChunkShortcut
             } else {
                 Rv64imChunkRlcMode::Standard {
-                    constant_child_prefix: 0,
+                    // Every effective Π_CCS output already has authoritative `c` / `x`
+                    // binding before Π_RLC runs, so the standard RLC gadget can fold that
+                    // prefix from native values instead of re-paying the full child-var path.
+                    constant_child_prefix: effective_output_count,
                 }
             };
         Self {
@@ -290,7 +309,9 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         transcript,
         carried_claims,
         None,
+        None,
         boundary_plan,
+        0,
         false,
         None,
     )?;
@@ -305,7 +326,9 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
+        logical_me_input_digests: None,
         boundary_plan,
+        rlc_zero_commit_suffix_len: 0,
     };
     if enforce_chunk_relation_public_io {
         // The standalone chunk theorem binds the relation digest as public IO.
@@ -428,6 +451,7 @@ fn cover_ccs_claim(
         }
         let mut out = claim.clone();
         out.x.resize(shape.x_len as usize, F::ZERO);
+        out.m_in = shape.x_len as usize;
         return Ok(out);
     }
     Ok(shape.zero_claim())
@@ -510,24 +534,30 @@ pub(crate) fn append_chunk_meta<CS: ConstraintSystem<SpartanF>>(
     transcript: &mut Poseidon2TranscriptCircuit,
     handoff: &Rv64imMainCircuitHandoff,
 ) -> Result<(), SynthesisError> {
-    if handoff.public_chunk.steps.len() == 1 {
-        transcript.append_const_fields_raw(
-            cs.namespace(|| "step_index"),
-            &[
-                SpartanF::from_canonical_u64(STEP_INDEX_RAW_TAG),
-                SpartanF::from_canonical_u64(handoff.public_chunk.start_index as u64),
-            ],
-        )
-    } else {
-        transcript.append_const_fields_raw(
-            cs.namespace(|| "chunk_meta"),
-            &[
-                SpartanF::from_canonical_u64(CHUNK_META_RAW_TAG),
-                SpartanF::from_canonical_u64(handoff.public_chunk.start_index as u64),
-                SpartanF::from_canonical_u64(handoff.public_chunk.steps.len() as u64),
-            ],
-        )
-    }
+    let chunk_meta_values = [
+        SpartanF::from_canonical_u64(handoff.public_chunk.start_index as u64),
+        SpartanF::from_canonical_u64(handoff.public_chunk.steps.len() as u64),
+    ];
+    let chunk_meta_vars = alloc_private_field_values(cs, &chunk_meta_values, "chunk_meta")?;
+    transcript.append_field_linear_combinations_raw(
+        cs.namespace(|| "chunk_meta"),
+        &[
+            Vec::new(),
+            vec![(chunk_meta_vars[0].get_variable(), SpartanF::ONE)],
+            vec![(chunk_meta_vars[1].get_variable(), SpartanF::ONE)],
+        ],
+        &[
+            SpartanF::from_canonical_u64(CHUNK_META_RAW_TAG),
+            SpartanF::ZERO,
+            SpartanF::ZERO,
+        ],
+        &[
+            SpartanF::from_canonical_u64(CHUNK_META_RAW_TAG),
+            chunk_meta_values[0],
+            chunk_meta_values[1],
+        ],
+    )?;
+    Ok(())
 }
 
 pub(crate) fn next_public_digest(

@@ -240,6 +240,83 @@ fn terminal_fe_k_mcs_parity_superneo_shape_k1_k2_k4() {
 }
 
 #[test]
+fn terminal_fe_ignores_stale_ct_shell() {
+    let n = D;
+    let m = D;
+    let s = build_structure(n, m);
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let d_pad = D.next_power_of_two();
+
+    let ch = Challenges {
+        alpha: vec_k(2301, 6),
+        beta_a: vec_k(2401, 6),
+        beta_r: vec_k(2501, 6),
+        beta_m: vec![],
+        gamma: k(31),
+    };
+
+    let r_prime = vec_k(2601, 6);
+    let alpha_prime = vec_k(2701, 6);
+    let r_inputs = vec_k(2801, 6);
+
+    let k_mcs = 2usize;
+    let k_me = 2usize;
+    let k_total = k_mcs + k_me;
+    let mut canonical = Vec::with_capacity(k_total);
+    for i in 0..k_total {
+        let mut out = make_ce_claim(29_000 + i as u64 * 1000, s.t(), d_pad, 6, 1);
+        out.ct = out.y_ring.iter().take(s.t()).map(|row| row[0]).collect();
+        canonical.push(out);
+    }
+    let mut stale_ct = canonical.clone();
+    for out in &mut stale_ct {
+        for ct in &mut out.ct {
+            *ct += K::ONE;
+        }
+    }
+
+    let rhs_opt_canonical = optimized_engine::rhs_terminal_identity_fe_with_k_mcs(
+        &s,
+        &params,
+        &ch,
+        &r_prime,
+        &alpha_prime,
+        &canonical,
+        k_mcs,
+        Some(&r_inputs),
+    );
+    let rhs_opt_stale = optimized_engine::rhs_terminal_identity_fe_with_k_mcs(
+        &s,
+        &params,
+        &ch,
+        &r_prime,
+        &alpha_prime,
+        &stale_ct,
+        k_mcs,
+        Some(&r_inputs),
+    );
+    let rhs_paper_stale = paper_exact_engine::rhs_terminal_identity_fe_paper_exact_with_k_mcs(
+        &s,
+        &params,
+        &ch,
+        &r_prime,
+        &alpha_prime,
+        &stale_ct,
+        k_mcs,
+        Some(&r_inputs),
+    );
+
+    assert_eq!(
+        rhs_opt_canonical, rhs_opt_stale,
+        "optimized terminal FE should ignore stale ct shell"
+    );
+    assert_eq!(
+        rhs_opt_stale, rhs_paper_stale,
+        "paper and optimized FE should agree when ct shell is stale"
+    );
+}
+
+#[test]
 fn q_eval_ext_point_k_mcs_parity_k2_k4_k61() {
     let n = D;
     let m = D;

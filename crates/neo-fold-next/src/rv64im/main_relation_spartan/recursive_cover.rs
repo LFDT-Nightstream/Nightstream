@@ -1,16 +1,16 @@
 //! Owns recursive fixed-step cover allocation, equality, and digest gadgets.
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use neo_math::KExtensions;
 use p3_field::PrimeField64;
 
 use super::alloc_const_field_values;
+use super::fingerprint_cs::FingerprintCS;
 use crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot;
 use crate::rv64im::ivc_snark::{hash_packed_goldilocks_fields, SpartanF};
 use crate::rv64im::main_relation_circuit::claim::{
-    alloc_ce_claim, alloc_ce_claim_with_shared_point, packed_bytes_field_values, CeClaimVar,
+    alloc_ce_claim, alloc_ce_claim_projection_surface, alloc_ce_claim_projection_surface_with_shared_r,
+    alloc_ce_claim_with_shared_point, me_input_projection_digest_poseidon, packed_bytes_field_values, CeClaimVar,
 };
-use crate::rv64im::main_relation_circuit::k_field::{KNum, KNumVar};
 
 #[derive(Clone)]
 pub(super) struct Rv64imRecursiveCoverClaimVar {
@@ -22,6 +22,13 @@ pub(super) struct Rv64imRecursiveCoverStateVar {
     pub(super) transcript_state: [AllocatedNum<SpartanF>; neo_params::poseidon2_goldilocks::WIDTH],
     pub(super) transcript_absorbed: AllocatedNum<SpartanF>,
     pub(super) terminal_handle: [AllocatedNum<SpartanF>; 4],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Rv64imRecursiveAccumulatorProjectionDigestAuxBreakdown {
+    pub after_header: usize,
+    pub after_claim_digests: Vec<usize>,
+    pub after_outer_hash: usize,
 }
 
 fn alloc_recursive_cover_public_state_fields<CS: ConstraintSystem<SpartanF>>(
@@ -112,76 +119,39 @@ pub(super) fn alloc_recursive_cover_claims<CS: ConstraintSystem<SpartanF>>(
         .collect()
 }
 
-fn recursive_extend_f_slice_as_fields<CS: ConstraintSystem<SpartanF>>(
+pub(super) fn alloc_recursive_carried_projection_claims<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
-    dst: &mut Vec<AllocatedNum<SpartanF>>,
-    values: &[AllocatedNum<SpartanF>],
+    claims: &[neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>],
     label: &str,
-) -> Result<(), SynthesisError> {
-    dst.extend(alloc_const_field_values(
-        cs,
-        &[SpartanF::from_canonical_u64(values.len() as u64)],
-        &format!("{label}_len"),
-    )?);
-    dst.extend(values.iter().cloned());
-    Ok(())
-}
-
-fn recursive_extend_k_slice_as_fields<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    dst: &mut Vec<AllocatedNum<SpartanF>>,
-    values: &[KNumVar],
-    native_values: &[neo_math::K],
-    label: &str,
-) -> Result<(), SynthesisError> {
-    if values.len() != native_values.len() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    dst.extend(alloc_const_field_values(
-        cs,
-        &[
-            SpartanF::from_canonical_u64(values.len() as u64),
-            SpartanF::from_canonical_u64(
-                native_values
-                    .first()
-                    .map(|value| value.as_coeffs().len())
-                    .unwrap_or(0) as u64,
-            ),
-        ],
-        &format!("{label}_meta"),
-    )?);
-    for (idx, (value, native_value)) in values.iter().zip(native_values.iter()).enumerate() {
-        let native_value = KNum::from_neo_k(*native_value);
-        dst.push(AllocatedNum::alloc(
-            cs.namespace(|| format!("{label}_{idx}_c0_copy")),
-            || Ok(native_value.c0),
+) -> Result<Vec<Rv64imRecursiveCoverClaimVar>, SynthesisError> {
+    let Some((first, rest)) = claims.split_first() else {
+        return Ok(Vec::new());
+    };
+    let mut base_claims = Vec::with_capacity(claims.len());
+    let first_var =
+        alloc_ce_claim_projection_surface(&mut cs.namespace(|| format!("{label}_claim_0")), first, "claim_0")?;
+    let shared_r = first_var.r.clone();
+    let shared_r_values = first_var.r_values.clone();
+    base_claims.push(first_var);
+    for (idx, claim) in rest.iter().enumerate() {
+        base_claims.push(alloc_ce_claim_projection_surface_with_shared_r(
+            &mut cs.namespace(|| format!("{label}_claim_{}", idx + 1)),
+            claim,
+            &shared_r,
+            &shared_r_values,
+            &format!("claim_{}", idx + 1),
         )?);
-        let last = dst.last().unwrap().clone();
-        cs.enforce(
-            || format!("{label}_{idx}_c0_eq"),
-            |lc| lc + last.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc + value.c0,
-        );
-        dst.push(AllocatedNum::alloc(
-            cs.namespace(|| format!("{label}_{idx}_c1_copy")),
-            || Ok(native_value.c1),
-        )?);
-        let last = dst.last().unwrap().clone();
-        cs.enforce(
-            || format!("{label}_{idx}_c1_eq"),
-            |lc| lc + last.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc + value.c1,
-        );
     }
-    Ok(())
+    base_claims
+        .into_iter()
+        .map(|claim| Ok::<_, SynthesisError>(Rv64imRecursiveCoverClaimVar { claim }))
+        .collect()
 }
 
 pub(crate) fn recursive_accumulator_instance_digest_circuit_from_claims<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     claims: &[CeClaimVar],
-    _terminal_handle: &[AllocatedNum<SpartanF>; 4],
+    terminal_handle: &[AllocatedNum<SpartanF>; 4],
     label: &str,
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
     let mut preimage = alloc_const_field_values(
@@ -194,97 +164,91 @@ pub(crate) fn recursive_accumulator_instance_digest_circuit_from_claims<CS: Cons
         &[SpartanF::from_canonical_u64(claims.len() as u64)],
         &format!("{label}_claim_count"),
     )?);
+    preimage.extend(terminal_handle.iter().cloned());
     for (claim_index, claim) in claims.iter().enumerate() {
-        let mut claim_preimage = alloc_const_field_values(
-            &mut cs.namespace(|| format!("{label}_claim_domain_{claim_index}")),
-            &packed_bytes_field_values(b"neo/ccs/me_input_digest_poseidon/v2"),
-            &format!("{label}_claim_domain_{claim_index}"),
-        )?;
-        recursive_extend_f_slice_as_fields(
-            &mut cs.namespace(|| format!("{label}_claim_c_data_{claim_index}")),
-            &mut claim_preimage,
-            &claim.c_data,
-            &format!("{label}_claim_c_data_{claim_index}"),
-        )?;
-        recursive_extend_f_slice_as_fields(
-            &mut cs.namespace(|| format!("{label}_claim_x_{claim_index}")),
-            &mut claim_preimage,
-            &claim.x,
-            &format!("{label}_claim_x_{claim_index}"),
-        )?;
-        recursive_extend_k_slice_as_fields(
-            &mut cs.namespace(|| format!("{label}_claim_r_{claim_index}")),
-            &mut claim_preimage,
-            &claim.r,
-            &claim.r_values,
-            &format!("{label}_claim_r_{claim_index}"),
-        )?;
-        recursive_extend_k_slice_as_fields(
-            &mut cs.namespace(|| format!("{label}_claim_s_col_{claim_index}")),
-            &mut claim_preimage,
-            &claim.s_col,
-            &claim.s_col_values,
-            &format!("{label}_claim_s_col_{claim_index}"),
-        )?;
-        recursive_extend_k_slice_as_fields(
-            &mut cs.namespace(|| format!("{label}_claim_y_zcol_{claim_index}")),
-            &mut claim_preimage,
-            &claim.y_zcol,
-            &claim.y_zcol_values,
-            &format!("{label}_claim_y_zcol_{claim_index}"),
-        )?;
-        claim_preimage.extend(alloc_const_field_values(
-            &mut cs.namespace(|| format!("{label}_claim_y_ring_len_{claim_index}")),
-            &[SpartanF::from_canonical_u64(claim.y_ring.len() as u64)],
-            &format!("{label}_claim_y_ring_len_{claim_index}"),
-        )?);
-        for (row_idx, row) in claim.y_ring.iter().enumerate() {
-            recursive_extend_k_slice_as_fields(
-                &mut cs.namespace(|| format!("{label}_claim_y_ring_{claim_index}_{row_idx}")),
-                &mut claim_preimage,
-                row,
-                &claim.y_ring_values[row_idx],
-                &format!("{label}_claim_y_ring_{claim_index}_{row_idx}"),
-            )?;
-        }
-        recursive_extend_k_slice_as_fields(
-            &mut cs.namespace(|| format!("{label}_claim_ct_{claim_index}")),
-            &mut claim_preimage,
-            &claim.ct,
-            &claim.ct_values,
-            &format!("{label}_claim_ct_{claim_index}"),
-        )?;
-        recursive_extend_k_slice_as_fields(
-            &mut cs.namespace(|| format!("{label}_claim_aux_{claim_index}")),
-            &mut claim_preimage,
-            &claim.aux_openings,
-            &claim.aux_openings_values,
-            &format!("{label}_claim_aux_{claim_index}"),
-        )?;
-        recursive_extend_f_slice_as_fields(
-            &mut cs.namespace(|| format!("{label}_claim_c_step_coords_{claim_index}")),
-            &mut claim_preimage,
-            &claim.c_step_coords,
-            &format!("{label}_claim_c_step_coords_{claim_index}"),
-        )?;
-        claim_preimage.push(AllocatedNum::alloc(
-            cs.namespace(|| format!("{label}_claim_m_in_{claim_index}")),
-            || Ok(SpartanF::from_canonical_u64(claim.m_in as u64)),
-        )?);
-        claim_preimage.push(AllocatedNum::alloc(
-            cs.namespace(|| format!("{label}_claim_u_offset_{claim_index}")),
-            || Ok(SpartanF::from_canonical_u64(claim.u_offset as u64)),
-        )?);
-        claim_preimage.push(AllocatedNum::alloc(
-            cs.namespace(|| format!("{label}_claim_u_len_{claim_index}")),
-            || Ok(SpartanF::from_canonical_u64(claim.u_len as u64)),
-        )?);
-        claim_preimage.extend(claim.fold_digest_encoding.iter().cloned());
-        let claim_digest = hash_packed_goldilocks_fields(
-            cs.namespace(|| format!("{label}_claim_hash_{claim_index}")),
-            &claim_preimage,
+        let claim_digest = me_input_projection_digest_poseidon(
+            &mut cs.namespace(|| format!("{label}_claim_hash_{claim_index}")),
+            claim,
+            &format!("{label}_claim_hash_{claim_index}"),
         )?;
         preimage.extend(claim_digest.iter().cloned());
     }
     hash_packed_goldilocks_fields(cs.namespace(|| format!("{label}_hash")), &preimage)
+}
+
+pub(crate) fn recursive_accumulator_instance_digest_circuit_from_projection_digests<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim_projection_digests: &[[neo_math::F; 4]],
+    terminal_handle: &[AllocatedNum<SpartanF>; 4],
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    let mut preimage = alloc_const_field_values(
+        &mut cs.namespace(|| format!("{label}_domain")),
+        &packed_bytes_field_values(b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_instance/v2"),
+        &format!("{label}_domain"),
+    )?;
+    preimage.extend(alloc_const_field_values(
+        &mut cs.namespace(|| format!("{label}_claim_count")),
+        &[SpartanF::from_canonical_u64(claim_projection_digests.len() as u64)],
+        &format!("{label}_claim_count"),
+    )?);
+    preimage.extend(terminal_handle.iter().cloned());
+    for (claim_index, digest) in claim_projection_digests.iter().enumerate() {
+        let digest_vars = digest
+            .iter()
+            .enumerate()
+            .map(|(lane, value)| {
+                AllocatedNum::alloc(
+                    cs.namespace(|| format!("{label}_claim_digest_{claim_index}_{lane}")),
+                    || Ok(SpartanF::from_canonical_u64(value.as_canonical_u64())),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        preimage.extend(digest_vars);
+    }
+    hash_packed_goldilocks_fields(cs.namespace(|| format!("{label}_hash")), &preimage)
+}
+
+pub(crate) fn debug_measure_recursive_accumulator_instance_digest_circuit_from_projection_digests_aux(
+    cs: &mut FingerprintCS,
+    claim_projection_digests: &[[neo_math::F; 4]],
+    terminal_handle: &[AllocatedNum<SpartanF>; 4],
+    label: &str,
+) -> Result<Rv64imRecursiveAccumulatorProjectionDigestAuxBreakdown, SynthesisError> {
+    let mut preimage = alloc_const_field_values(
+        &mut cs.namespace(|| format!("{label}_domain")),
+        &packed_bytes_field_values(b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_instance/v2"),
+        &format!("{label}_domain"),
+    )?;
+    preimage.extend(alloc_const_field_values(
+        &mut cs.namespace(|| format!("{label}_claim_count")),
+        &[SpartanF::from_canonical_u64(claim_projection_digests.len() as u64)],
+        &format!("{label}_claim_count"),
+    )?);
+    preimage.extend(terminal_handle.iter().cloned());
+    let after_header = cs.num_aux();
+
+    let mut after_claim_digests = Vec::with_capacity(claim_projection_digests.len());
+    for (claim_index, digest) in claim_projection_digests.iter().enumerate() {
+        let digest_vars = digest
+            .iter()
+            .enumerate()
+            .map(|(lane, value)| {
+                AllocatedNum::alloc(
+                    cs.namespace(|| format!("{label}_claim_digest_{claim_index}_{lane}")),
+                    || Ok(SpartanF::from_canonical_u64(value.as_canonical_u64())),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        preimage.extend(digest_vars);
+        after_claim_digests.push(cs.num_aux());
+    }
+
+    let _ = hash_packed_goldilocks_fields(cs.namespace(|| format!("{label}_hash")), &preimage)?;
+    let after_outer_hash = cs.num_aux();
+    Ok(Rv64imRecursiveAccumulatorProjectionDigestAuxBreakdown {
+        after_header,
+        after_claim_digests,
+        after_outer_hash,
+    })
 }

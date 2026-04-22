@@ -116,6 +116,28 @@ fn side_aware_backend_relations_prefix_fixture(
     .expect("build side-aware recursive-step backend relations prefix")
 }
 
+fn tamper_state_out_claim_projection_shell(claim: &mut neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>) {
+    if claim.X.rows() > 1 && claim.X.cols() > 0 {
+        claim.X[(1, 0)] += F::ONE;
+    }
+    if let Some(first) = claim.s_col.first_mut() {
+        *first += K::ONE;
+    }
+    if let Some(first) = claim.ct.first_mut() {
+        *first += K::ONE;
+    }
+    if let Some(first) = claim.aux_openings.first_mut() {
+        *first += K::ONE;
+    }
+    if let Some(first) = claim.y_zcol.first_mut() {
+        *first += K::ONE;
+    }
+    if let Some(first) = claim.c_step_coords.first_mut() {
+        *first += F::ONE;
+    }
+    claim.fold_digest[0] ^= 1;
+}
+
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_recursion_step_spartan_multi_step_backend_relations_build() {
@@ -137,6 +159,25 @@ fn rv64im_main_recursion_step_spartan_embedded_body_ignores_payload_chunk_relati
 
     debug_check_rv64im_main_recursion_step_spartan_embedded_body(&spartan_shape, &tampered_relation).expect(
         "recursive-step embedded body must ignore the outer chunk theorem digest shell carried on the payload handoff",
+    );
+}
+
+#[test]
+fn rv64im_main_recursion_step_spartan_embedded_body_ignores_payload_state_out_claim_projection_shell() {
+    let (spartan_shape, backend_relations) = single_relation_backend_fixture();
+    let mut tampered_relation = backend_relations
+        .first()
+        .expect("first backend relation")
+        .clone();
+    let first_claim = tampered_relation
+        .payload
+        .state_out_claims
+        .first_mut()
+        .expect("state_out claim");
+    tamper_state_out_claim_projection_shell(first_claim);
+
+    debug_check_rv64im_main_recursion_step_spartan_embedded_body(&spartan_shape, &tampered_relation).expect(
+        "recursive-step embedded body must ignore non-authoritative state_out claim baggage outside the CE projection",
     );
 }
 

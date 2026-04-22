@@ -44,6 +44,24 @@ impl Rv64imMainRecursionFPrimePayload {
         self.step_shape.fresh_claim_count as usize
     }
 
+    pub(crate) fn padded_chunk_replay_surface(&self) -> Result<Rv64imMainCircuitChunkReplaySurface, SimpleKernelError> {
+        build_rv64im_main_circuit_chunk_replay_surface(
+            &self.handoff,
+            &self.fresh_claims[..self.cover_shape.fresh_claim_count as usize],
+            build_rv64im_main_circuit_pi_ccs_replay_surface(
+                self.pi_ccs.ccs_outputs[..self.cover_shape.ccs_output_count as usize].to_vec(),
+                self.pi_ccs.replay.clone(),
+                self.pi_ccs.public_challenges.clone(),
+                self.pi_ccs.row_chals.clone(),
+                self.pi_ccs.alpha_prime.clone(),
+                self.pi_ccs.s_col.clone(),
+                self.pi_ccs.alpha_prime_nc.clone(),
+            ),
+            self.pi_rlc.parent.clone(),
+            self.pi_dec.children[..self.cover_shape.child_count as usize].to_vec(),
+        )
+    }
+
     pub(crate) fn effective_chunk_replay_surface(
         &self,
     ) -> Result<Rv64imMainCircuitChunkReplaySurface, SimpleKernelError> {
@@ -80,11 +98,32 @@ impl Rv64imMainRecursionFPrimePayload {
             }
             round.truncate(*live_len as usize);
         }
+        let effective_fresh_claim_count = self.step_shape.fresh_claim_count as usize;
+        let padded_fresh_claim_count = self.cover_shape.fresh_claim_count as usize;
+        let effective_output_count = self.step_shape.ccs_output_count as usize;
+        let effective_me_output_count = effective_output_count
+            .checked_sub(effective_fresh_claim_count)
+            .ok_or_else(|| {
+                SimpleKernelError::Bridge(
+                    "RV64IM recursive-step payload effective CCS output count cannot be smaller than the active fresh-output count"
+                        .into(),
+                )
+            })?;
+        let mut effective_ccs_outputs = self.pi_ccs.ccs_outputs[..effective_fresh_claim_count].to_vec();
+        let effective_me_start = padded_fresh_claim_count;
+        let effective_me_end = effective_me_start + effective_me_output_count;
+        if self.pi_ccs.ccs_outputs.len() < effective_me_end {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM recursive-step payload cannot recover the effective ME-output suffix from the canonical padded CCS-output layout"
+                    .into(),
+            ));
+        }
+        effective_ccs_outputs.extend_from_slice(&self.pi_ccs.ccs_outputs[effective_me_start..effective_me_end]);
         build_rv64im_main_circuit_chunk_replay_surface(
             &self.handoff,
             &self.fresh_claims[..self.step_shape.fresh_claim_count as usize],
             build_rv64im_main_circuit_pi_ccs_replay_surface(
-                self.pi_ccs.ccs_outputs[..self.step_shape.ccs_output_count as usize].to_vec(),
+                effective_ccs_outputs,
                 replay,
                 self.pi_ccs.public_challenges.clone(),
                 self.pi_ccs.row_chals.clone(),

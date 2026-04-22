@@ -2,13 +2,21 @@
 
 use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
-use ff::Field;
 use neo_ccs::CcsStructure;
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use super::claim::CeClaimVar;
-use super::k_field::{alloc_constant_k, k_add, k_mul, k_scalar_mul, KNum, KNumVar};
+use super::k_field::{alloc_constant_k, k_add, k_mul, KNum, KNumVar};
+use super::terminal_common::{chi_table_var, dot_k_var_rows, pow_k_var};
+
+fn claim_has_zero_y_ring(claim: &CeClaimVar, t: usize) -> bool {
+    claim
+        .y_ring_values
+        .iter()
+        .take(t)
+        .all(|row| row.iter().all(|value| *value == K::ZERO))
+}
 
 pub fn claimed_initial_sum_from_me_inputs<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
@@ -19,6 +27,7 @@ pub fn claimed_initial_sum_from_me_inputs<CS: ConstraintSystem<SpartanF>>(
     gamma_value: K,
     k_mcs: usize,
     me_inputs: &[CeClaimVar],
+    zero_y_ring_suffix_len: usize,
     delta: SpartanF,
     label: &str,
 ) -> Result<(KNumVar, K), SynthesisError> {
@@ -37,6 +46,9 @@ pub fn claimed_initial_sum_from_me_inputs<CS: ConstraintSystem<SpartanF>>(
         let zero = alloc_constant_k(cs, KNum::from_neo_k(K::ZERO), &format!("{label}_zero"))?;
         return Ok((zero, K::ZERO));
     }
+    if zero_y_ring_suffix_len > me_inputs.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
 
     for (idx, claim) in me_inputs.iter().enumerate() {
         if claim.y_ring.len() < structure.t() {
@@ -52,259 +64,105 @@ pub fn claimed_initial_sum_from_me_inputs<CS: ConstraintSystem<SpartanF>>(
         }
     }
 
-    let (chi_alpha, chi_alpha_values) = chi_table(cs, alpha_vars, alpha_values, delta, &format!("{label}_chi_alpha"))?;
-    let (gamma_to_k, gamma_to_k_value) = pow_k(
-        cs,
+    let (chi_alpha, chi_alpha_values) = chi_table_var(
+        &mut cs.namespace(|| format!("{label}_chi_alpha")),
+        alpha_vars,
+        alpha_values,
+        delta,
+        &format!("{label}_chi_alpha"),
+    )?;
+    let (gamma_to_k, gamma_to_k_value) = pow_k_var(
+        &mut cs.namespace(|| format!("{label}_gamma_to_k")),
         gamma_var,
         gamma_value,
         k_total,
         delta,
         &format!("{label}_gamma_to_k"),
     )?;
+    let zero = alloc_constant_k(cs, KNum::from_neo_k(K::ZERO), &format!("{label}_acc_zero"))?;
+    let mut total = zero;
+    let mut total_value = K::ZERO;
+    let zero_suffix_start = me_inputs.len() - zero_y_ring_suffix_len;
 
-    let zero = alloc_constant_k(cs, KNum::from_neo_k(K::ZERO), &format!("{label}_inner_zero"))?;
-    let mut inner = zero;
-    let mut inner_value = K::ZERO;
     for matrix_idx in 0..structure.t() {
+        let (outer, outer_value) = pow_k_var(
+            &mut cs.namespace(|| format!("{label}_outer_{matrix_idx}")),
+            &gamma_to_k,
+            gamma_to_k_value,
+            matrix_idx,
+            delta,
+            &format!("{label}_outer_{matrix_idx}"),
+        )?;
         for (me_idx, claim) in me_inputs.iter().enumerate() {
+            if me_idx >= zero_suffix_start {
+                if !claim_has_zero_y_ring(claim, structure.t()) {
+                    return Err(SynthesisError::Unsatisfiable);
+                }
+                continue;
+            }
             let absolute_slot = k_mcs + me_idx + 1;
-            let (y_eval, y_eval_value) = dot_k_row(
-                cs,
-                &claim.y_ring[matrix_idx],
-                &claim.y_ring_values[matrix_idx],
+            let row_vars = &claim.y_ring[matrix_idx];
+            let row_values = &claim.y_ring_values[matrix_idx];
+            let (y_eval, y_eval_value) = dot_k_var_rows(
+                &mut cs.namespace(|| format!("{label}_row_eval_{matrix_idx}_{me_idx}")),
+                row_vars,
+                row_values,
                 &chi_alpha,
                 &chi_alpha_values,
                 delta,
-                &format!("{label}_y_eval_{matrix_idx}_{me_idx}"),
+                &format!("{label}_row_eval_{matrix_idx}_{me_idx}"),
             )?;
-            let (weight, weight_value) = weight_for_input(
-                cs,
+            let (gamma_abs, gamma_abs_value) = pow_k_var(
+                &mut cs.namespace(|| format!("{label}_gamma_abs_{matrix_idx}_{me_idx}")),
                 gamma_var,
                 gamma_value,
-                &gamma_to_k,
-                gamma_to_k_value,
                 absolute_slot - 1,
-                matrix_idx,
                 delta,
-                &format!("{label}_weight_{matrix_idx}_{me_idx}"),
+                &format!("{label}_gamma_abs_{matrix_idx}_{me_idx}"),
             )?;
-            let contrib_value = weight_value * y_eval_value;
+            let gamma_slot_value = gamma_to_k_value * gamma_abs_value;
+            let gamma_slot = k_mul(
+                &mut cs.namespace(|| format!("{label}_gamma_slot_{matrix_idx}_{me_idx}")),
+                &gamma_to_k,
+                &gamma_abs,
+                KNum::from_neo_k(gamma_to_k_value),
+                KNum::from_neo_k(gamma_abs_value),
+                KNum::from_neo_k(gamma_slot_value),
+                delta,
+                &format!("{label}_gamma_slot_{matrix_idx}_{me_idx}"),
+            )?;
+            let slot_weight_value = gamma_slot_value * outer_value;
+            let slot_weight = k_mul(
+                &mut cs.namespace(|| format!("{label}_slot_weight_{matrix_idx}_{me_idx}")),
+                &gamma_slot,
+                &outer,
+                KNum::from_neo_k(gamma_slot_value),
+                KNum::from_neo_k(outer_value),
+                KNum::from_neo_k(slot_weight_value),
+                delta,
+                &format!("{label}_slot_weight_{matrix_idx}_{me_idx}"),
+            )?;
+            let contrib_value = slot_weight_value * y_eval_value;
             let contrib = k_mul(
-                cs,
-                &weight,
+                &mut cs.namespace(|| format!("{label}_contrib_{matrix_idx}_{me_idx}")),
+                &slot_weight,
                 &y_eval,
-                KNum::from_neo_k(weight_value),
+                KNum::from_neo_k(slot_weight_value),
                 KNum::from_neo_k(y_eval_value),
                 KNum::from_neo_k(contrib_value),
                 delta,
                 &format!("{label}_contrib_{matrix_idx}_{me_idx}"),
             )?;
-            inner_value += contrib_value;
-            inner = k_add(
-                cs,
-                &inner,
+            total_value += contrib_value;
+            total = k_add(
+                &mut cs.namespace(|| format!("{label}_acc_{matrix_idx}_{me_idx}")),
+                &total,
                 &contrib,
-                Some(KNum::from_neo_k(inner_value)),
-                &format!("{label}_inner_acc_{matrix_idx}_{me_idx}"),
+                Some(KNum::from_neo_k(total_value)),
+                &format!("{label}_acc_{matrix_idx}_{me_idx}"),
             )?;
         }
     }
 
-    let total_value = gamma_to_k_value * inner_value;
-    let total = k_mul(
-        cs,
-        &gamma_to_k,
-        &inner,
-        KNum::from_neo_k(gamma_to_k_value),
-        KNum::from_neo_k(inner_value),
-        KNum::from_neo_k(total_value),
-        delta,
-        &format!("{label}_total"),
-    )?;
     Ok((total, total_value))
-}
-
-fn dot_k_row<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    row: &[KNumVar],
-    row_values: &[K],
-    chi: &[KNumVar],
-    chi_values: &[K],
-    delta: SpartanF,
-    label: &str,
-) -> Result<(KNumVar, K), SynthesisError> {
-    if row.len() != row_values.len() || row.len() != chi.len() || row.len() != chi_values.len() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    let zero = alloc_constant_k(cs, KNum::from_neo_k(K::ZERO), &format!("{label}_zero"))?;
-    let mut acc = zero;
-    let mut acc_value = K::ZERO;
-    for (idx, ((row_var, row_value), (chi_var, chi_value))) in row
-        .iter()
-        .zip(row_values.iter())
-        .zip(chi.iter().zip(chi_values.iter()))
-        .enumerate()
-    {
-        let term_value = *row_value * *chi_value;
-        let term = k_mul(
-            cs,
-            row_var,
-            chi_var,
-            KNum::from_neo_k(*row_value),
-            KNum::from_neo_k(*chi_value),
-            KNum::from_neo_k(term_value),
-            delta,
-            &format!("{label}_term_{idx}"),
-        )?;
-        acc_value += term_value;
-        acc = k_add(
-            cs,
-            &acc,
-            &term,
-            Some(KNum::from_neo_k(acc_value)),
-            &format!("{label}_acc_{idx}"),
-        )?;
-    }
-    Ok((acc, acc_value))
-}
-
-fn weight_for_input<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    gamma_var: &KNumVar,
-    gamma_value: K,
-    gamma_to_k: &KNumVar,
-    gamma_to_k_value: K,
-    gamma_prefix_exp: usize,
-    matrix_idx: usize,
-    delta: SpartanF,
-    label: &str,
-) -> Result<(KNumVar, K), SynthesisError> {
-    let (prefix, prefix_value) = pow_k(
-        cs,
-        gamma_var,
-        gamma_value,
-        gamma_prefix_exp,
-        delta,
-        &format!("{label}_prefix"),
-    )?;
-    let (outer, outer_value) = pow_k(
-        cs,
-        gamma_to_k,
-        gamma_to_k_value,
-        matrix_idx,
-        delta,
-        &format!("{label}_outer"),
-    )?;
-    let weight_value = prefix_value * outer_value;
-    let weight = k_mul(
-        cs,
-        &prefix,
-        &outer,
-        KNum::from_neo_k(prefix_value),
-        KNum::from_neo_k(outer_value),
-        KNum::from_neo_k(weight_value),
-        delta,
-        &format!("{label}_mul"),
-    )?;
-    Ok((weight, weight_value))
-}
-
-fn chi_table<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    point_vars: &[KNumVar],
-    point_values: &[K],
-    delta: SpartanF,
-    label: &str,
-) -> Result<(Vec<KNumVar>, Vec<K>), SynthesisError> {
-    if point_vars.len() != point_values.len() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    let one = alloc_constant_k(cs, KNum::from_neo_k(K::ONE), &format!("{label}_one"))?;
-    let mut out_vars = vec![one.clone()];
-    let mut out_values = vec![K::ONE];
-
-    for (bit, (bit_var, bit_value)) in point_vars.iter().zip(point_values.iter()).enumerate() {
-        let neg = k_scalar_mul(
-            cs,
-            -SpartanF::ONE,
-            bit_var,
-            Some(KNum::from_neo_k(-*bit_value)),
-            &format!("{label}_neg_{bit}"),
-        )?;
-        let one_minus_value = K::ONE - *bit_value;
-        let one_minus = k_add(
-            cs,
-            &one,
-            &neg,
-            Some(KNum::from_neo_k(one_minus_value)),
-            &format!("{label}_one_minus_{bit}"),
-        )?;
-
-        let prior_len = out_vars.len();
-        let mut next_vars = Vec::with_capacity(prior_len * 2);
-        let mut next_values = Vec::with_capacity(prior_len * 2);
-
-        for idx in 0..prior_len {
-            let next_value = out_values[idx] * one_minus_value;
-            let next_var = k_mul(
-                cs,
-                &out_vars[idx],
-                &one_minus,
-                KNum::from_neo_k(out_values[idx]),
-                KNum::from_neo_k(one_minus_value),
-                KNum::from_neo_k(next_value),
-                delta,
-                &format!("{label}_zero_branch_{bit}_{idx}"),
-            )?;
-            next_vars.push(next_var);
-            next_values.push(next_value);
-        }
-        for idx in 0..prior_len {
-            let next_value = out_values[idx] * *bit_value;
-            let next_var = k_mul(
-                cs,
-                &out_vars[idx],
-                bit_var,
-                KNum::from_neo_k(out_values[idx]),
-                KNum::from_neo_k(*bit_value),
-                KNum::from_neo_k(next_value),
-                delta,
-                &format!("{label}_one_branch_{bit}_{idx}"),
-            )?;
-            next_vars.push(next_var);
-            next_values.push(next_value);
-        }
-
-        out_vars = next_vars;
-        out_values = next_values;
-    }
-    Ok((out_vars, out_values))
-}
-
-fn pow_k<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    base_var: &KNumVar,
-    base_value: K,
-    exponent: usize,
-    delta: SpartanF,
-    label: &str,
-) -> Result<(KNumVar, K), SynthesisError> {
-    let one = alloc_constant_k(cs, KNum::from_neo_k(K::ONE), &format!("{label}_one"))?;
-    let mut acc = one;
-    let mut acc_value = K::ONE;
-    for idx in 0..exponent {
-        let next_acc_value = acc_value * base_value;
-        acc = k_mul(
-            cs,
-            &acc,
-            base_var,
-            KNum::from_neo_k(acc_value),
-            KNum::from_neo_k(base_value),
-            KNum::from_neo_k(next_acc_value),
-            delta,
-            &format!("{label}_step_{idx}"),
-        )?;
-        acc_value = next_acc_value;
-    }
-    Ok((acc, acc_value))
 }

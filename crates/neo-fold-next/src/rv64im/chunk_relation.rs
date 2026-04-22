@@ -16,6 +16,7 @@ use crate::chunk_relation::{
 use crate::finalize::fixed_shape_recursive_step_handle;
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, public_chunk_digest};
 use crate::proof::{Carry, ChunkInput, ChunkProvePerf};
+use crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot;
 use crate::rv64im::kernel::{
     prepared_step_digest, rv64im_ajtai_mixers, rv64im_public_chunk_digest, Rv64imChunkBridgeHandoff,
     Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
@@ -28,6 +29,7 @@ pub(crate) struct Rv64imChunkRelationTrace {
     pub chunk_relation_digest: [u8; 32],
     pub ccs_outputs: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>>,
     pub ccs_replay_proof: neo_reductions::optimized_engine::PiCcsReplayProofWitness,
+    pub pi_ccs_post_transcript: Rv64imChunkFoldTranscriptSnapshot,
     pub terminal_state: neo_reductions::optimized_engine::PiCcsReplayTerminalState,
     pub parent: neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>,
     pub children: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>>,
@@ -245,6 +247,10 @@ fn trace_into_rv64im(
         ),
         ccs_outputs: trace.ccs_outputs,
         ccs_replay_proof: trace.ccs_replay_proof,
+        pi_ccs_post_transcript: Rv64imChunkFoldTranscriptSnapshot {
+            state: trace.ccs_post_transcript_state,
+            absorbed: trace.ccs_post_transcript_absorbed,
+        },
         terminal_state: trace.terminal_state,
         parent: trace.parent,
         children: trace.children,

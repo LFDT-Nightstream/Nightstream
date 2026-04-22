@@ -119,7 +119,10 @@ fn rv64im_direct_prover_seam_matches_reconstructive_final_path() {
         [0; 32]
     );
     assert_eq!(
-        published_seam.main_proof.linkage_anchor_digest(),
+        published_seam
+            .main_proof
+            .published_statement()
+            .expected_digest(),
         statement.public_statement_digest
     );
 

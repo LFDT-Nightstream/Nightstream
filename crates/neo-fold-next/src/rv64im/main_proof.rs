@@ -17,13 +17,14 @@ use crate::rv64im::final_relation::{
     reconstruct_rv64im_final_statement_from_export_and_replay, rv64im_recursive_accumulator_instance_digest_from_parts,
     Rv64imChunkTransitionWitness, Rv64imFinalBuildProof, Rv64imFinalStatement, Rv64imRecursiveAccumulator,
 };
+use crate::rv64im::ivc::derive_rv64im_ivc_step_cap;
 use crate::rv64im::ivc::Rv64imIvcPublicImage;
 use crate::rv64im::ivc_snark::{
     prove_rv64im_ivc_snark_from_final_cached, Rv64imIvcSnark, Rv64imIvcSnarkProof, Rv64imIvcSnarkVerifierKey,
 };
 use crate::rv64im::kernel::{Rv64imKernelExportProof, SimpleKernelError};
 use crate::rv64im::main_recursion::{
-    build_rv64im_main_recursion_verifier_key_fs, Rv64imEncodedPublicInput, Rv64imVerifierKeyFs,
+    build_rv64im_main_recursion_verifier_key_fs_for_step_cap, Rv64imEncodedPublicInput, Rv64imVerifierKeyFs,
 };
 use crate::rv64im::recursion_spartan::build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs;
 
@@ -60,7 +61,6 @@ pub struct Rv64imMainFinalProofSurface {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rv64imCompressedMainProof {
-    linkage_anchor_digest: [u8; 32],
     published_statement: Rv64imPublishedStatement,
     ivc_snark: Rv64imIvcSnark,
 }
@@ -231,10 +231,19 @@ impl Rv64imAccumulatorPublicStatement {
         final_surface: &Rv64imMainFinalProofSurface,
         terminal_step_statement: Rv64imChunkStepIvcStatement,
     ) -> Result<Self, SimpleKernelError> {
-        let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
-        let accumulator_final = final_statement.folded.final_accumulator.clone();
         let fold_schedule = final_surface.fold_schedule();
         let step_count = final_surface.semantic_step_count();
+        let step_cap = derive_rv64im_ivc_step_cap(
+            fold_schedule,
+            usize::try_from(step_count).map_err(|_| {
+                SimpleKernelError::Bridge(
+                    "RV64IM published accumulator statement step_count does not fit into the native step-cap model"
+                        .into(),
+                )
+            })?,
+        )?;
+        let vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(step_cap)?;
+        let accumulator_final = final_statement.folded.final_accumulator.clone();
         let chunk_count = Self::expected_chunk_count_from_parts(fold_schedule, step_count)?;
         let x_last =
             build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(&vk_fs, chunk_count, &accumulator_final)?;
@@ -378,7 +387,15 @@ impl Rv64imAccumulatorPublicStatement {
     }
 
     pub fn validate(&self) -> Result<(), SimpleKernelError> {
-        let expected_vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
+        let expected_vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(derive_rv64im_ivc_step_cap(
+            self.fold_schedule,
+            usize::try_from(self.step_count).map_err(|_| {
+                SimpleKernelError::Bridge(
+                    "RV64IM published accumulator statement step_count does not fit into the native step-cap model"
+                        .into(),
+                )
+            })?,
+        )?)?;
         if self.vk_fs != expected_vk_fs {
             return Err(SimpleKernelError::Bridge(
                 "RV64IM published accumulator statement verifier key fs does not match the canonical recursion verifier key"
@@ -490,18 +507,9 @@ impl Rv64imCompressedMainProof {
             Rv64imAccumulatorPublicStatement::from_verified_final_seam(statement, proof, final_pc)?;
         let public_image = build_rv64im_ivc_public_image_from_published_statement(&published_statement)?;
         Ok(Self {
-            linkage_anchor_digest: statement.public_statement_digest,
             published_statement,
             ivc_snark: prove_rv64im_ivc_snark_from_final_cached(statement, proof, public_image)?,
         })
-    }
-
-    pub fn linkage_anchor_digest(&self) -> [u8; 32] {
-        self.linkage_anchor_digest
-    }
-
-    pub fn linkage_anchor_digest_mut(&mut self) -> &mut [u8; 32] {
-        &mut self.linkage_anchor_digest
     }
 
     pub fn published_statement(&self) -> &Rv64imPublishedStatement {
@@ -530,11 +538,7 @@ impl Rv64imCompressedMainProof {
 
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/compressed_main_proof");
-        tr.append_message(b"neo.fold.next/nightstream/rv64im/compressed_main_proof/version", b"v1");
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/compressed_main_proof/linkage_anchor_digest",
-            &self.linkage_anchor_digest,
-        );
+        tr.append_message(b"neo.fold.next/nightstream/rv64im/compressed_main_proof/version", b"v2");
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/compressed_main_proof/published_statement_digest",
             &self.published_statement.expected_digest(),
@@ -554,11 +558,7 @@ impl Rv64imCompressedMainProof {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding");
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/version",
-            b"v1",
-        );
-        tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/linkage_anchor_digest",
-            &self.linkage_anchor_digest,
+            b"v2",
         );
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/published_statement_digest",

@@ -40,7 +40,6 @@ struct TranscriptLane {
     terms: Vec<(Variable, SpartanF)>,
     constant: SpartanF,
     value: SpartanF,
-    allocated: Option<AllocatedNum<SpartanF>>,
 }
 
 impl TranscriptLane {
@@ -49,7 +48,6 @@ impl TranscriptLane {
             terms: vec![(value.get_variable(), SpartanF::ONE)],
             constant: SpartanF::ZERO,
             value: native,
-            allocated: Some(value),
         }
     }
 
@@ -58,7 +56,6 @@ impl TranscriptLane {
             terms: vec![(variable, SpartanF::ONE)],
             constant: SpartanF::ZERO,
             value: native,
-            allocated: None,
         }
     }
 
@@ -67,7 +64,6 @@ impl TranscriptLane {
             terms: compact_terms(terms),
             constant,
             value: native,
-            allocated: None,
         }
     }
 
@@ -76,7 +72,6 @@ impl TranscriptLane {
             terms: vec![],
             constant: native,
             value: native,
-            allocated: None,
         }
     }
 
@@ -96,7 +91,6 @@ impl TranscriptLane {
             terms,
             constant: self.constant + other.constant,
             value: self.value + other.value,
-            allocated: None,
         }
     }
 
@@ -109,13 +103,10 @@ impl TranscriptLane {
         res
     }
 
-    fn ensure_allocated<CS: ConstraintSystem<SpartanF>>(
-        &mut self,
+    fn allocate_canonical<CS: ConstraintSystem<SpartanF>>(
+        &self,
         mut cs: CS,
     ) -> Result<AllocatedNum<SpartanF>, SynthesisError> {
-        if let Some(alloc) = &self.allocated {
-            return Ok(alloc.clone());
-        }
         let out = AllocatedNum::alloc(cs.namespace(|| "alloc"), || Ok(self.value))?;
         cs.enforce(
             || "enforce_alloc",
@@ -123,9 +114,6 @@ impl TranscriptLane {
             |lc| lc + CS::one(),
             |_| self.lc::<CS>(),
         );
-        self.allocated = Some(out.clone());
-        self.terms = vec![(out.get_variable(), SpartanF::ONE)];
-        self.constant = SpartanF::ZERO;
         Ok(out)
     }
 }
@@ -237,7 +225,6 @@ fn combine_scaled_lanes(lanes: &[(&TranscriptLane, SpartanF)]) -> TranscriptLane
         terms: compact_terms(terms),
         constant,
         value,
-        allocated: None,
     }
 }
 
@@ -506,7 +493,9 @@ impl Poseidon2TranscriptCircuit {
             self.absorb_constant(cs.namespace(|| format!("challenge_gate_{}", out.len())), SpartanF::ONE)?;
             self.permute(cs.namespace(|| format!("challenge_permute_{}", out.len())))?;
             for i in 0..DIGEST_LEN.min(n - out.len()) {
-                out.push(self.state[i].ensure_allocated(cs.namespace(|| format!("chal_allocate_{}_{i}", out.len())))?);
+                out.push(
+                    self.state[i].allocate_canonical(cs.namespace(|| format!("chal_allocate_{}_{i}", out.len())))?,
+                );
             }
         }
         Ok(out)
@@ -523,7 +512,8 @@ impl Poseidon2TranscriptCircuit {
             self.permute(cs.namespace(|| format!("challenge_permute_{}", out.len())))?;
             for i in 0..DIGEST_LEN.min(n - out.len()) {
                 out.push(
-                    self.state[i].ensure_allocated(cs.namespace(|| format!("chal_allocate_raw_{}_{i}", out.len())))?,
+                    self.state[i]
+                        .allocate_canonical(cs.namespace(|| format!("chal_allocate_raw_{}_{i}", out.len())))?,
                 );
             }
         }
@@ -538,7 +528,7 @@ impl Poseidon2TranscriptCircuit {
         self.permute(cs.namespace(|| "digest_permute"))?;
         Ok(core::array::from_fn(|i| {
             self.state[i]
-                .ensure_allocated(cs.namespace(|| format!("digest_allocate_{i}")))
+                .allocate_canonical(cs.namespace(|| format!("digest_allocate_{i}")))
                 .expect("digest lanes must be allocated")
         }))
     }
@@ -553,7 +543,7 @@ impl Poseidon2TranscriptCircuit {
     ) -> Result<[AllocatedNum<SpartanF>; WIDTH], SynthesisError> {
         let mut out = Vec::with_capacity(WIDTH);
         for i in 0..WIDTH {
-            out.push(self.state[i].ensure_allocated(cs.namespace(|| format!("state_allocate_{i}")))?);
+            out.push(self.state[i].allocate_canonical(cs.namespace(|| format!("state_allocate_{i}")))?);
         }
         out.try_into().map_err(|_| SynthesisError::Unsatisfiable)
     }
@@ -719,6 +709,7 @@ impl Poseidon2TranscriptCircuit {
         self.absorbed = 0;
         Ok(())
     }
+
     fn state_is_constant(&self) -> bool {
         self.state.iter().all(TranscriptLane::is_constant)
     }
@@ -760,7 +751,7 @@ fn hash_lane_slice_raw<CS: ConstraintSystem<SpartanF>>(
 
     let mut out = Vec::with_capacity(DIGEST_LEN);
     for digest_idx in 0..DIGEST_LEN {
-        out.push(state[digest_idx].ensure_allocated(cs.namespace(|| format!("digest_{digest_idx}")))?);
+        out.push(state[digest_idx].allocate_canonical(cs.namespace(|| format!("digest_{digest_idx}")))?);
     }
     out.try_into().map_err(|_| SynthesisError::Unsatisfiable)
 }

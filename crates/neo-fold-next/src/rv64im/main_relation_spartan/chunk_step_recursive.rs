@@ -7,8 +7,10 @@ use neo_ajtai::Commitment;
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};
-use neo_reductions::engines::utils::me_digest_poseidon_into;
-use neo_reductions::optimized_engine::{Challenges, PiCcsReplayProofWitness};
+use neo_reductions::engines::utils::me_input_projection_digest_poseidon_into;
+use neo_reductions::optimized_engine::{
+    optimized_replay_trace_with_cache_and_instance_digest_and_perf, Challenges, PiCcsReplayProofWitness,
+};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
@@ -27,6 +29,7 @@ use crate::finalize::{digest32_as_fields, digest_fields_as_digest32};
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::build_rv64im_main_recursion_construction2_verified_step_statement_from_relation;
 use crate::rv64im::final_relation::{rv64im_chunk_fold_transcript_snapshot_digest, Rv64imChunkFoldTranscriptSnapshot};
+use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_backend_statement_from_advice, build_rv64im_main_recursion_f_prime_advices,
     Rv64imMainRecursionFPrimeAdvice,
@@ -34,7 +37,7 @@ use crate::rv64im::main_recursion::{
 use crate::rv64im::main_relation_trace::{
     build_rv64im_main_circuit_chunk_trace_from_authoritative_parts, Rv64imMainCircuitCcsClaimShape,
     Rv64imMainCircuitCcsWitnessShape, Rv64imMainCircuitCeClaimShape, Rv64imMainCircuitChunkCover,
-    Rv64imMainCircuitChunkTrace, Rv64imMainCircuitHandoff,
+    Rv64imMainCircuitChunkTrace, Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG,
 };
 use crate::rv64im::SimpleKernelError;
 
@@ -43,6 +46,7 @@ mod payload_methods;
 #[derive(Clone, Debug)]
 pub struct Rv64imMainRecursionFPrimePayload {
     pub(crate) boundary_plan: Rv64imChunkBoundaryPlan,
+    pub(crate) rlc_zero_commit_suffix_len: usize,
     pub step_shape: Rv64imChunkStepIvcShape,
     pub cover_shape: Rv64imChunkStepIvcShape,
     pub padding: Rv64imChunkStepIvcRecursiveStepPadding,
@@ -464,12 +468,13 @@ impl Rv64imMainRecursionFPrimeClaimCover {
 pub struct Rv64imMainRecursionStepSpartanShape {
     pub cover_shape: Rv64imChunkStepIvcShape,
     pub claim_cover: Rv64imMainRecursionFPrimeClaimCover,
+    pub rlc_zero_commit_suffix_len: u64,
 }
 
 impl Rv64imMainRecursionStepSpartanShape {
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_step_spartan_shape");
-        tr.append_message(b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/version", b"v1");
+        tr.append_message(b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/version", b"v2");
         tr.append_message(
             b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/cover_shape",
             &self.cover_shape.expected_digest(),
@@ -478,11 +483,16 @@ impl Rv64imMainRecursionStepSpartanShape {
             b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/claim_cover",
             &self.claim_cover.expected_digest(),
         );
+        tr.append_u64s(
+            b"neo.fold.next/rv64im/main_recursion_step_spartan_shape/rlc_zero_commit_suffix_len",
+            &[self.rlc_zero_commit_suffix_len],
+        );
         tr.digest32()
     }
 
     pub fn matches_payload(&self, payload: &Rv64imMainRecursionFPrimePayload) -> bool {
         payload.cover_shape == self.cover_shape
+            && payload.rlc_zero_commit_suffix_len as u64 == self.rlc_zero_commit_suffix_len
             && payload.matches_cover_shape()
             && self.claim_cover.matches_payload(payload)
     }
@@ -531,6 +541,28 @@ fn merge_claim_shape_cover(slots: &mut Vec<Rv64imCeClaimDigestShape>, claims: &[
     }
 }
 
+fn merge_claim_shape_cover_at_offset(
+    slots: &mut Vec<Rv64imCeClaimDigestShape>,
+    offset: usize,
+    claims: &[CeClaim<Commitment, F, K>],
+) -> Result<(), Rv64imChunkStepIvcSpartanError> {
+    for (idx, claim) in claims.iter().enumerate() {
+        let slot_idx = offset + idx;
+        let shape = Rv64imCeClaimDigestShape::from_claim(claim);
+        if let Some(existing) = slots.get_mut(slot_idx) {
+            *existing = existing.merge(&shape);
+        } else if slot_idx == slots.len() {
+            slots.push(shape);
+        } else {
+            return Err(Rv64imChunkStepIvcSpartanError::Prepare(
+                "rv64im recursive-step claim cover cannot place ME-input output shapes before the fresh-output cover is established"
+                    .into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn merge_ccs_claim_shape_cover(slots: &mut Vec<Rv64imCcsClaimShape>, claims: &[CcsClaim<Commitment, F>]) {
     for (idx, claim) in claims.iter().enumerate() {
         let shape = Rv64imCcsClaimShape::from_claim(claim);
@@ -571,7 +603,9 @@ pub fn build_rv64im_main_recursion_f_prime_claim_cover(
     for advice in advices {
         merge_claim_shape_cover(&mut state_in_claim_shapes, &advice.running_state().carry.main.claims);
         merge_claim_shape_cover(&mut state_out_claim_shapes, &advice.fresh_state_out().carry.main.claims);
-        let chunk_trace = advice.main_circuit_chunk_trace();
+        let chunk_trace = advice
+            .main_circuit_chunk_trace()
+            .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
         merge_ccs_claim_shape_cover(&mut fresh_claim_shapes, &chunk_trace.fresh_claims);
         merge_ccs_witness_shape_cover(&mut fresh_witness_shapes, &chunk_trace.fresh_witnesses);
         let trace_parent_shape = Rv64imCeClaimDigestShape::from_claim(&chunk_trace.ccs_trace.parent);
@@ -579,8 +613,37 @@ pub fn build_rv64im_main_recursion_f_prime_claim_cover(
             Some(existing) => existing.merge(&trace_parent_shape),
             None => trace_parent_shape,
         });
-        merge_claim_shape_cover(&mut ccs_output_shapes, &chunk_trace.ccs_trace.ccs_outputs);
+        if chunk_trace.ccs_trace.ccs_outputs.len() < chunk_trace.fresh_claims.len() {
+            return Err(Rv64imChunkStepIvcSpartanError::Prepare(
+                "rv64im recursive-step claim cover requires CCS outputs to contain the active fresh-output prefix"
+                    .into(),
+            ));
+        }
+        merge_claim_shape_cover(
+            &mut ccs_output_shapes,
+            &chunk_trace.ccs_trace.ccs_outputs[..chunk_trace.fresh_claims.len()],
+        );
         merge_claim_shape_cover(&mut child_claim_shapes, &chunk_trace.ccs_trace.children);
+    }
+    for advice in advices {
+        let chunk_trace = advice
+            .main_circuit_chunk_trace()
+            .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
+        let step_cap = advice
+            .verifier_key_fs()
+            .step_cap()
+            .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
+        if ccs_output_shapes.len() < step_cap {
+            return Err(Rv64imChunkStepIvcSpartanError::Prepare(
+                "rv64im recursive-step claim cover requires at least one full-width chunk to establish the fresh-output cover"
+                    .into(),
+            ));
+        }
+        merge_claim_shape_cover_at_offset(
+            &mut ccs_output_shapes,
+            step_cap,
+            &chunk_trace.ccs_trace.ccs_outputs[chunk_trace.fresh_claims.len()..],
+        )?;
     }
     Ok(Rv64imMainRecursionFPrimeClaimCover {
         state_in_claim_shapes,
@@ -625,7 +688,7 @@ pub(crate) fn rv64im_chunk_step_recursive_carry_state_digest(
     }
     let claim_digests = canonical_claims
         .iter()
-        .map(|claim| me_digest_poseidon_into(&mut scratch, claim))
+        .map(|claim| me_input_projection_digest_poseidon_into(&mut scratch, claim))
         .collect::<Vec<_>>();
 
     let mut preimage = Vec::with_capacity(32 + claim_digests.len() * 4);
@@ -795,6 +858,101 @@ fn build_padded_state_claims(
     Ok(out)
 }
 
+fn build_canonical_padded_ccs_outputs(
+    outputs: &[CeClaim<Commitment, F, K>],
+    effective_fresh_claim_count: usize,
+    cover_fresh_claim_count: usize,
+    cover_shapes: &[Rv64imCeClaimDigestShape],
+) -> Result<Vec<CeClaim<Commitment, F, K>>, Rv64imChunkStepIvcSpartanError> {
+    if outputs.len() < effective_fresh_claim_count {
+        return Err(Rv64imChunkStepIvcSpartanError::Prepare(
+            "rv64im recursive-step payload cannot canonicalize CCS outputs when the active fresh-output prefix is missing"
+                .into(),
+        ));
+    }
+    if cover_shapes.len() < cover_fresh_claim_count {
+        return Err(Rv64imChunkStepIvcSpartanError::Prepare(
+            "rv64im recursive-step payload cannot canonicalize CCS outputs into a shorter fresh-output cover".into(),
+        ));
+    }
+
+    let effective_me_output_count = outputs.len() - effective_fresh_claim_count;
+    let mut out = Vec::with_capacity(cover_shapes.len());
+    for (slot_idx, shape) in cover_shapes.iter().enumerate() {
+        let source = if slot_idx < cover_fresh_claim_count {
+            if slot_idx < effective_fresh_claim_count {
+                outputs.get(slot_idx)
+            } else {
+                None
+            }
+        } else {
+            let me_idx = slot_idx - cover_fresh_claim_count;
+            outputs.get(effective_fresh_claim_count + me_idx)
+        };
+        let source = source.cloned().unwrap_or_else(|| shape.zero_claim());
+        out.push(pad_ce_claim_to_digest_shape(&source, shape)?);
+    }
+
+    let expected_cover_len = cover_fresh_claim_count + effective_me_output_count;
+    if out.len() < expected_cover_len {
+        return Err(Rv64imChunkStepIvcSpartanError::Prepare(
+            "rv64im recursive-step payload canonical CCS outputs underfilled the expected fresh/me-input cover".into(),
+        ));
+    }
+    Ok(out)
+}
+
+fn append_recursive_step_public_chunk_meta(transcript: &mut Poseidon2Transcript, handoff: &Rv64imMainCircuitHandoff) {
+    transcript.append_fields_raw(&[
+        F::from_u64(CHUNK_META_RAW_TAG),
+        F::from_u64(handoff.public_chunk.start_index as u64),
+        F::from_u64(handoff.public_chunk.steps.len() as u64),
+    ]);
+}
+
+fn rebuild_padded_pi_ccs_payload(
+    advice: &Rv64imMainRecursionFPrimeAdvice,
+    handoff: &Rv64imMainCircuitHandoff,
+    fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+) -> Result<Rv64imMainRecursionFPrimePiCcsPayload, Rv64imChunkStepIvcSpartanError> {
+    let (params, log, structure) = rv64im_cached_root_main_lane_context()
+        .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
+    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()
+        .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
+    let mut transcript = Poseidon2Transcript::from_state_and_absorbed(
+        advice.running_state().transcript.state,
+        advice.running_state().transcript.absorbed,
+    );
+    append_recursive_step_public_chunk_meta(&mut transcript, handoff);
+    let (terminal_state, replay) = optimized_replay_trace_with_cache_and_instance_digest_and_perf(
+        &mut transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        &advice.running_state().carry.main.claims,
+        &advice.running_state().carry.main.witnesses,
+        handoff.public_chunk_instance_digest,
+        log,
+        &optimized_cache,
+    )
+    .map_err(|err| {
+        Rv64imChunkStepIvcSpartanError::Prepare(format!(
+            "rv64im recursive-step padded Pi_CCS replay rebuild failed: {err}"
+        ))
+    })?;
+    Ok(Rv64imMainRecursionFPrimePiCcsPayload {
+        ccs_outputs: terminal_state.me_outputs,
+        replay,
+        public_challenges: terminal_state.challenges_public,
+        row_chals: terminal_state.row_chals,
+        alpha_prime: terminal_state.alpha_prime,
+        s_col: terminal_state.s_col,
+        alpha_prime_nc: terminal_state.alpha_prime_nc,
+    })
+}
+
 fn build_padded_ce_claims(
     claims: &[CeClaim<Commitment, F, K>],
     cover_shapes: &[Rv64imCeClaimDigestShape],
@@ -901,20 +1059,22 @@ fn pad_rounds(rounds: &[Vec<K>], cover_round_lengths: &[u64]) -> Result<Vec<Vec<
 
 pub fn build_rv64im_main_recursion_f_prime_payload(
     advice: &Rv64imMainRecursionFPrimeAdvice,
-    cover_shape: &Rv64imChunkStepIvcShape,
-    claim_cover: &Rv64imMainRecursionFPrimeClaimCover,
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
 ) -> Result<Rv64imMainRecursionFPrimePayload, Rv64imChunkStepIvcSpartanError> {
-    build_rv64im_main_recursion_f_prime_payload_with_trace(advice, cover_shape, claim_cover, None)
+    build_rv64im_main_recursion_f_prime_payload_with_trace(advice, spartan_shape, None)
 }
 
 fn build_rv64im_main_recursion_f_prime_payload_with_trace(
     advice: &Rv64imMainRecursionFPrimeAdvice,
-    cover_shape: &Rv64imChunkStepIvcShape,
-    claim_cover: &Rv64imMainRecursionFPrimeClaimCover,
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imMainRecursionFPrimePayload, Rv64imChunkStepIvcSpartanError> {
     let total_started = Instant::now();
-    let chunk_trace = advice.main_circuit_chunk_trace();
+    let chunk_trace = advice
+        .main_circuit_chunk_trace()
+        .map_err(|err| Rv64imChunkStepIvcSpartanError::Prepare(err.to_string()))?;
+    let cover_shape = &spartan_shape.cover_shape;
+    let claim_cover = &spartan_shape.claim_cover;
     let started = Instant::now();
     if claim_cover.state_in_claim_shapes.len() != cover_shape.state_in_claim_count as usize {
         return Err(Rv64imChunkStepIvcSpartanError::Prepare(
@@ -975,13 +1135,49 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
         build_padded_ccs_witnesses(&chunk_trace.fresh_witnesses, &claim_cover.fresh_witness_shapes)?
     };
     emit_debug_timing(trace_prefix, "fresh_witnesses", elapsed_ms(started));
+    let active_fresh_claim_count = advice.verified_kernel_handoff().public_chunk.steps.len();
+    let cover_fresh_claim_count = cover_shape.fresh_claim_count as usize;
+    let rebuild_padded_pi_ccs = active_fresh_claim_count < cover_fresh_claim_count;
     let started = Instant::now();
-    let ccs_outputs = if chunk_trace.ccs_trace.ccs_outputs.is_empty() && cover_shape.ccs_output_count == 0 {
-        Vec::new()
+    let pi_ccs = if rebuild_padded_pi_ccs {
+        rebuild_padded_pi_ccs_payload(advice, &chunk_trace.handoff, &fresh_claims, &fresh_witnesses)?
     } else {
-        build_padded_state_claims(&chunk_trace.ccs_trace.ccs_outputs, &claim_cover.ccs_output_shapes)?
+        let ccs_outputs = if chunk_trace.ccs_trace.ccs_outputs.is_empty() && cover_shape.ccs_output_count == 0 {
+            Vec::new()
+        } else {
+            build_canonical_padded_ccs_outputs(
+                &chunk_trace.ccs_trace.ccs_outputs,
+                active_fresh_claim_count,
+                cover_fresh_claim_count,
+                &claim_cover.ccs_output_shapes,
+            )?
+        };
+        let fe_rounds = pad_rounds(
+            &chunk_trace.ccs_trace.ccs_replay_proof.sumcheck_rounds,
+            &cover_shape.fe_round_lengths,
+        )?;
+        let nc_rounds = pad_rounds(
+            &chunk_trace.ccs_trace.ccs_replay_proof.sumcheck_rounds_nc,
+            &cover_shape.nc_round_lengths,
+        )?;
+        let mut replay = chunk_trace.ccs_trace.ccs_replay_proof.clone();
+        replay.sumcheck_rounds = fe_rounds;
+        replay.sumcheck_rounds_nc = nc_rounds;
+        Rv64imMainRecursionFPrimePiCcsPayload {
+            ccs_outputs,
+            replay,
+            public_challenges: chunk_trace
+                .ccs_trace
+                .terminal_state
+                .challenges_public
+                .clone(),
+            row_chals: chunk_trace.ccs_trace.terminal_state.row_chals.clone(),
+            alpha_prime: chunk_trace.ccs_trace.terminal_state.alpha_prime.clone(),
+            s_col: chunk_trace.ccs_trace.terminal_state.s_col.clone(),
+            alpha_prime_nc: chunk_trace.ccs_trace.terminal_state.alpha_prime_nc.clone(),
+        }
     };
-    emit_debug_timing(trace_prefix, "ccs_outputs", elapsed_ms(started));
+    emit_debug_timing(trace_prefix, "pi_ccs_payload", elapsed_ms(started));
     let started = Instant::now();
     let parent = pad_ce_claim_to_digest_shape(&chunk_trace.ccs_trace.parent, &claim_cover.parent_claim_shape)?;
     emit_debug_timing(trace_prefix, "parent", elapsed_ms(started));
@@ -994,33 +1190,6 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
     emit_debug_timing(trace_prefix, "children", elapsed_ms(started));
 
     let started = Instant::now();
-    let fe_rounds = pad_rounds(
-        &chunk_trace.ccs_trace.ccs_replay_proof.sumcheck_rounds,
-        &cover_shape.fe_round_lengths,
-    )?;
-    let nc_rounds = pad_rounds(
-        &chunk_trace.ccs_trace.ccs_replay_proof.sumcheck_rounds_nc,
-        &cover_shape.nc_round_lengths,
-    )?;
-    emit_debug_timing(trace_prefix, "replay_rounds", elapsed_ms(started));
-
-    let started = Instant::now();
-    let mut replay = chunk_trace.ccs_trace.ccs_replay_proof.clone();
-    replay.sumcheck_rounds = fe_rounds;
-    replay.sumcheck_rounds_nc = nc_rounds;
-    let pi_ccs = Rv64imMainRecursionFPrimePiCcsPayload {
-        ccs_outputs,
-        replay,
-        public_challenges: chunk_trace
-            .ccs_trace
-            .terminal_state
-            .challenges_public
-            .clone(),
-        row_chals: chunk_trace.ccs_trace.terminal_state.row_chals.clone(),
-        alpha_prime: chunk_trace.ccs_trace.terminal_state.alpha_prime.clone(),
-        s_col: chunk_trace.ccs_trace.terminal_state.s_col.clone(),
-        alpha_prime_nc: chunk_trace.ccs_trace.terminal_state.alpha_prime_nc.clone(),
-    };
     let pi_rlc = Rv64imMainRecursionFPrimePiRlcPayload { parent };
     let pi_dec = Rv64imMainRecursionFPrimePiDecPayload { children };
 
@@ -1072,6 +1241,8 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
         child_claim_source: Rv64imChunkChildClaimSource::ReplayedChildren,
         next_carry_mode: Rv64imChunkNextCarryMode::ReplaceWithEffectiveChildren,
         rlc_mode: Rv64imChunkRlcMode::Standard {
+            // Fixed-shape F' cannot bake witness-derived child c/x values into
+            // R1CS coefficients. Keep Π_RLC on the uniform variable path here.
             constant_child_prefix: 0,
         },
     };
@@ -1083,6 +1254,7 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
     let started = Instant::now();
     let mut payload = Rv64imMainRecursionFPrimePayload {
         boundary_plan,
+        rlc_zero_commit_suffix_len: spartan_shape.rlc_zero_commit_suffix_len as usize,
         step_shape: provisional_step_shape.clone(),
         cover_shape: cover_shape.clone(),
         padding: build_rv64im_chunk_step_ivc_recursive_step_padding_from_shape(&provisional_step_shape, cover_shape)?,
@@ -1170,9 +1342,7 @@ pub fn build_rv64im_main_recursion_f_prime_payloads(
 ) -> Result<Vec<Rv64imMainRecursionFPrimePayload>, Rv64imChunkStepIvcSpartanError> {
     advices
         .iter()
-        .map(|advice| {
-            build_rv64im_main_recursion_f_prime_payload(advice, &spartan_shape.cover_shape, &spartan_shape.claim_cover)
-        })
+        .map(|advice| build_rv64im_main_recursion_f_prime_payload(advice, spartan_shape))
         .collect()
 }
 
@@ -1190,9 +1360,23 @@ pub fn build_rv64im_main_recursion_step_spartan_shape_from_advices(
 ) -> Result<Rv64imMainRecursionStepSpartanShape, Rv64imChunkStepIvcSpartanError> {
     let cover_shape = build_rv64im_chunk_step_ivc_recursive_step_cover_shape(relations)?;
     let claim_cover = build_rv64im_main_recursion_f_prime_claim_cover(&advices)?;
+    let rlc_zero_commit_suffix_len = if advices.len() == 1
+        && advices[0]
+            .running_state()
+            .carry
+            .main
+            .claims
+            .iter()
+            .all(|claim| claim.c.data.iter().all(|value| *value == F::ZERO))
+    {
+        advices[0].running_state().carry.main.claims.len() as u64
+    } else {
+        0
+    };
     Ok(Rv64imMainRecursionStepSpartanShape {
         cover_shape,
         claim_cover,
+        rlc_zero_commit_suffix_len,
     })
 }
 
@@ -1298,8 +1482,7 @@ pub fn build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_
         let payload_started = Instant::now();
         let payload = build_rv64im_main_recursion_f_prime_payload_with_trace(
             advice,
-            &spartan_shape.cover_shape,
-            &spartan_shape.claim_cover,
+            &spartan_shape,
             payload_trace_prefix.as_deref(),
         )
         .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
@@ -1400,7 +1583,7 @@ fn ccs_witness_matches(left: &CcsWitness<F>, right: &CcsWitness<F>) -> bool {
 pub fn debug_check_rv64im_chunk_step_recursive_effective_chunk_trace_matches_native(
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<(), SimpleKernelError> {
-    let native_trace = backend_relation.f_prime_advice.main_circuit_chunk_trace();
+    let native_trace = backend_relation.f_prime_advice.main_circuit_chunk_trace()?;
     let effective_replay_surface = backend_relation.payload.effective_chunk_replay_surface()?;
     let native_replay_surface = native_trace.replay_surface()?;
 

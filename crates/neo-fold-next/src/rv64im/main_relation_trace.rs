@@ -34,7 +34,6 @@ use crate::rv64im::kernel::{
 use crate::rv64im::main_relation_circuit::structure::pad_ccs_structure_to_block_width;
 
 pub(crate) const CHUNK_META_RAW_TAG: u64 = 14;
-pub(crate) const STEP_INDEX_RAW_TAG: u64 = 15;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Rv64imMainCircuitHandoff {
@@ -588,18 +587,11 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
 }
 
 fn append_chunk_meta_native(transcript: &mut Poseidon2Transcript, public_chunk: &PublicChunk) {
-    if public_chunk.steps.len() == 1 {
-        transcript.append_fields_raw(&[
-            F::from_u64(STEP_INDEX_RAW_TAG),
-            F::from_u64(public_chunk.start_index as u64),
-        ]);
-    } else {
-        transcript.append_fields_raw(&[
-            F::from_u64(CHUNK_META_RAW_TAG),
-            F::from_u64(public_chunk.start_index as u64),
-            F::from_u64(public_chunk.steps.len() as u64),
-        ]);
-    }
+    transcript.append_fields_raw(&[
+        F::from_u64(CHUNK_META_RAW_TAG),
+        F::from_u64(public_chunk.start_index as u64),
+        F::from_u64(public_chunk.steps.len() as u64),
+    ]);
 }
 
 fn check_output_binding_native(
@@ -1023,8 +1015,10 @@ fn check_pi_ccs_terminal_state_native(
         || live.sumcheck_final_nc != replayed.sumcheck_final_nc
         || live.fold_digest != replayed.fold_digest
     {
+        let detail =
+            describe_pi_ccs_terminal_state_mismatch(live, replayed).unwrap_or_else(|| "unknown mismatch".into());
         return Err(SimpleKernelError::Bridge(format!(
-            "RV64IM main relation chunk {chunk_index} Pi_CCS terminal replay drifted from the verified chunk trace"
+            "RV64IM main relation chunk {chunk_index} Pi_CCS terminal replay drifted from the verified chunk trace: {detail}"
         )));
     }
     Ok(())

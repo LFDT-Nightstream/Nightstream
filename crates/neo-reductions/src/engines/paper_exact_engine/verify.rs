@@ -201,7 +201,6 @@ pub fn paper_exact_verify(
         }
     }
 
-    crate::engines::utils::validate_ct_constant_term(s, params, me_outputs)?;
     // MCS-derived outputs must expose X consistent with public x.
     crate::engines::utils::validate_mcs_output_x_recomposition(params, s.m, mcs_list, me_outputs)?;
 

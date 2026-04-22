@@ -22,6 +22,7 @@ pub const RV64IM_RECURSION_SHAPE_SOUNDNESS_BIG_K: u32 = 1;
 pub const RV64IM_RECURSION_B: u8 = 2;
 pub const RV64IM_RECURSION_SHAPE_DECOMPOSITION_K: u8 = 14;
 pub const RV64IM_RECURSION_SOUNDNESS_T: u32 = 216;
+pub const RV64IM_RECURSION_DEFAULT_STEP_CAP: u32 = 1;
 
 const RV64IM_STAGE1_PHASE0_SLOT_COUNT: u32 = 4;
 const RV64IM_SINGLETON_PHASE0_SLOT_COUNT: u32 = 1;
@@ -44,6 +45,7 @@ pub const RV64IM_RECURSION_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct RecursionShape {
+    pub step_cap: u32,
     pub soundness_k: u32,
     pub soundness_big_k: u32,
     pub t_matrices: u32,
@@ -60,6 +62,7 @@ pub struct RecursionShape {
 
 impl Hash for RecursionShape {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        self.step_cap.hash(state);
         self.soundness_k.hash(state);
         self.soundness_big_k.hash(state);
         self.t_matrices.hash(state);
@@ -88,6 +91,7 @@ impl RecursionShape {
             &[
                 self.version.major as u64,
                 self.version.minor as u64,
+                self.step_cap as u64,
                 self.soundness_k as u64,
                 self.soundness_big_k as u64,
                 self.t_matrices as u64,
@@ -158,6 +162,17 @@ pub enum ShapeError {
 }
 
 pub fn build_rv64im_recursion_shape() -> Result<RecursionShape, SimpleKernelError> {
+    build_rv64im_recursion_shape_for_step_cap(RV64IM_RECURSION_DEFAULT_STEP_CAP as usize)
+}
+
+pub fn build_rv64im_recursion_shape_for_step_cap(step_cap: usize) -> Result<RecursionShape, SimpleKernelError> {
+    let step_cap = u32::try_from(step_cap)
+        .map_err(|_| SimpleKernelError::Build("RV64IM recursion shape step_cap overflowed u32".into()))?;
+    if step_cap == 0 {
+        return Err(SimpleKernelError::Build(
+            "RV64IM recursion shape step_cap must be at least one public step".into(),
+        ));
+    }
     let (params, _, structure) = rv64im_cached_root_main_lane_context()?;
     let dims = build_dims_and_policy(params, structure)
         .map_err(|err| SimpleKernelError::Build(format!("RV64IM recursion shape dims failed: {err}")))?;
@@ -168,6 +183,7 @@ pub fn build_rv64im_recursion_shape() -> Result<RecursionShape, SimpleKernelErro
         .collect::<BTreeMap<_, _>>();
 
     let shape = RecursionShape {
+        step_cap,
         soundness_k: RV64IM_RECURSION_SHAPE_SOUNDNESS_K,
         soundness_big_k: RV64IM_RECURSION_SHAPE_SOUNDNESS_BIG_K,
         t_matrices: structure.t() as u32,

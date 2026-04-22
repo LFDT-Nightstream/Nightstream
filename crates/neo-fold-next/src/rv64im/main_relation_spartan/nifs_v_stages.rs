@@ -19,7 +19,9 @@ pub(super) struct Rv64imChunkNifsVerifierCtx<'a> {
     pub(super) cover_chunk: &'a Rv64imMainCircuitChunkCover,
     pub(super) chunk: &'a Rv64imMainCircuitChunkReplaySurface,
     pub(super) logical_me_input_claims: Option<&'a [neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
+    pub(super) logical_me_input_digests: Option<&'a [[F; 4]]>,
     pub(super) boundary_plan: Rv64imChunkBoundaryPlan,
+    pub(super) rlc_zero_commit_suffix_len: usize,
 }
 
 pub(super) struct Rv64imPiCcsStageOutput {
@@ -59,7 +61,9 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
     logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
+    logical_me_input_digests: Option<&[[F; 4]]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
+    rlc_zero_commit_suffix_len: usize,
     absorb_synthetic_chunk_relation_io: bool,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imChunkNifsVerifierBodyOutput, SynthesisError> {
@@ -86,7 +90,9 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
         cover_chunk,
         chunk,
         logical_me_input_claims,
+        logical_me_input_digests,
         boundary_plan,
+        rlc_zero_commit_suffix_len,
     };
     let started = Instant::now();
     let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, trace_prefix)?;
@@ -128,7 +134,9 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
     logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
+    logical_me_input_digests: Option<&[[F; 4]]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
+    rlc_zero_commit_suffix_len: usize,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imClaimBundle, SynthesisError> {
     Ok(synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
@@ -144,7 +152,9 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
         transcript,
         carried_claims,
         logical_me_input_claims,
+        logical_me_input_digests,
         boundary_plan,
+        rlc_zero_commit_suffix_len,
         true,
         trace_prefix,
     )?
@@ -176,7 +186,14 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
     )?;
     emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_header", started);
     let started = Instant::now();
-    if let Some(logical_me_input_claims) = ctx.logical_me_input_claims {
+    if let Some(logical_me_input_digests) = ctx.logical_me_input_digests {
+        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_projection_digests(
+            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+            transcript,
+            logical_me_input_digests,
+            trace_prefix,
+        )?;
+    } else if let Some(logical_me_input_claims) = ctx.logical_me_input_claims {
         crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_native_claims(
             &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
             transcript,
@@ -194,15 +211,24 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
     }
     emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_me_inputs", started);
     let started = Instant::now();
-    let public_challenges = sample_challenges(
+    let public_challenges = crate::rv64im::main_relation_circuit::pi_ccs::sample_challenges_with_native(
         &mut cs.namespace(|| format!("chunk_{}_sample_challenges", ctx.chunk_index)),
         transcript,
         ctx.dims,
+        &ctx.chunk.pi_ccs.public_challenges,
+        &format!("chunk_{}_sample_challenges", ctx.chunk_index),
     )?;
     emit_nifs_stage_trace(trace_prefix, "pi_ccs.sample_challenges", started);
 
     let started = Instant::now();
-    let effective_fresh_claim_count = ctx.chunk.fresh_claims.len();
+    let active_fresh_claim_count = ctx.chunk.handoff.public_chunk.steps.len();
+    let cover_fresh_claim_count = ctx.cover_chunk.fresh_claim_count as usize;
+    if active_fresh_claim_count > ctx.chunk.fresh_claims.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    if cover_fresh_claim_count > ctx.cover_chunk.fresh_claim_shapes.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
     let covered_fresh_claims = ctx
         .cover_chunk
         .fresh_claim_shapes
@@ -210,8 +236,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         .enumerate()
         .map(|(claim_index, shape)| cover_ccs_claim(shape, ctx.chunk.fresh_claims.get(claim_index)))
         .collect::<Result<Vec<_>, _>>()?;
-    let effective_fresh_claims = covered_fresh_claims[..effective_fresh_claim_count].to_vec();
-    let effective_fresh_claim_vars = effective_fresh_claims
+    let covered_fresh_claim_vars = covered_fresh_claims
         .iter()
         .enumerate()
         .map(|(fresh_index, fresh)| {
@@ -231,8 +256,9 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &ctx.chunk.pi_ccs.public_challenges.alpha,
         &public_challenges.gamma,
         ctx.chunk.pi_ccs.public_challenges.gamma,
-        effective_fresh_claim_count,
+        cover_fresh_claim_count,
         carried_claims.effective_claims(),
+        ctx.rlc_zero_commit_suffix_len,
         rv64im_main_relation_delta(),
         &format!("chunk_{}_initial_sum_fe", ctx.chunk_index),
     )?;
@@ -337,25 +363,53 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
 
     let started = Instant::now();
     let effective_output_count = ctx.chunk.pi_ccs.ccs_outputs.len();
+    let constant_child_prefix = match ctx.boundary_plan.rlc_mode {
+        Rv64imChunkRlcMode::Standard { constant_child_prefix } => constant_child_prefix,
+        Rv64imChunkRlcMode::TerminalLastChunkShortcut => 0,
+    };
     let mut padded_ccs_outputs = Vec::with_capacity(ctx.cover_chunk.ccs_output_shapes.len());
     for (output_index, shape) in ctx.cover_chunk.ccs_output_shapes.iter().enumerate() {
         let effective_claim = ctx.chunk.pi_ccs.ccs_outputs.get(output_index);
-        let output = if output_index < effective_fresh_claim_count {
+        let output = if output_index < active_fresh_claim_count {
             let claim = cover_ce_claim_with_shared_point(
                 shape,
                 effective_claim,
                 &ctx.chunk.pi_ccs.row_chals,
                 &ctx.chunk.pi_ccs.s_col,
             )?;
-            alloc_ce_claim_public_surface_with_shared_point(
-                &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
-                &claim,
-                &r_prime_vars,
-                &ctx.chunk.pi_ccs.row_chals,
-                &s_col_prime_vars,
-                &ctx.chunk.pi_ccs.s_col,
-                &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
-            )?
+            if output_index < constant_child_prefix {
+                let fresh = covered_fresh_claims
+                    .get(output_index)
+                    .ok_or(SynthesisError::Unsatisfiable)?;
+                let fresh_x_values =
+                    crate::rv64im::main_relation_circuit::output_binding::embedded_fresh_x_values(fresh);
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_without_f_surface_with_shared_point(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &fresh.c.data,
+                    &fresh_x_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )?
+            } else {
+                let fresh = covered_fresh_claim_vars
+                    .get(output_index)
+                    .ok_or(SynthesisError::Unsatisfiable)?;
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &fresh.c_data,
+                    &fresh.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )?
+            }
         } else if output_index < effective_output_count {
             let claim = cover_ce_claim_with_shared_point(
                 shape,
@@ -363,17 +417,42 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
                 &ctx.chunk.pi_ccs.row_chals,
                 &ctx.chunk.pi_ccs.s_col,
             )?;
-            alloc_ce_claim_public_surface_with_shared_point(
-                &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
-                &claim,
-                &r_prime_vars,
-                &ctx.chunk.pi_ccs.row_chals,
-                &s_col_prime_vars,
-                &ctx.chunk.pi_ccs.s_col,
-                &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
-            )?
+            let me_input_index = output_index
+                .checked_sub(cover_fresh_claim_count)
+                .ok_or(SynthesisError::Unsatisfiable)?;
+            let me_input = carried_claims
+                .effective_claims()
+                .get(me_input_index)
+                .ok_or(SynthesisError::Unsatisfiable)?;
+            if output_index < constant_child_prefix {
+                let me_input_x_values =
+                    crate::rv64im::main_relation_circuit::output_binding::embedded_me_input_x_values(me_input)?;
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_without_f_surface_with_shared_point(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data_values,
+                    &me_input_x_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )?
+            } else {
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
+                    &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
+                    &claim,
+                    &me_input.c_data,
+                    &me_input.c_data_values,
+                    &r_prime_vars,
+                    &ctx.chunk.pi_ccs.row_chals,
+                    &s_col_prime_vars,
+                    &ctx.chunk.pi_ccs.s_col,
+                    &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
+                )?
+            }
         } else {
-            let mut padded_claim = ctx.cover_chunk.parent_claim_shape.zero_claim();
+            let mut padded_claim = shape.zero_claim();
             padded_claim.r = ctx.chunk.pi_ccs.row_chals.clone();
             padded_claim.s_col = ctx.chunk.pi_ccs.s_col.clone();
             alloc_ce_claim_public_surface_with_shared_point(
@@ -388,14 +467,14 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         };
         padded_ccs_outputs.push(output);
     }
-    let ccs_outputs = padded_ccs_outputs[..effective_output_count].to_vec();
+    let ccs_outputs = padded_ccs_outputs.clone();
     emit_nifs_stage_trace(trace_prefix, "pi_ccs.alloc_outputs", started);
     let started = Instant::now();
     enforce_me_outputs_against_inputs(
         &mut cs.namespace(|| format!("chunk_{}_output_binding", ctx.chunk_index)),
         ctx.structure,
         ctx.params,
-        &effective_fresh_claim_vars,
+        &covered_fresh_claim_vars,
         carried_claims.effective_claims(),
         &ccs_outputs,
         &r_prime_vars,
@@ -413,6 +492,18 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         .effective_claims()
         .first()
         .map(|claim| claim.r_values.as_slice());
+    let effective_me_output_count = effective_output_count
+        .checked_sub(cover_fresh_claim_count)
+        .ok_or(SynthesisError::Unsatisfiable)?;
+    let effective_terminal_outputs = padded_ccs_outputs[..cover_fresh_claim_count]
+        .iter()
+        .cloned()
+        .chain(
+            padded_ccs_outputs[cover_fresh_claim_count..cover_fresh_claim_count + effective_me_output_count]
+                .iter()
+                .cloned(),
+        )
+        .collect::<Vec<_>>();
     let started = Instant::now();
     let _ = enforce_terminal_identity_fe(
         &mut cs.namespace(|| format!("chunk_{}_terminal_fe", ctx.chunk_index)),
@@ -427,8 +518,9 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &ctx.chunk.pi_ccs.row_chals,
         &alpha_prime_vars,
         &ctx.chunk.pi_ccs.alpha_prime,
-        &ccs_outputs,
-        effective_fresh_claim_count,
+        &effective_terminal_outputs,
+        cover_fresh_claim_count,
+        ctx.rlc_zero_commit_suffix_len,
         me_inputs_r_vars,
         me_inputs_r_values,
         rv64im_main_relation_delta(),
@@ -448,7 +540,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         &ctx.chunk.pi_ccs.s_col,
         &alpha_prime_nc_vars,
         &ctx.chunk.pi_ccs.alpha_prime_nc,
-        &ccs_outputs,
+        &effective_terminal_outputs,
         rv64im_main_relation_delta(),
         &format!("chunk_{}_terminal_nc", ctx.chunk_index),
     )?;
@@ -556,23 +648,12 @@ pub(super) fn synthesize_pi_rlc_stage<CS: ConstraintSystem<SpartanF>>(
         Rv64imChunkChildClaimSource::ReplayedChildren => &ctx.chunk.pi_dec.children,
         Rv64imChunkChildClaimSource::TerminalFinalClaims => ctx.terminal_final_claims,
     };
-    let padded_rho_count = pi_ccs
-        .padded_ccs_outputs
-        .len()
-        .saturating_sub(pi_ccs.effective_output_count);
-    let mut rho_vars = sample_goldilocks_rot_rhos(
+    let rho_vars = sample_goldilocks_rot_rhos(
         &mut cs.namespace(|| format!("chunk_{}_rlc_rhos", ctx.chunk_index)),
         transcript,
-        pi_ccs.effective_output_count,
+        pi_ccs.padded_ccs_outputs.len(),
         &format!("chunk_{}_rlc_rhos", ctx.chunk_index),
     )?;
-    if padded_rho_count > 0 {
-        rho_vars.extend(alloc_zero_rot_rhos(
-            &mut cs.namespace(|| format!("chunk_{}_rlc_rhos_pad", ctx.chunk_index)),
-            padded_rho_count,
-            &format!("chunk_{}_rlc_rhos_pad", ctx.chunk_index),
-        )?);
-    }
     match ctx.boundary_plan.rlc_mode {
         Rv64imChunkRlcMode::TerminalLastChunkShortcut => {
             enforce_rlc_dec_public_with_rho_coeffs_for_last_chunk(
@@ -586,26 +667,30 @@ pub(super) fn synthesize_pi_rlc_stage<CS: ConstraintSystem<SpartanF>>(
             )?;
         }
         Rv64imChunkRlcMode::Standard { constant_child_prefix } => {
-            let mut rho_mats = materialize_goldilocks_rot_matrices(
-                &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
-                &rho_vars[..pi_ccs.effective_output_count],
-                &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
-            )?;
-            if padded_rho_count > 0 {
-                rho_mats.extend(alloc_zero_rot_rho_matrices(
-                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats_pad", ctx.chunk_index)),
-                    padded_rho_count,
-                    &format!("chunk_{}_rlc_rho_mats_pad", ctx.chunk_index),
-                )?);
+            if constant_child_prefix == pi_ccs.padded_ccs_outputs.len() {
+                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_rho_coeffs_for_constant_children(
+                    &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
+                    &parent_claim,
+                    &pi_ccs.padded_ccs_outputs,
+                    &rho_vars,
+                    &format!("chunk_{}_rlc_public", ctx.chunk_index),
+                )?;
+            } else {
+                let rho_mats = materialize_goldilocks_rot_matrices(
+                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
+                    &rho_vars,
+                    &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
+                )?;
+                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_rho_vars_constant_prefix_zero_commit_suffix(
+                    &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
+                    &parent_claim,
+                    &pi_ccs.padded_ccs_outputs,
+                    &rho_mats,
+                    constant_child_prefix,
+                    ctx.rlc_zero_commit_suffix_len,
+                    &format!("chunk_{}_rlc_public", ctx.chunk_index),
+                )?;
             }
-            enforce_rlc_public_with_rho_vars_constant_prefix(
-                &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
-                &parent_claim,
-                &pi_ccs.padded_ccs_outputs,
-                &rho_mats,
-                constant_child_prefix,
-                &format!("chunk_{}_rlc_public", ctx.chunk_index),
-            )?;
         }
     }
 

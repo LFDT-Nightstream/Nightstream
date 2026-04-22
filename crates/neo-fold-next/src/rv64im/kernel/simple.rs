@@ -87,9 +87,10 @@ pub(super) const SIMPLE_KERNEL_PP_SEED: [u8; 32] = [
     0x40, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
-// Keep the live RV64IM family on the conservative fixed parameter while the
-// accepted-artifact bound is still being characterized.
-pub(super) const SIMPLE_KERNEL_K_RHO: u32 = 48;
+// The live RV64IM family needs the wider DEC range on the current accepted
+// artifact: smaller `k_rho` pins overflow the carried split witness during the
+// native kernel replay.
+pub(super) const SIMPLE_KERNEL_K_RHO: u32 = 16;
 pub(super) const SIMPLE_KERNEL_B: u64 = 1u64 << SIMPLE_KERNEL_K_RHO;
 // Ajtai public parameters are global per dimension bucket, so exact stage surfaces share one seed.
 pub(super) const EXACT_STAGE_PP_SEED: [u8; 32] = SIMPLE_KERNEL_PP_SEED;

@@ -360,10 +360,35 @@ pub fn me_digest_poseidon(me: &CeClaim<Cmt, F, K>) -> [F; 4] {
     me_digest_poseidon_into(&mut digest_input, me)
 }
 
+pub fn me_input_projection_digest_poseidon_into(dst: &mut Vec<F>, me: &CeClaim<Cmt, F, K>) -> [F; 4] {
+    dst.clear();
+    dst.reserve(2048);
+    extend_packed_bytes_as_fields(dst, b"neo/ccs/me_input_projection_digest_poseidon/v2");
+
+    extend_f_slice(dst, &me.c.data);
+    dst.push(F::from_u64(me.m_in as u64));
+    for col in 0..me.m_in {
+        dst.push(me.X[(col % me.X.rows(), col)]);
+    }
+    extend_k_slice(dst, &me.r);
+
+    dst.push(F::from_u64(me.y_ring.len() as u64));
+    for row in &me.y_ring {
+        extend_k_slice(dst, row);
+    }
+
+    poseidon_digest_fields(dst)
+}
+
+pub fn me_input_projection_digest_poseidon(me: &CeClaim<Cmt, F, K>) -> [F; 4] {
+    let mut digest_input = Vec::<F>::with_capacity(2048);
+    me_input_projection_digest_poseidon_into(&mut digest_input, me)
+}
+
 pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F, K>]) -> Result<(), PiCcsError> {
-    // v7: bind each ME input via a compact domain-separated Poseidon2 digest, then stream the
-    // fixed-width digest field limbs into the transcript in one batch.
-    // Encoding update: K-coefficient width is encoded once per K-slice (not per K element).
+    // Bind the paper-faithful CE input projection `(c, x, r, y)` for each carried ME input.
+    // Split-NC transport fields and replay metadata are not part of the recursive Π_CCS input
+    // relation and therefore must not inflate the carried input surface.
     tr.append_fields_raw(&[F::from_u64(PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG)]);
     tr.append_fields_raw(&[
         F::from_u64(PI_CCS_ME_COUNT_RAW_TAG),
@@ -378,12 +403,21 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F,
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let digests: Vec<[F; 4]> = if allow_parallel && me_inputs.len() >= 8 {
         use rayon::prelude::*;
-        me_inputs.par_iter().map(me_digest_poseidon).collect()
+        me_inputs
+            .par_iter()
+            .map(me_input_projection_digest_poseidon)
+            .collect()
     } else {
-        me_inputs.iter().map(me_digest_poseidon).collect()
+        me_inputs
+            .iter()
+            .map(me_input_projection_digest_poseidon)
+            .collect()
     };
     #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
-    let digests: Vec<[F; 4]> = me_inputs.iter().map(me_digest_poseidon).collect();
+    let digests: Vec<[F; 4]> = me_inputs
+        .iter()
+        .map(me_input_projection_digest_poseidon)
+        .collect();
 
     let mut packed = Vec::with_capacity(1 + digests.len() * 4);
     packed.push(F::from_u64(PI_CCS_ME_DIGEST_RAW_TAG));
@@ -632,7 +666,6 @@ where
         }
     }
 
-    validate_ct_constant_term(s, params, me_outputs)?;
     validate_mcs_output_x_recomposition(params, s.m, mcs_list, me_outputs)?;
     Ok(())
 }

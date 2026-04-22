@@ -21,6 +21,7 @@ use crate::rv64im::nifs::{
 use crate::rv64im::recursion_spartan::build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs;
 use crate::rv64im::SimpleKernelError;
 use neo_ccs::{check_ccs_rowwise_zero, check_ce_consistency, CeWitness};
+use neo_math::F;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -54,10 +55,21 @@ pub use crate::rv64im::main_relation_spartan::{
     debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
     debug_check_rv64im_main_recursion_x_out_gadget_parity,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_tail_aux_counts,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_tail_digest_aux_breakdown,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakdown,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_breakdown,
+    debug_measure_rv64im_main_recursion_step_pi_rlc_public_constraint_breakdown,
+    debug_measure_rv64im_main_recursion_step_pi_rlc_public_stage_breakdown,
     debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_commitment_key,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
+    debug_measure_rv64im_main_recursion_step_stage_aux_counts,
     debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
     debug_trace_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
     debug_trace_rv64im_main_recursion_step_fingerprint_synthesize,
@@ -68,9 +80,13 @@ pub use crate::rv64im::main_relation_spartan::{
     Rv64imCeClaimDigestShape, Rv64imChunkStepIvcShape, Rv64imMainRecursionFPrimeBackendRelation,
     Rv64imMainRecursionFPrimeBackendRelationBuildPerf, Rv64imMainRecursionFPrimeClaimCover,
     Rv64imMainRecursionFPrimePayload, Rv64imMainRecursionStepAuthoritativeChunkSurface,
-    Rv64imMainRecursionStepSpartanCircuitShape, Rv64imMainRecursionStepSpartanError,
-    Rv64imMainRecursionStepSpartanPublishedTarget, Rv64imMainRecursionStepSpartanShape,
-    Rv64imMainRecursionStepSpartanStatement,
+    Rv64imMainRecursionStepChunkReplayAuxCounts, Rv64imMainRecursionStepChunkReplayTailAuxCounts,
+    Rv64imMainRecursionStepChunkReplayTailDigestAuxBreakdown, Rv64imMainRecursionStepSpartanCircuitShape,
+    Rv64imMainRecursionStepSpartanError, Rv64imMainRecursionStepSpartanPublishedTarget,
+    Rv64imMainRecursionStepSpartanShape, Rv64imMainRecursionStepSpartanStatement,
+    Rv64imMainRecursionStepStageAuxCounts, Rv64imNamedConstraintDelta, Rv64imPiCcsBindMeInputsAuxBreakdown,
+    Rv64imPiCcsStageAuxCounts, Rv64imPiCcsStageConstraintCounts, Rv64imPiCcsStageFingerprint,
+    Rv64imPiCcsSumcheckConstraintBreakdown, Rv64imPiRlcPublicConstraintBreakdown, Rv64imPiRlcPublicStageBreakdown,
 };
 pub fn debug_trace_rv64im_main_recursion_construction2_default_pair_for_full_width(
     vk_fs: &crate::rv64im::main_recursion::Rv64imVerifierKeyFs,
@@ -665,7 +681,12 @@ pub fn rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word(
     child_index: usize,
 ) {
     advice
-        .construction2_pi_fold_mut()
-        .tamper_dec_child_commitment_first_word(child_index)
-        .expect("valid Construction-2 DEC child index");
+        .fresh_state_out_mut()
+        .carry
+        .main
+        .claims
+        .get_mut(child_index)
+        .expect("valid Construction-2 DEC child index")
+        .c
+        .data[0] += F::ONE;
 }

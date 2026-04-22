@@ -6,31 +6,55 @@ use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
 use crate::chunk_relation::ChunkReplayWitness;
+use crate::proof::FoldSchedule;
 use crate::rv64im::chunk_fold_step::verify_rv64im_chunk_fold_verifier_step;
 use crate::rv64im::chunk_step_ivc::{
     rv64im_chunk_step_ivc_initial_state, validate_rv64im_chunk_step_ivc_surface, Rv64imChunkStepIvcRelation,
     Rv64imChunkStepIvcStatement, Rv64imChunkStepIvcWitness,
 };
 use crate::rv64im::construction2::{
-    build_rv64im_main_recursion_construction2_pi_fold_from_relation,
-    build_rv64im_main_recursion_construction2_verified_step_statement_from_relation,
+    build_rv64im_main_recursion_construction2_pi_fold_from_replay_witness,
+    build_rv64im_main_recursion_construction2_verified_step_statement_from_summary,
     Rv64imMainRecursionConstruction2FreshInstance,
 };
 use crate::rv64im::f_prime::{
-    build_rv64im_main_recursion_verifier_key_fs, evaluate_rv64im_main_recursion_f_prime_advice,
+    build_rv64im_main_recursion_verifier_key_fs_for_step_cap, evaluate_rv64im_main_recursion_f_prime_advice,
     rv64im_main_recursion_x_out, Rv64imEncodedPublicInput, Rv64imMainRecursionFPrimeAdvice, Rv64imMainRecursionPhiSide,
-    RV64IM_MAIN_RECURSION_TRIVIAL_PC,
+    Rv64imVerifierKeyFs, RV64IM_MAIN_RECURSION_TRIVIAL_PC,
 };
 use crate::rv64im::final_relation::{rv64im_chunk_fold_carry_recursive_accumulator_digest, Rv64imChunkFoldState};
 use crate::rv64im::kernel::{
     rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache,
     Rv64imVerifiedKernelChunkHandoff,
 };
-use crate::rv64im::main_relation_trace::build_rv64im_main_circuit_chunk_trace_from_authoritative_parts;
 use crate::rv64im::SimpleKernelError;
 
 fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
+}
+
+pub fn derive_rv64im_ivc_step_cap(
+    fold_schedule: FoldSchedule,
+    semantic_step_count: usize,
+) -> Result<usize, SimpleKernelError> {
+    match fold_schedule {
+        FoldSchedule::RowsPerChunk(rows) => {
+            if rows == 0 {
+                return Err(SimpleKernelError::Bridge(
+                    "RV64IM native IVC step_cap cannot be derived from RowsPerChunk(0)".into(),
+                ));
+            }
+            Ok(rows)
+        }
+        FoldSchedule::WholeTrace => {
+            if semantic_step_count == 0 {
+                return Err(SimpleKernelError::Bridge(
+                    "RV64IM native IVC WholeTrace step_cap requires at least one semantic step".into(),
+                ));
+            }
+            Ok(semantic_step_count)
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -111,6 +135,7 @@ impl Rv64imIvcPublicImage {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rv64imIvcState {
+    step_cap: u64,
     vk_fs_digest: [u8; 32],
     z_0: [u8; 32],
     z_i: [u8; 32],
@@ -118,6 +143,7 @@ pub struct Rv64imIvcState {
     chunk_count: u64,
     step_count: u64,
     phi_side: Rv64imMainRecursionPhiSide,
+    folded_accumulator_digest: [u8; 32],
     x_i: Rv64imEncodedPublicInput,
     construction2_u_i: Rv64imMainRecursionConstruction2FreshInstance,
     running_state: Rv64imChunkFoldState,
@@ -134,12 +160,22 @@ struct Rv64imIvcStepRecord {
 }
 
 impl Rv64imIvcState {
-    pub fn init() -> Result<Self, SimpleKernelError> {
-        Self::init_with_phi_side(Rv64imMainRecursionPhiSide::zero())
+    pub fn init_with_step_cap(step_cap: usize) -> Result<Self, SimpleKernelError> {
+        Self::init_with_step_cap_and_phi_side(step_cap, Rv64imMainRecursionPhiSide::zero())
     }
 
-    pub fn init_with_phi_side(phi_side: Rv64imMainRecursionPhiSide) -> Result<Self, SimpleKernelError> {
-        let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
+    pub fn init_with_step_cap_and_phi_side(
+        step_cap: usize,
+        phi_side: Rv64imMainRecursionPhiSide,
+    ) -> Result<Self, SimpleKernelError> {
+        let step_cap = u64::try_from(step_cap)
+            .map_err(|_| SimpleKernelError::Bridge("RV64IM native IVC step_cap overflowed u64".into()))?;
+        if step_cap == 0 {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM native IVC step_cap must be at least one public step".into(),
+            ));
+        }
+        let vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(step_cap as usize)?;
         let running_state = rv64im_chunk_step_ivc_initial_state();
         let z_0 = running_state.carry.terminal_handle.0;
         let folded_accumulator_digest = rv64im_chunk_fold_carry_recursive_accumulator_digest(&running_state.carry);
@@ -155,6 +191,7 @@ impl Rv64imIvcState {
             crate::rv64im::build_rv64im_main_recursion_construction2_canonical_full_width(&vk_fs, &phi_side)?;
         let default_pair = crate::rv64im::build_rv64im_main_recursion_construction2_default_pair(&vk_fs, full_width)?;
         Ok(Self {
+            step_cap,
             vk_fs_digest: vk_fs.expected_digest(),
             z_0,
             z_i: z_0,
@@ -162,6 +199,7 @@ impl Rv64imIvcState {
             chunk_count: 0,
             step_count: 0,
             phi_side,
+            folded_accumulator_digest,
             x_i,
             construction2_u_i: default_pair.u_perp().clone(),
             running_state,
@@ -181,7 +219,7 @@ impl Rv64imIvcState {
         let mut perf = Rv64imIvcAppendPerf::default();
 
         let started = Instant::now();
-        self.validate_surface()?;
+        let (vk_fs, folded_accumulator_in_digest) = self.append_surface()?;
         perf.validate_state_surface_ms = elapsed_ms(started);
 
         let started = Instant::now();
@@ -193,34 +231,26 @@ impl Rv64imIvcState {
         perf.validate_next_relation_surface_ms = elapsed_ms(started);
 
         let started = Instant::now();
-        let native_verified_step_statement =
-            build_rv64im_main_recursion_construction2_verified_step_statement_from_relation(relation)?;
-        perf.verified_step_statement_ms = elapsed_ms(started);
-
-        let started = Instant::now();
-        let main_circuit_chunk_summary = native_verified_step_statement.fixed_shape_chunk_summary()?;
+        let main_circuit_chunk_summary = relation.statement.chunk_summary.clone();
         perf.fixed_shape_chunk_summary_ms = elapsed_ms(started);
 
         let started = Instant::now();
-        let main_circuit_chunk_trace = build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(
-            relation.witness.handoff.bridge_handoff.chunk_index as usize,
-            &relation.witness.handoff,
-            &main_circuit_chunk_summary,
-            &self.running_state.carry,
-            &relation.witness.state_out.carry,
-            &self.running_state.transcript,
-            &relation.witness.state_out.transcript,
-            &relation.witness.replay_witness,
-        )?;
-        perf.main_circuit_trace_ms = elapsed_ms(started);
+        let native_verified_step_statement =
+            build_rv64im_main_recursion_construction2_verified_step_statement_from_summary(
+                relation.witness.handoff.bridge_handoff.chunk_index,
+                &main_circuit_chunk_summary,
+                &relation.witness.state_in,
+                &relation.witness.state_out,
+            );
+        perf.verified_step_statement_ms = elapsed_ms(started);
 
         let started = Instant::now();
-        let construction2_pi_fold = build_rv64im_main_recursion_construction2_pi_fold_from_relation(relation)?;
+        let construction2_pi_fold =
+            build_rv64im_main_recursion_construction2_pi_fold_from_replay_witness(&relation.witness.replay_witness);
         perf.construction2_pi_fold_ms = elapsed_ms(started);
 
         let started = Instant::now();
-        let vk_fs = self.canonical_vk_fs()?;
-        let advice = Rv64imMainRecursionFPrimeAdvice::from_parts(
+        let advice = Rv64imMainRecursionFPrimeAdvice::from_parts_with_folded_accumulator_in_digest(
             vk_fs,
             self.chunk_count,
             self.z_0,
@@ -229,19 +259,20 @@ impl Rv64imIvcState {
             crate::rv64im::Rv64imMainRecursionSideLaneWitness::zero(),
             self.phi_side.clone(),
             self.running_state.clone(),
+            folded_accumulator_in_digest,
             self.x_i.clone(),
             Some(self.construction2_u_i.clone()),
             native_verified_step_statement,
             relation.witness.terminal_step,
             relation.witness.handoff.clone(),
             relation.witness.state_out.clone(),
-            main_circuit_chunk_trace,
+            relation.witness.replay_witness.clone(),
             construction2_pi_fold,
         )?;
         perf.advice_build_ms = elapsed_ms(started);
 
         let started = Instant::now();
-        let step_image = evaluate_rv64im_main_recursion_f_prime_advice(&advice)?;
+        let step_image = evaluate_rv64im_main_recursion_f_prime_advice(&advice)?.into_parts();
         perf.evaluate_f_prime_ms = elapsed_ms(started);
 
         let started = Instant::now();
@@ -255,16 +286,18 @@ impl Rv64imIvcState {
             ));
         }
         let next = Self {
+            step_cap: self.step_cap,
             vk_fs_digest: self.vk_fs_digest,
             z_0: self.z_0,
-            z_i: *step_image.z_next(),
-            pc: step_image.pc_next(),
-            chunk_count: step_image.chunk_count(),
+            z_i: step_image.z_next,
+            pc: step_image.pc_next,
+            chunk_count: step_image.chunk_count,
             step_count: next_step_count,
-            phi_side: step_image.phi_side().clone(),
-            x_i: step_image.x_out().clone(),
-            construction2_u_i: step_image.construction2_u_next().clone(),
-            running_state: step_image.running_out_state().clone(),
+            phi_side: step_image.phi_side,
+            folded_accumulator_digest: step_image.folded_accumulator_digest,
+            x_i: step_image.x_out,
+            construction2_u_i: step_image.construction2_u_next,
+            running_state: step_image.next_state,
             last_step: Some(Rv64imIvcStepRecord {
                 statement: relation.statement.clone(),
                 handoff: relation.witness.handoff.clone(),
@@ -292,27 +325,15 @@ impl Rv64imIvcState {
 
         if let Some(last_step) = self.last_step.as_ref() {
             let started = Instant::now();
-            let relation = self.build_terminal_relation()?;
+            let witness = Rv64imChunkStepIvcWitness {
+                handoff: last_step.handoff.clone(),
+                state_in: last_step.state_in.clone(),
+                state_out: self.running_state.clone(),
+                replay_witness: last_step.replay_witness.clone(),
+                terminal_step: last_step.terminal_step,
+            };
+            validate_rv64im_chunk_step_ivc_surface(&last_step.statement, &witness)?;
             perf.build_terminal_relation_ms = elapsed_ms(started);
-
-            if relation.statement != last_step.statement {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM IVC latest relation drifted from the carried terminal statement".into(),
-                ));
-            }
-
-            let started = Instant::now();
-            let native_verified_step_statement =
-                build_rv64im_main_recursion_construction2_verified_step_statement_from_relation(&relation)?;
-            perf.verified_step_statement_ms = elapsed_ms(started);
-
-            if native_verified_step_statement.chunk_relation_digest
-                != relation.statement.chunk_summary.chunk_relation_digest
-            {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM IVC latest relation digest does not match the native verified-step statement".into(),
-                ));
-            }
 
             let started = Instant::now();
             let (params, log, structure) = rv64im_cached_root_main_lane_context()?;
@@ -325,8 +346,8 @@ impl Rv64imIvcState {
                 last_step.state_in.transcript.absorbed,
             );
             let step = verify_rv64im_chunk_fold_verifier_step(
-                relation.statement.step_public.program_digest,
-                relation.statement.step_public.chunk_index as usize,
+                last_step.statement.step_public.program_digest,
+                last_step.statement.step_public.chunk_index as usize,
                 last_step.terminal_step,
                 &last_step.handoff,
                 &last_step.state_in.carry,
@@ -338,6 +359,21 @@ impl Rv64imIvcState {
                 &optimized_cache,
             )?;
             perf.replay_step_ms = elapsed_ms(started);
+
+            let started = Instant::now();
+            if step.public_chunk_digest != last_step.statement.chunk_summary.public_chunk_digest {
+                return Err(SimpleKernelError::Bridge(
+                    "RV64IM IVC verify replayed terminal relation does not reproduce the carried public chunk digest"
+                        .into(),
+                ));
+            }
+            if step.chunk_relation_digest != last_step.statement.chunk_summary.chunk_relation_digest {
+                return Err(SimpleKernelError::Bridge(
+                    "RV64IM IVC verify replayed terminal relation does not reproduce the carried chunk relation digest"
+                        .into(),
+                ));
+            }
+            perf.verified_step_statement_ms = elapsed_ms(started);
 
             let started = Instant::now();
             if step.next_carry.main.claims != self.running_state.carry.main.claims
@@ -366,7 +402,7 @@ impl Rv64imIvcState {
             perf.transcript_snapshot_ms = elapsed_ms(started);
 
             let started = Instant::now();
-            if step.step_public != relation.statement.step_public {
+            if step.step_public != last_step.statement.step_public {
                 return Err(SimpleKernelError::Bridge(
                     "RV64IM IVC verify replayed terminal relation does not reproduce the carried step public".into(),
                 ));
@@ -394,6 +430,10 @@ impl Rv64imIvcState {
 
     pub fn chunk_count(&self) -> u64 {
         self.chunk_count
+    }
+
+    pub fn step_cap(&self) -> u64 {
+        self.step_cap
     }
 
     pub fn step_count(&self) -> u64 {
@@ -443,7 +483,7 @@ impl Rv64imIvcState {
     }
 
     fn canonical_vk_fs(&self) -> Result<crate::rv64im::Rv64imVerifierKeyFs, SimpleKernelError> {
-        let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
+        let vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(self.step_cap_usize()?)?;
         if vk_fs.expected_digest() != self.vk_fs_digest {
             return Err(SimpleKernelError::Bridge(
                 "RV64IM IVC state verifier-key digest does not match the canonical current F' structure".into(),
@@ -453,11 +493,16 @@ impl Rv64imIvcState {
     }
 
     fn folded_accumulator_digest(&self) -> [u8; 32] {
+        self.folded_accumulator_digest
+    }
+
+    fn recomputed_folded_accumulator_digest(&self) -> [u8; 32] {
         rv64im_chunk_fold_carry_recursive_accumulator_digest(&self.running_state.carry)
     }
 
-    fn validate_surface(&self) -> Result<(), SimpleKernelError> {
+    fn append_surface(&self) -> Result<(Rv64imVerifierKeyFs, [u8; 32]), SimpleKernelError> {
         let vk_fs = self.canonical_vk_fs()?;
+        let folded_accumulator_digest = self.folded_accumulator_digest();
         if self.running_state.transcript.absorbed > neo_params::poseidon2_goldilocks::RATE {
             return Err(SimpleKernelError::Bridge(
                 "RV64IM IVC transcript snapshot absorbed count exceeds the Poseidon2 rate".into(),
@@ -483,22 +528,27 @@ impl Rv64imIvcState {
                 "RV64IM IVC pc does not match the trivial recursion control lane".into(),
             ));
         }
+        if self.step_cap_usize()? == 0 {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC state carries a zero native step_cap".into(),
+            ));
+        }
+        if self.running_state.carry.main.claims.len() != self.running_state.carry.main.witnesses.len() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC carried CE claim and witness counts diverged".into(),
+            ));
+        }
         let expected_x_i = rv64im_main_recursion_x_out(
             &vk_fs,
             self.chunk_count,
             self.z_0,
             self.z_i,
             self.pc,
-            self.folded_accumulator_digest(),
+            folded_accumulator_digest,
         );
         if self.x_i != expected_x_i {
             return Err(SimpleKernelError::Bridge(
                 "RV64IM IVC x_i does not match the carried native public image".into(),
-            ));
-        }
-        if self.running_state.carry.main.claims.len() != self.running_state.carry.main.witnesses.len() {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM IVC carried CE claim and witness counts diverged".into(),
             ));
         }
         if self.chunk_count == 0 {
@@ -521,17 +571,33 @@ impl Rv64imIvcState {
                     "RV64IM IVC base state does not carry the canonical Construction-2 default pair".into(),
                 ));
             }
+        } else if self.construction2_u_i.x_i() != &self.x_i {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC carried Construction-2 fresh instance does not bind to the carried x_i".into(),
+            ));
+        }
+        Ok((vk_fs, folded_accumulator_digest))
+    }
+
+    fn validated_surface(&self) -> Result<(Rv64imVerifierKeyFs, [u8; 32]), SimpleKernelError> {
+        let (vk_fs, folded_accumulator_digest) = self.append_surface()?;
+        let recomputed_folded_accumulator_digest = self.recomputed_folded_accumulator_digest();
+        if folded_accumulator_digest != recomputed_folded_accumulator_digest {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC folded accumulator digest does not match the carried running state".into(),
+            ));
+        }
+        if self.chunk_count == 0 {
         } else {
-            if self.construction2_u_i.x_i() != &self.x_i {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM IVC carried Construction-2 fresh instance does not bind to the carried x_i".into(),
-                ));
-            }
             let last_step = self.last_step.as_ref().ok_or_else(|| {
                 SimpleKernelError::Bridge(
                     "RV64IM IVC non-base state must carry the latest relation needed for native verification".into(),
                 )
             })?;
+            self.validate_relation_step_cap(
+                last_step.statement.chunk_summary.public_step_count,
+                last_step.terminal_step,
+            )?;
             if last_step.statement.step_public.chunk_index + 1 != self.chunk_count {
                 return Err(SimpleKernelError::Bridge(
                     "RV64IM IVC chunk_count does not match the latest terminal statement chunk index".into(),
@@ -548,6 +614,11 @@ impl Rv64imIvcState {
                 ));
             }
         }
+        Ok((vk_fs, folded_accumulator_digest))
+    }
+
+    fn validate_surface(&self) -> Result<(), SimpleKernelError> {
+        let _ = self.validated_surface()?;
         Ok(())
     }
 
@@ -583,14 +654,47 @@ impl Rv64imIvcState {
                 ));
             }
         }
+        self.validate_relation_step_cap(
+            relation.statement.chunk_summary.public_step_count,
+            relation.witness.terminal_step,
+        )?;
+        Ok(())
+    }
+
+    fn step_cap_usize(&self) -> Result<usize, SimpleKernelError> {
+        usize::try_from(self.step_cap).map_err(|_| {
+            SimpleKernelError::Bridge(
+                "RV64IM IVC state step_cap does not fit into the local native recursion width".into(),
+            )
+        })
+    }
+
+    fn validate_relation_step_cap(&self, public_step_count: u64, terminal_step: bool) -> Result<(), SimpleKernelError> {
+        let active_step_count = usize::try_from(public_step_count).map_err(|_| {
+            SimpleKernelError::Bridge(
+                "RV64IM IVC relation public_step_count does not fit into the local native step-cap model".into(),
+            )
+        })?;
+        let step_cap = self.step_cap_usize()?;
+        if active_step_count == 0 || active_step_count > step_cap {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM IVC relation carries {active_step_count} public steps outside the frozen native step_cap={step_cap}"
+            )));
+        }
+        if !terminal_step && active_step_count != step_cap {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM IVC non-terminal relation must carry exactly step_cap={step_cap} public steps; got {active_step_count}"
+            )));
+        }
         Ok(())
     }
 }
 
 pub(crate) fn build_rv64im_ivc_state_from_relations(
     relations: &[Rv64imChunkStepIvcRelation],
+    step_cap: usize,
 ) -> Result<Rv64imIvcState, SimpleKernelError> {
-    let mut state = Rv64imIvcState::init()?;
+    let mut state = Rv64imIvcState::init_with_step_cap(step_cap)?;
     for relation in relations {
         state = state.append(relation)?;
     }

@@ -1,5 +1,10 @@
-use neo_fold_next::rv64im::main_recursion::build_rv64im_main_recursion_verifier_key_fs;
-use neo_fold_next::rv64im::{build_rv64im_recursion_shape, FamilyEvalSchemaId, ProtocolVersion, ShapeError};
+use neo_fold_next::rv64im::main_recursion::{
+    build_rv64im_main_recursion_verifier_key_fs, build_rv64im_main_recursion_verifier_key_fs_for_step_cap,
+};
+use neo_fold_next::rv64im::{
+    build_rv64im_recursion_shape, build_rv64im_recursion_shape_for_step_cap, FamilyEvalSchemaId, ProtocolVersion,
+    ShapeError,
+};
 
 #[test]
 fn rv64im_recursion_shape_builder_is_deterministic() {
@@ -38,11 +43,31 @@ fn rv64im_recursion_shape_digest_tracks_shape_fields() {
 }
 
 #[test]
+fn rv64im_recursion_shape_digest_tracks_step_cap() {
+    let single = build_rv64im_recursion_shape_for_step_cap(1).expect("build single-step recursion shape");
+    let multi = build_rv64im_recursion_shape_for_step_cap(5).expect("build multi-step recursion shape");
+
+    assert_ne!(single.canonical_digest(), multi.canonical_digest());
+    assert_eq!(single.step_cap, 1);
+    assert_eq!(multi.step_cap, 5);
+}
+
+#[test]
 fn rv64im_verifier_key_fs_uses_recursion_shape_digest() {
     let shape = build_rv64im_recursion_shape().expect("build recursion shape");
     let vk_fs = build_rv64im_main_recursion_verifier_key_fs().expect("build recursion verifier key fs");
 
     assert_eq!(vk_fs.main_lane_shape_digest, shape.canonical_digest());
+}
+
+#[test]
+fn rv64im_verifier_key_fs_tracks_step_cap() {
+    let multi_shape = build_rv64im_recursion_shape_for_step_cap(5).expect("build multi-step recursion shape");
+    let multi_vk_fs =
+        build_rv64im_main_recursion_verifier_key_fs_for_step_cap(5).expect("build multi-step recursion verifier key");
+
+    assert_eq!(multi_vk_fs.main_lane_shape_digest, multi_shape.canonical_digest());
+    assert_eq!(multi_vk_fs.step_cap, 5);
 }
 
 #[test]

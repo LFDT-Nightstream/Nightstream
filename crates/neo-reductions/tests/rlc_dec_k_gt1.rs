@@ -192,6 +192,22 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
         .expect("rlc_public recompute");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
 
+    let mut me_inputs_stale = me_inputs.clone();
+    me_inputs_stale[1].ct[0] += K::ONE;
+    let parent_public_stale = rlc_public(
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs_stale,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("rlc_public stale ct");
+    assert_eq!(
+        parent_public_stale, parent,
+        "public RLC recompute must ignore stale ct shell on inputs"
+    );
+
     let want_Z_mix = combine_z_with_rhos(&rhos, &Zs);
     assert_eq!(Z_mix, want_Z_mix, "Z_mix must equal Σ ρ_i · Z_i");
 
@@ -272,6 +288,36 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     .expect("verified-inputs rlc_public_matches_with_perf");
     assert_eq!(verified_ok, full_ok, "fast path must agree on valid verified inputs");
     assert!(verified_ok, "valid verified inputs must satisfy the public RLC check");
+
+    let mut me_inputs_stale = me_inputs.clone();
+    me_inputs_stale[2].ct[0] += K::ONE;
+    let mut parent_stale = parent.clone();
+    parent_stale.ct[0] += K::ONE;
+    let (full_ok_stale, _) = rlc_public_matches_with_perf(
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs_stale,
+        &parent_stale,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("full stale-ct rlc_public_matches_with_perf");
+    let (verified_ok_stale, _) = rlc_public_matches_verified_inputs_with_perf(
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs_stale,
+        &parent_stale,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("verified-inputs stale-ct rlc_public_matches_with_perf");
+    assert_eq!(
+        verified_ok_stale, full_ok_stale,
+        "fast path must agree on stale-ct shell inputs"
+    );
+    assert!(verified_ok_stale, "stale ct shell must not fail the public RLC check");
 
     let rhos_tampered = typed_rhos(&params, &[diag_rho(9), diag_rho(3), diag_rho(4), diag_rho(7)]);
     let (full_bad, _) = rlc_public_matches_with_perf(
@@ -420,7 +466,7 @@ fn dec_children_with_commit_k4_public_and_tamper_checks() {
 
     let mut tampered_child = children.clone();
     tampered_child[2].ct[0] += K::ONE;
-    assert!(!verify_dec_public(
+    assert!(verify_dec_public(
         &s,
         &params,
         &parent,

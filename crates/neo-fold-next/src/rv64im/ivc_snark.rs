@@ -21,7 +21,9 @@ pub(crate) use self::spartan_support::{
 };
 use crate::rv64im::chunk_step_ivc::{build_rv64im_chunk_step_ivc_relations, Rv64imChunkStepIvcRelation};
 use crate::rv64im::final_relation::{Rv64imFinalBuildProof, Rv64imFinalStatement};
-use crate::rv64im::ivc::{build_rv64im_ivc_state_from_relations, Rv64imIvcPublicImage, Rv64imIvcState};
+use crate::rv64im::ivc::{
+    build_rv64im_ivc_state_from_relations, derive_rv64im_ivc_step_cap, Rv64imIvcPublicImage, Rv64imIvcState,
+};
 use crate::rv64im::main_relation_spartan::{build_rv64im_chunk_step_ivc_shape, Rv64imChunkStepIvcShape};
 use crate::rv64im::SimpleKernelError;
 
@@ -72,7 +74,15 @@ fn build_rv64im_terminal_step_relation(
     proof: &Rv64imFinalBuildProof,
 ) -> Result<Rv64imChunkStepIvcRelation, SimpleKernelError> {
     let relations = build_rv64im_chunk_step_ivc_relations(statement, proof)?;
-    let ivc_state = build_rv64im_ivc_state_from_relations(&relations)?;
+    let step_cap = derive_rv64im_ivc_step_cap(
+        statement.folded.fold_schedule,
+        usize::try_from(statement.folded.semantic_step_count).map_err(|_| {
+            SimpleKernelError::Bridge(
+                "RV64IM IVC SNARK terminal relation step_count does not fit into the native step-cap model".into(),
+            )
+        })?,
+    )?;
+    let ivc_state = build_rv64im_ivc_state_from_relations(&relations, step_cap)?;
     ivc_state.build_terminal_relation()
 }
 

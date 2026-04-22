@@ -17,7 +17,8 @@ use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::ivc_snark::{hash_packed_goldilocks_fields, Rv64imDeciderEngine, ShapeCS, SpartanCircuit, SpartanF};
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_relation_circuit::claim::{
-    alloc_ce_claim, alloc_ce_claim_with_shared_point, enforce_claim_eq_native, packed_bytes_field_values, CeClaimVar,
+    alloc_ce_claim, alloc_ce_claim_with_shared_point, enforce_claim_projection_eq_native, packed_bytes_field_values,
+    CeClaimVar,
 };
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_spartan::{
@@ -407,7 +408,7 @@ pub(super) fn debug_chunk_step_ivc_constraint_checkpoints(
         .zip(circuit.witness.state_out.carry.main.claims.iter())
         .enumerate()
     {
-        enforce_claim_eq_native(
+        enforce_claim_projection_eq_native(
             &mut cs.namespace(|| format!("state_out_claim_{claim_index}")),
             actual,
             expected,
@@ -580,6 +581,7 @@ pub(super) fn debug_locate_chunk_step_main_relation_stage(
         &mut rlc_transcript,
         rlc_carried_claims,
         boundary_plan,
+        0,
     )
     .map_err(|err| err.to_string())?;
     if stage_row >= rlc_checkpoints.total_constraints() {
@@ -854,6 +856,7 @@ fn debug_locate_chunk_step_main_relation_rlc_public_detail(
         &mut transcript,
         Rv64imClaimBundle::from_effective_claims(carried_claims),
         boundary_plan,
+        0,
     )
     .map_err(|err| err.to_string())?;
     let (detail, detail_row) = checkpoints
@@ -1171,7 +1174,7 @@ fn synthesize_chunk_step_ivc_relation_body<CS: ConstraintSystem<SpartanF>>(
         .zip(circuit.witness.state_out.carry.main.claims.iter())
         .enumerate()
     {
-        enforce_claim_eq_native(
+        enforce_claim_projection_eq_native(
             &mut cs.namespace(|| format!("state_out_claim_{claim_index}")),
             actual,
             expected,

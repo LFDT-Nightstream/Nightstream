@@ -76,10 +76,10 @@ pub fn verify_rv64im_chunk_step_relation(
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
     let mut transcript =
         Poseidon2Transcript::from_state_and_absorbed(statement.transcript_in.state, statement.transcript_in.absorbed);
-    let carry_in = Rv64imChunkFoldCarry {
-        main: witness.carry_in.clone(),
-        terminal_handle: Rv64imAccumulatorHandle(statement.step_public.state_in),
-    };
+    let carry_in = Rv64imChunkFoldCarry::from_main(
+        witness.carry_in.clone(),
+        Rv64imAccumulatorHandle(statement.step_public.state_in),
+    );
     let step = verify_rv64im_chunk_fold_verifier_step(
         statement.step_public.program_digest,
         statement.step_public.chunk_index as usize,
@@ -125,10 +125,7 @@ pub fn verify_rv64im_chunk_step_relation(
         ));
     }
     Ok(Rv64imChunkFoldState {
-        carry: Rv64imChunkFoldCarry {
-            main: witness.carry_out.clone(),
-            terminal_handle: step.next_carry.terminal_handle,
-        },
+        carry: Rv64imChunkFoldCarry::from_main(witness.carry_out.clone(), step.next_carry.terminal_handle),
         transcript: transcript_out,
     })
 }

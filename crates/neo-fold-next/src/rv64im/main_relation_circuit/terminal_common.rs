@@ -251,3 +251,152 @@ pub fn eval_sparse_poly_in_k<CS: ConstraintSystem<SpartanF>>(
 
     Ok((acc, acc_value))
 }
+
+pub fn chi_table_var<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    point_vars: &[KNumVar],
+    point_values: &[NeoK],
+    delta: SpartanF,
+    label: &str,
+) -> Result<(Vec<KNumVar>, Vec<NeoK>), SynthesisError> {
+    if point_vars.len() != point_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let one = alloc_constant_k(cs, KNum::from_neo_k(NeoK::ONE), &format!("{label}_one"))?;
+    let mut out_vars = vec![one.clone()];
+    let mut out_values = vec![NeoK::ONE];
+
+    for (bit, (bit_var, bit_value)) in point_vars.iter().zip(point_values.iter()).enumerate() {
+        let neg = k_scalar_mul(
+            cs,
+            -SpartanF::ONE,
+            bit_var,
+            Some(KNum::from_neo_k(-*bit_value)),
+            &format!("{label}_neg_{bit}"),
+        )?;
+        let one_minus_value = NeoK::ONE - *bit_value;
+        let one_minus = k_add(
+            cs,
+            &one,
+            &neg,
+            Some(KNum::from_neo_k(one_minus_value)),
+            &format!("{label}_one_minus_{bit}"),
+        )?;
+
+        let prior_len = out_vars.len();
+        let mut next_vars = Vec::with_capacity(prior_len * 2);
+        let mut next_values = Vec::with_capacity(prior_len * 2);
+
+        for idx in 0..prior_len {
+            let next_value = out_values[idx] * one_minus_value;
+            let next_var = k_mul(
+                cs,
+                &out_vars[idx],
+                &one_minus,
+                KNum::from_neo_k(out_values[idx]),
+                KNum::from_neo_k(one_minus_value),
+                KNum::from_neo_k(next_value),
+                delta,
+                &format!("{label}_zero_branch_{bit}_{idx}"),
+            )?;
+            next_vars.push(next_var);
+            next_values.push(next_value);
+        }
+        for idx in 0..prior_len {
+            let next_value = out_values[idx] * *bit_value;
+            let next_var = k_mul(
+                cs,
+                &out_vars[idx],
+                bit_var,
+                KNum::from_neo_k(out_values[idx]),
+                KNum::from_neo_k(*bit_value),
+                KNum::from_neo_k(next_value),
+                delta,
+                &format!("{label}_one_branch_{bit}_{idx}"),
+            )?;
+            next_vars.push(next_var);
+            next_values.push(next_value);
+        }
+
+        out_vars = next_vars;
+        out_values = next_values;
+    }
+
+    Ok((out_vars, out_values))
+}
+
+pub fn pow_k_var<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    base_var: &KNumVar,
+    base_value: NeoK,
+    exponent: usize,
+    delta: SpartanF,
+    label: &str,
+) -> Result<(KNumVar, NeoK), SynthesisError> {
+    let one = alloc_constant_k(cs, KNum::from_neo_k(NeoK::ONE), &format!("{label}_one"))?;
+    let mut acc = one;
+    let mut acc_value = NeoK::ONE;
+    for idx in 0..exponent {
+        let next_acc_value = acc_value * base_value;
+        acc = k_mul(
+            cs,
+            &acc,
+            base_var,
+            KNum::from_neo_k(acc_value),
+            KNum::from_neo_k(base_value),
+            KNum::from_neo_k(next_acc_value),
+            delta,
+            &format!("{label}_step_{idx}"),
+        )?;
+        acc_value = next_acc_value;
+    }
+    Ok((acc, acc_value))
+}
+
+pub fn dot_k_var_rows<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    left_vars: &[KNumVar],
+    left_values: &[NeoK],
+    right_vars: &[KNumVar],
+    right_values: &[NeoK],
+    delta: SpartanF,
+    label: &str,
+) -> Result<(KNumVar, NeoK), SynthesisError> {
+    if left_vars.len() != left_values.len()
+        || right_vars.len() != right_values.len()
+        || left_vars.len() != right_vars.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+
+    let zero = alloc_constant_k(cs, KNum::from_neo_k(NeoK::ZERO), &format!("{label}_zero"))?;
+    let mut acc = zero;
+    let mut acc_value = NeoK::ZERO;
+    for (idx, ((left_var, left_value), (right_var, right_value))) in left_vars
+        .iter()
+        .zip(left_values.iter())
+        .zip(right_vars.iter().zip(right_values.iter()))
+        .enumerate()
+    {
+        let product_value = *left_value * *right_value;
+        let product = k_mul(
+            cs,
+            left_var,
+            right_var,
+            KNum::from_neo_k(*left_value),
+            KNum::from_neo_k(*right_value),
+            KNum::from_neo_k(product_value),
+            delta,
+            &format!("{label}_product_{idx}"),
+        )?;
+        acc_value += product_value;
+        acc = k_add(
+            cs,
+            &acc,
+            &product,
+            Some(KNum::from_neo_k(acc_value)),
+            &format!("{label}_acc_{idx}"),
+        )?;
+    }
+    Ok((acc, acc_value))
+}

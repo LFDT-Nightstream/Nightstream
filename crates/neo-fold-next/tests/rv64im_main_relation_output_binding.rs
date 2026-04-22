@@ -3,7 +3,9 @@ use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim, Mat, SparsePoly, Term};
 use neo_fold_next::rv64im::main_relation_circuit::claim::alloc_ce_claim;
 use neo_fold_next::rv64im::main_relation_circuit::k_field::alloc_constant_k;
-use neo_fold_next::rv64im::main_relation_circuit::output_binding::enforce_me_outputs_against_inputs;
+use neo_fold_next::rv64im::main_relation_circuit::output_binding::{
+    alloc_fresh_ccs_claim, enforce_me_outputs_against_inputs,
+};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -56,6 +58,12 @@ fn fresh_output(fresh: &CcsClaim<Commitment, F>, r: &[K], s_col: &[K]) -> CeClai
     }
 }
 
+fn tamper_output_s_col_shell(claim: &mut CeClaim<Commitment, F, K>) {
+    if let Some(first) = claim.s_col.first_mut() {
+        *first += K::ONE;
+    }
+}
+
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_output_binding_accepts_fresh_and_me_inputs() {
@@ -68,6 +76,7 @@ fn rv64im_main_relation_output_binding_accepts_fresh_and_me_inputs() {
     let carried_out = fresh_output(&fresh, &r, &s_col);
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
+    let fresh_var = alloc_fresh_ccs_claim(&mut cs, &fresh).expect("alloc fresh claim");
     let fresh_out_var = alloc_ce_claim(&mut cs, &fresh_out, "fresh_out").expect("alloc fresh output");
     let carried_in_var = alloc_ce_claim(&mut cs, &carried_out, "carried_in").expect("alloc carried input");
     let carried_out_var = alloc_ce_claim(&mut cs, &carried_out, "carried_out").expect("alloc carried output");
@@ -100,7 +109,7 @@ fn rv64im_main_relation_output_binding_accepts_fresh_and_me_inputs() {
         &mut cs,
         &structure,
         &params,
-        &[fresh],
+        &[fresh_var],
         &[carried_in_var],
         &[fresh_out_var, carried_out_var],
         &r_vars,
@@ -126,6 +135,7 @@ fn rv64im_main_relation_output_binding_rejects_tampered_fresh_commitment() {
     fresh_out.c.data[0] += F::ONE;
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
+    let fresh_var = alloc_fresh_ccs_claim(&mut cs, &fresh).expect("alloc fresh claim");
     let fresh_out_var = alloc_ce_claim(&mut cs, &fresh_out, "fresh_out").expect("alloc fresh output");
     let r_vars = r
         .iter()
@@ -156,7 +166,7 @@ fn rv64im_main_relation_output_binding_rejects_tampered_fresh_commitment() {
         &mut cs,
         &structure,
         &params,
-        &[fresh],
+        &[fresh_var],
         &[],
         &[fresh_out_var],
         &r_vars,
@@ -168,4 +178,69 @@ fn rv64im_main_relation_output_binding_rejects_tampered_fresh_commitment() {
     .expect("enforce outputs");
 
     assert!(!cs.is_satisfied(), "tampered fresh commitment must fail");
+}
+
+#[test]
+#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
+fn rv64im_main_relation_output_binding_ignores_s_col_shell() {
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(3).expect("params");
+    let structure = toy_structure();
+    let fresh = fresh_claim(3, 5);
+    let r = vec![K::from(F::from_u64(11))];
+    let s_col = vec![K::from(F::from_u64(13)), K::from(F::from_u64(17))];
+    let mut fresh_out = fresh_output(&fresh, &r, &s_col);
+    let mut carried_out = fresh_output(&fresh, &r, &s_col);
+    tamper_output_s_col_shell(&mut fresh_out);
+    tamper_output_s_col_shell(&mut carried_out);
+
+    let mut cs = TestConstraintSystem::<SpartanF>::new();
+    let fresh_var = alloc_fresh_ccs_claim(&mut cs, &fresh).expect("alloc fresh claim");
+    let fresh_out_var = alloc_ce_claim(&mut cs, &fresh_out, "fresh_out").expect("alloc fresh output");
+    let carried_in_var = alloc_ce_claim(&mut cs, &carried_out, "carried_in").expect("alloc carried input");
+    let carried_out_var = alloc_ce_claim(&mut cs, &carried_out, "carried_out").expect("alloc carried output");
+    let r_vars = r
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| {
+            alloc_constant_k(
+                &mut cs,
+                neo_fold_next::rv64im::main_relation_circuit::k_field::KNum::from_neo_k(*value),
+                &format!("r_{idx}"),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .expect("alloc r");
+    let s_col_vars = s_col
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| {
+            alloc_constant_k(
+                &mut cs,
+                neo_fold_next::rv64im::main_relation_circuit::k_field::KNum::from_neo_k(*value),
+                &format!("s_col_{idx}"),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .expect("alloc s_col");
+
+    enforce_me_outputs_against_inputs(
+        &mut cs,
+        &structure,
+        &params,
+        &[fresh_var],
+        &[carried_in_var],
+        &[fresh_out_var, carried_out_var],
+        &r_vars,
+        &r,
+        &s_col_vars,
+        &s_col,
+        "outputs",
+    )
+    .expect("enforce outputs");
+
+    assert!(
+        cs.is_satisfied(),
+        "output binding must ignore non-authoritative s_col shell: {}",
+        cs.which_is_unsatisfied().unwrap_or_default()
+    );
 }

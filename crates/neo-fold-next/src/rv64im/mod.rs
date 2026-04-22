@@ -7,6 +7,7 @@ pub mod chunk_fold_step;
 mod chunk_relation;
 mod chunk_step_ivc;
 mod chunk_step_relation;
+pub mod claim_tree;
 pub mod construction2;
 mod construction2_default;
 mod decider;
@@ -43,6 +44,11 @@ pub use chunk_step_ivc::{
     build_rv64im_chunk_step_ivc_relations, rv64im_chunk_step_ivc_initial_state, Rv64imChunkStepIvcRelation,
     Rv64imChunkStepIvcStatement, Rv64imChunkStepIvcWitness,
 };
+pub use claim_tree::{
+    build_rv64im_claim_digests, rv64im_claim_tree_opening_from_digests, rv64im_claim_tree_root_from_claims,
+    rv64im_claim_tree_root_from_digests, verify_rv64im_claim_tree_opening, Rv64imClaimDigestFields,
+    Rv64imClaimMerkleOpening,
+};
 pub use construction2::{
     build_rv64im_main_recursion_construction2_default_fresh_instance,
     build_rv64im_main_recursion_construction2_default_low_norm_witness_image,
@@ -76,14 +82,15 @@ pub use f_prime::{
     build_rv64im_main_recursion_f_prime_advices_with_side_opening_public,
     build_rv64im_main_recursion_f_prime_advices_with_side_opening_public_single_step,
     build_rv64im_main_recursion_f_prime_public_output, build_rv64im_main_recursion_side_lane_from_side_opening_public,
-    build_rv64im_main_recursion_verifier_key_fs, debug_trace_rv64im_main_recursion_f_prime_advices_single_step_build,
-    evaluate_rv64im_main_recursion_f_prime_advice, verify_rv64im_main_recursion_f_prime_public_output,
-    Rv64imEncodedPublicInput, Rv64imMainRecursionBackendStepStatement, Rv64imMainRecursionFPrimeAdvice,
-    Rv64imMainRecursionFPrimeAdviceBuildPerf, Rv64imMainRecursionFPrimeAdviceStepBuildPerf,
-    Rv64imMainRecursionFPrimeInput, Rv64imMainRecursionFPrimePublicOutput, Rv64imMainRecursionFPrimeStepImage,
-    Rv64imMainRecursionPhiSide, Rv64imMainRecursionSideClaim, Rv64imMainRecursionSideLaneWitness,
-    Rv64imMainRecursionStepStatement, Rv64imVerifierKeyFs, RV64IM_MAIN_RECURSION_PHI_SIDE_ACTIVE,
-    RV64IM_MAIN_RECURSION_SIDE_LANE_ACTIVE, RV64IM_MAIN_RECURSION_SIDE_WITNESS_ACTIVE,
+    build_rv64im_main_recursion_verifier_key_fs, build_rv64im_main_recursion_verifier_key_fs_for_step_cap,
+    debug_trace_rv64im_main_recursion_f_prime_advices_single_step_build, evaluate_rv64im_main_recursion_f_prime_advice,
+    verify_rv64im_main_recursion_f_prime_public_output, Rv64imEncodedPublicInput,
+    Rv64imMainRecursionBackendStepStatement, Rv64imMainRecursionFPrimeAdvice, Rv64imMainRecursionFPrimeAdviceBuildPerf,
+    Rv64imMainRecursionFPrimeAdviceStepBuildPerf, Rv64imMainRecursionFPrimeInput,
+    Rv64imMainRecursionFPrimePublicOutput, Rv64imMainRecursionFPrimeStepImage, Rv64imMainRecursionPhiSide,
+    Rv64imMainRecursionSideClaim, Rv64imMainRecursionSideLaneWitness, Rv64imMainRecursionStepStatement,
+    Rv64imVerifierKeyFs, RV64IM_MAIN_RECURSION_PHI_SIDE_ACTIVE, RV64IM_MAIN_RECURSION_SIDE_LANE_ACTIVE,
+    RV64IM_MAIN_RECURSION_SIDE_WITNESS_ACTIVE,
 };
 pub use isa::{
     decode_instruction, encode_add, encode_addi, encode_addiw, encode_addw, encode_and, encode_andi, encode_auipc,
@@ -198,7 +205,10 @@ pub use perf_case::{
     build_mixed_opcode_perf_source_case, mixed_opcode_perf_expected_x1, RV64IM_MIXED_OPCODE_PERF_BLOCK_LEN,
     RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
-pub use recursion_shape::{build_rv64im_recursion_shape, ProtocolVersion, RecursionShape, ShapeError};
+pub use recursion_shape::{
+    build_rv64im_recursion_shape, build_rv64im_recursion_shape_for_step_cap, ProtocolVersion, RecursionShape,
+    ShapeError,
+};
 pub use stage1::{
     build_sem_inputs, build_stage1_proof_bundle, sem_in_digest, sem_in_from_row, sem_inputs_digest, AluShoutProof,
     BranchShoutProof, BytecodeShoutProof, SemIn, Stage1AddressCorrectnessProof, Stage1LinkageProof, Stage1ProofBundle,

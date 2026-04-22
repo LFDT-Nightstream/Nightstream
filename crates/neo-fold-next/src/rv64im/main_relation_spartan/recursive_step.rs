@@ -28,8 +28,7 @@ use thiserror::Error;
 
 use super::chunk_step_recursive::{
     build_rv64im_main_recursion_step_spartan_statement as build_rv64im_main_recursion_step_spartan_statement_from_payload,
-    rv64im_chunk_step_recursive_carry_state_digest, Rv64imMainRecursionFPrimeBackendRelation,
-    Rv64imMainRecursionStepSpartanShape,
+    Rv64imMainRecursionFPrimeBackendRelation, Rv64imMainRecursionStepSpartanShape,
 };
 use super::recursive_cover::alloc_recursive_cover_state;
 use super::{
@@ -48,8 +47,8 @@ use crate::rv64im::kernel::{
     Rv64imChunkBridgeHandoff, Rv64imPreparedStepBridgeBinding, Rv64imVerifiedKernelChunkHandoff,
 };
 use crate::rv64im::main_recursion::{
-    build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs, build_rv64im_main_recursion_verifier_key_fs,
-    Rv64imEncodedPublicInput,
+    build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs,
+    build_rv64im_main_recursion_verifier_key_fs_for_step_cap, Rv64imEncodedPublicInput,
 };
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_spartan::chunk_step_ivc::Rv64imChunkStepIvcShape;
@@ -211,7 +210,7 @@ fn dummy_backend_relation_from_chain_step(
     chunk_count_in: u64,
     running_state: &Rv64imChunkFoldState,
 ) -> Result<Rv64imMainRecursionFPrimeBackendRelation, Rv64imMainRecursionStepSpartanError> {
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs()
+    let vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(step_shape.fresh_claim_count as usize)
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     let public_chunk_input = ChunkInput {
         start_index: 0,
@@ -288,19 +287,19 @@ fn dummy_backend_relation_from_chain_step(
         optimized_cache,
     )
     .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    let next_carry = Rv64imChunkFoldCarry {
-        main: Carry {
+    let next_carry = Rv64imChunkFoldCarry::from_main(
+        Carry {
             claims: trace.children.clone(),
             witnesses: trace.z_split.clone(),
         },
-        terminal_handle: Rv64imAccumulatorHandle(crate::rv64im::chunk_relation::rv64im_step_handle(
+        Rv64imAccumulatorHandle(crate::rv64im::chunk_relation::rv64im_step_handle(
             running_state.carry.terminal_handle.0,
             chunk_count_in as usize,
             handoff.public_chunk.start_index,
             handoff.public_chunk.steps.len(),
             chunk_relation_digest,
         )),
-    };
+    );
     let transcript_out = crate::rv64im::final_relation::rv64im_chunk_fold_carried_transcript_snapshot(
         &Rv64imChunkFoldTranscriptSnapshot {
             state: trace_transcript.state(),
@@ -340,21 +339,6 @@ fn dummy_backend_relation_from_chain_step(
             witness: main_circuit_witness.clone(),
         })
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    let native_chunk_summary = native_verified_step_statement
-        .fixed_shape_chunk_summary()
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    let main_circuit_chunk_trace =
-        crate::rv64im::main_relation_trace::build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(
-            native_verified_step_statement.chunk_index as usize,
-            &main_circuit_witness.handoff,
-            &native_chunk_summary,
-            &main_circuit_witness.state_in.carry,
-            &main_circuit_witness.state_out.carry,
-            &main_circuit_witness.state_in.transcript,
-            &main_circuit_witness.state_out.transcript,
-            &main_circuit_witness.replay_witness,
-        )
-        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     let canonical_full_width =
         crate::rv64im::construction2_default::build_rv64im_main_recursion_construction2_canonical_full_width(
             &vk_fs,
@@ -390,14 +374,13 @@ fn dummy_backend_relation_from_chain_step(
         step_shape.terminal_step,
         handoff,
         state_out,
-        main_circuit_chunk_trace,
+        replay_witness,
         crate::rv64im::construction2::build_rv64im_main_recursion_construction2_pi_fold_from_trace(&trace)
             .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?,
     )
     .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    let payload =
-        build_rv64im_main_recursion_f_prime_payload(&advice, &spartan_shape.cover_shape, &spartan_shape.claim_cover)
-            .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
+    let payload = build_rv64im_main_recursion_f_prime_payload(&advice, &spartan_shape)
+        .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     if !step_shape.covers_recursive_step_shape(&payload.step_shape)
         || !step_shape.canonical_recursive_step_shape_equal(&payload.step_shape)
     {
@@ -418,6 +401,7 @@ fn dummy_backend_relation_from_chain_step(
 fn main_recursion_x_out_circuit<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     label: &str,
+    vk_fs_digest: [u8; 32],
     chunk_count_halves: &[AllocatedNum<SpartanF>; 2],
     chunk_count_half_values: &[SpartanF; 2],
     z_0: &[AllocatedNum<SpartanF>; 4],
@@ -429,7 +413,6 @@ fn main_recursion_x_out_circuit<CS: ConstraintSystem<SpartanF>>(
     accumulator_instance_digest: &[AllocatedNum<SpartanF>; 4],
     accumulator_instance_digest_value: &[SpartanF; 4],
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs().map_err(|_| SynthesisError::Unsatisfiable)?;
     let mut transcript = Poseidon2TranscriptCircuit::new(
         cs.namespace(|| format!("{label}_init")),
         b"neo.fold.next/rv64im/main_recursion_f_prime_x_out",
@@ -442,7 +425,7 @@ fn main_recursion_x_out_circuit<CS: ConstraintSystem<SpartanF>>(
     transcript.append_message(
         cs.namespace(|| format!("{label}_vk_fs")),
         b"neo.fold.next/rv64im/main_recursion_f_prime_x_out/vk_fs",
-        &vk_fs.expected_digest(),
+        &vk_fs_digest,
     )?;
     let meta_halves = [
         chunk_count_halves[0].clone(),
@@ -634,6 +617,10 @@ pub fn debug_check_rv64im_main_recursion_x_out_gadget_parity(
     let x_out_digest = main_recursion_x_out_circuit(
         &mut cs.namespace(|| "x_out_digest"),
         "x_out_digest",
+        backend_relation
+            .f_prime_advice
+            .verifier_key_fs()
+            .expected_digest(),
         &chunk_count_halves,
         &u64_halves_as_spartan_fields(chunk_count),
         &z_0,
@@ -678,30 +665,11 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         next_public_digest(public_inputs, public_cursor, "folded_accumulator_out_digest")?;
     emit_synthesize_trace(trace_prefix, "public_inputs", started);
     let started = Instant::now();
-    let chunk_index_witness = AllocatedNum::alloc(cs.namespace(|| "chunk_index_witness"), || {
-        Ok(SpartanF::from_canonical_u64(witness.chunk_count_in()))
-    })?;
     let next_chunk_count = witness.chunk_count_in() + 1;
     let chunk_index_halves = private_u64_halves(
         &mut cs.namespace(|| "chunk_index_halves"),
         next_chunk_count,
         "chunk_index_halves",
-    )?;
-    let carry_state_in_digest_witness = private_digest_inputs(
-        &mut cs.namespace(|| "carry_state_in_digest_witness"),
-        rv64im_chunk_step_recursive_carry_state_digest(
-            &witness.running_state().carry.main.claims,
-            &witness.running_state().transcript,
-            witness.running_state().carry.terminal_handle.0,
-        ),
-        "carry_state_in_digest_witness",
-    )?;
-    let folded_accumulator_in_digest_witness = private_digest_inputs(
-        &mut cs.namespace(|| "folded_accumulator_in_digest_witness"),
-        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(
-            &witness.running_state().carry,
-        ),
-        "folded_accumulator_in_digest_witness",
     )?;
     let z_0_input = private_digest_inputs(&mut cs.namespace(|| "z_0"), *payload.z_0(), "z_0")?;
     let z_i_input = private_digest_inputs(&mut cs.namespace(|| "z_i"), *payload.z_i(), "z_i")?;
@@ -745,15 +713,6 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
     )?;
     emit_synthesize_trace(trace_prefix, "alloc_cover_states", started);
     let started = Instant::now();
-    let carry_state_out_digest_witness = private_digest_inputs(
-        &mut cs.namespace(|| "carry_state_out_digest_witness"),
-        rv64im_chunk_step_recursive_carry_state_digest(
-            &witness.fresh_state_out().carry.main.claims,
-            &witness.fresh_state_out().transcript,
-            witness.fresh_state_out().carry.terminal_handle.0,
-        ),
-        "carry_state_out_digest_witness",
-    )?;
     let canonical_initial_z = digest_const_inputs(
         &mut cs.namespace(|| "canonical_initial_z"),
         crate::rv64im::chunk_step_ivc::rv64im_chunk_step_ivc_initial_state()
@@ -820,6 +779,7 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
     let x_out_digest = main_recursion_x_out_circuit(
         &mut cs.namespace(|| "x_out_digest"),
         "x_out_digest",
+        witness.verifier_key_fs().expected_digest(),
         &chunk_index_halves,
         &u64_halves_as_spartan_fields(next_chunk_count),
         &z_0_input,
@@ -846,15 +806,6 @@ fn synthesize_rv64im_main_recursion_step_body<CS: ConstraintSystem<SpartanF>>(
         "folded_accumulator_out_digest_eq",
     )?;
     emit_synthesize_trace(trace_prefix, "public_output_eq", started);
-
-    let _ = (
-        chunk_index_witness,
-        carry_state_in_digest_witness,
-        folded_accumulator_in_digest_witness,
-        carry_state_out_digest_witness,
-        x_out_input,
-        live_folded_accumulator_out_digest,
-    );
     Ok(())
 }
 

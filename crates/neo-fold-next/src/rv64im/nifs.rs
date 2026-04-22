@@ -163,19 +163,19 @@ fn derive_rv64im_nifs_state_from_trace(
     transcript: &Poseidon2Transcript,
 ) -> Result<Rv64imChunkFoldState, SimpleKernelError> {
     let chunk_relation_digest = trace.chunk_relation_digest;
-    let next_carry = Rv64imChunkFoldCarry {
-        main: Carry {
+    let next_carry = Rv64imChunkFoldCarry::from_main(
+        Carry {
             claims: trace.children.clone(),
             witnesses: trace.z_split.clone(),
         },
-        terminal_handle: Rv64imAccumulatorHandle(rv64im_step_handle(
+        Rv64imAccumulatorHandle(rv64im_step_handle(
             running.state.carry.terminal_handle.0,
             fresh_instance.step_public.chunk_index as usize,
             fresh_witness.handoff.public_chunk.start_index,
             fresh_witness.handoff.public_chunk.steps.len(),
             chunk_relation_digest,
         )),
-    };
+    );
     let fresh = adapt_rv64im_chunk_to_fresh_ccs(&fresh_witness.handoff);
     let expected_step_public = build_rv64im_chunk_step_public(
         fresh_instance.step_public.program_digest,

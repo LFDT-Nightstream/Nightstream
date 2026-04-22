@@ -1,7 +1,8 @@
 //! Owns native RV64IM F' semantics and the recursion hash-image boundary.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{self, Write};
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use neo_ajtai::Commitment;
@@ -11,6 +12,7 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
+use crate::chunk_relation::ChunkReplayWitness;
 use crate::finalize::digest32_as_fields;
 use crate::nightstream::rv64im::{Rv64imEvalPublic, Rv64imOpenedObjectPublic, Rv64imSideOpeningPublic};
 use crate::proof::Carry;
@@ -20,8 +22,8 @@ use crate::rv64im::construction2::{
     build_rv64im_main_recursion_construction2_default_fresh_instance,
     build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i,
     build_rv64im_main_recursion_construction2_nifs_bridge_with_trace,
-    build_rv64im_main_recursion_construction2_pi_fold_from_relation,
-    build_rv64im_main_recursion_construction2_verified_step_statement_from_relation,
+    build_rv64im_main_recursion_construction2_pi_fold_from_replay_witness,
+    build_rv64im_main_recursion_construction2_verified_step_statement_from_summary,
     debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i,
     verify_rv64im_main_recursion_construction2_nifs_step_with_trace, Rv64imMainRecursionConstruction2FreshInstance,
     Rv64imMainRecursionConstruction2PiFoldProof, Rv64imMainRecursionConstruction2StateImage,
@@ -34,7 +36,6 @@ use crate::rv64im::kernel::{
 use crate::rv64im::main_relation_trace::{
     build_rv64im_main_circuit_chunk_trace_from_authoritative_parts, Rv64imMainCircuitChunkTrace,
 };
-use crate::rv64im::recursion_shape::build_rv64im_recursion_shape;
 use crate::rv64im::SimpleKernelError;
 
 /// Canonical recursion public input image for the current stack.
@@ -206,9 +207,18 @@ impl Rv64imMainRecursionBackendStepStatement {
 pub struct Rv64imVerifierKeyFs {
     pub domain_tag_digest: [u8; 32],
     pub main_lane_shape_digest: [u8; 32],
+    pub step_cap: u64,
 }
 
 impl Rv64imVerifierKeyFs {
+    pub fn step_cap(&self) -> Result<usize, SimpleKernelError> {
+        usize::try_from(self.step_cap).map_err(|_| {
+            SimpleKernelError::Bridge(
+                "RV64IM recursion verifier-key step_cap does not fit into the local native-width model".into(),
+            )
+        })
+    }
+
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_verifier_key_fs");
         tr.append_message(b"neo.fold.next/rv64im/main_recursion_verifier_key_fs/version", b"v1");
@@ -220,11 +230,34 @@ impl Rv64imVerifierKeyFs {
             b"neo.fold.next/rv64im/main_recursion_verifier_key_fs/main_lane_shape_digest",
             &self.main_lane_shape_digest,
         );
+        tr.append_u64s(
+            b"neo.fold.next/rv64im/main_recursion_verifier_key_fs/step_cap",
+            &[self.step_cap],
+        );
         tr.digest32()
     }
 }
 
 pub fn build_rv64im_main_recursion_verifier_key_fs() -> Result<Rv64imVerifierKeyFs, SimpleKernelError> {
+    build_rv64im_main_recursion_verifier_key_fs_for_step_cap(
+        crate::rv64im::recursion_shape::RV64IM_RECURSION_DEFAULT_STEP_CAP as usize,
+    )
+}
+
+pub fn build_rv64im_main_recursion_verifier_key_fs_for_step_cap(
+    step_cap: usize,
+) -> Result<Rv64imVerifierKeyFs, SimpleKernelError> {
+    static VK_FS_CACHE: OnceLock<Mutex<HashMap<usize, Rv64imVerifierKeyFs>>> = OnceLock::new();
+    if let Some(cached) = VK_FS_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("rv64im main recursion vk_fs cache mutex poisoned")
+        .get(&step_cap)
+        .cloned()
+    {
+        return Ok(cached);
+    }
+
     let mut domain_tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_verifier_key_fs/domain");
     domain_tr.append_message(
         b"neo.fold.next/rv64im/main_recursion_verifier_key_fs/domain/version",
@@ -235,10 +268,18 @@ pub fn build_rv64im_main_recursion_verifier_key_fs() -> Result<Rv64imVerifierKey
         b"neo.fold.next/rv64im/main_recursion_f_prime_x_out",
     );
 
-    Ok(Rv64imVerifierKeyFs {
+    let vk_fs = Rv64imVerifierKeyFs {
         domain_tag_digest: domain_tr.digest32(),
-        main_lane_shape_digest: build_rv64im_recursion_shape()?.canonical_digest(),
-    })
+        main_lane_shape_digest: crate::rv64im::recursion_shape::build_rv64im_recursion_shape_for_step_cap(step_cap)?
+            .canonical_digest(),
+        step_cap: step_cap as u64,
+    };
+    VK_FS_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("rv64im main recursion vk_fs cache mutex poisoned")
+        .insert(step_cap, vk_fs.clone());
+    Ok(vk_fs)
 }
 
 fn rv64im_main_recursion_initial_z() -> [u8; 32] {
@@ -297,31 +338,38 @@ pub(crate) fn build_rv64im_main_recursion_backend_statement_from_advice(
 pub(crate) struct Rv64imMainRecursionAccumulator {
     chunk_count: u64,
     state: Rv64imChunkFoldState,
+    folded_accumulator_digest: [u8; 32],
 }
 
 impl Rv64imMainRecursionAccumulator {
     fn seed() -> Self {
+        let state = rv64im_chunk_step_ivc_initial_state();
         Self {
             chunk_count: 0,
-            state: rv64im_chunk_step_ivc_initial_state(),
+            folded_accumulator_digest: rv64im_chunk_fold_carry_recursive_accumulator_digest(&state.carry),
+            state,
         }
     }
 
     fn apply_verified_step_image(
-        &self,
-        output: &Rv64imMainRecursionFPrimeStepImage,
-    ) -> Result<Self, SimpleKernelError> {
+        self,
+        output: Rv64imMainRecursionFPrimeStepImage,
+    ) -> Result<(Self, Rv64imMainRecursionConstruction2FreshInstance), SimpleKernelError> {
+        let output = output.into_parts();
         if output.chunk_count != self.chunk_count + 1 {
             return Err(SimpleKernelError::Bridge(
                 "RV64IM main recursion step image chunk_count does not advance the carried recursive position".into(),
             ));
         }
-        if output.folded_accumulator_digest
-            != rv64im_chunk_fold_carry_recursive_accumulator_digest(&output.next_state.carry)
+        #[cfg(debug_assertions)]
         {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM main recursion step image folded accumulator digest does not match next_state".into(),
-            ));
+            if output.folded_accumulator_digest
+                != rv64im_chunk_fold_carry_recursive_accumulator_digest(&output.next_state.carry)
+            {
+                return Err(SimpleKernelError::Bridge(
+                    "RV64IM main recursion step image folded accumulator digest does not match next_state".into(),
+                ));
+            }
         }
         if output.z_next != output.next_state.carry.terminal_handle.0 {
             return Err(SimpleKernelError::Bridge(
@@ -334,10 +382,14 @@ impl Rv64imMainRecursionAccumulator {
                     .into(),
             ));
         }
-        Ok(Self {
-            chunk_count: output.chunk_count,
-            state: output.next_state.clone(),
-        })
+        Ok((
+            Self {
+                chunk_count: output.chunk_count,
+                state: output.next_state,
+                folded_accumulator_digest: output.folded_accumulator_digest,
+            },
+            output.construction2_u_next,
+        ))
     }
 
     fn x_i(&self, vk_fs: &Rv64imVerifierKeyFs) -> Rv64imEncodedPublicInput {
@@ -347,7 +399,7 @@ impl Rv64imMainRecursionAccumulator {
             rv64im_main_recursion_initial_z(),
             self.state.carry.terminal_handle.0,
             RV64IM_MAIN_RECURSION_TRIVIAL_PC,
-            rv64im_chunk_fold_carry_recursive_accumulator_digest(&self.state.carry),
+            self.folded_accumulator_digest,
         )
     }
 }
@@ -747,13 +799,14 @@ pub struct Rv64imMainRecursionFPrimeAdvice {
     side_witness: Rv64imMainRecursionSideLaneWitness,
     phi_side: Rv64imMainRecursionPhiSide,
     pub(crate) state_in: Rv64imChunkFoldState,
+    folded_accumulator_in_digest: [u8; 32],
     x_i: Rv64imEncodedPublicInput,
     construction2_input_u_i: Option<Rv64imMainRecursionConstruction2FreshInstance>,
     native_verified_step_statement: Rv64imMainRecursionConstruction2VerifiedStepStatement,
     terminal_step: bool,
     verified_kernel_handoff: Rv64imVerifiedKernelChunkHandoff,
     state_out: Rv64imChunkFoldState,
-    main_circuit_chunk_trace: Rv64imMainCircuitChunkTrace,
+    main_circuit_replay_witness: ChunkReplayWitness,
     construction2_pi_fold: Rv64imMainRecursionConstruction2PiFoldProof,
 }
 
@@ -773,9 +826,52 @@ impl Rv64imMainRecursionFPrimeAdvice {
         terminal_step: bool,
         verified_kernel_handoff: Rv64imVerifiedKernelChunkHandoff,
         state_out: Rv64imChunkFoldState,
-        main_circuit_chunk_trace: Rv64imMainCircuitChunkTrace,
+        main_circuit_replay_witness: ChunkReplayWitness,
         construction2_pi_fold: Rv64imMainRecursionConstruction2PiFoldProof,
     ) -> Result<Self, SimpleKernelError> {
+        let folded_accumulator_in_digest = rv64im_chunk_fold_carry_recursive_accumulator_digest(&state_in.carry);
+        Self::from_parts_with_folded_accumulator_in_digest(
+            vk_fs,
+            chunk_count_in,
+            z_0,
+            z_i,
+            pc_i,
+            side_witness,
+            phi_side,
+            state_in,
+            folded_accumulator_in_digest,
+            x_i,
+            construction2_input_u_i,
+            native_verified_step_statement,
+            terminal_step,
+            verified_kernel_handoff,
+            state_out,
+            main_circuit_replay_witness,
+            construction2_pi_fold,
+        )
+    }
+
+    pub(crate) fn from_parts_with_folded_accumulator_in_digest(
+        vk_fs: Rv64imVerifierKeyFs,
+        chunk_count_in: u64,
+        z_0: [u8; 32],
+        z_i: [u8; 32],
+        pc_i: u64,
+        side_witness: Rv64imMainRecursionSideLaneWitness,
+        phi_side: Rv64imMainRecursionPhiSide,
+        state_in: Rv64imChunkFoldState,
+        folded_accumulator_in_digest: [u8; 32],
+        x_i: Rv64imEncodedPublicInput,
+        construction2_input_u_i: Option<Rv64imMainRecursionConstruction2FreshInstance>,
+        native_verified_step_statement: Rv64imMainRecursionConstruction2VerifiedStepStatement,
+        terminal_step: bool,
+        verified_kernel_handoff: Rv64imVerifiedKernelChunkHandoff,
+        state_out: Rv64imChunkFoldState,
+        main_circuit_replay_witness: ChunkReplayWitness,
+        construction2_pi_fold: Rv64imMainRecursionConstruction2PiFoldProof,
+    ) -> Result<Self, SimpleKernelError> {
+        state_in.carry.validate_projection_digests("state_in")?;
+        state_out.carry.validate_projection_digests("state_out")?;
         if let Some(construction2_input_u_i) = construction2_input_u_i.as_ref() {
             if chunk_count_in != 0 && construction2_input_u_i.x_i() != &x_i {
                 return Err(SimpleKernelError::Bridge(
@@ -808,14 +904,6 @@ impl Rv64imMainRecursionFPrimeAdvice {
                     .into(),
             ));
         }
-        if native_verified_step_statement.chunk_relation_digest
-            != main_circuit_chunk_trace.ccs_trace.chunk_relation_digest
-        {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM main recursion advice carries a native verified-step relation digest that disagrees with the replayed main-circuit chunk trace"
-                    .into(),
-            ));
-        }
         Ok(Self {
             vk_fs,
             chunk_count_in,
@@ -824,6 +912,7 @@ impl Rv64imMainRecursionFPrimeAdvice {
             pc_i,
             side_witness,
             phi_side,
+            folded_accumulator_in_digest,
             state_in,
             x_i,
             construction2_input_u_i,
@@ -831,7 +920,7 @@ impl Rv64imMainRecursionFPrimeAdvice {
             terminal_step,
             verified_kernel_handoff,
             state_out,
-            main_circuit_chunk_trace,
+            main_circuit_replay_witness,
             construction2_pi_fold,
         })
     }
@@ -877,7 +966,7 @@ impl Rv64imMainRecursionFPrimeAdvice {
     }
 
     pub fn folded_accumulator_in_digest(&self) -> [u8; 32] {
-        rv64im_chunk_fold_carry_recursive_accumulator_digest(&self.state_in.carry)
+        self.folded_accumulator_in_digest
     }
 
     pub fn verifier_key_fs(&self) -> &Rv64imVerifierKeyFs {
@@ -914,8 +1003,20 @@ impl Rv64imMainRecursionFPrimeAdvice {
         &self.state_out
     }
 
-    pub(crate) fn main_circuit_chunk_trace(&self) -> &Rv64imMainCircuitChunkTrace {
-        &self.main_circuit_chunk_trace
+    pub(crate) fn main_circuit_chunk_trace(&self) -> Result<Rv64imMainCircuitChunkTrace, SimpleKernelError> {
+        let main_circuit_chunk_summary = self
+            .native_verified_step_statement
+            .fixed_shape_chunk_summary()?;
+        build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(
+            self.verified_kernel_handoff.bridge_handoff.chunk_index as usize,
+            &self.verified_kernel_handoff,
+            &main_circuit_chunk_summary,
+            &self.state_in.carry,
+            &self.state_out.carry,
+            &self.state_in.transcript,
+            &self.state_out.transcript,
+            &self.main_circuit_replay_witness,
+        )
     }
 
     pub(crate) fn fresh_state_out_mut(&mut self) -> &mut Rv64imChunkFoldState {
@@ -924,6 +1025,10 @@ impl Rv64imMainRecursionFPrimeAdvice {
 
     pub(crate) fn verified_kernel_handoff(&self) -> &Rv64imVerifiedKernelChunkHandoff {
         &self.verified_kernel_handoff
+    }
+
+    pub(crate) fn main_circuit_replay_witness(&self) -> &ChunkReplayWitness {
+        &self.main_circuit_replay_witness
     }
 
     pub(crate) fn verified_kernel_handoff_mut(&mut self) -> &mut Rv64imVerifiedKernelChunkHandoff {
@@ -989,6 +1094,17 @@ pub struct Rv64imMainRecursionFPrimeStepImage {
     x_out: Rv64imEncodedPublicInput,
 }
 
+pub(crate) struct Rv64imMainRecursionFPrimeStepImageParts {
+    pub(crate) chunk_count: u64,
+    pub(crate) z_next: [u8; 32],
+    pub(crate) pc_next: u64,
+    pub(crate) phi_side: Rv64imMainRecursionPhiSide,
+    pub(crate) construction2_u_next: Rv64imMainRecursionConstruction2FreshInstance,
+    pub(crate) next_state: Rv64imChunkFoldState,
+    pub(crate) folded_accumulator_digest: [u8; 32],
+    pub(crate) x_out: Rv64imEncodedPublicInput,
+}
+
 impl Rv64imMainRecursionFPrimeStepImage {
     pub fn chunk_count(&self) -> u64 {
         self.chunk_count
@@ -1020,6 +1136,19 @@ impl Rv64imMainRecursionFPrimeStepImage {
 
     pub fn running_out_state(&self) -> &Rv64imChunkFoldState {
         &self.next_state
+    }
+
+    pub(crate) fn into_parts(self) -> Rv64imMainRecursionFPrimeStepImageParts {
+        Rv64imMainRecursionFPrimeStepImageParts {
+            chunk_count: self.chunk_count,
+            z_next: self.z_next,
+            pc_next: self.pc_next,
+            phi_side: self.phi_side,
+            construction2_u_next: self.construction2_u_next,
+            next_state: self.next_state,
+            folded_accumulator_digest: self.folded_accumulator_digest,
+            x_out: self.x_out,
+        }
     }
 }
 
@@ -1089,6 +1218,7 @@ fn rv64im_main_recursion_accumulator_from_f_prime_advice(
     Rv64imMainRecursionAccumulator {
         chunk_count: advice.chunk_count_in(),
         state: advice.state_in.clone(),
+        folded_accumulator_digest: advice.folded_accumulator_in_digest,
     }
 }
 
@@ -1107,9 +1237,11 @@ pub fn build_rv64im_main_recursion_f_prime_advices_with_perf(
     ),
     SimpleKernelError,
 > {
+    let step_cap = rv64im_main_recursion_step_cap_from_relations(relations)?;
     build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(
         relations,
         &Rv64imMainRecursionPhiSide::zero(),
+        step_cap,
         None,
     )
 }
@@ -1129,6 +1261,27 @@ fn validate_rv64im_main_recursion_single_step_relation(
         ));
     }
     Ok(())
+}
+
+fn rv64im_main_recursion_step_cap_from_relations(
+    relations: &[Rv64imChunkStepIvcRelation],
+) -> Result<usize, SimpleKernelError> {
+    let step_cap = relations
+        .iter()
+        .map(|relation| relation.statement.chunk_summary.public_step_count as usize)
+        .max()
+        .ok_or_else(|| {
+            SimpleKernelError::Bridge(
+                "RV64IM main recursion F' advice builder requires at least one relation to derive a native step_cap"
+                    .into(),
+            )
+        })?;
+    if step_cap == 0 {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM main recursion F' advice builder cannot derive a zero-width native step_cap".into(),
+        ));
+    }
+    Ok(step_cap)
 }
 
 pub fn build_rv64im_main_recursion_f_prime_advices_single_step(
@@ -1193,12 +1346,14 @@ fn build_rv64im_main_recursion_f_prime_advices_with_phi_side(
     relations: &[Rv64imChunkStepIvcRelation],
     phi_side: &Rv64imMainRecursionPhiSide,
 ) -> Result<Vec<Rv64imMainRecursionFPrimeAdvice>, SimpleKernelError> {
-    Ok(build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(relations, phi_side, None)?.0)
+    let step_cap = rv64im_main_recursion_step_cap_from_relations(relations)?;
+    Ok(build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(relations, phi_side, step_cap, None)?.0)
 }
 
 fn build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(
     relations: &[Rv64imChunkStepIvcRelation],
     phi_side: &Rv64imMainRecursionPhiSide,
+    step_cap: usize,
     trace_prefix: Option<&str>,
 ) -> Result<
     (
@@ -1209,7 +1364,7 @@ fn build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(
 > {
     let total_started = Instant::now();
     let started = Instant::now();
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
+    let vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(step_cap)?;
     let verifier_key_ms = elapsed_ms(started);
     emit_debug_timing(trace_prefix, "verifier_key", verifier_key_ms);
     let mut accumulator = Rv64imMainRecursionAccumulator::seed();
@@ -1224,20 +1379,16 @@ fn build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(
                         accumulator: &Rv64imMainRecursionAccumulator,
                         current_construction2_u_i: &Rv64imMainRecursionConstruction2FreshInstance|
      -> Result<Rv64imMainRecursionFPrimeAdvice, SimpleKernelError> {
+        let main_circuit_chunk_summary = relation.statement.chunk_summary.clone();
         let native_verified_step_statement =
-            build_rv64im_main_recursion_construction2_verified_step_statement_from_relation(relation)?;
-        let main_circuit_chunk_summary = native_verified_step_statement.fixed_shape_chunk_summary()?;
-        let main_circuit_chunk_trace = build_rv64im_main_circuit_chunk_trace_from_authoritative_parts(
-            relation.witness.handoff.bridge_handoff.chunk_index as usize,
-            &relation.witness.handoff,
-            &main_circuit_chunk_summary,
-            &relation.witness.state_in.carry,
-            &relation.witness.state_out.carry,
-            &relation.witness.state_in.transcript,
-            &relation.witness.state_out.transcript,
-            &relation.witness.replay_witness,
-        )?;
-        let construction2_pi_fold = build_rv64im_main_recursion_construction2_pi_fold_from_relation(relation)?;
+            build_rv64im_main_recursion_construction2_verified_step_statement_from_summary(
+                relation.witness.handoff.bridge_handoff.chunk_index,
+                &main_circuit_chunk_summary,
+                &relation.witness.state_in,
+                &relation.witness.state_out,
+            );
+        let construction2_pi_fold =
+            build_rv64im_main_recursion_construction2_pi_fold_from_replay_witness(&relation.witness.replay_witness);
         let x_i = accumulator.x_i(&vk_fs);
         Rv64imMainRecursionFPrimeAdvice::from_parts(
             vk_fs.clone(),
@@ -1254,7 +1405,7 @@ fn build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(
             relation.witness.terminal_step,
             relation.witness.handoff.clone(),
             relation.witness.state_out.clone(),
-            main_circuit_chunk_trace,
+            relation.witness.replay_witness.clone(),
             construction2_pi_fold,
         )
     };
@@ -1308,14 +1459,15 @@ fn build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(
             step_perf.evaluate_step_ms,
         );
         let started = Instant::now();
-        accumulator = accumulator.apply_verified_step_image(&step_image)?;
+        let (next_accumulator, next_construction2_u_i) = accumulator.apply_verified_step_image(step_image)?;
+        accumulator = next_accumulator;
         step_perf.apply_step_image_ms = elapsed_ms(started);
         emit_debug_timing(
             trace_prefix,
             &format!("step_{step_index}_apply_step_image"),
             step_perf.apply_step_image_ms,
         );
-        current_construction2_u_i = Some(step_image.construction2_u_next().clone());
+        current_construction2_u_i = Some(next_construction2_u_i);
         out.push(advice);
         perf.per_step.push(step_perf);
     }
@@ -1347,7 +1499,7 @@ fn build_rv64im_main_recursion_f_prime_advices_with_phi_side_single_step_and_per
         validate_rv64im_main_recursion_single_step_relation(relation)?;
     }
     let mut built =
-        build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(relations, phi_side, trace_prefix)?;
+        build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(relations, phi_side, 1, trace_prefix)?;
     built.1.relation_validation_ms = elapsed_ms(started);
     emit_debug_timing(trace_prefix, "relation_validation", built.1.relation_validation_ms);
     Ok(built)
@@ -1390,7 +1542,8 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
     let total_started = Instant::now();
     let started = Instant::now();
     let accumulator_in = rv64im_main_recursion_accumulator_from_f_prime_advice(advice);
-    let expected_vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
+    let expected_vk_fs =
+        build_rv64im_main_recursion_verifier_key_fs_for_step_cap(advice.verifier_key_fs().step_cap()?)?;
     if advice.verifier_key_fs() != &expected_vk_fs {
         return Err(SimpleKernelError::Bridge(
             "RV64IM main recursion F' advice vk_fs does not match the canonical deployed verifier-key context".into(),
@@ -1459,18 +1612,15 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
     let started = Instant::now();
     let _ = Rv64imMainRecursionAccumulatorSurface::try_from_carry(&next_state.carry.main, "F' next-state accumulator")?;
     emit_debug_timing(trace_prefix, "next_state_surface_check", elapsed_ms(started));
-    let accumulator_out = Rv64imMainRecursionAccumulator {
-        chunk_count: accumulator_in.chunk_count + 1,
-        state: next_state.clone(),
-    };
+    let chunk_count_out = accumulator_in.chunk_count + 1;
+    let folded_accumulator_digest = rv64im_chunk_fold_carry_recursive_accumulator_digest(&next_state.carry);
     let started = Instant::now();
-    let folded_accumulator_digest = rv64im_chunk_fold_carry_recursive_accumulator_digest(&accumulator_out.state.carry);
-    let z_next = accumulator_out.state.carry.terminal_handle.0;
+    let z_next = next_state.carry.terminal_handle.0;
     let pc_next = RV64IM_MAIN_RECURSION_TRIVIAL_PC;
     let phi_side = advice.phi_side().clone();
     let x_out = rv64im_main_recursion_x_out(
         advice.verifier_key_fs(),
-        accumulator_out.chunk_count,
+        chunk_count_out,
         *advice.z_0(),
         z_next,
         pc_next,
@@ -1501,7 +1651,7 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_trace(
     }
     emit_debug_timing(trace_prefix, "total", elapsed_ms(total_started));
     Ok(Rv64imMainRecursionFPrimeStepImage {
-        chunk_count: accumulator_out.chunk_count,
+        chunk_count: chunk_count_out,
         z_next,
         pc_next,
         phi_side,

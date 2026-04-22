@@ -23,10 +23,11 @@ use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 
 use super::claim::{
-    me_digest_poseidon, me_digest_poseidon_values, me_digest_poseidon_values_from_native_claim,
-    me_digest_poseidon_with_native_claim, CeClaimVar,
+    me_input_projection_digest_poseidon, me_input_projection_digest_poseidon_values,
+    me_input_projection_digest_poseidon_values_from_native_claim,
+    me_input_projection_digest_poseidon_with_native_claim, CeClaimVar,
 };
-use super::k_field::KNumVar;
+use super::k_field::{alloc_k, enforce_k_eq, KNum, KNumVar};
 use super::transcript::Poseidon2TranscriptCircuit;
 
 #[derive(Clone)]
@@ -189,14 +190,49 @@ pub fn bind_me_inputs<CS: ConstraintSystem<SpartanF>>(
     let mut digests = Vec::with_capacity(me_inputs.len());
     let mut digest_values = Vec::with_capacity(me_inputs.len());
     for (idx, claim) in me_inputs.iter().enumerate() {
-        digests.push(me_digest_poseidon(
+        digests.push(me_input_projection_digest_poseidon(
             &mut cs.namespace(|| format!("me_input_digest_{idx}")),
             claim,
             &format!("me_input_digest_{idx}"),
         )?);
-        digest_values.push(me_digest_poseidon_values(claim));
+        digest_values.push(me_input_projection_digest_poseidon_values(claim));
     }
     emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.digest_claims", started);
+    let started = Instant::now();
+    bind_me_input_digests(cs, tr, &digests, &digest_values)?;
+    emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.bind_digests", started);
+    Ok(digests)
+}
+
+pub fn bind_me_inputs_with_projection_digests<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    tr: &mut Poseidon2TranscriptCircuit,
+    me_input_digests: &[[F; 4]],
+    trace_prefix: Option<&str>,
+) -> Result<Vec<[AllocatedNum<SpartanF>; 4]>, SynthesisError> {
+    let started = Instant::now();
+    let digests = me_input_digests
+        .iter()
+        .enumerate()
+        .map(|(idx, digest)| {
+            digest
+                .iter()
+                .enumerate()
+                .map(|(lane, value)| {
+                    AllocatedNum::alloc(cs.namespace(|| format!("me_input_digest_{idx}_{lane}")), || {
+                        Ok(SpartanF::from_canonical_u64(value.as_canonical_u64()))
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .try_into()
+                .map_err(|_| SynthesisError::Unsatisfiable)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let digest_values = me_input_digests
+        .iter()
+        .map(|digest| digest.map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())))
+        .collect::<Vec<_>>();
+    emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.alloc_cached_digests", started);
     let started = Instant::now();
     bind_me_input_digests(cs, tr, &digests, &digest_values)?;
     emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.bind_digests", started);
@@ -218,13 +254,15 @@ pub fn bind_me_inputs_with_native_claims<CS: ConstraintSystem<SpartanF>>(
     let mut digests = Vec::with_capacity(me_inputs.len());
     let mut digest_values = Vec::with_capacity(me_inputs.len());
     for (idx, (claim, native_claim)) in me_inputs.iter().zip(native_claims.iter()).enumerate() {
-        digests.push(me_digest_poseidon_with_native_claim(
+        digests.push(me_input_projection_digest_poseidon_with_native_claim(
             &mut cs.namespace(|| format!("me_input_digest_{idx}")),
             claim,
             native_claim,
             &format!("me_input_digest_{idx}"),
         )?);
-        digest_values.push(me_digest_poseidon_values_from_native_claim(native_claim));
+        digest_values.push(me_input_projection_digest_poseidon_values_from_native_claim(
+            native_claim,
+        ));
     }
     emit_pi_ccs_trace(trace_prefix, "pi_ccs.bind_me_inputs.digest_claims", started);
     let started = Instant::now();
@@ -266,6 +304,62 @@ pub fn sample_challenges<CS: ConstraintSystem<SpartanF>>(
         beta_m,
         gamma,
     })
+}
+
+pub fn sample_challenges_with_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    tr: &mut Poseidon2TranscriptCircuit,
+    dims: Dims,
+    expected: &neo_reductions::optimized_engine::Challenges,
+    label: &str,
+) -> Result<PiCcsChallengeVars, SynthesisError> {
+    if expected.alpha.len() != dims.ell_d
+        || expected.beta_a.len() != dims.ell_d
+        || expected.beta_r.len() != dims.ell_n
+        || expected.beta_m.len() != dims.ell_m
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let sampled = sample_challenges(cs, tr, dims)?;
+    for (idx, challenge) in sampled.alpha.iter().enumerate() {
+        let expected_var = alloc_k(
+            cs,
+            Some(KNum::from_neo_k(expected.alpha[idx])),
+            &format!("{label}_alpha_expected_{idx}"),
+        )?;
+        enforce_k_eq(cs, challenge, &expected_var, &format!("{label}_alpha_{idx}"));
+    }
+    for (idx, challenge) in sampled.beta_a.iter().enumerate() {
+        let expected_var = alloc_k(
+            cs,
+            Some(KNum::from_neo_k(expected.beta_a[idx])),
+            &format!("{label}_beta_a_expected_{idx}"),
+        )?;
+        enforce_k_eq(cs, challenge, &expected_var, &format!("{label}_beta_a_{idx}"));
+    }
+    for (idx, challenge) in sampled.beta_r.iter().enumerate() {
+        let expected_var = alloc_k(
+            cs,
+            Some(KNum::from_neo_k(expected.beta_r[idx])),
+            &format!("{label}_beta_r_expected_{idx}"),
+        )?;
+        enforce_k_eq(cs, challenge, &expected_var, &format!("{label}_beta_r_{idx}"));
+    }
+    for (idx, challenge) in sampled.beta_m.iter().enumerate() {
+        let expected_var = alloc_k(
+            cs,
+            Some(KNum::from_neo_k(expected.beta_m[idx])),
+            &format!("{label}_beta_m_expected_{idx}"),
+        )?;
+        enforce_k_eq(cs, challenge, &expected_var, &format!("{label}_beta_m_{idx}"));
+    }
+    let expected_gamma = alloc_k(
+        cs,
+        Some(KNum::from_neo_k(expected.gamma)),
+        &format!("{label}_gamma_expected"),
+    )?;
+    enforce_k_eq(cs, &sampled.gamma, &expected_gamma, &format!("{label}_gamma"));
+    Ok(sampled)
 }
 
 fn sample_k_vec_batched<CS: ConstraintSystem<SpartanF>>(

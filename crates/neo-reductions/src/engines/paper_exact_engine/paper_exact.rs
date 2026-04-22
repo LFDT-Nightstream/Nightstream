@@ -967,14 +967,16 @@ where
 
     // --- F' ---
     // Weighted MCS sum:
-    // F' = Σ_{i=1..k_mcs} γ^{i-1} · f(y'_(i,1..t)) using ct[j] entries.
+    // F' = Σ_{i=1..k_mcs} γ^{i-1} · f(ct(y'_(i,1)), .., ct(y'_(i,t))).
     let F_prime = {
         let mut acc_f = K::ZERO;
         let mut g = K::ONE;
         for out in out_me.iter().take(k_mcs) {
             let mut m_vals = vec![K::ZERO; s.t()];
             for j in 0..s.t() {
-                m_vals[j] = out.ct[j];
+                m_vals[j] = *out.y_ring[j]
+                    .first()
+                    .expect("terminal FE: y_ring row missing constant term");
             }
             acc_f += g * s.f.eval_in_ext::<K>(&m_vals);
             g *= ch.gamma;
@@ -1127,14 +1129,16 @@ where
 
     // --- F' ---
     // Weighted MCS sum:
-    // F' = Σ_{i=1..k_mcs} γ^{i-1} · f(y'_(i,1..t)) using ct[j] entries.
+    // F' = Σ_{i=1..k_mcs} γ^{i-1} · f(ct(y'_(i,1)), .., ct(y'_(i,t))).
     let F_prime = {
         let mut acc_f = K::ZERO;
         let mut g = K::ONE;
         for out in out_me.iter().take(k_mcs) {
             let mut m_vals = vec![K::ZERO; s.t()];
             for j in 0..s.t() {
-                m_vals[j] = out.ct[j];
+                m_vals[j] = *out.y_ring[j]
+                    .first()
+                    .expect("terminal FE: y_ring row missing constant term");
             }
             acc_f += g * s.f.eval_in_ext::<K>(&m_vals);
             g *= ch.gamma;

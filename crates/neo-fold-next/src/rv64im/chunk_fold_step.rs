@@ -1,9 +1,10 @@
 //! Owns the explicit RV64IM one-chunk fold-verifier step reused by recursion and decider tracing.
 
 use neo_ajtai::{AjtaiSModule, Commitment};
-use neo_ccs::{CcsClaim, CcsStructure, CcsWitness};
-use neo_math::F;
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim};
+use neo_math::{F, K};
 use neo_params::NeoParams;
+use neo_reductions::engines::utils::me_input_projection_digest_poseidon_into;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
@@ -22,17 +23,45 @@ pub struct Rv64imAccumulatorHandle(pub [u8; 32]);
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Rv64imChunkFoldCarry {
     pub main: Carry,
+    pub main_projection_digests: Vec<[F; 4]>,
     pub terminal_handle: Rv64imAccumulatorHandle,
 }
 
 impl Rv64imChunkFoldCarry {
-    pub fn seed() -> Self {
+    pub fn from_main(main: Carry, terminal_handle: Rv64imAccumulatorHandle) -> Self {
+        let main_projection_digests = rv64im_main_claim_projection_digests(&main.claims);
         Self {
-            main: crate::rv64im::construction2_default::build_rv64im_main_recursion_canonical_zero_carry()
-                .expect("canonical RV64IM chunk-fold seed carry must build"),
-            terminal_handle: Rv64imAccumulatorHandle(rv64im_chunk_fold_seed()),
+            main,
+            main_projection_digests,
+            terminal_handle,
         }
     }
+
+    pub fn seed() -> Self {
+        Self::from_main(
+            crate::rv64im::construction2_default::build_rv64im_main_recursion_canonical_zero_carry()
+                .expect("canonical RV64IM chunk-fold seed carry must build"),
+            Rv64imAccumulatorHandle(rv64im_chunk_fold_seed()),
+        )
+    }
+
+    pub fn validate_projection_digests(&self, label: &str) -> Result<(), SimpleKernelError> {
+        let expected = rv64im_main_claim_projection_digests(&self.main.claims);
+        if self.main_projection_digests != expected {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM chunk-fold carry {label} projection digests drifted from the authoritative carried CE claims"
+            )));
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn rv64im_main_claim_projection_digests(claims: &[CeClaim<Commitment, F, K>]) -> Vec<[F; 4]> {
+    let mut scratch = Vec::<F>::with_capacity(2048);
+    claims
+        .iter()
+        .map(|claim| me_input_projection_digest_poseidon_into(&mut scratch, claim))
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -155,16 +184,16 @@ pub(crate) fn verify_rv64im_chunk_fold_verifier_step(
         log,
         optimized_cache,
     )?;
-    let next_carry = Rv64imChunkFoldCarry {
-        main: next_main,
-        terminal_handle: Rv64imAccumulatorHandle(rv64im_step_handle(
+    let next_carry = Rv64imChunkFoldCarry::from_main(
+        next_main,
+        Rv64imAccumulatorHandle(rv64im_step_handle(
             carry_in.terminal_handle.0,
             chunk_index,
             fresh.public_chunk.start_index,
             fresh.public_chunk.steps.len(),
             chunk_relation_digest,
         )),
-    };
+    );
     let step_public =
         build_rv64im_chunk_step_public(program_digest, chunk_index, &fresh, carry_in, &next_carry, halted_out);
     Ok(Rv64imChunkFoldVerifierStepOutput {
@@ -199,16 +228,16 @@ pub(crate) fn prove_rv64im_chunk_fold_verifier_step_with_perf(
             log,
             optimized_cache,
         )?;
-    let next_carry = Rv64imChunkFoldCarry {
-        main: next_main,
-        terminal_handle: Rv64imAccumulatorHandle(rv64im_step_handle(
+    let next_carry = Rv64imChunkFoldCarry::from_main(
+        next_main,
+        Rv64imAccumulatorHandle(rv64im_step_handle(
             carry_in.terminal_handle.0,
             chunk_index,
             fresh.public_chunk.start_index,
             fresh.public_chunk.steps.len(),
             chunk_relation_digest,
         )),
-    };
+    );
     let step_public =
         build_rv64im_chunk_step_public(program_digest, chunk_index, &fresh, carry_in, &next_carry, halted_out);
     Ok((

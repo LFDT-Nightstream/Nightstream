@@ -102,10 +102,10 @@ fn rv64im_main_nightstream_proof_digest_tracks_compact_compressed_main_proof() {
         "Nightstream proof-binding digest must change when the carried terminal decider proof bytes change"
     );
 
-    compact.linkage_anchor_digest_mut()[0] ^= 1;
+    compact.published_statement_mut().x_last_mut().bytes_mut()[0] ^= 1;
     assert_ne!(
         baseline,
         rv64im_main_nightstream_proof_digest(&compact),
-        "Nightstream proof-binding digest must change when the carried linkage anchor changes"
+        "Nightstream proof-binding digest must change when the carried published statement changes"
     );
 }

@@ -21,7 +21,7 @@ fn add_commitments(a: &Commitment, b: &Commitment) -> Commitment {
 }
 
 #[test]
-fn verify_dec_public_checks_all_y_ct_and_x_entries() {
+fn verify_dec_public_ignores_stale_ct_shell_but_checks_y_aux_and_x_entries() {
     let params = NeoParams::goldilocks_127();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize; // 64 -> 6
     let d_pad = 1usize << ell_d;
@@ -160,10 +160,10 @@ fn verify_dec_public_checks_all_y_ct_and_x_entries() {
         ell_d
     ));
 
-    // Tamper the corresponding scalar and ensure the scalar check fails.
-    let mut parent_bad2 = parent;
+    // Tamper only ct shell on the parent and ensure DEC public still accepts.
+    let mut parent_bad2 = parent.clone();
     parent_bad2.ct[t_eff - 1] += K::ONE;
-    assert!(!neo_reductions::api::verify_dec_public(
+    assert!(neo_reductions::api::verify_dec_public(
         &s,
         &params,
         &parent_bad2,
@@ -172,8 +172,20 @@ fn verify_dec_public_checks_all_y_ct_and_x_entries() {
         ell_d
     ));
 
+    // Tamper only ct shell on a child and ensure DEC public still accepts.
+    let mut child1_bad = child1.clone();
+    child1_bad.ct[t_eff - 1] += K::ONE;
+    assert!(neo_reductions::api::verify_dec_public(
+        &s,
+        &params,
+        &parent,
+        &[child0.clone(), child1_bad],
+        combine_b_pows,
+        ell_d
+    ));
+
     // Tamper aux_openings and ensure the aux decomposition check fails.
-    let mut parent_bad3 = parent_bad2;
+    let mut parent_bad3 = parent.clone();
     parent_bad3.aux_openings[0] += K::ONE;
     assert!(!neo_reductions::api::verify_dec_public(
         &s,
@@ -185,7 +197,7 @@ fn verify_dec_public_checks_all_y_ct_and_x_entries() {
     ));
 
     // Tamper X and ensure the X decomposition check fails.
-    let mut parent_bad4 = parent_bad3;
+    let mut parent_bad4 = parent.clone();
     parent_bad4.X[(0, 0)] += F::ONE;
     assert!(!neo_reductions::api::verify_dec_public(
         &s,
@@ -198,7 +210,7 @@ fn verify_dec_public_checks_all_y_ct_and_x_entries() {
 }
 
 #[test]
-fn verify_dec_public_checks_y_zcol_when_present() {
+fn verify_dec_public_ignores_y_zcol_and_s_col_shell_when_present() {
     let params = NeoParams::goldilocks_127();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
@@ -326,7 +338,7 @@ fn verify_dec_public_checks_y_zcol_when_present() {
         ell_d
     ));
 
-    // y_zcol is carried structurally in DEC public checks in this variant.
+    // y_zcol is transport shell on the public DEC boundary.
     let mut parent_bad = parent.clone();
     parent_bad.y_zcol[0] += K::ONE;
     assert!(neo_reductions::api::verify_dec_public(
@@ -338,10 +350,10 @@ fn verify_dec_public_checks_y_zcol_when_present() {
         ell_d
     ));
 
-    // Tamper a child's s_col and ensure the check fails.
+    // s_col is transport shell on the public DEC boundary as well.
     let mut child1_bad = child1.clone();
     child1_bad.s_col = vec![K::from(F::from_u64(9))];
-    assert!(!neo_reductions::api::verify_dec_public(
+    assert!(neo_reductions::api::verify_dec_public(
         &s,
         &params,
         &parent,

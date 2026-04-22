@@ -11,21 +11,27 @@ use neo_ccs::{CcsClaim, CcsWitness, CeClaim};
 use neo_fold_next::rv64im::audit::{
     audit_rv64im_main_recursion_step_spartan_fixed_shape_at_chunk_positions,
     debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints,
-    debug_measure_rv64im_main_recursion_step_spartan_circuit_shape, Rv64imCeClaimDigestShape,
+    debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts,
+    debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint,
+    debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
+    debug_measure_rv64im_main_recursion_step_stage_aux_counts,
+    debug_profile_rv64im_main_recursion_step_chunk_replay_stages, Rv64imCeClaimDigestShape,
     Rv64imMainRecursionFPrimeBackendRelation, Rv64imMainRecursionStepSpartanShape,
 };
 use neo_fold_next::rv64im::debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint;
 use neo_fold_next::rv64im::debug_measure_rv64im_main_relation_state_in_prefix_fingerprints;
 use neo_fold_next::rv64im::{
-    build_rv64im_main_recursion_construction2_canonical_shape, build_rv64im_main_recursion_verifier_key_fs,
-    Rv64imMainRecursionPhiSide,
+    build_rv64im_main_recursion_construction2_canonical_shape,
+    build_rv64im_main_recursion_verifier_key_fs_for_step_cap, Rv64imMainRecursionPhiSide,
 };
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use super::support::{
     fast_structural_backend_relations, fast_structural_relations, fast_structural_spartan_shape,
-    single_step_backend_relations, single_step_spartan_shape, two_step_backend_relations, two_step_spartan_shape,
+    five_step_cap_backend_relations, five_step_cap_spartan_shape, single_step_backend_relations,
+    single_step_spartan_shape, two_step_backend_relations, two_step_spartan_shape,
 };
 
 fn perturb_ce_claim_values(claim: &mut CeClaim<Commitment, F, K>) {
@@ -148,6 +154,10 @@ fn print_state_in_prefix_fingerprints(label: &str, relation: &Rv64imMainRecursio
         "{label}.after_live_state_in_claim_alloc: {}",
         measured.after_live_state_in_claim_alloc
     );
+    println!(
+        "{label}.after_live_state_in_claim_alloc_aux: {}",
+        measured.after_live_state_in_claim_alloc_aux
+    );
     for (claim_index, fingerprint) in measured.per_claim_compute.iter().enumerate() {
         println!("{label}.per_claim_compute[{claim_index}]: {fingerprint}");
     }
@@ -156,20 +166,42 @@ fn print_state_in_prefix_fingerprints(label: &str, relation: &Rv64imMainRecursio
         measured.bind_me_input_digests_compute
     );
     println!(
+        "{label}.bind_me_input_digests_compute_aux: {}",
+        measured.bind_me_input_digests_compute_aux
+    );
+    println!(
         "{label}.bind_me_input_digests_transcript: {}",
         measured.bind_me_input_digests_transcript
+    );
+    println!(
+        "{label}.bind_me_input_digests_transcript_aux: {}",
+        measured.bind_me_input_digests_transcript_aux
     );
     println!(
         "{label}.claimed_initial_sum_from_me_inputs: {}",
         measured.claimed_initial_sum_from_me_inputs
     );
+    println!(
+        "{label}.claimed_initial_sum_from_me_inputs_aux: {}",
+        measured.claimed_initial_sum_from_me_inputs_aux
+    );
     println!("{label}.fe_sumcheck_initial: {}", measured.fe_sumcheck_initial);
+    println!("{label}.fe_sumcheck_initial_aux: {}", measured.fe_sumcheck_initial_aux);
     println!("{label}.fe_sumcheck: {}", measured.fe_sumcheck);
+    println!("{label}.fe_sumcheck_aux: {}", measured.fe_sumcheck_aux);
     println!("{label}.nc_sumcheck_initial: {}", measured.nc_sumcheck_initial);
+    println!("{label}.nc_sumcheck_initial_aux: {}", measured.nc_sumcheck_initial_aux);
     println!("{label}.nc_sumcheck: {}", measured.nc_sumcheck);
+    println!("{label}.nc_sumcheck_aux: {}", measured.nc_sumcheck_aux);
     println!("{label}.relation_digest: {}", measured.relation_digest);
+    println!("{label}.relation_digest_aux: {}", measured.relation_digest_aux);
     println!("{label}.ccs_outputs_and_binding: {}", measured.ccs_outputs_and_binding);
+    println!(
+        "{label}.ccs_outputs_and_binding_aux: {}",
+        measured.ccs_outputs_and_binding_aux
+    );
     println!("{label}.terminal_identities: {}", measured.terminal_identities);
+    println!("{label}.terminal_identities_aux: {}", measured.terminal_identities_aux);
 }
 
 fn run_state_in_prefix_breakdown_case(label: &str, mutate: impl FnOnce(&mut Rv64imMainRecursionFPrimeBackendRelation)) {
@@ -226,7 +258,13 @@ fn assert_shape_matches_canonical_contract(
     spartan_shape: &Rv64imMainRecursionStepSpartanShape,
     first: &Rv64imMainRecursionFPrimeBackendRelation,
 ) {
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs().expect("build canonical recursive-step verifier-key FS");
+    let step_cap = first
+        .f_prime_advice
+        .verifier_key_fs()
+        .step_cap()
+        .unwrap_or_else(|err| panic!("{label}: derive recursive-step verifier-key step_cap: {err}"));
+    let vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(step_cap)
+        .unwrap_or_else(|err| panic!("{label}: build canonical recursive-step verifier-key FS: {err}"));
     let canonical_shape =
         build_rv64im_main_recursion_construction2_canonical_shape(&vk_fs, &Rv64imMainRecursionPhiSide::zero())
             .expect("build canonical Construction-2 fixed shape");
@@ -364,6 +402,14 @@ fn f_prime_two_step_shape_builder_matches_canonical_contract() {
 }
 
 #[test]
+fn f_prime_five_step_cap_shape_builder_matches_canonical_contract() {
+    let first = five_step_cap_backend_relations()
+        .first()
+        .expect("five-step-cap canonical contract requires a backend relation");
+    assert_shape_matches_canonical_contract("five-step-cap fixture", five_step_cap_spartan_shape(), first);
+}
+
+#[test]
 fn f_prime_fast_fixture_inactive_side_lane_surface_is_zero() {
     let fast_relation = fast_structural_backend_relations()
         .first()
@@ -385,6 +431,105 @@ fn f_prime_two_step_inactive_side_lane_surface_is_zero() {
         .first()
         .expect("two-step inactive side-lane check requires a backend relation");
     assert_inactive_side_lane_surface_is_zero("two-step fixture", first);
+}
+
+#[test]
+fn f_prime_five_step_cap_terminal_padding_preserves_fixed_shape() {
+    let backend_relations = five_step_cap_backend_relations();
+    assert!(
+        backend_relations.len() >= 2,
+        "five-step-cap fixture must expose at least one full-width chunk and one short terminal chunk"
+    );
+    let spartan_shape = five_step_cap_spartan_shape();
+    let full = backend_relations
+        .first()
+        .expect("five-step-cap fixture must expose a first full-width chunk");
+    let terminal = backend_relations
+        .last()
+        .expect("five-step-cap fixture must expose a final short terminal chunk");
+
+    assert!(
+        !full.payload.step_shape.terminal_step,
+        "first five-step-cap backend relation must remain non-terminal"
+    );
+    assert!(
+        terminal.payload.step_shape.terminal_step,
+        "second five-step-cap backend relation must be terminal"
+    );
+    assert_eq!(
+        full.f_prime_advice
+            .verifier_key_fs()
+            .step_cap()
+            .expect("full step_cap"),
+        5,
+        "five-step-cap backend family must freeze step_cap=5"
+    );
+    assert_eq!(
+        terminal
+            .f_prime_advice
+            .verifier_key_fs()
+            .step_cap()
+            .expect("terminal step_cap"),
+        5,
+        "short terminal chunk must stay inside the frozen five-step-cap family"
+    );
+    assert_eq!(
+        full.payload.effective_fresh_claim_count(),
+        5,
+        "full-width five-step-cap relation must replay five effective fresh claims"
+    );
+    assert_eq!(
+        full.payload.padded_fresh_claim_count(),
+        5,
+        "full-width five-step-cap relation must preserve the canonical padded fresh-claim width"
+    );
+    assert!(
+        terminal.payload.effective_fresh_claim_count() < 5,
+        "final five-step-cap relation must expose a short terminal effective fresh-claim count"
+    );
+    assert_eq!(
+        terminal.payload.padded_fresh_claim_count(),
+        5,
+        "short terminal five-step-cap relation must preserve the canonical padded fresh-claim width"
+    );
+    assert_eq!(
+        spartan_shape.cover_shape.fresh_claim_count, 5,
+        "five-step-cap recursive-step cover must freeze the padded fresh-claim width at the chosen family cap"
+    );
+    assert!(
+        spartan_shape
+            .cover_shape
+            .covers_recursive_step_shape(&full.payload.step_shape),
+        "full-width five-step-cap relation drifted outside the canonical recursive-step cover"
+    );
+    assert!(
+        spartan_shape
+            .cover_shape
+            .covers_recursive_step_shape(&terminal.payload.step_shape),
+        "short terminal five-step-cap relation drifted outside the canonical recursive-step cover"
+    );
+
+    let full_measured = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(spartan_shape, full)
+        .expect("measure five-step-cap full-width recursive-step shape");
+    let terminal_measured = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(spartan_shape, terminal)
+        .expect("measure five-step-cap short-terminal recursive-step shape");
+
+    assert_eq!(
+        full_measured.num_inputs, terminal_measured.num_inputs,
+        "five-step-cap terminal padding must preserve recursive-step input count"
+    );
+    assert_eq!(
+        full_measured.num_aux, terminal_measured.num_aux,
+        "five-step-cap terminal padding must preserve recursive-step aux count"
+    );
+    assert_eq!(
+        full_measured.num_constraints, terminal_measured.num_constraints,
+        "five-step-cap terminal padding must preserve recursive-step constraint count"
+    );
+    assert_eq!(
+        full_measured.constraint_fingerprint, terminal_measured.constraint_fingerprint,
+        "five-step-cap terminal padding must preserve the recursive-step constraint fingerprint"
+    );
 }
 
 #[test]
@@ -447,6 +592,235 @@ fn f_prime_terminal_vs_nonterminal_state_in_claim_surface_breakdown() {
             );
         }
     }
+}
+
+#[test]
+#[ignore = "manual Goal 2 diagnostic: compare recursive-step aux counts by top-level stage across full-width and short-terminal five-step-cap relations"]
+fn f_prime_five_step_cap_terminal_padding_stage_aux_breakdown() {
+    let spartan_shape = five_step_cap_spartan_shape();
+    let backend_relations = five_step_cap_backend_relations();
+    let full = backend_relations
+        .iter()
+        .find(|relation| !relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap aux breakdown requires a non-terminal full-width relation");
+    let terminal = backend_relations
+        .iter()
+        .rev()
+        .find(|relation| relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap aux breakdown requires a short terminal relation");
+
+    let full_counts = debug_measure_rv64im_main_recursion_step_stage_aux_counts(spartan_shape, full)
+        .expect("measure full-width recursive-step aux counts");
+    let terminal_counts = debug_measure_rv64im_main_recursion_step_stage_aux_counts(spartan_shape, terminal)
+        .expect("measure short-terminal recursive-step aux counts");
+
+    println!("full={full_counts:#?}");
+    println!("terminal={terminal_counts:#?}");
+}
+
+#[test]
+#[ignore = "manual Goal 2 diagnostic: compare chunk-replay aux counts by checkpoint across full-width and short-terminal five-step-cap relations"]
+fn f_prime_five_step_cap_terminal_padding_chunk_replay_aux_breakdown() {
+    let backend_relations = five_step_cap_backend_relations();
+    let full = backend_relations
+        .iter()
+        .find(|relation| !relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap chunk-replay aux breakdown requires a non-terminal full-width relation");
+    let terminal = backend_relations
+        .iter()
+        .rev()
+        .find(|relation| relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap chunk-replay aux breakdown requires a short terminal relation");
+
+    let full_counts = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(full)
+        .expect("measure full-width chunk-replay aux counts");
+    let terminal_counts = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(terminal)
+        .expect("measure short-terminal chunk-replay aux counts");
+
+    println!(
+        "full_surface=(fresh_claims={}, ccs_outputs={}, effective_fresh={}, padded_fresh={})",
+        full.payload.fresh_claims.len(),
+        full.payload.pi_ccs.ccs_outputs.len(),
+        full.payload.effective_fresh_claim_count(),
+        full.payload.padded_fresh_claim_count(),
+    );
+    println!(
+        "terminal_surface=(fresh_claims={}, ccs_outputs={}, effective_fresh={}, padded_fresh={})",
+        terminal.payload.fresh_claims.len(),
+        terminal.payload.pi_ccs.ccs_outputs.len(),
+        terminal.payload.effective_fresh_claim_count(),
+        terminal.payload.padded_fresh_claim_count(),
+    );
+    println!("full={full_counts:#?}");
+    println!("terminal={terminal_counts:#?}");
+}
+
+#[test]
+#[ignore = "manual Goal 2 diagnostic: compare pi_ccs aux counts by sub-stage across full-width and short-terminal five-step-cap relations"]
+fn f_prime_five_step_cap_terminal_padding_pi_ccs_aux_breakdown() {
+    let backend_relations = five_step_cap_backend_relations();
+    let full = backend_relations
+        .iter()
+        .find(|relation| !relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap pi_ccs aux breakdown requires a non-terminal full-width relation");
+    let terminal = backend_relations
+        .iter()
+        .rev()
+        .find(|relation| relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap pi_ccs aux breakdown requires a short terminal relation");
+
+    let full_counts =
+        debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(full).expect("measure full-width pi_ccs aux counts");
+    let terminal_counts = debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(terminal)
+        .expect("measure short-terminal pi_ccs aux counts");
+
+    println!("full={full_counts:#?}");
+    println!("terminal={terminal_counts:#?}");
+}
+
+#[test]
+#[ignore = "manual Goal 2 diagnostic: compare pi_ccs fingerprints by sub-stage across full-width and short-terminal five-step-cap relations"]
+fn f_prime_five_step_cap_terminal_padding_pi_ccs_fingerprint_breakdown() {
+    let backend_relations = five_step_cap_backend_relations();
+    let full = backend_relations
+        .iter()
+        .find(|relation| !relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap pi_ccs fingerprint breakdown requires a non-terminal full-width relation");
+    let terminal = backend_relations
+        .iter()
+        .rev()
+        .find(|relation| relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap pi_ccs fingerprint breakdown requires a short terminal relation");
+
+    let full_fingerprints = debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(full)
+        .expect("measure full-width pi_ccs fingerprints");
+    let terminal_fingerprints = debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(terminal)
+        .expect("measure short-terminal pi_ccs fingerprints");
+
+    println!("full={full_fingerprints:#?}");
+    println!("terminal={terminal_fingerprints:#?}");
+}
+
+#[test]
+#[ignore = "manual Goal 2 diagnostic: compare chunk-replay fingerprints across full-width and short-terminal five-step-cap relations"]
+fn f_prime_five_step_cap_terminal_padding_chunk_replay_fingerprint_breakdown() {
+    let backend_relations = five_step_cap_backend_relations();
+    let full = backend_relations
+        .iter()
+        .find(|relation| !relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap fingerprint breakdown requires a non-terminal full-width relation");
+    let terminal = backend_relations
+        .iter()
+        .rev()
+        .find(|relation| relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap fingerprint breakdown requires a short terminal relation");
+
+    print_state_in_chunk_replay_fingerprint("full", full);
+    print_state_in_chunk_replay_fingerprint("terminal", terminal);
+}
+
+#[test]
+#[ignore = "manual Goal 2 diagnostic: compare pi_ccs sub-stage fingerprints across full-width and short-terminal five-step-cap relations"]
+fn f_prime_five_step_cap_terminal_padding_prefix_breakdown() {
+    let backend_relations = five_step_cap_backend_relations();
+    let full = backend_relations
+        .iter()
+        .find(|relation| !relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap prefix breakdown requires a non-terminal full-width relation");
+    let terminal = backend_relations
+        .iter()
+        .rev()
+        .find(|relation| relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap prefix breakdown requires a short terminal relation");
+
+    print_state_in_prefix_fingerprints("full", full);
+    print_state_in_prefix_fingerprints("terminal", terminal);
+}
+
+#[test]
+#[ignore = "manual Goal 2 diagnostic: compare five-step-cap padded fresh claims and CCS outputs across full-width and short-terminal relations"]
+fn f_prime_five_step_cap_terminal_padding_payload_surface_breakdown() {
+    let backend_relations = five_step_cap_backend_relations();
+    let full = backend_relations
+        .iter()
+        .find(|relation| !relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap payload surface breakdown requires a non-terminal full-width relation");
+    let terminal = backend_relations
+        .iter()
+        .rev()
+        .find(|relation| relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap payload surface breakdown requires a short terminal relation");
+
+    for (idx, (full_claim, terminal_claim)) in full
+        .payload
+        .fresh_claims
+        .iter()
+        .zip(terminal.payload.fresh_claims.iter())
+        .enumerate()
+    {
+        println!(
+            "fresh_claim[{idx}] full=(c_data={}, x_len={}, m_in={}) terminal=(c_data={}, x_len={}, m_in={})",
+            full_claim.c.data.len(),
+            full_claim.x.len(),
+            full_claim.m_in,
+            terminal_claim.c.data.len(),
+            terminal_claim.x.len(),
+            terminal_claim.m_in,
+        );
+    }
+
+    for (idx, (full_output, terminal_output)) in full
+        .payload
+        .pi_ccs
+        .ccs_outputs
+        .iter()
+        .zip(terminal.payload.pi_ccs.ccs_outputs.iter())
+        .enumerate()
+        .take(full.payload.padded_fresh_claim_count())
+    {
+        let full_y_ring_total: usize = full_output.y_ring.iter().map(Vec::len).sum();
+        let terminal_y_ring_total: usize = terminal_output.y_ring.iter().map(Vec::len).sum();
+        println!(
+            "ccs_output[{idx}] full=(x_rows={}, x_cols={}, y_ring_rows={}, y_ring_total={}, ct_len={}, aux_openings_len={}, y_zcol_len={}, c_step_coords_len={}) terminal=(x_rows={}, x_cols={}, y_ring_rows={}, y_ring_total={}, ct_len={}, aux_openings_len={}, y_zcol_len={}, c_step_coords_len={})",
+            full_output.X.rows(),
+            full_output.X.cols(),
+            full_output.y_ring.len(),
+            full_y_ring_total,
+            full_output.ct.len(),
+            full_output.aux_openings.len(),
+            full_output.y_zcol.len(),
+            full_output.c_step_coords.len(),
+            terminal_output.X.rows(),
+            terminal_output.X.cols(),
+            terminal_output.y_ring.len(),
+            terminal_y_ring_total,
+            terminal_output.ct.len(),
+            terminal_output.aux_openings.len(),
+            terminal_output.y_zcol.len(),
+            terminal_output.c_step_coords.len(),
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual Goal 2 diagnostic: profile padded recursive-step chunk replay stages for five-step-cap full-width and short-terminal relations"]
+fn f_prime_five_step_cap_terminal_padding_padded_stage_profile() {
+    let backend_relations = five_step_cap_backend_relations();
+    let full = backend_relations
+        .iter()
+        .find(|relation| !relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap padded stage profile requires a non-terminal full-width relation");
+    let terminal = backend_relations
+        .iter()
+        .rev()
+        .find(|relation| relation.payload.step_shape.terminal_step)
+        .expect("five-step-cap padded stage profile requires a short terminal relation");
+
+    println!("full_profile_start");
+    debug_profile_rv64im_main_recursion_step_chunk_replay_stages(full).expect("profile full-width padded chunk replay");
+    println!("terminal_profile_start");
+    debug_profile_rv64im_main_recursion_step_chunk_replay_stages(terminal)
+        .expect("profile short-terminal padded chunk replay");
 }
 
 #[test]

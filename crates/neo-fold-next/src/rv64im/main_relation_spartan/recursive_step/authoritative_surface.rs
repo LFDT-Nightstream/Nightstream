@@ -220,7 +220,7 @@ fn build_surface_from_parts(
 fn build_native_surface(
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<Rv64imMainRecursionStepAuthoritativeChunkSurface, SimpleKernelError> {
-    let native_trace = backend_relation.f_prime_advice.main_circuit_chunk_trace();
+    let native_trace = backend_relation.f_prime_advice.main_circuit_chunk_trace()?;
     let native_replay_surface = native_trace.replay_surface()?;
     Ok(build_surface_from_parts(
         backend_relation,

@@ -132,11 +132,12 @@ pub fn enforce_ajtai_commitment_consistency<CS: ConstraintSystem<SpartanF>>(
 
 /// Opens a DEC child only against the paper `CE(b, L)` projection.
 ///
-/// The backend `s_col`, `y_zcol`, and `ct` channels remain replay-owned:
-/// `Π_DEC` public arithmetic still binds them structurally, but the explicit
-/// witness-opening layer only proves the child has paper-level commitment,
-/// norm, and `y_ring` semantics over the true ring degree `D`. Any padded
-/// backend tail beyond `D` remains replay-owned convenience structure.
+/// The backend `y_zcol` and `ct` channels remain replay-owned, while `s_col`
+/// is now treated as non-authoritative transport shell outside the paper CE
+/// surface. The explicit witness-opening layer only proves the child has
+/// paper-level commitment, norm, and `y_ring` semantics over the true ring
+/// degree `D`. Any padded backend tail beyond `D` remains replay-owned
+/// convenience structure.
 pub fn enforce_paper_dec_child_claim_consistency<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     params: &NeoParams,

@@ -20,12 +20,12 @@ use std::io::{self, Write};
 use std::time::Instant;
 
 use super::chunk_step_recursive::Rv64imMainRecursionFPrimePayload;
-use super::recursive_cover::{alloc_recursive_cover_claims, alloc_recursive_cover_state};
+use super::recursive_cover::{alloc_recursive_carried_projection_claims, alloc_recursive_cover_state};
 use super::{
     alloc_const_field_values, append_chunk_meta, debug_locate_rv64im_main_relation_chunk_stage,
     debug_profile_rv64im_main_relation_chunk_stage_progress, digest32_as_spartan_fields,
     synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imChunkBoundaryPlan,
-    Rv64imClaimBundle, CHUNK_META_RAW_TAG, STEP_INDEX_RAW_TAG,
+    Rv64imClaimBundle, CHUNK_META_RAW_TAG,
 };
 use crate::rv64im::final_relation::{Rv64imChunkFoldTranscriptSnapshot, RV64IM_CHUNK_DONE_RAW_TAG};
 use crate::rv64im::ivc_snark::SpartanF;
@@ -202,7 +202,7 @@ fn derive_fixed_transcript_out_from_parts(
     .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM fixed transcript state import failed: {err}")))?;
     emit_debug_timing(trace_prefix, "import_transcript_state", elapsed_ms(started));
     let started = Instant::now();
-    let live_state_in_vars = alloc_recursive_cover_claims(
+    let live_state_in_vars = alloc_recursive_carried_projection_claims(
         &mut cs.namespace(|| "fixed_transcript_live_state_in"),
         state_in_claims,
         "fixed_transcript_live_state_in",
@@ -246,7 +246,9 @@ fn derive_fixed_transcript_out_from_parts(
         &mut replayed_transcript,
         carried_claims,
         None,
+        None,
         boundary_plan,
+        0,
         None,
     ) {
         if let Err(prefix_err) = debug_check_fixed_transcript_prefix(
@@ -346,7 +348,7 @@ fn debug_profile_fixed_transcript_chunk_body(
         ))
     })?;
     let mut synthetic_chunk_relation_cursor = 0usize;
-    let live_state_in_vars = alloc_recursive_cover_claims(
+    let live_state_in_vars = alloc_recursive_carried_projection_claims(
         &mut cs.namespace(|| "fixed_transcript_profile_live_state_in"),
         state_in_claims,
         "fixed_transcript_profile_live_state_in",
@@ -445,18 +447,11 @@ fn enforce_transcript_state_against_native(
 }
 
 fn append_chunk_meta_native(transcript: &mut Poseidon2Transcript, replay_chunk: &Rv64imMainCircuitChunkReplaySurface) {
-    if replay_chunk.handoff.public_chunk.steps.len() == 1 {
-        transcript.append_fields_raw(&[
-            F::from_u64(STEP_INDEX_RAW_TAG),
-            F::from_u64(replay_chunk.handoff.public_chunk.start_index as u64),
-        ]);
-    } else {
-        transcript.append_fields_raw(&[
-            F::from_u64(CHUNK_META_RAW_TAG),
-            F::from_u64(replay_chunk.handoff.public_chunk.start_index as u64),
-            F::from_u64(replay_chunk.handoff.public_chunk.steps.len() as u64),
-        ]);
-    }
+    transcript.append_fields_raw(&[
+        F::from_u64(CHUNK_META_RAW_TAG),
+        F::from_u64(replay_chunk.handoff.public_chunk.start_index as u64),
+        F::from_u64(replay_chunk.handoff.public_chunk.steps.len() as u64),
+    ]);
 }
 
 fn debug_check_fixed_transcript_prefix(
@@ -534,7 +529,7 @@ fn debug_check_fixed_transcript_prefix(
     compare_transcript_state("bind_header", &circuit, &native)?;
     enforce_transcript_state_against_native(&mut cs, "bind_header", &circuit, &native)?;
 
-    let live_state_in_vars = alloc_recursive_cover_claims(
+    let live_state_in_vars = alloc_recursive_carried_projection_claims(
         &mut cs.namespace(|| "fixed_transcript_prefix_live_state_in"),
         state_in_claims,
         "fixed_transcript_prefix_live_state_in",
@@ -614,7 +609,7 @@ fn debug_locate_fixed_transcript_chunk_stage(
         ))
     })?;
     let mut synthetic_chunk_relation_cursor = 0usize;
-    let live_state_in_vars = alloc_recursive_cover_claims(
+    let live_state_in_vars = alloc_recursive_carried_projection_claims(
         &mut cs.namespace(|| "fixed_transcript_stage_live_state_in"),
         state_in_claims,
         "fixed_transcript_stage_live_state_in",

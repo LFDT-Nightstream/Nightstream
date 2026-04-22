@@ -410,7 +410,7 @@ pub fn verify_rv64im_chunk_step_ivc(
             "RV64IM chunk-step IVC summary does not match the verified one-step fold output".into(),
         ));
     }
-    if step.next_carry.main.claims != witness.state_out.carry.main.claims
+    if !rv64im_ce_claim_slices_match_projection(&step.next_carry.main.claims, &witness.state_out.carry.main.claims)
         || step.next_carry.main.witnesses != witness.state_out.carry.main.witnesses
     {
         return Err(SimpleKernelError::Bridge(
@@ -434,16 +434,40 @@ pub fn verify_rv64im_chunk_step_ivc(
         ));
     }
     Ok(Rv64imChunkFoldState {
-        carry: Rv64imChunkFoldCarry {
-            main: witness.state_out.carry.main.clone(),
-            terminal_handle: witness.state_out.carry.terminal_handle,
-        },
+        carry: Rv64imChunkFoldCarry::from_main(
+            witness.state_out.carry.main.clone(),
+            witness.state_out.carry.terminal_handle,
+        ),
         transcript: transcript_out,
     })
 }
 
+fn rv64im_ce_claim_slices_match_projection(
+    lhs: &[neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>],
+    rhs: &[neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>],
+) -> bool {
+    lhs.len() == rhs.len()
+        && lhs
+            .iter()
+            .zip(rhs.iter())
+            .all(|(left, right)| rv64im_ce_claims_match_projection(left, right))
+}
+
+fn rv64im_ce_claims_match_projection(
+    lhs: &neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>,
+    rhs: &neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>,
+) -> bool {
+    lhs.c.data == rhs.c.data
+        && lhs.m_in == rhs.m_in
+        && lhs.r == rhs.r
+        && lhs.y_ring == rhs.y_ring
+        && lhs.X.rows() == rhs.X.rows()
+        && lhs.X.cols() == rhs.X.cols()
+        && (0..lhs.m_in).all(|col| lhs.X[(col % lhs.X.rows(), col)] == rhs.X[(col % rhs.X.rows(), col)])
+}
+
 fn rv64im_chunk_step_ivc_states_match(lhs: &Rv64imChunkFoldState, rhs: &Rv64imChunkFoldState) -> bool {
-    lhs.carry.main.claims == rhs.carry.main.claims
+    rv64im_ce_claim_slices_match_projection(&lhs.carry.main.claims, &rhs.carry.main.claims)
         && lhs.carry.main.witnesses == rhs.carry.main.witnesses
         && lhs.carry.terminal_handle == rhs.carry.terminal_handle
         && lhs.transcript == rhs.transcript

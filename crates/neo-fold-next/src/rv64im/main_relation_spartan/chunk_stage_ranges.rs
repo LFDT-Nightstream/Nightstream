@@ -120,7 +120,9 @@ pub(crate) fn debug_measure_rv64im_main_relation_chunk_stage_ranges(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
+        logical_me_input_digests: None,
         boundary_plan,
+        rlc_zero_commit_suffix_len: 0,
     };
     let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, None)?;
     checkpoints.pi_ccs_end = cs.num_constraints();
@@ -162,6 +164,7 @@ pub(crate) fn debug_measure_rv64im_pi_rlc_stage_ranges(
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
     boundary_plan: Rv64imChunkBoundaryPlan,
+    rlc_zero_commit_suffix_len: usize,
 ) -> Result<Rv64imPiRlcStageCheckpoints, SynthesisError> {
     if !cover_chunk.covers_replay_surface(chunk) || chunk.pi_ccs.ccs_outputs.len() < chunk.fresh_claims.len() {
         return Err(SynthesisError::Unsatisfiable);
@@ -182,7 +185,9 @@ pub(crate) fn debug_measure_rv64im_pi_rlc_stage_ranges(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
+        logical_me_input_digests: None,
         boundary_plan,
+        rlc_zero_commit_suffix_len,
     };
     let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, None)?;
     let pi_rlc_start = cs.num_constraints();
@@ -225,26 +230,13 @@ pub(crate) fn debug_measure_rv64im_pi_rlc_stage_ranges(
         Rv64imChunkChildClaimSource::ReplayedChildren => &ctx.chunk.pi_dec.children,
         Rv64imChunkChildClaimSource::TerminalFinalClaims => ctx.terminal_final_claims,
     };
-    let padded_rho_count = pi_ccs
-        .padded_ccs_outputs
-        .len()
-        .saturating_sub(pi_ccs.effective_output_count);
-    let mut rho_vars = sample_goldilocks_rot_rhos(
+    let rho_vars = sample_goldilocks_rot_rhos(
         &mut cs.namespace(|| format!("chunk_{}_rlc_rhos", ctx.chunk_index)),
         transcript,
-        pi_ccs.effective_output_count,
+        pi_ccs.padded_ccs_outputs.len(),
         &format!("chunk_{}_rlc_rhos", ctx.chunk_index),
     )?;
     checkpoints.push("sample_rhos", cs.num_constraints() - pi_rlc_start);
-
-    if padded_rho_count > 0 {
-        rho_vars.extend(alloc_zero_rot_rhos(
-            &mut cs.namespace(|| format!("chunk_{}_rlc_rhos_pad", ctx.chunk_index)),
-            padded_rho_count,
-            &format!("chunk_{}_rlc_rhos_pad", ctx.chunk_index),
-        )?);
-    }
-    checkpoints.push("pad_rhos", cs.num_constraints() - pi_rlc_start);
 
     match ctx.boundary_plan.rlc_mode {
         Rv64imChunkRlcMode::TerminalLastChunkShortcut => {
@@ -260,28 +252,31 @@ pub(crate) fn debug_measure_rv64im_pi_rlc_stage_ranges(
             checkpoints.push("terminal_last_chunk_shortcut", cs.num_constraints() - pi_rlc_start);
         }
         Rv64imChunkRlcMode::Standard { constant_child_prefix } => {
-            let mut rho_mats = materialize_goldilocks_rot_matrices(
-                &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
-                &rho_vars[..pi_ccs.effective_output_count],
-                &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
-            )?;
-            checkpoints.push("materialize_rho_mats", cs.num_constraints() - pi_rlc_start);
-            if padded_rho_count > 0 {
-                rho_mats.extend(alloc_zero_rot_rho_matrices(
-                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats_pad", ctx.chunk_index)),
-                    padded_rho_count,
-                    &format!("chunk_{}_rlc_rho_mats_pad", ctx.chunk_index),
-                )?);
+            if constant_child_prefix == pi_ccs.padded_ccs_outputs.len() {
+                checkpoints.push("materialize_rho_mats", cs.num_constraints() - pi_rlc_start);
+                crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_rho_coeffs_for_constant_children(
+                    &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
+                    &parent_claim,
+                    &pi_ccs.padded_ccs_outputs,
+                    &rho_vars,
+                    &format!("chunk_{}_rlc_public", ctx.chunk_index),
+                )?;
+            } else {
+                let rho_mats = materialize_goldilocks_rot_matrices(
+                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
+                    &rho_vars,
+                    &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
+                )?;
+                checkpoints.push("materialize_rho_mats", cs.num_constraints() - pi_rlc_start);
+                enforce_rlc_public_with_rho_vars_constant_prefix(
+                    &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
+                    &parent_claim,
+                    &pi_ccs.padded_ccs_outputs,
+                    &rho_mats,
+                    constant_child_prefix,
+                    &format!("chunk_{}_rlc_public", ctx.chunk_index),
+                )?;
             }
-            checkpoints.push("pad_rho_mats", cs.num_constraints() - pi_rlc_start);
-            enforce_rlc_public_with_rho_vars_constant_prefix(
-                &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
-                &parent_claim,
-                &pi_ccs.padded_ccs_outputs,
-                &rho_mats,
-                constant_child_prefix,
-                &format!("chunk_{}_rlc_public", ctx.chunk_index),
-            )?;
             checkpoints.push("rlc_public", cs.num_constraints() - pi_rlc_start);
         }
     }
@@ -302,6 +297,7 @@ pub(crate) fn debug_measure_rv64im_rlc_public_stage_ranges(
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
     boundary_plan: Rv64imChunkBoundaryPlan,
+    rlc_zero_commit_suffix_len: usize,
 ) -> Result<crate::rv64im::main_relation_circuit::pi_rlc::RlcPublicStageCheckpoints, SynthesisError> {
     if !cover_chunk.covers_replay_surface(chunk) || chunk.pi_ccs.ccs_outputs.len() < chunk.fresh_claims.len() {
         return Err(SynthesisError::Unsatisfiable);
@@ -322,7 +318,9 @@ pub(crate) fn debug_measure_rv64im_rlc_public_stage_ranges(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
+        logical_me_input_digests: None,
         boundary_plan,
+        rlc_zero_commit_suffix_len,
     };
     let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, None)?;
 
@@ -358,47 +356,40 @@ pub(crate) fn debug_measure_rv64im_rlc_public_stage_ranges(
         )?
     };
 
-    let padded_rho_count = pi_ccs
-        .padded_ccs_outputs
-        .len()
-        .saturating_sub(pi_ccs.effective_output_count);
-    let mut rho_vars = sample_goldilocks_rot_rhos(
+    let rho_vars = sample_goldilocks_rot_rhos(
         &mut cs.namespace(|| format!("chunk_{}_rlc_rhos", ctx.chunk_index)),
         transcript,
-        pi_ccs.effective_output_count,
+        pi_ccs.padded_ccs_outputs.len(),
         &format!("chunk_{}_rlc_rhos", ctx.chunk_index),
     )?;
-    if padded_rho_count > 0 {
-        rho_vars.extend(alloc_zero_rot_rhos(
-            &mut cs.namespace(|| format!("chunk_{}_rlc_rhos_pad", ctx.chunk_index)),
-            padded_rho_count,
-            &format!("chunk_{}_rlc_rhos_pad", ctx.chunk_index),
-        )?);
-    }
 
     match ctx.boundary_plan.rlc_mode {
         Rv64imChunkRlcMode::TerminalLastChunkShortcut => Err(SynthesisError::Unsatisfiable),
         Rv64imChunkRlcMode::Standard { constant_child_prefix } => {
-            let mut rho_mats = materialize_goldilocks_rot_matrices(
-                &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
-                &rho_vars[..pi_ccs.effective_output_count],
-                &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
-            )?;
-            if padded_rho_count > 0 {
-                rho_mats.extend(alloc_zero_rot_rho_matrices(
-                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats_pad", ctx.chunk_index)),
-                    padded_rho_count,
-                    &format!("chunk_{}_rlc_rho_mats_pad", ctx.chunk_index),
-                )?);
+            if constant_child_prefix == pi_ccs.padded_ccs_outputs.len() {
+                crate::rv64im::main_relation_circuit::pi_rlc::debug_measure_rlc_public_with_rho_coeffs_for_constant_children_stage_ranges(
+                    cs,
+                    &parent_claim,
+                    &pi_ccs.padded_ccs_outputs,
+                    &rho_vars,
+                    &format!("chunk_{}_rlc_public", ctx.chunk_index),
+                )
+            } else {
+                let rho_mats = materialize_goldilocks_rot_matrices(
+                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
+                    &rho_vars,
+                    &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
+                )?;
+                crate::rv64im::main_relation_circuit::pi_rlc::debug_measure_rlc_public_with_rho_vars_constant_prefix_stage_ranges(
+                    cs,
+                    &parent_claim,
+                    &pi_ccs.padded_ccs_outputs,
+                    &rho_mats,
+                    constant_child_prefix,
+                    ctx.rlc_zero_commit_suffix_len,
+                    &format!("chunk_{}_rlc_public", ctx.chunk_index),
+                )
             }
-            crate::rv64im::main_relation_circuit::pi_rlc::debug_measure_rlc_public_with_rho_vars_constant_prefix_stage_ranges(
-                cs,
-                &parent_claim,
-                &pi_ccs.padded_ccs_outputs,
-                &rho_mats,
-                constant_child_prefix,
-                &format!("chunk_{}_rlc_public", ctx.chunk_index),
-            )
         }
     }
 }
@@ -437,7 +428,9 @@ pub(crate) fn debug_check_rv64im_rlc_public_x_native_values(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
+        logical_me_input_digests: None,
         boundary_plan,
+        rlc_zero_commit_suffix_len: 0,
     };
     let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, None)?;
     if transcript.absorbed() != expected_pi_ccs_transcript.absorbed {
@@ -495,41 +488,20 @@ pub(crate) fn debug_check_rv64im_rlc_public_x_native_values(
         )?
     };
 
-    let padded_rho_count = pi_ccs
-        .padded_ccs_outputs
-        .len()
-        .saturating_sub(pi_ccs.effective_output_count);
-    let mut rho_vars = sample_goldilocks_rot_rhos(
+    let rho_vars = sample_goldilocks_rot_rhos(
         &mut cs.namespace(|| format!("chunk_{}_rlc_rhos", ctx.chunk_index)),
         transcript,
-        pi_ccs.effective_output_count,
+        pi_ccs.padded_ccs_outputs.len(),
         &format!("chunk_{}_rlc_rhos", ctx.chunk_index),
     )?;
-    if padded_rho_count > 0 {
-        rho_vars.extend(alloc_zero_rot_rhos(
-            &mut cs.namespace(|| format!("chunk_{}_rlc_rhos_pad", ctx.chunk_index)),
-            padded_rho_count,
-            &format!("chunk_{}_rlc_rhos_pad", ctx.chunk_index),
-        )?);
-    }
 
     let rho_mats = match ctx.boundary_plan.rlc_mode {
         Rv64imChunkRlcMode::TerminalLastChunkShortcut => return Ok("terminal_last_chunk_shortcut".into()),
-        Rv64imChunkRlcMode::Standard { .. } => {
-            let mut rho_mats = materialize_goldilocks_rot_matrices(
-                &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
-                &rho_vars[..pi_ccs.effective_output_count],
-                &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
-            )?;
-            if padded_rho_count > 0 {
-                rho_mats.extend(alloc_zero_rot_rho_matrices(
-                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats_pad", ctx.chunk_index)),
-                    padded_rho_count,
-                    &format!("chunk_{}_rlc_rho_mats_pad", ctx.chunk_index),
-                )?);
-            }
-            rho_mats
-        }
+        Rv64imChunkRlcMode::Standard { .. } => materialize_goldilocks_rot_matrices(
+            &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
+            &rho_vars,
+            &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
+        )?,
     };
     let mut expected_rlc_transcript = Poseidon2Transcript::from_state_and_absorbed(
         expected_pi_ccs_transcript.state,
@@ -712,7 +684,9 @@ pub(crate) fn debug_compare_rv64im_pi_ccs_transcript_state(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
+        logical_me_input_digests: None,
         boundary_plan,
+        rlc_zero_commit_suffix_len: 0,
     };
     let _ = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, None)?;
     if transcript.absorbed() != expected.absorbed {
@@ -813,18 +787,11 @@ pub(crate) fn debug_locate_rv64im_pi_ccs_late_transcript_stage(
         &mut circuit_tr,
         &chunk.handoff,
     )?;
-    if chunk.handoff.public_chunk.steps.len() == 1 {
-        native_tr.append_fields_raw(&[
-            F::from_u64(STEP_INDEX_RAW_TAG),
-            F::from_u64(chunk.handoff.public_chunk.start_index as u64),
-        ]);
-    } else {
-        native_tr.append_fields_raw(&[
-            F::from_u64(CHUNK_META_RAW_TAG),
-            F::from_u64(chunk.handoff.public_chunk.start_index as u64),
-            F::from_u64(chunk.handoff.public_chunk.steps.len() as u64),
-        ]);
-    }
+    native_tr.append_fields_raw(&[
+        F::from_u64(CHUNK_META_RAW_TAG),
+        F::from_u64(chunk.handoff.public_chunk.start_index as u64),
+        F::from_u64(chunk.handoff.public_chunk.steps.len() as u64),
+    ]);
     if let Some(mismatch) = compare_stage("chunk_meta", &circuit_tr, &native_tr) {
         return Ok(mismatch);
     }
@@ -892,6 +859,7 @@ pub(crate) fn debug_locate_rv64im_pi_ccs_late_transcript_stage(
         chunk.pi_ccs.public_challenges.gamma,
         effective_fresh_claim_count,
         carried_claims.effective_claims(),
+        0,
         rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_transcript_initial_sum_fe"),
     )?;
@@ -1090,18 +1058,11 @@ pub(crate) fn debug_compare_rv64im_pi_rlc_rho_mats(
         &mut circuit_tr,
         &chunk.handoff,
     )?;
-    if chunk.handoff.public_chunk.steps.len() == 1 {
-        native_tr.append_fields_raw(&[
-            F::from_u64(STEP_INDEX_RAW_TAG),
-            F::from_u64(chunk.handoff.public_chunk.start_index as u64),
-        ]);
-    } else {
-        native_tr.append_fields_raw(&[
-            F::from_u64(CHUNK_META_RAW_TAG),
-            F::from_u64(chunk.handoff.public_chunk.start_index as u64),
-            F::from_u64(chunk.handoff.public_chunk.steps.len() as u64),
-        ]);
-    }
+    native_tr.append_fields_raw(&[
+        F::from_u64(CHUNK_META_RAW_TAG),
+        F::from_u64(chunk.handoff.public_chunk.start_index as u64),
+        F::from_u64(chunk.handoff.public_chunk.steps.len() as u64),
+    ]);
 
     bind_header_and_instance_digest(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_rho_bind_header")),
@@ -1157,6 +1118,7 @@ pub(crate) fn debug_compare_rv64im_pi_rlc_rho_mats(
         chunk.pi_ccs.public_challenges.gamma,
         effective_fresh_claim_count,
         carried_claims.effective_claims(),
+        0,
         rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_rho_initial_sum_fe"),
     )?;

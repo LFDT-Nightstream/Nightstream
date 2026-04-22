@@ -40,20 +40,36 @@ where
     result
 }
 
+fn emit_aux_count(stage: &str, aux_count: usize) {
+    eprintln!("n2-step-chunk|aux|{stage}|{aux_count}");
+    let _ = io::stderr().flush();
+}
+
 #[derive(Clone, Debug)]
 pub struct Rv64imMainRelationStateInPrefixFingerprints {
     pub after_live_state_in_claim_alloc: String,
+    pub after_live_state_in_claim_alloc_aux: usize,
     pub per_claim_compute: Vec<String>,
     pub bind_me_input_digests_compute: String,
+    pub bind_me_input_digests_compute_aux: usize,
     pub bind_me_input_digests_transcript: String,
+    pub bind_me_input_digests_transcript_aux: usize,
     pub claimed_initial_sum_from_me_inputs: String,
+    pub claimed_initial_sum_from_me_inputs_aux: usize,
     pub fe_sumcheck_initial: String,
+    pub fe_sumcheck_initial_aux: usize,
     pub fe_sumcheck: String,
+    pub fe_sumcheck_aux: usize,
     pub nc_sumcheck_initial: String,
+    pub nc_sumcheck_initial_aux: usize,
     pub nc_sumcheck: String,
+    pub nc_sumcheck_aux: usize,
     pub relation_digest: String,
+    pub relation_digest_aux: usize,
     pub ccs_outputs_and_binding: String,
+    pub ccs_outputs_and_binding_aux: usize,
     pub terminal_identities: String,
+    pub terminal_identities_aux: usize,
 }
 
 fn digest_hex(digest: [u8; 32]) -> String {
@@ -148,6 +164,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
             .map(|claim| claim.claim)
             .collect(),
     );
+    let after_live_state_in_claim_alloc_aux = cs.num_aux();
 
     let mut me_input_digests = Vec::with_capacity(carried_claims.effective_count());
     let mut me_input_digest_values = Vec::with_capacity(carried_claims.effective_count());
@@ -167,6 +184,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         per_claim_compute.push(digest_hex(cs.clone().finish_digest32(0)));
     }
     let bind_me_input_digests_compute = digest_hex(cs.clone().finish_digest32(0));
+    let bind_me_input_digests_compute_aux = cs.num_aux();
 
     crate::rv64im::main_relation_circuit::pi_ccs::bind_me_input_digests(
         &mut cs.namespace(|| "bind_me_inputs"),
@@ -176,6 +194,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     let bind_me_input_digests_transcript = digest_hex(cs.clone().finish_digest32(0));
+    let bind_me_input_digests_transcript_aux = cs.num_aux();
 
     let public_challenges = sample_challenges(&mut cs.namespace(|| "sample_challenges"), &mut transcript, dims)
         .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
@@ -189,11 +208,13 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         replay_chunk.pi_ccs.public_challenges.gamma,
         effective_fresh_claim_count,
         carried_claims.effective_claims(),
+        0,
         rv64im_main_relation_delta(),
         "claimed_initial_sum_from_me_inputs",
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     let claimed_initial_sum_from_me_inputs_fingerprint = digest_hex(cs.clone().finish_digest32(0));
+    let claimed_initial_sum_from_me_inputs_aux = cs.num_aux();
 
     let effective_fresh_claim_count = replay_chunk.fresh_claims.len();
     let covered_fresh_claims = payload
@@ -226,6 +247,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         replay_chunk.pi_ccs.public_challenges.gamma,
         effective_fresh_claim_count,
         carried_claims.effective_claims(),
+        0,
         rv64im_main_relation_delta(),
         "initial_sum_fe",
     )
@@ -266,6 +288,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     }
     let fe_sumcheck_initial = digest_hex(cs.clone().finish_digest32(0));
+    let fe_sumcheck_initial_aux = cs.num_aux();
 
     let padded_fe_rounds = alloc_rounds(
         &mut cs.namespace(|| "fe_rounds"),
@@ -294,6 +317,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     let fe_sumcheck = digest_hex(cs.clone().finish_digest32(0));
+    let fe_sumcheck_aux = cs.num_aux();
     let (r_prime_vars, alpha_prime_vars) =
         split_vec(&fe_challenges, dims.ell_n).map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
 
@@ -322,6 +346,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         )
         .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     let nc_sumcheck_initial = digest_hex(cs.clone().finish_digest32(0));
+    let nc_sumcheck_initial_aux = cs.num_aux();
 
     let padded_nc_rounds = alloc_rounds(
         &mut cs.namespace(|| "nc_rounds"),
@@ -350,6 +375,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     let nc_sumcheck = digest_hex(cs.clone().finish_digest32(0));
+    let nc_sumcheck_aux = cs.num_aux();
     let (s_col_prime_vars, alpha_prime_nc_vars) =
         split_vec(&nc_challenges, dims.ell_m).map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
 
@@ -382,6 +408,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     let relation_digest = digest_hex(cs.clone().finish_digest32(0));
+    let relation_digest_aux = cs.num_aux();
 
     let effective_output_count = replay_chunk.pi_ccs.ccs_outputs.len();
     let mut padded_ccs_outputs = Vec::with_capacity(payload.chunk_cover.ccs_output_shapes.len());
@@ -424,7 +451,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
             )
             .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?
         } else {
-            let mut padded_claim = payload.chunk_cover.parent_claim_shape.zero_claim();
+            let mut padded_claim = shape.zero_claim();
             padded_claim.r = replay_chunk.pi_ccs.row_chals.clone();
             padded_claim.s_col = replay_chunk.pi_ccs.s_col.clone();
             alloc_ce_claim_public_surface_with_shared_point(
@@ -456,6 +483,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     let ccs_outputs_and_binding = digest_hex(cs.clone().finish_digest32(0));
+    let ccs_outputs_and_binding_aux = cs.num_aux();
 
     let me_inputs_r_vars = carried_claims
         .effective_claims()
@@ -480,6 +508,7 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
         &replay_chunk.pi_ccs.alpha_prime,
         &ccs_outputs,
         effective_fresh_claim_count,
+        0,
         me_inputs_r_vars,
         me_inputs_r_values,
         rv64im_main_relation_delta(),
@@ -504,20 +533,32 @@ pub fn debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(
     )
     .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
     let terminal_identities = digest_hex(cs.clone().finish_digest32(0));
+    let terminal_identities_aux = cs.num_aux();
 
     Ok(Rv64imMainRelationStateInPrefixFingerprints {
         after_live_state_in_claim_alloc,
+        after_live_state_in_claim_alloc_aux,
         per_claim_compute,
         bind_me_input_digests_compute,
+        bind_me_input_digests_compute_aux,
         bind_me_input_digests_transcript,
+        bind_me_input_digests_transcript_aux,
         claimed_initial_sum_from_me_inputs: claimed_initial_sum_from_me_inputs_fingerprint,
+        claimed_initial_sum_from_me_inputs_aux,
         fe_sumcheck_initial,
+        fe_sumcheck_initial_aux,
         fe_sumcheck,
+        fe_sumcheck_aux,
         nc_sumcheck_initial,
+        nc_sumcheck_initial_aux,
         nc_sumcheck,
+        nc_sumcheck_aux,
         relation_digest,
+        relation_digest_aux,
         ccs_outputs_and_binding,
+        ccs_outputs_and_binding_aux,
         terminal_identities,
+        terminal_identities_aux,
     })
 }
 
@@ -587,7 +628,14 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
     .map_err(|err| format!("sample_challenges: {err}"))?;
     checkpoint(cs, "sample_challenges")?;
 
-    let effective_fresh_claim_count = chunk.fresh_claims.len();
+    let active_fresh_claim_count = chunk.handoff.public_chunk.steps.len();
+    let cover_fresh_claim_count = cover_chunk.fresh_claim_count as usize;
+    if active_fresh_claim_count > chunk.fresh_claims.len() {
+        return Err("active_fresh_claim_count_gt_fresh_claims".into());
+    }
+    if cover_fresh_claim_count > cover_chunk.fresh_claim_shapes.len() {
+        return Err("active_fresh_claim_count_gt_fresh_claims".into());
+    }
     let covered_fresh_claims = cover_chunk
         .fresh_claim_shapes
         .iter()
@@ -595,8 +643,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         .map(|(claim_index, shape)| cover_ccs_claim(shape, chunk.fresh_claims.get(claim_index)))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("cover_ccs_claim: {err}"))?;
-    let effective_fresh_claims = &covered_fresh_claims[..effective_fresh_claim_count];
-    let effective_fresh_claim_vars = effective_fresh_claims
+    let covered_fresh_claim_vars = covered_fresh_claims
         .iter()
         .enumerate()
         .map(|(fresh_index, fresh)| {
@@ -615,8 +662,9 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &chunk.pi_ccs.public_challenges.alpha,
         &public_challenges.gamma,
         chunk.pi_ccs.public_challenges.gamma,
-        effective_fresh_claim_count,
+        cover_fresh_claim_count,
         carried_claims.effective_claims(),
+        0,
         rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_initial_sum_fe"),
     )
@@ -772,7 +820,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
     let mut padded_ccs_outputs = Vec::with_capacity(cover_chunk.ccs_output_shapes.len());
     for (output_index, shape) in cover_chunk.ccs_output_shapes.iter().enumerate() {
         let effective_claim = chunk.pi_ccs.ccs_outputs.get(output_index);
-        let output = if output_index < effective_fresh_claim_count {
+        let output = if output_index < active_fresh_claim_count {
             let claim =
                 cover_ce_claim_with_shared_point(shape, effective_claim, &chunk.pi_ccs.row_chals, &chunk.pi_ccs.s_col)
                     .map_err(|err| format!("cover_fresh_output_{output_index}: {err}"))?;
@@ -801,7 +849,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
             )
             .map_err(|err| format!("alloc_ccs_output_{output_index}: {err}"))?
         } else {
-            let mut padded_claim = cover_chunk.parent_claim_shape.zero_claim();
+            let mut padded_claim = shape.zero_claim();
             padded_claim.r = chunk.pi_ccs.row_chals.clone();
             padded_claim.s_col = chunk.pi_ccs.s_col.clone();
             alloc_ce_claim_public_surface_with_shared_point(
@@ -818,12 +866,12 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         padded_ccs_outputs.push(output);
         checkpoint(cs, &format!("ccs_output_{output_index}"))?;
     }
-    let ccs_outputs = padded_ccs_outputs[..effective_output_count].to_vec();
+    let ccs_outputs = padded_ccs_outputs.clone();
     enforce_me_outputs_against_inputs(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_output_binding")),
         structure,
         params,
-        &effective_fresh_claim_vars,
+        &covered_fresh_claim_vars,
         carried_claims.effective_claims(),
         &ccs_outputs,
         &r_prime_vars,
@@ -843,6 +891,18 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         .effective_claims()
         .first()
         .map(|claim| claim.r_values.as_slice());
+    let effective_me_output_count = effective_output_count
+        .checked_sub(cover_fresh_claim_count)
+        .ok_or_else(|| "effective_me_output_count_underflow".to_string())?;
+    let effective_terminal_outputs = padded_ccs_outputs[..cover_fresh_claim_count]
+        .iter()
+        .cloned()
+        .chain(
+            padded_ccs_outputs[cover_fresh_claim_count..cover_fresh_claim_count + effective_me_output_count]
+                .iter()
+                .cloned(),
+        )
+        .collect::<Vec<_>>();
     let _ = enforce_terminal_identity_fe(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_terminal_fe")),
         &sumcheck_final_fe,
@@ -856,8 +916,9 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &chunk.pi_ccs.row_chals,
         &alpha_prime_vars,
         &chunk.pi_ccs.alpha_prime,
-        &ccs_outputs,
-        effective_fresh_claim_count,
+        &effective_terminal_outputs,
+        cover_fresh_claim_count,
+        0,
         me_inputs_r_vars,
         me_inputs_r_values,
         rv64im_main_relation_delta(),
@@ -878,7 +939,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         &chunk.pi_ccs.s_col,
         &alpha_prime_nc_vars,
         &chunk.pi_ccs.alpha_prime_nc,
-        &ccs_outputs,
+        &effective_terminal_outputs,
         rv64im_main_relation_delta(),
         &format!("chunk_{chunk_index}_terminal_nc"),
     )
@@ -964,28 +1025,13 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
         .collect::<Result<Vec<_>, _>>()?;
     checkpoint(cs, "child_claims")?;
 
-    let effective_rho_count = effective_output_count;
-    let padded_rho_count = cover_chunk
-        .ccs_output_shapes
-        .len()
-        .saturating_sub(effective_rho_count);
-    let mut rho_vars = sample_goldilocks_rot_rhos(
+    let rho_vars = sample_goldilocks_rot_rhos(
         &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rhos")),
         transcript,
-        effective_rho_count,
+        padded_ccs_outputs.len(),
         &format!("chunk_{chunk_index}_rlc_rhos"),
     )
     .map_err(|err| format!("sample_rlc_rhos: {err}"))?;
-    if padded_rho_count > 0 {
-        rho_vars.extend(
-            alloc_zero_rot_rhos(
-                &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rhos_pad")),
-                padded_rho_count,
-                &format!("chunk_{chunk_index}_rlc_rhos_pad"),
-            )
-            .map_err(|err| format!("sample_rlc_rhos_pad: {err}"))?,
-        );
-    }
     checkpoint(cs, "sample_rlc_rhos")?;
 
     match boundary_plan.rlc_mode {
@@ -1002,22 +1048,12 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
             .map_err(|err| format!("rlc_public_last_chunk: {err}"))?;
         }
         Rv64imChunkRlcMode::Standard { constant_child_prefix } => {
-            let mut rho_mats = materialize_goldilocks_rot_matrices(
+            let rho_mats = materialize_goldilocks_rot_matrices(
                 &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rho_mats")),
-                &rho_vars[..effective_rho_count],
+                &rho_vars,
                 &format!("chunk_{chunk_index}_rlc_rho_mats"),
             )
             .map_err(|err| format!("materialize_rlc_rho_mats: {err}"))?;
-            if padded_rho_count > 0 {
-                rho_mats.extend(
-                    alloc_zero_rot_rho_matrices(
-                        &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rho_mats_pad")),
-                        padded_rho_count,
-                        &format!("chunk_{chunk_index}_rlc_rho_mats_pad"),
-                    )
-                    .map_err(|err| format!("materialize_rlc_rho_mats_pad: {err}"))?,
-                );
-            }
             checkpoint(cs, "materialize_rlc_rho_mats")?;
             crate::rv64im::main_relation_circuit::pi_rlc::debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
                 cs,
@@ -1025,6 +1061,7 @@ pub(crate) fn debug_locate_rv64im_main_relation_chunk_stage(
                 &padded_ccs_outputs,
                 &rho_mats,
                 constant_child_prefix,
+                0,
                 &format!("chunk_{chunk_index}_rlc_public"),
             )
             .map_err(|err| format!("rlc_public: {err}"))?;
@@ -1202,7 +1239,14 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
     })?;
     let public_challenges = public_challenges.ok_or_else(|| "sample_challenges missing".to_string())?;
 
-    let effective_fresh_claim_count = chunk.fresh_claims.len();
+    let active_fresh_claim_count = chunk.handoff.public_chunk.steps.len();
+    let cover_fresh_claim_count = cover_chunk.fresh_claim_count as usize;
+    if active_fresh_claim_count > chunk.fresh_claims.len() {
+        return Err("active_fresh_claim_count_gt_fresh_claims".into());
+    }
+    if cover_fresh_claim_count > cover_chunk.fresh_claim_shapes.len() {
+        return Err("active_fresh_claim_count_gt_fresh_claims".into());
+    }
     let covered_fresh_claims = cover_chunk
         .fresh_claim_shapes
         .iter()
@@ -1210,8 +1254,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
         .map(|(claim_index, shape)| cover_ccs_claim(shape, chunk.fresh_claims.get(claim_index)))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("cover_ccs_claim: {err}"))?;
-    let effective_fresh_claims = &covered_fresh_claims[..effective_fresh_claim_count];
-    let effective_fresh_claim_vars = effective_fresh_claims
+    let covered_fresh_claim_vars = covered_fresh_claims
         .iter()
         .enumerate()
         .map(|(fresh_index, fresh)| {
@@ -1233,15 +1276,18 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &chunk.pi_ccs.public_challenges.alpha,
             &public_challenges.gamma,
             chunk.pi_ccs.public_challenges.gamma,
-            effective_fresh_claim_count,
+            cover_fresh_claim_count,
             carried_claims.effective_claims(),
+            0,
             rv64im_main_relation_delta(),
             &format!("chunk_{chunk_index}_initial_sum_fe"),
         )
         .map_err(|err| format!("claimed_initial_sum_from_me_inputs: {err}"))?;
         initial_sum_fe = Some(sum);
         initial_sum_fe_value = Some(value);
-        checkpoint(cs, "claimed_initial_sum_from_me_inputs")
+        checkpoint(cs, "claimed_initial_sum_from_me_inputs")?;
+        emit_aux_count("claimed_initial_sum_from_me_inputs", cs.scalar_aux().len());
+        Ok(())
     })?;
     let initial_sum_fe = initial_sum_fe.ok_or_else(|| "claimed_initial_sum_from_me_inputs missing".to_string())?;
     let initial_sum_fe_value =
@@ -1282,7 +1328,9 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             )
             .map_err(|err| format!("fe_sumcheck_initial: {err}"))?;
         }
-        checkpoint(cs, "fe_sumcheck_initial")
+        checkpoint(cs, "fe_sumcheck_initial")?;
+        emit_aux_count("fe_sumcheck_initial", cs.scalar_aux().len());
+        Ok(())
     })?;
 
     let mut r_prime_vars = None;
@@ -1323,7 +1371,9 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
         r_prime_vars = Some(r_prime);
         alpha_prime_vars = Some(alpha_prime);
         sumcheck_final_fe = Some(final_fe);
-        checkpoint(cs, "fe_sumcheck")
+        checkpoint(cs, "fe_sumcheck")?;
+        emit_aux_count("fe_sumcheck", cs.scalar_aux().len());
+        Ok(())
     })?;
 
     profile_stage("nc_sumcheck", || {
@@ -1381,7 +1431,9 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
         s_col_prime_vars = Some(s_col_prime);
         alpha_prime_nc_vars = Some(alpha_prime_nc);
         sumcheck_final_nc = Some(final_nc);
-        checkpoint(cs, "nc_sumcheck")
+        checkpoint(cs, "nc_sumcheck")?;
+        emit_aux_count("nc_sumcheck", cs.scalar_aux().len());
+        Ok(())
     })?;
 
     let r_prime_vars = r_prime_vars.ok_or_else(|| "fe_sumcheck r_prime missing".to_string())?;
@@ -1415,7 +1467,9 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &format!("chunk_{chunk_index}_relation_digest_eq"),
         )
         .map_err(|err| format!("chunk_relation_digest_eq: {err}"))?;
-        checkpoint(cs, "relation_digest")
+        checkpoint(cs, "relation_digest")?;
+        emit_aux_count("relation_digest", cs.scalar_aux().len());
+        Ok(())
     })?;
 
     let mut padded_ccs_outputs = Vec::with_capacity(cover_chunk.ccs_output_shapes.len());
@@ -1423,7 +1477,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
         let effective_output_count = chunk.pi_ccs.ccs_outputs.len();
         for (output_index, shape) in cover_chunk.ccs_output_shapes.iter().enumerate() {
             let effective_claim = chunk.pi_ccs.ccs_outputs.get(output_index);
-            let output = if output_index < effective_fresh_claim_count {
+            let output = if output_index < active_fresh_claim_count {
                 let claim = cover_ce_claim_with_shared_point(
                     shape,
                     effective_claim,
@@ -1460,7 +1514,7 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
                 )
                 .map_err(|err| format!("alloc_ccs_output_{output_index}: {err}"))?
             } else {
-                let mut padded_claim = cover_chunk.parent_claim_shape.zero_claim();
+                let mut padded_claim = shape.zero_claim();
                 padded_claim.r = chunk.pi_ccs.row_chals.clone();
                 padded_claim.s_col = chunk.pi_ccs.s_col.clone();
                 alloc_ce_claim_public_surface_with_shared_point(
@@ -1476,13 +1530,12 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             };
             padded_ccs_outputs.push(output);
         }
-        let effective_output_count = chunk.pi_ccs.ccs_outputs.len();
-        let ccs_outputs = padded_ccs_outputs[..effective_output_count].to_vec();
+        let ccs_outputs = padded_ccs_outputs.clone();
         enforce_me_outputs_against_inputs(
             &mut cs.namespace(|| format!("chunk_{chunk_index}_output_binding")),
             structure,
             params,
-            &effective_fresh_claim_vars,
+            &covered_fresh_claim_vars,
             carried_claims.effective_claims(),
             &ccs_outputs,
             &r_prime_vars,
@@ -1492,12 +1545,26 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &format!("chunk_{chunk_index}_output_binding"),
         )
         .map_err(|err| format!("output_binding: {err}"))?;
-        checkpoint(cs, "output_binding")
+        checkpoint(cs, "output_binding")?;
+        emit_aux_count("ccs_outputs_and_binding", cs.scalar_aux().len());
+        Ok(())
     })?;
 
     profile_stage("terminal_identities", || {
         let effective_output_count = chunk.pi_ccs.ccs_outputs.len();
-        let ccs_outputs = padded_ccs_outputs[..effective_output_count].to_vec();
+        let cover_fresh_claim_count = cover_chunk.fresh_claim_count as usize;
+        let effective_me_output_count = effective_output_count
+            .checked_sub(cover_fresh_claim_count)
+            .ok_or_else(|| "effective_me_output_count_underflow".to_string())?;
+        let effective_terminal_outputs = padded_ccs_outputs[..cover_fresh_claim_count]
+            .iter()
+            .cloned()
+            .chain(
+                padded_ccs_outputs[cover_fresh_claim_count..cover_fresh_claim_count + effective_me_output_count]
+                    .iter()
+                    .cloned(),
+            )
+            .collect::<Vec<_>>();
         let me_inputs_r_vars = carried_claims
             .effective_claims()
             .first()
@@ -1519,8 +1586,9 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &chunk.pi_ccs.row_chals,
             &alpha_prime_vars,
             &chunk.pi_ccs.alpha_prime,
-            &ccs_outputs,
-            effective_fresh_claim_count,
+            &effective_terminal_outputs,
+            cover_fresh_claim_count,
+            0,
             me_inputs_r_vars,
             me_inputs_r_values,
             rv64im_main_relation_delta(),
@@ -1540,12 +1608,14 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
             &chunk.pi_ccs.s_col,
             &alpha_prime_nc_vars,
             &chunk.pi_ccs.alpha_prime_nc,
-            &ccs_outputs,
+            &effective_terminal_outputs,
             rv64im_main_relation_delta(),
             &format!("chunk_{chunk_index}_terminal_nc"),
         )
         .map_err(|err| format!("terminal_nc: {err}"))?;
-        checkpoint(cs, "terminal_nc")
+        checkpoint(cs, "terminal_nc")?;
+        emit_aux_count("terminal_identities", cs.scalar_aux().len());
+        Ok(())
     })?;
 
     let carry_terminal_state = matches!(
@@ -1633,34 +1703,19 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
     let parent_claim = parent_claim.ok_or_else(|| "parent claim missing".to_string())?;
     let padded_child_claims = padded_child_claims.ok_or_else(|| "child claims missing".to_string())?;
 
-    let effective_output_count = chunk.pi_ccs.ccs_outputs.len();
     let effective_child_count = match boundary_plan.child_claim_source {
         Rv64imChunkChildClaimSource::ReplayedChildren => chunk.pi_dec.children.len(),
         Rv64imChunkChildClaimSource::TerminalFinalClaims => terminal_final_claims.len(),
     };
 
     profile_stage("rlc_and_dec", || {
-        let padded_rho_count = cover_chunk
-            .ccs_output_shapes
-            .len()
-            .saturating_sub(effective_output_count);
-        let mut rho_vars = sample_goldilocks_rot_rhos(
+        let rho_vars = sample_goldilocks_rot_rhos(
             &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rhos")),
             transcript,
-            effective_output_count,
+            padded_ccs_outputs.len(),
             &format!("chunk_{chunk_index}_rlc_rhos"),
         )
         .map_err(|err| format!("sample_rlc_rhos: {err}"))?;
-        if padded_rho_count > 0 {
-            rho_vars.extend(
-                alloc_zero_rot_rhos(
-                    &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rhos_pad")),
-                    padded_rho_count,
-                    &format!("chunk_{chunk_index}_rlc_rhos_pad"),
-                )
-                .map_err(|err| format!("sample_rlc_rhos_pad: {err}"))?,
-            );
-        }
         match boundary_plan.rlc_mode {
             Rv64imChunkRlcMode::TerminalLastChunkShortcut => {
                 let child_claim_source = match boundary_plan.child_claim_source {
@@ -1679,28 +1734,19 @@ pub(crate) fn debug_profile_rv64im_main_relation_chunk_stage_progress(
                 .map_err(|err| format!("rlc_public_last_chunk: {err}"))?;
             }
             Rv64imChunkRlcMode::Standard { constant_child_prefix } => {
-                let mut rho_mats = materialize_goldilocks_rot_matrices(
+                let rho_mats = materialize_goldilocks_rot_matrices(
                     &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rho_mats")),
-                    &rho_vars[..effective_output_count],
+                    &rho_vars,
                     &format!("chunk_{chunk_index}_rlc_rho_mats"),
                 )
                 .map_err(|err| format!("materialize_rlc_rho_mats: {err}"))?;
-                if padded_rho_count > 0 {
-                    rho_mats.extend(
-                        alloc_zero_rot_rho_matrices(
-                            &mut cs.namespace(|| format!("chunk_{chunk_index}_rlc_rho_mats_pad")),
-                            padded_rho_count,
-                            &format!("chunk_{chunk_index}_rlc_rho_mats_pad"),
-                        )
-                        .map_err(|err| format!("materialize_rlc_rho_mats_pad: {err}"))?,
-                    );
-                }
                 crate::rv64im::main_relation_circuit::pi_rlc::debug_locate_rlc_public_with_rho_vars_constant_prefix_stage(
                     cs,
                     &parent_claim,
                     &padded_ccs_outputs,
                     &rho_mats,
                     constant_child_prefix,
+                    0,
                     &format!("chunk_{chunk_index}_rlc_public"),
                 )
                 .map_err(|err| format!("rlc_public: {err}"))?;

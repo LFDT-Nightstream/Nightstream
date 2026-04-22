@@ -380,8 +380,8 @@ pub static PHI_GL: [i32; D] = {
     a
 };
 
-/// Goldilocks alphabet: [-2,-1,0,1,2]
-pub static A5_GL: [i8; 5] = [-2, -1, 0, 1, 2];
+/// Goldilocks alphabet: [-2,-1,0,1]
+pub static A4_GL: [i8; 4] = [-2, -1, 0, 1];
 
 /// C_R = {a ∈ R_q : all coeffs of a lie in A}.
 pub struct RotRing {
@@ -389,7 +389,7 @@ pub struct RotRing {
     /// Must have length D (the ring dimension).
     pub phi_coeffs: &'static [i32],
 
-    /// Small coefficient alphabet A ⊂ ℤ (e.g., [-2,-1,0,1,2]).
+    /// Small coefficient alphabet A ⊂ ℤ (e.g., [-2,-1,0,1]).
     /// The strong sampling set is C_R = {polynomials with coeffs in A}.
     pub alphabet: &'static [i8],
 
@@ -399,12 +399,12 @@ pub struct RotRing {
 }
 
 impl RotRing {
-    /// Goldilocks (Section 6.2): Φ_η = X^54 + X^27 + 1, alphabet = [-2,-1,0,1,2].
+    /// Goldilocks (Section 6.2): Φ_η = X^54 + X^27 + 1, alphabet = [-2,-1,0,1].
     /// Yields T=216, b_inv ≈ 2.5×10^9.
     pub const fn goldilocks() -> Self {
         Self {
             phi_coeffs: &PHI_GL,
-            alphabet: &A5_GL,
+            alphabet: &A4_GL,
             binv_floor: Some(2_500_000_000), // ≈ 2.5×10^9 from paper
         }
     }
@@ -652,6 +652,35 @@ fn draw_alphabet_vector(tr: &mut Poseidon2Transcript, need: usize, alphabet: &[i
     out
 }
 
+fn draw_alphabet_vector_pow2(tr: &mut Poseidon2Transcript, need: usize, alphabet: &[i8], seed: u64) -> Vec<i8> {
+    debug_assert!(alphabet.len().is_power_of_two());
+    let bits_per_symbol = alphabet.len().trailing_zeros() as usize;
+    let mask = (1u64 << bits_per_symbol) - 1;
+
+    let mut out = Vec::with_capacity(need);
+    let mut ctr = seed;
+    while out.len() < need {
+        tr.append_fields_raw(&[F::from_u64(1), F::from_u64(ctr)]);
+        let dig = tr.digest32();
+        for limb in dig.chunks_exact(8) {
+            let value = u64::from_le_bytes(limb.try_into().expect("digest32 limbs are 8 bytes"));
+            let symbols = 64 / bits_per_symbol;
+            for symbol_idx in 0..symbols {
+                let idx = ((value >> (bits_per_symbol * symbol_idx)) & mask) as usize;
+                out.push(alphabet[idx]);
+                if out.len() == need {
+                    break;
+                }
+            }
+            if out.len() == need {
+                break;
+            }
+        }
+        ctr = ctr.wrapping_add(1);
+    }
+    out
+}
+
 /// Sample `count` rotation matrices ρ_i = rot(a_i) for ΠRLC with a_i having small coefficients.
 ///
 /// This is the **paper-compliant** ΠRLC sampler (Section 4.5, Definition 14).
@@ -753,8 +782,12 @@ pub fn sample_rot_rhos_n(
         // Domain-separate each ρ_i
         tr.append_fields_raw(&[F::from_u64(0), F::from_u64(i as u64)]);
 
-        // Draw D coefficients from the small alphabet (unbiased rejection sampling)
-        let coeffs_i8 = draw_alphabet_vector(tr, D, ring.alphabet, i as u64);
+        // Draw D coefficients from the strong-set alphabet.
+        let coeffs_i8 = if ring.alphabet.len().is_power_of_two() {
+            draw_alphabet_vector_pow2(tr, D, ring.alphabet, i as u64)
+        } else {
+            draw_alphabet_vector(tr, D, ring.alphabet, i as u64)
+        };
 
         // Lift to field F
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();

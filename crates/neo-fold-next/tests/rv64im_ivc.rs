@@ -1,11 +1,12 @@
 use std::sync::LazyLock;
 
 use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::rv64im::audit::build_rv64im_chunk_step_ivc_relations;
+use neo_fold_next::rv64im::audit::{build_rv64im_chunk_step_ivc_relations, build_rv64im_published_proof_seam};
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::ivc::{derive_rv64im_ivc_step_cap, Rv64imIvcState};
 use neo_fold_next::rv64im::{
-    build_mixed_opcode_perf_source_case, prove_rv64im_accepted_proof_with_options, Rv64imChunkStepIvcRelation,
+    build_mixed_opcode_perf_source_case, build_rv64im_accepted_proof_artifact,
+    prove_rv64im_accepted_proof_with_options, prove_rv64im_public_proof_with_options, Rv64imChunkStepIvcRelation,
     Rv64imProofInput, Rv64imPublicProofOptions,
 };
 
@@ -203,5 +204,41 @@ fn rv64im_ivc_whole_trace_family_round_trips_and_verifies() {
         decoded.public_image(),
         state.public_image(),
         "whole-trace native IVC serialization must preserve the public image"
+    );
+}
+
+#[test]
+fn rv64im_published_seam_ivc_public_image_matches_direct_native_ivc_state() {
+    let source = build_mixed_opcode_perf_source_case(2);
+    let max_steps = source.program_words.len();
+    let input = Rv64imProofInput { source, max_steps };
+    let options = Rv64imPublicProofOptions {
+        root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+    };
+
+    let public_proof = prove_rv64im_public_proof_with_options(&input, options).expect("prove two-step public proof");
+    let published_seam = build_rv64im_published_proof_seam(&public_proof).expect("build published proof seam");
+    let accepted_artifact = build_rv64im_accepted_proof_artifact(&public_proof).expect("build accepted proof artifact");
+    let (final_statement, final_proof) =
+        prove_rv64im_final_statement_from_accepted(&accepted_artifact).expect("prove final statement");
+    let relations =
+        build_rv64im_chunk_step_ivc_relations(&final_statement, &final_proof).expect("build chunk-step relations");
+    let direct_state = relations
+        .iter()
+        .try_fold(
+            Rv64imIvcState::init_with_step_cap(1).expect("build direct native IVC base state"),
+            |state, relation| state.append(relation),
+        )
+        .expect("append direct native IVC relations");
+
+    assert_eq!(
+        published_seam.main_proof.ivc_snark().public_image(),
+        &direct_state.public_image(),
+        "published seam must preserve the same native IVC public image as direct compression"
+    );
+    assert_eq!(
+        published_seam.main_proof.published_statement().pc_final(),
+        public_proof.statement.final_pc,
+        "published statement must still carry the authoritative architectural final pc"
     );
 }

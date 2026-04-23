@@ -26,6 +26,7 @@ use crate::rv64im::ivc_snark::{
 use crate::rv64im::kernel::{Rv64imKernelExportProof, SimpleKernelError};
 use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_verifier_key_fs_for_step_cap, Rv64imEncodedPublicInput, Rv64imVerifierKeyFs,
+    RV64IM_MAIN_RECURSION_TRIVIAL_PC,
 };
 use crate::rv64im::recursion_spartan::build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs;
 
@@ -478,7 +479,11 @@ pub(crate) fn build_rv64im_ivc_public_image_from_published_statement(
             .terminal_handle
             .0,
         z_i: published_statement.canonical_terminal_handle_digest(),
-        pc: published_statement.pc_final(),
+        // The native IVC carrier exposes the recursion control-lane PC, not the
+        // architectural final program counter. The published statement still
+        // binds the authoritative architectural final PC separately via
+        // `pc_final`.
+        pc: RV64IM_MAIN_RECURSION_TRIVIAL_PC,
         x_i: published_statement.x_last().clone(),
         folded_accumulator_digest: published_statement.canonical_folded_accumulator_digest(),
         terminal_statement: Some(published_statement.terminal_step_statement().clone()),

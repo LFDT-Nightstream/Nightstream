@@ -24,8 +24,9 @@ use spartan2::{
 use thiserror::Error;
 
 use crate::finalize::{
-    digest_fields_as_digest32, digest_fixed_shape_final_proof, fixed_shape_terminal_handle_digest_fields,
-    validate_fixed_shape_chunk_layout, FixedShapeChunkSummary, FIXED_SHAPE_DIGEST_FIELD_LEN,
+    digest32_as_fields, digest_fields_as_digest32, digest_fixed_shape_final_proof,
+    fixed_shape_terminal_handle_digest_fields, validate_fixed_shape_chunk_layout, FixedShapeChunkSummary,
+    FIXED_SHAPE_DIGEST_FIELD_LEN,
 };
 use crate::proof::FoldSchedule;
 
@@ -405,13 +406,11 @@ fn backend_semantic_digest_fields(
     witness: &Spartan2DeciderBackendWitness,
 ) -> [F; POSEIDON2_DIGEST_LEN] {
     let mut preimage = Vec::with_capacity(
-        packed_bytes_field_len(32)
-            + chunk_summaries.len() * FixedShapeChunkSummary::packed_field_len()
-            + POSEIDON2_DIGEST_LEN,
+        packed_bytes_field_len(32) + chunk_summaries.len() * spartan2_chunk_summary_field_len() + POSEIDON2_DIGEST_LEN,
     );
     extend_packed_bytes_as_fields(&mut preimage, relation_digest);
     for summary in chunk_summaries {
-        preimage.extend(summary.packed_fields());
+        extend_spartan2_chunk_summary_fields(&mut preimage, summary);
     }
     preimage.extend(witness.digest_fields());
     poseidon2_hash(&preimage)
@@ -675,7 +674,7 @@ impl Spartan2DeciderStatement {
             3 * packed_bytes_field_len(32)
                 + 2 * FIXED_SHAPE_DIGEST_FIELD_LEN
                 + 3
-                + self.chunk_summaries.len() * FixedShapeChunkSummary::packed_field_len(),
+                + self.chunk_summaries.len() * spartan2_chunk_summary_field_len(),
         );
         extend_packed_bytes_as_fields(&mut out, &self.public_statement_digest);
         extend_packed_bytes_as_fields(&mut out, &self.relation_digest);
@@ -687,7 +686,7 @@ impl Spartan2DeciderStatement {
         out.push(F::from_u64(fold_schedule_meta[1]));
         out.push(F::from_u64(self.semantic_step_count));
         for summary in &self.chunk_summaries {
-            out.extend(summary.packed_fields());
+            extend_spartan2_chunk_summary_fields(&mut out, summary);
         }
         out
     }
@@ -770,7 +769,7 @@ impl Spartan2DeciderShape {
         3 * packed_bytes_field_len(32)
             + 2 * FIXED_SHAPE_DIGEST_FIELD_LEN
             + 3
-            + self.chunk_transition_count * FixedShapeChunkSummary::packed_field_len()
+            + self.chunk_transition_count * spartan2_chunk_summary_field_len()
     }
 
     pub fn witness_public_io_len(&self) -> usize {
@@ -1261,6 +1260,19 @@ fn packed_bytes_field_len(bytes_len: usize) -> usize {
     1 + bytes_len.div_ceil(PACKED_BYTES_PER_LIMB)
 }
 
+fn spartan2_chunk_summary_field_len() -> usize {
+    FixedShapeChunkSummary::packed_field_len() + FIXED_SHAPE_DIGEST_FIELD_LEN
+}
+
+fn spartan2_chunk_summary_terminal_relation_digest_field_offset() -> usize {
+    FixedShapeChunkSummary::packed_field_len()
+}
+
+fn extend_spartan2_chunk_summary_fields(dst: &mut Vec<F>, summary: &FixedShapeChunkSummary) {
+    dst.extend(summary.packed_fields());
+    dst.extend(digest32_as_fields(summary.chunk_relation_digest));
+}
+
 fn spartan_pow(mut base: SpartanF, mut exp: u64) -> SpartanF {
     let mut acc = SpartanF::from_canonical_u64(1);
     while exp != 0 {
@@ -1480,12 +1492,11 @@ impl SpartanCircuit<Spartan2BackendBindingShellEngine> for Spartan2BackendBindin
             },
         );
         let mut current_handle = public_inputs[initial_handle_offset..initial_handle_end].to_vec();
-        let summary_len = FixedShapeChunkSummary::packed_field_len();
+        let summary_len = spartan2_chunk_summary_field_len();
         let chunk_relation_offset = FixedShapeChunkSummary::chunk_relation_digest_field_offset();
+        let terminal_relation_digest_offset = spartan2_chunk_summary_terminal_relation_digest_field_offset();
         let private_chunk_relation_offset =
             Spartan2ChunkTransitionBinding::claimed_chunk_relation_digest_field_offset();
-        let private_chunk_relation_end =
-            private_chunk_relation_offset + Spartan2ChunkTransitionBinding::packed_digest_field_len();
         if self.expected_chunk_transition_count == 0 {
             cs.enforce(
                 || "backend_semantic_step_count_zero_when_no_chunks",
@@ -1548,16 +1559,15 @@ impl SpartanCircuit<Spartan2BackendBindingShellEngine> for Spartan2BackendBindin
                     |lc| lc + public_inputs[summary_base + chunk_relation_offset + digest_idx].get_variable(),
                 );
             }
-            let mut handle_preimage = Vec::with_capacity(
-                FIXED_SHAPE_DIGEST_FIELD_LEN + 3 + FixedShapeChunkSummary::packed_digest_field_len(),
-            );
+            let mut handle_preimage =
+                Vec::with_capacity(FIXED_SHAPE_DIGEST_FIELD_LEN + 3 + FIXED_SHAPE_DIGEST_FIELD_LEN);
             handle_preimage.extend(current_handle.iter().cloned());
             handle_preimage.push(chunk_index_num);
             handle_preimage.push(start_index);
             handle_preimage.push(public_step_count);
             handle_preimage.extend(
-                private_witness[private_binding_base + private_chunk_relation_offset
-                    ..private_binding_base + private_chunk_relation_end]
+                public_inputs[summary_base + terminal_relation_digest_offset
+                    ..summary_base + terminal_relation_digest_offset + FIXED_SHAPE_DIGEST_FIELD_LEN]
                     .iter()
                     .cloned(),
             );

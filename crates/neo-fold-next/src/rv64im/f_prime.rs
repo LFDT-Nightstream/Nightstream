@@ -1606,6 +1606,13 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_perf_and_trace(
             "RV64IM main recursion F' advice side_witness is non-zero before phi_side is wired".into(),
         ));
     }
+    let expected_folded_accumulator_in_digest =
+        rv64im_chunk_fold_carry_recursive_accumulator_digest(&advice.state_in.carry);
+    if advice.folded_accumulator_in_digest != expected_folded_accumulator_in_digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM main recursion F' advice folded accumulator input digest does not match state_in".into(),
+        ));
+    }
     let Some(construction2_u_i) = advice.construction2_input_fresh_instance() else {
         return Err(SimpleKernelError::Bridge(
             "RV64IM main recursion F' advice is missing the threaded HyperNova Construction-2 fresh input u_i".into(),

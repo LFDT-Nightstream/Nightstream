@@ -117,18 +117,16 @@ impl SpartanCircuit<Spartan2PublicRelationShellEngine> for Spartan2PublicRelatio
         let terminal_handle_offset = initial_handle_end;
         let terminal_handle_end = terminal_handle_offset + FIXED_SHAPE_DIGEST_FIELD_LEN;
         let fold_schedule_offset = terminal_handle_end;
-        let chunk_count_offset = fold_schedule_offset + 2;
-        let semantic_step_count_offset = chunk_count_offset + 1;
+        let semantic_step_count_offset = fold_schedule_offset + 2;
         let summary_offset = semantic_step_count_offset + 1;
-        let summary_len = FixedShapeChunkSummary::packed_field_len();
+        let summary_len = spartan2_chunk_summary_field_len();
         let witness_base_count_offset = self.statement_public_io_len;
         let witness_chunk_count_offset = witness_base_count_offset + 1;
         let base_digest_offset = witness_chunk_count_offset + 1;
         let chunk_binding_offset = base_digest_offset + self.expected_base_component_count as usize * packed_digest_len;
         let chunk_relation_offset = FixedShapeChunkSummary::chunk_relation_digest_field_offset();
+        let terminal_relation_digest_offset = spartan2_chunk_summary_terminal_relation_digest_field_offset();
         let binding_relation_offset = Spartan2ChunkTransitionBinding::claimed_chunk_relation_digest_field_offset();
-        let binding_relation_end = binding_relation_offset + Spartan2ChunkTransitionBinding::packed_digest_field_len();
-        let public_chunk_count = &public_inputs[chunk_count_offset];
         let public_semantic_step_count = &public_inputs[semantic_step_count_offset];
 
         cs.enforce(
@@ -153,13 +151,6 @@ impl SpartanCircuit<Spartan2PublicRelationShellEngine> for Spartan2PublicRelatio
                 )
             },
         );
-        cs.enforce(
-            || "public_relation_chunk_count_matches_statement",
-            |lc| lc + public_inputs[witness_chunk_count_offset].get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc + public_chunk_count.get_variable(),
-        );
-
         if self.expected_chunk_transition_count == 0 {
             cs.enforce(
                 || "public_relation_semantic_step_count_zero_when_no_chunks",
@@ -238,15 +229,15 @@ impl SpartanCircuit<Spartan2PublicRelationShellEngine> for Spartan2PublicRelatio
                 );
             }
 
-            let mut handle_preimage = Vec::with_capacity(
-                FIXED_SHAPE_DIGEST_FIELD_LEN + 3 + Spartan2ChunkTransitionBinding::packed_digest_field_len(),
-            );
+            let mut handle_preimage =
+                Vec::with_capacity(FIXED_SHAPE_DIGEST_FIELD_LEN + 3 + FIXED_SHAPE_DIGEST_FIELD_LEN);
             handle_preimage.extend(current_handle.iter().cloned());
             handle_preimage.push(chunk_index_num);
             handle_preimage.push(start_index);
             handle_preimage.push(public_step_count);
             handle_preimage.extend(
-                public_inputs[binding_base + binding_relation_offset..binding_base + binding_relation_end]
+                public_inputs[summary_base + terminal_relation_digest_offset
+                    ..summary_base + terminal_relation_digest_offset + FIXED_SHAPE_DIGEST_FIELD_LEN]
                     .iter()
                     .cloned(),
             );

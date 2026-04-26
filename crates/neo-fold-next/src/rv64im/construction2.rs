@@ -252,10 +252,15 @@ fn construction2_public_boundary_fresh_instance_digest(
 }
 
 pub(crate) fn rv64im_main_recursion_construction2_x_only_placeholder(
+    current_input: &Rv64imMainRecursionConstruction2FreshInstance,
     x_i: Rv64imEncodedPublicInput,
 ) -> Rv64imMainRecursionConstruction2FreshInstance {
+    let current_commitment = current_input.commitment().commitment();
     Rv64imMainRecursionConstruction2FreshInstance {
-        c_i: Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment::zeros(D, 1)),
+        c_i: Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment::zeros(
+            current_commitment.d,
+            current_commitment.kappa,
+        )),
         x_i,
     }
 }
@@ -1431,7 +1436,7 @@ pub(crate) fn build_rv64im_main_recursion_construction2_fresh_instance_with_inpu
     validate_rv64im_main_recursion_construction2_input_fresh_instance(advice, current_input_fresh_instance)?;
     perf.pack_image_ms = elapsed_ms(started);
     let started = Instant::now();
-    let fresh_instance = rv64im_main_recursion_construction2_x_only_placeholder(x_i);
+    let fresh_instance = rv64im_main_recursion_construction2_x_only_placeholder(current_input_fresh_instance, x_i);
     perf.commit_ms = elapsed_ms(started);
     perf.total_ms = elapsed_ms(total_started);
     Ok((fresh_instance, perf))

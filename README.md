@@ -2,23 +2,23 @@
 
 [![GitHub License](https://img.shields.io/github/license/nicarq/nightstream)](LICENSE)
 
-Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** plus sum-check-based memory arguments (Twist/Shout). The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, and exposes a **compact published proof boundary** for RV64IM and CHIP-8 closed out with a Spartan2 final decider.
+Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** plus sum-check-based memory arguments (Twist/Shout). The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, and exposes a **compact published proof boundary** for RV64IM.
 
 - **Twist** for read/write memory (register and RAM timelines)
 - **Shout** for read-only lookups (bytecode fetch, decode, ALU tables)
 
 Nightstream implements the protocol from the Neo paper "Lattice-based folding scheme for CCS over small fields" (Nguyen & Setty, 2025/294), extended with Twist/Shout memory arguments and a Spartan2 outer layer.
 
-> **Status**: Research prototype. The single active proving path (`neo-fold-next`) proves and verifies full RV64IM and CHIP-8 programs end-to-end and publishes a compact Nightstream statement/proof pair. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
+> **Status**: Research prototype. The single active proving path (`neo-fold-next`) proves and verifies full RV64IM programs end-to-end and publishes a compact Nightstream statement/proof pair. CHIP-8 remains in the tree as parked audit/development code, not as an active theorem-facing target. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
 
 ---
 
 ## What Works Today
 
-- Full RV64IM and CHIP-8 public-proof → accepted-proof → final-relation → Spartan2 decider → published Nightstream pipeline
+- Full RV64IM public-proof → accepted-proof → final relation → IVC recursion SNARK → published Nightstream pipeline
 - Twist/Shout integrated as register, RAM, and TwistLink events inside Stage 2 semantics (no separate sidecar crate)
 - Side-claim / side-opening / side-terminal relations wrap the RV64IM value-lane content into publishable artifacts
-- End-to-end integration tests (`crates/neo-fold-next/tests/nightstream.rs`, `tests/chip8_nightstream.rs`) proving and verifying both ISAs
+- End-to-end RV64IM integration tests (`crates/neo-fold-next/tests/nightstream.rs`) proving and verifying the active published boundary
 - Optional Midnight outer-compression bridge (`crates/nstream-midnight-bridge`) for theorem-facing proof exports
 
 ### Published Nightstream Boundary
@@ -26,9 +26,7 @@ Nightstream implements the protocol from the Neo paper "Lattice-based folding sc
 The compact published boundary lives in `crates/neo-fold-next/src/nightstream/` and is published as a `NightstreamStatement` + ISA-specific nightstream proof:
 
 - RV64IM carried Nightstream artifact: ~524 bytes
-- CHIP-8 carried Nightstream artifact: ~548 bytes
-
-These numbers refer to the *carried* published boundary, not the larger internal Spartan2 proof exchanged below the seam. The Spartan2 decider proof is backend-accounted and verifier-relevant, but it is not carried inside the published Nightstream artifact itself.
+These numbers refer to the *carried* published boundary, not the larger internal Spartan2 proof exchanged below the seam. The RV64IM IVC recursion SNARK and side binding proofs are backend-accounted and verifier-relevant, but they are not carried inside the published Nightstream artifact itself.
 
 Measured via the perf snapshots:
 
@@ -36,10 +34,6 @@ Measured via the perf snapshots:
 # RV64IM (NS_DEBUG_N controls instruction count)
 NS_DEBUG_N=1000 cargo test -p neo-fold-next --release --test perf -- \
   --ignored --nocapture rv64im_mixed_opcode_perf_snapshot
-
-# CHIP-8
-cargo test -p neo-fold-next --release --test perf -- \
-  --ignored --nocapture chip8_nightstream_perf_snapshot
 ```
 
 ---
@@ -62,8 +56,6 @@ cargo test --workspace --release
 # Canonical RV64IM round-trip (prove + verify via nightstream seam)
 cargo test -p neo-fold-next --release --test nightstream -- --nocapture
 
-# Canonical CHIP-8 round-trip
-cargo test -p neo-fold-next --release --test chip8_nightstream -- --nocapture
 ```
 
 ### WASM Demo (Browser)
@@ -93,27 +85,27 @@ Most tests use `FoldingMode::Optimized`. The `FoldingMode::PaperExact` engine is
 
 ## Architecture Overview
 
-`neo-fold-next` is the single active proving path. It has three layers: a generic SuperNeo shard spine, two ISA frontends (RV64IM and CHIP-8), and a compact publication boundary.
+`neo-fold-next` is the single active proving path. It has three layers: a generic SuperNeo shard spine, the RV64IM frontend, and a compact publication boundary. CHIP-8 code remains parked for development reference.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │  nightstream/               Published proof boundary (compact)   │  ← chain-facing
 │    mod.rs                   NightstreamStatement + proof binding │
 │    rv64im.rs                Rv64imNightstreamProof               │
-│      side_claim / side_opening / side_terminal / side_eval_claim │
+│      side_claim / side_opening / side_binding / side_eval_claim  │
 │      opening_artifact / side_bridges                             │
-│    chip8.rs                 Chip8NightstreamProof                │
+│    chip8.rs                 parked CHIP-8 audit/development path │
 ├──────────────────────────────────────────────────────────────────┤
 │  decider/spartan2/          Generic Spartan2 final decider       │
 ├──────────────────────────────────────────────────────────────────┤
-│  rv64im/        chip8/      ISA frontends                        │
+│  rv64im/                    active ISA frontend                  │
 │    isa / execute / lower    trace capture and expansion          │
 │    builder / tables         parity manifests, ISA tables         │
 │    stage1 / stage2 / stage3 row binding / temporal / continuity  │
 │    kernel/                  three-stage kernel prover+verifier   │
 │    ccs / layout             root CCS and column layout           │
-│    final_relation           replay stages as folding chunks      │
-│    decider_relation         wrap folded statement for Spartan2   │
+│    final_relation           build final recursion artifacts       │
+│    ivc_snark                compress final Construction-2 state   │
 │    trace_expand/            RV64IM only: MUL/DIV lowering        │
 ├──────────────────────────────────────────────────────────────────┤
 │  Generic spine (ISA-agnostic)                                    │
@@ -170,12 +162,11 @@ The RV64IM frontend also emits stage-level eval, opening, and terminal claims th
 | `side_claim_relation`      | Stage-claim bundle consistency                                  |
 | `side_eval_claim_relation` | Phase-0 opened objects + stage proof bindings + eval claims     |
 | `side_opening_relation`    | Stage selected rows vs carried opening claims                   |
-| `side_terminal_relation`   | Witness artifact for the terminal side decider                  |
-| `side_terminal_decider`    | Spartan2-backed publication shells (binding, target, relation)  |
+| `side_relation_spartan`    | Spartan2-backed side binding proof                              |
 | `opening_artifact`         | Phase-0/1/2 opening convergence artifact                        |
 | `side_bridges`             | Projects accepted kernel artifacts into side relation witnesses |
 
-CHIP-8 does not need these: its side/opening/linkage digests in `NightstreamStatement` are filled with fixed "absent" tags (see `chip8_absent_*_artifact_digest()` in `nightstream/chip8.rs`).
+The parked CHIP-8 path does not participate in the active RV64IM published boundary.
 
 ---
 
@@ -204,9 +195,6 @@ cargo test --workspace --release
 # End-to-end nightstream round-trip for RV64IM
 cargo test -p neo-fold-next --release --test nightstream -- --nocapture
 
-# End-to-end nightstream round-trip for CHIP-8
-cargo test -p neo-fold-next --release --test chip8_nightstream -- --nocapture
-
 # Generic spine Π_CCS → Π_RLC → Π_DEC prove/verify
 cargo test -p neo-fold-next --release --test prover_pipeline -- --nocapture
 cargo test -p neo-fold-next --release --test finalized_proof  -- --nocapture
@@ -234,19 +222,19 @@ cargo test -p neo-fold-next --release --test rv64im_stage3 -- --nocapture
 - `trace_expand/` contains the RV64IM-only multi-cycle MUL/DIV expansion (`mul/`, `divrem/`).
 - `stage1/`, `stage2/`, `stage3/` cover row binding, the register/RAM/Twist-link timeline, and continuity.
 - `kernel/` holds the three-stage kernel prover/verifier (`kernel/stages/`, `kernel/main_lane/`, `kernel/openings/`, `kernel/proof/`, `kernel/parity/`).
-- `final_relation.rs`, `decider.rs`, `decider_relation.rs` replay stages as folding chunks and wrap them for Spartan2.
+- `final_relation.rs`, `decider.rs`, `ivc.rs`, `ivc_snark.rs` build the final recursion artifacts and compressed IVC proof boundary.
 
-**CHIP-8 frontend** in [`crates/neo-fold-next/src/chip8/`](crates/neo-fold-next/src/chip8/):
+**Parked CHIP-8 frontend** in [`crates/neo-fold-next/src/chip8/`](crates/neo-fold-next/src/chip8/):
 
 - `spec.rs`, `isa.rs`, `execute.rs`, `lower.rs`, `builder.rs`, `tables.rs`, `poly.rs`, `trace.rs` cover CHIP-8 ISA semantics and trace capture.
 - `stage1/`, `stage2/`, `stage3/`, `kernel/` mirror the three-stage structure from RV64IM.
-- `ccs.rs`, `layout.rs`, `chunk_relation.rs`, `final_relation.rs`, `decider.rs` cover CCS definition through the decider.
+- `ccs.rs`, `layout.rs`, `chunk_relation.rs`, `final_relation.rs`, `decider.rs` are audit/development scaffolding and are not part of the active theorem-facing published path.
 
 **Published Nightstream boundary** in [`crates/neo-fold-next/src/nightstream/`](crates/neo-fold-next/src/nightstream/):
 
 - `mod.rs` defines `NightstreamStatement`, `NightstreamProofBindingInputs`, and the core digest helpers.
 - `rv64im.rs` and `rv64im/side_*.rs` build the RV64IM `Rv64imNightstreamProof` with its side-lane artifacts.
-- `chip8.rs` builds the CHIP-8 `Chip8NightstreamProof`.
+- `chip8.rs` is parked with the CHIP-8 audit/development path.
 
 ---
 
@@ -264,9 +252,9 @@ cargo test -p neo-fold-next --release --test rv64im_stage3 -- --nocapture
 | **Run / Session**  | A full prove session over a sequence of chunks                          | `neo_fold_next::run::{prove_chunks, verify_chunks, prove_and_package}`                         |
 | **PackagedProof**  | Final packaged proof + public statement                                 | `neo_fold_next::proof::PackagedProof`; built by `neo_fold_next::finalize`                      |
 | **Twist**          | R/W memory argument (register + RAM timelines via sparse increments)    | `neo_fold_next::rv64im::stage2::semantics`: `RegisterWriteEvent`, `RamEvent`, `TwistLinkEvent`  |
-| **Shout**          | Read-only lookup argument (bytecode fetch / decode / ALU / tables)      | `neo_fold_next::rv64im::stage1` / `chip8::stage1` row-binding families                         |
-| **Nightstream**    | Published compact statement + proof boundary                            | `neo_fold_next::nightstream::{NightstreamStatement, rv64im, chip8}`                            |
-| **Spartan2 decider** | Final decider over the folded statement                               | `neo_fold_next::decider::spartan2`                                                             |
+| **Shout**          | Read-only lookup argument (bytecode fetch / decode / ALU / tables)      | `neo_fold_next::rv64im::stage1` row-binding families                                           |
+| **Nightstream**    | Published compact statement + proof boundary                            | `neo_fold_next::nightstream::{NightstreamStatement, rv64im}`                                   |
+| **Spartan2**       | Backend used for final recursion and side-binding proofs                | `neo_fold_next::decider::spartan2`                                                             |
 
 ### Key Types
 
@@ -310,10 +298,11 @@ The following is pseudocode matching the flow in [`crates/neo-fold-next/tests/ni
 ```rust
 use neo_fold_next::rv64im::{
     prove_rv64im_public_proof,
-    setup_rv64im_spartan2_decider_from_public_proof,
-    prove_rv64im_spartan2_decider_from_public_proof,
+    build_rv64im_accepted_proof_artifact,
     Rv64imProofInput,
 };
+use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
+use neo_fold_next::rv64im::ivc_snark::setup_rv64im_ivc_snark_from_final_cached;
 use neo_fold_next::nightstream::rv64im::{
     build_rv64im_nightstream_from_public_proof,
     verify_rv64im_nightstream,
@@ -323,27 +312,30 @@ use neo_fold_next::nightstream::rv64im::{
 let proof_input: Rv64imProofInput = /* program_words + max_steps */;
 let public_proof = prove_rv64im_public_proof(&proof_input)?;
 
-// 2. Set up and run the Spartan2 decider over the folded statement
-let (decider_pk, decider_vk) =
-    setup_rv64im_spartan2_decider_from_public_proof(&public_proof)?;
-let decider_proof =
-    prove_rv64im_spartan2_decider_from_public_proof(&decider_pk, &public_proof)?;
+// 2. Build final artifacts and the IVC recursion SNARK verifier key
+let accepted = build_rv64im_accepted_proof_artifact(&public_proof)?;
+let (final_statement, final_proof) =
+    prove_rv64im_final_statement_from_accepted(&accepted)?;
+let ivc_recursion_snark_keys =
+    setup_rv64im_ivc_snark_from_final_cached(&final_statement, &final_proof)?;
 
 // 3. Build the published Nightstream statement + proof
 let (statement, nightstream_proof) =
     build_rv64im_nightstream_from_public_proof(&public_proof)?;
 
-// 4. Verify the full chain
+// 4. Verify the compressed published boundary
+let side_opening_vk = /* side-opening verifier key */;
+let side_binding_vk = /* side-binding verifier key */;
 verify_rv64im_nightstream(
     &statement,
     &nightstream_proof,
     public_proof.statement.root_params_id,
-    &decider_vk,
-    &decider_proof,
+    &ivc_recursion_snark_keys.1,
+    &side_opening_vk,
+    &side_binding_vk,
+    &public_proof.statement,
 )?;
 ```
-
-CHIP-8 follows the same shape via `neo_fold_next::chip8::proof::prove_recursive` and `neo_fold_next::nightstream::chip8::{build_chip8_nightstream_from_recursive_proof, verify_chip8_nightstream_from_recursive_proof}`.
 
 For direct use of the generic spine (bring your own CCS and `StepInput`s), use `neo_fold_next::run::{prove_and_package, verify_packaged}`.
 
@@ -404,10 +396,6 @@ Constraint / perf dumps live in [`crates/neo-fold-next/tests/perf.rs`](crates/ne
 # Full constraint + timing snapshot for RV64IM (N = instructions + 1 halt)
 NS_DEBUG_N=10000 cargo test -p neo-fold-next --release --test perf -- \
   --ignored --nocapture rv64im_mixed_opcode_perf_snapshot
-
-# CHIP-8 perf snapshot
-cargo test -p neo-fold-next --release --test perf -- \
-  --ignored --nocapture chip8_nightstream_perf_snapshot
 ```
 
 For CPU/memory profiling see [`scripts/profile_for_ai.sh`](scripts/profile_for_ai.sh), [`scripts/profile_xctrace.sh`](scripts/profile_xctrace.sh), and [`scripts/profile_memory_deep.sh`](scripts/profile_memory_deep.sh). Usage is documented in [`CLAUDE.md`](CLAUDE.md).
@@ -457,12 +445,12 @@ Specific caveats:
 crates/
   neo-params/             Parameter bundles + Poseidon2 config
   neo-math/               Field/ring utilities, extension field, norms
-  spartan2/               Vendored Spartan2 used by the final decider
+  spartan2/               Vendored Spartan2 backend
   neo-transcript/         Poseidon2 transcript (Fiat-Shamir)
   neo-ajtai/              Ajtai (lattice) commitments; module-SIS binding
   neo-ccs/                CCS/MCS/ME relations, matrices, arithmetization
   neo-reductions/         Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact)
-  neo-fold-next/          Active proving path: spine + RV64IM + CHIP-8 + nightstream
+  neo-fold-next/          Active proving path: spine + RV64IM + nightstream
   nstream-midnight-bridge/ Midnight outer-compression bridge for proof exports
 
 docs/

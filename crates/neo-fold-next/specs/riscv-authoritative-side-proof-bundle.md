@@ -80,7 +80,7 @@ Measurement context for the rows below:
 | Raw Phase 0 schema total | `83,590` to `84,060` constraints per active schema | Same diagnostic | This is useful only as an audit/debug figure for the old replay path. |
 | Side Spartan wrapper circuit at the snapshot | No raw Phase 0 replay terms remain in the circuit; only the statement digest is allocated as public input | `measure_rv64im_side_spartan_circuit_constraints` and `side_relation_spartan.rs` synthesize only public inputs and no replay subrelations | This row describes the measured wrapper circuit at the snapshot SHA. It is not the theorem itself. |
 | Side Spartan `N=2` redline at the snapshot | `<= 2,048` total constraints | `RV64IM_N2_SIDE_CONSTRAINT_BUDGET` canary in `rv64im_n2_canaries.rs` | This is an enforced budget, not a measured exact count. |
-| End-to-end side timing at the snapshot | unavailable from the canonical perf snapshot at this SHA | `NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot` fails with `InvalidSumcheckProof` at the listed SHA | The snapshot records the measurement state honestly; it does not reuse stale timings. |
+| End-to-end side timing at the snapshot | unavailable from the canonical perf snapshot at this SHA | `NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot` fails with `InvalidSumcheckProof` at the listed SHA | The snapshot records the measurement state honestly; it does not reuse stale timings. |
 
 Interpretation notes:
 

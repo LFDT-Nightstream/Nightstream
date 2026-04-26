@@ -11,7 +11,15 @@
 - Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
 - For difficult questions, hard design/review tradeoffs, or high-confidence soundness checks, you may use the project-local multi-AI council skill at `./.codex/skills/multi-ai-council/SKILL.md` (it may take between 5 - 25 min to answer).
 - You can find the SuperNeo paper which is what the main protocol is based upon in ./docs/superneo-paper
-- If any tests take longer than 10 seconds cancel it
+- If any tests take longer than 60 seconds cancel it, unless the user explicitly approves a longer run.
+
+## Operating Discipline
+- Before implementing, state the assumptions that matter for the task. If multiple interpretations are plausible and the wrong one would be costly, ask instead of guessing.
+- Prefer the smallest code change that solves the stated problem. Do not add speculative features, flexibility, abstractions, flags, or helper systems for a single use case.
+- Keep edits surgical. Touch only files and lines that directly support the request, and do not refactor adjacent code, comments, or formatting unless that cleanup is required by your change.
+- If your change creates unused imports, variables, functions, or orphaned code, remove that newly-created dead surface. Do not delete pre-existing unrelated dead code unless explicitly asked.
+- Define success criteria for non-trivial work before coding. For bug fixes, add or update a test that would fail on the bug; for refactors, identify the compile/test checks that prove behavior was preserved.
+- Surface uncertainty and tradeoffs directly. If a simpler approach exists or the requested direction risks extra complexity, say so before implementing.
 
 ## Security
 - Digests are fine as compression, but never as authority.
@@ -87,7 +95,7 @@ Perf tests live in `crates/neo-fold/tests/suites/perf/single_addi_metrics_nights
 
 Full constraint architecture report (main CCS, bus, Route-A claims, openings, timing):
 ```bash
-NS_DEBUG_N=10000 cargo test -p neo-fold-next --release --test perf -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot
+NS_DEBUG_N=10000 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot
 ```
 N: number of riscv instructions + 1 (halt).
 
@@ -97,39 +105,32 @@ NS_DEBUG_N=10 cargo run -p neo-fold-next --bin rv64im_main_recursion_shape_probe
 ```
 Use this when the question is "how many constraints are we handing to Spartan?" or when optimizing the recursive circuit shape without paying for `compress()`.
 
-Native no-Spartan IVC perf/debug snapshot (append/verify only; stops before `compress()`):
+RV64IM no-Spartan IVC perf/debug snapshot (append/build only; stops before `compress()`):
 ```bash
-NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_native -- --ignored --nocapture rv64im_mixed_opcode_native_ivc_perf_snapshot
+NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_no_spartan -- --ignored --nocapture rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot
 ```
-Use this test for RV64IM native IVC performance work and stage-by-stage IVC timing breakdowns.
+Use this test for RV64IM no-Spartan IVC append/build performance work and stage-by-stage IVC timing breakdowns.
 
-RV64IM product-surface IVC compression snapshot (live state build, then `compress()` + compressed verify):
+RV64IM with-Spartan product-surface IVC compression snapshot (live state build, then `compress()` + compressed verify):
 ```bash
-NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot -- --ignored --exact --nocapture
+NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture
 ```
 This test now builds the live IVC state from `NS_DEBUG_N`; it is no longer fixture-backed.
 
 Optional chunk sizing for the live product-surface snapshot uses an extra libtest delimiter and defaults to `1` when omitted:
 ```bash
-NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --chunk-size 2
+NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --chunk-size 2
 ```
 Alias:
 ```bash
-NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --rows-per-chunk 2
+NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --rows-per-chunk 2
 ```
-
-Explicit fixture-backed compression-only snapshot:
-```bash
-NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv64im rv64im_ivc_product_surface_compress_and_verify_snapshot_from_fixture -- --ignored --exact --nocapture
-```
-Use the fixture-backed variant only when you want a frozen compression microbenchmark rather than a live `NS_DEBUG_N` run.
 
 Which perf command to use:
 - Use `rv64im_main_recursion_shape_probe` when optimizing recursive constraint count, aux count, or pre-compression synth cost. This is the default tool for "reduce what Spartan has to compress".
-- Use `rv64im_mixed_opcode_native_ivc_perf_snapshot` when optimizing native append/verify time before Spartan. This is the right tool for `F'`, Construction-2, Ajtai commit, and other no-compression hotspots.
-- Use `rv64im_ivc_product_surface_compress_and_verify_snapshot` when measuring the final compressed RV64IM IVC artifact: live state build, `compress()`, compressed verify, and serialized proof size.
-- Use `rv64im_ivc_product_surface_compress_and_verify_snapshot_from_fixture` only for a frozen compression microbenchmark where you want to hold the input state constant across runs.
-- Use `rv64im_mixed_opcode_perf_snapshot` when you need the larger theorem-facing public-path architecture report across main CCS, bus, Route-A claims, openings, and timing, not just the recursive lane.
+- Use `rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot` when optimizing append/build time before Spartan. This is the right tool for `F'`, Construction-2, Ajtai commit, and other no-compression hotspots.
+- Use `rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot` when measuring the final compressed RV64IM IVC artifact: live state build, `compress()`, compressed verify, and serialized proof size.
+- Use `rv64im_mixed_opcode_perf_snapshot` under `--test perf_rv64im_with_spartan` when you need the larger theorem-facing public-path architecture report across main CCS, bus, Route-A claims, openings, and timing, not just the recursive lane.
 
 ## Profiling
 

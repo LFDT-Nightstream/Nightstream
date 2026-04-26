@@ -1,9 +1,12 @@
 //! Focused tests for the RV64IM folded/final relation seam above the accepted artifact.
 
 use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::rv64im::audit::{
+    audit_check_rv64im_final_statement_replay, audit_check_rv64im_folded_statement_replay,
+};
 use neo_fold_next::rv64im::final_relation::{
     build_rv64im_terminal_chunk_fold_witness, prove_rv64im_final_statement_from_accepted,
-    prove_rv64im_folded_statement_from_accepted, verify_rv64im_final_statement, verify_rv64im_folded_statement,
+    prove_rv64im_folded_statement_from_accepted,
 };
 use neo_fold_next::rv64im::{
     build_rv64im_accepted_proof_artifact, build_rv64im_kernel_export_source_from_accepted_artifact,
@@ -37,7 +40,7 @@ fn rv64im_folded_statement_round_trip() {
     assert_ne!(folded.kernel_relation_digest, [0; 32]);
     assert_eq!(proof.steps.len(), folded.chunk_count as usize);
 
-    verify_rv64im_folded_statement(&folded, &proof).expect("verify rv64im folded statement");
+    audit_check_rv64im_folded_statement_replay(&folded, &proof).expect("audit-check rv64im folded statement replay");
 }
 
 #[test]
@@ -52,7 +55,7 @@ fn rv64im_final_statement_round_trip() {
     assert_ne!(proof.proof_digest, [0; 32]);
     assert_ne!(statement.digest, [0; 32]);
 
-    verify_rv64im_final_statement(&statement, &proof).expect("verify rv64im final statement");
+    audit_check_rv64im_final_statement_replay(&statement, &proof).expect("audit-check rv64im final statement replay");
 }
 
 #[test]
@@ -126,7 +129,8 @@ fn rv64im_direct_prover_seam_matches_reconstructive_final_path() {
         statement.public_statement_digest
     );
 
-    verify_rv64im_final_statement(&rebuilt_statement, &final_proof).expect("verify rv64im direct final statement");
+    audit_check_rv64im_final_statement_replay(&rebuilt_statement, &final_proof)
+        .expect("audit-check rv64im direct final statement replay");
 }
 
 #[test]
@@ -157,7 +161,7 @@ fn rv64im_final_statement_rejects_tampered_accepted_artifact() {
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
     proof.kernel_export.source.root_execution.digest[0] ^= 1;
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered accepted artifact must fail final verification");
     assert!(format!("{err}").contains("accepted proof artifact") || format!("{err}").contains("digest"));
 }
@@ -170,7 +174,7 @@ fn rv64im_final_statement_rejects_tampered_chunk_replay_witness() {
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
     proof.steps[0].replay_witness.ccs_replay_proof.header_digest[0] ^= 1;
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered replay witness must fail final verification");
     assert!(format!("{err}").contains("final proof digest") || format!("{err}").contains("chunk"));
 }
@@ -186,7 +190,7 @@ fn rv64im_final_statement_rejects_tampered_bridge_binding() {
         .step_bindings[0]
         .prepared_step_digest[0] ^= 1;
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered bridge binding must fail final verification");
     assert!(
         format!("{err}").contains("final proof digest")
@@ -208,7 +212,7 @@ fn rv64im_final_statement_rejects_tampered_transcript_surface() {
         .initial_state
         .registers[0] ^= 1;
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered transcript surface must fail final verification");
     assert!(format!("{err}").contains("transcript") || format!("{err}").contains("digest"));
 }
@@ -221,7 +225,7 @@ fn rv64im_final_statement_rejects_tampered_transcript_mix_surface() {
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
     proof.kernel_export.source.transcript.challenges.stage1_mix ^= 1;
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered transcript mix surface must fail final verification");
     assert!(format!("{err}").contains("transcript") || format!("{err}").contains("digest"));
 }
@@ -235,7 +239,7 @@ fn rv64im_final_statement_rejects_tampered_root_execution_rows() {
     proof.kernel_export.source.root_execution.execution_rows[0].next_pc ^= 1;
     proof.kernel_export.source.root_execution.digest = proof.kernel_export.source.root_execution.expected_digest();
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered root execution rows must fail final verification");
     assert!(
         format!("{err}").contains("root execution")
@@ -252,7 +256,7 @@ fn rv64im_final_statement_rejects_tampered_export_kernel_claim_surface() {
         prove_rv64im_final_statement_from_accepted(&artifact).expect("prove rv64im final statement");
     proof.kernel_export.source.kernel_claims.final_state_digest[0] ^= 1;
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered export kernel claim surface must fail final verification");
     assert!(
         format!("{err}").contains("final state")
@@ -278,7 +282,7 @@ fn rv64im_final_statement_rejects_tampered_export_terminal_row_endpoint() {
     last_row.next_pc ^= 1;
     proof.kernel_export.source.root_execution.digest = proof.kernel_export.source.root_execution.expected_digest();
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered export terminal row endpoint must fail final verification");
     assert!(
         format!("{err}").contains("root execution")
@@ -305,7 +309,7 @@ fn rv64im_final_statement_rejects_tampered_export_main_lane_surface() {
         .chunks[0]
         .start_index ^= 1;
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("tampered export main-lane surface must fail final verification");
     assert!(
         format!("{err}").contains("main-lane")
@@ -333,7 +337,7 @@ fn rv64im_final_statement_rejects_reordered_chunk_witnesses() {
     assert!(proof.steps.len() > 1, "expected multi-chunk final proof");
     proof.steps.swap(0, 1);
 
-    let err = verify_rv64im_final_statement(&statement, &proof)
+    let err = audit_check_rv64im_final_statement_replay(&statement, &proof)
         .expect_err("reordered chunk witnesses must fail final verification");
     assert!(
         format!("{err}").contains("final proof digest")

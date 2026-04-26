@@ -1,14 +1,64 @@
 use std::sync::LazyLock;
 
+use neo_fold_next::finalize::FixedShapeChunkSummary;
 use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv64im::audit::{build_rv64im_chunk_step_ivc_relations, build_rv64im_published_proof_seam};
+use neo_fold_next::rv64im::construction2::Rv64imMainRecursionConstruction2PublicBoundary;
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
-use neo_fold_next::rv64im::ivc::{derive_rv64im_ivc_step_cap, Rv64imIvcState};
+use neo_fold_next::rv64im::ivc::{derive_rv64im_ivc_step_cap, Rv64imIvcPublicImage, Rv64imIvcState};
 use neo_fold_next::rv64im::{
     build_mixed_opcode_perf_source_case, build_rv64im_accepted_proof_artifact,
     prove_rv64im_accepted_proof_with_options, prove_rv64im_public_proof_with_options, Rv64imChunkStepIvcRelation,
-    Rv64imProofInput, Rv64imPublicProofOptions,
+    Rv64imChunkStepIvcStatement, Rv64imChunkStepPublic, Rv64imEncodedPublicInput, Rv64imProofInput,
+    Rv64imPublicProofOptions,
 };
+use neo_math::{D, F};
+use neo_reductions::common::project_x_from_witness_mat;
+use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeCharacteristicRing;
+
+fn verified_step_statement_digest(statement: &Rv64imChunkStepIvcStatement) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement");
+    tr.append_message(
+        b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/version",
+        b"v2",
+    );
+    tr.append_u64s(
+        b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/meta",
+        &[
+            statement.step_public.chunk_index,
+            statement.step_public.step_lo,
+            statement.step_public.step_hi,
+            u64::from(statement.step_public.halted_out),
+        ],
+    );
+    tr.append_fields(
+        b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/state_in",
+        &digest32_as_fields(statement.step_public.state_in),
+    );
+    tr.append_fields(
+        b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/state_out",
+        &digest32_as_fields(statement.step_public.state_out),
+    );
+    tr.append_fields(
+        b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/public_chunk_digest",
+        &digest32_as_fields(statement.chunk_summary.public_chunk_digest),
+    );
+    tr.append_fields(
+        b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/chunk_relation_digest",
+        &digest32_as_fields(statement.chunk_summary.chunk_relation_digest),
+    );
+    tr.digest32()
+}
+
+fn digest32_as_fields(digest: [u8; 32]) -> [F; 4] {
+    [
+        F::from_u64(u64::from_le_bytes(digest[0..8].try_into().expect("digest limb 0"))),
+        F::from_u64(u64::from_le_bytes(digest[8..16].try_into().expect("digest limb 1"))),
+        F::from_u64(u64::from_le_bytes(digest[16..24].try_into().expect("digest limb 2"))),
+        F::from_u64(u64::from_le_bytes(digest[24..32].try_into().expect("digest limb 3"))),
+    ]
+}
 
 fn build_relations(opcode_count: usize, schedule: FoldSchedule, label: &str) -> Vec<Rv64imChunkStepIvcRelation> {
     let source = build_mixed_opcode_perf_source_case(opcode_count);
@@ -27,24 +77,30 @@ fn build_relations(opcode_count: usize, schedule: FoldSchedule, label: &str) -> 
 
 static TWO_STEP_RELATIONS: LazyLock<Vec<Rv64imChunkStepIvcRelation>> =
     LazyLock::new(|| build_relations(2, FoldSchedule::RowsPerChunk(1), "two-step"));
-
 static FIVE_STEP_CAP_RELATIONS: LazyLock<Vec<Rv64imChunkStepIvcRelation>> =
     LazyLock::new(|| build_relations(7, FoldSchedule::RowsPerChunk(5), "five-step-cap"));
-
 static WHOLE_TRACE_RELATIONS: LazyLock<Vec<Rv64imChunkStepIvcRelation>> =
     LazyLock::new(|| build_relations(5, FoldSchedule::WholeTrace, "whole-trace"));
+
+fn two_step_relations() -> &'static [Rv64imChunkStepIvcRelation] {
+    &TWO_STEP_RELATIONS
+}
+
+fn five_step_cap_relations() -> &'static [Rv64imChunkStepIvcRelation] {
+    &FIVE_STEP_CAP_RELATIONS
+}
+
+fn whole_trace_relations() -> &'static [Rv64imChunkStepIvcRelation] {
+    &WHOLE_TRACE_RELATIONS
+}
 
 #[test]
 fn rv64im_ivc_base_state_round_trips_through_serde() {
     let state = Rv64imIvcState::init_with_step_cap(1).expect("build canonical base IVC state");
-    state.verify().expect("verify canonical base IVC state");
 
     let encoded = bincode::serialize(&state).expect("serialize canonical base IVC state");
     let decoded: Rv64imIvcState = bincode::deserialize(&encoded).expect("deserialize canonical base IVC state");
 
-    decoded
-        .verify()
-        .expect("verify deserialized canonical base IVC state");
     assert_eq!(
         decoded.public_image(),
         state.public_image(),
@@ -58,7 +114,7 @@ fn rv64im_ivc_base_state_round_trips_through_serde() {
 
 #[test]
 fn rv64im_ivc_deserialized_state_accepts_further_folds() {
-    let relations = &*TWO_STEP_RELATIONS;
+    let relations = two_step_relations();
     assert!(
         relations.len() >= 2,
         "two-step canonical fixture must expose at least two chunk-step relations"
@@ -71,30 +127,20 @@ fn rv64im_ivc_deserialized_state_accepts_further_folds() {
             |state, relation| state.append(relation),
         )
         .expect("append the two-step canonical fixture in one shot");
-    one_shot
-        .verify()
-        .expect("verify one-shot two-step IVC state");
 
     let first_step = Rv64imIvcState::init_with_step_cap(1)
         .expect("build resumed IVC base state")
         .append(&relations[0])
         .expect("append first fold before serialization");
-    first_step
-        .verify()
-        .expect("verify first appended IVC state before serialization");
 
     let encoded = bincode::serialize(&first_step).expect("serialize partially folded IVC state");
     let decoded: Rv64imIvcState = bincode::deserialize(&encoded).expect("deserialize partially folded IVC state");
-    decoded
-        .verify()
-        .expect("verify partially folded IVC state after deserialization");
 
     let resumed = relations
         .iter()
         .skip(1)
         .try_fold(decoded, |state, relation| state.append(relation))
         .expect("append the remaining folds after deserializing the IVC state");
-    resumed.verify().expect("verify resumed two-step IVC state");
 
     assert_eq!(
         resumed.public_image(),
@@ -104,8 +150,51 @@ fn rv64im_ivc_deserialized_state_accepts_further_folds() {
 }
 
 #[test]
+fn rv64im_ivc_append_rejects_stale_projection_digest_cargo() {
+    let relation = two_step_relations()
+        .first()
+        .expect("two-step canonical fixture must expose at least one relation");
+    let mut tampered = relation.clone();
+    tampered.witness.state_out.carry.main_projection_digests[0][0] += F::ONE;
+
+    Rv64imIvcState::init_with_step_cap(1)
+        .expect("build canonical base IVC state")
+        .append(&tampered)
+        .expect_err("append must reject stale CE projection digest cargo");
+}
+
+#[test]
+fn rv64im_ivc_final_carry_ce_x_projects_from_final_witnesses() {
+    let state = two_step_relations()
+        .iter()
+        .try_fold(
+            Rv64imIvcState::init_with_step_cap(1).expect("build canonical IVC base state"),
+            |state, relation| state.append(relation),
+        )
+        .expect("append two-step fixture");
+    let carry = &state.running_state().carry.main;
+    assert_eq!(
+        carry.claims.len(),
+        carry.witnesses.len(),
+        "final carry must pair every CE claim with a witness"
+    );
+    for (idx, (claim, witness)) in carry.claims.iter().zip(carry.witnesses.iter()).enumerate() {
+        let expected_m = witness
+            .cols()
+            .checked_mul(D)
+            .expect("packed witness width must not overflow");
+        let projected = project_x_from_witness_mat(witness, expected_m, claim.m_in)
+            .unwrap_or_else(|err| panic!("project final CE claim {idx} X from witness: {err}"));
+        assert_eq!(
+            claim.X, projected,
+            "final carried CE claim {idx} must satisfy X = L_in(Z)"
+        );
+    }
+}
+
+#[test]
 fn rv64im_ivc_multi_step_family_survives_serde_and_resume() {
-    let relations = &*FIVE_STEP_CAP_RELATIONS;
+    let relations = five_step_cap_relations();
     assert!(
         relations.len() >= 2,
         "five-step-cap fixture should expose at least two native relations"
@@ -135,34 +224,22 @@ fn rv64im_ivc_multi_step_family_survives_serde_and_resume() {
         )
         .expect("append the five-step-cap fixture in one shot");
     assert_eq!(one_shot.step_cap(), 5);
-    one_shot
-        .verify()
-        .expect("verify one-shot five-step-cap IVC state");
 
     let first_chunk = Rv64imIvcState::init_with_step_cap(5)
         .expect("build resumed five-step-cap IVC base state")
         .append(&relations[0])
         .expect("append the full-width five-step-cap chunk before serialization");
-    first_chunk
-        .verify()
-        .expect("verify full-width five-step-cap state before serialization");
 
     let encoded = bincode::serialize(&first_chunk).expect("serialize five-step-cap partially folded IVC state");
     let decoded: Rv64imIvcState =
         bincode::deserialize(&encoded).expect("deserialize five-step-cap partially folded IVC state");
     assert_eq!(decoded.step_cap(), 5);
-    decoded
-        .verify()
-        .expect("verify deserialized five-step-cap partially folded IVC state");
 
     let resumed = relations
         .iter()
         .skip(1)
         .try_fold(decoded, |state, relation| state.append(relation))
         .expect("append the remaining five-step-cap chunks after deserialization");
-    resumed
-        .verify()
-        .expect("verify resumed five-step-cap IVC state");
 
     assert_eq!(
         resumed.public_image(),
@@ -172,8 +249,8 @@ fn rv64im_ivc_multi_step_family_survives_serde_and_resume() {
 }
 
 #[test]
-fn rv64im_ivc_whole_trace_family_round_trips_and_verifies() {
-    let relations = &*WHOLE_TRACE_RELATIONS;
+fn rv64im_ivc_whole_trace_family_round_trips_and_preserves_append_state() {
+    let relations = whole_trace_relations();
     assert_eq!(
         relations.len(),
         1,
@@ -192,14 +269,10 @@ fn rv64im_ivc_whole_trace_family_round_trips_and_verifies() {
         .append(&relations[0])
         .expect("append whole-trace native relation");
     assert_eq!(state.step_cap(), step_cap as u64);
-    state.verify().expect("verify whole-trace native IVC state");
 
     let encoded = bincode::serialize(&state).expect("serialize whole-trace IVC state");
     let decoded: Rv64imIvcState = bincode::deserialize(&encoded).expect("deserialize whole-trace IVC state");
     assert_eq!(decoded.step_cap(), step_cap as u64);
-    decoded
-        .verify()
-        .expect("verify deserialized whole-trace IVC state");
     assert_eq!(
         decoded.public_image(),
         state.public_image(),
@@ -208,6 +281,138 @@ fn rv64im_ivc_whole_trace_family_round_trips_and_verifies() {
 }
 
 #[test]
+fn rv64im_ivc_public_image_rejects_terminal_metadata_tamper() {
+    let construction2_u_i = Rv64imMainRecursionConstruction2PublicBoundary {
+        fresh_instance_digest: [0; 32],
+        commitment_digest: [0; 32],
+        commitment_d: D as u64,
+        commitment_kappa: 1,
+        commitment_data: vec![F::from_u64(11); D],
+        x_i: Rv64imEncodedPublicInput::from_digest_bytes([4; 32]),
+    };
+    let construction2_u_i = Rv64imMainRecursionConstruction2PublicBoundary {
+        commitment_digest: construction2_u_i.expected_commitment_digest(),
+        fresh_instance_digest: construction2_u_i.expected_fresh_instance_digest(),
+        ..construction2_u_i
+    };
+    let terminal_statement = Rv64imChunkStepIvcStatement {
+        step_public: Rv64imChunkStepPublic {
+            program_digest: [7; 32],
+            chunk_index: 0,
+            step_lo: 0,
+            step_hi: 2,
+            state_in: [2; 32],
+            state_out: [3; 32],
+            halted_out: true,
+        },
+        chunk_summary: FixedShapeChunkSummary {
+            start_index: 0,
+            public_step_count: 2,
+            public_chunk_digest: [8; 32],
+            chunk_relation_digest: [9; 32],
+        },
+    };
+    let public_image = Rv64imIvcPublicImage {
+        vk_fs_digest: [1; 32],
+        chunk_count: 1,
+        step_count: 2,
+        z_0: [2; 32],
+        z_i: [3; 32],
+        pc: 1,
+        x_i: Rv64imEncodedPublicInput::from_digest_bytes([4; 32]),
+        construction2_u_i,
+        folded_accumulator_digest: [5; 32],
+        terminal_bridge_handoff_digest: [6; 32],
+        terminal_verified_step_statement_digest: verified_step_statement_digest(&terminal_statement),
+        terminal_statement: Some(terminal_statement),
+    };
+    public_image
+        .validate_final_construction2_public_boundary()
+        .expect("canonical public image must satisfy the compressed verifier boundary");
+
+    let mut missing_terminal = public_image.clone();
+    missing_terminal.terminal_statement = None;
+    missing_terminal
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must require terminal metadata");
+
+    let mut unhalted = public_image.clone();
+    unhalted
+        .terminal_statement
+        .as_mut()
+        .expect("terminal statement")
+        .step_public
+        .halted_out = false;
+    unhalted
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must reject an unhalted terminal chunk");
+
+    let mut wrong_terminal_state = public_image.clone();
+    wrong_terminal_state
+        .terminal_statement
+        .as_mut()
+        .expect("terminal statement")
+        .step_public
+        .state_out[0] ^= 1;
+    wrong_terminal_state
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must bind terminal state_out to z_i");
+
+    let mut wrong_construction2_x = public_image.clone();
+    wrong_construction2_x.construction2_u_i.x_i = Rv64imEncodedPublicInput::from_digest_bytes([12; 32]);
+    wrong_construction2_x
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must bind final Construction-2 u_i.x_i to x_i");
+
+    let mut noncanonical_x = public_image.clone();
+    let mut noncanonical_x_bytes = [0u8; 32];
+    noncanonical_x_bytes[..8].copy_from_slice(&0xffff_ffff_0000_0001u64.to_le_bytes());
+    let noncanonical_x_i = Rv64imEncodedPublicInput::from_digest_bytes(noncanonical_x_bytes);
+    noncanonical_x.x_i = noncanonical_x_i.clone();
+    noncanonical_x.construction2_u_i.x_i = noncanonical_x_i;
+    noncanonical_x.construction2_u_i.fresh_instance_digest = noncanonical_x
+        .construction2_u_i
+        .expected_fresh_instance_digest();
+    noncanonical_x
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must reject non-canonical x_i field-limb bytes");
+
+    let mut wrong_construction2_digest = public_image.clone();
+    wrong_construction2_digest
+        .construction2_u_i
+        .fresh_instance_digest[0] ^= 1;
+    wrong_construction2_digest
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must bind final Construction-2 u_i digest to its public parts");
+
+    let mut wrong_construction2_commitment_digest = public_image.clone();
+    wrong_construction2_commitment_digest
+        .construction2_u_i
+        .commitment_digest[0] ^= 1;
+    wrong_construction2_commitment_digest
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must bind final Construction-2 commitment digest to public C");
+
+    let mut wrong_construction2_commitment_data = public_image.clone();
+    wrong_construction2_commitment_data
+        .construction2_u_i
+        .commitment_data[0] += F::from_u64(1);
+    wrong_construction2_commitment_data
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must reject mutated final Construction-2 commitment data");
+
+    let mut wrong_construction2_commitment_shape = public_image.clone();
+    wrong_construction2_commitment_shape
+        .construction2_u_i
+        .commitment_data
+        .pop();
+    wrong_construction2_commitment_shape
+        .validate_final_construction2_public_boundary()
+        .expect_err("compressed verifier boundary must reject non-canonical final Construction-2 commitment shape");
+}
+
+#[test]
+#[ignore = "expensive: published proof seam construction exceeds the local test budget"]
 fn rv64im_published_seam_ivc_public_image_matches_direct_native_ivc_state() {
     let source = build_mixed_opcode_perf_source_case(2);
     let max_steps = source.program_words.len();

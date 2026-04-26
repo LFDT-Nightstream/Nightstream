@@ -1,7 +1,7 @@
 use neo_ajtai::Commitment;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
-use neo_fold_next::proof::{FoldSchedule, StepInput};
+use neo_fold_next::proof::{FinalProof, FoldSchedule, PackagedProof, PublicStatement, RunProof, StepInput};
 use neo_fold_next::prover::CommitmentMixers;
 use neo_fold_next::run::{prove_and_package, verify_packaged};
 use neo_math::{D, F};
@@ -20,17 +20,6 @@ impl SModuleHomomorphism<F, Commitment> for ToyModule {
                 acc += z[(r, c)];
             }
             out.data[r] = acc;
-        }
-        out
-    }
-
-    fn project_x(&self, z: &Mat<F>, min: usize) -> Mat<F> {
-        let cols = min.min(z.cols());
-        let mut out = Mat::zero(z.rows(), cols, F::ZERO);
-        for r in 0..z.rows() {
-            for c in 0..cols {
-                out[(r, c)] = z[(r, c)];
-            }
         }
         out
     }
@@ -182,6 +171,36 @@ fn packaged_proof_rejects_tampered_statement() {
 }
 
 #[test]
+fn packaged_proof_rejects_noncanonical_public_digest_limb() {
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(D).expect("params");
+    let ccs = identity_ccs(D);
+    let schedule = FoldSchedule::RowsPerChunk(1);
+    let mut packaged = PackagedProof {
+        statement: PublicStatement {
+            fold_schedule: schedule,
+            chunk_count: 0,
+            chunks: Vec::new(),
+            final_main_claims: Vec::new(),
+            digest: [0; 32],
+        },
+        proof: FinalProof {
+            session: RunProof {
+                fold_schedule: schedule,
+                chunks: Vec::new(),
+                final_main_claims: Vec::new(),
+            },
+            proof_digest: [0; 32],
+        },
+    };
+
+    packaged.statement.digest[0..8].copy_from_slice(&u64::MAX.to_le_bytes());
+
+    let err = verify_packaged(FoldingMode::Optimized, &params, &ccs, &packaged, mixers())
+        .expect_err("noncanonical public digest limb must fail before field conversion");
+    assert!(format!("{err}").contains("not a canonical Goldilocks field element"));
+}
+
+#[test]
 fn packaged_proof_rejects_swapped_self_consistent_statement() {
     let params = NeoParams::goldilocks_auto_r1cs_ccs(D).expect("params");
     let ccs = identity_ccs(D);
@@ -241,7 +260,35 @@ fn packaged_proof_rejects_tampered_parent_relation_fields_at_digest_boundary() {
 
     let err = verify_packaged(FoldingMode::Optimized, &params, &ccs, &packaged, mixers())
         .expect_err("tampered parent relation fields must fail");
-    assert!(format!("{err}").contains("final proof digest"));
+    assert!(format!("{err}").contains("relation digest") || format!("{err}").contains("final proof digest"));
+}
+
+#[test]
+fn packaged_proof_rejects_tampered_carried_relation_digest() {
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(D).expect("params");
+    let ccs = identity_ccs(D);
+    let log = ToyModule;
+    let steps = vec![make_step(&log, 25, "step0"), make_step(&log, 49, "step1")];
+
+    let mut packaged = prove_and_package(
+        FoldingMode::Optimized,
+        FoldSchedule::RowsPerChunk(1),
+        &params,
+        &ccs,
+        steps,
+        &log,
+        mixers(),
+    )
+    .expect("prove packaged run");
+
+    packaged.proof.session.chunks[0].relation_digest[0] ^= 1;
+
+    let err = verify_packaged(FoldingMode::Optimized, &params, &ccs, &packaged, mixers())
+        .expect_err("tampered carried relation digest must fail");
+    assert!(
+        format!("{err}").contains("relation digest"),
+        "expected relation-digest failure, got: {err}"
+    );
 }
 
 #[test]
@@ -268,5 +315,5 @@ fn packaged_proof_rejects_tampered_child_relation_fields_at_digest_boundary() {
 
     let err = verify_packaged(FoldingMode::Optimized, &params, &ccs, &packaged, mixers())
         .expect_err("tampered child relation fields must fail");
-    assert!(format!("{err}").contains("final proof digest"));
+    assert!(format!("{err}").contains("relation digest") || format!("{err}").contains("final proof digest"));
 }

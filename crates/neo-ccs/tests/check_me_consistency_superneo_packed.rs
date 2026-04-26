@@ -1,14 +1,17 @@
 #![allow(non_snake_case)]
 
+mod support;
+
 use neo_ccs::{
-    poly::SparsePoly, poly::Term, relations::check_ce_consistency, traits::SModuleHomomorphism, utils::tensor_point,
-    CcsStructure, CeClaim, CeWitness, Mat,
+    poly::SparsePoly, poly::Term, relations::check_ce_consistency, traits::SModuleHomomorphism, CcsStructure, CeClaim,
+    CeWitness, Mat,
 };
 use neo_math::ring::D;
 use neo_math::K;
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as Fq;
+use support::superneo_y_ring;
 
 struct TestL;
 
@@ -16,28 +19,27 @@ impl SModuleHomomorphism<Fq, Vec<Fq>> for TestL {
     fn commit(&self, z: &Mat<Fq>) -> Vec<Fq> {
         z.as_slice().to_vec()
     }
+}
 
-    fn project_x(&self, z: &Mat<Fq>, min: usize) -> Mat<Fq> {
-        let (d, m) = (z.rows(), z.cols());
-        assert!(min <= m);
-        let mut out = Mat::zero(d, min, Fq::ZERO);
-        for c in 0..min {
-            for r in 0..d {
-                out[(r, c)] = z[(r, c)];
-            }
+fn superneo_project_x(z: &Mat<Fq>, m_in: usize) -> Mat<Fq> {
+    let mut out = Mat::zero(D, m_in, Fq::ZERO);
+    let active_cols = core::cmp::min(m_in, z.cols());
+    for col in 0..active_cols {
+        for rho in 0..D {
+            out[(rho, col)] = z[(rho, col)];
         }
-        out
     }
+    out
 }
 
 #[test]
 fn me_consistency_superneo_packed_enforces_constant_term_ct() {
     let params = NeoParams::goldilocks_127();
 
-    // CCS: n=1, m=D (SuperNeo-compatible), t=1, linear f(y)=y0.
+    // CCS: n=1, m=D, t=1, linear f(y)=y0.
     let n = 1usize;
     let m = D;
-    let m0 = Mat::from_row_major(n, m, vec![Fq::ONE; m]);
+    let m0 = Mat::from_row_major(n, m, (0..m).map(|c| Fq::from_u64((c as u64) + 1)).collect());
     let f = SparsePoly::new(
         1,
         vec![Term {
@@ -56,28 +58,12 @@ fn me_consistency_superneo_packed_enforces_constant_term_ct() {
     let L = TestL;
     let m_in = 1usize;
     let c = L.commit(&Z);
-    let X = {
-        let mut out = Mat::zero(D, m_in, Fq::ZERO);
-        out[(0, 0)] = Z[(0, 0)];
-        out
-    };
+    let X = superneo_project_x(&Z, m_in);
 
     // n=1 => ell_n=0 => r is empty and rb=[1].
     let r: Vec<K> = vec![];
 
-    let rb = tensor_point::<K>(&r);
-    let mut v_k_m = vec![K::ZERO; s.m];
-    s.matrices[0].add_mul_transpose_into(&rb, &mut v_k_m, s.n);
-    let mut y0 = vec![K::ZERO; D];
-    for rho in 0..D {
-        let mut acc = K::ZERO;
-        for c in 0..m {
-            if c % D == rho {
-                acc += K::from(Z[(rho, c / D)]) * v_k_m[c];
-            }
-        }
-        y0[rho] = acc;
-    }
+    let y0 = superneo_y_ring(&s, &Z, &r).remove(0);
 
     let inst = CeClaim::<_, Fq, K> {
         c_step_coords: vec![],
@@ -98,7 +84,7 @@ fn me_consistency_superneo_packed_enforces_constant_term_ct() {
 
     assert!(check_ce_consistency(&params, &s, &L, &inst, &wit).is_ok());
 
-    // Tamper ct to Neo-style recomposition value; packed layout must reject it.
+    // Tamper ct to a non-constant-term recomposition; SuperNeo must reject it.
     let mut ct_neo = K::ZERO;
     let mut pow = K::ONE;
     let b_k = K::from(Fq::from_u64(params.b as u64));
@@ -111,4 +97,18 @@ fn me_consistency_superneo_packed_enforces_constant_term_ct() {
     let mut inst_bad = inst.clone();
     inst_bad.ct[0] = ct_neo;
     assert!(check_ce_consistency(&params, &s, &L, &inst_bad, &wit).is_err());
+
+    // A pre-SuperNeo lane-style y_ring skips the matrix transform and must not verify.
+    let mut lane_style_y = vec![K::ZERO; D];
+    for rho in 0..D {
+        lane_style_y[rho] = K::from(Z[(rho, 0)]) * K::from(Fq::from_u64((rho as u64) + 1));
+    }
+    assert_ne!(
+        lane_style_y, y0,
+        "test requires lane-style evaluation to differ from SuperNeo ring form"
+    );
+    let mut inst_bad_y = inst.clone();
+    inst_bad_y.y_ring[0] = lane_style_y;
+    inst_bad_y.ct[0] = inst_bad_y.y_ring[0][0];
+    assert!(check_ce_consistency(&params, &s, &L, &inst_bad_y, &wit).is_err());
 }

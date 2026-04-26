@@ -1,16 +1,17 @@
 use crate::common::proof_cases::{
-    accepted_alu, accepted_branch, accepted_divu, accepted_memory, accepted_test_guard, expect_accepted_verify_failure,
+    accepted_alu, accepted_branch, accepted_divu, accepted_memory, accepted_test_guard, expect_accepted_audit_failure,
     refresh_accepted_artifact_digest, refresh_soundness_accounting_surface_digest, refresh_stage1_semantic_digests,
     refresh_stage3_semantic_digests,
 };
-use neo_fold_next::rv64im::{verify_rv64im_accepted_proof, Rv64Opcode};
+use neo_fold_next::rv64im::audit::audit_rv64im_accepted_proof;
+use neo_fold_next::rv64im::Rv64Opcode;
 
 #[test]
 fn redteam_semantic_input_substitution_fails_without_rebuild() {
     let _serial = accepted_test_guard();
     let (mut artifact, _) = accepted_alu();
     artifact.stage1.sem_inputs[0].rs2_value ^= 1;
-    expect_accepted_verify_failure(&artifact, "stage1 semantic inputs mismatch");
+    expect_accepted_audit_failure(&artifact, "stage1 semantic inputs mismatch");
 }
 
 #[test]
@@ -18,7 +19,7 @@ fn redteam_bytecode_auth_mismatch_fails() {
     let _serial = accepted_test_guard();
     let (mut artifact, _) = accepted_alu();
     artifact.stage1.row_bindings[0].fetched_word ^= 1;
-    expect_accepted_verify_failure(&artifact, "stage1");
+    expect_accepted_audit_failure(&artifact, "stage1");
 }
 
 #[test]
@@ -32,7 +33,7 @@ fn redteam_branch_target_forgery_fails() {
         .find(|row| row.is_effect_row)
         .expect("effect row");
     effect_row.next_pc += 4;
-    expect_accepted_verify_failure(&artifact, "stage1");
+    expect_accepted_audit_failure(&artifact, "stage1");
 }
 
 #[test]
@@ -40,7 +41,7 @@ fn redteam_register_history_forgery_fails() {
     let _serial = accepted_test_guard();
     let (mut artifact, _) = accepted_memory();
     artifact.stage2.register.writes[0].next ^= 1;
-    expect_accepted_verify_failure(&artifact, "stage2 register write surface mismatch");
+    expect_accepted_audit_failure(&artifact, "stage2 register write surface mismatch");
 }
 
 #[test]
@@ -48,7 +49,7 @@ fn redteam_ram_history_forgery_fails() {
     let _serial = accepted_test_guard();
     let (mut artifact, _) = accepted_memory();
     artifact.stage2.ram.events[0].previous ^= 1;
-    expect_accepted_verify_failure(&artifact, "stage2 RAM event surface mismatch");
+    expect_accepted_audit_failure(&artifact, "stage2 RAM event surface mismatch");
 }
 
 #[test]
@@ -56,7 +57,7 @@ fn redteam_continuity_evasion_fails() {
     let _serial = accepted_test_guard();
     let (mut artifact, _) = accepted_branch();
     artifact.stage3.bridge.continuity[0].continuity_holds = false;
-    expect_accepted_verify_failure(&artifact, "stage3 continuity surface mismatch");
+    expect_accepted_audit_failure(&artifact, "stage3 continuity surface mismatch");
 }
 
 #[test]
@@ -64,7 +65,7 @@ fn redteam_transcript_tamper_fails() {
     let _serial = accepted_test_guard();
     let (mut artifact, _) = accepted_alu();
     artifact.transcript.events[0].message.push(0xA5);
-    expect_accepted_verify_failure(&artifact, "accepted proof artifact digest mismatch");
+    expect_accepted_audit_failure(&artifact, "accepted proof artifact digest mismatch");
 }
 
 #[test]
@@ -72,7 +73,7 @@ fn redteam_provenance_tamper_fails() {
     let _serial = accepted_test_guard();
     let (mut artifact, _) = accepted_alu();
     artifact.root_execution.row_chunk_routes[0].chunk_index ^= 1;
-    expect_accepted_verify_failure(&artifact, "row-to-chunk routing mismatch");
+    expect_accepted_audit_failure(&artifact, "row-to-chunk routing mismatch");
 }
 
 #[test]
@@ -82,7 +83,7 @@ fn redteam_row_local_ccs_acceptance_replay_tamper_fails() {
     artifact.root_execution.row_local_ccs_acceptance.digest[0] ^= 1;
     artifact.root_execution.digest = artifact.root_execution.expected_digest();
     refresh_accepted_artifact_digest(&mut artifact);
-    expect_accepted_verify_failure(&artifact, "row-local CCS acceptance mismatch");
+    expect_accepted_audit_failure(&artifact, "row-local CCS acceptance mismatch");
 }
 
 #[test]
@@ -91,8 +92,8 @@ fn redteam_rebuild_dependence_check_fails_without_audit_mode() {
     let (mut artifact, _) = accepted_alu();
     artifact.root_execution.prepared_step_bindings.bindings[0].row_digest = [0x5A; 32];
     assert!(
-        verify_rv64im_accepted_proof(&artifact).is_err(),
-        "accepted verification must fail without relying on rebuild"
+        audit_rv64im_accepted_proof(&artifact).is_err(),
+        "accepted audit must fail without relying on rebuild"
     );
 }
 
@@ -107,7 +108,7 @@ fn redteam_nonselected_divu_helper_tamper_fails() {
         .find(|row| row.trace_virtual_opcode.is_none() && !row.is_effect_row && !row.is_commit_row)
         .expect("non-selected divu helper row");
     helper_row.rd_after ^= 1;
-    expect_accepted_verify_failure(&artifact, "stage1 row bindings mismatch");
+    expect_accepted_audit_failure(&artifact, "stage1 row bindings mismatch");
 }
 
 #[test]
@@ -134,7 +135,7 @@ fn redteam_register_history_against_public_seed_fails() {
         .expect("addi write event");
     write.previous = 17;
     refresh_stage1_semantic_digests(&mut artifact);
-    expect_accepted_verify_failure(&artifact, "stage2 register history mismatch");
+    expect_accepted_audit_failure(&artifact, "stage2 register history mismatch");
 }
 
 #[test]
@@ -169,7 +170,7 @@ fn redteam_memory_history_against_public_seed_fails() {
         .expect("store twist link");
     twist.routed_memory_before = Some(17);
     refresh_stage1_semantic_digests(&mut artifact);
-    expect_accepted_verify_failure(&artifact, "stage2 RAM history mismatch");
+    expect_accepted_audit_failure(&artifact, "stage2 RAM history mismatch");
 }
 
 #[test]
@@ -178,7 +179,7 @@ fn redteam_stage3_start_boundary_tamper_fails() {
     let (mut artifact, _) = accepted_branch();
     artifact.stage3.semantics.initial_pc = artifact.stage3.semantics.initial_pc.wrapping_add(4);
     refresh_stage3_semantic_digests(&mut artifact);
-    expect_accepted_verify_failure(&artifact, "stage3 semantic bridge mismatch");
+    expect_accepted_audit_failure(&artifact, "stage3 semantic bridge mismatch");
 }
 
 #[test]
@@ -187,5 +188,5 @@ fn redteam_soundness_accounting_tamper_fails() {
     let (mut artifact, _) = accepted_alu();
     artifact.soundness_accounting.scalar_terms[0] = "bogus_term".into();
     refresh_soundness_accounting_surface_digest(&mut artifact);
-    expect_accepted_verify_failure(&artifact, "soundness accounting surface mismatch");
+    expect_accepted_audit_failure(&artifact, "soundness accounting surface mismatch");
 }

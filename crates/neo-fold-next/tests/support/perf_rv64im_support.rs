@@ -2,18 +2,18 @@
 
 use std::collections::BTreeSet;
 use std::env;
+use std::io::{self, Write};
 use std::time::Instant;
 
-use serde::Serialize;
 use neo_fold_next::nightstream::rv64im::{
     build_rv64im_nightstream_from_published_proof_seam_with_perf, verify_rv64im_nightstream_with_perf,
 };
 use neo_fold_next::proof::{FoldSchedule, PackagedProof};
+use neo_fold_next::rv64im::audit::audit_rv64im_public_proof_with_perf;
 use neo_fold_next::rv64im::audit::build_rv64im_published_proof_seam_with_perf;
 use neo_fold_next::rv64im::ccs::{rv64im_root_main_lane_ccs, RV64IM_ROOT_PUBLIC_INPUTS, RV64IM_ROOT_ROW_WIDTH};
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::ivc::Rv64imIvcState;
-use neo_fold_next::rv64im::ivc_snark::{setup_rv64im_ivc_snark_cached, setup_rv64im_ivc_snark_from_final_cached};
 use neo_fold_next::rv64im::layout::RV64_REGISTER_COUNT;
 use neo_fold_next::rv64im::stage1::build_stage1_summary;
 use neo_fold_next::rv64im::stage2::{build_stage2_summary, RamAccessKind, RegisterReadRole};
@@ -23,10 +23,12 @@ use neo_fold_next::rv64im::{
     build_mixed_opcode_perf_source_case, build_parity_case_from_source, build_program,
     build_rv64im_accepted_proof_artifact, build_rv64im_chunk_step_ivc_relations, build_simple_kernel_witness_with_perf,
     mixed_opcode_perf_expected_x1, prove_rv64im_public_proof_with_options_and_perf, rv64im_simple_root_params,
-    verify_rv64im_public_proof_with_perf, OpeningAccumulator, OpeningAccumulatorStats, OpeningPointLabel, Rv64Program,
+    setup_rv64im_ivc_snark_cached, setup_rv64im_ivc_snark_cached_with_trace,
+    setup_rv64im_ivc_snark_from_final_cached, OpeningAccumulator, OpeningAccumulatorStats, OpeningPointLabel, Rv64Program,
     Rv64State, Rv64imProofInput, Rv64imPublicProofOptions, SimpleKernelBuildPerf,
     RV64IM_MIXED_OPCODE_PERF_BLOCK_LEN, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
+use serde::Serialize;
 
 const FAMILY_ORDER: [Rv64FamilyTag; 7] = [
     Rv64FamilyTag::NativeAlu,

@@ -1,7 +1,9 @@
 use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsStructure, CeClaim, Mat, SparsePoly, Term};
-use neo_fold_next::rv64im::main_relation_circuit::claim::alloc_ce_claim;
+use neo_fold_next::rv64im::main_relation_circuit::claim::{
+    alloc_ce_claim, me_input_projection_digest_poseidon_values_from_native_claim,
+};
 use neo_fold_next::rv64im::main_relation_circuit::k_field::{alloc_constant_k, enforce_k_eq, KNum};
 use neo_fold_next::rv64im::main_relation_circuit::pi_ccs::{
     bind_header_and_instance_digest, bind_me_inputs, sample_challenges,
@@ -58,6 +60,23 @@ fn toy_claim(seed: u64) -> CeClaim<Commitment, GoldilocksF, neo_math::K> {
         u_offset: 1,
         u_len: 2,
     }
+}
+
+#[test]
+fn rv64im_me_projection_digest_rejects_malformed_superneo_x_shape() {
+    let mut short_rows = toy_claim(7);
+    short_rows.X = Mat::zero(1, short_rows.m_in, GoldilocksF::ZERO);
+    assert!(
+        me_input_projection_digest_poseidon_values_from_native_claim(&short_rows).is_err(),
+        "projection digest must reject CE X with non-SuperNeo row count"
+    );
+
+    let mut extra_cols = toy_claim(11);
+    extra_cols.X = Mat::zero(neo_math::D, extra_cols.m_in + 1, GoldilocksF::ZERO);
+    assert!(
+        me_input_projection_digest_poseidon_values_from_native_claim(&extra_cols).is_err(),
+        "projection digest must reject CE X whose column count is not exactly m_in"
+    );
 }
 
 #[test]
@@ -129,7 +148,7 @@ fn rv64im_main_relation_pi_ccs_claim_binding_matches_native_challenges() {
         &public_instance_digest.map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
     )
     .expect("circuit header binding");
-    bind_me_inputs(&mut cs, &mut transcript, &claim_vars).expect("circuit me binding");
+    bind_me_inputs(&mut cs, &mut transcript, &claim_vars, None).expect("circuit me binding");
     let challenges = sample_challenges(&mut cs, &mut transcript, dims).expect("circuit challenges");
 
     for (idx, value) in native_challenges.alpha.iter().enumerate() {

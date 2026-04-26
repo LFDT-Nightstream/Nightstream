@@ -71,20 +71,15 @@ fn proof_input(name: &str) -> Rv64imProofInput {
 
 #[test]
 fn family_eval_payload_rejects_wrong_packed_column_count() {
-    let err = FamilyEvalPayload::new(
-        FamilyEvalSchemaId::Stage1Rows,
-        vec![PackedColumnEval {
-            coeffs: std::array::from_fn(|idx| k(idx as u64, 0)),
-        }],
-    )
-    .expect_err("stage1 payload must carry two packed-column evaluations");
+    let err = FamilyEvalPayload::new(FamilyEvalSchemaId::Stage1Rows, Vec::new())
+        .expect_err("stage1 payload must carry exactly one packed-column evaluation");
 
     assert_eq!(
         err,
         EvalClaimError::PayloadWidthMismatch {
             schema: FamilyEvalSchemaId::Stage1Rows,
-            expected: 2,
-            actual: 1,
+            expected: 1,
+            actual: 0,
         }
     );
 }

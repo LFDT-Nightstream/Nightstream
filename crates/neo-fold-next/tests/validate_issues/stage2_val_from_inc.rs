@@ -25,17 +25,6 @@ impl SModuleHomomorphism<F, Commitment> for ToyModule {
         }
         out
     }
-
-    fn project_x(&self, z: &Mat<F>, min: usize) -> Mat<F> {
-        let cols = min.min(z.cols());
-        let mut out = Mat::zero(z.rows(), cols, F::ZERO);
-        for r in 0..z.rows() {
-            for c in 0..cols {
-                out[(r, c)] = z[(r, c)];
-            }
-        }
-        out
-    }
 }
 
 fn build_steps(program: &Chip8Program, initial_state: &Chip8State, step_count: usize) -> Vec<StepBuild> {

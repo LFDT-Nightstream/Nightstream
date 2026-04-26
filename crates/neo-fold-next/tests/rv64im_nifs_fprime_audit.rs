@@ -8,7 +8,8 @@ use neo_fold_next::rv64im::audit::{
     build_rv64im_main_recursion_f_prime_public_output,
     debug_check_rv64im_main_recursion_step_spartan_chunk_replay_surface,
     debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
-    evaluate_rv64im_main_recursion_f_prime_advice, rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff,
+    evaluate_rv64im_main_recursion_f_prime_advice,
+    rv64im_main_recursion_advice_tamper_authoritative_ccs_replay_first_round_coeff,
     rv64im_main_recursion_advice_tamper_chunk_index,
     rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word,
     rv64im_main_recursion_advice_tamper_vk_fs_main_lane_shape_digest_first_byte,
@@ -247,7 +248,7 @@ fn rv64im_nifs_fprime_authoritative_parity_audit() -> Result<(), SimpleKernelErr
         "tampered Pi_CCS replay must fail",
         &baseline_output,
         baseline_advice,
-        rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff,
+        rv64im_main_recursion_advice_tamper_authoritative_ccs_replay_first_round_coeff,
         "Pi_CCS replay",
     );
     expect_tamper_failure(

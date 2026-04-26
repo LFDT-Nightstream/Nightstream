@@ -1,34 +1,19 @@
 use std::sync::OnceLock;
 
 use neo_fold_next::rv64im::{
-    build_claim_reduction_results_from_witnesses, build_phase2_collapse_result, build_rv64im_accepted_proof_artifact,
-    build_rv64im_eval_claim_witnesses_from_accepted_artifact, parity_source_cases, prove_rv64im_public_proof,
-    verify_phase2_collapse_result, ClaimReductionResult, FamilyEvalSchemaId, Phase2CollapseError, Phase2CollapseResult,
-    Rv64imAcceptedProofArtifact, Rv64imProofInput,
+    build_claim_reduction_results_from_witnesses, build_phase2_collapse_result,
+    build_rv64im_eval_claim_witnesses_from_accepted_artifact, verify_phase2_collapse_result, ClaimReductionResult,
+    FamilyEvalSchemaId, Phase2CollapseError, Phase2CollapseResult, Rv64imAcceptedProofArtifact,
 };
 use neo_math::K;
 use p3_field::PrimeCharacteristicRing;
 
-fn source_case(name: &str) -> neo_fold_next::rv64im::Rv64imParitySourceCase {
-    parity_source_cases()
-        .into_iter()
-        .find(|case| case.manifest.name == name)
-        .unwrap_or_else(|| panic!("missing parity source case {name}"))
-}
-
-fn proof_input(name: &str) -> Rv64imProofInput {
-    let source = source_case(name);
-    let max_steps = source.program_words.len();
-    Rv64imProofInput { source, max_steps }
-}
+#[path = "support/rv64im_phase0_memory.rs"]
+mod rv64im_phase0_memory;
 
 fn artifact() -> &'static Rv64imAcceptedProofArtifact {
     static ARTIFACT: OnceLock<Rv64imAcceptedProofArtifact> = OnceLock::new();
-    ARTIFACT.get_or_init(|| {
-        let proof = prove_rv64im_public_proof(&proof_input("aligned_negative_offset_roundtrip"))
-            .expect("public proof should build for phase2 tests");
-        build_rv64im_accepted_proof_artifact(&proof).expect("accepted artifact should build for phase2 tests")
-    })
+    ARTIFACT.get_or_init(|| rv64im_phase0_memory::phase0_memory_artifact().clone())
 }
 
 fn phase1_results() -> &'static Vec<ClaimReductionResult> {

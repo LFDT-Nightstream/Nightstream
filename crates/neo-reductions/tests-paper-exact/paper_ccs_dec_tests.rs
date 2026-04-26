@@ -48,10 +48,10 @@ fn mat_eq<Ff: Field + PrimeCharacteristicRing + Copy>(a: &Mat<Ff>, b: &Mat<Ff>) 
 }
 
 fn public_inputs_from_witness(Z: &Mat<F>, expected_m: usize, m_in: usize) -> Vec<F> {
-    let layout =
-        neo_reductions::common::witness_mat_layout(Z, expected_m).expect("fixture witness must have a valid layout");
+    neo_reductions::common::validate_superneo_witness_mat(Z, expected_m)
+        .expect("fixture witness must use packed SuperNeo layout");
     (0..m_in)
-        .map(|c| neo_reductions::common::witness_mat_get_f(Z, layout, expected_m, c % D, c))
+        .map(|c| neo_reductions::common::witness_mat_get_f(Z, expected_m, c % D, c))
         .collect()
 }
 

@@ -1,39 +1,24 @@
 use std::sync::OnceLock;
 
 use neo_fold_next::rv64im::{
-    build_phase2_collapse_result, build_rv64im_accepted_proof_artifact,
-    build_rv64im_eval_claim_witnesses_from_accepted_artifact, build_rv64im_opening_convergence_artifact_from_proof,
-    build_rv64im_opening_convergence_artifact_from_witnesses, build_rv64im_opening_convergence_proof_from_witnesses,
-    build_rv64im_phase0_binding_surface_from_accepted_artifact, derive_phase0_point, parity_source_cases,
-    prove_rv64im_public_proof, verify_rv64im_opening_convergence_artifact,
+    build_phase2_collapse_result, build_rv64im_eval_claim_witnesses_from_accepted_artifact,
+    build_rv64im_opening_convergence_artifact_from_proof, build_rv64im_opening_convergence_artifact_from_witnesses,
+    build_rv64im_opening_convergence_proof_from_witnesses, build_rv64im_phase0_binding_surface_from_accepted_artifact,
+    derive_phase0_point, verify_rv64im_opening_convergence_artifact,
     verify_rv64im_opening_convergence_artifact_from_proof, verify_rv64im_opening_convergence_proof,
     ClaimReductionError, FamilyEvalClaim, FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId,
     FinalOpeningError, Rv64imAcceptedProofArtifact, Rv64imOpeningConvergenceArtifact, Rv64imOpeningConvergenceProof,
-    Rv64imPhase0BindingSurface, Rv64imProofInput,
+    Rv64imPhase0BindingSurface,
 };
 use neo_math::K;
 use p3_field::PrimeCharacteristicRing;
 
-fn source_case(name: &str) -> neo_fold_next::rv64im::Rv64imParitySourceCase {
-    parity_source_cases()
-        .into_iter()
-        .find(|case| case.manifest.name == name)
-        .unwrap_or_else(|| panic!("missing parity source case {name}"))
-}
-
-fn proof_input(name: &str) -> Rv64imProofInput {
-    let source = source_case(name);
-    let max_steps = source.program_words.len();
-    Rv64imProofInput { source, max_steps }
-}
+#[path = "support/rv64im_phase0_memory.rs"]
+mod rv64im_phase0_memory;
 
 fn artifact() -> &'static Rv64imAcceptedProofArtifact {
     static ARTIFACT: OnceLock<Rv64imAcceptedProofArtifact> = OnceLock::new();
-    ARTIFACT.get_or_init(|| {
-        let proof = prove_rv64im_public_proof(&proof_input("aligned_negative_offset_roundtrip"))
-            .expect("public proof should build for final-opening tests");
-        build_rv64im_accepted_proof_artifact(&proof).expect("accepted artifact should build for final-opening tests")
-    })
+    ARTIFACT.get_or_init(|| rv64im_phase0_memory::phase0_memory_artifact().clone())
 }
 
 fn claim_witnesses() -> &'static Vec<FamilyEvalClaimWitness> {

@@ -5,7 +5,8 @@
 //!
 //! This test proves active coverage by flipping cargo that lives inside each
 //! sub-protocol slot and asserting native F' rejects:
-//!   * Π_CCS: flip a sum-check round coefficient in `ccs_replay_payload`.
+//!   * Π_CCS: flip a sum-check round coefficient in the authoritative
+//!     `main_circuit_replay_witness.ccs_replay_proof`.
 //!   * Π_DEC: flip the first word of a Π_DEC child commitment.
 //!
 //! (Π_RLC coverage is established transitively through the replay check that
@@ -13,7 +14,8 @@
 //! also exercises the RLC replay transcript.)
 
 use neo_fold_next::rv64im::audit::{
-    evaluate_rv64im_main_recursion_f_prime_advice, rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff,
+    evaluate_rv64im_main_recursion_f_prime_advice,
+    rv64im_main_recursion_advice_tamper_authoritative_ccs_replay_first_round_coeff,
     rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word,
 };
 
@@ -26,7 +28,7 @@ fn f_prime_nifs_v_rejects_pi_ccs_replay_tamper() {
     evaluate_rv64im_main_recursion_f_prime_advice(advice).expect("baseline advice must evaluate");
 
     let mut tampered = advice.clone();
-    rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff(&mut tampered);
+    rv64im_main_recursion_advice_tamper_authoritative_ccs_replay_first_round_coeff(&mut tampered);
     assert!(
         evaluate_rv64im_main_recursion_f_prime_advice(&tampered).is_err(),
         "NIFS.V must reject a tampered Π_CCS sum-check round coefficient"

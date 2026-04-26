@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use neo_fold_next::nightstream::rv64im::audit::{
     build_rv64im_kernel_opening_claim_from_side_proof_bundle, build_rv64im_opening_artifact_from_accepted_artifact,
     build_rv64im_phase0_opened_object_bundle_from_claim_witnesses,
@@ -16,7 +18,8 @@ use neo_fold_next::nightstream::rv64im::audit::{
 };
 use neo_fold_next::rv64im::{
     build_phase2_collapse_result, build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof,
-    Rv64imEvalClaimBundle, Rv64imProofInput, Rv64imProofStatement,
+    FamilyEvalSchemaId, Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle, Rv64imProof, Rv64imProofInput,
+    Rv64imProofStatement,
 };
 use neo_math::K;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -43,6 +46,24 @@ fn proof_input(name: &str) -> Rv64imProofInput {
     let source = source_case(name);
     let max_steps = source.program_words.len();
     Rv64imProofInput { source, max_steps }
+}
+
+#[derive(Clone)]
+struct ControlFlowFixture {
+    proof: Rv64imProof,
+    artifact: Rv64imAcceptedProofArtifact,
+}
+
+fn control_flow_fixture() -> ControlFlowFixture {
+    static FIXTURE: OnceLock<ControlFlowFixture> = OnceLock::new();
+    FIXTURE
+        .get_or_init(|| {
+            let input = proof_input("control_flow_jal_skip_ecall");
+            let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
+            let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+            ControlFlowFixture { proof, artifact }
+        })
+        .clone()
 }
 
 fn side_eval_claim_relation_statement_digest(
@@ -130,9 +151,9 @@ fn forge_opening_phase0_payload(
 
 #[test]
 fn rv64im_side_bundle_rebuilds_exact_stage_claim_bundle() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let bundle = build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let rebuilt = build_rv64im_stage_claim_bundle_from_side_proof_bundle(&bundle, proof.statement.execution_digest)
         .expect("rebuild exact stage-claim bundle from side proof bundle");
@@ -142,9 +163,9 @@ fn rv64im_side_bundle_rebuilds_exact_stage_claim_bundle() {
 
 #[test]
 fn rv64im_side_bundle_rebuilds_exact_kernel_opening_claim() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let bundle = build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let rebuilt = build_rv64im_kernel_opening_claim_from_side_proof_bundle(&bundle, &proof.statement)
         .expect("rebuild exact kernel-opening claim from side proof bundle");
@@ -154,9 +175,9 @@ fn rv64im_side_bundle_rebuilds_exact_kernel_opening_claim() {
 
 #[test]
 fn rv64im_side_opening_relation_roundtrips_from_accepted_artifact() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (statement, witness) =
         build_rv64im_side_opening_relation_from_accepted_artifact(&artifact).expect("build side-opening relation");
 
@@ -165,9 +186,9 @@ fn rv64im_side_opening_relation_roundtrips_from_accepted_artifact() {
 
 #[test]
 fn rv64im_side_opening_relation_rejects_tampered_stage1_selected_row_witness() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (statement, mut witness) =
         build_rv64im_side_opening_relation_from_accepted_artifact(&artifact).expect("build side-opening relation");
 
@@ -181,9 +202,9 @@ fn rv64im_side_opening_relation_rejects_tampered_stage1_selected_row_witness() {
 
 #[test]
 fn rv64im_side_opening_relation_rejects_tampered_stage1_package_statement_step_witness() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (statement, mut witness) =
         build_rv64im_side_opening_relation_from_accepted_artifact(&artifact).expect("build side-opening relation");
 
@@ -199,9 +220,9 @@ fn rv64im_side_opening_relation_rejects_tampered_stage1_package_statement_step_w
 
 #[test]
 fn rv64im_side_opening_relation_rejects_self_consistent_binding_summary_swap() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let mut statement =
@@ -233,9 +254,9 @@ fn rv64im_side_opening_relation_rejects_self_consistent_binding_summary_swap() {
 
 #[test]
 fn rv64im_side_opening_relation_rejects_self_consistent_main_lane_bridge_swap() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (mut statement, witness) =
         build_rv64im_side_opening_relation_from_accepted_artifact(&artifact).expect("build side-opening relation");
 
@@ -251,9 +272,9 @@ fn rv64im_side_opening_relation_rejects_self_consistent_main_lane_bridge_swap() 
 
 #[test]
 fn rv64im_side_opening_relation_compact_witness_is_smaller_than_full_opening_bundles() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let witness = build_rv64im_side_opening_relation_witness_from_accepted_artifact(&artifact);
 
     let full_len = bincode::serialize(&(
@@ -276,9 +297,9 @@ fn rv64im_side_opening_relation_compact_witness_is_smaller_than_full_opening_bun
 
 #[test]
 fn rv64im_side_eval_claim_relation_roundtrips_from_accepted_artifact() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (statement, witness) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&artifact)
         .expect("build side-eval-claim relation");
 
@@ -287,9 +308,9 @@ fn rv64im_side_eval_claim_relation_roundtrips_from_accepted_artifact() {
 
 #[test]
 fn rv64im_side_eval_claim_relation_rejects_tampered_side_bundle_stage2_digest() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (mut statement, witness) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&artifact)
         .expect("build side-eval-claim relation");
 
@@ -303,9 +324,9 @@ fn rv64im_side_eval_claim_relation_rejects_tampered_side_bundle_stage2_digest() 
 
 #[test]
 fn rv64im_side_eval_claim_relation_rejects_tampered_opened_object_summary() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (mut statement, witness) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&artifact)
         .expect("build side-eval-claim relation");
 
@@ -324,23 +345,51 @@ fn rv64im_side_eval_claim_relation_rejects_tampered_opened_object_summary() {
 
 #[test]
 fn rv64im_side_eval_claim_relation_opened_objects_match_claim_witness_projection() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
+    let side_bundle =
+        build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
+    let (statement, _) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&artifact)
+        .expect("build side-eval-claim relation");
     let witness = build_rv64im_side_eval_claim_relation_witness_from_accepted_artifact(&artifact)
         .expect("build side-eval-claim witness");
     let opened_objects = build_rv64im_phase0_opened_object_bundle_from_claim_witnesses(&witness.claim_witnesses)
         .expect("build phase0 opened-object bundle");
+    let mut expected_schemas = vec![FamilyEvalSchemaId::Stage1Rows];
+    if side_bundle.stage2.claim.register_read_count != 0 {
+        expected_schemas.push(FamilyEvalSchemaId::Stage2RegisterReads);
+    }
+    if side_bundle.stage2.claim.register_write_count != 0 {
+        expected_schemas.push(FamilyEvalSchemaId::Stage2RegisterWrites);
+    }
+    if side_bundle.stage2.claim.ram_event_count != 0 {
+        expected_schemas.push(FamilyEvalSchemaId::Stage2RamEvents);
+    }
+    if side_bundle.stage2.claim.twist_link_count != 0 {
+        expected_schemas.push(FamilyEvalSchemaId::Stage2TwistLinks);
+    }
+    if side_bundle.stage3.claim.continuity_count != 0 {
+        expected_schemas.push(FamilyEvalSchemaId::Stage3Continuity);
+    }
 
-    assert_eq!(opened_objects.objects.len(), 6);
+    assert_eq!(
+        opened_objects
+            .objects
+            .iter()
+            .map(|object| object.schema)
+            .collect::<Vec<_>>(),
+        expected_schemas
+    );
+    assert_eq!(opened_objects, statement.phase0_opened_objects);
     assert_ne!(opened_objects.digest, [0; 32]);
 }
 
 #[test]
 fn rv64im_side_eval_claim_artifact_roundtrips_from_accepted_artifact() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let phase0_artifact = build_rv64im_side_eval_claim_artifact_from_accepted_artifact(&artifact)
@@ -352,9 +401,9 @@ fn rv64im_side_eval_claim_artifact_roundtrips_from_accepted_artifact() {
 
 #[test]
 fn rv64im_side_eval_claim_artifact_reconstructs_relation_statement() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let (statement, _) = build_rv64im_side_eval_claim_relation_from_accepted_artifact(&artifact)
@@ -371,9 +420,9 @@ fn rv64im_side_eval_claim_artifact_reconstructs_relation_statement() {
 
 #[test]
 fn rv64im_side_eval_claim_artifact_rejects_duplicate_phase0_opening_target() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let mut phase0_artifact = build_rv64im_side_eval_claim_artifact_from_accepted_artifact(&artifact)
@@ -398,9 +447,9 @@ fn rv64im_side_eval_claim_artifact_rejects_duplicate_phase0_opening_target() {
 
 #[test]
 fn rv64im_side_eval_claim_artifact_rejects_tampered_statement_digest() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let mut phase0_artifact = build_rv64im_side_eval_claim_artifact_from_accepted_artifact(&artifact)
@@ -416,9 +465,9 @@ fn rv64im_side_eval_claim_artifact_rejects_tampered_statement_digest() {
 
 #[test]
 fn rv64im_side_eval_claim_artifact_rejects_tampered_eval_claim_bundle() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let mut phase0_artifact = build_rv64im_side_eval_claim_artifact_from_accepted_artifact(&artifact)
@@ -435,9 +484,9 @@ fn rv64im_side_eval_claim_artifact_rejects_tampered_eval_claim_bundle() {
 
 #[test]
 fn rv64im_side_eval_claim_artifact_rejects_rebound_payload_forgery() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let mut phase0_artifact = build_rv64im_side_eval_claim_artifact_from_accepted_artifact(&artifact)
@@ -470,9 +519,9 @@ fn rv64im_side_eval_claim_artifact_rejects_rebound_payload_forgery() {
 
 #[test]
 fn rv64im_opening_artifact_rejects_rebound_phase0_payload_forgery() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let mut opening_artifact =
@@ -492,9 +541,9 @@ fn rv64im_opening_artifact_rejects_rebound_phase0_payload_forgery() {
 
 #[test]
 fn rv64im_opening_artifact_rejects_duplicate_phase0_opening_target() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let mut opening_artifact =
@@ -524,17 +573,17 @@ fn rv64im_opening_artifact_rejects_duplicate_phase0_opening_target() {
     let err = verify_rv64im_opening_artifact_from_side_proof_bundle(&proof.statement, &side_bundle, &opening_artifact)
         .expect_err("duplicate phase0 opening target in opening artifact must fail");
     assert!(
-        format!("{err}").contains("canonical")
-            || format!("{err}").contains("exactly")
-            || format!("{err}").contains("opening-target bundle")
+        format!("{err}").contains("opening convergence artifact verification failed")
+            && format!("{err}").contains("binding digest mismatch"),
+        "duplicate phase0 opening target must fail at the carried Phase 1 binding surface, got: {err}"
     );
 }
 
 #[test]
 fn rv64im_side_claim_relation_roundtrips_from_accepted_artifact() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (statement, witness) =
         build_rv64im_side_claim_relation_from_accepted_artifact(&artifact).expect("build side-claim relation");
 
@@ -543,9 +592,9 @@ fn rv64im_side_claim_relation_roundtrips_from_accepted_artifact() {
 
 #[test]
 fn rv64im_side_claim_relation_rejects_tampered_stage_claim_witness() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (statement, mut witness) =
         build_rv64im_side_claim_relation_from_accepted_artifact(&artifact).expect("build side-claim relation");
 
@@ -559,9 +608,9 @@ fn rv64im_side_claim_relation_rejects_tampered_stage_claim_witness() {
 
 #[test]
 fn rv64im_side_claim_relation_rejects_tampered_stage_claim_statement_step_witness() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let (statement, mut witness) =
         build_rv64im_side_claim_relation_from_accepted_artifact(&artifact).expect("build side-claim relation");
 
@@ -577,9 +626,9 @@ fn rv64im_side_claim_relation_rejects_tampered_stage_claim_statement_step_witnes
 
 #[test]
 fn rv64im_side_claim_relation_rejects_self_consistent_kernel_claim_witness_swap() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let proof = fixture.proof;
+    let artifact = fixture.artifact;
     let side_bundle =
         build_rv64im_side_proof_bundle_from_accepted_artifact(&artifact).expect("build side proof bundle");
     let statement =
@@ -604,9 +653,9 @@ fn rv64im_side_claim_relation_rejects_self_consistent_kernel_claim_witness_swap(
 
 #[test]
 fn rv64im_side_claim_relation_compact_witness_is_smaller_than_full_packaged_proofs() {
-    let input = proof_input("control_flow_jal_skip_ecall");
-    let proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
+    let fixture = control_flow_fixture();
+    let _proof = fixture.proof;
+    let artifact = fixture.artifact;
     let witness = build_rv64im_side_claim_relation_witness_from_accepted_artifact(&artifact);
 
     let full_stage_len = bincode::serialize(&artifact.stage_claims.packaged)

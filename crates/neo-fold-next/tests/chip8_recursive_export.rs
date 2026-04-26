@@ -5,8 +5,8 @@ use neo_fold_next::chip8::kernel::{
     build_chip8_bridge_chunk_proof_bundle, prepared_step_digest, verify_kernel_execution_relation,
 };
 use neo_fold_next::chip8::proof::{
-    prove_final_statement, prove_folded_statement, prove_kernel_export, prove_recursive, verify_final_statement,
-    verify_folded_statement, verify_recursive,
+    audit_check_final_statement_replay, audit_check_folded_statement_replay, audit_check_recursive_artifact_replay,
+    prove_final_statement, prove_folded_statement, prove_kernel_export, prove_recursive,
 };
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -22,7 +22,7 @@ fn chip8_recursive_step_verifies_single_chunk_transition() {
     assert!(proof.steps[0].main_transition.step_witness_slots[0].is_some());
     assert_ne!(statement.folded.final_accumulator.bridge_state, [0; 32]);
 
-    verify_recursive(&statement, &proof).expect("verify recursive");
+    audit_check_recursive_artifact_replay(&statement, &proof).expect("audit-check recursive artifact replay");
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn chip8_recursive_chain_verifies_multi_chunk_execution() {
     assert!(proof.steps.len() >= 2);
     assert_eq!(statement.folded.final_accumulator.final_main_claims.len(), 16);
 
-    verify_recursive(&statement, &proof).expect("verify recursive");
+    audit_check_recursive_artifact_replay(&statement, &proof).expect("audit-check recursive artifact replay");
 }
 
 #[test]
@@ -120,21 +120,21 @@ fn chip8_recursive_steps_carry_prepared_step_bridge_bindings() {
 fn chip8_recursive_proof_envelope_round_trip() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
-    verify_recursive(&statement, &proof).expect("verify recursive");
+    audit_check_recursive_artifact_replay(&statement, &proof).expect("audit-check recursive artifact replay");
 }
 
 #[test]
 fn chip8_folded_statement_round_trip() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (folded, proof) = prove_folded_statement(&input).expect("prove folded statement");
-    verify_folded_statement(&input.public, &folded, &proof).expect("verify folded statement");
+    audit_check_folded_statement_replay(&input.public, &folded, &proof).expect("audit-check folded statement replay");
 }
 
 #[test]
 fn chip8_final_statement_round_trip() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (folded, proof) = prove_final_statement(&input).expect("prove final statement");
-    verify_final_statement(&input.public, &folded, &proof).expect("verify final statement");
+    audit_check_final_statement_replay(&input.public, &folded, &proof).expect("audit-check final statement replay");
 }
 
 #[test]
@@ -143,7 +143,8 @@ fn chip8_final_statement_rejects_tampered_folded_digest() {
     let (mut folded, proof) = prove_final_statement(&input).expect("prove final statement");
     folded.digest[0] ^= 1;
 
-    let err = verify_final_statement(&input.public, &folded, &proof).expect_err("tampered folded digest must fail");
+    let err = audit_check_final_statement_replay(&input.public, &folded, &proof)
+        .expect_err("tampered folded digest must fail");
     assert!(format!("{err}").contains("folded") || format!("{err}").contains("digest"));
 }
 
@@ -153,8 +154,8 @@ fn chip8_final_statement_rejects_tampered_final_proof_digest() {
     let (folded, mut proof) = prove_final_statement(&input).expect("prove final statement");
     proof.proof_digest[0] ^= 1;
 
-    let err =
-        verify_final_statement(&input.public, &folded, &proof).expect_err("tampered final proof digest must fail");
+    let err = audit_check_final_statement_replay(&input.public, &folded, &proof)
+        .expect_err("tampered final proof digest must fail");
     assert!(format!("{err}").contains("final proof") || format!("{err}").contains("digest"));
 }
 
@@ -168,20 +169,21 @@ fn chip8_final_statement_rejects_swapped_self_consistent_public() {
     let (_folded_b, _proof_b) = prove_final_statement(&input_b).expect("prove final statement B");
     assert_ne!(input_a.public.transcript_seed, input_b.public.transcript_seed);
 
-    let err = verify_final_statement(&input_b.public, &folded_a, &proof_a)
+    let err = audit_check_final_statement_replay(&input_b.public, &folded_a, &proof_a)
         .expect_err("swapped self-consistent public input must fail");
     assert!(!format!("{err}").is_empty());
 
-    verify_final_statement(&input_a.public, &folded_a, &proof_a).expect("verify original final statement");
+    audit_check_final_statement_replay(&input_a.public, &folded_a, &proof_a)
+        .expect("audit-check original final statement replay");
 }
 
 #[test]
-fn chip8_external_verifier_uses_only_statement_and_proof() {
+fn chip8_audit_replay_uses_only_statement_and_proof() {
     let input = chip8_support::build_jump_kernel_input(4);
     let (statement, proof) = prove_recursive(&input).expect("prove recursive");
 
     assert_eq!(statement.folded.semantic_step_count, 4);
-    verify_recursive(&statement, &proof).expect("verify recursive");
+    audit_check_recursive_artifact_replay(&statement, &proof).expect("audit-check recursive artifact replay");
 }
 
 #[test]
@@ -192,7 +194,8 @@ fn chip8_recursive_proof_envelope_rejects_swapped_self_consistent_statement() {
     let input_b = chip8_support::build_jump_kernel_input(1);
     let (statement_b, _proof_b) = prove_recursive(&input_b).expect("prove recursive B");
 
-    let err = verify_recursive(&statement_b, &proof_a).expect_err("swapped self-consistent statement must fail");
+    let err = audit_check_recursive_artifact_replay(&statement_b, &proof_a)
+        .expect_err("swapped self-consistent statement must fail");
     assert!(
         format!("{err}").contains("final proof")
             || format!("{err}").contains("kernel")
@@ -200,7 +203,8 @@ fn chip8_recursive_proof_envelope_rejects_swapped_self_consistent_statement() {
     );
 
     // Keep the original pair exercised so the test is not vacuously passing on broken setup.
-    verify_recursive(&proof_statement_a, &proof_a).expect("verify original recursive proof");
+    audit_check_recursive_artifact_replay(&proof_statement_a, &proof_a)
+        .expect("audit-check original recursive artifact replay");
 }
 
 #[test]
@@ -209,7 +213,8 @@ fn chip8_recursive_proof_envelope_rejects_tampered_terminal_handle() {
     let (mut statement, proof) = prove_recursive(&input).expect("prove recursive");
     statement.folded.final_accumulator.terminal_handle.0[0] ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered terminal handle must fail");
+    let err =
+        audit_check_recursive_artifact_replay(&statement, &proof).expect_err("tampered terminal handle must fail");
     assert!(
         format!("{err}").contains("digest")
             || format!("{err}").contains("terminal")
@@ -223,7 +228,8 @@ fn chip8_recursive_proof_envelope_rejects_tampered_final_bridge_accumulator() {
     let (mut statement, proof) = prove_recursive(&input).expect("prove recursive");
     statement.folded.final_accumulator.bridge_state[0] ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered final bridge accumulator must fail");
+    let err = audit_check_recursive_artifact_replay(&statement, &proof)
+        .expect_err("tampered final bridge accumulator must fail");
     assert!(format!("{err}").contains("bridge"));
 }
 
@@ -233,7 +239,8 @@ fn chip8_recursive_proof_envelope_rejects_tampered_statement_digest() {
     let (mut statement, proof) = prove_recursive(&input).expect("prove recursive");
     statement.digest[0] ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered statement digest must fail");
+    let err =
+        audit_check_recursive_artifact_replay(&statement, &proof).expect_err("tampered statement digest must fail");
     assert!(format!("{err}").contains("digest"));
 }
 
@@ -245,7 +252,8 @@ fn chip8_recursive_proof_envelope_rejects_tampered_chunk_relation_digest() {
         .c
         .data[0] += F::ONE;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered chunk relation digest must fail");
+    let err = audit_check_recursive_artifact_replay(&statement, &proof)
+        .expect_err("tampered chunk relation digest must fail");
     assert!(format!("{err}").contains("digest") || format!("{err}").contains("main claims"));
 }
 
@@ -255,7 +263,8 @@ fn chip8_recursive_proof_envelope_rejects_tampered_main_replay_witness() {
     let (statement, mut proof) = prove_recursive(&input).expect("prove recursive");
     proof.steps[0].main_transition.replay_witness.header_digest[0] ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered main replay witness must fail");
+    let err =
+        audit_check_recursive_artifact_replay(&statement, &proof).expect_err("tampered main replay witness must fail");
     assert!(format!("{err}").contains("chunk") || format!("{err}").contains("digest"));
 }
 
@@ -268,7 +277,7 @@ fn chip8_recursive_proof_envelope_rejects_tampered_bridge_binding() {
         .expect("active bridge binding")
         .prepared_step_digest[0] ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered bridge binding must fail");
+    let err = audit_check_recursive_artifact_replay(&statement, &proof).expect_err("tampered bridge binding must fail");
     assert!(format!("{err}").contains("binding") || format!("{err}").contains("bridge"));
 }
 
@@ -287,7 +296,8 @@ fn chip8_recursive_proof_envelope_rejects_nonempty_inactive_main_replay_output_s
         .replay_witness
         .ccs_output_slots[1] = Some(cloned);
 
-    let err = verify_recursive(&statement, &proof).expect_err("inactive replay output slot pollution must fail");
+    let err = audit_check_recursive_artifact_replay(&statement, &proof)
+        .expect_err("inactive replay output slot pollution must fail");
     assert!(
         format!("{err}").contains("output slot")
             || format!("{err}").contains("inactive")
@@ -305,7 +315,8 @@ fn chip8_recursive_proof_envelope_rejects_tampered_chunk_main_witness() {
         .expect("active slot witness")
         .Z[(0, 0)] += F::ONE;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered chunk main witness must fail");
+    let err =
+        audit_check_recursive_artifact_replay(&statement, &proof).expect_err("tampered chunk main witness must fail");
     assert!(
         format!("{err}").contains("prepared step")
             || format!("{err}").contains("final proof")
@@ -319,7 +330,7 @@ fn chip8_recursive_proof_envelope_rejects_tampered_kernel_relation_digest() {
     let (mut statement, proof) = prove_recursive(&input).expect("prove recursive");
     statement.folded.kernel_relation_digest[0] ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered kernel digest must fail");
+    let err = audit_check_recursive_artifact_replay(&statement, &proof).expect_err("tampered kernel digest must fail");
     assert!(format!("{err}").contains("kernel") || format!("{err}").contains("digest"));
 }
 
@@ -335,7 +346,8 @@ fn chip8_recursive_proof_envelope_rejects_tampered_kernel_bridge_row_bits() {
         .row_binding_claim_digest;
     row_binding_digest[0] ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered compact bridge binding must fail");
+    let err = audit_check_recursive_artifact_replay(&statement, &proof)
+        .expect_err("tampered compact bridge binding must fail");
     assert!(format!("{err}").contains("bridge") || format!("{err}").contains("row"));
 }
 
@@ -350,7 +362,8 @@ fn chip8_recursive_proof_envelope_rejects_tampered_kernel_bridge_source() {
         .expect("active compact bridge binding")
         .row_index ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered kernel bridge source must fail");
+    let err =
+        audit_check_recursive_artifact_replay(&statement, &proof).expect_err("tampered kernel bridge source must fail");
     assert!(format!("{err}").contains("bridge") || format!("{err}").contains("kernel"));
 }
 
@@ -360,6 +373,7 @@ fn chip8_recursive_proof_envelope_rejects_tampered_later_chunk_chain_handle() {
     let (statement, mut proof) = prove_recursive(&input).expect("prove recursive");
     proof.steps[1].main_transition.replay_witness.header_digest[0] ^= 1;
 
-    let err = verify_recursive(&statement, &proof).expect_err("tampered later chunk chain handle must fail");
+    let err = audit_check_recursive_artifact_replay(&statement, &proof)
+        .expect_err("tampered later chunk chain handle must fail");
     assert!(format!("{err}").contains("chunk") || format!("{err}").contains("digest"));
 }

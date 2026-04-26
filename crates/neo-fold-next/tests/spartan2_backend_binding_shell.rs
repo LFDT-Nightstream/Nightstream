@@ -1,8 +1,3 @@
-#[path = "support/chip8.rs"]
-mod chip8_support;
-
-use neo_fold_next::chip8::decider::build_chip8_spartan2_decider_target;
-use neo_fold_next::chip8::proof::prove_recursive;
 use neo_fold_next::decider::spartan2::{
     prove_spartan2_backend_binding_shell, prove_spartan2_decider, setup_spartan2_backend_binding_shell,
     setup_spartan2_decider, verify_spartan2_backend_binding_shell, verify_spartan2_decider,
@@ -42,7 +37,6 @@ fn synthetic_target_with_layout(fold_schedule: FoldSchedule, public_step_counts:
             initial_handle_digest: [F::from_u64(8); 4],
             terminal_handle_digest: [F::ZERO; 4],
             fold_schedule,
-            chunk_count: public_step_counts.len() as u64,
             semantic_step_count: start_index,
             chunk_summaries,
         },
@@ -61,6 +55,15 @@ fn synthetic_target_with_layout(fold_schedule: FoldSchedule, public_step_counts:
     target.statement.terminal_handle_digest = target.statement.expected_terminal_handle_digest();
     target.statement.final_proof_digest = target.expected_final_proof_digest();
     target
+}
+
+fn padded_zero_summary(semantic_step_count: u64) -> FixedShapeChunkSummary {
+    FixedShapeChunkSummary {
+        start_index: semantic_step_count,
+        public_step_count: 0,
+        public_chunk_digest: [0u8; 32],
+        chunk_relation_digest: [0u8; 32],
+    }
 }
 
 #[test]
@@ -113,7 +116,10 @@ fn spartan2_decider_backend_rejects_tampered_public_chunk_count() {
     let proof = prove_spartan2_decider(&pk, &target).expect("prove decider backend");
 
     let mut tampered = target.clone();
-    tampered.statement.chunk_count += 1;
+    tampered
+        .statement
+        .chunk_summaries
+        .push(padded_zero_summary(tampered.statement.semantic_step_count));
 
     let err = verify_spartan2_decider(&vk, &tampered, &proof).expect_err("tampered chunk count must fail");
     assert!(matches!(err, Spartan2DeciderError::RelationSurface(_)));
@@ -264,18 +270,4 @@ fn spartan2_backend_binding_shell_rejects_tampered_private_base_count() {
             assert!(matches!(err, Spartan2BackendBindingShellError::RelationSurface(_)));
         }
     }
-}
-
-#[test]
-#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn chip8_spartan2_decider_backend_round_trip() {
-    let input = chip8_support::build_jump_kernel_input(4);
-    let (statement, proof) = prove_recursive(&input).expect("prove recursive");
-    let target = build_chip8_spartan2_decider_target(&statement, &proof).expect("build chip8 decider target");
-
-    let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
-    let shell = prove_spartan2_decider(&pk, &target).expect("prove decider backend");
-
-    verify_spartan2_decider(&vk, &target, &shell).expect("verify decider backend");
-    assert!(shell.snark_bytes_len() > 0);
 }

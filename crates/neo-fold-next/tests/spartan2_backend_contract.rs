@@ -1,8 +1,3 @@
-#[path = "support/chip8.rs"]
-mod chip8_support;
-
-use neo_fold_next::chip8::decider::build_chip8_spartan2_decider_target;
-use neo_fold_next::chip8::proof::prove_recursive;
 use neo_fold_next::decider::spartan2::{
     Spartan2ChunkTransitionBinding, Spartan2DeciderShape, Spartan2DeciderStatement, Spartan2DeciderTarget,
     Spartan2DeciderWitness,
@@ -21,7 +16,6 @@ fn synthetic_target() -> Spartan2DeciderTarget {
             initial_handle_digest: [F::from_u64(8); 4],
             terminal_handle_digest: [F::ZERO; 4],
             fold_schedule: FoldSchedule::RowsPerChunk(1),
-            chunk_count: 1,
             semantic_step_count: 1,
             chunk_summaries: vec![FixedShapeChunkSummary {
                 start_index: 0,
@@ -41,6 +35,15 @@ fn synthetic_target() -> Spartan2DeciderTarget {
     target.statement.terminal_handle_digest = target.statement.expected_terminal_handle_digest();
     target.statement.final_proof_digest = target.expected_final_proof_digest();
     target
+}
+
+fn padded_zero_summary(semantic_step_count: u64) -> FixedShapeChunkSummary {
+    FixedShapeChunkSummary {
+        start_index: semantic_step_count,
+        public_step_count: 0,
+        public_chunk_digest: [0u8; 32],
+        chunk_relation_digest: [0u8; 32],
+    }
 }
 
 #[test]
@@ -137,7 +140,10 @@ fn spartan2_backend_public_io_changes_when_public_chunk_count_changes() {
     let backend_witness = target.backend_witness().packed_fields();
 
     let mut tampered = target.clone();
-    tampered.statement.chunk_count += 1;
+    tampered
+        .statement
+        .chunk_summaries
+        .push(padded_zero_summary(tampered.statement.semantic_step_count));
 
     assert_eq!(tampered.backend_witness().packed_fields(), backend_witness);
     assert_ne!(tampered.backend_public_io(), target.backend_public_io());
@@ -184,36 +190,6 @@ fn spartan2_backend_public_io_changes_when_public_chunk_summary_changes() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn chip8_spartan2_backend_contract_projects_generic_layout() {
-    let input = chip8_support::build_jump_kernel_input(4);
-    let (statement, proof) = prove_recursive(&input).expect("prove recursive");
-    let target = build_chip8_spartan2_decider_target(&statement, &proof).expect("build chip8 decider target");
-
-    assert_eq!(
-        &target.backend_public_io()[..target.statement.public_io().len()],
-        target.statement.public_io().as_slice()
-    );
-    assert_eq!(target.statement.chunk_count as usize, proof.steps.len());
-    assert_eq!(target.backend_witness().base_component_count as usize, 1);
-    assert_eq!(
-        target.backend_witness().chunk_transition_count as usize,
-        proof.steps.len()
-    );
-    assert_eq!(target.backend_witness().packed_fields(), target.witness.public_io());
-    assert_eq!(
-        &target.backend_public_io()[target.statement.public_io().len()
-            ..target.statement.public_io().len() + target.backend_semantic_digest_fields().len()],
-        target.backend_semantic_digest_fields().as_slice()
-    );
-    assert_eq!(
-        &target.backend_public_io()
-            [target.statement.public_io().len() + target.backend_semantic_digest_fields().len()..],
-        target.backend_binding_digest_fields().as_slice()
-    );
-}
-
-#[test]
-#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_shape_tracks_public_and_backend_layout_lengths() {
     let target = synthetic_target();
     let shape = target.shape();
@@ -234,7 +210,6 @@ fn spartan2_shape_depends_on_component_count_not_digest_values() {
     other.statement.public_statement_digest[0] ^= 1;
     other.statement.relation_digest[0] ^= 1;
     other.statement.final_proof_digest[0] ^= 1;
-    other.statement.chunk_count += 7;
     other.witness.base_component_digests[0][0] ^= 1;
     other.witness.chunk_transition_bindings[0].transition_witness_digest[0] ^= 1;
 

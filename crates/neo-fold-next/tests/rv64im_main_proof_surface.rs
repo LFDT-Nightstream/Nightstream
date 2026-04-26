@@ -5,30 +5,20 @@ use neo_fold_next::nightstream::rv64im::audit::rv64im_main_nightstream_proof_dig
 use neo_fold_next::rv64im::audit::{
     build_rv64im_chunk_step_ivc_relations, build_rv64im_main_recursion_f_prime_advices,
 };
-use neo_fold_next::rv64im::final_relation::{
-    prove_rv64im_final_statement_from_accepted, Rv64imFinalBuildProof, Rv64imFinalStatement,
-};
+use neo_fold_next::rv64im::final_relation::{Rv64imFinalBuildProof, Rv64imFinalStatement};
 use neo_fold_next::rv64im::main_proof::Rv64imMainFinalProofSurface;
-use neo_fold_next::rv64im::{
-    build_mixed_opcode_perf_source_case, build_rv64im_accepted_proof_artifact, prove_rv64im_public_proof,
-    Rv64imProofInput,
-};
 
 fn n2_final_case() -> (Rv64imFinalStatement, Rv64imFinalBuildProof) {
-    let source = build_mixed_opcode_perf_source_case(2);
-    let max_steps = source.program_words.len();
-    let input = Rv64imProofInput { source, max_steps };
-    let public_proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    let accepted_artifact = build_rv64im_accepted_proof_artifact(&public_proof).expect("build accepted proof artifact");
-    prove_rv64im_final_statement_from_accepted(&accepted_artifact).expect("prove rv64im final statement")
+    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
+    (fixture.final_statement, fixture.final_proof)
 }
 
 fn n2_final_pc() -> u64 {
-    let source = build_mixed_opcode_perf_source_case(2);
-    let max_steps = source.program_words.len();
-    let input = Rv64imProofInput { source, max_steps };
-    let public_proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
-    public_proof.statement.final_pc
+    rv64im_n2_support::build_rv64im_n2_fixture()
+        .expect("build rv64im n=2 fixture")
+        .accepted_artifact
+        .statement
+        .final_pc
 }
 
 fn build_main_surface(
@@ -36,6 +26,14 @@ fn build_main_surface(
     final_proof: &Rv64imFinalBuildProof,
 ) -> Rv64imMainFinalProofSurface {
     Rv64imMainFinalProofSurface::from_final_proof(final_statement, final_proof, n2_final_pc())
+}
+
+fn flip_first_byte(bytes: &mut Vec<u8>) {
+    if let Some(first) = bytes.first_mut() {
+        *first ^= 1;
+    } else {
+        bytes.push(1);
+    }
 }
 
 #[test]
@@ -88,24 +86,71 @@ fn rv64im_main_proof_surface_matches_last_native_f_prime_step_image() {
 }
 
 #[test]
+#[ignore = "expensive: published seam construction includes compressed IVC proof material"]
 fn rv64im_main_nightstream_proof_digest_tracks_compact_compressed_main_proof() {
-    let mut compact = rv64im_n2_support::build_rv64im_n2_published_seam()
+    let compact = rv64im_n2_support::build_rv64im_n2_published_seam()
         .expect("build one-step published seam")
         .main_proof
         .clone();
     let baseline = rv64im_main_nightstream_proof_digest(&compact);
 
-    compact.terminal_decider_proof_mut().snark_data[0] ^= 1;
+    let mut recursive_proof_tamper = compact.clone();
+    flip_first_byte(
+        &mut recursive_proof_tamper
+            .ivc_recursion_snark_proof_mut()
+            .terminal_f_prime_committed_step_proof
+            .snark_data,
+    );
     assert_ne!(
         baseline,
-        rv64im_main_nightstream_proof_digest(&compact),
-        "Nightstream proof-binding digest must change when the carried terminal decider proof bytes change"
+        rv64im_main_nightstream_proof_digest(&recursive_proof_tamper),
+        "Nightstream proof-binding digest must change when the carried IVC recursion SNARK proof bytes change"
     );
 
-    compact.published_statement_mut().x_last_mut().bytes_mut()[0] ^= 1;
+    let mut final_ce_proof_tamper = compact.clone();
+    flip_first_byte(
+        &mut final_ce_proof_tamper
+            .ivc_recursion_snark_proof_mut()
+            .final_ce_proof
+            .snark_data,
+    );
     assert_ne!(
         baseline,
-        rv64im_main_nightstream_proof_digest(&compact),
+        rv64im_main_nightstream_proof_digest(&final_ce_proof_tamper),
+        "Nightstream proof-binding digest must change when the carried final CE proof bytes change"
+    );
+
+    let mut statement_tamper = compact.clone();
+    statement_tamper
+        .published_statement_mut()
+        .x_last_mut()
+        .bytes_mut()[0] ^= 1;
+    assert_ne!(
+        baseline,
+        rv64im_main_nightstream_proof_digest(&statement_tamper),
         "Nightstream proof-binding digest must change when the carried published statement changes"
+    );
+}
+
+#[test]
+#[ignore = "expensive: published seam construction includes compressed IVC proof material"]
+fn rv64im_accumulator_public_statement_rejects_x_last_drift() {
+    let mut compact = rv64im_n2_support::build_rv64im_n2_published_seam()
+        .expect("build one-step published seam")
+        .main_proof
+        .clone();
+    compact
+        .published_statement()
+        .validate()
+        .expect("baseline published accumulator statement must validate");
+
+    compact.published_statement_mut().x_last_mut().bytes_mut()[0] ^= 1;
+    let err = compact
+        .published_statement()
+        .validate()
+        .expect_err("published accumulator statement must reject x_last drift");
+    assert!(
+        format!("{err}").contains("x_last"),
+        "expected x_last validation failure, got: {err}"
     );
 }

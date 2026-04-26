@@ -4,10 +4,12 @@
 mod rv64im_n2_support;
 
 use neo_fold_next::rv64im::audit::{
-    build_rv64im_chunk_step_ivc_relations, rv64im_bridge_handoff_chain_digest, rv64im_bridge_handoff_chain_digest_init,
-    rv64im_bridge_handoff_chain_digest_step, rv64im_chunk_step_ivc_initial_state, rv64im_step_statement_chain_digest,
-    rv64im_step_statement_chain_digest_init, rv64im_step_statement_chain_digest_step, verify_rv64im_chunk_step_ivc,
-    verify_rv64im_chunk_step_ivc_chain,
+    audit_check_rv64im_chunk_step_ivc_chain, build_rv64im_chunk_step_ivc_published_target,
+    build_rv64im_chunk_step_ivc_relations, build_rv64im_chunk_step_ivc_shape, rv64im_bridge_handoff_chain_digest,
+    rv64im_bridge_handoff_chain_digest_init, rv64im_bridge_handoff_chain_digest_step,
+    rv64im_chunk_step_ivc_initial_state, rv64im_step_statement_chain_digest, rv64im_step_statement_chain_digest_init,
+    rv64im_step_statement_chain_digest_step, validate_rv64im_chunk_step_ivc_published_statement,
+    verify_rv64im_chunk_step_ivc, Rv64imChunkStepIvcPublishedTarget,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -33,6 +35,95 @@ fn tamper_state_out_claim_projection_shell(
         *first += neo_math::F::ONE;
     }
     claim.fold_digest[0] ^= 1;
+}
+
+#[test]
+fn rv64im_chunk_step_ivc_shape_rejects_statement_chunk_index_drift() {
+    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
+    let relation = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
+        .expect("build chunk-step IVC relations")
+        .into_iter()
+        .next()
+        .expect("first relation");
+    let mut tampered_statement = relation.statement.clone();
+    tampered_statement.step_public.chunk_index ^= 1;
+
+    assert!(
+        build_rv64im_chunk_step_ivc_shape(&tampered_statement, &relation.witness).is_err(),
+        "chunk-step IVC shape builder must reject step_public.chunk_index drift from the authoritative bridge handoff"
+    );
+}
+
+#[test]
+fn rv64im_chunk_step_ivc_shape_rejects_legacy_statement_shell_drift() {
+    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
+    let relation = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
+        .expect("build chunk-step IVC relations")
+        .into_iter()
+        .next()
+        .expect("first relation");
+    let mut tampered_statement = relation.statement.clone();
+    tampered_statement.step_public.step_hi ^= 1;
+    tampered_statement.step_public.state_out[0] ^= 1;
+    tampered_statement.chunk_summary.public_chunk_digest[0] ^= 1;
+
+    assert!(
+        build_rv64im_chunk_step_ivc_shape(&tampered_statement, &relation.witness).is_err(),
+        "chunk-step IVC shape builder must reject legacy statement shell drift from the authoritative published statement"
+    );
+}
+
+#[test]
+fn rv64im_chunk_step_ivc_published_statement_rejects_internal_summary_drift() {
+    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
+    let relation = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
+        .expect("build chunk-step IVC relations")
+        .into_iter()
+        .next()
+        .expect("first relation");
+    let mut tampered_statement = relation.statement.clone();
+    tampered_statement.chunk_summary.start_index ^= 1;
+
+    assert!(
+        validate_rv64im_chunk_step_ivc_published_statement(&tampered_statement).is_err(),
+        "chunk-step IVC published statement validator must reject summary start drift from step_public.step_lo"
+    );
+}
+
+#[test]
+fn rv64im_chunk_step_ivc_published_target_matches_statement_shell() {
+    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
+    let relation = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
+        .expect("build chunk-step IVC relations")
+        .into_iter()
+        .next()
+        .expect("first relation");
+
+    let target: Rv64imChunkStepIvcPublishedTarget =
+        build_rv64im_chunk_step_ivc_published_target(&relation.statement).expect("build published target");
+
+    assert_eq!(target.program_digest, relation.statement.step_public.program_digest);
+    assert_eq!(target.chunk_index, relation.statement.step_public.chunk_index);
+    assert_eq!(target.step_lo, relation.statement.step_public.step_lo);
+    assert_eq!(target.step_hi, relation.statement.step_public.step_hi);
+    assert_eq!(target.halted_out, relation.statement.step_public.halted_out);
+    assert_eq!(target.state_in, relation.statement.step_public.state_in);
+    assert_eq!(target.state_out, relation.statement.step_public.state_out);
+    assert_eq!(target.summary_start, relation.statement.chunk_summary.start_index);
+    assert_eq!(
+        target.summary_step_count,
+        relation.statement.chunk_summary.public_step_count
+    );
+    assert_eq!(
+        target.public_chunk_digest,
+        relation.statement.chunk_summary.public_chunk_digest
+    );
+    assert_eq!(
+        target.chunk_relation_digest,
+        relation.statement.chunk_summary.chunk_relation_digest
+    );
+    assert_eq!(target.chunk_summary(), relation.statement.chunk_summary);
+    assert_eq!(target.expected_digest(), relation.statement.expected_digest());
 }
 
 #[test]
@@ -141,11 +232,79 @@ fn rv64im_chunk_step_ivc_ignores_state_out_claim_projection_shell() {
 }
 
 #[test]
+#[ignore = "rv64im_n2 fixture exceeds the normal runtime cap; run manually when auditing chunk-step projection tamper coverage"]
+fn rv64im_chunk_step_ivc_rejects_authoritative_state_out_claim_projection_tamper() {
+    let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
+    let relation = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
+        .expect("build chunk-step IVC relations")
+        .into_iter()
+        .next()
+        .expect("first relation");
+
+    let mut commitment_tamper = relation.clone();
+    commitment_tamper
+        .witness
+        .state_out
+        .carry
+        .main
+        .claims
+        .first_mut()
+        .expect("state_out claim")
+        .c
+        .data[0] += neo_math::F::ONE;
+    let err = verify_rv64im_chunk_step_ivc(&commitment_tamper.statement, &commitment_tamper.witness)
+        .expect_err("authoritative commitment projection tamper must fail");
+    assert!(format!("{err}").contains("next carry"), "unexpected error: {err}");
+
+    let mut x_tamper = relation.clone();
+    let first_claim = x_tamper
+        .witness
+        .state_out
+        .carry
+        .main
+        .claims
+        .first_mut()
+        .expect("state_out claim");
+    first_claim.X[(0, 0)] += neo_math::F::ONE;
+    let err = verify_rv64im_chunk_step_ivc(&x_tamper.statement, &x_tamper.witness)
+        .expect_err("authoritative X projection tamper must fail");
+    assert!(format!("{err}").contains("next carry"), "unexpected error: {err}");
+
+    let mut r_tamper = relation.clone();
+    r_tamper
+        .witness
+        .state_out
+        .carry
+        .main
+        .claims
+        .first_mut()
+        .expect("state_out claim")
+        .r[0] += neo_math::K::ONE;
+    let err = verify_rv64im_chunk_step_ivc(&r_tamper.statement, &r_tamper.witness)
+        .expect_err("authoritative r projection tamper must fail");
+    assert!(format!("{err}").contains("next carry"), "unexpected error: {err}");
+
+    let mut y_tamper = relation.clone();
+    y_tamper
+        .witness
+        .state_out
+        .carry
+        .main
+        .claims
+        .first_mut()
+        .expect("state_out claim")
+        .y_ring[0][0] += neo_math::K::ONE;
+    let err = verify_rv64im_chunk_step_ivc(&y_tamper.statement, &y_tamper.witness)
+        .expect_err("authoritative y_ring projection tamper must fail");
+    assert!(format!("{err}").contains("next carry"), "unexpected error: {err}");
+}
+
+#[test]
 fn rv64im_chunk_step_ivc_chain_round_trip() {
     let fixture = rv64im_n2_support::build_rv64im_n2_fixture().expect("build rv64im n=2 fixture");
     let relations = build_rv64im_chunk_step_ivc_relations(&fixture.final_statement, &fixture.final_proof)
         .expect("build chunk-step IVC relations");
-    let final_state = verify_rv64im_chunk_step_ivc_chain(&relations).expect("verify chunk-step IVC chain");
+    let final_state = audit_check_rv64im_chunk_step_ivc_chain(&relations).expect("audit-check chunk-step IVC chain");
     let expected_final_state = relations
         .last()
         .map(|relation| &relation.witness.state_out)
@@ -179,8 +338,8 @@ fn rv64im_chunk_step_ivc_chain_rejects_tampered_initial_private_state() {
     relation.witness.state_in = rv64im_chunk_step_ivc_initial_state();
     relation.witness.state_in.transcript.state[0] += neo_math::F::ONE;
 
-    let err =
-        verify_rv64im_chunk_step_ivc_chain(&relations).expect_err("tampered initial private recursive state must fail");
+    let err = audit_check_rv64im_chunk_step_ivc_chain(&relations)
+        .expect_err("tampered initial private recursive state must fail");
     assert!(format!("{err}").contains("state_in"), "unexpected error: {err}");
 }
 

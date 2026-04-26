@@ -2,12 +2,15 @@ use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 
+use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::rv64im::audit::audit_rv64im_accepted_proof;
 use neo_fold_next::rv64im::layout::{RV64IM_PARITY_LOWERING_VERSION_ID, RV64IM_PARITY_PROTOCOL_VERSION_ID};
 use neo_fold_next::rv64im::tables::Rv64FamilyTag;
 use neo_fold_next::rv64im::{
     encode_add, encode_addi, encode_beq, encode_divu, encode_ecall, encode_ld, encode_sd, parity_source_cases,
-    prove_rv64im_accepted_proof, sem_inputs_digest, verify_rv64im_accepted_proof, MemoryWord,
+    prove_rv64im_accepted_proof, prove_rv64im_accepted_proof_with_options, sem_inputs_digest, MemoryWord,
     Rv64imAcceptedProofArtifact, Rv64imAuditBundle, Rv64imParityCaseManifest, Rv64imParitySourceCase, Rv64imProofInput,
+    Rv64imPublicProofOptions,
 };
 
 const START_PC: u64 = 0x1000;
@@ -148,6 +151,16 @@ pub fn prove_accepted(input: &Rv64imProofInput) -> (Rv64imAcceptedProofArtifact,
     prove_rv64im_accepted_proof(input).expect("prove accepted rv64im proof")
 }
 
+fn prove_accepted_rows_per_chunk_1(input: &Rv64imProofInput) -> (Rv64imAcceptedProofArtifact, Rv64imAuditBundle) {
+    prove_rv64im_accepted_proof_with_options(
+        input,
+        Rv64imPublicProofOptions {
+            root_fold_schedule: FoldSchedule::RowsPerChunk(1),
+        },
+    )
+    .expect("prove accepted rv64im proof with RowsPerChunk(1)")
+}
+
 #[allow(dead_code)]
 pub fn accepted_alu() -> AcceptedFixture {
     static FIXTURE: LazyLock<AcceptedFixture> = LazyLock::new(|| {
@@ -188,13 +201,13 @@ pub fn accepted_divu() -> AcceptedFixture {
 pub fn accepted_multiply_high() -> AcceptedFixture {
     static FIXTURE: LazyLock<AcceptedFixture> = LazyLock::new(|| {
         let input = parity_input("multiply_high_mulh_mulhu_mulhsu_ecall");
-        prove_accepted(&input)
+        prove_accepted_rows_per_chunk_1(&input)
     });
     FIXTURE.clone()
 }
 
-pub fn expect_accepted_verify_failure(artifact: &Rv64imAcceptedProofArtifact, needle: &str) {
-    let err = verify_rv64im_accepted_proof(artifact).expect_err("tampered accepted proof must fail");
+pub fn expect_accepted_audit_failure(artifact: &Rv64imAcceptedProofArtifact, needle: &str) {
+    let err = audit_rv64im_accepted_proof(artifact).expect_err("tampered accepted proof must fail");
     assert!(
         format!("{err}").contains(needle),
         "expected error to contain `{needle}`, got `{err}`"

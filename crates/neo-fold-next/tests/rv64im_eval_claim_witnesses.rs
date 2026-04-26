@@ -11,6 +11,9 @@ use neo_fold_next::rv64im::{
 use neo_math::{from_complex, F, K};
 use p3_field::PrimeCharacteristicRing;
 
+#[path = "support/rv64im_phase0_memory.rs"]
+mod rv64im_phase0_memory;
+
 fn digest(byte: u8) -> [u8; 32] {
     [byte; 32]
 }
@@ -44,12 +47,7 @@ fn stage1_artifact() -> &'static Rv64imAcceptedProofArtifact {
 
 fn aligned_memory_artifact() -> &'static Rv64imAcceptedProofArtifact {
     static ARTIFACT: OnceLock<Rv64imAcceptedProofArtifact> = OnceLock::new();
-    ARTIFACT.get_or_init(|| {
-        let proof = prove_rv64im_public_proof(&proof_input("aligned_negative_offset_roundtrip"))
-            .expect("public proof should build for singleton-family claim witness tests");
-        build_rv64im_accepted_proof_artifact(&proof)
-            .expect("accepted artifact should build for singleton-family claim witness tests")
-    })
+    ARTIFACT.get_or_init(|| rv64im_phase0_memory::phase0_memory_artifact().clone())
 }
 
 fn control_flow_artifact() -> &'static Rv64imAcceptedProofArtifact {
@@ -97,7 +95,7 @@ fn stage1_claim_witnesses_emit_four_slot_bound_claims() {
         .all(|claim| claim.claim.payload.schema == FamilyEvalSchemaId::Stage1Rows));
     assert!(claims
         .iter()
-        .all(|claim| claim.claim.payload.column_evals.len() == 2));
+        .all(|claim| claim.claim.payload.column_evals.len() == 1));
 
     let first_object = claims[0].claim.opened_object.digest;
     assert!(claims
@@ -238,11 +236,32 @@ fn stage2_singleton_claims_still_emit_when_some_families_are_empty() {
     let claims = build_stage2_claim_witnesses(&artifact.stage_claims.claims.stage2, &artifact.stage2)
         .expect("stage2 phase0 claim witnesses should still build when some families are empty");
 
-    assert_eq!(claims.len(), 4);
+    let expected_nonempty_count = [
+        surface.register_read_count,
+        surface.register_write_count,
+        surface.ram_event_count,
+        surface.twist_link_count,
+    ]
+    .into_iter()
+    .filter(|count| *count != 0)
+    .count();
+    let expected_nonempty_schemas = [
+        (surface.register_read_count, FamilyEvalSchemaId::Stage2RegisterReads),
+        (surface.register_write_count, FamilyEvalSchemaId::Stage2RegisterWrites),
+        (surface.ram_event_count, FamilyEvalSchemaId::Stage2RamEvents),
+        (surface.twist_link_count, FamilyEvalSchemaId::Stage2TwistLinks),
+    ]
+    .into_iter()
+    .filter_map(|(count, schema)| (count != 0).then_some(schema))
+    .collect::<Vec<_>>();
+    assert_eq!(claims.len(), expected_nonempty_count);
     assert!(claims.iter().all(|claim| claim.claim.id.slot == 0));
-    assert!(
-        claims.iter().any(|claim| claim.claim.point.is_empty()),
-        "an empty singleton family should produce a zero-arity real point"
+    assert_eq!(
+        claims
+            .iter()
+            .map(|claim| claim.claim.payload.schema)
+            .collect::<Vec<_>>(),
+        expected_nonempty_schemas
     );
 }
 

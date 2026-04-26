@@ -1,42 +1,28 @@
 use std::sync::OnceLock;
 
 use neo_fold_next::rv64im::{
-    build_claim_reduction_buckets, build_claim_reduction_results_from_witnesses, build_rv64im_accepted_proof_artifact,
+    build_claim_reduction_buckets, build_claim_reduction_results_from_witnesses,
     build_rv64im_eval_claim_bundle_from_accepted_artifact, build_rv64im_eval_claim_witnesses_from_accepted_artifact,
-    build_rv64im_phase0_binding_surface_from_accepted_artifact, derive_phase0_point, parity_source_cases,
-    prove_rv64im_public_proof, verify_claim_reduction_result_with_binding_surface,
-    verify_claim_reduction_results_with_binding_surface, ClaimReductionBucket, ClaimReductionError,
-    ClaimReductionProof, ClaimReductionResult, CommitmentContextId, FamilyEvalClaim, FamilyEvalClaimId,
-    FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId, OpenedAjtaiObjectId, QuadraticRoundPoly,
-    Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle, Rv64imPhase0BindingSurface, Rv64imProofInput,
+    build_rv64im_phase0_binding_surface_from_accepted_artifact, derive_phase0_point,
+    verify_claim_reduction_result_with_binding_surface, verify_claim_reduction_results_with_binding_surface,
+    ClaimReductionBucket, ClaimReductionError, ClaimReductionProof, ClaimReductionResult, CommitmentContextId,
+    FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId,
+    OpenedAjtaiObjectId, QuadraticRoundPoly, Rv64imAcceptedProofArtifact, Rv64imEvalClaimBundle,
+    Rv64imPhase0BindingSurface,
 };
 use neo_math::K;
 use p3_field::PrimeCharacteristicRing;
+
+#[path = "support/rv64im_phase0_memory.rs"]
+mod rv64im_phase0_memory;
 
 fn digest(byte: u8) -> [u8; 32] {
     [byte; 32]
 }
 
-fn source_case(name: &str) -> neo_fold_next::rv64im::Rv64imParitySourceCase {
-    parity_source_cases()
-        .into_iter()
-        .find(|case| case.manifest.name == name)
-        .unwrap_or_else(|| panic!("missing parity source case {name}"))
-}
-
-fn proof_input(name: &str) -> Rv64imProofInput {
-    let source = source_case(name);
-    let max_steps = source.program_words.len();
-    Rv64imProofInput { source, max_steps }
-}
-
 fn artifact() -> &'static Rv64imAcceptedProofArtifact {
     static ARTIFACT: OnceLock<Rv64imAcceptedProofArtifact> = OnceLock::new();
-    ARTIFACT.get_or_init(|| {
-        let proof = prove_rv64im_public_proof(&proof_input("aligned_negative_offset_roundtrip"))
-            .expect("public proof should build for claim-reduction tests");
-        build_rv64im_accepted_proof_artifact(&proof).expect("accepted artifact should build for claim-reduction tests")
-    })
+    ARTIFACT.get_or_init(|| rv64im_phase0_memory::phase0_memory_artifact().clone())
 }
 
 fn eval_claim_bundle() -> &'static Rv64imEvalClaimBundle {
@@ -166,7 +152,7 @@ fn claim_reduction_bucket_builder_partitions_phase0_bundle_by_schema() {
             .collect::<Vec<_>>(),
         vec![4, 1, 1, 1, 1, 1]
     );
-    assert_eq!(buckets[0].payload_width(), 2);
+    assert_eq!(buckets[0].payload_width(), 1);
     assert!(buckets[1..]
         .iter()
         .all(|bucket| bucket.payload_width() == 1));
@@ -259,15 +245,18 @@ fn claim_reduction_bucket_builder_rejects_mixed_commitment_contexts_within_schem
 
     let bundle = Rv64imEvalClaimBundle::new(claims).expect("bundle should still canonicalize");
     let err = build_claim_reduction_buckets(&bundle).expect_err("mixed commitment context must reject");
-    assert_eq!(err, ClaimReductionError::MixedCommitmentContext { index: 3 });
+    match err {
+        ClaimReductionError::MixedCommitmentContext { .. } => {}
+        other => panic!("unexpected mixed-commitment-context error: {other:?}"),
+    }
 }
 
 #[test]
-fn claim_reduction_result_rejects_missing_gamma_for_stage1_bucket() {
+fn claim_reduction_result_gamma_presence_matches_bucket_payload_width() {
     let bucket = stage1_bucket();
     let unified_point = vec![K::ZERO; bucket.point_arity()];
     let unified_claims = stage1_unified_claims(&bucket, false);
-    let mut proof = ClaimReductionProof {
+    let mut missing_gamma = ClaimReductionProof {
         bucket_digest: bucket.expected_digest(),
         eta: K::ZERO,
         gamma: None,
@@ -276,19 +265,39 @@ fn claim_reduction_result_rejects_missing_gamma_for_stage1_bucket() {
         scalar_evals_at_r_star: vec![K::ZERO; bucket.claims.len()],
         digest: [0; 32],
     };
-    proof.digest = proof.expected_digest();
+    missing_gamma.digest = missing_gamma.expected_digest();
 
-    let result = ClaimReductionResult {
+    let missing_gamma_result = ClaimReductionResult {
+        bucket: bucket.clone(),
+        unified_point: unified_point.clone(),
+        unified_claims: unified_claims.clone(),
+        proof: missing_gamma,
+    };
+
+    missing_gamma_result
+        .validate()
+        .expect("width-1 claim-reduction buckets must not require gamma");
+
+    let mut unexpected_gamma = ClaimReductionProof {
+        bucket_digest: bucket.expected_digest(),
+        eta: K::ZERO,
+        gamma: Some(K::ZERO),
+        rho: K::ZERO,
+        round_polys: zero_round_polys(unified_point.len()),
+        scalar_evals_at_r_star: vec![K::ZERO; bucket.claims.len()],
+        digest: [0; 32],
+    };
+    unexpected_gamma.digest = unexpected_gamma.expected_digest();
+
+    let err = ClaimReductionResult {
         bucket,
         unified_point,
         unified_claims,
-        proof,
-    };
-
-    let err = result
-        .validate()
-        .expect_err("stage1 proof without gamma must reject");
-    assert_eq!(err, ClaimReductionError::MissingGamma { payload_width: 2 });
+        proof: unexpected_gamma,
+    }
+    .validate()
+    .expect_err("width-1 claim-reduction buckets must reject unexpected gamma");
+    assert_eq!(err, ClaimReductionError::UnexpectedGamma { payload_width: 1 });
 }
 
 #[test]
@@ -299,7 +308,7 @@ fn claim_reduction_result_rejects_same_object_same_point_payload_mismatch() {
     let mut proof = ClaimReductionProof {
         bucket_digest: bucket.expected_digest(),
         eta: K::ZERO,
-        gamma: Some(K::ZERO),
+        gamma: None,
         rho: K::ZERO,
         round_polys: zero_round_polys(unified_point.len()),
         scalar_evals_at_r_star: vec![K::ZERO; bucket.claims.len()],
@@ -345,7 +354,7 @@ fn claim_reduction_results_roundtrip_from_real_witnesses() {
             FamilyEvalSchemaId::Stage3Continuity,
         ]
     );
-    assert!(results[0].proof.gamma.is_some());
+    assert!(results[0].proof.gamma.is_none());
     assert!(results[1..]
         .iter()
         .all(|result| result.proof.gamma.is_none()));

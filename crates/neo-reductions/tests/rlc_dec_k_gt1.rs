@@ -8,7 +8,10 @@ use neo_reductions::api::{
     dec_children_with_commit, rlc_public, rlc_public_matches_verified_inputs_with_perf, rlc_public_matches_with_perf,
     rlc_with_commit, verify_dec_public, FoldingMode,
 };
-use neo_reductions::common::{compute_y_from_Z_and_r, left_mul_acc};
+use neo_reductions::common::{
+    compute_y_from_Z_and_r, left_mul_acc, project_x_from_witness_mat, sample_rot_rhos_n, RotRing,
+};
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 fn k(v: u64) -> K {
@@ -224,6 +227,60 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     )
     .expect("rlc_public tampered rho");
     assert_ne!(parent_tampered, parent, "tampered ρ must change the RLC parent");
+}
+
+#[test]
+fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
+    let params = NeoParams::goldilocks_127();
+    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let s = build_structure(D, D);
+    let m_in = 3;
+    let r = vec![k(11); 6];
+
+    let mut Zs = Vec::new();
+    let mut me_inputs = Vec::new();
+    for i in 0..2usize {
+        let Z = make_z(4000 + i as u64 * 100, s.m);
+        let c = make_commitment(&params, 5000 + i as u64);
+        me_inputs.push(build_me_from_z(
+            &params,
+            &s,
+            &Z,
+            &r,
+            ell_d,
+            m_in,
+            c,
+            6000 + i as u64 * 10,
+        ));
+        Zs.push(Z);
+    }
+
+    let mut transcript = Poseidon2Transcript::new(b"rlc_x_projection_tracks_mixed_witness_under_rotation_rhos");
+    let rhos = sample_rot_rhos_n(&mut transcript, &params, &RotRing::goldilocks(), 2).expect("sample rhos");
+    assert!(
+        rhos.iter()
+            .any(|rho| (0..D).any(|row| (0..D).any(|col| row != col && rho[(row, col)] != F::ZERO))),
+        "test requires at least one non-diagonal rotation rho"
+    );
+    let rhos_typed = typed_rhos(&params, &rhos);
+
+    let (parent, Z_mix) = rlc_with_commit(
+        FoldingMode::Optimized,
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs,
+        &Zs,
+        ell_d,
+        mix_commitments_from_rhos,
+    )
+    .expect("optimized rlc_with_commit");
+    let projected = project_x_from_witness_mat(&Z_mix, s.m, m_in).expect("project mixed witness X");
+
+    assert_eq!(
+        parent.X, projected,
+        "Π_RLC public X must stay equal to the CE ring-slot projection L_in(Z_mix)"
+    );
 }
 
 #[test]

@@ -149,7 +149,7 @@ fn rv64im_main_recursion_step_spartan_multi_step_backend_relations_build() {
 }
 
 #[test]
-fn rv64im_main_recursion_step_spartan_embedded_body_ignores_payload_chunk_relation_digest_shell() {
+fn rv64im_main_recursion_step_spartan_embedded_body_rejects_payload_chunk_relation_digest_shell() {
     let (spartan_shape, backend_relations) = single_relation_backend_fixture();
     let mut tampered_relation = backend_relations
         .first()
@@ -157,9 +157,9 @@ fn rv64im_main_recursion_step_spartan_embedded_body_ignores_payload_chunk_relati
         .clone();
     rv64im_main_recursion_backend_relation_tamper_payload_chunk_digest_shell(&mut tampered_relation);
 
-    debug_check_rv64im_main_recursion_step_spartan_embedded_body(&spartan_shape, &tampered_relation).expect(
-        "recursive-step embedded body must ignore the outer chunk theorem digest shell carried on the payload handoff",
-    );
+    let err = debug_check_rv64im_main_recursion_step_spartan_embedded_body(&spartan_shape, &tampered_relation)
+        .expect_err("recursive-step embedded body must reject a tampered chunk-relation digest");
+    assert!(format!("{err}").contains("chunk_relation_digest"));
 }
 
 #[test]
@@ -326,9 +326,7 @@ fn rv64im_main_recursion_step_spartan_canonical_payload_localizes_first_failing_
         build_rv64im_main_recursion_f_prime_advices(&raw_relations).expect("build raw recursive-step advices");
 
     for (idx, advice) in advices.iter().enumerate() {
-        if let Err(err) =
-            build_rv64im_main_recursion_f_prime_payload(advice, &spartan_shape.cover_shape, &spartan_shape.claim_cover)
-        {
+        if let Err(err) = build_rv64im_main_recursion_f_prime_payload(advice, &spartan_shape) {
             panic!("first canonical payload failure at step {idx}: {err}");
         }
     }
@@ -804,9 +802,39 @@ fn rv64im_main_recursion_step_spartan_published_target_is_authoritative() {
         "honest recursive-step published target must expose the same public output statement"
     );
     assert_eq!(
-        canonical_target.public_values().len(),
-        8,
-        "published target public IO arity drifted unexpectedly"
+        canonical_target.terminal_f_prime_r2_public_values().len(),
+        288,
+        "terminal F' R2 public IO arity drifted unexpectedly"
+    );
+    assert_eq!(
+        canonical_target.vk_fs_digest,
+        first.f_prime_advice.verifier_key_fs().expected_digest(),
+        "published target must bind the authoritative Construction-2 verifier key digest"
+    );
+    assert_eq!(
+        canonical_target.chunk_count,
+        first.f_prime_advice.chunk_count_in() + 1,
+        "published target must expose the verifier's final iteration count"
+    );
+    assert_eq!(
+        canonical_target.z_0,
+        *first.f_prime_advice.z_0(),
+        "published target must expose the verifier's initial state digest"
+    );
+    assert_eq!(
+        canonical_target.z_i,
+        first
+            .f_prime_advice
+            .fresh_state_out()
+            .carry
+            .terminal_handle
+            .0,
+        "published target must expose the verifier's final state digest"
+    );
+    assert_eq!(
+        canonical_target.pc,
+        first.payload.pc_next(),
+        "published target must expose the verifier's final program counter"
     );
 
     let mut tampered = first.clone();
@@ -822,6 +850,45 @@ fn rv64im_main_recursion_step_spartan_published_target_is_authoritative() {
 }
 
 #[test]
+fn rv64im_main_recursion_step_spartan_rejects_stale_construction2_u_next_shell() {
+    let (spartan_shape, backend_relations) = single_relation_backend_fixture();
+    let first = backend_relations.first().expect("first backend relation");
+    let full_width = neo_fold_next::rv64im::build_rv64im_main_recursion_construction2_canonical_full_width(
+        first.f_prime_advice.verifier_key_fs(),
+        first.f_prime_advice.phi_side(),
+    )
+    .expect("build canonical Construction-2 full width");
+    let stale_u_i = neo_fold_next::rv64im::build_rv64im_main_recursion_construction2_default_fresh_instance(
+        first.f_prime_advice.verifier_key_fs(),
+        full_width,
+    )
+    .expect("build stale default Construction-2 u_i");
+    assert_ne!(
+        first.construction2_u_next, stale_u_i,
+        "fixture must expose a non-default Construction-2 committed-step instance"
+    );
+
+    let canonical_target = build_rv64im_main_recursion_step_spartan_published_target(first)
+        .expect("build canonical recursive-step published target");
+    let mut tampered = first.clone();
+    tampered.construction2_u_next = stale_u_i;
+
+    let tampered_target = build_rv64im_main_recursion_step_spartan_published_target(&tampered)
+        .expect("published target builder should recompute Construction-2 u_i from F' advice");
+    assert_eq!(
+        tampered_target, canonical_target,
+        "published target must not trust the carried Construction-2 u_i shell"
+    );
+
+    let err = debug_check_rv64im_main_recursion_step_spartan_circuit(&spartan_shape, &tampered)
+        .expect_err("recursive-step circuit must reject a stale Construction-2 u_i shell");
+    assert!(
+        format!("{err}").contains("construction2_u_next"),
+        "unexpected stale Construction-2 shell error: {err}"
+    );
+}
+
+#[test]
 fn rv64im_main_recursion_step_spartan_published_targets_match_native_f_prime_across_chain() {
     let (_, backend_relations) = backend_relations_fixture();
 
@@ -832,6 +899,31 @@ fn rv64im_main_recursion_step_spartan_published_targets_match_native_f_prime_acr
             .unwrap_or_else(|err| panic!("step {step_index}: evaluate native F' advice: {err}"));
         let output_statement = canonical_target.output_statement();
 
+        assert_eq!(
+            canonical_target.vk_fs_digest,
+            relation.f_prime_advice.verifier_key_fs().expected_digest(),
+            "step {step_index}: published target verifier-key digest drifted from native F' advice"
+        );
+        assert_eq!(
+            canonical_target.chunk_count,
+            step_image.chunk_count(),
+            "step {step_index}: published target iteration count drifted from native F' image"
+        );
+        assert_eq!(
+            canonical_target.z_0,
+            *relation.f_prime_advice.z_0(),
+            "step {step_index}: published target z_0 drifted from native F' advice"
+        );
+        assert_eq!(
+            canonical_target.z_i,
+            *step_image.z_next(),
+            "step {step_index}: published target z_i drifted from native F' image"
+        );
+        assert_eq!(
+            canonical_target.pc,
+            step_image.pc_next(),
+            "step {step_index}: published target pc drifted from native F' image"
+        );
         assert_eq!(
             output_statement, relation.spartan_statement,
             "step {step_index}: published target output statement drifted from the authoritative recursive-step statement"

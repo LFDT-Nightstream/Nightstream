@@ -1,9 +1,11 @@
+mod fixed_shape_invariance_support;
 mod support;
 
 mod accumulator_cardinality;
 mod base_case;
 mod default_instance_monotonicity;
-mod low_norm_bound;
+mod digest_invariant;
+mod fixed_shape_invariance;
 mod native_vs_circuit_parity;
 mod nifs_v_step_coverage;
 mod pc_bounds;
@@ -12,7 +14,6 @@ mod replayability;
 mod rho_independence;
 mod runtime_breakdown;
 mod u_perp_canonical_across_traces;
-mod u_perp_explicit_witness;
 mod u_perp_satisfies_r1;
 mod u_shape;
 mod x_out_hash_canonical;

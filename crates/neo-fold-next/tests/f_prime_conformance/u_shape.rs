@@ -4,12 +4,12 @@
 //! x-image or the low-norm witness must change `c`.
 //!
 //! This test locks that binding at the public Construction-2 fresh-instance
-//! API: tampering the Pi_DEC-child cargo carried inside π_fold flips a
+//! API: tampering the carried Π_CCS replay transport inside `π_fold` flips a
 //! position in the low-norm witness image, which must propagate to `c`.
 
 use neo_fold_next::rv64im::audit::{
     audit_build_rv64im_main_recursion_construction2_fresh_instance_with_explicit_x_i,
-    rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word,
+    rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff,
 };
 use neo_fold_next::rv64im::{
     build_rv64im_main_recursion_construction2_default_fresh_instance,
@@ -30,7 +30,7 @@ fn f_prime_fresh_instance_commitment_binds_low_norm_witness() {
     let baseline = build_rv64im_main_recursion_construction2_fresh_instance_with_input(&advices[0], &u_perp)
         .expect("build baseline fresh instance");
     let mut tampered_advice = advices[0].clone();
-    rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word(&mut tampered_advice, 0);
+    rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff(&mut tampered_advice);
     let tampered = audit_build_rv64im_main_recursion_construction2_fresh_instance_with_explicit_x_i(
         &tampered_advice,
         &u_perp,
@@ -41,13 +41,13 @@ fn f_prime_fresh_instance_commitment_binds_low_norm_witness() {
     assert_eq!(
         baseline.x_i(),
         tampered.x_i(),
-        "tampering Pi_DEC-child cargo in π_fold must not flip x; the u-shape binding failure we \
+        "tampering carried Π_CCS replay cargo in π_fold must not flip x; the u-shape binding failure we \
          are probing lives in the w half of [x || w]"
     );
     assert_ne!(
         baseline.commitment(),
         tampered.commitment(),
-        "SuperNeo §7.1 u-shape c = L([x, w]) must bind the full Pi_DEC-child cargo carried in the \
+        "SuperNeo §7.1 u-shape c = L([x, w]) must bind the full carried Π_CCS replay cargo inside the \
          low-norm witness; flipping that cargo must change c"
     );
 }

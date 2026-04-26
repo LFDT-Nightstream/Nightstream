@@ -165,6 +165,7 @@ fn rv64im_main_relation_terminal_identity_fe_matches_native_formula() {
         &alpha_prime,
         &claim_vars,
         1,
+        0,
         Some(&me_inputs_r_vars),
         Some(&me_inputs_r),
         delta,
@@ -247,6 +248,8 @@ fn rv64im_main_relation_terminal_identity_nc_matches_native_formula() {
         &alpha_prime_vars,
         &alpha_prime,
         &claim_vars,
+        1,
+        0,
         delta,
         "nc",
     )

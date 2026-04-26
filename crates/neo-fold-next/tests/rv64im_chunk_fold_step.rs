@@ -199,6 +199,7 @@ fn rv64im_chunk_fold_step_traces_chain_transcript_state() {
     );
 
     for (chunk_index, trace) in traces.iter().enumerate() {
+        let state_out_transcript = trace.state_out().transcript;
         assert_ne!(
             trace.transcript_in, trace.transcript_out,
             "verified chunk-fold step {chunk_index} must advance the running transcript state"
@@ -208,16 +209,15 @@ fn rv64im_chunk_fold_step_traces_chain_transcript_state() {
             trace.transcript_in,
             "state_in() must expose the same transcript snapshot captured before verification"
         );
-        assert_eq!(
-            trace.state_out().transcript,
-            trace.transcript_out,
-            "state_out() must expose the same transcript snapshot captured after verification"
+        assert_ne!(
+            state_out_transcript, trace.transcript_out,
+            "state_out() must expose the carried transcript snapshot after the done-tag handoff"
         );
         if chunk_index + 1 < traces.len() {
             assert_eq!(
-                trace.transcript_out,
+                state_out_transcript,
                 traces[chunk_index + 1].transcript_in,
-                "verified chunk-fold transcript snapshots must chain between adjacent steps"
+                "verified chunk-fold transcript snapshots must chain through the carried done-tag handoff"
             );
         }
     }

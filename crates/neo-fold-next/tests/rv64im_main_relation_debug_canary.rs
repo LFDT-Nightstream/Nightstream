@@ -1,7 +1,7 @@
 use std::env;
 
 use neo_fold_next::rv64im::audit::{
-    debug_check_rv64im_terminal_decider_circuit, prove_rv64im_public_proof_and_published_seam_with_perf,
+    debug_check_rv64im_ivc_recursion_snark_circuit, prove_rv64im_public_proof_and_published_seam_with_perf,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
 use neo_fold_next::rv64im::{
@@ -32,6 +32,6 @@ fn rv64im_main_relation_debug_satisfiable() {
     let final_statement = seam
         .rebuild_final_statement()
         .expect("rebuild final statement from the carried published seam");
-    debug_check_rv64im_terminal_decider_circuit(&final_statement, &final_proof)
+    debug_check_rv64im_ivc_recursion_snark_circuit(&final_statement, &final_proof)
         .expect("debug check main spartan decider");
 }

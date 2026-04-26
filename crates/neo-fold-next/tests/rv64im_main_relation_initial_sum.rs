@@ -110,6 +110,7 @@ fn rv64im_main_relation_initial_sum_matches_native_formula() {
         public_challenges.gamma,
         1,
         &claim_vars,
+        0,
         delta,
         "initial_sum",
     )

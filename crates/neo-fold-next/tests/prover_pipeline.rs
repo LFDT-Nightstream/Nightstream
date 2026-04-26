@@ -23,17 +23,6 @@ impl SModuleHomomorphism<F, Commitment> for ToyModule {
         }
         out
     }
-
-    fn project_x(&self, z: &Mat<F>, min: usize) -> Mat<F> {
-        let cols = min.min(z.cols());
-        let mut out = Mat::zero(z.rows(), cols, F::ZERO);
-        for r in 0..z.rows() {
-            for c in 0..cols {
-                out[(r, c)] = z[(r, c)];
-            }
-        }
-        out
-    }
 }
 
 fn identity_ccs(n: usize) -> CcsStructure<F> {
@@ -171,7 +160,7 @@ fn verifier_rejects_tampered_rlc_parent() {
         mixers(),
     )
     .expect("run prove");
-    proof.chunks[0].rlc.parent.ct[0] += neo_math::K::ONE;
+    proof.chunks[0].rlc.parent.c.data[0] += F::ONE;
 
     let public_steps = steps
         .into_iter()

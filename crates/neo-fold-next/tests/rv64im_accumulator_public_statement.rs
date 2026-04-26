@@ -42,7 +42,7 @@ fn build_main_surface(
 
 fn published_statement_from_n2_final_case() -> Rv64imAccumulatorPublicStatement {
     let (final_statement, final_proof) = n2_final_case();
-    Rv64imAccumulatorPublicStatement::from_verified_final_seam(&final_statement, &final_proof, n2_final_pc())
+    Rv64imAccumulatorPublicStatement::from_final_artifacts(&final_statement, &final_proof, n2_final_pc())
         .expect("build accumulator public statement")
 }
 
@@ -65,11 +65,10 @@ fn rv64im_accumulator_public_statement_is_stable_and_shape_bound() {
     let (final_statement, final_proof) = n2_final_case();
     let final_surface = build_main_surface(&final_statement, &final_proof);
     let baseline =
-        Rv64imAccumulatorPublicStatement::from_verified_final_seam(&final_statement, &final_proof, n2_final_pc())
+        Rv64imAccumulatorPublicStatement::from_final_artifacts(&final_statement, &final_proof, n2_final_pc())
             .expect("build accumulator public statement");
-    let rebuilt =
-        Rv64imAccumulatorPublicStatement::from_verified_final_seam(&final_statement, &final_proof, n2_final_pc())
-            .expect("rebuild accumulator public statement");
+    let rebuilt = Rv64imAccumulatorPublicStatement::from_final_artifacts(&final_statement, &final_proof, n2_final_pc())
+        .expect("rebuild accumulator public statement");
 
     assert_eq!(
         baseline, rebuilt,
@@ -167,6 +166,52 @@ fn rv64im_accumulator_public_statement_digest_tracks_x_last() {
 }
 
 #[test]
+fn rv64im_accumulator_public_statement_digest_tracks_construction2_u_i_boundary() {
+    let mut published_statement = published_statement_from_n2_final_case();
+    let baseline = published_statement.expected_digest();
+
+    published_statement
+        .construction2_u_i_mut()
+        .commitment_digest[0] ^= 1;
+
+    assert_ne!(
+        baseline,
+        published_statement.expected_digest(),
+        "published accumulator statement digest must bind the final Construction-2 committed-instance boundary"
+    );
+}
+
+#[test]
+fn rv64im_accumulator_public_statement_rejects_tampered_construction2_u_i_x() {
+    let mut published_statement = published_statement_from_n2_final_case();
+    published_statement.construction2_u_i_mut().x_i.bytes_mut()[0] ^= 1;
+
+    let err = published_statement
+        .validate()
+        .expect_err("tampered Construction-2 u_i.x_i must fail validation");
+    assert!(
+        err.to_string().contains("Construction-2 u_i.x_i"),
+        "expected Construction-2 u_i.x_i mismatch, got: {err}"
+    );
+}
+
+#[test]
+fn rv64im_accumulator_public_statement_rejects_tampered_construction2_u_i_digest() {
+    let mut published_statement = published_statement_from_n2_final_case();
+    published_statement
+        .construction2_u_i_mut()
+        .fresh_instance_digest[0] ^= 1;
+
+    let err = published_statement
+        .validate()
+        .expect_err("tampered Construction-2 public-boundary digest must fail validation");
+    assert!(
+        err.to_string().contains("Construction-2 u_i digest"),
+        "expected Construction-2 u_i digest mismatch, got: {err}"
+    );
+}
+
+#[test]
 fn rv64im_accumulator_public_statement_digest_tracks_pc_final() {
     let mut published_statement = published_statement_from_n2_final_case();
     let baseline = published_statement.expected_digest();
@@ -188,12 +233,13 @@ fn rv64im_accumulator_public_statement_digest_tracks_accumulator_final() {
     published_statement
         .accumulator_final_mut()
         .final_main_claims[0]
-        .ct[0] += neo_math::K::ONE;
+        .c
+        .data[0] += neo_math::F::ONE;
 
     assert_ne!(
         baseline,
         published_statement.expected_digest(),
-        "published accumulator statement digest must bind the carried final accumulator"
+        "published accumulator statement digest must bind the authoritative carried final accumulator projection"
     );
 }
 

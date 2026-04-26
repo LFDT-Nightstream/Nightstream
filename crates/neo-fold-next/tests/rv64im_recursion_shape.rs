@@ -1,6 +1,7 @@
 use neo_fold_next::rv64im::main_recursion::{
     build_rv64im_main_recursion_verifier_key_fs, build_rv64im_main_recursion_verifier_key_fs_for_step_cap,
 };
+use neo_fold_next::rv64im::recursion_shape::RV64IM_RECURSION_SOUNDNESS_T;
 use neo_fold_next::rv64im::{
     build_rv64im_recursion_shape, build_rv64im_recursion_shape_for_step_cap, FamilyEvalSchemaId, ProtocolVersion,
     ShapeError,
@@ -85,7 +86,14 @@ fn rv64im_recursion_shape_rejects_invalid_versions_and_soundness_violations() {
     ));
 
     let mut invalid_soundness = build_rv64im_recursion_shape().expect("build recursion shape");
-    invalid_soundness.soundness_big_k = 62;
+    let big_b = (invalid_soundness.b as u64).pow(invalid_soundness.decomposition_k as u32);
+    let per_claim_expansion = (RV64IM_RECURSION_SOUNDNESS_T as u64) * ((invalid_soundness.b as u64) - 1);
+    let max_valid_k_plus_big_k = (big_b - 1) / per_claim_expansion;
+    invalid_soundness.soundness_big_k = (max_valid_k_plus_big_k + 1)
+        .saturating_sub(invalid_soundness.soundness_k as u64)
+        .try_into()
+        .expect("soundness_big_k fits in u32");
+
     assert!(matches!(
         invalid_soundness.validate_soundness(),
         Err(ShapeError::SoundnessViolation { .. })

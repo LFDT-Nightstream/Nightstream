@@ -12,13 +12,14 @@ use neo_fold_next::nightstream::{
 };
 use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv64im::audit::{
-    build_rv64im_terminal_decider_setup_shape_from_components, prove_rv64im_public_proof_and_published_seam_with_perf,
+    build_rv64im_ivc_recursion_snark_setup_shape_from_components,
+    prove_rv64im_public_proof_and_published_seam_with_perf,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
-use neo_fold_next::rv64im::ivc_snark::{setup_rv64im_ivc_snark_from_final_cached, Rv64imIvcSnarkKeyPair};
 use neo_fold_next::rv64im::{
     build_rv64im_accepted_proof_artifact, parity_source_cases, prove_rv64im_public_proof_with_options,
-    Rv64imProofInput, Rv64imProofStatement, Rv64imPublicProofOptions, SimpleKernelError,
+    setup_rv64im_ivc_snark_from_final_cached, Rv64imIvcSnarkKeyPair, Rv64imProofInput, Rv64imProofStatement,
+    Rv64imPublicProofOptions, SimpleKernelError,
 };
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -48,7 +49,7 @@ fn proof_input(name: &str) -> Rv64imProofInput {
 struct ExternalNightstreamFixture {
     trusted_root_params_id: [u8; 32],
     public_statement: Rv64imProofStatement,
-    terminal_decider_keys: Rv64imIvcSnarkKeyPair,
+    ivc_recursion_snark_keys: Rv64imIvcSnarkKeyPair,
     side_opening_vk: Rv64imSideOpeningSpartanVerifierKey,
     side_binding_vk: Rv64imSideBindingVerifierKey,
     statement: NightstreamStatement,
@@ -70,16 +71,16 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
         prove_rv64im_final_statement_from_accepted(&accepted_artifact).expect("prove rv64im final statement");
     let (statement, nightstream_proof) =
         build_rv64im_nightstream_from_public_proof(&public_proof).expect("build nightstream proof");
-    let _terminal_decider_shape = build_rv64im_terminal_decider_setup_shape_from_components(
+    let _ivc_recursion_snark_shape = build_rv64im_ivc_recursion_snark_setup_shape_from_components(
         &final_statement,
         final_proof.proof_digest,
         &final_proof.kernel_export,
         &final_proof.chunk_summaries,
         &final_proof.steps,
     )
-    .expect("build rv64im terminal decider setup shape");
-    let terminal_decider_keys = setup_rv64im_ivc_snark_from_final_cached(&final_statement, &final_proof)
-        .expect("setup rv64im terminal decider");
+    .expect("build rv64im IVC recursion SNARK setup shape");
+    let ivc_recursion_snark_keys = setup_rv64im_ivc_snark_from_final_cached(&final_statement, &final_proof)
+        .expect("setup rv64im IVC recursion SNARK");
     let (opening_statement, opening_witness) =
         neo_fold_next::nightstream::rv64im::audit::build_rv64im_side_opening_relation_from_accepted_artifact(
             &accepted_artifact,
@@ -102,7 +103,7 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
     ExternalNightstreamFixture {
         trusted_root_params_id,
         public_statement,
-        terminal_decider_keys,
+        ivc_recursion_snark_keys,
         side_opening_vk,
         side_binding_vk,
         statement,
@@ -115,7 +116,7 @@ fn verify_fixture(fixture: &ExternalNightstreamFixture) -> Result<(), SimpleKern
         &fixture.statement,
         &fixture.nightstream_proof,
         fixture.trusted_root_params_id,
-        &fixture.terminal_decider_keys.1,
+        &fixture.ivc_recursion_snark_keys.1,
         &fixture.side_opening_vk,
         &fixture.side_binding_vk,
         &fixture.public_statement,
@@ -195,7 +196,14 @@ fn rv64im_nightstream_statement_and_main_proof_follow_verified_final_seam() {
     assert_eq!(final_proof.chunk_summaries.len(), final_proof.steps.len());
     assert_eq!(compressed_main_proof, *nightstream_proof.main_proof());
 
-    let verifier_context = rv64im_verifier_context_digest(proof.statement.root_params_id);
+    let ivc_recursion_snark_keys =
+        setup_rv64im_ivc_snark_from_final_cached(&statement, &final_proof).expect("setup IVC recursion SNARK");
+    let verifier_context = rv64im_verifier_context_digest(
+        proof.statement.root_params_id,
+        compressed_main_proof.published_statement(),
+        &ivc_recursion_snark_keys.as_ref().1,
+    )
+    .expect("digest verifier context");
     let proof_binding_inputs = NightstreamProofBindingInputs {
         main_proof_digest: rv64im_main_nightstream_proof_digest(&compressed_main_proof),
         side_proof_digest: [9; 32],
@@ -207,11 +215,13 @@ fn rv64im_nightstream_statement_and_main_proof_follow_verified_final_seam() {
         [0; 32],
     )
     .expect("build nightstream statement");
-    let terminal_decider_keys =
-        setup_rv64im_ivc_snark_from_final_cached(&statement, &final_proof).expect("setup terminal decider");
+    let expected_public_image = compressed_main_proof
+        .expected_ivc_public_image()
+        .expect("derive compact main proof public image");
     compressed_main_proof
-        .verify(&terminal_decider_keys.1)
-        .expect("verify compact main proof");
+        .ivc_snark()
+        .verify(&ivc_recursion_snark_keys.1, &expected_public_image)
+        .expect("verify compact main proof IVC SNARK");
     nightstream.proof_binding_root = nightstream_proof_binding_root(nightstream.core_digest(), &proof_binding_inputs);
     assert_eq!(nightstream.fold_schedule, statement.folded.fold_schedule);
 }
@@ -238,7 +248,7 @@ fn rv64im_side_proof_digest_tracks_opening_statement_digest_bytes() {
 #[ignore = "expensive: Nightstream end-to-end proof path exceeds developer-memory budget"]
 fn rv64im_nightstream_round_trips_against_current_public_proof_seam() {
     let fixture = external_fixture("control_flow_jal_skip_ecall");
-    verify_fixture(&fixture).expect("verify nightstream proof");
+    verify_fixture(&fixture).expect("verify Nightstream proof fixture");
 }
 
 #[test]
@@ -252,17 +262,18 @@ fn rv64im_nightstream_rejects_tampered_statement_binding_root() {
 
 #[test]
 #[ignore = "expensive: Nightstream end-to-end proof path exceeds developer-memory budget"]
-fn rv64im_nightstream_rejects_tampered_terminal_decider_proof() {
+fn rv64im_nightstream_rejects_tampered_ivc_recursion_snark_proof() {
     let mut fixture = external_fixture("control_flow_jal_skip_ecall");
     tamper_snark_bytes(
         &mut fixture
             .nightstream_proof
             .main_proof_mut()
-            .terminal_decider_proof_mut()
+            .ivc_recursion_snark_proof_mut()
+            .terminal_f_prime_committed_step_proof
             .snark_data,
     );
-    let err = verify_fixture(&fixture).expect_err("tampered terminal decider proof must fail");
-    assert!(format!("{err}").contains("main relation") || format!("{err}").contains("decider"));
+    let err = verify_fixture(&fixture).expect_err("tampered IVC recursion SNARK proof must fail");
+    assert!(format!("{err}").contains("main relation") || format!("{err}").contains("recursion"));
 }
 
 #[test]
@@ -284,14 +295,14 @@ fn rv64im_nightstream_rejects_tampered_side_proof_bytes() {
 #[ignore = "expensive: Nightstream end-to-end proof path exceeds developer-memory budget"]
 fn rv64im_nightstream_carried_boundary_rejects_each_tampered_proof_binding_input() {
     let fixture = external_fixture("control_flow_jal_skip_ecall");
-    verify_fixture(&fixture).expect("baseline fixture must verify");
+    verify_fixture(&fixture).expect("verify baseline Nightstream proof fixture");
 
     let verify_mutated = |proof: Rv64imNightstreamProof, label: &str| {
         verify_rv64im_nightstream(
             &fixture.statement,
             &proof,
             fixture.trusted_root_params_id,
-            &fixture.terminal_decider_keys.1,
+            &fixture.ivc_recursion_snark_keys.1,
             &fixture.side_opening_vk,
             &fixture.side_binding_vk,
             &fixture.public_statement,
@@ -305,10 +316,11 @@ fn rv64im_nightstream_carried_boundary_rejects_each_tampered_proof_binding_input
         tamper_snark_bytes(
             &mut proof
                 .main_proof_mut()
-                .terminal_decider_proof_mut()
+                .ivc_recursion_snark_proof_mut()
+                .terminal_f_prime_committed_step_proof
                 .snark_data,
         );
-        verify_mutated(proof, "main_terminal_decider_proof");
+        verify_mutated(proof, "main_ivc_recursion_snark_proof");
     }
     {
         let mut proof = fixture.nightstream_proof.clone();
@@ -330,7 +342,7 @@ fn rv64im_nightstream_rejects_wrong_side_binding_verifier_key_shape() {
         &fixture.statement,
         &fixture.nightstream_proof,
         fixture.trusted_root_params_id,
-        &fixture.terminal_decider_keys.1,
+        &fixture.ivc_recursion_snark_keys.1,
         &fixture.side_opening_vk,
         &alternate.side_binding_vk,
         &fixture.public_statement,
@@ -370,7 +382,7 @@ fn rv64im_nightstream_serde_roundtrips_statement_proof_and_spartan_proofs() {
         fixture
             .nightstream_proof
             .main_proof()
-            .terminal_decider_proof(),
+            .ivc_recursion_snark_proof(),
     );
     assert_bincode_roundtrip(fixture.nightstream_proof.side_proof().binding());
 }

@@ -6,7 +6,7 @@ use neo_reductions::error::PiCcsError;
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
-fn decode_witness_z_accepts_neo_digit_layout_compat_mode() {
+fn decode_witness_z_rejects_neo_digit_layout_compat_mode() {
     let params = NeoParams::goldilocks_127();
     let m = 6usize;
     let mut z_mat = Mat::zero(D, m, F::ZERO);
@@ -23,8 +23,9 @@ fn decode_witness_z_accepts_neo_digit_layout_compat_mode() {
         z_mat[(2, c)] = d2[c];
     }
 
-    let got = decode_z_from_witness_mat(&params, &z_mat, m).expect("Neo layout must decode in compat mode");
-    assert_eq!(got.len(), m, "decoded witness length mismatch");
+    let err = decode_z_from_witness_mat(&params, &z_mat, m)
+        .expect_err("Neo digit layout must not decode after SuperNeo-only cleanup");
+    assert!(matches!(err, PiCcsError::InvalidInput(_)));
 }
 
 #[test]

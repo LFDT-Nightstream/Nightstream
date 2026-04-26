@@ -1,5 +1,5 @@
 use crate::common::proof_cases::{
-    accepted_branch, accepted_test_guard, expect_accepted_verify_failure, refresh_step_composition_surface_digest,
+    accepted_branch, accepted_test_guard, expect_accepted_audit_failure, refresh_step_composition_surface_digest,
 };
 use neo_fold_next::rv64im::Rv64imAcceptedProofArtifact;
 use neo_math::F;
@@ -47,7 +47,7 @@ fn accepted_root_execution_rejects_tampered_semantic_row_values() {
     let (mut artifact, _) = accepted_branch();
     artifact.root_execution.semantic_rows[0].values[0] += F::ONE;
 
-    expect_accepted_verify_failure(&artifact, "root execution semantic-row digest mismatch");
+    expect_accepted_audit_failure(&artifact, "root execution semantic-row digest mismatch");
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn accepted_root_execution_rejects_tampered_binding_row_opening_digest() {
     let (mut artifact, _) = accepted_branch();
     artifact.root_execution.prepared_step_bindings.bindings[0].row_opening_digest[0] ^= 1;
 
-    expect_accepted_verify_failure(&artifact, "root execution prepared-step bindings mismatch");
+    expect_accepted_audit_failure(&artifact, "root execution prepared-step bindings mismatch");
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn accepted_root_execution_rejects_tampered_acceptance_public_step_digest_after_
     acceptance.digest = acceptance.expected_digest();
     refresh_row_local_ccs_acceptance_summary(&mut artifact);
 
-    expect_accepted_verify_failure(&artifact, "root execution row-local CCS acceptance mismatch");
+    expect_accepted_audit_failure(&artifact, "root execution row-local CCS acceptance mismatch");
 }
 
 #[test]
@@ -83,5 +83,5 @@ fn accepted_root_execution_rejects_tampered_refinement_semantic_row_digest_after
     refinement.digest = refinement.expected_digest();
     refresh_execution_semantics_refinement_summary(&mut artifact);
 
-    expect_accepted_verify_failure(&artifact, "root execution semantics refinement mismatch");
+    expect_accepted_audit_failure(&artifact, "root execution semantics refinement mismatch");
 }

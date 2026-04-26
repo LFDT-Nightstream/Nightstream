@@ -1,8 +1,3 @@
-#[path = "support/chip8.rs"]
-mod chip8_support;
-
-use neo_fold_next::chip8::decider::build_chip8_spartan2_decider_target;
-use neo_fold_next::chip8::proof::prove_recursive;
 use neo_fold_next::decider::spartan2::{
     prove_spartan2_public_target_shell, setup_spartan2_public_target_shell, verify_spartan2_public_target_shell,
     Spartan2ChunkTransitionBinding, Spartan2DeciderStatement, Spartan2DeciderTarget, Spartan2DeciderWitness,
@@ -22,7 +17,6 @@ fn synthetic_target() -> Spartan2DeciderTarget {
             initial_handle_digest: [F::from_u64(8); 4],
             terminal_handle_digest: [F::ZERO; 4],
             fold_schedule: FoldSchedule::RowsPerChunk(1),
-            chunk_count: 1,
             semantic_step_count: 1,
             chunk_summaries: vec![FixedShapeChunkSummary {
                 start_index: 0,
@@ -70,27 +64,12 @@ fn spartan2_public_target_shell_rejects_tampered_target() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn chip8_spartan2_public_target_shell_round_trip() {
-    let input = chip8_support::build_jump_kernel_input(4);
-    let (statement, proof) = prove_recursive(&input).expect("prove recursive");
-    let target = build_chip8_spartan2_decider_target(&statement, &proof).expect("build chip8 decider target");
-
-    let (pk, vk) = setup_spartan2_public_target_shell(&target.shape()).expect("setup public-target shell");
-    let shell = prove_spartan2_public_target_shell(&pk, &target).expect("prove public-target shell");
-
-    verify_spartan2_public_target_shell(&vk, &target, &shell).expect("verify public-target shell");
-    assert!(shell.snark_bytes_len() > 0);
-}
-
-#[test]
-#[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn spartan2_public_target_shell_setup_reuses_same_shape() {
     let target = synthetic_target();
     let mut other = target.clone();
     other.statement.public_statement_digest[0] ^= 1;
     other.statement.relation_digest[0] ^= 1;
     other.statement.final_proof_digest[0] ^= 1;
-    other.statement.chunk_count += 7;
     other.witness.base_component_digests[0][0] ^= 1;
     other.witness.chunk_transition_bindings[0].transition_witness_digest[0] ^= 1;
 

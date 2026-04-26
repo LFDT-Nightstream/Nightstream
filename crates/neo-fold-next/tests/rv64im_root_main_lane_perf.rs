@@ -1,8 +1,10 @@
 use std::env;
 
+use neo_fold_next::rv64im::audit::{
+    audit_rv64im_public_proof_against_input_with_perf, audit_rv64im_public_proof_with_perf,
+};
 use neo_fold_next::rv64im::{
-    build_mixed_opcode_perf_source_case, prove_rv64im_public_proof_with_perf,
-    validate_rv64im_public_proof_against_input_with_perf, verify_rv64im_public_proof_with_perf, Rv64imProofInput,
+    build_mixed_opcode_perf_source_case, prove_rv64im_public_proof_with_perf, Rv64imProofInput,
     Rv64imPublicProofVerifyPerf, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
 
@@ -21,7 +23,7 @@ fn per_unit(ms: f64, units: usize) -> f64 {
     }
 }
 
-fn print_root_main_lane_verify_breakdown(label: &str, perf: &Rv64imPublicProofVerifyPerf, opcode_count: usize) {
+fn print_root_main_lane_audit_breakdown(label: &str, perf: &Rv64imPublicProofVerifyPerf, opcode_count: usize) {
     let root_main_lane = &perf.root_main_lane;
     let session = &root_main_lane.session;
     println!();
@@ -123,17 +125,17 @@ fn rv64im_root_main_lane_verify_perf_snapshot() {
         max_steps: total_opcodes,
     };
     let (proof, _) = prove_rv64im_public_proof_with_perf(&input).expect("prove rv64im public proof");
-    let accepted_perf = verify_rv64im_public_proof_with_perf(&proof).expect("verify rv64im public proof");
-    let replay_perf = validate_rv64im_public_proof_against_input_with_perf(&input, &proof)
-        .expect("validate rv64im public proof against input");
+    let accepted_perf = audit_rv64im_public_proof_with_perf(&proof).expect("audit rv64im public proof");
+    let replay_perf = audit_rv64im_public_proof_against_input_with_perf(&input, &proof)
+        .expect("audit rv64im public proof against input");
 
-    print_root_main_lane_verify_breakdown("Accepted Root Main Lane Verify", &accepted_perf, opcode_count);
-    print_root_main_lane_verify_breakdown("Replay Root Main Lane Verify", &replay_perf, opcode_count);
+    print_root_main_lane_audit_breakdown("Accepted Root Main Lane Audit", &accepted_perf, opcode_count);
+    print_root_main_lane_audit_breakdown("Input-Consistency Root Main Lane Audit", &replay_perf, opcode_count);
 
     assert_eq!(
         accepted_perf.root_main_lane.session.chunk_count(),
         replay_perf.root_main_lane.session.chunk_count(),
-        "accepted and replay root-main-lane paths must verify the same chunk count",
+        "accepted and input-consistency root-main-lane audits must cover the same chunk count",
     );
     assert!(
         accepted_perf.root_main_lane.session.chunk_count() > 0,

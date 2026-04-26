@@ -91,6 +91,10 @@ pub fn two_step_spartan_shape() -> &'static Rv64imMainRecursionStepSpartanShape 
     &TWO_STEP_BACKEND_BUNDLE.0
 }
 
+pub fn two_step_relations() -> &'static [Rv64imChunkStepIvcRelation] {
+    &TWO_STEP_RELATIONS
+}
+
 static FIVE_STEP_CAP_RELATIONS: LazyLock<Vec<Rv64imChunkStepIvcRelation>> =
     LazyLock::new(|| build_rows_per_chunk_fixture_with_short_terminal(5, "five-step-cap"));
 
@@ -113,32 +117,4 @@ pub fn five_step_cap_backend_relations() -> &'static [Rv64imMainRecursionFPrimeB
 
 pub fn five_step_cap_spartan_shape() -> &'static Rv64imMainRecursionStepSpartanShape {
     &FIVE_STEP_CAP_BACKEND_BUNDLE.0
-}
-
-static FAST_STRUCTURAL_RELATIONS: LazyLock<Vec<Rv64imChunkStepIvcRelation>> =
-    LazyLock::new(|| build_relations(0, FoldSchedule::RowsPerChunk(1), "fast-structural"));
-
-static FAST_STRUCTURAL_BACKEND_BUNDLE: LazyLock<(
-    Rv64imMainRecursionStepSpartanShape,
-    Vec<Rv64imMainRecursionFPrimeBackendRelation>,
-)> = LazyLock::new(|| {
-    let advices = build_rv64im_main_recursion_f_prime_advices_single_step(&FAST_STRUCTURAL_RELATIONS)
-        .expect("build fast structural recursive-step advices");
-    build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices(
-        &FAST_STRUCTURAL_RELATIONS,
-        &advices,
-    )
-    .expect("build fast structural recursive-step backend relations")
-});
-
-pub fn fast_structural_relations() -> &'static [Rv64imChunkStepIvcRelation] {
-    &FAST_STRUCTURAL_RELATIONS
-}
-
-pub fn fast_structural_backend_relations() -> &'static [Rv64imMainRecursionFPrimeBackendRelation] {
-    &FAST_STRUCTURAL_BACKEND_BUNDLE.1
-}
-
-pub fn fast_structural_spartan_shape() -> &'static Rv64imMainRecursionStepSpartanShape {
-    &FAST_STRUCTURAL_BACKEND_BUNDLE.0
 }

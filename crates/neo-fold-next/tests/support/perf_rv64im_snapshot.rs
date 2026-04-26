@@ -47,7 +47,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     let prove_ms = prove_perf.total_ms;
 
     let verify_started = Instant::now();
-    let verify_perf = verify_rv64im_public_proof_with_perf(&proof).expect("verify rv64im public proof");
+    let verify_perf = audit_rv64im_public_proof_with_perf(&proof).expect("audit rv64im public proof");
     let verify_ms = millis_since(verify_started);
 
     let accepted_artifact = build_rv64im_accepted_proof_artifact(&proof).expect("build accepted artifact");
@@ -63,20 +63,16 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     }
     let native_append_ms = millis_since(native_append_started);
 
-    let native_verify_started = Instant::now();
-    ivc_state.verify().expect("verify native rv64im ivc state");
-    let native_verify_ms = millis_since(native_verify_started);
-
     let compress_started = Instant::now();
     let ivc_snark = ivc_state.compress().expect("compress rv64im ivc state");
     let compress_ms = millis_since(compress_started);
-    let ivc_public_image = ivc_state.public_image();
+    let ivc_public_image = ivc_snark.public_image().clone();
     let ivc_snark_keys = setup_rv64im_ivc_snark_cached(&ivc_state).expect("setup rv64im ivc snark verifier key");
 
     let compressed_verify_started = Instant::now();
     ivc_snark
         .verify(&ivc_snark_keys.as_ref().1, &ivc_public_image)
-        .expect("verify rv64im ivc snark");
+        .expect("verify compressed rv64im ivc snark");
     let compressed_verify_ms = millis_since(compressed_verify_started);
 
     let (published_seam, published_seam_perf) =
@@ -95,13 +91,13 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         "published compact main proof must carry the same native IVC public image as direct compression"
     );
 
-    let decider_setup_started = Instant::now();
-    let decider_keys = setup_rv64im_ivc_snark_from_final_cached(&final_statement, &final_proof)
-        .expect("setup rv64im spartan2 decider");
-    let decider_setup_ms = millis_since(decider_setup_started);
-    let decider_shape_sizes = decider_keys.as_ref().0.sizes();
-    let decider_shape_debug_stats = decider_keys.as_ref().0.shape_debug_stats();
-    let decider_proof_bytes = serialized_size_bytes(compressed_main_proof.terminal_decider_proof());
+    let ivc_recursion_snark_setup_started = Instant::now();
+    let ivc_recursion_snark_keys = setup_rv64im_ivc_snark_from_final_cached(&final_statement, &final_proof)
+        .expect("setup rv64im IVC recursion SNARK");
+    let ivc_recursion_snark_setup_ms = millis_since(ivc_recursion_snark_setup_started);
+    let ivc_recursion_snark_shape_sizes = ivc_recursion_snark_keys.as_ref().0.sizes();
+    let ivc_recursion_snark_shape_debug_stats = ivc_recursion_snark_keys.as_ref().0.shape_debug_stats();
+    let ivc_recursion_snark_proof_bytes = serialized_size_bytes(compressed_main_proof.ivc_recursion_snark_proof());
 
     let ((nightstream_statement, nightstream_proof), nightstream_build_perf) =
         build_rv64im_nightstream_from_published_proof_seam_with_perf(&published_seam, &published_seam_perf)
@@ -128,6 +124,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     )
     .expect("setup rv64im side opening");
 
+    let nightstream_verify_started = Instant::now();
     let nightstream_verify_perf = verify_rv64im_nightstream_with_perf(
         &nightstream_statement,
         &nightstream_proof,
@@ -137,8 +134,8 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         &side_keys.as_ref().1,
         &public_statement,
     )
-    .expect("verify rv64im nightstream proof");
-    let nightstream_verify_ms = nightstream_verify_perf.total_ms;
+    .expect("verify Nightstream RV64IM proof");
+    let nightstream_verify_ms = millis_since(nightstream_verify_started);
 
     let execution_row_count = output.trace.execution_rows.len();
     let real_row_count = output
@@ -410,8 +407,8 @@ fn rv64im_mixed_opcode_perf_snapshot() {
             bytes: serialized_size_bytes(nightstream_proof.main_proof().ivc_snark()),
         },
         SerializedSizeRow {
-            label: "nightstream.main_proof.terminal_decider_proof",
-            bytes: serialized_size_bytes(nightstream_proof.main_proof().terminal_decider_proof()),
+            label: "nightstream.main_proof.ivc_recursion_snark_proof",
+            bytes: serialized_size_bytes(nightstream_proof.main_proof().ivc_recursion_snark_proof()),
         },
         SerializedSizeRow {
             label: "nightstream.side_proof",
@@ -506,7 +503,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     let total_executed_opcodes = build.executed_steps.len();
     let unique_opcode_labels = collect_unique_opcode_labels(&build);
     let published_prove_before_spartan_ms = prove_ms + published_seam_perf.total_ms + nightstream_build_ms;
-    let spartan_setup_ms = decider_setup_ms;
+    let spartan_setup_ms = ivc_recursion_snark_setup_ms;
     let published_verify_before_main_proof_ms = nightstream_verify_perf.before_main_proof_ms();
     let main_proof_verify_ms = nightstream_verify_perf.main_proof_ms;
     let published_pipeline_total_ms = spartan_setup_ms
@@ -586,7 +583,10 @@ fn rv64im_mixed_opcode_perf_snapshot() {
                 "build_rv64im_published_seam.main_proof",
                 published_seam_perf.main_proof_ms,
             ),
-            ("setup_rv64im_ivc_snark_from_final.direct", decider_setup_ms),
+            (
+                "setup_rv64im_ivc_recursion_snark_from_final",
+                ivc_recursion_snark_setup_ms,
+            ),
             ("build_rv64im_nightstream", nightstream_build_ms),
         ],
         opcode_count,
@@ -596,7 +596,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     print_timing_table(
         "Raw Verify Timing",
         &[
-            ("verify_rv64im_public_proof", verify_ms),
+            ("audit_rv64im_public_proof", verify_ms),
             ("verify_rv64im_nightstream", nightstream_verify_ms),
         ],
         opcode_count,
@@ -619,7 +619,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
 
     let prove_total_ms = published_prove_before_spartan_ms + spartan_setup_ms;
     let amortized_prove_ms =
-        prove_total_ms - spartan_setup_ms - nightstream_build_perf.verified_seams.side_binding_setup_ms;
+        prove_total_ms - spartan_setup_ms - nightstream_build_perf.seam_build.side_binding_setup_ms;
 
     print_section("Nightstream Opening Diagnostics");
     println!("  total: {:.3} ms", nightstream_build_perf.total_ms);
@@ -629,7 +629,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     println!();
     println!("  phase0 opening (nested accumulators — do not sum as flat partition):");
     {
-        let vs = &nightstream_build_perf.verified_seams;
+        let vs = &nightstream_build_perf.seam_build;
         println!(
             "    {:28} {:>9.3}  {:28} {:>9.3}",
             "claim_witnesses",
@@ -674,7 +674,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     println!();
     println!("  opening convergence:");
     {
-        let vs = &nightstream_build_perf.verified_seams;
+        let vs = &nightstream_build_perf.seam_build;
         println!(
             "    {:18} {:>7.3}  {:18} {:>7.3}  {:18} {:>7.3}",
             "phase1",
@@ -708,14 +708,13 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         );
     }
     println!();
-    println!("  verified seams (other components):");
+    println!("  published seam build (other components):");
     {
-        let vs = &nightstream_build_perf.verified_seams;
+        let vs = &nightstream_build_perf.seam_build;
         println!(
             "    {:24} {:>9.3}  {:24} {:>9.3}",
-            "final_surface_guard", vs.final_surface_guard_ms, "decider_relation", vs.decider_relation_ms
+            "final_surface_guard", vs.final_surface_guard_ms, "main_proof", vs.main_proof_ms
         );
-        println!("    {:24} {:>9.3}", "main_proof", vs.main_proof_ms);
         println!(
             "    {:24} {:>9.3}  {:24} {:>9.3}",
             "statement", vs.statement_ms, "bind_side_core", vs.bind_side_statement_core_ms
@@ -776,30 +775,34 @@ fn rv64im_mixed_opcode_perf_snapshot() {
     print_kv("transcript_events", output.stages.transcript.events.len());
     print_root_main_lane_family(&output, &proof);
 
-    print_section("Spartan Decider Shape");
-    print_kv("num_cons_unpadded", decider_shape_sizes[0]);
-    print_kv("num_shared_unpadded", decider_shape_sizes[1]);
-    print_kv("num_precommitted_unpadded", decider_shape_sizes[2]);
-    print_kv("num_rest_unpadded", decider_shape_sizes[3]);
-    print_kv("num_cons_padded", decider_shape_sizes[4]);
-    print_kv("num_shared_padded", decider_shape_sizes[5]);
-    print_kv("num_precommitted_padded", decider_shape_sizes[6]);
-    print_kv("num_rest_padded", decider_shape_sizes[7]);
-    print_kv("num_public", decider_shape_sizes[8]);
-    print_kv("num_challenges", decider_shape_sizes[9]);
-    print_kv("a_nnz", decider_shape_debug_stats.a_nnz);
-    print_kv("b_nnz", decider_shape_debug_stats.b_nnz);
-    print_kv("c_nnz", decider_shape_debug_stats.c_nnz);
-    print_kv("abc_total_nnz", decider_shape_debug_stats.total_nnz);
-    print_kv("a_max_row_nnz", decider_shape_debug_stats.max_row_nnz_a);
-    print_kv("b_max_row_nnz", decider_shape_debug_stats.max_row_nnz_b);
-    print_kv("c_max_row_nnz", decider_shape_debug_stats.max_row_nnz_c);
-    print_kv("abc_max_row_nnz", decider_shape_debug_stats.max_row_nnz_total);
+    print_section("IVC Recursion SNARK Shape");
+    print_kv("num_cons_unpadded", ivc_recursion_snark_shape_sizes[0]);
+    print_kv("num_shared_unpadded", ivc_recursion_snark_shape_sizes[1]);
+    print_kv("num_precommitted_unpadded", ivc_recursion_snark_shape_sizes[2]);
+    print_kv("num_rest_unpadded", ivc_recursion_snark_shape_sizes[3]);
+    print_kv("num_cons_padded", ivc_recursion_snark_shape_sizes[4]);
+    print_kv("num_shared_padded", ivc_recursion_snark_shape_sizes[5]);
+    print_kv("num_precommitted_padded", ivc_recursion_snark_shape_sizes[6]);
+    print_kv("num_rest_padded", ivc_recursion_snark_shape_sizes[7]);
+    print_kv("num_public", ivc_recursion_snark_shape_sizes[8]);
+    print_kv("num_challenges", ivc_recursion_snark_shape_sizes[9]);
+    print_kv("a_nnz", ivc_recursion_snark_shape_debug_stats.a_nnz);
+    print_kv("b_nnz", ivc_recursion_snark_shape_debug_stats.b_nnz);
+    print_kv("c_nnz", ivc_recursion_snark_shape_debug_stats.c_nnz);
+    print_kv("abc_total_nnz", ivc_recursion_snark_shape_debug_stats.total_nnz);
+    print_kv("a_max_row_nnz", ivc_recursion_snark_shape_debug_stats.max_row_nnz_a);
+    print_kv("b_max_row_nnz", ivc_recursion_snark_shape_debug_stats.max_row_nnz_b);
+    print_kv("c_max_row_nnz", ivc_recursion_snark_shape_debug_stats.max_row_nnz_c);
+    print_kv(
+        "abc_max_row_nnz",
+        ivc_recursion_snark_shape_debug_stats.max_row_nnz_total,
+    );
     print_kv(
         "abc_avg_row_nnz",
         format!(
             "{:.2}",
-            decider_shape_debug_stats.total_nnz as f64 / decider_shape_sizes[4].max(1) as f64
+            ivc_recursion_snark_shape_debug_stats.total_nnz as f64
+                / ivc_recursion_snark_shape_sizes[4].max(1) as f64
         ),
     );
 
@@ -859,10 +862,10 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         ),
     );
     print_kv(
-        "spartan_decider_proof_size",
+        "ivc_recursion_snark_proof_size",
         format!(
-            "{decider_proof_bytes} bytes ({:.3} KiB)",
-            bytes_to_kib(decider_proof_bytes)
+            "{ivc_recursion_snark_proof_bytes} bytes ({:.3} KiB)",
+            bytes_to_kib(ivc_recursion_snark_proof_bytes)
         ),
     );
     print_kv(
@@ -923,7 +926,7 @@ fn rv64im_mixed_opcode_perf_snapshot() {
             ),
             (
                 "nightstream.side_proof",
-                nightstream_build_perf.verified_seams.side_binding_ms,
+                nightstream_build_perf.seam_build.side_binding_ms,
             ),
             ("public.kernel_projection", prove_perf.simple_kernel.total_ms),
         ],
@@ -1103,8 +1106,8 @@ fn rv64im_mixed_opcode_perf_snapshot() {
             true,
         );
 
-        let vs = &nightstream_build_perf.verified_seams;
-        tree_row("│  ├─ ", "verified_seams", vs.total_ms, max_bar, total, false);
+        let vs = &nightstream_build_perf.seam_build;
+        tree_row("│  ├─ ", "seam_build", vs.total_ms, max_bar, total, false);
         tree_row_annotated("│  │  ├─ ", "side_binding *", vs.side_binding_ms, "★ biggest item");
         tree_row_annotated("│  │  │  ├─ ", "setup", vs.side_binding_setup_ms, "← amortizable");
         tree_row("│  │  │  ├─ ", "prove", vs.side_binding_prove_ms, max_bar, total, false);
@@ -1173,12 +1176,6 @@ fn rv64im_mixed_opcode_perf_snapshot() {
         "native append",
         native_append_ms,
         per_unit(native_append_ms, total_executed_opcodes)
-    );
-    println!(
-        "║  {:36} {:>8.1} ms  {:>6.2} ms/op             ║",
-        "native verify",
-        native_verify_ms,
-        per_unit(native_verify_ms, total_executed_opcodes)
     );
     println!(
         "║  {:36} {:>8.1} ms  {:>6.2} ms/op             ║",

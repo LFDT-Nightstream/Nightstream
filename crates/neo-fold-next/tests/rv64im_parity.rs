@@ -226,15 +226,15 @@ fn parity_cases_reach_expected_halted_states() {
                         && row.rd >= INLINE_SCRATCH_REGISTER_BASE
                 }));
                 assert_eq!(derived.kernel.final_pc, 16);
-                assert_eq!(derived.kernel.final_registers[1], u64::MAX - 1);
-                assert_eq!(derived.kernel.final_registers[2], u64::MAX - 2);
-                assert_eq!(derived.kernel.final_registers[3], u64::MAX - 1);
-                assert_eq!(derived.kernel.final_registers[4], 3);
-                assert_eq!(derived.kernel.final_registers[5], u64::MAX - 1);
-                assert_eq!(derived.kernel.final_registers[6], 3);
-                assert_eq!(derived.kernel.final_registers[7], 0);
-                assert_eq!(derived.kernel.final_registers[8], 2);
-                assert_eq!(derived.kernel.final_registers[9], u64::MAX);
+                assert_eq!(derived.kernel.final_registers[1], 1 << 40);
+                assert_eq!(derived.kernel.final_registers[2], 1 << 35);
+                assert_eq!(derived.kernel.final_registers[3], 1 << 41);
+                assert_eq!(derived.kernel.final_registers[4], 1 << 34);
+                assert_eq!(derived.kernel.final_registers[5], 1 << 42);
+                assert_eq!(derived.kernel.final_registers[6], 1 << 33);
+                assert_eq!(derived.kernel.final_registers[7], 2048);
+                assert_eq!(derived.kernel.final_registers[8], 2048);
+                assert_eq!(derived.kernel.final_registers[9], 2048);
                 assert!(derived.kernel.final_memory.is_empty());
             }
             "unsigned_divrem_chain_ecall" => {

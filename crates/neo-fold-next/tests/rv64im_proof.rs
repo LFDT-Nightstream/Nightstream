@@ -3,13 +3,16 @@
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::rv64im::audit::{
+    audit_rv64im_public_proof, audit_rv64im_public_proof_against_input,
+    audit_rv64im_public_proof_with_witness as audit_rv64im_proof,
+};
 use neo_fold_next::rv64im::{
     build_main_lane_surface, build_rv64im_accepted_proof_artifact,
     build_rv64im_kernel_export_source_from_accepted_artifact, parity_source_cases,
     prove_rv64im_audit_proof as prove_rv64im_proof, prove_rv64im_public_proof, prove_rv64im_public_proof_with_options,
-    validate_rv64im_public_proof_against_input, verify_rv64im_audit_proof as verify_rv64im_proof,
-    verify_rv64im_kernel_export_source, verify_rv64im_public_proof, Rv64imProof, Rv64imProofInput,
-    Rv64imProofWitnessBundle, Rv64imPublicProofOptions,
+    verify_rv64im_kernel_export_source, Rv64imProof, Rv64imProofInput, Rv64imProofWitnessBundle,
+    Rv64imPublicProofOptions,
 };
 use neo_fold_next::rv64im::{
     Rv64imKernelClaimProofBundle, Rv64imKernelProofBundle, Rv64imStageClaimDigestBundle, Rv64imStageClaimProofBundle,
@@ -183,8 +186,8 @@ fn kernel_proof_bundle_digest(bundle: &Rv64imKernelProofBundle) -> [u8; 32] {
 fn rv64im_proof_roundtrip_matches_kernel_export() {
     let _serial = proof_test_guard();
     let (witness, proof) = CONTROL_FLOW_AUDIT_PROOF.clone();
-    let verified = verify_rv64im_proof(&proof).expect("verify rv64im proof");
-    validate_rv64im_public_proof_against_input(&proof_input("control_flow_jal_skip_ecall"), &proof)
+    let verified = audit_rv64im_proof(&proof).expect("audit rv64im proof");
+    audit_rv64im_public_proof_against_input(&proof_input("control_flow_jal_skip_ecall"), &proof)
         .expect("proof matches public input");
 
     assert_ne!(proof.claim.digest, [0; 32]);
@@ -385,7 +388,7 @@ fn rv64im_proof_roundtrip_matches_kernel_export() {
 fn rv64im_public_proof_defaults_to_whole_trace_root_chunk() {
     let _serial = proof_test_guard();
     let proof = CONTROL_FLOW_PUBLIC_PROOF.clone();
-    verify_rv64im_public_proof(&proof).expect("verify public proof");
+    audit_rv64im_public_proof(&proof).expect("audit public proof");
 
     assert_eq!(proof.statement.fold_schedule, FoldSchedule::WholeTrace);
     assert_eq!(proof.statement.chunk_count, 1);
@@ -403,7 +406,7 @@ fn rv64im_public_proof_defaults_to_whole_trace_root_chunk() {
 fn rv64im_public_proof_rows_per_chunk_schedule_is_contiguous() {
     let _serial = proof_test_guard();
     let proof = CONTROL_FLOW_CHUNKED_PUBLIC_PROOF.clone();
-    verify_rv64im_public_proof(&proof).expect("verify chunked public proof");
+    audit_rv64im_public_proof(&proof).expect("audit chunked public proof");
 
     assert_eq!(proof.statement.fold_schedule, FoldSchedule::RowsPerChunk(7));
     assert_eq!(proof.kernel.main_lane.fold_schedule(), FoldSchedule::RowsPerChunk(7));
@@ -447,7 +450,7 @@ fn rv64im_proof_rejects_tampered_root_main_lane_packaged_proof() {
 
     proof.kernel.main_lane.packaged.proof.proof_digest[0] ^= 1;
 
-    verify_rv64im_proof(&proof).expect_err("tampered root main-lane packaged proof must fail");
+    audit_rv64im_proof(&proof).expect_err("tampered root main-lane packaged proof must fail");
 }
 
 #[test]
@@ -455,7 +458,7 @@ fn rv64im_public_proof_rejects_tampered_fold_schedule_and_chunk_layout() {
     let _serial = proof_test_guard();
     let mut tampered_schedule = CONTROL_FLOW_CHUNKED_PUBLIC_PROOF.clone();
     tampered_schedule.statement.fold_schedule = FoldSchedule::WholeTrace;
-    verify_rv64im_public_proof(&tampered_schedule).expect_err("tampered public statement fold schedule must fail");
+    audit_rv64im_public_proof(&tampered_schedule).expect_err("tampered public statement fold schedule must fail");
 
     let mut tampered_chunk_count = CONTROL_FLOW_CHUNKED_PUBLIC_PROOF.clone();
     tampered_chunk_count
@@ -464,7 +467,7 @@ fn rv64im_public_proof_rejects_tampered_fold_schedule_and_chunk_layout() {
         .packaged
         .statement
         .chunk_count += 1;
-    verify_rv64im_public_proof(&tampered_chunk_count).expect_err("tampered packaged chunk count must fail");
+    audit_rv64im_public_proof(&tampered_chunk_count).expect_err("tampered packaged chunk count must fail");
 
     let mut tampered_start_index = CONTROL_FLOW_CHUNKED_PUBLIC_PROOF.clone();
     tampered_start_index
@@ -474,7 +477,7 @@ fn rv64im_public_proof_rejects_tampered_fold_schedule_and_chunk_layout() {
         .statement
         .chunks[0]
         .start_index += 1;
-    verify_rv64im_public_proof(&tampered_start_index).expect_err("tampered chunk start index must fail");
+    audit_rv64im_public_proof(&tampered_start_index).expect_err("tampered chunk start index must fail");
 }
 
 #[test]
@@ -491,7 +494,7 @@ fn rv64im_proof_rejects_tampered_stage_package_proof() {
         .proof
         .proof_digest[0] ^= 1;
 
-    verify_rv64im_proof(&proof).expect_err("tampered stage packaged proof must fail");
+    audit_rv64im_proof(&proof).expect_err("tampered stage packaged proof must fail");
 }
 
 #[test]
@@ -508,7 +511,7 @@ fn rv64im_proof_rejects_tampered_kernel_opening_proof() {
         .proof
         .proof_digest[0] ^= 1;
 
-    verify_rv64im_proof(&proof).expect_err("tampered kernel opening packaged proof must fail");
+    audit_rv64im_proof(&proof).expect_err("tampered kernel opening packaged proof must fail");
 }
 
 #[test]
@@ -545,7 +548,7 @@ fn rv64im_proof_rejects_tampered_stage_claim_packaged_proof() {
     proof.kernel.stage_claims.digest = stage_claim_proof_digest(&proof.kernel.stage_claims);
     proof.kernel.digest = kernel_proof_bundle_digest(&proof.kernel);
 
-    verify_rv64im_proof(&proof).expect_err("tampered stage-claim packaged proof must fail");
+    audit_rv64im_proof(&proof).expect_err("tampered stage-claim packaged proof must fail");
 }
 
 #[test]
@@ -556,7 +559,7 @@ fn rv64im_proof_rejects_tampered_kernel_claim_packaged_proof() {
     proof.kernel.kernel_claims.digest = kernel_claim_proof_digest(&proof.kernel.kernel_claims);
     proof.kernel.digest = kernel_proof_bundle_digest(&proof.kernel);
 
-    verify_rv64im_proof(&proof).expect_err("tampered kernel-claim packaged proof must fail");
+    audit_rv64im_proof(&proof).expect_err("tampered kernel-claim packaged proof must fail");
 }
 
 #[test]
@@ -564,8 +567,8 @@ fn rv64im_proof_rejects_proof_from_different_public_input() {
     let _serial = proof_test_guard();
     let expected_input = proof_input("vertical_add_sd_ld_ecall");
     let (_, foreign_proof) = CONTROL_FLOW_ECALL_ONLY_AUDIT_PROOF.clone();
-    verify_rv64im_proof(&foreign_proof).expect("theorem-facing proof verification");
-    validate_rv64im_public_proof_against_input(&expected_input, &foreign_proof)
+    audit_rv64im_proof(&foreign_proof).expect("audit proof verification");
+    audit_rv64im_public_proof_against_input(&expected_input, &foreign_proof)
         .expect_err("proof for a different public input must fail audit consistency");
 }
 
@@ -580,15 +583,15 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .kernel_opening
         .bindings
         .bindings_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_kernel).is_err());
+    assert!(audit_rv64im_proof(&tampered_kernel).is_err());
 
     let mut tampered_trace = proof.clone();
     tampered_trace.kernel.trace.execution_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_trace).is_err());
+    assert!(audit_rv64im_proof(&tampered_trace).is_err());
 
     let mut tampered_trace_shape = proof.clone();
     tampered_trace_shape.kernel.trace.shape.digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_trace_shape).is_err());
+    assert!(audit_rv64im_proof(&tampered_trace_shape).is_err());
 
     let mut tampered_stages = proof.clone();
     tampered_stages
@@ -596,11 +599,11 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .stages
         .summary
         .stage3_continuity_count ^= 1;
-    assert!(verify_rv64im_proof(&tampered_stages).is_err());
+    assert!(audit_rv64im_proof(&tampered_stages).is_err());
 
     let mut tampered_stage_summary = proof.clone();
     tampered_stage_summary.kernel.stages.summary.digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_stage_summary).is_err());
+    assert!(audit_rv64im_proof(&tampered_stage_summary).is_err());
 
     let mut tampered_stage_claims = proof.clone();
     tampered_stage_claims
@@ -608,7 +611,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .stage_claims
         .summary
         .stage1_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_stage_claims).is_err());
+    assert!(audit_rv64im_proof(&tampered_stage_claims).is_err());
 
     let mut tampered_stage_packages = proof.clone();
     tampered_stage_packages
@@ -616,7 +619,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .stage_packages
         .summary
         .stage1_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_stage_packages).is_err());
+    assert!(audit_rv64im_proof(&tampered_stage_packages).is_err());
 
     let mut tampered_stage_claim_summary = proof.clone();
     tampered_stage_claim_summary
@@ -624,7 +627,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .stage_claims
         .summary
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_stage_claim_summary).is_err());
+    assert!(audit_rv64im_proof(&tampered_stage_claim_summary).is_err());
 
     let mut tampered_stage_package_summary = proof.clone();
     tampered_stage_package_summary
@@ -632,15 +635,15 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .stage_packages
         .summary
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_stage_package_summary).is_err());
+    assert!(audit_rv64im_proof(&tampered_stage_package_summary).is_err());
 
     let mut tampered_statement = proof.clone();
     tampered_statement.statement.final_state_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_statement).is_err());
+    assert!(audit_rv64im_proof(&tampered_statement).is_err());
 
     let mut tampered_claim = proof.clone();
     tampered_claim.claim.accepted.terminal.final_state_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_claim).is_err());
+    assert!(audit_rv64im_proof(&tampered_claim).is_err());
 
     let mut tampered_accepted_statement_binding = proof.clone();
     tampered_accepted_statement_binding
@@ -648,7 +651,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .accepted
         .statement
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_accepted_statement_binding).is_err());
+    assert!(audit_rv64im_proof(&tampered_accepted_statement_binding).is_err());
 
     let mut tampered_main_lane_claim = proof.clone();
     tampered_main_lane_claim
@@ -656,26 +659,26 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .main_lane
         .binding
         .main_lane_bundle_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_main_lane_claim).is_err());
+    assert!(audit_rv64im_proof(&tampered_main_lane_claim).is_err());
 
     let mut tampered_statement_main_lane_surface = proof.clone();
     tampered_statement_main_lane_surface
         .statement
         .main_lane_surface_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_statement_main_lane_surface).is_err());
+    assert!(audit_rv64im_proof(&tampered_statement_main_lane_surface).is_err());
 
     let mut tampered_statement_root_lane_columns = proof.clone();
     tampered_statement_root_lane_columns
         .statement
         .root_lane_columns_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_statement_root_lane_columns).is_err());
+    assert!(audit_rv64im_proof(&tampered_statement_root_lane_columns).is_err());
 
     let mut tampered_kernel_root_lane_columns = proof.clone();
     tampered_kernel_root_lane_columns
         .kernel
         .root_lane_columns
         .family_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_kernel_root_lane_columns).is_err());
+    assert!(audit_rv64im_proof(&tampered_kernel_root_lane_columns).is_err());
 
     let mut tampered_kernel_root_lane_commitment = proof.clone();
     tampered_kernel_root_lane_commitment
@@ -683,7 +686,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .root_lane_commitment
         .commitments
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_kernel_root_lane_commitment).is_err());
+    assert!(audit_rv64im_proof(&tampered_kernel_root_lane_commitment).is_err());
 
     let mut tampered_main_lane_opening_ref = proof.clone();
     tampered_main_lane_opening_ref
@@ -693,7 +696,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .as_mut()
         .expect("first row")
         .value_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_main_lane_opening_ref).is_err());
+    assert!(audit_rv64im_proof(&tampered_main_lane_opening_ref).is_err());
 
     let mut tampered_accepted_main_lane_surface = proof.clone();
     tampered_accepted_main_lane_surface
@@ -701,7 +704,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .accepted
         .main_lane
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_accepted_main_lane_surface).is_err());
+    assert!(audit_rv64im_proof(&tampered_accepted_main_lane_surface).is_err());
 
     let mut tampered_main_lane_claim_binding_digest = proof.clone();
     tampered_main_lane_claim_binding_digest
@@ -709,7 +712,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .main_lane
         .binding
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_main_lane_claim_binding_digest).is_err());
+    assert!(audit_rv64im_proof(&tampered_main_lane_claim_binding_digest).is_err());
 
     let mut tampered_opening_claim = proof.clone();
     tampered_opening_claim
@@ -717,7 +720,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .opening
         .terminal
         .execution_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_opening_claim).is_err());
+    assert!(audit_rv64im_proof(&tampered_opening_claim).is_err());
 
     let mut tampered_opening_stage_claim_binding = proof.clone();
     tampered_opening_stage_claim_binding
@@ -725,7 +728,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .opening
         .stages
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_opening_stage_claim_binding).is_err());
+    assert!(audit_rv64im_proof(&tampered_opening_stage_claim_binding).is_err());
 
     let mut tampered_opening_terminal_claim_binding = proof.clone();
     tampered_opening_terminal_claim_binding
@@ -733,7 +736,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .opening
         .terminal
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_opening_terminal_claim_binding).is_err());
+    assert!(audit_rv64im_proof(&tampered_opening_terminal_claim_binding).is_err());
 
     let mut tampered_joint_opening_claim = proof.clone();
     tampered_joint_opening_claim
@@ -741,11 +744,11 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .joint_opening
         .binding
         .main_lane_claim_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_joint_opening_claim).is_err());
+    assert!(audit_rv64im_proof(&tampered_joint_opening_claim).is_err());
 
     let mut tampered_root0_claim = proof.clone();
     tampered_root0_claim.claim.root0.terminal.root0_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_root0_claim).is_err());
+    assert!(audit_rv64im_proof(&tampered_root0_claim).is_err());
 
     let mut tampered_joint_opening_claim_binding = proof.clone();
     tampered_joint_opening_claim_binding
@@ -753,11 +756,11 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .joint_opening
         .binding
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_joint_opening_claim_binding).is_err());
+    assert!(audit_rv64im_proof(&tampered_joint_opening_claim_binding).is_err());
 
     let mut tampered_root0_stage_claim_binding = proof.clone();
     tampered_root0_stage_claim_binding.claim.root0.stages.digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_root0_stage_claim_binding).is_err());
+    assert!(audit_rv64im_proof(&tampered_root0_stage_claim_binding).is_err());
 
     let mut tampered_root0_terminal_claim_binding = proof.clone();
     tampered_root0_terminal_claim_binding
@@ -765,19 +768,19 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .root0
         .terminal
         .digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_root0_terminal_claim_binding).is_err());
+    assert!(audit_rv64im_proof(&tampered_root0_terminal_claim_binding).is_err());
 
     let mut tampered_bundle = proof.clone();
     tampered_bundle.claim.digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_bundle).is_err());
+    assert!(audit_rv64im_proof(&tampered_bundle).is_err());
 
     let mut tampered_main_lane_surface_digest = proof.clone();
     tampered_main_lane_surface_digest.kernel.digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_main_lane_surface_digest).is_err());
+    assert!(audit_rv64im_proof(&tampered_main_lane_surface_digest).is_err());
 
     let mut tampered_main_lane_binding = proof.clone();
     tampered_main_lane_binding.kernel.main_lane.binding.digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_main_lane_binding).is_err());
+    assert!(audit_rv64im_proof(&tampered_main_lane_binding).is_err());
 
     let mut tampered_kernel_claim_bundle = proof.clone();
     tampered_kernel_claim_bundle
@@ -786,7 +789,7 @@ fn rv64im_proof_rejects_tampered_kernel_and_main_lane_surfaces() {
         .summary
         .terminal
         .final_state_digest[0] ^= 1;
-    assert!(verify_rv64im_proof(&tampered_kernel_claim_bundle).is_err());
+    assert!(audit_rv64im_proof(&tampered_kernel_claim_bundle).is_err());
 }
 
 #[test]
@@ -805,7 +808,7 @@ fn rv64im_proof_rejects_export_surface_mismatches_with_recomputed_digests() {
     tampered_stage_summary.kernel.stages.digest =
         stage_witness_projection_digest(&tampered_stage_summary.kernel.stages);
     tampered_stage_summary.kernel.digest = kernel_proof_bundle_digest(&tampered_stage_summary.kernel);
-    assert!(verify_rv64im_proof(&tampered_stage_summary).is_err());
+    assert!(audit_rv64im_proof(&tampered_stage_summary).is_err());
 
     let mut tampered_stage_claim_summary = proof.clone();
     tampered_stage_claim_summary
@@ -821,5 +824,5 @@ fn rv64im_proof_rejects_export_surface_mismatches_with_recomputed_digests() {
     tampered_stage_claim_summary.kernel.stage_claims.digest =
         stage_claim_proof_digest(&tampered_stage_claim_summary.kernel.stage_claims);
     tampered_stage_claim_summary.kernel.digest = kernel_proof_bundle_digest(&tampered_stage_claim_summary.kernel);
-    assert!(verify_rv64im_proof(&tampered_stage_claim_summary).is_err());
+    assert!(audit_rv64im_proof(&tampered_stage_claim_summary).is_err());
 }

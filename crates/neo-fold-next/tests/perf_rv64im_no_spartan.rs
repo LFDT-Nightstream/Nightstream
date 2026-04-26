@@ -4,9 +4,7 @@ use std::time::Instant;
 use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv64im::audit::build_rv64im_chunk_step_ivc_relations;
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
-use neo_fold_next::rv64im::ivc::{
-    derive_rv64im_ivc_step_cap, Rv64imIvcAppendPerf, Rv64imIvcState, Rv64imIvcVerifyPerf,
-};
+use neo_fold_next::rv64im::ivc::{derive_rv64im_ivc_step_cap, Rv64imIvcAppendPerf, Rv64imIvcState};
 use neo_fold_next::rv64im::{
     build_mixed_opcode_perf_source_case, build_rv64im_recursion_shape_for_step_cap,
     prove_rv64im_accepted_proof_with_options, rv64im_simple_root_params_for_step_cap, Rv64imProofInput,
@@ -98,6 +96,7 @@ fn append_stage_rows(perfs: &[Rv64imIvcAppendPerf]) -> Vec<(&'static str, f64)> 
     let mut construction2_pi_fold_ms = 0.0;
     let mut advice_build_ms = 0.0;
     let mut evaluate_f_prime_ms = 0.0;
+    let mut derive_committed_u_next_ms = 0.0;
     let mut finalize_state_ms = 0.0;
 
     for perf in perfs {
@@ -110,6 +109,7 @@ fn append_stage_rows(perfs: &[Rv64imIvcAppendPerf]) -> Vec<(&'static str, f64)> 
         construction2_pi_fold_ms += perf.construction2_pi_fold_ms;
         advice_build_ms += perf.advice_build_ms;
         evaluate_f_prime_ms += perf.evaluate_f_prime_ms;
+        derive_committed_u_next_ms += perf.derive_committed_u_next_ms;
         finalize_state_ms += perf.finalize_state_ms;
     }
 
@@ -123,25 +123,13 @@ fn append_stage_rows(perfs: &[Rv64imIvcAppendPerf]) -> Vec<(&'static str, f64)> 
         ("construction2_pi_fold", construction2_pi_fold_ms),
         ("advice_build", advice_build_ms),
         ("evaluate_f_prime", evaluate_f_prime_ms),
+        ("derive_committed_u_next", derive_committed_u_next_ms),
         ("finalize_state", finalize_state_ms),
     ]
 }
 
-fn verify_stage_rows(perf: Rv64imIvcVerifyPerf) -> Vec<(&'static str, f64)> {
-    vec![
-        ("validate_state_surface", perf.validate_state_surface_ms),
-        ("build_terminal_relation", perf.build_terminal_relation_ms),
-        ("verified_step_statement", perf.verified_step_statement_ms),
-        ("context_lookup", perf.context_lookup_ms),
-        ("replay_step", perf.replay_step_ms),
-        ("compare_running_state", perf.compare_running_state_ms),
-        ("transcript_snapshot", perf.transcript_snapshot_ms),
-        ("compare_step_public", perf.compare_step_public_ms),
-    ]
-}
-
 fn print_append_step_rows(perfs: &[Rv64imIvcAppendPerf], opcode_count: usize) {
-    print_section("Native IVC Append Steps");
+    print_section("No-Spartan IVC Append Steps");
     let head = 8usize;
     let tail = 4usize;
     let len = perfs.len();
@@ -184,7 +172,7 @@ fn print_append_step_summary(perfs: &[Rv64imIvcAppendPerf], opcode_count: usize)
         .fold(f64::INFINITY, f64::min);
     let max_ms = perfs.iter().map(|perf| perf.total_ms).fold(0.0, f64::max);
 
-    print_section("Native IVC Append Step Summary");
+    print_section("No-Spartan IVC Append Step Summary");
     print_kv("fold_count", perfs.len());
     print_kv("first_step", format_ms_per_opcode(first_ms, opcode_count));
     print_kv(
@@ -195,7 +183,7 @@ fn print_append_step_summary(perfs: &[Rv64imIvcAppendPerf], opcode_count: usize)
     print_kv("max_step", format_ms_per_opcode(max_ms, opcode_count));
 }
 
-fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, title: &str) {
+fn run_rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot(schedule: FoldSchedule, title: &str) {
     let opcode_count = perf_opcode_count_from_env();
     let source = build_mixed_opcode_perf_source_case(opcode_count);
     let total_opcodes = source.program_words.len();
@@ -239,13 +227,6 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
     }
     let native_append_ms = millis_since(native_append_started);
 
-    let native_verify_started = Instant::now();
-    let native_verify_perf = ivc_state
-        .verify_with_perf()
-        .expect("verify native rv64im ivc state");
-    let native_verify_ms = millis_since(native_verify_started);
-    let native_total_ms = native_append_ms + native_verify_ms;
-
     let public_image = ivc_state.public_image();
     let kernel_params = rv64im_simple_root_params_for_step_cap(step_cap);
     let recursion_shape = build_rv64im_recursion_shape_for_step_cap(step_cap).expect("build rv64im recursion shape");
@@ -276,37 +257,27 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
     print_kv("chunk_count", public_image.chunk_count);
     print_kv("step_count", public_image.step_count);
 
-    print_section("Fixture Prep (not native IVC)");
+    print_section("Fixture Prep (not no-Spartan IVC)");
     print_kv(
         "accepted+final+relations",
         format_ms_per_opcode(relation_prep_ms, total_opcodes),
     );
 
-    print_section("Native IVC");
-    print_kv("native append", format_ms_per_opcode(native_append_ms, total_opcodes));
-    print_kv("native verify", format_ms_per_opcode(native_verify_ms, total_opcodes));
+    print_section("No-Spartan IVC");
     print_kv(
-        "native append+verify",
-        format_ms_per_opcode(native_total_ms, total_opcodes),
+        "no_spartan_append",
+        format_ms_per_opcode(native_append_ms, total_opcodes),
     );
 
     let append_rows = append_stage_rows(&append_perfs);
     print_perf_rows(
-        "Native IVC Append Breakdown",
+        "No-Spartan IVC Append Breakdown",
         &append_rows,
         native_append_ms,
         total_opcodes,
     );
     print_append_step_rows(&append_perfs, total_opcodes);
     print_append_step_summary(&append_perfs, total_opcodes);
-
-    let verify_rows = verify_stage_rows(native_verify_perf);
-    print_perf_rows(
-        "Native IVC Verify Breakdown",
-        &verify_rows,
-        native_verify_ms,
-        total_opcodes,
-    );
 
     print_section("Artifact Sizes");
     print_kv("final_statement_size", format_bytes(final_statement_bytes));
@@ -341,27 +312,27 @@ fn run_rv64im_mixed_opcode_native_ivc_perf_snapshot(schedule: FoldSchedule, titl
 
 #[test]
 #[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
-fn rv64im_mixed_opcode_native_ivc_perf_snapshot() {
-    run_rv64im_mixed_opcode_native_ivc_perf_snapshot(
+fn rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot() {
+    run_rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot(
         FoldSchedule::WholeTrace,
-        "RV64IM Native IVC Perf Snapshot (no Spartan, whole trace)",
+        "RV64IM No-Spartan IVC Perf Snapshot (whole trace)",
     );
 }
 
 #[test]
 #[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
-fn rv64im_mixed_opcode_native_ivc_perf_snapshot_rows_per_chunk_1() {
-    run_rv64im_mixed_opcode_native_ivc_perf_snapshot(
+fn rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot_rows_per_chunk_1() {
+    run_rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot(
         FoldSchedule::RowsPerChunk(1),
-        "RV64IM Native IVC Perf Snapshot (no Spartan, per-op folds)",
+        "RV64IM No-Spartan IVC Perf Snapshot (per-op folds)",
     );
 }
 
 #[test]
 #[ignore = "performance/debugging snapshot; run with --release -- --ignored --nocapture"]
-fn rv64im_mixed_opcode_native_ivc_perf_snapshot_whole_trace() {
-    run_rv64im_mixed_opcode_native_ivc_perf_snapshot(
+fn rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot_whole_trace() {
+    run_rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot(
         FoldSchedule::WholeTrace,
-        "RV64IM Native IVC Perf Snapshot (no Spartan, whole trace)",
+        "RV64IM No-Spartan IVC Perf Snapshot (whole trace)",
     );
 }

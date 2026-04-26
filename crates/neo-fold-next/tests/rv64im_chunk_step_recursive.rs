@@ -96,13 +96,11 @@ fn rv64im_chunk_step_recursive_payload_matches_cover_shape_for_multi_step_chain(
     let advices = build_rv64im_main_recursion_f_prime_advices(&relations).expect("build main recursion F' advices");
     let cover_shape =
         build_rv64im_chunk_step_ivc_recursive_step_cover_shape(&relations).expect("build recursive-step cover shape");
-    let claim_cover =
-        build_rv64im_main_recursion_f_prime_claim_cover(&advices).expect("build recursive-step claim cover");
     let spartan_shape =
         build_rv64im_main_recursion_step_spartan_shape(&relations).expect("build recursive-step spartan shape");
     for (relation, advice) in relations.iter().zip(advices.iter()) {
-        let payload = build_rv64im_main_recursion_f_prime_payload(advice, &cover_shape, &claim_cover)
-            .expect("build recursive-step payload");
+        let payload =
+            build_rv64im_main_recursion_f_prime_payload(advice, &spartan_shape).expect("build recursive-step payload");
         let expected_padding =
             build_rv64im_chunk_step_ivc_recursive_step_padding(&relation.statement, &relation.witness, &cover_shape)
                 .expect("build recursive-step padding");
@@ -132,13 +130,11 @@ fn rv64im_chunk_step_recursive_payload_zero_pads_tail_slots() {
     let advices = build_rv64im_main_recursion_f_prime_advices(&relations).expect("build main recursion F' advices");
     let cover_shape =
         build_rv64im_chunk_step_ivc_recursive_step_cover_shape(&relations).expect("build recursive-step cover shape");
-    let claim_cover =
-        build_rv64im_main_recursion_f_prime_claim_cover(&advices).expect("build recursive-step claim cover");
     let spartan_shape =
         build_rv64im_main_recursion_step_spartan_shape(&relations).expect("build recursive-step spartan shape");
     for advice in &advices {
-        let payload = build_rv64im_main_recursion_f_prime_payload(advice, &cover_shape, &claim_cover)
-            .expect("build recursive-step payload");
+        let payload =
+            build_rv64im_main_recursion_f_prime_payload(advice, &spartan_shape).expect("build recursive-step payload");
         assert!(spartan_shape.matches_payload(&payload));
         let step_shape = &payload.step_shape;
         for claim in payload
@@ -219,8 +215,6 @@ fn rv64im_chunk_step_recursive_payload_batch_builder_matches_single_step_builder
     let advices = build_rv64im_main_recursion_f_prime_advices(&relations).expect("build main recursion F' advices");
     let cover_shape =
         build_rv64im_chunk_step_ivc_recursive_step_cover_shape(&relations).expect("build recursive-step cover shape");
-    let claim_cover =
-        build_rv64im_main_recursion_f_prime_claim_cover(&advices).expect("build recursive-step claim cover");
     let spartan_shape =
         build_rv64im_main_recursion_step_spartan_shape(&relations).expect("build recursive-step spartan shape");
     let batch_payloads =
@@ -238,7 +232,7 @@ fn rv64im_chunk_step_recursive_payload_batch_builder_matches_single_step_builder
         .zip(batch_payloads.iter())
         .zip(derived_payloads.iter())
     {
-        let single = build_rv64im_main_recursion_f_prime_payload(advice, &cover_shape, &claim_cover)
+        let single = build_rv64im_main_recursion_f_prime_payload(advice, &spartan_shape)
             .expect("build single recursive-step payload");
 
         assert_eq!(batched.cover_shape, cover_shape);

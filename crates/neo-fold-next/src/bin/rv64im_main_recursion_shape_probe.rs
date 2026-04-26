@@ -196,11 +196,15 @@ fn projection_digest_field_count(
     total
 }
 
-fn accumulator_outer_hash_field_count(claim_count: usize) -> usize {
-    packed_bytes_field_count(b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_instance/v2".len())
+fn accumulator_phi_dec_parent_hash_field_count(claims: &[CeClaim<Commitment, F, K>]) -> usize {
+    let parent_commitment_fields = claims
+        .first()
+        .map(|claim| 1 + claim.c.data.len())
+        .unwrap_or(0);
+    packed_bytes_field_count(b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_phi_dec_parent/v1".len())
         + 1
         + 4
-        + (4 * claim_count)
+        + parent_commitment_fields
 }
 
 fn perturb_ce_claim_values(claim: &mut CeClaim<Commitment, F, K>) {
@@ -1347,8 +1351,8 @@ fn main() {
         .collect::<Vec<_>>();
     let padded_child_count = usize::try_from(cover_shape.ccs_output_count).expect("padded child count");
     let actual_child_count = first_relation.payload.pi_ccs.ccs_outputs.len();
-    let state_out_accumulator_outer_fields =
-        accumulator_outer_hash_field_count(first_relation.payload.state_out_claims.len());
+    let state_out_accumulator_phi_fields =
+        accumulator_phi_dec_parent_hash_field_count(&first_relation.payload.state_out_claims);
     let work_units = ProbeWorkUnits {
         non_halt_opcode_count: opcode_count,
         semantic_step_count: usize::try_from(final_statement.folded.semantic_step_count)
@@ -1533,7 +1537,7 @@ fn main() {
             ),
         );
         print_kv("projection_hash_terms_total", state_out_projection_fields_total);
-        print_kv("accumulator_outer_hash_terms", state_out_accumulator_outer_fields);
+        print_kv("accumulator_phi_hash_terms", state_out_accumulator_phi_fields);
 
         print_section("Pi RLC Public Surface");
         print_kv("actual_child_count", actual_child_count);
@@ -2680,7 +2684,7 @@ fn main() {
         ),
     );
     print_kv("projection_hash_terms_total", state_out_projection_fields_total);
-    print_kv("accumulator_outer_hash_terms", state_out_accumulator_outer_fields);
+    print_kv("accumulator_phi_hash_terms", state_out_accumulator_phi_fields);
 
     print_section("Pi RLC Public Surface");
     print_kv("actual_child_count", actual_child_count);

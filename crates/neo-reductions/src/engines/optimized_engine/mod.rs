@@ -232,6 +232,7 @@ pub use prove::optimized_replay_outputs_with_cache_and_perf;
 pub use prove::optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf;
 pub use prove::optimized_replay_terminal_state_with_cache_and_perf;
 pub use prove::optimized_replay_trace_with_cache_and_instance_digest_and_perf;
+pub use prove::optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf;
 pub use prove::optimized_replay_witness_with_cache_and_instance_digest_and_perf;
 pub use prove::optimized_replay_witness_with_cache_and_perf;
 pub use verify::optimized_verify as pi_ccs_verify;

@@ -5,12 +5,14 @@ use ff::Field;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::fingerprint_cs::FingerprintCS;
+use crate::rv64im::final_relation::rv64im_recursive_accumulator_instance_digest_from_parts;
 use crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot;
 use crate::rv64im::ivc_snark::SpartanF;
+use crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count;
 use crate::rv64im::main_relation_circuit::claim::{
     alloc_ce_claim, alloc_ce_claim_dec_surface, alloc_ce_claim_dec_surface_with_shared_r,
     alloc_ce_claim_with_shared_point, alloc_ce_claim_x_r_surface, alloc_ce_claim_x_r_surface_with_shared_r,
-    me_input_projection_digest_poseidon, packed_bytes_field_values, CeClaimVar,
+    packed_bytes_field_values, CeClaimVar,
 };
 use crate::rv64im::main_relation_circuit::transcript::hash_field_linear_combinations_raw;
 
@@ -24,6 +26,7 @@ pub(super) struct Rv64imRecursiveCoverStateVar {
     pub(super) transcript_state: [AllocatedNum<SpartanF>; neo_params::poseidon2_goldilocks::WIDTH],
     pub(super) transcript_absorbed: AllocatedNum<SpartanF>,
     pub(super) terminal_handle: [AllocatedNum<SpartanF>; 4],
+    pub(super) folded_accumulator_digest: [AllocatedNum<SpartanF>; 4],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -35,6 +38,7 @@ pub(crate) struct Rv64imRecursiveAccumulatorProjectionDigestAuxBreakdown {
 
 fn alloc_recursive_cover_public_state_fields<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
+    claims: &[neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>],
     transcript: &Rv64imChunkFoldTranscriptSnapshot,
     terminal_handle_digest: [u8; 32],
     label: &str,
@@ -42,6 +46,7 @@ fn alloc_recursive_cover_public_state_fields<CS: ConstraintSystem<SpartanF>>(
     (
         [AllocatedNum<SpartanF>; neo_params::poseidon2_goldilocks::WIDTH],
         AllocatedNum<SpartanF>,
+        [AllocatedNum<SpartanF>; 4],
         [AllocatedNum<SpartanF>; 4],
     ),
     SynthesisError,
@@ -70,22 +75,42 @@ fn alloc_recursive_cover_public_state_fields<CS: ConstraintSystem<SpartanF>>(
         .collect::<Result<Vec<_>, _>>()?
         .try_into()
         .map_err(|_| SynthesisError::Unsatisfiable)?;
-    Ok((transcript_state, transcript_absorbed, terminal_handle))
+    let folded_accumulator_digest =
+        rv64im_recursive_accumulator_instance_digest_from_parts(claims, terminal_handle_digest);
+    let folded_accumulator_digest = super::digest32_as_spartan_fields(folded_accumulator_digest)
+        .into_iter()
+        .enumerate()
+        .map(|(idx, value)| {
+            AllocatedNum::alloc(
+                cs.namespace(|| format!("{label}_folded_accumulator_digest_{idx}")),
+                || Ok(value),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .try_into()
+        .map_err(|_| SynthesisError::Unsatisfiable)?;
+    Ok((
+        transcript_state,
+        transcript_absorbed,
+        terminal_handle,
+        folded_accumulator_digest,
+    ))
 }
 
 pub(super) fn alloc_recursive_cover_state<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
-    _claims: &[neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>],
+    claims: &[neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>],
     transcript: &Rv64imChunkFoldTranscriptSnapshot,
     terminal_handle_digest: [u8; 32],
     label: &str,
 ) -> Result<Rv64imRecursiveCoverStateVar, SynthesisError> {
-    let (transcript_state, transcript_absorbed, terminal_handle) =
-        alloc_recursive_cover_public_state_fields(cs, transcript, terminal_handle_digest, label)?;
+    let (transcript_state, transcript_absorbed, terminal_handle, folded_accumulator_digest) =
+        alloc_recursive_cover_public_state_fields(cs, claims, transcript, terminal_handle_digest, label)?;
     Ok(Rv64imRecursiveCoverStateVar {
         transcript_state,
         transcript_absorbed,
         terminal_handle,
+        folded_accumulator_digest,
     })
 }
 
@@ -195,21 +220,7 @@ pub(crate) fn recursive_accumulator_instance_digest_circuit_from_claims<CS: Cons
     terminal_handle: &[AllocatedNum<SpartanF>; 4],
     label: &str,
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let mut claim_digests = Vec::with_capacity(claims.len());
-    for (claim_index, claim) in claims.iter().enumerate() {
-        let claim_digest = me_input_projection_digest_poseidon(
-            &mut cs.namespace(|| format!("{label}_claim_hash_{claim_index}")),
-            claim,
-            &format!("{label}_claim_hash_{claim_index}"),
-        )?;
-        claim_digests.push(claim_digest);
-    }
-    recursive_accumulator_instance_digest_circuit_from_projection_digest_vars(
-        cs,
-        &claim_digests,
-        terminal_handle,
-        label,
-    )
+    recursive_accumulator_instance_digest_circuit_from_phi_dec_parent_vars(cs, claims, terminal_handle, label)
 }
 
 pub(crate) fn debug_measure_recursive_accumulator_instance_digest_circuit_from_claims_aux(
@@ -220,24 +231,12 @@ pub(crate) fn debug_measure_recursive_accumulator_instance_digest_circuit_from_c
 ) -> Result<Rv64imRecursiveAccumulatorProjectionDigestAuxBreakdown, SynthesisError> {
     let after_header = cs.num_aux();
 
-    let mut claim_digests = Vec::with_capacity(claims.len());
     let mut after_claim_digests = Vec::with_capacity(claims.len());
-    for (claim_index, claim) in claims.iter().enumerate() {
-        let claim_digest = me_input_projection_digest_poseidon(
-            &mut cs.namespace(|| format!("{label}_claim_hash_{claim_index}")),
-            claim,
-            &format!("{label}_claim_hash_{claim_index}"),
-        )?;
-        claim_digests.push(claim_digest);
+    for _claim in claims {
         after_claim_digests.push(cs.num_aux());
     }
 
-    let _ = recursive_accumulator_instance_digest_circuit_from_projection_digest_vars(
-        cs,
-        &claim_digests,
-        terminal_handle,
-        label,
-    )?;
+    let _ = recursive_accumulator_instance_digest_circuit_from_phi_dec_parent_vars(cs, claims, terminal_handle, label)?;
     let after_outer_hash = cs.num_aux();
     Ok(Rv64imRecursiveAccumulatorProjectionDigestAuxBreakdown {
         after_header,
@@ -246,17 +245,19 @@ pub(crate) fn debug_measure_recursive_accumulator_instance_digest_circuit_from_c
     })
 }
 
-pub(crate) fn recursive_accumulator_instance_digest_circuit_from_projection_digest_vars<
-    CS: ConstraintSystem<SpartanF>,
->(
+fn recursive_accumulator_instance_digest_circuit_from_phi_dec_parent_vars<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
-    claim_projection_digests: &[[AllocatedNum<SpartanF>; 4]],
+    claims: &[CeClaimVar],
     terminal_handle: &[AllocatedNum<SpartanF>; 4],
     label: &str,
 ) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
-    let domain = packed_bytes_field_values(b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_instance/v2");
-    let mut field_terms =
-        Vec::with_capacity(domain.len() + 1 + terminal_handle.len() + claim_projection_digests.len() * 4);
+    let domain =
+        packed_bytes_field_values(b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_phi_dec_parent/v1");
+    let parent_field_count = claims
+        .first()
+        .map(|claim| 1 + claim.c_data.len())
+        .unwrap_or(0);
+    let mut field_terms = Vec::with_capacity(domain.len() + 1 + terminal_handle.len() + parent_field_count);
     let mut field_constants = Vec::with_capacity(field_terms.capacity());
     let mut field_values = Vec::with_capacity(field_terms.capacity());
 
@@ -266,7 +267,7 @@ pub(crate) fn recursive_accumulator_instance_digest_circuit_from_projection_dige
         field_values.push(value);
     }
 
-    let claim_count = SpartanF::from_canonical_u64(claim_projection_digests.len() as u64);
+    let claim_count = SpartanF::from_canonical_u64(claims.len() as u64);
     field_terms.push(Vec::new());
     field_constants.push(claim_count);
     field_values.push(claim_count);
@@ -278,12 +279,42 @@ pub(crate) fn recursive_accumulator_instance_digest_circuit_from_projection_dige
         field_values.push(value);
     }
 
-    for digest in claim_projection_digests {
-        for lane in digest {
-            let value = lane.get_value().unwrap_or(SpartanF::ZERO);
-            field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+    if let Some(first_claim) = claims.first() {
+        let (params, _, _) =
+            rv64im_root_main_lane_context_for_claim_count(claims.len()).map_err(|_| SynthesisError::Unsatisfiable)?;
+        let parent_len = first_claim.c_data.len();
+        let len = SpartanF::from_canonical_u64(parent_len as u64);
+        field_terms.push(Vec::new());
+        field_constants.push(len);
+        field_values.push(len);
+
+        let base = SpartanF::from_canonical_u64(params.b as u64);
+        let mut powers = Vec::with_capacity(claims.len());
+        let mut pow = SpartanF::ONE;
+        for claim in claims {
+            if claim.c_data.len() != parent_len || claim.c_data.len() != claim.c_data_values.len() {
+                return Err(SynthesisError::Unsatisfiable);
+            }
+            powers.push(pow);
+            pow *= base;
+        }
+
+        for lane_idx in 0..parent_len {
+            let mut terms = Vec::with_capacity(claims.len());
+            let mut value = SpartanF::ZERO;
+            for (claim, pow) in claims.iter().zip(powers.iter().copied()) {
+                terms.push((claim.c_data[lane_idx].get_variable(), pow));
+                value += SpartanF::from_canonical_u64(claim.c_data_values[lane_idx].as_canonical_u64()) * pow;
+            }
+            field_terms.push(terms);
             field_constants.push(SpartanF::ZERO);
             field_values.push(value);
+        }
+    } else {
+        for claim in claims {
+            if !claim.c_data.is_empty() || !claim.c_data_values.is_empty() {
+                return Err(SynthesisError::Unsatisfiable);
+            }
         }
     }
 

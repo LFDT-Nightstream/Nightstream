@@ -19,6 +19,7 @@ use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::kernel::rv64im_cached_root_main_lane_optimized_cache;
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
 use crate::rv64im::main_relation_spartan::chunk_step_recursive::Rv64imMainRecursionFPrimePayload;
+use crate::rv64im::main_relation_spartan::digest32_as_spartan_fields;
 
 pub(super) struct Rv64imMainRecursionStepChunkReplayOutput {
     pub(super) live_folded_accumulator_out_digest: [AllocatedNum<SpartanF>; 4],
@@ -84,6 +85,10 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         &mut replayed_transcript,
         carried_claims,
         Some(&witness.running_state().carry.main.claims),
+        Some((
+            &state_in_var.folded_accumulator_digest,
+            digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
+        )),
         payload.boundary_plan,
         payload.rlc_zero_commit_suffix_len,
         None,

@@ -47,6 +47,7 @@ pub const PI_CCS_ME_DIGEST_LABEL: &[u8] = b"mid";
 pub const PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG: u64 = 4;
 pub const PI_CCS_ME_COUNT_RAW_TAG: u64 = 5;
 pub const PI_CCS_ME_DIGEST_RAW_TAG: u64 = 6;
+pub const PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG: u64 = 13;
 pub const PI_CCS_POLY_DOMAIN_LABEL: &[u8] = b"py";
 pub const PI_CCS_POLY_ARITY_LABEL: &[u8] = b"pa";
 pub const PI_CCS_POLY_TERMS_LEN_LABEL: &[u8] = b"pt";
@@ -435,6 +436,23 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F,
     packed.extend(digests.iter().flat_map(|digest| digest.iter().copied()));
     tr.append_fields_raw(&packed);
 
+    Ok(())
+}
+
+pub fn bind_me_inputs_accumulator_handle(
+    tr: &mut Poseidon2Transcript,
+    me_input_count: usize,
+    accumulator_handle: &[F; 4],
+) -> Result<(), PiCcsError> {
+    tr.append_fields_raw(&[F::from_u64(PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG)]);
+    tr.append_fields_raw(&[F::from_u64(PI_CCS_ME_COUNT_RAW_TAG), F::from_u64(me_input_count as u64)]);
+    tr.append_fields_raw(&[
+        F::from_u64(PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG),
+        accumulator_handle[0],
+        accumulator_handle[1],
+        accumulator_handle[2],
+        accumulator_handle[3],
+    ]);
     Ok(())
 }
 

@@ -19,6 +19,7 @@ pub(super) struct Rv64imChunkNifsVerifierCtx<'a> {
     pub(super) cover_chunk: &'a Rv64imMainCircuitChunkCover,
     pub(super) chunk: &'a Rv64imMainCircuitChunkReplaySurface,
     pub(super) logical_me_input_claims: Option<&'a [neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
+    pub(super) me_input_accumulator_handle: Option<(&'a [AllocatedNum<SpartanF>; 4], [SpartanF; 4])>,
     pub(super) boundary_plan: Rv64imChunkBoundaryPlan,
     pub(super) rlc_zero_commit_suffix_len: usize,
     pub(super) exact_initial_chunk_step_count: Option<usize>,
@@ -149,6 +150,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
     logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
+    me_input_accumulator_handle: Option<(&[AllocatedNum<SpartanF>; 4], [SpartanF; 4])>,
     boundary_plan: Rv64imChunkBoundaryPlan,
     rlc_zero_commit_suffix_len: usize,
     exact_initial_chunk_step_count: Option<usize>,
@@ -172,6 +174,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
         cover_chunk,
         chunk,
         logical_me_input_claims,
+        me_input_accumulator_handle,
         boundary_plan,
         rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count,
@@ -251,6 +254,7 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
         transcript,
         carried_claims,
         logical_me_input_claims,
+        None,
         boundary_plan,
         rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count,
@@ -375,22 +379,32 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
     )?;
     emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_header", started);
     let started = Instant::now();
-    let me_input_projection_digests = if let Some(logical_me_input_claims) = ctx.logical_me_input_claims {
-        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_native_claims(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            transcript,
-            carried_claims.effective_claims(),
-            logical_me_input_claims,
-            trace_prefix,
-        )?
-    } else {
-        bind_me_inputs(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            transcript,
-            carried_claims.effective_claims(),
-            trace_prefix,
-        )?
-    };
+    let me_input_projection_digests =
+        if let Some((accumulator_handle, accumulator_handle_values)) = ctx.me_input_accumulator_handle {
+            crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
+                &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
+                transcript,
+                carried_claims.effective_claims().len(),
+                accumulator_handle,
+                &accumulator_handle_values,
+            )?;
+            Vec::new()
+        } else if let Some(logical_me_input_claims) = ctx.logical_me_input_claims {
+            crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_native_claims(
+                &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+                transcript,
+                carried_claims.effective_claims(),
+                logical_me_input_claims,
+                trace_prefix,
+            )?
+        } else {
+            bind_me_inputs(
+                &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+                transcript,
+                carried_claims.effective_claims(),
+                trace_prefix,
+            )?
+        };
     emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_me_inputs", started);
     let started = Instant::now();
     let public_challenges = crate::rv64im::main_relation_circuit::pi_ccs::sample_challenges_with_native(

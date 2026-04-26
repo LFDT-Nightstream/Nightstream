@@ -17,7 +17,8 @@ use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils::{
     pi_ccs_header_bundle_digest_fields_from_parts, Dims, PI_CCS_HEADER_BUNDLE_RAW_TAG, PI_CCS_INSTANCE_DIGEST_RAW_TAG,
-    PI_CCS_ME_COUNT_RAW_TAG, PI_CCS_ME_DIGEST_RAW_TAG, PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG,
+    PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG, PI_CCS_ME_COUNT_RAW_TAG, PI_CCS_ME_DIGEST_RAW_TAG,
+    PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG,
 };
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
@@ -211,12 +212,60 @@ pub fn bind_me_input_digests<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
+pub fn bind_me_inputs_accumulator_handle<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    tr: &mut Poseidon2TranscriptCircuit,
+    me_input_count: usize,
+    accumulator_handle: &[AllocatedNum<SpartanF>; 4],
+    accumulator_handle_values: &[SpartanF; 4],
+) -> Result<(), SynthesisError> {
+    tr.append_const_fields_raw(
+        cs.namespace(|| "me_inputs_domain"),
+        &[SpartanF::from_canonical_u64(PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG)],
+    )?;
+    tr.append_const_fields_raw(
+        cs.namespace(|| "me_count"),
+        &[
+            SpartanF::from_canonical_u64(PI_CCS_ME_COUNT_RAW_TAG),
+            SpartanF::from_canonical_u64(me_input_count as u64),
+        ],
+    )?;
+
+    let mut field_terms = Vec::with_capacity(1 + accumulator_handle.len());
+    let mut field_constants = Vec::with_capacity(1 + accumulator_handle.len());
+    let mut field_values = Vec::with_capacity(1 + accumulator_handle.len());
+    field_terms.push(Vec::new());
+    field_constants.push(SpartanF::from_canonical_u64(PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG));
+    field_values.push(SpartanF::from_canonical_u64(PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG));
+    for (lane, value) in accumulator_handle
+        .iter()
+        .zip(accumulator_handle_values.iter())
+    {
+        field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(*value);
+    }
+    tr.append_field_linear_combinations_raw(
+        cs.namespace(|| "me_accumulator_handle"),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )?;
+    Ok(())
+}
+
 pub fn bind_me_inputs<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     tr: &mut Poseidon2TranscriptCircuit,
     me_inputs: &[CeClaimVar],
     trace_prefix: Option<&str>,
 ) -> Result<Vec<[AllocatedNum<SpartanF>; 4]>, SynthesisError> {
+    // FS binding invariant: generic Π_CCS absorbs the full CE projection
+    // (`c, X, r, y`) before challenges. Recursive RV64IM may instead absorb
+    // the carried accumulator handle, but only because the same circuit later
+    // constrains that handle to live φ(commitments) and final R1 CE proves the
+    // omitted fields; they cannot be chosen after challenges without changing
+    // the handle.
     emit_me_input_shape_trace(trace_prefix, me_inputs);
     let started = Instant::now();
     let mut digests = Vec::with_capacity(me_inputs.len());

@@ -114,6 +114,7 @@ pub fn optimized_prove_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphi
         log,
         cache,
         None,
+        None,
         ReplayTraceMode::Prove,
     )?;
     let rounds = rounds.expect("optimized prove trace must capture proof rounds");
@@ -155,6 +156,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::trait
         log,
         cache,
         Some(public_instance_digest),
+        None,
         ReplayTraceMode::Prove,
     )?;
     let rounds = rounds.expect("optimized prove trace must capture proof rounds");
@@ -195,6 +197,7 @@ pub fn optimized_replay_terminal_state_with_cache_and_perf<L: neo_ccs::traits::S
         log,
         cache,
         None,
+        None,
         ReplayTraceMode::TerminalState,
     )?;
     validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
@@ -226,6 +229,7 @@ pub fn optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf<
         log,
         cache,
         Some(public_instance_digest),
+        None,
         ReplayTraceMode::TerminalState,
     )?;
     validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
@@ -286,6 +290,7 @@ pub fn optimized_replay_outputs_with_cache_and_instance_digest_and_perf<
         log,
         cache,
         Some(public_instance_digest),
+        None,
         ReplayTraceMode::TerminalState,
     )?;
     Ok(PiCcsReplayOutputs {
@@ -316,6 +321,7 @@ pub fn optimized_replay_witness_with_cache_and_perf<L: neo_ccs::traits::SModuleH
         me_witnesses,
         log,
         cache,
+        None,
         None,
         ReplayTraceMode::Prove,
     )?;
@@ -356,6 +362,7 @@ pub fn optimized_replay_witness_with_cache_and_instance_digest_and_perf<
         log,
         cache,
         Some(public_instance_digest),
+        None,
         ReplayTraceMode::Prove,
     )?;
     let rounds = rounds.expect("optimized replay-witness trace must capture proof rounds");
@@ -395,6 +402,48 @@ pub fn optimized_replay_trace_with_cache_and_instance_digest_and_perf<
         log,
         cache,
         Some(public_instance_digest),
+        None,
+        ReplayTraceMode::Prove,
+    )?;
+    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
+    let rounds = rounds.expect("optimized replay trace must capture proof rounds");
+    Ok((
+        terminal_state.clone(),
+        PiCcsReplayProofWitness {
+            sumcheck_rounds: rounds.sumcheck_rounds,
+            sumcheck_rounds_nc: rounds.sumcheck_rounds_nc,
+            header_digest: terminal_state.fold_digest,
+        },
+    ))
+}
+
+pub fn optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<(PiCcsReplayTerminalState, PiCcsReplayProofWitness), PiCcsError> {
+    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
     )?;
     validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
@@ -420,6 +469,7 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     log: &L,
     cache: &OptimizedStructureCache,
     public_instance_digest: Option<[F; 4]>,
+    me_input_accumulator_handle: Option<[F; 4]>,
     mode: ReplayTraceMode,
 ) -> Result<(PiCcsReplayTerminalState, Option<OptimizedProofRounds>), PiCcsError> {
     let total_started = std::time::Instant::now();
@@ -456,7 +506,11 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     } else {
         utils::bind_header_and_instances_with_digest(tr, params, s, mcs_list, dims, cache.mat_digest())?;
     }
-    utils::bind_me_inputs(tr, me_inputs)?;
+    if let Some(handle) = me_input_accumulator_handle {
+        utils::bind_me_inputs_accumulator_handle(tr, me_inputs.len(), &handle)?;
+    } else {
+        utils::bind_me_inputs(tr, me_inputs)?;
+    }
     let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
 
     // Sample challenges

@@ -7,9 +7,8 @@ use neo_ajtai::Commitment;
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};
-use neo_reductions::engines::utils::me_input_projection_digest_poseidon_into;
 use neo_reductions::optimized_engine::{
-    optimized_replay_trace_with_cache_and_instance_digest_and_perf, Challenges, PiCcsReplayProofWitness,
+    optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf, Challenges, PiCcsReplayProofWitness,
 };
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -690,35 +689,20 @@ pub(crate) fn rv64im_chunk_step_recursive_carry_state_digest(
     transcript: &crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot,
     terminal_handle_digest: [u8; 32],
 ) -> [u8; 32] {
-    let mut scratch = Vec::<F>::with_capacity(2048);
-    let mut canonical_claims = claims.to_vec();
-    if let Some((first, rest)) = canonical_claims.split_first_mut() {
-        let shared_r = first.r.clone();
-        let shared_s_col = first.s_col.clone();
-        for claim in rest {
-            claim.r = shared_r.clone();
-            claim.s_col = shared_s_col.clone();
-        }
-    }
-    let claim_digests = canonical_claims
+    let commitment_field_count = claims
         .iter()
-        .map(|claim| {
-            me_input_projection_digest_poseidon_into(&mut scratch, claim)
-                .expect("RV64IM fixed-step CE projection digest requires SuperNeo X shape")
-        })
-        .collect::<Vec<_>>();
-
-    let mut preimage = Vec::with_capacity(32 + claim_digests.len() * 4);
+        .map(|claim| 1 + claim.c.data.len())
+        .sum::<usize>();
+    let mut preimage = Vec::with_capacity(32 + 1 + commitment_field_count + 8);
     extend_packed_bytes_as_fields(
         &mut preimage,
-        b"neo.fold.next/rv64im/main_recursion_fixed_step_accumulator_instance/v1",
+        b"neo.fold.next/rv64im/main_recursion_fixed_step_accumulator_phi_commitments/v1",
     );
-    preimage.push(F::from_u64(claim_digests.len() as u64));
-    preimage.extend(
-        claim_digests
-            .iter()
-            .flat_map(|digest| digest.iter().copied()),
-    );
+    preimage.push(F::from_u64(claims.len() as u64));
+    for claim in claims {
+        preimage.push(F::from_u64(claim.c.data.len() as u64));
+        preimage.extend(claim.c.data.iter().copied());
+    }
     preimage.extend(digest32_as_fields(rv64im_chunk_fold_transcript_snapshot_digest(
         transcript,
     )));
@@ -966,7 +950,8 @@ fn rebuild_padded_pi_ccs_payload(
         advice.running_state().transcript.absorbed,
     );
     append_recursive_step_public_chunk_meta(&mut transcript, handoff);
-    let (terminal_state, replay) = optimized_replay_trace_with_cache_and_instance_digest_and_perf(
+    let me_input_accumulator_handle = digest32_as_fields(advice.folded_accumulator_in_digest());
+    let (terminal_state, replay) = optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf(
         &mut transcript,
         &params,
         structure,
@@ -975,6 +960,7 @@ fn rebuild_padded_pi_ccs_payload(
         &advice.running_state().carry.main.claims,
         &advice.running_state().carry.main.witnesses,
         handoff.public_chunk_instance_digest,
+        me_input_accumulator_handle,
         log,
         &optimized_cache,
     )

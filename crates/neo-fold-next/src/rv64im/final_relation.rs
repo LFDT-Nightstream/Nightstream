@@ -1,6 +1,6 @@
 //! Owns the RV64IM folded/final relation replay above the accepted/export seam.
 
-use neo_ajtai::Commitment;
+use neo_ajtai::{scale_commitment_add_inplace, Commitment};
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_ccs::{CcsStructure, CeClaim};
 use neo_math::{F, K};
@@ -18,17 +18,18 @@ use crate::finalize::{
 use crate::proof::{Carry, ChunkInput, ChunkProvePerf, FoldSchedule};
 use crate::rv64im::chunk_fold_step::{
     adapt_rv64im_chunk_to_fresh_ccs, prove_rv64im_chunk_fold_verifier_step_with_perf,
-    rv64im_main_claim_projection_digests, verify_rv64im_chunk_fold_verifier_step, Rv64imAccumulatorHandle,
-    Rv64imChunkFoldCarry, Rv64imChunkFoldFresh, Rv64imChunkStepPublic,
+    verify_rv64im_chunk_fold_verifier_step, Rv64imAccumulatorHandle, Rv64imChunkFoldCarry, Rv64imChunkFoldFresh,
+    Rv64imChunkStepPublic,
 };
 use crate::rv64im::chunk_relation::rv64im_chunk_replay_witness_digest;
 use crate::rv64im::ivc::derive_rv64im_ivc_step_cap;
 use crate::rv64im::kernel::{
     build_rv64im_kernel_export_build_output_from_carried_accepted_artifact_with_source_and_chunk_inputs,
     build_rv64im_kernel_export_proof_from_carried_accepted_artifact, rv64im_cached_root_main_lane_optimized_cache,
-    rv64im_root_main_lane_context_for_step_cap, verify_rv64im_kernel_export_proof_with_output,
-    verify_rv64im_kernel_export_proof_with_relation_output, Rv64imAcceptedProofArtifact, Rv64imKernelExportProof,
-    Rv64imKernelExportRelationResult, Rv64imKernelExportSource, Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
+    rv64im_root_main_lane_context_for_claim_count, rv64im_root_main_lane_context_for_step_cap,
+    verify_rv64im_kernel_export_proof_with_output, verify_rv64im_kernel_export_proof_with_relation_output,
+    Rv64imAcceptedProofArtifact, Rv64imKernelExportProof, Rv64imKernelExportRelationResult, Rv64imKernelExportSource,
+    Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 
 pub(crate) const RV64IM_SESSION_RAW_DOMAIN_TAG: u64 = 17;
@@ -130,22 +131,49 @@ pub(crate) fn rv64im_chunk_fold_transcript_snapshot_digest(snapshot: &Rv64imChun
     digest_fields_as_digest32(poseidon2_hash(&preimage))
 }
 
-pub(crate) fn rv64im_recursive_accumulator_instance_digest_from_projection_digests(
-    final_main_claim_digests: &[[F; 4]],
+pub(crate) fn rv64im_recursive_accumulator_phi_dec_parent_commitment(
+    final_main_claims: &[CeClaim<Commitment, F, K>],
+) -> Option<Commitment> {
+    let (first, rest) = final_main_claims.split_first()?;
+    let (params, _, _) = rv64im_root_main_lane_context_for_claim_count(final_main_claims.len())
+        .expect("RV64IM recursive accumulator claim count must have root parameters");
+    let mut parent = Commitment::zeros(first.c.d, first.c.kappa);
+    let mut pow = F::ONE;
+    let base = F::from_u64(params.b as u64);
+    for claim in std::iter::once(first).chain(rest.iter()) {
+        if claim.c.d != parent.d || claim.c.kappa != parent.kappa || claim.c.data.len() != parent.data.len() {
+            return None;
+        }
+        scale_commitment_add_inplace(&mut parent, pow, &claim.c);
+        pow *= base;
+    }
+    Some(parent)
+}
+
+pub(crate) fn rv64im_recursive_accumulator_instance_digest_from_phi_dec_parent(
+    final_main_claims: &[CeClaim<Commitment, F, K>],
     terminal_handle_digest: [u8; 32],
 ) -> [u8; 32] {
-    let mut preimage = Vec::with_capacity(32 + 4 + final_main_claim_digests.len() * 4);
+    let parent_commitment = rv64im_recursive_accumulator_phi_dec_parent_commitment(final_main_claims);
+    let parent_field_count = parent_commitment
+        .as_ref()
+        .map(|commitment| 1 + commitment.data.len())
+        .unwrap_or(0);
+    let mut preimage = Vec::with_capacity(32 + 4 + parent_field_count);
     extend_packed_bytes_as_fields(
         &mut preimage,
-        b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_instance/v2",
+        b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_phi_dec_parent/v1",
     );
-    preimage.push(F::from_u64(final_main_claim_digests.len() as u64));
+    preimage.push(F::from_u64(final_main_claims.len() as u64));
     preimage.extend(digest32_as_fields(terminal_handle_digest));
-    preimage.extend(
-        final_main_claim_digests
-            .iter()
-            .flat_map(|digest| digest.iter().copied()),
-    );
+    match parent_commitment {
+        Some(parent_commitment) => {
+            preimage.push(F::from_u64(parent_commitment.data.len() as u64));
+            preimage.extend(parent_commitment.data.iter().copied());
+        }
+        None if !final_main_claims.is_empty() => preimage.push(F::from_u64(u64::MAX)),
+        None => {}
+    }
     digest_fields_as_digest32(poseidon2_hash(&preimage))
 }
 
@@ -153,17 +181,11 @@ pub(crate) fn rv64im_recursive_accumulator_instance_digest_from_parts(
     final_main_claims: &[CeClaim<Commitment, F, K>],
     terminal_handle_digest: [u8; 32],
 ) -> [u8; 32] {
-    rv64im_recursive_accumulator_instance_digest_from_projection_digests(
-        &rv64im_main_claim_projection_digests(final_main_claims),
-        terminal_handle_digest,
-    )
+    rv64im_recursive_accumulator_instance_digest_from_phi_dec_parent(final_main_claims, terminal_handle_digest)
 }
 
 pub(crate) fn rv64im_chunk_fold_carry_recursive_accumulator_digest(carry: &Rv64imChunkFoldCarry) -> [u8; 32] {
-    rv64im_recursive_accumulator_instance_digest_from_projection_digests(
-        &carry.main_projection_digests,
-        carry.terminal_handle.0,
-    )
+    rv64im_recursive_accumulator_instance_digest_from_phi_dec_parent(&carry.main.claims, carry.terminal_handle.0)
 }
 
 impl Rv64imChunkFoldStepTrace {

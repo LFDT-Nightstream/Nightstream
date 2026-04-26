@@ -16,11 +16,7 @@ use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::ivc_snark::{Rv64imDeciderEngine, ShapeCS, SpartanCircuit, SpartanF, SpartanShape, SplitR1CSShape};
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
-use crate::rv64im::main_relation_circuit::claim::{
-    enforce_claim_projection_eq_native, me_digest_poseidon,
-    me_input_projection_digest_poseidon_values_from_native_claim,
-    me_input_projection_digest_poseidon_with_native_claim,
-};
+use crate::rv64im::main_relation_circuit::claim::{enforce_claim_projection_eq_native, me_digest_poseidon};
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
 use crate::rv64im::main_relation_spartan::recursive_cover::{
@@ -305,6 +301,10 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
+        me_input_accumulator_handle: Some((
+            &state_in_var.folded_accumulator_digest,
+            digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
+        )),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -595,6 +595,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
+        me_input_accumulator_handle: Some((
+            &state_in_var.folded_accumulator_digest,
+            digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
+        )),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -628,11 +632,15 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
     .map_err(|err| stage_err("pi_ccs_bind_header", err))?;
     let after_bind_header = cs.num_aux();
 
-    super::super::bind_me_inputs(
-        &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+    let (accumulator_handle, accumulator_handle_values) = ctx
+        .me_input_accumulator_handle
+        .ok_or_else(|| stage_err("pi_ccs_bind_me_inputs", "missing accumulator handle"))?;
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
+        &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
         &mut replayed_transcript,
-        carried_claims.effective_claims(),
-        None,
+        carried_claims.effective_claims().len(),
+        accumulator_handle,
+        &accumulator_handle_values,
     )
     .map_err(|err| stage_err("pi_ccs_bind_me_inputs", err))?;
     let after_bind_me_inputs = cs.num_aux();
@@ -1095,6 +1103,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
+        me_input_accumulator_handle: Some((
+            &state_in_var.folded_accumulator_digest,
+            digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
+        )),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -1128,11 +1140,15 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
     .map_err(|err| stage_err("pi_ccs_constraints_bind_header", err))?;
     let after_bind_header = cs.num_constraints();
 
-    super::super::bind_me_inputs(
-        &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+    let (accumulator_handle, accumulator_handle_values) = ctx
+        .me_input_accumulator_handle
+        .ok_or_else(|| stage_err("pi_ccs_constraints_bind_me_inputs", "missing accumulator handle"))?;
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
+        &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
         &mut replayed_transcript,
-        carried_claims.effective_claims(),
-        None,
+        carried_claims.effective_claims().len(),
+        accumulator_handle,
+        &accumulator_handle_values,
     )
     .map_err(|err| stage_err("pi_ccs_constraints_bind_me_inputs", err))?;
     let after_bind_me_inputs = cs.num_constraints();
@@ -1592,6 +1608,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
+        me_input_accumulator_handle: Some((
+            &state_in_var.folded_accumulator_digest,
+            digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
+        )),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -1624,49 +1644,25 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_bind_header", err))?;
     let after_bind_header = cs.num_aux();
 
-    let native_claims = &witness.running_state().carry.main.claims;
-    if live_state_in_claims.len() != native_claims.len() {
+    if live_state_in_claims.len() != witness.running_state().carry.main.claims.len() {
         return Err(stage_err(
             "pi_ccs_bind_breakdown_claim_arity",
             "live state-in claims and native logical claims disagree",
         ));
     }
-    let mut digests = Vec::with_capacity(native_claims.len());
-    let mut digest_values = Vec::with_capacity(native_claims.len());
-    let mut after_claim_digests = Vec::with_capacity(native_claims.len());
-    for (idx, (claim, native_claim)) in live_state_in_claims
-        .iter()
-        .zip(native_claims.iter())
-        .enumerate()
-    {
-        digests.push(
-            me_input_projection_digest_poseidon_with_native_claim(
-                &mut cs.namespace(|| format!("me_input_digest_{idx}")),
-                &claim.claim,
-                native_claim,
-                &format!("me_input_digest_{idx}"),
-            )
-            .map_err(|err| stage_err("pi_ccs_bind_breakdown_claim_digest", err))?,
-        );
-        digest_values.push(
-            me_input_projection_digest_poseidon_values_from_native_claim(native_claim)
-                .map_err(|err| stage_err("pi_ccs_bind_breakdown_claim_digest_values", err))?,
-        );
-        after_claim_digests.push(cs.num_aux());
-    }
-
-    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_input_digests(
-        &mut cs.namespace(|| "me_input_digests"),
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
+        &mut cs.namespace(|| "me_input_accumulator_handle"),
         &mut replayed_transcript,
-        &digests,
-        &digest_values,
+        live_state_in_claims.len(),
+        &state_in_var.folded_accumulator_digest,
+        &digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
     )
-    .map_err(|err| stage_err("pi_ccs_bind_breakdown_bind_digests", err))?;
+    .map_err(|err| stage_err("pi_ccs_bind_breakdown_bind_accumulator", err))?;
     let after_bind_digests = cs.num_aux();
 
     Ok(Rv64imPiCcsBindMeInputsAuxBreakdown {
         after_bind_header,
-        after_claim_digests,
+        after_claim_digests: Vec::new(),
         after_bind_digests,
     })
 }
@@ -1731,6 +1727,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_break
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
+        me_input_accumulator_handle: Some((
+            &state_in_var.folded_accumulator_digest,
+            digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
+        )),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -1761,12 +1761,15 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_break
             .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
     )
     .map_err(|err| stage_err("pi_ccs_sumcheck_bind_header", err))?;
-    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_native_claims(
-        &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+    let (accumulator_handle, accumulator_handle_values) = ctx
+        .me_input_accumulator_handle
+        .ok_or_else(|| stage_err("pi_ccs_sumcheck_bind_me_inputs", "missing accumulator handle"))?;
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
+        &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
         &mut replayed_transcript,
-        carried_claims.effective_claims(),
-        &witness.running_state().carry.main.claims,
-        None,
+        carried_claims.effective_claims().len(),
+        accumulator_handle,
+        &accumulator_handle_values,
     )
     .map_err(|err| stage_err("pi_ccs_sumcheck_bind_me_inputs", err))?;
     let public_challenges = crate::rv64im::main_relation_circuit::pi_ccs::sample_challenges_with_native(
@@ -2293,6 +2296,10 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
+        me_input_accumulator_handle: Some((
+            &state_in_var.folded_accumulator_digest,
+            digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
+        )),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -2326,11 +2333,15 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
     .map_err(|err| stage_err("pi_ccs_fingerprint_bind_header", err))?;
     let after_bind_header = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
 
-    super::super::bind_me_inputs(
-        &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+    let (accumulator_handle, accumulator_handle_values) = ctx
+        .me_input_accumulator_handle
+        .ok_or_else(|| stage_err("pi_ccs_fingerprint_bind_me_inputs", "missing accumulator handle"))?;
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
+        &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
         &mut replayed_transcript,
-        carried_claims.effective_claims(),
-        None,
+        carried_claims.effective_claims().len(),
+        accumulator_handle,
+        &accumulator_handle_values,
     )
     .map_err(|err| stage_err("pi_ccs_fingerprint_bind_me_inputs", err))?;
     let after_bind_me_inputs = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
@@ -3240,6 +3251,10 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
+        me_input_accumulator_handle: Some((
+            &state_in_var.folded_accumulator_digest,
+            digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
+        )),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload

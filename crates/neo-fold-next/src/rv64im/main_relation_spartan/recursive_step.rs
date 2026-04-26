@@ -878,7 +878,7 @@ pub(crate) fn synthesize_rv64im_main_recursion_step_body_with_outputs<CS: Constr
         &expected_vk_fs_digest,
         "vk_fs_digest_eq",
     )?;
-    let expected_bridge_handoff_digest = digest_const_inputs(
+    let expected_bridge_handoff_digest = private_digest_inputs(
         &mut cs.namespace(|| "expected_bridge_handoff_digest"),
         witness.bridge_handoff_digest(),
         "expected_bridge_handoff_digest",
@@ -1004,7 +1004,13 @@ pub(crate) fn synthesize_rv64im_main_recursion_step_body_with_outputs<CS: Constr
         &state_in_var.terminal_handle,
         "live_folded_accumulator_in_digest",
     )?;
-    let live_folded_accumulator_in_digest_values = allocated_digest_field_values(&live_folded_accumulator_in_digest)?;
+    enforce_digest_eq(
+        &mut cs.namespace(|| "state_in_folded_accumulator_digest_eq_live"),
+        &state_in_var.folded_accumulator_digest,
+        &live_folded_accumulator_in_digest,
+        "state_in_folded_accumulator_digest_eq_live",
+    )?;
+    let folded_accumulator_in_digest_values = digest32_as_spartan_fields(witness.folded_accumulator_in_digest());
     let current_x_i_digest = main_recursion_x_out_circuit(
         &mut cs.namespace(|| "current_x_i_digest"),
         "current_x_i_digest",
@@ -1017,8 +1023,8 @@ pub(crate) fn synthesize_rv64im_main_recursion_step_body_with_outputs<CS: Constr
         &digest32_as_spartan_fields(*payload.z_i()),
         &pc_input,
         &u64_halves_as_spartan_fields(payload.pc_i()),
-        &live_folded_accumulator_in_digest,
-        &live_folded_accumulator_in_digest_values,
+        &state_in_var.folded_accumulator_digest,
+        &folded_accumulator_in_digest_values,
         None,
     )?;
     enforce_digest_eq_when_non_base(

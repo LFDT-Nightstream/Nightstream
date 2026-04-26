@@ -376,12 +376,13 @@ fn rv64im_construction2_current_input_helper_does_not_keep_witness_digest_cargo(
         "recursive-step current-input helper must not keep the removed witness-digest projection path"
     );
     assert!(
-        nifs_stages.contains("bind_me_inputs(")
+        nifs_stages.contains("me_input_accumulator_handle")
+            && nifs_stages.contains("bind_me_inputs_accumulator_handle(")
             && nifs_stages.contains("bind_me_inputs_with_native_claims(")
             && !nifs_stages.contains("logical_me_input_digests")
             && !nifs_stages.contains("bind_me_input_digest_values")
             && !nifs_stages.contains("bind_me_inputs_with_projection_digests"),
-        "Pi_CCS production stages must bind live CE claim variables and expose no precomputed ME-digest path"
+        "recursive Pi_CCS production stages must bind the accumulator handle and expose no precomputed ME-digest path"
     );
     assert!(
         !pi_ccs.contains("bind_me_input_digest_values") && !pi_ccs.contains("bind_me_inputs_with_projection_digests"),
@@ -401,6 +402,8 @@ fn rv64im_construction2_current_input_helper_does_not_keep_witness_digest_cargo(
 fn rv64im_final_construction2_boundary_uses_post_terminal_committed_instance() {
     let native_ivc = fs::read_to_string(crate_path("src/rv64im/ivc.rs")).expect("read native IVC module");
     let f_prime = fs::read_to_string(crate_path("src/rv64im/f_prime.rs")).expect("read F' evaluator");
+    let construction2 =
+        fs::read_to_string(crate_path("src/rv64im/construction2.rs")).expect("read Construction-2 module");
     let recursive_step = fs::read_to_string(crate_path("src/rv64im/main_relation_spartan/recursive_step.rs"))
         .expect("read recursive-step circuit");
     let terminal_committed = fs::read_to_string(crate_path("src/rv64im/ivc_snark/terminal_f_prime_committed.rs"))
@@ -409,7 +412,8 @@ fn rv64im_final_construction2_boundary_uses_post_terminal_committed_instance() {
     assert!(
         f_prime.contains("build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i")
             && f_prime.contains("construction2_u_next.x_i() != &x_out")
-            && f_prime.contains("rv64im_main_recursion_construction2_x_only_placeholder"),
+            && construction2.contains("rv64im_main_recursion_construction2_x_only_placeholder")
+            && construction2.contains("current_input.commitment().commitment()"),
         "native F' must emit only the Construction-2 x_i image; terminal SuperNeo R2 owns the authoritative u_i.C"
     );
     assert!(
@@ -506,6 +510,72 @@ fn rv64im_recursive_step_chunk_digest_uses_authoritative_public_surfaces() {
 }
 
 #[test]
+fn rv64im_recursive_state_identity_uses_phi_commitments_not_full_ce_projection_hashes() {
+    let recursive_cover = fs::read_to_string(crate_path("src/rv64im/main_relation_spartan/recursive_cover.rs"))
+        .expect("read recursive-cover circuit");
+    let chunk_step_recursive =
+        fs::read_to_string(crate_path("src/rv64im/main_relation_spartan/chunk_step_recursive.rs"))
+            .expect("read recursive-step payload builder");
+    let final_relation = fs::read_to_string(crate_path("src/rv64im/final_relation.rs")).expect("read final relation");
+
+    let carry_digest = chunk_step_recursive
+        .split("pub(crate) fn rv64im_chunk_step_recursive_carry_state_digest")
+        .nth(1)
+        .and_then(|tail| {
+            tail.split("pub(crate) fn build_rv64im_main_recursion_step_spartan_statement")
+                .next()
+        })
+        .expect("carry-state digest function");
+    assert!(
+        recursive_cover.contains("recursive_accumulator_instance_digest_circuit_from_phi_dec_parent_vars")
+            && recursive_cover.contains("main_recursion_recursive_accumulator_phi_dec_parent")
+            && recursive_cover.contains("claim.c_data")
+            && recursive_cover.contains("params.b")
+            && !recursive_cover.contains("me_input_projection_digest_poseidon"),
+        "recursive accumulator circuit identity must hash the SuperNeo Π_DEC parent commitment handle, not full CE projection surfaces"
+    );
+    assert!(
+        carry_digest.contains("main_recursion_fixed_step_accumulator_phi_commitments")
+            && carry_digest.contains("claim.c.data")
+            && carry_digest.contains("rv64im_chunk_fold_transcript_snapshot_digest")
+            && !carry_digest.contains("me_input_projection_digest_poseidon")
+            && !carry_digest.contains("claim.X")
+            && !carry_digest.contains("claim.r")
+            && !carry_digest.contains("claim.y_ring"),
+        "recursive carry-state digest must use φ(commitments), transcript state, and terminal handle only"
+    );
+    assert!(
+        final_relation.contains("rv64im_recursive_accumulator_instance_digest_from_phi_dec_parent")
+            && final_relation.contains("rv64im_recursive_accumulator_phi_dec_parent_commitment")
+            && final_relation.contains("scale_commitment_add_inplace")
+            && final_relation.contains("rv64im_chunk_fold_carry_recursive_accumulator_digest"),
+        "native folded-accumulator identity must share the same SuperNeo Π_DEC parent commitment handle as the circuit"
+    );
+}
+
+#[test]
+fn rv64im_pi_ccs_fs_binding_documents_accumulator_handle_boundary() {
+    let pi_ccs =
+        fs::read_to_string(crate_path("src/rv64im/main_relation_circuit/pi_ccs.rs")).expect("read Pi_CCS circuit");
+    let chunk_replay = fs::read_to_string(crate_path(
+        "src/rv64im/main_relation_spartan/recursive_step/chunk_replay.rs",
+    ))
+    .expect("read recursive chunk replay");
+    let recursive_step = fs::read_to_string(crate_path("src/rv64im/main_relation_spartan/recursive_step.rs"))
+        .expect("read recursive step");
+    assert!(
+        pi_ccs.contains("FS binding invariant")
+            && pi_ccs.contains("bind_me_inputs_accumulator_handle")
+            && pi_ccs.contains("PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG")
+            && pi_ccs.contains("final R1 CE proves the omitted fields")
+            && pi_ccs.contains("cannot be chosen after challenges")
+            && chunk_replay.contains("state_in_var.folded_accumulator_digest")
+            && recursive_step.contains("state_in_folded_accumulator_digest_eq_live"),
+        "Pi_CCS challenge sampling must use the carried accumulator handle and later constrain it to live φ(commitments)"
+    );
+}
+
+#[test]
 fn rv64im_verified_step_statement_digest_has_one_native_public_formula() {
     let construction2 = fs::read_to_string(crate_path("src/rv64im/construction2.rs")).expect("read Construction-2");
     let terminal_statement = fs::read_to_string(crate_path(
@@ -569,6 +639,32 @@ fn rv64im_final_ce_bundle_uses_superneo_ce_projection_digest() {
 }
 
 #[test]
+fn rv64im_final_ce_tamper_coverage_targets_full_superneo_claim_fields() {
+    let ce_spartan =
+        fs::read_to_string(crate_path("src/rv64im/main_relation_circuit/ce_spartan.rs")).expect("read CE Spartan");
+    let compressed_verify = fs::read_to_string(crate_path("src/rv64im/ivc_snark.rs")).expect("read IVC SNARK verifier");
+    let decider_test =
+        fs::read_to_string(crate_path("tests/rv64im_spartan2_decider.rs")).expect("read Spartan decider tests");
+
+    assert!(
+        ce_spartan.contains("verify_rv64im_ce_bundle_relation")
+            && ce_spartan.contains("me_input_projection_digest_poseidon_values_from_native_claim")
+            && ce_spartan.contains("enforce_paper_ce_claim_consistency")
+            && compressed_verify.contains("verify_rv64im_final_ce_bundle")
+            && compressed_verify.contains("verify_rv64im_ce_bundle_relation"),
+        "final CE fields must be checked by the final R1 CE bundle proof, not by recursive digest authority"
+    );
+    assert!(
+        decider_test.contains("tampered final CE bundle proof bytes")
+            && decider_test.contains("tampered final carried CE commitment")
+            && decider_test.contains("tampered final carried CE X field")
+            && decider_test.contains("tampered final carried CE evaluation point")
+            && decider_test.contains("tampered final carried CE y_ring field"),
+        "the theorem-facing compressed verifier test must keep final CE proof, c, X, r, and y_ring tamper coverage"
+    );
+}
+
+#[test]
 fn rv64im_terminal_f_prime_exports_sparse_superneo_ccs_shape() {
     let terminal_owner = fs::read_to_string(crate_path("src/rv64im/ivc_snark/terminal_f_prime_committed.rs"))
         .expect("read terminal F' committed relation owner");
@@ -628,11 +724,25 @@ fn rv64im_default_u_perp_does_not_reintroduce_logical_image_width() {
 fn rv64im_recursive_shape_only_elides_common_zero_rlc_suffix() {
     let source = fs::read_to_string(crate_path("src/rv64im/main_relation_spartan/chunk_step_recursive.rs"))
         .expect("read recursive-step payload builder");
+    let nifs =
+        fs::read_to_string(crate_path("src/rv64im/main_relation_spartan/nifs_v_stages.rs")).expect("read NIFS stages");
+    let pi_rlc =
+        fs::read_to_string(crate_path("src/rv64im/main_relation_circuit/pi_rlc.rs")).expect("read Pi_RLC circuit");
     assert!(
         source.contains("common_rlc_zero_commit_suffix_len")
             && source.contains("trailing_zero_rlc_commitment_surface_len")
             && source.contains("claim_has_zero_rlc_commitment_surface")
             && !source.contains("advices.len() == 1\n        && advices[0]"),
         "RLC zero-suffix elision must use the common trailing zero CE c/y_ring surface across the shape, not a one-advice all-zero special case"
+    );
+    assert!(
+        nifs.contains("zero_output_suffix_start")
+            && nifs.contains("alloc_ce_claim_x_surface_with_shared_point")
+            && nifs.contains("ctx.rlc_zero_commit_suffix_len")
+            && pi_rlc.contains("let active_children = &children[..active_children_len]")
+            && pi_rlc.contains("ensure_zero_commit_suffix(children, zero_commit_suffix_len)")
+            && pi_rlc.contains("if child_idx >= zero_commit_suffix_start")
+            && pi_rlc.contains("continue;"),
+        "RLC zero-suffix children must allocate only X, prove native zero c/y_ring shape, and stay out of dense c/y_ring folding"
     );
 }
